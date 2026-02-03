@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-02-03T00:00:00Z",
+  "vendor": {
+    "hp_engine": {
+      "path": "vendor/hp_engine",
+      "remote": "",
+      "branch": "",
+      "commit": ""
+    },
+    "hp_motor": {
+      "path": "vendor/hp_motor",
+      "remote": "",
+      "branch": "",
+      "commit": ""
+    }
+  }
+}
