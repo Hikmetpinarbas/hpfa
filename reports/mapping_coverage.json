@@ -1,0 +1,11 @@
+{
+  "generated_at_utc": "1970-01-01T00:00:00Z",
+  "mapping": {
+    "coverage_ratio": 1.0,
+    "mapped_actions": 0,
+    "total_observed_actions": 0,
+    "unmapped_actions": 0
+  },
+  "provider": "hp_engine",
+  "top_unmapped": []
+}

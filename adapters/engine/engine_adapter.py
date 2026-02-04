@@ -6,6 +6,7 @@ from canon.epistemic_meta import CanonMeta, EpistemicStatus
 from adapters.engine.mapping_contract import load_action_map, MappingEntry
 from adapters.engine.quarantine import QuarantineItem, quarantine_unknown
 from adapters.engine.unmapped_report import maybe_write_unmapped_report
+from adapters.engine.mapping_coverage import maybe_write_mapping_coverage_report
 
 
 @dataclass
@@ -50,5 +51,6 @@ def adapt_engine_events(
         )
 
     maybe_write_unmapped_report(provider="hp_engine", quarantine_items=quarantine)
+    maybe_write_mapping_coverage_report(provider="hp_engine")
 
     return canon_events, quarantine
