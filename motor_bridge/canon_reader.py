@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 import importlib
 
+from motor_bridge.policy import evaluate_epistemic_policy, Decision
+
 
 @dataclass(frozen=True)
 class CanonReadResult:
@@ -13,13 +15,11 @@ class CanonReadResult:
     lossy_mapping: bool
     assumption_id: Optional[str]
     human_override: bool
+    decision: str
+    decision_reason: str
 
 
 def _load_contract_validator() -> Callable[[Dict[str, Any]], Any]:
-    """
-    Fail-closed: if we can't find a validator callable, we raise.
-    We intentionally avoid hard-coding the function name; we probe common names.
-    """
     mod = importlib.import_module("canon.definitions.contract_validator")
 
     candidates = [
@@ -35,8 +35,7 @@ def _load_contract_validator() -> Callable[[Dict[str, Any]], Any]:
             return fn
 
     raise RuntimeError(
-        "No callable contract validator found in canon.definitions.contract_validator. "
-        "Expected one of: " + ", ".join(candidates)
+        "No callable contract validator found in canon.definitions.contract_validator"
     )
 
 
@@ -53,10 +52,6 @@ def _extract_epistemic_meta(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def read_canon_json(path: Path) -> CanonReadResult:
-    """
-    Canon read entrypoint.
-    A5.1: contract-enforced + epistemic gate (fail-closed).
-    """
     import json
 
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -65,15 +60,35 @@ def read_canon_json(path: Path) -> CanonReadResult:
 
     # 1) Contract validation (fail-closed)
     validator = _load_contract_validator()
-    validator(data)  # must raise on invalid
+    validator(data)
 
-    # 2) Epistemic gate (fail-closed)
+    # 2) Epistemic meta extraction (fail-closed)
     meta = _extract_epistemic_meta(data)
+
+    epistemic_status = str(meta["epistemic_status"]).strip()
+    lossy_mapping = bool(meta.get("lossy_mapping", False))
+    human_override = bool(meta.get("human_override", False))
+    assumption_id = (
+        str(meta["assumption_id"]) if meta.get("assumption_id") is not None else None
+    )
+
+    # 3) Decision surface
+    pd = evaluate_epistemic_policy(
+        epistemic_status=epistemic_status,
+        lossy_mapping=lossy_mapping,
+        human_override=human_override,
+        assumption_id=assumption_id,
+    )
+
+    if pd.decision == Decision.HARD_FAIL:
+        raise ValueError(pd.reason)
 
     return CanonReadResult(
         payload=data,
-        epistemic_status=str(meta["epistemic_status"]).strip(),
-        lossy_mapping=bool(meta.get("lossy_mapping", False)),
-        assumption_id=(str(meta["assumption_id"]) if meta.get("assumption_id") is not None else None),
-        human_override=bool(meta.get("human_override", False)),
+        epistemic_status=epistemic_status,
+        lossy_mapping=lossy_mapping,
+        assumption_id=assumption_id,
+        human_override=human_override,
+        decision=pd.decision.value,
+        decision_reason=pd.reason,
     )
