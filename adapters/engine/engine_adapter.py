@@ -5,6 +5,7 @@ from uuid import UUID
 from canon.epistemic_meta import CanonMeta, EpistemicStatus
 from adapters.engine.mapping_contract import load_action_map, MappingEntry
 from adapters.engine.quarantine import QuarantineItem, quarantine_unknown
+from adapters.engine.unmapped_report import maybe_write_unmapped_report
 
 
 @dataclass
@@ -47,5 +48,7 @@ def adapt_engine_events(
                 payload=ev
             )
         )
+
+    maybe_write_unmapped_report(provider="hp_engine", quarantine_items=quarantine)
 
     return canon_events, quarantine
