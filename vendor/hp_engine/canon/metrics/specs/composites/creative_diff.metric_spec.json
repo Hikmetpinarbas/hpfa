@@ -1,0 +1,12 @@
+{
+  "metric_id": "creative_diff",
+  "version": "1.0.0",
+  "full_name": "Creative Diff (Assists minus xA)",
+  "category": "creativity",
+  "polarity": "positive",
+  "requires_metrics": ["assists", "xA"],
+  "logic_method": "assists - xA",
+  "notes": "High variance metric; interpret with rolling windows or per90 aggregation.",
+  "scopes": ["player_analysis", "postmatch_analysis"],
+  "status": "ACTIVE"
+}

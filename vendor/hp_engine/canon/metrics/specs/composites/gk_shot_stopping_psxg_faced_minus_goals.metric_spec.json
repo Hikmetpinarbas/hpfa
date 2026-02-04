@@ -1,0 +1,55 @@
+{
+  "metric_id": "gk_shot_stopping_psxg_faced_minus_goals",
+  "version": "1.0.0",
+  "full_name": "Goalkeeper Shot-Stopping (PSxG Faced - Goals Conceded)",
+  "short_name": "GK_Stop",
+  "aliases": ["psxg_faced_minus_goals", "gk_shot_stopping"],
+  "category": "goalkeeping",
+  "subcategory": "shot_stopping",
+  "complexity": "low",
+  "polarity": "higher_is_better",
+  "unit": "goals",
+  "outputs": [
+    { "name": "gk_shot_stopping", "type": "float", "range": [-10.0, 10.0] }
+  ],
+  "scopes": ["postmatch_analysis", "team_tactical_analysis", "seasonal_tournament_analysis"],
+  "data_requirements": {
+    "required_fields": ["team_id", "minute"],
+    "optional_fields": [],
+    "minimum_sample_size": 0
+  },
+  "derivation": {
+    "level": 3,
+    "requires_signals": [],
+    "requires_metrics": ["post_shot_expected_goals_faced", "goals_conceded"],
+    "fallbacks": [
+      {
+        "name": "disable_if_missing_psxg_faced",
+        "requires_fields": [],
+        "notes": "If PSxG faced not available on platform, do not compute."
+      }
+    ]
+  },
+  "enables": { "direct_derivatives": [], "composites": [] },
+  "dimensions": [
+    {
+      "dimension": "technical",
+      "inference_type": "proxy",
+      "evidence_strength": 0.7,
+      "notes": "Proxy for keeper shot-stopping relative to shot quality faced."
+    }
+  ],
+  "impl": {
+    "module": "engine.metrics_impl.composites",
+    "function": "compute_gk_shot_stopping_psxg_faced_minus_goals",
+    "runtime": "python"
+  },
+  "validation": {
+    "tests": [
+      { "name": "Sanity", "type": "sanity", "target": "isfinite(gk_shot_stopping)" }
+    ]
+  },
+  "citations": [
+    { "ref_id": "UEFA_UCL_TECH_2024", "relation": "context", "locator": "Goalkeeping / shot quality context" }
+  ]
+}

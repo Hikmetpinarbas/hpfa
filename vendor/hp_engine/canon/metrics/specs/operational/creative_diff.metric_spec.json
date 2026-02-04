@@ -1,0 +1,45 @@
+{
+  "metric_id": "creative_diff",
+  "version": "1.0.0",
+  "full_name": "Creative Difference (Assists minus xA)",
+  "short_name": "CreativeDiff",
+  "aliases": ["Creative Diff", "Assists-xA"],
+  "category": "creativity",
+  "subcategory": "overperformance",
+  "complexity": "low",
+  "polarity": "higher_is_better",
+  "unit": "goals",
+  "outputs": [
+    { "name": "creative_diff", "type": "float", "range": [-100.0, 100.0] }
+  ],
+  "scopes": ["player_analysis", "postmatch_analysis"],
+  "data_requirements": {
+    "required_fields": ["assists", "xa"],
+    "optional_fields": ["minutes"],
+    "notes": "Operational: use per90 aggregation to reduce variance."
+  },
+  "derivation": {
+    "level": 3,
+    "requires_signals": ["events.assists", "events.xa"],
+    "requires_metrics": [],
+    "fallbacks": []
+  },
+  "dimensions": [
+    {
+      "dimension": "tactical",
+      "inference_type": "derived",
+      "evidence_strength": 0.6,
+      "notes": "Sensitive to teammate finishing; interpret with caution."
+    }
+  ],
+  "impl": {
+    "module": "engine.metrics_impl.creativity",
+    "function": "compute_creative_diff",
+    "runtime": "python"
+  },
+  "validation": {
+    "tests": [
+      { "name": "Finite", "type": "sanity", "target": "creative_diff>-1e9" }
+    ]
+  }
+}

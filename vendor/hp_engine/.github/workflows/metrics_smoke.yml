@@ -1,0 +1,27 @@
+name: Metrics Smoke Test
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+      - name: Import + count (debug)
+        run: |
+          python - << 'PY'
+          from engine.metrics import list_metric_ids
+          mids = list_metric_ids(debug=True)
+          print({"total_metrics": len(mids), "sample": mids[:10]})
+          assert len(mids) >= 1
+          PY

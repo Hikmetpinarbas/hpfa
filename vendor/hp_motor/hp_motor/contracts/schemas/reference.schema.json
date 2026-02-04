@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp-engine.local/schemas/reference.schema.json",
+  "title": "HP Engine Reference Entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ref_id",
+    "title",
+    "publisher",
+    "year",
+    "type"
+  ],
+  "properties": {
+    "ref_id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9_\\-]+$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "publisher": {
+      "type": "string"
+    },
+    "year": {
+      "type": "integer",
+      "minimum": 1800,
+      "maximum": 2100
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "uefa_report",
+        "academic_paper",
+        "book",
+        "article",
+        "standard",
+        "dataset",
+        "website"
+      ]
+    },
+    "authors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "doi": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    },
+    "date_accessed": {
+      "type": "string"
+    },
+    "abstract": {
+      "type": "string"
+    },
+    "claim_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tier": {
+          "type": "string",
+          "enum": [
+            "A",
+            "B",
+            "C"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

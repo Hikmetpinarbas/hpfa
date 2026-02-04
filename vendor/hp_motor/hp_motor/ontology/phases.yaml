@@ -1,0 +1,82 @@
+version: 1
+phase_scheme: "P1-P6"
+set_piece_state_included: true
+
+phases:
+  - id: P1_BUILDUP
+    order: 1
+    name_tr: "Kontrollü Oyun Kurulumu"
+    name_en: "Build-up"
+    definition_tr: "Kaleci/savunmadan organize bloğa karşı güvenli oyun başlatma."
+    focus_tr: "Geometri ve güvenlik; üçgenler, pas açıları, baskı altında güvenli çözüm."
+    critical_metric_hints:
+      - "xG_buildup"
+      - "pass_success_under_pressure"
+
+  - id: P2_PROGRESSION
+    order: 2
+    name_tr: "Gelişim ve Yerleşme"
+    name_en: "Progression"
+    definition_tr: "Topu orta bölgeden ileri bölgeye taşırken hat kırma ve yerleşik hücuma geçiş."
+    focus_tr: "Hat kıran pas/dripling; bireysel kredi artar; yerleşim kalitesi."
+    critical_metric_hints:
+      - "deep_completions"
+      - "pack_rate"
+
+  - id: P3_FINALIZATION
+    order: 3
+    name_tr: "Sonuçlandırma"
+    name_en: "Finalization"
+    definition_tr: "Ceza sahası çevresi/içi aksiyonlarla şut üretme ve bitirme kararı."
+    focus_tr: "Şut seçimi ve keskinlik; risk teşviki; son pas ve cutback üretimi."
+    critical_metric_hints:
+      - "xg_per_shot"
+      - "shot_assist"
+      - "cutback_zone_activity"
+
+  - id: P4_NEG_TRANSITION
+    order: 4
+    name_tr: "Negatif Geçiş"
+    name_en: "Defensive Transition"
+    definition_tr: "Top kaybından sonraki ilk 5–6 saniyede reaksiyon ve karşı baskı."
+    focus_tr: "Niyet ve motor; ivmelenme, time-to-react, counterpressure."
+    critical_metric_hints:
+      - "counterpressure_count"
+      - "time_to_first_pressure"
+
+  - id: P5_ORG_DEFENSE
+    order: 5
+    name_tr: "Organize Savunma"
+    name_en: "Organized Defense"
+    definition_tr: "Yerleşik blokla (düşük/orta/yüksek) karşılama ve kaymalar."
+    focus_tr: "Disiplin; kompaktlık, blok yoğunluğu, çizgi yüksekliği."
+    critical_metric_hints:
+      - "defensive_line_height"
+      - "convex_hull_area"
+
+  - id: P6_POS_TRANSITION
+    order: 6
+    name_tr: "Pozitif Geçiş"
+    name_en: "Attacking Transition"
+    definition_tr: "Top kazanımı sonrası direkt/dikey hücum penceresi."
+    focus_tr: "Hız ve direktörlük; pas dikeyliği, sprint kapasitesi, counterattack."
+    critical_metric_hints:
+      - "direct_speed"
+      - "counterattack_xg"
+
+set_piece_states:
+  - id: SP_CORNER
+    name_tr: "Korner"
+    name_en: "Corner"
+  - id: SP_FREEKICK
+    name_tr: "Serbest Vuruş"
+    name_en: "Free Kick"
+  - id: SP_THROWIN
+    name_tr: "Taç"
+    name_en: "Throw-in"
+  - id: SP_KICKOFF
+    name_tr: "Başlama Vuruşu"
+    name_en: "Kick-off"
+  - id: SP_PENALTY
+    name_tr: "Penaltı"
+    name_en: "Penalty"

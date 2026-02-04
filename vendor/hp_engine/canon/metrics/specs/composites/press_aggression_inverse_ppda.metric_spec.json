@@ -1,0 +1,32 @@
+{
+  "metric_id": "press_aggression_inverse_ppda",
+  "version": "1.0.0",
+  "full_name": "Press Aggression (1 / PPDA)",
+  "short_name": "PressAgg",
+  "aliases": ["inverse_ppda", "press_aggression", "press_intensity_inverse"],
+  "outputs": [
+    { "name": "press_aggression", "type": "float", "range": [0.0, 10.0] }
+  ],
+  "scopes": ["postmatch_analysis", "team_tactical_analysis", "seasonal_tournament_analysis"],
+  "data_requirements": {
+    "required_fields": [],
+    "optional_fields": [],
+    "minimum_sample_size": 0
+  },
+  "derivation": {
+    "level": 3,
+    "requires_signals": [],
+    "requires_metrics": ["pressing_intensity"],
+    "fallbacks": [
+      {
+        "name": "disable_if_missing_ppda",
+        "requires_fields": [],
+        "notes": "If PPDA is missing on platform, do not compute."
+      }
+    ]
+  },
+  "impl": {
+    "module": "engine.metrics_impl.composites",
+    "function": "compute_press_aggression_inverse_ppda"
+  }
+}

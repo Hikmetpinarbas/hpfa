@@ -1,0 +1,32 @@
+version: 1
+layers:
+  - id: MICRO
+    order: 1
+    name_tr: "Fiziksel ve Mekanik"
+    name_en: "Physical & Mechanical"
+    question_tr: "Ne oldu?"
+    definition_tr: "Somut ham veriler; koşu, sprint, şut hızı, pas sayısı gibi ölçümler."
+    typical_objects:
+      - "player"
+      - "action"
+
+  - id: MEZZO
+    order: 2
+    name_tr: "Taktiksel ve İlişkisel"
+    name_en: "Tactical & Relational"
+    question_tr: "Nasıl oldu?"
+    definition_tr: "Geometri ve ilişkiler; ağlar, blok yapısı, mesafeler, bağlantı kopuklukları."
+    typical_objects:
+      - "unit"
+      - "line"
+      - "block"
+
+  - id: MACRO
+    order: 3
+    name_tr: "Bilişsel ve Nedensel"
+    name_en: "Cognitive & Causal"
+    question_tr: "Neden oldu ve niyet neydi?"
+    definition_tr: "Karar kalitesi ve niyet; görünmeyeni açıklama, karşı-olgusal okuma (v1+)."
+    typical_objects:
+      - "team_identity"
+      - "decision_chain"

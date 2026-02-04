@@ -1,0 +1,45 @@
+{
+  "metric_id": "field_tilt",
+  "version": "1.0.0",
+  "full_name": "Field Tilt",
+  "short_name": "FieldTilt",
+  "aliases": ["Field Tilt"],
+  "category": "territory",
+  "subcategory": "possession",
+  "complexity": "low",
+  "polarity": "higher_is_better",
+  "unit": "ratio_0_1",
+  "outputs": [
+    { "name": "field_tilt", "type": "float", "range": [0.0, 1.0] }
+  ],
+  "scopes": ["postmatch_analysis", "team_tactical_analysis"],
+  "data_requirements": {
+    "required_fields": ["action_type", "team_id", "pos_x"],
+    "optional_fields": [],
+    "notes": "Final-third pass share (open-play recommended)."
+  },
+  "derivation": {
+    "level": 2,
+    "requires_signals": ["events.action_type", "events.team_id", "events.pos_x"],
+    "requires_metrics": [],
+    "fallbacks": []
+  },
+  "dimensions": [
+    {
+      "dimension": "tactical",
+      "inference_type": "direct",
+      "evidence_strength": 0.85,
+      "notes": "Higher => more territorial dominance."
+    }
+  ],
+  "impl": {
+    "module": "engine.metrics_impl.territory",
+    "function": "compute_field_tilt",
+    "runtime": "python"
+  },
+  "validation": {
+    "tests": [
+      { "name": "Range", "type": "sanity", "target": "field_tilt>=0 and field_tilt<=1" }
+    ]
+  }
+}

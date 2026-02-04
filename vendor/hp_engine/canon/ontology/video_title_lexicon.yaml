@@ -1,0 +1,133 @@
+version: "1.0.0"
+language: ["tr", "en"]
+normalization:
+  lowercase: true
+  strip_punctuation: true
+  collapse_whitespace: true
+  turkish_char_fold: true   # ş->s, ğ->g, ı->i, ö->o, ü->u, ç->c
+
+tags:
+
+  # --- PHASE / SCOPE ---
+  - tag: PHASE_DEFENSIVE
+    priority: 100
+    any_of:
+      - "defensive"
+      - "defans"
+      - "savunma"
+      - "defend"
+      - "defence"
+      - "block"
+      - "low block"
+      - "mid block"
+      - "high block"
+      - "rest defense"
+      - "rest_defense"
+      - "counterpress"        # burada phase = transition/defensive policy belirler
+      - "counter-press"
+
+  - tag: PHASE_OFFENSIVE
+    priority: 100
+    any_of:
+      - "offensive"
+      - "ofans"
+      - "hucum"
+      - "attack"
+      - "attacking"
+      - "build up"
+      - "build_up"
+      - "possession"
+      - "final third"
+      - "final_third"
+      - "chance creation"
+      - "chance_creation"
+
+  - tag: PHASE_TRANSITION
+    priority: 110
+    any_of:
+      - "transition"
+      - "gecis"
+      - "geçiş"
+      - "counter"
+      - "counterattack"
+      - "fast break"
+      - "counter-attack"
+      - "counter attack"
+      - "counterpress"
+      - "gegenpress"
+      - "repress"
+      - "re-press"
+
+  - tag: PHASE_SET_PIECE
+    priority: 120
+    any_of:
+      - "set piece"
+      - "set_piece"
+      - "duran top"
+      - "duran-top"
+      - "corner"
+      - "korner"
+      - "free kick"
+      - "freekick"
+      - "serbest vurus"
+      - "throw in"
+      - "tac"
+      - "penalty"
+      - "penalti"
+
+  # --- FOCUS: DEFENSIVE MICRO ---
+  - tag: FOCUS_DUELS
+    priority: 60
+    any_of: ["duel", "duels", "ikili mucadele", "ikili mücadele", "mucadele", "mücadele"]
+
+  - tag: FOCUS_TACKLES
+    priority: 60
+    any_of: ["tackle", "tackles", "top kapma", "mudahale", "müdahale"]
+
+  - tag: FOCUS_INTERCEPTIONS
+    priority: 60
+    any_of: ["interception", "interceptions", "araya girme", "araya giris", "kesme", "kesmeler"]
+
+  - tag: FOCUS_BLOCKS
+    priority: 60
+    any_of: ["block", "blocks", "blok", "bloklar", "shot block", "sut blok", "şut blok"]
+
+  - tag: FOCUS_PRESSING
+    priority: 70
+    any_of: ["press", "pressing", "baski", "baskı", "gegenpress", "counterpress", "press trap", "press_trap"]
+
+  # --- FOCUS: OFFENSIVE MICRO ---
+  - tag: FOCUS_SHOTS
+    priority: 60
+    any_of: ["shot", "shots", "sut", "şut", "finishing", "bitiricilik"]
+
+  - tag: FOCUS_CROSSES
+    priority: 60
+    any_of: ["cross", "crosses", "orta", "ortalar"]
+
+  - tag: FOCUS_PASSES
+    priority: 50
+    any_of: ["pass", "passes", "pas", "paslar", "passing"]
+
+  - tag: FOCUS_PROGRESSIONS
+    priority: 70
+    any_of: ["progressive", "progression", "progresif", "ilerletme", "line breaking", "line_breaking", "hat kirma", "hat kırma"]
+
+  - tag: FOCUS_DRIBBLES
+    priority: 60
+    any_of: ["dribble", "dribbles", "dribbling", "adam gecme", "adam geçme", "calim", "çalim", "çalımlar"]
+
+  # --- POSITIONAL / ORIENTATION ---
+  - tag: FOCUS_BODY_ORIENTATION
+    priority: 90
+    any_of: ["body orientation", "orientation", "rotasyon", "rotation", "vucut acisi", "vücut açısı", "scanning", "scan", "tarama"]
+
+  - tag: FOCUS_POSITIONAL
+    priority: 80
+    any_of: ["positional", "pozisyon", "konum", "spacing", "aralik", "aralık", "width", "genislik", "genişlik", "depth", "derinlik"]
+
+  # --- ENTITIES (opsiyonel, sadece extraction) ---
+entities:
+  team_pattern: "(?<team>[A-Za-zÇĞİÖŞÜçğıöşü ]+)"
+  match_pattern: "(?<team1>.+?)\\s+vs\\s+(?<team2>.+?)"
+  date_pattern: "(?<date>\\d{4}-\\d{2}-\\d{2})"

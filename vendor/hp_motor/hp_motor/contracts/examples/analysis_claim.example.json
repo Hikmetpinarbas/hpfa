@@ -1,0 +1,74 @@
+{
+  "claim_id": "01J0EXAMPLEULID",
+  "scope": "postmatch_analysis",
+  "summary": "Example claim bundle.",
+  "claims": [
+    {
+      "text": "Example claim with evidence and falsification.",
+      "dimension": "tactical",
+      "status": "candidate",
+      "method": {
+        "type": "deterministic",
+        "metric_ids": [
+          "ppda"
+        ],
+        "parameters": {
+          "zone": "high_press"
+        }
+      },
+      "evidence": [
+        {
+          "evidence_id": "ev1",
+          "evidence_type": "primary_raw",
+          "source": {
+            "source_type": "csv",
+            "source_name": "match_events.csv",
+            "fingerprint": "sha256:..."
+          },
+          "fields_used": [
+            "minute",
+            "action_type",
+            "outcome"
+          ],
+          "uncertainty": {
+            "level": 0,
+            "notes": ""
+          }
+        }
+      ],
+      "confidence": {
+        "score": 0.65,
+        "coverage": 0.7,
+        "reason": "Event-only; no tracking."
+      },
+      "falsification": {
+        "tests": [
+          {
+            "name": "Sanity: PPDA positive",
+            "type": "unit_check",
+            "pass_condition": "ppda > 0",
+            "result": "ppda=9.8",
+            "passed": true
+          }
+        ]
+      },
+      "citations": [
+        {
+          "ref_id": "UEFA_UCL_TECH_2024",
+          "relation": "context",
+          "locator": "Pressing section"
+        }
+      ],
+      "notes": ""
+    }
+  ],
+  "provenance": {
+    "engine_version": "0.1.0",
+    "run_id": "run_20260120_001",
+    "environment": {
+      "python": "3.11"
+    }
+  },
+  "created_at": "2026-01-20T12:00:00Z",
+  "updated_at": "2026-01-20T12:00:00Z"
+}

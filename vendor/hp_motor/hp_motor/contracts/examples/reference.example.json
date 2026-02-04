@@ -1,0 +1,20 @@
+{
+  "ref_id": "UEFA_UCL_TECH_2024",
+  "title": "UEFA Champions League Technical Report 2023/24",
+  "publisher": "UEFA",
+  "year": 2024,
+  "type": "uefa_report",
+  "authors": [
+    "UEFA Technical Observers"
+  ],
+  "url": "https://www.uefa.com/insideuefa/document-library/technical-reports/",
+  "date_accessed": "2026-01-20",
+  "claim_tags": [
+    "pressing",
+    "chance_quality"
+  ],
+  "quality": {
+    "tier": "A",
+    "notes": ""
+  }
+}

@@ -1,0 +1,215 @@
+version: "0.1.0"
+metrics:
+
+  - canonical_name: PPDA
+    metric_family: pressing
+    definition: "Defensive actions per opponent passes in opponent build-up zones."
+    unit: "ratio"
+    polarity: -1
+    status: ACTIVE
+    version: "0.1.0"
+
+    data_requirements:
+      required_sources: [event]
+      required_fields: [match_id, team_id, opponent_team_id, event_type, timestamp, x, y]
+      optional_fields: [possession_id, subtype]
+      minimum_granularity: action
+
+    modes:
+      FULL:
+        logic_method: "calc_ppda_full_v1"
+        min_confidence: 0.65
+      DEGRADED:
+        logic_method: "calc_ppda_proxy_v1"
+        min_confidence: 0.45
+        proxy_note: "If opponent_team_id missing, infer opponent via non-team events; mark DEGRADED."
+
+    lineage:
+      source: "canonical_event_model"
+      derivation: "def_actions / opp_passes_in_build_zone"
+      assumptions: ["coordinates in 105x68", "build_zone defined in canon/rules later"]
+
+    grouping:
+      phase_tags: [F3, F6]
+      dimension_tags: [tactical]
+      hierarchy_level: L2
+      entity_level: team
+      time_grain: rolling_10
+
+    aggregation:
+      aggregation_levels: [team]
+      rollup_method: null
+      weight_field: null
+      denominator: none
+
+    temporal_dynamics:
+      phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
+      rolling_windows: [10]
+      event_windows:
+        - event: goal_conceded
+          window: [-5, +10]
+
+    falsifiability:
+      h0: "Team cannot press effectively"
+      h1: "Team presses effectively"
+      supports: [REGAIN_6S]
+      contradicts: [OPP_PASS_COMPLETION_DEF3]
+      min_sample: ">=200 opponent passes or >=3 matches"
+      confidence_floor: 0.6
+      conflict_rule: hard
+
+    context_engine:
+      context_keys: [league, season, venue, opponent_tier, score_state, tactical_context]
+      benchmark_model: contextual
+      benchmark_ref: "PPDA"
+      interpretation_notes: ["If no benchmark row, interpretation=CONTEXT_MISSING"]
+
+    viz:
+      default_chart: sparkline
+      chart_role: trend
+      unit_format: float
+      plot_data_contract: {type: timeseries, fields: [minute, value]}
+      caption_template: "PPDA {value} — press yoğunluğu {interpretation}."
+
+    evidence_policy:
+      evidence_required: recommended
+      evidence_types: [timestamp, sequence_id]
+      evidence_generation: auto
+
+
+  - canonical_name: FIELD_TILT
+    metric_family: territory
+    definition: "Share of final-third passes for team over total final-third passes."
+    unit: "percent"
+    polarity: +1
+    status: ACTIVE
+    version: "0.1.0"
+
+    data_requirements:
+      required_sources: [event]
+      required_fields: [match_id, team_id, event_type, timestamp, x, y]
+      optional_fields: [end_x, end_y]
+      minimum_granularity: action
+
+    modes:
+      FULL: {logic_method: "calc_field_tilt_full_v1", min_confidence: 0.7}
+      DEGRADED: {logic_method: "calc_field_tilt_proxy_v1", min_confidence: 0.5, proxy_note: "If end_x/end_y missing, use start x only."}
+
+    lineage:
+      source: "canonical_event_model"
+      derivation: "team_final3rd_passes / (team+opp_final3rd_passes)"
+      assumptions: ["final third defined by x >= 70m"]
+
+    grouping:
+      phase_tags: [F1, F2]
+      dimension_tags: [tactical, context]
+      hierarchy_level: L3
+      entity_level: team
+      time_grain: match
+
+    aggregation:
+      aggregation_levels: [team]
+      rollup_method: null
+      weight_field: null
+      denominator: none
+
+    temporal_dynamics:
+      phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
+      rolling_windows: [10]
+      event_windows: []
+
+    falsifiability:
+      h0: "Territorial dominance not present"
+      h1: "Territorial dominance present"
+      supports: [FINAL_THIRD_ENTRIES]
+      contradicts: [HIGH_COUNTER_ATTACK_XT]
+      min_sample: ">=1 match"
+      confidence_floor: 0.5
+      conflict_rule: soft
+
+    context_engine:
+      context_keys: [league, season, venue, opponent_tier, score_state]
+      benchmark_model: contextual
+      benchmark_ref: "FIELD_TILT"
+      interpretation_notes: ["If possession skewed, add possession-adjusted variant later"]
+
+    viz:
+      default_chart: bar
+      chart_role: compare
+      unit_format: percent
+      plot_data_contract: {type: scalar, fields: [team_value, opp_value]}
+      caption_template: "Field Tilt %{value} — alan hakimiyeti."
+
+    evidence_policy:
+      evidence_required: none
+      evidence_types: []
+      evidence_generation: blocked
+
+
+  - canonical_name: PROGRESSIVE_PASSES
+    metric_family: progression
+    definition: "Count of progressive passes."
+    unit: "count"
+    polarity: +1
+    status: ACTIVE
+    version: "0.1.0"
+
+    data_requirements:
+      required_sources: [event]
+      required_fields: [match_id, team_id, player_id, event_type, timestamp, x, y, end_x, end_y]
+      optional_fields: [subtype, receiver_id]
+      minimum_granularity: action
+
+    modes:
+      FULL: {logic_method: "calc_progressive_passes_full_v1", min_confidence: 0.75}
+      DEGRADED: {logic_method: "calc_progressive_passes_proxy_v1", min_confidence: 0.55, proxy_note: "If end coords missing, proxy via final-third entry flags (if available)."}
+
+    lineage:
+      source: "canonical_event_model"
+      derivation: "count(pass where delta_to_goal_distance >= threshold)"
+      assumptions: ["threshold rules defined later in canon/rules"]
+
+    grouping:
+      phase_tags: [F1, F2]
+      dimension_tags: [technical, tactical]
+      hierarchy_level: L2
+      entity_level: player
+      time_grain: match
+
+    aggregation:
+      aggregation_levels: [player, position, team]
+      rollup_method: sum
+      weight_field: null
+      denominator: none
+
+    temporal_dynamics:
+      phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
+      rolling_windows: [10]
+      event_windows: []
+
+    falsifiability:
+      h0: "Progression mechanism not present"
+      h1: "Progression mechanism present"
+      supports: [FINAL_THIRD_ENTRIES]
+      contradicts: [LOW_XT_FROM_PASSES]
+      min_sample: ">=1 match"
+      confidence_floor: 0.5
+      conflict_rule: soft
+
+    context_engine:
+      context_keys: [league, season, venue, opponent_tier]
+      benchmark_model: contextual
+      benchmark_ref: "PROGRESSIVE_PASSES"
+      interpretation_notes: ["Use per90 for comparisons later."]
+
+    viz:
+      default_chart: table
+      chart_role: compare
+      unit_format: int
+      plot_data_contract: {type: scalar, fields: [player_id, value]}
+      caption_template: "İlerici pas: {player} {value}"
+
+    evidence_policy:
+      evidence_required: recommended
+      evidence_types: [timestamp]
+      evidence_generation: auto

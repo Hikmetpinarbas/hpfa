@@ -1,0 +1,108 @@
+version: "1.0.0"
+policy_id: "HP_VIDEO_SCOPE_POLICY_V1"
+
+# Hard rules apply before anything else
+hard_rules:
+  - name: "no_absence_claims_from_video"
+    if_evidence_includes: ["video_support", "annotation"]
+    deny_claim_types: ["absence"]
+    action: "auto_reject"
+    reason: "Absence claims cannot be supported by video clips due to selection bias."
+
+  - name: "video_cannot_confirm_alone"
+    if_evidence_includes: ["video_support"]
+    deny_status: ["confirmed"]
+    action: "downgrade_to_candidate"
+    reason: "Video can support but cannot confirm without primary evidence."
+
+# Phase routing (derived from tags)
+phase_rules:
+  - when_tags_any: ["PHASE_SET_PIECE"]
+    declared_scope: "SET_PIECE"
+    allowed_scopes: ["video_analysis", "positional_analysis"]
+    allowed_dimensions:
+      - set_piece
+      - tactical
+      - positional
+      - technical
+      - communication
+    denied_dimensions:
+      - finishing_quality
+      - attacking_structure
+      - defensive_structure
+    allowed_pattern_families: ["corner", "free_kick", "throw_in", "penalty"]
+    confidence_floor: 0.70
+
+  - when_tags_any: ["PHASE_TRANSITION"]
+    declared_scope: "TRANSITION"
+    allowed_scopes: ["video_analysis", "team_tactical_analysis", "positional_analysis"]
+    allowed_dimensions:
+      - transition
+      - tactical
+      - physical
+      - effort
+      - struggle
+      - positional
+    denied_dimensions:
+      - somatotype
+      - neurological    # sadece measurement varsa açılır (aşağıda)
+    confidence_floor: 0.65
+
+  - when_tags_any: ["PHASE_DEFENSIVE"]
+    declared_scope: "DEFENSIVE"
+    allowed_scopes: ["video_analysis", "team_tactical_analysis", "positional_analysis"]
+    allowed_dimensions:
+      - defensive_structure
+      - tactical
+      - physical
+      - effort
+      - struggle
+      - positional
+    denied_dimensions:
+      - chance_creation
+      - attacking_structure
+      - finishing_quality
+      - shot_quality
+    confidence_floor: 0.65
+
+  - when_tags_any: ["PHASE_OFFENSIVE"]
+    declared_scope: "OFFENSIVE"
+    allowed_scopes: ["video_analysis", "team_tactical_analysis", "positional_analysis"]
+    allowed_dimensions:
+      - attacking_structure
+      - tactical
+      - technical
+      - intent
+      - talent     # proxy only
+      - shot_quality
+    denied_dimensions:
+      - defensive_structure
+      - pressing_quality
+    confidence_floor: 0.65
+
+# Focus refinements (narrower allow-lists)
+focus_overrides:
+  - when_tags_all: ["PHASE_DEFENSIVE", "FOCUS_DUELS"]
+    narrow_allowed_dimensions: ["physical", "effort", "struggle", "tactical"]
+    add_notes: "Defensive duels focus; do not generalize to full defensive structure without event data."
+
+  - when_tags_all: ["PHASE_OFFENSIVE", "FOCUS_SHOTS"]
+    narrow_allowed_dimensions: ["shot_quality", "technical", "intent"]
+    add_notes: "Shots-only clip; do not infer chance creation volume or team structure."
+
+  - when_tags_any: ["FOCUS_BODY_ORIENTATION"]
+    declared_scope_override: "BODY_ORIENTATION"
+    allowed_scopes_override: ["body_orientation_analysis", "video_analysis"]
+    allowed_dimensions_override: ["positional", "technical"]
+    denied_dimensions_append: ["psychological", "somatotype"]
+    confidence_floor_override: 0.75
+
+# Dimension unlocks when measurement exists (no guessing)
+dimension_unlocks:
+  - dimension: "neurological"
+    unlock_requires_signals: ["tracking.decision_time", "tracking.head_turns"]
+    unlock_reason: "Neurological constructs require measurable proxies; otherwise disabled."
+
+  - dimension: "somatotype"
+    unlock_requires_signals: ["anthropometrics.heath_carter"]
+    unlock_reason: "Somatotype requires direct anthropometric input; otherwise disabled."

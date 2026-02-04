@@ -1,0 +1,18 @@
+schema_version: "2.0"
+title: "HP Engine Metric Registry Schema v2 (minimal working subset)"
+notes:
+  - "Contract-first. No silent drop. No unfalsifiable claims."
+required_blocks:
+  - canonical_name
+  - metric_family
+  - description
+  - unit
+  - polarity
+  - logic_method
+  - data_requirements
+  - mode
+  - aggregation
+  - temporal
+  - falsifiability
+  - benchmarks
+  - computation

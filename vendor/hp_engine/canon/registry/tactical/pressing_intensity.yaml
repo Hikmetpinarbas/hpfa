@@ -1,0 +1,45 @@
+metric_name: Pressing_Intensity
+category: tactical
+
+core:
+  description: "High-zone defensive actions per opponent pass (proxy intensity)"
+  unit: ratio
+  range: [0, 1]
+
+relationships:
+  influences:
+    - metric: PPDA
+      type: causal
+      sign: negative
+      lag_window: "0-5min"
+
+falsifiability:
+  H0: "Team does not press with intensity"
+  supports:
+    - metric: High_PPDA
+      condition: high
+  contradicts:
+    - metric: Low_PPDA
+      condition: low
+  min_sample_size: 30
+  confidence_floor: 0.6
+
+benchmarks:
+  - context:
+      league: generic
+    thresholds:
+      elite: ">0.22"
+      good: "0.15-0.22"
+      average: "0.08-0.15"
+      poor: "<0.08"
+
+temporal:
+  time_grain: match
+
+aggregation:
+  entity_level: team
+  aggregation_levels: [team]
+
+computation:
+  dependency_metrics: []
+  min_data_quality: 0.8

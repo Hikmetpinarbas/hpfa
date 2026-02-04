@@ -1,0 +1,22 @@
+{
+  "hp_motor": {
+    "version": "0.1.0-litecore",
+    "ontology_version": "0.1.0",
+    "progressive_pass_dx_threshold": 15.0
+  },
+  "project": "hp_platform",
+  "ingest": {
+    "sources": [
+      {
+        "grain_hint": "event",
+        "type": "csv",
+        "path": "data/staged/events_fixed/Fatih Karagümrük 1-3 Galatasaray 24.01.2026, Maçın Tamamı.csv"
+      },
+      {
+        "grain_hint": "event",
+        "type": "csv",
+        "path": "data/staged/events_fixed/Kayserispor 0-3 İstanbul Başakşehir FK 24.01.2026, Maçın Tamamı.csv"
+      }
+    ]
+  }
+}

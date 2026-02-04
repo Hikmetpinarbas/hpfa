@@ -1,0 +1,75 @@
+{
+  "match_id": [
+    "match_id",
+    "game_id",
+    "fixture_id"
+  ],
+  "event_id": [
+    "event_id",
+    "id"
+  ],
+  "team": [
+    "team",
+    "team_name",
+    "possession_team",
+    "teamId"
+  ],
+  "period": [
+    "period",
+    "half",
+    "match_period"
+  ],
+  "t_game_sec": [
+    "t_game_sec",
+    "sec",
+    "seconds",
+    "timestamp_sec"
+  ],
+  "minute": [
+    "minute",
+    "min"
+  ],
+  "second": [
+    "second",
+    "sec_in_min"
+  ],
+  "event_type": [
+    "event_type",
+    "type",
+    "event",
+    "action"
+  ],
+  "outcome": [
+    "outcome",
+    "result",
+    "success"
+  ],
+  "x": [
+    "x",
+    "start_x",
+    "location_x"
+  ],
+  "y": [
+    "y",
+    "start_y",
+    "location_y"
+  ],
+  "end_x": [
+    "end_x",
+    "to_x",
+    "end_location_x"
+  ],
+  "end_y": [
+    "end_y",
+    "to_y",
+    "end_location_y"
+  ],
+  "zone": [
+    "zone",
+    "start_zone"
+  ],
+  "end_zone": [
+    "end_zone",
+    "to_zone"
+  ]
+}

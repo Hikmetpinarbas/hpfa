@@ -1,0 +1,4925 @@
+{
+  "version": "0.2.0",
+  "metrics": [
+    {
+      "id": "M_PASS_COUNT",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol",
+        "ilerletme"
+      ],
+      "definition": "Takımın yaptığı toplam pas sayısı.",
+      "raw_formula": "COUNT(events WHERE event_type == 'pass')",
+      "required_columns": [
+        "event_type"
+      ],
+      "status_policy": {
+        "OK": "event_type mevcut",
+        "DEGRADED": "event_type proxy ile türetilmiş",
+        "UNKNOWN": "event_type yok"
+      },
+      "definition_tr": "Toplam pas sayısı. (Seçilen segment/sekans/faz içinde atılan pasların adedi.)",
+      "definition_source": "manual_hp",
+      "definition_confidence": 0.95
+    },
+    {
+      "id": "M_PROG_PASS_COUNT",
+      "layer": "micro",
+      "mechanisms": [
+        "ilerletme",
+        "risk"
+      ],
+      "definition": "İleri yönde belirli eşik üzerinde mesafe kazandıran pas sayısı.",
+      "raw_formula": "COUNT(pass WHERE end_x - start_x >= threshold)",
+      "required_columns": [
+        "event_type",
+        "start_x",
+        "end_x"
+      ],
+      "status_policy": {
+        "OK": "start_x ve end_x mevcut",
+        "DEGRADED": "sadece yön bilgisi var",
+        "UNKNOWN": "konumsal veri yok"
+      },
+      "definition_tr": "Progressive (ilerletici) pas sayısı. Topu rakip kaleye doğru anlamlı ölçüde taşıyan pasların adedi. Eşik/hesap yöntemi proje standardına göre tanımlıdır.",
+      "definition_source": "manual_hp",
+      "definition_confidence": 0.95
+    },
+    {
+      "id": "M_SHOT_COUNT",
+      "layer": "micro",
+      "mechanisms": [
+        "deger",
+        "risk"
+      ],
+      "definition": "Takımın yaptığı toplam şut sayısı.",
+      "raw_formula": "COUNT(events WHERE event_type CONTAINS 'shot')",
+      "required_columns": [
+        "event_type"
+      ],
+      "status_policy": {
+        "OK": "event_type mevcut",
+        "UNKNOWN": "event_type yok"
+      },
+      "definition_tr": "Toplam şut sayısı. (Seçilen segment/sekans/faz içinde çekilen şutların adedi.)",
+      "definition_source": "manual_hp",
+      "definition_confidence": 0.95
+    },
+    {
+      "id": "M_TURNOVER_COUNT",
+      "layer": "micro",
+      "mechanisms": [
+        "risk"
+      ],
+      "definition": "Topun rakibe kaybedildiği olayların sayısı.",
+      "raw_formula": "COUNT(events WHERE outcome in ['fail','lost'] OR event_type in ['turnover','dispossessed'])",
+      "required_columns": [
+        "event_type",
+        "outcome"
+      ],
+      "status_policy": {
+        "OK": "outcome mevcut",
+        "DEGRADED": "sadece event_type var",
+        "UNKNOWN": "her ikisi de yok"
+      },
+      "definition_tr": "Top kaybı (turnover) sayısı. Topa sahipken topun rakibe geçtiği kayıpların adedi (pas hatası, dripling kaybı, kontrol hatası vb. dahil).",
+      "definition_source": "manual_hp",
+      "definition_confidence": 0.95
+    },
+    {
+      "id": "M_SEQUENCE_LENGTH",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "definition": "Bir sekans içindeki ortalama event sayısı.",
+      "raw_formula": "MEAN(sequence.end_idx - sequence.start_idx + 1)",
+      "required_columns": [
+        "sequence_id"
+      ],
+      "status_policy": {
+        "OK": "sequence segmentation mevcut",
+        "UNKNOWN": "sequence yok"
+      },
+      "definition_tr": "Sekans uzunluğu. Bir sekansın içindeki olay/aksiyon sayısı (event-count). Sekans tanımı segmentation modülünün kural setine göre yapılır.",
+      "definition_source": "manual_hp",
+      "definition_confidence": 0.95
+    },
+    {
+      "id": "SB_ACTIONS_IN_OPPONENT_BOX_SUCCESSFUL",
+      "vendor": "sportsbase",
+      "vendor_label": "Actions in opponent box successful",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Actions in opponent box successful, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_ACTIONS_IN_OPPONENT_BOX_SUCCESSFUL_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Actions in opponent box successful, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Actions in opponent box successful, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_ACTIONS_SUCCESSFUL",
+      "vendor": "sportsbase",
+      "vendor_label": "Actions successful",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Actions successful, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_ACTIONS_SUCCESSFUL_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Actions successful, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Actions successful, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_ATTACKS_THROUGH_THE_CENTER_WITH_SHOTS",
+      "vendor": "sportsbase",
+      "vendor_label": "Attacks through the center with shots, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Attacks through the center with shots, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BALL_RECOVERIES",
+      "vendor": "sportsbase",
+      "vendor_label": "Ball recoveries",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Ball recoveries metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BALL_RECOVERIES_AFTER_LOSSES_WITHIN_10_SECONDS",
+      "vendor": "sportsbase",
+      "vendor_label": "Ball recoveries after losses within 10 seconds",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Ball recoveries after losses within 10 seconds metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "5_Savunma_Gecisi"
+      ],
+      "phase_names": [
+        "Savunma Geçişi (Top kaybı sonrası)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BALL_RECOVERIES_AFTER_LOSSES_WITHIN_10_SECONDS_IN_THE_OPPONENT_S",
+      "vendor": "sportsbase",
+      "vendor_label": "Ball recoveries after losses within 10 seconds in the opponent's half of the field",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Ball recoveries after losses within 10 seconds in the opponent's half of the field metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "5_Savunma_Gecisi"
+      ],
+      "phase_names": [
+        "Savunma Geçişi (Top kaybı sonrası)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BALL_RECOVERIES_AFTER_LOSSES_WITHIN_5_SECONDS",
+      "vendor": "sportsbase",
+      "vendor_label": "Ball recoveries after losses within 5 seconds",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Top kaybından sonra 5 saniye içinde topu geri kazanma (counterpressing recovery mantığı).",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "5_Savunma_Gecisi"
+      ],
+      "phase_names": [
+        "Savunma Geçişi (Top kaybı sonrası)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://dataglossary.wyscout.com/counterpressing_recovery/",
+        " https://dataglossary.wyscout.com/recovery/"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_BALL_RECOVERIES_AFTER_LOSSES_WITHIN_5_SECONDS_IN_THE_OPPONENT_S_",
+      "vendor": "sportsbase",
+      "vendor_label": "Ball recoveries after losses within 5 seconds in the opponent's half of the field",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Ball recoveries after losses within 5 seconds in the opponent's half of the field metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "5_Savunma_Gecisi"
+      ],
+      "phase_names": [
+        "Savunma Geçişi (Top kaybı sonrası)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BASARILI_DRIPLINGLER",
+      "vendor": "sportsbase",
+      "vendor_label": "Başarılı driplingler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Başarılı driplingler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BASARILI_DRIPLINGLERI",
+      "vendor": "sportsbase",
+      "vendor_label": "Başarılı driplingleri, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Başarılı driplingleri, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BASARILI_HAVA_TOPU_MUCADELELERI",
+      "vendor": "sportsbase",
+      "vendor_label": "Başarılı hava topu mücadeleleri",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Başarılı hava topu mücadeleleri metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BASARILI_HAVA_TOPU_MUCADELESI",
+      "vendor": "sportsbase",
+      "vendor_label": "Başarılı hava topu mücadelesi, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Başarılı hava topu mücadelesi, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BASARILI_IKILI_MUCADELE",
+      "vendor": "sportsbase",
+      "vendor_label": "Başarılı ikili mücadele %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Başarılı ikili mücadele % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BASARILI_TAKIM_PRESI",
+      "vendor": "sportsbase",
+      "vendor_label": "Başarılı takım presi",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Başarılı takım presi metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BASARILI_TOP_KAPMA",
+      "vendor": "sportsbase",
+      "vendor_label": "Başarılı Top Kapma",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Başarılı Top Kapma metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BASARILI_TOP_KAPMA_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Başarılı Top Kapma, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Başarılı Top Kapma metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BIREYSEL_TOP_KAYIPLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Bireysel top kayıpları",
+      "layer": "micro",
+      "mechanisms": [
+        "risk"
+      ],
+      "role_guess": "risk",
+      "definition_tr": "Bireysel top kayıpları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "5_Savunma_Gecisi"
+      ],
+      "phase_names": [
+        "Savunma Geçişi (Top kaybı sonrası)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_BUILD_UP",
+      "vendor": "sportsbase",
+      "vendor_label": "Build up",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Build up metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_CEZA_SAHASINA_I_SABETLI",
+      "vendor": "sportsbase",
+      "vendor_label": "Ceza sahasına / İsabetli",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Ceza sahasına / İsabetli metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_CEZA_SAHASINA_ORTA",
+      "vendor": "sportsbase",
+      "vendor_label": "Ceza sahasına orta",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Ceza sahasına orta metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_CHALLENGES_UNSUCCESSFUL",
+      "vendor": "sportsbase",
+      "vendor_label": "Challenges unsuccessful",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Challenges unsuccessful metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_CHALLENGES_WON",
+      "vendor": "sportsbase",
+      "vendor_label": "Challenges won",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Challenges won metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_CHANCES_SUCCESSFUL",
+      "vendor": "sportsbase",
+      "vendor_label": "Chances successful, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Yaratılan gol pozisyonlarının gole dönüşme oranı (tanım sağlayıcıya göre “big chance”/“chance” ayrımı olabilir).",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://support.hudl.com/s/article/event-data-glossary-team-metrics"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_CORNER_ATTACKS_WITH_SHOTS",
+      "vendor": "sportsbase",
+      "vendor_label": "Corner attacks with shots, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Corner attacks with shots, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_COUNTER_ATTACKS_WITH_SHOTS",
+      "vendor": "sportsbase",
+      "vendor_label": "Counter-attacks with shots, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Counter-attacks with shots, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "2_Hucum_Gecisi"
+      ],
+      "phase_names": [
+        "Hücum Geçişi (Kontra / hızlı çıkış)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_CROSSES_ACCURATE",
+      "vendor": "sportsbase",
+      "vendor_label": "Crosses accurate",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Crosses accurate metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_DIREKTEN_DONEN_SUTLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Direkten dönen şutlar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Direkten dönen şutlar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_DRIBBLES_UNSUCCESSFUL",
+      "vendor": "sportsbase",
+      "vendor_label": "Dribbles unsuccessful",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Dribbles unsuccessful metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_DRIBBLING_IN_THE_FINAL_THIRD",
+      "vendor": "sportsbase",
+      "vendor_label": "Dribbling in the final third",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Dribbling in the final third metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_DRIBBLING_IN_THE_FINAL_THIRD_SUCCESSFUL",
+      "vendor": "sportsbase",
+      "vendor_label": "Dribbling in the final third successful",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Dribbling in the final third successful metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_DRIBBLING_IN_THE_FINAL_THIRD_SUCCESSFUL_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Dribbling in the final third successful, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Dribbling in the final third successful metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_DRIPLINGLER",
+      "vendor": "sportsbase",
+      "vendor_label": "Driplingler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Driplingler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_DURAN_TOP_HUCUMLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Duran Top Hücumları",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Duran Top Hücumları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_ENGELLENEN_SUTLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Engellenen Şutlar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Engellenen Şutlar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_FAUL",
+      "vendor": "sportsbase",
+      "vendor_label": "Faul",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Faul metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_FINAL_THIRD_ENTRIES",
+      "vendor": "sportsbase",
+      "vendor_label": "Final third entries",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Hücumun rakip kaleye yaklaşırken son üçlü bölgeye hangi koridorlardan giriş yaptığını gösteren giriş sayısı (pas/taşıma dahil olabilir, sağlayıcıya göre değişir).",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://www.fifatrainingcentre.com/en/game/tournaments/fifa-womens-world-cup/2023/efi-metrics/final-third-entries.php"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_FINAL_THIRD_ENTRIES_THROUGH_CARRY",
+      "vendor": "sportsbase",
+      "vendor_label": "Final third entries through carry",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Final third entries through carry metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_FINAL_THIRD_ENTRIES_THROUGH_CARRY_OF_TOTAL",
+      "vendor": "sportsbase",
+      "vendor_label": "Final third entries through carry, % of total",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Final third entries through carry, % of total metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_FINAL_THIRD_ENTRIES_THROUGH_PASS",
+      "vendor": "sportsbase",
+      "vendor_label": "Final third entries through pass",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Final third entries through pass metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_FINAL_THIRD_ENTRIES_THROUGH_PASS_OF_TOTAL",
+      "vendor": "sportsbase",
+      "vendor_label": "Final third entries through pass, % of total",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Final third entries through pass, % of total metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_FREE_KICK_ATTACKS_WITH_SHOTS",
+      "vendor": "sportsbase",
+      "vendor_label": "Free-kick attacks with shots, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Free-kick attacks with shots, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_FREE_KICK_OPPONENT_S_GOALS",
+      "vendor": "sportsbase",
+      "vendor_label": "Free-kick opponent's goals, %",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "Free-kick opponent's goals, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GERI_KAZANILAN_TOPLARDA_KALEYE_ORTALAMA_MESAFE",
+      "vendor": "sportsbase",
+      "vendor_label": "Geri kazanılan toplarda kaleye ortalama mesafe",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Geri kazanılan toplarda kaleye ortalama mesafe metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Goal kicks metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS_ACCURATE",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks accurate",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Goal kicks accurate, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS_ACCURATE_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks accurate, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Goal kicks accurate, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS_LONG_40_M",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks long (40+ m.)",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Goal kicks long (40+ m.) metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS_LONG_40_M_ACCURATE",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks long (40+ m.) accurate",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Goal kicks long (40+ m.) accurate, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS_LONG_40_M_ACCURATE_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks long (40+ m.) accurate, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Goal kicks long (40+ m.) accurate, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS_MEDIUM_15_40_M",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks medium (15-40 m.)",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Goal kicks medium (15-40 m.) metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS_MEDIUM_15_40_M_ACCURATE",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks medium (15-40 m.) accurate",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Goal kicks medium (15-40 m.) accurate, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS_MEDIUM_15_40_M_ACCURATE_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks medium (15-40 m.) accurate, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Goal kicks medium (15-40 m.) accurate, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS_SHORT_15_M",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks short (<15 m.)",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Goal kicks short (<15 m.) metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS_SHORT_15_M_ACCURATE",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks short (<15 m.) accurate",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Goal kicks short (<15 m.) accurate, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOAL_KICKS_SHORT_15_M_ACCURATE_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Goal kicks short (<15 m.) accurate, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Goal kicks short (<15 m.) accurate, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOL",
+      "vendor": "sportsbase",
+      "vendor_label": "Gol",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "Gol metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOL_BASINA_XG",
+      "vendor": "sportsbase",
+      "vendor_label": "Gol başına xG",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "Gol başına xG metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOL_POZISYONLARI_BASARILI",
+      "vendor": "sportsbase",
+      "vendor_label": "Gol pozisyonları, başarılı",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "Gol pozisyonları, başarılı metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_GOLLER_SERBEST_VURUS_HUCUMU",
+      "vendor": "sportsbase",
+      "vendor_label": "Goller - Serbest vuruş hücumu",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "Goller - Serbest vuruş hücumu metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_HAVADA_HAMLELER",
+      "vendor": "sportsbase",
+      "vendor_label": "Havada Hamleler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Havada Hamleler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_HIGH_PRESSING",
+      "vendor": "sportsbase",
+      "vendor_label": "High pressing",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "High pressing metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_HIGH_PRESSING_SUCCESSFUL",
+      "vendor": "sportsbase",
+      "vendor_label": "High pressing successful",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "High pressing successful, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_HIGH_PRESSING_SUCCESSFUL_2",
+      "vendor": "sportsbase",
+      "vendor_label": "High pressing successful, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "High pressing successful, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_HUCUMDA_BASARILI_IKILI_MUCADELE",
+      "vendor": "sportsbase",
+      "vendor_label": "Hücumda başarılı ikili mücadele, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Hücumda başarılı ikili mücadele, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_HUCUMDA_IKILI_MUCADELE_BASARILI",
+      "vendor": "sportsbase",
+      "vendor_label": "Hücumda ikili mücadele / Başarılı",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Hücumda ikili mücadele / Başarılı metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_HUCUMDA_IKILI_MUCADELELER",
+      "vendor": "sportsbase",
+      "vendor_label": "Hücumda ikili mücadeleler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Hücumda ikili mücadeleler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_INDEX",
+      "vendor": "sportsbase",
+      "vendor_label": "Index",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Index metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_I_KILI_MUCADELELER",
+      "vendor": "sportsbase",
+      "vendor_label": "İkili mücadeleler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "İkili mücadeleler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_I_LERIYE_PAS",
+      "vendor": "sportsbase",
+      "vendor_label": "İleriye pas",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "İleriye pas metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_I_SABETLI_ORTALAR",
+      "vendor": "sportsbase",
+      "vendor_label": "İsabetli ortalar, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "İsabetli ortalar, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_I_SABETLI_SUT",
+      "vendor": "sportsbase",
+      "vendor_label": "İsabetli Şut",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "İsabetli Şut metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_I_SABETSIZ_SUTLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "İsabetsiz Şutlar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "İsabetsiz Şutlar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_KEY_PASSES_ACCURATE",
+      "vendor": "sportsbase",
+      "vendor_label": "Key passes accurate",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Key pass’in (kilit pas) isabetli olanları: sonraki dokunuş takım arkadaşı tarafından gerçekleşen kilit pas.",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://dataglossary.wyscout.com/key_pass/"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_KEY_PASSES_ACCURATE_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Key passes accurate, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Key pass’in (kilit pas) isabetli olanları: sonraki dokunuş takım arkadaşı tarafından gerçekleşen kilit pas.",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_source": "hp_motor/library/registry/inputs/sportsbase_metrics_hp_v1.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_KILIT_PAS",
+      "vendor": "sportsbase",
+      "vendor_label": "Kilit Pas",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Şuta/çok net fırsata giden son pas (key pass). Sağlayıcı tanımına göre “şuta direkt giden pas” veya “bariz gol fırsatı yaratan pas”.",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://dataglossary.wyscout.com/key_pass/",
+        " https://stats-portal.statsbomb.com/glossary"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_KONTRA_ATAKLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Kontra Ataklar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Top kazanımından sonra hızlı hücum girişimleri (tanım sağlayıcıya göre süre/şart içerir).",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "2_Hucum_Gecisi"
+      ],
+      "phase_names": [
+        "Hücum Geçişi (Kontra / hızlı çıkış)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://support.hudl.com/s/article/live-data-glossary"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_KORNER_HUCUMLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Korner Hücumları",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Korner Hücumları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_KORNERLER",
+      "vendor": "sportsbase",
+      "vendor_label": "Kornerler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Kornerler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_KOTU_TOP_KONTROLU",
+      "vendor": "sportsbase",
+      "vendor_label": "Kötü top kontrolü",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Kötü top kontrolü metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_KIRMIZI_KARTLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Kırmızı Kartlar",
+      "layer": "micro",
+      "mechanisms": [
+        "risk"
+      ],
+      "role_guess": "risk",
+      "definition_tr": "Kırmızı Kartlar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_LEFT_FLANK_ATTACKS_WITH_SHOTS",
+      "vendor": "sportsbase",
+      "vendor_label": "Left flank attacks with shots, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Left flank attacks with shots, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_LOST_BALLS_AFTER_PASSES",
+      "vendor": "sportsbase",
+      "vendor_label": "Lost balls after passes",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Lost balls after passes metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_LOW_PRESSING",
+      "vendor": "sportsbase",
+      "vendor_label": "Low pressing",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Low pressing metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_LOW_PRESSING_SUCCESSFUL",
+      "vendor": "sportsbase",
+      "vendor_label": "Low pressing successful",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Low pressing successful, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_LOW_PRESSING_SUCCESSFUL_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Low pressing successful, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Low pressing successful, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_MERKEZDEN_HUCUMLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Merkezden hücumlar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Merkezden hücumlar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_NO_PRESSING",
+      "vendor": "sportsbase",
+      "vendor_label": "No pressing",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "No pressing metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_NXG",
+      "vendor": "sportsbase",
+      "vendor_label": "NxG",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "NxG metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_OFSAYTLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Ofsaytlar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Ofsaytlar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_ORTA",
+      "vendor": "sportsbase",
+      "vendor_label": "Orta",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Orta metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_ORTALAMA_TOPLA_OYNAMA_SURESI",
+      "vendor": "sportsbase",
+      "vendor_label": "Ortalama topla oynama süresi",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Ortalama topla oynama süresi metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_OWN_GOALS",
+      "vendor": "sportsbase",
+      "vendor_label": "Own goals",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "Own goals metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_OXG",
+      "vendor": "sportsbase",
+      "vendor_label": "OxG",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "OxG metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_OXGPG",
+      "vendor": "sportsbase",
+      "vendor_label": "OxGPG",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "OxGPG metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_OXGPS",
+      "vendor": "sportsbase",
+      "vendor_label": "OxGPS",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "OxGPS metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PAS_ARASI",
+      "vendor": "sportsbase",
+      "vendor_label": "Pas Arası",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Pas Arası metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PASLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Paslar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Paslar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PASLAR_ADRESI_BULANLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Paslar adresi bulanlar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Paslar adresi bulanlar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PASLAR_ADRESI_BULANLAR_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Paslar adresi bulanlar, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Paslar adresi bulanlar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PASSES_FORWARD_ACCURATE",
+      "vendor": "sportsbase",
+      "vendor_label": "Passes forward accurate",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Passes forward accurate, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PASSES_FORWARD_ACCURATE_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Passes forward accurate, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Passes forward accurate, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PASSES_FROM_THROW_INS",
+      "vendor": "sportsbase",
+      "vendor_label": "Passes from throw-ins",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Passes from throw-ins metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PASSES_INTO_THE_PENALTY_BOX_ACCURATE",
+      "vendor": "sportsbase",
+      "vendor_label": "Passes into the penalty box accurate, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Passes into the penalty box accurate, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PENALTI",
+      "vendor": "sportsbase",
+      "vendor_label": "Penaltı",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Penaltı metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PENALTI_GOLLERI",
+      "vendor": "sportsbase",
+      "vendor_label": "Penaltı golleri",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "Penaltı golleri, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PENALTI_GOLLERI_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Penaltı golleri, %",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "Penaltı golleri, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_POSITIONAL_ATTACKS_WITH_SHOTS",
+      "vendor": "sportsbase",
+      "vendor_label": "Positional attacks with shots, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Positional attacks with shots, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_POZISYONLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Pozisyonlar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Pozisyonlar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PPDA",
+      "vendor": "sportsbase",
+      "vendor_label": "PPDA",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Rakibe (genelde rakibin final 60%’ında) kaç pas yaptırdığını, bir savunma aksiyonu (tackle/interception/foul vb.) başına ölçer. Düşük PPDA = daha yoğun pres.",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://support.hudl.com/s/article/passes-defensive-action",
+        " https://dataglossary.wyscout.com/metrics/"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_PROGRESSIVE_OPEN_PASSES",
+      "vendor": "sportsbase",
+      "vendor_label": "Progressive open passes",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Set-piece hariç (open play) oynanan progresif paslar. Progressive pass kriteri + open play filtresi.",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://sportsbase.world/",
+        " https://dataglossary.wyscout.com/progressive_pass/"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_PROGRESSIVE_PASSES",
+      "vendor": "sportsbase",
+      "vendor_label": "Progressive passes",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Rakip kaleye anlamlı biçimde yaklaşmayı hedefleyen ileri/ilerletici pas sayısı (kriter sağlayan pas).",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://dataglossary.wyscout.com/progressive_pass/",
+        " https://theanalyst.com/articles/opta-football-stats-definitions"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_PROGRESSIVE_PASSES_ACCURATE",
+      "vendor": "sportsbase",
+      "vendor_label": "Progressive passes accurate",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Progressive passes accurate metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_PROGRESSIVE_PASSES_ACCURATE_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Progressive passes accurate, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Progressive passes accurate metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_RAKIP_CEZA_SAHASINA_GIRISLER",
+      "vendor": "sportsbase",
+      "vendor_label": "Rakip ceza sahasına girişler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Rakip ceza sahasına girişler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_RAKIP_CEZA_SAHASINDA_HAREKETLER",
+      "vendor": "sportsbase",
+      "vendor_label": "Rakip ceza sahasında hareketler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Rakip ceza sahasında hareketler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_RAKIP_SAHADA_GERI_KAZANILAN_TOPLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Rakip sahada geri kazanılan toplar",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Topun rakip yarı sahasında geri kazanıldığı (yüksek kazanım) aksiyon sayısı; presin ‘ödül’ kısmı.",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://support.hudl.com/s/article/football-glossary-faqs"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_RAKIP_SAHAYA_GIRISLER",
+      "vendor": "sportsbase",
+      "vendor_label": "Rakip sahaya girişler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Rakip sahaya girişler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_RIGHT_FLANK_ATTACKS_WITH_SHOTS",
+      "vendor": "sportsbase",
+      "vendor_label": "Right flank attacks with shots, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Right flank attacks with shots, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SAHIPSIZ_TOP_KAPMA",
+      "vendor": "sportsbase",
+      "vendor_label": "Sahipsiz top kapma",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Sahipsiz top kapma metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SARI_KARTLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Sarı Kartlar",
+      "layer": "micro",
+      "mechanisms": [
+        "risk"
+      ],
+      "role_guess": "risk",
+      "definition_tr": "Sarı Kartlar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SAVUNMADA_BASARILI_IKILI_MUCADELELER",
+      "vendor": "sportsbase",
+      "vendor_label": "Savunmada başarılı ikili mücadeleler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Savunmada başarılı ikili mücadeleler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SAVUNMADA_IKILI_MUCADELELER",
+      "vendor": "sportsbase",
+      "vendor_label": "Savunmada ikili mücadeleler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Savunmada ikili mücadeleler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SAVUNMADA_KAZANILAN_IKILI_MUCADELE",
+      "vendor": "sportsbase",
+      "vendor_label": "Savunmada kazanılan ikili mücadele, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Savunmada kazanılan ikili mücadele, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SAG_KANAT_HUCUMLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Sağ kanat hücumları",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Sağ kanat hücumları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SERBEST_VURUS_HUCUMLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Serbest Vuruş hücumları",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Serbest Vuruş hücumları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SERBEST_VURUS_SUTLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Serbest Vuruş Şutları",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Serbest Vuruş Şutları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SET_HUCUMLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Set Hücumları",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Set Hücumları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SET_PIECE_ATTACKS_WITH_SHOTS",
+      "vendor": "sportsbase",
+      "vendor_label": "Set-piece attacks with shots, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Set-piece attacks with shots, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SHOTS_ON_TARGET",
+      "vendor": "sportsbase",
+      "vendor_label": "Shots on target, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Shots on target, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SOL_KANAT_HUCUMLARININ_TAMAMI",
+      "vendor": "sportsbase",
+      "vendor_label": "Sol kanat hücumlarının tamamı",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Sol kanat hücumlarının tamamı metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUPER_LONG_PASSES",
+      "vendor": "sportsbase",
+      "vendor_label": "Super long passes",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Super long passes metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUPER_LONG_PASSES_ACCURATE",
+      "vendor": "sportsbase",
+      "vendor_label": "Super long passes accurate",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Super long passes accurate metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUPER_LONG_PASSES_ACCURATE_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Super long passes accurate, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Super long passes accurate metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_TAKIM_PRESI",
+      "vendor": "sportsbase",
+      "vendor_label": "Takım presi",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Takım presi metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_TAC_ATISLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Taç atışları",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Taç atışları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_TEAM_PRESSING_SUCCESSFUL",
+      "vendor": "sportsbase",
+      "vendor_label": "Team pressing successful, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Team pressing successful, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "4_Organize_Savunma"
+      ],
+      "phase_names": [
+        "Organize Savunma (Yerleşik savunma + baskı)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_THROW_IN_ATTACKS_WITH_SHOTS",
+      "vendor": "sportsbase",
+      "vendor_label": "Throw-in attacks with shots, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Throw-in attacks with shots, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_TOP_KAPMA",
+      "vendor": "sportsbase",
+      "vendor_label": "Top Kapma",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "success",
+      "definition_tr": "Top Kapma metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_TOP_KAYIPLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Top kayıpları",
+      "layer": "micro",
+      "mechanisms": [
+        "risk"
+      ],
+      "role_guess": "risk",
+      "definition_tr": "Top kayıpları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "5_Savunma_Gecisi"
+      ],
+      "phase_names": [
+        "Savunma Geçişi (Top kaybı sonrası)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_TOP_KAYIPLARI_KENDI_YARI_SAHASINDA",
+      "vendor": "sportsbase",
+      "vendor_label": "Top kayıpları / kendi yarı sahasında",
+      "layer": "micro",
+      "mechanisms": [
+        "risk"
+      ],
+      "role_guess": "risk",
+      "definition_tr": "Top kayıpları / kendi yarı sahasında metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "5_Savunma_Gecisi"
+      ],
+      "phase_names": [
+        "Savunma Geçişi (Top kaybı sonrası)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_TOP_KAYIPLARINDA_KALEYE_ORTALAMA_MESAFE",
+      "vendor": "sportsbase",
+      "vendor_label": "Top kayıplarında kaleye ortalama mesafe",
+      "layer": "micro",
+      "mechanisms": [
+        "risk"
+      ],
+      "role_guess": "risk",
+      "definition_tr": "Top kayıplarında kaleye ortalama mesafe metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "5_Savunma_Gecisi"
+      ],
+      "phase_names": [
+        "Savunma Geçişi (Top kaybı sonrası)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_TOPLA_OYNAMA",
+      "vendor": "sportsbase",
+      "vendor_label": "Topla oynama, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Topla oynama, % metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_TOPLA_OYNAMA_DAKIKA",
+      "vendor": "sportsbase",
+      "vendor_label": "Topla oynama, dakika",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Topla oynama, dakika metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_TOPLA_OYNAMA_SAYI",
+      "vendor": "sportsbase",
+      "vendor_label": "Topla oynama, sayı",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Topla oynama, sayı metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_TUM_HAREKETLER",
+      "vendor": "sportsbase",
+      "vendor_label": "Tüm Hareketler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Tüm Hareketler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_UZUN_PASLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Uzun paslar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Uzun paslar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_UZUN_PASLAR_ISABETLI",
+      "vendor": "sportsbase",
+      "vendor_label": "Uzun paslar - isabetli",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Uzun paslar - isabetli metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_UZUN_PASLAR_ISABETLI_2",
+      "vendor": "sportsbase",
+      "vendor_label": "Uzun paslar, isabetli, %",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "skill",
+      "definition_tr": "Uzun paslar - isabetli metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_XG",
+      "vendor": "sportsbase",
+      "vendor_label": "xG",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "xG metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_XG_DONUSTURME",
+      "vendor": "sportsbase",
+      "vendor_label": "xG dönüştürme",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "xG dönüştürme metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_XPOINTS",
+      "vendor": "sportsbase",
+      "vendor_label": "xPoints",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "xPoints metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUT",
+      "vendor": "sportsbase",
+      "vendor_label": "Şut",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Şut metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUT_BASINA_XG",
+      "vendor": "sportsbase",
+      "vendor_label": "Şut başına xG",
+      "layer": "micro",
+      "mechanisms": [
+        "deger"
+      ],
+      "role_guess": "reward",
+      "definition_tr": "Şut başına üretilen beklenen gol: şut kalitesinin pratik göstergesi (xG / Shot).",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://github.com/statsbomb/open-data"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_SUTLA_BITEN_HUCUMLAR_DURAN_TOPLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Şutla biten hücumlar - duran toplar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Şutla biten hücumlar - duran toplar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUTLA_BITEN_HUCUMLAR_MERKEZ",
+      "vendor": "sportsbase",
+      "vendor_label": "Şutla biten hücumlar - merkez",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Şutla biten hücumlar - merkez metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUTLA_BITEN_KONTRA_ATAKLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Şutla biten kontra ataklar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Kontra atakların şutla sonuçlanan kısmı.",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "2_Hucum_Gecisi"
+      ],
+      "phase_names": [
+        "Hücum Geçişi (Kontra / hızlı çıkış)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [
+        "https://support.hudl.com/s/article/live-data-glossary"
+      ],
+      "definition_source": "sportsbase_vendor",
+      "definition_confidence": 0.85
+    },
+    {
+      "id": "SB_SUTLA_BITEN_SAG_KANAT_HUCUMLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Şutla biten sağ kanat hücumları",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Şutla biten sağ kanat hücumları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUTLA_BITEN_SERBEST_VURUSLAR",
+      "vendor": "sportsbase",
+      "vendor_label": "Şutla biten serbest vuruşlar",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Şutla biten serbest vuruşlar metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUTLA_BITEN_SET_HUCUMLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Şutla biten set hücumları",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Şutla biten set hücumları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUTLA_BITEN_SOL_KANAT_HUCUMLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Şutla biten sol kanat hücumları",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Şutla biten sol kanat hücumları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "1_Organize_Hucum"
+      ],
+      "phase_names": [
+        "Organize Hücum (Yerleşik oyun)"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUTLA_BITIRILEN_KORNERLER",
+      "vendor": "sportsbase",
+      "vendor_label": "Şutla bitirilen kornerler",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Şutla bitirilen kornerler metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    },
+    {
+      "id": "SB_SUTLA_BITIRILEN_TAC_ATISLARI",
+      "vendor": "sportsbase",
+      "vendor_label": "Şutla bitirilen taç atışları",
+      "layer": "micro",
+      "mechanisms": [
+        "kontrol"
+      ],
+      "role_guess": "intent",
+      "definition_tr": "Şutla bitirilen taç atışları metriği",
+      "unit_or_type": "Maç başına ortalama",
+      "phase_coverage": [
+        "3_DuranTop_Hucum"
+      ],
+      "phase_names": [
+        "Duran Top Hücumu"
+      ],
+      "raw_formula": "",
+      "required_columns": [],
+      "status_policy": {
+        "OK": "calculation_available_in_vendor_dataset",
+        "DEGRADED": "definition_or_sources_missing_or_proxy",
+        "UNKNOWN": "requires_event_or_tracking_mapping_not_defined_yet"
+      },
+      "sources": [],
+      "definition_en": null,
+      "definition_source": "hp_motor/library/registry/inputs/canonical/hp_metric_encyclopedia_v2.json",
+      "definition_confidence": 0.9
+    }
+  ],
+  "phases": [
+    {
+      "phase_id": "1_Organize_Hucum",
+      "phase_name": "Organize Hücum (Yerleşik oyun)",
+      "definition": "Topa sahipken topu ilerletme, son bölgeye yerleşme, şut/pozisyon üretimi.",
+      "top_metrics_from_files_vs_opponent": "Progressive passes accurate; Progressive passes; Paslar adresi bulanlar, %; Paslar adresi bulanlar; Paslar; Progressive open passes; Progressive passes accurate, %; İleriye pas"
+    },
+    {
+      "phase_id": "2_Hucum_Gecisi",
+      "phase_name": "Hücum Geçişi (Kontra / hızlı çıkış)",
+      "definition": "Topu kazandıktan sonra kısa sürede rakip kaleye gidiş, kontra ile şut/pozisyon.",
+      "top_metrics_from_files_vs_opponent": "Counter-attacks with shots, %; Şutla biten kontra ataklar; Kontra Ataklar"
+    },
+    {
+      "phase_id": "3_DuranTop_Hucum",
+      "phase_name": "Duran Top Hücumu",
+      "definition": "Korner, serbest vuruş, taçtan üretilen şut/gol.",
+      "top_metrics_from_files_vs_opponent": "Duran Top Hücumları; Free-kick attacks with shots, %; Kornerler; Serbest Vuruş hücumları; Passes from throw-ins; Corner attacks with shots, %; Set-piece attacks with shots, %"
+    },
+    {
+      "phase_id": "4_Organize_Savunma",
+      "phase_name": "Organize Savunma (Yerleşik savunma + baskı)",
+      "definition": "Rakibi yerleşik blokta durdurma, ikili mücadele, top kapma, baskı profili.",
+      "top_metrics_from_files_vs_opponent": "No pressing; Hücumda başarılı ikili mücadele, %; Savunmada kazanılan ikili mücadele, %; PPDA; Başarılı ikili mücadele %; Hücumda ikili mücadele / Başarılı; Başarılı Top Kapma, %; Team pressing successful, %"
+    },
+    {
+      "phase_id": "5_Savunma_Gecisi",
+      "phase_name": "Savunma Geçişi (Top kaybı sonrası)",
+      "definition": "Top kaybından sonra geri koşu, anında baskı, kısa sürede topu geri alma ve tehlikeyi önleme.",
+      "top_metrics_from_files_vs_opponent": "Rakip sahada geri kazanılan toplar; Ball recoveries; Geri kazanılan toplarda kaleye ortalama mesafe; Top kayıplarında kaleye ortalama mesafe; Top kayıpları / kendi yarı sahasında; Lost balls after passes; Top kayıpları; Ball recoveries after losses within 10 seconds"
+    },
+    {
+      "phase_id": "6_DuranTop_Savunma",
+      "phase_name": "Duran Top Savunması",
+      "definition": "Duran toplardan yenen gol/tehlike; korner ve serbest vuruş savunma kalitesi.",
+      "top_metrics_from_files_vs_opponent": NaN
+    }
+  ],
+  "generated_sources": [
+    {
+      "origin_file": "30.01.2026 - Galatasaray - Comparison.xlsx / sheet Comparison",
+      "sportsbase_version": "1.0"
+    }
+  ]
+}

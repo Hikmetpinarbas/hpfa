@@ -1,0 +1,15 @@
+{
+  "metric_id": "field_tilt",
+  "version": "1.0.0",
+  "full_name": "Field Tilt",
+  "category": "territory",
+  "polarity": "positive",
+  "logic_method": "team_final_third_passes / (team_final_third_passes + opponent_final_third_passes)",
+  "requires_signals": [
+    "events.pos_x",
+    "events.team_id",
+    "events.action_type"
+  ],
+  "scopes": ["postmatch_analysis"],
+  "status": "ACTIVE"
+}

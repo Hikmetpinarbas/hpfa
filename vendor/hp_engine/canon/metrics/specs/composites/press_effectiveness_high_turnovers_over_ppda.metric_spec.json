@@ -1,0 +1,55 @@
+{
+  "metric_id": "press_effectiveness_high_turnovers_over_ppda",
+  "version": "1.0.0",
+  "full_name": "Press Effectiveness (High Turnovers / PPDA)",
+  "short_name": "PressEff",
+  "aliases": ["high_turnovers_over_ppda", "press_effectiveness"],
+  "category": "pressing",
+  "subcategory": "effectiveness",
+  "complexity": "medium",
+  "polarity": "higher_is_better",
+  "unit": "rate",
+  "outputs": [
+    { "name": "press_effectiveness", "type": "float", "range": [0.0, 10.0] }
+  ],
+  "scopes": ["postmatch_analysis", "team_tactical_analysis", "seasonal_tournament_analysis"],
+  "data_requirements": {
+    "required_fields": ["action_type", "team_id", "minute"],
+    "optional_fields": ["x", "y"],
+    "minimum_sample_size": 0
+  },
+  "derivation": {
+    "level": 3,
+    "requires_signals": ["events.action_type"],
+    "requires_metrics": ["ppda", "high_turnovers"],
+    "fallbacks": [
+      {
+        "name": "disable_if_missing_high_turnovers",
+        "requires_fields": [],
+        "notes": "If high turnovers are not defined for platform, do not compute."
+      }
+    ]
+  },
+  "enables": { "direct_derivatives": [], "composites": [] },
+  "dimensions": [
+    {
+      "dimension": "tactical",
+      "inference_type": "proxy",
+      "evidence_strength": 0.6,
+      "notes": "Proxy for pressing converting into regain events."
+    }
+  ],
+  "impl": {
+    "module": "engine.metrics_impl.composites",
+    "function": "compute_press_effectiveness_high_turnovers_over_ppda",
+    "runtime": "python"
+  },
+  "validation": {
+    "tests": [
+      { "name": "Sanity", "type": "sanity", "target": "press_effectiveness>=0" }
+    ]
+  },
+  "citations": [
+    { "ref_id": "UEFA_UCL_TECH_2024", "relation": "context", "locator": "Pressing" }
+  ]
+}

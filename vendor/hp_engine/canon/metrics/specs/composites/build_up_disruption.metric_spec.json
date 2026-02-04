@@ -1,0 +1,12 @@
+{
+  "metric_id": "build_up_disruption",
+  "version": "1.0.0",
+  "full_name": "Build-up Disruption Percentage",
+  "category": "pressing",
+  "polarity": "positive",
+  "requires_metrics": ["expected_pass_accuracy", "actual_pass_accuracy"],
+  "logic_method": "(expected_pass_accuracy - actual_pass_accuracy) / max(expected_pass_accuracy, 0.01)",
+  "notes": "BDP=(Exp-Act)/Exp. expected_pass_accuracy and actual_pass_accuracy should be in 0..1 scale. If your source is 0..100, convert before.",
+  "scopes": ["team_analysis", "postmatch_analysis"],
+  "status": "ACTIVE"
+}

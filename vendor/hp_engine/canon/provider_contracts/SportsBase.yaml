@@ -1,0 +1,89 @@
+version: "0.1.0"
+provider: "SportsBase"
+
+# Coordinate system expected at ingestion time
+coordinate_system:
+  provider_scale: "0_100"         # SportsBase often uses 0-100 normalized
+  canonical_scale: "105_68"       # HP canonical meters
+  transform:
+    x: "x_m = (x / 100.0) * 105.0"
+    y: "y_m = (y / 100.0) * 68.0"
+
+timebase:
+  field: "timestamp"
+  unit: "seconds"                # float or int allowed
+  monotonic_within: "match_id"    # must be non-decreasing per match_id
+  allow_equal: true              # multiple events can share same timestamp
+
+identity:
+  match_key: "match_id"
+  team_key: "team_id"
+  player_key: "player_id"
+
+required_columns:
+  - match_id
+  - team_id
+  - player_id
+  - event_type
+  - timestamp
+  - x
+  - y
+
+optional_columns:
+  - period
+  - possession_id
+  - outcome
+  - subtype
+  - end_x
+  - end_y
+  - receiver_id
+  - opponent_team_id
+  - is_set_piece
+  - is_shot
+  - shot_xg
+  - is_turnover
+
+types:
+  match_id: "string_or_int"
+  team_id: "string_or_int"
+  player_id: "string_or_int"
+  event_type: "string"
+  timestamp: "numeric"
+  x: "numeric"
+  y: "numeric"
+  end_x: "numeric"
+  end_y: "numeric"
+
+ranges:
+  # Provider ranges (0..100) are allowed pre-transform
+  provider_x: [0.0, 100.0]
+  provider_y: [0.0, 100.0]
+  # Canonical ranges (meters) are allowed post-transform
+  canonical_x: [0.0, 105.0]
+  canonical_y: [0.0, 68.0]
+
+event_taxonomy:
+  # Minimal taxonomy for early pipeline gating (expand later)
+  pass:
+    aliases: ["pass", "PASS"]
+    required_fields: ["end_x", "end_y"]
+  duel:
+    aliases: ["duel", "tackle", "challenge", "DUEL"]
+    required_fields: []
+  interception:
+    aliases: ["interception", "INTERCEPTION"]
+    required_fields: []
+  shot:
+    aliases: ["shot", "SHOT"]
+    required_fields: []
+  turnover:
+    aliases: ["turnover", "loss", "ball_lost", "TURNOVER"]
+    required_fields: []
+
+quality_rules:
+  - id: "NO_SILENT_DROP"
+    description: "No row deletions in validator; only flags + explicit issues."
+  - id: "ALLOW_ZERO_COORDS"
+    description: "0.0 is a valid coordinate; never replaced by NaN."
+  - id: "OUT_OF_BOUNDS_POLICY"
+    description: "Out-of-bounds coordinates are flagged; not deleted."

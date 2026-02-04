@@ -1,0 +1,32 @@
+{
+  "metric_id": "finishing_skill_psxg_minus_xg",
+  "version": "1.0.0",
+  "full_name": "Finishing Skill (PSxG - xG)",
+  "short_name": "FinSkill",
+  "aliases": ["sga", "psxg_minus_xg", "psxg-xg", "finishing_skill"],
+  "outputs": [
+    { "name": "finishing_skill", "type": "float", "range": [-10.0, 10.0] }
+  ],
+  "scopes": ["postmatch_analysis", "team_tactical_analysis", "seasonal_tournament_analysis"],
+  "data_requirements": {
+    "required_fields": [],
+    "optional_fields": [],
+    "minimum_sample_size": 0
+  },
+  "derivation": {
+    "level": 3,
+    "requires_signals": [],
+    "requires_metrics": ["expected_goals", "post_shot_xg"],
+    "fallbacks": [
+      {
+        "name": "disable_if_missing_inputs",
+        "requires_fields": [],
+        "notes": "If xG or PSxG is missing on platform, do not compute."
+      }
+    ]
+  },
+  "impl": {
+    "module": "engine.metrics_impl.composites",
+    "function": "compute_finishing_skill_psxg_minus_xg"
+  }
+}

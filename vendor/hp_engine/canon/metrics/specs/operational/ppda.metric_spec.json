@@ -1,0 +1,45 @@
+{
+  "metric_id": "ppda",
+  "version": "1.0.0",
+  "full_name": "Passes Per Defensive Action",
+  "short_name": "PPDA",
+  "aliases": ["PPDA"],
+  "category": "pressing",
+  "subcategory": "intensity",
+  "complexity": "low",
+  "polarity": "lower_is_better",
+  "unit": "passes_per_def_action",
+  "outputs": [
+    { "name": "ppda", "type": "float", "range": [0.0, 200.0] }
+  ],
+  "scopes": ["postmatch_analysis", "team_tactical_analysis"],
+  "data_requirements": {
+    "required_fields": ["action_type", "team_id", "pos_x"],
+    "optional_fields": ["pos_y"],
+    "notes": "Operational PPDA: opponent passes in build zones / defensive actions in same zones."
+  },
+  "derivation": {
+    "level": 2,
+    "requires_signals": ["events.action_type", "events.team_id", "events.pos_x"],
+    "requires_metrics": [],
+    "fallbacks": []
+  },
+  "dimensions": [
+    {
+      "dimension": "tactical",
+      "inference_type": "direct",
+      "evidence_strength": 0.8,
+      "notes": "Lower PPDA => higher pressing intensity."
+    }
+  ],
+  "impl": {
+    "module": "engine.metrics_impl.pressing",
+    "function": "compute_ppda",
+    "runtime": "python"
+  },
+  "validation": {
+    "tests": [
+      { "name": "Non-negative", "type": "sanity", "target": "ppda>=0" }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "Paslar adresi bulanlar": "passes_completed",
+  "İsabetsiz paslar": "passes_incomplete",
+  "Set Hücumları": "positional_attacks",
+  "Top Kazanma": "ball_recoveries",
+  "Kısa Kale Vuruşu": "goal_kick_short",
+  "İlerletici Paslar": "progressive_passes",
+  "Ceza Sahasına Giriş": "box_entries"
+}

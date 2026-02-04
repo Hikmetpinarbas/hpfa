@@ -1,0 +1,53 @@
+{
+  "pattern_id": "SETPIECE_CORNER_NEARPOST_FLICK",
+  "name": "Corner - near-post flick",
+  "description": "Attacking corner routine with near-post flick-on.",
+  "status": "candidate",
+  "tags": [
+    "set_piece",
+    "corner",
+    "near_post"
+  ],
+  "gates": {
+    "confirmed_requires_primary": true,
+    "max_uncertainty_for_confirmed": 1,
+    "notes": ""
+  },
+  "evidence": [
+    {
+      "evidence_type": "video_support",
+      "source": {
+        "source_type": "video",
+        "source_name": "clip_001.mp4",
+        "fingerprint": "sha256:..."
+      },
+      "uncertainty": 2,
+      "notes": ""
+    },
+    {
+      "evidence_type": "primary_raw",
+      "source": {
+        "source_type": "xml",
+        "source_name": "events.xml",
+        "fingerprint": "sha256:..."
+      },
+      "uncertainty": 0,
+      "notes": ""
+    }
+  ],
+  "detectors": [
+    {
+      "type": "rules",
+      "module": "engine.patterns.corner",
+      "function": "detect_nearpost_flick",
+      "parameters": {}
+    }
+  ],
+  "citations": [
+    {
+      "ref_id": "UEFA_SETPIECE_GUIDE_2022",
+      "relation": "definition",
+      "locator": "Corners"
+    }
+  ]
+}

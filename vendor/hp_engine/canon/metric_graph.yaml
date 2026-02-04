@@ -1,0 +1,59 @@
+version: "0.1.0"
+edges:
+  # Pressing core
+  - {from: PPDA, to: REGAIN_6S, type: influences, sign: "+", lag_window: "0-10min", phase_scope: ["F6"], confidence: 0.6, notes: "Düşük PPDA genelde daha hızlı geri-kazanımla birlikte."}
+  - {from: REGAIN_6S, to: PPDA, type: influences, sign: "-", lag_window: "0-10min", phase_scope: ["F6"], confidence: 0.55, notes: "Geri kazanım artarsa PPDA düşme eğilimi."}
+  - {from: PRESS_INTENSITY, to: PPDA, type: influences, sign: "-", lag_window: "0-5min", phase_scope: ["F3"], confidence: 0.6, notes: "Press yoğunluğu ↑ → PPDA ↓."}
+  - {from: OPP_PASS_COMPLETION_DEF3, to: PPDA, type: confounds, sign: "+", lag_window: "match", phase_scope: ["F3"], confidence: 0.5, notes: "Rakip rahat pas yapıyorsa PPDA şişebilir."}
+
+  # Territory / progression
+  - {from: FIELD_TILT, to: FINAL_THIRD_ENTRIES, type: influences, sign: "+", lag_window: "match", phase_scope: ["F1","F2"], confidence: 0.6, notes: "Final 3rd pas payı ↑ → girişler ↑."}
+  - {from: PROGRESSIVE_PASSES, to: FINAL_THIRD_ENTRIES, type: influences, sign: "+", lag_window: "match", phase_scope: ["F1","F2"], confidence: 0.65, notes: "İlerici pas ↑ → final 3rd entry ↑."}
+  - {from: LINE_BREAKING_PASSES, to: PROGRESSIVE_PASSES, type: mediates, sign: "+", lag_window: "match", phase_scope: ["F2"], confidence: 0.55, notes: "Hat kırma ilericiliğin mekanizması."}
+  - {from: PROGRESSIVE_PASSES, to: XT_FROM_PASSES, type: influences, sign: "+", lag_window: "match", phase_scope: ["F1","F2"], confidence: 0.6, notes: "İlerici paslar tehdit ekler."}
+
+  # Value chain
+  - {from: XT_FROM_PASSES, to: XG_CHAIN, type: influences, sign: "+", lag_window: "match", phase_scope: ["F1","F2","F4"], confidence: 0.55, notes: "xT üretimi şut zincirini besler."}
+  - {from: XG_CHAIN, to: XG, type: influences, sign: "+", lag_window: "match", phase_scope: ["F4"], confidence: 0.55, notes: "Zincir kalitesi şut xG’yi taşır."}
+  - {from: XG, to: GOALS, type: influences, sign: "+", lag_window: "match", phase_scope: ["F4"], confidence: 0.7, notes: "xG ↑ → gol olasılığı ↑."}
+
+  # Transitions
+  - {from: TURNOVERS, to: REGAIN_6S, type: influences, sign: "-", lag_window: "0-10min", phase_scope: ["F6"], confidence: 0.5, notes: "Top kaybı profili kötüleşirse 6sn regain düşer."}
+  - {from: TURNOVERS, to: HIGH_COUNTER_ATTACK_XT, type: influences, sign: "+", lag_window: "0-10min", phase_scope: ["F6"], confidence: 0.55, notes: "Kayıp → rakip geçiş tehdidi."}
+  - {from: HIGH_COUNTER_ATTACK_XT, to: TRANSITION_XG_CONCEDED, type: influences, sign: "+", lag_window: "0-10min", phase_scope: ["F6"], confidence: 0.55, notes: "Geçiş tehdidi → geçiş xG yeme."}
+
+  # Psychodynamics proxies
+  - {from: LATE_MISTAKES_CRITICAL_STATE, to: CONCENTRATION_LEAK_PROXY, type: influences, sign: "+", lag_window: "match", phase_scope: ["F3","F4","F6"], confidence: 0.45, notes: "Kritik an hataları → konsantrasyon kaçağı."}
+  - {from: CONCENTRATION_LEAK_PROXY, to: PASS_ACCURACY_UNDER_PRESSURE, type: influences, sign: "-", lag_window: "0-10min", phase_scope: ["F2"], confidence: 0.4, notes: "Kaçak ↑ → baskı altında pas doğruluğu ↓."}
+
+  # Set piece loop
+  - {from: SET_PIECE_THREAT, to: XG, type: influences, sign: "+", lag_window: "match", phase_scope: ["F5"], confidence: 0.55, notes: "Duran top tehdidi ↑ → set-piece xG ↑."}
+  - {from: SET_PIECE_XG, to: SET_PIECE_THREAT, type: influences, sign: "+", lag_window: "match", phase_scope: ["F5"], confidence: 0.6, notes: "Set-piece xG tehditin çekirdeği."}
+
+  # Defensive shape proxies
+  - {from: COMPACTNESS_LOSS, to: OPP_PASS_COMPLETION_DEF3, type: influences, sign: "+", lag_window: "0-10min", phase_scope: ["F3"], confidence: 0.45, notes: "Kompaktlık kaybı → rakip rahat pas."}
+  - {from: DEFENSIVE_LINE_DROP, to: PPDA, type: influences, sign: "+", lag_window: "0-10min", phase_scope: ["F3"], confidence: 0.4, notes: "Hat geri çekilirse PPDA artabilir."}
+
+  # Fitness -> pressing chain (proxy)
+  - {from: SPRINT_SPEED_DROP, to: PRESS_INTENSITY, type: influences, sign: "-", lag_window: "0-10min", phase_scope: ["F3","F6"], confidence: 0.5, notes: "Fizik düşüşü → press yoğunluğu ↓."}
+  - {from: ENERGY_DECAY, to: SPRINT_SPEED_DROP, type: influences, sign: "+", lag_window: "match", phase_scope: ["F3","F6"], confidence: 0.5, notes: "Enerji düşüşü → sprint hız düşüşü."}
+
+  # Contradiction links (used by Popper gate)
+  - {from: HIGH_COUNTERPRESS_SUCCESS, to: PPDA, type: confounds, sign: "-", lag_window: "match", phase_scope: ["F6"], confidence: 0.5, notes: "Yüksek counterpress başarısı PPDA yorumunu zayıflatabilir."}
+  - {from: LOW_OPP_BUILDOUT_SPEED, to: PPDA, type: mediates, sign: "-", lag_window: "match", phase_scope: ["F3"], confidence: 0.5, notes: "Rakip çıkış yavaşsa PPDA düşük görünür."}
+
+  # Territory vs transition contradiction
+  - {from: FIELD_TILT, to: HIGH_COUNTER_ATTACK_XT, type: feedback, sign: "+", lag_window: "match", phase_scope: ["F1","F6"], confidence: 0.35, notes: "Aşırı tilt → rest defense zayıflarsa counter tehdidi artabilir."}
+
+  # Progression to shots
+  - {from: FINAL_THIRD_ENTRIES, to: SHOT_COUNT, type: influences, sign: "+", lag_window: "match", phase_scope: ["F4"], confidence: 0.55, notes: "Girişler ↑ → şut sayısı ↑."}
+  - {from: SHOT_COUNT, to: XG, type: influences, sign: "+", lag_window: "match", phase_scope: ["F4"], confidence: 0.5, notes: "Şut ↑ → toplam xG ↑ (kalite sabitse)."}
+
+  # Risk loop
+  - {from: RED_CARD, to: PPDA, type: influences, sign: "+", lag_window: "match", phase_scope: ["F3","F6"], confidence: 0.45, notes: "10 kişi → PPDA artar."}
+  - {from: GOAL_CONCEDED, to: PRESS_INTENSITY, type: influences, sign: "+", lag_window: "0-10min", phase_scope: ["F3","F6"], confidence: 0.35, notes: "Gol yeme sonrası panik press olabilir."}
+  - {from: GOAL_CONCEDED, to: CONCENTRATION_LEAK_PROXY, type: influences, sign: "+", lag_window: "0-10min", phase_scope: ["F6"], confidence: 0.35, notes: "Gol sonrası kısa pencere hata kümelenmesi artabilir."}
+
+  # Simple stabilizers
+  - {from: POSSESSION_SHARE, to: FIELD_TILT, type: confounds, sign: "+", lag_window: "match", phase_scope: ["F1"], confidence: 0.4, notes: "Topa sahip olma tilt’i şişirebilir; possession-adjusted gerekebilir."}
+  - {from: OPP_BLOCK_HEIGHT, to: PPDA, type: confounds, sign: "mixed", lag_window: "match", phase_scope: ["F3"], confidence: 0.35, notes: "Rakip alçak bloksa PPDA yapay düşebilir."}

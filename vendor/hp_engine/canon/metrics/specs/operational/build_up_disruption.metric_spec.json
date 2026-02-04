@@ -1,0 +1,32 @@
+{
+  "metric_id": "build_up_disruption",
+  "version": "1.0.0",
+  "full_name": "Build-up Disruption Percentage",
+  "short_name": "BDP",
+  "aliases": ["BDP", "Build-up Disruption"],
+  "category": "pressing",
+  "subcategory": "effectiveness",
+  "complexity": "medium",
+  "polarity": "higher_is_better",
+  "unit": "ratio",
+  "outputs": [
+    { "name": "build_up_disruption", "type": "float", "range": [-1.0, 1.0] }
+  ],
+  "scopes": ["team_analysis", "postmatch_analysis"],
+  "data_requirements": {
+    "required_fields": ["expected_pass_pct", "actual_pass_pct"],
+    "optional_fields": [],
+    "notes": "BDP=(Exp-Act)/Exp, clipped to [-1,1], epsilon-protected."
+  },
+  "derivation": {
+    "level": 3,
+    "requires_signals": ["events.expected_pass_pct", "events.actual_pass_pct"],
+    "requires_metrics": [],
+    "fallbacks": []
+  },
+  "impl": {
+    "module": "engine.metrics_impl.pressing",
+    "function": "compute_build_up_disruption",
+    "runtime": "python"
+  }
+}

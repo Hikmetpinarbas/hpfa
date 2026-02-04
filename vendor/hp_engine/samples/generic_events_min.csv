@@ -1,0 +1,4 @@
+event_type,team_id,player_id,start_x,start_y,end_x,end_y,outcome
+pass,1,10,40,50,55,52,success
+pass,1,8,30,60,42,61,fail
+tackle,2,4,70,40,,,success

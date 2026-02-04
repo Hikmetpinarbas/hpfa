@@ -1,0 +1,11 @@
+{
+  "metric_id": "shot_goals_added",
+  "version": "1.0.0",
+  "full_name": "Shot Goals Added",
+  "category": "finishing",
+  "polarity": "positive",
+  "requires_metrics": ["expected_goals", "post_shot_xg"],
+  "logic_method": "psxg_minus_xg",
+  "scopes": ["player_analysis"],
+  "status": "ACTIVE"
+}

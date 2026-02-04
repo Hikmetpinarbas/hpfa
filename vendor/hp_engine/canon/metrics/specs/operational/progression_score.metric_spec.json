@@ -1,0 +1,32 @@
+{
+  "metric_id": "progression_score",
+  "version": "1.0.0",
+  "full_name": "Progression Score",
+  "short_name": "ProgScore",
+  "aliases": ["Prog Score", "Progression Score"],
+  "category": "progression",
+  "subcategory": "weighted",
+  "complexity": "low",
+  "polarity": "higher_is_better",
+  "unit": "points",
+  "outputs": [
+    { "name": "progression_score", "type": "float", "range": [0.0, 1000000.0] }
+  ],
+  "scopes": ["team_analysis", "postmatch_analysis"],
+  "data_requirements": {
+    "required_fields": ["prog", "f3rd", "box"],
+    "optional_fields": ["minutes"],
+    "notes": "Operational: can be normalized to per90 if minutes provided."
+  },
+  "derivation": {
+    "level": 3,
+    "requires_signals": ["events.prog", "events.f3rd", "events.box"],
+    "requires_metrics": [],
+    "fallbacks": []
+  },
+  "impl": {
+    "module": "engine.metrics_impl.progression",
+    "function": "compute_progression_score",
+    "runtime": "python"
+  }
+}

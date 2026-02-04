@@ -1,0 +1,35 @@
+name: SportsBase Ingest Smoke
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  ingest_smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run ingest (samples)
+        run: |
+          python -m engine.ingest.sportsbase_csv \
+            --sample-dir samples \
+            --out-dir engine/ingest/out \
+            --repo-root .
+
+      - name: Show summary
+        run: |
+          cat engine/ingest/out/clips_summary.json | head -n 200
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sportsbase_ingest_out
+          path: |
+            engine/ingest/out/clips_summary.json
+            engine/ingest/out/clips.jsonl 

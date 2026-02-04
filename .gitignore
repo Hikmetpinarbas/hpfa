@@ -9,3 +9,13 @@ data/quarantine/*.parquet
 data/quarantine/manifest.log
 .DS_Store
 data/quarantine/*.csv
+
+# vendor repos (kept as source snapshots)
+vendor/**/__pycache__/
+vendor/**/*.pyc
+vendor/**/.pytest_cache/
+vendor/**/.mypy_cache/
+vendor/**/.ruff_cache/
+vendor/**/dist/
+vendor/**/build/
+vendor/**/*.egg-info/

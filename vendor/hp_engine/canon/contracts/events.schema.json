@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp-engine.local/schemas/events.schema.json",
+  "title": "HP-Engine Canonical Events Contract v1",
+  "type": "object",
+  "required": ["events"],
+  "properties": {
+    "events": {
+      "type": "object",
+      "required": [
+        "event_id",
+        "match_id",
+        "period",
+        "timestamp_ms",
+        "team_id",
+        "event_type",
+        "lens"
+      ],
+      "properties": {
+        "event_id": { "type": "string", "minLength": 1 },
+        "match_id": { "type": "string", "minLength": 1 },
+        "period": { "type": "integer", "minimum": 1, "maximum": 9 },
+        "timestamp_ms": { "type": "integer", "minimum": 0 },
+
+        "team_id": { "type": "string", "minLength": 1 },
+        "player_id": { "type": ["string", "null"] },
+        "opponent_team_id": { "type": ["string", "null"] },
+
+        "possession_id": { "type": ["string", "null"] },
+
+        "event_type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Canonical event action family. Provider-normalized."
+        },
+        "subtype": { "type": ["string", "null"] },
+        "outcome": { "type": ["string", "null"] },
+
+        "location": {
+          "type": ["object", "null"],
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+            "y": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          },
+          "additionalProperties": false
+        },
+        "end_location": {
+          "type": ["object", "null"],
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+            "y": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          },
+          "additionalProperties": false
+        },
+
+        "context": {
+          "type": "object",
+          "required": ["tier", "pressure_state", "transition_state", "set_piece_context"],
+          "properties": {
+            "tier": {
+              "type": "string",
+              "enum": ["TIER_1_EVENT", "TIER_2_EVENT_PLUS", "TIER_3_TRACKING"],
+              "description": "Data tier gate. Determines what claims can be upgraded."
+            },
+            "pressure_state": {
+              "type": "string",
+              "enum": ["HIGH", "LOW", "NONE", "UNKNOWN"]
+            },
+            "transition_state": {
+              "type": "string",
+              "enum": ["DEF_TO_ATT", "ATT_TO_DEF", "NONE", "UNKNOWN"]
+            },
+            "set_piece_context": {
+              "type": "object",
+              "required": ["is_set_piece", "phase"],
+              "properties": {
+                "is_set_piece": { "type": "boolean" },
+                "phase": {
+                  "type": "string",
+                  "enum": ["SET_PIECE_ATTACK", "SET_PIECE_DEFENSE", "NONE", "UNKNOWN"]
+                },
+                "set_piece_type": { "type": ["string", "null"] }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+
+        "lens": {
+          "type": "object",
+          "required": ["phase", "layer"],
+          "properties": {
+            "phase": {
+              "type": "string",
+              "enum": [
+                "ORGANIZED_DEFENSE",
+                "DEFENSIVE_TRANSITION",
+                "ORGANIZED_ATTACK",
+                "OFFENSIVE_TRANSITION",
+                "SET_PIECES_ATTACK",
+                "SET_PIECES_DEFENSE",
+                "UNKNOWN"
+              ]
+            },
+            "layer": {
+              "type": "string",
+              "enum": ["MICRO", "MEZZO", "MACRO", "UNKNOWN"]
+            }
+          },
+          "additionalProperties": false
+        },
+
+        "provenance": {
+          "type": "object",
+          "required": ["provider", "source_file"],
+          "properties": {
+            "provider": { "type": "string", "minLength": 1 },
+            "source_file": { "type": "string", "minLength": 1 },
+            "source_row": { "type": ["integer", "null"], "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+
+        "validation": {
+          "type": "object",
+          "required": ["is_valid", "errors"],
+          "properties": {
+            "is_valid": { "type": "boolean" },
+            "errors": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

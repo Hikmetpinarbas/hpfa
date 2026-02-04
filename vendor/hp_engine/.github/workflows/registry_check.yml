@@ -1,0 +1,52 @@
+name: HP Metric Registry Check
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  build-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Build registry + graph
+        run: |
+          python -m engine.metrics.build_registry \
+            --canon-dir canon/metrics \
+            --out-registry engine/metrics/registry.json \
+            --out-graph engine/metrics/metric_graph.json
+
+      - name: Summarize registry
+        run: |
+          python - << 'PY'
+          import json
+          reg=json.load(open("engine/metrics/registry.json","r",encoding="utf-8"))
+          c=reg.get("counts",{})
+          print("=== HP Metric Registry Summary ===")
+          print("total_metrics:", c.get("total_metrics"))
+          print("ready:", c.get("ready"))
+          print("blocked:", c.get("blocked"))
+          if (c.get("total_metrics") or 0) == 0:
+              raise SystemExit("No metrics found under canon/metrics")
+          PY
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hp-metric-registry
+          path: |
+            engine/metrics/registry.json
+            engine/metrics/metric_graph.json

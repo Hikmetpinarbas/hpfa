@@ -1,0 +1,56 @@
+version: 2
+
+# Two families of scenario nodes:
+# 1) defense_model: describes opponent defensive organization mode (from your HP Projects summary)
+# 2) context_combo: optional, context-driven nodes (kept for later expansion)
+
+scenario_families:
+  - id: defense_model
+    description_tr: "Rakip savunma organizasyonu ve oyun düzeni modu."
+  - id: context_combo
+    description_tr: "Skor/dakika/yorgunluk vb. bağlam kombinasyonları (opsiyonel, v1)."
+
+scenario_nodes:
+  # --- Defense model nodes (HP Projects) ---
+  - id: S0_BASE
+    family: defense_model
+    name_tr: "Temel Faz"
+    definition_tr: "Başlangıç modu; belirsizlik yüksek, düzen tam okunmadan önce varsayılan."
+    conditions_hint: {}
+
+  - id: S1_ZONE
+    family: defense_model
+    name_tr: "Alan Savunması"
+    definition_tr: "Rakip koordinat varyansı düşük; zonal yapı baskın."
+    conditions_hint:
+      OPP_BLOCK: [low, mid, high]
+
+  - id: S2_MAN
+    family: defense_model
+    name_tr: "Adam Adama"
+    definition_tr: "Rakip-oyuncu hareket korelasyonu yüksek; bire bir takip baskın."
+    conditions_hint: {}
+
+  - id: S3_HYBRID
+    family: defense_model
+    name_tr: "Karma"
+    definition_tr: "Hibrit savunma; zonal + man-mix davranışı."
+    conditions_hint: {}
+
+  - id: S4_CONTROL_AHEAD
+    family: defense_model
+    name_tr: "Önde Kontrol"
+    definition_tr: "Risk minimize; kısa pas ve kontrol odaklı stabilizasyon."
+    conditions_hint:
+      SCORE_STATE: [leading]
+
+  - id: S5_CHASE_CHAOS
+    family: defense_model
+    name_tr: "Kovalama/Kaos"
+    definition_tr: "Yüksek volatilite; kutuya maksimum yüklenme ve risk artışı."
+    conditions_hint:
+      SCORE_STATE: [trailing]
+
+notes:
+  - "conditions_hint alanları deterministik kural değildir; context engine için ipucu olarak saklanır."
+  - "Defense model nodes tracking/video ile güçlenir; lite core'da tanım + ipucu seviyesinde tutulur."

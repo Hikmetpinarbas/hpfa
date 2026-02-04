@@ -1,0 +1,25 @@
+{
+  "signal_id": "events.minute",
+  "name": "Match Minute",
+  "description": "Minute in match clock.",
+  "dtype": "float",
+  "unit": "minute",
+  "signal_type": "timestamp",
+  "source_types": [
+    "csv",
+    "xml"
+  ],
+  "mappings": {
+    "opta": {
+      "aliases": [
+        "minute"
+      ],
+      "path": "/event/@minute"
+    }
+  },
+  "quality": {
+    "coverage": 1.0,
+    "missing_rate": 0.0,
+    "notes": ""
+  }
+}

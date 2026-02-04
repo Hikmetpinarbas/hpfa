@@ -1,0 +1,32 @@
+{
+  "metric_id": "progression_value_progressive_passes_plus_possession_value",
+  "version": "1.0.0",
+  "full_name": "Progression Value (Progressive Passes + Possession Value)",
+  "short_name": "ProgVal",
+  "aliases": ["progression_value", "progressive_plus_obv", "prog_plus_value"],
+  "outputs": [
+    { "name": "progression_value", "type": "float", "range": [-1000.0, 1000.0] }
+  ],
+  "scopes": ["postmatch_analysis", "team_tactical_analysis", "seasonal_tournament_analysis"],
+  "data_requirements": {
+    "required_fields": [],
+    "optional_fields": [],
+    "minimum_sample_size": 0
+  },
+  "derivation": {
+    "level": 3,
+    "requires_signals": [],
+    "requires_metrics": ["progressive_passes", "possession_value"],
+    "fallbacks": [
+      {
+        "name": "disable_if_missing_inputs",
+        "requires_fields": [],
+        "notes": "If progressive passes or possession value is missing on platform, do not compute."
+      }
+    ]
+  },
+  "impl": {
+    "module": "engine.metrics_impl.composites",
+    "function": "compute_progression_value_progressive_passes_plus_possession_value"
+  }
+}

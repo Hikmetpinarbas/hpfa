@@ -1,0 +1,14 @@
+{
+  "contract_id": "HP_SIGNAL_V1",
+  "description": "Signal Inventory & Source Mapping Contract",
+  "properties": {
+    "signal_id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "source_type": { "enum": ["provider_event", "tracking", "fitness_xlsx", "manual_tag"] },
+    "unit": { "enum": ["meter", "second", "percent", "count", "km/h", "bpm"] },
+    "provider_aliases": {
+      "type": "object",
+      "additionalProperties": { "type": "string" } 
+    },
+    "coverage_map": { "type": "array", "items": { "type": "string" } }
+  }
+}

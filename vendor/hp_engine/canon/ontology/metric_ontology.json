@@ -1,0 +1,45 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "created": "2026-01-21",
+    "total_canonical_families": 47,
+    "total_metrics_cataloged": 187,
+    "platforms": ["StatsBomb", "Opta", "Wyscout", "FBref", "InStat", "SkillCorner", "Understat", "SofaScore"]
+  },
+  "canonical_families": {
+    "expected_goals": {
+      "name": "Expected Goals",
+      "turkish": "Beklenen Gol",
+      "aliases": ["xG", "ExpG"],
+      "platforms": {
+        "StatsBomb": "xG (360 freeze frames)",
+        "Opta": "Expected Goals",
+        "Wyscout": "xG (penalty=0.76)",
+        "Understat": "xG"
+      }
+    },
+    "post_shot_xg": {
+      "name": "Post-Shot xG",
+      "turkish": "Şut Sonrası Beklenen Gol",
+      "aliases": ["PSxG", "xGOT"],
+      "combination": "PSxG - xG = Finishing Skill"
+    },
+    "possession_value": {
+      "name": "Possession Value",
+      "turkish": "Top Tutma Değeri",
+      "aliases": ["OBV", "VAEP", "xT", "g+"],
+      "note": "5 farklı model, aynı amaç"
+    },
+    "pressing_intensity": {
+      "name": "Pressing Intensity",
+      "turkish": "Baskı Yoğunluğu",
+      "aliases": ["PPDA"],
+      "benchmark": "Elite: 7-9, Average: 10-12"
+    },
+    "progressive_passes": {
+      "name": "Progressive Passes",
+      "turkish": "İlerletici Paslar",
+      "combination": "Progressive Passes + xT = Progression Value"
+    }
+  }
+}

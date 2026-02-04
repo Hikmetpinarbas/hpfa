@@ -1,0 +1,44 @@
+metric_name: Field_Tilt
+category: tactical
+
+core:
+  description: "Share of passes in opponent final third"
+  unit: percentage
+  range: [0, 100]
+
+relationships:
+  influenced_by:
+    - metric: PPDA
+      type: causal
+      sign: negative
+
+falsifiability:
+  H0: "Team does not dominate territory"
+  supports:
+    - metric: High_Final_Third_Passes
+      condition: high
+  contradicts:
+    - metric: Low_PPDA
+      condition: low
+  min_sample_size: 40
+  confidence_floor: 0.6
+
+benchmarks:
+  - context:
+      league: generic
+    thresholds:
+      elite: ">60"
+      good: "50-60"
+      average: "40-50"
+      poor: "<40"
+
+temporal:
+  time_grain: match
+
+aggregation:
+  entity_level: team
+  aggregation_levels: [team]
+
+computation:
+  dependency_metrics: []
+  min_data_quality: 0.8

@@ -1,0 +1,190 @@
+# PPDA - Canonical Definition
+# HP Engine Football Analytics Encyclopedia
+# Last Updated: 2026-01-21
+
+metadata:
+  metric_id: "PPDA"
+  full_name: "Passes Per Defensive Action"
+  short_name: "PPDA"
+  aliases: ["ppda", "PassesPerDefensiveAction"]
+  category: "pressing"
+  subcategory: "team_out_of_possession"
+  complexity: "low"
+  version: "1.0.0"
+
+analysis_modules:
+  pre_match_analysis: true
+  post_match_analysis: true
+  individual_analysis: false
+  team_tactical_analysis: true
+  seasonal_tournament_analysis: true
+  team_squad_engineering_analysis: true
+  general_analysis: true
+
+definition:
+  description: |
+    PPDA (Passes Per Defensive Action) measures pressing intensity by counting
+    how many opponent passes are allowed per defensive action made by the team.
+    Lower PPDA typically indicates higher pressing intensity.
+  unit: "passes_per_defensive_action"
+  range: [0.0, 200.0]
+
+  interpretation:
+    very_high_press:
+      range: [0.0, 7.0]
+      description: "Very aggressive pressing"
+      tactical_meaning: "Opponent forced to play quickly; high defensive engagement"
+    high_press:
+      range: [7.0, 10.0]
+      description: "High pressing"
+      tactical_meaning: "Consistent pressure; limited opponent circulation"
+    medium_press:
+      range: [10.0, 14.0]
+      description: "Medium pressing"
+      tactical_meaning: "Situational pressure; mixed block heights"
+    low_press:
+      range: [14.0, 20.0]
+      description: "Low pressing"
+      tactical_meaning: "More passive; opponent allowed to circulate"
+    very_low_press:
+      range: [20.0, 200.0]
+      description: "Very passive / deep block"
+      tactical_meaning: "Opponent build-up mostly unchallenged"
+
+formula:
+  definition: "PPDA = Opponent Passes / Team Defensive Actions"
+  zone_policy:
+    default_zone: "opponent_build_up_zone"
+    description: |
+      PPDA is commonly computed only in the pressing zone (e.g., opponent
+      defensive + middle thirds) to avoid counting deep defensive actions.
+  components:
+    opponent_passes:
+      include: ["pass"]
+      exclude: ["throw_in", "corner", "free_kick_restart_if_configured"]
+    defensive_actions:
+      include: ["tackle", "interception", "foul", "challenge", "pressure", "ball_recovery"]
+      note: "Exact action taxonomy is provider-specific; use canonical mapping layer."
+
+derivation:
+  level: 2
+  requires:
+    raw_data:
+      - "events.team_id"
+      - "events.action_type"
+      - "events.outcome"
+      - "events.x"
+      - "events.y"
+      - "events.phase"
+    optional:
+      - "events.set_piece_type"
+  derivation_path:
+    - step: 1
+      input: ["events"]
+      process: "Filter events to pressing zone per zone_policy"
+      output: "events_pressing_zone"
+    - step: 2
+      input: ["events_pressing_zone"]
+      process: "Count opponent passes (include pass; exclude configured restarts)"
+      output: "opponent_passes_count"
+    - step: 3
+      input: ["events_pressing_zone"]
+      process: "Count team defensive actions (provider-mapped types)"
+      output: "def_actions_count"
+    - step: 4
+      input: ["opponent_passes_count", "def_actions_count"]
+      process: "Divide; if def_actions_count=0 => flag as not_computable"
+      output: "PPDA"
+
+  can_be_calculated_without:
+    - events.set_piece_type: "If missing, restarts cannot be reliably excluded; compute PPDA including all passes and mark 'coverage_degraded'."
+
+  hard_fail_conditions:
+    - missing: ["events.team_id", "events.action_type"]
+      reason: "No primary event taxonomy; cannot compute PPDA."
+
+enables:
+  direct_derivatives:
+    - metric: "pressing_intensity_index"
+      formula: "1 / PPDA"
+      note: "Useful for monotonic scoring"
+  composite_metrics:
+    - metric: "press_to_shot_chain_rate"
+      combines: ["PPDA", "shots_after_turnover"]
+      formula: "shots_after_turnover / (1 + PPDA)"
+
+dimensional_coverage:
+  tactical:
+    applicable: true
+    inference_type: "direct"
+    note: "Pressing intensity and block proactivity"
+  physical:
+    applicable: true
+    inference_type: "proxy"
+    note: "High press implies higher running/effort demand; requires tracking for confirmation"
+  psychological:
+    applicable: true
+    inference_type: "weak_proxy"
+    note: "Aggressive pressing can signal intent/mentality but must be supported by context evidence"
+  neurological:
+    applicable: false
+    note: "Requires reaction-time/decision signals; PPDA alone cannot claim it"
+  intention:
+    applicable: true
+    inference_type: "proxy"
+    note: "Team risk appetite in out-of-possession phase"
+
+data_requirements:
+  minimum_columns:
+    - "team_id"
+    - "action_type"
+    - "x"
+    - "y"
+  optional_columns:
+    - "set_piece_type"
+    - "phase"
+  minimum_sample_size: 0
+
+platform_implementations:
+  wyscout:
+    mapping_hint: "Defensive actions often include duels + interceptions; confirm taxonomy"
+  opta:
+    mapping_hint: "Pressure events availability varies by feed"
+  statsbomb:
+    mapping_hint: "Use pressures + tackles + interceptions in defined zones"
+
+validation:
+  sanity_checks:
+    - rule: "PPDA > 0 or PPDA = inf"
+      description: "No negative values; inf allowed if no defensive actions"
+    - rule: "PPDA within [0, 200]"
+      description: "Outliers flagged for data mapping errors"
+  reproducibility:
+    - note: "Store zone_policy + excluded pass types in run metadata"
+
+relationships:
+  supports:
+    - metric: "high_turnover_rate"
+      strength: 0.7
+      description: "Higher pressing often increases turnovers in advanced zones"
+  complements:
+    - metric: "defensive_line_height"
+      strength: 0.6
+      description: "Pressing intensity interacts with block height"
+  requires: []
+  contradicts: []
+
+use_cases:
+  team_analysis: "Compare pressing profiles across matches and opponents"
+  tactical_insight: "Detect shifts in pressing approach by phase/time-window"
+  match_preparation: "Opponent scouting—build-up risk under pressure"
+  squad_engineering: "Identify whether squad is physically suited for sustained press"
+
+limitations:
+  - "Provider event taxonomy differences can change PPDA materially"
+  - "Zone definition strongly affects result; must be explicit"
+  - "Cannot confirm 'good pressing' alone—needs outcome link (turnovers, shot prevention)"
+
+academic_references:
+  - "Lucey et al. (2014). Quality vs Quantity: Improved Shot Prediction. MIT Sloan."
+  - "General football analytics literature; PPDA popularized in public analytics communities (method varies by provider)"

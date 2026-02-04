@@ -1,0 +1,12 @@
+{
+  "metric_id": "progression_score",
+  "version": "1.0.0",
+  "full_name": "Progression Score",
+  "category": "progression",
+  "polarity": "positive",
+  "requires_metrics": ["progressive_passes", "final_third_entries", "box_entries"],
+  "logic_method": "(progressive_passes * 3) + (final_third_entries * 2) + (box_entries * 4)",
+  "notes": "If your event data is redundant (same action logged multiple ways), count unique event ids to avoid double counting.",
+  "scopes": ["team_analysis", "postmatch_analysis"],
+  "status": "ACTIVE"
+}

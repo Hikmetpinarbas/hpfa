@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hp-motor"
+version = "0.0.0"
+description = "HP Motor"
+requires-python = ">=3.10"
+readme = "README.md"
+license = {text = "Proprietary"}
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hp_motor*"]
+exclude = ["tests*"]

@@ -1,0 +1,38 @@
+name: Canonical Mapping Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Run canonical mapping inspect
+        run: |
+          python -m engine.cli.inspect_file \
+            --input samples/generic_events_min.csv \
+            --mapping canon/mappings/provider_generic_csv.yaml
+
+      - name: Save output artifact
+        run: |
+          python -m engine.cli.inspect_file \
+            --input samples/generic_events_min.csv \
+            --mapping canon/mappings/provider_generic_csv.yaml > mapping_report.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canonical-mapping-report
+          path: mapping_report.json

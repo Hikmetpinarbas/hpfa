@@ -1,0 +1,82 @@
+{
+  "metric_id": "ppda",
+  "version": "1.0.0",
+  "full_name": "Passes Per Defensive Action",
+  "short_name": "PPDA",
+  "aliases": [
+    "ppda"
+  ],
+  "category": "pressing",
+  "subcategory": "defensive",
+  "complexity": "low",
+  "polarity": "lower_is_better",
+  "unit": "passes_per_def_action",
+  "outputs": [
+    {
+      "name": "ppda",
+      "type": "float",
+      "range": [
+        0.0,
+        100.0
+      ]
+    }
+  ],
+  "scopes": [
+    "postmatch_analysis",
+    "team_tactical_analysis",
+    "seasonal_tournament_analysis"
+  ],
+  "data_requirements": {
+    "required_fields": [
+      "action_type",
+      "team_id",
+      "minute"
+    ],
+    "optional_fields": [
+      "x",
+      "y"
+    ],
+    "minimum_sample_size": 0
+  },
+  "derivation": {
+    "level": 2,
+    "requires_signals": [
+      "events.action_type"
+    ],
+    "requires_metrics": [],
+    "fallbacks": []
+  },
+  "enables": {
+    "direct_derivatives": [],
+    "composites": []
+  },
+  "dimensions": [
+    {
+      "dimension": "tactical",
+      "inference_type": "direct",
+      "evidence_strength": 0.8,
+      "notes": ""
+    }
+  ],
+  "impl": {
+    "module": "engine.metrics_impl.ppda",
+    "function": "compute_ppda",
+    "runtime": "python"
+  },
+  "validation": {
+    "tests": [
+      {
+        "name": "Sanity",
+        "type": "sanity",
+        "target": "ppda>0"
+      }
+    ]
+  },
+  "citations": [
+    {
+      "ref_id": "UEFA_UCL_TECH_2024",
+      "relation": "benchmark",
+      "locator": "Pressing"
+    }
+  ]
+}

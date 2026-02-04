@@ -1,0 +1,45 @@
+{
+  "metric_id": "shot_goals_added",
+  "version": "1.0.0",
+  "full_name": "Shot Goals Added",
+  "short_name": "SGA",
+  "aliases": ["SGA", "Shot Goals Added"],
+  "category": "finishing",
+  "subcategory": "shot_quality_delta",
+  "complexity": "low",
+  "polarity": "higher_is_better",
+  "unit": "goals",
+  "outputs": [
+    { "name": "shot_goals_added", "type": "float", "range": [-50.0, 50.0] }
+  ],
+  "scopes": ["player_analysis", "postmatch_analysis"],
+  "data_requirements": {
+    "required_fields": ["xg", "psxg"],
+    "optional_fields": ["shot_on_target"],
+    "notes": "SGA = PSxG - xG. Operational usage: aggregate per90 or per-shot."
+  },
+  "derivation": {
+    "level": 3,
+    "requires_signals": ["events.xg", "events.psxg"],
+    "requires_metrics": [],
+    "fallbacks": []
+  },
+  "dimensions": [
+    {
+      "dimension": "technical",
+      "inference_type": "derived",
+      "evidence_strength": 0.75,
+      "notes": "Separates shot execution from chance quality."
+    }
+  ],
+  "impl": {
+    "module": "engine.metrics_impl.finishing",
+    "function": "compute_shot_goals_added",
+    "runtime": "python"
+  },
+  "validation": {
+    "tests": [
+      { "name": "Finite", "type": "sanity", "target": "shot_goals_added>-1e9" }
+    ]
+  }
+}

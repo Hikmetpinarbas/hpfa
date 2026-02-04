@@ -1,0 +1,14 @@
+version: 1
+roles:
+  - id: ANCHOR
+    name_tr: "Anchor"
+    name_en: "Anchor"
+    definition_tr: "Dengeleyici/sabitleyici rol; tempo ve rest-defense tutucu."
+  - id: ENABLER
+    name_tr: "Enabler"
+    name_en: "Enabler"
+    definition_tr: "Mümkün kılan rol; hat kırma, alan açma, bağlantı kurma."
+  - id: VALIDATOR
+    name_tr: "Validator"
+    name_en: "Validator"
+    definition_tr: "Sonucu onaylayan rol; bitiriş/son aksiyon/son dokunuş."

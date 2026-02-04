@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp-engine.local/schemas/pattern.schema.json",
+  "title": "HP Engine Pattern Definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pattern_id",
+    "name",
+    "status",
+    "gates",
+    "evidence",
+    "tags"
+  ],
+  "properties": {
+    "pattern_id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9_\\-]+$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "candidate",
+        "confirmed",
+        "rejected"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmed_requires_primary",
+        "max_uncertainty_for_confirmed"
+      ],
+      "properties": {
+        "confirmed_requires_primary": {
+          "type": "boolean"
+        },
+        "max_uncertainty_for_confirmed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evidence_type",
+          "source",
+          "uncertainty"
+        ],
+        "properties": {
+          "evidence_type": {
+            "type": "string",
+            "enum": [
+              "primary_raw",
+              "primary_derived",
+              "video_support",
+              "annotation",
+              "secondary_reference"
+            ]
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_type",
+              "source_name"
+            ],
+            "properties": {
+              "source_type": {
+                "type": "string",
+                "enum": [
+                  "csv",
+                  "xml",
+                  "xlsx",
+                  "pdf",
+                  "video",
+                  "manual",
+                  "api"
+                ]
+              },
+              "source_name": {
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              },
+              "fingerprint": {
+                "type": "string"
+              }
+            }
+          },
+          "uncertainty": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "detectors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "rules",
+              "ml",
+              "hybrid"
+            ]
+          },
+          "module": {
+            "type": "string"
+          },
+          "function": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ref_id",
+          "relation"
+        ],
+        "properties": {
+          "ref_id": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "definition",
+              "method",
+              "benchmark"
+            ]
+          },
+          "locator": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+# Required in export zip (relative paths inside zip folder):
+standings__normalized.csv
+goal_timing__normalized.csv
+passes_players_split__normalized.csv
+goal_timing_team_profile.csv
+passes_players_top_attempted.csv
+passes_players_top_pct_min50.csv
+passes_team_summary.csv
+manifest.json

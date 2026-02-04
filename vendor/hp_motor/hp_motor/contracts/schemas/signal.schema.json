@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hp-engine.local/schemas/signal.schema.json",
+  "title": "HP Engine Signal Definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "signal_id",
+    "name",
+    "dtype",
+    "source_types"
+  ],
+  "properties": {
+    "signal_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_\\.]+$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "dtype": {
+      "type": "string",
+      "enum": [
+        "int",
+        "float",
+        "string",
+        "bool",
+        "datetime",
+        "category",
+        "object"
+      ]
+    },
+    "unit": {
+      "type": "string"
+    },
+    "polarity": {
+      "type": "string",
+      "enum": [
+        "higher_is_better",
+        "lower_is_better",
+        "contextual",
+        "two_sided"
+      ]
+    },
+    "signal_type": {
+      "type": "string",
+      "enum": [
+        "id",
+        "timestamp",
+        "coord",
+        "count",
+        "rate",
+        "share",
+        "rating",
+        "label",
+        "context",
+        "text",
+        "media_ref"
+      ]
+    },
+    "source_types": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": [
+          "csv",
+          "xml",
+          "xlsx",
+          "pdf",
+          "docx",
+          "txt",
+          "video",
+          "api",
+          "manual"
+        ]
+      }
+    },
+    "mappings": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coverage": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "missing_rate": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

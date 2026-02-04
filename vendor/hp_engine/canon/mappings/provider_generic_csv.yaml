@@ -1,0 +1,38 @@
+provider_id: generic_csv_v1
+description: Generic CSV auto-discovery mapping to canonical events.*
+
+columns:
+  event_type:
+    aliases: [type, action, event]
+    target: events.event_type
+    required: true
+
+  x:
+    aliases: [x, pos_x, start_x]
+    target: events.start_x
+    required: false
+
+  y:
+    aliases: [y, pos_y, start_y]
+    target: events.start_y
+    required: false
+
+  end_x:
+    aliases: [end_x, to_x, dest_x]
+    target: events.end_x
+    required: false
+
+  end_y:
+    aliases: [end_y, to_y, dest_y]
+    target: events.end_y
+    required: false
+
+  team_id:
+    aliases: [team, team_id]
+    target: events.team_id
+    required: true
+
+  player_id:
+    aliases: [player, player_id]
+    target: events.player_id
+    required: false

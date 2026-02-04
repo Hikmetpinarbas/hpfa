@@ -1,0 +1,13 @@
+{
+  "contract_id": "HP_VIDEO_ASSET_V1",
+  "properties": {
+    "asset_id": { "type": "string", "description": "ULID based asset ID" },
+    "title_raw": { "type": "string" },
+    "declared_scope": { "enum": ["OFFENSIVE", "DEFENSIVE", "TRANSITION", "SET_PIECE"] },
+    "allowed_dimensions": { "type": "array", "items": { "enum": ["tactical", "physical", "technical", "neurological"] } },
+    "denied_dimensions": { "type": "array", "items": { "string" } },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "policy_version": { "type": "string", "description": "Reproducibility için policy versiyonu" }
+  },
+  "required": ["asset_id", "declared_scope", "allowed_dimensions"]
+}

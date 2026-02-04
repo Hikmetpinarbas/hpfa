@@ -1,0 +1,18 @@
+{
+  "contract_id": "HP_CAL_CLAIM_V1",
+  "properties": {
+    "claim_id": { "type": "string" },
+    "scope": { "enum": ["individual", "team", "tactical", "seasonal"] },
+    "evidence": {
+      "primary_raw": ["signal_id"],
+      "derived_metrics": ["metric_id"],
+      "video_support": { "type": "boolean", "default": false }
+    },
+    "confidence_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "uncertainty_index": { "type": "number" },
+    "falsification_test": { "type": "string" },
+    "counterfactual": { "type": "string" },
+    "citations": ["ref_id"]
+  },
+  "required": ["claim_id", "evidence", "confidence_score", "citations"]
+}

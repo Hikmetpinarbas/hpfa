@@ -1,0 +1,45 @@
+{
+  "hp_metric_governance": {
+    "version": "1.1",
+    "primary_vendor": "SportsBase",
+    "primary_role": "label_and_reporting_standard",
+    "definition_authority_order": [
+      "SportsBase(if_explicit_definition_provided)",
+      "Wyscout_Data_Glossary",
+      "StatsBomb_Glossary_and_OpenData_Spec",
+      "Opta_Event_Definitions_and_Stats_Definitions",
+      "FIFA_Football_Language_and_EFI"
+    ],
+    "conflict_resolution": {
+      "naming": "SportsBase_label_wins",
+      "counting_rule": "explicit_vendor_rule_wins_else_fallback_order",
+      "scope_defaults": "open_play unless tagged set_piece; phase inferred by mapping",
+      "units": "keep_vendor_units; standardize to per90/per_possession where applicable"
+    },
+    "required_fields": [
+      "sportsbase_label",
+      "concept_id",
+      "phase_id",
+      "definition_tr",
+      "counting_rule",
+      "scope",
+      "unit",
+      "polarity",
+      "evidence_urls",
+      "notes"
+    ],
+    "broadcast_binding": {
+      "three_sentence_rule": [
+        "finding",
+        "mechanism",
+        "action"
+      ],
+      "avoid_model_speak": true,
+      "uncertainty_visible": [
+        "high",
+        "medium",
+        "low"
+      ]
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "metric_id": "ppda",
+  "version": "1.0.0",
+  "full_name": "Passes Per Defensive Action",
+  "category": "pressing",
+  "polarity": "negative",
+  "logic_method": "sum(opponent_passes) / sum(defensive_actions)",
+  "requires_signals": [
+    "events.action_type",
+    "events.team_id",
+    "events.pos_x"
+  ],
+  "scopes": ["postmatch_analysis"],
+  "validation_method": "non_zero_denominator",
+  "status": "ACTIVE"
+}

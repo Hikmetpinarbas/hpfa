@@ -1,0 +1,29 @@
+{
+  "canonical_to_platforms": {
+    "xG": {
+      "StatsBomb": "xG (XGBoost + 360)",
+      "Opta": "Expected Goals",
+      "Wyscout": "xG (Neural Net)",
+      "Understat": "xG",
+      "InStat": "xG"
+    },
+    "PSxG": {
+      "StatsBomb": "PSxG",
+      "Opta": "xGOT",
+      "Wyscout": "PSxG/xCG"
+    },
+    "Possession Value": {
+      "StatsBomb": "OBV",
+      "Academic": "VAEP / xT",
+      "ASA": "g+"
+    },
+    "PPDA": {
+      "All": "PPDA"
+    },
+    "Progressive Passes": {
+      "Opta": "Prog (25% closer)",
+      "FBref": "Prog (10+ yards)",
+      "Wyscout": "Prog (tiered)"
+    }
+  }
+}
