@@ -1,17 +1,35 @@
 {
-  "PASS": {
-    "canon_action": "PASS",
-    "lossy": false,
-    "assumption_id": "00000000-0000-0000-0000-000000000001"
-  },
-  "SHOT": {
-    "canon_action": "SHOT",
-    "lossy": false,
-    "assumption_id": "00000000-0000-0000-0000-000000000002"
-  },
-  "PRESSURE": {
-    "canon_action": "PRESSURE",
-    "lossy": true,
-    "assumption_id": "00000000-0000-0000-0000-000000000003"
+  "version": "0.1.0",
+  "provider": "SportsBase",
+  "mapping": {
+    "Paslar adresi bulanlar": { "canon_type": "PASS", "canon_subtype": "GENERAL", "outcome": "SUCCESS", "qualifiers": ["TR"], "is_meta": false },
+    "İsabetsiz paslar":       { "canon_type": "PASS", "canon_subtype": "GENERAL", "outcome": "FAIL", "qualifiers": ["TR"], "is_meta": false },
+    "Uzun paslar":            { "canon_type": "PASS", "canon_subtype": "LONG_PASS", "outcome": "UNKNOWN", "qualifiers": ["TR"], "is_meta": false },
+    "Incomplete long passes": { "canon_type": "PASS", "canon_subtype": "LONG_PASS", "outcome": "FAIL", "qualifiers": ["EN"], "is_meta": false },
+
+    "İsabetli Şut":           { "canon_type": "SHOT", "canon_subtype": "ON_TARGET", "outcome": "SUCCESS", "qualifiers": ["TR"], "is_meta": false },
+    "İsabetsiz Şutlar":       { "canon_type": "SHOT", "canon_subtype": "OFF_TARGET", "outcome": "FAIL", "qualifiers": ["TR"], "is_meta": false },
+    "Mid range shots on target": { "canon_type": "SHOT", "canon_subtype": "ON_TARGET", "outcome": "SUCCESS", "qualifiers": ["EN","RANGE_MID"], "is_meta": false },
+    "Yakından isabetli şutlar":  { "canon_type": "SHOT", "canon_subtype": "ON_TARGET", "outcome": "SUCCESS", "qualifiers": ["TR","RANGE_CLOSE"], "is_meta": false },
+    "İsabetli uzaktan şutlar":   { "canon_type": "SHOT", "canon_subtype": "ON_TARGET", "outcome": "SUCCESS", "qualifiers": ["TR","RANGE_LONG"], "is_meta": false },
+    "Yenen goller":              { "canon_type": "GOAL", "canon_subtype": "CONCEDED", "outcome": "SUCCESS", "qualifiers": ["TR"], "is_meta": false },
+
+    "Kurtarış":               { "canon_type": "SAVE", "canon_subtype": "GK_SAVE", "outcome": "SUCCESS", "qualifiers": ["TR"], "is_meta": false },
+    "Kurtarışlar":            { "canon_type": "SAVE", "canon_subtype": "GK_SAVE", "outcome": "SUCCESS", "qualifiers": ["TR","PLURAL_VARIANT"], "is_meta": false },
+
+    "Successful cross and pass interception attempts": { "canon_type": "INTERCEPTION", "canon_subtype": "PASS_OR_CROSS", "outcome": "SUCCESS", "qualifiers": ["EN"], "is_meta": false },
+    "Mistakes":               { "canon_type": "ERROR", "canon_subtype": "MISTAKE", "outcome": "FAIL", "qualifiers": ["EN"], "is_meta": false },
+
+    "Goal kicks":                    { "canon_type": "RESTART", "canon_subtype": "GOAL_KICK", "outcome": "UNKNOWN", "qualifiers": ["EN"], "is_meta": false },
+    "Goal kicks short (0-10 m.)":    { "canon_type": "RESTART", "canon_subtype": "GOAL_KICK", "outcome": "UNKNOWN", "qualifiers": ["EN","DIST_SHORT_0_10M"], "is_meta": false },
+    "Goal kicks medium (15-40 m.)":  { "canon_type": "RESTART", "canon_subtype": "GOAL_KICK", "outcome": "UNKNOWN", "qualifiers": ["EN","DIST_MED_15_40M"], "is_meta": false },
+    "Goal kicks long (40+ m.)":      { "canon_type": "RESTART", "canon_subtype": "GOAL_KICK", "outcome": "UNKNOWN", "qualifiers": ["EN","DIST_LONG_40PLUS"], "is_meta": false },
+
+    "YC":                    { "canon_type": "CARD", "canon_subtype": "YELLOW", "outcome": "SUCCESS", "qualifiers": ["DISCIPLINE"], "is_meta": false },
+
+    "Start of the 1st half": { "canon_type": "PERIOD_START", "canon_subtype": "H1", "outcome": "SUCCESS", "qualifiers": ["META_EVENT"], "is_meta": true },
+    "Start of the 2nd half": { "canon_type": "PERIOD_START", "canon_subtype": "H2", "outcome": "SUCCESS", "qualifiers": ["META_EVENT"], "is_meta": true },
+    "Halftime":              { "canon_type": "PERIOD_BREAK", "canon_subtype": "HALFTIME", "outcome": "SUCCESS", "qualifiers": ["META_EVENT"], "is_meta": true },
+    "End of the match":      { "canon_type": "MATCH_END", "canon_subtype": "FULLTIME", "outcome": "SUCCESS", "qualifiers": ["META_EVENT"], "is_meta": true }
   }
 }

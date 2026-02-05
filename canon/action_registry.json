@@ -1,0 +1,40 @@
+{
+  "version": "0.1.0",
+  "provider": "SportsBase",
+  "notes": [
+    "SUCCESS/FAIL sadece hedefe isabet/başarı sinyali olan action_raw'larda kullanıldı.",
+    "Goal kick'lerde outcome genelde UNKNOWN (alıcı/sonuç bilgisi yok).",
+    "Meta-event (start/halftime/end) analiz metriğine girmez; sadece timeline/segment için."
+  ],
+  "entries": [
+    { "group_id": "A1",  "action_raw": "Paslar adresi bulanlar", "canon_type": "PASS", "canon_subtype": "GENERAL", "outcome": "SUCCESS", "qualifiers": ["TR"], "is_meta": false },
+    { "group_id": "A3",  "action_raw": "İsabetsiz paslar",       "canon_type": "PASS", "canon_subtype": "GENERAL", "outcome": "FAIL",    "qualifiers": ["TR"], "is_meta": false },
+    { "group_id": "A9",  "action_raw": "Uzun paslar",            "canon_type": "PASS", "canon_subtype": "LONG_PASS", "outcome": "UNKNOWN", "qualifiers": ["TR"], "is_meta": false },
+    { "group_id": "A5",  "action_raw": "Incomplete long passes", "canon_type": "PASS", "canon_subtype": "LONG_PASS", "outcome": "FAIL", "qualifiers": ["EN"], "is_meta": false },
+
+    { "group_id": "A2",  "action_raw": "İsabetli Şut",           "canon_type": "SHOT", "canon_subtype": "ON_TARGET",  "outcome": "SUCCESS", "qualifiers": ["TR"], "is_meta": false },
+    { "group_id": "A6",  "action_raw": "İsabetsiz Şutlar",       "canon_type": "SHOT", "canon_subtype": "OFF_TARGET", "outcome": "FAIL",    "qualifiers": ["TR"], "is_meta": false },
+    { "group_id": "A10", "action_raw": "Mid range shots on target","canon_type": "SHOT", "canon_subtype": "ON_TARGET", "outcome": "SUCCESS", "qualifiers": ["EN","RANGE_MID"], "is_meta": false },
+    { "group_id": "A12", "action_raw": "Yakından isabetli şutlar","canon_type": "SHOT", "canon_subtype": "ON_TARGET", "outcome": "SUCCESS", "qualifiers": ["TR","RANGE_CLOSE"], "is_meta": false },
+    { "group_id": "A14", "action_raw": "İsabetli uzaktan şutlar", "canon_type": "SHOT", "canon_subtype": "ON_TARGET", "outcome": "SUCCESS", "qualifiers": ["TR","RANGE_LONG"], "is_meta": false },
+    { "group_id": "A15", "action_raw": "Yenen goller",           "canon_type": "GOAL", "canon_subtype": "CONCEDED",   "outcome": "SUCCESS", "qualifiers": ["TR"], "is_meta": false },
+
+    { "group_id": "A4",  "action_raw": "Kurtarış",               "canon_type": "SAVE", "canon_subtype": "GK_SAVE", "outcome": "SUCCESS", "qualifiers": ["TR"], "is_meta": false },
+    { "group_id": "A4",  "action_raw": "Kurtarışlar",            "canon_type": "SAVE", "canon_subtype": "GK_SAVE", "outcome": "SUCCESS", "qualifiers": ["TR","PLURAL_VARIANT"], "is_meta": false },
+
+    { "group_id": "A8",  "action_raw": "Successful cross and pass interception attempts", "canon_type": "INTERCEPTION", "canon_subtype": "PASS_OR_CROSS", "outcome": "SUCCESS", "qualifiers": ["EN"], "is_meta": false },
+    { "group_id": "A21", "action_raw": "Mistakes",              "canon_type": "ERROR", "canon_subtype": "MISTAKE", "outcome": "FAIL", "qualifiers": ["EN"], "is_meta": false },
+
+    { "group_id": "A7",  "action_raw": "Goal kicks",                    "canon_type": "RESTART", "canon_subtype": "GOAL_KICK", "outcome": "UNKNOWN", "qualifiers": ["EN"], "is_meta": false },
+    { "group_id": "A16", "action_raw": "Goal kicks short (0-10 m.)",    "canon_type": "RESTART", "canon_subtype": "GOAL_KICK", "outcome": "UNKNOWN", "qualifiers": ["EN","DIST_SHORT_0_10M"], "is_meta": false },
+    { "group_id": "A11", "action_raw": "Goal kicks medium (15-40 m.)",  "canon_type": "RESTART", "canon_subtype": "GOAL_KICK", "outcome": "UNKNOWN", "qualifiers": ["EN","DIST_MED_15_40M"], "is_meta": false },
+    { "group_id": "A13", "action_raw": "Goal kicks long (40+ m.)",      "canon_type": "RESTART", "canon_subtype": "GOAL_KICK", "outcome": "UNKNOWN", "qualifiers": ["EN","DIST_LONG_40PLUS"], "is_meta": false },
+
+    { "group_id": "A18", "action_raw": "YC", "canon_type": "CARD", "canon_subtype": "YELLOW", "outcome": "SUCCESS", "qualifiers": ["DISCIPLINE"], "is_meta": false },
+
+    { "group_id": "A19", "action_raw": "Start of the 1st half", "canon_type": "PERIOD_START", "canon_subtype": "H1", "outcome": "SUCCESS", "qualifiers": ["META_EVENT"], "is_meta": true },
+    { "group_id": "A17", "action_raw": "Start of the 2nd half", "canon_type": "PERIOD_START", "canon_subtype": "H2", "outcome": "SUCCESS", "qualifiers": ["META_EVENT"], "is_meta": true },
+    { "group_id": "A20", "action_raw": "Halftime",             "canon_type": "PERIOD_BREAK", "canon_subtype": "HALFTIME", "outcome": "SUCCESS", "qualifiers": ["META_EVENT"], "is_meta": true },
+    { "group_id": "A22", "action_raw": "End of the match",     "canon_type": "MATCH_END", "canon_subtype": "FULLTIME", "outcome": "SUCCESS", "qualifiers": ["META_EVENT"], "is_meta": true }
+  ]
+}
