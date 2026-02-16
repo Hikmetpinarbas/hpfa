@@ -19,3 +19,6 @@ vendor/**/.ruff_cache/
 vendor/**/dist/
 vendor/**/build/
 vendor/**/*.egg-info/
+
+# HPFA runtime outputs
+/_out/
