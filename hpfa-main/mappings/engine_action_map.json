@@ -1,0 +1,27 @@
+{
+  "PASS": {
+    "canon_action": "PASS",
+    "lossy": false,
+    "assumption_id": "00000000-0000-0000-0000-000000000001"
+  },
+  "SHOT": {
+    "canon_action": "SHOT",
+    "lossy": false,
+    "assumption_id": "00000000-0000-0000-0000-000000000002"
+  },
+  "PRESSURE": {
+    "canon_action": "PRESSURE",
+    "lossy": true,
+    "assumption_id": "00000000-0000-0000-0000-000000000003"
+  },
+  "DUEL": {
+    "canon_action": "DUEL",
+    "lossy": true,
+    "assumption_id": "00000000-0000-0000-0000-000000000004"
+  },
+  "AERIAL": {
+    "canon_action": "AERIAL",
+    "lossy": true,
+    "assumption_id": "00000000-0000-0000-0000-000000000005"
+  }
+}

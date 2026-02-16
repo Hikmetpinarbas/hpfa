@@ -1,0 +1,20 @@
+{
+  "actions": {
+    "AERIAL": {
+      "status": "aurelia"
+    },
+    "DUEL": {
+      "status": "aurelia"
+    },
+    "PASS": {
+      "status": "aurelia"
+    },
+    "PRESSURE": {
+      "status": "aurelia"
+    },
+    "SHOT": {
+      "status": "aurelia"
+    }
+  },
+  "schema_version": "1.0"
+}

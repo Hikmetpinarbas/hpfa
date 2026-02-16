@@ -1,0 +1,18 @@
+# narrative_rules.yaml (REVİZYON v1)
+# Minimal-parse YAML (PyYAML yok) için tasarlandı: inline list + basit scalars.
+rules:
+  deny_uncertainty:
+    terms: ["belki","muhtemelen","galiba","sanırım","olabilir","i think","maybe","perhaps","probably","might","could","seems","apparently"]
+
+  unvalidated_gate:
+    allow_log_regex: '^State:\s*UNVALIDATED\s*\(veri eksikliği\)\s*$'
+
+  rewrite_contested_possession_claim:
+    state: 'CONTESTED'
+    regex: '(?i)\b(topu kontrol ediyor|oyunu kontrol ediyor|üstün|kazanıyor|domine ediyor|winning|in control|controlling possession|dominating)\b'
+    canonical: 'State: CONTESTED (INCONCLUSIVE)'
+
+  rewrite_dead_ball_in_play_claim:
+    state: 'DEAD_BALL'
+    regex: '(?i)\b(top oyunda|oyun devam ediyor|ball in play|play continues)\b'
+    canonical: 'State: DEAD_BALL (restart bekleniyor)'
