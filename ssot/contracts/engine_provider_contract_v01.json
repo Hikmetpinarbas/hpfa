@@ -1,0 +1,49 @@
+{
+  "version": "0.1.0",
+  "name": "HPFA Engine Provider Contract",
+  "provider_kind": "engine",
+  "required": {
+    "input": {
+      "source_csv_filename": "events_canonical.csv",
+      "required_columns_minimal": ["event_id", "minute", "second", "time_sec", "team", "type", "source_file"],
+      "recommended_columns_spatial": ["x", "y"],
+      "recommended_columns_identity": ["match_id", "player", "event_type"]
+    },
+    "artifacts": {
+      "required_files": [
+        "engine_meta_stamped.json",
+        "engine_seq_possessions.json",
+        "engine_xt01_grid.json"
+      ],
+      "engine_seq_possessions": {
+        "required_keys": ["policy", "n_possessions", "summaries"],
+        "summaries_schema": {
+          "type": "list",
+          "item_required_keys": ["possession_id", "team", "half", "t_start", "t_end", "n_events", "start_xy", "end_xy"]
+        }
+      },
+      "engine_xt01_grid": {
+        "required_keys": ["grid_spec", "solve_spec", "grid_values"],
+        "grid_values_min_cells": 1
+      }
+    },
+    "evidence": {
+      "required_hashes": [
+        "input.source_csv_sha256",
+        "evidence.artifact_sha256.engine_meta.json",
+        "evidence.artifact_sha256.engine_seq_possessions.json",
+        "evidence.artifact_sha256.engine_xt01_grid.json",
+        "evidence.refs_library_sha256"
+      ]
+    }
+  },
+  "quality_gates": {
+    "coord_presence": {
+      "metric_path": "raw_engine_meta.modules.coord_normalize.seen_xy",
+      "if_zero": "WARN"
+    },
+    "team_presence": {
+      "note": "If too many UNKNOWN teams, downgrade claims. Evaluated by gate script."
+    }
+  }
+}

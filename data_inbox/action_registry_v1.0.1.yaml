@@ -1,0 +1,100 @@
+# HPFA Canonical Action Registry & Possession Mapping
+# Version: 1.0.1
+# Principles: Fail-closed, Zero-drift, Canonical-first
+# Notes:
+# - SCRAMBLE is NOT an action. Use context.scramble_flag=true (+counter).
+# - LOOSE_BALL is NEUTRAL (not END) to avoid micro-possession explosion.
+# - GK_SAVE uses qualifier gk_holds (true/false) set by mapping logic.
+
+- canonical_action: GK_CATCH
+  aliases: [catch, claim, topu_tuttu, hava_topu_kontrol, goalkeeper_claim]
+  possession_effect: START
+  allowed_states: [CONTESTED, DEAD_BALL]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: GK_SAVE
+  aliases: [save, kurtarış, şut_çıkarma, parry, çelme, punch, yumruklama]
+  possession_effect: NEUTRAL
+  allowed_states: [CONTESTED]
+  fail_closed_default: UNVALIDATED
+  qualifiers:
+    - gk_holds:true
+    - gk_holds:false
+
+- canonical_action: GK_DIST_SHORT
+  aliases: [short_distribution, kaleci_kısa_pas, elle_oyun, short_throw]
+  possession_effect: CONTINUE
+  allowed_states: [CONTROLLED]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: GK_DIST_LONG
+  aliases: [long_distribution, degaj, kale_vuruşu_açıktan, long_kick]
+  possession_effect: CONTINUE
+  allowed_states: [CONTROLLED]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: RESTART_KICKOFF
+  aliases: [kickoff, santra, başlama_vuruşu]
+  possession_effect: START
+  allowed_states: [DEAD_BALL]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: RESTART_THROW_IN
+  aliases: [throw_in, taç, taç_atışı]
+  possession_effect: START
+  allowed_states: [DEAD_BALL]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: RESTART_GOAL_KICK
+  aliases: [goal_kick, kale_vuruşu, aut_atışı]
+  possession_effect: START
+  allowed_states: [DEAD_BALL]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: RESTART_CORNER
+  aliases: [corner, korner, köşe_vuruşu]
+  possession_effect: START
+  allowed_states: [DEAD_BALL]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: RESTART_FREE_KICK
+  aliases: [free_kick, serbest_vuruş, frikik]
+  possession_effect: START
+  allowed_states: [DEAD_BALL]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: RESTART_DROPPED_BALL
+  aliases: [dropped_ball, hakem_atışı]
+  possession_effect: START
+  allowed_states: [DEAD_BALL]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: INTERCEPTION
+  aliases: [interception, pas_arası, top_kesme, araya_girme]
+  possession_effect: START
+  allowed_states: [CONTESTED]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: TACKLE_SUCCESS
+  aliases: [tackle_win, başarılı_müdahale, top_kapma, ball_recovery_tackle]
+  possession_effect: START
+  allowed_states: [CONTESTED]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: TACKLE_FAIL
+  aliases: [tackle_fail, başarısız_müdahale, çalım_yeme, missed_tackle]
+  possession_effect: CONTINUE
+  allowed_states: [CONTESTED]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: DEFLECTION
+  aliases: [deflection, çarpma, yön_değiştirme, block, blok]
+  possession_effect: NEUTRAL
+  allowed_states: [CONTESTED]
+  fail_closed_default: UNVALIDATED
+
+- canonical_action: LOOSE_BALL
+  aliases: [loose_ball, sahipsiz_top, seken_top, ball_recovery]
+  possession_effect: NEUTRAL
+  allowed_states: [CONTESTED]
+  fail_closed_default: UNVALIDATED

@@ -1,0 +1,12 @@
+{
+  "match_id": "rz-gs-20260208",
+  "teams": [
+    "Caykur Rizespor (62850)",
+    "Galatasaray (29205)"
+  ],
+  "kept_points": 531,
+  "dropped_unknown": 4,
+  "dropped_ban_actions": 1526,
+  "dropped_not_allowlist": 1164,
+  "notes": "positions computed from actor-location proxy events; passes removed due to destination semantics risk."
+}

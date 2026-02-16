@@ -1,0 +1,94 @@
+===== HPFA STATUS REPORT =====
+Mon Feb 16 22:15:56 +03 2026
+
+== RUNTIME ==
+[OK] venv python=/data/data/com.termux/files/home/hpfa/.venv/bin/python
+
+== IMPORT RESOLUTION ==
+[OK] hpfa=/data/data/com.termux/files/home/HPFA_MASTER/base/hpfa-monorepo/src/hpfa/__init__.py
+[OK] hp_motor=/data/data/com.termux/files/home/HP_PROJELERI/HP-Motor-main/src/hp_motor/__init__.py
+[OK] sys.path(head)= ['', '/data/data/com.termux/files/usr/lib/python312.zip', '/data/data/com.termux/files/usr/lib/python3.12', '/data/data/com.termux/files/usr/lib/python3.12/lib-dynload', '/data/data/com.termux/files/home/hpfa/.venv/lib/python3.12/site-packages', '/data/data/com.termux/files/home/HP_PROJELERI/HP-Motor-main/src', '/data/data/com.termux/files/home/HPFA_MASTER/base/hpfa-monorepo/src']
+
+== BASELINES (locks + fingerprint) ==
+-r--r--r--. 1 u0_a601 u0_a601 520 Feb 16 19:13 /data/data/com.termux/files/home/hpfa/_diag/engine_artifacts.CORE.BASELINE.json
+-r--r--r--. 1 u0_a601 u0_a601 1423 Feb 16 19:11 /data/data/com.termux/files/home/hpfa/_diag/hp_projeleri_inventory.BASELINE.tsv
+-r--r--r--. 1 u0_a601 u0_a601 41 Feb 16 19:11 /data/data/com.termux/files/home/hpfa/_diag/hp_projeleri_inventory.BASELINE.sig
+
+[INFO] core baseline fingerprint:
+2b0ce977d159bfb5a122388604b554cd73d1e87a49a8a176e5f039611a18a871
+
+== OUT DIR HEALTH ==
+[OK] OUT=/data/data/com.termux/files/home/hpfa/_out
+[OK] engine_run_* count=13
+
+[INFO] newest 8:
+  2026-02-16 22:14:26.2197757790  engine_run_20260216_221425
+  2026-02-16 22:12:33.6437758220  engine_run_20260216_221233
+  2026-02-16 21:51:22.2777878840  engine_run_20260216_215122
+  2026-02-16 21:15:45.3137921520  engine_run_20260216_211545
+  2026-02-16 20:45:57.0217928340  engine_run_20260216_204556
+  2026-02-16 19:47:10.6151188750  engine_run_20260216_194710
+  2026-02-16 19:46:53.1471188810  engine_run_20260216_194653
+  2026-02-16 19:38:47.4672041270  engine_run_20260216_193847
+
+[INFO] oldest 8:
+  2026-02-16 19:31:36.9872042910  engine_run_20260216_193136
+  2026-02-16 19:32:05.6192042800  engine_run_20260216_193205
+  2026-02-16 19:33:13.3232042540  engine_run_20260216_193313
+  2026-02-16 19:33:20.4992042520  engine_run_20260216_193320
+  2026-02-16 19:38:35.8792041310  engine_run_20260216_193835
+  2026-02-16 19:38:47.4672041270  engine_run_20260216_193847
+  2026-02-16 19:46:53.1471188810  engine_run_20260216_194653
+  2026-02-16 19:47:10.6151188750  engine_run_20260216_194710
+
+== ARCHIVE/QUARANTINE FOOTPRINT (top-level) ==
+[OK] ARCH=/data/data/com.termux/files/home/HP_ARCHIVES
+    8668.0 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142
+    1272.3 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_PROJELERI_ARCHIVE_20260216_115249
+       5.7 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_OUT_ARCHIVE
+       2.2 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_CLEANUP_20260216_221204
+       0.9 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_PROJELERI_PRUNE_20260216_123232
+       0.3 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_PROJELERI_PRUNE_FILES_20260216_160837
+       0.0 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_REPORTS
+       0.0 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_PROJELERI_PRUNE_INV_20260216_145651
+       0.0 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_PROJELERI_PRUNE_FILES_20260216_145830
+       0.0 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_PROJELERI_ARCHIVE_20260216_162722
+       0.0 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_PROJELERI_ARCHIVE_20260216_115234
+       0.0 MB  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_PROJELERI_PRUNE_INV_20260216_145643
+
+== DUPLICATE MODULE DIRS (hpfa / hp_motor) ==
+[INFO] hpfa dirs (first 30):
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_GRAVEYARD_20260216_112221__39470e5966/__data__data__com.termux__files__home___HP_QUARANTINE_20260216_111930____data__data__com.termux__files__home__hp_motor__QUARANTINED_20260216_082417__hp_motor__QUARANTINED_20260216_082417/hp_motor__QUARANTINED_20260216_082417/hpfa
+  /data/data/com.termux/files/home/HPFA/hpfa
+  /data/data/com.termux/files/home/.config/hpfa
+  /data/data/com.termux/files/home/hpfa
+  /data/data/com.termux/files/home/HPFA_MASTER/base/hpfa-monorepo/src/hpfa
+  /data/data/com.termux/files/home/HPFA_MASTER/base/hpfa-monorepo/external/hpfa-fortress/src/hpfa
+  /data/data/com.termux/files/home/HPFA_MASTER/base/hpfa-monorepo/resources/contracts/src/hpfa
+
+[INFO] hp_motor dirs (first 30):
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_GRAVEYARD_20260216_112221__39470e5966/__data__data__com.termux__files__home___HP_QUARANTINE_20260216_111930____data__data__com.termux__files__home__HP_PROJELERI___ZIP_EXPLODED__HP-Motor-termux-lite-patch__HP-Motor-main__src__src/src/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_GRAVEYARD_20260216_112221__39470e5966/__data__data__com.termux__files__home___HP_QUARANTINE_20260216_111930____data__data__com.termux__files__home___QUARANTINE_DUPLICATES_20260216_090548__data__data__com.termux__files__home__hp_motor_REPO__data__data__com.termux__files__home__hp_motor_REPO/data__data__com.termux__files__home__hp_motor_REPO/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_GRAVEYARD_20260216_112221__39470e5966/__data__data__com.termux__files__home___HP_QUARANTINE_20260216_111930____data__data__com.termux__files__home__hp_motor__QUARANTINED_20260216_082417__hp_motor__QUARANTINED_20260216_082417/hp_motor__QUARANTINED_20260216_082417/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_GRAVEYARD_20260216_112221__39470e5966/__data__data__com.termux__files__home___HP_QUARANTINE_20260216_111930____data__data__com.termux__files__home__hpfa_in_motor_REPO___vendor__hp_motor_bundle__hp_motor_bundle/hp_motor_bundle/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_GRAVEYARD_20260216_112416__5b680884ca/__data__data__com.termux__files__home___HP_GRAVEYARD_20260216_112221____data__data__com.termux__files__home___HP_QUARANTINE_20260216_111930____data__data__com.termux__files__home__hp_bundle_hp_platform__hp_bundle_hp_platform__hp_bundle_hp_platform/hp_bundle_hp_platform/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_GRAVEYARD_20260216_112416__5b680884ca/__data__data__com.termux__files__home___HP_GRAVEYARD_20260216_112221____data__data__com.termux__files__home___HP_QUARANTINE_20260216_111930____data__data__com.termux__files__home__hpfa_REPO___vendor__hp_motor_bundle__hp_motor_bundle__hp_motor_bundle/hp_motor_bundle/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_GRAVEYARD_20260216_112416__5b680884ca/__data__data__com.termux__files__home___HP_GRAVEYARD_20260216_112221____data__data__com.termux__files__home___HP_QUARANTINE_20260216_111930____data__data__com.termux__files__home__hpfa_unified__vendor__vendor__vendor/vendor/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_QUARANTINE_20260216_111930__4804c3a91c/__data__data__com.termux__files__home___QUARANTINE_DUPLICATES_20260216_090548__data__data__com.termux__files__home__HPFA_BUNDLE_VERIFY_20260213_082009__hp_motor_restore_test__hpfa_restore_test__vendor__hp_motor/data__data__com.termux__files__home__HPFA_BUNDLE_VERIFY_20260213_082009__hp_motor_restore_test__hpfa_restore_test__vendor__hp_motor/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_QUARANTINE_20260216_111930__4804c3a91c/__data__data__com.termux__files__home___QUARANTINE_DUPLICATES_20260216_090548__data__data__com.termux__files__home__HPFA_MASTER__base__hpfa-monorepo__vendor__hp_motor/data__data__com.termux__files__home__HPFA_MASTER__base__hpfa-monorepo__vendor__hp_motor/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_QUARANTINE_20260216_111930__4804c3a91c/__data__data__com.termux__files__home___QUARANTINE_DUPLICATES_20260216_090548__data__data__com.termux__files__home__hp_motor__QUARANTINED_20260216_082417__hpfa__vendor__hp_motor/data__data__com.termux__files__home__hp_motor__QUARANTINED_20260216_082417__hpfa__vendor__hp_motor/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_QUARANTINE_20260216_111930__4804c3a91c/__data__data__com.termux__files__home___QUARANTINE_DUPLICATES_20260216_090548__data__data__com.termux__files__home__hp_platform__repo__HP-Motor/data__data__com.termux__files__home__hp_platform__repo__HP-Motor/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_QUARANTINE_20260216_111930__4804c3a91c/__data__data__com.termux__files__home___QUARANTINE_DUPLICATES_20260216_090548__data__data__com.termux__files__home__hpfa_REPO__vendor__hp_motor/data__data__com.termux__files__home__hpfa_REPO__vendor__hp_motor/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_QUARANTINE_20260216_111930__4804c3a91c/__data__data__com.termux__files__home___QUARANTINE_DUPLICATES_20260216_090548__data__data__com.termux__files__home__hpfa__vendor__hp_motor/data__data__com.termux__files__home__hpfa__vendor__hp_motor/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_QUARANTINE_20260216_111930__4804c3a91c/__data__data__com.termux__files__home___QUARANTINE_DUPLICATES_20260216_090548__data__data__com.termux__files__home__hpfa_in_motor_REPO__vendor__hp_motor/data__data__com.termux__files__home__hpfa_in_motor_REPO__vendor__hp_motor/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_QUARANTINE_20260216_111930__4804c3a91c/__data__data__com.termux__files__home___QUARANTINE_DUPLICATES_20260216_090548__data__data__com.termux__files__home__hpfa_work__QUARANTINED_20260216_083335__external__hpfa-main-updated__vendor__hp_motor/data__data__com.termux__files__home__hpfa_work__QUARANTINED_20260216_083335__external__hpfa-main-updated__vendor__hp_motor/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_HP_QUARANTINE_20260216_111930__4804c3a91c/__data__data__com.termux__files__home___QUARANTINE_DUPLICATES_20260216_090548__data__data__com.termux__files__home__hpfa_work__QUARANTINED_20260216_083335__vendor__hp_motor/data__data__com.termux__files__home__hpfa_work__QUARANTINED_20260216_083335__vendor__hp_motor/hp_motor
+  /data/data/com.termux/files/home/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142/_QUARANTINE_DUPLICATES_20260216_113325__96b22b7bb1/hp_motor__8051a987023bd25bd0a7f836108f5ec663b2af75/hp_motor
+  /data/data/com.termux/files/home/HP_PROJELERI/HP-Motor-main/src/hp_motor
+
+== QUICK HEALTH: GUARDED RUN (dry) ==
+[INFO] This will only validate guards + require PRIMARY_DIR; it will NOT guess paths.
+[OK] PRIMARY_DIR=/data/data/com.termux/files/home/HP_PLATFORM/06_NORMALIZED/matches/2026-02-01__SL__GAL-vs-KAY
+[INFO] run: hpfa-run | tail -n 30
+
+===== END REPORT =====

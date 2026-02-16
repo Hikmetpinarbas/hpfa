@@ -1,0 +1,1 @@
+# (senin gönderdiğin scriptin tamamı)

@@ -1,0 +1,526 @@
+[?2004h[1;36m~[0m [1;33m$[0m 
+[?2004l[?2004h[1;36m~[0m [1;33m$[0m echo "=== HPFA TERMUX SCAN ==="
+[?2004l=== HPFA TERMUX SCAN ===
+[?2004h[1;36m~[0m [1;33m$[0m date
+[?2004lMon Feb 16 02:34:36 +03 2026
+[?2004h[1;36m~[0m [1;33m$[0m echo "PWD: $(pwd)"
+[?2004lPWD: /data/data/com.termux/files/home
+[?2004h[1;36m~[0m [1;33m$[0m echo
+[?2004l
+[?2004h[1;36m~[0m [1;33m$[0m 
+[?2004l[?2004h[1;36m~[0m [1;33m$[0m echo "== Termux info =="
+[?2004l== Termux info ==
+[?2004h[1;36m~[0m [1;33m$[0m termux-info || true
+[?2004lTermux Variables:
+TERMUX_APP_PACKAGE_MANAGER=apt
+TERMUX_APP__APK_FILE=/data/app/~~vPNeDoDZ-iPgw9AaEWAUUw==/com.termux-iOiLDp3WzY5-LmiWwRrFPg==/base.apk
+TERMUX_APP__APK_RELEASE=F_DROİD
+TERMUX_APP__APP_VERSION_CODE=1022
+TERMUX_APP__APP_VERSION_NAME=0.119.0-beta.3
+TERMUX_APP__DATA_DIR=/data/user/0/com.termux
+TERMUX_APP__IS_DEBUGGABLE_BUILD=false
+TERMUX_APP__IS_INSTALLED_ON_EXTERNAL_STORAGE=false
+TERMUX_APP__LEGACY_DATA_DIR=/data/data/com.termux
+TERMUX_APP__PACKAGE_NAME=com.termux
+TERMUX_APP__PID=17427
+TERMUX_APP__SE_FILE_CONTEXT=u:object_r:app_data_file:s0:c89,c258,c512,c768
+TERMUX_APP__SE_INFO=default:targetSdkVersion=28:complete
+TERMUX_APP__TARGET_SDK=28
+TERMUX_VERSION=0.119.0-beta.3
+TERMUX__APPS_DIR=/data/user/0/com.termux/termux/apps
+TERMUX__HOME=/data/data/com.termux/files/home
+TERMUX__PREFIX=/data/data/com.termux/files/usr
+TERMUX__ROOTFS_DIR=/data/data/com.termux/files
+TERMUX__SE_PROCESS_CONTEXT=u:r:untrusted_app_27:s0:c89,c258,c512,c768
+TERMUX__UID=10601
+TERMUX__USER_ID=0
+Packages CPU architecture:
+aarch64
+Subscribed repositories:
+# sources.list
+deb https://mirrors.sdu.edu.cn/termux/termux-main stable main
+# x11-repo (sources.list.d/x11.list)
+deb https://mirrors.sdu.edu.cn/termux/termux-x11 x11 main
+Updatable packages:
+command-not-found/stable 3.2-17 aarch64 [upgradable from: 3.2-16]
+ed/stable 1.22.5 aarch64 [upgradable from: 1.22.4]
+glib/stable 2.86.4 aarch64 [upgradable from: 2.86.3-1]
+libpng/stable 1.6.55 aarch64 [upgradable from: 1.6.54]
+openssh-sftp-server/stable 10.2p1-1 aarch64 [upgradable from: 10.2p1]
+openssh/stable 10.2p1-1 aarch64 [upgradable from: 10.2p1]
+python-pillow/stable 12.1.1 aarch64 [upgradable from: 12.1.0-1]
+ruff/stable 0.15.1 aarch64 [upgradable from: 0.15.0]
+rust-std-aarch64-linux-android/stable 1.93.1 aarch64 [upgradable from: 1.93.0]
+rust/stable 1.93.1 aarch64 [upgradable from: 1.93.0]
+termux-tools version:
+1.45.0
+Android version:
+16
+Kernel build information:
+Linux localhost 5.15.180-android13-8-o-01174-ga62350fe1af1 #1 SMP PREEMPT Wed Dec 17 06:48:26 UTC 2025 aarch64 Android
+Device manufacturer:
+OnePlus
+Device model:
+CPH2449
+Supported ABIs:
+SUPPORTED_ABIS: arm64-v8a,armeabi-v7a,armeabi
+SUPPORTED_32_BIT_ABIS: armeabi-v7a,armeabi
+SUPPORTED_64_BIT_ABIS: arm64-v8a
+LD Variables:
+LD_LIBRARY_PATH=
+LD_PRELOAD=/data/data/com.termux/files/usr/lib/libtermux-exec-ld-preload.so
+Installed termux plugins:
+com.termux.widget versionCode:1001
+com.termux.api versionCode:1002
+com.termux.tasker versionCode:1002
+[?2004h[1;36m~[0m [1;33m$[0m echo
+[?2004l
+[?2004h[1;36m~[0m [1;33m$[0m 
+[?2004l[?2004h[1;36m~[0m [1;33m$[0m echo "== Device / OS =="
+[?2004l== Device / OS ==
+[?2004h[1;36m~[0m [1;33m$[0m uname -a || true
+[?2004lLinux localhost 5.15.180-android13-8-o-01174-ga62350fe1af1 #1 SMP PREEMPT Wed Dec 17 06:48:26 UTC 2025 aarch64 Android
+[?2004h[1;36m~[0m [1;33m$[0m getprop ro.product.model 2>/dev/null || true [A[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[Ke
+[?2004lCPH2449
+[?2004h[1;36m~[0m [1;33m$[0m getprop ro.build.version.release 2>/dev/null || true
+[?2004l16
+[?2004h[1;36m~[0m [1;33m$[0m getprop ro.build.version.sdk 2>/dev/null || true
+[?2004l36
+[?2004h[1;36m~[0m [1;33m$[0m echo "ARCH: $(uname -m 2>/dev/null || true)" [A[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[K"
+[?2004lARCH: aarch64
+[?2004h[1;36m~[0m [1;33m$[0m echo
+[?2004l
+[?2004h[1;36m~[0m [1;33m$[0m 
+[?2004l[?2004h[1;36m~[0m [1;33m$[0m echo "== Storage =="
+[?2004l== Storage ==
+[?2004h[1;36m~[0m [1;33m$[0m df -h || true
+[?2004lFilesystem        Size Used Avail Use% Mounted on
+/dev/block/dm-27  857M 857M     0 100% /
+tmpfs             7.3G 2.6M  7.3G   1% /dev
+tmpfs             7.3G  32K  7.3G   1% /mnt
+/dev/block/dm-80   89M  89M     0 100% /mnt/opex/ovl_update_4354@6
+/dev/block/loop41 3.9M 3.9M     0 100% /mnt/opex/com.oplus.CustCore@16000005
+/dev/block/loop42  22M  22M     0 100% /mnt/opex/com.oplus.NetworkAssistSys@16000038
+/dev/block/loop43 328K 296K   28K  92% /mnt/opex/com.oplus.fancyIconLoader@1000000
+/dev/block/loop44 912K 884K   12K  99% /mnt/opex/com.oplus.moduleservices@15000014
+/dev/block/loop45 9.2M 9.1M     0 100% /mnt/opex/com.oplus.odmf@16003001
+/dev/block/dm-28  857M 857M     0 100% /system_ext
+overlay            89M  89M     0 100% /system_ext/priv-app/OplusLauncher
+overlay           3.9M 3.9M     0 100% /system_ext/framework/oplusex/com.oplus.CustCore
+overlay            22M  22M     0 100% /system_ext/framework/oplusex/com.oplus.NetworkAssistSys
+overlay            22M  22M     0 100% /system_ext/lib64/oplusex/com.oplus.NetworkAssistSys
+overlay           328K 296K   28K  92% /system_ext/framework/oplusex/com.oplus.fancyIconLoader
+overlay           912K 884K   12K  99% /system_ext/framework/oplusex/com.oplus.moduleservices
+overlay           912K 884K   12K  99% /system_ext/lib64/oplusex/com.oplus.moduleservices
+overlay           9.2M 9.1M     0 100% /system_ext/framework/oplusex/com.oplus.odmf
+overlay           9.2M 9.1M     0 100% /system_ext/lib64/oplusex/com.oplus.odmf
+/dev/block/dm-29  8.7M 8.7M     0 100% /product
+overlay-overlay   816K 816K     0 100% /product/app
+overlay-overlay   816K 816K     0 100% /product/priv-app
+overlay-overlay   816K 816K     0 100% /product/lib64
+overlay-overlay   816K 816K     0 100% /product/lib
+overlay-overlay   2.5G 2.5G     0 100% /product/overlay
+overlay           2.5G 2.5G     0 100% /product/etc/permissions
+overlay           2.5G 2.5G     0 100% /product/framework
+/dev/block/dm-30  670M 670M     0 100% /vendor
+/dev/block/dm-31  161M 160M     0 100% /vendor_dlkm
+/dev/block/dm-33  1.3G 1.3G     0 100% /odm
+overlay            89M  89M     0 100% /odm/etc/uah
+tmpfs             7.3G  24K  7.3G   1% /apex
+/dev/block/loop8  1.9M 1.9M     0 100% /apex/com.android.compos@3
+/dev/block/loop13  20M  20M     0 100% /apex/com.android.i18n@1
+/dev/block/loop16 6.0M 6.0M     0 100% /apex/com.android.runtime@1
+/dev/block/loop11 836K 836K     0 100% /apex/com.android.profiling@360499999
+/dev/block/loop7  132K 132K     0 100% /apex/com.android.crashrecovery@360499999
+/dev/block/loop27  23M  23M     0 100% /apex/com.android.vndk.v33@1
+/dev/block/loop10 232K 112K  116K  50% /apex/com.android.apex.cts.shim@1
+/dev/block/loop37  51M  51M     0 100% /apex/com.android.virt@3
+/dev/block/loop28 684K 684K     0 100% /apex/com.android.uprobestats@360499999
+/dev/block/dm-44   10M  10M     0 100% /apex/com.android.wifi@361153320
+/dev/block/dm-51  1.3M 1.3M  4.0K 100% /apex/com.android.rkpd@361153320
+/dev/block/dm-58  840K 812K   12K  99% /apex/com.android.ipsec@361153320
+/dev/block/dm-76   42M  42M     0 100% /apex/com.android.art@361154300
+/dev/block/dm-74  6.8M 6.8M     0 100% /apex/com.android.uwb@361153840
+/dev/block/dm-62  788K 756K   16K  98% /apex/com.android.tzdata@361157000
+/dev/block/dm-75  6.2M 6.2M     0 100% /apex/com.android.extservices@361153323
+/dev/block/dm-69   15M  15M     0 100% /apex/com.android.healthfitness@361153320
+/dev/block/dm-77   27M  27M     0 100% /apex/com.android.permission@361154140
+/dev/block/dm-71  4.0M 4.0M     0 100% /apex/com.android.appsearch@361154480
+/dev/block/dm-68   20M  19M     0 100% /apex/com.android.cellbroadcast@361153320
+/dev/block/dm-52  3.2M 3.1M     0 100% /apex/com.android.os.statsd@361153320
+/dev/block/dm-47  232K 104K  124K  46% /apex/com.android.scheduling@361153320
+/dev/block/dm-61  5.3M 5.3M     0 100% /apex/com.android.configinfrastructure@361153320
+/dev/block/dm-46  1.0M 1.0M   12K  99% /apex/com.android.sdkext@361153320
+/dev/block/dm-56   11M  11M     0 100% /apex/com.android.adbd@361153600
+/dev/block/dm-54  6.9M 6.9M     0 100% /apex/com.android.media@361153320
+/dev/block/dm-59   22M  22M     0 100% /apex/com.android.adservices@361153320
+/dev/block/dm-50   32M  31M     0 100% /apex/com.android.mediaprovider@361153920
+/dev/block/dm-57   29M  29M     0 100% /apex/com.android.media.swcodec@361153320
+/dev/block/loop15 7.4M 7.4M     0 100% /apex/com.android.devicelock@343201000
+/dev/block/dm-67  7.7M 7.7M     0 100% /apex/com.android.neuralnetworks@361153320
+/dev/block/dm-49   13M  13M     0 100% /apex/com.android.ondevicepersonalization@361153320
+/dev/block/dm-48  4.8M 4.7M     0 100% /apex/com.android.resolv@361153320
+/dev/block/dm-63  7.3M 7.3M     0 100% /apex/com.android.conscrypt@361153320
+/dev/block/dm-45   28M  28M     0 100% /apex/com.android.tethering@361153320
+tmpfs             7.3G 4.0K  7.3G   1% /bootstrap-apex
+/dev/block/loop1  788K 756K   16K  98% /bootstrap-apex/com.android.tzdata@360527580
+/dev/block/loop3  6.0M 6.0M     0 100% /bootstrap-apex/com.android.runtime@1
+/dev/block/loop4   20M  20M     0 100% /bootstrap-apex/com.android.i18n@1
+/dev/block/loop0   23M  23M     0 100% /bootstrap-apex/com.android.vndk.v33@1
+/dev/block/loop2   51M  51M     0 100% /bootstrap-apex/com.android.virt@3
+tmpfs             7.3G    0  7.3G   0% /tmp
+/dev/block/dm-34  2.5G 2.5G     0 100% /my_product
+/dev/block/dm-35   16K  16K     0 100% /my_engineering
+/dev/block/dm-36  4.0K 4.0K     0 100% /my_company
+/dev/block/dm-37  4.0K 4.0K     0 100% /my_carrier
+/dev/block/dm-38  816K 816K     0 100% /my_region
+/dev/block/dm-39  4.0K 4.0K     0 100% /my_heytap
+/dev/block/dm-40  2.1G 2.1G     0 100% /my_stock
+/dev/block/dm-41  2.0M 2.0M     0 100% /my_preload
+/dev/block/dm-42  4.0K 4.0K     0 100% /my_bigball
+/dev/block/dm-43  340K 340K     0 100% /my_manifest
+/dev/fuse         218G 106G  112G  49% /storage/emulated
+[?2004h[1;36m~[0m [1;33m$[0m echo
+[?2004l
+[?2004h[1;36m~[0m [1;33m$[0m 
+[?2004l[?2004h[1;36m~[0m [1;33m$[0m echo "== Memory =="
+[?2004l== Memory ==
+[?2004h[1;36m~[0m [1;33m$[0m ( free -h || cat /proc/meminfo | head -n 30 ) 2>/dev/null || true
+[?2004l               total        used        free      shared  buff/cache   available
+Mem:            14Gi       4.8Gi       8.3Gi        28Mi       1.7Gi       9.6Gi
+Swap:          9.5Gi       1.2Gi       8.3Gi
+[?2004h[1;36m~[0m [1;33m$[0m echo
+[?2004l
+[?2004h[1;36m~[0m [1;33m$[0m 
+[?2004l[?2004h[1;36m~[0m [1;33m$[0m echo "== Termux packages (top) =="
+[?2004l== Termux packages (top) ==
+[?2004h[1;36m~[0m [1;33m$[0m pkg list-installed 2>/dev/null | head -n 120 || true
+[?2004lListing...
+apt/stable,now 2.8.1-2 aarch64 [installed]
+attr/stable,now 2.5.2-1 aarch64 [installed,automatic]
+bash/stable,now 5.3.9 aarch64 [installed]
+brotli/stable,now 1.2.0 aarch64 [installed,automatic]
+bzip2/stable,now 1.0.8-8 aarch64 [installed]
+ca-certificates/stable,now 1:2025.12.02 all [installed]
+clang/stable,now 21.1.8 aarch64 [installed]
+command-not-found/now 3.2-16 aarch64 [installed,upgradable to: 3.2-17]
+coreutils/stable,now 9.9 aarch64 [installed]
+cronie/stable,now 1.7.2-4 aarch64 [installed]
+curl/stable,now 8.18.0-1 aarch64 [installed]
+dash/stable,now 0.5.12-2 aarch64 [installed]
+debianutils/stable,now 5.23.2-1 aarch64 [installed]
+dialog/stable,now 1.3-20240307-1 aarch64 [installed]
+diffutils/stable,now 3.12-2 aarch64 [installed]
+dos2unix/stable,now 7.5.2-1 aarch64 [installed]
+dpkg/stable,now 1.22.6-5 aarch64 [installed]
+ed/now 1.22.4 aarch64 [installed,upgradable to: 1.22.5]
+fdupes/stable,now 2.4.0-1 aarch64 [installed]
+file/stable,now 5.46-2 aarch64 [installed]
+findutils/stable,now 4.10.0-1 aarch64 [installed]
+fontconfig/stable,now 2.17.1-1 aarch64 [installed,automatic]
+freetype/stable,now 2.14.1 aarch64 [installed]
+fribidi/stable,now 1.0.16-1 aarch64 [installed,automatic]
+gawk/stable,now 5.3.1-2 aarch64 [installed]
+gdbm/stable,now 1.26-1 aarch64 [installed,automatic]
+gh/stable,now 2.86.0 aarch64 [installed]
+giflib/stable,now 5.2.2-1 aarch64 [installed,automatic]
+git/stable,now 2.53.0 aarch64 [installed]
+glib/now 2.86.3-1 aarch64 [installed,upgradable to: 2.86.4]
+gpgv/stable,now 2.5.17 aarch64 [installed]
+grep/stable,now 3.12-3 aarch64 [installed]
+gzip/stable,now 1.14-1 aarch64 [installed]
+harfbuzz/stable,now 12.3.2 aarch64 [installed,automatic]
+helix/stable,now 25.07.1-1 aarch64 [installed]
+htop/stable,now 3.4.1-1 aarch64 [installed]
+inetutils/stable,now 2.6-1 aarch64 [installed]
+iproute2/stable,now 6.18.0-1 aarch64 [installed]
+jq/stable,now 1.8.1-1 aarch64 [installed]
+krb5/stable,now 1.22.2 aarch64 [installed,automatic]
+ldns/stable,now 1.8.4-1 aarch64 [installed,automatic]
+leptonica/stable,now 1.87.0 aarch64 [installed,automatic]
+less/stable,now 692 aarch64 [installed]
+libacl/stable,now 2.3.2 aarch64 [installed,automatic]
+libandroid-execinfo/stable,now 0.1-3 aarch64 [installed,automatic]
+libandroid-glob/stable,now 0.6-3 aarch64 [installed]
+libandroid-posix-semaphore/stable,now 0.1-4 aarch64 [installed,automatic]
+libandroid-selinux/stable,now 14.0.0.11-1 aarch64 [installed]
+libandroid-shmem/stable,now 0.7 aarch64 [installed,automatic]
+libandroid-spawn/stable,now 0.3 aarch64 [installed,automatic]
+libandroid-support/stable,now 29-1 aarch64 [installed]
+libarchive/stable,now 3.8.5 aarch64 [installed,automatic]
+libassuan/stable,now 3.0.2-1 aarch64 [installed]
+libbz2/stable,now 1.0.8-8 aarch64 [installed]
+libc++/stable,now 29 aarch64 [installed]
+libcairo/stable,now 1.18.4-2 aarch64 [installed,automatic]
+libcap-ng/stable,now 2:0.9 aarch64 [installed]
+libcap/stable,now 2.69-1 aarch64 [installed,automatic]
+libcompiler-rt/stable,now 21.1.8 aarch64 [installed,automatic]
+libcrypt/stable,now 0.2-6 aarch64 [installed,automatic]
+libcurl/stable,now 8.18.0-1 aarch64 [installed]
+libdb/stable,now 18.1.40-5 aarch64 [installed,automatic]
+libedit/stable,now 20240517-3.1-1 aarch64 [installed,automatic]
+libevent/stable,now 2.1.12-3 aarch64 [installed]
+libexpat/stable,now 2.7.4 aarch64 [installed,automatic]
+libffi/stable,now 3.4.7-1 aarch64 [installed,automatic]
+libgcrypt/stable,now 1.11.2-1 aarch64 [installed]
+libgmp/stable,now 6.3.0-2 aarch64 [installed]
+libgnutls/stable,now 3.8.11 aarch64 [installed]
+libgpg-error/stable,now 1.58 aarch64 [installed]
+libgraphite/stable,now 1.3.14-3 aarch64 [installed,automatic]
+libice/stable,now 1.1.2-1 aarch64 [installed,automatic]
+libiconv/stable,now 1.18-1 aarch64 [installed]
+libicu/stable,now 78.2 aarch64 [installed,automatic]
+libidn2/stable,now 2.3.8-1 aarch64 [installed]
+libimagequant/stable,now 4.4.1 aarch64 [installed,automatic]
+libjpeg-turbo/stable,now 3.1.3 aarch64 [installed,automatic]
+libllvm/stable,now 21.1.8 aarch64 [installed,automatic]
+liblz4/stable,now 1.10.0-1 aarch64 [installed]
+liblzma/stable,now 5.8.2 aarch64 [installed]
+liblzo/stable,now 2.10-4 aarch64 [installed,automatic]
+libmd/stable,now 1.1.0-1 aarch64 [installed]
+libmpfr/stable,now 4.2.1-1 aarch64 [installed]
+libnettle/stable,now 4.0+really3.10.2 aarch64 [installed]
+libnghttp2/stable,now 1.68.0-1 aarch64 [installed]
+libnghttp3/stable,now 1.15.0 aarch64 [installed]
+libngtcp2/stable,now 1.20.0 aarch64 [installed,automatic]
+libnpth/stable,now 1.6-3 aarch64 [installed]
+libopenblas/stable,now 0.3.31 aarch64 [installed,automatic]
+libpixman/stable,now 0.46.4-1 aarch64 [installed,automatic]
+libpng/now 1.6.54 aarch64 [installed,upgradable to: 1.6.55]
+libpopt/stable,now 1.19-3 aarch64 [installed,automatic]
+libraqm/stable,now 0.10.4 aarch64 [installed,automatic]
+libresolv-wrapper/stable,now 1.1.7-6 aarch64 [installed,automatic]
+libsm/stable,now 1.2.6-1 aarch64 [installed,automatic]
+libsmartcols/stable,now 2.41.2-1 aarch64 [installed]
+libsqlite/stable,now 3.51.2 aarch64 [installed,automatic]
+libssh2/stable,now 1.11.1-1 aarch64 [installed]
+libtalloc/stable,now 2.4.3 aarch64 [installed,automatic]
+libtiff/stable,now 4.7.1 aarch64 [installed,automatic]
+libtirpc/stable,now 1.3.7-1 aarch64 [installed]
+libunbound/stable,now 1.24.2-1 aarch64 [installed]
+libunistring/stable,now 1.3-1 aarch64 [installed]
+libuuid/stable,now 2.41.2-1 aarch64 [installed,automatic]
+libwebp/stable,now 1.6.0-rc1-0 aarch64 [installed,automatic]
+libx11/stable,now 1.8.13 aarch64 [installed,automatic]
+libxau/stable,now 1.0.12-2 aarch64 [installed,automatic]
+libxcb/stable,now 1.17.0-1 aarch64 [installed,automatic]
+libxdmcp/stable,now 1.1.5-2 aarch64 [installed,automatic]
+libxext/stable,now 1.3.7 aarch64 [installed,automatic]
+libxft/stable,now 2.3.9-1 aarch64 [installed,automatic]
+libxml2/stable,now 2.15.1-1 aarch64 [installed]
+libxmu/x11,now 1.3.1 aarch64 [installed,automatic]
+libxrender/stable,now 0.9.12-1 aarch64 [installed,automatic]
+libxslt/stable,now 1.1.45 aarch64 [installed]
+libxt/stable,now 1.3.1-1 aarch64 [installed,automatic]
+littlecms/stable,now 2.18 aarch64 [installed,automatic]
+lld/stable,now 21.1.8 aarch64 [installed,automatic]
+llvm/stable,now 21.1.8 aarch64 [installed,automatic]
+[?2004h[1;36m~[0m [1;33m$[0m echo
+[?2004l
+[?2004h[1;36m~[0m [1;33m$[0m 
+[?2004l[?2004h[1;36m~[0m [1;33m$[0m echo "== Python presence =="
+[?2004l== Python presence ==
+[?2004h[1;36m~[0m [1;33m$[0m command -v python || true
+[?2004l/data/data/com.termux/files/usr/bin/python
+[?2004h[1;36m~[0m [1;33m$[0m python -V 2>/dev/null || true
+[?2004lPython 3.12.12
+[?2004h[1;36m~[0m [1;33m$[0m command -v pip || true
+[?2004l/data/data/com.termux/files/usr/bin/pip
+[?2004h[1;36m~[0m [1;33m$[0m python -m pip -V 2>/dev/null || true
+[?2004lpip 26.0.1 from /data/data/com.termux/files/usr/lib/python3.12/site-packages/pip (python 3.12)
+[?2004h[1;36m~[0m [1;33m$[0m echo
+[?2004l
+[?2004h[1;36m~[0m [1;33m$[0m 
+[?2004l[?2004h[1;36m~[0m [1;33m$[0m echo "== Pip inventory =="
+[?2004l== Pip inventory ==
+[?2004h[1;36m~[0m [1;33m$[0m python -m pip list 2>/dev/null | head -n 200 || true
+[?2004lPackage                   Version     Editable project location
+------------------------- ----------- ---------------------------------------------------------------
+attrs                     25.4.0
+beautifulsoup4            4.14.3
+certifi                   2026.1.4
+charset-normalizer        3.4.4
+contourpy                 1.3.3
+cycler                    0.12.1
+et_xmlfile                2.0.0
+filelock                  3.21.2
+fonttools                 4.61.1
+gdown                     5.2.1
+hp-motor                  0.1.0       /data/data/com.termux/files/home/HP/HP-Motor
+hpfa                      1.0.0       /data/data/com.termux/files/home/HPFA_MASTER/base/hpfa-monorepo
+html5lib                  1.1
+idna                      3.11
+iniconfig                 2.3.0
+jsonschema                4.26.0
+jsonschema-specifications 2025.9.1
+kiwisolver                1.4.9
+lxml                      6.0.2
+matplotlib                3.10.8
+numpy                     2.4.1
+openpyxl                  3.1.5
+packaging                 26.0
+pandas                    3.0.0
+pillow                    12.1.0
+pip                       26.0.1
+pluggy                    1.6.0
+pydantic                  1.10.26
+Pygments                  2.19.2
+pyparsing                 3.3.2
+pypdf                     6.6.2
+PySocks                   1.7.1
+pytest                    9.0.2
+python-dateutil           2.9.0.post0
+python-docx               1.2.0
+PyYAML                    6.0.3
+referencing               0.37.0
+requests                  2.32.5
+rpds-py                   0.30.0
+six                       1.17.0
+soupsieve                 2.8.3
+tqdm                      4.67.3
+typing_extensions         4.15.0
+urllib3                   2.6.3
+webencodings              0.5.1
+[?2004h[1;36m~[0m [1;33m$[0m echo
+[?2004l
+[?2004h[1;36m~[0m [1;33m$[0m 
+[?2004l[?2004h[1;36m~[0m [1;33m$[0m echo "== Git/JQ/Curl =="
+[?2004l== Git/JQ/Curl ==
+[?2004h[1;36m~[0m [1;33m$[0m command -v git || true
+[?2004l/data/data/com.termux/files/usr/bin/git
+[?2004h[1;36m~[0m [1;33m$[0m git --version 2>/dev/null || true
+[?2004lgit version 2.53.0
+[?2004h[1;36m~[0m [1;33m$[0m command -v jq || true
+[?2004l/data/data/com.termux/files/usr/bin/jq
+[?2004h[1;36m~[0m [1;33m$[0m jq --version 2>/dev/null || true
+[?2004ljq-1.8.1
+[?2004h[1;36m~[0m [1;33m$[0m command -v curl || true
+[?2004l/data/data/com.termux/files/usr/bin/curl
+[?2004h[1;36m~[0m [1;33m$[0m curl --version 2>/dev/null | head -n 2 || true
+[?2004lcurl 8.18.0 (aarch64-unknown-linux-android) libcurl/8.18.0 OpenSSL/3.6.1 zlib/1.3.1 libssh2/1.11.1 nghttp2/1.68.0 ngtcp2/1.20.0 nghttp3/1.15.0
+Release-Date: 2026-01-07
+[?2004h[1;36m~[0m [1;33m$[0m echo
+[?2004l
+[?2004h[1;36m~[0m [1;33m$[0m 
+[?2004l[?2004h[1;36m~[0m [1;33m$[0m echo "== Done. Log: $LOG =="
+[?2004l== Done. Log: /data/data/com.termux/files/home/hpfa/_diag/scan_20260216_023436.log ==
+[?2004h[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m clear
+[?2004l[H[2J[3J[?2004h[1;36m~[0m [1;33m$[0m pkg update -y
+[?2004lChecking availability of current mirror:
+[*] https://mirrors.sdu.edu.cn/termux/termux-main: ok
+
+WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
+
+Hit:1 https://mirrors.sdu.edu.cn/termux/termux-main stable InRelease
+Hit:2 https://mirrors.sdu.edu.cn/termux/termux-x11 x11 InRelease
+Reading package lists...
+Building dependency tree...
+Reading state information...
+10 packages can be upgraded. Run 'apt list --upgradable' to see them.
+[?2004h[1;36m~[0m [1;33m$[0m pkg upgrade -y
+[?2004lChecking availability of current mirror:
+[*] https://mirrors.sdu.edu.cn/termux/termux-main: ok
+
+WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
+
+Hit:1 https://mirrors.sdu.edu.cn/termux/termux-main stable InRelease
+Hit:2 https://mirrors.sdu.edu.cn/termux/termux-x11 x11 InRelease
+Reading package lists...
+Building dependency tree...
+Reading state information...
+10 packages can be upgraded. Run 'apt list --upgradable' to see them.
+
+WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
+
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Calculating upgrade...
+The following packages will be upgraded:
+  command-not-found ed glib libpng openssh openssh-sftp-server python-pillow
+  ruff rust rust-std-aarch64-linux-android
+10 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Need to get 73.7 MB of archives.
+After this operation, 201 kB of additional disk space will be used.
+Get:1 https://mirrors.sdu.edu.cn/termux/termux-main stable/main aarch64 command-not-found aarch64 3.2-17 [109 kB]
+Get:2 https://mirrors.sdu.edu.cn/termux/termux-main stable/main aarch64 ed aarch64 1.22.5 [42.9 kB]
+Get:3 https://mirrors.sdu.edu.cn/termux/termux-main stable/main aarch64 glib aarch64 2.86.4 [2548 kB]
+Get:4 https://mirrors.sdu.edu.cn/termux/termux-main stable/main aarch64 libpng aarch64 1.6.55 [195 kB]
+Get:5 https://mirrors.sdu.edu.cn/termux/termux-main stable/main aarch64 openssh-sftp-server aarch64 10.2p1-1 [55.4 kB]
+Get:6 https://mirrors.sdu.edu.cn/termux/termux-main stable/main aarch64 openssh aarch64 10.2p1-1 [934 kB]
+Get:7 https://mirrors.sdu.edu.cn/termux/termux-main stable/main aarch64 python-pillow aarch64 12.1.1 [398 kB]
+Get:8 https://mirrors.sdu.edu.cn/termux/termux-main stable/main aarch64 ruff aarch64 0.15.1 [6064 kB]
+Get:9 https://mirrors.sdu.edu.cn/termux/termux-main stable/main aarch64 rust-std-aarch64-linux-android aarch64 1.93.1 [27.3 MB]
+Get:10 https://mirrors.sdu.edu.cn/termux/termux-main stable/main aarch64 rust aarch64 1.93.1 [36.1 MB]
+Fetched 73.7 MB in 4min 10s (294 kB/s)
+
+pkg install -y python git jq curl ca-certificates openssl
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 27628 files and directories currently installed.)
+Preparing to unpack .../0-command-not-found_3.2-17_aarch64.deb ...
+Unpacking command-not-found (3.2-17) over (3.2-16) ...
+Preparing to unpack .../1-ed_1.22.5_aarch64.deb ...
+Unpacking ed (1.22.5) over (1.22.4) ...
+Preparing to unpack .../2-glib_2.86.4_aarch64.deb ...
+Unpacking glib (2.86.4) over (2.86.3-1) ...
+Preparing to unpack .../3-libpng_1.6.55_aarch64.deb ...
+Unpacking libpng (1.6.55) over (1.6.54) ...
+Preparing to unpack .../4-openssh-sftp-server_10.2p1-1_aarch64.deb ...
+Unpacking openssh-sftp-server (10.2p1-1) over (10.2p1) ...
+Preparing to unpack .../5-openssh_10.2p1-1_aarch64.deb ...
+Unpacking openssh (10.2p1-1) over (10.2p1) ...
+Preparing to unpack .../6-python-pillow_12.1.1_aarch64.deb ...
+Unpacking python-pillow (12.1.1) over (12.1.0-1) ...
+Preparing to unpack .../7-ruff_0.15.1_aarch64.deb ...
+Unpacking ruff (0.15.1) over (0.15.0) ...
+Preparing to unpack .../8-rust-std-aarch64-linux-android_1.93.1_aarch64.deb ...
+Unpacking rust-std-aarch64-linux-android (1.93.1) over (1.93.0) ...
+Preparing to unpack .../9-rust_1.93.1_aarch64.deb ...
+Unpacking rust (1.93.1) over (1.93.0) ...
+Setting up openssh-sftp-server (10.2p1-1) ...
+Setting up ruff (0.15.1) ...
+Setting up libpng (1.6.55) ...
+Setting up openssh (10.2p1-1) ...
+
+If you plan to use the 'ssh-agent'
+it is recommended to run it as a service.
+Run 'pkg i termux-services'
+to install the ('runit') service manager
+
+You can enable the ssh-agent service
+using 'sv-enable ssh-agent'
+You can also enable sshd to autostart
+using 'sv-enable sshd'
+Setting up rust-std-aarch64-linux-android (1.93.1) ...
+Setting up rust (1.93.1) ...
+Setting up ed (1.22.5) ...
+Setting up command-not-found (3.2-17) ...
+Setting up glib (2.86.4) ...
+No schema files found: doing nothing.
+Setting up python-pillow (12.1.1) ...
+Installing dependencies for python-pillow through pip...
+Requirement already satisfied: pillow in ./data/data/com.termux/files/usr/lib/python3.12/site-packages (12.1.1)
+[?2004h[1;36m~[0m [1;33m$[0m [K[1;36m~[0m [1;33m$[0m # 1) Dizinleri gör
+[?2004l[?2004h[1;36m~[0m [1;33m$[0m ls -la ~/HP
+[?2004lls: cannot access '/data/data/com.termux/files/home/HP': No such file or directory

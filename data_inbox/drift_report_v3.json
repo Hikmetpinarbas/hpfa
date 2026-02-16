@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "canon_file": "action_registry_v1.0.1.yaml",
+    "code_enums_file": "code_enums.json"
+  },
+  "enum_drift": {
+    "summary": {
+      "doc_only_count": 0,
+      "code_only_count": 3
+    },
+    "details": {
+      "canonical_actions": {
+        "doc_only": [],
+        "code_only": [
+          "SCRAMBLE"
+        ]
+      },
+      "possession_effects": {
+        "doc_only": [],
+        "code_only": [
+          "END"
+        ]
+      },
+      "allowed_states": {
+        "doc_only": [],
+        "code_only": [
+          "UNVALIDATED"
+        ]
+      },
+      "fail_closed_defaults": {
+        "doc_only": [],
+        "code_only": []
+      }
+    }
+  },
+  "alias_collision": {
+    "collision_count": 0,
+    "collisions": []
+  }
+}

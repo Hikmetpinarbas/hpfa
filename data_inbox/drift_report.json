@@ -1,0 +1,99 @@
+{
+  "summary": {
+    "doc_only_count": 58,
+    "code_only_count": 3,
+    "mismatch_count": 0
+  },
+  "details": {
+    "aliases": {
+      "doc_only": [
+        "araya_girme",
+        "aut_atışı",
+        "ball_recovery",
+        "ball_recovery_tackle",
+        "başarılı_müdahale",
+        "başarısız_müdahale",
+        "başlama_vuruşu",
+        "block",
+        "blok",
+        "catch",
+        "claim",
+        "corner",
+        "deflection",
+        "degaj",
+        "dropped_ball",
+        "elle_oyun",
+        "free_kick",
+        "frikik",
+        "goal_kick",
+        "goalkeeper_claim",
+        "hakem_atışı",
+        "hava_topu_kontrol",
+        "interception",
+        "kale_vuruşu",
+        "kale_vuruşu_açıktan",
+        "kaleci_kısa_pas",
+        "kickoff",
+        "korner",
+        "kurtarış",
+        "köşe_vuruşu",
+        "long_distribution",
+        "long_kick",
+        "loose_ball",
+        "missed_tackle",
+        "parry",
+        "pas_arası",
+        "punch",
+        "sahipsiz_top",
+        "santra",
+        "save",
+        "seken_top",
+        "serbest_vuruş",
+        "short_distribution",
+        "short_throw",
+        "tackle_fail",
+        "tackle_win",
+        "taç",
+        "taç_atışı",
+        "throw_in",
+        "top_kapma",
+        "top_kesme",
+        "topu_tuttu",
+        "yumruklama",
+        "yön_değiştirme",
+        "çalım_yeme",
+        "çarpma",
+        "çelme",
+        "şut_çıkarma"
+      ],
+      "code_only": [],
+      "mismatch": []
+    },
+    "allowed_states": {
+      "doc_only": [],
+      "code_only": [
+        "UNVALIDATED"
+      ],
+      "mismatch": []
+    },
+    "canonical_actions": {
+      "doc_only": [],
+      "code_only": [
+        "SCRAMBLE"
+      ],
+      "mismatch": []
+    },
+    "fail_closed_defaults": {
+      "doc_only": [],
+      "code_only": [],
+      "mismatch": []
+    },
+    "possession_effects": {
+      "doc_only": [],
+      "code_only": [
+        "END"
+      ],
+      "mismatch": []
+    }
+  }
+}

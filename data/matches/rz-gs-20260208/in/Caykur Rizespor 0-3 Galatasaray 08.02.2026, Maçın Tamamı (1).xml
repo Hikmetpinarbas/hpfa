@@ -1,0 +1,3534 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<file>
+  <SORT_INFO>
+    <sort_type>sort order</sort_type>
+  </SORT_INFO>
+  <ALL_INSTANCES>
+    <instance>
+      <ID>1</ID>
+      <start>4.55</start>
+      <end>4.55</end>
+      <code>Start of the 1st half</code>
+      <label>
+        <group>Team</group>
+        <text>None</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Start of the 1st half</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>None</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>None</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>2</ID>
+      <start>5.55</start>
+      <end>17.55</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>14.26</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>30.86</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>3</ID>
+      <start>5.55</start>
+      <end>17.55</end>
+      <code>75. Yahia Fofana (470003) - Uzun paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Uzun paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>14.26</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>30.86</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>4</ID>
+      <start>70.55</start>
+      <end>82.55</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>12.83</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.62</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>5</ID>
+      <start>312.55</start>
+      <end>324.55</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>27.05</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>32.41</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>6</ID>
+      <start>323.55</start>
+      <end>335.55</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>9.36</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>49.79</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>7</ID>
+      <start>345.55</start>
+      <end>357.55</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>15.22</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>27.54</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>8</ID>
+      <start>426.55</start>
+      <end>438.55</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetsiz Şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz Şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>99.1</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>23.76</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>9</ID>
+      <start>511.55</start>
+      <end>523.55</end>
+      <code>75. Yahia Fofana (470003) - Kurtarış</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Kurtarış</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>98.38</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>31.09</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>10</ID>
+      <start>511.55</start>
+      <end>523.55</end>
+      <code>75. Yahia Fofana (470003) - Yakından isabetli şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Yakından isabetli şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>98.38</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>31.09</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>11</ID>
+      <start>511.55</start>
+      <end>523.55</end>
+      <code>75. Yahia Fofana (470003) - İsabetli Şut</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli Şut</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>98.38</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>31.09</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>12</ID>
+      <start>517.55</start>
+      <end>529.55</end>
+      <code>75. Yahia Fofana (470003) - Başarısız Uzun Toplar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarısız Uzun Toplar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>15.7</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>35.07</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>13</ID>
+      <start>517.55</start>
+      <end>529.55</end>
+      <code>75. Yahia Fofana (470003) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>15.7</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>35.07</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>14</ID>
+      <start>564.55</start>
+      <end>576.55</end>
+      <code>75. Yahia Fofana (470003) - Direkten dönen şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Direkten dönen şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>82.25</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>48.98</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>15</ID>
+      <start>629.55</start>
+      <end>641.55</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>15.82</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>28.59</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>16</ID>
+      <start>684.55</start>
+      <end>696.55</end>
+      <code>75. Yahia Fofana (470003) - Kurtarış</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Kurtarış</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>98.38</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>36.88</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>17</ID>
+      <start>684.55</start>
+      <end>696.55</end>
+      <code>75. Yahia Fofana (470003) - Yakından isabetli şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Yakından isabetli şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>98.38</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>36.88</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>18</ID>
+      <start>684.55</start>
+      <end>696.55</end>
+      <code>75. Yahia Fofana (470003) - İsabetli Şut</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli Şut</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>98.38</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>36.88</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>19</ID>
+      <start>727.55</start>
+      <end>739.55</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>23.46</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>35.85</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>20</ID>
+      <start>727.55</start>
+      <end>739.55</end>
+      <code>75. Yahia Fofana (470003) - Uzun paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Uzun paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>23.46</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>35.85</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>21</ID>
+      <start>737.55</start>
+      <end>749.55</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>6.14</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>22.94</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>22</ID>
+      <start>755.55</start>
+      <end>767.55</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>5.66</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>27.94</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>23</ID>
+      <start>822.55</start>
+      <end>834.55</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>14.74</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.88</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>24</ID>
+      <start>842.55</start>
+      <end>854.55</end>
+      <code>1. Uğurcan Çakır (235597) - Kurtarış</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Kurtarış</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>86.08</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>17.05</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>25</ID>
+      <start>842.55</start>
+      <end>854.55</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetli uzaktan şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli uzaktan şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>86.08</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>17.05</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>26</ID>
+      <start>842.55</start>
+      <end>854.55</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetli Şut</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli Şut</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>86.08</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>17.05</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>27</ID>
+      <start>853.55</start>
+      <end>865.55</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>14.62</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>34.51</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>28</ID>
+      <start>867.55</start>
+      <end>879.55</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>31.95</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>31.36</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>29</ID>
+      <start>929.55</start>
+      <end>941.55</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>7.57</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>31.25</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>30</ID>
+      <start>1013.55</start>
+      <end>1025.55</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>25.14</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.33</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>31</ID>
+      <start>1092.55</start>
+      <end>1104.55</end>
+      <code>75. Yahia Fofana (470003) - Yakından isabetli şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Yakından isabetli şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>100.18</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>35.56</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>32</ID>
+      <start>1092.55</start>
+      <end>1104.55</end>
+      <code>75. Yahia Fofana (470003) - Yenen goller</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Yenen goller</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>100.18</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>35.56</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>33</ID>
+      <start>1092.55</start>
+      <end>1104.55</end>
+      <code>75. Yahia Fofana (470003) - İsabetli Şut</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli Şut</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>100.18</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>35.56</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>34</ID>
+      <start>1178.55</start>
+      <end>1190.55</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>10.08</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>30.07</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>35</ID>
+      <start>1204.55</start>
+      <end>1216.55</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetsiz Şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz Şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>98.74</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>32.96</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>36</ID>
+      <start>1228.55</start>
+      <end>1240.55</end>
+      <code>1. Uğurcan Çakır (235597) - Hatalar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Hatalar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>14.26</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>25.31</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>37</ID>
+      <start>1228.55</start>
+      <end>1240.55</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>14.98</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>22.81</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>38</ID>
+      <start>1232.55</start>
+      <end>1244.55</end>
+      <code>1. Uğurcan Çakır (235597) - Başarılı Orta Engelleme ve Pas Arası Girişimleri</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarılı Orta Engelleme ve Pas Arası Girişimleri</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>13.07</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>27.28</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>39</ID>
+      <start>1232.55</start>
+      <end>1244.55</end>
+      <code>1. Uğurcan Çakır (235597) - Kurtarış</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Kurtarış</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>91.09</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>39.54</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>40</ID>
+      <start>1232.55</start>
+      <end>1244.55</end>
+      <code>1. Uğurcan Çakır (235597) - Kurtarışlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Kurtarışlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>12.35</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>29.78</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>41</ID>
+      <start>1232.55</start>
+      <end>1244.55</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetli Orta Mesafeli Şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli Orta Mesafeli Şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>91.09</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>39.54</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>42</ID>
+      <start>1232.55</start>
+      <end>1244.55</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetli Şut</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli Şut</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>91.09</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>39.54</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>43</ID>
+      <start>1276.55</start>
+      <end>1288.55</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetsiz Şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz Şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>88.94</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>39.41</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>44</ID>
+      <start>1343.55</start>
+      <end>1355.55</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>20.6</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>32.41</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>45</ID>
+      <start>1367.55</start>
+      <end>1379.55</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>12.95</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>23.99</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>46</ID>
+      <start>1541.55</start>
+      <end>1553.55</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetsiz Şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz Şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>89.78</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>37.43</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>47</ID>
+      <start>1725.55</start>
+      <end>1737.55</end>
+      <code>75. Yahia Fofana (470003) - Başarısız Uzun Toplar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarısız Uzun Toplar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>4.35</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>37.56</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>48</ID>
+      <start>1725.55</start>
+      <end>1737.55</end>
+      <code>75. Yahia Fofana (470003) - Kale Vuruşları</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Kale Vuruşları</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>4.35</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>37.56</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>49</ID>
+      <start>1725.55</start>
+      <end>1737.55</end>
+      <code>75. Yahia Fofana (470003) - Uzun Kale Vuruşları (40+ mt)</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Uzun Kale Vuruşları (40+ mt)</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>4.35</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>37.56</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>50</ID>
+      <start>1725.55</start>
+      <end>1737.55</end>
+      <code>75. Yahia Fofana (470003) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>4.35</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>37.56</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>51</ID>
+      <start>1740.55</start>
+      <end>1752.55</end>
+      <code>75. Yahia Fofana (470003) - Başarısız Uzun Toplar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarısız Uzun Toplar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>5.66</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>38.62</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>52</ID>
+      <start>1740.55</start>
+      <end>1752.55</end>
+      <code>75. Yahia Fofana (470003) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>5.66</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>38.62</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>53</ID>
+      <start>1893.55</start>
+      <end>1905.55</end>
+      <code>75. Yahia Fofana (470003) - İsabetsiz Şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz Şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>94.92</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>18.86</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>54</ID>
+      <start>2107.55</start>
+      <end>2119.55</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>7.81</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.49</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>55</ID>
+      <start>2192.55</start>
+      <end>2204.55</end>
+      <code>75. Yahia Fofana (470003) - Kale Vuruşları</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Kale Vuruşları</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>5.06</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.62</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>56</ID>
+      <start>2192.55</start>
+      <end>2204.55</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>5.06</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.62</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>57</ID>
+      <start>2192.55</start>
+      <end>2204.55</end>
+      <code>75. Yahia Fofana (470003) - Uzun Kale Vuruşları (40+ mt)</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Uzun Kale Vuruşları (40+ mt)</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>5.06</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.62</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>58</ID>
+      <start>2192.55</start>
+      <end>2204.55</end>
+      <code>75. Yahia Fofana (470003) - Uzun paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Uzun paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>5.06</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.62</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>59</ID>
+      <start>2388.55</start>
+      <end>2400.55</end>
+      <code>1. Uğurcan Çakır (235597) - Serbest Vuruş Şutları</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Serbest Vuruş Şutları</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>75.68</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>36.78</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>60</ID>
+      <start>2576.55</start>
+      <end>2588.55</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>13.43</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>32.54</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>61</ID>
+      <start>2576.55</start>
+      <end>2588.55</end>
+      <code>1. Uğurcan Çakır (235597) - Uzun paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Uzun paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>13.43</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>32.54</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>62</ID>
+      <start>2724.55</start>
+      <end>2736.55</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetsiz Şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz Şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>94.56</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>17.84</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>63</ID>
+      <start>2761.55</start>
+      <end>2773.55</end>
+      <code>1. Uğurcan Çakır (235597) - Başarısız Uzun Toplar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarısız Uzun Toplar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>5.42</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>34.38</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>64</ID>
+      <start>2761.55</start>
+      <end>2773.55</end>
+      <code>1. Uğurcan Çakır (235597) - Kale Vuruşları</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Kale Vuruşları</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>5.42</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>34.38</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>65</ID>
+      <start>2761.55</start>
+      <end>2773.55</end>
+      <code>1. Uğurcan Çakır (235597) - Uzun Kale Vuruşları (40+ mt)</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Uzun Kale Vuruşları (40+ mt)</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>5.42</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>34.38</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>66</ID>
+      <start>2761.55</start>
+      <end>2773.55</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>5.42</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>34.38</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>67</ID>
+      <start>2768.55</start>
+      <end>2780.55</end>
+      <code>75. Yahia Fofana (470003) - Başarılı Orta Engelleme ve Pas Arası Girişimleri</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarılı Orta Engelleme ve Pas Arası Girişimleri</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>13.19</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>32.3</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>68</ID>
+      <start>2769.55</start>
+      <end>2781.55</end>
+      <code>75. Yahia Fofana (470003) - Sarı Kartlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Sarı Kartlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>92.29</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>36.22</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>69</ID>
+      <start>2769.55</start>
+      <end>2781.55</end>
+      <code>75. Yahia Fofana (470003) - Yapılan Fauller</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Yapılan Fauller</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>91.45</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>35.83</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>70</ID>
+      <start>2841.55</start>
+      <end>2841.55</end>
+      <code>Halftime</code>
+      <label>
+        <group>Team</group>
+        <text>None</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Halftime</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>1</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>None</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>None</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>71</ID>
+      <start>2849.27</start>
+      <end>2849.27</end>
+      <code>Start of the 2nd half</code>
+      <label>
+        <group>Team</group>
+        <text>None</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Start of the 2nd half</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>None</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>None</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>72</ID>
+      <start>2849.27</start>
+      <end>2859.27</end>
+      <code>1. Uğurcan Çakır (235597) - Başarısız Uzun Toplar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarısız Uzun Toplar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>29.56</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>31.87</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>73</ID>
+      <start>2849.27</start>
+      <end>2859.27</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>29.56</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>31.87</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>74</ID>
+      <start>2862.27</start>
+      <end>2874.27</end>
+      <code>1. Uğurcan Çakır (235597) - Başarısız Uzun Toplar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarısız Uzun Toplar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>24.06</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>46.99</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>75</ID>
+      <start>2862.27</start>
+      <end>2874.27</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>24.06</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>46.99</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>76</ID>
+      <start>2885.27</start>
+      <end>2897.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>14.38</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>23.85</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>77</ID>
+      <start>2888.27</start>
+      <end>2900.27</end>
+      <code>1. Uğurcan Çakır (235597) - Başarısız Uzun Toplar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarısız Uzun Toplar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>12.71</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>25.69</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>78</ID>
+      <start>2888.27</start>
+      <end>2900.27</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>12.71</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>25.69</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>79</ID>
+      <start>2959.27</start>
+      <end>2971.27</end>
+      <code>75. Yahia Fofana (470003) - Direkten dönen şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Direkten dönen şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>91.33</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>48.57</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>80</ID>
+      <start>2968.27</start>
+      <end>2980.27</end>
+      <code>75. Yahia Fofana (470003) - Başarılı Orta Engelleme ve Pas Arası Girişimleri</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarılı Orta Engelleme ve Pas Arası Girişimleri</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>3.87</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>37.84</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>81</ID>
+      <start>2971.27</start>
+      <end>2983.27</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>13.91</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.63</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>82</ID>
+      <start>3061.27</start>
+      <end>3073.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>13.19</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.45</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>83</ID>
+      <start>3067.27</start>
+      <end>3079.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>9.72</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>29.9</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>84</ID>
+      <start>3154.27</start>
+      <end>3166.27</end>
+      <code>75. Yahia Fofana (470003) - İsabetsiz Şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz Şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>87.63</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>42.78</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>85</ID>
+      <start>3216.27</start>
+      <end>3228.27</end>
+      <code>75. Yahia Fofana (470003) - İsabetsiz Şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz Şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>86.43</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>34.5</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>86</ID>
+      <start>3326.27</start>
+      <end>3338.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>15.82</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>25.69</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>87</ID>
+      <start>3369.27</start>
+      <end>3381.27</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>15.58</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>32.32</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>88</ID>
+      <start>3496.27</start>
+      <end>3508.27</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>4.23</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>26.14</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>89</ID>
+      <start>3496.27</start>
+      <end>3508.27</end>
+      <code>75. Yahia Fofana (470003) - Uzun paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Uzun paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>4.23</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>26.14</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>90</ID>
+      <start>3574.27</start>
+      <end>3586.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>20.24</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>32.26</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>91</ID>
+      <start>3578.27</start>
+      <end>3590.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>15.46</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>28.97</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>92</ID>
+      <start>3676.27</start>
+      <end>3688.27</end>
+      <code>75. Yahia Fofana (470003) - Başarılı Orta Engelleme ve Pas Arası Girişimleri</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarılı Orta Engelleme ve Pas Arası Girişimleri</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>11.04</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>23.77</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>93</ID>
+      <start>3676.27</start>
+      <end>3688.27</end>
+      <code>75. Yahia Fofana (470003) - İsabetsiz Şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz Şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>94.08</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>46.07</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>94</ID>
+      <start>3783.27</start>
+      <end>3795.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>14.5</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>34.23</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>95</ID>
+      <start>3789.27</start>
+      <end>3801.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>13.55</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>23.45</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>96</ID>
+      <start>3789.27</start>
+      <end>3801.27</end>
+      <code>1. Uğurcan Çakır (235597) - Uzun paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Uzun paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>13.55</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>23.45</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>97</ID>
+      <start>3850.27</start>
+      <end>3862.27</end>
+      <code>75. Yahia Fofana (470003) - Yakından isabetli şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Yakından isabetli şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>99.82</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>37.52</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>98</ID>
+      <start>3850.27</start>
+      <end>3862.27</end>
+      <code>75. Yahia Fofana (470003) - Yenen goller</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Yenen goller</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>99.82</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>37.52</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>99</ID>
+      <start>3850.27</start>
+      <end>3862.27</end>
+      <code>75. Yahia Fofana (470003) - İsabetli Şut</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli Şut</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>99.82</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>37.52</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>100</ID>
+      <start>4069.27</start>
+      <end>4081.27</end>
+      <code>75. Yahia Fofana (470003) - Başarısız Uzun Toplar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarısız Uzun Toplar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>7.09</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>34.42</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>101</ID>
+      <start>4069.27</start>
+      <end>4081.27</end>
+      <code>75. Yahia Fofana (470003) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>7.09</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>34.42</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>102</ID>
+      <start>4139.27</start>
+      <end>4151.27</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>15.22</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>31.27</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>103</ID>
+      <start>4280.27</start>
+      <end>4292.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>10.32</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>30.55</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>104</ID>
+      <start>4511.27</start>
+      <end>4523.27</end>
+      <code>75. Yahia Fofana (470003) - Yanlarda Başarısız Çıkış</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Yanlarda Başarısız Çıkış</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>11.75</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>31.92</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>105</ID>
+      <start>4512.27</start>
+      <end>4524.27</end>
+      <code>75. Yahia Fofana (470003) - Yakından isabetli şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Yakından isabetli şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>103.64</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>40.28</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>106</ID>
+      <start>4512.27</start>
+      <end>4524.27</end>
+      <code>75. Yahia Fofana (470003) - Yenen goller</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Yenen goller</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>103.64</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>40.28</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>107</ID>
+      <start>4512.27</start>
+      <end>4524.27</end>
+      <code>75. Yahia Fofana (470003) - İsabetli Şut</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli Şut</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>103.64</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>40.28</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>108</ID>
+      <start>4693.27</start>
+      <end>4705.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>24.9</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>26.48</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>109</ID>
+      <start>4701.27</start>
+      <end>4713.27</end>
+      <code>75. Yahia Fofana (470003) - Başarısız Uzun Toplar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarısız Uzun Toplar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>7.57</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>35.87</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>110</ID>
+      <start>4701.27</start>
+      <end>4713.27</end>
+      <code>75. Yahia Fofana (470003) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>7.57</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>35.87</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>111</ID>
+      <start>4716.27</start>
+      <end>4728.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>15.82</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.31</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>112</ID>
+      <start>4758.27</start>
+      <end>4770.27</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>7.69</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>36.4</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>113</ID>
+      <start>5051.27</start>
+      <end>5063.27</end>
+      <code>75. Yahia Fofana (470003) - Direkten dönen şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Direkten dönen şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>85.24</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>34.88</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>114</ID>
+      <start>5056.27</start>
+      <end>5068.27</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>12.11</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>36.41</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>115</ID>
+      <start>5082.27</start>
+      <end>5094.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>11.99</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>35.4</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>116</ID>
+      <start>5109.27</start>
+      <end>5121.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>13.43</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>39.08</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>117</ID>
+      <start>5178.27</start>
+      <end>5190.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>25.26</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>28.96</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>118</ID>
+      <start>5209.27</start>
+      <end>5221.27</end>
+      <code>75. Yahia Fofana (470003) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>19.52</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>31.15</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>119</ID>
+      <start>5209.27</start>
+      <end>5221.27</end>
+      <code>75. Yahia Fofana (470003) - Uzun paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Uzun paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>19.52</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>31.15</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>120</ID>
+      <start>5242.27</start>
+      <end>5254.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>9.84</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>24.09</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>121</ID>
+      <start>5385.27</start>
+      <end>5397.27</end>
+      <code>1. Uğurcan Çakır (235597) - Başarısız Uzun Toplar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarısız Uzun Toplar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>8.77</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.69</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>122</ID>
+      <start>5385.27</start>
+      <end>5397.27</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>8.77</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>33.69</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>123</ID>
+      <start>5462.27</start>
+      <end>5474.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>21.43</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>32.9</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>124</ID>
+      <start>5476.27</start>
+      <end>5488.27</end>
+      <code>1. Uğurcan Çakır (235597) - Paslar adresi bulanlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Paslar adresi bulanlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>13.91</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>44.87</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>125</ID>
+      <start>5537.27</start>
+      <end>5549.27</end>
+      <code>75. Yahia Fofana (470003) - Başarısız Uzun Toplar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Başarısız Uzun Toplar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>11.99</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>48.25</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>126</ID>
+      <start>5537.27</start>
+      <end>5549.27</end>
+      <code>75. Yahia Fofana (470003) - İsabetsiz paslar</code>
+      <label>
+        <group>Team</group>
+        <text>Caykur Rizespor (62850)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetsiz paslar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>11.99</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>48.25</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>127</ID>
+      <start>5602.27</start>
+      <end>5614.27</end>
+      <code>1. Uğurcan Çakır (235597) - Kurtarış</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Kurtarış</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>97.67</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>23.66</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>128</ID>
+      <start>5602.27</start>
+      <end>5614.27</end>
+      <code>1. Uğurcan Çakır (235597) - Kurtarışlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Kurtarışlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>1.48</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>37.9</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>129</ID>
+      <start>5602.27</start>
+      <end>5614.27</end>
+      <code>1. Uğurcan Çakır (235597) - Yakından isabetli şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Yakından isabetli şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>97.67</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>23.66</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>130</ID>
+      <start>5602.27</start>
+      <end>5614.27</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetli Şut</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli Şut</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>97.67</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>23.66</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>131</ID>
+      <start>5745.27</start>
+      <end>5757.27</end>
+      <code>1. Uğurcan Çakır (235597) - Kurtarış</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Kurtarış</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>79.98</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>48.77</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>132</ID>
+      <start>5745.27</start>
+      <end>5757.27</end>
+      <code>1. Uğurcan Çakır (235597) - Serbest Vuruş Şutları</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>Serbest Vuruş Şutları</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>79.98</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>48.77</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>133</ID>
+      <start>5745.27</start>
+      <end>5757.27</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetli uzaktan şutlar</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli uzaktan şutlar</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>79.98</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>48.77</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>134</ID>
+      <start>5745.27</start>
+      <end>5757.27</end>
+      <code>1. Uğurcan Çakır (235597) - İsabetli Şut</code>
+      <label>
+        <group>Team</group>
+        <text>Galatasaray (29205)</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>İsabetli Şut</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>79.98</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>48.77</text>
+      </label>
+    </instance>
+    <instance>
+      <ID>135</ID>
+      <start>5760.27</start>
+      <end>5760.27</end>
+      <code>End of the match</code>
+      <label>
+        <group>Team</group>
+        <text>None</text>
+      </label>
+      <label>
+        <group>Action</group>
+        <text>End of the match</text>
+      </label>
+      <label>
+        <group>Half</group>
+        <text>2</text>
+      </label>
+      <label>
+        <group>pos_x</group>
+        <text>None</text>
+      </label>
+      <label>
+        <group>pos_y</group>
+        <text>None</text>
+      </label>
+    </instance>
+  </ALL_INSTANCES>
+  <ROWS>
+    <row>
+      <code>75. Yahia Fofana (470003)</code>
+      <sort_order>1</sort_order>
+      <R>51400</R>
+      <G>51400</G>
+      <B>51400</B>
+    </row>
+    <row>
+      <code>1. Uğurcan Çakır (235597)</code>
+      <sort_order>101</sort_order>
+      <R>14649</R>
+      <G>14649</G>
+      <B>14649</B>
+    </row>
+  </ROWS>
+</file>

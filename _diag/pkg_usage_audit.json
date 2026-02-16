@@ -1,0 +1,167 @@
+{
+  "roots": [
+    "/data/data/com.termux/files/home/hpfa",
+    "/data/data/com.termux/files/home/HPFA_MASTER/base/hpfa-monorepo",
+    "/data/data/com.termux/files/home/HP_PROJELERI/HP-Motor-main"
+  ],
+  "rows": [
+    {
+      "pip": "PyYAML",
+      "import": "yaml",
+      "used_direct_import": true,
+      "used_as_dependency": true,
+      "required_by": [
+        "hp-motor"
+      ]
+    },
+    {
+      "pip": "et_xmlfile",
+      "import": "et_xmlfile",
+      "used_direct_import": false,
+      "used_as_dependency": false,
+      "required_by": []
+    },
+    {
+      "pip": "hp-motor",
+      "import": "hp_motor",
+      "used_direct_import": true,
+      "used_as_dependency": false,
+      "required_by": []
+    },
+    {
+      "pip": "hpfa",
+      "import": "hpfa",
+      "used_direct_import": true,
+      "used_as_dependency": false,
+      "required_by": []
+    },
+    {
+      "pip": "numpy",
+      "import": "numpy",
+      "used_direct_import": true,
+      "used_as_dependency": true,
+      "required_by": [
+        "hp-motor"
+      ]
+    },
+    {
+      "pip": "openpyxl",
+      "import": "openpyxl",
+      "used_direct_import": true,
+      "used_as_dependency": true,
+      "required_by": [
+        "hp-motor"
+      ]
+    },
+    {
+      "pip": "packaging",
+      "import": "packaging",
+      "used_direct_import": false,
+      "used_as_dependency": true,
+      "required_by": [
+        "wheel"
+      ]
+    },
+    {
+      "pip": "pandas",
+      "import": "pandas",
+      "used_direct_import": true,
+      "used_as_dependency": true,
+      "required_by": [
+        "hp-motor"
+      ]
+    },
+    {
+      "pip": "pip",
+      "import": "pip",
+      "used_direct_import": false,
+      "used_as_dependency": false,
+      "required_by": []
+    },
+    {
+      "pip": "pydantic",
+      "import": "pydantic",
+      "used_direct_import": true,
+      "used_as_dependency": true,
+      "required_by": [
+        "hp-motor"
+      ]
+    },
+    {
+      "pip": "python-dateutil",
+      "import": "dateutil",
+      "used_direct_import": false,
+      "used_as_dependency": false,
+      "required_by": []
+    },
+    {
+      "pip": "setuptools",
+      "import": "setuptools",
+      "used_direct_import": false,
+      "used_as_dependency": true,
+      "required_by": [
+        "wheel"
+      ]
+    },
+    {
+      "pip": "six",
+      "import": "six",
+      "used_direct_import": false,
+      "used_as_dependency": true,
+      "required_by": [
+        "python-dateutil"
+      ]
+    },
+    {
+      "pip": "typing_extensions",
+      "import": "typing_extensions",
+      "used_direct_import": false,
+      "used_as_dependency": false,
+      "required_by": []
+    },
+    {
+      "pip": "wheel",
+      "import": "wheel",
+      "used_direct_import": false,
+      "used_as_dependency": false,
+      "required_by": []
+    }
+  ],
+  "candidates": [
+    {
+      "pip": "et_xmlfile",
+      "import": "et_xmlfile",
+      "used_direct_import": false,
+      "used_as_dependency": false,
+      "required_by": []
+    },
+    {
+      "pip": "pip",
+      "import": "pip",
+      "used_direct_import": false,
+      "used_as_dependency": false,
+      "required_by": []
+    },
+    {
+      "pip": "python-dateutil",
+      "import": "dateutil",
+      "used_direct_import": false,
+      "used_as_dependency": false,
+      "required_by": []
+    },
+    {
+      "pip": "typing_extensions",
+      "import": "typing_extensions",
+      "used_direct_import": false,
+      "used_as_dependency": false,
+      "required_by": []
+    },
+    {
+      "pip": "wheel",
+      "import": "wheel",
+      "used_direct_import": false,
+      "used_as_dependency": false,
+      "required_by": []
+    }
+  ]
+}

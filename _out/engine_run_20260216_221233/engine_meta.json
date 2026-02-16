@@ -1,0 +1,132 @@
+{
+  "source_csv": "events_canonical.csv",
+  "n_events": 9909.0,
+  "artifacts": [
+    "/data/data/com.termux/files/home/hpfa/_out/engine_run_20260216_221233/engine_seq_possessions.json",
+    "/data/data/com.termux/files/home/hpfa/_out/engine_run_20260216_221233/engine_xt01_grid.json"
+  ],
+  "modules": {
+    "coord_normalize": {
+      "x": {
+        "mul": 1.0,
+        "add": 0.0,
+        "note": "EMPTY"
+      },
+      "y": {
+        "mul": 1.0,
+        "add": 0.0,
+        "note": "EMPTY"
+      },
+      "seen_xy": 0.0,
+      "bad_xy": 0.0,
+      "bad_ratio": 0.0
+    },
+    "constitution": {
+      "ok": true,
+      "reasons": [],
+      "details": {
+        "coord": {
+          "seen_xy": 0.0,
+          "bad_xy": 0.0,
+          "bad_ratio": 0.0
+        }
+      }
+    },
+    "sequence": {
+      "n_possessions": 1458.0
+    },
+    "space": {
+      "grid": {
+        "spec": {
+          "nx": 12.0,
+          "ny": 8.0,
+          "x_min": 0.0,
+          "x_max": 100.0,
+          "y_min": 0.0,
+          "y_max": 100.0
+        }
+      }
+    }
+  },
+  "refs_library": {
+    "root": "/data/data/com.termux/files/home/HP_LIBRARY",
+    "n_total": 24.0,
+    "picked": [
+      {
+        "path": "./01_FOOTBALL_ANALYTICS/2018_DeCroos_VAEP_arxiv__paper.pdf",
+        "tags": [
+          "ACTION_VALUE",
+          "HP_ENGINE",
+          "VAEP"
+        ]
+      },
+      {
+        "path": "./01_FOOTBALL_ANALYTICS/2020_DeCroos_VAEP_IJCAI__paper.pdf",
+        "tags": [
+          "ACTION_VALUE",
+          "HP_ENGINE",
+          "VAEP"
+        ]
+      },
+      {
+        "path": "./01_FOOTBALL_ANALYTICS/2023_WuSwartz_PitchControlMetric__paper.pdf",
+        "tags": [
+          "HP_SPACE",
+          "PITCH_CONTROL"
+        ]
+      },
+      {
+        "path": "./02_MATH_STATS/2014_GrinsteadSnell_IntroProbability__book.pdf",
+        "tags": [
+          "HP_STATS",
+          "VALIDATION"
+        ]
+      },
+      {
+        "path": "./02_MATH_STATS/2016_Downey_ThinkStats2__book.pdf",
+        "tags": [
+          "HP_STATS",
+          "VALIDATION"
+        ]
+      },
+      {
+        "path": "./02_MATH_STATS/2019_OpenIntro_Statistics__book.pdf",
+        "tags": [
+          "HP_STATS",
+          "VALIDATION"
+        ]
+      },
+      {
+        "path": "./02_MATH_STATS/2022_MIT_18_05_Probability__notes.pdf",
+        "tags": [
+          "HP_STATS",
+          "VALIDATION"
+        ]
+      },
+      {
+        "path": "./05_BIOMECHANICS/2023_OpenCap__paper.pdf",
+        "tags": [
+          "B_MOTOR",
+          "INVARIANTS",
+          "PHYSICAL_PLAUSIBILITY"
+        ]
+      },
+      {
+        "path": "./05_BIOMECHANICS/BCcampus_BiomechanicsOfHumanMovement__book.pdf",
+        "tags": [
+          "B_MOTOR",
+          "INVARIANTS",
+          "PHYSICAL_PLAUSIBILITY"
+        ]
+      },
+      {
+        "path": "./05_BIOMECHANICS/OpenSim_Tutorial1__tutorial.pdf",
+        "tags": [
+          "B_MOTOR",
+          "INVARIANTS",
+          "PHYSICAL_PLAUSIBILITY"
+        ]
+      }
+    ]
+  }
+}

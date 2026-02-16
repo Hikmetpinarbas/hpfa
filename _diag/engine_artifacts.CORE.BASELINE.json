@@ -1,0 +1,16 @@
+{
+  "run_dir": "/data/data/com.termux/files/home/hpfa/_out/engine_run_20260216_191315",
+  "core_files": [
+    {
+      "name": "engine_seq_possessions.json",
+      "size": 408220,
+      "sha256": "6e133bfef48b1f0c44ed819f6018730beeb75bc320a892e595add8b7419bd8c8"
+    },
+    {
+      "name": "engine_xt01_grid.json",
+      "size": 2070,
+      "sha256": "5aa03aa84ad961245bd4c432e0f5e524cf8063a3ecaf97b79baa5e1b8b944392"
+    }
+  ],
+  "fingerprint_sha256": "2b0ce977d159bfb5a122388604b554cd73d1e87a49a8a176e5f039611a18a871"
+}

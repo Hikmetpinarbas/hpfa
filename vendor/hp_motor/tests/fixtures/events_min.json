@@ -1,7 +1,0 @@
-[
-  {"match_id":"m1","team_id":"A","period":1,"minute":0,"second":5,"event_type":"pass","player_id":"p1","start_x":20,"start_y":40,"end_x":28,"end_y":41,"outcome":"complete","possession_id":"pos1"},
-  {"match_id":"m1","team_id":"A","period":1,"minute":0,"second":10,"event_type":"pass","player_id":"p2","start_x":28,"start_y":41,"end_x":47,"end_y":44,"outcome":"complete","possession_id":"pos1"},
-  {"match_id":"m1","team_id":"A","period":1,"minute":0,"second":18,"event_type":"shot","player_id":"p9","start_x":88,"start_y":40,"end_x":100,"end_y":40,"outcome":"on_target","possession_id":"pos1"},
-  {"match_id":"m1","team_id":"B","period":1,"minute":1,"second":2,"event_type":"pass","player_id":"q4","start_x":30,"start_y":55,"end_x":38,"end_y":57,"outcome":"failed","possession_id":"pos2"},
-  {"match_id":"m1","team_id":"A","period":1,"minute":1,"second":10,"event_type":"recovery","player_id":"p6","possession_id":"pos3"}
-]

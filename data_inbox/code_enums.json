@@ -1,0 +1,23 @@
+{
+  "canonical_actions": [
+    "GK_CATCH",
+    "GK_SAVE",
+    "GK_DIST_SHORT",
+    "GK_DIST_LONG",
+    "RESTART_KICKOFF",
+    "RESTART_THROW_IN",
+    "RESTART_GOAL_KICK",
+    "RESTART_CORNER",
+    "RESTART_FREE_KICK",
+    "RESTART_DROPPED_BALL",
+    "INTERCEPTION",
+    "TACKLE_SUCCESS",
+    "TACKLE_FAIL",
+    "DEFLECTION",
+    "LOOSE_BALL",
+    "SCRAMBLE"
+  ],
+  "possession_effects": ["START", "CONTINUE", "END", "NEUTRAL"],
+  "allowed_states": ["CONTROLLED", "CONTESTED", "DEAD_BALL", "UNVALIDATED"],
+  "fail_closed_defaults": ["UNVALIDATED"]
+}

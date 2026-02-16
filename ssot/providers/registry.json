@@ -1,0 +1,36 @@
+{
+  "version": "0.1.0",
+  "ssot": {
+    "principles": [
+      "single_source_of_truth",
+      "determinism_required",
+      "fail_closed",
+      "evidence_bound"
+    ]
+  },
+  "providers": {
+    "engine_alpha": {
+      "kind": "engine",
+      "provider_id": "hpfa.engine.internal",
+      "algo_version": "v0.1",
+      "artifacts": [
+        "engine_meta_stamped.json",
+        "engine_seq_possessions.json",
+        "engine_xt01_grid.json"
+      ],
+      "input_contract": "engine_provider_contract_v01.json"
+    },
+    "motor_ssot": {
+      "kind": "motor",
+      "provider_id": "hp-motor",
+      "repo_path": "~/hp_platform/repo/HP-Motor",
+      "note": "SSOT motor repo. Must be the only motor import source in venv."
+    },
+    "library_root": {
+      "kind": "library",
+      "provider_id": "hp_library",
+      "root": "~/HP_LIBRARY",
+      "note": "Evidence references (papers/books/notes). Engine picks subset per run."
+    }
+  }
+}

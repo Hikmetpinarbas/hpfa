@@ -1,0 +1,45 @@
+{
+  "n_rows": 3225,
+  "team_counts": {
+    "Caykur Rizespor (62850)": 1453,
+    "Galatasaray (29205)": 1768
+  },
+  "unknown_team_rows": 4,
+  "xy_rows": 3221,
+  "xy_out_of_bounds": 0,
+  "pass_semantic_suspects_top10": [
+    {
+      "player": "Ismail Jakobs (673189)",
+      "n_pass": 48,
+      "med_x_pass": 57.82,
+      "med_x_carry": 1.24,
+      "med_x_shot": null
+    },
+    {
+      "player": "Taha Şahin (1275421)",
+      "n_pass": 46,
+      "med_x_pass": 59.55,
+      "med_x_carry": 33.385,
+      "med_x_shot": null
+    },
+    {
+      "player": "Gabriel Sara (533884)",
+      "n_pass": 61,
+      "med_x_pass": 55.61,
+      "med_x_carry": 78.67,
+      "med_x_shot": null
+    },
+    {
+      "player": "Mithat Pala (1108032)",
+      "n_pass": 34,
+      "med_x_pass": 67.97,
+      "med_x_carry": 47.42,
+      "med_x_shot": null
+    }
+  ],
+  "interpretation": {
+    "unknown_team": "UNKNOWN_TEAM > 0 ise team mapping/join sorunu var; grafiklerde 3. takım çıkar.",
+    "oob_xy": "oob>0 ise parsing/scale hatası var (delimiter, sütun kayması, yanlış x/y).",
+    "pass_semantics": "suspects doluysa pas koordinatı 'hedef noktası' olabilir; positions hesaplarında pasları kullanma."
+  }
+}

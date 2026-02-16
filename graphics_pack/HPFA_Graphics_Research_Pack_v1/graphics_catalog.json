@@ -1,0 +1,947 @@
+{
+  "generated_on": "2026-02-10",
+  "catalog_version": "v1.0",
+  "n_graphics": 40,
+  "notes": "Event-based HPFA core catalog. Tracking-only items are documented as 'why not' unless tracking data exists.",
+  "graphics": [
+    {
+      "id": "G01",
+      "name": "6F Phase Distribution (count + share)",
+      "layer": "macro",
+      "phases": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "canonical_event_v1 (team_id, action, t_start, t_end)",
+        "phase classifier mapping actions→6F"
+      ],
+      "math": "share(Fk)=Nk/ΣNk; Nk=|{events in phase k}|",
+      "visual": "stacked bar + timeline small multiples",
+      "answers": "Oyun kimliği: set/transition/duran top oranı",
+      "cannot_answer": "Kalite/başarı (etkililik) söylemez",
+      "common_pitfall": "Yanlış faz sınıflandırması (action map drift)",
+      "validation_checks": [
+        "coverage report: %mapped actions",
+        "spot-check 30 random events"
+      ],
+      "alternative": "Phase+Outcome (xG/shot/turnover) ile ağırlıklı faz skoru"
+    },
+    {
+      "id": "G02",
+      "name": "Events per Minute (rhythm)",
+      "layer": "macro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "t_start per event",
+        "minute bins"
+      ],
+      "math": "E_m = count(events where floor(t_start/60)=m)",
+      "visual": "line chart (rolling 3-min)",
+      "answers": "Tempo kırılmaları, kaos pencereleri",
+      "cannot_answer": "Topa sahip olma veya baskı kalitesi söylemez",
+      "common_pitfall": "Bin width yanlış seçilirse sahte volatilite",
+      "validation_checks": [
+        "try 1,3,5-min bins; stability check",
+        "compare halves"
+      ],
+      "alternative": "Possession-chain based tempo (chain count per min)"
+    },
+    {
+      "id": "G03",
+      "name": "Possession Chain Length Distribution",
+      "layer": "macro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "ordered events with team_id",
+        "possession segmentation rules (turnover, shot, foul, out)"
+      ],
+      "math": "L = events per possession; plot P(L)",
+      "visual": "hist + CCDF",
+      "answers": "Takımın sekans sabrı vs direktliği",
+      "cannot_answer": "Pas kalitesi/ilerleme kalitesi söylemez",
+      "common_pitfall": "Segmentasyon kuralı değişirse sonuç kayar",
+      "validation_checks": [
+        "unit tests on 10 known sequences",
+        "sensitivity: include/exclude fouls"
+      ],
+      "alternative": "Chain xT proxy (sum progressive meters) dağılımı"
+    },
+    {
+      "id": "G04",
+      "name": "Field Tilt Proxy (Final-third action share)",
+      "layer": "macro",
+      "phases": [
+        "F1",
+        "F4"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "x coordinate (0-105)",
+        "team_id",
+        "event types"
+      ],
+      "math": "FT = A_final3rd / (A_final3rd + B_final3rd)",
+      "visual": "time-series (5-min windows) + overall bar",
+      "answers": "Kimin sahayı hangi bölümde 'yerleşik' tuttuğu",
+      "cannot_answer": "Tehdit/şut kalitesi söylemez",
+      "common_pitfall": "Koordinat flip yoksa tilt ters çıkar",
+      "validation_checks": [
+        "auto-flip second half; verify attacking direction",
+        "sanity: GK actions near own goal"
+      ],
+      "alternative": "Final-third entries + shots (quality-weighted tilt)"
+    },
+    {
+      "id": "G05",
+      "name": "Shot Map (xG-weighted)",
+      "layer": "mezzo",
+      "phases": [
+        "F1",
+        "F4",
+        "F5"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "shot events identification",
+        "x,y",
+        "optional xG from xlsx if present"
+      ],
+      "math": "size = xG; if no xG: size=1, annotate counts",
+      "visual": "pitch scatter",
+      "answers": "Şut coğrafyası, üretim bölgeleri",
+      "cannot_answer": "Bitiricilik (finishing) tek başına söylemez",
+      "common_pitfall": "Şut eventleri yanlış etiketlenirse harita bozulur",
+      "validation_checks": [
+        "shots count matches stats sheet (±2 tolerance)",
+        "exclude set-piece duplicates"
+      ],
+      "alternative": "Shot density heatmap (KDE)"
+    },
+    {
+      "id": "G06",
+      "name": "Turnover Map (all + own-half)",
+      "layer": "mezzo",
+      "phases": [
+        "F1",
+        "F3",
+        "F4"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "turnover events",
+        "x,y",
+        "team_id"
+      ],
+      "math": "filter own-half: x<52.5 (after direction normalization)",
+      "visual": "pitch scatter + 2-panel",
+      "answers": "Risk bölgeleri, baskı kırılma noktaları",
+      "cannot_answer": "Sebep (press/trap) söylemez",
+      "common_pitfall": "Takım yönü normalize edilmezse own-half filtresi yanlış",
+      "validation_checks": [
+        "normalize to attacking left→right per team-half",
+        "compare to 'Top kayıpları / kendi yarı sahasında' count"
+      ],
+      "alternative": "Turnover→Shot within 10s (danger turnovers)"
+    },
+    {
+      "id": "G07",
+      "name": "Regain Map + Regain Height",
+      "layer": "mezzo",
+      "phases": [
+        "F2",
+        "F4"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "regain events",
+        "x,y",
+        "t_start",
+        "team_id"
+      ],
+      "math": "height = x (normalized); summarize mean/median",
+      "visual": "heatmap + boxplot",
+      "answers": "Baskı yüksekliği, geri kazanım bölgeleri",
+      "cannot_answer": "Pres başarısı oranı (denominator yok) söylemez",
+      "common_pitfall": "Regain tanımı drift ederse karşılaştırma bozulur",
+      "validation_checks": [
+        "map action labels to regain set; coverage report",
+        "manual verify 20 events"
+      ],
+      "alternative": "Regain→Progressive action rate (within 5s)"
+    },
+    {
+      "id": "G08",
+      "name": "Transition Speed (regain→next 5s Δx)",
+      "layer": "mezzo",
+      "phases": [
+        "F4"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "regain events",
+        "subsequent events same team within 5s",
+        "x positions"
+      ],
+      "math": "v = (x_t5 - x_regain)/Δt",
+      "visual": "hist + top 10 sequences table",
+      "answers": "Geçiş dikeyliği ve hız",
+      "cannot_answer": "Gerçek koşu hızı değil (top/aksiyon hızı proxy)",
+      "common_pitfall": "Event yoğunluğu yüksekse Δt küçük, gürültü artar",
+      "validation_checks": [
+        "min Δt threshold (>=0.3s)",
+        "winsorize extremes"
+      ],
+      "alternative": "Transition outcome funnel (shot / entry / loss)"
+    },
+    {
+      "id": "G09",
+      "name": "Progressive Pass/Carry Rate & Distance",
+      "layer": "macro",
+      "phases": [
+        "F1",
+        "F4"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "pass & carry events",
+        "x,y (start/end if available or infer via consecutive events)"
+      ],
+      "math": "prog if Δx>=10m and end_x>start_x; distance=sum Δx",
+      "visual": "bar + time series",
+      "answers": "Dikey oyun eğilimi",
+      "cannot_answer": "Tehdit (xT) söylemez",
+      "common_pitfall": "Start/end yoksa infer hatalı (event stream limitation)",
+      "validation_checks": [
+        "if no end coords: use next event location with same team as proxy and flag low-confidence"
+      ],
+      "alternative": "Packing proxy (opponent line breaks) — only if defenders positions available (usually not)"
+    },
+    {
+      "id": "G10",
+      "name": "Pass Direction Sonar (per player)",
+      "layer": "micro",
+      "phases": [
+        "F1",
+        "F4",
+        "F5"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "pass events with player_id",
+        "vector angle (requires end coords)"
+      ],
+      "math": "θ = atan2(Δy, Δx); bin to 12 sectors",
+      "visual": "polar bar per key player",
+      "answers": "Oyuncunun yönsel tercihleri",
+      "cannot_answer": "Baskı/opsiyon seti yoksa karar kalitesi söylemez",
+      "common_pitfall": "End coord yoksa sonar üretilemez → uydurma yasak",
+      "validation_checks": [
+        "hard fail if no end coords and no reliable proxy",
+        "sample-plot 3 players only"
+      ],
+      "alternative": "Pass quadrant share (forward/side/back)"
+    },
+    {
+      "id": "G11",
+      "name": "Passing Network (player nodes, edge weight=count)",
+      "layer": "macro",
+      "phases": [
+        "F1",
+        "F4"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "passes with passer/receiver (needs end coords or coded receiver)",
+        "player positions proxy (median action x,y)"
+      ],
+      "math": "W_ij = count(passes i→j); centrality metrics",
+      "visual": "network graph + centrality table",
+      "answers": "Oyun kurulum merkezi, bağlantı yoğunluğu",
+      "cannot_answer": "Topun hızı/tehdit değeri söylemez",
+      "common_pitfall": "Receiver yoksa network yanlış (sadece passer→UNKNOWN)",
+      "validation_checks": [
+        "require receiver extraction quality >= threshold",
+        "compare total passes with stats"
+      ],
+      "alternative": "Network with progressive weight (Σ max(0,Δx))"
+    },
+    {
+      "id": "G12",
+      "name": "Betweenness / Flow Centrality Rank",
+      "layer": "macro",
+      "phases": [
+        "F1"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "passing network edges"
+      ],
+      "math": "betweenness(i) on directed graph",
+      "visual": "bar chart",
+      "answers": "Hatlar arası köprü oyuncuları",
+      "cannot_answer": "İyi/kötü performans söylemez",
+      "common_pitfall": "Aşırı az edge ile centrality anlamsız",
+      "validation_checks": [
+        "min nodes>=8, edges>=20 per team"
+      ],
+      "alternative": "PageRank centrality"
+    },
+    {
+      "id": "G13",
+      "name": "Average / Median Action Locations (NOT 'positions')",
+      "layer": "mezzo",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "x,y per event per player",
+        "filters to reduce midfield inflation"
+      ],
+      "math": "median(x), median(y) per player; jitter only for overlap display",
+      "visual": "pitch scatter with labels",
+      "answers": "Aksiyon aldığı bölgeler (varlık değil)",
+      "cannot_answer": "Gerçek pozisyon/rol söylemez (tracking değil)",
+      "common_pitfall": "Yanlış isimlendirme → rol hatası",
+      "validation_checks": [
+        "label plot as 'median action locations' explicitly",
+        "exclude stoppages, team metrics"
+      ],
+      "alternative": "Action location by phase (facets F1/F2/F4)"
+    },
+    {
+      "id": "G14",
+      "name": "Unit Compactness (team length/width over time)",
+      "layer": "macro",
+      "phases": [
+        "F1",
+        "F2"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "events with x,y and team_id"
+      ],
+      "math": "length = P95(x)-P05(x); width = P95(y)-P05(y) per 5-min window",
+      "visual": "two line charts",
+      "answers": "Takımın daralma/genişleme dinamiği (proxy)",
+      "cannot_answer": "Gerçek hat mesafeleri değil (tracking yok)",
+      "common_pitfall": "Action-sampling bias (topun olduğu yere yığılma)",
+      "validation_checks": [
+        "only use selected actions (passes+def actions) to balance",
+        "report n_events per window"
+      ],
+      "alternative": "Convex hull area proxy (needs sufficient points)"
+    },
+    {
+      "id": "G15",
+      "name": "Press Proxy: Regain-after-Loss Δt distribution",
+      "layer": "macro",
+      "phases": [
+        "F3"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "loss events",
+        "next regain by same team"
+      ],
+      "math": "Δt = t_regain - t_loss; summarize median",
+      "visual": "hist + percentile table",
+      "answers": "Şok pres reaksiyon hızı (proxy)",
+      "cannot_answer": "PPDA değil; pres yoğunluğu değil",
+      "common_pitfall": "Yanlış loss/regain tanımı",
+      "validation_checks": [
+        "validate loss set against action list",
+        "cap Δt at 30s"
+      ],
+      "alternative": "Press success rate within 5s (count-based)"
+    },
+    {
+      "id": "G16",
+      "name": "PPDA Proxy (passes allowed per def action)",
+      "layer": "macro",
+      "phases": [
+        "F2"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "opponent passes in own 60%",
+        "def actions (tackle/interception/pressure proxy)"
+      ],
+      "math": "PPDA = opp_passes / def_actions",
+      "visual": "bar + time series",
+      "answers": "Pres şiddeti karşılaştırması",
+      "cannot_answer": "Baskı kalitesi/tuzağı söylemez",
+      "common_pitfall": "Event set farkı ligler arasında kıyas bozabilir",
+      "validation_checks": [
+        "document def_actions set",
+        "sensitivity analysis: include/exclude fouls"
+      ],
+      "alternative": "High regains per 90 as simpler proxy"
+    },
+    {
+      "id": "G17",
+      "name": "Set-piece Outcomes Funnel",
+      "layer": "macro",
+      "phases": [
+        "F5",
+        "F6"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "set-piece events identification",
+        "shots following within 10s"
+      ],
+      "math": "rates: setpiece→entry→shot→goal",
+      "visual": "funnel chart + counts",
+      "answers": "Duran top üretim hattı",
+      "cannot_answer": "Kalite (xG) yoksa yanıltıcı olabilir",
+      "common_pitfall": "Window size (10s) arbitrariness",
+      "validation_checks": [
+        "try 8/10/12s windows; stability check"
+      ],
+      "alternative": "Set-piece shot map"
+    },
+    {
+      "id": "G18",
+      "name": "Shot Quality Distribution (xG bins)",
+      "layer": "micro",
+      "phases": [
+        "F1",
+        "F4",
+        "F5"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "xG per shot (from stats/xlsx or computed model if available)"
+      ],
+      "math": "hist of xG; compare teams",
+      "visual": "hist/violin",
+      "answers": "Üretim kalitesi",
+      "cannot_answer": "Bitiricilik söylemez",
+      "common_pitfall": "xG kaynağı yoksa üretilen pseudo-xG yayın riski",
+      "validation_checks": [
+        "if no xG -> do not plot; instead plot shot distance to goal"
+      ],
+      "alternative": "Finishing delta (Goals − xG)"
+    },
+    {
+      "id": "G19",
+      "name": "Finishing Delta Timeline (Goals−xG cumulative)",
+      "layer": "macro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "shots xG + goals"
+      ],
+      "math": "cum(G)-cum(xG)",
+      "visual": "line chart",
+      "answers": "Kliniklik/kaleci etkisi sinyali",
+      "cannot_answer": "Nedensellik söylemez; sample küçük",
+      "common_pitfall": "xG hatalıysa tüm grafik çöp",
+      "validation_checks": [
+        "cross-check xG totals with stats sheet"
+      ],
+      "alternative": "Goals vs xG scatter (match-level across season)"
+    },
+    {
+      "id": "G20",
+      "name": "Risk–Reward Scatter (turnovers vs threat proxy)",
+      "layer": "micro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "per player: turnovers count",
+        "threat proxy: shots+key passes+prog dist"
+      ],
+      "math": "plot (turnovers, threat); label outliers",
+      "visual": "scatter",
+      "answers": "Maliyet–getiri profili (decision economics)",
+      "cannot_answer": "Oyuncu rolü/dakika kontrolü olmadan adil kıyas değil",
+      "common_pitfall": "Dakika normalize edilmezse yedekler şişer",
+      "validation_checks": [
+        "per90 normalize",
+        "role strata optional"
+      ],
+      "alternative": "Efficiency frontier (Pareto)"
+    },
+    {
+      "id": "G21",
+      "name": "Duel Profile (won/lost by zone)",
+      "layer": "micro",
+      "phases": [
+        "F2",
+        "F3"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "duel events",
+        "x,y",
+        "player_id"
+      ],
+      "math": "win_rate = won/(won+lost) by zone grid",
+      "visual": "heatmap + bar",
+      "answers": "İkili mücadele etkinliği ve nerede",
+      "cannot_answer": "Rakip kalitesi/baskı bağlamı yok",
+      "common_pitfall": "Duel etiket seti farklı olabilir",
+      "validation_checks": [
+        "list duel action labels used",
+        "min samples per cell"
+      ],
+      "alternative": "Aerial duels only vs ground duels"
+    },
+    {
+      "id": "G22",
+      "name": "Cross Map + Accuracy",
+      "layer": "mezzo",
+      "phases": [
+        "F1",
+        "F5"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "cross events",
+        "x,y",
+        "success flag if available"
+      ],
+      "math": "accuracy = successful/total; map origins",
+      "visual": "pitch scatter origins + bar",
+      "answers": "Kenar üretimi profili",
+      "cannot_answer": "Ceza sahası içi hedef oyuncu bağlamı yok",
+      "common_pitfall": "Success flag yoksa 'isabetli orta' events must exist",
+      "validation_checks": [
+        "use action names: İsabetli Ortalar/İsabetsiz Ortalar"
+      ],
+      "alternative": "Cross→Shot within 10s rate"
+    },
+    {
+      "id": "G23",
+      "name": "Final Third Entries (by channel: left/halfspace/center/right)",
+      "layer": "macro",
+      "phases": [
+        "F1",
+        "F4"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "events where x crosses threshold into final third",
+        "y zones"
+      ],
+      "math": "count entries per channel",
+      "visual": "stacked bar + timeline",
+      "answers": "Hangi koridorlardan giriliyor",
+      "cannot_answer": "Giriş kalitesi/sonuç söylemez",
+      "common_pitfall": "Direction normalization yoksa kanal yanlış",
+      "validation_checks": [
+        "normalize first",
+        "threshold=70m in 105 scale"
+      ],
+      "alternative": "Entries→Shots conversion rate"
+    },
+    {
+      "id": "G24",
+      "name": "Zone 14 & Half-space Touch/Action Heatmaps",
+      "layer": "mezzo",
+      "phases": [
+        "F1"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "actions in attacking third",
+        "x,y"
+      ],
+      "math": "density per predefined zones (Zone14, HS)",
+      "visual": "heatmap",
+      "answers": "Modern hücum merkezleri kullanımı",
+      "cannot_answer": "Tehdit söylemez",
+      "common_pitfall": "Zone tanımı açık değilse karşılaştırma bozulur",
+      "validation_checks": [
+        "document zone polygons",
+        "unit test sample points"
+      ],
+      "alternative": "Zone value proxy: shots from zone / actions in zone"
+    },
+    {
+      "id": "G25",
+      "name": "Offside Chain Context (not just count)",
+      "layer": "macro",
+      "phases": [
+        "F1",
+        "F4"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "offside events",
+        "preceding 5 events same team"
+      ],
+      "math": "context features: start zone, pass type, timing",
+      "visual": "small multiples + table",
+      "answers": "Ofsaytın mekanizması (derin koşu, erken pas)",
+      "cannot_answer": "Savunma çizgisi kalitesi (tracking yok)",
+      "common_pitfall": "Sadece count yayın riski",
+      "validation_checks": [
+        "must include context table",
+        "per90 normalize"
+      ],
+      "alternative": "Through-ball attempts vs offside rate"
+    },
+    {
+      "id": "G26",
+      "name": "Substitution Impact Window (pre/post 10')",
+      "layer": "macro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "sub events or player on/off time from xlsx",
+        "team metrics per window"
+      ],
+      "math": "Δmetric = post - pre (tempo, shots, entries)",
+      "visual": "before/after bars",
+      "answers": "Değişiklik etkisi (proxy)",
+      "cannot_answer": "Nedensellik değil; game state confounder",
+      "common_pitfall": "Window choice arbitrary",
+      "validation_checks": [
+        "report scoreline at sub time",
+        "try 5/10/15 min"
+      ],
+      "alternative": "Event-rate change point detection (CUSUM)"
+    },
+    {
+      "id": "G27",
+      "name": "Game State Split (leading/drawing/trailing) — event rates",
+      "layer": "macro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "score timeline from goals",
+        "events per state"
+      ],
+      "math": "rate_k = events_k / minutes_in_state",
+      "visual": "bar/facet",
+      "answers": "Skor bağlamında davranış değişimi",
+      "cannot_answer": "Rakip kalitesi ve taktik değişim nedeni",
+      "common_pitfall": "Gol zamanı yanlışsa state bozulur",
+      "validation_checks": [
+        "derive score from goal events; cross-check with final score"
+      ],
+      "alternative": "Only neutral-state analysis (0-0)"
+    },
+    {
+      "id": "G28",
+      "name": "Entropy / Disorder Index (phase-switch frequency)",
+      "layer": "macro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "phase label per event sequence"
+      ],
+      "math": "H = -Σ p(switch_type) log p(switch_type)",
+      "visual": "line + summary",
+      "answers": "Oyun düzen/kaos geçişleri",
+      "cannot_answer": "Kalite söylemez",
+      "common_pitfall": "Phase label noise inflates entropy",
+      "validation_checks": [
+        "smoothing: use possession-level phases",
+        "report mapping coverage"
+      ],
+      "alternative": "Simpler: transitions per 10 min"
+    },
+    {
+      "id": "G29",
+      "name": "Danger Turnovers: turnover→shot within 10s map",
+      "layer": "mezzo",
+      "phases": [
+        "F3",
+        "F4"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "turnovers",
+        "shots",
+        "timestamps"
+      ],
+      "math": "link if shot_time - turnover_time ≤10s by opponent",
+      "visual": "pitch map of turnover points sized by outcome",
+      "answers": "Gerçek bedel üreten hatalar",
+      "cannot_answer": "Gol yeme nedeni kesin değil",
+      "common_pitfall": "Linking window sensitivity",
+      "validation_checks": [
+        "test 8/10/12 sec",
+        "dedupe multiple shots per turnover"
+      ],
+      "alternative": "Turnover→xG conceded (if xG exists)"
+    },
+    {
+      "id": "G30",
+      "name": "Shot Assist Map (key pass locations)",
+      "layer": "mezzo",
+      "phases": [
+        "F1",
+        "F4",
+        "F5"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "key pass events or inferred (pass preceding shot)"
+      ],
+      "math": "identify pass immediately preceding shot within same possession",
+      "visual": "pitch scatter",
+      "answers": "Pozisyon hazırlama bölgeleri",
+      "cannot_answer": "Gerçek asist kalitesi (xA) yoksa sınırlı",
+      "common_pitfall": "Pass→shot linking errors",
+      "validation_checks": [
+        "require same team+possession; time gap <8s"
+      ],
+      "alternative": "Key pass direction sonar"
+    },
+    {
+      "id": "G31",
+      "name": "GK Distribution Map (passes/long balls)",
+      "layer": "micro",
+      "phases": [
+        "F1",
+        "F4"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "GK actions (from GK csv/xlsx)",
+        "distribution direction/length"
+      ],
+      "math": "θ bins + length bins",
+      "visual": "polar + bar",
+      "answers": "Kaleci oyun kurulum profili",
+      "cannot_answer": "Baskı altında karar kalitesi yok",
+      "common_pitfall": "GK dataset separate; team_id mapping hatası",
+      "validation_checks": [
+        "GK player_id mapping by name+team",
+        "sanity: GK actions near box"
+      ],
+      "alternative": "GK involvement timeline"
+    },
+    {
+      "id": "G32",
+      "name": "GK Shot-stopping Proxy: saves vs SoT by zone",
+      "layer": "micro",
+      "phases": [
+        "F2"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "shots on target",
+        "saves events OR stats sheet"
+      ],
+      "math": "save% by shot zone; if no zones -> overall",
+      "visual": "bar + optional map",
+      "answers": "Kaleci performans sinyali (sınırlı)",
+      "cannot_answer": "PSxG/GSAA olmadan elit kıyas yapılmaz",
+      "common_pitfall": "Shot quality confounder",
+      "validation_checks": [
+        "must include disclaimer in caption",
+        "prefer within-match only"
+      ],
+      "alternative": "Goal conceded map (xG weighted if possible)"
+    },
+    {
+      "id": "G33",
+      "name": "Team Directness Index (forward share)",
+      "layer": "macro",
+      "phases": [
+        "F1",
+        "F4"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "passes vectors OR action labels progressive/forward"
+      ],
+      "math": "directness = forward_actions / total_actions",
+      "visual": "bar + by-half",
+      "answers": "Dikeylik/temas düzeyi",
+      "cannot_answer": "Kalite söylemez",
+      "common_pitfall": "Action label inconsistency across feeds",
+      "validation_checks": [
+        "use both vector-based and label-based; compare"
+      ],
+      "alternative": "Avg chain duration (seconds)"
+    },
+    {
+      "id": "G34",
+      "name": "Chain Outcome Funnel (possession→entry→shot→goal)",
+      "layer": "macro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "possession segmentation",
+        "entries, shots, goals"
+      ],
+      "math": "rates per team",
+      "visual": "funnel + table",
+      "answers": "Üretim verim hattı",
+      "cannot_answer": "Kalite (xG) olmadan yanıltıcı",
+      "common_pitfall": "Entry definition arbitrary",
+      "validation_checks": [
+        "define entry threshold; document"
+      ],
+      "alternative": "xG per chain (if xG)"
+    },
+    {
+      "id": "G35",
+      "name": "Momentum Panel (cum shots, cum xG, cum turnovers)",
+      "layer": "macro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "time series of events",
+        "optional xG"
+      ],
+      "math": "cumulative sums over time",
+      "visual": "multi-line panel",
+      "answers": "Maç hikâyesi (yayın-ready)",
+      "cannot_answer": "Sebep-sonuç söylemez",
+      "common_pitfall": "Aynı eksende farklı ölçek yanıltır",
+      "validation_checks": [
+        "separate panels or normalize 0-1"
+      ],
+      "alternative": "Change-point detection annotations"
+    },
+    {
+      "id": "G36",
+      "name": "Player Involvement Timeline (touch proxy)",
+      "layer": "micro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "events per player",
+        "time bins"
+      ],
+      "math": "touch_rate = count(player events)/minutes",
+      "visual": "heatmap (players × time)",
+      "answers": "Oyuncu maç içi varlık ritmi",
+      "cannot_answer": "Gerçek touch değil; event coverage bias",
+      "common_pitfall": "Player_id parse hatası",
+      "validation_checks": [
+        "name parsing QA; unknown rate <5%"
+      ],
+      "alternative": "Top 3 action types timeline per player"
+    },
+    {
+      "id": "G37",
+      "name": "Action Type Mix per Team (57 actions → clustered)",
+      "layer": "macro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "action labels",
+        "team_id"
+      ],
+      "math": "cluster actions into 10 macro-types; share",
+      "visual": "stacked bar",
+      "answers": "Oyun tarzı karışımı",
+      "cannot_answer": "Başarı/etki söylemez",
+      "common_pitfall": "Overfitting: 57 labeli tek tek çizmek gürültü",
+      "validation_checks": [
+        "require clustering dictionary versioned",
+        "coverage check"
+      ],
+      "alternative": "Top 8 actions + 'other'"
+    },
+    {
+      "id": "G38",
+      "name": "Time-to-Next-Action (decision tempo proxy) per player",
+      "layer": "micro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "ordered events per player"
+      ],
+      "math": "Δt_i = t_start(n+1)-t_end(n); summarize median",
+      "visual": "violin/box",
+      "answers": "Karar temposu (proxy)",
+      "cannot_answer": "Top kontrol süresi değil; event logging artefact",
+      "common_pitfall": "Event stream sparse for some players",
+      "validation_checks": [
+        "min events>=20",
+        "clip Δt at 20s"
+      ],
+      "alternative": "Tempo by phase (F1 vs F2)"
+    },
+    {
+      "id": "G39",
+      "name": "Set vs Transition Shot Share",
+      "layer": "macro",
+      "phases": [
+        "F1",
+        "F4",
+        "F5"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "shot events + phase label"
+      ],
+      "math": "share = shots_in_phase / total_shots",
+      "visual": "bar",
+      "answers": "Gol tehdidinin kaynağı",
+      "cannot_answer": "Shot quality yoksa eksik",
+      "common_pitfall": "Phase mislabel",
+      "validation_checks": [
+        "shots count matches stats"
+      ],
+      "alternative": "xG share by phase"
+    },
+    {
+      "id": "G40",
+      "name": "Quality Gates Dashboard (data health)",
+      "layer": "macro",
+      "phases": [
+        "all"
+      ],
+      "priority": "core",
+      "data_requirements": [
+        "ingest index.json",
+        "mapping coverage",
+        "unknown team/player rates",
+        "coord ranges"
+      ],
+      "math": "compute QC metrics; pass/fail",
+      "visual": "table + red/yellow flags",
+      "answers": "Analizden önce veri güvenilirliği",
+      "cannot_answer": "Futbol sonucu söylemez",
+      "common_pitfall": "Bu yapılmazsa her grafik çöp",
+      "validation_checks": [
+        "hard-fail if coord outside [0,105]×[0,68] too often",
+        "hard-fail if UNKNOWN_TEAM>1% core streams"
+      ],
+      "alternative": "Auto-fix suggestions (delimiter, flip, name map)"
+    }
+  ]
+}

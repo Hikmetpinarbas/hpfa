@@ -1,0 +1,31 @@
+{
+  "run_dir": "/data/data/com.termux/files/home/hpfa/_out/engine_run_20260216_191406",
+  "created_at": "2026-02-16 19:14:08",
+  "files": [
+    {
+      "name": "engine_seq_possessions.json",
+      "path": "/data/data/com.termux/files/home/hpfa/_out/engine_run_20260216_191406/engine_seq_possessions.json",
+      "present": true,
+      "size_bytes": 408220,
+      "sha256": "6e133bfef48b1f0c44ed819f6018730beeb75bc320a892e595add8b7419bd8c8",
+      "json_canon_sha256": "e1d348341027ed64cf9a52d394d207c651299f8defb080931a0eb36d6ce19c27"
+    },
+    {
+      "name": "engine_xt01_grid.json",
+      "path": "/data/data/com.termux/files/home/hpfa/_out/engine_run_20260216_191406/engine_xt01_grid.json",
+      "present": true,
+      "size_bytes": 2070,
+      "sha256": "5aa03aa84ad961245bd4c432e0f5e524cf8063a3ecaf97b79baa5e1b8b944392",
+      "json_canon_sha256": "4d1df0b9cd73b96d18df5d009c232c15ac38add7403f671c78e03db58694d4da"
+    },
+    {
+      "name": "engine_meta.json",
+      "path": "/data/data/com.termux/files/home/hpfa/_out/engine_run_20260216_191406/engine_meta.json",
+      "present": true,
+      "size_bytes": 2976,
+      "sha256": "946620d78989a80fb11ad9536038556ce63ca1a2efc91aa49478121fd723e832",
+      "json_canon_sha256": "52ab406042ea977d0a7933316d15d88d3e05c5167dc44c318863a00a2157f689"
+    }
+  ],
+  "fingerprint_sha256": "d7eb979237599296cde62850735992e621d45b935a3028a54e8254f7e1210b5d"
+}

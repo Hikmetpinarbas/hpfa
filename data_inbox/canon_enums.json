@@ -1,0 +1,5 @@
+{
+  "possession_effects": ["START", "CONTINUE", "END", "NEUTRAL"],
+  "allowed_states": ["CONTROLLED", "CONTESTED", "DEAD_BALL", "UNVALIDATED"],
+  "fail_closed_defaults": ["UNVALIDATED"]
+}

@@ -1,0 +1,12 @@
+path	name	kind	size_bytes	mtime	repo_signal	scanned_n	mix_code	mix_data	mix_media	mix_archive	mix_other	label
+/data/data/com.termux/files/home/HP_PROJELERI/canon	canon	dir	19739	2026-01-30 00:14:03	no	9	9	0	0	0	0	REVIEW
+/data/data/com.termux/files/home/HP_PROJELERI/configs	configs	dir	0	2026-01-30 00:14:46	no	0	0	0	0	0	0	REVIEW
+/data/data/com.termux/files/home/HP_PROJELERI/contracts	contracts	dir	22259	2026-01-30 00:14:03	no	1	1	0	0	0	0	REVIEW
+/data/data/com.termux/files/home/HP_PROJELERI/demo	demo	dir	469	2026-01-30 00:14:03	no	1	1	0	0	0	0	REVIEW
+/data/data/com.termux/files/home/HP_PROJELERI/engine	engine	dir	30874	2026-01-30 00:14:03	no	14	14	0	0	0	0	REVIEW
+/data/data/com.termux/files/home/HP_PROJELERI/example_streamlit_app.py	example_streamlit_app.py	file	270	2025-12-18 11:24:34	no	1	1	0	0	0	0	KEEP_RUNTIME
+/data/data/com.termux/files/home/HP_PROJELERI/HP-Motor-main	HP-Motor-main	dir	243044	2026-01-30 00:15:05	pyproject	118	117	0	0	0	1	KEEP_SSOT
+/data/data/com.termux/files/home/HP_PROJELERI/pyproject.toml	pyproject.toml	file	431	2025-12-24 05:59:38	no	1	1	0	0	0	0	KEEP_RUNTIME
+/data/data/com.termux/files/home/HP_PROJELERI/schemas	schemas	dir	6760	2026-01-30 00:14:03	no	3	3	0	0	0	0	REVIEW
+/data/data/com.termux/files/home/HP_PROJELERI/src	src	dir	18705	2026-01-30 00:14:03	no	5	5	0	0	0	0	REVIEW
+/data/data/com.termux/files/home/HP_PROJELERI/tests	tests	dir	4762	2026-02-07 10:53:25	no	1	1	0	0	0	0	REVIEW
