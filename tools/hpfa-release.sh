@@ -120,7 +120,7 @@ mkdir -p "$REPO/_diag"
 H="$REPO/_diag/doctor_history.tsv"
 head_sha="$(git rev-parse --short HEAD 2>/dev/null || echo NA)"
 up_sha="$(git rev-parse --short @{upstream} 2>/dev/null || echo NA)"
-printf "%s\t%s\t%s\t%s\t%d\t%s\n" "$ts" "$TAG" "$head_sha" "$up_sha" "$([ "$fail" -eq 0 ] && echo PASS || echo FAIL)" "$fail" "${PRIMARY_DIR:-EMPTY}" >> "$H"
+printf "%s\t%s\t%s\t%s\t%s\t%d\t%s\n" "$ts" "$TAG" "$head_sha" "$up_sha" "$([ "$fail" -eq 0 ] && echo PASS || echo FAIL)" "$fail" "${PRIMARY_DIR:-EMPTY}" >> "$H"
 
 # 11) If FAIL -> stop here
 if [ "$fail" -ne 0 ]; then
