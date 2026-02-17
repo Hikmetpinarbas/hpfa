@@ -1,15 +1,15 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 
-TAG="${1:-}"
-if [ -z "$TAG" ]; then
-  echo "[FAIL] usage: hpfa-tag-stable.sh hpfa-stable-YYYYMMDD"
-  exit 2
-fi
+cd "${HPFA_REPO:-$HOME/hpfa}" || exit 2
 
-cd "$HOME/hpfa"
+TAG="${1:-hpfa-stable-$(date +%Y%m%d)}"
+MSG="${2:-stable: doctor-gated release}"
+
+# refuse dirty tree
 git diff --quiet && git diff --cached --quiet || { echo "[FAIL] dirty tree"; exit 11; }
 
-git tag -f -a "$TAG" -m "stable: retag to HEAD" HEAD
+git tag -f -a "$TAG" -m "$MSG" HEAD
 git push -f origin "refs/tags/$TAG"
-git show -s --decorate --oneline HEAD
+
+echo "[OK] tagged+pushed $TAG -> $(git rev-parse --short HEAD)"
