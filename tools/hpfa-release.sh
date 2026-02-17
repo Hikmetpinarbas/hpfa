@@ -137,6 +137,18 @@ else
   note_ok "tagged+pushed $TAG -> $head_sha"
 fi
 
+# 12b) immutable build tag (never force-move)
+# format: hpfa-build-YYYYMMDD-HHMMSS (local time)
+BUILD_TAG="hpfa-build-$(date +%Y%m%d-%H%M%S)"
+if git rev-parse -q --verify "refs/tags/$BUILD_TAG" >/dev/null 2>&1; then
+  note_fail "BUILD_TAG already exists: $BUILD_TAG (abort)"
+  exit 12
+fi
+git tag -a "$BUILD_TAG" -m "build: immutable snapshot ($head_sha) @ $ts" "$head_sha"
+git push origin "refs/tags/$BUILD_TAG"
+note_ok "build tag pushed $BUILD_TAG -> $head_sha"
+
+
 # 13) PASS -> prune OUT (KEEP default 5)
 KEEP="${KEEP:-5}"
 if [ -x "$REPO/tools/hpfa_out_prune_apply.sh" ]; then
