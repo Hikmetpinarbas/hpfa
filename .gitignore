@@ -20,5 +20,22 @@ vendor/**/dist/
 vendor/**/build/
 vendor/**/*.egg-info/
 
-# HPFA runtime outputs
-/_out/
+# HPFA runtime outputs (repo-level)
+# NOTE: root-anchored patterns; Termux paths are irrelevant here.
+_out/
+_diag/
+
+# Probe / audit logs that are not SSOT
+*_probe_*.txt
+*_probe_v2_*.txt
+validator_last.log
+doctor_history.tsv.BAK_*
+
+# Release script backups (must not drift into version control)
+tools/*.BAK_*
+tools/*~ 
+tools/*.swp
+tools/.#*
+
+# Optional: local primary env (should not be committed)
+.config/hpfa/primary.env
