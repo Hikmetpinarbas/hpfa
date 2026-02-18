@@ -39,3 +39,6 @@ tools/.#*
 
 # Optional: local primary env (should not be committed)
 .config/hpfa/primary.env
+
+# HPFA diagnostics
+/_diag/

@@ -14,61 +14,52 @@ if [ ! -d "$PACK" ]; then
   exit 2
 fi
 
-cd "$PACK"
+# Collect sha256 manifests (subdir-aware)
+mapfile -t sha_files < <(find "$PACK" -type f -name '*.sha256' -print | sort)
 
 {
-  echo "HPFA PACK DOCTOR v3 (subdir-aware)"
+  echo "HPFA PACK DOCTOR v4 (subdir-aware, full-scan)"
   echo "ts=$(date -Iseconds)"
   echo "pack=$PACK"
   echo "----------------------------------------"
-
-  mapfile -t sha_files < <(find . -type f -name '*.sha256' -print | sort)
   echo "[INFO] sha256 files found=${#sha_files[@]}"
-
   if [ "${#sha_files[@]}" -eq 0 ]; then
-    echo "[FAIL] no .sha256 files found anywhere under: $PACK"
+    echo "[FAIL] no *.sha256 found under $PACK"
+    echo "[HINT] expected: tar.gz(.sha256) manifests inside PACK_* dirs"
     exit 10
   fi
-
   echo "[INFO] sample sha256 files:"
-  printf '%s\n' "${sha_files[@]}" | sed -n '1,60p'
+  printf '%s\n' "${sha_files[@]}" | sed -n '1,50p'
   echo "----------------------------------------"
 
-  bad=0
-  missing=0
-  mismatch=0
+  bad_lines=0
+  file_fail=0
 
   for f in "${sha_files[@]}"; do
     echo ">>> VERIFY: $f"
     out="$(sha256sum -c "$f" 2>&1 || true)"
     echo "$out"
 
-    m1="$(echo "$out" | grep -E 'No such file|cannot open' | wc -l | tr -d ' ')"
-    m2="$(echo "$out" | grep -E 'FAILED$' | wc -l | tr -d ' ')"
-    miss=$((miss + 0)) 2>/dev/null || true
-
-    if [ "$m1" != "0" ]; then missing=$((missing + m1)); fi
-    if [ "$m2" != "0" ]; then mismatch=$((mismatch + m2)); fi
-
-    # any non-OK lines count as bad
+    # Count non-OK lines for this manifest
     b="$(echo "$out" | grep -v 'OK$' | wc -l | tr -d ' ')"
-    if [ "$b" != "0" ]; then bad=$((bad + b)); fi
-
+    if [ "$b" != "0" ]; then
+      bad_lines=$((bad_lines + b))
+      file_fail=$((file_fail + 1))
+    fi
     echo
   done
 
   echo "----------------------------------------"
-  echo "[SUMMARY] bad=$bad missing=$missing mismatch=$mismatch"
+  echo "[SUMMARY] manifests=${#sha_files[@]} failed_manifests=$file_fail bad_lines=$bad_lines"
 
-  if [ "$bad" = "0" ]; then
+  if [ "$bad_lines" = "0" ]; then
     echo "[PASS] PACK sha256 all OK"
   else
-    echo "[FAIL] PACK sha256 invalid"
+    echo "[FAIL] PACK sha256 has issues"
   fi
-
 } | tee "$LOG"
 
-if rg -n '^\[PASS\] PACK sha256 all OK' "$LOG" >/dev/null 2>&1; then
+if rg -n '^\[PASS\] PACK sha256 all OK$' "$LOG" >/dev/null 2>&1; then
   exit 0
 fi
 exit 1

@@ -15,7 +15,7 @@ fail(){ echo "[FAIL] $*"; FAIL=$((FAIL+1)); }
 hr(){ echo "--------------------------------"; }
 
 hr
-echo "HPFA DOCTOR v4"
+echo "HPFA DOCTOR v4.1"
 date -Is
 hr
 
@@ -27,7 +27,6 @@ HEAD="$(git rev-parse HEAD 2>/dev/null || true)"
 REM="$(git rev-parse origin/main 2>/dev/null || true)"
 [ -n "$HEAD" ] && ok "HEAD=$HEAD" || fail "HEAD read fail"
 [ -n "$REM" ] && ok "origin/main=$REM" || warn "origin/main read fail"
-
 [ "$HEAD" = "$REM" ] && ok "HEAD sync remote" || warn "HEAD != remote"
 
 # repo cleanliness (gating)
@@ -61,7 +60,7 @@ import hpfa, hp_motor
 print(hpfa.__file__)
 print(hp_motor.__file__)
 PY
-) || OUTP=""
+  ) || OUTP=""
   if [ -n "$OUTP" ]; then
     echo "$OUTP"
     ok "python import"
@@ -132,10 +131,10 @@ else
 fi
 
 hr
-if [ "$FAIL" = 0 ]; then
+if [ "$FAIL" -eq 0 ]; then
   ok "RESULT=PASS"
   exit 0
 else
-  fail "RESULT=FAIL count=$FAIL"
+  echo "[FAIL] RESULT=FAIL count=$FAIL"
   exit 1
 fi
