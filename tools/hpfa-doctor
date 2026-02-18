@@ -3,10 +3,10 @@ set -euo pipefail
 
 HOME="/data/data/com.termux/files/home"
 REPO="$HOME/hpfa"
-OUT="$HOME/hpfa/_out"
+OUT="$REPO/_out"
 PACK="$HOME/HP_ARCHIVES/_PACKED"
-BASE="$HOME/hpfa/_diag/engine_artifacts.CORE.BASELINE.json"
-PY="$HOME/hpfa/.venv/bin/python"
+BASE="$REPO/_diag/engine_artifacts.CORE.BASELINE.json"
+PY="$REPO/.venv/bin/python"
 
 FAIL=0
 ok(){ echo "[OK] $*"; }
@@ -15,11 +15,10 @@ fail(){ echo "[FAIL] $*"; FAIL=$((FAIL+1)); }
 hr(){ echo "--------------------------------"; }
 
 hr
-echo "HPFA DOCTOR v4.3"
+echo "HPFA DOCTOR v5"
 date -Is
 hr
 
-# repo
 cd "$REPO" 2>/dev/null || { fail "repo missing"; exit 2; }
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 && ok "git repo" || fail "not git repo"
 
@@ -29,7 +28,6 @@ REM="$(git rev-parse origin/main 2>/dev/null || true)"
 [ -n "$REM" ] && ok "origin/main=$REM" || warn "origin/main read fail"
 [ "$HEAD" = "$REM" ] && ok "HEAD sync remote" || warn "HEAD != remote"
 
-# repo cleanliness (gating)
 dirty="$(git status --porcelain || true)"
 if [ -n "$dirty" ]; then
   fail "repo dirty (uncommitted/untracked changes present)"
@@ -39,11 +37,9 @@ else
   ok "repo clean"
 fi
 
-# commands
 command -v hpfa-run >/dev/null && ok "hpfa-run found" || fail "hpfa-run missing"
 command -v hpfa-set-primary >/dev/null && ok "hpfa-set-primary found" || fail "hpfa-set-primary missing"
 
-# primary dir
 ENV="$HOME/.config/hpfa/primary.env"
 if [ -f "$ENV" ]; then
   # shellcheck disable=SC1090
@@ -53,14 +49,13 @@ else
   fail "primary.env missing"
 fi
 
-# python import SSOT
 if [ -x "$PY" ]; then
-  OUTP="$("$PY" - <<'PY' 2>/dev/null || true
+  OUTP="$("$PY" - <<'PY'
 import hpfa, hp_motor
 print(hpfa.__file__)
 print(hp_motor.__file__)
 PY
-)"
+  2>/dev/null || true)"
   if [ -n "$OUTP" ]; then
     echo "$OUTP"
     ok "python import"
@@ -71,22 +66,19 @@ else
   fail "venv python missing"
 fi
 
-# baseline fingerprint
 FP="$(grep -Eo '"fingerprint_sha256":[ ]*"[^"]+"' "$BASE" 2>/dev/null | head -n1 | cut -d'"' -f4 || true)"
 [ -n "$FP" ] && ok "baseline fp=$FP" || fail "baseline missing fp"
 
-# guarded run smoke
 TMP="$(mktemp)"
 hpfa-run >"$TMP" 2>&1 || true
 tail -n 12 "$TMP" || true
 grep -q RUN_GUARDED_COMPLETE "$TMP" && ok "engine run ok" || fail "engine run failed"
 rm -f "$TMP"
 
-# OUT stats
 CNT="$(find "$OUT" -maxdepth 1 -name 'engine_run_*' 2>/dev/null | wc -l | tr -d ' ')"
 ok "runs=$CNT"
 
-# PACK checksum (gating) — subdir-aware, set -e safe (NO grep in pipeline)
+# PACK checksum (subdir-aware, set -e safe)
 if [ -d "$PACK" ]; then
   sha_list="$(find "$PACK" -type f -name '*.sha256' -print 2>/dev/null | sort || true)"
   if [ -z "$sha_list" ]; then
@@ -94,17 +86,10 @@ if [ -d "$PACK" ]; then
   else
     bad_lines=0
     bad_files=0
-    total_files=0
-
     while IFS= read -r f; do
       [ -z "$f" ] && continue
-      total_files=$((total_files + 1))
-
       out="$(sha256sum -c "$f" 2>&1 || true)"
-
-      # Count lines that are NOT OK using awk (never fails under set -e/pipefail)
-      b="$(printf '%s\n' "$out" | awk '$0 !~ /OK$/ {c++} END{print c+0}')"
-
+      b="$(echo "$out" | grep -v 'OK$' | wc -l | tr -d ' ')"
       if [ "$b" != "0" ]; then
         bad_files=$((bad_files + 1))
         bad_lines=$((bad_lines + b))
@@ -112,7 +97,7 @@ if [ -d "$PACK" ]; then
     done <<< "$sha_list"
 
     if [ "$bad_lines" = "0" ]; then
-      ok "PACK sha256 valid (files=$total_files)"
+      ok "PACK sha256 valid (files=$(echo "$sha_list" | wc -l | tr -d ' '))"
     else
       fail "PACK checksum fail (bad_files=$bad_files bad_lines=$bad_lines)"
     fi
@@ -121,7 +106,6 @@ else
   warn "PACK dir missing"
 fi
 
-# Normalize doctor history (if tool exists)
 NORM="$REPO/tools/hpfa_doctor_history_normalize.sh"
 if [ -x "$NORM" ]; then
   "$NORM" >/dev/null 2>&1 || fail "doctor_history normalize failed"
@@ -130,7 +114,6 @@ else
   warn "doctor_history normalizer missing"
 fi
 
-# Strict-core validator evidence (if tool exists)
 VAL="$REPO/tools/hpfa_validator_run_strict_core.sh"
 if [ -x "$VAL" ]; then
   "$VAL" >/dev/null 2>&1 || fail "strict-core validator failed"
@@ -139,7 +122,6 @@ else
   warn "validator runner missing"
 fi
 
-# github reachability (non-gating)
 if command -v curl >/dev/null; then
   CODE="$(curl -s -o /dev/null -w "%{http_code}" https://github.com || true)"
   [ "$CODE" = 200 ] && ok "github reachable" || warn "github http=$CODE"
@@ -148,6 +130,7 @@ else
 fi
 
 hr
+echo "[INFO] FAIL_COUNT=$FAIL"
 if [ "$FAIL" = 0 ]; then
   ok "RESULT=PASS"
   exit 0
