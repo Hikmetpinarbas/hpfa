@@ -15,7 +15,7 @@ fail(){ echo "[FAIL] $*"; FAIL=$((FAIL+1)); }
 hr(){ echo "--------------------------------"; }
 
 hr
-echo "HPFA DOCTOR v5"
+echo "HPFA DOCTOR v5.1"
 date -Is
 hr
 
@@ -50,12 +50,12 @@ else
 fi
 
 if [ -x "$PY" ]; then
-  OUTP="$("$PY" - <<'PY'
+  OUTP="$("$PY" - <<'PY' 2>/dev/null || true
 import hpfa, hp_motor
 print(hpfa.__file__)
 print(hp_motor.__file__)
 PY
-  2>/dev/null || true)"
+  )"
   if [ -n "$OUTP" ]; then
     echo "$OUTP"
     ok "python import"
@@ -78,7 +78,7 @@ rm -f "$TMP"
 CNT="$(find "$OUT" -maxdepth 1 -name 'engine_run_*' 2>/dev/null | wc -l | tr -d ' ')"
 ok "runs=$CNT"
 
-# PACK checksum (subdir-aware, set -e safe)
+# PACK checksum (subdir-aware, set -e safe) — NO grep pipelines
 if [ -d "$PACK" ]; then
   sha_list="$(find "$PACK" -type f -name '*.sha256' -print 2>/dev/null | sort || true)"
   if [ -z "$sha_list" ]; then
@@ -86,10 +86,17 @@ if [ -d "$PACK" ]; then
   else
     bad_lines=0
     bad_files=0
+    total_files=0
+
     while IFS= read -r f; do
       [ -z "$f" ] && continue
+      total_files=$((total_files + 1))
+
       out="$(sha256sum -c "$f" 2>&1 || true)"
-      b="$(echo "$out" | grep -v 'OK$' | wc -l | tr -d ' ')"
+
+      # Count non-OK lines safely (never fails)
+      b="$(printf '%s\n' "$out" | awk '$0 !~ /OK$/ {c++} END{print c+0}')"
+
       if [ "$b" != "0" ]; then
         bad_files=$((bad_files + 1))
         bad_lines=$((bad_lines + b))
@@ -97,7 +104,7 @@ if [ -d "$PACK" ]; then
     done <<< "$sha_list"
 
     if [ "$bad_lines" = "0" ]; then
-      ok "PACK sha256 valid (files=$(echo "$sha_list" | wc -l | tr -d ' '))"
+      ok "PACK sha256 valid (files=$total_files)"
     else
       fail "PACK checksum fail (bad_files=$bad_files bad_lines=$bad_lines)"
     fi
@@ -135,6 +142,6 @@ if [ "$FAIL" = 0 ]; then
   ok "RESULT=PASS"
   exit 0
 else
-  fail "RESULT=FAIL count=$FAIL"
+  echo "[FAIL] RESULT=FAIL count=$FAIL"
   exit 1
 fi
