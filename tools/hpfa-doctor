@@ -15,7 +15,7 @@ fail(){ echo "[FAIL] $*"; FAIL=$((FAIL+1)); }
 hr(){ echo "--------------------------------"; }
 
 hr
-echo "HPFA DOCTOR v4.1"
+echo "HPFA DOCTOR v4.2"
 date -Is
 hr
 
@@ -55,12 +55,12 @@ fi
 
 # python import SSOT
 if [ -x "$PY" ]; then
-  OUTP=$("$PY" - <<'PY'
+  OUTP="$("$PY" - <<'PY'
 import hpfa, hp_motor
 print(hpfa.__file__)
 print(hp_motor.__file__)
 PY
-  ) || OUTP=""
+  2>/dev/null || true)"
   if [ -n "$OUTP" ]; then
     echo "$OUTP"
     ok "python import"
@@ -86,19 +86,32 @@ rm -f "$TMP"
 CNT="$(find "$OUT" -maxdepth 1 -name 'engine_run_*' 2>/dev/null | wc -l | tr -d ' ')"
 ok "runs=$CNT"
 
-# PACK checksum (gating) — subdir-aware
+# PACK checksum (gating) — subdir-aware, set -e safe
 if [ -d "$PACK" ]; then
-  mapfile -t sha_files < <(find "$PACK" -type f -name '*.sha256' -print | sort)
-  if [ "${#sha_files[@]}" -eq 0 ]; then
+  # build list without letting set -e kill the script
+  sha_list="$(find "$PACK" -type f -name '*.sha256' -print 2>/dev/null | sort || true)"
+  if [ -z "$sha_list" ]; then
     fail "PACK sha256 missing (no *.sha256 anywhere under $PACK)"
   else
-    bad=0
-    for f in "${sha_files[@]}"; do
+    bad_lines=0
+    bad_files=0
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      # run verify but NEVER allow set -e to terminate here
       out="$(sha256sum -c "$f" 2>&1 || true)"
+      # count non-OK lines (includes missing targets, FAILED, warnings)
       b="$(echo "$out" | grep -v 'OK$' | wc -l | tr -d ' ')"
-      if [ "$b" != "0" ]; then bad=$((bad + b)); fi
-    done
-    [ "$bad" = 0 ] && ok "PACK sha256 valid (files=${#sha_files[@]})" || fail "PACK checksum fail (bad_lines=$bad)"
+      if [ "$b" != "0" ]; then
+        bad_files=$((bad_files + 1))
+        bad_lines=$((bad_lines + b))
+      fi
+    done <<< "$sha_list"
+
+    if [ "$bad_lines" = "0" ]; then
+      ok "PACK sha256 valid (files=$(echo "$sha_list" | wc -l | tr -d ' '))"
+    else
+      fail "PACK checksum fail (bad_files=$bad_files bad_lines=$bad_lines)"
+    fi
   fi
 else
   warn "PACK dir missing"
@@ -131,10 +144,10 @@ else
 fi
 
 hr
-if [ "$FAIL" -eq 0 ]; then
+if [ "$FAIL" = 0 ]; then
   ok "RESULT=PASS"
   exit 0
 else
-  echo "[FAIL] RESULT=FAIL count=$FAIL"
+  fail "RESULT=FAIL count=$FAIL"
   exit 1
 fi
