@@ -15,26 +15,27 @@ fail(){ echo "[FAIL] $*"; FAIL=$((FAIL+1)); }
 hr(){ echo "--------------------------------"; }
 
 hr
-echo "HPFA DOCTOR v3"
+echo "HPFA DOCTOR v4"
 date -Is
 hr
 
+# repo
 cd "$REPO" 2>/dev/null || { fail "repo missing"; exit 2; }
-
-# git repo
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 && ok "git repo" || fail "not git repo"
 
 HEAD="$(git rev-parse HEAD 2>/dev/null || true)"
 REM="$(git rev-parse origin/main 2>/dev/null || true)"
-[ -n "$HEAD" ] && ok "HEAD=$HEAD" || fail "HEAD missing"
-[ -n "$REM" ] && ok "origin/main=$REM" || warn "origin/main missing"
+[ -n "$HEAD" ] && ok "HEAD=$HEAD" || fail "HEAD read fail"
+[ -n "$REM" ] && ok "origin/main=$REM" || warn "origin/main read fail"
+
 [ "$HEAD" = "$REM" ] && ok "HEAD sync remote" || warn "HEAD != remote"
 
-# FAIL-CLOSED: repo must be clean (includes untracked)
-if [ -n "$(git status --porcelain)" ]; then
+# repo cleanliness (gating)
+dirty="$(git status --porcelain || true)"
+if [ -n "$dirty" ]; then
   fail "repo dirty (uncommitted/untracked changes present)"
   echo "[EVIDENCE] git status --porcelain:"
-  git status --porcelain | head -n 80 || true
+  echo "$dirty"
 else
   ok "repo clean"
 fi
@@ -60,8 +61,13 @@ import hpfa, hp_motor
 print(hpfa.__file__)
 print(hp_motor.__file__)
 PY
-) || { fail "python import failed"; OUTP=""; }
-  [ -n "$OUTP" ] && { echo "$OUTP"; ok "python import"; } || true
+) || OUTP=""
+  if [ -n "$OUTP" ]; then
+    echo "$OUTP"
+    ok "python import"
+  else
+    fail "python import failed"
+  fi
 else
   fail "venv python missing"
 fi
@@ -81,12 +87,20 @@ rm -f "$TMP"
 CNT="$(find "$OUT" -maxdepth 1 -name 'engine_run_*' 2>/dev/null | wc -l | tr -d ' ')"
 ok "runs=$CNT"
 
-# PACK checksum
+# PACK checksum (gating) — subdir-aware
 if [ -d "$PACK" ]; then
-  cd "$PACK"
-  BAD="$(sha256sum -c *.sha256 2>&1 | grep -v OK | wc -l | tr -d ' ')"
-  [ "$BAD" = 0 ] && ok "PACK sha256 valid" || fail "PACK checksum fail"
-  cd "$REPO"
+  mapfile -t sha_files < <(find "$PACK" -type f -name '*.sha256' -print | sort)
+  if [ "${#sha_files[@]}" -eq 0 ]; then
+    fail "PACK sha256 missing (no *.sha256 anywhere under $PACK)"
+  else
+    bad=0
+    for f in "${sha_files[@]}"; do
+      out="$(sha256sum -c "$f" 2>&1 || true)"
+      b="$(echo "$out" | grep -v 'OK$' | wc -l | tr -d ' ')"
+      if [ "$b" != "0" ]; then bad=$((bad + b)); fi
+    done
+    [ "$bad" = 0 ] && ok "PACK sha256 valid (files=${#sha_files[@]})" || fail "PACK checksum fail (bad_lines=$bad)"
+  fi
 else
   warn "PACK dir missing"
 fi
