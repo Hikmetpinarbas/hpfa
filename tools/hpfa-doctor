@@ -36,9 +36,15 @@ else
   warn "HEAD != remote_ref ($REMOTE_REF)"
 fi
 
+STRICT_GIT="${HPFA_DOCTOR_STRICT_GIT:-1}"
+
 dirty="$(git status --porcelain || true)"
 if [ -n "$dirty" ]; then
+  if [ "$STRICT_GIT" = "1" ]; then
   fail "repo dirty (uncommitted/untracked changes present)"
+else
+  warn "repo dirty (non-fatal; HPFA_DOCTOR_STRICT_GIT=0)"
+fi
   echo "[EVIDENCE] git status --porcelain:"
   echo "$dirty"
 else
