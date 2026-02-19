@@ -8,6 +8,8 @@ PACK="$HOME/HP_ARCHIVES/_PACKED"
 BASE="$REPO/_diag/engine_artifacts.CORE.BASELINE.json"
 PY="$REPO/.venv/bin/python"
 
+REMOTE_REF="${HPFA_DOCTOR_REMOTE_REF:-origin/main}"
+
 FAIL=0
 ok(){ echo "[OK] $*"; }
 warn(){ echo "[WARN] $*"; }
@@ -15,7 +17,7 @@ fail(){ echo "[FAIL] $*"; FAIL=$((FAIL+1)); }
 hr(){ echo "--------------------------------"; }
 
 hr
-echo "HPFA DOCTOR v5.1"
+echo "HPFA DOCTOR v5.2"
 date -Is
 hr
 
@@ -23,10 +25,16 @@ cd "$REPO" 2>/dev/null || { fail "repo missing"; exit 2; }
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 && ok "git repo" || fail "not git repo"
 
 HEAD="$(git rev-parse HEAD 2>/dev/null || true)"
-REM="$(git rev-parse origin/main 2>/dev/null || true)"
+REM="$(git rev-parse "$REMOTE_REF" 2>/dev/null || true)"
+
 [ -n "$HEAD" ] && ok "HEAD=$HEAD" || fail "HEAD read fail"
-[ -n "$REM" ] && ok "origin/main=$REM" || warn "origin/main read fail"
-[ "$HEAD" = "$REM" ] && ok "HEAD sync remote" || warn "HEAD != remote"
+[ -n "$REM" ] && ok "$REMOTE_REF=$REM" || warn "$REMOTE_REF read fail"
+
+if [ -n "$HEAD" ] && [ -n "$REM" ] && [ "$HEAD" = "$REM" ]; then
+  ok "HEAD sync remote_ref"
+else
+  warn "HEAD != remote_ref ($REMOTE_REF)"
+fi
 
 dirty="$(git status --porcelain || true)"
 if [ -n "$dirty" ]; then
@@ -78,7 +86,6 @@ rm -f "$TMP"
 CNT="$(find "$OUT" -maxdepth 1 -name 'engine_run_*' 2>/dev/null | wc -l | tr -d ' ')"
 ok "runs=$CNT"
 
-# PACK checksum (subdir-aware, set -e safe) — NO grep pipelines
 if [ -d "$PACK" ]; then
   sha_list="$(find "$PACK" -type f -name '*.sha256' -print 2>/dev/null | sort || true)"
   if [ -z "$sha_list" ]; then
@@ -87,16 +94,11 @@ if [ -d "$PACK" ]; then
     bad_lines=0
     bad_files=0
     total_files=0
-
     while IFS= read -r f; do
       [ -z "$f" ] && continue
       total_files=$((total_files + 1))
-
       out="$(sha256sum -c "$f" 2>&1 || true)"
-
-      # Count non-OK lines safely (never fails)
       b="$(printf '%s\n' "$out" | awk '$0 !~ /OK$/ {c++} END{print c+0}')"
-
       if [ "$b" != "0" ]; then
         bad_files=$((bad_files + 1))
         bad_lines=$((bad_lines + b))
