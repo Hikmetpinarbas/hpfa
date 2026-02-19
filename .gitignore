@@ -42,3 +42,6 @@ tools/.#*
 
 # HPFA diagnostics
 /_diag/
+
+# HPFA: local backups
+/tools/*.bak.*
