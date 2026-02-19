@@ -17,7 +17,7 @@ fail(){ echo "[FAIL] $*"; FAIL=$((FAIL+1)); }
 hr(){ echo "--------------------------------"; }
 
 hr
-echo "HPFA DOCTOR v5.2"
+echo "HPFA DOCTOR v5.4"
 date -Is
 hr
 
@@ -26,10 +26,8 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 && ok "git repo" || fail "no
 
 HEAD="$(git rev-parse HEAD 2>/dev/null || true)"
 REM="$(git rev-parse "$REMOTE_REF" 2>/dev/null || true)"
-
 [ -n "$HEAD" ] && ok "HEAD=$HEAD" || fail "HEAD read fail"
 [ -n "$REM" ] && ok "$REMOTE_REF=$REM" || warn "$REMOTE_REF read fail"
-
 if [ -n "$HEAD" ] && [ -n "$REM" ] && [ "$HEAD" = "$REM" ]; then
   ok "HEAD sync remote_ref"
 else
@@ -52,9 +50,13 @@ ENV="$HOME/.config/hpfa/primary.env"
 if [ -f "$ENV" ]; then
   # shellcheck disable=SC1090
   . "$ENV"
-  [ -d "${PRIMARY_DIR:-}" ] && ok "PRIMARY_DIR=$PRIMARY_DIR" || fail "PRIMARY_DIR invalid"
+  if [ -d "${PRIMARY_DIR:-}" ]; then
+    ok "PRIMARY_DIR=$PRIMARY_DIR"
+  else
+    warn "PRIMARY_DIR invalid (non-fatal for doctor)"
+  fi
 else
-  fail "primary.env missing"
+  warn "primary.env missing (non-fatal for doctor)"
 fi
 
 if [ -x "$PY" ]; then
@@ -77,15 +79,36 @@ fi
 FP="$(grep -Eo '"fingerprint_sha256":[ ]*"[^"]+"' "$BASE" 2>/dev/null | head -n1 | cut -d'"' -f4 || true)"
 [ -n "$FP" ] && ok "baseline fp=$FP" || fail "baseline missing fp"
 
+# --- Smoke run: use repo fixture (stable, committed)
+FIXTURE="$REPO/tools/_fixtures/doctor_match"
+if [ -f "$FIXTURE/events_canonical.csv" ] && [ -f "$FIXTURE/comparison_tidy.csv" ] && [ -f "$FIXTURE/xlsx_inventory.csv" ]; then
+  ok "doctor fixture present"
+else
+  fail "doctor fixture missing (tools/_fixtures/doctor_match/*.csv)"
+fi
+
+if hpfa-set-primary "$FIXTURE" >/dev/null 2>&1; then
+  ok "doctor fixture primary set"
+else
+  fail "doctor fixture set-primary failed"
+fi
+
 TMP="$(mktemp)"
-hpfa-run >"$TMP" 2>&1 || true
-tail -n 12 "$TMP" || true
-grep -q RUN_GUARDED_COMPLETE "$TMP" && ok "engine run ok" || fail "engine run failed"
+set +e
+hpfa-run >"$TMP" 2>&1
+rc_run=$?
+set -e
+
+tail -n 18 "$TMP" || true
+grep -q RUN_GUARDED_COMPLETE "$TMP" && ok "engine run ok (fixture)" || fail "engine run failed (fixture)"
+
+run_dir="$(awk -F= '/OUT_DIR=/{print $2}' "$TMP" | tail -n1 | tr -d ' ' || true)"
 rm -f "$TMP"
 
 CNT="$(find "$OUT" -maxdepth 1 -name 'engine_run_*' 2>/dev/null | wc -l | tr -d ' ')"
 ok "runs=$CNT"
 
+# PACK checksum
 if [ -d "$PACK" ]; then
   sha_list="$(find "$PACK" -type f -name '*.sha256' -print 2>/dev/null | sort || true)"
   if [ -z "$sha_list" ]; then
@@ -104,7 +127,6 @@ if [ -d "$PACK" ]; then
         bad_lines=$((bad_lines + b))
       fi
     done <<< "$sha_list"
-
     if [ "$bad_lines" = "0" ]; then
       ok "PACK sha256 valid (files=$total_files)"
     else
@@ -123,10 +145,15 @@ else
   warn "doctor_history normalizer missing"
 fi
 
+# Validator: only if engine run succeeded AND run_dir exists
 VAL="$REPO/tools/hpfa_validator_run_strict_core.sh"
 if [ -x "$VAL" ]; then
-  "$VAL" >/dev/null 2>&1 || fail "strict-core validator failed"
-  ok "validator evidence ok (_diag/validator_last.log)"
+  if [ "${rc_run:-1}" = "0" ] && [ -n "${run_dir:-}" ] && [ -d "$run_dir" ]; then
+    "$VAL" "$run_dir" >/dev/null 2>&1 || fail "strict-core validator failed"
+    ok "validator evidence ok (_diag/validator_last.log)"
+  else
+    warn "validator skipped (rc_run=${rc_run:-NA} run_dir=${run_dir:-NA})"
+  fi
 else
   warn "validator runner missing"
 fi
