@@ -1,14 +1,13 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
-REPO="$HOME/hpfa"
-
 usage(){
   echo "usage: hpfa_batch_run.sh <limit:int> <glob> <mode:continue|all>"
   echo "env:"
   echo "  HPFA_MATCHES_ROOT=/abs/path/to/matches   (default: \$HOME/HP_PLATFORM/06_NORMALIZED/matches)"
   echo "  HPFA_SKIP_DOCTOR=1                      (skip doctor pre-flight)"
+  echo "  HPFA_DOCTOR_SMOKE=0|1                   (default: 0 for batch stability)"
+  echo "  HPFA_DOCTOR_STRICT_GIT=0|1              (default: 0 for batch stability)"
   echo "example:"
   echo "  HPFA_MATCHES_ROOT=\$HOME/HP_PLATFORM/05_STAGING/matches hpfa_batch_run.sh 5 '*SL*' continue"
 }
@@ -19,13 +18,21 @@ MODE="${3:-continue}"
 if [ -z "${LIMIT}" ] || [ -z "${GLOB}" ]; then usage; exit 2; fi
 if [ "$MODE" != "continue" ] && [ "$MODE" != "all" ]; then usage; exit 2; fi
 
-MATCHES_ROOT_DEFAULT="$HOME/HP_PLATFORM/06_NORMALIZED/matches"
-MATCHES_ROOT="${HPFA_MATCHES_ROOT:-$MATCHES_ROOT_DEFAULT}"
+HOME="${HOME:-/data/data/com.termux/files/home}"
+REPO="${REPO:-$HOME/hpfa}"
+
+cd "$REPO" 2>/dev/null || { echo "[FATAL] cannot cd REPO=$REPO"; exit 2; }
 
 ts="$(date +%Y%m%d_%H%M%S)"
-LOG="$REPO/_diag/batch_${ts}.log"
-SUMMARY="$REPO/_diag/batch_${ts}.tsv"
 mkdir -p "$REPO/_diag"
+
+LOG="${LOG:-$REPO/_diag/batch_${ts}.log}"
+SUMMARY="${SUMMARY:-$REPO/_diag/batch_${ts}.tsv}"
+
+trap 'rc=$?; echo "[TRAP] rc=$rc line=$LINENO cmd=$BASH_COMMAND" | tee -a "$LOG" >/dev/null; exit $rc' ERR
+
+MATCHES_ROOT_DEFAULT="$HOME/HP_PLATFORM/06_NORMALIZED/matches"
+MATCHES_ROOT="${HPFA_MATCHES_ROOT:-$MATCHES_ROOT_DEFAULT}"
 
 echo "HPFA BATCH RUN" | tee "$LOG"
 echo "ts=${ts}" | tee -a "$LOG"
@@ -41,6 +48,8 @@ echo "[STEP] doctor pre-flight" | tee -a "$LOG"
 if [ "${HPFA_SKIP_DOCTOR:-0}" = "1" ]; then
   echo "[SKIP] doctor pre-flight disabled (HPFA_SKIP_DOCTOR=1)" | tee -a "$LOG"
 else
+  HPFA_DOCTOR_SMOKE="${HPFA_DOCTOR_SMOKE:-0}" \
+  HPFA_DOCTOR_STRICT_GIT="${HPFA_DOCTOR_STRICT_GIT:-0}" \
   "$REPO/tools/hpfa-doctor" >>"$LOG" 2>&1 || { echo "[FAIL] doctor pre-flight failed" | tee -a "$LOG"; exit 1; }
 fi
 echo "----------------------------------------" | tee -a "$LOG"
