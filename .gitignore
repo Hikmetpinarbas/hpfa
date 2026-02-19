@@ -54,3 +54,8 @@ tools/*.bak.*
 # runtime
 /_diag/
 /_out/
+
+# allow doctor fixture
+!/tools/_fixtures/
+!/tools/_fixtures/doctor_match/
+!/tools/_fixtures/doctor_match/*.csv
