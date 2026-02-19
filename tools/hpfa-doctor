@@ -50,11 +50,7 @@ ENV="$HOME/.config/hpfa/primary.env"
 if [ -f "$ENV" ]; then
   # shellcheck disable=SC1090
   . "$ENV"
-  if [ -d "${PRIMARY_DIR:-}" ]; then
-    ok "PRIMARY_DIR=$PRIMARY_DIR"
-  else
-    warn "PRIMARY_DIR invalid (non-fatal for doctor)"
-  fi
+  [ -d "${PRIMARY_DIR:-}" ] && ok "PRIMARY_DIR=$PRIMARY_DIR" || warn "PRIMARY_DIR invalid (non-fatal for doctor)"
 else
   warn "primary.env missing (non-fatal for doctor)"
 fi
@@ -66,12 +62,7 @@ print(hpfa.__file__)
 print(hp_motor.__file__)
 PY
   )"
-  if [ -n "$OUTP" ]; then
-    echo "$OUTP"
-    ok "python import"
-  else
-    fail "python import failed"
-  fi
+  [ -n "$OUTP" ] && { echo "$OUTP"; ok "python import"; } || fail "python import failed"
 else
   fail "venv python missing"
 fi
@@ -79,7 +70,7 @@ fi
 FP="$(grep -Eo '"fingerprint_sha256":[ ]*"[^"]+"' "$BASE" 2>/dev/null | head -n1 | cut -d'"' -f4 || true)"
 [ -n "$FP" ] && ok "baseline fp=$FP" || fail "baseline missing fp"
 
-# --- Smoke run: use repo fixture (stable, committed)
+# Smoke run: use committed fixture (stable)
 FIXTURE="$REPO/tools/_fixtures/doctor_match"
 if [ -f "$FIXTURE/events_canonical.csv" ] && [ -f "$FIXTURE/comparison_tidy.csv" ] && [ -f "$FIXTURE/xlsx_inventory.csv" ]; then
   ok "doctor fixture present"
@@ -87,11 +78,7 @@ else
   fail "doctor fixture missing (tools/_fixtures/doctor_match/*.csv)"
 fi
 
-if hpfa-set-primary "$FIXTURE" >/dev/null 2>&1; then
-  ok "doctor fixture primary set"
-else
-  fail "doctor fixture set-primary failed"
-fi
+hpfa-set-primary "$FIXTURE" >/dev/null 2>&1 && ok "doctor fixture primary set" || fail "doctor fixture set-primary failed"
 
 TMP="$(mktemp)"
 set +e
@@ -114,9 +101,7 @@ if [ -d "$PACK" ]; then
   if [ -z "$sha_list" ]; then
     fail "PACK sha256 missing (no *.sha256 anywhere under $PACK)"
   else
-    bad_lines=0
-    bad_files=0
-    total_files=0
+    bad_lines=0; bad_files=0; total_files=0
     while IFS= read -r f; do
       [ -z "$f" ] && continue
       total_files=$((total_files + 1))
@@ -127,28 +112,19 @@ if [ -d "$PACK" ]; then
         bad_lines=$((bad_lines + b))
       fi
     done <<< "$sha_list"
-    if [ "$bad_lines" = "0" ]; then
-      ok "PACK sha256 valid (files=$total_files)"
-    else
-      fail "PACK checksum fail (bad_files=$bad_files bad_lines=$bad_lines)"
-    fi
+    [ "$bad_lines" = "0" ] && ok "PACK sha256 valid (files=$total_files)" || fail "PACK checksum fail (bad_files=$bad_files bad_lines=$bad_lines)"
   fi
 else
   warn "PACK dir missing"
 fi
 
 NORM="$REPO/tools/hpfa_doctor_history_normalize.sh"
-if [ -x "$NORM" ]; then
-  "$NORM" >/dev/null 2>&1 || fail "doctor_history normalize failed"
-  ok "doctor_history normalized"
-else
-  warn "doctor_history normalizer missing"
-fi
+[ -x "$NORM" ] && { "$NORM" >/dev/null 2>&1 || fail "doctor_history normalize failed"; ok "doctor_history normalized"; } || warn "doctor_history normalizer missing"
 
-# Validator: only if engine run succeeded AND run_dir exists
+# Validator only if run succeeded and run_dir exists
 VAL="$REPO/tools/hpfa_validator_run_strict_core.sh"
 if [ -x "$VAL" ]; then
-  if [ "${rc_run:-1}" = "0" ] && [ -n "${run_dir:-}" ] && [ -d "$run_dir" ]; then
+  if [ "$rc_run" = "0" ] && [ -n "${run_dir:-}" ] && [ -d "$run_dir" ]; then
     "$VAL" "$run_dir" >/dev/null 2>&1 || fail "strict-core validator failed"
     ok "validator evidence ok (_diag/validator_last.log)"
   else
