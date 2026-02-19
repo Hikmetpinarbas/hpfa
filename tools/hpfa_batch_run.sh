@@ -8,6 +8,7 @@ usage(){
   echo "usage: hpfa_batch_run.sh <limit:int> <glob> <mode:continue|all>"
   echo "env:"
   echo "  HPFA_MATCHES_ROOT=/abs/path/to/matches   (default: \$HOME/HP_PLATFORM/06_NORMALIZED/matches)"
+  echo "  HPFA_SKIP_DOCTOR=1                      (skip doctor pre-flight)"
   echo "example:"
   echo "  HPFA_MATCHES_ROOT=\$HOME/HP_PLATFORM/05_STAGING/matches hpfa_batch_run.sh 5 '*SL*' continue"
 }
@@ -18,7 +19,6 @@ MODE="${3:-continue}"
 if [ -z "${LIMIT}" ] || [ -z "${GLOB}" ]; then usage; exit 2; fi
 if [ "$MODE" != "continue" ] && [ "$MODE" != "all" ]; then usage; exit 2; fi
 
-# IMPORTANT: allow override
 MATCHES_ROOT_DEFAULT="$HOME/HP_PLATFORM/06_NORMALIZED/matches"
 MATCHES_ROOT="${HPFA_MATCHES_ROOT:-$MATCHES_ROOT_DEFAULT}"
 
@@ -38,13 +38,16 @@ echo "----------------------------------------" | tee -a "$LOG"
 echo -e "ts\tmatch_dir\trun_dir\trc_run\trc_val\tstatus\tmode" > "$SUMMARY"
 
 echo "[STEP] doctor pre-flight" | tee -a "$LOG"
-"$REPO/tools/hpfa-doctor" >>"$LOG" 2>&1 || { echo "[FAIL] doctor pre-flight failed" | tee -a "$LOG"; exit 1; }
+if [ "${HPFA_SKIP_DOCTOR:-0}" = "1" ]; then
+  echo "[SKIP] doctor pre-flight disabled (HPFA_SKIP_DOCTOR=1)" | tee -a "$LOG"
+else
+  "$REPO/tools/hpfa-doctor" >>"$LOG" 2>&1 || { echo "[FAIL] doctor pre-flight failed" | tee -a "$LOG"; exit 1; }
+fi
 echo "----------------------------------------" | tee -a "$LOG"
 
 mapfile -t matches < <(find "$MATCHES_ROOT" -mindepth 1 -maxdepth 1 -type d -name "$GLOB" 2>/dev/null | sort | head -n "$LIMIT" || true)
 echo "[INFO] discovered_matches=${#matches[@]}" | tee -a "$LOG"
 
-# Build passed set for continue mode
 declare -A PASSED=()
 HIST="$REPO/_diag/doctor_history.tsv"
 if [ "$MODE" = "continue" ] && [ -f "$HIST" ]; then
@@ -73,26 +76,32 @@ for m in "${matches[@]}"; do
     continue
   fi
 
-  run_dir=""
+  out=""
   rc_run=0
-  if out="$(hpfa-run 2>&1)"; then
-    rc_run=0
-  else
-    rc_run=$?
-  fi
-  echo "$out" | sed -n '1,200p' | sed 's/^/[RUN_LOG] /' | tee -a "$LOG" >/dev/null
-  run_dir="$(echo "$out" | awk -F= '/OUT_DIR=/{print $2}' | tail -n1 | tr -d ' ' || true)"
+  run_dir=""
+
+  set +e
+  out="$(hpfa-run 2>&1)"
+  rc_run=$?
+  set -e
+
+  echo "$out" | sed -n '1,220p' | sed 's/^/[RUN_LOG] /' | tee -a "$LOG" >/dev/null
+  run_dir="$(printf '%s\n' "$out" | awk -F= '/OUT_DIR=/{print $2}' | tail -n1 | tr -d ' ' || true)"
   echo "[RUN] rc=${rc_run} run_dir=${run_dir:-NA}" | tee -a "$LOG"
 
-  rc_val=1
-  if [ -n "${run_dir:-}" ] && [ -d "$run_dir" ]; then
+  rc_val=99
+  if [ "$rc_run" != "0" ]; then
+    echo "[SKIP] validator: hpfa-run failed (rc_run=$rc_run)" | tee -a "$LOG"
+    rc_val=99
+  elif [ -z "${run_dir:-}" ] || [ ! -d "$run_dir" ]; then
+    echo "[FAIL] validator: run_dir missing/invalid" | tee -a "$LOG"
+    rc_val=98
+  else
     if "$REPO/tools/hpfa_validator_run_strict_core.sh" "$run_dir" >>"$LOG" 2>&1; then
       rc_val=0
     else
       rc_val=$?
     fi
-  else
-    echo "[FAIL] run_dir missing/invalid" | tee -a "$LOG"
   fi
   echo "[VAL] rc=${rc_val}" | tee -a "$LOG"
 
