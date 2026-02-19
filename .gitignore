@@ -45,3 +45,8 @@ tools/.#*
 
 # HPFA: local backups
 /tools/*.bak.*
+
+# runtime
+_diag/
+_out/
+tools/*.bak.*
