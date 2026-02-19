@@ -50,3 +50,7 @@ tools/.#*
 _diag/
 _out/
 tools/*.bak.*
+
+# runtime
+/_diag/
+/_out/
