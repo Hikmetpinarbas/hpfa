@@ -1,0 +1,565 @@
+{
+  "hpfa_version": "1.0.0",
+  "generated_utc": "2026-02-28T14:09:19.918737Z",
+  "standards": [
+    "HPFA",
+    "HP Motor",
+    "HP Engine"
+  ],
+  "models": [
+    {
+      "model_name": "PPS (Pass Progression Score)",
+      "category": "Ball progression / possession value (event-based)",
+      "objective": "Quantify how much a player's passes progress play toward the opponent goal.",
+      "inputs": [
+        "event data: pass start/end x,y",
+        "possession context (optional)",
+        "player role/position for normalization"
+      ],
+      "outputs": [
+        "PPS per player",
+        "breakdowns: progressive distance, normalized z-score"
+      ],
+      "assumptions": [
+        "Field coordinates are normalized and consistent.",
+        "Progress toward goal correlates with threat creation.",
+        "Role normalization captures baseline expectations."
+      ],
+      "risk_conditions": [
+        "Teams with extreme styles (direct play) inflate raw progression.",
+        "Backpasses under press may be undervalued despite stabilizing possession."
+      ],
+      "counter_scenarios": "A team uses wide circulation then a single vertical pass; PPS may over-credit the final passer while under-crediting movers and prior pass chains.",
+      "references": [
+        {
+          "type": "url",
+          "id": "marclamberts_pps",
+          "value": "https://marclamberts.medium.com/the-idea-behind-the-threat-creating-pass-progression-score-pps-7b0357e843ca"
+        }
+      ]
+    },
+    {
+      "model_name": "OBIS (Off-Ball Impact Score)",
+      "category": "Off-ball / network analysis",
+      "objective": "Estimate off-ball contributions via passing-network centrality and spatial influence.",
+      "inputs": [
+        "event data: passes",
+        "player positions or zones (optional)",
+        "context: phase/score/opponent pressure"
+      ],
+      "outputs": [
+        "OBIS per player",
+        "network features: degree/betweenness/closeness"
+      ],
+      "assumptions": [
+        "Passing network is a valid proxy for involvement/space-creation.",
+        "Centrality relates to tactical influence."
+      ],
+      "risk_conditions": [
+        "Ball-dominant teams bias centrality upward.",
+        "Certain roles (decoy runners) contribute without network visibility."
+      ],
+      "counter_scenarios": "A forward makes repeated decoy runs creating space but receives few passes; OBIS underestimates without tracking-based spatial features.",
+      "references": [
+        {
+          "type": "url",
+          "id": "marclamberts_obis",
+          "value": "https://marclamberts.medium.com/quantifying-off-ball-contributions-in-football-using-network-analysis-the-off-ball-impact-score-efdee851f684"
+        }
+      ]
+    },
+    {
+      "model_name": "Outlier-aware scouting (SD vs MAD + clustering)",
+      "category": "Scouting methodology / robustness",
+      "objective": "Detect and interpret outliers in player metric distributions with robust statistics and clustering.",
+      "inputs": [
+        "player metric table",
+        "role filters",
+        "min minutes threshold"
+      ],
+      "outputs": [
+        "outlier lists (SD, MAD)",
+        "clusters/archetypes"
+      ],
+      "assumptions": [
+        "Underlying distribution is stable within role/league.",
+        "Outliers may represent skill or noise."
+      ],
+      "risk_conditions": [
+        "Small samples cause false outliers.",
+        "League context shifts baselines."
+      ],
+      "counter_scenarios": "A player appears as an outlier due to tactical role (e.g., set-piece target) rather than transferable skill; validating with role + video breaks the inference.",
+      "references": [
+        {
+          "type": "url",
+          "id": "marclamberts_outliers",
+          "value": "https://marclamberts.medium.com/the-complexity-of-outliers-in-data-scouting-in-football-31e9fdca5171"
+        }
+      ]
+    },
+    {
+      "model_name": "xG + finishing by shot-type (segmented finishing)",
+      "category": "Shot quality / finishing",
+      "objective": "Separate finishing performance by shot type (feet, open-play headers, set-piece headers) to reduce mixing bias.",
+      "inputs": [
+        "shot events with type/body part",
+        "xG model outputs",
+        "minutes/shot volume"
+      ],
+      "outputs": [
+        "finishing over/under by segment",
+        "player finishing profile"
+      ],
+      "assumptions": [
+        "Shot-type segments reflect distinct skills.",
+        "xG is calibrated within segment."
+      ],
+      "risk_conditions": [
+        "Low volume segments (headers) unstable.",
+        "Team cross volume biases opportunity set."
+      ],
+      "counter_scenarios": "A striker's 'poor finishing' overall is driven by low-xG volley attempts; segmenting by shot-type and location changes conclusion.",
+      "references": [
+        {
+          "type": "url",
+          "id": "analyticsfc_shots_finishing",
+          "value": "https://analyticsfc.co.uk/blog/2024/06/13/developing-new-metrics-shots-and-finishing/"
+        }
+      ]
+    },
+    {
+      "model_name": "xT vs VAEP critical comparison",
+      "category": "Action value models",
+      "objective": "Explain conceptual and practical differences between xT (state value) and VAEP (probability delta) and why rankings differ.",
+      "inputs": [
+        "event stream data (actions)",
+        "trained xT grid / VAEP models"
+      ],
+      "outputs": [
+        "action values",
+        "player totals",
+        "diagnostic decomposition"
+      ],
+      "assumptions": [
+        "Event data sufficiently captures action context.",
+        "Model design choices are explicit (labeling, horizons, action set)."
+      ],
+      "risk_conditions": [
+        "Different action taxonomies break comparability.",
+        "Calibration drift between leagues."
+      ],
+      "counter_scenarios": "A possession-heavy 6 has many low-risk passes; xT may reward territory gain, VAEP may reward probability deltas—rankings invert depending on objective.",
+      "references": [
+        {
+          "type": "file",
+          "id": "xt_vs_vaep.pdf",
+          "value": "xt_vs_vaep.pdf"
+        }
+      ]
+    },
+    {
+      "model_name": "I-VAEP / O-VAEP + time-series valuation",
+      "category": "Player valuation over time",
+      "objective": "Separate intention vs execution in VAEP and model player value as a time series (volatility, development curves).",
+      "inputs": [
+        "event stream data across seasons",
+        "player metadata (minutes, age)"
+      ],
+      "outputs": [
+        "I-VAEP, O-VAEP per match",
+        "rolling values",
+        "volatility score",
+        "development curve"
+      ],
+      "assumptions": [
+        "Feature split meaningfully isolates intent vs execution.",
+        "Time indexing (date or matches) is consistent."
+      ],
+      "risk_conditions": [
+        "Outlier streaks distort recruitment decisions.",
+        "Injury/role changes confound curves."
+      ],
+      "counter_scenarios": "A player's surge is driven by role change into higher-value zones; time-series without role conditioning overstates true improvement.",
+      "references": [
+        {
+          "type": "file",
+          "id": "2209.03882v1.pdf",
+          "value": "2209.03882v1.pdf"
+        }
+      ]
+    },
+    {
+      "model_name": "Physical metrics contextualization (running better)",
+      "category": "Physical-tactical integration",
+      "objective": "Contextualize physical runs (HI runs) using tactical layers and map to value creation via EPV.",
+      "inputs": [
+        "tracking data (x,y at 10Hz+)",
+        "event data alignment",
+        "team block/lines"
+      ],
+      "outputs": [
+        "run taxonomy",
+        "contextual physical profiles",
+        "value-linked runs"
+      ],
+      "assumptions": [
+        "Broadcast tracking is accurate enough.",
+        "Dynamic lines/block modeling approximates defensive structure."
+      ],
+      "risk_conditions": [
+        "Tracking gaps distort velocity/runs.",
+        "Phase labeling errors (attack/defense) propagate."
+      ],
+      "counter_scenarios": "A team presses with short bursts <21 km/h but high acceleration; HI threshold misses key efforts—use acceleration-based alternatives.",
+      "references": [
+        {
+          "type": "file",
+          "id": "2204.02313v1.pdf",
+          "value": "2204.02313v1.pdf"
+        }
+      ]
+    },
+    {
+      "model_name": "Pitch ownership / pitch control via KNN",
+      "category": "Spatial control models",
+      "objective": "Build flexible pitch control surfaces using KNN with uncertainty parameters to emulate multiple definitions.",
+      "inputs": [
+        "tracking frames: player positions, velocities",
+        "ball position"
+      ],
+      "outputs": [
+        "control surface per frame",
+        "pass reception likelihood proxies"
+      ],
+      "assumptions": [
+        "Nearest-neighbor structure approximates reachability/control.",
+        "Hyperparameters capture uncertainty across skill levels."
+      ],
+      "risk_conditions": [
+        "No quantitative ground truth for control surfaces.",
+        "Ball speed/physics ignored can misestimate intercepts."
+      ],
+      "counter_scenarios": "Aerial passes: ground-control model says receiver controls but ball flight time enables interception; integrate ball travel time or passable region.",
+      "references": [
+        {
+          "type": "file",
+          "id": "2501.05870v1.pdf",
+          "value": "2501.05870v1.pdf"
+        }
+      ]
+    },
+    {
+      "model_name": "Safe progression graph (G_safe)",
+      "category": "Graph-based tactical modeling",
+      "objective": "Model safe ball progression as transitions between 'safe configurations' (passing cliques) using pitch control + passing lanes.",
+      "inputs": [
+        "tracking data (25Hz)",
+        "possession labels",
+        "event pass timings"
+      ],
+      "outputs": [
+        "safe configuration nodes",
+        "transition graph with frequencies",
+        "turnover-risk configurations"
+      ],
+      "assumptions": [
+        "Having multiple open options increases progression robustness.",
+        "Passing lanes within passable region represent 'safe' options."
+      ],
+      "risk_conditions": [
+        "Physics parameters for ball speed/deceleration uncertain.",
+        "Clique criterion may be too strict and miss viable progressions."
+      ],
+      "counter_scenarios": "A team plays third-man combinations where direct clique is rare; model undercounts success patterns unless clique size/horizon adjusted.",
+      "references": [
+        {
+          "type": "file",
+          "id": "2210.16474v2.pdf",
+          "value": "2210.16474v2.pdf"
+        }
+      ]
+    },
+    {
+      "model_name": "DTW-based passing strategy extraction",
+      "category": "Pattern mining / tactics",
+      "objective": "Automatically detect recurring pass sequences from ball trajectory event sequences using Dynamic Time Warping.",
+      "inputs": [
+        "pass event locations (x,y) for possessions",
+        "season-long datasets"
+      ],
+      "outputs": [
+        "recurring patterns",
+        "pattern frequency & length",
+        "possession vs counter patterns"
+      ],
+      "assumptions": [
+        "Recurring sequences reflect trained tactical routines.",
+        "Trajectory normalization aligns comparable patterns."
+      ],
+      "risk_conditions": [
+        "DTW computational cost on massive logs.",
+        "Different opponents force shape changes that break pattern matching."
+      ],
+      "counter_scenarios": "A pattern appears frequent due to common constraints (sideline exits) not strategy; validating with contextual labels removes false 'tactics'.",
+      "references": [
+        {
+          "type": "file",
+          "id": "1508.02171v1.pdf",
+          "value": "1508.02171v1.pdf"
+        }
+      ]
+    },
+    {
+      "model_name": "Formation classification in single match situations (FSIM)",
+      "category": "Formation & role modeling",
+      "objective": "Classify formations for short match situations via template similarity and visualize formation summaries.",
+      "inputs": [
+        "positional tracking data",
+        "ball possession segments",
+        "formation templates"
+      ],
+      "outputs": [
+        "predicted scheme label",
+        "FSIM similarity scores",
+        "visual formation summaries"
+      ],
+      "assumptions": [
+        "Templates represent meaningful tactical archetypes.",
+        "Short segments can be summarized reliably."
+      ],
+      "risk_conditions": [
+        "Role ambiguity drives label instability.",
+        "Different interpretations of roles yield low inter-annotator agreement."
+      ],
+      "counter_scenarios": "Two schemes differ only by one player's role; numerical label (4-4-2 vs 4-2-3-1) is misleading—use role embeddings instead.",
+      "references": [
+        {
+          "type": "file",
+          "id": "1910.00412v1.pdf",
+          "value": "1910.00412v1.pdf"
+        }
+      ]
+    },
+    {
+      "model_name": "Tactical situations & playing styles as KPIs (GEE)",
+      "category": "Tactical KPI modeling",
+      "objective": "Test which tactical situations/styles correlate with match outcome using a GEE logistic framework across leagues.",
+      "inputs": [
+        "match-level tactical situation variables",
+        "outcomes",
+        "opponent strength/venue controls"
+      ],
+      "outputs": [
+        "odds ratios / significance for styles",
+        "interpretable KPI set"
+      ],
+      "assumptions": [
+        "Tactical situation coding is consistent across leagues.",
+        "Associations are stable across contexts."
+      ],
+      "risk_conditions": [
+        "Omitted variable bias (squad quality).",
+        "Reverse causality (leading teams change style)."
+      ],
+      "counter_scenarios": "A team leads early then defends deeper; style-outcome correlation reflects game-state, not causal superiority—control for scoreline/time.",
+      "references": [
+        {
+          "type": "file",
+          "id": "jfmk-09-00088-v2.pdf",
+          "value": "jfmk-09-00088-v2.pdf"
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "filename": "1508.02171v1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "1910.00412v1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2204.02313v1 (1).pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2204.02313v1 (2).pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2204.02313v1 (3).pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2204.02313v1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2209.03882v1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2210.16474v2.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2301.04001v1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2401.09940v1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2402.06815v2.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2406.00814v1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2407.17832v2.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2409.17129v1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2412.05911v1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "2501.05870v1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "3.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "68d6be744d7efccc22080813_193961 - Player Pressure Map - A Novel Representation of Pressure in Soccer.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "68d6be744d7efccc2208081c_The Strain of Success - A Predictive Model for Injury Risk Mitigation and Team Success in Soccer.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "HP_Futbol_Analitik_Kutuphanesi_Draft_v0_1_TRfix.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "Yeung_AutoSoccerPose_Automated_3D_Posture_Analysis_of_Soccer_Shot_Movements_CVPRW_2024_paper.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "fspor-06-1348983.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "huang-hsu-2021-a-multidisciplinary-perspective-on-publicly-available-sports-data-in-the-era-of-big-data-a-scoping.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "jfmk-09-00088-v2 (1).pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "jfmk-09-00088-v2.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "journal.pone.0308749.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "prob.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "s10994-018-5703-7.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "s10994-018-5725-1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "s10994-018-5741-1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "s10994-024-06585-0.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "s10994-024-06606-y.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "s10994-024-06608-w.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "s10994-024-06611-1.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "s10994-024-06625-9.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "s41467-024-45965-x.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "sports-05-00087.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "xt_vs_vaep.pdf",
+      "type": "pdf"
+    },
+    {
+      "filename": "Data analytics in the football industry_ a survey investigating operational frameworks and practices in professional clubs and national federations from around the world.mht",
+      "type": "mht"
+    },
+    {
+      "filename": "Football Tactics and Rolling Dice - by Tiotal Football.mht",
+      "type": "mht"
+    },
+    {
+      "filename": "Player Pressure Map - A Novel Representation of Pressure in Soccer for Evaluating Player Performance in Different Game Contexts.mht",
+      "type": "mht"
+    },
+    {
+      "filename": "Soccer Analytics 2024 Review – Jan Van Haaren.mht",
+      "type": "mht"
+    },
+    {
+      "filename": "Sports Big Data_ Management, Analysis, Applications, and Challenges.mht",
+      "type": "mht"
+    },
+    {
+      "filename": "Three key design decisions for possession state value models_ an experimental analysis.mht",
+      "type": "mht"
+    },
+    {
+      "filename": "Tony’s Blog - Ball Progression is All You Need.mht",
+      "type": "mht"
+    },
+    {
+      "filename": "publications.bib",
+      "type": "bib"
+    }
+  ]
+}

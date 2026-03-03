@@ -1,0 +1,333 @@
+# HPFA Gate Policy Configuration
+# Match: Juventus FC 3-2 Galatasaray (UCL 25.02.2026)
+# Generated: 2026-02-27 by Claude Opus 4.5 (Verification Agent)
+
+version: "1.0"
+policy_name: "juve_gala_ucl_20260225"
+fail_mode: "closed"  # Fail-closed: any violation → BLOCK
+
+# =============================================================================
+# GATE DEFINITIONS (G01-G14)
+# =============================================================================
+
+gates:
+  # ---------------------------------------------------------------------------
+  # G01: Schema Validation Gate
+  # ---------------------------------------------------------------------------
+  G01_schema_validation:
+    description: "Verify incoming data matches canonical HPFA schema"
+    mode: "strict"
+    
+    rules:
+      - rule_id: "G01.1"
+        name: "column_count"
+        condition: "len(columns) == expected_columns"
+        expected_columns: 9
+        on_violation: "BLOCK"
+        
+      - rule_id: "G01.2"
+        name: "required_columns"
+        condition: "all(col in data.columns for col in required)"
+        required: ["ID", "start", "end", "code", "team", "action", "half", "pos_x", "pos_y"]
+        on_violation: "BLOCK"
+        
+      - rule_id: "G01.3"
+        name: "data_types"
+        conditions:
+          ID: "int64"
+          start: "float64"
+          end: "float64"
+          code: "object"
+          team: "object"
+          action: "object"
+          half: "int64"
+          pos_x: "float64"
+          pos_y: "float64"
+        on_violation: "BLOCK"
+    
+    current_status: "PASS"
+    
+  # ---------------------------------------------------------------------------
+  # G02: Duplicate Event Gate
+  # ---------------------------------------------------------------------------
+  G02_duplicate_detection:
+    description: "Detect and handle duplicate events"
+    mode: "strict"
+    
+    rules:
+      - rule_id: "G02.1"
+        name: "exact_duplicate_check"
+        condition: "duplicate_count == 0"
+        match_keys: ["start", "end", "code", "team"]
+        on_violation: "BLOCK"
+        
+      - rule_id: "G02.2"
+        name: "duplicate_threshold"
+        condition: "duplicate_rate < threshold"
+        threshold: 0.001  # 0.1%
+        current_value: 0.0014  # 0.14%
+        on_violation: "DEGRADED"
+    
+    current_status: "BLOCK"
+    violation_details:
+      count: 6
+      timestamp: 6175.33
+      affected_actions:
+        - "3. Bölgede Başarılı Dripling"
+        - "Başarılı driplingler"
+        - "Başarılı İkili Mücadeleler"
+
+  # ---------------------------------------------------------------------------
+  # G03: Coordinate Boundary Gate
+  # ---------------------------------------------------------------------------
+  G03_coordinate_validation:
+    description: "Validate spatial coordinates against pitch dimensions"
+    mode: "tolerant"
+    
+    rules:
+      - rule_id: "G03.1"
+        name: "x_bounds"
+        condition: "0 <= pos_x <= 105"
+        on_violation: "BLOCK"
+        
+      - rule_id: "G03.2"
+        name: "y_bounds"
+        condition: "0 <= pos_y <= 68"
+        on_violation: "BLOCK"
+        
+      - rule_id: "G03.3"
+        name: "edge_coordinate_threshold"
+        condition: "edge_events / total_events < threshold"
+        threshold: 0.05  # 5%
+        current_value: 0.026  # 2.6%
+        edge_definition: "pos_y < 2.0 OR pos_y > 66.0"
+        on_violation: "DEGRADED"
+    
+    current_status: "PASS"
+    warning: "109 edge coordinate events (pos_y = 0)"
+    
+  # ---------------------------------------------------------------------------
+  # G04: Time Sequence Gate
+  # ---------------------------------------------------------------------------
+  G04_temporal_validation:
+    description: "Validate chronological consistency of events"
+    mode: "strict"
+    
+    rules:
+      - rule_id: "G04.1"
+        name: "no_backward_jumps"
+        condition: "backward_time_count == 0"
+        on_violation: "BLOCK"
+        
+      - rule_id: "G04.2"
+        name: "non_negative_duration"
+        condition: "all(end >= start)"
+        on_violation: "BLOCK"
+        
+      - rule_id: "G04.3"
+        name: "id_sequence"
+        condition: "all(diff(ID) == 1)"
+        on_violation: "DEGRADED"
+    
+    current_status: "PASS"
+
+  # ---------------------------------------------------------------------------
+  # G05: Team Identity Gate
+  # ---------------------------------------------------------------------------
+  G05_team_validation:
+    description: "Validate team identifiers and prevent cross-contamination"
+    mode: "strict"
+    
+    rules:
+      - rule_id: "G05.1"
+        name: "team_id_format"
+        condition: "regex_match(team, r'^.+\\(\\d+\\)$')"
+        on_violation: "BLOCK"
+        
+      - rule_id: "G05.2"
+        name: "expected_teams"
+        condition: "unique_teams == expected_teams"
+        expected_teams:
+          - "Juventus FC (38876)"
+          - "Galatasaray (29205)"
+        on_violation: "BLOCK"
+        
+      - rule_id: "G05.3"
+        name: "player_team_consistency"
+        condition: "player_multi_team_count == 0"
+        on_violation: "BLOCK"
+    
+    current_status: "PASS"
+
+  # ---------------------------------------------------------------------------
+  # G06: Anomaly Rate Gate (MASTER GATE)
+  # ---------------------------------------------------------------------------
+  G06_anomaly_rate:
+    description: "Aggregate anomaly rate threshold check"
+    mode: "strict"
+    is_master_gate: true
+    
+    rules:
+      - rule_id: "G06.1"
+        name: "total_anomaly_rate"
+        condition: "anomaly_rate < threshold"
+        threshold: 0.01  # 1%
+        current_value: 0.03129  # 3.129%
+        on_violation: "BLOCK"
+    
+    anomaly_components:
+      duplicates: 6
+      missing_team: 8
+      edge_coordinates: 109
+      zero_duration: 8
+    
+    total_anomalies: 131
+    total_events: 4186
+    
+    current_status: "BLOCK"
+    block_reason: "Anomaly rate 3.129% exceeds 1% threshold"
+
+  # ---------------------------------------------------------------------------
+  # G07: Half Period Gate
+  # ---------------------------------------------------------------------------
+  G07_half_validation:
+    description: "Validate match period consistency"
+    mode: "tolerant"
+    
+    rules:
+      - rule_id: "G07.1"
+        name: "valid_half_values"
+        condition: "all(half in [1, 2, 3, 4])"
+        note: "1-2 regular time, 3-4 extra time"
+        on_violation: "BLOCK"
+        
+      - rule_id: "G07.2"
+        name: "half_transition_gap"
+        condition: "gap_seconds < max_gap"
+        max_gap: 1800  # 30 minutes max between halves
+        observed_gap: 25.67
+        on_violation: "DEGRADED"
+    
+    current_status: "PASS"
+    extra_time_detected: true
+    
+  # ---------------------------------------------------------------------------
+  # G08-G14: Reserved for Future Implementation
+  # ---------------------------------------------------------------------------
+  G08_metric_causality:
+    description: "Verify causal chain integrity for derived metrics"
+    mode: "strict"
+    status: "NOT_IMPLEMENTED"
+    note: "Requires SCM definition and do-operator specification"
+    
+  G09_confounder_check:
+    description: "Detect potential unobserved confounders"
+    mode: "advisory"
+    status: "NOT_IMPLEMENTED"
+    
+  G10_sparse_data:
+    description: "Detect sparse data collapse conditions"
+    mode: "strict"
+    status: "NOT_IMPLEMENTED"
+    threshold: "variance < infinity"
+    
+  G11_schema_drift:
+    description: "Detect provider schema changes"
+    mode: "strict"
+    status: "NOT_IMPLEMENTED"
+    
+  G12_cross_file_reconciliation:
+    description: "Verify consistency across parallel data files"
+    mode: "strict"
+    status: "NOT_IMPLEMENTED"
+    
+  G13_aggregate_validation:
+    description: "Verify XLSX aggregates match event sums"
+    mode: "tolerant"
+    status: "NOT_IMPLEMENTED"
+    
+  G14_golden_deviation:
+    description: "Compare against golden reference dataset"
+    mode: "strict"
+    status: "NOT_IMPLEMENTED"
+
+# =============================================================================
+# GLOBAL POLICY SETTINGS
+# =============================================================================
+
+global_settings:
+  
+  # Master fail-closed principle
+  fail_closed_mode: true
+  
+  # Any BLOCK gate → entire pipeline BLOCK
+  gate_aggregation: "ALL_PASS_REQUIRED"
+  
+  # Audit trail requirements
+  audit:
+    hash_algorithm: "SHA-256"
+    log_all_decisions: true
+    retention_days: 365
+  
+  # Threshold overrides (per league)
+  league_thresholds:
+    UCL:
+      anomaly_rate: 0.01
+      duplicate_tolerance: 0
+    SUPER_LIG:
+      anomaly_rate: 0.015
+      duplicate_tolerance: 0.001
+
+# =============================================================================
+# CURRENT MATCH VERDICT
+# =============================================================================
+
+verdict:
+  match_id: "juve_gala_ucl_20260225"
+  final_status: "BLOCK"
+  
+  gates_passed:
+    - G01_schema_validation
+    - G03_coordinate_validation
+    - G04_temporal_validation
+    - G05_team_validation
+    - G07_half_validation
+    
+  gates_blocked:
+    - G02_duplicate_detection
+    - G06_anomaly_rate
+    
+  gates_degraded: []
+  
+  gates_not_implemented:
+    - G08_metric_causality
+    - G09_confounder_check
+    - G10_sparse_data
+    - G11_schema_drift
+    - G12_cross_file_reconciliation
+    - G13_aggregate_validation
+    - G14_golden_deviation
+  
+  remediation_required:
+    - action: "deduplicate_events"
+      priority: "CRITICAL"
+      target: "6 duplicate records at t=6175.33"
+      
+    - action: "validate_edge_coordinates"
+      priority: "MEDIUM"
+      target: "109 events with pos_y=0"
+      
+    - action: "apply_time_offset"
+      priority: "LOW"
+      offset: -5.24
+      note: "Correct for non-zero time base"
+
+# =============================================================================
+# METADATA
+# =============================================================================
+
+metadata:
+  generated_by: "Claude Opus 4.5 (Verification Agent)"
+  generated_at: "2026-02-27T00:00:00Z"
+  hpfa_version: "24+"
+  config_hash: "pending"

@@ -1,0 +1,364 @@
+# HPFA Technical Schema Specification
+# Juventus FC 3-2 Galatasaray | 25.02.2026 | UCL
+
+## Source File Inventory
+
+```yaml
+files:
+  csv_main:
+    path: "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı.csv"
+    size: 546K
+    rows: 4186
+    delimiter: ";"
+    encoding: "UTF-8"
+    line_endings: "CRLF"
+    
+  csv_goalkeeper:
+    path: "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı__1_.csv"
+    size: 27K
+    rows: 220
+    delimiter: ";"
+    encoding: "UTF-8"
+    filter: "jersey_number = 1"
+    
+  csv_team:
+    path: "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı__2_.csv"
+    size: 527K
+    rows: 4868
+    delimiter: ";"
+    encoding: "UTF-8"
+    schema_variant: "team_level"  # WARNING: Different schema
+    
+  xlsx_stats:
+    path: "Juventus_FC_3-2_Galatasaray__Europe__UEFA_Champions_League__25_02_2026.xlsx"
+    size: 21K
+    rows: 32
+    columns: 108
+    sheet: "İstatistikler"
+    
+  xlsx_goalkeeper:
+    path: "Juventus_FC_3-2_Galatasaray__Europe__UEFA_Champions_League__25_02_2026__1_.xlsx"
+    size: 9K
+    rows: 2
+    columns: 109
+    sheet: "Kaleci istatistikleri"
+```
+
+## Canonical Schema Definition
+
+```sql
+-- EVENTS TABLE (Normalized from CSV)
+CREATE TABLE events (
+    event_id INTEGER PRIMARY KEY,  -- Original ID
+    match_id VARCHAR(50) NOT NULL,  -- DERIVED: "JUV_GAL_20260225"
+    half SMALLINT NOT NULL CHECK (half BETWEEN 1 AND 4),
+    start_time DECIMAL(10,2) NOT NULL,  -- Video timestamp (seconds)
+    end_time DECIMAL(10,2) NOT NULL,
+    match_time DECIMAL(10,2) GENERATED ALWAYS AS (start_time - 5.24),  -- DERIVED
+    
+    -- Entity references
+    player_id INTEGER REFERENCES players(player_id),
+    team_id INTEGER NOT NULL REFERENCES teams(team_id),
+    action_id INTEGER NOT NULL REFERENCES actions(action_id),
+    
+    -- Spatial data
+    pos_x DECIMAL(5,2) CHECK (pos_x BETWEEN 0 AND 105),
+    pos_y DECIMAL(5,2) CHECK (pos_y BETWEEN 0 AND 68),
+    
+    -- Audit
+    source_file VARCHAR(255),
+    raw_code TEXT,  -- Original unparsed code
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT valid_duration CHECK (end_time >= start_time)
+);
+
+-- PLAYERS TABLE
+CREATE TABLE players (
+    player_id INTEGER PRIMARY KEY,  -- Extracted from code
+    jersey_number SMALLINT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    team_id INTEGER REFERENCES teams(team_id),
+    position VARCHAR(10),  -- From XLSX: LD, LCD, RCDM, etc.
+    
+    UNIQUE (team_id, jersey_number)
+);
+
+-- TEAMS TABLE
+CREATE TABLE teams (
+    team_id INTEGER PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    short_code VARCHAR(3)
+);
+
+-- ACTIONS TABLE (Taxonomy)
+CREATE TABLE actions (
+    action_id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    action_name VARCHAR(100) NOT NULL UNIQUE,
+    category VARCHAR(50),  -- pass, shot, duel, etc.
+    is_success BOOLEAN,
+    parent_action_id INTEGER REFERENCES actions(action_id)
+);
+
+-- PLAYER_MATCH_STATS (From XLSX)
+CREATE TABLE player_match_stats (
+    stat_id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    match_id VARCHAR(50) NOT NULL,
+    player_id INTEGER REFERENCES players(player_id),
+    
+    -- Performance metrics
+    minutes_played INTEGER,
+    goals INTEGER,
+    assists INTEGER,
+    xg DECIMAL(4,2),
+    xa DECIMAL(4,2),
+    
+    -- Pass metrics
+    passes_attempted INTEGER,
+    passes_completed INTEGER,
+    pass_accuracy DECIMAL(4,3),
+    key_passes INTEGER,
+    progressive_passes INTEGER,
+    long_passes INTEGER,
+    
+    -- Duel metrics
+    duels_attempted INTEGER,
+    duels_won INTEGER,
+    aerial_duels_attempted INTEGER,
+    aerial_duels_won INTEGER,
+    
+    -- Additional (108 columns available)
+    raw_stats JSON,  -- Store full XLSX row
+    
+    UNIQUE (match_id, player_id)
+);
+```
+
+## Entity Resolution Rules
+
+```python
+# Parsing regex for 'code' column
+CODE_PATTERN = r'^(\d+)\.\s+(.+?)\s+\((\d+)\)\s*-\s*(.+)$'
+# Groups: (1) jersey_number, (2) player_name, (3) player_id, (4) action
+
+# Team extraction
+TEAM_PATTERN = r'^(.+?)\s+\((\d+)\)$'
+# Groups: (1) team_name, (2) team_id
+
+# Entity lookup
+TEAM_LOOKUP = {
+    38876: {"name": "Juventus FC", "short": "JUV"},
+    29205: {"name": "Galatasaray", "short": "GAL"}
+}
+```
+
+## Validation Rules
+
+```yaml
+validation:
+  temporal:
+    - rule: "start_time <= end_time"
+      severity: "FATAL"
+    - rule: "start_time >= 5.24"  # Video offset
+      severity: "ERROR"
+    - rule: "end_time <= 8200"  # Max 136 min
+      severity: "WARNING"
+      
+  spatial:
+    - rule: "pos_x BETWEEN 0 AND 105"
+      severity: "ERROR"
+    - rule: "pos_y BETWEEN 0 AND 68"
+      severity: "ERROR"
+    - rule: "goalkeeper events pos_x < 25 OR pos_x > 80"
+      severity: "WARNING"
+      
+  entity:
+    - rule: "player_id IN players table"
+      severity: "ERROR"
+    - rule: "team_id IN (38876, 29205)"
+      severity: "FATAL"
+      
+  cross_validation:
+    - rule: "SUM(csv_events) = xlsx_totals"
+      severity: "WARNING"
+      tolerance: 0.01  # 1%
+```
+
+## Action Taxonomy
+
+```yaml
+actions:
+  passing:
+    - name: "Paslar adresi bulanlar"
+      is_success: true
+      category: "pass"
+    - name: "İsabetsiz paslar"
+      is_success: false
+      category: "pass"
+    - name: "Başarılı İleri Paslar"
+      is_success: true
+      category: "progressive_pass"
+    - name: "Uzun paslar"
+      is_success: null  # Need outcome
+      category: "long_pass"
+      
+  shooting:
+    - name: "Gol"
+      is_success: true
+      category: "goal"
+    - name: "İsabetli Şut"
+      is_success: true
+      category: "shot_on_target"
+    - name: "İsabetsiz Şutlar"
+      is_success: false
+      category: "shot"
+    - name: "Gol Pozisyonları"
+      is_success: null
+      category: "chance"
+      
+  duels:
+    - name: "Başarılı İkili Mücadeleler"
+      is_success: true
+      category: "duel"
+    - name: "Başarısız İkili Mücadeleler"
+      is_success: false
+      category: "duel"
+    - name: "Başarılı hava topu mücadeleleri"
+      is_success: true
+      category: "aerial_duel"
+      
+  defensive:
+    - name: "Başarılı Top Kapma"
+      is_success: true
+      category: "tackle"
+    - name: "Pas Arası"
+      is_success: true
+      category: "interception"
+    - name: "Geri Kazanılan Toplar"
+      is_success: true
+      category: "recovery"
+      
+  possession:
+    - name: "Top Kaybı"
+      is_success: false
+      category: "turnover"
+    - name: "Başarılı driplingler"
+      is_success: true
+      category: "dribble"
+    - name: "Set Hücumu Oyunu"
+      is_success: null
+      category: "possession_type"
+    - name: "Kontra Atak Oyunu"
+      is_success: null
+      category: "possession_type"
+```
+
+## Match Metadata
+
+```json
+{
+    "match_id": "JUV_GAL_20260225",
+    "competition": "UEFA Champions League",
+    "season": "2025-26",
+    "date": "2026-02-25",
+    "home_team": {
+        "id": 38876,
+        "name": "Juventus FC",
+        "score": 3
+    },
+    "away_team": {
+        "id": 29205,
+        "name": "Galatasaray",
+        "score": 2
+    },
+    "duration_type": "extra_time",
+    "halves": [
+        {"half": 1, "start": 5.24, "end": 2954.24, "events": 1488},
+        {"half": 2, "start": 2957.24, "end": 6123.33, "events": 1714},
+        {"half": 3, "start": 6126.33, "end": 7150.33, "events": 495},
+        {"half": 4, "start": 7204.57, "end": 8158.57, "events": 489}
+    ],
+    "video_offset": 5.24,
+    "coordinate_system": {
+        "length": 105,
+        "width": 68,
+        "home_attacking_direction": "right"
+    }
+}
+```
+
+## Known Issues & Workarounds
+
+```yaml
+issues:
+  - id: "SCHEMA_001"
+    description: "Team CSV missing 'team' column"
+    affected_files: ["csv_team"]
+    workaround: "Extract team_id from 'code' column using TEAM_PATTERN"
+    
+  - id: "DATA_001"
+    description: "Video offset not documented"
+    value: 5.24
+    workaround: "Subtract 5.24 from all timestamps for match time"
+    
+  - id: "MISSING_001"
+    description: "No possession chain identifiers"
+    workaround: "Reconstruct using temporal clustering (events within 30s)"
+    
+  - id: "MISSING_002"
+    description: "No end coordinates for passes"
+    workaround: "Infer from next event's start position (±uncertainty)"
+    
+  - id: "NULL_001"
+    description: "8 rows with NULL team/coordinates"
+    cause: "System events (Start of half, etc.)"
+    workaround: "Filter by action type 'Start of' prefix"
+```
+
+## HPFA Integration Checklist
+
+```markdown
+[x] Schema validated
+[x] Entity resolution complete (32/32 players)
+[x] Cross-validation passed (McKennie: 60/60)
+[x] Coordinate bounds verified
+[x] Temporal integrity confirmed
+[ ] Match ID injection (manual step)
+[ ] Possession chain reconstruction (derived)
+[ ] Anomaly threshold calibration (Süper Lig specific)
+```
+
+## Pipeline Configuration
+
+```yaml
+hpfa_config:
+  version: "24.2"
+  match_file: "JUV_GAL_20260225"
+  
+  ingestion:
+    primary_source: "csv_main"
+    supplementary: ["xlsx_stats", "xlsx_goalkeeper"]
+    encoding: "UTF-8"
+    delimiter: ";"
+    
+  validation:
+    fail_on_error: true
+    anomaly_threshold: 0.01
+    confidence_minimum: 0.80
+    
+  transformation:
+    normalize_schema: true
+    parse_compound_fields: true
+    derive_match_time: true
+    
+  output:
+    format: "parquet"
+    compression: "snappy"
+    partition_by: ["match_id", "half"]
+    
+  audit:
+    enabled: true
+    hash_algorithm: "sha256"
+    log_format: "json"
+```

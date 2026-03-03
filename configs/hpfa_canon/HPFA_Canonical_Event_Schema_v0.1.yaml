@@ -1,0 +1,763 @@
+# ============================================================================
+# HPFA CANONICAL EVENT SCHEMA v0.1
+# ============================================================================
+# Author: HPFA System Architecture Team
+# Date: 2026-02-27
+# Status: DRAFT - Requires G08-G14 Gate Integration
+# License: Proprietary - HP Football Analytics
+# ============================================================================
+# DESIGN PRINCIPLES:
+#   1. Deterministic: Same input → same output (hash-verifiable)
+#   2. Fail-closed: Any validation failure → reject entire event
+#   3. Causal-ready: Schema supports SCM edge construction
+#   4. Provider-agnostic: Canonical IDs with mapping tables
+# ============================================================================
+
+schema:
+  name: "HPFA_Canonical_Event_Schema"
+  version: "0.1.0"
+  schema_hash_algorithm: "SHA-256"
+  compatibility: "STRICT"  # No backward-compatible changes allowed in v0.x
+
+# ============================================================================
+# SECTION 1: TIME MODEL
+# ============================================================================
+time_model:
+  primary_clock:
+    name: "game_clock_ms"
+    unit: "milliseconds"
+    precision: 1  # 1ms resolution
+    monotonicity: "STRICT_WITHIN_PERIOD"
+    description: >
+      Game clock resets at period boundaries. Within a period, 
+      timestamps MUST be strictly monotonically increasing.
+      Violation → EVENT_REJECTED with code TM-001.
+    
+  period_boundaries:
+    - period_id: 1
+      label: "first_half"
+      clock_start_ms: 0
+      clock_end_ms: 2700000  # 45 min nominal
+      max_allowed_ms: 3600000  # 60 min with stoppage
+      
+    - period_id: 2
+      label: "second_half"
+      clock_start_ms: 2700000
+      clock_end_ms: 5400000  # 90 min nominal
+      max_allowed_ms: 6600000  # 110 min with stoppage
+      
+    - period_id: 3
+      label: "extra_time_first"
+      clock_start_ms: 5400000
+      clock_end_ms: 6300000
+      max_allowed_ms: 6900000
+      
+    - period_id: 4
+      label: "extra_time_second"
+      clock_start_ms: 6300000
+      clock_end_ms: 7200000
+      max_allowed_ms: 7800000
+      
+    - period_id: 5
+      label: "penalty_shootout"
+      clock_start_ms: null  # No game clock in shootout
+      clock_end_ms: null
+      max_allowed_ms: null
+      
+  wall_clock:
+    name: "wall_clock_utc"
+    format: "ISO-8601"
+    timezone: "UTC"
+    required: false
+    description: >
+      Optional real-world timestamp. Used for audit trail 
+      and cross-referencing with broadcast data.
+      
+  stoppage_time:
+    handling: "CUMULATIVE"
+    description: >
+      Stoppage time is cumulative within period. 
+      45:00 + 3:00 stoppage = 48:00 (2880000 ms).
+      NOT a separate counter.
+
+# ============================================================================
+# SECTION 2: COORDINATE SYSTEM
+# ============================================================================
+coordinate_system:
+  model: "NORMALIZED_ATTACKING_RIGHT"
+  
+  pitch_orientation:
+    attacking_direction: "LEFT_TO_RIGHT"
+    normalization: >
+      All coordinates are transformed so that the team in possession
+      attacks from left (x=0) to right (x=100). This requires
+      coordinate flip for away team events in raw data.
+    flip_rule: "POSSESSION_BASED"  # Not team-based
+    
+  bounds:
+    x_axis:
+      name: "pitch_length"
+      min: 0.0
+      max: 100.0
+      unit: "percent"
+      physical_reference: "105m standard pitch"
+      out_of_bounds_handling: "REJECT"
+      
+    y_axis:
+      name: "pitch_width"
+      min: 0.0
+      max: 100.0
+      unit: "percent"
+      physical_reference: "68m standard pitch"
+      out_of_bounds_handling: "REJECT"
+      
+  origin:
+    position: "BOTTOM_LEFT"
+    x: 0.0
+    y: 0.0
+    description: >
+      Origin at bottom-left corner of pitch when viewed
+      with attacking direction left-to-right.
+      
+  key_zones:
+    - name: "own_penalty_area"
+      x_range: [0.0, 17.0]
+      y_range: [21.1, 78.9]
+      
+    - name: "opponent_penalty_area"
+      x_range: [83.0, 100.0]
+      y_range: [21.1, 78.9]
+      
+    - name: "own_six_yard_box"
+      x_range: [0.0, 5.5]
+      y_range: [36.8, 63.2]
+      
+    - name: "opponent_six_yard_box"
+      x_range: [94.5, 100.0]
+      y_range: [36.8, 63.2]
+      
+    - name: "center_circle"
+      center: [50.0, 50.0]
+      radius: 9.15  # percent equivalent
+      
+  precision:
+    decimal_places: 2
+    rounding: "HALF_EVEN"  # Banker's rounding
+    tolerance_for_boundary: 0.01  # 1cm effective
+
+# ============================================================================
+# SECTION 3: EVENT SCHEMA (CSV FIELDS)
+# ============================================================================
+event_schema:
+  primary_key:
+    composite: true
+    fields: ["match_id", "period_id", "game_clock_ms", "event_sequence_id"]
+    collision_handling: "REJECT_BOTH"
+    
+  fields:
+    # --- IDENTIFIERS ---
+    - name: "event_id"
+      type: "UUID_V4"
+      required: true
+      description: "Globally unique event identifier"
+      generation: "DETERMINISTIC_FROM_CONTENT"
+      hash_inputs: ["match_id", "period_id", "game_clock_ms", "event_type", "player_id", "x", "y"]
+      
+    - name: "match_id"
+      type: "STRING"
+      required: true
+      max_length: 64
+      pattern: "^HPFA-M-[A-Z0-9]{16}$"
+      description: "Canonical match identifier"
+      
+    - name: "event_sequence_id"
+      type: "INTEGER"
+      required: true
+      min: 1
+      max: 999999
+      description: "Sequential order within match (1-indexed)"
+      monotonicity: "STRICT_INCREASING"
+      
+    # --- TEMPORAL ---
+    - name: "period_id"
+      type: "INTEGER"
+      required: true
+      enum: [1, 2, 3, 4, 5]
+      description: "Match period (1=1H, 2=2H, 3=ET1, 4=ET2, 5=PK)"
+      
+    - name: "game_clock_ms"
+      type: "INTEGER"
+      required: true
+      min: 0
+      max: 7800000
+      description: "Milliseconds from period start"
+      validation: "MUST_BE_WITHIN_PERIOD_BOUNDS"
+      
+    - name: "game_clock_display"
+      type: "STRING"
+      required: true
+      pattern: "^\\d{1,3}:\\d{2}(\\.\\d{1,3})?$"
+      description: "Human-readable clock (e.g., '45:30.500')"
+      derivation: "COMPUTED_FROM_game_clock_ms"
+      
+    - name: "wall_clock_utc"
+      type: "DATETIME"
+      required: false
+      format: "ISO-8601"
+      description: "Real-world UTC timestamp"
+      
+    # --- ENTITY IDENTIFIERS ---
+    - name: "team_id"
+      type: "STRING"
+      required: true
+      max_length: 64
+      pattern: "^HPFA-T-[A-Z0-9]{12}$"
+      description: "Canonical team identifier"
+      
+    - name: "player_id"
+      type: "STRING"
+      required: false  # Some events are team-level
+      max_length: 64
+      pattern: "^HPFA-P-[A-Z0-9]{12}$"
+      description: "Canonical player identifier"
+      null_condition: "ALLOWED_FOR_TEAM_EVENTS"
+      
+    - name: "opponent_team_id"
+      type: "STRING"
+      required: true
+      max_length: 64
+      pattern: "^HPFA-T-[A-Z0-9]{12}$"
+      description: "Opponent canonical team identifier"
+      
+    # --- EVENT CLASSIFICATION ---
+    - name: "event_type"
+      type: "STRING"
+      required: true
+      max_length: 32
+      enum_reference: "event_type_taxonomy"
+      description: "Primary event classification"
+      
+    - name: "event_subtype"
+      type: "STRING"
+      required: false
+      max_length: 32
+      description: "Secondary event classification"
+      dependency: "MUST_BE_VALID_FOR_event_type"
+      
+    - name: "outcome"
+      type: "STRING"
+      required: true
+      enum: ["SUCCESS", "FAILURE", "PARTIAL", "NEUTRAL"]
+      description: "Binary/ternary outcome of event"
+      
+    # --- SPATIAL (START) ---
+    - name: "x"
+      type: "FLOAT"
+      required: true
+      min: 0.0
+      max: 100.0
+      precision: 2
+      description: "Event start x-coordinate (normalized)"
+      
+    - name: "y"
+      type: "FLOAT"
+      required: true
+      min: 0.0
+      max: 100.0
+      precision: 2
+      description: "Event start y-coordinate (normalized)"
+      
+    # --- SPATIAL (END) - For movement events ---
+    - name: "end_x"
+      type: "FLOAT"
+      required: false
+      min: 0.0
+      max: 100.0
+      precision: 2
+      description: "Event end x-coordinate"
+      null_condition: "REQUIRED_FOR_MOVEMENT_EVENTS"
+      
+    - name: "end_y"
+      type: "FLOAT"
+      required: false
+      min: 0.0
+      max: 100.0
+      precision: 2
+      description: "Event end y-coordinate"
+      null_condition: "REQUIRED_FOR_MOVEMENT_EVENTS"
+      
+    # --- EVENT QUALIFIERS ---
+    - name: "body_part"
+      type: "STRING"
+      required: false
+      enum: ["RIGHT_FOOT", "LEFT_FOOT", "HEAD", "CHEST", "OTHER", "KEEPER_HANDS"]
+      description: "Body part used for event"
+      null_condition: "REQUIRED_FOR_BALL_TOUCH_EVENTS"
+      
+    - name: "technique"
+      type: "STRING"
+      required: false
+      max_length: 32
+      enum_reference: "technique_taxonomy"
+      description: "Execution technique"
+      
+    - name: "under_pressure"
+      type: "BOOLEAN"
+      required: true
+      default: false
+      description: "Whether player was under defensive pressure"
+      
+    - name: "is_counterattack"
+      type: "BOOLEAN"
+      required: true
+      default: false
+      description: "Event occurred during counterattack phase"
+      
+    # --- POSSESSION CONTEXT ---
+    - name: "possession_id"
+      type: "STRING"
+      required: true
+      pattern: "^HPFA-POS-[A-Z0-9]{16}$"
+      description: "Possession sequence identifier"
+      
+    - name: "possession_event_index"
+      type: "INTEGER"
+      required: true
+      min: 1
+      description: "Event index within possession sequence"
+      
+    # --- RELATED EVENTS ---
+    - name: "related_event_id"
+      type: "UUID_V4"
+      required: false
+      description: "Linked event (e.g., pass receiver event)"
+      
+    - name: "preceding_event_id"
+      type: "UUID_V4"
+      required: false
+      description: "Causally preceding event"
+      
+    # --- METADATA ---
+    - name: "data_provider"
+      type: "STRING"
+      required: true
+      enum: ["STATSBOMB", "OPTA", "WYSCOUT", "SKILLCORNER", "METRICA", "INTERNAL"]
+      description: "Original data source"
+      
+    - name: "provider_event_id"
+      type: "STRING"
+      required: true
+      max_length: 128
+      description: "Original provider's event ID"
+      
+    - name: "confidence_score"
+      type: "FLOAT"
+      required: true
+      min: 0.0
+      max: 1.0
+      precision: 4
+      description: "Data quality confidence (1.0 = golden standard)"
+      
+    - name: "ingestion_timestamp_utc"
+      type: "DATETIME"
+      required: true
+      format: "ISO-8601"
+      description: "When event entered HPFA pipeline"
+      
+    - name: "schema_version"
+      type: "STRING"
+      required: true
+      pattern: "^\\d+\\.\\d+\\.\\d+$"
+      description: "Schema version used for this record"
+      
+    # --- AUDIT ---
+    - name: "event_hash"
+      type: "STRING"
+      required: true
+      pattern: "^[a-f0-9]{64}$"
+      description: "SHA-256 hash of canonical event content"
+      computation: "DETERMINISTIC"
+
+# ============================================================================
+# SECTION 4: EVENT TYPE TAXONOMY
+# ============================================================================
+event_type_taxonomy:
+  version: "1.0"
+  
+  categories:
+    - category: "BALL_POSSESSION"
+      events:
+        - type: "PASS"
+          subtypes: ["SHORT", "LONG", "CROSS", "THROUGH", "SWITCH", "CORNER", "FREE_KICK", "GOAL_KICK", "THROW_IN"]
+          requires_end_coordinates: true
+          requires_body_part: true
+          
+        - type: "CARRY"
+          subtypes: ["DRIBBLE", "RUN_WITH_BALL"]
+          requires_end_coordinates: true
+          requires_body_part: false
+          
+        - type: "RECEPTION"
+          subtypes: ["PASS_RECEIVE", "AERIAL_WIN", "LOOSE_BALL_RECOVERY"]
+          requires_end_coordinates: false
+          requires_body_part: true
+          
+    - category: "ATTACKING"
+      events:
+        - type: "SHOT"
+          subtypes: ["OPEN_PLAY", "FREE_KICK", "PENALTY", "CORNER", "OWN_GOAL"]
+          requires_end_coordinates: true
+          requires_body_part: true
+          
+        - type: "GOAL"
+          subtypes: ["OPEN_PLAY", "FREE_KICK", "PENALTY", "OWN_GOAL"]
+          requires_end_coordinates: false
+          requires_body_part: true
+          
+    - category: "DEFENDING"
+      events:
+        - type: "TACKLE"
+          subtypes: ["STANDING", "SLIDING", "BLOCK"]
+          requires_end_coordinates: false
+          requires_body_part: true
+          
+        - type: "INTERCEPTION"
+          subtypes: ["INTENTIONAL", "DEFLECTION"]
+          requires_end_coordinates: false
+          requires_body_part: true
+          
+        - type: "CLEARANCE"
+          subtypes: ["HEADED", "KICKED"]
+          requires_end_coordinates: true
+          requires_body_part: true
+          
+    - category: "AERIAL"
+      events:
+        - type: "AERIAL_DUEL"
+          subtypes: ["OFFENSIVE", "DEFENSIVE"]
+          requires_end_coordinates: false
+          requires_body_part: true
+          
+    - category: "DEAD_BALL"
+      events:
+        - type: "SET_PIECE"
+          subtypes: ["FREE_KICK", "CORNER", "THROW_IN", "GOAL_KICK", "PENALTY", "KICK_OFF"]
+          requires_end_coordinates: false
+          requires_body_part: false
+          
+        - type: "FOUL"
+          subtypes: ["FOUL_COMMITTED", "FOUL_WON"]
+          requires_end_coordinates: false
+          requires_body_part: false
+          
+        - type: "CARD"
+          subtypes: ["YELLOW", "RED", "SECOND_YELLOW"]
+          requires_end_coordinates: false
+          requires_body_part: false
+          
+    - category: "GOALKEEPER"
+      events:
+        - type: "SAVE"
+          subtypes: ["CATCH", "PARRY", "PUNCH", "BLOCK", "DIVING"]
+          requires_end_coordinates: false
+          requires_body_part: true
+          
+        - type: "DISTRIBUTION"
+          subtypes: ["THROW", "KICK", "DROP_KICK"]
+          requires_end_coordinates: true
+          requires_body_part: true
+          
+    - category: "GAME_STATE"
+      events:
+        - type: "SUBSTITUTION"
+          subtypes: ["IN", "OUT"]
+          requires_end_coordinates: false
+          requires_body_part: false
+          
+        - type: "PERIOD_MARKER"
+          subtypes: ["START", "END", "HALFTIME", "FULLTIME"]
+          requires_end_coordinates: false
+          requires_body_part: false
+
+# ============================================================================
+# SECTION 5: IDENTITY RESOLUTION
+# ============================================================================
+identity_resolution:
+  team_resolution:
+    canonical_id_format: "HPFA-T-[A-Z0-9]{12}"
+    generation_method: "DETERMINISTIC_HASH"
+    hash_inputs: ["country_code", "team_name_normalized", "founded_year"]
+    
+    mapping_table:
+      name: "team_provider_mapping"
+      fields:
+        - canonical_id: "STRING"
+        - provider: "ENUM"
+        - provider_id: "STRING"
+        - valid_from: "DATE"
+        - valid_to: "DATE"
+        - confidence: "FLOAT"
+        
+    conflict_resolution:
+      strategy: "HIGHEST_CONFIDENCE_WINS"
+      tie_breaker: "MOST_RECENT_UPDATE"
+      manual_override: true
+      
+  player_resolution:
+    canonical_id_format: "HPFA-P-[A-Z0-9]{12}"
+    generation_method: "DETERMINISTIC_HASH"
+    hash_inputs: ["player_name_normalized", "birth_date", "birth_country"]
+    
+    mapping_table:
+      name: "player_provider_mapping"
+      fields:
+        - canonical_id: "STRING"
+        - provider: "ENUM"
+        - provider_id: "STRING"
+        - valid_from: "DATE"
+        - valid_to: "DATE"
+        - confidence: "FLOAT"
+        
+    ambiguity_handling:
+      same_name_resolution: "BIRTH_DATE_REQUIRED"
+      missing_birth_date: "MANUAL_REVIEW_REQUIRED"
+      
+  match_resolution:
+    canonical_id_format: "HPFA-M-[A-Z0-9]{16}"
+    generation_method: "DETERMINISTIC_HASH"
+    hash_inputs: ["competition_id", "season_id", "match_date", "home_team_id", "away_team_id"]
+
+# ============================================================================
+# SECTION 6: DUPLICATE RESOLUTION
+# ============================================================================
+duplicate_resolution:
+  detection_strategy: "CONTENT_HASH_BASED"
+  
+  duplicate_criteria:
+    primary_method:
+      name: "EXACT_MATCH"
+      fields: ["match_id", "period_id", "game_clock_ms", "event_type", "player_id"]
+      tolerance:
+        game_clock_ms: 50  # 50ms tolerance for clock drift
+        
+    secondary_method:
+      name: "SPATIAL_TEMPORAL_PROXIMITY"
+      thresholds:
+        time_window_ms: 100
+        spatial_distance_percent: 0.5
+      activation: "WHEN_PRIMARY_INCONCLUSIVE"
+      
+  resolution_rules:
+    - rule_id: "DUP-001"
+      condition: "EXACT_DUPLICATE"
+      action: "KEEP_FIRST_DISCARD_REST"
+      audit: "LOG_ALL_DISCARDED"
+      
+    - rule_id: "DUP-002"
+      condition: "NEAR_DUPLICATE_DIFFERENT_PROVIDER"
+      action: "MERGE_WITH_CONFIDENCE_WEIGHTING"
+      merge_strategy:
+        coordinates: "WEIGHTED_AVERAGE"
+        outcome: "HIGHEST_CONFIDENCE"
+        qualifiers: "UNION"
+        
+    - rule_id: "DUP-003"
+      condition: "CONFLICTING_DUPLICATES"
+      action: "QUARANTINE_FOR_MANUAL_REVIEW"
+      quarantine_flag: "DUP_CONFLICT"
+      
+  audit_requirements:
+    log_all_duplicates: true
+    retain_discarded_events: true
+    retention_period_days: 365
+
+# ============================================================================
+# SECTION 7: DETERMINISTIC ORDERING
+# ============================================================================
+deterministic_ordering:
+  description: >
+    HPFA requires fully deterministic event ordering. Given the same
+    input events, the output order MUST be identical across all runs.
+    This is critical for causal graph construction and audit trail.
+    
+  sort_key_hierarchy:
+    - level: 1
+      field: "period_id"
+      direction: "ASC"
+      tie_breaker: "NEXT_LEVEL"
+      
+    - level: 2
+      field: "game_clock_ms"
+      direction: "ASC"
+      tie_breaker: "NEXT_LEVEL"
+      
+    - level: 3
+      field: "event_type_priority"
+      direction: "ASC"
+      tie_breaker: "NEXT_LEVEL"
+      reference: "event_priority_table"
+      
+    - level: 4
+      field: "player_id"
+      direction: "ASC"
+      tie_breaker: "NEXT_LEVEL"
+      null_handling: "NULLS_LAST"
+      
+    - level: 5
+      field: "event_hash"
+      direction: "ASC"
+      tie_breaker: "COLLISION_ERROR"
+      
+  event_priority_table:
+    description: >
+      Lower number = higher priority (processed first).
+      This ensures causal consistency: foul before card,
+      shot before save, pass before reception.
+    priorities:
+      PERIOD_MARKER: 0
+      FOUL: 10
+      CARD: 11
+      SET_PIECE: 20
+      PASS: 30
+      RECEPTION: 31
+      CARRY: 32
+      SHOT: 40
+      SAVE: 41
+      GOAL: 42
+      TACKLE: 50
+      INTERCEPTION: 51
+      CLEARANCE: 52
+      AERIAL_DUEL: 60
+      SUBSTITUTION: 90
+      
+  collision_handling:
+    strategy: "FAIL_CLOSED"
+    description: >
+      If two events have identical sort keys through all 5 levels,
+      this indicates a data quality issue. System MUST halt and
+      flag for manual review. No silent resolution allowed.
+    error_code: "ORD-001"
+    
+  verification:
+    method: "ORDER_HASH"
+    description: >
+      After sorting, compute SHA-256 hash of concatenated event_ids.
+      This hash is stored in batch metadata for reproducibility verification.
+
+# ============================================================================
+# SECTION 8: VALIDATION GATES
+# ============================================================================
+validation_gates:
+  description: >
+    Events pass through sequential validation gates. Failure at any
+    gate results in EVENT_REJECTED status. This implements fail-closed
+    principle. Gates G01-G07 are defined; G08-G14 pending specification.
+    
+  gates:
+    - gate_id: "G01"
+      name: "SCHEMA_CONFORMANCE"
+      description: "Validates all required fields present and typed correctly"
+      failure_action: "REJECT"
+      error_code_prefix: "G01"
+      
+    - gate_id: "G02"
+      name: "TEMPORAL_VALIDITY"
+      description: "Validates timestamp within period bounds and monotonicity"
+      failure_action: "REJECT"
+      error_code_prefix: "G02"
+      
+    - gate_id: "G03"
+      name: "SPATIAL_VALIDITY"
+      description: "Validates coordinates within pitch bounds"
+      failure_action: "REJECT"
+      error_code_prefix: "G03"
+      
+    - gate_id: "G04"
+      name: "ENTITY_RESOLUTION"
+      description: "Validates team/player IDs exist in master tables"
+      failure_action: "REJECT"
+      error_code_prefix: "G04"
+      
+    - gate_id: "G05"
+      name: "EVENT_TYPE_CONSISTENCY"
+      description: "Validates event type/subtype combinations are legal"
+      failure_action: "REJECT"
+      error_code_prefix: "G05"
+      
+    - gate_id: "G06"
+      name: "CONDITIONAL_FIELDS"
+      description: "Validates conditional required fields based on event type"
+      failure_action: "REJECT"
+      error_code_prefix: "G06"
+      
+    - gate_id: "G07"
+      name: "DUPLICATE_CHECK"
+      description: "Checks for and resolves duplicates per resolution rules"
+      failure_action: "QUARANTINE_OR_MERGE"
+      error_code_prefix: "G07"
+      
+    # PENDING SPECIFICATION - Critical gap
+    - gate_id: "G08"
+      name: "PHYSICAL_PLAUSIBILITY"
+      description: "PENDING: Validates physical possibility (speed, distance)"
+      status: "NOT_IMPLEMENTED"
+      
+    - gate_id: "G09"
+      name: "CAUSAL_CONSISTENCY"
+      description: "PENDING: Validates causal chain integrity"
+      status: "NOT_IMPLEMENTED"
+      
+    - gate_id: "G10"
+      name: "POSSESSION_COHERENCE"
+      description: "PENDING: Validates possession sequences are coherent"
+      status: "NOT_IMPLEMENTED"
+      
+    - gate_id: "G11"
+      name: "MATCH_STATE_CONSISTENCY"
+      description: "PENDING: Validates score, player count, etc."
+      status: "NOT_IMPLEMENTED"
+      
+    - gate_id: "G12"
+      name: "CROSS_PROVIDER_RECONCILIATION"
+      description: "PENDING: Reconciles multi-provider data"
+      status: "NOT_IMPLEMENTED"
+      
+    - gate_id: "G13"
+      name: "STATISTICAL_ANOMALY"
+      description: "PENDING: Detects statistical outliers"
+      status: "NOT_IMPLEMENTED"
+      
+    - gate_id: "G14"
+      name: "EPISTEMICS_VERIFICATION"
+      description: "PENDING: Verifies epistemic uncertainty bounds"
+      status: "NOT_IMPLEMENTED"
+
+# ============================================================================
+# SECTION 9: AUDIT TRAIL
+# ============================================================================
+audit_trail:
+  hash_chain:
+    algorithm: "SHA-256"
+    chain_structure: "MERKLE_TREE"
+    batch_size: 1000
+    
+  batch_metadata:
+    fields:
+      - batch_id: "UUID"
+      - event_count: "INTEGER"
+      - first_event_id: "UUID"
+      - last_event_id: "UUID"
+      - order_hash: "STRING"
+      - merkle_root: "STRING"
+      - processing_timestamp: "DATETIME"
+      - schema_version: "STRING"
+      
+  reproducibility_guarantee:
+    description: >
+      Given identical input and schema version, output MUST be
+      byte-for-byte identical. Verified via order_hash comparison.
+    verification_frequency: "EVERY_BATCH"
+
+# ============================================================================
+# END OF SCHEMA
+# ============================================================================

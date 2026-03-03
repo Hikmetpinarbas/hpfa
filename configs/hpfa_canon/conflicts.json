@@ -1,0 +1,329 @@
+{
+  "meta": {
+    "match_id": "juve_gala_ucl_20260225",
+    "match": "Juventus FC 3-2 Galatasaray",
+    "competition": "UEFA Champions League",
+    "date": "2026-02-25",
+    "generated_by": "Claude Opus 4.5 (Verification Agent)",
+    "generated_at": "2026-02-27"
+  },
+  
+  "conflicts": [
+    {
+      "conflict_id": "CONF-001",
+      "severity": "CRITICAL",
+      "category": "schema_divergence",
+      "title": "Main CSV vs Team CSV Schema Mismatch",
+      "description": "Main CSV has 9 columns including separate 'team' field, while Team CSV has 8 columns with team embedded in 'code' field.",
+      "files_affected": [
+        "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı.csv",
+        "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı__2_.csv"
+      ],
+      "evidence": {
+        "main_columns": ["ID", "start", "end", "code", "team", "action", "half", "pos_x", "pos_y"],
+        "team_columns": ["ID", "start", "end", "code", "action", "half", "pos_x", "pos_y"],
+        "missing_in_team": ["team"]
+      },
+      "impact": "Cannot directly join or union these files without transformation",
+      "proposed_test": {
+        "test_id": "TEST-001",
+        "name": "schema_normalization_validation",
+        "description": "Extract team ID from Team CSV 'code' field and verify matches Main CSV 'team' field",
+        "implementation": "regex_extract(code, r'(\\d+)\\)$') == regex_extract(team, r'\\((\\d+)\\)')",
+        "expected_result": "100% match rate after extraction"
+      },
+      "resolution": {
+        "action": "CREATE_CANONICAL_SCHEMA",
+        "details": "Use Main CSV schema as canonical; transform Team CSV on ingestion"
+      }
+    },
+    
+    {
+      "conflict_id": "CONF-002",
+      "severity": "HIGH",
+      "category": "data_integrity",
+      "title": "GK CSV Contains Non-Subset Action Types",
+      "description": "GK CSV is expected to be a filtered subset of Main CSV but contains 36 action codes not present in Main CSV.",
+      "files_affected": [
+        "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı.csv",
+        "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı__1_.csv"
+      ],
+      "evidence": {
+        "gk_unique_codes": 42,
+        "main_unique_codes": 873,
+        "codes_only_in_gk": 36,
+        "examples": [
+          "1. Uğurcan Çakır (235597) - Yakından isabetli şutlar",
+          "1. Mattia Perin (1141014) - İsabetli Orta Mesafeli Şutlar",
+          "1. Mattia Perin (1141014) - Yanlarda Başarısız Çıkış"
+        ]
+      },
+      "impact": "GK-specific metrics cannot be derived from Main CSV alone",
+      "proposed_test": {
+        "test_id": "TEST-002",
+        "name": "gk_event_taxonomy_mapping",
+        "description": "Map GK-only events to their parent categories in Main CSV",
+        "implementation": "For each GK-only action, identify equivalent or parent action in Main taxonomy",
+        "expected_result": "100% GK actions mappable to Main taxonomy OR explicit new category definition"
+      },
+      "resolution": {
+        "action": "DEFINE_GK_TAXONOMY",
+        "details": "Formally define goalkeeper event taxonomy as extension to main taxonomy"
+      }
+    },
+    
+    {
+      "conflict_id": "CONF-003",
+      "severity": "HIGH",
+      "category": "duplicate_data",
+      "title": "Exact Duplicate Events at Single Timestamp",
+      "description": "6 exact duplicate records found at timestamp 6175.33s (ET Half 1, ~103 min)",
+      "files_affected": [
+        "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı.csv"
+      ],
+      "evidence": {
+        "timestamp": 6175.33,
+        "match_minute": 102.9,
+        "period": "ET Half 1",
+        "duplicate_count": 6,
+        "affected_actions": [
+          {"action": "3. Bölgede Başarılı Dripling", "count": 2},
+          {"action": "Başarılı driplingler", "count": 2},
+          {"action": "Başarılı İkili Mücadeleler", "count": 2}
+        ],
+        "affected_ids": [3245, 3246, 3247, 3248, 3249, 3250]
+      },
+      "impact": "Metric inflation by 2x for affected events if not deduplicated",
+      "proposed_test": {
+        "test_id": "TEST-003",
+        "name": "duplicate_source_analysis",
+        "description": "Determine if duplicates are data provider error or collection artifact",
+        "implementation": "Query provider metadata for affected timestamp; check video frame alignment",
+        "expected_result": "Root cause identification: provider bug vs multiple observation"
+      },
+      "resolution": {
+        "action": "DEDUPLICATE_OR_BLOCK",
+        "details": "Either apply deduplication with audit trail OR block entire match until clarified"
+      }
+    },
+    
+    {
+      "conflict_id": "CONF-004",
+      "severity": "MEDIUM",
+      "category": "event_count_discrepancy",
+      "title": "Team CSV Has 682 More Events Than Main CSV",
+      "description": "Team-level aggregation file contains more events than player-level file, contrary to expectation.",
+      "files_affected": [
+        "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı.csv",
+        "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı__2_.csv"
+      ],
+      "evidence": {
+        "main_csv_events": 4186,
+        "team_csv_events": 4868,
+        "difference": 682,
+        "difference_percentage": 16.3,
+        "common_timestamp_pairs": 1591
+      },
+      "impact": "Unclear aggregation relationship; cannot reconcile team totals from player events",
+      "proposed_test": {
+        "test_id": "TEST-004",
+        "name": "aggregation_reconciliation",
+        "description": "For each timestamp, verify sum(player_events) == team_events",
+        "implementation": "GROUP BY start, end; COUNT player vs team events; identify discrepancies",
+        "expected_result": "Clear aggregation rule OR identification of team-only event types"
+      },
+      "resolution": {
+        "action": "DEFINE_AGGREGATION_LOGIC",
+        "details": "Document exact rules for player→team aggregation"
+      }
+    },
+    
+    {
+      "conflict_id": "CONF-005",
+      "severity": "MEDIUM",
+      "category": "action_taxonomy",
+      "title": "13 Action Types Exclusive to Each File",
+      "description": "Main CSV and Team CSV each have 13 unique action types not present in the other.",
+      "files_affected": [
+        "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı.csv",
+        "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı__2_.csv"
+      ],
+      "evidence": {
+        "common_actions": 48,
+        "main_only": ["Gollük hatalar", "Set Hücumu Oyunu", "Gol pasları", "Şutla Biten Duran Toplarda Yer Alma", "KK"],
+        "team_only": ["Şut", "Uzun Kale Vuruşları (40+ mt)", "Engellenen Şutlar", "Serbest Vuruş hücumları", "Rakibe Kırmızı Kartlar"]
+      },
+      "impact": "Cannot compute certain metrics from a single file",
+      "proposed_test": {
+        "test_id": "TEST-005",
+        "name": "action_taxonomy_completeness",
+        "description": "Build unified action taxonomy covering both files",
+        "implementation": "UNION all unique actions; classify as PLAYER_ONLY, TEAM_ONLY, or COMMON",
+        "expected_result": "Complete taxonomy document with 74+ action definitions"
+      },
+      "resolution": {
+        "action": "CREATE_UNIFIED_TAXONOMY",
+        "details": "Build canonical action ontology for HPFA ingestion layer"
+      }
+    },
+    
+    {
+      "conflict_id": "CONF-006",
+      "severity": "LOW",
+      "category": "time_base",
+      "title": "Non-Zero Time Base Offset",
+      "description": "Match events start at 5.24 seconds instead of 0, indicating data collection delay or offset.",
+      "files_affected": [
+        "All CSV files"
+      ],
+      "evidence": {
+        "first_event_timestamp": 5.24,
+        "expected_first_timestamp": 0.0,
+        "offset": 5.24
+      },
+      "impact": "All time-based calculations must account for offset",
+      "proposed_test": {
+        "test_id": "TEST-006",
+        "name": "time_base_consistency",
+        "description": "Verify offset is constant across all events and files",
+        "implementation": "MIN(start) across all files should be identical",
+        "expected_result": "Consistent 5.24s offset or documented variation"
+      },
+      "resolution": {
+        "action": "APPLY_OFFSET_CORRECTION",
+        "details": "Subtract 5.24s in ingestion layer; document as provider-specific"
+      }
+    },
+    
+    {
+      "conflict_id": "CONF-007",
+      "severity": "LOW",
+      "category": "edge_coordinates",
+      "title": "Boundary Coordinate Accumulation",
+      "description": "109 events have pos_y = 0.0 exactly, suggesting boundary/edge classification.",
+      "files_affected": [
+        "Juventus_FC_3-2_Galatasaray_25_02_2026__Maçın_Tamamı.csv"
+      ],
+      "evidence": {
+        "pos_y_zero_count": 109,
+        "percentage_of_total": 2.6,
+        "pos_x_zero_count": 0
+      },
+      "impact": "May affect spatial analysis; touchline events need special handling",
+      "proposed_test": {
+        "test_id": "TEST-007",
+        "name": "edge_event_classification",
+        "description": "Analyze action types for pos_y=0 events",
+        "implementation": "GROUP BY action WHERE pos_y = 0; verify expected set piece types",
+        "expected_result": "Edge events are throw-ins, corners, or goal kicks"
+      },
+      "resolution": {
+        "action": "FLAG_EDGE_EVENTS",
+        "details": "Add boolean edge_event column; exclude from spatial metrics if needed"
+      }
+    }
+  ],
+  
+  "counter_scenarios": [
+    {
+      "scenario_id": "COUNTER-001",
+      "title": "Duplicates Are Intentional Multi-Observation",
+      "description": "The 6 duplicate events at t=6175.33 might represent legitimate multiple observations of the same physical moment from different analytical perspectives.",
+      "hypothesis": "Provider intentionally records same action under multiple taxonomic categories (e.g., 'Başarılı dripling' is ALSO '3. Bölgede Başarılı Dripling').",
+      "evidence_for": [
+        "Both action types describe successful dribbles",
+        "Same timestamp indicates same physical event",
+        "Provider may use overlapping categories"
+      ],
+      "evidence_against": [
+        "Exact code duplication suggests copy-paste error",
+        "No documentation of multi-category tagging policy",
+        "Other timestamps don't show this pattern consistently"
+      ],
+      "test_to_break": {
+        "name": "pattern_consistency_check",
+        "description": "Search for similar multi-tagging at other timestamps",
+        "breaking_condition": "If < 5% of timestamps show this pattern, likely error; if > 20%, likely intentional"
+      },
+      "conclusion_if_true": "Keep both records but add parent-child relationship in metadata",
+      "conclusion_if_false": "Deduplicate, keeping first occurrence"
+    },
+    
+    {
+      "scenario_id": "COUNTER-002",
+      "title": "GK File Is Enhanced View, Not Subset",
+      "description": "GK CSV might be intentionally enriched with goalkeeper-specific metrics not tracked for outfield players.",
+      "hypothesis": "Provider generates separate goalkeeper reports with specialized action types (shot classification, save types) that don't apply to outfield players.",
+      "evidence_for": [
+        "GK-only actions are goalkeeper-specific (shot types, save types)",
+        "2 goalkeepers in XLSX GK file have different metrics than outfield",
+        "Common in sports analytics to have positional specialization"
+      ],
+      "evidence_against": [
+        "No documentation indicates separate extraction logic",
+        "Some GK events should appear in Main (e.g., saves)",
+        "Creates data integration complexity"
+      ],
+      "test_to_break": {
+        "name": "gk_action_outfield_applicability",
+        "description": "Check if any GK-only action types could apply to outfield players",
+        "breaking_condition": "If any outfield player in Main has GK-only action type → File is incomplete, not specialized"
+      },
+      "conclusion_if_true": "Treat GK CSV as supplementary data source; define merge logic",
+      "conclusion_if_false": "GK CSV has extraction error; flag for provider correction"
+    }
+  ],
+  
+  "break_conditions": [
+    {
+      "condition_id": "BREAK-001",
+      "name": "Duplicate Pattern Consistency",
+      "applies_to": "COUNTER-001",
+      "metric": "percentage of timestamps with multi-category tagging",
+      "threshold": {
+        "error_if_below": 0.05,
+        "intentional_if_above": 0.20
+      },
+      "current_value": "UNMEASURED",
+      "action_if_breaks": "Reclassify duplicates as intentional multi-observation"
+    },
+    
+    {
+      "condition_id": "BREAK-002",
+      "name": "GK Action Outfield Applicability",
+      "applies_to": "COUNTER-002",
+      "metric": "count of outfield players with GK-only actions",
+      "threshold": {
+        "error_if_above": 0
+      },
+      "current_value": "UNMEASURED",
+      "action_if_breaks": "Flag GK CSV as incomplete extraction"
+    },
+    
+    {
+      "condition_id": "BREAK-003",
+      "name": "Golden Reference Deviation",
+      "applies_to": "All conflicts",
+      "metric": "deviation from independently verified match data",
+      "threshold": {
+        "acceptable": 0.0,
+        "warning": 0.001,
+        "error": 0.01
+      },
+      "current_value": "NO_GOLDEN_REFERENCE_AVAILABLE",
+      "action_if_breaks": "System is theoretical, not operationally validated"
+    }
+  ],
+  
+  "summary": {
+    "total_conflicts": 7,
+    "critical": 1,
+    "high": 2,
+    "medium": 2,
+    "low": 2,
+    "proposed_tests": 7,
+    "counter_scenarios": 2,
+    "break_conditions": 3,
+    "overall_status": "REQUIRES_REMEDIATION"
+  }
+}
