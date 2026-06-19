@@ -1,0 +1,6 @@
+title	donor_theme	portable_target	forbidden_use
+VAEP An objective approach to valuing on-the-ball actions in soccer	SPADL_VAEP_action_valuation	hpfa/modules/core/metric_primitive_library/docs/offline_action_valuation_notes.md	runtime_proof
+Valuing the art of pressing	pressing_value_event_context	hpfa/modules/core/metric_primitive_library/docs/offline_pressing_value_notes.md	off_ball_truth_claim
+Valuing passes in actions leading to the third zone on the pitch	third_zone_progression_value	hpfa/modules/postmatch/progression_engine/docs/offline_progression_value_notes.md	line_break_truth_claim
+Beyond Outcome Bias Incorporating Action Completion Probability and Risk Return into Soccer Evaluation Models	risk_return_action_completion	hpfa/modules/core/metric_primitive_library/docs/offline_risk_return_notes.md	production_metric_without_validation
+Learning Contextualized Soccer Player Representations using Variational Autoencoders	contextual_player_representation	docs/research/offline_contextual_representation_notes.md	player_truth_without_context_gate
