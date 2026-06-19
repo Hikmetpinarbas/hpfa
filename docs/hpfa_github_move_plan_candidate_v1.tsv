@@ -1,0 +1,16 @@
+source_pattern	proposed_target	plan_status	mutation_allowed_now	reason
+pyproject.toml	pyproject.toml	KEEP	NO	already root packaging file
+docs/HPFA_PRODUCT_ENGINEERING_ARCHITECTURE_DECISION_V1.md	docs/architecture/	MOVE_CANDIDATE	NO	architecture decision
+docs/HPFA_PRODUCTIZATION_PROGRAM_V1.md	docs/productization/	MOVE_CANDIDATE	NO	program governance
+docs/HPFA_PRODUCT_MODULE_GOVERNANCE_PIVOT_V1.md	docs/productization/	MOVE_CANDIDATE	NO	product governance
+docs/HPFA_PROGRESSION_ENGINE_*	docs/productization/progression_engine/	MOVE_CANDIDATE	NO	progression docs should be grouped
+runtime_evidence/postmatch_release_0_1/progression_engine/*	runtime_evidence/postmatch_release_0_1/progression_engine/	KEEP	NO	already evidence namespace
+tools/hpfa-release-wrapper.sh	tools/hpfa-release-wrapper.sh	KEEP_WITH_REVIEW	NO	release wrapper stays tool
+configs/hpfa_canon/*	configs/hpfa_canon/	KEEP_WITH_REVIEW	NO	config review needed
+hpfa-main/*	hpfa/ or archive_reference/	REVIEW_CANDIDATE	NO	nested imported structure risk
+graphics_pack/*	archive_reference/graphics_pack/	ARCHIVE_CANDIDATE	NO	research pack
+data_inbox/*	archive_reference/data_inbox/	ARCHIVE_CANDIDATE	NO	inbox material
+missing progression module skeleton	hpfa/modules/postmatch/progression_engine/	CREATE_CANDIDATE	NO	product path missing
+missing contracts	hpfa/modules/postmatch/progression_engine/contracts/	CREATE_CANDIDATE	NO	contracts missing
+missing tests	hpfa/modules/postmatch/progression_engine/tests/	CREATE_CANDIDATE	NO	tests missing
+restricted patterns	restricted_not_packaged/	REVIEW_GATE_REQUIRED	NO	non-canonical material
