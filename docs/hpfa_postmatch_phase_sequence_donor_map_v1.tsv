@@ -1,0 +1,10 @@
+donor_source	donor_path	donor_role	promotion_status	risk_note
+GitHub_HP_Motor	hp_motor/ontology/phases.yaml	phase_taxonomy_donor	INSPECT_ONLY	needs generic HPFA taxonomy review
+GitHub_HP_Motor	hp_motor/segmentation/phase_tagger.py	phase_tagging_logic_donor	INSPECT_ONLY	must avoid tactical truth output
+GitHub_HP_Motor	hp_motor/segmentation/sequences.py	sequence_segmentation_donor	INSPECT_ONLY	must run only after canonical ingest and data quality gate
+GitHub_HP_Motor	hp_motor/data/6faz_map.json	phase_map_donor	INSPECT_ONLY	must map to HPFA phase IDs
+GitHub_HP_Motor	tests/test_segmentation_smoke.py	segmentation_test_donor	INSPECT_ONLY	needs ACTIVE_MATCH contract test rewrite
+GitHub_HP_Engine	HP_ENGINE/sequence/live/hp_sequence_engine.py	sequence_engine_donor	INSPECT_ONLY	requires claim-safe adaptation
+GitHub_HP_Engine	HP_ENGINE/sequence/_merge_lab/.../canonical/hp_sequence_engine.py	canonical_sequence_donor	INSPECT_ONLY	merge-lab source not production authority
+Local_Termux_Inventory	hpfa_phase_sequence_candidates_v1.txt	candidate_inventory	REFERENCE_ONLY	contains delete-gate match001 archive and staging risk
+Google_Drive	HPFA Core Data Quality Gate Template Discovery V1	governance_dependency	REFERENCE_ONLY	phase sequence can run only after quality gate
