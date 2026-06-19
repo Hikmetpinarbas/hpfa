@@ -1,0 +1,33 @@
+NODE=hpfa_progression_engine_sprint_1_1_composite_review_v1
+STATUS=PASS_WITH_MONITORED_RISK
+DECISION=COMPOSITE_REVIEW_ACCEPTED_WITH_ATTACHMENT_RISK
+OUTPUT=/data/data/com.termux/files/home/storage/downloads/HPFA_NOW/hpfa_progression_engine_sprint_1_1_composite_review_v1.tsv
+LINE_COUNT=10
+BYTE_SIZE=1096
+SHA256=38dd35aaee72d9cfae2c84a8b45dec341de8a1a9262247ab77fff13612c9d7b2
+
+ROLE_SUMMARY
+producer	8
+support	8
+policy	5
+
+CHECK_SUMMARY
+pass_count=8
+review_required_count=1
+fail_count=0
+
+football_value_level=VERIFIED_GAIN
+claim_safety_status=CLAIM_SAFE
+release_status=RELEASE_CANDIDATE_NOT_PRODUCTION_BOUND
+next_node=hpfa_progression_engine_sprint_1_2_active_match_regression_v1
+
+CHECK_ROWS
+PASS	selected_producer_presence	producer_count=8
+PASS	selected_support_presence	support_count=8
+PASS	selected_policy_presence	policy_count=5
+PASS	dirty_path_exclusion	bad_selected_count=0
+PASS	football_output_pass	safe_audit_pass_rows=5
+PASS	claim_safety	claim_safety_status=CLAIM_SAFE
+PASS	release_candidate_status	release_status=RELEASE_CANDIDATE_NOT_PRODUCTION_BOUND
+REVIEW_REQUIRED	attachment_semantics	attachment_review_count=0
+PASS	composite_reusability	producer=8;support=8;policy=5;bad_paths=0
