@@ -1,0 +1,11 @@
+axis_id	axis_name	primary_use	portable_output
+A01	governance_lifecycle	product policy source	offline policy summary
+A02	theory_formula_donors	formula and theory source	offline formula notes
+A03	ontology_schema_donors	schema source	schema contracts
+A04	data_quality_authority_gates	quality policy source	quality gate policy
+A05	phase_sequence_donors	phase sequence source	phase sequence contract
+A06	metric_primitives	metric source	metric primitive docs
+A07	claim_safety_abstain	claim policy source	claim policy tests
+A08	registry_release_audit	release policy source	registry audit policy
+A09	archive_quarantine_risks	risk source	risk map
+A10	portable_package_candidates	package source	portable package spec
