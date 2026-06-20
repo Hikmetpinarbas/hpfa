@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hpfa.metric_contract_schema_v1",
+  "title": "HPFA Metric Contract Schema V1",
+  "type": "object",
+  "required": [
+    "id",
+    "layer",
+    "definition",
+    "required_columns",
+    "status_policy",
+    "definition_confidence"
+  ],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "layer": {"type": "string"},
+    "mechanisms": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "definition": {"type": "string"},
+    "definition_tr": {"type": ["string", "null"]},
+    "raw_formula": {"type": ["string", "null"]},
+    "required_columns": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "status_policy": {
+      "type": "object",
+      "required": ["OK", "UNKNOWN"],
+      "properties": {
+        "OK": {"type": "string"},
+        "DEGRADED": {"type": "string"},
+        "UNKNOWN": {"type": "string"}
+      },
+      "additionalProperties": {"type": "string"}
+    },
+    "definition_source": {"type": ["string", "null"]},
+    "definition_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "claim_capacity": {
+      "type": "string",
+      "enum": ["EVIDENCE_ONLY", "CLAIM_GATE_REQUIRED", "ABSTAIN_ONLY"]
+    }
+  },
+  "additionalProperties": true
+}
