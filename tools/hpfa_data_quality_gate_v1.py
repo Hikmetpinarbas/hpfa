@@ -16,6 +16,7 @@ Input:
 
 Output:
     JSON gate report with PASS / DEGRADED / FAIL_CLOSED status.
+    Optional short text summary with next allowed actions.
 """
 
 from __future__ import annotations
@@ -280,10 +281,58 @@ def summarize(findings: List[GateFinding]) -> str:
     return PASS
 
 
+def next_action_for_status(status: str) -> Dict[str, Any]:
+    if status == PASS:
+        return {
+            "phase_sequence_allowed": True,
+            "metric_layer_allowed": True,
+            "claim_layer_allowed": False,
+            "reason": "Data quality gate passed. Downstream event-only context and metric layers may run. Claim layer remains blocked until claim gate and football audit.",
+        }
+    if status == DEGRADED:
+        return {
+            "phase_sequence_allowed": True,
+            "metric_layer_allowed": "CONDITIONAL",
+            "claim_layer_allowed": False,
+            "reason": "Data quality is degraded. Downstream modules may run only in degraded mode and must preserve degraded flags. Claim layer remains blocked.",
+        }
+    return {
+        "phase_sequence_allowed": False,
+        "metric_layer_allowed": False,
+        "claim_layer_allowed": False,
+        "reason": "Data quality failed closed. No downstream analysis is allowed.",
+    }
+
+
+def write_summary(path: Path, report: Dict[str, Any]) -> None:
+    findings = report.get("findings", [])
+    failed = [f["gate_id"] for f in findings if f.get("status") == FAIL_CLOSED]
+    degraded = [f["gate_id"] for f in findings if f.get("status") == DEGRADED]
+    next_action = report["next_action"]
+    lines = [
+        f"tool={report['tool']}",
+        f"status={report['status']}",
+        f"input={report['input']}",
+        f"input_format={report['input_format']}",
+        f"row_count={report['row_count']}",
+        f"valid_row_count={report['valid_row_count']}",
+        f"failed_gates={','.join(failed) if failed else 'NONE'}",
+        f"degraded_gates={','.join(degraded) if degraded else 'NONE'}",
+        f"phase_sequence_allowed={next_action['phase_sequence_allowed']}",
+        f"metric_layer_allowed={next_action['metric_layer_allowed']}",
+        f"claim_layer_allowed={next_action['claim_layer_allowed']}",
+        f"next_action_reason={next_action['reason']}",
+        "claim_safety=NO_FOOTBALL_CLAIMS_EMITTED",
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="HPFA event-table data quality gate v1")
     parser.add_argument("input", help="Input .csv or .jsonl event surface")
     parser.add_argument("--out", required=True, help="Output gate report JSON path")
+    parser.add_argument("--summary-out", help="Optional output summary TXT path")
     args = parser.parse_args()
 
     input_path = Path(args.input)
@@ -308,11 +357,14 @@ def main() -> None:
         "valid_row_count": len(valid_rows(rows)),
         "claim_safety": "NO_FOOTBALL_CLAIMS_EMITTED",
         "authority_note": "Runtime authority still requires Termux ACTIVE_MATCH execution.",
+        "next_action": next_action_for_status(final_status),
         "findings": [asdict(f) for f in findings],
     }
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    if args.summary_out:
+        write_summary(Path(args.summary_out), report)
     print(json.dumps({"status": final_status, "out": str(out_path), "row_count": len(rows)}, ensure_ascii=False))
 
 
