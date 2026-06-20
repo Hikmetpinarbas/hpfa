@@ -41,9 +41,9 @@ DEFAULT_REQUIRED_ANY = [
     ("period", "half"),
 ]
 
-TIME_COLUMNS = ("timestamp", "time", "game_clock", "game_clock_ms", "minute", "second")
-X_COLUMNS = ("x", "start_x", "location_x")
-Y_COLUMNS = ("y", "start_y", "location_y")
+TIME_COLUMNS = ("timestamp", "time", "game_clock", "game_clock_ms", "minute", "second", "start", "end")
+X_COLUMNS = ("x", "start_x", "location_x", "pos_x")
+Y_COLUMNS = ("y", "start_y", "location_y", "pos_y")
 REFERENCE_MARKERS = ("pdf", "reference", "archive", "sample", "match_tests", "match001", "quarantine")
 
 
@@ -89,7 +89,13 @@ def read_rows(path: Path) -> Tuple[List[Dict[str, Any]], str]:
 
     if suffix == ".csv":
         with path.open("r", encoding="utf-8-sig", errors="ignore", newline="") as f:
-            reader = csv.DictReader(f)
+            sample = f.read(4096)
+            f.seek(0)
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+            except csv.Error:
+                dialect = csv.excel
+            reader = csv.DictReader(f, dialect=dialect)
             rows = []
             for line_no, row in enumerate(reader, start=2):
                 row = dict(row)
