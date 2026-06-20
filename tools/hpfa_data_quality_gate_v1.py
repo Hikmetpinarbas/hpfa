@@ -35,7 +35,7 @@ PASS = "PASS"
 
 DEFAULT_REQUIRED_ANY = [
     ("event_id", "id"),
-    ("event_type", "type", "action_type"),
+    ("event_type", "type", "action_type", "action"),
     ("team_id", "team", "team_name"),
     ("period", "half"),
 ]
@@ -54,6 +54,18 @@ class GateFinding:
     evidence: Dict[str, Any]
 
 
+def is_blank(v: Any) -> bool:
+    if v is None:
+        return True
+    if isinstance(v, str):
+        return v.strip() == "" or v.strip().lower() in {"none", "null", "nan"}
+    return False
+
+
+def clean_str(v: Any) -> str:
+    return "" if is_blank(v) else str(v).strip()
+
+
 def read_rows(path: Path) -> Tuple[List[Dict[str, Any]], str]:
     suffix = path.suffix.lower()
     if suffix == ".jsonl":
@@ -68,6 +80,8 @@ def read_rows(path: Path) -> Tuple[List[Dict[str, Any]], str]:
                     if isinstance(obj, dict):
                         obj.setdefault("__row_lineage__", {"line_no": line_no})
                         rows.append(obj)
+                    else:
+                        rows.append({"__parse_error__": s, "__row_lineage__": {"line_no": line_no}})
                 except json.JSONDecodeError:
                     rows.append({"__parse_error__": s, "__row_lineage__": {"line_no": line_no}})
         return rows, "jsonl"
@@ -114,6 +128,10 @@ def to_float(v: Any) -> Optional[float]:
         return None
 
 
+def valid_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [r for r in rows if "__parse_error__" not in r]
+
+
 def gate_reference_exclusion(path: Path) -> GateFinding:
     p = str(path).lower()
     markers = [m for m in REFERENCE_MARKERS if m in p]
@@ -127,9 +145,25 @@ def gate_reference_exclusion(path: Path) -> GateFinding:
     return GateFinding("G09_REFERENCE_EXCLUSION", PASS, "No reference marker detected in input path.", {"path": str(path)})
 
 
+def gate_parse_errors(rows: List[Dict[str, Any]]) -> GateFinding:
+    parse_errors = [r for r in rows if "__parse_error__" in r]
+    if not parse_errors:
+        return GateFinding("G00_PARSE", PASS, "No parse errors detected.", {"parse_error_count": 0})
+    return GateFinding(
+        "G00_PARSE",
+        FAIL_CLOSED,
+        "Parse errors detected in input rows.",
+        {
+            "parse_error_count": len(parse_errors),
+            "line_sample": [r.get("__row_lineage__", {}) for r in parse_errors[:10]],
+        },
+    )
+
+
 def gate_schema(rows: List[Dict[str, Any]]) -> GateFinding:
+    rows = valid_rows(rows)
     if not rows:
-        return GateFinding("G01_SCHEMA", FAIL_CLOSED, "No rows found.", {"row_count": 0})
+        return GateFinding("G01_SCHEMA", FAIL_CLOSED, "No valid rows found.", {"row_count": 0})
     key_map = norm_key_map(rows)
     missing_groups = []
     selected = {}
@@ -145,11 +179,12 @@ def gate_schema(rows: List[Dict[str, Any]]) -> GateFinding:
 
 
 def gate_duplicate(rows: List[Dict[str, Any]]) -> GateFinding:
+    rows = valid_rows(rows)
     key_map = norm_key_map(rows)
     event_col = first_present(key_map, ("event_id", "id"))
     if not event_col:
         return GateFinding("G02_DUPLICATE", DEGRADED, "No event id column; duplicate audit degraded.", {})
-    vals = [str(r.get(event_col, "")).strip() for r in rows if str(r.get(event_col, "")).strip()]
+    vals = [clean_str(r.get(event_col, "")) for r in rows if clean_str(r.get(event_col, ""))]
     counts = Counter(vals)
     duplicate_ids = [k for k, v in counts.items() if v > 1]
     duplicate_rate = len(duplicate_ids) / max(len(counts), 1)
@@ -158,6 +193,7 @@ def gate_duplicate(rows: List[Dict[str, Any]]) -> GateFinding:
 
 
 def gate_coordinates(rows: List[Dict[str, Any]]) -> GateFinding:
+    rows = valid_rows(rows)
     key_map = norm_key_map(rows)
     x_col = first_present(key_map, X_COLUMNS)
     y_col = first_present(key_map, Y_COLUMNS)
@@ -171,8 +207,9 @@ def gate_coordinates(rows: List[Dict[str, Any]]) -> GateFinding:
         if x is None or y is None:
             continue
         checked += 1
-        # Supports either metric pitch scale 0-105/0-68 or normalized 0-100/0-100.
-        if not ((0 <= x <= 105 and 0 <= y <= 100) or (0 <= x <= 100 and 0 <= y <= 100)):
+        metric_pitch = 0 <= x <= 105 and 0 <= y <= 68
+        normalized_pitch = 0 <= x <= 100 and 0 <= y <= 100
+        if not (metric_pitch or normalized_pitch):
             bad += 1
     if checked == 0:
         return GateFinding("G03_COORDINATE", DEGRADED, "Coordinates present but not numeric.", {"x_col": x_col, "y_col": y_col})
@@ -182,6 +219,7 @@ def gate_coordinates(rows: List[Dict[str, Any]]) -> GateFinding:
 
 
 def gate_temporal(rows: List[Dict[str, Any]]) -> GateFinding:
+    rows = valid_rows(rows)
     key_map = norm_key_map(rows)
     time_col = first_present(key_map, TIME_COLUMNS)
     period_col = first_present(key_map, ("period", "half"))
@@ -194,7 +232,7 @@ def gate_temporal(rows: List[Dict[str, Any]]) -> GateFinding:
         t = to_float(r.get(time_col))
         if t is None:
             continue
-        p = str(r.get(period_col, "unknown")) if period_col else "unknown"
+        p = clean_str(r.get(period_col, "unknown")) if period_col else "unknown"
         checked += 1
         if p in prev and t < prev[p]:
             jumps += 1
@@ -207,21 +245,28 @@ def gate_temporal(rows: List[Dict[str, Any]]) -> GateFinding:
 
 
 def gate_team_identity(rows: List[Dict[str, Any]]) -> GateFinding:
+    rows = valid_rows(rows)
     key_map = norm_key_map(rows)
     team_col = first_present(key_map, ("team_id", "team", "team_name"))
     if not team_col:
         return GateFinding("G05_TEAM_IDENTITY", FAIL_CLOSED, "No team identity column.", {})
-    teams = sorted({str(r.get(team_col, "")).strip() for r in rows if str(r.get(team_col, "")).strip()})
-    status = PASS if 1 <= len(teams) <= 4 else DEGRADED
-    return GateFinding("G05_TEAM_IDENTITY", status, "Team identity audit completed.", {"team_col": team_col, "team_count": len(teams), "teams_sample": teams[:8]})
+    missing_count = sum(1 for r in rows if not clean_str(r.get(team_col, "")))
+    teams = sorted({clean_str(r.get(team_col, "")) for r in rows if clean_str(r.get(team_col, ""))})
+    missing_rate = missing_count / max(len(rows), 1)
+    if missing_count == len(rows) or missing_rate > 0.01:
+        status = FAIL_CLOSED
+    else:
+        status = PASS if 1 <= len(teams) <= 4 else DEGRADED
+    return GateFinding("G05_TEAM_IDENTITY", status, "Team identity audit completed.", {"team_col": team_col, "team_count": len(teams), "missing_count": missing_count, "missing_rate": round(missing_rate, 6), "teams_sample": teams[:8]})
 
 
 def gate_period(rows: List[Dict[str, Any]]) -> GateFinding:
+    rows = valid_rows(rows)
     key_map = norm_key_map(rows)
     period_col = first_present(key_map, ("period", "half"))
     if not period_col:
         return GateFinding("G07_PERIOD", FAIL_CLOSED, "No period/half column.", {})
-    periods = sorted({str(r.get(period_col, "")).strip() for r in rows if str(r.get(period_col, "")).strip()})
+    periods = sorted({clean_str(r.get(period_col, "")) for r in rows if clean_str(r.get(period_col, ""))})
     status = PASS if periods else FAIL_CLOSED
     return GateFinding("G07_PERIOD", status, "Period audit completed.", {"period_col": period_col, "periods": periods[:12]})
 
@@ -245,6 +290,7 @@ def main() -> None:
     rows, input_format = read_rows(input_path)
     findings = [
         gate_reference_exclusion(input_path),
+        gate_parse_errors(rows),
         gate_schema(rows),
         gate_duplicate(rows),
         gate_coordinates(rows),
@@ -259,6 +305,7 @@ def main() -> None:
         "input": str(input_path),
         "input_format": input_format,
         "row_count": len(rows),
+        "valid_row_count": len(valid_rows(rows)),
         "claim_safety": "NO_FOOTBALL_CLAIMS_EMITTED",
         "authority_note": "Runtime authority still requires Termux ACTIVE_MATCH execution.",
         "findings": [asdict(f) for f in findings],
