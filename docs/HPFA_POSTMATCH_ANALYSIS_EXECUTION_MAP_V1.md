@@ -194,10 +194,28 @@ PHASE_SEQUENCE_EVIDENCE_OUTPUT
 CLAIM_GATE_SAFE_LANGUAGE_POLICY
 ```
 
-## 9. Final decision
+## 9. Future product module target
+
+This execution map is the roadmap node. The future product module target is separate:
+
+```txt
+FUTURE_PRODUCT_MODULE = HPFA_POSTMATCH_MATCH_ANALYSIS_PIPELINE_V1
+STATUS = NOT_STARTED
+START_CONDITION = Canonical Ingest + Phase Sequence + Metric Contract + Claim Gate spine exists
+FIRST_RELEASE_TARGET = ACTIVE_MATCH Players.csv → Data Quality PASS → Phase/Sequence output → Metric primitives → safe report skeleton → evidence pack
+```
+
+This product module must not be started as a full report engine before the required spine exists. The immediate next engineering module remains:
+
+```txt
+NEXT_ENGINEERING_MODULE = CANONICAL_INGEST_ENGINE
+```
+
+## 10. Final decision
 
 ```txt
 HPFA_POSTMATCH_ANALYSIS_EXECUTION_MAP_V1 = ACTIVE_ROADMAP_NODE
+HPFA_POSTMATCH_MATCH_ANALYSIS_PIPELINE_V1 = FUTURE_PRODUCT_MODULE_TARGET
 NEW_ARCHITECTURE = NO
 EXISTING_SPINE_ORDERING = YES
 NEXT_ENGINEERING_MODULE = CANONICAL_INGEST_ENGINE
