@@ -9,6 +9,7 @@ from phase_tagger import tag_phases
 from chain_segmenter import segment_chains
 from sequence_segmenter import split_sequences
 from phase_sequence_runner import run
+from sequence_features import build_features
 
 
 def sample_events():
@@ -55,22 +56,38 @@ def test_runner_writes_outputs(tmp_path):
 def test_explicit_possession_id_is_used():
     events = sample_events()
     for i, row in enumerate(events):
-        row["possession_id"] = "P1" if i < 3 else "P2"
+        row['possession_id'] = 'P1' if i < 3 else 'P2'
     tagged = tag_phases(events)
     chains = segment_chains(tagged)
     assert len(chains) == 2
-    assert chains[0]["possession_id"] == "P1"
-    assert chains[0]["possession_authority"] == "EXPLICIT_POSSESSION_ID"
+    assert chains[0]['possession_id'] == 'P1'
+    assert chains[0]['possession_authority'] == 'EXPLICIT_POSSESSION_ID'
 
 
 def test_output_contract_fields_present():
     tagged = tag_phases(sample_events())
     chains = segment_chains(tagged)
     sequences = split_sequences(tagged, chains)
-    assert "possession_id" in chains[0]
-    assert "possession_authority" in chains[0]
-    assert "degraded_flags" in chains[0]
-    assert "claim_safety" in chains[0]
-    assert "possession_id" in sequences[0]
-    assert "claim_safety" in sequences[0]
-    assert "degraded_flags" in sequences[0]
+    assert 'possession_id' in chains[0]
+    assert 'possession_authority' in chains[0]
+    assert 'degraded_flags' in chains[0]
+    assert 'claim_safety' in chains[0]
+    assert 'possession_id' in sequences[0]
+    assert 'claim_safety' in sequences[0]
+    assert 'degraded_flags' in sequences[0]
+
+
+def test_provider_action_taxonomy_counts_features():
+    rows = [
+        {'event_type': 'Passes accurate', 'team_id': 'A', 'start_x': 20, 'pos_x': 20, 'start': 1},
+        {'event_type': 'Progressive passes accurate', 'team_id': 'A', 'start_x': 40, 'pos_x': 40, 'start': 3},
+        {'event_type': 'Shots on target', 'team_id': 'A', 'start_x': 86, 'pos_x': 86, 'start': 8},
+        {'event_type': 'Ball recoveries', 'team_id': 'A', 'start_x': 60, 'pos_x': 60, 'start': 10},
+        {'event_type': 'Lost balls', 'team_id': 'A', 'start_x': 55, 'pos_x': 55, 'start': 12},
+    ]
+    features = build_features(rows, 'S1', 'P1', 'unit')
+    assert features['passes'] == 2
+    assert features['shots'] == 1
+    assert features['recoveries'] == 1
+    assert features['sequence_type'] != 'recycle_or_build_sequence'
+    assert features['claim_safety'] == 'EVIDENCE_ONLY'
