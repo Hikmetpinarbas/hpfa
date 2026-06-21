@@ -9,12 +9,17 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from gate_report_reader import get_gate_status, get_next_action, validate_gate_report
+try:
+    from .gate_report_reader import get_gate_status, get_next_action, validate_gate_report
+except ImportError:  # direct script/test fallback
+    from gate_report_reader import get_gate_status, get_next_action, validate_gate_report
 
 
 CLAIM_LAYER_BLOCK_REASON = (
     "Claim layer remains blocked until executable Claim Gate and Football Output Audit exist."
 )
+
+VALID_METRIC_ALLOWED_VALUES = {True, False, "CONDITIONAL"}
 
 
 class DownstreamPolicyError(PermissionError):
@@ -42,8 +47,16 @@ def is_downstream_allowed(report: Dict[str, Any], layer: str, degraded_mode: boo
 
     if normalized_layer in {"metric", "metric_layer"}:
         allowed = next_action.get("metric_layer_allowed")
+
+        if allowed not in VALID_METRIC_ALLOWED_VALUES:
+            return False
+
+        if status == "DEGRADED":
+            return degraded_mode and allowed in {True, "CONDITIONAL"}
+
         if allowed == "CONDITIONAL":
             return degraded_mode
+
         return bool(allowed)
 
     return False

@@ -100,3 +100,28 @@ def test_assert_blocks_claim_layer(tmp_path):
         return
 
     raise AssertionError("Claim layer must remain blocked.")
+
+
+def test_degraded_metric_true_still_requires_degraded_mode(tmp_path):
+    path = write_report(
+        tmp_path,
+        status="DEGRADED",
+        next_action={
+            "phase_sequence_allowed": True,
+            "metric_layer_allowed": True,
+            "claim_layer_allowed": False,
+            "reason": "malformed degraded metric permission",
+        },
+        findings=[
+            {
+                "gate_id": "G03_COORDINATE",
+                "status": "DEGRADED",
+                "message": "Coordinate columns missing.",
+                "evidence": {},
+            }
+        ],
+    )
+    report = load_gate_report(path)
+
+    assert not is_downstream_allowed(report, "metric")
+    assert is_downstream_allowed(report, "metric", degraded_mode=True)
