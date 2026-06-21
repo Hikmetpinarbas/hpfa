@@ -33,9 +33,9 @@ def test_chain_fallback_and_sequence_features():
     chains = segment_chains(tagged)
     sequences = split_sequences(tagged, chains)
     assert chains
-    assert chains[0]['mode'] == 'TEAM_RUN'
+    assert chains[0]['possession_authority'] == 'FALLBACK_TEAM_RUN'
     assert sequences
-    assert all(seq['boundary'] == 'EVIDENCE_ONLY' for seq in sequences)
+    assert all(seq['claim_safety'] == 'EVIDENCE_ONLY' for seq in sequences)
     assert any(seq['shots'] >= 1 for seq in sequences)
 
 
@@ -50,3 +50,27 @@ def test_runner_writes_outputs(tmp_path):
     assert (out / 'sequences.jsonl').exists()
     assert (out / 'phase_sequence_summary.json').exists()
     assert summary['claim_safety'] == 'EVIDENCE_ONLY'
+
+
+def test_explicit_possession_id_is_used():
+    events = sample_events()
+    for i, row in enumerate(events):
+        row["possession_id"] = "P1" if i < 3 else "P2"
+    tagged = tag_phases(events)
+    chains = segment_chains(tagged)
+    assert len(chains) == 2
+    assert chains[0]["possession_id"] == "P1"
+    assert chains[0]["possession_authority"] == "EXPLICIT_POSSESSION_ID"
+
+
+def test_output_contract_fields_present():
+    tagged = tag_phases(sample_events())
+    chains = segment_chains(tagged)
+    sequences = split_sequences(tagged, chains)
+    assert "possession_id" in chains[0]
+    assert "possession_authority" in chains[0]
+    assert "degraded_flags" in chains[0]
+    assert "claim_safety" in chains[0]
+    assert "possession_id" in sequences[0]
+    assert "claim_safety" in sequences[0]
+    assert "degraded_flags" in sequences[0]

@@ -107,7 +107,7 @@ def build_features(rows: List[Dict[str, Any]], sequence_id: str, chain_id: str, 
     dx = x_delta(rows)
     return {
         'sequence_id': sequence_id,
-        'chain_id': chain_id,
+        'possession_id': chain_id,
         'team_id': side(rows[0]) if rows else '',
         'start_event_index': int(rows[0].get('event_index', 0)) if rows else 0,
         'end_event_index': int(rows[-1].get('event_index', 0)) if rows else 0,
@@ -125,6 +125,6 @@ def build_features(rows: List[Dict[str, Any]], sequence_id: str, chain_id: str, 
         'boundary_reason': reason,
         'transition_flag': bool(e > 0 or reason.startswith('team_switch')),
         'sequence_type': label_type(a, b, c, d, e, dx, seconds),
-        'boundary': 'EVIDENCE_ONLY',
-        'flags': []
+        'claim_safety': 'EVIDENCE_ONLY',
+        'degraded_flags': []
     }

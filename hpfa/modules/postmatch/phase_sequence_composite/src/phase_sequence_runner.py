@@ -28,14 +28,14 @@ def _gate_allows(report: Dict[str, Any] | None, degraded_mode: bool) -> bool:
         return True
     try:
         from hpfa.modules.core.data_quality_gate.src.downstream_policy import is_downstream_allowed
-        return bool(is_downstream_allowed(report, 'phase_sequence', degraded_mode=degraded_mode))
-    except Exception:
+    except ImportError:
         status = str(report.get('status', '')).upper()
         if status == 'PASS':
             return True
         if status == 'DEGRADED':
             return degraded_mode
         return False
+    return bool(is_downstream_allowed(report, 'phase_sequence', degraded_mode=degraded_mode))
 
 
 def _phase_rows(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -82,7 +82,7 @@ def run(input_path: str, out_dir: str, gate_report: str | None = None, degraded_
     write_jsonl(str(out / 'phase_events.jsonl'), _phase_rows(tagged))
     write_jsonl(str(out / 'possessions.jsonl'), chains)
     write_jsonl(str(out / 'sequences.jsonl'), sequences)
-    degraded = any(row.get('phase_degraded_flags') for row in tagged) or any(c.get('flags') for c in chains)
+    degraded = any(row.get('phase_degraded_flags') for row in tagged) or any(c.get('degraded_flags') for c in chains)
     summary = {
         'status': 'DEGRADED' if degraded else 'PASS',
         'events_in': len(events),

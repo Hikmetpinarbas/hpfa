@@ -34,12 +34,12 @@ def split_sequences(events: List[Dict[str, Any]], chains: List[Dict[str, Any]]) 
             if reason:
                 part = rows[seq_start:rel_index]
                 if part:
-                    out.append(build_features(part, f"{chain['chain_id']}_seq_{seq_no}", chain['chain_id'], reason))
+                    out.append(build_features(part, f"{chain['possession_id']}_seq_{seq_no}", chain['possession_id'], reason))
                     seq_no += 1
                 seq_start = rel_index
                 current_phase = row.get('phase_id')
                 current_restart = row.get('set_piece_state') or 'open_play'
         part = rows[seq_start:]
         if part:
-            out.append(build_features(part, f"{chain['chain_id']}_seq_{seq_no}", chain['chain_id'], 'end_of_chain'))
+            out.append(build_features(part, f"{chain['possession_id']}_seq_{seq_no}", chain['possession_id'], 'end_of_chain'))
     return out
