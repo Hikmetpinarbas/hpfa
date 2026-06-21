@@ -2,13 +2,24 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
-GROUPS = {
-    'pass_like': {'pass', 'cross', 'cutback', 'switch_pass'},
-    'finish_like': {'shot', 'goal', 'attempt'},
-    'contest_like': {'duel', 'aerial_duel', 'tackle', 'challenge'},
-    'carry_like': {'carry', 'dribble', 'progressive_run'},
-    'gain_like': {'recovery', 'interception', 'tackle_won', 'ball_recovery'}
-}
+PASS_MARKERS = (
+    'pass', 'passes', 'cross', 'crosses', 'assist', 'key_pass', 'chances_created', 'chance_created'
+)
+FINISH_MARKERS = (
+    'shot', 'shots', 'goal', 'goals', 'free_kick_shot', 'chance', 'chances'
+)
+CONTEST_MARKERS = (
+    'duel', 'duels', 'challenge', 'challenges', 'tackle', 'tackles', 'aerial', 'foul', 'fouls'
+)
+CARRY_MARKERS = (
+    'carry', 'carries', 'dribble', 'dribbles', 'dribbling'
+)
+GAIN_MARKERS = (
+    'recover', 'recoveries', 'interception', 'interceptions', 'tackle_won', 'tackles_successful'
+)
+NEGATIVE_MARKERS = (
+    'lost_ball', 'lost_balls', 'bad_ball_control', 'mistake', 'mistakes'
+)
 
 
 def norm(v: Any) -> str:
@@ -30,6 +41,10 @@ def kind(e: Dict[str, Any]) -> str:
 
 def side(e: Dict[str, Any]) -> str:
     return str(e.get('team_id') or e.get('team') or '').strip()
+
+
+def has_any(text: str, markers: tuple[str, ...]) -> bool:
+    return any(marker in text for marker in markers)
 
 
 def start_x(e: Dict[str, Any]) -> Optional[float]:
@@ -62,6 +77,10 @@ def dur(rows: List[Dict[str, Any]]) -> float:
 def x_delta(rows: List[Dict[str, Any]]) -> float:
     if not rows:
         return 0.0
+    xs = [start_x(r) for r in rows]
+    xs = [x for x in xs if x is not None]
+    if len(xs) >= 2:
+        return float(xs[-1] - xs[0])
     a = start_x(rows[0])
     b = end_x(rows[-1])
     return 0.0 if a is None or b is None else float(b - a)
@@ -77,32 +96,42 @@ def zone6(e: Dict[str, Any], end: bool = False) -> int:
     return min(5, int((nx / 100.0) * 6))
 
 
-def group_count(kinds: List[str], group: str) -> int:
-    items = GROUPS[group]
-    return sum(1 for k in kinds if k in items)
+def action_counts(kinds: List[str]) -> Dict[str, int]:
+    return {
+        'passes': sum(1 for k in kinds if has_any(k, PASS_MARKERS)),
+        'shots': sum(1 for k in kinds if has_any(k, FINISH_MARKERS)),
+        'duels': sum(1 for k in kinds if has_any(k, CONTEST_MARKERS)),
+        'carries': sum(1 for k in kinds if has_any(k, CARRY_MARKERS)),
+        'recoveries': sum(1 for k in kinds if has_any(k, GAIN_MARKERS)),
+        'negative_events': sum(1 for k in kinds if has_any(k, NEGATIVE_MARKERS)),
+    }
 
 
-def label_type(a: int, b: int, c: int, d: int, e: int, dx: float, seconds: float) -> str:
-    if b > 0 and dx >= 12.0:
+def label_type(a: int, b: int, c: int, d: int, e: int, n: int, dx: float, seconds: float) -> str:
+    if b > 0:
         return 'end_product_sequence'
-    if e > 0 and dx >= 15.0:
+    if e > 0 and dx >= 8.0:
         return 'gain_to_advance_sequence'
-    if dx >= 20.0 and seconds <= 15.0 and (a + d) >= 2:
+    if n > 0:
+        return 'loss_or_error_sequence'
+    if dx >= 15.0 and (a + d) >= 1:
         return 'direct_advance_sequence'
-    if a >= 4 and seconds >= 10.0:
+    if a >= 3 and seconds >= 5.0:
         return 'long_ball_circulation_sequence'
-    if c >= 2 and seconds <= 10.0:
+    if c >= 2:
         return 'contest_cluster_sequence'
     return 'recycle_or_build_sequence'
 
 
 def build_features(rows: List[Dict[str, Any]], sequence_id: str, chain_id: str, reason: str) -> Dict[str, Any]:
     kinds = [kind(r) for r in rows]
-    a = group_count(kinds, 'pass_like')
-    b = group_count(kinds, 'finish_like')
-    c = group_count(kinds, 'contest_like')
-    d = group_count(kinds, 'carry_like')
-    e = group_count(kinds, 'gain_like')
+    counts = action_counts(kinds)
+    a = counts['passes']
+    b = counts['shots']
+    c = counts['duels']
+    d = counts['carries']
+    e = counts['recoveries']
+    n = counts['negative_events']
     seconds = dur(rows)
     dx = x_delta(rows)
     return {
@@ -124,7 +153,7 @@ def build_features(rows: List[Dict[str, Any]], sequence_id: str, chain_id: str, 
         'terminal_event_type': kind(rows[-1]) if rows else '',
         'boundary_reason': reason,
         'transition_flag': bool(e > 0 or reason.startswith('team_switch')),
-        'sequence_type': label_type(a, b, c, d, e, dx, seconds),
+        'sequence_type': label_type(a, b, c, d, e, n, dx, seconds),
         'claim_safety': 'EVIDENCE_ONLY',
         'degraded_flags': []
     }
