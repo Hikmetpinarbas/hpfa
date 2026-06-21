@@ -1,0 +1,20 @@
+{
+  "contract_id": "phase_sequence_output_contract_v1",
+  "status": "executable_candidate",
+  "outputs": {
+    "phase_events.jsonl": {
+      "required_fields": ["event_index", "event_id", "team_id", "period", "time_seconds", "event_type", "phase_id", "phase_confidence", "evidence_tags", "degraded_flags", "claim_safety"]
+    },
+    "possessions.jsonl": {
+      "required_fields": ["possession_id", "team_id", "start_event_index", "end_event_index", "event_count", "possession_authority", "degraded_flags", "claim_safety"]
+    },
+    "sequences.jsonl": {
+      "required_fields": ["sequence_id", "possession_id", "team_id", "start_event_index", "end_event_index", "event_count", "duration", "passes", "shots", "duels", "carries", "recoveries", "progression_x", "start_zone", "end_zone", "terminal_event_type", "boundary_reason", "transition_flag", "sequence_type", "claim_safety", "degraded_flags"]
+    },
+    "phase_sequence_summary.json": {
+      "required_fields": ["status", "events_in", "phase_events_out", "possessions_out", "sequences_out", "degraded", "claim_safety", "next_action"]
+    }
+  },
+  "claim_safety": "EVIDENCE_ONLY",
+  "report_language_layer": "blocked"
+}
