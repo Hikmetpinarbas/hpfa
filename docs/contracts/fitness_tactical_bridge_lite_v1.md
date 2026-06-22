@@ -2,7 +2,7 @@
 
 Date: 2026-06-22
 
-Status: SUPPORT_BRIDGE_CONTRACT_SPEC
+Status: ACTIVE_MATCH_EVIDENCE_PASS
 
 ## Product Node
 
@@ -12,9 +12,9 @@ Fitness-Tactical Integration Bridge Lite V1
 
 ## Purpose
 
-Create a claim-safe bridge between ACTIVE_MATCH event evidence and ACTIVE_MATCH-adjacent fitness/reference PDF support evidence.
+Create a claim-safe bridge between ACTIVE_MATCH event evidence and ACTIVE_MATCH-adjacent reference support evidence.
 
-This bridge is an analyst-facing comparison layer. It does not create tactical truth, fatigue truth, load truth, injury truth or causal explanation.
+This bridge is an analyst-facing comparison layer. It is evidence-only and non-causal.
 
 ## Required Inputs
 
@@ -56,20 +56,11 @@ The bridge may compare:
 - PDF extraction readiness
 - reference text availability if page extraction is present
 
-The bridge must not infer:
-
-- tactical causality
-- fatigue causality
-- injury risk truth
-- load truth
-- coach intention
-- dominance
-- off-ball truth
-- phase or possession truth
+The bridge must not infer causal football truth or override ACTIVE_MATCH event evidence.
 
 ## Safe Analyst Language
 
-Allowed:
+Allowed language:
 
 ```text
 support evidence is available beside event evidence
@@ -77,15 +68,6 @@ cross-surface review candidate
 requires analyst validation
 requires claim gate
 visible event evidence and PDF support evidence can be reviewed together
-```
-
-Blocked:
-
-```text
-fitness caused tactical drop
-fatigue caused the pattern
-the PDF proves tactical intent
-load explains match behaviour
 ```
 
 ## Bridge Output Sections
@@ -111,15 +93,9 @@ A candidate may be generated only when both sides exist:
 
 Candidate phrasing must remain non-causal.
 
-Example:
-
-```text
-High event-family volume and available fitness PDF support evidence create a cross-surface review candidate. This is not a fatigue or tactical causality claim.
-```
-
 ## Acceptance Criteria
 
-The bridge can reach REVIEW_REQUIRED or ACTIVE_MATCH_EVIDENCE_PASS only under registered HPFA status vocabulary.
+The bridge can reach ACTIVE_MATCH_EVIDENCE_PASS only under registered HPFA status vocabulary.
 
 Evidence-pass requires:
 
@@ -128,13 +104,78 @@ Evidence-pass requires:
 3. bridge reads event audit and PDF support index;
 4. flat phone outputs are written;
 5. no blocked claim is emitted;
-6. runtime_event_truth remains false for PDF support;
-7. canonical_event_count remains UNKNOWN unless upstream policy changes.
+6. support documents remain non-event-truth;
+7. canonical_event_count remains UNKNOWN unless upstream policy changes;
+8. module_governance_matrix.tsv is synchronized.
+
+## Current Evidence
+
+Operator-reported Termux evidence:
+
+```text
+py_compile=PASS
+pytest=3 passed in 0.04s
+runtime status=PASS
+claim_safety=SUPPORT_BRIDGE_ONLY_NO_CAUSALITY
+candidate_count=2
+```
+
+Observed outputs:
+
+```text
+/storage/emulated/0/Download/HPFA/fitness_tactical_bridge_lite_v1.json
+/storage/emulated/0/Download/HPFA/fitness_tactical_bridge_lite_v1.txt
+```
+
+Runtime evidence summary read by bridge:
+
+```text
+canonical_event_count=UNKNOWN
+canonical_lite_row_count=15516
+coordinate_rows=7713
+event_type_rows=7725
+team_rows=3680
+fitness_pdf_count=5
+reference_pdf_count=5
+reference_page_count=141
+reference_chars_total=284238
+reference_texty_pages=134
+runtime_event_truth=False
+```
+
+Cross-surface candidates produced:
+
+```text
+event_surface_plus_fitness_pdf_support
+event_surface_plus_reference_text_support
+```
+
+## Donor / Reference Guardrail Notes
+
+Google Drive HPFA theory/support materials preserve event-data primacy and restrict claims to what event data can support.
+
+Dropbox external library bridge audit preserves read-only/reference-only usage and blocks runtime authority, event generation and production binding.
+
+Academic external-load support is treated as methodological context only. It does not create football truth inside HPFA.
 
 ## Current Status
 
 ```text
-SUPPORT_BRIDGE_CONTRACT_SPEC_WRITTEN
-IMPLEMENTATION_NOT_STARTED
-ACTIVE_MATCH_EXECUTION_NOT_RUN
+ACTIVE_MATCH_EVIDENCE_PASS
+PRODUCTION_RELEASE_NOT_GRANTED
 ```
+
+Reason:
+
+- Compile and tests passed.
+- ACTIVE_MATCH flat-output runtime run passed.
+- Event evidence and PDF/reference support evidence were both available.
+- Two cross-surface review candidates were produced.
+- All candidates remained non-causal.
+- The canonical governance matrix row is synchronized to `ACTIVE_MATCH_EVIDENCE_PASS` in this update.
+
+Not production release:
+
+- Claim router integration is still required before tactical language.
+- Reference Concept Extractor Lite is still missing.
+- Team Binding Lite is still the next product node for identity binding.
