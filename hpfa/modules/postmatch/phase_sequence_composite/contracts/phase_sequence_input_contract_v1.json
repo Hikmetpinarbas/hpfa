@@ -1,0 +1,32 @@
+{
+  "contract_id": "phase_sequence_input_contract_v1",
+  "status": "executable_candidate",
+  "runtime_authority": "ACTIVE_MATCH",
+  "required_input_types": ["csv", "jsonl", "json"],
+  "minimum_required_fields_any_alias": {
+    "event_id": ["ID", "id", "event_id"],
+    "team": ["team", "team_id"],
+    "event_type": ["event_type", "action", "type", "code"],
+    "period": ["half", "period", "period_id"],
+    "time": ["start", "t_game_sec", "seconds", "minute"],
+    "x": ["pos_x", "x", "start_x"],
+    "y": ["pos_y", "y", "start_y"]
+  },
+  "optional_fields_any_alias": {
+    "end_x": ["end_x", "pass_end_x", "carry_end_x"],
+    "end_y": ["end_y", "pass_end_y", "carry_end_y"],
+    "outcome": ["outcome", "result"],
+    "possession_id": ["possession_id", "possession"],
+    "set_piece_state": ["set_piece_state", "restart_state"]
+  },
+  "gate_policy": {
+    "gate_report_required_for_runtime": true,
+    "pass": "allow",
+    "degraded": "allow_only_with_degraded_mode",
+    "fail_closed": "block"
+  },
+  "boundary": {
+    "output_type": "evidence_only",
+    "report_language_layer": "blocked"
+  }
+}
