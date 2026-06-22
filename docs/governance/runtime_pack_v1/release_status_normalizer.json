@@ -1,0 +1,98 @@
+{
+  "registry_id": "release_status_normalizer_v1",
+  "project": "HPFA",
+  "status": "P0A_GOVERNANCE_FILE",
+  "created_date": "2026-06-22",
+  "rule": "PASS is not release. Smoke evidence, spec acceptance, plan completion, ACTIVE_MATCH evidence and production release are separate states.",
+  "statuses": [
+    {
+      "status": "DISCOVERY_PASS_PLAN_ONLY",
+      "meaning": "A discovery or planning artifact was produced and is coherent, but no executable product module or runtime proof exists.",
+      "release_allowed": false
+    },
+    {
+      "status": "POLICY_CORRECTION_PASS",
+      "meaning": "A policy or governance correction passed review. It may close a policy bug but does not itself release product capability.",
+      "release_allowed": false
+    },
+    {
+      "status": "SPEC_ONLY",
+      "meaning": "A specification exists without implementation, tests or ACTIVE_MATCH execution.",
+      "release_allowed": false
+    },
+    {
+      "status": "SPEC_CORRECTION_ACCEPTED",
+      "meaning": "A specification was corrected and accepted. It is still not executable product evidence.",
+      "release_allowed": false
+    },
+    {
+      "status": "SMOKE_PASS",
+      "meaning": "A smoke or compile test passed. This proves only the tested technical condition.",
+      "release_allowed": false
+    },
+    {
+      "status": "REVIEW_REQUIRED",
+      "meaning": "The artifact exists but requires human or maintainer review before promotion.",
+      "release_allowed": false
+    },
+    {
+      "status": "FAIL_CLOSED",
+      "meaning": "The path failed and is closed to prevent unsafe continuation.",
+      "release_allowed": false
+    },
+    {
+      "status": "WAITING_OPERATOR_SELECTION",
+      "meaning": "The next path requires operator selection or explicit priority ordering.",
+      "release_allowed": false
+    },
+    {
+      "status": "RELEASE_CANDIDATE_NOT_PRODUCTION_BOUND",
+      "meaning": "A release candidate exists but is not bound to production authority or runtime evidence.",
+      "release_allowed": false
+    },
+    {
+      "status": "ACTIVE_MATCH_EVIDENCE_PASS",
+      "meaning": "The module ran against ACTIVE_MATCH and produced evidence/output inside allowed boundaries. This is stronger than smoke pass but not automatically production release.",
+      "release_allowed": false
+    },
+    {
+      "status": "PRODUCTION_RELEASE",
+      "meaning": "The product module is merged, tested, claim-safe, ACTIVE_MATCH validated when required, and accepted for production use.",
+      "release_allowed": true
+    }
+  ],
+  "normalization_rules": [
+    {
+      "input_phrase": "PASS",
+      "normalized_interpretation": "Inspect the test context; PASS never means release by itself."
+    },
+    {
+      "input_phrase": "V12_SPEC_INTEGRITY_PASS",
+      "normalized_status": "SPEC_CORRECTION_ACCEPTED"
+    },
+    {
+      "input_phrase": "Product Governance Runtime Pack plan produced",
+      "normalized_status": "DISCOVERY_PASS_PLAN_ONLY"
+    },
+    {
+      "input_phrase": "py_compile PASS",
+      "normalized_status": "SMOKE_PASS"
+    },
+    {
+      "input_phrase": "pytest passed without ACTIVE_MATCH execution",
+      "normalized_status": "SMOKE_PASS"
+    },
+    {
+      "input_phrase": "ACTIVE_MATCH execution produced flat phone outputs",
+      "normalized_status": "ACTIVE_MATCH_EVIDENCE_PASS"
+    }
+  ],
+  "release_blockers": [
+    "missing ACTIVE_MATCH execution when runtime evidence is required",
+    "nested phone output path",
+    "canonical event count claimed before Canonical Event Lite",
+    "tactical truth emitted before claim gate",
+    "product module exists only as Termux spec",
+    "donor code copied without HPFA adaptation"
+  ]
+}
