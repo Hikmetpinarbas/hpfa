@@ -1,0 +1,45 @@
+{
+  "contract_id": "metric_support_graph_contract_v1",
+  "status": "candidate_not_production_bound",
+  "claim_safety": "EVIDENCE_ONLY",
+  "report_language_allowed": false,
+  "production_binding_allowed": false,
+  "allowed_relations": [
+    "SUPPORTS",
+    "CONTRADICTS",
+    "COMPLEMENTS",
+    "CONTEXTUALIZES",
+    "ABSTAINS"
+  ],
+  "required_node_fields": [
+    "metric_id",
+    "value",
+    "status",
+    "surface_id",
+    "confidence"
+  ],
+  "required_edge_fields": [
+    "from_metric",
+    "to_metric",
+    "relation",
+    "strength",
+    "reason",
+    "claim_safety"
+  ],
+  "blocked_claims": [
+    "tactical_truth",
+    "dominance_truth",
+    "pitch_control_truth",
+    "off_ball_truth",
+    "fatigue_truth",
+    "coach_intention"
+  ],
+  "runtime_dependencies_blocked": [
+    "Google_Drive",
+    "Dropbox",
+    "Sider_Scholar",
+    "PDF",
+    "archive",
+    "sample"
+  ]
+}
