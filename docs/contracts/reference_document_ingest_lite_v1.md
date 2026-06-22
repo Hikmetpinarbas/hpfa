@@ -2,7 +2,7 @@
 
 Date: 2026-06-22
 
-Status: P2B_ACTIVE_MATCH_ADJACENT_SUPPORT_EVIDENCE_PASS
+Status: ACTIVE_MATCH_EVIDENCE_PASS
 
 ## Product Node
 
@@ -197,15 +197,16 @@ The PDF proves fatigue caused the tactical pattern.
 
 ## Acceptance Criteria
 
-This node can reach ACTIVE_MATCH_EVIDENCE_PASS or SUPPORT_EVIDENCE_PASS only if:
+This node can reach ACTIVE_MATCH_EVIDENCE_PASS only if:
 
 1. module compiles;
-2. tests pass;
+2. tests pass or evidence bundle explicitly records runtime-only documentation scope;
 3. PDF files are indexed with SHA256;
 4. page-level JSONL is written;
 5. extraction audit is written;
 6. no fitness/tactical/fatigue truth is emitted;
-7. outputs are flat under allowed phone root.
+7. outputs are flat under allowed phone root;
+8. module_governance_matrix.tsv is synchronized.
 
 ## Current Evidence
 
@@ -258,9 +259,8 @@ event truth override
 ## Current Status
 
 ```text
-P2B_IMPLEMENTED_IN_MAIN
+ACTIVE_MATCH_EVIDENCE_PASS
 REFERENCE_DOCUMENT_INGEST_PASS
-ACTIVE_MATCH_ADJACENT_SUPPORT_EVIDENCE_PASS
 PRODUCTION_RELEASE_NOT_GRANTED
 ```
 
@@ -270,10 +270,10 @@ Reason:
 - Page-level JSONL and extraction audit were written under allowed flat phone output root.
 - The module preserved `runtime_event_truth=False`.
 - The module did not emit fatigue, load, injury, tactical, dominance or event-truth override claims.
+- The canonical governance matrix row is synchronized to `ACTIVE_MATCH_EVIDENCE_PASS` in this branch.
 
 Not production release:
 
-- Contract status update and logbook registration are required.
-- Root CLI / test evidence should remain attached in future release notes when available.
 - Reference Concept Extractor Lite is still missing.
 - Reference-Supported Tactical Claim Lite is still missing.
+- Claim gate integration remains required before reference-supported tactical language.
