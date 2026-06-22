@@ -2,26 +2,20 @@
 
 Date: 2026-06-22
 
-Status: P2_CONTRACT_SPEC
+Status: P2S_SURFACE_COUNT_CORRECTION_IMPLEMENTED_EXECUTION_PENDING
 
 ## Product Node
 
 ```text
 P2 Canonical Event Lite V1
+P2S Canonical Lite Surface Count Correction
 ```
 
 ## Purpose
 
-Canonical Event Lite V1 converts readable ACTIVE_MATCH CSV/XML/XLSX surfaces into a normalized event-lite table without claiming complete event truth.
+Canonical Event Lite V1 converts readable ACTIVE_MATCH CSV/XML/XLSX surfaces into a normalized multi-surface row inventory.
 
-P2 exists because P1 successfully produced an ACTIVE_MATCH analyst report but surfaced a data-dictionary gap:
-
-```text
-zone_distribution=UNKNOWN 100.0%
-channel_distribution=UNKNOWN 100.0%
-```
-
-P2 must solve column discovery, event-family normalization, team label normalization and coordinate extraction.
+P2S corrects the previous count semantics: rows from Players, Teams, Goalkeepers, XML and XLSX surfaces must not be read as a deduplicated match event count.
 
 ## Source Authority
 
@@ -31,27 +25,18 @@ Runtime match truth:
 runtime/active_single_match/current
 ```
 
-GitHub donor support:
-
-- HP-Motor provides CSV/XLSX table loading pattern through `hp_motor.ingest.loader.load_table`.
-- HP-Motor pipeline shows all event CSV sources should be loaded and concatenated, while other CSV/XLSX/XML-like surfaces can be loaded for schema and validation support.
-
-Donor rule:
-
-```text
-ADAPT_NOT_COPY
-```
-
-P2 must adapt donor capability into HPFA product code. It must not import HP-Motor as runtime dependency.
+Product code may read runtime surfaces, but it must not hardcode match identity, team names, tournament names, dates or sample ids.
 
 ## Inputs
 
 Required:
 
-- `active_match_dir`
-- `--out-dir`
+```text
+active_match_dir
+--out-dir
+```
 
-Allowed output roots for user-visible phone output:
+Allowed phone output roots:
 
 ```text
 /sdcard/Download/HPFA
@@ -62,7 +47,7 @@ Nested phone output directories must be rejected.
 
 ## Outputs
 
-P2 must write:
+P2 writes:
 
 ```text
 canonical_event_lite_v1.json
@@ -73,312 +58,200 @@ canonical_event_lite_audit_v1.txt
 
 All outputs must be flat under the selected output root.
 
-## Non-Goal
+## Correct Count Semantics
 
-P2 does not create full canonical event truth.
-
-Before validation completes:
+Primary count fields:
 
 ```text
-canonical_event_count = UNKNOWN
+surface_row_inventory_total
+surface_role_row_counts
+source_surface_row_counts
+canonical_event_count=UNKNOWN
+deduplicated_event_count=UNKNOWN
+primary_event_surface_candidate=UNRESOLVED
+event_count_claim_allowed=false
 ```
 
-P2 may produce:
+Deprecated compatibility field:
 
 ```text
-canonical_lite_row_count
+canonical_lite_row_count_deprecated
 ```
 
-P2 must not produce:
+Deprecated field rule:
 
-- canonical event count as complete match truth
-- validated event stream truth
-- possession truth
-- phase truth
-- tactical truth
-- off-ball truth
-- dominance truth
+```text
+canonical_lite_row_count_deprecated is an alias for surface_row_inventory_total.
+It is not a match event count.
+```
 
-## Required Reader Capabilities
+## Surface Inventory Layer
 
-### CSV
+P2 may read all visible CSV/XML/XLSX surfaces and report:
 
-P2 must read CSV with delimiter detection.
+- rows_read per source file;
+- detected columns;
+- event_type coverage rows;
+- team coverage rows;
+- coordinate coverage rows;
+- surface_role_row_counts;
+- source_surface_row_counts;
+- event-family volume over visible surface rows;
+- zone/channel distribution over visible surface rows.
 
-Supported delimiters:
+This layer answers:
 
-- comma
-- semicolon
-- tab
-- pipe
+```text
+what surfaces are visible?
+what columns are readable?
+which rows expose event_type/team/coordinate evidence?
+```
 
-Encoding fallback:
+It does not answer:
 
-- utf-8-sig
-- utf-8 with ignore
+```text
+how many deduplicated match events occurred?
+which surface is the primary event stream?
+which row in one surface maps to a row in another surface?
+```
 
-### XLSX
+## Primary Event Candidate Layer
 
-P2 must read XLSX as aggregate or validation surface.
+P2 does not yet select a primary event surface.
 
-XLSX may support:
+Until a dedicated gate is implemented:
 
-- player aggregate validation
-- goalkeeper aggregate validation
-- schema discovery
-- later metric binding
+```text
+primary_event_surface_candidate=UNRESOLVED
+deduplicated_event_count=UNKNOWN
+event_count_claim_allowed=false
+```
 
-P2 must not treat XLSX aggregate rows as event truth.
-
-### XML
-
-P2 must read XML event-like nodes.
-
-Supported node names:
-
-- instance
-- event
-- row
-- action
-
-P2 must flatten node attributes and immediate child text into row dictionaries.
-
-XML rows are event-like rows, not validated canonical events.
+A later gate may evaluate Players / Teams / Goalkeepers surfaces, but P2 must not assume one is primary by default.
 
 ## Column Synonym Registry
 
-P2 must detect columns by normalized synonyms.
+P2 detects columns by normalized synonyms.
 
 ### event_type
 
-Synonyms:
-
-- action
-- Action
-- event
-- Event
-- event_type
-- Event Type
-- type
-- Type
-- name
-- Name
-- title
-- Title
-- label
-- Label
-- action_name
-- Action Name
+```text
+action
+event
+event_type
+type
+name
+title
+label
+action_name
+event name
+action type
+event type
+```
 
 ### team
 
-Synonyms:
-
-- team
-- Team
-- team_name
-- Team Name
-- squad
-- Squad
-- club
-- Club
-- side
-- Side
-- participant
-- Participant
-- team_id
-- Team ID
+```text
+team
+team_name
+squad
+club
+side
+participant
+team_id
+team id
+```
 
 ### player
 
-Synonyms:
-
-- player
-- Player
-- player_name
-- Player Name
-- athlete
-- Athlete
-- name
-- Name
-
-### time
-
-Synonyms:
-
-- minute
-- Minute
-- min
-- Min
-- second
-- Second
-- time
-- Time
-- timestamp
-- Timestamp
-- match_time
-- Match Time
-- period
-- Period
+```text
+player
+player_name
+athlete
+player id
+player_id
+```
 
 ### coordinates
 
-x synonyms:
-
-- x
-- X
-- start_x
-- Start X
-- x1
-- X1
-- x_coord
-- X Coord
-- x_coordinate
-- X Coordinate
-- location_x
-- Location X
-- pos_x
-- Pos X
-- coord_x
-- Coord X
-
- y synonyms:
-
-- y
-- Y
-- start_y
-- Start Y
-- y1
-- Y1
-- y_coord
-- Y Coord
-- y_coordinate
-- Y Coordinate
-- location_y
-- Location Y
-- pos_y
-- Pos Y
-- coord_y
-- Coord Y
-
-P2 must also support fuzzy normalized header matching:
-
-- lower-case
-- trim whitespace
-- replace spaces, hyphens, dots and slashes with underscore
-- remove repeated underscores
-
-## Canonical Lite Schema
-
-Each canonical-lite row should contain:
-
-- source_file
-- source_format
-- source_role
-- source_row_index
-- event_type_raw
-- event_family
-- team_raw
-- team_normalized
-- player_raw
-- minute_raw
-- second_raw
-- timestamp_raw
-- x_raw
-- y_raw
-- x_meters
-- y_meters
-- zone
-- channel
-- row_claim_safety
-- row_warnings
-
-## Coordinate Policy
-
-Coordinate values must be numeric to produce zones/channels.
-
-Expected pitch scale:
+P2 supports common x/y aliases including:
 
 ```text
-x in [0, 105]
-y in [0, 68]
+x
+start_x
+x1
+x_coord
+x_coordinate
+location_x
+pos_x
+coord_x
+y
+start_y
+y1
+y_coord
+y_coordinate
+location_y
+pos_y
+coord_y
 ```
 
-If values appear normalized to 0-1 or 0-100, P2 must preserve raw value and add a warning unless conversion policy is explicit.
+## Claim Boundary
 
-Zone buckets:
+Allowed language:
 
-- DEFENSIVE_THIRD
-- MIDDLE_THIRD
-- FINAL_THIRD
-- UNKNOWN
+```text
+surface row inventory
+visible row evidence
+multi-surface row inventory
+coordinate evidence is visible
+team label evidence is visible
+requires primary event surface gate
+```
 
-Channel buckets:
+Blocked language:
 
-- LEFT_CHANNEL
-- CENTRAL_CHANNEL
-- RIGHT_CHANNEL
-- UNKNOWN
+```text
+multi_surface_rows_as_event_count
+deduplicated event count without primary surface gate
+complete event truth
+possession truth
+phase truth
+tactical truth
+dominance truth
+```
 
-## Event Family Policy
+## Technical Limits
 
-P2 must map raw labels into Lite event families:
-
-- PASS
-- SHOT
-- DUEL_PRESSURE
-- CARRY_DRIBBLE
-- BALL_LOSS
-- RECOVERY
-- FOUL
-- GOALKEEPER_RESTART
-- POSITIONAL_ATTACK_SIGNAL
-- UNKNOWN_OR_OTHER
-
-Raw labels must be preserved.
-
-## Team Label Policy
-
-P2 may normalize team labels by exact string cleanup only:
-
-- trim whitespace
-- collapse repeated spaces
-- preserve numeric id if embedded
-
-P2 must not infer team identity from filename when row-level team field is missing. It may report file-level hints separately.
-
-## Audit Requirements
-
-P2 audit must report:
-
-- files read
-- rows read by file
-- canonical-lite rows emitted
-- columns detected by source
-- missing column families
-- coordinate coverage
-- team coverage
-- event_type coverage
-- zone/channel coverage
-- warnings
-- claim boundary
+```text
+Players, Teams and Goalkeepers surfaces may represent overlapping or aggregate views.
+Rows across surfaces must not be summed as match event count.
+XLSX aggregate rows are not event truth.
+canonical_event_count remains UNKNOWN.
+deduplicated_event_count remains UNKNOWN.
+primary_event_surface_candidate remains UNRESOLVED.
+```
 
 ## Acceptance Criteria
 
-P2 can reach ACTIVE_MATCH_EVIDENCE_PASS only if:
+P2S correction requires:
 
 1. module compiles;
 2. tests pass;
-3. ACTIVE_MATCH execution writes all four flat output files;
-4. CSV/XML/XLSX readers report schema coverage;
-5. canonical_event_count remains UNKNOWN unless validation policy is upgraded later;
-6. coordinate coverage is reported honestly;
-7. no forbidden football claim is emitted.
+3. audit exposes `surface_row_inventory_total`;
+4. audit exposes `surface_role_row_counts`;
+5. audit exposes `deduplicated_event_count=UNKNOWN`;
+6. audit exposes `primary_event_surface_candidate=UNRESOLVED`;
+7. audit exposes `event_count_claim_allowed=false`;
+8. old `canonical_lite_row_count` is not emitted as a main audit field;
+9. deprecated alias is clearly marked;
+10. no sample match identity leak in product code.
 
 ## Current Status
 
 ```text
-P2_CONTRACT_SPEC_WRITTEN
-IMPLEMENTATION_NOT_STARTED
-ACTIVE_MATCH_EXECUTION_NOT_RUN
+P2S_SURFACE_COUNT_CORRECTION_IMPLEMENTED
+ACTIVE_MATCH_EXECUTION_PENDING
+PRODUCTION_RELEASE_NOT_GRANTED
 ```
+
+P2 previous ACTIVE_MATCH execution remains useful as surface coverage evidence, but event-count semantics require rerun with P2S fields.
