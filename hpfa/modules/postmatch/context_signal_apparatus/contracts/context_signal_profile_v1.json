@@ -1,0 +1,47 @@
+{
+  "contract_id": "context_signal_profile_v1",
+  "claim_safety": "EVIDENCE_ONLY",
+  "required_fields": [
+    "match_id",
+    "surface_row_count",
+    "coordinate_scale",
+    "period_scopes",
+    "context_fields",
+    "signal_fields",
+    "blocked_truth_fields"
+  ],
+  "coordinate_scale": "105x68",
+  "period_scopes": [
+    "full_match",
+    "first_half",
+    "second_half",
+    "first_half_stoppage",
+    "second_half_stoppage"
+  ],
+  "context_fields": [
+    "half",
+    "score_state",
+    "stoppage_state",
+    "yellow_card_state",
+    "red_card_state",
+    "numerical_state",
+    "substitution_state",
+    "home_away_state"
+  ],
+  "signal_fields": [
+    "raw_entropy",
+    "tempo_cv",
+    "low_value_loop_fraction",
+    "zone_power_proxy",
+    "sterile_circulation_candidate",
+    "chaos_noise_candidate"
+  ],
+  "blocked_truth_fields": [
+    "dominance_truth",
+    "pitch_control_truth",
+    "coach_intention",
+    "fatigue_truth",
+    "off_ball_truth",
+    "tactical_truth"
+  ]
+}
