@@ -49,11 +49,19 @@ def read_json(path: Path) -> dict[str, Any]:
 
 
 def summarize_event_audit(event_audit: dict[str, Any]) -> dict[str, Any]:
+    surface_total = event_audit.get("surface_row_inventory_total")
+    if surface_total is None:
+        surface_total = event_audit.get("canonical_lite_row_count")
     return {
         "available": not event_audit.get("_missing") and not event_audit.get("_error"),
         "status": event_audit.get("status"),
         "canonical_event_count": event_audit.get("canonical_event_count"),
-        "canonical_lite_row_count": event_audit.get("canonical_lite_row_count"),
+        "deduplicated_event_count": event_audit.get("deduplicated_event_count", "UNKNOWN"),
+        "primary_event_surface_candidate": event_audit.get("primary_event_surface_candidate", "UNRESOLVED"),
+        "event_count_claim_allowed": event_audit.get("event_count_claim_allowed", False),
+        "surface_row_inventory_total": surface_total,
+        "canonical_lite_row_count_deprecated": event_audit.get("canonical_lite_row_count_deprecated"),
+        "surface_role_row_counts": event_audit.get("surface_role_row_counts", {}),
         "coverage": event_audit.get("coverage", {}),
         "top_event_families": dict(list((event_audit.get("event_family_volume") or {}).items())[:8]),
         "zone_distribution": event_audit.get("zone_distribution", {}),
@@ -127,6 +135,7 @@ def build_bridge(output_root: str | Path) -> dict[str, Any]:
             "reference concept extractor",
             "team binding",
             "time/phase gate before temporal claims",
+            "primary event surface gate before event count claims",
         ],
     }
 
