@@ -1,0 +1,28 @@
+{
+  "contract_id": "active_match_spine_check_contract_v1",
+  "status": "candidate_not_production_bound",
+  "claim_safety": "EVIDENCE_ONLY",
+  "required_output_files": [
+    "active_match_spine_check_v1.json",
+    "active_match_spine_check_v1.txt"
+  ],
+  "required_json_fields": [
+    "runner_id",
+    "status",
+    "active_match_dir",
+    "surface_manifest",
+    "boundary_scores",
+    "claim_safety",
+    "report_language_allowed",
+    "production_binding_allowed"
+  ],
+  "blocked_outputs": [
+    "football_claim",
+    "report_language",
+    "production_binding"
+  ],
+  "phone_output_policy": {
+    "root": "/sdcard/Download/HPFA",
+    "nested_folders_allowed": false
+  }
+}
