@@ -18,6 +18,7 @@ Summary:
 - Five PDFs were discovered and extracted.
 - Page-level JSONL, manifest and extraction audit outputs were written to flat phone output root.
 - Claim boundary was preserved: reference documents remained support evidence only.
+- Normalized status uses the registered HPFA vocabulary value `ACTIVE_MATCH_EVIDENCE_PASS`.
 
 ## Source Authority
 
@@ -156,13 +157,13 @@ runtime_event_truth = False
 Normalized status:
 
 ```text
-ACTIVE_MATCH_ADJACENT_SUPPORT_EVIDENCE_PASS
+ACTIVE_MATCH_EVIDENCE_PASS
 ```
 
-Nearest existing HPFA status vocabulary mapping:
+Runtime/support outcome recorded inside the evidence bundle:
 
 ```text
-ACTIVE_MATCH_EVIDENCE_PASS
+REFERENCE_DOCUMENT_INGEST_PASS
 ```
 
 Reason:
@@ -175,6 +176,7 @@ Reason:
 - Flat phone output root was preserved.
 - Runtime event truth remained false.
 - Blocked claims were preserved.
+- This status is evidence-pass only, not production release.
 
 Not production release:
 
@@ -207,6 +209,7 @@ GitHub artifacts updated in this branch:
 ```text
 docs/contracts/reference_document_ingest_lite_v1.md
 docs/logbook/2026-06-22-p2b-reference-document-ingest-pass.md
+docs/governance/runtime_pack_v1/module_governance_matrix.tsv
 ```
 
 ## Open Items
@@ -230,8 +233,8 @@ docs/logbook/2026-06-22-p2b-reference-document-ingest-pass.md
 
 ### GitHub gaps
 
-- P2B contract required current-status update.
-- P2B evidence logbook was missing before this branch.
+- None for normalized status vocabulary.
+- None for governance matrix synchronization after this update.
 
 ## Next Correct Step
 
@@ -239,4 +242,4 @@ Create P2C Reference Concept Extractor Lite contract before coding.
 
 ## Handoff Block
 
-P2B Reference Document Ingest Lite V1 has ACTIVE_MATCH-adjacent support evidence. It processed 5 PDFs, extracted 141 pages and 284,238 characters, wrote manifest/pages/audit outputs under `/storage/emulated/0/Download/HPFA`, and preserved `runtime_event_truth=False`. It must not emit fatigue, load, injury, tactical, dominance or event-truth override claims. Next node: P2C Reference Concept Extractor Lite contract.
+P2B Reference Document Ingest Lite V1 has `ACTIVE_MATCH_EVIDENCE_PASS` under the registered HPFA status vocabulary. It processed 5 PDFs, extracted 141 pages and 284,238 characters, wrote manifest/pages/audit outputs under `/storage/emulated/0/Download/HPFA`, and preserved `runtime_event_truth=False`. It must not emit fatigue, load, injury, tactical, dominance or event-truth override claims. Next node: P2C Reference Concept Extractor Lite contract.
