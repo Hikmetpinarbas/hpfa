@@ -1,0 +1,51 @@
+{
+  "contract_id": "surface_manifest_contract_v1",
+  "status": "executable_candidate",
+  "runtime_authority": "ACTIVE_MATCH_RAW_FOLDER_ONLY",
+  "expected_surface_roles": ["players", "teams", "goalkeepers"],
+  "expected_source_formats": ["csv", "xml", "xlsx"],
+  "expected_files": [
+    "Players.csv",
+    "Teams.csv",
+    "Goalkeepers.csv",
+    "Players.xml",
+    "Teams.xml",
+    "Goalkeepers.xml",
+    "Players.xlsx",
+    "Goalkeepers.xlsx"
+  ],
+  "required_manifest_fields": [
+    "manifest_id",
+    "status",
+    "match_dir",
+    "surface_file_count",
+    "expected_surface_count",
+    "missing_expected_surfaces",
+    "unexpected_surfaces",
+    "surfaces",
+    "canonical_event_count",
+    "claim_safety",
+    "blocked_truth_fields"
+  ],
+  "required_surface_fields": [
+    "source_file",
+    "source_file_role",
+    "source_format",
+    "surface_family",
+    "surface_row_count",
+    "canonical_event_count",
+    "aggregate_surface",
+    "event_surface_candidate",
+    "claim_safety"
+  ],
+  "blocked_truth_fields": [
+    "true_event_count",
+    "true_event_stream",
+    "dominance_truth",
+    "pitch_control_truth",
+    "off_ball_truth",
+    "fatigue_truth",
+    "coach_intention",
+    "tactical_truth"
+  ]
+}
