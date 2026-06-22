@@ -6,13 +6,16 @@ import re
 import sys
 import zipfile
 import xml.etree.ElementTree as ET
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 MODULE_ID = "canonical_event_lite_v1"
 CLAIM_SAFETY = "EVIDENCE_ONLY"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
+DEDUPLICATED_EVENT_COUNT = "UNKNOWN"
+PRIMARY_EVENT_SURFACE_CANDIDATE = "UNRESOLVED"
+EVENT_COUNT_CLAIM_ALLOWED = False
 
 OUTPUT_JSON = "canonical_event_lite_v1.json"
 OUTPUT_TSV = "canonical_event_lite_v1.tsv"
@@ -347,6 +350,8 @@ def build_canonical_lite(active_match_dir: str | Path) -> tuple[list[dict[str, A
     zone_counter: Counter[str] = Counter()
     channel_counter: Counter[str] = Counter()
     team_counter: Counter[str] = Counter()
+    surface_role_counter: Counter[str] = Counter()
+    source_surface_counter: Counter[str] = Counter()
     coverage = Counter()
 
     for path in active_surfaces(active_match_path):
@@ -358,6 +363,8 @@ def build_canonical_lite(active_match_dir: str | Path) -> tuple[list[dict[str, A
         coordinate_rows = 0
         team_rows = 0
         event_rows = 0
+        surface_role_counter[role] += len(rows)
+        source_surface_counter[path.name] += len(rows)
 
         for idx, row in enumerate(rows, start=1):
             event_raw = first_value(row, detected.get("event_type"))
@@ -424,14 +431,22 @@ def build_canonical_lite(active_match_dir: str | Path) -> tuple[list[dict[str, A
             "coordinate_coverage_rows": coordinate_rows,
         })
 
-    total = len(rows_out)
+    surface_total = len(rows_out)
     audit = {
         "module_id": MODULE_ID,
         "status": "PASS",
         "claim_safety": CLAIM_SAFETY,
+        "semantic_correction": "P2S_CANONICAL_LITE_SURFACE_COUNT_CORRECTION",
         "active_match_dir": str(active_match_path),
         "canonical_event_count": CANONICAL_EVENT_COUNT,
-        "canonical_lite_row_count": total,
+        "deduplicated_event_count": DEDUPLICATED_EVENT_COUNT,
+        "primary_event_surface_candidate": PRIMARY_EVENT_SURFACE_CANDIDATE,
+        "event_count_claim_allowed": EVENT_COUNT_CLAIM_ALLOWED,
+        "surface_row_inventory_total": surface_total,
+        "canonical_lite_row_count_deprecated": surface_total,
+        "canonical_lite_row_count_deprecated_note": "Deprecated alias for surface_row_inventory_total; not a match event count.",
+        "surface_role_row_counts": dict(surface_role_counter.most_common()),
+        "source_surface_row_counts": dict(source_surface_counter.most_common()),
         "files_read": files_audit,
         "event_family_volume": dict(family_counter.most_common()),
         "zone_distribution": _distribution(zone_counter),
@@ -441,16 +456,29 @@ def build_canonical_lite(active_match_dir: str | Path) -> tuple[list[dict[str, A
             "event_type_rows": coverage["event_type_rows"],
             "team_rows": coverage["team_rows"],
             "coordinate_rows": coverage["coordinate_rows"],
-            "total_rows": total,
-            "event_type_pct": _pct(coverage["event_type_rows"], total),
-            "team_pct": _pct(coverage["team_rows"], total),
-            "coordinate_pct": _pct(coverage["coordinate_rows"], total),
+            "surface_row_inventory_total": surface_total,
+            "total_rows_deprecated": surface_total,
+            "event_type_pct_of_surface_inventory": _pct(coverage["event_type_rows"], surface_total),
+            "team_pct_of_surface_inventory": _pct(coverage["team_rows"], surface_total),
+            "coordinate_pct_of_surface_inventory": _pct(coverage["coordinate_rows"], surface_total),
         },
+        "blocked_claims": [
+            "multi_surface_rows_as_event_count",
+            "deduplicated event count without primary surface gate",
+            "complete event truth",
+            "possession truth",
+            "phase truth",
+            "tactical truth",
+            "dominance truth",
+        ],
         "technical_limits": [
-            "Canonical Event Lite is a normalized row-level surface, not complete event truth.",
+            "Canonical Event Lite is a normalized multi-surface row inventory, not complete event truth.",
+            "surface_row_inventory_total must not be read as match event count.",
+            "Players, Teams and Goalkeepers surfaces may represent overlapping or aggregate views.",
+            "primary_event_surface_candidate remains UNRESOLVED until a dedicated gate selects it.",
+            "deduplicated_event_count remains UNKNOWN.",
             "canonical_event_count remains UNKNOWN.",
             "XLSX aggregate rows are not treated as event truth.",
-            "Tactical, dominance, phase and possession claims remain blocked.",
         ],
     }
     return rows_out, audit
@@ -471,12 +499,20 @@ def render_audit_txt(audit: dict[str, Any]) -> str:
         "====================================",
         f"status={audit.get('status')}",
         f"claim_safety={audit.get('claim_safety')}",
+        f"semantic_correction={audit.get('semantic_correction')}",
         f"active_match_dir={audit.get('active_match_dir')}",
         f"canonical_event_count={audit.get('canonical_event_count')}",
-        f"canonical_lite_row_count={audit.get('canonical_lite_row_count')}",
+        f"deduplicated_event_count={audit.get('deduplicated_event_count')}",
+        f"primary_event_surface_candidate={audit.get('primary_event_surface_candidate')}",
+        f"event_count_claim_allowed={audit.get('event_count_claim_allowed')}",
+        f"surface_row_inventory_total={audit.get('surface_row_inventory_total')}",
+        f"canonical_lite_row_count_deprecated={audit.get('canonical_lite_row_count_deprecated')}",
         "",
-        "[coverage]",
+        "[surface_role_row_counts]",
     ]
+    for key, value in audit.get("surface_role_row_counts", {}).items():
+        lines.append(f"{key}={value}")
+    lines.extend(["", "[coverage]"])
     for key, value in audit.get("coverage", {}).items():
         lines.append(f"{key}={value}")
     lines.extend(["", "[event_family_volume]"])
@@ -494,6 +530,9 @@ def render_audit_txt(audit: dict[str, Any]) -> str:
     lines.extend(["", "[files_read]"])
     for row in audit.get("files_read", []):
         lines.append(json.dumps(row, ensure_ascii=False, sort_keys=True))
+    lines.extend(["", "[blocked_claims]"])
+    for item in audit.get("blocked_claims", []):
+        lines.append(f"- {item}")
     lines.extend(["", "[technical_limits]"])
     for item in audit.get("technical_limits", []):
         lines.append(f"- {item}")
