@@ -1,0 +1,43 @@
+{
+  "contract_id": "composite_registry_schema_v1",
+  "status": "candidate_not_production_bound",
+  "claim_safety": "NO_TRUTH_UNTIL_ACTIVE_MATCH_VALIDATION",
+  "active_match_validation_required": true,
+  "required_fields": [
+    "composite_id",
+    "fingerprint",
+    "source_count",
+    "sources",
+    "dominant_capability",
+    "target_hpfa_engine",
+    "status",
+    "claim_safety",
+    "active_match_validation_required",
+    "members"
+  ],
+  "allowed_sources": [
+    "TERMUX",
+    "GITHUB",
+    "GOOGLE_DRIVE",
+    "DROPBOX",
+    "SIDER_SCHOLAR"
+  ],
+  "allowed_statuses": [
+    "CANDIDATE_REQUIRES_BOUNDARY_ANALYSIS",
+    "BOUNDARY_ANALYSIS_REQUIRED",
+    "BLOCKED_REFERENCE_ONLY",
+    "ACTIVE_MATCH_VALIDATION_REQUIRED"
+  ],
+  "runtime_truth_sources": [
+    "ACTIVE_MATCH_EXECUTION_ONLY"
+  ],
+  "blocked_runtime_sources": [
+    "GOOGLE_DRIVE",
+    "DROPBOX",
+    "SIDER_SCHOLAR",
+    "GITHUB_DONOR",
+    "PDF",
+    "ARCHIVE",
+    "SAMPLE"
+  ]
+}
