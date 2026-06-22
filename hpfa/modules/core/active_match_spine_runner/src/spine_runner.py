@@ -7,6 +7,10 @@ from typing import Any
 
 CLAIM_SAFETY = "EVIDENCE_ONLY"
 RUNNER_ID = "active_match_spine_check_v1"
+PHONE_OUTPUT_ROOTS = (
+    Path("/sdcard/Download/HPFA"),
+    Path("/storage/emulated/0/Download/HPFA"),
+)
 
 
 def repo_root_from_file() -> Path:
@@ -34,6 +38,24 @@ def _boundary_scorer_module(root: Path):
     return boundary_analysis_scorer
 
 
+def _resolve_path(path: Path) -> Path:
+    return path.expanduser().resolve(strict=False)
+
+
+def validate_output_root(out_dir: str | Path) -> Path:
+    output_root = _resolve_path(Path(out_dir))
+    for phone_root in PHONE_OUTPUT_ROOTS:
+        resolved_phone_root = _resolve_path(phone_root)
+        if output_root == resolved_phone_root:
+            return output_root
+        if resolved_phone_root in output_root.parents:
+            raise ValueError(
+                "nested_phone_output_directory_rejected: "
+                f"use {resolved_phone_root} directly, not {output_root}"
+            )
+    return output_root
+
+
 def summarize_bands(scores: list[dict[str, Any]]) -> dict[str, int]:
     bands: dict[str, int] = {}
     for row in scores:
@@ -49,8 +71,8 @@ def run_spine_check(
     root: str | Path | None = None,
 ) -> dict[str, Any]:
     repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
-    active_match_path = Path(active_match_dir).expanduser().resolve()
-    output_root = Path(out_dir).expanduser().resolve()
+    active_match_path = _resolve_path(Path(active_match_dir))
+    output_root = validate_output_root(out_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
     surface_out = output_root / "active_match_surface_manifest_v1.json"
