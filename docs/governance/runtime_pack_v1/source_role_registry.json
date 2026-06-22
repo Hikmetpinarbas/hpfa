@@ -1,0 +1,145 @@
+{
+  "registry_id": "source_role_registry_v1",
+  "project": "HPFA",
+  "status": "P0A_GOVERNANCE_FILE",
+  "created_date": "2026-06-22",
+  "runtime_authority_rule": {
+    "single_match_truth": "runtime/active_single_match/current",
+    "canonical_event_count": "UNKNOWN",
+    "rule": "Only ACTIVE_MATCH_RUNTIME_AUTHORITY can create runtime match truth. All other sources are reference, governance, donor, archive, or academic support."
+  },
+  "source_roles": [
+    {
+      "role": "ACTIVE_MATCH_RUNTIME_AUTHORITY",
+      "authority_level": "MATCH_TRUTH",
+      "allowed_use": [
+        "runtime match evidence",
+        "ACTIVE_MATCH execution evidence",
+        "row-level visible surface evidence"
+      ],
+      "blocked_use": [
+        "claiming canonical event truth before Canonical Event Lite",
+        "claiming tactical truth without claim gate"
+      ]
+    },
+    {
+      "role": "TERMUX_RUNTIME_EVIDENCE",
+      "authority_level": "OPERATOR_EVIDENCE",
+      "allowed_use": [
+        "command output evidence",
+        "local spec artifact evidence",
+        "operator smoke/integrity checks"
+      ],
+      "blocked_use": [
+        "match truth unless reading runtime/active_single_match/current",
+        "production release proof without GitHub productization"
+      ]
+    },
+    {
+      "role": "GITHUB_PRODUCT_REPO",
+      "authority_level": "PRODUCT_CODE_TRUTH",
+      "allowed_use": [
+        "HPFA executable modules",
+        "governance files",
+        "tests",
+        "release history",
+        "pull request and merge evidence"
+      ],
+      "blocked_use": [
+        "runtime match truth without ACTIVE_MATCH execution"
+      ]
+    },
+    {
+      "role": "GITHUB_DONOR_REPO",
+      "authority_level": "DONOR_SUPPORT",
+      "allowed_use": [
+        "adaptable module patterns",
+        "method references",
+        "implementation donor support"
+      ],
+      "blocked_use": [
+        "copying without adaptation",
+        "runtime match truth",
+        "release truth for hpfa"
+      ]
+    },
+    {
+      "role": "DRIVE_GOVERNANCE",
+      "authority_level": "GOVERNANCE_SUPPORT",
+      "allowed_use": [
+        "planning context",
+        "policy notes",
+        "completion plan references"
+      ],
+      "blocked_use": [
+        "runtime match truth",
+        "product code truth"
+      ]
+    },
+    {
+      "role": "DRIVE_DONOR_LIBRARY",
+      "authority_level": "DONOR_SUPPORT",
+      "allowed_use": [
+        "reference-only source documents",
+        "method inspiration"
+      ],
+      "blocked_use": [
+        "runtime match truth",
+        "direct product module authority"
+      ]
+    },
+    {
+      "role": "DROPBOX_ARCHIVE",
+      "authority_level": "ARCHIVE_SUPPORT",
+      "allowed_use": [
+        "historical reference",
+        "archive comparison"
+      ],
+      "blocked_use": [
+        "runtime match truth",
+        "current branch truth"
+      ]
+    },
+    {
+      "role": "DROPBOX_DONOR_LIBRARY",
+      "authority_level": "DONOR_SUPPORT",
+      "allowed_use": [
+        "reference-only donor materials"
+      ],
+      "blocked_use": [
+        "runtime match truth",
+        "copying as product code without adaptation"
+      ]
+    },
+    {
+      "role": "SIDER_ACADEMIC_BACKING",
+      "authority_level": "ACADEMIC_SUPPORT",
+      "allowed_use": [
+        "method support",
+        "terminology support",
+        "research validation context"
+      ],
+      "blocked_use": [
+        "runtime match truth",
+        "claiming football tactical truth from papers alone"
+      ]
+    }
+  ],
+  "claim_language": {
+    "safe": [
+      "row-level evidence shows",
+      "visible surface evidence indicates",
+      "action-family volume suggests",
+      "coordinate evidence is concentrated in",
+      "requires later validation"
+    ],
+    "blocked": [
+      "dominated",
+      "coach planned",
+      "pitch control truth",
+      "off-ball structure truth",
+      "fatigue truth",
+      "canonical event count before Canonical Event Lite"
+    ]
+  }
+}
