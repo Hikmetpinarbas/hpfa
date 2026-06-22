@@ -28,6 +28,12 @@ def test_team_binding_merges_aliases_and_reports_unresolved():
 
     assert report["status"] == "PASS"
     assert report["canonical_event_count"] == "UNKNOWN"
+    assert report["deduplicated_event_count"] == "UNKNOWN"
+    assert report["primary_event_surface_candidate"] == "UNRESOLVED"
+    assert report["event_count_claim_allowed"] is False
+    assert report["surface_row_inventory_total"] == 4
+    assert report["canonical_lite_row_count_deprecated"] == 4
+    assert "canonical_lite_row_count" not in report
     assert report["team_entity_count"] == 2
     assert report["unresolved_team_rows"] == 1
     alpha = next(row for row in report["team_entities"] if row["team_entity_key"] == "alpha_fc")
@@ -46,6 +52,7 @@ def test_team_binding_writes_flat_outputs(tmp_path):
     report = write_outputs(rows_path, out, root=ROOT)
 
     assert report["status"] == "PASS"
+    assert report["surface_row_inventory_total"] == 1
     assert (out / "team_binding_lite_v1.json").exists()
     assert (out / "team_binding_lite_audit_v1.json").exists()
     assert (out / "team_binding_lite_audit_v1.txt").exists()
