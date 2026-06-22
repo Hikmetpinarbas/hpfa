@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import argparse
+import json
+from pathlib import Path
 from typing import Any
 
 CLAIM_SAFETY = "NO_TRUTH_UNTIL_ACTIVE_MATCH_VALIDATION"
@@ -57,6 +60,17 @@ def _review_flags(candidate: dict[str, Any]) -> list[str]:
     return sorted(flags)
 
 
+def _composites_from_registry(registry: Any) -> list[dict[str, Any]]:
+    """Accept both generated registry dicts and legacy list-style registries."""
+    if isinstance(registry, list):
+        return [row for row in registry if isinstance(row, dict)]
+    if isinstance(registry, dict):
+        value = registry.get("composites", [])
+        if isinstance(value, list):
+            return [row for row in value if isinstance(row, dict)]
+    raise TypeError("registry must be a list or a dict with a composites list")
+
+
 def score_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     capability = str(candidate.get("dominant_capability", "unknown"))
     source_count = int(candidate.get("source_count", 0) or 0)
@@ -106,8 +120,9 @@ def score_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def score_registry(registry: dict[str, Any]) -> dict[str, Any]:
-    scores = [score_candidate(c) for c in registry.get("composites", [])]
+def score_registry(registry: Any) -> dict[str, Any]:
+    composites = _composites_from_registry(registry)
+    scores = [score_candidate(c) for c in composites]
     scores.sort(key=lambda row: row["readiness_score"], reverse=True)
     return {
         "registry_id": "boundary_analysis_score_registry_v1",
@@ -117,3 +132,37 @@ def score_registry(registry: dict[str, Any]) -> dict[str, Any]:
         "active_match_validation_required": True,
         "scores": scores,
     }
+
+
+def write_score_registry(input_path: str | Path, out_path: str | Path) -> dict[str, Any]:
+    src = Path(input_path)
+    out = Path(out_path)
+    registry = json.loads(src.read_text(encoding="utf-8"))
+    scored = score_registry(registry)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(scored, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    return scored
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Score HPFA composite registry candidates.")
+    parser.add_argument("input", help="Composite registry JSON. Accepts list or {'composites': [...]} format.")
+    parser.add_argument("--out", required=True, help="Output JSON path.")
+    args = parser.parse_args()
+
+    scored = write_score_registry(args.input, args.out)
+    bands: dict[str, int] = {}
+    for row in scored["scores"]:
+        band = str(row["readiness_band"])
+        bands[band] = bands.get(band, 0) + 1
+
+    print(f"status={scored['status']}")
+    print(f"score_count={scored['score_count']}")
+    print(f"claim_safety={scored['claim_safety']}")
+    print(f"bands={bands}")
+    print(f"out={args.out}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

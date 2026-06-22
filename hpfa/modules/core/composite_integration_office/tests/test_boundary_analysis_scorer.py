@@ -1,11 +1,12 @@
 from pathlib import Path
+import json
 import sys
 
 ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "composite_integration_office" / "src"
 sys.path.insert(0, str(SRC))
 
-from boundary_analysis_scorer import score_candidate, score_registry
+from boundary_analysis_scorer import score_candidate, score_registry, write_score_registry
 
 
 def candidate(capability="sequence_engine", source_count=2, sources=None, members=None, active=True):
@@ -66,7 +67,7 @@ def test_blocked_when_active_match_validation_not_required():
     assert scored["recommended_action"] == "block_candidate"
 
 
-def test_score_registry_sorts_by_score():
+def test_score_registry_sorts_by_score_from_dict_input():
     registry = {
         "composites": [
             candidate(capability="unknown", source_count=1, sources=["TERMUX"], members=[]),
@@ -78,3 +79,27 @@ def test_score_registry_sorts_by_score():
     assert scored["status"] == "PASS"
     assert scored["score_count"] == 2
     assert scored["scores"][0]["readiness_score"] >= scored["scores"][1]["readiness_score"]
+
+
+def test_score_registry_accepts_legacy_list_input():
+    scored = score_registry([
+        candidate(capability="unknown", source_count=1, sources=["TERMUX"], members=[]),
+        candidate(capability="canonical_ingest", source_count=4),
+    ])
+
+    assert scored["status"] == "PASS"
+    assert scored["score_count"] == 2
+    assert scored["scores"][0]["readiness_score"] >= scored["scores"][1]["readiness_score"]
+
+
+def test_write_score_registry_accepts_list_input(tmp_path):
+    src = tmp_path / "composite_registry.json"
+    out = tmp_path / "boundary_scores.json"
+    src.write_text(json.dumps([candidate(capability="canonical_ingest", source_count=4)]), encoding="utf-8")
+
+    scored = write_score_registry(src, out)
+    saved = json.loads(out.read_text(encoding="utf-8"))
+
+    assert scored["status"] == "PASS"
+    assert saved["score_count"] == 1
+    assert saved["scores"][0]["readiness_band"] == "ADAPT_READY"
