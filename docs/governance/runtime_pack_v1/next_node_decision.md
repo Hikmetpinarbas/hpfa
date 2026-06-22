@@ -6,19 +6,25 @@ Status: P0A_GOVERNANCE_FILE
 
 ## Decision
 
-The next correct product node after P0A is:
+The current product node is:
 
 ```text
 P1 ACTIVE_MATCH Analyst Report Lite V1
 ```
 
-Rhythm implementation must not start before P1.
+Rhythm implementation must not start before P1 smoke and ACTIVE_MATCH evidence are produced.
 
 ## Reason
 
 P0 runner-flat-out-v1 is closed. The repo has a spine runner, boundary scorer, surface manifest and flat phone-output guard.
 
-The next executable analyst value is not a rhythm engine. It is a claim-safe ACTIVE_MATCH report that turns visible surface evidence into analyst-facing output without overclaiming.
+P0A Product Governance Runtime Pack V1 files have been written under:
+
+```text
+docs/governance/runtime_pack_v1/
+```
+
+P1 contract and initial implementation have been written. The next required evidence is execution evidence, not new feature expansion.
 
 ## P1 Contract Target
 
@@ -113,25 +119,29 @@ Reason:
 
 ## Next Executable Step
 
-Write P1 ACTIVE_MATCH Analyst Report Lite V1 contract before implementing the module.
+Run P1 smoke tests, then run P1 against ACTIVE_MATCH with flat phone output.
 
-Recommended path:
+Recommended local smoke commands:
 
-```text
-docs/contracts/active_match_analyst_report_lite_v1.md
+```bash
+python -m py_compile active_match_analyst_report_lite.py hpfa/modules/core/active_match_analyst_report_lite/src/report_lite.py
+pytest hpfa/modules/core/active_match_analyst_report_lite/tests/test_report_lite.py
 ```
 
-Then implement:
+Recommended ACTIVE_MATCH command:
 
-```text
-active_match_analyst_report_lite.py
-hpfa/modules/core/active_match_analyst_report_lite/
+```bash
+ACTIVE_MATCH="/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/runtime/active_single_match/current"
+python active_match_analyst_report_lite.py "$ACTIVE_MATCH" --out-dir "/sdcard/Download/HPFA"
+ls -la /sdcard/Download/HPFA/active_match_analyst_report_lite_v1.*
 ```
 
 ## Decision Result
 
 ```text
-NEXT_NODE_LOCKED_P1_ANALYST_REPORT_LITE_V1
+P0A_GOVERNANCE_PACK_WRITTEN
+P1_CONTRACT_WRITTEN
+P1_IMPLEMENTATION_WRITTEN_EXECUTION_PENDING
 RHYTHM_IMPLEMENTATION_DEFERRED
 FITNESS_SUPPORT_ISOLATED
 ```
