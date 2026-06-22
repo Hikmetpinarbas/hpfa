@@ -91,3 +91,43 @@ def test_provider_action_taxonomy_counts_features():
     assert features['recoveries'] == 1
     assert features['sequence_type'] != 'recycle_or_build_sequence'
     assert features['claim_safety'] == 'EVIDENCE_ONLY'
+
+def test_runner_active_match_requires_gate_report(tmp_path):
+    inp = tmp_path / 'events.csv'
+    inp.write_text(
+        'event_id,team_id,event_type,minute,second,start_x,end_x,x,y\n'
+        '1,A,pass,1,0,20,34,20,30\n',
+        encoding='utf-8'
+    )
+    out = tmp_path / 'out_gate_required'
+    summary = run(str(inp), str(out), require_gate_report=True)
+    assert summary['status'] == 'FAIL_CLOSED'
+    assert summary['reason'] == 'missing_required_gate_report'
+    assert summary['next_action']['metric_layer_allowed'] is False
+
+
+def test_half_boundary_splits_chain_and_sequence():
+    rows = [
+        {'event_id': '1', 'team_id': 'A', 'event_type': 'pass', 'half': 1, 'period': 1, 'start': 2690, 'start_x': 20, 'end_x': 30, 'coordinate_scale': '105x68'},
+        {'event_id': '2', 'team_id': 'A', 'event_type': 'pass', 'half': 2, 'period': 2, 'start': 2705, 'start_x': 30, 'end_x': 40, 'coordinate_scale': '105x68'},
+    ]
+    tagged = tag_phases(rows)
+    chains = segment_chains(tagged)
+    sequences = split_sequences(tagged, chains)
+    assert len(chains) == 2
+    assert any(c['boundary_reason'] == 'half_change' for c in chains)
+    assert all(seq['coordinate_scale'] == '105x68' for seq in sequences)
+
+
+def test_sequence_features_carry_context_metadata():
+    rows = [
+        {'event_type': 'Passes accurate', 'team_id': 'A', 'start_x': 20, 'pos_x': 20, 'start': 1, 'half': 1, 'period_scope': 'first_half', 'score_state': '0-0', 'coordinate_scale': '105x68'},
+        {'event_type': 'Shots on target', 'team_id': 'A', 'start_x': 86, 'pos_x': 86, 'start': 8, 'half': 1, 'period_scope': 'first_half', 'score_state': '0-0', 'coordinate_scale': '105x68'},
+    ]
+    result = build_features(rows, 'S_CTX', 'P_CTX', 'unit')
+    assert result['coordinate_scale'] == '105x68'
+    assert result['surface_row_count'] == 2
+    assert result['half'] == 1
+    assert result['period_scope'] == 'first_half'
+    assert result['score_state'] == '0-0'
+

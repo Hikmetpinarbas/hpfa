@@ -23,9 +23,9 @@ def _load_gate(path: str | None) -> Dict[str, Any] | None:
     return json.loads(Path(path).read_text(encoding='utf-8'))
 
 
-def _gate_allows(report: Dict[str, Any] | None, degraded_mode: bool) -> bool:
+def _gate_allows(report: Dict[str, Any] | None, degraded_mode: bool, require_gate_report: bool = False) -> bool:
     if report is None:
-        return True
+        return not require_gate_report
     try:
         from hpfa.modules.core.data_quality_gate.src.downstream_policy import is_downstream_allowed
     except ImportError:
@@ -57,12 +57,12 @@ def _phase_rows(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return rows
 
 
-def run(input_path: str, out_dir: str, gate_report: str | None = None, degraded_mode: bool = False) -> Dict[str, Any]:
+def run(input_path: str, out_dir: str, gate_report: str | None = None, degraded_mode: bool = False, require_gate_report: bool = False) -> Dict[str, Any]:
     report = _load_gate(gate_report)
-    if not _gate_allows(report, degraded_mode):
+    if not _gate_allows(report, degraded_mode, require_gate_report=require_gate_report):
         summary = {
             'status': 'FAIL_CLOSED',
-            'reason': 'upstream_gate_blocks_phase_sequence',
+            'reason': 'missing_required_gate_report' if report is None and require_gate_report else 'upstream_gate_blocks_phase_sequence',
             'events_in': 0,
             'phase_events_out': 0,
             'possessions_out': 0,
@@ -86,6 +86,8 @@ def run(input_path: str, out_dir: str, gate_report: str | None = None, degraded_
     summary = {
         'status': 'DEGRADED' if degraded else 'PASS',
         'events_in': len(events),
+        'surface_row_count': len(events),
+        'coordinate_scale': '105x68',
         'phase_events_out': len(tagged),
         'possessions_out': len(chains),
         'sequences_out': len(sequences),
@@ -107,8 +109,16 @@ def main() -> None:
     parser.add_argument('--out-dir', required=True)
     parser.add_argument('--gate-report', default=None)
     parser.add_argument('--degraded-mode', action='store_true')
+    parser.add_argument('--require-gate-report', action='store_true')
+    parser.add_argument('--runtime-mode', choices=['TEST', 'DONOR_INSPECTION', 'ACTIVE_MATCH'], default='TEST')
     args = parser.parse_args()
-    summary = run(args.input, args.out_dir, gate_report=args.gate_report, degraded_mode=args.degraded_mode)
+    summary = run(
+        args.input,
+        args.out_dir,
+        gate_report=args.gate_report,
+        degraded_mode=args.degraded_mode,
+        require_gate_report=(args.require_gate_report or args.runtime_mode == 'ACTIVE_MATCH'),
+    )
     print(summary)
 
 
