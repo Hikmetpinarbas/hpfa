@@ -2,7 +2,7 @@
 
 Date: 2026-06-22
 
-Status: P2B_CONTRACT_SPEC
+Status: P2B_ACTIVE_MATCH_ADJACENT_SUPPORT_EVIDENCE_PASS
 
 ## Product Node
 
@@ -207,10 +207,73 @@ This node can reach ACTIVE_MATCH_EVIDENCE_PASS or SUPPORT_EVIDENCE_PASS only if:
 6. no fitness/tactical/fatigue truth is emitted;
 7. outputs are flat under allowed phone root.
 
+## Current Evidence
+
+Runtime evidence reported by operator:
+
+```text
+module_id=reference_document_ingest_lite_v1
+status=REFERENCE_DOCUMENT_INGEST_PASS
+claim_safety=REFERENCE_ONLY_SUPPORT_SIGNAL
+active_match_mode=True
+pdf_count=5
+page_count=141
+chars_total=284238
+texty_pages=134
+err_pages=0
+runtime_event_truth=False
+output_root=/storage/emulated/0/Download/HPFA
+```
+
+Observed output files:
+
+```text
+/storage/emulated/0/Download/HPFA/reference_document_manifest_v1.json
+/storage/emulated/0/Download/HPFA/reference_document_pages_v1.jsonl
+/storage/emulated/0/Download/HPFA/reference_document_extraction_audit_v1.json
+/storage/emulated/0/Download/HPFA/reference_document_extraction_audit_v1.txt
+```
+
+Extracted documents:
+
+```text
+0001_australia_turkey_fitness_players_eng | pages=33 | chars=93040 | status=PDF_EXTRACTION_PASS
+0002_australia_turkey_fitness_players_tur | pages=33 | chars=96529 | status=PDF_EXTRACTION_PASS
+0003_australia_turkey_fitness_report      | pages=11 | chars=30356 | status=PDF_EXTRACTION_PASS
+0004_australia_turkey_form_raporu         | pages=11 | chars=30284 | status=PDF_EXTRACTION_PASS
+0005_australia_turkey_fifa_report         | pages=53 | chars=34029 | status=PDF_EXTRACTION_PASS
+```
+
+Blocked claims preserved:
+
+```text
+fatigue truth
+load truth
+injury truth
+tactical truth
+dominance truth
+event truth override
+```
+
 ## Current Status
 
 ```text
-P2B_CONTRACT_SPEC_WRITTEN
-IMPLEMENTATION_NOT_STARTED
-ACTIVE_MATCH_EXECUTION_NOT_RUN
+P2B_IMPLEMENTED_IN_MAIN
+REFERENCE_DOCUMENT_INGEST_PASS
+ACTIVE_MATCH_ADJACENT_SUPPORT_EVIDENCE_PASS
+PRODUCTION_RELEASE_NOT_GRANTED
 ```
+
+Reason:
+
+- Runtime evidence proves five ACTIVE_MATCH-adjacent PDFs were indexed and extracted.
+- Page-level JSONL and extraction audit were written under allowed flat phone output root.
+- The module preserved `runtime_event_truth=False`.
+- The module did not emit fatigue, load, injury, tactical, dominance or event-truth override claims.
+
+Not production release:
+
+- Contract status update and logbook registration are required.
+- Root CLI / test evidence should remain attached in future release notes when available.
+- Reference Concept Extractor Lite is still missing.
+- Reference-Supported Tactical Claim Lite is still missing.
