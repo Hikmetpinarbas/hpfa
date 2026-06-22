@@ -29,6 +29,10 @@ def main() -> int:
         "player_entity_count": result.get("player_entity_count"),
         "unresolved_team_rows": result.get("unresolved_team_rows"),
         "canonical_event_count": result.get("canonical_event_count"),
+        "deduplicated_event_count": result.get("deduplicated_event_count"),
+        "primary_event_surface_candidate": result.get("primary_event_surface_candidate"),
+        "event_count_claim_allowed": result.get("event_count_claim_allowed"),
+        "surface_row_inventory_total": result.get("surface_row_inventory_total"),
         "outputs": result.get("outputs"),
     }, ensure_ascii=False))
     return 0
