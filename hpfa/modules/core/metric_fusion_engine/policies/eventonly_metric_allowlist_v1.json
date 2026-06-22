@@ -1,0 +1,38 @@
+{
+  "policy_id": "eventonly_metric_allowlist_v1",
+  "status": "candidate_not_production_bound",
+  "claim_safety": "EVIDENCE_ONLY",
+  "allowed_metric_ids": [
+    "M_PASS_COUNT",
+    "M_PROG_PASS_COUNT",
+    "M_SHOT_COUNT",
+    "M_TURNOVER_COUNT",
+    "M_SEQUENCE_LENGTH",
+    "M_FINAL_THIRD_ENTRY_COUNT",
+    "M_BOX_ENTRY_COUNT",
+    "M_ACTIONS_IN_BOX_COUNT",
+    "M_RECOVERY_COUNT",
+    "M_DUEL_COUNT",
+    "M_CARRY_COUNT",
+    "M_CROSS_COUNT",
+    "M_SET_PIECE_COUNT",
+    "M_PHASE_EVENT_COUNT",
+    "M_SEQUENCE_TYPE_COUNT",
+    "M_LOW_VALUE_LOOP_FRACTION",
+    "M_RAW_ACTION_ENTROPY",
+    "M_TEMPO_CV",
+    "M_ZONE_POWER_PROXY"
+  ],
+  "blocked_claim_fields": [
+    "dominance",
+    "tactical_superiority",
+    "pitch_control",
+    "off_ball_structure",
+    "body_orientation",
+    "fatigue",
+    "coach_intention",
+    "pressing_shape_truth",
+    "line_breaking_truth_without_opponent_structure"
+  ],
+  "notes": "This allowlist controls V1 relation building only. It does not authorize report language or tactical truth."
+}
