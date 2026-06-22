@@ -1,0 +1,11 @@
+gate_id	gate_name	football_meaning	primary_input	pass_condition	fail_closed_condition	output_status
+G01	schema_gate	match file has the expected columns and types	canonical event candidate	required fields present	missing core fields	PASS_OR_FAIL_CLOSED
+G02	duplicate_gate	same action is not counted twice	event rows	duplicate rate below threshold	extreme duplicate rate	PASS_OR_DEGRADED
+G03	coordinate_boundary_gate	action location is inside valid pitch bounds	x_y_coordinates	coordinates inside pitch model	major out-of-bounds coordinates	PASS_OR_DEGRADED
+G04	temporal_order_gate	match clock does not run backwards	time_period_order	ordered event timeline	impossible timeline	PASS_OR_FAIL_CLOSED
+G05	team_identity_gate	teams and players are not mixed	team_player_ids	two-team identity stable	team contamination	PASS_OR_FAIL_CLOSED
+G06	anomaly_rate_gate	data does not contain too many unusual rows	all event rows	anomaly rate below policy threshold	extreme anomaly rate	PASS_OR_DEGRADED
+G07	period_half_gate	periods and halves are readable	period fields	period identity valid	period cannot be resolved	PASS_OR_DEGRADED
+G08	authority_source_gate	file comes from authorized ACTIVE_MATCH source	path and manifest	authorized active match source	archive sample reference or old test used	PASS_OR_FAIL_CLOSED
+G09	reference_exclusion_gate	PDF and reports are not event truth	source role	reference marked reference only	reference used as event truth	FAIL_CLOSED
+G10	degraded_mode_gate	analysis can abstain instead of overclaiming	gate outputs	degraded flag is explicit	degraded data treated as clean	PASS_OR_FAIL_CLOSED

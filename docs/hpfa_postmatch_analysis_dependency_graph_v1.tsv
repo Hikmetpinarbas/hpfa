@@ -1,0 +1,18 @@
+from_stage	to_stage	edge_type	gate_condition	pass_behavior	degraded_behavior	fail_closed_behavior
+01_SOURCE_AUTHORITY_GATE	02_ACTIVE_MATCH_SELECTION	mandatory	active source authorized	continue	none	stop
+02_ACTIVE_MATCH_SELECTION	03_RAW_SURFACE_DISCOVERY	mandatory	selected surface exists	continue	review only	stop
+03_RAW_SURFACE_DISCOVERY	04_CANONICAL_INGEST	preferred	raw surface manifest complete	canonicalize	degraded metadata	stop
+03_RAW_SURFACE_DISCOVERY	05_DATA_QUALITY_GATE	fallback	canonical ingest not implemented but schema aliases available	run gate on selected surface	run gate with degraded notes	stop
+04_CANONICAL_INGEST	05_DATA_QUALITY_GATE	mandatory_after_implementation	canonical output exists	run data quality gate	run data quality gate with degraded metadata	stop
+05_DATA_QUALITY_GATE	06_GATE_REPORT_CONSUMER	mandatory	gate_report exists and contract valid	read policy	read policy in degraded mode	stop all downstream
+06_GATE_REPORT_CONSUMER	07_PHASE_SEQUENCE_SEGMENTATION	mandatory	phase_sequence_allowed true	run phase sequence	run only degraded-aware mode	stop
+06_GATE_REPORT_CONSUMER	08_METRIC_CONTRACT_REGISTRY_CHECK	mandatory	metric_layer_allowed true or conditional	run registry check	run conditional readiness only	stop
+07_PHASE_SEQUENCE_SEGMENTATION	08_METRIC_CONTRACT_REGISTRY_CHECK	context_dependency	phase/sequence evidence available	contextual metric readiness	limited readiness	stop context metrics
+08_METRIC_CONTRACT_REGISTRY_CHECK	09_METRIC_PRIMITIVE_COMPUTATION	mandatory	metric status OK or degraded-aware	compute primitive	compute limited primitive	stop metric branch
+09_METRIC_PRIMITIVE_COMPUTATION	10_PROGRESSION_ENGINE	conditional	progression prerequisites available	produce progression evidence	produce evidence-only degraded output	hold progression
+10_PROGRESSION_ENGINE	11_CONSEQUENCE_CONTEXT_ATTACHMENT	conditional	progression evidence and match context available	attach context	descriptive context only	stop report path
+11_CONSEQUENCE_CONTEXT_ATTACHMENT	12_CLAIM_GATE_SAFE_LANGUAGE	hold_until_language_gate	report_language_permission true AND executable_language_gate exists AND audit_policy exists	evaluate wording after explicit permission	hold descriptive evidence only	stop report path
+12_CLAIM_GATE_SAFE_LANGUAGE	13_FOOTBALL_OUTPUT_AUDIT	mandatory_for_output	safe wording decisions exist AND report_language_permission true	audit output	audit limited section	stop output
+13_FOOTBALL_OUTPUT_AUDIT	14_MATCH_STORY_REPORT_LAYER	mandatory_for_story	audit pass	build story/report	build limited evidence report	no story release
+14_MATCH_STORY_REPORT_LAYER	15_RELEASE_RUNTIME_EVIDENCE_PACK	mandatory_for_release	report layer completed	write evidence pack	write no-release evidence pack	no release
+15_RELEASE_RUNTIME_EVIDENCE_PACK	END	terminal	release decision written	end	end	end

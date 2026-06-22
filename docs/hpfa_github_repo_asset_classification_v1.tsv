@@ -1,0 +1,15 @@
+asset_pattern	current_class	canonical_target	action_type	risk
+pyproject.toml	packaging_root	repo_root	keep	package metadata review needed
+docs/*	productization_docs	docs/productization_or_architecture	classify_later	mixed governance material
+runtime_evidence/*	runtime_evidence	runtime_evidence	keep_as_evidence	not product code
+tools/*	release_or_ops_tools	tools_or_ops	keep_with_review	tool not runtime authority
+configs/hpfa_canon/*	canon_config	configs/hpfa_canon	keep_with_review	needs config audit
+hpfa-main/*	legacy_or_imported_structure	hpfa_or_archive	review_later	nested structure risk
+graphics_pack/*	research_pack	archive_reference	archive_candidate	not core product code
+data_inbox/*	inbox_or_drift_report	archive_reference	archive_candidate	not canonical code
+progression_docs	progression_productization_docs	docs/productization/progression_engine	group_later	decision docs not runtime contracts
+progression_evidence	progression_runtime_evidence	runtime_evidence/postmatch_release_0_1/progression_engine	keep_as_evidence	no production promotion
+module_code_missing	product_code_gap	hpfa/modules/postmatch/progression_engine	create_later	canonical module skeleton missing
+contracts_missing	contract_gap	hpfa/modules/postmatch/progression_engine/contracts	create_later	contracts missing
+tests_missing	test_gap	hpfa/modules/postmatch/progression_engine/tests	create_later	tests missing
+restricted_patterns	restricted_not_packaged	restricted_not_packaged	review_gate_required	non-canonical material

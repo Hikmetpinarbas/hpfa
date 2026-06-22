@@ -1,0 +1,11 @@
+source	path_or_title	donor_role	authority_status	product_use
+Google_Drive	HPFA-THEORY-001.pdf	theory_donor	REFERENCE_ONLY	concept and formula adaptation
+Google_Drive	HPFA_Core_System_Design.pdf	architecture_donor	REFERENCE_ONLY	core spine design support
+Google_Drive	HPFA_Tactical_Analytics_Knowledge_Extraction.pdf	football_analytics_donor	REFERENCE_ONLY	analysis vocabulary and claim boundary support
+Google_Drive	HPFA Analytics Logic Extraction Framework.pdf	logic_extraction_donor	REFERENCE_ONLY	metric and logic extraction support
+Google_Drive	Football Analytics Pipeline Design.pdf	pipeline_donor	REFERENCE_ONLY	product pipeline support
+Google_Drive	Football Analytics Claim Support Extraction.pdf	claim_support_donor	REFERENCE_ONLY	claim gate support
+Google_Drive	HPFA Data Audit- Structure, Flow, and Logic.pdf	data_audit_donor	REFERENCE_ONLY	data quality gate support
+Google_Drive	Formal_Specifications_for_Nonlinear_Stochastic_Football_Analytics_Engine.txt	formal_spec_donor	REFERENCE_ONLY	formula and uncertainty support
+Google_Drive	Futbol_Taktiksel_Zeka_Pattern_ve_Oyun_Durumu_Analizi.md	football_intelligence_donor	REFERENCE_ONLY	phase sequence context vocabulary
+Dropbox	A03_Ontology_for_Common_Data_Format_on_Football_Data_Analytics_CEUR_paper56.pdf	ontology_interoperability_donor	REFERENCE_ONLY	canonical ingest support

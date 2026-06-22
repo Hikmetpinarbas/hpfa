@@ -1,0 +1,31 @@
+{
+  "title": "HPFA Data Quality Gate Output Contract V1",
+  "type": "object",
+  "required": [
+    "tool",
+    "status",
+    "input",
+    "input_format",
+    "row_count",
+    "valid_row_count",
+    "claim_safety",
+    "authority_note",
+    "next_action",
+    "findings"
+  ],
+  "properties": {
+    "tool": {"type": "string"},
+    "status": {"type": "string", "enum": ["PASS", "DEGRADED", "FAIL_CLOSED"]},
+    "input": {"type": "string"},
+    "input_format": {"type": "string", "enum": ["csv", "jsonl"]},
+    "row_count": {"type": "integer"},
+    "valid_row_count": {"type": "integer"},
+    "claim_safety": {"type": "string"},
+    "authority_note": {"type": "string"},
+    "next_action": {
+      "type": "object",
+      "required": ["phase_sequence_allowed", "metric_layer_allowed", "claim_layer_allowed", "reason"]
+    },
+    "findings": {"type": "array"}
+  }
+}

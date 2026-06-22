@@ -1,0 +1,11 @@
+path	sources	category	risk_status	risk_flags	promotion_status	priority_score
+/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/config/claim_registry/claim_object_schema_v1.json	canonical;claim;inventory;metric	canonical_ingest	CANDIDATE_REVIEW		NO_PROMOTION_DISCOVERY_ONLY	6
+/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/contracts/HPFA_CONSTITUTIONAL_MANIFEST_V1.json	canonical;claim;inventory;runtime_risk	canonical_ingest	CANDIDATE_REVIEW		NO_PROMOTION_DISCOVERY_ONLY	6
+/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/contracts/academy4_match_analysis_atom_extraction_v1.json	canonical;claim;inventory	canonical_ingest	CANDIDATE_REVIEW		NO_PROMOTION_DISCOVERY_ONLY	6
+/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/contracts/academy6_progression_donor_atomization_v1.json	canonical;claim;inventory	canonical_ingest	CANDIDATE_REVIEW		NO_PROMOTION_DISCOVERY_ONLY	6
+/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/contracts/academy6_progression_watch_snapshot_refresh_v1.contract.json	canonical;claim;inventory	canonical_ingest	CANDIDATE_REVIEW		NO_PROMOTION_DISCOVERY_ONLY	6
+/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/contracts/academy_corpus_full_intake_snapshot_v1.json	canonical;claim;inventory	canonical_ingest	CANDIDATE_REVIEW		NO_PROMOTION_DISCOVERY_ONLY	6
+/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/contracts/academy_corpus_priority_rebalance_v1.json	canonical;claim;inventory	canonical_ingest	CANDIDATE_REVIEW		NO_PROMOTION_DISCOVERY_ONLY	6
+/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/contracts/academy_language_argument_shard_v1.json	canonical;claim;inventory	canonical_ingest	CANDIDATE_REVIEW		NO_PROMOTION_DISCOVERY_ONLY	6
+/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/contracts/action_taxonomy_canonical_map_repair_v1.json	canonical;claim;inventory	canonical_ingest	CANDIDATE_REVIEW		NO_PROMOTION_DISCOVERY_ONLY	6
+/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/contracts/action_vocabulary_registry_v2_reconcile_from_donor_02_03_04_v1.json	canonical;claim;inventory;metric	action_vocabulary	CANDIDATE_REVIEW		NO_PROMOTION_DISCOVERY_ONLY	6
