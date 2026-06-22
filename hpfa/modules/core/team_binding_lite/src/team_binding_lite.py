@@ -3,13 +3,16 @@ from __future__ import annotations
 import json
 import re
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 MODULE_ID = "team_binding_lite_v1"
 CLAIM_SAFETY = "IDENTITY_BINDING_ONLY"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
+DEDUPLICATED_EVENT_COUNT = "UNKNOWN"
+PRIMARY_EVENT_SURFACE_CANDIDATE = "UNRESOLVED"
+EVENT_COUNT_CLAIM_ALLOWED = False
 OUTPUT_JSON = "team_binding_lite_v1.json"
 AUDIT_JSON = "team_binding_lite_audit_v1.json"
 AUDIT_TXT = "team_binding_lite_audit_v1.txt"
@@ -165,12 +168,17 @@ def build_team_binding(rows: list[dict[str, Any]]) -> dict[str, Any]:
         })
     player_records.sort(key=lambda r: (-int(r["visible_rows"]), str(r["player_entity_key"])))
 
+    surface_total = len(rows)
     return {
         "module_id": MODULE_ID,
         "status": "PASS",
         "claim_safety": CLAIM_SAFETY,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
-        "canonical_lite_row_count": len(rows),
+        "deduplicated_event_count": DEDUPLICATED_EVENT_COUNT,
+        "primary_event_surface_candidate": PRIMARY_EVENT_SURFACE_CANDIDATE,
+        "event_count_claim_allowed": EVENT_COUNT_CLAIM_ALLOWED,
+        "surface_row_inventory_total": surface_total,
+        "canonical_lite_row_count_deprecated": surface_total,
         "team_entity_count": len(team_records),
         "player_entity_count": len(player_records),
         "unresolved_team_rows": len(unresolved_rows),
@@ -184,6 +192,7 @@ def build_team_binding(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "tactical claim by label",
             "coach intention claim",
             "complete event truth",
+            "multi-surface row inventory as event count",
         ],
     }
 
@@ -195,7 +204,11 @@ def render_audit_txt(report: dict[str, Any]) -> str:
         f"status={report.get('status')}",
         f"claim_safety={report.get('claim_safety')}",
         f"canonical_event_count={report.get('canonical_event_count')}",
-        f"canonical_lite_row_count={report.get('canonical_lite_row_count')}",
+        f"deduplicated_event_count={report.get('deduplicated_event_count')}",
+        f"primary_event_surface_candidate={report.get('primary_event_surface_candidate')}",
+        f"event_count_claim_allowed={report.get('event_count_claim_allowed')}",
+        f"surface_row_inventory_total={report.get('surface_row_inventory_total')}",
+        f"canonical_lite_row_count_deprecated={report.get('canonical_lite_row_count_deprecated')}",
         f"team_entity_count={report.get('team_entity_count')}",
         f"player_entity_count={report.get('player_entity_count')}",
         f"unresolved_team_rows={report.get('unresolved_team_rows')}",
