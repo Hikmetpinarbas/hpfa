@@ -1,0 +1,33 @@
+{
+  "contract_id": "boundary_analysis_score_contract_v1",
+  "status": "candidate_not_production_bound",
+  "claim_safety": "NO_TRUTH_UNTIL_ACTIVE_MATCH_VALIDATION",
+  "active_match_validation_required": true,
+  "required_output_fields": [
+    "composite_id",
+    "readiness_score",
+    "readiness_band",
+    "risk_flags",
+    "recommended_action",
+    "claim_safety",
+    "active_match_validation_required"
+  ],
+  "readiness_bands": [
+    "ADAPT_READY",
+    "BOUNDARY_REVIEW",
+    "REFERENCE_ONLY",
+    "BLOCKED"
+  ],
+  "recommended_actions": [
+    "adapt_candidate",
+    "review_boundary",
+    "keep_reference_only",
+    "block_candidate"
+  ],
+  "blocked_outputs": [
+    "football_claim",
+    "report_language",
+    "production_binding",
+    "runtime_truth"
+  ]
+}
