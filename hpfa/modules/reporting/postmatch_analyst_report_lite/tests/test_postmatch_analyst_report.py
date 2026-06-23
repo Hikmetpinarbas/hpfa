@@ -22,7 +22,7 @@ def sample_team_audit():
                 "display_label_candidate": "Team A Label",
                 "team_entity_key": "TEAM_A_KEY",
                 "visible_rows": 100,
-                "event_family_volume": {"PASS": 50, "SHOT": 10, "DUEL_PRESSURE": 5},
+                "event_family_volume": {"PASS": 50, "SHOT": 10, "DUEL_PRESSURE": 5, "GOALKEEPER_RESTART": 1},
                 "zone_distribution": {"FINAL_THIRD": 40, "MIDDLE_THIRD": 40, "DEFENSIVE_THIRD": 20},
                 "channel_distribution": {"RIGHT_CHANNEL": 45, "CENTRAL_CHANNEL": 35, "LEFT_CHANNEL": 20},
             },
@@ -30,7 +30,7 @@ def sample_team_audit():
                 "display_label_candidate": "Team B Label",
                 "team_entity_key": "TEAM_B_KEY",
                 "visible_rows": 50,
-                "event_family_volume": {"PASS": 20, "SHOT": 5, "DUEL_PRESSURE": 10},
+                "event_family_volume": {"PASS": 20, "SHOT": 5, "DUEL_PRESSURE": 10, "GOALKEEPER_RESTART": 5},
                 "zone_distribution": {"FINAL_THIRD": 10, "MIDDLE_THIRD": 20, "DEFENSIVE_THIRD": 20},
                 "channel_distribution": {"RIGHT_CHANNEL": 10, "CENTRAL_CHANNEL": 25, "LEFT_CHANNEL": 15},
             },
@@ -54,6 +54,20 @@ def test_builds_numeric_team_and_action_comparisons(tmp_path):
     assert report["team_comparison"]["row_ratio_left_to_right"] == 2.0
     pass_row = next(r for r in report["action_family_comparison"] if r["metric"] == "PASS")
     assert pass_row["diff_left_minus_right"] == 30
+
+
+def test_includes_plain_analyst_translation(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
+
+    report = build_report(out)
+
+    translation = report["analyst_translation"]
+    assert translation
+    assert any("yaklaşık 2.0 katı" in item for item in translation)
+    assert any("pas hacmi" in item for item in translation)
+    assert any("Analyst conclusion" in item for item in translation)
 
 
 def test_falls_back_to_team_entity_key_when_display_label_missing(tmp_path):
@@ -100,10 +114,12 @@ def test_write_outputs_flat_files(tmp_path):
     write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
 
     report = write_outputs(out, root=ROOT)
+    txt = (out / "postmatch_analyst_report_lite_v1.txt").read_text(encoding="utf-8")
 
     assert report["status"] == "PASS"
     assert (out / "postmatch_analyst_report_lite_v1.json").exists()
     assert (out / "postmatch_analyst_report_lite_v1.txt").exists()
+    assert "[analyst_translation]" in txt
     assert not any(p.is_dir() for p in out.iterdir())
 
 
