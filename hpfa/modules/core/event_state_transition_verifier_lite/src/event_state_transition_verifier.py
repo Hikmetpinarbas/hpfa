@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -58,7 +59,7 @@ def gate_blocks(payload: dict[str, Any] | None) -> bool:
         return True
     status = str(payload.get("status") or "")
     decision = str(payload.get("decision") or "")
-    if status in {"FAIL_CLOSED", "REVIEW_REQUIRED"}:
+    if status in {"FAIL_CLOSED", "REVIEW_REQUIRED", "WAIT"}:
         return True
     if decision.startswith("UNRESOLVED") or decision.startswith("FAIL_CLOSED"):
         return True
@@ -80,10 +81,10 @@ def candidate_source_file(primary_gate: dict[str, Any] | None) -> str | None:
 
 def normalize_state(text: str) -> str:
     value = text.lower()
-    if any(token in value for token in ["shot", "save", "goal"]):
-        return "shot_terminal"
     if any(token in value for token in ["corner", "throw", "free kick", "goal kick", "restart", "kick off"]):
         return "restart"
+    if any(token in value for token in ["shot", "save", "goal"]):
+        return "shot_terminal"
     if any(token in value for token in ["loss", "turnover", "interception", "dispossessed"]):
         return "turnover"
     if any(token in value for token in ["pass", "carry", "dribble", "duel", "recovery", "challenge"]):
@@ -98,10 +99,8 @@ def row_text(row: dict[str, Any]) -> str:
     return " ".join(str(row.get(k) or "") for k in keys)
 
 
-def read_surface(path: Path, limit: int = 5000) -> list[dict[str, Any]]:
+def read_csv_surface(path: Path, limit: int) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    if not path.exists() or path.suffix.lower() != ".csv":
-        return rows
     with path.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
         reader = csv.DictReader(handle)
         for idx, row in enumerate(reader):
@@ -109,6 +108,34 @@ def read_surface(path: Path, limit: int = 5000) -> list[dict[str, Any]]:
                 break
             rows.append(dict(row))
     return rows
+
+
+def read_xml_surface(path: Path, limit: int) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError:
+        return rows
+    for idx, elem in enumerate(root.iter()):
+        if idx >= limit:
+            break
+        payload = dict(elem.attrib)
+        if elem.text and elem.text.strip():
+            payload.setdefault("event_type", elem.text.strip())
+        payload.setdefault("name", elem.tag)
+        rows.append(payload)
+    return rows
+
+
+def read_surface(path: Path, limit: int = 5000) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        return read_csv_surface(path, limit)
+    if suffix == ".xml":
+        return read_xml_surface(path, limit)
+    return []
 
 
 def transition_issues(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
