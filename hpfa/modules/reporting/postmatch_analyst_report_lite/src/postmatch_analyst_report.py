@@ -140,6 +140,45 @@ def analyst_translation(team_comparison: dict[str, Any], action: list[dict[str, 
     return lines
 
 
+def raw_fitness_report(physical_summary: dict[str, Any]) -> list[str]:
+    counts = physical_summary.get("metric_family_counts") or {}
+    surfaces = physical_summary.get("surface_counts") or {}
+    if not physical_summary.get("physical_available"):
+        return ["Fiziksel rapor yüzeyi bulunamadı."]
+    keys = [
+        "DISTANCE_TOTAL",
+        "DISTANCE_HIGH_INTENSITY",
+        "DISTANCE_SPRINT",
+        "SPEED_MAX",
+        "SPEED_AVERAGE",
+        "MINUTES_PLAYED",
+        "METABOLIC_LOAD",
+        "UNKNOWN_PHYSICAL",
+    ]
+    lines = [
+        f"Ham fitness/fiziksel yüzey mevcut: {physical_summary.get('record_count')} record.",
+        f"PHYSICAL_COST_SURFACE={surfaces.get('PHYSICAL_COST_SURFACE', 0)}; REPORT_METRIC_SURFACE={surfaces.get('REPORT_METRIC_SURFACE', 0)}.",
+    ]
+    for key in keys:
+        if key in counts:
+            lines.append(f"{key}={counts.get(key)}")
+    lines.append("Bu blok ham fiziksel/report yüzeyi özetidir; event count, fatigue truth veya performance truth değildir.")
+    return lines
+
+
+def fusion_context_candidate(team_comparison: dict[str, Any], physical_summary: dict[str, Any], metric_summary: dict[str, Any]) -> list[str]:
+    counts = metric_summary.get("family_counts") or {}
+    surfaces = physical_summary.get("surface_counts") or {}
+    left = team_comparison.get("left_team")
+    right = team_comparison.get("right_team")
+    return [
+        f"Fusion-ready context: {left} ve {right} için action-family volume, zone/channel distribution ve physical-cost surface aynı raporda mevcut.",
+        f"Metric registry: PROGRESSION_FAMILY={counts.get('PROGRESSION_FAMILY', 0)}, SHOT_THREAT_FAMILY={counts.get('SHOT_THREAT_FAMILY', 0)}, PHYSICAL_COST_FAMILY={counts.get('PHYSICAL_COST_FAMILY', 0)}, EFFICIENCY_FAMILY={counts.get('EFFICIENCY_FAMILY', 0)}.",
+        f"Physical/report split: PHYSICAL_COST_SURFACE={surfaces.get('PHYSICAL_COST_SURFACE', 0)}, REPORT_METRIC_SURFACE={surfaces.get('REPORT_METRIC_SURFACE', 0)}.",
+        "Fusion interpretation is candidate-only: action cost can be discussed as context, but efficiency truth remains locked until Action Value Cost Fusion and claim routing are available.",
+    ]
+
+
 def build_report(out_dir: str | Path) -> dict[str, Any]:
     root = Path(out_dir).expanduser().resolve(strict=False)
     team_binding = read_json(root / "team_binding_lite_audit_v1.json")
@@ -168,6 +207,19 @@ def build_report(out_dir: str | Path) -> dict[str, Any]:
         "row_diff_left_minus_right": left_total - right_total,
         "row_ratio_left_to_right": ratio(left_total, right_total),
     }
+    physical_summary = {
+        "physical_available": bool(physical),
+        "record_count": physical.get("record_count"),
+        "surface_counts": physical.get("surface_counts"),
+        "metric_family_counts": physical.get("metric_family_counts"),
+    }
+    metric_summary = {
+        "available": bool(metric_registry),
+        "registry_record_count": metric_registry.get("registry_record_count"),
+        "family_counts": metric_registry.get("family_counts"),
+        "metric_value_output_allowed": metric_registry.get("metric_value_output_allowed"),
+        "efficiency_calculation_allowed": metric_registry.get("efficiency_calculation_allowed"),
+    }
     return {
         "module_id": MODULE_ID,
         "status": "PASS",
@@ -184,19 +236,10 @@ def build_report(out_dir: str | Path) -> dict[str, Any]:
         "action_family_comparison": action,
         "zone_comparison": zones,
         "channel_comparison": channels,
-        "physical_report_summary": {
-            "physical_available": bool(physical),
-            "record_count": physical.get("record_count"),
-            "surface_counts": physical.get("surface_counts"),
-            "metric_family_counts": physical.get("metric_family_counts"),
-        },
-        "metric_registry_summary": {
-            "available": bool(metric_registry),
-            "registry_record_count": metric_registry.get("registry_record_count"),
-            "family_counts": metric_registry.get("family_counts"),
-            "metric_value_output_allowed": metric_registry.get("metric_value_output_allowed"),
-            "efficiency_calculation_allowed": metric_registry.get("efficiency_calculation_allowed"),
-        },
+        "raw_fitness_report": raw_fitness_report(physical_summary),
+        "fusion_context_candidate": fusion_context_candidate(team_comparison, physical_summary, metric_summary),
+        "physical_report_summary": physical_summary,
+        "metric_registry_summary": metric_summary,
         "identity_summary": {
             "available": bool(identity),
             "candidate_cluster_count": identity.get("candidate_cluster_count"),
@@ -206,7 +249,7 @@ def build_report(out_dir: str | Path) -> dict[str, Any]:
         "canonical_surface_summary": {"available": bool(canonical), "surface_row_inventory_total": canonical.get("surface_row_inventory_total")},
         "analyst_numeric_findings": numeric_findings(left, right, action, zones, channels),
         "analyst_translation": analyst_translation(team_comparison, action, zones, channels),
-        "blocked_claims": ["validated event count", "primary event truth", "possession truth", "phase truth", "sequence truth", "metric truth", "efficiency truth"],
+        "blocked_claims": ["validated event count", "primary event truth", "possession truth", "phase truth", "sequence truth", "metric truth", "efficiency truth", "fatigue truth"],
     }
 
 
@@ -242,6 +285,8 @@ def render_txt(report: dict[str, Any]) -> str:
     lines += render_table(report.get("zone_comparison", []), "[zone_comparison]", left_name, right_name, 8) + [""]
     lines += render_table(report.get("channel_comparison", []), "[channel_comparison]", left_name, right_name, 8)
     lines += ["", "[analyst_translation]"] + [f"- {x}" for x in report.get("analyst_translation", [])]
+    lines += ["", "[raw_fitness_report]"] + [f"- {x}" for x in report.get("raw_fitness_report", [])]
+    lines += ["", "[fusion_context_candidate]"] + [f"- {x}" for x in report.get("fusion_context_candidate", [])]
     for block in ("physical_report_summary", "metric_registry_summary", "identity_summary"):
         lines += ["", f"[{block}]", json.dumps(report.get(block, {}), ensure_ascii=False, sort_keys=True)]
     lines += ["", "[analyst_numeric_findings]"] + [f"- {x}" for x in report.get("analyst_numeric_findings", [])]
