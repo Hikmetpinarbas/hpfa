@@ -22,7 +22,7 @@ def sample_team_audit():
                 "display_label_candidate": "Team A Label",
                 "team_entity_key": "TEAM_A_KEY",
                 "visible_rows": 100,
-                "event_family_volume": {"PASS": 50, "SHOT": 10, "DUEL_PRESSURE": 5},
+                "event_family_volume": {"PASS": 50, "SHOT": 10, "DUEL_PRESSURE": 5, "GOALKEEPER_RESTART": 1},
                 "zone_distribution": {"FINAL_THIRD": 40, "MIDDLE_THIRD": 40, "DEFENSIVE_THIRD": 20},
                 "channel_distribution": {"RIGHT_CHANNEL": 45, "CENTRAL_CHANNEL": 35, "LEFT_CHANNEL": 20},
             },
@@ -30,11 +30,36 @@ def sample_team_audit():
                 "display_label_candidate": "Team B Label",
                 "team_entity_key": "TEAM_B_KEY",
                 "visible_rows": 50,
-                "event_family_volume": {"PASS": 20, "SHOT": 5, "DUEL_PRESSURE": 10},
+                "event_family_volume": {"PASS": 20, "SHOT": 5, "DUEL_PRESSURE": 10, "GOALKEEPER_RESTART": 5},
                 "zone_distribution": {"FINAL_THIRD": 10, "MIDDLE_THIRD": 20, "DEFENSIVE_THIRD": 20},
                 "channel_distribution": {"RIGHT_CHANNEL": 10, "CENTRAL_CHANNEL": 25, "LEFT_CHANNEL": 15},
             },
         ]
+    }
+
+
+def sample_physical_audit():
+    return {
+        "record_count": 323,
+        "surface_counts": {"PHYSICAL_COST_SURFACE": 255, "REPORT_METRIC_SURFACE": 68},
+        "metric_family_counts": {
+            "DISTANCE_TOTAL": 42,
+            "DISTANCE_HIGH_INTENSITY": 36,
+            "DISTANCE_SPRINT": 68,
+            "SPEED_MAX": 34,
+            "SPEED_AVERAGE": 35,
+            "MINUTES_PLAYED": 36,
+            "METABOLIC_LOAD": 1,
+        },
+    }
+
+
+def sample_metric_registry():
+    return {
+        "registry_record_count": 34,
+        "metric_value_output_allowed": False,
+        "efficiency_calculation_allowed": False,
+        "family_counts": {"PROGRESSION_FAMILY": 5, "SHOT_THREAT_FAMILY": 2, "PHYSICAL_COST_FAMILY": 8, "EFFICIENCY_FAMILY": 4},
     }
 
 
@@ -56,6 +81,79 @@ def test_builds_numeric_team_and_action_comparisons(tmp_path):
     assert pass_row["diff_left_minus_right"] == 30
 
 
+def test_includes_plain_analyst_translation(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
+
+    report = build_report(out)
+
+    translation = report["analyst_translation"]
+    assert translation
+    assert any("yaklaşık 2.0 katı" in item for item in translation)
+    assert any("pas hacmi" in item for item in translation)
+    assert any("Analyst conclusion" in item for item in translation)
+
+
+def test_translation_has_no_literal_sample_match_identity(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
+
+    report = build_report(out)
+    joined = "\n".join(report["analyst_translation"])
+
+    for token in ["Turkey", "Australia", "Türkiye", "Avustralya", "World Cup", "13.06.2026"]:
+        assert token not in joined
+
+
+def test_channel_direction_uses_share_gap_sign(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    audit = sample_team_audit()
+    audit["team_entities"][0]["channel_distribution"] = {"CENTRAL_CHANNEL": 35, "LEFT_CHANNEL": 20, "RIGHT_CHANNEL": 45}
+    audit["team_entities"][1]["channel_distribution"] = {"CENTRAL_CHANNEL": 45, "LEFT_CHANNEL": 10, "RIGHT_CHANNEL": 5}
+    write_json(out / "team_binding_lite_audit_v1.json", audit)
+
+    report = build_report(out)
+    joined = "\n".join(report["analyst_translation"])
+
+    assert "Merkez kanal" in joined
+    assert "Team B Label lehine" in joined
+    assert "Sol kanal" in joined
+    assert "Team A Label lehine" in joined
+
+
+def test_includes_readable_raw_fitness_report_and_fusion_context(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
+    write_json(out / "physical_cost_surface_audit_v1.json", sample_physical_audit())
+    write_json(out / "metric_family_registry_lite_v1.json", sample_metric_registry())
+
+    report = build_report(out)
+
+    raw = "\n".join(report["raw_fitness_report"])
+    fusion = "\n".join(report["fusion_context_candidate"])
+    assert "PHYSICAL_COST_SURFACE=255" in raw
+    assert "DISTANCE_TOTAL=42" in raw
+    assert "DISTANCE_SPRINT=68" in raw
+    assert "fatigue truth" in raw
+    assert "PHYSICAL_COST_FAMILY=8" in fusion
+    assert "EFFICIENCY_FAMILY=4" in fusion
+    assert "candidate-only" in fusion
+
+
+def test_raw_fitness_fallback_when_missing(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
+
+    report = build_report(out)
+
+    assert report["raw_fitness_report"] == ["Fiziksel rapor yüzeyi bulunamadı."]
+
+
 def test_falls_back_to_team_entity_key_when_display_label_missing(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
@@ -74,7 +172,7 @@ def test_preserves_metric_locks(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
     write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
-    write_json(out / "metric_family_registry_lite_v1.json", {"registry_record_count": 34, "metric_value_output_allowed": False, "efficiency_calculation_allowed": False})
+    write_json(out / "metric_family_registry_lite_v1.json", sample_metric_registry())
 
     report = build_report(out)
 
@@ -86,7 +184,7 @@ def test_includes_physical_report_summary(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
     write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
-    write_json(out / "physical_cost_surface_audit_v1.json", {"record_count": 323, "surface_counts": {"PHYSICAL_COST_SURFACE": 255, "REPORT_METRIC_SURFACE": 68}})
+    write_json(out / "physical_cost_surface_audit_v1.json", sample_physical_audit())
 
     report = build_report(out)
 
@@ -98,12 +196,18 @@ def test_write_outputs_flat_files(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
     write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
+    write_json(out / "physical_cost_surface_audit_v1.json", sample_physical_audit())
+    write_json(out / "metric_family_registry_lite_v1.json", sample_metric_registry())
 
     report = write_outputs(out, root=ROOT)
+    txt = (out / "postmatch_analyst_report_lite_v1.txt").read_text(encoding="utf-8")
 
     assert report["status"] == "PASS"
     assert (out / "postmatch_analyst_report_lite_v1.json").exists()
     assert (out / "postmatch_analyst_report_lite_v1.txt").exists()
+    assert "[analyst_translation]" in txt
+    assert "[raw_fitness_report]" in txt
+    assert "[fusion_context_candidate]" in txt
     assert not any(p.is_dir() for p in out.iterdir())
 
 
@@ -114,5 +218,5 @@ def test_nested_phone_output_directory_is_rejected():
 
 def test_no_literal_match_identity_leak():
     src = (SRC / "postmatch_analyst_report.py").read_text(encoding="utf-8")
-    for token in ["World Cup", "13.06.2026"]:
+    for token in ["Turkey", "Australia", "Türkiye", "Avustralya", "World Cup", "13.06.2026"]:
         assert token not in src
