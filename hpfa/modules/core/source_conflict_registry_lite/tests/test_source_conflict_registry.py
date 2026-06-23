@@ -35,6 +35,21 @@ def test_detect_unmapped_event_surface_conflict(tmp_path):
     assert registry["conflict_class_counts"]["UNMAPPED_EVENT_SURFACE"] == 1
 
 
+def test_fail_closed_required_miss_still_creates_unmapped_event_conflict(tmp_path):
+    payload = {
+        "sources": [
+            {"source_file": "Players.csv", "source_role": "players", "source_format": "csv", "source_surface_kind": "event_like_or_review", "rows_read": 7, "mapped_column_count": 1, "unmapped_column_count": 3, "missing_required_fields": ["event_type", "x", "y"], "decision": "FAIL_CLOSED_MISSING_REQUIRED"},
+        ],
+    }
+    write_json(tmp_path / "source_mapping_contract_v1.json", payload)
+
+    registry = build_registry(tmp_path, root=ROOT)
+
+    assert registry["status"] == "REVIEW_REQUIRED"
+    assert registry["conflict_class_counts"]["UNMAPPED_EVENT_SURFACE"] == 1
+    assert registry["conflict_class_counts"]["REVIEW_REQUIRED_SOURCE"] == 1
+
+
 def test_aggregate_support_not_event_required_conflict(tmp_path):
     write_json(tmp_path / "source_mapping_contract_v1.json", mapping_payload())
 
