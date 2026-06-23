@@ -38,6 +38,31 @@ def sample_team_audit():
     }
 
 
+def sample_physical_audit():
+    return {
+        "record_count": 323,
+        "surface_counts": {"PHYSICAL_COST_SURFACE": 255, "REPORT_METRIC_SURFACE": 68},
+        "metric_family_counts": {
+            "DISTANCE_TOTAL": 42,
+            "DISTANCE_HIGH_INTENSITY": 36,
+            "DISTANCE_SPRINT": 68,
+            "SPEED_MAX": 34,
+            "SPEED_AVERAGE": 35,
+            "MINUTES_PLAYED": 36,
+            "METABOLIC_LOAD": 1,
+        },
+    }
+
+
+def sample_metric_registry():
+    return {
+        "registry_record_count": 34,
+        "metric_value_output_allowed": False,
+        "efficiency_calculation_allowed": False,
+        "family_counts": {"PROGRESSION_FAMILY": 5, "SHOT_THREAT_FAMILY": 2, "PHYSICAL_COST_FAMILY": 8, "EFFICIENCY_FAMILY": 4},
+    }
+
+
 def test_builds_numeric_team_and_action_comparisons(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
@@ -99,6 +124,36 @@ def test_channel_direction_uses_share_gap_sign(tmp_path):
     assert "Team A Label lehine" in joined
 
 
+def test_includes_readable_raw_fitness_report_and_fusion_context(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
+    write_json(out / "physical_cost_surface_audit_v1.json", sample_physical_audit())
+    write_json(out / "metric_family_registry_lite_v1.json", sample_metric_registry())
+
+    report = build_report(out)
+
+    raw = "\n".join(report["raw_fitness_report"])
+    fusion = "\n".join(report["fusion_context_candidate"])
+    assert "PHYSICAL_COST_SURFACE=255" in raw
+    assert "DISTANCE_TOTAL=42" in raw
+    assert "DISTANCE_SPRINT=68" in raw
+    assert "fatigue truth" in raw
+    assert "PHYSICAL_COST_FAMILY=8" in fusion
+    assert "EFFICIENCY_FAMILY=4" in fusion
+    assert "candidate-only" in fusion
+
+
+def test_raw_fitness_fallback_when_missing(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
+
+    report = build_report(out)
+
+    assert report["raw_fitness_report"] == ["Fiziksel rapor yüzeyi bulunamadı."]
+
+
 def test_falls_back_to_team_entity_key_when_display_label_missing(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
@@ -117,7 +172,7 @@ def test_preserves_metric_locks(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
     write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
-    write_json(out / "metric_family_registry_lite_v1.json", {"registry_record_count": 34, "metric_value_output_allowed": False, "efficiency_calculation_allowed": False})
+    write_json(out / "metric_family_registry_lite_v1.json", sample_metric_registry())
 
     report = build_report(out)
 
@@ -129,7 +184,7 @@ def test_includes_physical_report_summary(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
     write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
-    write_json(out / "physical_cost_surface_audit_v1.json", {"record_count": 323, "surface_counts": {"PHYSICAL_COST_SURFACE": 255, "REPORT_METRIC_SURFACE": 68}})
+    write_json(out / "physical_cost_surface_audit_v1.json", sample_physical_audit())
 
     report = build_report(out)
 
@@ -141,6 +196,8 @@ def test_write_outputs_flat_files(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
     write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
+    write_json(out / "physical_cost_surface_audit_v1.json", sample_physical_audit())
+    write_json(out / "metric_family_registry_lite_v1.json", sample_metric_registry())
 
     report = write_outputs(out, root=ROOT)
     txt = (out / "postmatch_analyst_report_lite_v1.txt").read_text(encoding="utf-8")
@@ -149,6 +206,8 @@ def test_write_outputs_flat_files(tmp_path):
     assert (out / "postmatch_analyst_report_lite_v1.json").exists()
     assert (out / "postmatch_analyst_report_lite_v1.txt").exists()
     assert "[analyst_translation]" in txt
+    assert "[raw_fitness_report]" in txt
+    assert "[fusion_context_candidate]" in txt
     assert not any(p.is_dir() for p in out.iterdir())
 
 
