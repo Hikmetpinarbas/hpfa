@@ -150,8 +150,6 @@ def build_resolution(input_dir: str | Path, root: str | Path | None = None) -> d
         if candidate is None:
             decision = "FAIL_CLOSED_NO_REVIEW_CANDIDATE"
             blocking_reasons.append("no_review_candidate")
-        elif primary.get("decision") == "CANDIDATE_SELECTED":
-            decision = "ALREADY_CANDIDATE_SELECTED_BY_GATE"
         else:
             global_blockers = global_blocking_conflicts(source_conflicts)
             candidate_blockers = candidate_has_blocking_conflict(candidate, source_conflicts)
@@ -164,6 +162,8 @@ def build_resolution(input_dir: str | Path, root: str | Path | None = None) -> d
             elif candidate_blockers:
                 decision = "UNRESOLVED_SOURCE_CONFLICTS_REMAIN"
                 blocking_reasons.append("top_candidate_has_source_conflict")
+            elif primary.get("decision") == "CANDIDATE_SELECTED":
+                decision = "ALREADY_CANDIDATE_SELECTED_BY_GATE"
             else:
                 decision = "RESOLVED_CANDIDATE_FOR_DOWNSTREAM_REVIEW"
 
