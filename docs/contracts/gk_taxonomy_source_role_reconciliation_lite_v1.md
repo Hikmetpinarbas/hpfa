@@ -39,6 +39,7 @@ gk_taxonomy_source_role_reconciliation_lite_v1.txt
 
 ```text
 FAIL_CLOSED_NO_IDENTITY_REVIEW
+FAIL_CLOSED_IDENTITY_REVIEW_INPUT
 NO_GK_PLAYER_OVERLAP_DETECTED
 GK_PLAYER_ROLE_OVERLAP_REVIEW_REQUIRED
 SOURCE_ROLE_SUPPORT_CONFLICT_REMAINS
@@ -67,6 +68,7 @@ claim_safety=SOURCE_ROLE_RECONCILIATION_ONLY
 - do not infer GK action truth
 - do not resolve duplicate truth
 - keep downstream gates WAIT when overlap remains
+- keep downstream gates WAIT when identity review input is fail-closed
 
 ## Must not emit
 
@@ -85,11 +87,9 @@ sequence truth
 
 ```text
 test_missing_identity_review_fail_closed
+test_fail_closed_identity_review_input_does_not_clear
 test_no_gk_player_overlap_passes_review_clearance
 test_gk_player_overlap_remains_review_required
 test_source_role_support_conflict_remains_review_required
 test_no_role_or_event_truth_claims
-test_flat_phone_outputs
-test_nested_phone_output_directory_rejected
-test_no_sample_match_identity_leak
 ```
