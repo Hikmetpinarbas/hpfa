@@ -96,6 +96,12 @@ def source_role_support_blockers(payload: dict[str, Any] | None) -> list[dict[st
     return out
 
 
+def identity_review_fail_closed(identity_review: dict[str, Any]) -> bool:
+    status = str(identity_review.get("status") or "")
+    decision = str(identity_review.get("decision") or "")
+    return status == "FAIL_CLOSED" or decision.startswith("FAIL_CLOSED")
+
+
 def build_reconciliation(input_dir: str | Path, root: str | Path | None = None) -> dict[str, Any]:
     repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
     input_path = Path(input_dir).expanduser().resolve(strict=False)
@@ -113,7 +119,11 @@ def build_reconciliation(input_dir: str | Path, root: str | Path | None = None) 
     else:
         candidates = gk_player_candidates(identity_review)
         support_blockers = source_role_support_blockers(source_conflict)
-        if support_blockers:
+        if identity_review_fail_closed(identity_review):
+            status = "FAIL_CLOSED"
+            decision = "FAIL_CLOSED_IDENTITY_REVIEW_INPUT"
+            blockers.append("identity_review_fail_closed")
+        elif support_blockers:
             status = "REVIEW_REQUIRED"
             decision = "SOURCE_ROLE_SUPPORT_CONFLICT_REMAINS"
             blockers.append("source_role_support_conflict_present")
