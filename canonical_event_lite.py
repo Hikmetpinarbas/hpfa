@@ -29,7 +29,11 @@ def main() -> int:
     print(json.dumps({
         "status": result.get("status"),
         "canonical_event_count": result.get("canonical_event_count"),
-        "canonical_lite_row_count": result.get("canonical_lite_row_count"),
+        "deduplicated_event_count": result.get("deduplicated_event_count"),
+        "primary_event_surface_candidate": result.get("primary_event_surface_candidate"),
+        "event_count_claim_allowed": result.get("event_count_claim_allowed"),
+        "surface_row_inventory_total": result.get("surface_row_inventory_total"),
+        "canonical_lite_row_count_deprecated": result.get("canonical_lite_row_count_deprecated"),
         "outputs": result.get("outputs"),
     }, ensure_ascii=False))
     return 0
