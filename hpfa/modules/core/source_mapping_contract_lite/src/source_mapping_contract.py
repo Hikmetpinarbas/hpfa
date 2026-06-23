@@ -61,6 +61,15 @@ def active_surfaces(active_match_path: Path, cel: Any) -> list[Path]:
     )
 
 
+def is_aggregate_support_surface(path: Path, cel: Any) -> bool:
+    """Aggregate support surfaces are mapped but not judged by event-like required fields."""
+    return cel.source_format(path) == "xlsx"
+
+
+def source_surface_kind(path: Path, cel: Any) -> str:
+    return "aggregate_support" if is_aggregate_support_surface(path, cel) else "event_like_or_review"
+
+
 def map_header(header: str, cel: Any) -> str | None:
     normalized = cel.normalize_header(header)
     return cel.SYNONYM_INDEX.get(normalized)
@@ -69,13 +78,16 @@ def map_header(header: str, cel: Any) -> str | None:
 def source_mapping_records(source_file: Path, headers: list[str], cel: Any) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     detected = cel.detect_columns(headers)
-    required_sources = {detected.get(field) for field in REQUIRED_EVENT_SURFACE_FIELDS if detected.get(field)}
+    required_sources = set()
+    if not is_aggregate_support_surface(source_file, cel):
+        required_sources = {detected.get(field) for field in REQUIRED_EVENT_SURFACE_FIELDS if detected.get(field)}
     for header in headers:
         canonical = map_header(header, cel)
         records.append({
             "source_file": source_file.name,
             "source_format": cel.source_format(source_file),
             "source_role": cel.source_role(source_file),
+            "source_surface_kind": source_surface_kind(source_file, cel),
             "source_field": header,
             "normalized_source_field": cel.normalize_header(header),
             "canonical_field": canonical,
@@ -97,12 +109,15 @@ def sample_extras(rows: list[dict[str, Any]], unmapped_headers: list[str], max_r
 
 def evaluate_source(path: Path, rows: list[dict[str, Any]], headers: list[str], cel: Any, strict_required: bool) -> dict[str, Any]:
     detected = cel.detect_columns(headers)
-    missing_required = [field for field in REQUIRED_EVENT_SURFACE_FIELDS if detected.get(field) is None]
+    aggregate_support = is_aggregate_support_surface(path, cel)
+    missing_required = [] if aggregate_support else [field for field in REQUIRED_EVENT_SURFACE_FIELDS if detected.get(field) is None]
     unmapped_headers = [header for header in headers if map_header(header, cel) is None]
     mapped_headers = [header for header in headers if map_header(header, cel) is not None]
 
     if not rows or not headers:
         decision = "NO_ROWS_OR_NO_HEADERS"
+    elif aggregate_support:
+        decision = "AGGREGATE_SUPPORT_MAPPING_ONLY"
     elif missing_required and strict_required:
         decision = "FAIL_CLOSED_MISSING_REQUIRED"
     elif missing_required:
@@ -114,6 +129,7 @@ def evaluate_source(path: Path, rows: list[dict[str, Any]], headers: list[str], 
         "source_file": path.name,
         "source_format": cel.source_format(path),
         "source_role": cel.source_role(path),
+        "source_surface_kind": source_surface_kind(path, cel),
         "rows_read": len(rows),
         "headers": headers,
         "detected_columns": detected,
@@ -121,6 +137,7 @@ def evaluate_source(path: Path, rows: list[dict[str, Any]], headers: list[str], 
         "unmapped_column_count": len(unmapped_headers),
         "unmapped_columns": unmapped_headers,
         "missing_required_fields": missing_required,
+        "required_field_policy": "not_applicable_aggregate_support_surface" if aggregate_support else "event_like_surface_required_fields",
         "extras_preserved": bool(unmapped_headers),
         "extras_policy": "preserve_in_extras",
         "extras_sample": sample_extras(rows, unmapped_headers),
@@ -136,8 +153,10 @@ def build_contract(active_match_dir: str | Path, strict_required: bool = False, 
 
     sources: list[dict[str, Any]] = []
     mappings: list[dict[str, Any]] = []
-    status = "PASS"
-    for path in active_surfaces(active_match_path, cel):
+    surfaces = active_surfaces(active_match_path, cel)
+    status = "FAIL_CLOSED" if not surfaces else "PASS"
+    overall_decision = "NO_SUPPORTED_SURFACES" if not surfaces else "SOURCES_EVALUATED"
+    for path in surfaces:
         rows, headers = cel.read_surface(path)
         source = evaluate_source(path, rows, headers, cel, strict_required)
         sources.append(source)
@@ -152,6 +171,7 @@ def build_contract(active_match_dir: str | Path, strict_required: bool = False, 
     return {
         "module_id": MODULE_ID,
         "status": status,
+        "overall_decision": overall_decision,
         "claim_safety": CLAIM_SAFETY,
         "active_match_dir": str(active_match_path),
         "strict_required": strict_required,
@@ -174,9 +194,12 @@ def build_audit(contract: dict[str, Any]) -> dict[str, Any]:
     for source in contract.get("sources", []):
         decision = str(source.get("decision"))
         decisions[decision] = decisions.get(decision, 0) + 1
+    if not decisions and contract.get("overall_decision") == "NO_SUPPORTED_SURFACES":
+        decisions["NO_SUPPORTED_SURFACES"] = 1
     return {
         "module_id": MODULE_ID,
         "status": contract.get("status"),
+        "overall_decision": contract.get("overall_decision"),
         "claim_safety": CLAIM_SAFETY,
         "active_match_dir": contract.get("active_match_dir"),
         "canonical_event_count": "UNKNOWN",
@@ -193,10 +216,12 @@ def build_audit(contract: dict[str, Any]) -> dict[str, Any]:
                 "source_file": source.get("source_file"),
                 "source_format": source.get("source_format"),
                 "source_role": source.get("source_role"),
+                "source_surface_kind": source.get("source_surface_kind"),
                 "rows_read": source.get("rows_read"),
                 "mapped_column_count": source.get("mapped_column_count"),
                 "unmapped_column_count": source.get("unmapped_column_count"),
                 "missing_required_fields": source.get("missing_required_fields"),
+                "required_field_policy": source.get("required_field_policy"),
                 "decision": source.get("decision"),
                 "extras_preserved": source.get("extras_preserved"),
             }
@@ -211,6 +236,7 @@ def render_audit_txt(audit: dict[str, Any]) -> str:
         "HPFA SOURCE MAPPING CONTRACT LITE V1 AUDIT",
         "===========================================",
         f"status={audit.get('status')}",
+        f"overall_decision={audit.get('overall_decision')}",
         f"claim_safety={audit.get('claim_safety')}",
         f"active_match_dir={audit.get('active_match_dir')}",
         f"canonical_event_count={audit.get('canonical_event_count')}",
@@ -229,8 +255,8 @@ def render_audit_txt(audit: dict[str, Any]) -> str:
     lines.extend(["", "[sources_review]"])
     for source in audit.get("sources_review", []):
         lines.append(
-            f"{source.get('decision')} | {source.get('source_role')} | {source.get('source_format')} | "
-            f"rows={source.get('rows_read')} | mapped={source.get('mapped_column_count')} | "
+            f"{source.get('decision')} | {source.get('source_surface_kind')} | {source.get('source_role')} | "
+            f"{source.get('source_format')} | rows={source.get('rows_read')} | mapped={source.get('mapped_column_count')} | "
             f"unmapped={source.get('unmapped_column_count')} | missing_required={source.get('missing_required_fields')} | "
             f"file={source.get('source_file')}"
         )
