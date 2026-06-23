@@ -98,6 +98,15 @@ def row_by_metric(rows: list[dict[str, Any]], metric: str) -> dict[str, Any]:
     return {"left": 0, "right": 0, "diff_left_minus_right": 0, "ratio_left_to_right": "NA", "left_share_pct": 0, "right_share_pct": 0, "share_gap_pp": 0}
 
 
+def share_gap_direction(row: dict[str, Any], left: str, right: str) -> str:
+    gap = float(row.get("share_gap_pp", 0) or 0)
+    if gap > 0:
+        return f"{left} lehine {abs(gap)} puan"
+    if gap < 0:
+        return f"{right} lehine {abs(gap)} puan"
+    return "iki taraf arasında 0.0 puan fark"
+
+
 def analyst_translation(team_comparison: dict[str, Any], action: list[dict[str, Any]], zones: list[dict[str, Any]], channels: list[dict[str, Any]]) -> list[str]:
     left = str(team_comparison.get("left_team"))
     right = str(team_comparison.get("right_team"))
@@ -114,20 +123,20 @@ def analyst_translation(team_comparison: dict[str, Any], action: list[dict[str, 
         ("DUEL_PRESSURE", "duel/pressure yüzeyi"),
     ]:
         row = row_by_metric(action, metric)
-        lines.append(f"{label}: {left} {row.get('left')}, {right} {row.get('right')}; fark {row.get('diff_left_minus_right')}, oran {row.get('ratio_left_to_right')}. Pay farkı {row.get('share_gap_pp')} puan.")
+        lines.append(f"{label}: {left} {row.get('left')}, {right} {row.get('right')}; fark {row.get('diff_left_minus_right')}, oran {row.get('ratio_left_to_right')}. Pay farkı {share_gap_direction(row, left, right)}.")
     final_third = row_by_metric(zones, "FINAL_THIRD")
     middle = row_by_metric(zones, "MIDDLE_THIRD")
     defensive = row_by_metric(zones, "DEFENSIVE_THIRD")
     right_ch = row_by_metric(channels, "RIGHT_CHANNEL")
     central = row_by_metric(channels, "CENTRAL_CHANNEL")
     left_ch = row_by_metric(channels, "LEFT_CHANNEL")
-    lines.append(f"Bölge okuması: {left} final third'de {final_third.get('left')} row, {right} {final_third.get('right')} row; fark {final_third.get('diff_left_minus_right')} ve share gap {final_third.get('share_gap_pp')} puan.")
-    lines.append(f"Orta bölge: {left} {middle.get('left')}, {right} {middle.get('right')}; fark {middle.get('diff_left_minus_right')}. Bu, {left} event-coordinate evidence'ının orta/ileri hatta yoğunlaştığını gösterir.")
-    lines.append(f"Savunma bölgesi: {left} {defensive.get('left')}, {right} {defensive.get('right')}; {right} lehine {abs(int(defensive.get('diff_left_minus_right', 0)))} row farkı ve {abs(float(defensive.get('share_gap_pp', 0)))} puan share gap var.")
-    lines.append(f"Kanal okuması: sağ kanalda {left} {right_ch.get('left')}, {right} {right_ch.get('right')}; fark {right_ch.get('diff_left_minus_right')}, oran {right_ch.get('ratio_left_to_right')}. Bu maç yüzeyinde {left} sağ kanal yoğunluğu belirgin.")
-    lines.append(f"Merkez kanal payı {right} lehine: {left} {central.get('left_share_pct')}%, {right} {central.get('right_share_pct')}%, gap {central.get('share_gap_pp')} puan.")
-    lines.append(f"Sol kanal payı da {right} lehine: {left} {left_ch.get('left_share_pct')}%, {right} {left_ch.get('right_share_pct')}%, gap {left_ch.get('share_gap_pp')} puan.")
-    lines.append("Analyst conclusion: row-level evidence yüksek hacimli Türkiye yüzeyi ve daha düşük hacimli Avustralya yüzeyi gösteriyor. Bu, skor/verimlilik yorumuna adaydır; efficiency truth değildir ve Action Value Cost Fusion gerektirir.")
+    lines.append(f"Bölge okuması: {left} final third'de {final_third.get('left')} row, {right} {final_third.get('right')} row; fark {final_third.get('diff_left_minus_right')} ve share gap {share_gap_direction(final_third, left, right)}.")
+    lines.append(f"Orta bölge: {left} {middle.get('left')}, {right} {middle.get('right')}; fark {middle.get('diff_left_minus_right')}. Share gap {share_gap_direction(middle, left, right)}; bu event-coordinate evidence'ın orta bölge yoğunlaşmasını gösterir.")
+    lines.append(f"Savunma bölgesi: {left} {defensive.get('left')}, {right} {defensive.get('right')}; share gap {share_gap_direction(defensive, left, right)}.")
+    lines.append(f"Sağ kanal: {left} {right_ch.get('left')}, {right} {right_ch.get('right')}; fark {right_ch.get('diff_left_minus_right')}, oran {right_ch.get('ratio_left_to_right')}. Share gap {share_gap_direction(right_ch, left, right)}.")
+    lines.append(f"Merkez kanal: {left} {central.get('left_share_pct')}%, {right} {central.get('right_share_pct')}%. Share gap {share_gap_direction(central, left, right)}.")
+    lines.append(f"Sol kanal: {left} {left_ch.get('left_share_pct')}%, {right} {left_ch.get('right_share_pct')}%. Share gap {share_gap_direction(left_ch, left, right)}.")
+    lines.append(f"Analyst conclusion: row-level evidence {left} için daha yüksek visible row-volume, {right} için daha düşük visible row-volume gösteriyor. Bu skor/verimlilik yorumuna adaydır; efficiency truth değildir ve Action Value Cost Fusion gerektirir.")
     return lines
 
 
