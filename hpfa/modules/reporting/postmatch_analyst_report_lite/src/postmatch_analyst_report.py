@@ -21,10 +21,8 @@ def ensure_path(path: Path) -> None:
 
 
 def spine_runner_module(root: Path):
-    src = root / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
-    ensure_path(src)
+    ensure_path(root / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src")
     import spine_runner  # type: ignore
-
     return spine_runner
 
 
@@ -39,19 +37,19 @@ def read_json(path: Path) -> dict[str, Any]:
 
 
 def pct(part: float, whole: float) -> float:
-    if whole in (0, 0.0):
-        return 0.0
-    return round((part / whole) * 100.0, 2)
+    return 0.0 if whole in (0, 0.0) else round((part / whole) * 100.0, 2)
 
 
 def ratio(a: float, b: float) -> float | str:
-    if b in (0, 0.0):
-        return "NA"
-    return round(a / b, 3)
+    return "NA" if b in (0, 0.0) else round(a / b, 3)
 
 
-def diff(a: float, b: float) -> float:
-    return round(a - b, 3)
+def team_display_label(item: dict[str, Any]) -> str:
+    for key in ("display_label_candidate", "team_entity_key", "team_name", "team_raw", "name", "team", "entity_name"):
+        value = item.get(key)
+        if value not in (None, ""):
+            return str(value)
+    return "UNKNOWN_TEAM"
 
 
 def team_rows(team_binding: dict[str, Any]) -> list[dict[str, Any]]:
@@ -62,10 +60,9 @@ def team_rows(team_binding: dict[str, Any]) -> list[dict[str, Any]]:
     for item in teams if isinstance(teams, list) else []:
         if not isinstance(item, dict):
             continue
-        name = item.get("team_name") or item.get("team_raw") or item.get("name") or item.get("team") or item.get("entity_name")
         visible = item.get("visible_rows") or item.get("row_count") or item.get("rows") or item.get("surface_rows") or 0
         clean.append({
-            "team": str(name) if name else "UNKNOWN_TEAM",
+            "team": team_display_label(item),
             "visible_rows": int(visible or 0),
             "event_family_volume": item.get("event_family_volume") or item.get("action_family_volume") or {},
             "zone_distribution": item.get("zone_distribution") or item.get("zone_volume") or {},
@@ -76,9 +73,8 @@ def team_rows(team_binding: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def compare_dicts(left: dict[str, Any], right: dict[str, Any], left_total: int, right_total: int) -> list[dict[str, Any]]:
-    keys = sorted(set(left.keys()) | set(right.keys()))
-    rows = []
-    for key in keys:
+    rows: list[dict[str, Any]] = []
+    for key in sorted(set(left.keys()) | set(right.keys())):
         lv = int(left.get(key, 0) or 0)
         rv = int(right.get(key, 0) or 0)
         rows.append({
@@ -95,10 +91,6 @@ def compare_dicts(left: dict[str, Any], right: dict[str, Any], left_total: int, 
     return rows
 
 
-def top_items(rows: list[dict[str, Any]], n: int = 8) -> list[dict[str, Any]]:
-    return rows[:n]
-
-
 def build_report(out_dir: str | Path) -> dict[str, Any]:
     root = Path(out_dir).expanduser().resolve(strict=False)
     team_binding = read_json(root / "team_binding_lite_audit_v1.json")
@@ -107,19 +99,15 @@ def build_report(out_dir: str | Path) -> dict[str, Any]:
     physical = read_json(root / "physical_cost_surface_audit_v1.json")
     identity = read_json(root / "event_identity_resolution_gate_lite_v1.json")
     canonical = read_json(root / "canonical_event_lite_audit_v1.json")
-
     teams = team_rows(team_binding)
     left = teams[0] if teams else {"team": "TEAM_A", "visible_rows": 0, "event_family_volume": {}, "zone_distribution": {}, "channel_distribution": {}}
     right = teams[1] if len(teams) > 1 else {"team": "TEAM_B", "visible_rows": 0, "event_family_volume": {}, "zone_distribution": {}, "channel_distribution": {}}
-
     left_total = int(left.get("visible_rows", 0) or 0)
     right_total = int(right.get("visible_rows", 0) or 0)
     total = left_total + right_total
-
-    action_family_comparison = compare_dicts(left.get("event_family_volume", {}), right.get("event_family_volume", {}), left_total, right_total)
-    zone_comparison = compare_dicts(left.get("zone_distribution", {}), right.get("zone_distribution", {}), left_total, right_total)
-    channel_comparison = compare_dicts(left.get("channel_distribution", {}), right.get("channel_distribution", {}), left_total, right_total)
-
+    action = compare_dicts(left.get("event_family_volume", {}), right.get("event_family_volume", {}), left_total, right_total)
+    zones = compare_dicts(left.get("zone_distribution", {}), right.get("zone_distribution", {}), left_total, right_total)
+    channels = compare_dicts(left.get("channel_distribution", {}), right.get("channel_distribution", {}), left_total, right_total)
     report = {
         "module_id": MODULE_ID,
         "status": "PASS",
@@ -143,9 +131,9 @@ def build_report(out_dir: str | Path) -> dict[str, Any]:
             "row_diff_left_minus_right": left_total - right_total,
             "row_ratio_left_to_right": ratio(left_total, right_total),
         },
-        "action_family_comparison": action_family_comparison,
-        "zone_comparison": zone_comparison,
-        "channel_comparison": channel_comparison,
+        "action_family_comparison": action,
+        "zone_comparison": zones,
+        "channel_comparison": channels,
         "physical_report_summary": {
             "physical_available": bool(physical),
             "record_count": physical.get("record_count"),
@@ -168,48 +156,30 @@ def build_report(out_dir: str | Path) -> dict[str, Any]:
         "canonical_surface_summary": {
             "available": bool(canonical),
             "surface_row_inventory_total": canonical.get("surface_row_inventory_total"),
-            "event_family_volume": canonical.get("event_family_volume") or canonical.get("action_family_volume"),
-            "zone_distribution": canonical.get("zone_distribution"),
-            "channel_distribution": canonical.get("channel_distribution"),
         },
-        "analyst_numeric_findings": numeric_findings(left, right, action_family_comparison, zone_comparison, channel_comparison),
-        "blocked_claims": [
-            "validated event count",
-            "primary event truth",
-            "possession truth",
-            "phase truth",
-            "sequence truth",
-            "tactical dominance truth",
-            "fatigue causality",
-            "efficiency truth",
-        ],
+        "analyst_numeric_findings": numeric_findings(left, right, action, zones, channels),
+        "blocked_claims": ["validated event count", "primary event truth", "possession truth", "phase truth", "sequence truth", "metric truth", "efficiency truth"],
     }
     return report
 
 
 def numeric_findings(left: dict[str, Any], right: dict[str, Any], action_rows: list[dict[str, Any]], zone_rows: list[dict[str, Any]], channel_rows: list[dict[str, Any]]) -> list[str]:
-    findings: list[str] = []
     left_name = str(left.get("team"))
     right_name = str(right.get("team"))
-    left_total = int(left.get("visible_rows", 0) or 0)
-    right_total = int(right.get("visible_rows", 0) or 0)
-    findings.append(f"{left_name} visible row-volume {left_total}; {right_name} visible row-volume {right_total}; ratio {ratio(left_total, right_total)}.")
-    for row in top_items(action_rows, 5):
+    findings = [f"{left_name} visible row-volume {left.get('visible_rows')}; {right_name} visible row-volume {right.get('visible_rows')}; ratio {ratio(int(left.get('visible_rows', 0)), int(right.get('visible_rows', 0)))}."]
+    for row in action_rows[:5]:
         findings.append(f"Action family {row['metric']}: {left_name} {row['left']} ({row['left_share_pct']}%), {right_name} {row['right']} ({row['right_share_pct']}%), diff {row['diff_left_minus_right']}, ratio {row['ratio_left_to_right']}.")
-    for row in top_items(zone_rows, 3):
+    for row in zone_rows[:3]:
         findings.append(f"Zone {row['metric']}: {left_name} {row['left']} ({row['left_share_pct']}%), {right_name} {row['right']} ({row['right_share_pct']}%), share gap {row['share_gap_pp']}pp.")
-    for row in top_items(channel_rows, 3):
+    for row in channel_rows[:3]:
         findings.append(f"Channel {row['metric']}: {left_name} {row['left']} ({row['left_share_pct']}%), {right_name} {row['right']} ({row['right_share_pct']}%), share gap {row['share_gap_pp']}pp.")
     return findings
 
 
 def render_table(rows: list[dict[str, Any]], title: str, left_name: str, right_name: str, limit: int = 10) -> list[str]:
-    lines = [title, "-" * len(title)]
-    lines.append(f"Metric | {left_name} | {right_name} | Diff | Ratio | {left_name}% | {right_name}% | Gap pp")
+    lines = [title, "-" * len(title), f"Metric | {left_name} | {right_name} | Diff | Ratio | {left_name}% | {right_name}% | Gap pp"]
     for row in rows[:limit]:
-        lines.append(
-            f"{row['metric']} | {row['left']} | {row['right']} | {row['diff_left_minus_right']} | {row['ratio_left_to_right']} | {row['left_share_pct']} | {row['right_share_pct']} | {row['share_gap_pp']}"
-        )
+        lines.append(f"{row['metric']} | {row['left']} | {row['right']} | {row['diff_left_minus_right']} | {row['ratio_left_to_right']} | {row['left_share_pct']} | {row['right_share_pct']} | {row['share_gap_pp']}")
     return lines
 
 
@@ -217,49 +187,24 @@ def render_txt(report: dict[str, Any]) -> str:
     tc = report.get("team_comparison", {})
     left_name = str(tc.get("left_team"))
     right_name = str(tc.get("right_team"))
-    lines = [
-        "HPFA POSTMATCH ANALYST REPORT LITE V1",
-        "======================================",
-        f"status={report.get('status')}",
-        f"claim_safety={report.get('claim_safety')}",
-        "",
-        "[surface_status]",
-    ]
+    lines = ["HPFA POSTMATCH ANALYST REPORT LITE V1", "======================================", f"status={report.get('status')}", f"claim_safety={report.get('claim_safety')}", "", "[surface_status]"]
     for key, value in report.get("surface_status", {}).items():
         lines.append(f"{key}={value}")
-    lines.extend([
-        "",
-        "[team_row_volume]",
-        f"{left_name}_visible_rows={tc.get('left_visible_rows')}",
-        f"{right_name}_visible_rows={tc.get('right_visible_rows')}",
-        f"row_diff_left_minus_right={tc.get('row_diff_left_minus_right')}",
-        f"row_ratio_left_to_right={tc.get('row_ratio_left_to_right')}",
-        f"{left_name}_row_share_pct={tc.get('left_row_share_pct')}",
-        f"{right_name}_row_share_pct={tc.get('right_row_share_pct')}",
-        "",
-    ])
-    lines.extend(render_table(report.get("action_family_comparison", []), "[action_family_comparison]", left_name, right_name, 12))
-    lines.append("")
-    lines.extend(render_table(report.get("zone_comparison", []), "[zone_comparison]", left_name, right_name, 8))
-    lines.append("")
-    lines.extend(render_table(report.get("channel_comparison", []), "[channel_comparison]", left_name, right_name, 8))
-    lines.extend(["", "[physical_report_summary]", json.dumps(report.get("physical_report_summary", {}), ensure_ascii=False, sort_keys=True)])
-    lines.extend(["", "[metric_registry_summary]", json.dumps(report.get("metric_registry_summary", {}), ensure_ascii=False, sort_keys=True)])
-    lines.extend(["", "[identity_summary]", json.dumps(report.get("identity_summary", {}), ensure_ascii=False, sort_keys=True)])
-    lines.extend(["", "[analyst_numeric_findings]"])
-    for item in report.get("analyst_numeric_findings", []):
-        lines.append(f"- {item}")
-    lines.extend(["", "[blocked_claims]"])
-    for item in report.get("blocked_claims", []):
-        lines.append(f"- {item}")
+    lines += ["", "[team_row_volume]", f"{left_name}_visible_rows={tc.get('left_visible_rows')}", f"{right_name}_visible_rows={tc.get('right_visible_rows')}", f"row_diff_left_minus_right={tc.get('row_diff_left_minus_right')}", f"row_ratio_left_to_right={tc.get('row_ratio_left_to_right')}", f"{left_name}_row_share_pct={tc.get('left_row_share_pct')}", f"{right_name}_row_share_pct={tc.get('right_row_share_pct')}", ""]
+    lines += render_table(report.get("action_family_comparison", []), "[action_family_comparison]", left_name, right_name, 12) + [""]
+    lines += render_table(report.get("zone_comparison", []), "[zone_comparison]", left_name, right_name, 8) + [""]
+    lines += render_table(report.get("channel_comparison", []), "[channel_comparison]", left_name, right_name, 8)
+    for block in ("physical_report_summary", "metric_registry_summary", "identity_summary"):
+        lines += ["", f"[{block}]", json.dumps(report.get(block, {}), ensure_ascii=False, sort_keys=True)]
+    lines += ["", "[analyst_numeric_findings]"] + [f"- {x}" for x in report.get("analyst_numeric_findings", [])]
+    lines += ["", "[blocked_claims]"] + [f"- {x}" for x in report.get("blocked_claims", [])]
     lines.append("")
     return "\n".join(lines)
 
 
 def write_outputs(out_dir: str | Path, root: str | Path | None = None) -> dict[str, Any]:
     repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
-    spine_runner = spine_runner_module(repo_root)
-    out = spine_runner.validate_output_root(out_dir)
+    out = spine_runner_module(repo_root).validate_output_root(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     report = build_report(out)
     json_out = out / OUTPUT_JSON
