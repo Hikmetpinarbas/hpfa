@@ -28,7 +28,22 @@ def surface(source_file, role, fmt, rows, event_rows, team_rows, coord_rows, mis
     }
 
 
-def test_selects_players_csv_as_primary_candidate(tmp_path):
+def test_single_clean_surface_can_be_selected(tmp_path):
+    audit = {"files_read": [surface("Players.csv", "players", "csv", 100, 100, 100, 100, ["minute", "timestamp"])]}
+    audit_path = tmp_path / "canonical_event_lite_audit_v1.json"
+    write_json(audit_path, audit)
+
+    report = evaluate(audit_path)
+
+    assert report["status"] == "PASS"
+    assert report["decision"] == "CANDIDATE_SELECTED"
+    assert report["primary_event_surface_candidate"] == "Players.csv"
+    assert report["primary_event_surface_candidate_role"] == "players"
+    assert report["event_count_claim_allowed"] is False
+    assert report["deduplicated_event_count"] == "UNKNOWN"
+
+
+def test_multiple_eligible_surfaces_return_unresolved(tmp_path):
     audit = {
         "files_read": [
             surface("Players.csv", "players", "csv", 100, 100, 100, 100, ["minute", "timestamp"]),
@@ -41,11 +56,11 @@ def test_selects_players_csv_as_primary_candidate(tmp_path):
 
     report = evaluate(audit_path)
 
-    assert report["status"] == "PASS"
-    assert report["primary_event_surface_candidate"] == "Players.csv"
-    assert report["primary_event_surface_candidate_role"] == "players"
-    assert report["event_count_claim_allowed"] is False
-    assert report["deduplicated_event_count"] == "UNKNOWN"
+    assert report["decision"] == "UNRESOLVED_REVIEW_REQUIRED"
+    assert report["primary_event_surface_candidate"] == "UNRESOLVED"
+    assert report["top_candidate_for_review"]["source_file"] == "Players.csv"
+    assert "multiple_eligible_event_surfaces" in report["unresolved_reasons"]
+    assert report["downstream_unlocks"]["time_phase_lite"] == "WAIT"
 
 
 def test_excludes_xlsx_aggregate_surfaces(tmp_path):
@@ -60,7 +75,7 @@ def test_excludes_xlsx_aggregate_surfaces(tmp_path):
     assert report["candidate_evaluations"][0]["aggregate_surface_flag"] is True
 
 
-def test_duplicate_risk_keeps_review_boundary(tmp_path):
+def test_overlap_candidates_keep_unresolved_boundary(tmp_path):
     audit = {"files_read": [surface("Players.csv", "players", "csv", 100, 100, 100, 100)]}
     identity = {"decision": "DUPLICATE_RISK_CANDIDATES_FOUND", "candidate_cluster_count": 5, "duplicate_risk_candidate_count": 12}
     audit_path = tmp_path / "canonical_event_lite_audit_v1.json"
@@ -70,8 +85,11 @@ def test_duplicate_risk_keeps_review_boundary(tmp_path):
 
     report = evaluate(audit_path, identity_path)
 
-    assert report["decision"] == "CANDIDATE_SELECTED_WITH_DUPLICATE_RISK_REVIEW"
-    assert report["duplicate_risk_summary"]["candidate_cluster_count"] == 5
+    assert report["decision"] == "UNRESOLVED_REVIEW_REQUIRED"
+    assert report["primary_event_surface_candidate"] == "UNRESOLVED"
+    assert report["top_candidate_for_review"]["source_file"] == "Players.csv"
+    assert report["overlap_review_summary"]["candidate_cluster_count"] == 5
+    assert "overlap_candidates_present" in report["unresolved_reasons"]
     assert report["event_count_claim_allowed"] is False
 
 
