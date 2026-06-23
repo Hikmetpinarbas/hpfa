@@ -17,26 +17,29 @@ OUT_AUDIT_JSON = "physical_cost_surface_audit_v1.json"
 OUT_AUDIT_TXT = "physical_cost_surface_audit_v1.txt"
 
 PHYSICAL_PATTERNS = {
-    "DISTANCE_TOTAL": [r"total distance", r"distance covered", r"distance"],
-    "DISTANCE_HIGH_INTENSITY": [r"high[- ]?intensity", r"high speed", r"hsr"],
-    "DISTANCE_SPRINT": [r"sprint", r"sprinting"],
+    "DISTANCE_TOTAL": [r"total distance", r"distance covered", r"\bdistance\b"],
+    "DISTANCE_HIGH_INTENSITY": [r"high[- ]?intensity", r"high speed", r"\bhsr\b"],
+    "DISTANCE_SPRINT": [r"sprint distance", r"sprinting distance", r"\bsprint\b", r"\bsprinting\b"],
     "SPEED_MAX": [r"max(?:imum)? speed", r"top speed"],
     "SPEED_AVERAGE": [r"average speed", r"avg speed"],
-    "ACCELERATION": [r"acceleration", r"accelerations"],
-    "DECELERATION": [r"deceleration", r"decelerations"],
+    "ACCELERATION": [r"\bacceleration\b", r"\baccelerations\b"],
+    "DECELERATION": [r"\bdeceleration\b", r"\bdecelerations\b"],
     "METABOLIC_LOAD": [r"metabolic", r"metabolic power"],
     "PLAYER_LOAD": [r"player load"],
     "WORK_RATE": [r"work rate", r"workload"],
     "MINUTES_PLAYED": [r"minutes played", r"playing time"],
-    "RECOVERY_TIME": [r"recovery"],
+    "RECOVERY_TIME": [r"\brecovery\b"],
 }
 
 REPORT_PATTERNS = {
-    "FIFA_TECHNICAL_CONTEXT": [r"fifa", r"technical report", r"technical study"],
+    "FIFA_TECHNICAL_CONTEXT": [r"\bfifa\b", r"technical report", r"technical study"],
     "MATCH_REPORT_CONTEXT": [r"match report", r"match summary"],
     "FORM_REPORT_CONTEXT": [r"form report", r"form raporu"],
     "OFFICIAL_METRIC_CONTEXT": [r"official", r"metric", r"statistics"],
 }
+
+REPORT_NAME_TOKENS = ["fifa", "match report", "technical report", "technical study", "form report", "form raporu"]
+PHYSICAL_NAME_TOKENS = ["fitness", "physical", "load", "player load", "gps", "gnss"]
 
 BLOCKED_LANGUAGE_FAMILIES = [
     "physical_cost_as_event_count",
@@ -129,19 +132,29 @@ def match_family(text: str, patterns: dict[str, list[str]], default: str) -> lis
 
 
 def infer_surface_role(name: str, text: str) -> str:
-    hay = low(name + " " + text[:2000])
-    if any(token in hay for token in ["fitness", "load", "distance", "sprint", "acceleration", "deceleration", "speed"]):
+    name_l = low(name)
+    text_l = low(text[:2000])
+    if any(token in name_l for token in REPORT_NAME_TOKENS):
+        return "REPORT_METRIC_SURFACE"
+    if any(token in name_l for token in PHYSICAL_NAME_TOKENS):
         return "PHYSICAL_COST_SURFACE"
-    if any(token in hay for token in ["fifa", "match report", "technical report", "form report", "form raporu"]):
+    if any(token in text_l for token in ["fitness", "player load", "external load", "total distance", "sprint distance", "acceleration", "deceleration"]):
+        return "PHYSICAL_COST_SURFACE"
+    if any(token in text_l for token in REPORT_NAME_TOKENS):
         return "REPORT_METRIC_SURFACE"
     return "REPORT_METRIC_SURFACE"
 
 
-def extract_candidate_value(text: str) -> tuple[str, str]:
-    m = re.search(r"([-+]?\d+(?:[\.,]\d+)?)\s*(km/h|km|m|meters|metres|sprints?|acc|dec|min|minutes|au)?", text, flags=re.I)
-    if not m:
-        return "", ""
-    return m.group(1), (m.group(2) or "")
+def value_for_family(text: str, family: str) -> tuple[str, str]:
+    patterns = PHYSICAL_PATTERNS.get(family, [])
+    for pattern in patterns:
+        m = re.search(rf"(?:{pattern})[^\d\n]{{0,40}}([-+]?\d+(?:[\.,]\d+)?)\s*(km/h|km|m|meters|metres|sprints?|acc|dec|min|minutes|au)?", text, flags=re.I)
+        if m:
+            return m.group(1), (m.group(2) or "")
+        m = re.search(rf"([-+]?\d+(?:[\.,]\d+)?)\s*(km/h|km|m|meters|metres|sprints?|acc|dec|min|minutes|au)?[^\n]{{0,40}}(?:{pattern})", text, flags=re.I)
+        if m:
+            return m.group(1), (m.group(2) or "")
+    return "", ""
 
 
 def build_manifest(output_root: str | Path) -> dict[str, Any]:
@@ -163,8 +176,8 @@ def build_manifest(output_root: str | Path) -> dict[str, Any]:
             physical_families = match_family(doc + " " + text, PHYSICAL_PATTERNS, "UNKNOWN_PHYSICAL")
             report_families = match_family(doc + " " + text, REPORT_PATTERNS, "UNCLASSIFIED_REPORT_CONTEXT")
             families = physical_families if surface_role == "PHYSICAL_COST_SURFACE" else report_families
-            value_raw, unit_raw = extract_candidate_value(text)
             for family in families:
+                value_raw, unit_raw = value_for_family(text, family)
                 rec = {
                     "record_id": f"PCR-{idx:06d}-{family}",
                     "document_id": doc,
