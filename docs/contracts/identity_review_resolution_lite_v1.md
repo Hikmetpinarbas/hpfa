@@ -55,6 +55,7 @@ FAIL_CLOSED_NO_IDENTITY_GATE
 NO_IDENTITY_OVERLAP_DETECTED
 RESOLVED_IDENTITY_REVIEW_CANDIDATE_ONLY
 UNRESOLVED_IDENTITY_OVERLAP_REMAINS
+UNRESOLVED_IDENTITY_INSUFFICIENT_FIELDS
 UNRESOLVED_SOURCE_SUPPORT_CONFLICTS_REMAIN
 ```
 
@@ -87,10 +88,13 @@ sequence truth
 
 - read `candidate_cluster_count`
 - read `duplicate_risk_candidate_count`
+- read `unresolved_candidate_count`
+- keep zero-cluster / zero-unresolved outputs reachable as `NO_IDENTITY_OVERLAP_DETECTED`
+- keep nonzero unresolved candidate outputs in review-required state
 - read duplicate cluster candidate metadata as review candidates only
 - preserve provenance and strategy names where available
 - block downstream if overlap remains
-- clear only when no overlap candidates exist
+- clear only when no overlap candidates and no unresolved candidates exist
 - do not mutate source rows
 - do not derive deduplicated counts
 
@@ -99,7 +103,10 @@ sequence truth
 ```text
 test_missing_identity_gate_fail_closed
 test_no_overlap_detected_allows_review_clearance
+test_unresolved_insufficient_fields_stays_review_required
+test_upstream_unresolved_label_with_zero_unresolved_count_can_clear
 test_overlap_candidates_remain_review_required
+test_duplicate_candidate_provenance_is_preserved
 test_source_support_conflict_keeps_unresolved
 test_no_deduplicated_event_count_claim
 test_flat_phone_outputs
