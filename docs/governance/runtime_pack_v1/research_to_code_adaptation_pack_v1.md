@@ -37,18 +37,44 @@ runtime/active_single_match/current
 
 Donor repositories, Drive, Dropbox, academic papers and archives are reference/donor sources only.
 
+## Source Role Registry Alignment
+
+This pack must use only registered source roles from:
+
+```text
+docs/governance/runtime_pack_v1/source_role_registry.json
+```
+
+Registered roles used here:
+
+```text
+GITHUB_PRODUCT_REPO
+GITHUB_DONOR_REPO
+DRIVE_GOVERNANCE
+DRIVE_DONOR_LIBRARY
+DROPBOX_ARCHIVE
+DROPBOX_DONOR_LIBRARY
+SIDER_ACADEMIC_BACKING
+ACTIVE_MATCH_RUNTIME_AUTHORITY
+TERMUX_RUNTIME_EVIDENCE
+```
+
+Unregistered aliases such as `GOVERNANCE_DONOR`, `PRIVATE_DONOR_SUPPORT` and `ACADEMIC_SUPPORT` must not be used as source-role values.
+
 ## Repository Role Map
 
-| Source | Role | Product use |
+| Source | Registered source role | Product use |
 |---|---|---|
 | Hikmetpinarbas/hpfa | GITHUB_PRODUCT_REPO | executable product modules |
 | Hikmetpinarbas/HP-Motor | GITHUB_DONOR_REPO | ingest, mapping, phase, possession, sequence, metric primitive donor |
 | Hikmetpinarbas/HP-Engine | GITHUB_DONOR_REPO | registry, claim, metric fusion, pattern donor |
-| Hikmetpinarbas/HP-PROJELERI | GOVERNANCE_DONOR | schema, gate policy, conflict, verification donor |
-| HP-Motor-main | PRIVATE_DONOR_SUPPORT | support duplicate; not product truth |
-| Google Drive | DRIVE_GOVERNANCE / DRIVE_DONOR_LIBRARY | governance and source authority support |
-| Dropbox | DROPBOX_ARCHIVE / DROPBOX_DONOR_LIBRARY | method archive and donor quarantine |
-| Sider / Scholar / Consensus | ACADEMIC_SUPPORT | paper-to-node risk evidence |
+| Hikmetpinarbas/HP-PROJELERI | GITHUB_DONOR_REPO | governance, schema, gate policy, conflict, verification donor |
+| HP-Motor-main | GITHUB_DONOR_REPO | private duplicate/support donor; not product truth |
+| Google Drive governance material | DRIVE_GOVERNANCE | governance and source authority support |
+| Google Drive donor library | DRIVE_DONOR_LIBRARY | donor/library support |
+| Dropbox archive material | DROPBOX_ARCHIVE | historical/archive comparison |
+| Dropbox donor library | DROPBOX_DONOR_LIBRARY | method archive and donor quarantine |
+| Sider Scholar / Scholar Gateway / Consensus | SIDER_ACADEMIC_BACKING | paper-to-node risk evidence and academic method support |
 
 ## Donor Transfer Rule
 
@@ -87,45 +113,45 @@ Candidate checks:
 
 ## Donor-to-Node Map
 
-| Donor idea | Source | HPFA target node | Claim risk | Decision |
-|---|---|---|---|---|
-| provider reader abstraction | HP-Motor, kloppy | provider_adapter_registry_lite_v1 | low | adapt concept |
-| raw surface table model | HP-Motor, HP-PROJELERI hp_cdl | surface_table_reader_lite_v1 | low | adapt concept |
-| source mapping / extras preservation | HP-Motor canonicalize, HP-PROJELERI canonicalize | source_mapping_contract_v1 | low | adapt concept |
-| gate policy G01-G14 | HP-PROJELERI | data_quality_gate_lite_v1 / claim_gate_lite_v1 | medium | adapt gate families |
-| conflict registry | HP-PROJELERI conflicts | source_conflict_registry_lite_v1 | low-medium | high priority adapt |
-| verification report format | HP-PROJELERI | runtime_verification_report_lite_v1 | low | adapt format |
-| action language | socceraction / SPADL idea | action_language_lite_v1 | medium | adapt concept only |
-| VAEP / xT valuation | socceraction, papers | action_value_cost_fusion_lite_v1 | high | block value truth; reference only until claim gate |
-| event state transition model | VERSA-style literature | event_state_transition_verifier_lite_v1 | medium | high priority adapt |
-| process mining trace variants | pm4py / football process mining | process_mining_surface_lite_v1 | medium-high | adapt with claim gate |
-| event-to-sequence confidence | sequence annotation literature | selected_sequence_annotation_confidence_v1 | medium | adapt |
-| context modelling | context literature / HP-Motor context fields | minimum_viable_context_v1 | medium | adapt |
-| visual pitch maps | mplsoccer / HPFA graphics pack | visual_surface_lite_v1 | medium | output layer only |
-| method library risk routing | HP-PROJELERI hpfa_library, academic corpus | academic_literature_risk_router_v1 | medium | adapt |
-| claim registries | HP-Engine registry files | observation_registry_lite_v1 / mechanism_registry_lite_v1 / claim_thresholds_lite_v1 | high | registry only; no runtime claim engine yet |
-| metric fusion fixtures | HP-Engine metric merge lab | action_value_cost_fusion_lite_v1 | high | candidate-only |
+| Donor idea | Source | Source role | HPFA target node | Claim risk | Decision |
+|---|---|---|---|---|---|
+| provider reader abstraction | HP-Motor, kloppy | GITHUB_DONOR_REPO / SIDER_ACADEMIC_BACKING | provider_adapter_registry_lite_v1 | low | adapt concept |
+| raw surface table model | HP-Motor, HP-PROJELERI hp_cdl | GITHUB_DONOR_REPO | surface_table_reader_lite_v1 | low | adapt concept |
+| source mapping / extras preservation | HP-Motor canonicalize, HP-PROJELERI canonicalize | GITHUB_DONOR_REPO | source_mapping_contract_v1 | low | adapt concept |
+| gate policy G01-G14 | HP-PROJELERI | GITHUB_DONOR_REPO | data_quality_gate_lite_v1 / claim_gate_lite_v1 | medium | adapt gate families |
+| conflict registry | HP-PROJELERI conflicts | GITHUB_DONOR_REPO | source_conflict_registry_lite_v1 | low-medium | high priority adapt |
+| verification report format | HP-PROJELERI | GITHUB_DONOR_REPO | runtime_verification_report_lite_v1 | low | adapt format |
+| action language | socceraction / SPADL idea | SIDER_ACADEMIC_BACKING | action_language_lite_v1 | medium | adapt concept only |
+| VAEP / xT valuation | socceraction, papers | SIDER_ACADEMIC_BACKING | action_value_cost_fusion_lite_v1 | high | block value truth; reference only until claim gate |
+| event state transition model | VERSA-style literature | SIDER_ACADEMIC_BACKING | event_state_transition_verifier_lite_v1 | medium | high priority adapt |
+| process mining trace variants | pm4py / football process mining | SIDER_ACADEMIC_BACKING | process_mining_surface_lite_v1 | medium-high | adapt with claim gate |
+| event-to-sequence confidence | sequence annotation literature | SIDER_ACADEMIC_BACKING | selected_sequence_annotation_confidence_v1 | medium | adapt |
+| context modelling | context literature / HP-Motor context fields | SIDER_ACADEMIC_BACKING / GITHUB_DONOR_REPO | minimum_viable_context_v1 | medium | adapt |
+| visual pitch maps | mplsoccer / HPFA graphics pack | SIDER_ACADEMIC_BACKING / GITHUB_PRODUCT_REPO | visual_surface_lite_v1 | medium | output layer only |
+| method library risk routing | HP-PROJELERI hpfa_library, academic corpus | GITHUB_DONOR_REPO / SIDER_ACADEMIC_BACKING | academic_literature_risk_router_v1 | medium | adapt |
+| claim registries | HP-Engine registry files | GITHUB_DONOR_REPO | observation_registry_lite_v1 / mechanism_registry_lite_v1 / claim_thresholds_lite_v1 | high | registry only; no runtime claim engine yet |
+| metric fusion fixtures | HP-Engine metric merge lab | GITHUB_DONOR_REPO | action_value_cost_fusion_lite_v1 | high | candidate-only |
 
 ## Open-Source Tool Map
 
-| Tool | Usable idea | HPFA boundary |
-|---|---|---|
-| socceraction | SPADL/action language discipline | no VAEP truth, no value truth |
-| kloppy | provider adapter architecture | no external API runtime truth |
-| mplsoccer | pitch/shot/pass/heat visual conventions | visual concentration != dominance |
-| statsbombpy | event loader/API separation discipline | reference only; ACTIVE_MATCH local files only |
-| pm4py | process mining trace/variant approach | frequent trace != tactical plan |
+| Tool | Usable idea | Source role | HPFA boundary |
+|---|---|---|---|
+| socceraction | SPADL/action language discipline | SIDER_ACADEMIC_BACKING | no VAEP truth, no value truth |
+| kloppy | provider adapter architecture | SIDER_ACADEMIC_BACKING | no external API runtime truth |
+| mplsoccer | pitch/shot/pass/heat visual conventions | SIDER_ACADEMIC_BACKING | visual concentration != dominance |
+| statsbombpy | event loader/API separation discipline | SIDER_ACADEMIC_BACKING | reference only; ACTIVE_MATCH local files only |
+| pm4py | process mining trace/variant approach | SIDER_ACADEMIC_BACKING | frequent trace != tactical plan |
 
 ## Academic Method Map
 
-| Literature family | HPFA target | Safe use | Blocked claim |
-|---|---|---|---|
-| verified event format / state transitions | event_state_transition_verifier_lite_v1 | sequence validity candidate | complete event truth |
-| process mining in football | process_mining_surface_lite_v1 | trace variant candidate | tactical plan / superiority |
-| atomic events to sequences | selected_sequence_annotation_confidence_v1 | sequence confidence gate | clean sequence truth without gate |
-| context in match analysis | minimum_viable_context_v1 | context enrichment | context = causality |
-| physical tracking + event context | raw_fitness_value_extract_lite_v1 / action_value_cost_fusion_lite_v1 | support/fusion candidate | fatigue/performance truth |
-| xT / VAEP / EPV | action value research reference | architecture donor | validated value truth |
+| Literature family | HPFA target | Source role | Safe use | Blocked claim |
+|---|---|---|---|---|
+| verified event format / state transitions | event_state_transition_verifier_lite_v1 | SIDER_ACADEMIC_BACKING | sequence validity candidate | complete event truth |
+| process mining in football | process_mining_surface_lite_v1 | SIDER_ACADEMIC_BACKING | trace variant candidate | tactical plan / superiority |
+| atomic events to sequences | selected_sequence_annotation_confidence_v1 | SIDER_ACADEMIC_BACKING | sequence confidence gate | clean sequence truth without gate |
+| context in match analysis | minimum_viable_context_v1 | SIDER_ACADEMIC_BACKING | context enrichment | context = causality |
+| physical tracking + event context | raw_fitness_value_extract_lite_v1 / action_value_cost_fusion_lite_v1 | SIDER_ACADEMIC_BACKING | support/fusion candidate | fatigue/performance truth |
+| xT / VAEP / EPV | action value research reference | SIDER_ACADEMIC_BACKING | architecture donor | validated value truth |
 
 ## Coding Candidate Backlog
 
@@ -287,13 +313,37 @@ performance superiority truth
 
 ### Action Value Cost Fusion Lite V1
 
-Requires:
+Requires all upstream readiness inputs below:
 
 ```text
-metric_family_registry_lite_v1
+primary_event_surface_gate_lite_v1.json
+physical_cost_surface_audit_v1.json
+event_identity_resolution_gate_lite_v1.json
+metric_family_registry_lite_v1.json
 raw_fitness_value_extract_lite_v1
-source/identity confidence
+team_binding_lite_v1.json
 claim router
+```
+
+Fail-closed readiness rule:
+
+```text
+If primary_event_surface_gate_lite_v1.decision == UNRESOLVED_REVIEW_REQUIRED,
+Action Value Cost Fusion must remain WAIT_PRIMARY_SURFACE_REVIEW and cannot be production-bound.
+```
+
+Physical-cost readiness rule:
+
+```text
+physical_cost_surface_audit_v1.json must show PHYSICAL_COST_SURFACE evidence.
+Report-only metric surfaces cannot satisfy physical-cost readiness.
+```
+
+Identity readiness rule:
+
+```text
+event_identity_resolution_gate_lite_v1.json must be present.
+If duplicate risk remains, fusion output must remain candidate-only and metric_count_allowed=false.
 ```
 
 Candidate metrics:
@@ -308,6 +358,16 @@ defence_distance_per_duel_pressure_row
 ```
 
 Output remains candidate-only.
+
+Blocked:
+
+```text
+efficiency truth
+fatigue truth
+fitness caused result
+tactical causality
+metric truth without claim routing
+```
 
 ## Event-Only Compatibility Matrix
 
@@ -346,6 +406,7 @@ P11 Analyst Report / Visual Surface Lite V1
 
 ## Guardrails
 
+- use only registered source roles from `source_role_registry.json`
 - no donor repo as runtime truth
 - no match identity hardcode
 - no coach intention
@@ -362,10 +423,12 @@ This pack is accepted when:
 
 ```text
 file exists in hpfa product repo
+all source roles match source_role_registry.json
 donor roles are explicit
 claim risks are explicit
 implementation order is explicit
 next coding candidates are explicit
+Action Value Cost readiness gates preserve existing contract requirements
 no runtime truth is assigned to donor material
 ```
 
