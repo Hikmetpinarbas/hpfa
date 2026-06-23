@@ -339,7 +339,7 @@ action_family_count
 action_family_share
 windowed entropy
 tempo coefficient of variation
-sequence density
+sequence density candidate
 temporal pair candidate count
 passing motif count
 event network degree/density/reciprocity
@@ -402,18 +402,45 @@ Why revolutionary:
 Possession chains become trace variants, not loose narrative examples.
 ```
 
-Output shape:
+Required upstream readiness:
+
+```text
+possession_boundary_lite_v1 OR sequence_candidate_lite_v1 must exist before production-bound process variants.
+If those gates do not exist, process_mining_surface_lite_v1 must emit sequence_id="UNKNOWN", sequence_source_status="WAIT_SEQUENCE_CANDIDATE", and production_bound=false.
+```
+
+Output shape before sequence readiness:
+
+```json
+{
+  "trace_id": "...",
+  "team": "...",
+  "sequence_id": "UNKNOWN",
+  "sequence_source_status": "WAIT_SEQUENCE_CANDIDATE",
+  "action_family_chain_candidate": ["recovery", "pass", "carry", "pass", "shot"],
+  "variant_id": "candidate_only",
+  "support_count": 0,
+  "variant_frequency_band": "unknown|rare|common|frequent",
+  "unusual_candidate": false,
+  "production_bound": false,
+  "claim_allowed": false
+}
+```
+
+Output shape after sequence readiness:
 
 ```json
 {
   "trace_id": "...",
   "team": "...",
   "sequence_id": "...",
+  "sequence_source_status": "SEQUENCE_CANDIDATE_AVAILABLE",
   "action_family_chain": ["recovery", "pass", "carry", "pass", "shot"],
   "variant_id": "...",
   "support_count": 0,
   "variant_frequency_band": "rare|common|frequent",
   "unusual_candidate": false,
+  "production_bound": false,
   "claim_allowed": false
 }
 ```
@@ -424,12 +451,13 @@ Blocked:
 rare trace = bad decision
 frequent trace = tactical plan
 variant = superiority
+sequence_id without upstream sequence evidence
 ```
 
 Priority:
 
 ```text
-R2
+R2_AFTER_SEQUENCE_READINESS
 ```
 
 ### 8. Metric Primitive Lite V1
@@ -638,10 +666,30 @@ space_control_truth
 6. Metric Primitive Lite V1
 7. Event Geometry Proxy Lite V1
 8. Event-Only Signal Engine Lite V1
-9. Process Mining Surface Lite V1
-10. Visual Surface Lite V1
-11. Observation / Mechanism / Claim Registry Lite
-12. Action Value Cost Fusion Lite V1 after readiness gates
+9. Possession / Sequence Candidate Lite V1
+10. Process Mining Surface Lite V1 after sequence readiness
+11. Visual Surface Lite V1
+12. Observation / Mechanism / Claim Registry Lite
+13. Action Value Cost Fusion Lite V1 after readiness gates
+```
+
+## Why Process Mining Is Not Before Sequence Readiness
+
+Process Mining Surface Lite V1 must wait for at least a sequence or possession candidate producer.
+
+If no upstream sequence candidate exists, process mining remains:
+
+```text
+WAIT_SEQUENCE_CANDIDATE
+```
+
+Allowed interim output:
+
+```text
+action_family_chain_candidate only
+sequence_id=UNKNOWN
+production_bound=false
+claim_allowed=false
 ```
 
 ## Why Action Value Cost Fusion Is Not First
@@ -664,6 +712,21 @@ If primary surface remains unresolved, fusion remains:
 WAIT_PRIMARY_SURFACE_REVIEW
 ```
 
+## Allowed Flat Phone Output Roots
+
+Executable transfer evidence may write only directly under one of these flat roots:
+
+```text
+/sdcard/Download/HPFA
+/storage/emulated/0/Download/HPFA
+```
+
+Nested output directories remain invalid and must be rejected with:
+
+```text
+nested_phone_output_directory_rejected
+```
+
 ## ACTIVE_MATCH Proof Requirement
 
 Every executable transfer must produce two proof layers:
@@ -672,7 +735,7 @@ Every executable transfer must produce two proof layers:
 engineering evidence:
 - module ran
 - tests passed
-- outputs written flat to /sdcard/Download/HPFA
+- outputs written flat to one allowed phone root: /sdcard/Download/HPFA or /storage/emulated/0/Download/HPFA
 
 analyst evidence:
 - what visible surface changed
