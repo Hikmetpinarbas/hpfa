@@ -78,7 +78,7 @@ def review_candidates(identity: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def unresolved_identity_gate(identity: dict[str, Any]) -> bool:
-    return str(identity.get("decision") or "") == "UNRESOLVED_INSUFFICIENT_FIELDS" or as_int(identity.get("unresolved_candidate_count")) > 0
+    return as_int(identity.get("unresolved_candidate_count")) > 0
 
 
 def build_resolution(input_dir: str | Path, root: str | Path | None = None) -> dict[str, Any]:
