@@ -2,7 +2,7 @@
 
 Date: 2026-06-22
 
-Status: P3_CONTRACT_SPEC_WRITTEN
+Status: ACTIVE_MATCH_EVIDENCE_PASS
 
 ## Product Node
 
@@ -14,16 +14,7 @@ P3 Team Binding Lite V1
 
 Bind team and player identity surfaces from Canonical Event Lite and aggregate support tables into a claim-safe identity registry.
 
-P3 exists because P2 exposed multiple team label forms in the same ACTIVE_MATCH runtime surface.
-
-Example runtime surface pattern:
-
-```text
-Team label with external id
-Team label without external id
-Unknown / missing team rows
-Aggregate rows from XLSX support tables
-```
+P3 exists because P2 exposes multiple team label forms in the same ACTIVE_MATCH runtime surface.
 
 P3 does not create quality, superiority, tactical or possession claims.
 
@@ -125,7 +116,8 @@ P3 must not:
 - infer possession truth from team row counts;
 - infer dominance;
 - infer player role truth unless a validated upstream role source exists;
-- hardcode match identity, team names, dates, tournaments or sample row counts.
+- hardcode match identity, team names, dates, tournaments or sample row counts;
+- use multi-surface row inventory as event count.
 
 ## Match-Agnostic Rule
 
@@ -149,6 +141,7 @@ alias evidence is preserved
 external id candidate is preserved
 row-level team surface is visible
 unresolved identity rows require review
+surface row inventory is carried as inventory only
 ```
 
 Blocked language families:
@@ -160,6 +153,7 @@ dominance claim
 tactical claim by label
 coach intention claim
 complete event truth
+multi-surface row inventory as event count
 ```
 
 ## Acceptance Criteria
@@ -174,33 +168,69 @@ P3 may reach ACTIVE_MATCH_EVIDENCE_PASS only if:
 6. team aliases and external ids are preserved;
 7. unresolved team rows are reported;
 8. no blocked claim is emitted;
-9. canonical_event_count remains UNKNOWN.
+9. canonical_event_count remains UNKNOWN;
+10. deduplicated_event_count remains UNKNOWN;
+11. primary_event_surface_candidate remains UNRESOLVED;
+12. event_count_claim_allowed remains false;
+13. surface_row_inventory_total is reported as inventory only.
+
+## Current Evidence
+
+Operator-reported ACTIVE_MATCH run:
+
+```text
+status=PASS
+claim_safety=IDENTITY_BINDING_ONLY
+canonical_event_count=UNKNOWN
+deduplicated_event_count=UNKNOWN
+primary_event_surface_candidate=UNRESOLVED
+event_count_claim_allowed=False
+surface_row_inventory_total=15516
+canonical_lite_row_count_deprecated=15516
+team_entity_count=2
+player_entity_count=32
+unresolved_team_rows=11836
+```
+
+Outputs:
+
+```text
+/storage/emulated/0/Download/HPFA/team_binding_lite_v1.json
+/storage/emulated/0/Download/HPFA/team_binding_lite_audit_v1.json
+/storage/emulated/0/Download/HPFA/team_binding_lite_audit_v1.txt
+```
+
+Blocked claims preserved:
+
+```text
+quality claim by identity
+possession claim by row count
+dominance claim
+tactical claim by label
+coach intention claim
+complete event truth
+multi-surface row inventory as event count
+```
 
 ## Current Status
 
 ```text
-P3_CONTRACT_SPEC_WRITTEN
-IMPLEMENTATION_NOT_STARTED
-ACTIVE_MATCH_EXECUTION_NOT_RUN
+ACTIVE_MATCH_EVIDENCE_PASS
 PRODUCTION_RELEASE_NOT_GRANTED
 ```
 
-## Next Step
+Reason:
 
-Implement:
+- P3 module and tests exist.
+- ACTIVE_MATCH run wrote flat outputs.
+- Team entities and player entities were bound as identity evidence.
+- Unresolved team rows were reported.
+- P2S surface inventory semantics were preserved.
+- Event count and pattern claims remained blocked.
 
-```text
-hpfa/modules/core/team_binding_lite/src/team_binding_lite.py
-```
+Not production release:
 
-Root CLI:
-
-```text
-team_binding_lite.py
-```
-
-Tests:
-
-```text
-hpfa/modules/core/team_binding_lite/tests/test_team_binding_lite.py
-```
+- Primary Event Surface Gate is still missing.
+- Time/Phase Lite is still missing.
+- Possession Boundary Lite is still missing.
+- Sequence Candidate Gate is still missing.
