@@ -21,8 +21,10 @@ Fitness-Tactical Integration Bridge Lite V1
 The next correct product node is:
 
 ```text
-Primary Event Surface Gate Lite V1
+Event Identity Resolution Gate Lite V1
 ```
+
+Primary Event Surface Gate remains next after Event Identity Resolution.
 
 ## Reason
 
@@ -34,13 +36,13 @@ P2D converted large row counts into analyst-safe surface inventory language.
 
 P3 bound team and player identity surfaces while preserving event-count unknowns.
 
-The remaining blocking gap is:
+The newly recognized blocking gap is:
 
 ```text
-primary_event_surface_candidate=UNRESOLVED
+cross_surface_event_identity=UNRESOLVED
 ```
 
-Therefore Time / Phase, Possession Boundary, Sequence Candidate and Rhythm V12 must wait until Primary Event Surface Gate evaluates candidate surfaces.
+A single football action may appear in both team-level and player-level surfaces. Therefore metric counting, primary surface selection, phase, possession and sequence work must not assume that surface rows are unique actions.
 
 ## Runtime Evidence Summary
 
@@ -99,6 +101,7 @@ The analyst now has:
 
 The analyst still does not have:
 
+- cross-surface event identity resolution;
 - selected primary event surface;
 - deduplicated event count;
 - phase truth;
@@ -111,8 +114,8 @@ The analyst still does not have:
 ```text
 ACTIVE_MATCH contains 15,516 readable multi-surface rows.
 This is not a deduplicated event count.
-Pattern structure is not built from row inventory alone.
-Primary event surface remains unresolved until a later gate.
+The same underlying football action may appear in more than one surface.
+Event identity resolution is required before metric counting or primary surface selection.
 ```
 
 ## Active Blocking Gaps
@@ -126,7 +129,7 @@ docs/governance/runtime_pack_v1/development_gap_register.md
 Highest priority gap:
 
 ```text
-G1 Primary Event Surface Selection Gap
+G1 Cross-Surface Event Identity / Deduplication Gap
 ```
 
 ## Next Executable Step
@@ -134,32 +137,32 @@ G1 Primary Event Surface Selection Gap
 Implement:
 
 ```text
-Primary Event Surface Gate Lite V1
+Event Identity Resolution Gate Lite V1
 ```
 
 Recommended contract path already written:
 
 ```text
-docs/contracts/primary_event_surface_gate_lite_v1.md
+docs/contracts/event_identity_resolution_gate_lite_v1.md
 ```
 
 Recommended module path:
 
 ```text
-hpfa/modules/core/primary_event_surface_gate_lite/src/primary_event_surface_gate.py
+hpfa/modules/core/event_identity_resolution_gate_lite/src/event_identity_resolution_gate.py
 ```
 
 Recommended tests:
 
 ```text
-hpfa/modules/core/primary_event_surface_gate_lite/tests/test_primary_event_surface_gate.py
+hpfa/modules/core/event_identity_resolution_gate_lite/tests/test_event_identity_resolution_gate.py
 ```
 
 Recommended outputs:
 
 ```text
-/storage/emulated/0/Download/HPFA/primary_event_surface_gate_lite_v1.json
-/storage/emulated/0/Download/HPFA/primary_event_surface_gate_lite_v1.txt
+/storage/emulated/0/Download/HPFA/event_identity_resolution_gate_lite_v1.json
+/storage/emulated/0/Download/HPFA/event_identity_resolution_gate_lite_v1.txt
 ```
 
 ## Decision Result
@@ -172,7 +175,8 @@ P2D_ACTIVE_MATCH_EVIDENCE_PASS
 P3_ACTIVE_MATCH_EVIDENCE_PASS
 FITNESS_PDF_SUPPORT_ACTIVE_MATCH_EVIDENCE_PASS
 FITNESS_TACTICAL_BRIDGE_ACTIVE_MATCH_EVIDENCE_PASS
-PRIMARY_EVENT_SURFACE_GATE_NEXT_PRODUCT_NODE
+EVENT_IDENTITY_RESOLUTION_GATE_NEXT_PRODUCT_NODE
+PRIMARY_EVENT_SURFACE_GATE_WAIT
 TIME_PHASE_WAIT
 POSSESSION_WAIT
 SEQUENCE_WAIT
