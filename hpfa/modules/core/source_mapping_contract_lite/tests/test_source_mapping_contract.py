@@ -44,6 +44,38 @@ def test_required_columns_fail_closed(tmp_path):
     assert source["missing_required_fields"] == ["event_type", "x", "y"]
 
 
+def test_zero_supported_surfaces_fail_closed(tmp_path):
+    active = tmp_path / "active"
+    active.mkdir()
+    (active / "notes.txt").write_text("not a supported surface", encoding="utf-8")
+
+    contract = build_contract(active, root=ROOT)
+
+    assert contract["status"] == "FAIL_CLOSED"
+    assert contract["overall_decision"] == "NO_SUPPORTED_SURFACES"
+    assert contract["source_count"] == 0
+    assert contract["mapping_record_count"] == 0
+
+
+def test_aggregate_xlsx_skips_event_required_policy(tmp_path):
+    active = tmp_path / "active"
+    active.mkdir()
+    # Minimal XLSX is expensive to generate here; assert via extension-level classifier using a copied CSV-like xlsx path.
+    # The lightweight reader will return no rows/headers for invalid xlsx, so test the policy with a monkeypatched reader surface.
+    xlsx = active / "Players.xlsx"
+    xlsx.write_bytes(b"not-a-real-xlsx")
+
+    contract = build_contract(active, strict_required=True, root=ROOT)
+
+    assert contract["status"] == "REVIEW_REQUIRED"
+    source = contract["sources"][0]
+    assert source["source_format"] == "xlsx"
+    assert source["source_surface_kind"] == "aggregate_support"
+    assert source["missing_required_fields"] == []
+    assert source["required_field_policy"] == "not_applicable_aggregate_support_surface"
+    assert source["decision"] == "NO_ROWS_OR_NO_HEADERS"
+
+
 def test_row_lineage_preserved_in_contract(tmp_path):
     active = tmp_path / "active"
     active.mkdir()
