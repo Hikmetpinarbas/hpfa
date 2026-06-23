@@ -41,6 +41,7 @@ def test_single_clean_surface_can_be_selected(tmp_path):
     assert report["primary_event_surface_candidate_role"] == "players"
     assert report["event_count_claim_allowed"] is False
     assert report["deduplicated_event_count"] == "UNKNOWN"
+    assert "candidate_risk_flags" in report["candidate_evaluations"][0]
 
 
 def test_multiple_eligible_surfaces_return_unresolved(tmp_path):
@@ -59,6 +60,7 @@ def test_multiple_eligible_surfaces_return_unresolved(tmp_path):
     assert report["decision"] == "UNRESOLVED_REVIEW_REQUIRED"
     assert report["primary_event_surface_candidate"] == "UNRESOLVED"
     assert report["top_candidate_for_review"]["source_file"] == "Players.csv"
+    assert "candidate_risk_flags" in report["top_candidate_for_review"]
     assert "multiple_eligible_event_surfaces" in report["unresolved_reasons"]
     assert report["downstream_unlocks"]["time_phase_lite"] == "WAIT"
 
@@ -73,6 +75,7 @@ def test_excludes_xlsx_aggregate_surfaces(tmp_path):
     assert report["decision"] == "UNRESOLVED_REVIEW_REQUIRED"
     assert report["eligible_candidate_count"] == 0
     assert report["candidate_evaluations"][0]["aggregate_surface_flag"] is True
+    assert "candidate_risk_flags" in report["candidate_evaluations"][0]
 
 
 def test_overlap_candidates_keep_unresolved_boundary(tmp_path):
