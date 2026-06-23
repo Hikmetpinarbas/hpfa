@@ -116,6 +116,7 @@ def candidate_from_surface(surface: dict[str, Any]) -> dict[str, Any]:
         "aggregate_surface_flag": aggregate,
         "missing_column_families": surface.get("missing_column_families") or [],
         "candidate_score": score,
+        "candidate_risk_flags": flags,
         "candidate_flags": flags,
         "candidate_eligible": score >= 0 and not aggregate and event_rows > 0 and coord_rows > 0,
     }
@@ -124,12 +125,14 @@ def candidate_from_surface(surface: dict[str, Any]) -> dict[str, Any]:
 def review_candidate(selected: dict[str, Any] | None) -> dict[str, Any] | None:
     if not selected:
         return None
+    flags = selected.get("candidate_risk_flags") or selected.get("candidate_flags")
     return {
         "source_file": selected.get("source_file"),
         "source_role": selected.get("source_role"),
         "source_format": selected.get("source_format"),
         "candidate_score": selected.get("candidate_score"),
-        "candidate_flags": selected.get("candidate_flags"),
+        "candidate_risk_flags": flags,
+        "candidate_flags": flags,
         "rows_read": selected.get("rows_read"),
         "event_type_coverage_pct": selected.get("event_type_coverage_pct"),
         "team_coverage_pct": selected.get("team_coverage_pct"),
