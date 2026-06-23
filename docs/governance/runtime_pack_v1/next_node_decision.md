@@ -14,17 +14,18 @@ P2S Canonical Event Lite Surface Count Correction
 P2B Reference Document Ingest Lite V1
 P2D Surface Inventory Interpretation Gate Lite V1
 P3 Team Binding Lite V1
+Event Identity Resolution Gate Lite V1
 Fitness Signal PDF Support Lite
 Fitness-Tactical Integration Bridge Lite V1
 ```
 
-The next correct product node is:
+The next correct support/product boundary node is:
 
 ```text
-Event Identity Resolution Gate Lite V1
+P2D Event Physical Cost Surface Lite V1
 ```
 
-Primary Event Surface Gate remains next after Event Identity Resolution.
+Primary Event Surface Gate remains waiting until event identity and physical-cost/report boundaries are explicit.
 
 ## Reason
 
@@ -32,17 +33,20 @@ HPFA development must not leave hidden gaps between modules.
 
 P2S corrected surface inventory semantics.
 
-P2D converted large row counts into analyst-safe surface inventory language.
+P2D Surface Inventory Interpretation converted large row counts into analyst-safe surface inventory language.
 
 P3 bound team and player identity surfaces while preserving event-count unknowns.
 
-The newly recognized blocking gap is:
+Event Identity Resolution detected cross-surface duplicate-risk candidates while preserving deduplicated_event_count=UNKNOWN and metric_count_allowed=false.
+
+The newly recognized support boundary is:
 
 ```text
-cross_surface_event_identity=UNRESOLVED
+physical_cost_surface != event_surface
+report_metric_surface != event_surface
 ```
 
-A single football action may appear in both team-level and player-level surfaces. Therefore metric counting, primary surface selection, phase, possession and sequence work must not assume that surface rows are unique actions.
+Fitness files, form reports, FIFA reports and match reports must not enter event counting, duplicate-risk resolution or primary event surface selection as event rows.
 
 ## Runtime Evidence Summary
 
@@ -59,33 +63,26 @@ primary_event_surface_candidate=UNRESOLVED
 event_count_claim_allowed=False
 ```
 
-P2D evidence:
+Event Identity Resolution evidence:
 
 ```text
-status=PASS
-claim_safety=ANALYST_SAFE_SURFACE_COUNT_LANGUAGE_ONLY
-pattern_structure_status=NOT_BUILT_REQUIRES_LATER_GATES
-surface_row_inventory_total=15516
+pytest 7 passed
+ACTIVE_MATCH run PASS
+decision=DUPLICATE_RISK_CANDIDATES_FOUND
+candidate_cluster_count=25
+duplicate_risk_candidate_count=134
+unresolved_candidate_count=8102
+deduplicated_event_count=UNKNOWN
+metric_count_allowed=false
 ```
 
-P3 evidence:
+P2D Physical Cost boundary target:
 
 ```text
-status=PASS
-claim_safety=IDENTITY_BINDING_ONLY
-team_entity_count=2
-player_entity_count=32
-unresolved_team_rows=11836
-surface_row_inventory_total=15516
-event_count_claim_allowed=False
-```
-
-Bridge evidence:
-
-```text
-status=PASS
-candidate_count=2
+physical-cost and report surfaces classified separately
+runtime_event_truth=false
 event_count_claim_allowed=false
+metric_count_allowed=false
 ```
 
 ## Analyst Evidence
@@ -93,17 +90,16 @@ event_count_claim_allowed=false
 The analyst now has:
 
 - readable multi-surface row inventory;
-- surface role row counts;
 - team/player identity binding;
-- unresolved identity row count;
-- analyst-safe count language;
-- cross-surface support review candidates.
+- duplicate-risk candidate clusters;
+- fitness/report PDF availability;
+- reference text extraction evidence.
 
 The analyst still does not have:
 
-- cross-surface event identity resolution;
 - selected primary event surface;
 - deduplicated event count;
+- event-bound physical cost;
 - phase truth;
 - possession truth;
 - sequence truth;
@@ -112,10 +108,7 @@ The analyst still does not have:
 ## Current ACTIVE_MATCH Safe Surface Reading
 
 ```text
-ACTIVE_MATCH contains 15,516 readable multi-surface rows.
-This is not a deduplicated event count.
-The same underlying football action may appear in more than one surface.
-Event identity resolution is required before metric counting or primary surface selection.
+ACTIVE_MATCH contains readable multi-surface row inventory and duplicate-risk candidate evidence. Fitness/FIFA/form/match reports are support surfaces, not event surfaces. Physical-cost metrics can be reviewed beside event evidence only after explicit support-boundary and claim gates.
 ```
 
 ## Active Blocking Gaps
@@ -126,43 +119,46 @@ See:
 docs/governance/runtime_pack_v1/development_gap_register.md
 ```
 
-Highest priority gap:
+Highest priority support boundary:
 
 ```text
-G1 Cross-Surface Event Identity / Deduplication Gap
+physical_cost_surface != event_surface
+report_metric_surface != event_surface
 ```
 
 ## Next Executable Step
 
-Implement:
+Implement and run:
 
 ```text
-Event Identity Resolution Gate Lite V1
+P2D Event Physical Cost Surface Lite V1
 ```
 
-Recommended contract path already written:
+Contract path:
 
 ```text
-docs/contracts/event_identity_resolution_gate_lite_v1.md
+docs/contracts/event_physical_cost_surface_lite_v1.md
 ```
 
-Recommended module path:
+Module path:
 
 ```text
-hpfa/modules/core/event_identity_resolution_gate_lite/src/event_identity_resolution_gate.py
+hpfa/modules/support/event_physical_cost_surface_lite/src/event_physical_cost_surface.py
 ```
 
-Recommended tests:
+Tests:
 
 ```text
-hpfa/modules/core/event_identity_resolution_gate_lite/tests/test_event_identity_resolution_gate.py
+hpfa/modules/support/event_physical_cost_surface_lite/tests/test_event_physical_cost_surface.py
 ```
 
-Recommended outputs:
+Outputs:
 
 ```text
-/storage/emulated/0/Download/HPFA/event_identity_resolution_gate_lite_v1.json
-/storage/emulated/0/Download/HPFA/event_identity_resolution_gate_lite_v1.txt
+/storage/emulated/0/Download/HPFA/physical_cost_surface_manifest_v1.json
+/storage/emulated/0/Download/HPFA/physical_cost_metric_extract_v1.tsv
+/storage/emulated/0/Download/HPFA/physical_cost_surface_audit_v1.json
+/storage/emulated/0/Download/HPFA/physical_cost_surface_audit_v1.txt
 ```
 
 ## Decision Result
@@ -171,11 +167,10 @@ Recommended outputs:
 P1_ACTIVE_MATCH_EVIDENCE_PASS
 P2S_ACTIVE_MATCH_EVIDENCE_PASS
 P2B_ACTIVE_MATCH_EVIDENCE_PASS
-P2D_ACTIVE_MATCH_EVIDENCE_PASS
+P2D_SURFACE_INVENTORY_ACTIVE_MATCH_EVIDENCE_PASS
 P3_ACTIVE_MATCH_EVIDENCE_PASS
-FITNESS_PDF_SUPPORT_ACTIVE_MATCH_EVIDENCE_PASS
-FITNESS_TACTICAL_BRIDGE_ACTIVE_MATCH_EVIDENCE_PASS
-EVENT_IDENTITY_RESOLUTION_GATE_NEXT_PRODUCT_NODE
+EVENT_IDENTITY_RESOLUTION_ACTIVE_MATCH_EVIDENCE_PASS
+EVENT_PHYSICAL_COST_SURFACE_NEXT_SUPPORT_NODE
 PRIMARY_EVENT_SURFACE_GATE_WAIT
 TIME_PHASE_WAIT
 POSSESSION_WAIT
