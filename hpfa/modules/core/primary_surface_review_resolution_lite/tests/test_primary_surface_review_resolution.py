@@ -75,6 +75,30 @@ def test_already_selected_gate_is_preserved(tmp_path):
     assert report["event_count_claim_allowed"] is False
 
 
+def test_selected_gate_with_identity_overlap_stays_unresolved(tmp_path):
+    write_json(tmp_path / "primary_event_surface_gate_lite_v1.json", primary_payload(decision="CANDIDATE_SELECTED", reasons=[]))
+    write_json(tmp_path / "event_identity_resolution_gate_lite_v1.json", {"candidate_cluster_count": 1, "duplicate_risk_candidate_count": 2})
+
+    report = build_resolution(tmp_path, root=ROOT)
+
+    assert report["status"] == "REVIEW_REQUIRED"
+    assert report["decision"] == "UNRESOLVED_IDENTITY_CONFLICTS_REMAIN"
+    assert report["downstream_gate"]["time_phase_lite"] == "WAIT"
+
+
+def test_selected_gate_with_selected_source_conflict_stays_unresolved(tmp_path):
+    write_json(tmp_path / "primary_event_surface_gate_lite_v1.json", primary_payload(decision="CANDIDATE_SELECTED", reasons=[]))
+    write_json(tmp_path / "source_conflict_registry_lite_v1.json", source_conflict_payload(conflicts=[
+        {"conflict_class": "REVIEW_REQUIRED_SOURCE", "severity": "REVIEW_REQUIRED", "evidence": {"source_file": "Players.csv"}},
+    ]))
+
+    report = build_resolution(tmp_path, root=ROOT)
+
+    assert report["status"] == "REVIEW_REQUIRED"
+    assert report["decision"] == "UNRESOLVED_SOURCE_CONFLICTS_REMAIN"
+    assert "top_candidate_has_source_conflict" in report["blocking_reasons"]
+
+
 def test_unresolved_multiple_surface_can_resolve_to_review_candidate(tmp_path):
     write_json(tmp_path / "primary_event_surface_gate_lite_v1.json", primary_payload())
     write_json(tmp_path / "source_conflict_registry_lite_v1.json", source_conflict_payload())
