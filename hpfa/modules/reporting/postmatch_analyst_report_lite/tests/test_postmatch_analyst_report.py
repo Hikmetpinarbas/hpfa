@@ -19,14 +19,16 @@ def sample_team_audit():
     return {
         "team_entities": [
             {
-                "team_name": "Team A",
+                "display_label_candidate": "Team A Label",
+                "team_entity_key": "TEAM_A_KEY",
                 "visible_rows": 100,
                 "event_family_volume": {"PASS": 50, "SHOT": 10, "DUEL_PRESSURE": 5},
                 "zone_distribution": {"FINAL_THIRD": 40, "MIDDLE_THIRD": 40, "DEFENSIVE_THIRD": 20},
                 "channel_distribution": {"RIGHT_CHANNEL": 45, "CENTRAL_CHANNEL": 35, "LEFT_CHANNEL": 20},
             },
             {
-                "team_name": "Team B",
+                "display_label_candidate": "Team B Label",
+                "team_entity_key": "TEAM_B_KEY",
                 "visible_rows": 50,
                 "event_family_volume": {"PASS": 20, "SHOT": 5, "DUEL_PRESSURE": 10},
                 "zone_distribution": {"FINAL_THIRD": 10, "MIDDLE_THIRD": 20, "DEFENSIVE_THIRD": 20},
@@ -45,11 +47,27 @@ def test_builds_numeric_team_and_action_comparisons(tmp_path):
     report = build_report(out)
 
     assert report["status"] == "PASS"
+    assert report["team_comparison"]["left_team"] == "Team A Label"
+    assert report["team_comparison"]["right_team"] == "Team B Label"
     assert report["team_comparison"]["left_visible_rows"] == 100
     assert report["team_comparison"]["right_visible_rows"] == 50
     assert report["team_comparison"]["row_ratio_left_to_right"] == 2.0
     pass_row = next(r for r in report["action_family_comparison"] if r["metric"] == "PASS")
     assert pass_row["diff_left_minus_right"] == 30
+
+
+def test_falls_back_to_team_entity_key_when_display_label_missing(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    audit = sample_team_audit()
+    for row in audit["team_entities"]:
+        row.pop("display_label_candidate")
+    write_json(out / "team_binding_lite_audit_v1.json", audit)
+
+    report = build_report(out)
+
+    assert report["team_comparison"]["left_team"] == "TEAM_A_KEY"
+    assert report["team_comparison"]["right_team"] == "TEAM_B_KEY"
 
 
 def test_preserves_metric_locks(tmp_path):
