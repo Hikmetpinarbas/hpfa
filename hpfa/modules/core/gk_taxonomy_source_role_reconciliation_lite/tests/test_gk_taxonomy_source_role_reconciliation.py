@@ -14,13 +14,21 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 def identity_review_payload(source_roles):
-    return {"review_candidates": [{"cluster_id": "abc123", "source_roles": source_roles, "source_row_count": 7}]}
+    return {"status": "REVIEW_REQUIRED", "review_candidates": [{"cluster_id": "abc123", "source_roles": source_roles, "source_row_count": 7}]}
 
 
 def test_missing_identity_review_fail_closed(tmp_path):
     report = build_reconciliation(tmp_path, root=ROOT)
     assert report["status"] == "FAIL_CLOSED"
     assert report["decision"] == "FAIL_CLOSED_NO_IDENTITY_REVIEW"
+
+
+def test_fail_closed_identity_review_input_does_not_clear(tmp_path):
+    write_json(tmp_path / "identity_review_resolution_lite_v1.json", {"status": "FAIL_CLOSED", "decision": "FAIL_CLOSED_NO_IDENTITY_GATE", "review_candidates": []})
+    report = build_reconciliation(tmp_path, root=ROOT)
+    assert report["status"] == "FAIL_CLOSED"
+    assert report["decision"] == "FAIL_CLOSED_IDENTITY_REVIEW_INPUT"
+    assert report["downstream_gate"]["identity_review_resolution"] == "WAIT"
 
 
 def test_no_gk_player_overlap_passes_review_clearance(tmp_path):
