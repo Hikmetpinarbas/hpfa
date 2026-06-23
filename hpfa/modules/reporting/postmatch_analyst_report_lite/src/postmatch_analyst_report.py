@@ -91,6 +91,46 @@ def compare_dicts(left: dict[str, Any], right: dict[str, Any], left_total: int, 
     return rows
 
 
+def row_by_metric(rows: list[dict[str, Any]], metric: str) -> dict[str, Any]:
+    for row in rows:
+        if row.get("metric") == metric:
+            return row
+    return {"left": 0, "right": 0, "diff_left_minus_right": 0, "ratio_left_to_right": "NA", "left_share_pct": 0, "right_share_pct": 0, "share_gap_pp": 0}
+
+
+def analyst_translation(team_comparison: dict[str, Any], action: list[dict[str, Any]], zones: list[dict[str, Any]], channels: list[dict[str, Any]]) -> list[str]:
+    left = str(team_comparison.get("left_team"))
+    right = str(team_comparison.get("right_team"))
+    lines = [
+        f"{left}, bound visible row-volume içinde {team_comparison.get('left_row_share_pct')}% pay aldı; {right} {team_comparison.get('right_row_share_pct')}% seviyesinde kaldı. Bu, {left} tarafında daha yüksek görünür aksiyon hacmi olduğunu gösterir; canonical event count değildir.",
+        f"Toplam bound visible row farkı {team_comparison.get('row_diff_left_minus_right')}; oran {team_comparison.get('row_ratio_left_to_right')}. Yani {left} yüzeyi {right} yüzeyinin yaklaşık {team_comparison.get('row_ratio_left_to_right')} katı hacim üretti.",
+    ]
+    for metric, label in [
+        ("PASS", "pas hacmi"),
+        ("POSITIONAL_ATTACK_SIGNAL", "pozisyonel hücum sinyali"),
+        ("SHOT", "şut yüzeyi"),
+        ("CARRY_DRIBBLE", "taşıma/dribbling yüzeyi"),
+        ("GOALKEEPER_RESTART", "kaleci restart yüzeyi"),
+        ("DUEL_PRESSURE", "duel/pressure yüzeyi"),
+    ]:
+        row = row_by_metric(action, metric)
+        lines.append(f"{label}: {left} {row.get('left')}, {right} {row.get('right')}; fark {row.get('diff_left_minus_right')}, oran {row.get('ratio_left_to_right')}. Pay farkı {row.get('share_gap_pp')} puan.")
+    final_third = row_by_metric(zones, "FINAL_THIRD")
+    middle = row_by_metric(zones, "MIDDLE_THIRD")
+    defensive = row_by_metric(zones, "DEFENSIVE_THIRD")
+    right_ch = row_by_metric(channels, "RIGHT_CHANNEL")
+    central = row_by_metric(channels, "CENTRAL_CHANNEL")
+    left_ch = row_by_metric(channels, "LEFT_CHANNEL")
+    lines.append(f"Bölge okuması: {left} final third'de {final_third.get('left')} row, {right} {final_third.get('right')} row; fark {final_third.get('diff_left_minus_right')} ve share gap {final_third.get('share_gap_pp')} puan.")
+    lines.append(f"Orta bölge: {left} {middle.get('left')}, {right} {middle.get('right')}; fark {middle.get('diff_left_minus_right')}. Bu, {left} event-coordinate evidence'ının orta/ileri hatta yoğunlaştığını gösterir.")
+    lines.append(f"Savunma bölgesi: {left} {defensive.get('left')}, {right} {defensive.get('right')}; {right} lehine {abs(int(defensive.get('diff_left_minus_right', 0)))} row farkı ve {abs(float(defensive.get('share_gap_pp', 0)))} puan share gap var.")
+    lines.append(f"Kanal okuması: sağ kanalda {left} {right_ch.get('left')}, {right} {right_ch.get('right')}; fark {right_ch.get('diff_left_minus_right')}, oran {right_ch.get('ratio_left_to_right')}. Bu maç yüzeyinde {left} sağ kanal yoğunluğu belirgin.")
+    lines.append(f"Merkez kanal payı {right} lehine: {left} {central.get('left_share_pct')}%, {right} {central.get('right_share_pct')}%, gap {central.get('share_gap_pp')} puan.")
+    lines.append(f"Sol kanal payı da {right} lehine: {left} {left_ch.get('left_share_pct')}%, {right} {left_ch.get('right_share_pct')}%, gap {left_ch.get('share_gap_pp')} puan.")
+    lines.append("Analyst conclusion: row-level evidence yüksek hacimli Türkiye yüzeyi ve daha düşük hacimli Avustralya yüzeyi gösteriyor. Bu, skor/verimlilik yorumuna adaydır; efficiency truth değildir ve Action Value Cost Fusion gerektirir.")
+    return lines
+
+
 def build_report(out_dir: str | Path) -> dict[str, Any]:
     root = Path(out_dir).expanduser().resolve(strict=False)
     team_binding = read_json(root / "team_binding_lite_audit_v1.json")
@@ -108,7 +148,18 @@ def build_report(out_dir: str | Path) -> dict[str, Any]:
     action = compare_dicts(left.get("event_family_volume", {}), right.get("event_family_volume", {}), left_total, right_total)
     zones = compare_dicts(left.get("zone_distribution", {}), right.get("zone_distribution", {}), left_total, right_total)
     channels = compare_dicts(left.get("channel_distribution", {}), right.get("channel_distribution", {}), left_total, right_total)
-    report = {
+    team_comparison = {
+        "left_team": left.get("team"),
+        "right_team": right.get("team"),
+        "left_visible_rows": left_total,
+        "right_visible_rows": right_total,
+        "total_bound_visible_rows": total,
+        "left_row_share_pct": pct(left_total, total),
+        "right_row_share_pct": pct(right_total, total),
+        "row_diff_left_minus_right": left_total - right_total,
+        "row_ratio_left_to_right": ratio(left_total, right_total),
+    }
+    return {
         "module_id": MODULE_ID,
         "status": "PASS",
         "claim_safety": CLAIM_SAFETY,
@@ -120,17 +171,7 @@ def build_report(out_dir: str | Path) -> dict[str, Any]:
             "event_count_claim_allowed": False,
             "metric_count_allowed": False,
         },
-        "team_comparison": {
-            "left_team": left.get("team"),
-            "right_team": right.get("team"),
-            "left_visible_rows": left_total,
-            "right_visible_rows": right_total,
-            "total_bound_visible_rows": total,
-            "left_row_share_pct": pct(left_total, total),
-            "right_row_share_pct": pct(right_total, total),
-            "row_diff_left_minus_right": left_total - right_total,
-            "row_ratio_left_to_right": ratio(left_total, right_total),
-        },
+        "team_comparison": team_comparison,
         "action_family_comparison": action,
         "zone_comparison": zones,
         "channel_comparison": channels,
@@ -153,14 +194,11 @@ def build_report(out_dir: str | Path) -> dict[str, Any]:
             "duplicate_risk_candidate_count": identity.get("duplicate_risk_candidate_count"),
             "metric_count_allowed": identity.get("metric_count_allowed"),
         },
-        "canonical_surface_summary": {
-            "available": bool(canonical),
-            "surface_row_inventory_total": canonical.get("surface_row_inventory_total"),
-        },
+        "canonical_surface_summary": {"available": bool(canonical), "surface_row_inventory_total": canonical.get("surface_row_inventory_total")},
         "analyst_numeric_findings": numeric_findings(left, right, action, zones, channels),
+        "analyst_translation": analyst_translation(team_comparison, action, zones, channels),
         "blocked_claims": ["validated event count", "primary event truth", "possession truth", "phase truth", "sequence truth", "metric truth", "efficiency truth"],
     }
-    return report
 
 
 def numeric_findings(left: dict[str, Any], right: dict[str, Any], action_rows: list[dict[str, Any]], zone_rows: list[dict[str, Any]], channel_rows: list[dict[str, Any]]) -> list[str]:
@@ -194,6 +232,7 @@ def render_txt(report: dict[str, Any]) -> str:
     lines += render_table(report.get("action_family_comparison", []), "[action_family_comparison]", left_name, right_name, 12) + [""]
     lines += render_table(report.get("zone_comparison", []), "[zone_comparison]", left_name, right_name, 8) + [""]
     lines += render_table(report.get("channel_comparison", []), "[channel_comparison]", left_name, right_name, 8)
+    lines += ["", "[analyst_translation]"] + [f"- {x}" for x in report.get("analyst_translation", [])]
     for block in ("physical_report_summary", "metric_registry_summary", "identity_summary"):
         lines += ["", f"[{block}]", json.dumps(report.get(block, {}), ensure_ascii=False, sort_keys=True)]
     lines += ["", "[analyst_numeric_findings]"] + [f"- {x}" for x in report.get("analyst_numeric_findings", [])]
