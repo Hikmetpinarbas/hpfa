@@ -70,6 +70,35 @@ def test_includes_plain_analyst_translation(tmp_path):
     assert any("Analyst conclusion" in item for item in translation)
 
 
+def test_translation_has_no_literal_sample_match_identity(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    write_json(out / "team_binding_lite_audit_v1.json", sample_team_audit())
+
+    report = build_report(out)
+    joined = "\n".join(report["analyst_translation"])
+
+    for token in ["Turkey", "Australia", "Türkiye", "Avustralya", "World Cup", "13.06.2026"]:
+        assert token not in joined
+
+
+def test_channel_direction_uses_share_gap_sign(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    audit = sample_team_audit()
+    audit["team_entities"][0]["channel_distribution"] = {"CENTRAL_CHANNEL": 35, "LEFT_CHANNEL": 20, "RIGHT_CHANNEL": 45}
+    audit["team_entities"][1]["channel_distribution"] = {"CENTRAL_CHANNEL": 45, "LEFT_CHANNEL": 10, "RIGHT_CHANNEL": 5}
+    write_json(out / "team_binding_lite_audit_v1.json", audit)
+
+    report = build_report(out)
+    joined = "\n".join(report["analyst_translation"])
+
+    assert "Merkez kanal" in joined
+    assert "Team B Label lehine" in joined
+    assert "Sol kanal" in joined
+    assert "Team A Label lehine" in joined
+
+
 def test_falls_back_to_team_entity_key_when_display_label_missing(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
@@ -130,5 +159,5 @@ def test_nested_phone_output_directory_is_rejected():
 
 def test_no_literal_match_identity_leak():
     src = (SRC / "postmatch_analyst_report.py").read_text(encoding="utf-8")
-    for token in ["World Cup", "13.06.2026"]:
+    for token in ["Turkey", "Australia", "Türkiye", "Avustralya", "World Cup", "13.06.2026"]:
         assert token not in src
