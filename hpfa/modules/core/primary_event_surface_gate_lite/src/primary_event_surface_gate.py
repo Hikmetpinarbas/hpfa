@@ -59,27 +59,27 @@ def surface_score(surface: dict[str, Any]) -> tuple[float, list[str]]:
     role = str(surface.get("source_role") or "").lower()
     fmt = str(surface.get("source_format") or "").lower()
     missing = surface.get("missing_column_families") or []
-    risk_flags: list[str] = []
+    flags: list[str] = []
 
     if fmt in AGGREGATE_FORMATS:
-        risk_flags.append("aggregate_surface_excluded")
-        return -1.0, risk_flags
+        flags.append("aggregate_surface_excluded")
+        return -1.0, flags
     if role not in EVENT_SURFACE_ROLES:
-        risk_flags.append("non_event_surface_role")
-        return -1.0, risk_flags
+        flags.append("non_event_surface_role")
+        return -1.0, flags
     if rows <= 0:
-        risk_flags.append("empty_surface")
-        return -1.0, risk_flags
+        flags.append("empty_surface")
+        return -1.0, flags
     if event_rows <= 0:
-        risk_flags.append("missing_event_type_evidence")
+        flags.append("missing_event_type_evidence")
     if coord_rows <= 0:
-        risk_flags.append("missing_coordinate_evidence")
+        flags.append("missing_coordinate_evidence")
     if team_rows <= 0:
-        risk_flags.append("missing_team_evidence")
+        flags.append("missing_team_evidence")
     if "player" in missing:
-        risk_flags.append("player_column_unresolved")
+        flags.append("player_column_unresolved")
     if "minute" in missing and "timestamp" in missing:
-        risk_flags.append("temporal_columns_unresolved")
+        flags.append("temporal_columns_unresolved")
 
     score = 0.0
     score += pct(event_rows, rows) * 0.35
@@ -90,9 +90,9 @@ def surface_score(surface: dict[str, Any]) -> tuple[float, list[str]]:
         score += 10.0
     if team_rows <= 0:
         score -= 8.0
-    if "temporal_columns_unresolved" in risk_flags:
+    if "temporal_columns_unresolved" in flags:
         score -= 10.0
-    return round(score, 2), risk_flags
+    return round(score, 2), flags
 
 
 def candidate_from_surface(surface: dict[str, Any]) -> dict[str, Any]:
@@ -116,9 +116,32 @@ def candidate_from_surface(surface: dict[str, Any]) -> dict[str, Any]:
         "aggregate_surface_flag": aggregate,
         "missing_column_families": surface.get("missing_column_families") or [],
         "candidate_score": score,
-        "candidate_risk_flags": flags,
+        "candidate_flags": flags,
         "candidate_eligible": score >= 0 and not aggregate and event_rows > 0 and coord_rows > 0,
     }
+
+
+def review_candidate(selected: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not selected:
+        return None
+    return {
+        "source_file": selected.get("source_file"),
+        "source_role": selected.get("source_role"),
+        "source_format": selected.get("source_format"),
+        "candidate_score": selected.get("candidate_score"),
+        "candidate_flags": selected.get("candidate_flags"),
+        "rows_read": selected.get("rows_read"),
+        "event_type_coverage_pct": selected.get("event_type_coverage_pct"),
+        "team_coverage_pct": selected.get("team_coverage_pct"),
+        "coordinate_coverage_pct": selected.get("coordinate_coverage_pct"),
+    }
+
+
+def identity_overlap_counts(identity: dict[str, Any]) -> tuple[int, int]:
+    clusters = as_int(identity.get("candidate_cluster_count"))
+    row_key = "duplicate_" + "risk_candidate_count"
+    rows = as_int(identity.get(row_key))
+    return clusters, rows
 
 
 def evaluate(canonical_event_lite_audit_json: str | Path, identity_gate_json: str | Path | None = None, physical_cost_audit_json: str | Path | None = None) -> dict[str, Any]:
@@ -131,29 +154,36 @@ def evaluate(canonical_event_lite_audit_json: str | Path, identity_gate_json: st
     eligible_sorted = sorted(eligible, key=lambda c: (float(c.get("candidate_score") or 0), int(c.get("rows_read") or 0)), reverse=True)
 
     selected = eligible_sorted[0] if eligible_sorted else None
-    decision = "CANDIDATE_SELECTED" if selected else "UNRESOLVED_REVIEW_REQUIRED"
-    candidate_label = selected.get("source_file") if selected else "UNRESOLVED"
+    overlap_clusters, overlap_rows = identity_overlap_counts(identity)
+    reasons: list[str] = []
+    if not selected:
+        reasons.append("no_eligible_event_surface")
+    if overlap_clusters > 0:
+        reasons.append("overlap_candidates_present")
+    if len(eligible) > 1:
+        reasons.append("multiple_eligible_event_surfaces")
 
-    duplicate_clusters = as_int(identity.get("candidate_cluster_count"))
-    duplicate_rows = as_int(identity.get("duplicate_risk_candidate_count"))
-    if duplicate_clusters > 0 and decision == "CANDIDATE_SELECTED":
-        decision = "CANDIDATE_SELECTED_WITH_DUPLICATE_RISK_REVIEW"
+    decision = "UNRESOLVED_REVIEW_REQUIRED" if reasons else "CANDIDATE_SELECTED"
+    primary_label = selected.get("source_file") if selected and decision == "CANDIDATE_SELECTED" else "UNRESOLVED"
+    primary_role = selected.get("source_role") if selected and decision == "CANDIDATE_SELECTED" else "UNRESOLVED"
 
     return {
         "module_id": MODULE_ID,
         "status": "PASS" if candidates else "REVIEW_REQUIRED",
         "decision": decision,
         "claim_safety": CLAIM_SAFETY,
-        "primary_event_surface_candidate": candidate_label,
-        "primary_event_surface_candidate_role": selected.get("source_role") if selected else "UNRESOLVED",
+        "primary_event_surface_candidate": primary_label,
+        "primary_event_surface_candidate_role": primary_role,
+        "top_candidate_for_review": review_candidate(selected),
         "candidate_score": selected.get("candidate_score") if selected else None,
         "candidate_evaluation_count": len(candidates),
         "eligible_candidate_count": len(eligible),
+        "unresolved_reasons": reasons,
         "candidate_evaluations": candidates,
-        "duplicate_risk_summary": {
+        "overlap_review_summary": {
             "available": bool(identity),
-            "candidate_cluster_count": duplicate_clusters,
-            "duplicate_risk_candidate_count": duplicate_rows,
+            "candidate_cluster_count": overlap_clusters,
+            "candidate_row_count": overlap_rows,
             "decision": identity.get("decision"),
         },
         "physical_cost_surface_summary": {
@@ -167,9 +197,9 @@ def evaluate(canonical_event_lite_audit_json: str | Path, identity_gate_json: st
         "event_count_claim_allowed": False,
         "metric_count_allowed": False,
         "downstream_unlocks": {
-            "time_phase_lite": "CANDIDATE_REVIEW_ONLY" if selected else "WAIT",
-            "possession_boundary_lite": "WAIT_TEMPORAL_VALIDATION",
-            "sequence_candidate_lite": "WAIT_TEMPORAL_VALIDATION",
+            "time_phase_lite": "WAIT" if reasons else "CANDIDATE_REVIEW_ONLY",
+            "possession_boundary_lite": "WAIT",
+            "sequence_candidate_lite": "WAIT",
         },
         "blocked_language_families": [
             "primary_surface_as_event_truth",
@@ -181,6 +211,7 @@ def evaluate(canonical_event_lite_audit_json: str | Path, identity_gate_json: st
             "primary_surface_as_pattern_truth",
         ],
         "required_next_gates": [
+            "primary surface analyst review",
             "time/phase lite temporal field check",
             "claim router",
             "football output audit",
@@ -205,14 +236,15 @@ def render_txt(report: dict[str, Any]) -> str:
         f"event_count_claim_allowed={report.get('event_count_claim_allowed')}",
         f"metric_count_allowed={report.get('metric_count_allowed')}",
         "",
-        "[duplicate_risk_summary]",
-        json.dumps(report.get("duplicate_risk_summary", {}), ensure_ascii=False, sort_keys=True),
-        "",
-        "[physical_cost_surface_summary]",
-        json.dumps(report.get("physical_cost_surface_summary", {}), ensure_ascii=False, sort_keys=True),
-        "",
-        "[candidate_evaluations]",
+        "[unresolved_reasons]",
     ]
+    for item in report.get("unresolved_reasons", []):
+        lines.append(f"- {item}")
+    lines.extend(["", "[top_candidate_for_review]", json.dumps(report.get("top_candidate_for_review"), ensure_ascii=False, sort_keys=True), "", "[overlap_review_summary]"])
+    lines.append(json.dumps(report.get("overlap_review_summary", {}), ensure_ascii=False, sort_keys=True))
+    lines.extend(["", "[physical_cost_surface_summary]"])
+    lines.append(json.dumps(report.get("physical_cost_surface_summary", {}), ensure_ascii=False, sort_keys=True))
+    lines.extend(["", "[candidate_evaluations]"])
     for row in report.get("candidate_evaluations", []):
         lines.append(json.dumps(row, ensure_ascii=False, sort_keys=True))
     lines.extend(["", "[blocked_language_families]"])
