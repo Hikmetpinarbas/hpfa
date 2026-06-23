@@ -45,6 +45,31 @@ def test_registers_physical_cost_family_from_audit(tmp_path):
     assert report["efficiency_calculation_allowed"] is False
 
 
+def test_report_context_metrics_do_not_enter_physical_cost_family(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    write_json(out / "physical_cost_surface_audit_v1.json", {
+        "record_count": 4,
+        "surface_counts": {"PHYSICAL_COST_SURFACE": 2, "REPORT_METRIC_SURFACE": 2},
+        "metric_family_counts": {
+            "DISTANCE_TOTAL": 2,
+            "FIFA_TECHNICAL_CONTEXT": 1,
+            "FORM_REPORT_CONTEXT": 1,
+            "OFFICIAL_METRIC_CONTEXT": 1,
+        },
+    })
+
+    report = build_registry(out)
+
+    physical_names = {r["metric_name"] for r in report["registry_records"] if r["metric_family"] == "PHYSICAL_COST_FAMILY"}
+    report_names = {r["metric_name"] for r in report["registry_records"] if r["metric_family"] == "REPORT_CONTEXT_FAMILY"}
+    assert "DISTANCE_TOTAL" in physical_names
+    assert "FIFA_TECHNICAL_CONTEXT" not in physical_names
+    assert "FORM_REPORT_CONTEXT" not in physical_names
+    assert "OFFICIAL_METRIC_CONTEXT" not in physical_names
+    assert {"FIFA_TECHNICAL_CONTEXT", "FORM_REPORT_CONTEXT", "OFFICIAL_METRIC_CONTEXT"}.issubset(report_names)
+
+
 def test_efficiency_family_waits_when_primary_unresolved(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
