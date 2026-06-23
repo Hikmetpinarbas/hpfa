@@ -26,6 +26,30 @@ FAMILIES = [
     "FUSION_READINESS_FAMILY",
 ]
 
+REPORT_CONTEXT_NAMES = {
+    "FIFA_TECHNICAL_CONTEXT",
+    "FORM_REPORT_CONTEXT",
+    "MATCH_REPORT_CONTEXT",
+    "OFFICIAL_METRIC_CONTEXT",
+    "UNCLASSIFIED_REPORT_CONTEXT",
+}
+
+PHYSICAL_COST_NAMES = {
+    "DISTANCE_TOTAL",
+    "DISTANCE_HIGH_INTENSITY",
+    "DISTANCE_SPRINT",
+    "SPEED_MAX",
+    "SPEED_AVERAGE",
+    "ACCELERATION",
+    "DECELERATION",
+    "METABOLIC_LOAD",
+    "PLAYER_LOAD",
+    "WORK_RATE",
+    "MINUTES_PLAYED",
+    "RECOVERY_TIME",
+    "UNKNOWN_PHYSICAL",
+}
+
 
 def repo_root_from_file() -> Path:
     return Path(__file__).resolve().parents[5]
@@ -80,9 +104,16 @@ def record(metric_family: str, metric_name: str, source_surface_class: str, sour
     }
 
 
+def classify_support_metric_name(name: str) -> tuple[str, str, str, list[str]]:
+    if name in REPORT_CONTEXT_NAMES or name.endswith("_REPORT_CONTEXT") or name.endswith("_CONTEXT"):
+        return "REPORT_CONTEXT_FAMILY", "REPORT_METRIC_SURFACE", "REGISTRY_ONLY", ["claim router"]
+    if name in PHYSICAL_COST_NAMES:
+        return "PHYSICAL_COST_FAMILY", "PHYSICAL_COST_SURFACE", "READY_FOR_CANDIDATE_CALCULATION", ["physical cost surface", "claim router"]
+    return "PHYSICAL_COST_FAMILY", "PHYSICAL_COST_SURFACE", "WAIT_PHYSICAL_COST_BINDING", ["physical cost surface", "claim router"]
+
+
 def build_registry(out_dir: str | Path) -> dict[str, Any]:
     root = Path(out_dir).expanduser().resolve(strict=False)
-    canonical = read_json(root / "canonical_event_lite_audit_v1.json")
     primary = read_json(root / "primary_event_surface_gate_lite_v1.json")
     physical = read_json(root / "physical_cost_surface_audit_v1.json")
     identity = read_json(root / "event_identity_resolution_gate_lite_v1.json")
@@ -113,10 +144,11 @@ def build_registry(out_dir: str | Path) -> dict[str, Any]:
         for name in names:
             records.append(record(family, name, "EVENT_SURFACE", "canonical_event_lite", event_status, ["primary surface review resolution", "claim router"]))
 
-    physical_counts = physical.get("metric_family_counts") or {}
-    if physical_counts:
-        for name in sorted(physical_counts.keys()):
-            records.append(record("PHYSICAL_COST_FAMILY", name, "PHYSICAL_COST_SURFACE", "event_physical_cost_surface_lite", "READY_FOR_CANDIDATE_CALCULATION", ["physical cost surface", "claim router"]))
+    support_counts = physical.get("metric_family_counts") or {}
+    if support_counts:
+        for name in sorted(support_counts.keys()):
+            family, surface_class, status, gates = classify_support_metric_name(str(name))
+            records.append(record(family, str(name), surface_class, "event_physical_cost_surface_lite", status, gates))
     else:
         records.append(record("PHYSICAL_COST_FAMILY", "physical_cost_metric_family_pending", "PHYSICAL_COST_SURFACE", "event_physical_cost_surface_lite", "WAIT_PHYSICAL_COST_BINDING", ["physical cost surface"]))
 
