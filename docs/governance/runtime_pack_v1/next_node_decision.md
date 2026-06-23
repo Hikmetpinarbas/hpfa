@@ -1,8 +1,8 @@
 # HPFA Next Node Decision V1
 
-Date: 2026-06-22
+Date: 2026-06-23
 
-Status: P0A_GOVERNANCE_FILE
+Status: GAP_DRIVEN_NEXT_NODE_DECISION
 
 ## Decision
 
@@ -10,8 +10,10 @@ The completed evidence-pass nodes are:
 
 ```text
 P1 ACTIVE_MATCH Analyst Report Lite V1
-P2 Canonical Event Lite V1
+P2S Canonical Event Lite Surface Count Correction
 P2B Reference Document Ingest Lite V1
+P2D Surface Inventory Interpretation Gate Lite V1
+P3 Team Binding Lite V1
 Fitness Signal PDF Support Lite
 Fitness-Tactical Integration Bridge Lite V1
 ```
@@ -19,167 +21,161 @@ Fitness-Tactical Integration Bridge Lite V1
 The next correct product node is:
 
 ```text
-P3 Team Binding Lite V1
+Primary Event Surface Gate Lite V1
 ```
 
 ## Reason
 
-P1 created the first analyst-facing surface report.
+HPFA development must not leave hidden gaps between modules.
 
-P2 normalized readable CSV/XML/XLSX surfaces into canonical-lite row evidence and opened coordinate-derived zone/channel evidence.
+P2S corrected surface inventory semantics.
 
-P2B extracted ACTIVE_MATCH-adjacent reference PDFs into page-level support evidence.
+P2D converted large row counts into analyst-safe surface inventory language.
 
-Fitness Signal PDF Support Lite indexed five support PDFs under the ACTIVE_MATCH folder.
+P3 bound team and player identity surfaces while preserving event-count unknowns.
 
-Fitness-Tactical Integration Bridge Lite linked event evidence and support-document evidence as non-causal cross-surface review candidates.
+The remaining blocking gap is:
+
+```text
+primary_event_surface_candidate=UNRESOLVED
+```
+
+Therefore Time / Phase, Possession Boundary, Sequence Candidate and Rhythm V12 must wait until Primary Event Surface Gate evaluates candidate surfaces.
 
 ## Runtime Evidence Summary
 
-P1 evidence:
+P2S evidence:
 
 ```text
 py_compile PASS
-pytest 4 passed
+pytest 5 passed
 ACTIVE_MATCH run PASS
-canonical_event_count UNKNOWN
-flat phone outputs written
+surface_row_inventory_total=15516
+canonical_event_count=UNKNOWN
+deduplicated_event_count=UNKNOWN
+primary_event_surface_candidate=UNRESOLVED
+event_count_claim_allowed=False
 ```
 
-P2 evidence:
+P2D evidence:
 
 ```text
-py_compile PASS
-pytest 4 passed
-ACTIVE_MATCH run PASS
-canonical_event_count UNKNOWN
-canonical_lite_row_count=15516
-coordinate_rows=7713
-event_type_rows=7725
-team_rows=3680
-flat phone outputs written
+status=PASS
+claim_safety=ANALYST_SAFE_SURFACE_COUNT_LANGUAGE_ONLY
+pattern_structure_status=NOT_BUILT_REQUIRES_LATER_GATES
+surface_row_inventory_total=15516
 ```
 
-P2B support-document evidence:
+P3 evidence:
 
 ```text
-pdf_count=5
-page_count=141
-chars_total=284238
-texty_pages=134
-err_pages=0
-runtime_event_truth=False
-flat phone outputs written
+status=PASS
+claim_safety=IDENTITY_BINDING_ONLY
+team_entity_count=2
+player_entity_count=32
+unresolved_team_rows=11836
+surface_row_inventory_total=15516
+event_count_claim_allowed=False
 ```
 
 Bridge evidence:
 
 ```text
-py_compile PASS
-pytest 3 passed
-ACTIVE_MATCH flat-output run PASS
+status=PASS
 candidate_count=2
-claim_safety=SUPPORT_BRIDGE_ONLY_NO_CAUSALITY
+event_count_claim_allowed=false
 ```
 
 ## Analyst Evidence
 
 The analyst now has:
 
-- event-family volume;
-- team row-volume;
-- coordinate-derived zone/channel distribution;
-- PDF support document inventory;
-- page-level reference text extraction;
-- cross-surface review candidates.
+- readable multi-surface row inventory;
+- surface role row counts;
+- team/player identity binding;
+- unresolved identity row count;
+- analyst-safe count language;
+- cross-surface support review candidates.
 
-The bridge does not create causal football truth. It creates a review queue for analyst validation.
+The analyst still does not have:
 
-## Current ACTIVE_MATCH Surface Highlights
+- selected primary event surface;
+- deduplicated event count;
+- phase truth;
+- possession truth;
+- sequence truth;
+- pattern structure truth.
+
+## Current ACTIVE_MATCH Safe Surface Reading
 
 ```text
-canonical_event_count=UNKNOWN
-canonical_lite_row_count=15516
-PASS=3708
-GOALKEEPER_RESTART=1164
-DUEL_PRESSURE=748
-POSITIONAL_ATTACK_SIGNAL=729
-FINAL_THIRD=2794
-MIDDLE_THIRD=2758
-DEFENSIVE_THIRD=2161
-RIGHT_CHANNEL=2960
-CENTRAL_CHANNEL=2660
-LEFT_CHANNEL=2093
+ACTIVE_MATCH contains 15,516 readable multi-surface rows.
+This is not a deduplicated event count.
+Pattern structure is not built from row inventory alone.
+Primary event surface remains unresolved until a later gate.
 ```
 
-## Claim Boundary
+## Active Blocking Gaps
 
-Allowed language:
+See:
 
 ```text
-row-level evidence shows
-visible surface evidence indicates
-support evidence is available beside event evidence
-cross-surface review candidate
-requires analyst validation
-requires claim gate
+docs/governance/runtime_pack_v1/development_gap_register.md
 ```
 
-Blocked language families:
+Highest priority gap:
 
 ```text
-causal physical-state claims
-coach intention claims
-dominance claims
-off-ball truth claims
-event truth override claims
-clean phase or possession truth before gate
-```
-
-Required invariants:
-
-```text
-canonical_event_count=UNKNOWN
-support documents are not runtime event truth
-PDF/reference evidence cannot override ACTIVE_MATCH event evidence
+G1 Primary Event Surface Selection Gap
 ```
 
 ## Next Executable Step
 
-Write P3 Team Binding Lite V1 contract.
-
-P3 must solve:
-
-- team identifier normalization;
-- team label mapping;
-- duplicate team surface handling;
-- player/team aggregate binding from XLSX;
-- event-row team binding from CSV/XML where available;
-- no match identity hardcoding;
-- no quality claim by identity alone.
-
-Recommended contract path:
+Implement:
 
 ```text
-docs/contracts/team_binding_lite_v1.md
+Primary Event Surface Gate Lite V1
 ```
 
-Recommended root output:
+Recommended contract path already written:
 
 ```text
-/storage/emulated/0/Download/HPFA/team_binding_lite_v1.json
-/storage/emulated/0/Download/HPFA/team_binding_lite_audit_v1.txt
+docs/contracts/primary_event_surface_gate_lite_v1.md
+```
+
+Recommended module path:
+
+```text
+hpfa/modules/core/primary_event_surface_gate_lite/src/primary_event_surface_gate.py
+```
+
+Recommended tests:
+
+```text
+hpfa/modules/core/primary_event_surface_gate_lite/tests/test_primary_event_surface_gate.py
+```
+
+Recommended outputs:
+
+```text
+/storage/emulated/0/Download/HPFA/primary_event_surface_gate_lite_v1.json
+/storage/emulated/0/Download/HPFA/primary_event_surface_gate_lite_v1.txt
 ```
 
 ## Decision Result
 
 ```text
 P1_ACTIVE_MATCH_EVIDENCE_PASS
-P2_ACTIVE_MATCH_EVIDENCE_PASS
+P2S_ACTIVE_MATCH_EVIDENCE_PASS
 P2B_ACTIVE_MATCH_EVIDENCE_PASS
+P2D_ACTIVE_MATCH_EVIDENCE_PASS
+P3_ACTIVE_MATCH_EVIDENCE_PASS
 FITNESS_PDF_SUPPORT_ACTIVE_MATCH_EVIDENCE_PASS
 FITNESS_TACTICAL_BRIDGE_ACTIVE_MATCH_EVIDENCE_PASS
-P3_TEAM_BINDING_LITE_NEXT_PRODUCT_NODE
+PRIMARY_EVENT_SURFACE_GATE_NEXT_PRODUCT_NODE
+TIME_PHASE_WAIT
+POSSESSION_WAIT
+SEQUENCE_WAIT
 RHYTHM_IMPLEMENTATION_DEFERRED
 PRODUCTION_RELEASE_NOT_GRANTED
 ```
