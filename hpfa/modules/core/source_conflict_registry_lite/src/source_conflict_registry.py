@@ -94,7 +94,7 @@ def detect_source_conflicts(sources: list[dict[str, Any]]) -> list[dict[str, Any
         mapped = int(g(source, "mapped_column_count", 0) or 0)
         missing = list(g(source, "missing_required_fields", []) or [])
 
-        if kind == "event_like_or_review" and (decision == "DEGRADED_MISSING_REQUIRED" or (mapped == 0 and missing)):
+        if kind == "event_like_or_review" and missing:
             out.append(conflict("UNMAPPED_EVENT_SURFACE", "REVIEW_REQUIRED", "Event-like surface has unmapped required event fields.", {
                 "source_file": g(source, "source_file"), "source_role": role, "source_format": g(source, "source_format"),
                 "mapped_column_count": mapped, "missing_required_fields": missing, "decision": decision,
