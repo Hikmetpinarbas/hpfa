@@ -81,10 +81,15 @@ def candidate_source_file(primary_gate: dict[str, Any] | None) -> str | None:
 
 def normalize_state(text: str) -> str:
     value = text.lower()
-    if any(token in value for token in ["corner", "throw", "free kick", "goal kick", "restart", "kick off"]):
+    has_shot = any(token in value for token in ["shot", "save"])
+    if "goal kick" in value:
         return "restart"
-    if any(token in value for token in ["shot", "save", "goal"]):
+    if has_shot:
         return "shot_terminal"
+    if "goal" in value and "goal kick" not in value:
+        return "shot_terminal"
+    if any(token in value for token in ["corner", "throw", "free kick", "restart", "kick off"]):
+        return "restart"
     if any(token in value for token in ["loss", "turnover", "interception", "dispossessed"]):
         return "turnover"
     if any(token in value for token in ["pass", "carry", "dribble", "duel", "recovery", "challenge"]):
@@ -110,20 +115,34 @@ def read_csv_surface(path: Path, limit: int) -> list[dict[str, Any]]:
     return rows
 
 
+def flatten_xml_row(elem: ET.Element) -> dict[str, Any]:
+    payload = dict(elem.attrib)
+    payload.setdefault("name", elem.tag)
+    for child in list(elem):
+        text = (child.text or "").strip()
+        if text:
+            payload.setdefault(child.tag, text)
+            if child.tag.lower() in {"action", "event", "event_type", "type", "name", "subtype"}:
+                payload.setdefault("event_type", text)
+    text = (elem.text or "").strip()
+    if text:
+        payload.setdefault("event_type", text)
+    return payload
+
+
 def read_xml_surface(path: Path, limit: int) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     try:
         root = ET.parse(path).getroot()
     except ET.ParseError:
         return rows
-    for idx, elem in enumerate(root.iter()):
+    elements = [elem for elem in root.iter() if elem is not root and (dict(elem.attrib) or list(elem) or (elem.text or "").strip())]
+    containers = [elem for elem in elements if list(elem)]
+    source = containers if containers else elements
+    for idx, elem in enumerate(source):
         if idx >= limit:
             break
-        payload = dict(elem.attrib)
-        if elem.text and elem.text.strip():
-            payload.setdefault("event_type", elem.text.strip())
-        payload.setdefault("name", elem.tag)
-        rows.append(payload)
+        rows.append(flatten_xml_row(elem))
     return rows
 
 
