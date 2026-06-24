@@ -14,12 +14,14 @@ OUTPUT_JSON = "triangulated_event_reflection_resolver_lite_v1.json"
 OUTPUT_TXT = "triangulated_event_reflection_resolver_lite_v1.txt"
 SUPPORTED_SUFFIXES = {".csv", ".tsv", ".xml"}
 
-ACTION_KEYS = ["action_family", "event_family", "event_type", "type", "action", "name", "subtype", "code", "label", "text"]
+ACTION_KEYS = ["action_family", "event_family", "event_type", "type", "action", "subtype", "code", "label", "text", "name"]
 TEAM_KEYS = ["team", "team_name", "team_raw", "team_entity_key", "squad", "side"]
 PLAYER_KEYS = ["player", "player_name", "player_raw", "athlete", "name"]
 TIME_KEYS = ["minute", "time", "timestamp", "start", "absolute_time_seconds", "match_time"]
-X_KEYS = ["x", "x_meters", "start_x"]
-Y_KEYS = ["y", "y_meters", "start_y"]
+X_KEYS = ["x", "x_meters", "start_x", "pos_x"]
+Y_KEYS = ["y", "y_meters", "start_y", "pos_y"]
+XML_ACTION_TAGS = {"code", "label", "text", "action", "event", "event_type", "type", "subtype"}
+XML_EVENT_TAGS = {"instance", "event", "row", "action"}
 
 BLOCKED_CLAIMS = [
     "true event count",
@@ -110,10 +112,21 @@ def reflection_key(row: dict[str, Any]) -> tuple[str, ...]:
     )
 
 
-def read_csv_or_tsv(path: Path, delimiter: str) -> list[dict[str, Any]]:
+def detect_delimiter(path: Path) -> str:
+    sample = path.read_text(encoding="utf-8", errors="ignore")[:4096]
+    first_line = sample.splitlines()[0] if sample.splitlines() else ""
+    if first_line.count(";") > first_line.count(",") and first_line.count(";") >= first_line.count("\t"):
+        return ";"
+    if first_line.count("\t") > first_line.count(","):
+        return "\t"
+    return ","
+
+
+def read_csv_or_tsv(path: Path, delimiter: str | None = None) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    delim = delimiter if delimiter is not None else detect_delimiter(path)
     with path.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
-        reader = csv.DictReader(handle, delimiter=delimiter)
+        reader = csv.DictReader(handle, delimiter=delim)
         for idx, row in enumerate(reader):
             payload = dict(row)
             payload["_source_file"] = path.name
@@ -123,9 +136,34 @@ def read_csv_or_tsv(path: Path, delimiter: str) -> list[dict[str, Any]]:
     return rows
 
 
+def child_text(elem: ET.Element, tags: set[str]) -> str | None:
+    for child in elem.iter():
+        if child is elem:
+            continue
+        key = child.tag.lower()
+        text = (child.text or "").strip()
+        if key in tags and text:
+            return text
+        for attr_key, attr_value in child.attrib.items():
+            if attr_key.lower() in tags and attr_value:
+                return str(attr_value).strip()
+    return None
+
+
+def is_xml_event_node(elem: ET.Element) -> bool:
+    tag = elem.tag.lower()
+    if tag in XML_EVENT_TAGS and (dict(elem.attrib) or list(elem)):
+        return True
+    return child_text(elem, XML_ACTION_TAGS) is not None and tag not in {"file", "all_instances", "sort_info", "label"}
+
+
 def flatten_xml_event(elem: ET.Element) -> dict[str, Any]:
     payload = dict(elem.attrib)
-    payload.setdefault("name", elem.tag)
+    action_text = child_text(elem, XML_ACTION_TAGS)
+    if action_text:
+        payload.setdefault("event_type", action_text)
+        payload.setdefault("code", action_text)
+    payload.setdefault("xml_tag", elem.tag)
     for child in elem.iter():
         if child is elem:
             continue
@@ -133,7 +171,8 @@ def flatten_xml_event(elem: ET.Element) -> dict[str, Any]:
         if text:
             payload.setdefault(child.tag, text)
         for key, value in child.attrib.items():
-            payload.setdefault(key, value)
+            if value:
+                payload.setdefault(key, value)
     return payload
 
 
@@ -142,9 +181,7 @@ def read_xml(path: Path) -> list[dict[str, Any]]:
         root = ET.parse(path).getroot()
     except ET.ParseError:
         return []
-    elements = [elem for elem in root.iter() if elem is not root and (dict(elem.attrib) or list(elem) or (elem.text or "").strip())]
-    containers = [elem for elem in elements if list(elem)]
-    source = containers if containers else elements
+    source = [elem for elem in root.iter() if elem is not root and is_xml_event_node(elem)]
     rows: list[dict[str, Any]] = []
     for idx, elem in enumerate(source):
         payload = flatten_xml_event(elem)
@@ -162,7 +199,7 @@ def discover_surface_rows(input_dir: str | Path) -> list[dict[str, Any]]:
         if not path.is_file() or path.suffix.lower() not in SUPPORTED_SUFFIXES:
             continue
         if path.suffix.lower() == ".csv":
-            rows.extend(read_csv_or_tsv(path, ","))
+            rows.extend(read_csv_or_tsv(path))
         elif path.suffix.lower() == ".tsv":
             rows.extend(read_csv_or_tsv(path, "\t"))
         elif path.suffix.lower() == ".xml":
