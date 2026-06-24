@@ -14,7 +14,29 @@ MIN_CONTEXT_JSON = "minimum_viable_context_lite_v1.json"
 TERMINAL_FAMILIES = {"SHOT"}
 LOSS_RECOVERY_FAMILIES = {"BALL_LOSS", "RECOVERY"}
 RESTART_FAMILIES = {"RESTART", "DEAD_BALL"}
-TIME_KEYS = ["minute_bucket", "minute", "time", "timestamp", "start", "end", "absolute_time_seconds", "match_time"]
+TIME_KEYS = [
+    "minute_bucket",
+    "minute",
+    "minutes",
+    "time",
+    "timestamp",
+    "start",
+    "end",
+    "start_time",
+    "end_time",
+    "time_start",
+    "time_end",
+    "absolute_time_seconds",
+    "match_time",
+    "game_time",
+    "match_clock",
+    "period_time",
+    "second",
+    "seconds",
+    "tc",
+    "t",
+]
+TIME_KEY_ALIASES = {key.lower(): key for key in TIME_KEYS}
 DEFAULT_INDEX_WINDOW_ROWS = 100
 
 
@@ -86,9 +108,19 @@ def safe_minute_from_value(value: Any) -> int | None:
     return int(number)
 
 
+def get_case_insensitive(row: dict[str, Any], key: str) -> Any:
+    if key in row:
+        return row.get(key)
+    wanted = key.lower()
+    for raw_key, value in row.items():
+        if str(raw_key).lower() == wanted:
+            return value
+    return None
+
+
 def context_minute(row: dict[str, Any]) -> int | None:
     for key in TIME_KEYS:
-        value = row.get(key)
+        value = get_case_insensitive(row, key)
         minute = safe_minute_from_value(value)
         if minute is not None:
             return minute
@@ -99,16 +131,21 @@ def minute_bearing_count(contexts: list[dict[str, Any]]) -> int:
     return sum(1 for item in contexts if context_minute(item) is not None)
 
 
+def attach_raw_time_fields(contexts: list[dict[str, Any]], rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    for ctx, raw in zip(contexts, rows):
+        for raw_key, raw_value in raw.items():
+            canonical = TIME_KEY_ALIASES.get(str(raw_key).lower())
+            if canonical and raw_value not in (None, ""):
+                ctx.setdefault(canonical, raw_value)
+    return contexts
+
+
 def rebuild_full_context(input_root: Path, repo_root: Path) -> list[dict[str, Any]]:
     mvc = minimum_context_module(repo_root)
     if hasattr(mvc, "discover_rows") and hasattr(mvc, "build_context_candidates"):
         rows = mvc.discover_rows(input_root)
         contexts = list(mvc.build_context_candidates(rows))
-        for ctx, raw in zip(contexts, rows):
-            for key in TIME_KEYS:
-                if key in raw and key not in ctx:
-                    ctx[key] = raw.get(key)
-        return contexts
+        return attach_raw_time_fields(contexts, rows)
     report = mvc.build_report(input_root, root=repo_root)
     return list(report.get("context_candidates_sample", []))
 
