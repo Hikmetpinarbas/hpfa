@@ -15,6 +15,7 @@ TERMINAL_FAMILIES = {"SHOT"}
 LOSS_RECOVERY_FAMILIES = {"BALL_LOSS", "RECOVERY"}
 RESTART_FAMILIES = {"RESTART", "DEAD_BALL"}
 TIME_KEYS = ["minute_bucket", "minute", "time", "timestamp", "start", "end", "absolute_time_seconds", "match_time"]
+DEFAULT_INDEX_WINDOW_ROWS = 100
 
 
 def repo_root_from_file() -> Path:
@@ -149,7 +150,47 @@ def confidence_for_count(count: int) -> str:
     return "low"
 
 
-def build_windows_from_context(
+def window_from_rows(window_id: str, rows: list[dict[str, Any]], axis: str, start_value: int, end_value: int) -> dict[str, Any]:
+    action_counts = count_values(rows, "action_family")
+    families = set(action_counts)
+    base = {
+        "window_id": window_id,
+        "window_axis": axis,
+        "surface_row_count": len(rows),
+        "action_family_counts": action_counts,
+        "team_label_counts": count_values(rows, "team_label"),
+        "zone_counts": count_values(rows, "zone_candidate"),
+        "channel_counts": count_values(rows, "channel_candidate"),
+        "terminal_action_surface_present": bool(families & TERMINAL_FAMILIES),
+        "loss_recovery_surface_present": bool(families & LOSS_RECOVERY_FAMILIES),
+        "restart_surface_present": bool(families & RESTART_FAMILIES),
+        "window_confidence": confidence_for_count(len(rows)),
+        "time_window_truth": False,
+        "claim_allowed": False,
+    }
+    if axis == "minute":
+        base["start_minute"] = start_value
+        base["end_minute"] = end_value
+        base["context_density"] = len(rows) / max(1, end_value - start_value)
+    else:
+        base["start_index"] = start_value
+        base["end_index"] = end_value
+        base["context_density"] = len(rows) / max(1, end_value - start_value)
+    return base
+
+
+def build_index_windows(contexts: list[dict[str, Any]], index_window_rows: int = DEFAULT_INDEX_WINDOW_ROWS) -> list[dict[str, Any]]:
+    windows: list[dict[str, Any]] = []
+    for start in range(0, len(contexts), index_window_rows):
+        end = min(start + index_window_rows, len(contexts))
+        rows = contexts[start:end]
+        if not rows:
+            continue
+        windows.append(window_from_rows(f"idxwin_{len(windows):04d}", rows, "event_index", start, end))
+    return windows
+
+
+def build_minute_windows(
     contexts: list[dict[str, Any]],
     window_size_mins: int = 5,
     hop_mins: int = 5,
@@ -166,46 +207,41 @@ def build_windows_from_context(
     max_minute = max(minute for minute, _ in minute_rows)
     start = (min_minute // hop_mins) * hop_mins
     windows: list[dict[str, Any]] = []
-    window_index = 0
     while start <= max_minute:
         end = start + window_size_mins
         rows = [row for minute, row in minute_rows if start <= minute < end]
         if rows:
-            action_counts = count_values(rows, "action_family")
-            families = set(action_counts)
-            windows.append({
-                "window_id": f"win_{window_index:04d}",
-                "start_minute": start,
-                "end_minute": end,
-                "surface_row_count": len(rows),
-                "action_family_counts": action_counts,
-                "team_label_counts": count_values(rows, "team_label"),
-                "zone_counts": count_values(rows, "zone_candidate"),
-                "channel_counts": count_values(rows, "channel_candidate"),
-                "terminal_action_surface_present": bool(families & TERMINAL_FAMILIES),
-                "loss_recovery_surface_present": bool(families & LOSS_RECOVERY_FAMILIES),
-                "restart_surface_present": bool(families & RESTART_FAMILIES),
-                "context_density": len(rows) / max(1, window_size_mins),
-                "window_confidence": confidence_for_count(len(rows)),
-                "claim_allowed": False,
-            })
-            window_index += 1
+            windows.append(window_from_rows(f"win_{len(windows):04d}", rows, "minute", start, end))
         start += hop_mins
     return windows
 
 
+def build_windows_from_context(
+    contexts: list[dict[str, Any]],
+    window_size_mins: int = 5,
+    hop_mins: int = 5,
+) -> list[dict[str, Any]]:
+    minute_windows = build_minute_windows(contexts, window_size_mins=window_size_mins, hop_mins=hop_mins)
+    if minute_windows:
+        return minute_windows
+    return build_index_windows(contexts)
+
+
 def summarize_windows(windows: list[dict[str, Any]]) -> dict[str, Any]:
     confidence_counts: dict[str, int] = defaultdict(int)
+    axis_counts: dict[str, int] = defaultdict(int)
     terminal = 0
     loss_recovery = 0
     restart = 0
     for win in windows:
         confidence_counts[str(win.get("window_confidence"))] += 1
+        axis_counts[str(win.get("window_axis", "unknown"))] += 1
         terminal += int(bool(win.get("terminal_action_surface_present")))
         loss_recovery += int(bool(win.get("loss_recovery_surface_present")))
         restart += int(bool(win.get("restart_surface_present")))
     return {
         "window_confidence_counts": dict(sorted(confidence_counts.items())),
+        "window_axis_counts": dict(sorted(axis_counts.items())),
         "terminal_action_window_count": terminal,
         "loss_recovery_window_count": loss_recovery,
         "restart_window_count": restart,
@@ -229,6 +265,7 @@ def build_report(
         "claim_safety": CLAIM_SAFETY,
         "window_size_mins": window_size_mins,
         "hop_mins": hop_mins,
+        "index_window_rows": DEFAULT_INDEX_WINDOW_ROWS,
         "input_context_count": len(contexts),
         "minute_bearing_context_count": minute_context_count,
         "event_window_count": len(windows),
@@ -240,6 +277,7 @@ def build_report(
         "possession_truth": False,
         "sequence_truth": False,
         "rhythm_truth": False,
+        "time_window_truth": False,
         "tactical_truth": False,
         "dominance_truth": False,
         "claim_allowed": False,
@@ -262,6 +300,7 @@ def render_txt(report: dict[str, Any]) -> str:
         f"possession_truth={report.get('possession_truth')}",
         f"sequence_truth={report.get('sequence_truth')}",
         f"rhythm_truth={report.get('rhythm_truth')}",
+        f"time_window_truth={report.get('time_window_truth')}",
         "",
         "[window_summary]",
         json.dumps(report.get("window_summary", {}), ensure_ascii=False, sort_keys=True),
