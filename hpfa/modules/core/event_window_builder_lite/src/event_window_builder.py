@@ -66,15 +66,6 @@ def minimum_context_module(root: Path):
     return minimum_viable_context
 
 
-def safe_int(value: Any) -> int | None:
-    if value in (None, "", "unknown"):
-        return None
-    try:
-        return int(float(str(value)))
-    except ValueError:
-        return None
-
-
 def parse_clock_minute(value: str) -> int | None:
     text = value.strip()
     if not text or text.lower() == "unknown":
@@ -143,34 +134,39 @@ def attach_raw_time_fields(contexts: list[dict[str, Any]], rows: list[dict[str, 
     return contexts
 
 
-def rebuild_full_context(input_root: Path, repo_root: Path) -> list[dict[str, Any]]:
+def rebuild_full_context(raw_root: Path, repo_root: Path) -> list[dict[str, Any]]:
     mvc = minimum_context_module(repo_root)
     if hasattr(mvc, "discover_rows") and hasattr(mvc, "build_context_candidates"):
-        rows = mvc.discover_rows(input_root)
+        rows = mvc.discover_rows(raw_root)
         contexts = list(mvc.build_context_candidates(rows))
         return attach_raw_time_fields(contexts, rows)
-    report = mvc.build_report(input_root, root=repo_root)
+    report = mvc.build_report(raw_root, root=repo_root)
     return list(report.get("context_candidates_sample", []))
 
 
-def read_minimum_context(input_dir: str | Path, root: str | Path | None = None) -> list[dict[str, Any]]:
+def read_minimum_context(
+    input_dir: str | Path,
+    root: str | Path | None = None,
+    raw_input_dir: str | Path | None = None,
+) -> list[dict[str, Any]]:
     repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
     input_root = Path(input_dir).expanduser().resolve(strict=False)
+    raw_root = Path(raw_input_dir).expanduser().resolve(strict=False) if raw_input_dir is not None else input_root
     context_path = input_root / MIN_CONTEXT_JSON
     if not context_path.exists():
-        return rebuild_full_context(input_root, repo_root)
+        return rebuild_full_context(raw_root, repo_root)
 
     data = json.loads(context_path.read_text(encoding="utf-8"))
     full_contexts = data.get("context_candidates")
     if isinstance(full_contexts, list):
         if minute_bearing_count(full_contexts) > 0:
             return full_contexts
-        return rebuild_full_context(input_root, repo_root)
+        return rebuild_full_context(raw_root, repo_root)
 
     sample = list(data.get("context_candidates_sample", []))
     total_count = int(data.get("context_candidate_count", len(sample)) or 0)
     if total_count > len(sample) or minute_bearing_count(sample) == 0:
-        return rebuild_full_context(input_root, repo_root)
+        return rebuild_full_context(raw_root, repo_root)
     return sample
 
 
@@ -291,13 +287,15 @@ def summarize_windows(windows: list[dict[str, Any]]) -> dict[str, Any]:
 def build_report(
     input_dir: str | Path,
     root: str | Path | None = None,
+    raw_input_dir: str | Path | None = None,
     window_size_mins: int = 5,
     hop_mins: int = 5,
 ) -> dict[str, Any]:
     repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
-    contexts = read_minimum_context(input_dir, root=repo_root)
+    contexts = read_minimum_context(input_dir, root=repo_root, raw_input_dir=raw_input_dir)
     minute_context_count = minute_bearing_count(contexts)
     windows = build_windows_from_context(contexts, window_size_mins=window_size_mins, hop_mins=hop_mins)
+    raw_root = str(Path(raw_input_dir).expanduser().resolve(strict=False)) if raw_input_dir is not None else str(Path(input_dir).expanduser().resolve(strict=False))
     return {
         "module_id": MODULE_ID,
         "status": "REVIEW_REQUIRED",
@@ -311,6 +309,8 @@ def build_report(
         "event_window_count": len(windows),
         "event_windows_sample": windows[:200],
         "window_summary": summarize_windows(windows),
+        "input_dir": str(Path(input_dir).expanduser().resolve(strict=False)),
+        "raw_input_dir": raw_root,
         "canonical_event_count": "UNKNOWN",
         "deduplicated_event_count": "UNKNOWN",
         "phase_truth": False,
@@ -335,6 +335,7 @@ def render_txt(report: dict[str, Any]) -> str:
         f"input_context_count={report.get('input_context_count')}",
         f"minute_bearing_context_count={report.get('minute_bearing_context_count')}",
         f"event_window_count={report.get('event_window_count')}",
+        f"raw_input_dir={report.get('raw_input_dir')}",
         f"canonical_event_count={report.get('canonical_event_count')}",
         f"phase_truth={report.get('phase_truth')}",
         f"possession_truth={report.get('possession_truth')}",
@@ -357,6 +358,7 @@ def write_outputs(
     input_dir: str | Path,
     out_dir: str | Path,
     root: str | Path | None = None,
+    raw_input_dir: str | Path | None = None,
     window_size_mins: int = 5,
     hop_mins: int = 5,
 ) -> dict[str, Any]:
@@ -364,7 +366,7 @@ def write_outputs(
     spine = spine_runner_module(repo_root)
     output_root = spine.validate_output_root(out_dir)
     output_root.mkdir(parents=True, exist_ok=True)
-    report = build_report(input_dir, root=repo_root, window_size_mins=window_size_mins, hop_mins=hop_mins)
+    report = build_report(input_dir, root=repo_root, raw_input_dir=raw_input_dir, window_size_mins=window_size_mins, hop_mins=hop_mins)
     json_out = output_root / OUTPUT_JSON
     txt_out = output_root / OUTPUT_TXT
     report["outputs"] = {"json": str(json_out), "txt": str(txt_out)}
