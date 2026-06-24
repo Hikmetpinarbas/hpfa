@@ -48,16 +48,36 @@ def safe_int(value: Any) -> int | None:
         return None
 
 
-def read_minimum_context(input_dir: str | Path, root: str | Path | None = None) -> list[dict[str, Any]]:
-    input_root = Path(input_dir).expanduser().resolve(strict=False)
-    context_path = input_root / MIN_CONTEXT_JSON
-    if context_path.exists():
-        data = json.loads(context_path.read_text(encoding="utf-8"))
-        return list(data.get("context_candidates_sample", [])) if data.get("context_candidate_count", 0) <= 200 else list(data.get("context_candidates_sample", []))
-    repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
+def minute_bearing_count(contexts: list[dict[str, Any]]) -> int:
+    return sum(1 for item in contexts if safe_int(item.get("minute_bucket")) is not None)
+
+
+def rebuild_full_context(input_root: Path, repo_root: Path) -> list[dict[str, Any]]:
     mvc = minimum_context_module(repo_root)
+    if hasattr(mvc, "discover_rows") and hasattr(mvc, "build_context_candidates"):
+        rows = mvc.discover_rows(input_root)
+        return list(mvc.build_context_candidates(rows))
     report = mvc.build_report(input_root, root=repo_root)
     return list(report.get("context_candidates_sample", []))
+
+
+def read_minimum_context(input_dir: str | Path, root: str | Path | None = None) -> list[dict[str, Any]]:
+    repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
+    input_root = Path(input_dir).expanduser().resolve(strict=False)
+    context_path = input_root / MIN_CONTEXT_JSON
+    if not context_path.exists():
+        return rebuild_full_context(input_root, repo_root)
+
+    data = json.loads(context_path.read_text(encoding="utf-8"))
+    full_contexts = data.get("context_candidates")
+    if isinstance(full_contexts, list):
+        return full_contexts
+
+    sample = list(data.get("context_candidates_sample", []))
+    total_count = int(data.get("context_candidate_count", len(sample)) or 0)
+    if total_count > len(sample):
+        return rebuild_full_context(input_root, repo_root)
+    return sample
 
 
 def count_values(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
@@ -147,6 +167,7 @@ def build_report(
 ) -> dict[str, Any]:
     repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
     contexts = read_minimum_context(input_dir, root=repo_root)
+    minute_context_count = minute_bearing_count(contexts)
     windows = build_windows_from_context(contexts, window_size_mins=window_size_mins, hop_mins=hop_mins)
     return {
         "module_id": MODULE_ID,
@@ -156,6 +177,7 @@ def build_report(
         "window_size_mins": window_size_mins,
         "hop_mins": hop_mins,
         "input_context_count": len(contexts),
+        "minute_bearing_context_count": minute_context_count,
         "event_window_count": len(windows),
         "event_windows_sample": windows[:200],
         "window_summary": summarize_windows(windows),
@@ -180,6 +202,7 @@ def render_txt(report: dict[str, Any]) -> str:
         f"decision={report.get('decision')}",
         f"claim_safety={report.get('claim_safety')}",
         f"input_context_count={report.get('input_context_count')}",
+        f"minute_bearing_context_count={report.get('minute_bearing_context_count')}",
         f"event_window_count={report.get('event_window_count')}",
         f"canonical_event_count={report.get('canonical_event_count')}",
         f"phase_truth={report.get('phase_truth')}",
