@@ -27,6 +27,8 @@ BLOCKED_CLAIMS = [
     "tactical truth",
 ]
 
+XML_EVENT_TEXT_KEYS = {"action", "event", "event_type", "type", "name", "subtype", "code", "label", "text", "description"}
+
 
 def repo_root_from_file() -> Path:
     return Path(__file__).resolve().parents[5]
@@ -100,7 +102,7 @@ def normalize_state(text: str) -> str:
 
 
 def row_text(row: dict[str, Any]) -> str:
-    keys = ["action_family", "event_family", "event_type", "type", "action", "name", "subtype"]
+    keys = ["action_family", "event_family", "event_type", "type", "action", "name", "subtype", "code", "label", "text", "description"]
     return " ".join(str(row.get(k) or "") for k in keys)
 
 
@@ -118,12 +120,25 @@ def read_csv_surface(path: Path, limit: int) -> list[dict[str, Any]]:
 def flatten_xml_row(elem: ET.Element) -> dict[str, Any]:
     payload = dict(elem.attrib)
     payload.setdefault("name", elem.tag)
-    for child in list(elem):
+    for key in XML_EVENT_TEXT_KEYS:
+        value = payload.get(key)
+        if value:
+            payload.setdefault("event_type", str(value))
+            break
+    for child in elem.iter():
+        if child is elem:
+            continue
         text = (child.text or "").strip()
+        key = child.tag.lower()
         if text:
             payload.setdefault(child.tag, text)
-            if child.tag.lower() in {"action", "event", "event_type", "type", "name", "subtype"}:
+            if key in XML_EVENT_TEXT_KEYS:
                 payload.setdefault("event_type", text)
+        for attr_key, attr_value in child.attrib.items():
+            if attr_value:
+                payload.setdefault(attr_key, attr_value)
+                if attr_key.lower() in XML_EVENT_TEXT_KEYS:
+                    payload.setdefault("event_type", str(attr_value))
     text = (elem.text or "").strip()
     if text:
         payload.setdefault("event_type", text)
