@@ -65,6 +65,24 @@ def test_claim_boundaries_remain_false(tmp_path):
     assert report["claim_allowed"] is False
 
 
+def test_raw_input_dir_rebuilds_minute_windows(tmp_path):
+    out_input = tmp_path / "HPFA"
+    out_input.mkdir()
+    raw_input = tmp_path / "raw"
+    raw_input.mkdir()
+    write_context(out_input / "minimum_viable_context_lite_v1.json", [
+        {"minute_bucket": "unknown", "action_family": "UNKNOWN_OR_OTHER", "team_label": "unknown", "zone_candidate": "UNKNOWN_ZONE", "channel_candidate": "UNKNOWN_CHANNEL"}
+    ])
+    (raw_input / "surface.csv").write_text(
+        "minute_raw;team;action;pos_x;pos_y\n5;A;Pass;50;34\n6;A;Shot;80;44\n",
+        encoding="utf-8",
+    )
+    report = build_report(out_input, root=ROOT, raw_input_dir=raw_input, window_size_mins=5, hop_mins=5)
+    assert report["minute_bearing_context_count"] == 2
+    assert report["event_window_count"] == 1
+    assert report["window_summary"]["window_axis_counts"] == {"minute": 1}
+
+
 def test_flat_outputs(tmp_path):
     contexts = [{"minute_bucket": "0", "action_family": "PASS", "team_label": "a", "zone_candidate": "MIDDLE_THIRD", "channel_candidate": "CENTRAL_CHANNEL"}]
     write_context(tmp_path / "minimum_viable_context_lite_v1.json", contexts)
