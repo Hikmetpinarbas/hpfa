@@ -18,8 +18,10 @@ TIME_KEYS = [
     "minute_bucket",
     "minute",
     "minutes",
+    "minute_raw",
     "time",
     "timestamp",
+    "timestamp_raw",
     "start",
     "end",
     "start_time",
@@ -33,6 +35,7 @@ TIME_KEYS = [
     "period_time",
     "second",
     "seconds",
+    "second_raw",
     "tc",
     "t",
 ]
