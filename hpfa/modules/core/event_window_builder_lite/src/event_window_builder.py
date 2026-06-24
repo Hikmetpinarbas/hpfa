@@ -14,6 +14,7 @@ MIN_CONTEXT_JSON = "minimum_viable_context_lite_v1.json"
 TERMINAL_FAMILIES = {"SHOT"}
 LOSS_RECOVERY_FAMILIES = {"BALL_LOSS", "RECOVERY"}
 RESTART_FAMILIES = {"RESTART", "DEAD_BALL"}
+TIME_KEYS = ["minute_bucket", "minute", "time", "timestamp", "start", "end", "absolute_time_seconds", "match_time"]
 
 
 def repo_root_from_file() -> Path:
@@ -48,15 +49,65 @@ def safe_int(value: Any) -> int | None:
         return None
 
 
+def parse_clock_minute(value: str) -> int | None:
+    text = value.strip()
+    if not text or text.lower() == "unknown":
+        return None
+    if ":" not in text:
+        return None
+    parts = text.split(":")
+    try:
+        nums = [float(part.replace(",", ".")) for part in parts]
+    except ValueError:
+        return None
+    if len(nums) == 2:
+        minutes, seconds = nums
+        return int(minutes + seconds / 60.0)
+    if len(nums) == 3:
+        hours, minutes, seconds = nums
+        return int(hours * 60.0 + minutes + seconds / 60.0)
+    return None
+
+
+def safe_minute_from_value(value: Any) -> int | None:
+    if value in (None, "", "unknown"):
+        return None
+    text = str(value).strip()
+    clock = parse_clock_minute(text)
+    if clock is not None:
+        return clock
+    try:
+        number = float(text.replace(",", "."))
+    except ValueError:
+        return None
+    if number > 1000:
+        return int(number / 60.0)
+    return int(number)
+
+
+def context_minute(row: dict[str, Any]) -> int | None:
+    for key in TIME_KEYS:
+        value = row.get(key)
+        minute = safe_minute_from_value(value)
+        if minute is not None:
+            return minute
+    return None
+
+
 def minute_bearing_count(contexts: list[dict[str, Any]]) -> int:
-    return sum(1 for item in contexts if safe_int(item.get("minute_bucket")) is not None)
+    return sum(1 for item in contexts if context_minute(item) is not None)
 
 
 def rebuild_full_context(input_root: Path, repo_root: Path) -> list[dict[str, Any]]:
     mvc = minimum_context_module(repo_root)
     if hasattr(mvc, "discover_rows") and hasattr(mvc, "build_context_candidates"):
         rows = mvc.discover_rows(input_root)
-        return list(mvc.build_context_candidates(rows))
+        contexts = list(mvc.build_context_candidates(rows))
+        for ctx, raw in zip(contexts, rows):
+            for key in TIME_KEYS:
+                if key in raw and key not in ctx:
+                    ctx[key] = raw.get(key)
+        return contexts
     report = mvc.build_report(input_root, root=repo_root)
     return list(report.get("context_candidates_sample", []))
 
@@ -71,11 +122,13 @@ def read_minimum_context(input_dir: str | Path, root: str | Path | None = None) 
     data = json.loads(context_path.read_text(encoding="utf-8"))
     full_contexts = data.get("context_candidates")
     if isinstance(full_contexts, list):
-        return full_contexts
+        if minute_bearing_count(full_contexts) > 0:
+            return full_contexts
+        return rebuild_full_context(input_root, repo_root)
 
     sample = list(data.get("context_candidates_sample", []))
     total_count = int(data.get("context_candidate_count", len(sample)) or 0)
-    if total_count > len(sample):
+    if total_count > len(sample) or minute_bearing_count(sample) == 0:
         return rebuild_full_context(input_root, repo_root)
     return sample
 
@@ -103,7 +156,7 @@ def build_windows_from_context(
 ) -> list[dict[str, Any]]:
     minute_rows: list[tuple[int, dict[str, Any]]] = []
     for row in contexts:
-        minute = safe_int(row.get("minute_bucket"))
+        minute = context_minute(row)
         if minute is None:
             continue
         minute_rows.append((minute, row))
