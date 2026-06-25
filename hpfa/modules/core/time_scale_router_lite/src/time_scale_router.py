@@ -47,15 +47,26 @@ def safe_int(value: Any) -> int:
         return 0
 
 
-def read_event_windows(input_dir: str | Path) -> list[dict[str, Any]]:
+def read_event_window_payload(input_dir: str | Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     path = Path(input_dir).expanduser().resolve(strict=False) / INPUT_JSON
     if not path.exists():
-        return []
+        return [], {"source_path": str(path), "input_read_status": "MISSING_INPUT", "upstream_event_window_count": 0, "loaded_window_count": 0, "upstream_sample_truncated": False}
     data = json.loads(path.read_text(encoding="utf-8"))
-    windows = data.get("event_windows_sample", [])
-    if isinstance(windows, list):
-        return list(windows)
-    return []
+    declared_count = safe_int(data.get("event_window_count", 0))
+    full_windows = data.get("event_windows")
+    if isinstance(full_windows, list):
+        return list(full_windows), {"source_path": str(path), "input_read_status": "FULL_WINDOWS_LOADED", "upstream_event_window_count": declared_count or len(full_windows), "loaded_window_count": len(full_windows), "upstream_sample_truncated": False}
+    sample = data.get("event_windows_sample", [])
+    windows = list(sample) if isinstance(sample, list) else []
+    truncated = declared_count > len(windows)
+    return windows, {"source_path": str(path), "input_read_status": "UPSTREAM_SAMPLE_TRUNCATED" if truncated else "SAMPLE_WINDOWS_LOADED", "upstream_event_window_count": declared_count, "loaded_window_count": len(windows), "upstream_sample_truncated": truncated}
+
+
+def read_event_windows(input_dir: str | Path) -> list[dict[str, Any]]:
+    windows, meta = read_event_window_payload(input_dir)
+    if meta.get("upstream_sample_truncated") is True:
+        return []
+    return windows
 
 
 def route_window(window: dict[str, Any]) -> dict[str, Any]:
@@ -63,7 +74,6 @@ def route_window(window: dict[str, Any]) -> dict[str, Any]:
     rows = safe_int(window.get("surface_row_count"))
     density = safe_float(window.get("context_density"))
     confidence = str(window.get("window_confidence", "unknown"))
-
     if axis == "minute":
         if rows >= MIN_USABLE_ROWS and density >= MIN_USABLE_DENSITY:
             decision = "MINUTE_AXIS_USABLE"
@@ -85,22 +95,7 @@ def route_window(window: dict[str, Any]) -> dict[str, Any]:
         decision = "REVIEW_REQUIRED"
         density_candidate = "UNKNOWN_SIGNAL_DENSITY"
         reason = "unknown_window_axis"
-
-    return {
-        "window_id": str(window.get("window_id", "unknown")),
-        "window_axis": axis,
-        "surface_row_count": rows,
-        "context_density": density,
-        "window_confidence": confidence,
-        "time_scale_candidate": decision,
-        "signal_density_candidate": density_candidate,
-        "routing_decision": decision,
-        "routing_reason": reason,
-        "terminal_action_surface_present": bool(window.get("terminal_action_surface_present")),
-        "loss_recovery_surface_present": bool(window.get("loss_recovery_surface_present")),
-        "restart_surface_present": bool(window.get("restart_surface_present")),
-        "claim_allowed": False,
-    }
+    return {"window_id": str(window.get("window_id", "unknown")), "window_axis": axis, "surface_row_count": rows, "context_density": density, "window_confidence": confidence, "time_scale_candidate": decision, "signal_density_candidate": density_candidate, "routing_decision": decision, "routing_reason": reason, "terminal_action_surface_present": bool(window.get("terminal_action_surface_present")), "loss_recovery_surface_present": bool(window.get("loss_recovery_surface_present")), "restart_surface_present": bool(window.get("restart_surface_present")), "claim_allowed": False}
 
 
 def route_windows(windows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -121,70 +116,20 @@ def summarize_routes(routed: list[dict[str, Any]]) -> dict[str, Any]:
         terminal += int(bool(item.get("terminal_action_surface_present")))
         loss_recovery += int(bool(item.get("loss_recovery_surface_present")))
         restart += int(bool(item.get("restart_surface_present")))
-    return {
-        "routing_decision_counts": dict(sorted(decision_counts.items())),
-        "window_axis_counts": dict(sorted(axis_counts.items())),
-        "signal_density_candidate_counts": dict(sorted(density_counts.items())),
-        "terminal_action_routed_count": terminal,
-        "loss_recovery_routed_count": loss_recovery,
-        "restart_routed_count": restart,
-    }
+    return {"routing_decision_counts": dict(sorted(decision_counts.items())), "window_axis_counts": dict(sorted(axis_counts.items())), "signal_density_candidate_counts": dict(sorted(density_counts.items())), "terminal_action_routed_count": terminal, "loss_recovery_routed_count": loss_recovery, "restart_routed_count": restart}
 
 
 def build_report(input_dir: str | Path, root: str | Path | None = None) -> dict[str, Any]:
     repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
-    windows = read_event_windows(input_dir)
-    routed = route_windows(windows)
+    windows, input_meta = read_event_window_payload(input_dir)
+    truncated = input_meta.get("upstream_sample_truncated") is True
+    routed = [] if truncated else route_windows(windows)
     summary = summarize_routes(routed)
-    return {
-        "module_id": MODULE_ID,
-        "status": "REVIEW_REQUIRED",
-        "decision": "TIME_SCALE_CANDIDATES_ONLY",
-        "claim_safety": CLAIM_SAFETY,
-        "input_window_count": len(windows),
-        "routed_window_count": len(routed),
-        "minute_axis_window_count": summary.get("window_axis_counts", {}).get("minute", 0),
-        "event_index_window_count": summary.get("window_axis_counts", {}).get("event_index", 0),
-        "routed_windows_sample": routed[:200],
-        "routing_summary": summary,
-        "canonical_event_count": "UNKNOWN",
-        "deduplicated_event_count": "UNKNOWN",
-        "phase_truth": False,
-        "possession_truth": False,
-        "sequence_truth": False,
-        "rhythm_truth": False,
-        "time_window_truth": False,
-        "tactical_truth": False,
-        "dominance_truth": False,
-        "claim_allowed": False,
-        "input_dir": str(Path(input_dir).expanduser().resolve(strict=False)),
-        "repo_root": str(repo_root),
-    }
+    return {"module_id": MODULE_ID, "status": "REVIEW_REQUIRED", "decision": "UPSTREAM_SAMPLE_TRUNCATED" if truncated else "TIME_SCALE_CANDIDATES_ONLY", "claim_safety": CLAIM_SAFETY, "input_window_count": len(windows), "routed_window_count": len(routed), "minute_axis_window_count": summary.get("window_axis_counts", {}).get("minute", 0), "event_index_window_count": summary.get("window_axis_counts", {}).get("event_index", 0), "routed_windows_sample": routed[:200], "routing_summary": summary, "input_meta": input_meta, "canonical_event_count": "UNKNOWN", "deduplicated_event_count": "UNKNOWN", "phase_truth": False, "possession_truth": False, "sequence_truth": False, "rhythm_truth": False, "time_window_truth": False, "tactical_truth": False, "dominance_truth": False, "claim_allowed": False, "input_dir": str(Path(input_dir).expanduser().resolve(strict=False)), "repo_root": str(repo_root)}
 
 
 def render_txt(report: dict[str, Any]) -> str:
-    lines = [
-        "HPFA TIME-SCALE ROUTER LITE V1",
-        "================================",
-        f"status={report.get('status')}",
-        f"decision={report.get('decision')}",
-        f"claim_safety={report.get('claim_safety')}",
-        f"input_window_count={report.get('input_window_count')}",
-        f"routed_window_count={report.get('routed_window_count')}",
-        f"minute_axis_window_count={report.get('minute_axis_window_count')}",
-        f"event_index_window_count={report.get('event_index_window_count')}",
-        f"canonical_event_count={report.get('canonical_event_count')}",
-        f"phase_truth={report.get('phase_truth')}",
-        f"possession_truth={report.get('possession_truth')}",
-        f"sequence_truth={report.get('sequence_truth')}",
-        f"rhythm_truth={report.get('rhythm_truth')}",
-        f"time_window_truth={report.get('time_window_truth')}",
-        "",
-        "[routing_summary]",
-        json.dumps(report.get("routing_summary", {}), ensure_ascii=False, sort_keys=True),
-        "",
-        "[sample]",
-    ]
+    lines = ["HPFA TIME-SCALE ROUTER LITE V1", "================================", f"status={report.get('status')}", f"decision={report.get('decision')}", f"claim_safety={report.get('claim_safety')}", f"input_window_count={report.get('input_window_count')}", f"routed_window_count={report.get('routed_window_count')}", f"minute_axis_window_count={report.get('minute_axis_window_count')}", f"event_index_window_count={report.get('event_index_window_count')}", f"canonical_event_count={report.get('canonical_event_count')}", f"phase_truth={report.get('phase_truth')}", f"possession_truth={report.get('possession_truth')}", f"sequence_truth={report.get('sequence_truth')}", f"rhythm_truth={report.get('rhythm_truth')}", f"time_window_truth={report.get('time_window_truth')}", "", "[input_meta]", json.dumps(report.get("input_meta", {}), ensure_ascii=False, sort_keys=True), "", "[routing_summary]", json.dumps(report.get("routing_summary", {}), ensure_ascii=False, sort_keys=True), "", "[sample]"]
     for item in report.get("routed_windows_sample", [])[:25]:
         lines.append(json.dumps(item, ensure_ascii=False, sort_keys=True))
     lines.append("")
