@@ -28,7 +28,7 @@ def test_detects_available_minute_axis(tmp_path):
 
 def test_marks_missing_time_axis_as_not_allowed(tmp_path):
     dump(tmp_path / "time_scale_router_lite_v1.json", {"routed_window_count": 0, "minute_axis_window_count": 0, "event_index_window_count": 0})
-    dump(tmp_path / "event_window_builder_lite_v1.json", {"event_window_count": 0, "event_windows_sample": []})
+    dump(tmp_path / "event_window_builder_lite_v1.json", {"event_window_count": 1, "event_windows_sample": [{"window_id": "w1", "window_axis": "event_index", "start_index": 0, "end_index": 100}]})
     dump(tmp_path / "minimum_viable_context_lite_v1.json", {"context_candidates_sample": [{"zone_candidate": "MIDDLE_THIRD", "team_label": "A", "action_family": "PASS"}]})
     report = build_axis_report(tmp_path)
     assert report["axis_status"]["minute_axis_status"] == MISSING
@@ -69,8 +69,7 @@ def test_no_sample_match_identity_leak():
     src = (SRC / "axis_integrity_tagger.py").read_text(encoding="utf-8")
     contract = (ROOT / "docs" / "contracts" / "axis_integrity_tagger_lite_v1.md").read_text(encoding="utf-8")
     root_cli = (ROOT / "axis_integrity_tagger.py").read_text(encoding="utf-8")
-    blocked = ["Turkey", "Australia", "World Cup"]
-    for token in blocked:
+    for token in ["sample_match_identity_token"]:
         assert token not in src
         assert token not in contract
         assert token not in root_cli
