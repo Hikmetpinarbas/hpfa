@@ -51,6 +51,20 @@ def test_routes_event_index_fallback_windows():
     assert routed["signal_density_candidate"] == "EVENT_INDEX_DENSITY_ONLY"
 
 
+def test_does_not_route_truncated_upstream_sample(tmp_path):
+    sample = [base_window(window_id="win_0000")]
+    (tmp_path / "event_window_builder_lite_v1.json").write_text(json.dumps({
+        "module_id": "event_window_builder_lite_v1",
+        "event_window_count": 3,
+        "event_windows_sample": sample,
+    }, ensure_ascii=False), encoding="utf-8")
+    report = build_report(tmp_path, root=ROOT)
+    assert report["decision"] == "UPSTREAM_SAMPLE_TRUNCATED"
+    assert report["routed_window_count"] == 0
+    assert report["input_meta"]["upstream_sample_truncated"] is True
+    assert report["claim_allowed"] is False
+
+
 def test_claim_boundaries_remain_false(tmp_path):
     write_windows(tmp_path / "event_window_builder_lite_v1.json", [base_window()])
     report = build_report(tmp_path, root=ROOT)
