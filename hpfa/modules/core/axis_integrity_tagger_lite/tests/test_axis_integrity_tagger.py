@@ -43,6 +43,16 @@ def test_detects_space_team_action_axes(tmp_path):
     assert report["axis_status"]["action_family_axis_status"] == AVAILABLE
 
 
+def test_uses_window_counts_when_context_sample_missing(tmp_path):
+    dump(tmp_path / "time_scale_router_lite_v1.json", {"routed_window_count": 1, "minute_axis_window_count": 1, "event_index_window_count": 0})
+    dump(tmp_path / "event_window_builder_lite_v1.json", {"event_window_count": 1, "event_windows_sample": [{"window_id": "w1", "window_axis": "minute", "start_minute": 0, "end_minute": 5, "zone_counts": {"MIDDLE_THIRD": 3}, "channel_counts": {"CENTER": 2}, "team_label_counts": {"A": 4}, "action_family_counts": {"PASS": 5}}]})
+    dump(tmp_path / "minimum_viable_context_lite_v1.json", {"context_candidates_sample": []})
+    report = build_axis_report(tmp_path)
+    assert report["axis_status"]["space_axis_status"] == AVAILABLE
+    assert report["axis_status"]["team_axis_status"] == AVAILABLE
+    assert report["axis_status"]["action_family_axis_status"] == AVAILABLE
+
+
 def test_claim_boundaries_remain_false(tmp_path):
     seed(tmp_path)
     report = build_axis_report(tmp_path)
