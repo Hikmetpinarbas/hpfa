@@ -12,7 +12,6 @@ OUTPUT_TXT = "axis_integrity_tagger_lite_v1.txt"
 TIME_ROUTER_JSON = "time_scale_router_lite_v1.json"
 EVENT_WINDOW_JSON = "event_window_builder_lite_v1.json"
 MIN_CONTEXT_JSON = "minimum_viable_context_lite_v1.json"
-
 AVAILABLE = "AXIS_AVAILABLE"
 PARTIAL = "AXIS_PARTIAL"
 MISSING = "AXIS_MISSING"
@@ -40,9 +39,9 @@ def read_json(path: Path) -> dict[str, Any]:
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
     except json.JSONDecodeError:
         return {}
+    return data if isinstance(data, dict) else {}
 
 
 def safe_int(value: Any) -> int:
@@ -50,14 +49,6 @@ def safe_int(value: Any) -> int:
         return int(float(str(value).replace(",", ".")))
     except (TypeError, ValueError):
         return 0
-
-
-def bool_status(value: bool | None) -> str:
-    if value is True:
-        return AVAILABLE
-    if value is False:
-        return MISSING
-    return UNKNOWN
 
 
 def status_score(status: str) -> float:
@@ -68,40 +59,35 @@ def status_score(status: str) -> float:
     return 0.0
 
 
-def sample_contexts(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    full = payload.get("context_candidates")
-    if isinstance(full, list):
-        return [x for x in full if isinstance(x, dict)]
-    sample = payload.get("context_candidates_sample")
-    if isinstance(sample, list):
-        return [x for x in sample if isinstance(x, dict)]
-    return []
+def rows_from(payload: dict[str, Any], full_key: str, sample_key: str) -> list[dict[str, Any]]:
+    rows = payload.get(full_key)
+    if not isinstance(rows, list):
+        rows = payload.get(sample_key)
+    return [x for x in rows if isinstance(x, dict)] if isinstance(rows, list) else []
 
 
-def sample_windows(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    full = payload.get("event_windows")
-    if isinstance(full, list):
-        return [x for x in full if isinstance(x, dict)]
-    sample = payload.get("event_windows_sample")
-    if isinstance(sample, list):
-        return [x for x in sample if isinstance(x, dict)]
-    return []
+def has_value(value: Any) -> bool:
+    return value not in (None, "", "unknown", "UNKNOWN", "UNKNOWN_ZONE", "UNKNOWN_CHANNEL")
 
 
-def non_unknown_count(rows: list[dict[str, Any]], keys: list[str]) -> int:
+def count_rows_with_keys(rows: list[dict[str, Any]], keys: list[str]) -> int:
+    return sum(1 for row in rows if any(has_value(row.get(key)) for key in keys))
+
+
+def count_rows_with_count_dict(rows: list[dict[str, Any]], keys: list[str]) -> int:
     count = 0
     for row in rows:
         for key in keys:
             value = row.get(key)
-            if value not in (None, "", "unknown", "UNKNOWN", "UNKNOWN_ZONE", "UNKNOWN_CHANNEL"):
+            if isinstance(value, dict) and any(safe_int(v) > 0 for v in value.values()):
                 count += 1
                 break
     return count
 
 
-def ratio_status(count: int, total: int) -> str:
+def ratio_status(count: int, total: int, empty_status: str = UNKNOWN) -> str:
     if total <= 0:
-        return UNKNOWN
+        return empty_status
     ratio = count / total
     if ratio >= 0.75:
         return AVAILABLE
@@ -110,32 +96,41 @@ def ratio_status(count: int, total: int) -> str:
     return MISSING
 
 
+def axis_from_context_or_windows(contexts: list[dict[str, Any]], windows: list[dict[str, Any]], context_keys: list[str], window_count_keys: list[str]) -> str:
+    context_status = ratio_status(count_rows_with_keys(contexts, context_keys), len(contexts))
+    if context_status != UNKNOWN:
+        return context_status
+    return ratio_status(count_rows_with_count_dict(windows, window_count_keys), len(windows))
+
+
 def build_axis_report(input_dir: str | Path) -> dict[str, Any]:
     root = Path(input_dir).expanduser().resolve(strict=False)
     tsr = read_json(root / TIME_ROUTER_JSON)
     ewb = read_json(root / EVENT_WINDOW_JSON)
     mvc = read_json(root / MIN_CONTEXT_JSON)
-
-    contexts = sample_contexts(mvc)
-    windows = sample_windows(ewb)
+    contexts = rows_from(mvc, "context_candidates", "context_candidates_sample")
+    windows = rows_from(ewb, "event_windows", "event_windows_sample")
     routed_count = safe_int(tsr.get("routed_window_count"))
     minute_axis_count = safe_int(tsr.get("minute_axis_window_count"))
     event_index_count = safe_int(tsr.get("event_index_window_count"))
 
-    minute_status = ratio_status(minute_axis_count, max(routed_count, 0)) if routed_count else ratio_status(non_unknown_count(windows, ["start_minute", "end_minute"]), len(windows))
+    if routed_count > 0:
+        minute_status = ratio_status(minute_axis_count, routed_count, empty_status=MISSING)
+    else:
+        minute_status = ratio_status(count_rows_with_keys(windows, ["start_minute", "end_minute"]), len(windows), empty_status=MISSING)
+
     event_index_status = AVAILABLE if event_index_count > 0 else MISSING
-    second_status = ratio_status(non_unknown_count(contexts, ["second", "seconds", "second_raw", "timestamp", "timestamp_raw"]), len(contexts))
-    space_status = ratio_status(non_unknown_count(contexts, ["x_meters", "y_meters", "x_raw", "y_raw", "zone_candidate", "channel_candidate"]), len(contexts))
-    team_status = ratio_status(non_unknown_count(contexts, ["team_label", "team_raw", "team_normalized"]), len(contexts))
-    action_status = ratio_status(non_unknown_count(contexts, ["action_family", "event_family", "event_type_raw"]), len(contexts))
+    second_status = ratio_status(count_rows_with_keys(contexts, ["second", "seconds", "second_raw", "timestamp", "timestamp_raw"]), len(contexts))
+    space_status = axis_from_context_or_windows(contexts, windows, ["x_meters", "y_meters", "x_raw", "y_raw", "zone_candidate", "channel_candidate"], ["zone_counts", "channel_counts"])
+    team_status = axis_from_context_or_windows(contexts, windows, ["team_label", "team_raw", "team_normalized"], ["team_label_counts"])
+    action_status = axis_from_context_or_windows(contexts, windows, ["action_family", "event_family", "event_type_raw"], ["action_family_counts"])
 
     statuses = [minute_status, second_status, event_index_status, space_status, team_status, action_status]
     score = round(sum(status_score(s) for s in statuses) / len(statuses), 4)
-
-    downstream_time_allowed = minute_status in {AVAILABLE, PARTIAL}
-    downstream_phase_allowed = downstream_time_allowed and space_status in {AVAILABLE, PARTIAL} and action_status in {AVAILABLE, PARTIAL}
-    downstream_sequence_allowed = downstream_time_allowed and team_status in {AVAILABLE, PARTIAL} and action_status in {AVAILABLE, PARTIAL}
-    downstream_rhythm_allowed = downstream_time_allowed and routed_count > 0
+    time_allowed = minute_status in {AVAILABLE, PARTIAL}
+    phase_allowed = time_allowed and space_status in {AVAILABLE, PARTIAL} and action_status in {AVAILABLE, PARTIAL}
+    sequence_allowed = time_allowed and team_status in {AVAILABLE, PARTIAL} and action_status in {AVAILABLE, PARTIAL}
+    rhythm_allowed = time_allowed and routed_count > 0
 
     return {
         "module_id": MODULE_ID,
@@ -143,26 +138,10 @@ def build_axis_report(input_dir: str | Path) -> dict[str, Any]:
         "decision": "AXIS_INTEGRITY_CANDIDATES_ONLY",
         "claim_safety": CLAIM_SAFETY,
         "input_dir": str(root),
-        "input_counts": {
-            "context_sample_count": len(contexts),
-            "event_window_sample_count": len(windows),
-            "routed_window_count": routed_count,
-        },
-        "axis_status": {
-            "minute_axis_status": minute_status,
-            "second_axis_status": second_status,
-            "event_index_axis_status": event_index_status,
-            "space_axis_status": space_status,
-            "team_axis_status": team_status,
-            "action_family_axis_status": action_status,
-        },
+        "input_counts": {"context_sample_count": len(contexts), "event_window_sample_count": len(windows), "routed_window_count": routed_count},
+        "axis_status": {"minute_axis_status": minute_status, "second_axis_status": second_status, "event_index_axis_status": event_index_status, "space_axis_status": space_status, "team_axis_status": team_status, "action_family_axis_status": action_status},
         "axis_integrity_score": score,
-        "downstream_permissions": {
-            "downstream_time_allowed": downstream_time_allowed,
-            "downstream_phase_candidate_allowed": downstream_phase_allowed,
-            "downstream_sequence_candidate_allowed": downstream_sequence_allowed,
-            "downstream_rhythm_candidate_allowed": downstream_rhythm_allowed,
-        },
+        "downstream_permissions": {"downstream_time_allowed": time_allowed, "downstream_phase_candidate_allowed": phase_allowed, "downstream_sequence_candidate_allowed": sequence_allowed, "downstream_rhythm_candidate_allowed": rhythm_allowed},
         "canonical_event_count": "UNKNOWN",
         "deduplicated_event_count": "UNKNOWN",
         "phase_truth": False,
@@ -177,30 +156,12 @@ def build_axis_report(input_dir: str | Path) -> dict[str, Any]:
 
 
 def render_txt(report: dict[str, Any]) -> str:
-    lines = [
-        "HPFA AXIS INTEGRITY TAGGER LITE V1",
-        "===================================",
-        f"status={report.get('status')}",
-        f"decision={report.get('decision')}",
-        f"claim_safety={report.get('claim_safety')}",
-        f"axis_integrity_score={report.get('axis_integrity_score')}",
-        "",
-        "[input_counts]",
-        json.dumps(report.get("input_counts", {}), ensure_ascii=False, sort_keys=True),
-        "",
-        "[axis_status]",
-        json.dumps(report.get("axis_status", {}), ensure_ascii=False, sort_keys=True),
-        "",
-        "[downstream_permissions]",
-        json.dumps(report.get("downstream_permissions", {}), ensure_ascii=False, sort_keys=True),
-        "",
-        f"canonical_event_count={report.get('canonical_event_count')}",
-        f"phase_truth={report.get('phase_truth')}",
-        f"possession_truth={report.get('possession_truth')}",
-        f"sequence_truth={report.get('sequence_truth')}",
-        f"rhythm_truth={report.get('rhythm_truth')}",
-        f"time_window_truth={report.get('time_window_truth')}",
-    ]
+    lines = ["HPFA AXIS INTEGRITY TAGGER LITE V1", "==================================="]
+    for key in ["status", "decision", "claim_safety", "axis_integrity_score"]:
+        lines.append(f"{key}={report.get(key)}")
+    lines += ["", "[input_counts]", json.dumps(report.get("input_counts", {}), ensure_ascii=False, sort_keys=True), "", "[axis_status]", json.dumps(report.get("axis_status", {}), ensure_ascii=False, sort_keys=True), "", "[downstream_permissions]", json.dumps(report.get("downstream_permissions", {}), ensure_ascii=False, sort_keys=True)]
+    for key in ["canonical_event_count", "phase_truth", "possession_truth", "sequence_truth", "rhythm_truth", "time_window_truth"]:
+        lines.append(f"{key}={report.get(key)}")
     return "\n".join(lines) + "\n"
 
 
