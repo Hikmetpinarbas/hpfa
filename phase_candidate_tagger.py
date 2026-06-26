@@ -10,6 +10,7 @@ from typing import Any
 OUT_JSON = "phase_candidate_tagger_lite_v1.json"
 OUT_TXT = "phase_candidate_tagger_lite_v1.txt"
 MAX_PHASE_MINUTE = 130
+PHASE_ROUTING_ALLOWED = {"MINUTE_AXIS_USABLE", "MINUTE_AXIS_LOW_DENSITY", "EVENT_INDEX_FALLBACK_ONLY"}
 
 
 def load(path: Path) -> dict[str, Any]:
@@ -36,6 +37,12 @@ def rows(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], bool]:
     sample = payload.get("event_windows_sample")
     out = [x for x in sample if isinstance(x, dict)] if isinstance(sample, list) else []
     return out, num(payload.get("event_window_count")) > len(out)
+
+
+def routed_rows(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    sample = payload.get("routed_windows_sample")
+    rows_out = [x for x in sample if isinstance(x, dict)] if isinstance(sample, list) else []
+    return {str(x.get("window_id")): x for x in rows_out}
 
 
 def add_spine_path(repo_root: Path) -> None:
@@ -73,7 +80,6 @@ def window_range(w: dict[str, Any]) -> str:
 def classify(w: dict[str, Any]) -> tuple[str, list[str]]:
     actions = w.get("action_family_counts", {}) if isinstance(w.get("action_family_counts"), dict) else {}
     zones = w.get("zone_counts", {}) if isinstance(w.get("zone_counts"), dict) else {}
-    reasons: list[str] = []
     rows_count = num(w.get("surface_row_count"))
     top_zone = top_key(zones)
     pass_count = num(actions.get("PASS"))
@@ -117,26 +123,40 @@ def build(input_dir: Path) -> dict[str, Any]:
     tsr = load(input_dir / "time_scale_router_lite_v1.json")
     axis = load(input_dir / "axis_integrity_tagger_lite_v1.json")
     windows, truncated = rows(ewb)
+    routed = routed_rows(tsr)
     axis_permissions = axis.get("downstream_permissions", {}) if isinstance(axis.get("downstream_permissions"), dict) else {}
     allowed = axis_permissions.get("downstream_phase_candidate_allowed") is True
-    ready = allowed and bool(ewb) and bool(tsr) and bool(axis) and not truncated and len(windows) > 0
+    router_ready = bool(routed) and len(routed) >= len(windows)
+    ready = allowed and bool(ewb) and bool(tsr) and bool(axis) and not truncated and len(windows) > 0 and router_ready
     status = "REVIEW_REQUIRED" if ready else "FAIL_CLOSED"
     decision = "PHASE_CANDIDATES_EXPORTED" if ready else "PHASE_CANDIDATES_NOT_READY"
     candidates = []
     counts: Counter[str] = Counter()
+    skipped = 0
     if ready:
         for w in windows:
-            label, reasons = classify(w)
+            rid = str(w.get("window_id"))
+            route = routed.get(rid, {})
+            routing_decision = str(route.get("routing_decision", "UNKNOWN"))
+            if routing_decision == "TIME_SURFACE_INSUFFICIENT":
+                label, reasons = "TIME_SURFACE_INSUFFICIENT_CANDIDATE", ["router_time_surface_insufficient"]
+                skipped += 1
+            elif routing_decision not in PHASE_ROUTING_ALLOWED:
+                label, reasons = "TIME_SCALE_REVIEW_REQUIRED_CANDIDATE", [f"router_decision={routing_decision}"]
+                skipped += 1
+            else:
+                label, reasons = classify(w)
+                reasons = [f"router_decision={routing_decision}"] + reasons
             counts[label] += 1
-            candidates.append({"window_id": w.get("window_id"), "range": window_range(w), "window_axis": w.get("window_axis"), "phase_candidate": label, "reasons": reasons, "surface_row_count": w.get("surface_row_count"), "window_confidence": w.get("window_confidence")})
+            candidates.append({"window_id": w.get("window_id"), "range": window_range(w), "window_axis": w.get("window_axis"), "routing_decision": routing_decision, "phase_candidate": label, "reasons": reasons, "surface_row_count": w.get("surface_row_count"), "window_confidence": w.get("window_confidence")})
     return {
         "module_id": "phase_candidate_tagger_lite_v1",
         "status": status,
         "decision": decision,
         "claim_safety": "PHASE_CANDIDATE_ONLY",
-        "donor_evidence": {"source_repo": "HP-Motor", "adapted_from": ["hp_motor/segmentation/phase_tagger.py", "STEP12_PHASE_TAGGER_MVP.py"], "adaptation": "candidate_only_window_surface_labels"},
-        "input_checks": {"phase_candidate_allowed": allowed, "window_sample_truncated": truncated, "loaded_windows": len(windows), "max_phase_minute": MAX_PHASE_MINUTE},
-        "summary": {"phase_candidate_count": len(candidates), "phase_candidate_counts": dict(counts.most_common())},
+        "donor_evidence": {"source_repo": "HP-Motor", "adapted_from": ["hp_motor/segmentation/phase_tagger.py", "STEP12_PHASE_TAGGER_MVP.py"], "adaptation": "candidate_only_window_surface_labels_with_hpfa_time_scale_gate"},
+        "input_checks": {"phase_candidate_allowed": allowed, "window_sample_truncated": truncated, "loaded_windows": len(windows), "routed_window_rows_loaded": len(routed), "router_ready": router_ready, "max_phase_minute": MAX_PHASE_MINUTE},
+        "summary": {"phase_candidate_count": len(candidates), "phase_candidate_counts": dict(counts.most_common()), "router_blocked_phase_windows": skipped},
         "phase_candidates_sample": candidates[:40],
         "claim_boundary": {"canonical_event_count": "UNKNOWN", "phase_truth": False, "possession_truth": False, "sequence_truth": False, "rhythm_truth": False, "tactical_truth": False, "dominance_truth": False},
     }
@@ -145,7 +165,7 @@ def build(input_dir: Path) -> dict[str, Any]:
 def render(report: dict[str, Any]) -> str:
     lines = ["HPFA PHASE CANDIDATE TAGGER LITE V1", "=======================================", f"status={report.get('status')}", f"decision={report.get('decision')}", f"claim_safety={report.get('claim_safety')}", "", "DONOR EVIDENCE", json.dumps(report.get("donor_evidence", {}), ensure_ascii=False, sort_keys=True), "", "INPUT CHECKS", json.dumps(report.get("input_checks", {}), ensure_ascii=False, sort_keys=True), "", "SUMMARY", json.dumps(report.get("summary", {}), ensure_ascii=False, sort_keys=True), "", "SAMPLE"]
     for row in report.get("phase_candidates_sample", []):
-        lines.append(f"- {row.get('range')} | {row.get('phase_candidate')} | rows={row.get('surface_row_count')} | confidence={row.get('window_confidence')} | reasons={row.get('reasons')}")
+        lines.append(f"- {row.get('range')} | route={row.get('routing_decision')} | {row.get('phase_candidate')} | rows={row.get('surface_row_count')} | confidence={row.get('window_confidence')} | reasons={row.get('reasons')}")
     lines += ["", "CLAIM BOUNDARY"]
     for k, v in report.get("claim_boundary", {}).items():
         lines.append(f"- {k}={v}")
