@@ -86,6 +86,10 @@ def validate_out(repo_root: Path, out_dir: Path) -> Path:
     return spine_runner.validate_output_root(out_dir)
 
 
+def artifact_ready(payload: dict[str, Any], keys: list[str]) -> bool:
+    return bool(payload) and all(k in payload for k in keys)
+
+
 def build(input_dir: Path) -> dict[str, Any]:
     full = load(input_dir / "active_match_full_run_lite_v1.json")
     ewb = load(input_dir / "event_window_builder_lite_v1.json")
@@ -93,10 +97,16 @@ def build(input_dir: Path) -> dict[str, Any]:
     axis = load(input_dir / "axis_integrity_tagger_lite_v1.json")
     windows, truncated = rows(ewb)
     valid = full.get("engineering_evidence", {}).get("valid_run") is True
+    event_ready = artifact_ready(ewb, ["event_window_count", "input_context_count"])
+    time_ready = artifact_ready(tsr, ["routed_window_count", "minute_axis_window_count"])
+    axis_ready = artifact_ready(axis, ["axis_integrity_score", "axis_status"])
+    loaded = len(windows)
+    declared = num(ewb.get("event_window_count"))
+    nonzero_windows = declared > 0 and loaded > 0
 
     status = "REVIEW_REQUIRED"
     decision = "MATCH_READING_EXPORTED"
-    if not valid or truncated:
+    if not valid or not event_ready or not time_ready or not axis_ready or not nonzero_windows or truncated:
         status = "FAIL_CLOSED"
         decision = "UPSTREAM_EVIDENCE_NOT_READY"
         windows = []
@@ -120,7 +130,7 @@ def build(input_dir: Path) -> dict[str, Any]:
         "status": status,
         "decision": decision,
         "claim_safety": "MATCH_READING_CANDIDATE_ONLY",
-        "input_checks": {"full_run_valid": valid, "window_sample_truncated": truncated, "loaded_windows": len(windows), "declared_event_window_count": ewb.get("event_window_count")},
+        "input_checks": {"full_run_valid": valid, "event_window_artifact_ready": event_ready, "time_scale_artifact_ready": time_ready, "axis_artifact_ready": axis_ready, "nonzero_windows": nonzero_windows, "window_sample_truncated": truncated, "loaded_windows": len(windows), "declared_event_window_count": ewb.get("event_window_count")},
         "runtime": {"input_context_count": ewb.get("input_context_count"), "minute_bearing_context_count": ewb.get("minute_bearing_context_count"), "event_window_count": ewb.get("event_window_count"), "routed_window_count": tsr.get("routed_window_count"), "minute_axis_window_count": tsr.get("minute_axis_window_count"), "axis_integrity_score": axis.get("axis_integrity_score")},
         "axis_status": axis.get("axis_status", {}),
         "permissions": axis.get("downstream_permissions", {}),
