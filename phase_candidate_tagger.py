@@ -71,7 +71,11 @@ def end_minute(w: dict[str, Any]) -> int | None:
 
 def window_range(w: dict[str, Any]) -> str:
     if w.get("start_minute") is not None or w.get("end_minute") is not None:
-        return f"minute:{w.get('start_minute')}-{w.get('end_minute')}"
+        start = w.get("start_minute")
+        end = w.get("end_minute")
+        if num(end) > MAX_PHASE_MINUTE:
+            return f"time_axis_review:raw_{start}-{end}"
+        return f"minute:{start}-{end}"
     if w.get("start_index") is not None or w.get("end_index") is not None:
         return f"index:{w.get('start_index')}-{w.get('end_index')}"
     return "unknown"
@@ -133,6 +137,7 @@ def build(input_dir: Path) -> dict[str, Any]:
     candidates = []
     counts: Counter[str] = Counter()
     skipped = 0
+    time_axis_review = 0
     if ready:
         for w in windows:
             rid = str(w.get("window_id"))
@@ -147,6 +152,8 @@ def build(input_dir: Path) -> dict[str, Any]:
             else:
                 label, reasons = classify(w)
                 reasons = [f"router_decision={routing_decision}"] + reasons
+            if label == "TIME_AXIS_REVIEW_REQUIRED_CANDIDATE":
+                time_axis_review += 1
             counts[label] += 1
             candidates.append({"window_id": w.get("window_id"), "range": window_range(w), "window_axis": w.get("window_axis"), "routing_decision": routing_decision, "phase_candidate": label, "reasons": reasons, "surface_row_count": w.get("surface_row_count"), "window_confidence": w.get("window_confidence")})
     return {
@@ -156,7 +163,7 @@ def build(input_dir: Path) -> dict[str, Any]:
         "claim_safety": "PHASE_CANDIDATE_ONLY",
         "donor_evidence": {"source_repo": "HP-Motor", "adapted_from": ["hp_motor/segmentation/phase_tagger.py", "STEP12_PHASE_TAGGER_MVP.py"], "adaptation": "candidate_only_window_surface_labels_with_hpfa_time_scale_gate"},
         "input_checks": {"phase_candidate_allowed": allowed, "window_sample_truncated": truncated, "loaded_windows": len(windows), "routed_window_rows_loaded": len(routed), "router_ready": router_ready, "max_phase_minute": MAX_PHASE_MINUTE},
-        "summary": {"phase_candidate_count": len(candidates), "phase_candidate_counts": dict(counts.most_common()), "router_blocked_phase_windows": skipped},
+        "summary": {"phase_candidate_count": len(candidates), "phase_candidate_counts": dict(counts.most_common()), "router_blocked_phase_windows": skipped, "time_axis_review_windows": time_axis_review},
         "phase_candidates_sample": candidates[:40],
         "claim_boundary": {"canonical_event_count": "UNKNOWN", "phase_truth": False, "possession_truth": False, "sequence_truth": False, "rhythm_truth": False, "tactical_truth": False, "dominance_truth": False},
     }
