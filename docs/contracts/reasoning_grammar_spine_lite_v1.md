@@ -20,6 +20,8 @@ No direct jump from metric to story is allowed.
 
 This contract starts with Primitive Grammar Lite only.
 
+Primitive-only output may emit primitive candidates and primitive explanations. It must not emit behaviour or pattern candidates until sequence/context gates exist and pass.
+
 Inputs:
 
 - ACTIVE_MATCH identity-compatible runtime
@@ -58,6 +60,24 @@ Every candidate must expose:
 - falsifier
 - blocked_claims
 
+## Stage Gate
+
+Primitive Grammar Lite may only produce:
+
+- primitive_candidate
+- primitive_evidence
+- primitive_explanation
+
+The following are gated and must remain blocked in primitive-only runs:
+
+- sequence_candidate
+- behaviour_candidate
+- pattern_candidate
+- identity_candidate
+- match_story
+
+A later module may unlock these terms only after explicit sequence/context/pattern gates are implemented, tested and recorded as ACTIVE_MATCH evidence.
+
 ## Overclaim Guard
 
 The following language is rejected for this contract:
@@ -79,21 +99,24 @@ Allowed replacement language:
 - proxy
 - row-level evidence
 - event-surface reading
+- primitive candidate
 - requires later validation
 - evidence-only until claim gate
 
 ## Claim Boundary
 
-Allowed:
+Allowed in Primitive Grammar Lite:
 
 - row-level evidence indicates
 - action-family volume suggests
 - channel evidence is concentrated in
+- primitive candidate
+- primitive explanation
+
+Blocked in Primitive Grammar Lite:
+
 - behaviour candidate
 - pattern candidate
-
-Blocked:
-
 - tactical truth
 - dominance truth
 - possession truth
@@ -114,6 +137,7 @@ Do not add a metric unless it improves analyst decision quality.
 - test_candidates_include_falsifier
 - test_no_sample_match_identity_leak
 - test_overclaim_guard_blocks_deployment_and_cognitive_truth_language
+- test_primitive_only_blocks_behaviour_and_pattern_terms
 
 ## Release
 
