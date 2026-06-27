@@ -1,0 +1,41 @@
+{
+  "template_id": "ontology_chain_lite_v1",
+  "status": "SPEC_ONLY",
+  "core_chain": ["Detection", "Evidence", "Recommendation"],
+  "core_chain_tr": ["Tespit", "Ispat", "Oneri"],
+  "layers": ["source", "time", "space", "action", "context", "sequence", "value", "player", "opponent", "claim"],
+  "allowed_signal_statuses": ["LOW_SIGNAL", "CANDIDATE_SIGNAL", "SUPPORTED_CANDIDATE", "CLAIM_GATE_REQUIRED", "BLOCKED"],
+  "ontology_families": ["build_up_surface", "progression_surface", "final_third_surface", "transition_surface", "restart_surface", "recovery_surface", "loss_surface", "corridor_surface", "player_role_surface", "opponent_response_surface", "consequence_surface"],
+  "style_candidate_families": ["direct_progression_candidate", "circulation_candidate", "wide_access_candidate", "central_progression_candidate", "transition_candidate", "restart_dependency_candidate", "high_value_moment_candidate", "territory_bias_candidate", "player_role_dependency_candidate"],
+  "detection_record": {
+    "detection_id": null,
+    "signal_family": null,
+    "source_layers_used": [],
+    "evidence_object_ids": [],
+    "repetition_count": null,
+    "zone_support": null,
+    "time_support": null,
+    "opponent_correspondence_support": null,
+    "uncertainty_penalty": null,
+    "status": "LOW_SIGNAL"
+  },
+  "proof_bundle_record": {
+    "direct_rows_or_atoms": [],
+    "supporting_windows": [],
+    "supporting_sequences_if_available": [],
+    "aggregate_support_if_available": [],
+    "falsifier": null,
+    "counter_scenario": null,
+    "missing_evidence": [],
+    "blocked_interpretations": []
+  },
+  "recommendation_record": {
+    "recommendation_id": null,
+    "recommendation_type": "recommendation_candidate",
+    "evidence_bundle_id": null,
+    "human_review_required": true,
+    "claim_level": "gated"
+  },
+  "blocked_moves": ["detection_without_evidence_bundle", "recommendation_as_instruction", "single_match_candidate_to_truth", "ontology_family_to_truth_label", "final_judgement_without_claim_gate", "intent_language"],
+  "production_release": false
+}
