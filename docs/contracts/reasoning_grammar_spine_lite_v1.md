@@ -58,6 +58,30 @@ Every candidate must expose:
 - falsifier
 - blocked_claims
 
+## Overclaim Guard
+
+The following language is rejected for this contract:
+
+- ready for deployment
+- football ontology is validated
+- cognitive state is measured
+- pre-motor time is measured from event rows
+- mental decline is measured from event rows
+- next action is predicted as truth
+- Voronoi or pitch-control truth from event-only runtime
+- off-ball structure from event-only runtime
+- coach intention
+- city or culture as runtime evidence
+
+Allowed replacement language:
+
+- candidate
+- proxy
+- row-level evidence
+- event-surface reading
+- requires later validation
+- evidence-only until claim gate
+
 ## Claim Boundary
 
 Allowed:
@@ -89,6 +113,7 @@ Do not add a metric unless it improves analyst decision quality.
 - test_no_metric_to_story_jump
 - test_candidates_include_falsifier
 - test_no_sample_match_identity_leak
+- test_overclaim_guard_blocks_deployment_and_cognitive_truth_language
 
 ## Release
 
