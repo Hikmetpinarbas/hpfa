@@ -1,0 +1,20 @@
+claim_family	default_state	eligible_upstream_gates	allowed_language	blocked_language	owner_stage
+canonical_event_count	BLOCKED	later_explicit_event_count_validation_contract	surface rows; visible rows; event-like rows	canonical event count; true event stream	R1
+canonical_deduplicated_count	BLOCKED	later_explicit_event_count_validation_contract	duplicate-risk candidate	deduplicated event truth	R1
+primary_surface_selection	REVIEW_REQUIRED	primary_event_surface_gate_lite_v1; source_conflict_registry_lite_v1; primary_surface_review_resolution_lite_v1	primary surface candidate selected for downstream review	primary event truth	R1
+source_mapping	ALLOWED_CANDIDATE	source_mapping_contract_lite_v1	mapped source field; unmapped source field	canonical semantic truth without validation	R1
+source_conflict	ALLOWED_CANDIDATE	source_conflict_registry_lite_v1	source conflict candidate; review required source	primary truth selected by conflict registry	R1
+identity_binding	ALLOWED_CANDIDATE	team_binding_lite_v1; identity_review_resolution_lite_v1	team/player surface identity candidate	tactical role truth; player quality truth	R1
+event_state_transition	ALLOWED_CANDIDATE	event_state_transition_verifier_lite_v1	visible transition-plausibility issue; transition candidate	event-order truth; referee error truth; player error truth	R1
+minimum_context	ALLOWED_CANDIDATE	minimum_viable_context_lite_v1	context candidate; visible previous/next action family	phase truth; possession truth	R1
+event_window	ALLOWED_CANDIDATE	event_window_builder_lite_v1	bounded event window candidate; dense window candidate	sequence truth; rhythm truth	R1
+football_time	ALLOWED_CANDIDATE	football_time_foundation_lite_v1	minute bucket; elapsed-time candidate	phase truth; rhythm truth	R1
+possession	BLOCKED	possession_boundary_apparatus_lite_v1	possession candidate	possession truth	P5
+phase	BLOCKED	phase_lite_v1	phase candidate	phase truth	P4
+sequence	BLOCKED	sequence_candidate_builder_lite_v1	sequence candidate	sequence truth	P2E
+metric_value	BLOCKED	metric_contract_registry_lite_v1; metric_readiness_report_lite_v1	metric candidate; proxy value	metric truth; causal metric truth	R2
+player_role	REVIEW_REQUIRED	role_surface_interpreter_lite_v1	role-family surface reading candidate	role truth; player quality truth	R2
+observation	REVIEW_REQUIRED	observation_candidate_registry_lite_v1; support_threshold_router_lite_v1	observation candidate; support band	mechanism truth; diagnosis truth	R2
+mechanism	BLOCKED	mechanism_candidate_registry_lite_v1; claim_eligibility_gate_lite_v1	mechanism candidate	team tactical mechanism truth; treatment instruction	R2
+match_story	BLOCKED	claim_eligibility_gate_lite_v1; football_output_audit_lite_v1	match reading candidate; analyst-safe judgement	dominance; control; coach intention; tactical plan	R2
+production_release	BLOCKED	manual_release_gate	production_release only after explicit release gate	PASS as release	RELEASE
