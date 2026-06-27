@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,21 @@ ACTION_TO_PRIMITIVE = {
     "BALL_LOSS": "loss_surface_candidate",
     "SHOT": "terminal_action_surface_candidate",
 }
+
+
+def repo_root_from_file() -> Path:
+    return Path(__file__).resolve().parents[5]
+
+
+def ensure_path(path: Path) -> None:
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+
+def spine_runner_module(root: Path):
+    ensure_path(root / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src")
+    import spine_runner  # type: ignore
+    return spine_runner
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -87,7 +103,8 @@ def render_txt(report: dict[str, Any]) -> str:
 
 
 def write_outputs(out_dir: str | Path, root: str | Path | None = None) -> dict[str, Any]:
-    out = Path(out_dir).expanduser().resolve(strict=False)
+    repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
+    out = spine_runner_module(repo_root).validate_output_root(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     report = build_report(out)
     json_out = out / OUTPUT_JSON
