@@ -5,8 +5,8 @@
   "core_chain_tr": ["Tespit", "Ispat", "Oneri"],
   "layers": ["source", "time", "space", "action", "context", "sequence", "value", "player", "opponent", "claim"],
   "allowed_signal_statuses": ["LOW_SIGNAL", "CANDIDATE_SIGNAL", "SUPPORTED_CANDIDATE", "CLAIM_GATE_REQUIRED", "BLOCKED"],
-  "ontology_families": ["build_up_surface", "progression_surface", "final_third_surface", "transition_surface", "restart_surface", "recovery_surface", "loss_surface", "corridor_surface", "player_role_surface", "opponent_response_surface", "consequence_surface"],
-  "style_candidate_families": ["direct_progression_candidate", "circulation_candidate", "wide_access_candidate", "central_progression_candidate", "transition_candidate", "restart_dependency_candidate", "high_value_moment_candidate", "territory_bias_candidate", "player_role_dependency_candidate"],
+  "ontology_families": ["build_up_surface", "progression_surface", "final_third_surface", "transition_surface", "restart_surface", "recovery_surface", "loss_surface", "pressure_exposure_surface", "corridor_surface", "player_role_surface", "opponent_response_surface", "consequence_surface"],
+  "style_candidate_families": ["direct_progression_candidate", "circulation_candidate", "wide_access_candidate", "central_progression_candidate", "transition_candidate", "restart_dependency_candidate", "high_value_moment_candidate", "pressure_exposure_candidate", "territory_bias_candidate", "player_role_dependency_candidate"],
   "detection_record": {
     "detection_id": null,
     "signal_family": null,
