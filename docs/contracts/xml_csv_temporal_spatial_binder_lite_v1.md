@@ -124,7 +124,8 @@ Rules:
 1. Multiple labels under the same key must be stored in `action_labels`.
 2. The grouped object is a candidate action moment, not canonical event truth.
 3. The module must preserve source row/id fields.
-4. `canonical_event_count` remains `UNKNOWN` unless Canonical Event Lite validates it.
+4. `canonical_event_count`, `deduplicated_event_count`, and `event_count_claim_allowed` remain gated and must not be changed by P2C.
+5. Event-count truth may only be unlocked by a later explicit event-count validation contract, not by this binder and not by Canonical Event Lite alone.
 
 ## Required Audit Output
 
@@ -141,6 +142,8 @@ The module must emit a `temporal_spatial_ingestion_audit` with:
 - missing_action_count
 - source_conflict_count
 - canonical_event_count = UNKNOWN
+- deduplicated_event_count = UNKNOWN
+- event_count_claim_allowed = false
 
 ## Allowed Derived Objects
 
@@ -163,6 +166,8 @@ P2C must not produce:
 - match identity truth
 - tactical truth
 - dominance/control claims
+- canonical event count truth
+- deduplicated event count truth
 
 ## Zone/Lane Candidate Tags
 
@@ -226,6 +231,8 @@ Blocked language:
 - pitch-control truth
 - off-ball structure truth
 - body orientation truth
+- canonical event count truth
+- deduplicated event count truth
 
 ## Phone Output Policy
 
@@ -247,6 +254,7 @@ nested_phone_output_directory_rejected
 - `test_csv_xml_time_space_binder_preserves_source_ids`
 - `test_candidate_action_moment_groups_duplicate_labels`
 - `test_canonical_event_count_unknown_without_canonical_gate`
+- `test_event_count_claim_remains_false_without_later_explicit_validation_contract`
 - `test_aggregate_data_cannot_override_event_surface`
 - `test_no_tracking_truth_from_event_only`
 - `test_outputs_are_flat_phone_paths`
