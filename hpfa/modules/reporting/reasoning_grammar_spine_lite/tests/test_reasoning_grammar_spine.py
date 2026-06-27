@@ -2,6 +2,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "reporting" / "reasoning_grammar_spine_lite" / "src"
 sys.path.insert(0, str(SRC))
@@ -53,6 +55,11 @@ def test_write_outputs_flat_files(tmp_path):
     assert (out / "reasoning_grammar_spine_lite_v1.json").exists()
     assert (out / "reasoning_grammar_spine_lite_v1.txt").exists()
     assert not any(p.is_dir() for p in out.iterdir())
+
+
+def test_nested_phone_output_directory_is_rejected():
+    with pytest.raises(ValueError, match="nested_phone_output_directory_rejected"):
+        write_outputs("/sdcard/Download/HPFA/reasoning", root=ROOT)
 
 
 def test_no_sample_match_identity_leak():
