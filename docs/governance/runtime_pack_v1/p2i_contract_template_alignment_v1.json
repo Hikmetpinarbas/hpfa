@@ -1,0 +1,66 @@
+{
+  "artifact_id": "p2i_contract_template_alignment_v1",
+  "status": "SPEC_ONLY",
+  "purpose": "Keep P2I Markdown contract and machine-readable JSON template aligned before any future renderer or validator consumes them.",
+  "contract_path": "docs/contracts/ontology_chain_lite_v1.md",
+  "template_path": "docs/templates/ontology_chain_lite_v1.json",
+  "alignment_requirements": {
+    "ontology_families_must_match_contract": true,
+    "style_candidate_families_must_match_contract": true,
+    "allowed_signal_statuses_must_match_contract": true,
+    "core_chain_must_match_contract": true,
+    "blocked_moves_must_cover_contract_claim_boundary": true,
+    "recommendation_record_must_require_human_review": true,
+    "production_release_must_remain_false": true
+  },
+  "required_family_values": {
+    "ontology_families": [
+      "build_up_surface",
+      "progression_surface",
+      "final_third_surface",
+      "transition_surface",
+      "restart_surface",
+      "recovery_surface",
+      "loss_surface",
+      "pressure_exposure_surface",
+      "corridor_surface",
+      "player_role_surface",
+      "opponent_response_surface",
+      "consequence_surface"
+    ],
+    "style_candidate_families": [
+      "direct_progression_candidate",
+      "circulation_candidate",
+      "wide_access_candidate",
+      "central_progression_candidate",
+      "transition_candidate",
+      "restart_dependency_candidate",
+      "high_value_moment_candidate",
+      "pressure_exposure_candidate",
+      "territory_bias_candidate",
+      "player_role_dependency_candidate"
+    ],
+    "allowed_signal_statuses": [
+      "LOW_SIGNAL",
+      "CANDIDATE_SIGNAL",
+      "SUPPORTED_CANDIDATE",
+      "CLAIM_GATE_REQUIRED",
+      "BLOCKED"
+    ]
+  },
+  "future_tests": [
+    "test_p2i_template_ontology_families_match_contract",
+    "test_p2i_template_style_candidate_families_match_contract",
+    "test_p2i_template_blocks_recommendation_as_instruction",
+    "test_p2i_template_single_match_style_remains_candidate",
+    "test_p2i_template_requires_human_review_for_recommendation",
+    "test_p2i_template_production_release_false"
+  ],
+  "claim_boundary": {
+    "ontology_labels_are_registry_labels_only": true,
+    "style_labels_are_single_match_candidates_only": true,
+    "recommendation_candidate_is_not_instruction": true,
+    "intent_control_dominance_language_blocked": true,
+    "runtime_truth_source": "runtime/active_single_match/current"
+  }
+}
