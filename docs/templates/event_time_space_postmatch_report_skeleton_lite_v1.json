@@ -6,20 +6,30 @@
   "canonical_event_count": "UNKNOWN",
   "deduplicated_event_count": "UNKNOWN",
   "event_count_claim_allowed": false,
+  "allowed_claim_states": [
+    "direct evidence",
+    "strong event-only diagnostic",
+    "medium event-only proxy",
+    "weak proxy",
+    "context warning",
+    "withdrawn claim",
+    "tracking/video required",
+    "gated"
+  ],
   "sections": [
     {"order": 1, "section_id": "source_role_map", "title": "Source Role Map", "claim_floor": "direct evidence"},
     {"order": 2, "section_id": "ingestion_audit", "title": "Ingestion Audit", "claim_floor": "direct evidence"},
     {"order": 3, "section_id": "match_thesis", "title": "Match Thesis", "claim_floor": "gated"},
-    {"order": 4, "section_id": "game_state_timeline", "title": "Score and Game-State Timeline", "claim_floor": "diagnostic"},
+    {"order": 4, "section_id": "game_state_timeline", "title": "Score and Game-State Timeline", "claim_floor": "strong event-only diagnostic"},
     {"order": 5, "section_id": "event_time_space_fusion_table", "title": "Event-Time-Space Fusion Table", "claim_floor": "direct evidence"},
-    {"order": 6, "section_id": "goal_chain_reconstruction", "title": "Goal Chain Reconstruction", "claim_floor": "diagnostic/proxy"},
-    {"order": 7, "section_id": "phase_analysis_matrix", "title": "Phase Analysis Matrix", "claim_floor": "proxy"},
+    {"order": 6, "section_id": "goal_chain_reconstruction", "title": "Goal Chain Reconstruction", "claim_floor": "medium event-only proxy"},
+    {"order": 7, "section_id": "phase_analysis_matrix", "title": "Phase Analysis Matrix", "claim_floor": "weak proxy"},
     {"order": 8, "section_id": "zone_action_map", "title": "Zone Occupation / Action Map", "claim_floor": "direct evidence"},
-    {"order": 9, "section_id": "sequence_pattern_table", "title": "Sequence Pattern Table", "claim_floor": "diagnostic/proxy"},
-    {"order": 10, "section_id": "threat_value_proxy_table", "title": "Threat / Value Proxy Table", "claim_floor": "proxy"},
-    {"order": 11, "section_id": "player_role_impact_table", "title": "Player Role Impact Table", "claim_floor": "diagnostic"},
-    {"order": 12, "section_id": "opponent_correspondence_map", "title": "Opponent Correspondence Map", "claim_floor": "diagnostic"},
-    {"order": 13, "section_id": "risk_map", "title": "Risk Map", "claim_floor": "diagnostic/proxy"},
+    {"order": 9, "section_id": "sequence_pattern_table", "title": "Sequence Pattern Table", "claim_floor": "medium event-only proxy"},
+    {"order": 10, "section_id": "threat_value_proxy_table", "title": "Threat / Value Proxy Table", "claim_floor": "weak proxy"},
+    {"order": 11, "section_id": "player_role_impact_table", "title": "Player Role Impact Table", "claim_floor": "strong event-only diagnostic"},
+    {"order": 12, "section_id": "opponent_correspondence_map", "title": "Opponent Correspondence Map", "claim_floor": "strong event-only diagnostic"},
+    {"order": 13, "section_id": "risk_map", "title": "Risk Map", "claim_floor": "medium event-only proxy"},
     {"order": 14, "section_id": "claim_safety_table", "title": "Claim Safety Table", "claim_floor": "gated"},
     {"order": 15, "section_id": "final_judgement", "title": "Final Judgement", "claim_floor": "gated"}
   ],
@@ -28,11 +38,11 @@
     {"layer": "Time", "question": "When did the event happen?", "data_fields": ["start", "end", "duration", "minute"], "output": "tempo / sequence candidate", "claim_level": "direct evidence"},
     {"layer": "Space", "question": "Where did the event happen?", "data_fields": ["x", "y", "zone", "lane"], "output": "zone map", "claim_level": "direct evidence"},
     {"layer": "Action", "question": "What happened?", "data_fields": ["action_type", "family", "result"], "output": "event family", "claim_level": "direct evidence"},
-    {"layer": "Context", "question": "Under what state did it happen?", "data_fields": ["score_state", "phase_candidate", "possession_candidate"], "output": "contextual meaning", "claim_level": "diagnostic"},
-    {"layer": "Sequence", "question": "What came before and after?", "data_fields": ["previous_event", "next_event", "chain_id"], "output": "pattern trace", "claim_level": "diagnostic/proxy"},
-    {"layer": "Value", "question": "What was the consequence value?", "data_fields": ["xG", "xA", "xT_proxy", "VAEP_proxy"], "output": "threat/consequence", "claim_level": "proxy"},
-    {"layer": "Player", "question": "Who affected the surface?", "data_fields": ["role", "action", "outcome"], "output": "role impact", "claim_level": "diagnostic"},
-    {"layer": "Opponent", "question": "What was the opponent correspondence?", "data_fields": ["opponent_event_chain"], "output": "correspondence", "claim_level": "diagnostic"},
+    {"layer": "Context", "question": "Under what state did it happen?", "data_fields": ["score_state", "phase_candidate", "possession_candidate"], "output": "contextual meaning", "claim_level": "strong event-only diagnostic"},
+    {"layer": "Sequence", "question": "What came before and after?", "data_fields": ["previous_event", "next_event", "chain_id"], "output": "pattern trace", "claim_level": "medium event-only proxy"},
+    {"layer": "Value", "question": "What was the consequence value?", "data_fields": ["xG", "xA", "xT_proxy", "VAEP_proxy"], "output": "threat/consequence", "claim_level": "weak proxy"},
+    {"layer": "Player", "question": "Who affected the surface?", "data_fields": ["role", "action", "outcome"], "output": "role impact", "claim_level": "strong event-only diagnostic"},
+    {"layer": "Opponent", "question": "What was the opponent correspondence?", "data_fields": ["opponent_event_chain"], "output": "correspondence", "claim_level": "strong event-only diagnostic"},
     {"layer": "Claim", "question": "How safe is the interpretation?", "data_fields": ["evidence", "limitation"], "output": "safe judgement", "claim_level": "gated"}
   ],
   "blocked_report_moves": [
@@ -43,6 +53,19 @@
     "sequence_candidate_to_sequence_truth",
     "opponent_correspondence_to_intent_claim",
     "player_role_surface_to_player_quality_truth",
-    "value_proxy_to_causal_truth"
+    "value_proxy_to_causal_truth",
+    "match_thesis_uses_control_dominance_or_plan_language_without_later_explicit_gates",
+    "match_thesis_uses_coach_intention_without_later_explicit_gates",
+    "match_thesis_uses_tactical_truth_without_claim_eligibility_gate_and_football_output_audit"
+  ],
+  "blocked_thesis_terms": [
+    "controlled",
+    "dominated",
+    "intended",
+    "tactical plan was",
+    "coach planned",
+    "dominance",
+    "control truth",
+    "tactical truth"
   ]
 }
