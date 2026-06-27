@@ -95,17 +95,21 @@ Current state:
 
 ```text
 time/phase truth unavailable
-minute/timestamp columns incomplete or unresolved across surfaces
+start/end/half source primitives observed in Termux ACTIVE_MATCH scan
+minute/timestamp source fields not observed in the scanned ACTIVE_MATCH surfaces
+minute must remain derived display/aggregation evidence, not primitive source truth
 ```
 
 Why it matters:
 
 - No sequence claim can be made without temporal ordering.
 - Rhythm V12 cannot run without temporal density and sequence candidate gates.
+- If minute is treated as source truth while start/end/half are available, phase and window modules may inherit an unsafe time axis.
 
 Required node:
 
 ```text
+Football Time Foundation Lite V1
 Time / Phase Lite V1
 ```
 
@@ -113,6 +117,7 @@ Current status:
 
 ```text
 INTENTIONAL_WAIT
+TERMUX_SCAN_CONFIRMED_START_END_HALF_PRIMITIVES
 ```
 
 ### G4 Possession Boundary Gap
@@ -254,6 +259,63 @@ SPEC_CORRECTION_ACCEPTED
 IMPLEMENTATION_WAITING
 ```
 
+### G9 ACTIVE_MATCH Runtime Identity Drift Gap
+
+Current state:
+
+```text
+Termux scan package showed that runtime/active_single_match/current can contain a match identity different from the declared handoff target.
+ACTIVE_MATCH_EVIDENCE_PASS can become unsafe if the observed runtime identity is not checked against the declared runtime manifest identity.
+```
+
+Why it matters:
+
+- A module can execute correctly against the wrong active match.
+- Runtime evidence belongs to the observed runtime match, not to a conversational or handoff expectation.
+- Product code must remain match-agnostic, so the check must read generic manifest/input identity instead of hardcoding teams, date or tournament.
+
+Required node:
+
+```text
+Active Match Identity Guard Lite V1
+```
+
+Current status:
+
+```text
+NOT_STARTED
+TERMUX_SCAN_DETECTED_RUNTIME_IDENTITY_DRIFT_RISK
+```
+
+### G10 Runtime Evidence Ledger Gap
+
+Current state:
+
+```text
+modules can write local outputs
+shared runtime evidence ledger not implemented
+engineering evidence and analyst evidence are not yet normalized across modules
+```
+
+Why it matters:
+
+- PASS can be confused with release if module execution evidence is not normalized.
+- Output files alone do not prove source authority, claim boundary or analyst value.
+- Upper layers need a shared ledger before they consume phase, sequence, rhythm, report or metric outputs.
+
+Required node:
+
+```text
+Runtime Evidence Ledger Lite V1
+```
+
+Current status:
+
+```text
+SPEC_ONLY_IN_RUNTIME_EVIDENCE_CHAIN_CLOSURE_V1
+IMPLEMENTATION_NOT_STARTED
+```
+
 ## Required Per-Node Evidence Block
 
 Every future node must include this block in contract/logbook:
@@ -265,12 +327,16 @@ Engineering evidence:
 - tests passed?
 - ACTIVE_MATCH run passed?
 - flat phone outputs written?
+- source role validated?
+- runtime identity checked?
+- evidence ledger entry written?
 
 Analyst evidence:
 - what became visible?
 - what remains unresolved?
 - which analyst sentence is safe?
 - which analyst sentence is blocked?
+- which source authority supports the sentence?
 
 Gap status:
 - gaps closed
@@ -281,7 +347,7 @@ Gap status:
 ## Current Safe Main Analyst Sentence
 
 ```text
-ACTIVE_MATCH contains readable multi-surface row inventory and identity binding evidence. This is not a deduplicated event count or pattern structure. A single football action may appear in both team-level and player-level surfaces, so event identity resolution is required before primary surface selection, phase, possession, sequence or metric counting claims.
+ACTIVE_MATCH contains readable multi-surface row inventory and identity binding evidence. This is not a deduplicated event count or pattern structure. A single football action may appear in both team-level and player-level surfaces, so event identity resolution is required before primary surface selection, phase, possession, sequence or metric counting claims. Runtime evidence must also be tied to the observed ACTIVE_MATCH identity and written to a shared evidence ledger before stronger release language is allowed.
 ```
 
 ## Governance Status
