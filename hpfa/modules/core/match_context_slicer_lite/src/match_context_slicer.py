@@ -32,6 +32,13 @@ def spine_runner_module(root: Path):
     return spine_runner
 
 
+def minimum_context_module(root: Path):
+    src = root / "hpfa" / "modules" / "core" / "minimum_viable_context_lite" / "src"
+    ensure_module_path(src)
+    import minimum_viable_context  # type: ignore
+    return minimum_viable_context
+
+
 def read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
@@ -75,6 +82,65 @@ def rows_from(data: dict[str, Any], full_key: str, sample_key: str) -> list[dict
     return [row for row in rows or [] if isinstance(row, dict)]
 
 
+def read_contexts(
+    input_root: Path,
+    repo_root: Path,
+    context_data: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    full_rows = context_data.get("context_candidates")
+    if isinstance(full_rows, list):
+        rows = [row for row in full_rows if isinstance(row, dict)]
+        return rows, {
+            "upstream_context_candidate_count": len(rows),
+            "context_source": "context_candidates",
+            "rebuilt_full_context": False,
+            "context_sample_truncated": False,
+            "slice_summary_scope": "COMPLETE_CONTEXT_CANDIDATES",
+            "context_read_blockers": [],
+        }
+
+    sample_rows = [row for row in context_data.get("context_candidates_sample") or [] if isinstance(row, dict)]
+    upstream_count = as_int(context_data.get("context_candidate_count"))
+    if upstream_count is None:
+        upstream_count = len(sample_rows)
+
+    if upstream_count <= len(sample_rows):
+        return sample_rows, {
+            "upstream_context_candidate_count": upstream_count,
+            "context_source": "context_candidates_sample",
+            "rebuilt_full_context": False,
+            "context_sample_truncated": False,
+            "slice_summary_scope": "COMPLETE_CONTEXT_CANDIDATES",
+            "context_read_blockers": [],
+        }
+
+    try:
+        minimum_context = minimum_context_module(repo_root)
+        source_rows = minimum_context.discover_rows(input_root)
+        rebuilt_rows = list(minimum_context.build_context_candidates(source_rows))
+    except Exception:
+        rebuilt_rows = []
+
+    if len(rebuilt_rows) >= upstream_count:
+        return rebuilt_rows, {
+            "upstream_context_candidate_count": upstream_count,
+            "context_source": "rebuilt_from_available_surface_rows",
+            "rebuilt_full_context": True,
+            "context_sample_truncated": False,
+            "slice_summary_scope": "REBUILT_COMPLETE_CONTEXT_CANDIDATES",
+            "context_read_blockers": ["full_context_rebuilt_from_available_surface_rows"],
+        }
+
+    return sample_rows, {
+        "upstream_context_candidate_count": upstream_count,
+        "context_source": "context_candidates_sample",
+        "rebuilt_full_context": False,
+        "context_sample_truncated": True,
+        "slice_summary_scope": "SAMPLE_ONLY_BLOCKED_FOR_COMPLETE_MATCH_SUMMARY",
+        "context_read_blockers": ["truncated_context_sample_only"],
+    }
+
+
 def half_candidate(context: dict[str, Any]) -> str:
     period = str(context.get("period", "unknown")).strip().lower()
     if period in {"1", "1h", "first", "first_half", "first half"}:
@@ -112,15 +178,18 @@ def source_role(source_file: str) -> str:
     return "UNKNOWN_SOURCE_ROLE"
 
 
-def window_for_context(context: dict[str, Any], windows: list[dict[str, Any]]) -> tuple[str, str]:
-    row_index = as_int(context.get("source_row_index"))
+def window_for_context(
+    context: dict[str, Any],
+    windows: list[dict[str, Any]],
+    context_position: int,
+) -> tuple[str, str]:
     minute = as_int(context.get("minute_bucket"))
     for window in windows:
         axis = str(window.get("window_axis", "UNKNOWN_WINDOW_AXIS"))
-        if axis == "event_index" and row_index is not None:
+        if axis == "event_index":
             start = as_int(window.get("start_index"))
             end = as_int(window.get("end_index"))
-            if start is not None and end is not None and start <= row_index < end:
+            if start is not None and end is not None and start <= context_position < end:
                 return str(window.get("window_id", "UNKNOWN_WINDOW")), axis
         if axis == "minute" and minute is not None:
             start = as_int(window.get("start_minute"))
@@ -133,10 +202,11 @@ def window_for_context(context: dict[str, Any], windows: list[dict[str, Any]]) -
 def build_slice(context: dict[str, Any], windows: list[dict[str, Any]], idx: int) -> dict[str, Any]:
     action_family = str(context.get("action_family", "UNKNOWN_OR_OTHER"))
     source_file = str(context.get("source_file", "unknown"))
-    window_id, window_axis = window_for_context(context, windows)
+    window_id, window_axis = window_for_context(context, windows, idx)
     return {
         "slice_id": f"slice_{idx:06d}",
         "context_id": context.get("context_id"),
+        "context_position": idx,
         "source_file": source_file,
         "source_format": str(context.get("source_format", "unknown")),
         "source_row_index": context.get("source_row_index"),
@@ -175,6 +245,7 @@ def summarize(slices: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def build_report(input_dir: str | Path, root: str | Path | None = None) -> dict[str, Any]:
+    repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
     input_root = Path(input_dir).expanduser().resolve(strict=False)
     missing = [name for name in REQUIRED_INPUTS if not (input_root / name).exists()]
     boundary = claim_boundary()
@@ -188,8 +259,12 @@ def build_report(input_dir: str | Path, root: str | Path | None = None) -> dict[
             "missing_required_inputs": missing,
             "blockers": ["missing_required_inputs"],
             "input_context_count": 0,
+            "upstream_context_candidate_count": 0,
             "event_window_count": 0,
             "context_slice_count": 0,
+            "context_sample_truncated": False,
+            "rebuilt_full_context": False,
+            "slice_summary_scope": "NO_CONTEXT",
             "context_slices_sample": [],
             "slice_summary": {},
             "claim_boundary": boundary,
@@ -198,28 +273,35 @@ def build_report(input_dir: str | Path, root: str | Path | None = None) -> dict[
 
     context_data = read_json(input_root / MIN_CONTEXT_JSON)
     window_data = read_json(input_root / EVENT_WINDOWS_JSON)
-    contexts = rows_from(context_data, "context_candidates", "context_candidates_sample")
+    contexts, context_meta = read_contexts(input_root, repo_root, context_data)
     windows = rows_from(window_data, "event_windows", "event_windows_sample")
     slices = [build_slice(context, windows, idx) for idx, context in enumerate(contexts)]
+    blockers = [
+        "production_binding_blocked",
+        "canonical_event_count_unknown",
+        "score_state_candidate_unknown_without_goal_timeline",
+        "card_state_candidate_unknown_without_card_timeline",
+        "phase_possession_sequence_truth_blocked",
+    ]
+    blockers.extend(context_meta["context_read_blockers"])
     return {
         "module_id": MODULE_ID,
         "status": "REVIEW_REQUIRED",
         "decision": "CONTEXT_SLICES_CANDIDATE_ONLY",
         "claim_safety": CLAIM_SAFETY,
         "input_dir": str(input_root),
-        "input_context_count": int(context_data.get("context_candidate_count", len(contexts)) or len(contexts)),
+        "input_context_count": len(contexts),
+        "upstream_context_candidate_count": context_meta["upstream_context_candidate_count"],
+        "context_source": context_meta["context_source"],
+        "context_sample_truncated": context_meta["context_sample_truncated"],
+        "rebuilt_full_context": context_meta["rebuilt_full_context"],
+        "slice_summary_scope": context_meta["slice_summary_scope"],
         "context_slice_count": len(slices),
         "event_window_count": int(window_data.get("event_window_count", len(windows)) or len(windows)),
         "context_slices_sample": slices[:200],
         "slice_summary": summarize(slices),
         "missing_required_inputs": [],
-        "blockers": [
-            "production_binding_blocked",
-            "canonical_event_count_unknown",
-            "score_state_candidate_unknown_without_goal_timeline",
-            "card_state_candidate_unknown_without_card_timeline",
-            "phase_possession_sequence_truth_blocked",
-        ],
+        "blockers": blockers,
         "claim_boundary": boundary,
         **boundary,
     }
@@ -233,7 +315,11 @@ def render_txt(report: dict[str, Any]) -> str:
         f"decision={report.get('decision')}",
         f"claim_safety={report.get('claim_safety')}",
         f"input_context_count={report.get('input_context_count')}",
+        f"upstream_context_candidate_count={report.get('upstream_context_candidate_count')}",
         f"context_slice_count={report.get('context_slice_count')}",
+        f"context_sample_truncated={report.get('context_sample_truncated')}",
+        f"rebuilt_full_context={report.get('rebuilt_full_context')}",
+        f"slice_summary_scope={report.get('slice_summary_scope')}",
         f"event_window_count={report.get('event_window_count')}",
         f"canonical_event_count={report.get('canonical_event_count')}",
         f"event_count_claim_allowed={report.get('event_count_claim_allowed')}",
