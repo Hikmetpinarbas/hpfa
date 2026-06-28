@@ -9,7 +9,7 @@ Source repos: HP-Motor-main, HP-Motor, HP-Engine, HP-PROJELERI
 
 This document defines how capabilities from the other repositories are modernized and rebuilt inside hpfa.
 
-The goal is not to copy donor code. The goal is to convert useful donor repository patterns into HPFA product modules with explicit contracts, tests, runtime evidence, claim boundaries, and release status.
+The goal is not to copy donor code. The goal is to convert useful donor repository patterns into HPFA product modules with explicit contracts, tests, runtime evidence, claim boundaries, step gains, and release status.
 
 ## Non-negotiable rule
 
@@ -25,7 +25,8 @@ No donor source file becomes product code by direct import or copy. Every capabi
 6. required test definition
 7. ACTIVE_MATCH runtime evidence requirement
 8. football output audit
-9. release status normalization
+9. step-gain ledger update
+10. release status normalization
 
 ## Source authority
 
@@ -44,6 +45,55 @@ All other repositories and documents are donor or reference material.
 | HP-Motor | LEGACY_DONOR_REPO | phase candidate, tempo support signal, brief grammar patterns |
 | HP-PROJELERI | GOVERNANCE_DONOR_CANDIDATE | governance policy, release language, registry support after tree audit |
 | hpfa | GITHUB_PRODUCT_REPO | executable product modules only |
+
+## Step-gain ledger requirement
+
+Every modernization step must state what HPFA gained.
+
+Each step must produce two gain blocks:
+
+### Engineering gain
+
+What changed in the product system:
+- new contract
+- new schema
+- new test
+- new registry
+- new runtime gate
+- new validator
+- new output file
+- new blocker
+- new status normalization
+
+### Analyst gain
+
+What became clearer for the football analyst:
+- which surface evidence is now readable
+- which rows or event-like actions are now categorized
+- which context slices are now safer
+- which claims are now allowed, candidate-only, or blocked
+- which missing inputs are now visible
+- which report sentences can now be written more safely
+
+A step with no engineering gain and no analyst gain is not a product step.
+
+## Gain record schema
+
+Every issue, PR, or runtime handoff created from this intake must include this record:
+
+```json
+{
+  "step_id": "string",
+  "source_repo": "string",
+  "target_hpfa_module": "string",
+  "engineering_gain": ["string"],
+  "analyst_gain": ["string"],
+  "new_blockers": ["string"],
+  "claim_boundary_change": "string",
+  "runtime_evidence_required": true,
+  "release_status": "REVIEW_REQUIRED"
+}
+```
 
 ## Modernization lanes
 
@@ -71,6 +121,10 @@ Required tests:
 - `test_unknown_source_mapping_is_review_required`
 - `test_source_conflict_blocks_runtime_truth`
 - `test_missing_tracking_video_input_blocks_forbidden_claims`
+
+Step gain:
+- Engineering: HPFA can track row preservation, source mapping status, source conflict status, and permission blocks.
+- Analyst: the analyst can see which event-like rows are readable, missing, conflicted, or blocked before any football interpretation is written.
 
 Allowed language:
 - surface rows
@@ -126,6 +180,10 @@ Required tests:
 - `test_report_grammar_separates_main_reading_from_limits`
 - `test_runtime_validator_rejects_unknown_status`
 
+Step gain:
+- Engineering: HPFA metrics become contract-bound and cannot execute without declared fields, lineage, sample policy, and claim boundary.
+- Analyst: metric output stops pretending to be tactical truth and becomes readable as observation, proxy, candidate, or blocked claim.
+
 ### Lane C — Context, Window, Phase, Tempo and Sequence Candidates
 
 Priority: P2
@@ -157,6 +215,10 @@ Required tests:
 - `test_phase_candidate_not_phase_truth`
 - `test_single_signal_cannot_assign_rhythm_state`
 
+Step gain:
+- Engineering: HPFA can slice row-level context by time, window, zone, channel, restart candidate, and phase/rhythm support candidates.
+- Analyst: the analyst can distinguish surface context from tactical interpretation and can see when score, card, period, half, or window evidence is UNKNOWN.
+
 Known blocker from PR #94:
 - `context_candidates_sample` must not be summarized as complete match evidence when upstream `context_candidate_count` is larger.
 - `event_index` windows must use context ordinal position, not source row index.
@@ -184,6 +246,129 @@ Required tests:
 - `test_report_technical_limits_are_separate`
 - `test_report_does_not_repeat_limit_language_as_main_reading`
 - `test_report_blocks_forbidden_claims`
+
+Step gain:
+- Engineering: HPFA report output becomes evidence-indexed and grammar-gated.
+- Analyst: the report can say what was visible, where it was visible, and why it matters without burying the main reading under repeated limitations.
+
+### Lane E — Segmentation, Taxonomy, Classification, Differentiation and Diagnosis
+
+Priority: P1
+
+Purpose:
+Create HPFA-native modules for segmentasyon, taksonomi, tasnif, tefrik and teşhis.
+
+This lane does not create tactical truth. It creates structured analyst-facing separation, naming, grouping, contrast, and evidence-qualified diagnosis.
+
+Target HPFA modules:
+- Segmentasyon Lite V1
+- Taxonomy Registry Lite V1
+- Tasnif Classifier Lite V1
+- Tefrik Differentiation Gate Lite V1
+- Teşhis Diagnostic Gate Lite V1
+- Football Output Audit Lite V1
+- Claim Eligibility Gate Lite V1
+
+Definitions:
+
+| Term | HPFA meaning | Output status |
+|---|---|---|
+| Segmentasyon | splitting the event-like surface into bounded parts by time, window, action family, team, zone, or state candidate | segment_candidate |
+| Taksonomi | controlled vocabulary and hierarchy for action families, contexts, zones, metric families, and report concepts | registry_entry |
+| Tasnif | assigning rows or slices to declared categories using available fields | classified_candidate |
+| Tefrik | distinguishing similar categories and preventing false merges | differentiation_decision |
+| Teşhis | evidence-qualified diagnostic reading from multiple eligible signals | diagnostic_candidate |
+
+Product outputs to build:
+- segmentation contract
+- taxonomy registry schema
+- classification policy
+- differentiation rule set
+- diagnostic evidence ladder
+- ambiguity and near-miss report
+- false-merge blocker
+- false-split blocker
+
+Required fields by candidate type:
+
+Segmentasyon candidate:
+- `segment_id`
+- `segment_axis`
+- `start_ref`
+- `end_ref`
+- `row_count_surface`
+- `segment_basis`
+- `evidence_refs`
+
+Taxonomy registry entry:
+- `taxonomy_id`
+- `parent_concept`
+- `child_concept`
+- `allowed_inputs`
+- `forbidden_claims`
+- `example_surface_signals`
+
+Tasnif candidate:
+- `classification_id`
+- `class_label`
+- `input_fields_used`
+- `confidence_level`
+- `ambiguous_with`
+- `blocked_claims`
+
+Tefrik decision:
+- `differentiation_id`
+- `candidate_a`
+- `candidate_b`
+- `separating_fields`
+- `insufficient_fields`
+- `decision_status`
+
+Teşhis candidate:
+- `diagnosis_id`
+- `diagnosis_label`
+- `supporting_signals`
+- `contradicting_signals`
+- `missing_signals`
+- `diagnosis_status`
+- `claim_boundary`
+
+Required tests:
+- `test_segmentation_does_not_drop_surface_rows`
+- `test_taxonomy_registry_blocks_unknown_label`
+- `test_classification_reports_ambiguous_rows`
+- `test_tefrik_prevents_false_merge_without_separating_fields`
+- `test_teshis_requires_multiple_eligible_signals`
+- `test_teshis_blocks_tactical_truth_without_required_evidence`
+- `test_diagnostic_candidate_keeps_claim_boundary`
+
+Step gain:
+- Engineering: HPFA gains a formal layer for splitting, naming, grouping, separating, and evidence-qualified diagnosis.
+- Analyst: the analyst can see not only what category a row/slice belongs to, but also what it was confused with, why it was separated, and what evidence is still missing.
+
+Claim boundary:
+- Segmentasyon does not imply possession, phase, or tactic truth.
+- Taksonomi does not imply analytic correctness.
+- Tasnif does not imply intent.
+- Tefrik does not imply causality.
+- Teşhis does not become truth unless the required evidence ladder is met.
+
+Allowed language:
+- segment candidate
+- taxonomy entry
+- classified candidate
+- differentiation decision
+- diagnostic candidate
+- ambiguity retained
+- requires validation
+
+Blocked language:
+- confirmed tactic
+- coach plan
+- dominance
+- intentional structure
+- off-ball diagnosis
+- fatigue diagnosis
 
 ## Forbidden HPFA claims without extra evidence
 
@@ -225,8 +410,10 @@ Each imported idea must have this record:
   "source_path": "string",
   "capability": "string",
   "target_hpfa_module": "string",
-  "adaptation_type": "CONTRACT|SCHEMA|VALIDATION|REGISTRY|RUNTIME|REPORT_GRAMMAR|TEST",
+  "adaptation_type": "CONTRACT|SCHEMA|VALIDATION|REGISTRY|RUNTIME|REPORT_GRAMMAR|TEST|SEGMENTATION|TAXONOMY|CLASSIFICATION|DIFFERENTIATION|DIAGNOSIS",
   "claim_boundary": "string",
+  "engineering_gain": ["string"],
+  "analyst_gain": ["string"],
   "required_tests": ["string"],
   "runtime_evidence_required": true,
   "release_status": "REVIEW_REQUIRED"
@@ -237,11 +424,14 @@ Each imported idea must have this record:
 
 1. Close PR #94 blockers before treating Match Context Slicer as runtime-ready.
 2. Build Lane A contract and tests.
-3. Build Lane B contract and tests.
-4. Build Lane D grammar gate and evidence package.
-5. Build Lane C candidate-support modules only after upstream gates are stable.
-6. Audit HP-PROJELERI before using it as governance authority.
+3. Build Lane E taxonomy and segmentation contracts because later lanes need stable categories.
+4. Build Lane B contract and tests.
+5. Build Lane D grammar gate and evidence package.
+6. Build Lane C candidate-support modules only after upstream gates are stable.
+7. Audit HP-PROJELERI before using it as governance authority.
 
 ## Current conclusion
 
 The other repositories are useful as capability donors. They must be modernized into HPFA through product contracts, not copied into the product repo. HPFA remains the only executable product authority.
+
+Every step must now report what was gained, what remains blocked, and which claim boundary changed or stayed unchanged.
