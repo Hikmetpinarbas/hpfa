@@ -13,64 +13,22 @@ sys.path.insert(0, str(SRC))
 import match_context_slicer  # type: ignore
 
 
-def write_inputs(root: Path) -> None:
-    (root / "minimum_viable_context_lite_v1.json").write_text(json.dumps({
-        "module_id": "minimum_viable_context_lite_v1",
-        "status": "REVIEW_REQUIRED",
-        "context_candidate_count": 3,
-        "context_candidates_sample": [
-            {
-                "context_id": "ctx_000000",
-                "source_file": "canonical_event_lite_v1.tsv",
-                "source_format": "tsv",
-                "source_row_index": 0,
-                "team_label": "turkey",
-                "action_family": "PASS",
-                "minute_bucket": "unknown",
-                "period": "unknown",
-                "zone_candidate": "MIDDLE_THIRD",
-                "channel_candidate": "CENTRAL_CHANNEL",
-                "previous_action_family": "UNKNOWN_PREVIOUS_ACTION",
-                "next_action_family": "RESTART",
-            },
-            {
-                "context_id": "ctx_000001",
-                "source_file": "canonical_event_lite_v1.tsv",
-                "source_format": "tsv",
-                "source_row_index": 1,
-                "team_label": "united states",
-                "action_family": "RESTART",
-                "minute_bucket": "unknown",
-                "period": "unknown",
-                "zone_candidate": "DEFENSIVE_THIRD",
-                "channel_candidate": "LEFT_CHANNEL",
-                "previous_action_family": "PASS",
-                "next_action_family": "SHOT",
-            },
-            {
-                "context_id": "ctx_000002",
-                "source_file": "canonical_event_lite_v1.tsv",
-                "source_format": "tsv",
-                "source_row_index": 2,
-                "team_label": "turkey",
-                "action_family": "SHOT",
-                "minute_bucket": "unknown",
-                "period": "unknown",
-                "zone_candidate": "FINAL_THIRD",
-                "channel_candidate": "RIGHT_CHANNEL",
-                "previous_action_family": "RESTART",
-                "next_action_family": "UNKNOWN_NEXT_ACTION",
-            },
-        ],
-    }), encoding="utf-8")
-    (root / "event_window_builder_lite_v1.json").write_text(json.dumps({
-        "module_id": "event_window_builder_lite_v1",
-        "status": "REVIEW_REQUIRED",
-        "event_window_count": 1,
-        "event_windows_sample": [
-            {"window_id": "idxwin_0000", "window_axis": "event_index", "start_index": 0, "end_index": 100}
-        ],
-    }), encoding="utf-8")
+def rows() -> list[dict[str, object]]:
+    return [
+        {"context_id": "ctx_000000", "source_file": "canonical_event_lite_v1.tsv", "source_format": "tsv", "source_row_index": 900, "team_label": "team_a", "action_family": "PASS", "minute_bucket": "unknown", "period": "unknown", "zone_candidate": "MIDDLE_THIRD", "channel_candidate": "CENTRAL_CHANNEL", "previous_action_family": "UNKNOWN_PREVIOUS_ACTION", "next_action_family": "RESTART"},
+        {"context_id": "ctx_000001", "source_file": "canonical_event_lite_v1.tsv", "source_format": "tsv", "source_row_index": 100, "team_label": "team_b", "action_family": "RESTART", "minute_bucket": "unknown", "period": "unknown", "zone_candidate": "DEFENSIVE_THIRD", "channel_candidate": "LEFT_CHANNEL", "previous_action_family": "PASS", "next_action_family": "SHOT"},
+        {"context_id": "ctx_000002", "source_file": "canonical_event_lite_v1.tsv", "source_format": "tsv", "source_row_index": 500, "team_label": "team_a", "action_family": "SHOT", "minute_bucket": "unknown", "period": "unknown", "zone_candidate": "FINAL_THIRD", "channel_candidate": "RIGHT_CHANNEL", "previous_action_family": "RESTART", "next_action_family": "UNKNOWN_NEXT_ACTION"},
+    ]
+
+
+def write_inputs(root: Path, *, upstream_count: int = 3, full_context: bool = False) -> None:
+    payload: dict[str, object] = {"module_id": "minimum_viable_context_lite_v1", "status": "REVIEW_REQUIRED", "context_candidate_count": upstream_count}
+    if full_context:
+        payload["context_candidates"] = rows()
+    else:
+        payload["context_candidates_sample"] = rows()
+    (root / "minimum_viable_context_lite_v1.json").write_text(json.dumps(payload), encoding="utf-8")
+    (root / "event_window_builder_lite_v1.json").write_text(json.dumps({"module_id": "event_window_builder_lite_v1", "status": "REVIEW_REQUIRED", "event_window_count": 1, "event_windows_sample": [{"window_id": "idxwin_0000", "window_axis": "event_index", "start_index": 0, "end_index": 3}]}), encoding="utf-8")
 
 
 def test_context_slicer_reads_minimum_context(tmp_path: Path) -> None:
@@ -81,17 +39,35 @@ def test_context_slicer_reads_minimum_context(tmp_path: Path) -> None:
     assert report["context_slice_count"] == 3
 
 
-def test_context_slicer_reads_event_windows(tmp_path: Path) -> None:
+def test_event_index_window_uses_context_ordinal_not_source_row_index(tmp_path: Path) -> None:
     write_inputs(tmp_path)
     report = match_context_slicer.build_report(tmp_path, root=ROOT)
-    assert report["context_slices_sample"][0]["window_id"] == "idxwin_0000"
-    assert report["context_slices_sample"][0]["window_axis"] == "event_index"
+    assert [row["context_position"] for row in report["context_slices_sample"]] == [0, 1, 2]
+    assert report["context_slices_sample"][0]["source_row_index"] == 900
+    assert all(row["window_id"] == "idxwin_0000" for row in report["context_slices_sample"])
+
+
+def test_context_sample_truncation_blocks_complete_summary(tmp_path: Path) -> None:
+    write_inputs(tmp_path, upstream_count=300, full_context=False)
+    report = match_context_slicer.build_report(tmp_path, root=ROOT)
+    assert report["upstream_context_candidate_count"] == 300
+    assert report["input_context_count"] == 3
+    assert report["context_sample_truncated"] is True
+    assert report["slice_summary_scope"] == "SAMPLE_ONLY_BLOCKED_FOR_COMPLETE_MATCH_SUMMARY"
+    assert "truncated_context_sample_only" in report["blockers"]
+
+
+def test_full_context_not_marked_truncated(tmp_path: Path) -> None:
+    write_inputs(tmp_path, upstream_count=3, full_context=True)
+    report = match_context_slicer.build_report(tmp_path, root=ROOT)
+    assert report["context_sample_truncated"] is False
+    assert report["slice_summary_scope"] == "COMPLETE_CONTEXT_CANDIDATES"
 
 
 def test_team_slice_candidates(tmp_path: Path) -> None:
     write_inputs(tmp_path)
     report = match_context_slicer.build_report(tmp_path, root=ROOT)
-    assert report["slice_summary"]["team_label_counts"] == {"turkey": 2, "united states": 1}
+    assert report["slice_summary"]["team_label_counts"] == {"team_a": 2, "team_b": 1}
 
 
 def test_half_candidate_unknown_when_time_missing(tmp_path: Path) -> None:
@@ -120,7 +96,7 @@ def test_restart_open_play_candidate_from_action_family(tmp_path: Path) -> None:
     assert counts["RESTART_OR_DEAD_BALL_CANDIDATE"] == 1
 
 
-def test_no_phase_possession_sequence_truth(tmp_path: Path) -> None:
+def test_no_phase_possession_sequence_claims(tmp_path: Path) -> None:
     write_inputs(tmp_path)
     report = match_context_slicer.build_report(tmp_path, root=ROOT)
     assert report["phase_truth"] is False
