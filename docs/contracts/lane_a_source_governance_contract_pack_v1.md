@@ -20,6 +20,7 @@ It is not executable product code and does not create runtime match truth.
   "target_hpfa_module": "source_governance_contract_pack",
   "engineering_gain": [
     "data quality gate contract",
+    "gate report consumer compatibility requirement",
     "no silent drop audit contract",
     "source mapping registry contract",
     "duplicate risk blocker contract",
@@ -30,12 +31,14 @@ It is not executable product code and does not create runtime match truth.
   "analyst_gain": [
     "the analyst can see which surface rows are readable before football interpretation",
     "missing fields and source conflicts become visible",
-    "event-like rows are preserved as surface evidence without event-count truth"
+    "event-like rows are preserved as surface evidence without event-count truth",
+    "downstream policy consumers can read the gate output without bypass"
   ],
   "new_blockers": [
     "ACTIVE_MATCH runtime execution required",
     "canonical_event_count remains UNKNOWN",
-    "event_count_claim_allowed remains false"
+    "event_count_claim_allowed remains false",
+    "Data Quality Gate Lite output must remain compatible with Gate Report Consumer"
   ],
   "claim_boundary_change": "none",
   "runtime_evidence_required": true,
@@ -59,6 +62,52 @@ Blocked donor use:
 - donor release truth
 - canonical event count truth
 
+## Existing consumer compatibility rule
+
+Data Quality Gate Lite must not bypass the existing Gate Report Consumer.
+
+Any `data_quality_gate_lite_v1.json` emitted by future executable work must include the fields required by the current gate report reader and keep compatible semantics:
+
+```text
+tool
+status
+input
+input_format
+row_count
+valid_row_count
+claim_safety
+authority_note
+next_action
+findings
+```
+
+Required status values for the consumer-compatible envelope:
+
+```text
+PASS
+DEGRADED
+FAIL_CLOSED
+```
+
+Required `claim_safety` value for the consumer-compatible envelope:
+
+```text
+NO_FOOTBALL_CLAIMS_EMITTED
+```
+
+Required `next_action` keys:
+
+```text
+phase_sequence_allowed
+metric_layer_allowed
+claim_layer_allowed
+reason
+```
+
+`findings` must be a non-empty list.
+
+HPFA-specific Lane A fields may be added as extensions, but the consumer-compatible envelope is mandatory.
+
 ## Contract A1 — Data Quality Gate Lite V1
 
 Purpose:
@@ -77,12 +126,23 @@ Outputs:
 - data_quality_gate_lite_v1.json
 - data_quality_gate_lite_v1.txt
 
-Required fields in output:
+Required consumer-compatible fields in JSON output:
+
+- tool
+- status
+- input
+- input_format
+- row_count
+- valid_row_count
+- claim_safety
+- authority_note
+- next_action
+- findings
+
+Required Lane A extension fields in JSON output:
 
 - module_id
-- status
 - decision
-- claim_safety
 - surface_file_count
 - readable_surface_count
 - blocked_surface_count
@@ -94,12 +154,44 @@ Required fields in output:
 - claim_boundary
 - outputs
 
+Consumer-compatible status mapping:
+
+- DATA_QUALITY_CANDIDATE_ONLY -> DEGRADED
+- FAIL_CLOSED_MISSING_ACTIVE_MATCH -> FAIL_CLOSED
+- REVIEW_REQUIRED_SOURCE_CONFLICTS -> DEGRADED
+- REVIEW_REQUIRED_MISSING_REQUIRED_FIELDS -> DEGRADED
+
 Decisions:
 
 - DATA_QUALITY_CANDIDATE_ONLY
 - FAIL_CLOSED_MISSING_ACTIVE_MATCH
 - REVIEW_REQUIRED_SOURCE_CONFLICTS
 - REVIEW_REQUIRED_MISSING_REQUIRED_FIELDS
+
+Required `next_action` policy:
+
+```json
+{
+  "phase_sequence_allowed": false,
+  "metric_layer_allowed": false,
+  "claim_layer_allowed": false,
+  "reason": "SOURCE_GOVERNANCE_REVIEW_REQUIRED"
+}
+```
+
+Required first finding when no stronger gate finding exists:
+
+```json
+{
+  "gate_id": "LANE_A_DATA_QUALITY_GATE_LITE_V1",
+  "status": "DEGRADED",
+  "message": "Data quality gate emits row-level surface evidence only; downstream truth layers remain blocked.",
+  "evidence": {
+    "canonical_event_count": "UNKNOWN",
+    "event_count_claim_allowed": false
+  }
+}
+```
 
 Claim boundary:
 
@@ -302,6 +394,9 @@ Claim boundary:
 
 - test_data_quality_gate_blocks_missing_active_match
 - test_data_quality_gate_reports_missing_required_fields
+- test_data_quality_gate_output_is_gate_report_consumer_compatible
+- test_data_quality_gate_next_action_blocks_downstream_truth_layers
+- test_data_quality_gate_findings_non_empty
 - test_no_silent_drop_reports_all_skipped_rows
 - test_no_silent_drop_fail_closed_on_unexplained_drop
 - test_source_mapping_registry_keeps_fields_candidate_only
