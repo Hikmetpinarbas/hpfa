@@ -8,18 +8,34 @@ Rule: ADAPT_NOT_COPY
 
 This document records donor capabilities found in HP-Motor-main, HP-Motor, HP-Engine and HP-PROJELERI. It is a mining map, not executable product code.
 
+## Source role registry compliance
+
+This document only uses roles already defined by `source_role_registry_v1`.
+
+Allowed GitHub donor role for non-product repositories:
+
+```text
+GITHUB_DONOR_REPO
+```
+
+Do not introduce unregistered source roles such as `LEGACY_DONOR_REPO` or `GOVERNANCE_DONOR_CANDIDATE` inside product governance artifacts unless the source role registry is updated in the same change.
+
+Legacy status, governance-candidate status, or audit-needed status must be expressed in the use boundary, not in the source role field.
+
 ## Step gain record
 
 ```json
 {
   "step_id": "DONOR_MINING_MAP_V1",
   "source_repo": "HP-Motor-main|HP-Motor|HP-Engine|HP-PROJELERI",
+  "source_role": "GITHUB_DONOR_REPO",
   "target_hpfa_module": "governance_runtime_pack",
   "engineering_gain": [
     "donor capability map",
     "lane-to-module modernization plan",
     "claim boundary preservation",
-    "ADAPT_NOT_COPY intake queue"
+    "ADAPT_NOT_COPY intake queue",
+    "source role registry compliance"
   ],
   "analyst_gain": [
     "clearer view of which football evidence layers can become HPFA-native modules",
@@ -39,12 +55,12 @@ This document records donor capabilities found in HP-Motor-main, HP-Motor, HP-En
 
 ## Donor source roles
 
-| Source | Role | Use boundary |
+| Source | Registered source role | Use boundary |
 |---|---|---|
 | HP-Motor-main | GITHUB_DONOR_REPO | canonical schema, gate policy, canon index, ontology and registry ideas only |
-| HP-Motor | LEGACY_DONOR_REPO | metric registry, validator and vendor normalizer ideas only |
+| HP-Motor | GITHUB_DONOR_REPO | legacy donor repository; metric registry, validator and vendor normalizer ideas only |
 | HP-Engine | GITHUB_DONOR_REPO | claim runtime, sequence candidate and temporal signal ideas only |
-| HP-PROJELERI | GOVERNANCE_DONOR_CANDIDATE | audit required before governance authority use |
+| HP-PROJELERI | GITHUB_DONOR_REPO | governance-support candidate only; tree audit required before any governance use |
 
 ## Highest-value donor findings
 
@@ -146,7 +162,8 @@ Target HPFA step:
 
 Claim boundary:
 
-- HP-PROJELERI is not governance authority until audited and mapped into hpfa contracts
+- HP-PROJELERI remains `GITHUB_DONOR_REPO` until audited and mapped into hpfa contracts
+- HP-PROJELERI is not governance authority until an explicit governance audit maps files into registered governance semantics
 
 ## Lane mapping
 
