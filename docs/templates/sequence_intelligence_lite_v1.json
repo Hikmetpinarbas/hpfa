@@ -1,0 +1,18 @@
+{
+  "template_id": "sequence_intelligence_lite_v1",
+  "status": "SPEC_ONLY",
+  "core_chain": ["event_atom", "continuation_candidate", "opponent_surface", "consequence_candidate", "claim_gate"],
+  "required_inputs": ["source_role", "time_bucket", "duration", "x", "y", "end_x", "end_y", "zone_candidate", "lane_candidate", "team_label", "player_label", "action_family", "previous_visible_action_family", "next_visible_action_family", "terminal_surface", "claim_boundary"],
+  "minimum_outputs": ["action_chain_atom", "continuation_candidate", "opponent_surface_candidate", "consequence_candidate", "option_group_candidate", "claim_safety_record"],
+  "option_candidate_families": ["forward_pass_to_carry_candidate", "regain_to_progression_candidate", "carry_to_box_entry_candidate", "wide_access_to_cross_candidate", "central_combination_candidate", "restart_to_terminal_action_candidate", "turnover_to_shot_candidate", "defensive_action_to_build_candidate", "defensive_action_to_transition_candidate", "defensive_action_only_candidate"],
+  "support_fields": ["attempts", "terminal_action_count", "shot_surface_count", "box_entry_surface_count", "turnover_surface_count", "opponent_surface_count", "transition_started_count", "value_proxy_sum_when_allowed"],
+  "allowed_wording": ["visible chain candidate", "option candidate", "repeated chain family", "consequence proxy", "opponent surface", "support level", "requires validation"],
+  "blocked_wording": ["tactical truth", "control truth", "intent truth", "style truth from one match", "player quality truth"],
+  "claim_boundary": {
+    "production_release": false,
+    "sequence_truth_allowed": false,
+    "tactical_truth_allowed": false,
+    "style_truth_allowed": false,
+    "value_truth_allowed": false
+  }
+}
