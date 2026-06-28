@@ -1,0 +1,17 @@
+{
+  "template_id": "second_ball_continuation_lite_v1",
+  "status": "SPEC_ONLY",
+  "core_chain": ["terminal_or_disrupted_action", "second_ball_surface", "continuation_surface", "consequence_candidate", "claim_gate"],
+  "required_inputs": ["source_role", "time_bucket", "start_time", "end_time", "duration", "x", "y", "end_x", "end_y", "team_label", "player_label", "action_family", "result_surface", "next_visible_action_family", "next_team_label", "zone_candidate", "lane_candidate", "claim_boundary"],
+  "minimum_outputs": ["second_ball_candidate", "continuation_owner_candidate", "continuation_time_delta", "continuation_distance_delta", "continuation_zone_delta", "continuation_result_candidate", "claim_safety_record"],
+  "candidate_result_families": ["same_team_continuation_candidate", "opponent_recovery_candidate", "shot_rebound_candidate", "blocked_shot_continuation_candidate", "save_rebound_candidate", "clearance_to_reset_candidate", "interception_to_transition_candidate", "defensive_action_to_build_candidate", "defensive_action_only_candidate", "loose_ball_to_terminal_action_candidate"],
+  "measurement_fields": ["time_to_next_surface_sec", "distance_to_next_surface_m", "zone_change_candidate", "lane_change_candidate", "team_retained_surface", "opponent_gained_surface", "new_attack_started_candidate", "transition_started_candidate", "terminal_action_created", "value_proxy_allowed"],
+  "claim_boundary": {
+    "production_release": false,
+    "possession_truth_allowed": false,
+    "phase_truth_allowed": false,
+    "sequence_truth_allowed": false,
+    "tactical_truth_allowed": false,
+    "value_truth_allowed": false
+  }
+}
