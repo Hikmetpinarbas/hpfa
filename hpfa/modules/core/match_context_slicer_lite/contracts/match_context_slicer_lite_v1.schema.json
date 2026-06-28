@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hpfa.local/schemas/match_context_slicer_lite_v1.schema.json",
+  "title": "HPFA Match Context Slicer Lite V1",
+  "type": "object",
+  "required": [
+    "module_id",
+    "status",
+    "decision",
+    "claim_safety",
+    "context_slice_count",
+    "slice_summary",
+    "claim_boundary",
+    "outputs"
+  ],
+  "properties": {
+    "module_id": {"const": "match_context_slicer_lite_v1"},
+    "status": {"enum": ["REVIEW_REQUIRED", "FAIL_CLOSED"]},
+    "decision": {
+      "enum": [
+        "CONTEXT_SLICES_CANDIDATE_ONLY",
+        "FAIL_CLOSED_MISSING_REQUIRED_INPUTS"
+      ]
+    },
+    "claim_safety": {"const": "CONTEXT_SLICE_CANDIDATE_ONLY"},
+    "input_dir": {"type": "string"},
+    "context_slice_count": {"type": "integer", "minimum": 0},
+    "input_context_count": {"type": "integer", "minimum": 0},
+    "event_window_count": {"type": "integer", "minimum": 0},
+    "context_slices_sample": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/context_slice"}
+    },
+    "slice_summary": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "missing_required_inputs": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "blockers": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "claim_boundary": {"$ref": "#/$defs/claim_boundary"},
+    "outputs": {
+      "type": "object",
+      "required": ["json", "txt"],
+      "properties": {
+        "json": {"type": "string"},
+        "txt": {"type": "string"}
+      }
+    }
+  },
+  "$defs": {
+    "context_slice": {
+      "type": "object",
+      "required": [
+        "slice_id",
+        "team_label",
+        "action_family",
+        "half_candidate",
+        "score_state_candidate",
+        "card_state_candidate",
+        "restart_open_play_candidate",
+        "claim_level",
+        "claim_allowed"
+      ],
+      "properties": {
+        "slice_id": {"type": "string"},
+        "context_id": {"type": ["string", "null"]},
+        "source_file": {"type": "string"},
+        "source_format": {"type": "string"},
+        "source_row_index": {"type": ["integer", "string", "null"]},
+        "source_role": {"type": "string"},
+        "team_label": {"type": "string"},
+        "action_family": {"type": "string"},
+        "previous_action_family": {"type": "string"},
+        "next_action_family": {"type": "string"},
+        "zone_candidate": {"type": "string"},
+        "channel_candidate": {"type": "string"},
+        "window_id": {"type": "string"},
+        "window_axis": {"type": "string"},
+        "half_candidate": {"type": "string"},
+        "score_state_candidate": {"type": "string"},
+        "card_state_candidate": {"type": "string"},
+        "restart_open_play_candidate": {"type": "string"},
+        "claim_level": {"type": "string"},
+        "claim_allowed": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "claim_boundary": {
+      "type": "object",
+      "required": [
+        "canonical_event_count",
+        "deduplicated_event_count",
+        "event_count_claim_allowed",
+        "production_binding_allowed",
+        "phase_truth",
+        "possession_truth",
+        "sequence_truth",
+        "tactical_truth",
+        "dominance_truth"
+      ],
+      "properties": {
+        "canonical_event_count": {"const": "UNKNOWN"},
+        "deduplicated_event_count": {"const": "UNKNOWN"},
+        "event_count_claim_allowed": {"const": false},
+        "production_binding_allowed": {"const": false},
+        "phase_truth": {"const": false},
+        "possession_truth": {"const": false},
+        "sequence_truth": {"const": false},
+        "time_window_truth": {"const": false},
+        "score_state_truth": {"const": false},
+        "card_state_truth": {"const": false},
+        "tactical_truth": {"const": false},
+        "dominance_truth": {"const": false}
+      }
+    }
+  },
+  "additionalProperties": true
+}
