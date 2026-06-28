@@ -79,6 +79,7 @@ Each slice candidate should contain:
 ```text
 slice_id
 context_id
+context_position
 source_file
 source_format
 source_row_index
@@ -107,11 +108,36 @@ claim_allowed
 | `action_family` | Minimum Viable Context / source mapping | Use candidate family; no event truth claim. |
 | `zone_candidate` | Axis / coordinate candidate | Neutral pitch location only; no attacking-direction or pitch-control claim. |
 | `channel_candidate` | Axis / coordinate candidate | Neutral channel only; no tactical width claim. |
-| `window_id` / `window_axis` | Event Window Builder | Technical segment only; not sequence or possession. |
+| `context_position` | Ordered context candidate list | Zero-based ordinal in the loaded or rebuilt context list. |
+| `window_id` / `window_axis` | Event Window Builder | Technical segment only; not sequence or possession. For `event_index` windows, match by `context_position`, not by per-file `source_row_index`. |
 | `half_candidate` | Time Scale Router / period/minute candidate | If no time/period support, emit `UNKNOWN_HALF`. |
 | `score_state_candidate` | Goal timeline | If no verified goal timeline, emit `UNKNOWN_SCORE_STATE`. |
 | `card_state_candidate` | Card timeline | If no verified card timeline, emit `UNKNOWN_CARD_STATE`. |
 | `restart_open_play_candidate` | action family | Restart/dead-ball can be candidate; open play remains candidate only. |
+
+## Context sample safety rule
+
+`context_candidates_sample` must never be summarized as complete match evidence when upstream `context_candidate_count` is larger than the sample length.
+
+If full `context_candidates` are present, the slicer may summarize them as `COMPLETE_CONTEXT_CANDIDATES`.
+
+If only `context_candidates_sample` is present and upstream `context_candidate_count` is larger, the slicer must either rebuild full context from available surface rows or mark:
+
+```text
+context_sample_truncated=true
+slice_summary_scope=SAMPLE_ONLY_BLOCKED_FOR_COMPLETE_MATCH_SUMMARY
+blocker=truncated_context_sample_only
+```
+
+Required report fields:
+
+```text
+upstream_context_candidate_count
+context_source
+context_sample_truncated
+rebuilt_full_context
+slice_summary_scope
+```
 
 ## Required claim boundary
 
@@ -171,13 +197,15 @@ CONTEXT_SLICES_CANDIDATE_ONLY
 
 ```text
 test_context_slicer_reads_minimum_context
-test_context_slicer_reads_event_windows
+test_event_index_window_uses_context_ordinal_not_source_row_index
+test_context_sample_truncation_blocks_complete_summary
+test_full_context_not_marked_truncated
 test_team_slice_candidates
 test_half_candidate_unknown_when_time_missing
 test_score_state_candidate_unknown_without_goal_timeline
 test_card_state_candidate_unknown_without_card_timeline
 test_restart_open_play_candidate_from_action_family
-test_no_phase_possession_sequence_truth
+test_no_phase_possession_sequence_claims
 test_no_tactical_or_dominance_claims
 test_flat_phone_outputs
 test_nested_phone_output_rejected
