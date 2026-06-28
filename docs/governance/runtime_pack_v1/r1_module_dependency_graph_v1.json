@@ -1,0 +1,93 @@
+{
+  "artifact_id": "r1_module_dependency_graph_v1",
+  "status": "PLAN_ONLY",
+  "claim_boundary": "dependency_governance_only_no_football_truth",
+  "runtime_authority": "runtime/active_single_match/current",
+  "nodes": [
+    {
+      "module_id": "source_mapping_contract_lite_v1",
+      "order": 1,
+      "depends_on": [],
+      "unlocks": ["source_conflict_registry_lite_v1"],
+      "blocked_claims": ["event_truth", "canonical_event_count", "sequence_truth", "phase_truth"]
+    },
+    {
+      "module_id": "source_conflict_registry_lite_v1",
+      "order": 2,
+      "depends_on": ["source_mapping_contract_lite_v1"],
+      "unlocks": ["primary_surface_review_resolution_lite_v1"],
+      "blocked_claims": ["primary_truth", "canonical_event_count", "deduplicated_event_count"]
+    },
+    {
+      "module_id": "primary_surface_review_resolution_lite_v1",
+      "order": 3,
+      "depends_on": ["primary_event_surface_gate_lite_v1", "source_conflict_registry_lite_v1"],
+      "unlocks": ["event_state_transition_verifier_lite_v1", "minimum_viable_context_lite_v1"],
+      "blocked_claims": ["complete_event_truth", "possession_truth", "sequence_truth"]
+    },
+    {
+      "module_id": "identity_review_resolution_lite_v1",
+      "order": 4,
+      "depends_on": ["team_binding_lite_v1", "event_identity_resolution_gate_lite_v1"],
+      "unlocks": ["event_state_transition_verifier_lite_v1", "minimum_viable_context_lite_v1"],
+      "blocked_claims": ["tactical_role_truth", "player_quality_truth"]
+    },
+    {
+      "module_id": "gk_taxonomy_source_role_reconciliation_lite_v1",
+      "order": 5,
+      "depends_on": ["source_mapping_contract_lite_v1", "source_conflict_registry_lite_v1"],
+      "unlocks": ["event_state_transition_verifier_lite_v1"],
+      "blocked_claims": ["goalkeeper_performance_truth", "event_truth"]
+    },
+    {
+      "module_id": "event_state_transition_verifier_lite_v1",
+      "order": 6,
+      "depends_on": ["primary_surface_review_resolution_lite_v1", "identity_review_resolution_lite_v1", "gk_taxonomy_source_role_reconciliation_lite_v1"],
+      "unlocks": ["minimum_viable_context_lite_v1", "event_window_builder_lite_v1"],
+      "blocked_claims": ["possession_truth", "phase_truth", "sequence_truth", "tactical_truth"]
+    },
+    {
+      "module_id": "minimum_viable_context_lite_v1",
+      "order": 7,
+      "depends_on": ["primary_surface_review_resolution_lite_v1", "identity_review_resolution_lite_v1", "event_state_transition_verifier_lite_v1"],
+      "unlocks": ["event_window_builder_lite_v1", "analyst_reading_surface_compressor_lite_v1"],
+      "blocked_claims": ["phase_truth", "possession_truth", "sequence_truth", "behaviour_truth"]
+    },
+    {
+      "module_id": "event_window_builder_lite_v1",
+      "order": 8,
+      "depends_on": ["minimum_viable_context_lite_v1", "event_state_transition_verifier_lite_v1"],
+      "unlocks": ["football_time_foundation_lite_v1", "sequence_candidate_builder_lite_v1"],
+      "blocked_claims": ["sequence_truth", "rhythm_truth", "match_identity_truth"]
+    },
+    {
+      "module_id": "football_time_foundation_lite_v1",
+      "order": 9,
+      "depends_on": ["event_window_builder_lite_v1"],
+      "unlocks": ["phase_candidate_lite_v1", "postmatch_analyst_report_lite_v1"],
+      "blocked_claims": ["phase_truth", "rhythm_truth"]
+    },
+    {
+      "module_id": "metric_contract_registry_lite_v1",
+      "order": 10,
+      "depends_on": ["metric_family_registry_lite_v1", "source_mapping_contract_lite_v1"],
+      "unlocks": ["metric_readiness_report_lite_v1"],
+      "blocked_claims": ["metric_value_truth", "causal_metric_truth"]
+    },
+    {
+      "module_id": "claim_eligibility_gate_lite_v1",
+      "order": 14,
+      "depends_on": ["evidence_bundle_schema_lite_v1", "metric_readiness_report_lite_v1", "support_threshold_router_lite_v1"],
+      "unlocks": ["football_output_audit_lite_v1", "postmatch_analyst_report_lite_v1"],
+      "blocked_claims": ["tactical_truth", "dominance_truth", "coach_intention", "pitch_control_truth"]
+    }
+  ],
+  "global_rules": {
+    "downstream_cannot_bypass_upstream": true,
+    "fail_closed_default": true,
+    "canonical_event_count": "UNKNOWN",
+    "deduplicated_event_count": "UNKNOWN",
+    "event_count_claim_allowed": false,
+    "production_release": false
+  }
+}

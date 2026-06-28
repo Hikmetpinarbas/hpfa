@@ -1,0 +1,83 @@
+{
+  "artifact_id": "r1_analyst_evidence_contract_v1",
+  "status": "PLAN_ONLY",
+  "purpose": "Require every runtime closure node to produce analyst-facing evidence in addition to engineering evidence.",
+  "runtime_authority": "runtime/active_single_match/current",
+  "required_engineering_evidence": [
+    "module_executed",
+    "tests_passed",
+    "output_written",
+    "flat_phone_output_respected",
+    "nested_phone_output_rejected_when_applicable",
+    "release_status_normalized",
+    "upstream_gate_blockers_recorded"
+  ],
+  "required_analyst_evidence": [
+    "visible_evidence",
+    "allowed_interpretation",
+    "blocked_interpretation",
+    "confidence_band",
+    "counter_scenario",
+    "remaining_review_required"
+  ],
+  "confidence_bands": [
+    "LOW_SIGNAL",
+    "CANDIDATE_SIGNAL",
+    "SUPPORTED_CANDIDATE",
+    "CLAIM_GATE_REQUIRED",
+    "BLOCKED"
+  ],
+  "template": {
+    "module_id": null,
+    "release_status": "REVIEW_REQUIRED",
+    "engineering_evidence": {
+      "module_executed": false,
+      "tests_passed": false,
+      "output_written": false,
+      "flat_phone_output_respected": false,
+      "nested_phone_output_rejected_when_applicable": null,
+      "release_status_normalized": false,
+      "upstream_gate_blockers_recorded": []
+    },
+    "analyst_evidence": {
+      "visible_evidence": [],
+      "allowed_interpretation": [],
+      "blocked_interpretation": [],
+      "confidence_band": "BLOCKED",
+      "counter_scenario": [],
+      "remaining_review_required": []
+    },
+    "claim_boundary": {
+      "canonical_event_count": "UNKNOWN",
+      "deduplicated_event_count": "UNKNOWN",
+      "event_count_claim_allowed": false,
+      "possession_truth_allowed": false,
+      "phase_truth_allowed": false,
+      "sequence_truth_allowed": false,
+      "tactical_truth_allowed": false,
+      "production_release": false
+    }
+  },
+  "blocked_terms": [
+    "controlled",
+    "dominated",
+    "intended",
+    "tactical plan was",
+    "pitch control truth",
+    "off-ball structure truth",
+    "coach intention",
+    "performance truth",
+    "quality truth"
+  ],
+  "safe_terms": [
+    "candidate signal",
+    "event-only proxy",
+    "distributional diagnostic",
+    "sequence continuation candidate",
+    "pressure-exposure proxy",
+    "source alignment support",
+    "context warning",
+    "downgraded claim",
+    "requires later validation"
+  ]
+}
