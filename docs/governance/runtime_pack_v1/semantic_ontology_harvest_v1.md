@@ -6,9 +6,19 @@ Product authority: hpfa
 Runtime authority: runtime/active_single_match/current
 Rule: ADAPT_NOT_COPY
 
-This document starts a repository-wide semantic and ontology harvest. The objective is to convert raw row and column surfaces into HPFA-native football meaning, argument nuclei and later report nuclei.
+This document starts a semantic and ontology harvest. The objective is to convert raw row and column surfaces into HPFA-native football meaning, argument nuclei and later report nuclei.
 
 This is the first harvest pass. It establishes the catalog method required for deeper file-by-file inspection.
+
+## Reproducibility rule
+
+Every verified finding must identify whether the source is:
+
+- IN_REPO_HPFA: committed in the hpfa product repository
+- EXTERNAL_GITHUB_DONOR: verified in a separate donor repository and reproducible from that repository/path
+- REFERENCE_ONLY: not currently committed in hpfa and not usable as product source until re-audited
+
+External donor paths must never be presented as if they are local hpfa paths.
 
 ## Objective
 
@@ -40,7 +50,16 @@ English and Turkish surfaces:
 
 ### hpfa semantic and canonical surface
 
-Sources include canonical event lite, canonical ingest donor discovery, core canonical donor map, data quality gate and quality gate scripts.
+Source status: IN_REPO_HPFA
+
+Reproducible hpfa paths:
+
+- `hpfa/modules/core/canonical_event_lite/src/canonical_event_lite.py`
+- `docs/contracts/canonical_event_lite_v1.md`
+- `docs/HPFA_CORE_CANONICAL_INGEST_DONOR_DISCOVERY_V1.md`
+- `docs/hpfa_core_canonical_ingest_donor_map_v1.tsv`
+- `tools/hpfa_data_quality_gate_v1.py`
+- `tools/hpfa_quality_gates_v1.sh`
 
 Capability:
 
@@ -52,9 +71,20 @@ Semantic Row Column Mapper Lite V1.
 
 ### HP-Engine semantic gate
 
-Source:
+Source status: EXTERNAL_GITHUB_DONOR
+
+Repository:
+
+- `Hikmetpinarbas/HP-Engine`
+
+Reproducible donor path:
 
 - `HP_ENGINE/semantic_gate/live/hp_semantic_gate.py`
+
+Local hpfa status:
+
+- Not committed in hpfa at this path.
+- Use as donor evidence only.
 
 Capability:
 
@@ -68,9 +98,21 @@ Semantic Term Registry Lite V1.
 
 ### HP-Engine taxonomy
 
-Source:
+Source status: EXTERNAL_GITHUB_DONOR
+
+Repository:
+
+- `Hikmetpinarbas/HP-Engine`
+
+Reproducible donor path:
 
 - `engine/hp_engine_taxonomy.py`
+
+Local hpfa status:
+
+- Not committed in hpfa at this path.
+- If a vendored copy later exists, it must be listed separately under its committed hpfa path.
+- Use as donor evidence only.
 
 Capability:
 
@@ -86,9 +128,20 @@ Football Behaviour Taxonomy Lite V1 and Role Surface Vocabulary Lite V1.
 
 ### HP-Motor ontology loader
 
-Source:
+Source status: EXTERNAL_GITHUB_DONOR
+
+Repository:
+
+- `Hikmetpinarbas/HP-Motor`
+
+Reproducible donor path:
 
 - `hp_motor/ontology/loader.py`
+
+Local hpfa status:
+
+- Not committed in hpfa at this path.
+- Use as donor evidence only.
 
 Capability:
 
@@ -100,9 +153,20 @@ Ontology Registry Loader Lite V1.
 
 ### HP-Motor-main capability matrix
 
-Source:
+Source status: EXTERNAL_GITHUB_DONOR
+
+Repository:
+
+- `Hikmetpinarbas/HP-Motor-main`
+
+Reproducible donor path:
 
 - `src/hp_motor/syntax/capability_matrix.py`
+
+Local hpfa status:
+
+- Not committed in hpfa at this path.
+- Use as donor evidence only.
 
 Capability:
 
@@ -114,7 +178,26 @@ Input Capability Reasoner Lite V1.
 
 ### HP-Motor-main canonical ontology surfaces
 
-Sources include canon index, football ontology, metric ontology, platform mappings, canonical event schema, schema specification and conflicts registry.
+Source status: EXTERNAL_GITHUB_DONOR
+
+Repository:
+
+- `Hikmetpinarbas/HP-Motor-main`
+
+Reproducible donor paths:
+
+- `canon/index.yaml`
+- `canon/ontology/football_ontology.json`
+- `canon/ontology/metric_ontology.json`
+- `canon/mappings/platform_mappings.json`
+- `configs/hpfa_canon/HPFA_Canonical_Event_Schema_v0.1.yaml`
+- `configs/hpfa_canon/HPFA_Schema_Specification.yaml`
+- `configs/hpfa_canon/conflicts.json`
+
+Local hpfa status:
+
+- Related hpfa product files exist, but these exact donor paths are external.
+- Use as donor evidence only.
 
 Capability:
 
@@ -172,6 +255,8 @@ RAW ROWS / COLUMNS
 
 ## Required tests
 
+- test_every_verified_source_has_reproducible_repository_and_path
+- test_external_donor_path_not_treated_as_local_hpfa_path
 - test_every_visible_column_gets_semantic_status
 - test_unmapped_column_preserved_as_unknown_candidate
 - test_row_semantic_nucleus_contains_evidence_refs
