@@ -42,8 +42,8 @@ All other repositories and documents are donor or reference material.
 |---|---|---|
 | HP-Motor-main | GITHUB_DONOR_REPO | canonical surface, source mapping, conflict registry, permission spine, no-silent-drop audit |
 | HP-Engine | GITHUB_DONOR_REPO | metric registry, metric ontology, validator, report grammar, pattern candidate support |
-| HP-Motor | LEGACY_DONOR_REPO | phase candidate, tempo support signal, brief grammar patterns |
-| HP-PROJELERI | GOVERNANCE_DONOR_CANDIDATE | governance policy, release language, registry support after tree audit |
+| HP-Motor | GITHUB_DONOR_REPO | legacy phase candidate, tempo support signal, brief grammar patterns |
+| HP-PROJELERI | GITHUB_DONOR_REPO | governance-support candidate after tree audit |
 | hpfa | GITHUB_PRODUCT_REPO | executable product modules only |
 
 ## Step-gain ledger requirement
@@ -140,7 +140,7 @@ Blocked language:
 - complete event truth
 - full event stream truth
 
-`canonical_event_count` remains UNKNOWN until HPFA validates a canonical event contract.
+`canonical_event_count` remains UNKNOWN until a separate explicit HPFA Event Count Validation contract is created, tested, executed on ACTIVE_MATCH, and allowed by governance. Canonical Event Lite validation alone does not unlock canonical event-count claims.
 
 ### Lane B — Metric Registry and Claim-Safe Output
 
@@ -406,7 +406,7 @@ Each imported idea must have this record:
 ```json
 {
   "source_repo": "string",
-  "source_role": "GITHUB_DONOR_REPO|LEGACY_DONOR_REPO|GOVERNANCE_DONOR_CANDIDATE",
+  "source_role": "GITHUB_DONOR_REPO|DRIVE_GOVERNANCE|DRIVE_DONOR_LIBRARY|DROPBOX_ARCHIVE|DROPBOX_DONOR_LIBRARY|SIDER_ACADEMIC_BACKING",
   "source_path": "string",
   "capability": "string",
   "target_hpfa_module": "string",
