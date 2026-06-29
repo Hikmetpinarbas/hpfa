@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hpfa.local/schemas/upstream_context_binding_ledger_v1.schema.json",
+  "title": "HPFA Upstream Context Binding Ledger V1",
+  "type": "object",
+  "required": [
+    "ledger_id",
+    "module_id",
+    "status",
+    "release_status",
+    "claim_safety",
+    "required_upstreams",
+    "binding_summary",
+    "claim_boundary"
+  ],
+  "properties": {
+    "ledger_id": {"const": "upstream_context_binding_ledger_v1"},
+    "module_id": {"const": "match_context_slicer_lite_v1"},
+    "status": {"enum": ["REVIEW_REQUIRED", "FAIL_CLOSED"]},
+    "release_status": {"enum": ["REVIEW_REQUIRED", "FAIL_CLOSED"]},
+    "claim_safety": {"const": "CONTEXT_BINDING_LEDGER_ONLY"},
+    "required_upstreams": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/upstream_record"}
+    },
+    "binding_summary": {
+      "type": "object",
+      "required": ["required_count", "found_count", "feed_allowed_count", "blocked_count"],
+      "properties": {
+        "required_count": {"type": "integer", "minimum": 0},
+        "found_count": {"type": "integer", "minimum": 0},
+        "feed_allowed_count": {"type": "integer", "minimum": 0},
+        "blocked_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "claim_boundary": {"type": "object"}
+  },
+  "$defs": {
+    "upstream_record": {
+      "type": "object",
+      "required": [
+        "module_name",
+        "output_found",
+        "json_valid",
+        "txt_valid",
+        "active_match_authority",
+        "phone_output_flat",
+        "claim_boundary",
+        "can_feed_context_slicer",
+        "block_reason"
+      ],
+      "properties": {
+        "module_name": {"type": "string"},
+        "output_found": {"type": "boolean"},
+        "json_valid": {"type": "boolean"},
+        "txt_valid": {"type": "boolean"},
+        "active_match_authority": {"type": "boolean"},
+        "phone_output_flat": {"type": "boolean"},
+        "claim_boundary": {"type": "object"},
+        "can_feed_context_slicer": {"type": "boolean"},
+        "block_reason": {"type": "string"}
+      }
+    }
+  },
+  "additionalProperties": true
+}
