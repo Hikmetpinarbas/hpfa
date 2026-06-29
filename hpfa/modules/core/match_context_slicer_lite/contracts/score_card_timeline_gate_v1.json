@@ -1,0 +1,36 @@
+{
+  "gate_id": "score_card_timeline_gate_v1",
+  "module_id": "match_context_slicer_lite_v1",
+  "status": "BINDING_SPEC_READY",
+  "release_status": "REVIEW_REQUIRED",
+  "claim_safety": "SCORE_CARD_TIMELINE_GATE_ONLY",
+  "rules": [
+    {
+      "field": "score_state_candidate",
+      "required_evidence": "eligible_goal_timeline",
+      "missing_evidence_value": "UNKNOWN_SCORE_STATE",
+      "truth_claim_allowed": false,
+      "blocked_shortcuts": ["file_name", "match_title", "metadata_score_without_timeline"]
+    },
+    {
+      "field": "card_state_candidate",
+      "required_evidence": "eligible_card_timeline",
+      "missing_evidence_value": "UNKNOWN_CARD_STATE",
+      "truth_claim_allowed": false,
+      "blocked_shortcuts": ["file_name", "match_title", "metadata_card_note_without_timeline"]
+    }
+  ],
+  "required_tests": [
+    "test_score_state_unknown_without_goal_timeline",
+    "test_card_state_unknown_without_card_timeline",
+    "test_file_name_does_not_unlock_score_state",
+    "test_metadata_does_not_unlock_card_state"
+  ],
+  "blocked_truths": [
+    "score_state_truth_without_goal_timeline",
+    "card_state_truth_without_card_timeline",
+    "phase_truth",
+    "possession_truth",
+    "tactical_truth"
+  ]
+}
