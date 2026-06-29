@@ -1,0 +1,37 @@
+{
+  "registry_id": "context_field_status_registry_v1",
+  "module_id": "match_context_slicer_lite_v1",
+  "status": "BINDING_SPEC_READY",
+  "release_status": "REVIEW_REQUIRED",
+  "claim_safety": "CONTEXT_FIELD_STATUS_ONLY",
+  "allowed_statuses": ["VALIDATED", "CANDIDATE", "UNKNOWN"],
+  "status_definitions": {
+    "VALIDATED": "Directly supported by an eligible HPFA product artifact and allowed by its claim boundary.",
+    "CANDIDATE": "Derived or carried as context candidate, with truth blocked.",
+    "UNKNOWN": "Missing, unresolved, unsupported or blocked."
+  },
+  "field_policies": {
+    "team_label": {"default_status": "CANDIDATE", "truth_claim_allowed": false},
+    "half_candidate": {"default_status": "CANDIDATE", "truth_claim_allowed": false},
+    "score_state_candidate": {"default_status": "UNKNOWN", "truth_claim_allowed": false, "requires": "eligible_goal_timeline"},
+    "card_state_candidate": {"default_status": "UNKNOWN", "truth_claim_allowed": false, "requires": "eligible_card_timeline"},
+    "restart_open_play_candidate": {"default_status": "CANDIDATE", "truth_claim_allowed": false},
+    "action_family": {"default_status": "CANDIDATE", "truth_claim_allowed": false},
+    "zone_candidate": {"default_status": "CANDIDATE", "truth_claim_allowed": false},
+    "channel_candidate": {"default_status": "CANDIDATE", "truth_claim_allowed": false},
+    "window_id": {"default_status": "CANDIDATE", "truth_claim_allowed": false},
+    "window_axis": {"default_status": "CANDIDATE", "truth_claim_allowed": false}
+  },
+  "blocked_truths": [
+    "canonical_event_count",
+    "deduplicated_event_count",
+    "phase_truth",
+    "possession_truth",
+    "sequence_truth",
+    "time_window_truth",
+    "score_state_truth_without_timeline",
+    "card_state_truth_without_timeline",
+    "tactical_truth",
+    "dominance_truth"
+  ]
+}
