@@ -22,17 +22,20 @@ This document defines the first HPFA evidence-level contract. It prevents surfac
     "claim eligibility boundary",
     "diagnostic candidate guard",
     "single-signal truth blocker",
+    "review-required promotion blocker",
     "report grammar support"
   ],
   "analyst_gain": [
     "analyst can see whether a sentence rests on surface observation, candidate context, classification, mechanism or diagnostic candidate",
     "candidate labels cannot silently become football truth",
-    "blocked claims remain visible before report text is written"
+    "blocked claims remain visible before report text is written",
+    "unreviewed artifacts cannot raise evidence level"
   ],
   "new_blockers": [
     "executable gate not implemented",
     "runtime evidence required",
-    "Football Ontology Registry Lite must define stable labels"
+    "Football Ontology Registry Lite must define stable labels",
+    "REVIEW_REQUIRED blocks evidence promotion"
   ],
   "claim_boundary_change": "none",
   "runtime_evidence_required": true,
@@ -201,6 +204,8 @@ Blocked language:
 
 ## Ladder promotion rules
 
+Evidence promotion is blocked while the artifact status is `REVIEW_REQUIRED`.
+
 A module may promote evidence by one level only when all required conditions are met:
 
 - required upstream modules exist
@@ -208,8 +213,23 @@ A module may promote evidence by one level only when all required conditions are
 - source conflicts are resolved or explicitly blocked
 - ambiguity is retained
 - forbidden claims are listed
-- runtime status is REVIEW_REQUIRED or stronger
+- executable code exists
+- schema validation has passed
+- ACTIVE_MATCH runtime evidence exists when the target level depends on match evidence
+- football output audit exists when the promotion can affect analyst-facing language
 - output contains evidence references
+- status is `ACTIVE_MATCH_EVIDENCE_PASS` or `PRODUCTION_RELEASE`
+
+Blocked promotion statuses:
+
+- DISCOVERY_PASS_PLAN_ONLY
+- SPEC_ONLY
+- SPEC_CORRECTION_ACCEPTED
+- SMOKE_PASS
+- REVIEW_REQUIRED
+- FAIL_CLOSED
+- WAITING_OPERATOR_SELECTION
+- RELEASE_CANDIDATE_NOT_PRODUCTION_BOUND
 
 No module may promote evidence directly from L1_SURFACE_OBSERVATION to L5_DIAGNOSTIC_CANDIDATE.
 
@@ -261,6 +281,9 @@ This contract supports:
 
 ## Required tests
 
+- test_review_required_blocks_evidence_promotion
+- test_smoke_pass_blocks_evidence_promotion
+- test_active_match_evidence_pass_required_for_match_evidence_promotion
 - test_single_signal_cannot_create_mechanism_candidate
 - test_surface_observation_cannot_become_diagnostic_candidate_directly
 - test_diagnostic_candidate_blocks_truth_language
