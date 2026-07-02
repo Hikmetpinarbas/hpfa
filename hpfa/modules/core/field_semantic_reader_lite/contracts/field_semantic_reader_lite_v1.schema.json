@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Field Semantic Reader Lite V1",
+  "type": "object",
+  "required": ["module_id", "status", "surface_inventory", "field_semantic_records"],
+  "properties": {
+    "module_id": {"const": "field_semantic_reader_lite_v1"},
+    "status": {"enum": ["REVIEW_REQUIRED", "BLOCKED"]},
+    "surface_inventory": {
+      "type": "object",
+      "required": ["surface_row_count", "surface_column_count", "canonical_event_count"],
+      "properties": {
+        "surface_row_count": {"type": "integer", "minimum": 0},
+        "surface_column_count": {"type": "integer", "minimum": 0},
+        "canonical_event_count": {"const": "UNKNOWN"}
+      },
+      "additionalProperties": true
+    },
+    "field_semantic_records": {"type": "array"},
+    "row_semantic_nuclei": {"type": "array"},
+    "unmapped_field_candidates": {"type": "array"},
+    "mapping_coverage": {"type": "object"}
+  },
+  "additionalProperties": true
+}
