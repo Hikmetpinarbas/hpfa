@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Module Decision State Registry V1",
+  "type": "object",
+  "required": ["module_id", "decision_state", "reason", "release_status"],
+  "properties": {
+    "module_id": {"type": "string"},
+    "decision_state": {"enum": ["READY", "READY_WITH_WARNINGS", "DESCRIPTIVE_ONLY", "BLOCKED", "REVIEW_REQUIRED"]},
+    "reason": {"type": "string"},
+    "missing_inputs": {"type": "array", "items": {"type": "string"}},
+    "next_allowed_module": {"type": "array", "items": {"type": "string"}},
+    "blocked_downstream_modules": {"type": "array", "items": {"type": "string"}},
+    "release_status": {"type": "string"}
+  },
+  "additionalProperties": true
+}
