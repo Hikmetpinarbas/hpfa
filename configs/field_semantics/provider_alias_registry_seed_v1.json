@@ -1,0 +1,74 @@
+{
+  "registry_id": "provider_alias_registry_seed_v1",
+  "status": "REVIEW_REQUIRED",
+  "runtime_verified": false,
+  "authority_tier": "DONOR_SUPPORT_SEED",
+  "records": [
+    {
+      "provider": "generic_event_surface",
+      "raw_alias": "event_type",
+      "normalized_alias": "event_type",
+      "canonical_key_candidate": "event.action",
+      "mapping_direction": "raw_to_candidate",
+      "reverse_mapping_supported": false,
+      "alias_reliability": "MEDIUM",
+      "vendor_leakage_risk": "LOW",
+      "rule_id": "provider_alias_rule_0001"
+    },
+    {
+      "provider": "generic_event_surface",
+      "raw_alias": "team_id",
+      "normalized_alias": "team_id",
+      "canonical_key_candidate": "event.team",
+      "mapping_direction": "raw_to_candidate",
+      "reverse_mapping_supported": false,
+      "alias_reliability": "MEDIUM",
+      "vendor_leakage_risk": "LOW",
+      "rule_id": "provider_alias_rule_0002"
+    },
+    {
+      "provider": "generic_event_surface",
+      "raw_alias": "player_id",
+      "normalized_alias": "player_id",
+      "canonical_key_candidate": "event.player",
+      "mapping_direction": "raw_to_candidate",
+      "reverse_mapping_supported": false,
+      "alias_reliability": "MEDIUM",
+      "vendor_leakage_risk": "LOW",
+      "rule_id": "provider_alias_rule_0003"
+    },
+    {
+      "provider": "generic_event_surface",
+      "raw_alias": "minute",
+      "normalized_alias": "minute",
+      "canonical_key_candidate": "event.minute",
+      "mapping_direction": "raw_to_candidate",
+      "reverse_mapping_supported": false,
+      "alias_reliability": "MEDIUM",
+      "vendor_leakage_risk": "LOW",
+      "rule_id": "provider_alias_rule_0004"
+    },
+    {
+      "provider": "generic_event_surface",
+      "raw_alias": "x",
+      "normalized_alias": "x",
+      "canonical_key_candidate": "event.start_x",
+      "mapping_direction": "raw_to_candidate",
+      "reverse_mapping_supported": false,
+      "alias_reliability": "LOW",
+      "vendor_leakage_risk": "MEDIUM",
+      "rule_id": "provider_alias_rule_0005"
+    },
+    {
+      "provider": "generic_event_surface",
+      "raw_alias": "y",
+      "normalized_alias": "y",
+      "canonical_key_candidate": "event.start_y",
+      "mapping_direction": "raw_to_candidate",
+      "reverse_mapping_supported": false,
+      "alias_reliability": "LOW",
+      "vendor_leakage_risk": "MEDIUM",
+      "rule_id": "provider_alias_rule_0006"
+    }
+  ]
+}
