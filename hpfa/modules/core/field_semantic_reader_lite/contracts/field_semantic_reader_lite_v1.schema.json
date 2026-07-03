@@ -21,5 +21,18 @@
     "unmapped_field_candidates": {"type": "array"},
     "mapping_coverage": {"type": "object"}
   },
+  "$defs": {
+    "downstream_eligibility_fields": {
+      "type": "object",
+      "properties": {
+        "required_for_modules": {"type": "array", "items": {"type": "string"}},
+        "missingness_status": {"type": "string"},
+        "authority_status": {"type": "string"},
+        "downstream_fail_action": {"type": "string"},
+        "claim_boundary": {"type": "string"},
+        "decision_state_seed": {"type": "string"}
+      }
+    }
+  },
   "additionalProperties": true
 }
