@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Canonical Mapping Report Lite V1",
+  "type": "object",
+  "required": ["module_id", "status", "surface_inventory", "mapping_records"],
+  "properties": {
+    "module_id": {"const": "canonical_mapping_report_lite_v1"},
+    "status": {"enum": ["SMOKE_PASS", "REVIEW_REQUIRED", "FAIL_CLOSED"]},
+    "runtime_verified": {"type": "boolean"},
+    "surface_inventory": {
+      "type": "object",
+      "required": ["surface_field_count", "canonical_event_count"],
+      "properties": {
+        "surface_field_count": {"type": "integer", "minimum": 0},
+        "canonical_event_count": {"const": "UNKNOWN"}
+      },
+      "additionalProperties": true
+    },
+    "mapping_records": {"type": "array"},
+    "mapped_field_count": {"type": "integer", "minimum": 0},
+    "unmapped_preserved_count": {"type": "integer", "minimum": 0},
+    "missing_required_fields": {"type": "array"},
+    "preserved_unmapped_fields": {"type": "array"},
+    "claim_boundary": {"type": "string"}
+  },
+  "additionalProperties": true
+}
