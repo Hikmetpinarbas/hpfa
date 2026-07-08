@@ -137,10 +137,54 @@ def _available_feature_ids(feature_registry: dict[str, Any]) -> set[str]:
     }
 
 
+def _upstream_governance_gaps(upstream: dict[str, Any]) -> list[dict[str, Any]]:
+    gaps: list[dict[str, Any]] = []
+    upstream_status = str(upstream.get("status", "")).strip()
+    if upstream_status == "FAIL_CLOSED":
+        gaps.append({"metric_id": None, "gap_type": "upstream_feature_registry_fail_closed", "severity": "FAIL_CLOSED"})
+    elif upstream_status == "REVIEW_REQUIRED":
+        gaps.append({"metric_id": None, "gap_type": "upstream_feature_registry_review_required", "severity": "BLOCKED"})
+    elif upstream_status and upstream_status != "SMOKE_PASS":
+        gaps.append(
+            {
+                "metric_id": None,
+                "gap_type": "upstream_feature_registry_status_not_smoke_pass",
+                "upstream_status": upstream_status,
+                "severity": "BLOCKED",
+            }
+        )
+
+    for upstream_gap in _as_list(upstream.get("registry_gaps")):
+        if not isinstance(upstream_gap, dict):
+            continue
+        severity = str(upstream_gap.get("severity", "BLOCKED")).strip() or "BLOCKED"
+        gaps.append(
+            {
+                "metric_id": None,
+                "gap_type": "upstream_feature_registry_gap",
+                "upstream_gap_type": upstream_gap.get("gap_type"),
+                "severity": "FAIL_CLOSED" if severity == "FAIL_CLOSED" else "BLOCKED",
+            }
+        )
+
+    upstream_checks = {
+        "feature_value_output_allowed": "upstream_feature_value_output_requested",
+        "metric_value_output_allowed": "upstream_metric_value_output_requested",
+        "claim_output_allowed": "upstream_claim_output_requested",
+    }
+    for field, gap_type in upstream_checks.items():
+        if upstream.get(field) is True:
+            gaps.append({"metric_id": None, "gap_type": gap_type, "severity": "FAIL_CLOSED"})
+    if upstream.get("canonical_event_count") not in {None, "UNKNOWN"}:
+        gaps.append({"metric_id": None, "gap_type": "upstream_canonical_event_count_claimed", "severity": "FAIL_CLOSED"})
+    return gaps
+
+
 def validate_metric_candidate(
     record: dict[str, Any],
     seen: set[str],
     available_features: set[str],
+    upstream_dependency_blocked: bool = False,
 ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     gaps: list[dict[str, Any]] = []
     metric_id = str(record.get("metric_id", "")).strip()
@@ -160,7 +204,9 @@ def validate_metric_candidate(
         gaps.append({"metric_id": metric_id, "gap_type": "metric_family_missing", "severity": "BLOCKED"})
     elif metric_family not in ALLOWED_METRIC_FAMILIES:
         gaps.append({"metric_id": metric_id, "gap_type": "unsupported_metric_family", "metric_family": metric_family, "severity": "BLOCKED"})
-    if missing_features:
+    if not required_features:
+        gaps.append({"metric_id": metric_id, "gap_type": "required_feature_primitive_missing", "missing_feature_primitives": [], "severity": "BLOCKED"})
+    elif missing_features:
         gaps.append({"metric_id": metric_id, "gap_type": "required_feature_primitive_missing", "missing_feature_primitives": missing_features, "severity": "BLOCKED"})
     if not record.get("claim_ceiling"):
         gaps.append({"metric_id": metric_id, "gap_type": "claim_ceiling_missing", "severity": "BLOCKED"})
@@ -174,6 +220,8 @@ def validate_metric_candidate(
         gaps.append({"metric_id": metric_id, "gap_type": "canonical_event_count_claimed", "severity": "FAIL_CLOSED"})
 
     readiness = "BLOCKED" if gaps else "READY_FOR_METRIC_BUILDER_CONTRACT"
+    if readiness == "READY_FOR_METRIC_BUILDER_CONTRACT" and upstream_dependency_blocked:
+        readiness = "BLOCKED_UPSTREAM_FEATURE_REGISTRY"
     normalized = {
         "metric_id": metric_id,
         "metric_family": metric_family or "UNKNOWN_METRIC_FAMILY",
@@ -223,19 +271,17 @@ def build_metric_candidate_governance(
     candidates: list[dict[str, Any]] = []
     governance_gaps: list[dict[str, Any]] = []
 
-    upstream_checks = {
-        "feature_value_output_allowed": "upstream_feature_value_output_requested",
-        "metric_value_output_allowed": "upstream_metric_value_output_requested",
-        "claim_output_allowed": "upstream_claim_output_requested",
-    }
-    for field, gap_type in upstream_checks.items():
-        if upstream.get(field) is True:
-            governance_gaps.append({"metric_id": None, "gap_type": gap_type, "severity": "FAIL_CLOSED"})
-    if upstream.get("canonical_event_count") not in {None, "UNKNOWN"}:
-        governance_gaps.append({"metric_id": None, "gap_type": "upstream_canonical_event_count_claimed", "severity": "FAIL_CLOSED"})
+    upstream_gaps = _upstream_governance_gaps(upstream)
+    governance_gaps.extend(upstream_gaps)
+    upstream_dependency_blocked = bool(upstream_gaps)
 
     for item in source_records:
-        normalized, gaps = validate_metric_candidate(dict(item), seen, available_features)
+        normalized, gaps = validate_metric_candidate(
+            dict(item),
+            seen,
+            available_features,
+            upstream_dependency_blocked=upstream_dependency_blocked,
+        )
         governance_gaps.extend(gaps)
         if normalized is not None:
             candidates.append(normalized)
@@ -262,6 +308,7 @@ def build_metric_candidate_governance(
         "claim_boundary": CLAIM_BOUNDARY,
         "upstream_module_id": upstream.get("module_id"),
         "upstream_claim_safety": upstream.get("claim_safety"),
+        "upstream_status": upstream.get("status"),
         "upstream_feature_registry_record_count": len(available_features),
         "hard_blocks": [
             "metric_id_missing",
@@ -273,6 +320,9 @@ def build_metric_candidate_governance(
             "metric_value_output_requested",
             "claim_output_requested",
             "canonical_event_count_claimed",
+            "upstream_feature_registry_fail_closed",
+            "upstream_feature_registry_review_required",
+            "upstream_feature_registry_gap",
         ],
     }
 
