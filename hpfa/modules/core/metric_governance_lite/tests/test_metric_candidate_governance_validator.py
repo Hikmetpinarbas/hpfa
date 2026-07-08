@@ -14,7 +14,7 @@ from metric_candidate_governance_validator import (  # noqa: E402
 )
 
 
-def _feature_registry(feature_ids=None):
+def _feature_registry(feature_ids=None, status="SMOKE_PASS", registry_gaps=None):
     ids = feature_ids or [
         "action_family_count",
         "zone_entry_count",
@@ -31,8 +31,9 @@ def _feature_registry(feature_ids=None):
     return {
         "module_id": "feature_primitive_registry_loader_lite_v1",
         "claim_safety": "FEATURE_PRIMITIVE_REGISTRY_ONLY",
-        "status": "SMOKE_PASS",
+        "status": status,
         "registry_records": [{"feature_id": feature_id} for feature_id in ids],
+        "registry_gaps": registry_gaps or [],
         "feature_value_output_allowed": False,
         "metric_value_output_allowed": False,
         "claim_output_allowed": False,
@@ -60,6 +61,38 @@ def test_missing_feature_primitive_blocks_candidate():
     report = build_metric_candidate_governance(feature_registry_report=_feature_registry(feature_ids=["action_family_count"]))
     assert report["status"] == "REVIEW_REQUIRED"
     assert any(gap["gap_type"] == "required_feature_primitive_missing" for gap in report["governance_gaps"])
+
+
+def test_missing_required_feature_primitive_dependency_blocks_candidate():
+    bad = [dict(INITIAL_METRIC_CANDIDATES[0])]
+    bad[0].pop("requires_feature_primitives")
+    report = build_metric_candidate_governance(feature_registry_report=_feature_registry(), records=bad)
+    assert report["status"] == "REVIEW_REQUIRED"
+    assert report["metric_candidates"][0]["readiness"] == "BLOCKED"
+    assert any(gap["gap_type"] == "required_feature_primitive_missing" for gap in report["governance_gaps"])
+
+
+def test_failed_upstream_registry_fail_closes_governance():
+    upstream = _feature_registry(
+        status="FAIL_CLOSED",
+        registry_gaps=[{"feature_id": "action_family_count", "gap_type": "DUPLICATE_FEATURE_ID", "severity": "FAIL_CLOSED"}],
+    )
+    report = build_metric_candidate_governance(feature_registry_report=upstream)
+    assert report["status"] == "FAIL_CLOSED"
+    assert report["readiness_counts"] == {"BLOCKED_UPSTREAM_FEATURE_REGISTRY": 11}
+    assert any(gap["gap_type"] == "upstream_feature_registry_fail_closed" for gap in report["governance_gaps"])
+    assert any(gap["gap_type"] == "upstream_feature_registry_gap" for gap in report["governance_gaps"])
+
+
+def test_review_required_upstream_registry_blocks_governance():
+    upstream = _feature_registry(
+        status="REVIEW_REQUIRED",
+        registry_gaps=[{"feature_id": "action_family_count", "gap_type": "MISSING_REQUIRED_REGISTRY_FIELDS", "severity": "BLOCKED"}],
+    )
+    report = build_metric_candidate_governance(feature_registry_report=upstream)
+    assert report["status"] == "REVIEW_REQUIRED"
+    assert report["readiness_counts"] == {"BLOCKED_UPSTREAM_FEATURE_REGISTRY": 11}
+    assert any(gap["gap_type"] == "upstream_feature_registry_review_required" for gap in report["governance_gaps"])
 
 
 def test_duplicate_metric_id_fail_closed():
