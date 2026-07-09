@@ -49,6 +49,27 @@ def explicit_contradiction_fusion():
     return fusion
 
 
+def whole_to_unit_fusion():
+    fusion = base_fusion()
+    fusion["analysis_route"] = "whole_to_unit"
+    fusion["whole_refs"] = ["team_context_window_001"]
+    return fusion
+
+
+def unit_to_whole_fusion():
+    fusion = standalone_fusion()
+    fusion["analysis_route"] = "unit_to_whole"
+    fusion["unit_refs"] = ["single_action_ref"]
+    return fusion
+
+
+def bidirectional_fusion():
+    fusion = base_fusion()
+    fusion["unit_refs"] = ["final_third_entry", "low_shot_volume"]
+    fusion["whole_refs"] = ["window_001", "right_channel_context"]
+    return fusion
+
+
 def test_argument_requires_fusion_id():
     fusion = base_fusion()
     fusion.pop("fusion_id")
@@ -97,6 +118,33 @@ def test_sequence_candidate_scope_detected():
     assert argument["sequence_truth"] is False
     assert argument["organism_truth"] is False
     assert "precedent_successor_link_requires_sequence_validation" in argument["counter_scenarios"]
+
+
+def test_bidirectional_route_detected_from_unit_and_whole_refs():
+    argument = build_argument_candidate(bidirectional_fusion())
+    assert argument["analysis_route"] == "bidirectional"
+    assert argument["whole_to_unit"] is True
+    assert argument["unit_to_whole"] is True
+    assert argument["bidirectional"] is True
+    assert "bidirectional_alignment_requires_both_routes_to_remain_present" in argument["counter_scenarios"]
+
+
+def test_whole_to_unit_route_detected():
+    argument = build_argument_candidate(whole_to_unit_fusion())
+    assert argument["analysis_route"] == "whole_to_unit"
+    assert argument["whole_to_unit"] is True
+    assert argument["unit_to_whole"] is False
+    assert argument["bidirectional"] is False
+    assert "whole_surface_may_not_explain_individual_action" in argument["counter_scenarios"]
+
+
+def test_unit_to_whole_route_detected():
+    argument = build_argument_candidate(unit_to_whole_fusion())
+    assert argument["analysis_route"] == "unit_to_whole"
+    assert argument["unit_to_whole"] is True
+    assert argument["whole_to_unit"] is False
+    assert argument["bidirectional"] is False
+    assert "unit_surface_may_not_scale_to_whole_pattern" in argument["counter_scenarios"]
 
 
 def test_sequence_argument_requires_sequence_scope():
