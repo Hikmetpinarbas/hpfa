@@ -82,6 +82,14 @@ def test_no_tactical_truth():
     assert "control_truth" in packet["blocked_language_families"]
 
 
+def test_no_dominance_control_language():
+    packet = build_composite_packet(base_candidate())
+    assert packet["dominance_truth"] is False
+    assert packet["control_truth"] is False
+    assert "dominance_truth" in packet["blocked_language_families"]
+    assert "control_truth" in packet["blocked_language_families"]
+
+
 def test_forbidden_output_attempt_blocks_packet():
     candidate = base_candidate()
     candidate["claim_text"] = "unsafe claim attempt"
