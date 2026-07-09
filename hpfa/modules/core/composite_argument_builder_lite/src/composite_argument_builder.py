@@ -28,6 +28,12 @@ ALLOWED_ARGUMENT_FAMILIES = {
     "rhythm_shift_candidate_from_event_density",
 }
 
+RELATION_SCOPE_TYPES = {
+    "standalone_observation",
+    "context_bound_relation",
+    "sequence_candidate",
+}
+
 FORBIDDEN_UPSTREAM_FIELDS = {
     "claim_text",
     "safe_sentence",
@@ -39,6 +45,8 @@ FORBIDDEN_UPSTREAM_FIELDS = {
     "off_ball_truth",
     "pitch_control_truth",
     "causal_truth",
+    "sequence_truth",
+    "organism_truth",
 }
 
 BLOCKED_LANGUAGE_FAMILIES = [
@@ -50,6 +58,8 @@ BLOCKED_LANGUAGE_FAMILIES = [
     "pitch_control_truth",
     "causal_truth",
     "quality_truth",
+    "sequence_truth",
+    "organism_truth",
 ]
 
 DEFAULT_COUNTER_SCENARIOS = {
@@ -67,7 +77,7 @@ DEFAULT_COUNTER_SCENARIOS = {
         "sequence_window_may_be_too_short",
     ],
     "corridor_bias_with_terminal_limit": [
-        "corridor_access_may_be opponent_concession_not_plan_truth",
+        "corridor_access_may_be_opponent_concession_not_plan_truth",
         "terminal_options_may_be_blocked_at_action_moment",
     ],
 }
@@ -125,13 +135,55 @@ def _forbidden_hits(fusion: dict[str, Any]) -> list[str]:
     return sorted(hits)
 
 
+def _relation_records(fusion: dict[str, Any]) -> list[dict[str, Any]]:
+    return [record for record in _as_list(fusion.get("relation_records")) if isinstance(record, dict)]
+
+
 def _relations_by_type(fusion: dict[str, Any], relation_type: str) -> list[str]:
     refs: list[str] = []
-    for record in _as_list(fusion.get("relation_records")):
-        if isinstance(record, dict) and str(record.get("relation_type") or "").upper() == relation_type:
+    for record in _relation_records(fusion):
+        if str(record.get("relation_type") or "").upper() == relation_type:
             if record.get("signal_ref") not in [None, ""]:
                 refs.append(str(record["signal_ref"]))
     return refs
+
+
+def _has_sequence_marker(fusion: dict[str, Any]) -> bool:
+    if fusion.get("sequence_candidate") is True:
+        return True
+    if fusion.get("sequence_window_id") not in [None, "", []]:
+        return True
+    if fusion.get("sequence_refs") not in [None, "", []]:
+        return True
+    for record in _relation_records(fusion):
+        role = str(record.get("evidence_role") or "").lower()
+        ref = str(record.get("signal_ref") or "").lower()
+        if "sequence" in role or "sequence" in ref:
+            return True
+        if record.get("sequence_candidate") is True:
+            return True
+    return False
+
+
+def _has_context_marker(fusion: dict[str, Any]) -> bool:
+    if fusion.get("context_window") not in [None, "", []]:
+        return True
+    if fusion.get("context_refs") not in [None, "", []]:
+        return True
+    if _relations_by_type(fusion, "CONTEXTUALIZES"):
+        return True
+    return False
+
+
+def _relation_scope(fusion: dict[str, Any]) -> str:
+    explicit_scope = str(fusion.get("relation_scope") or "")
+    if explicit_scope in RELATION_SCOPE_TYPES:
+        return explicit_scope
+    if _has_sequence_marker(fusion):
+        return "sequence_candidate"
+    if _has_context_marker(fusion):
+        return "context_bound_relation"
+    return "standalone_observation"
 
 
 def _default_argument_family(fusion: dict[str, Any]) -> str:
@@ -193,7 +245,17 @@ def build_argument_candidate(fusion: dict[str, Any], idx: int = 0) -> dict[str, 
     complement_refs = _relations_by_type(normalized, "COMPLEMENTS")
     context_refs = _relations_by_type(normalized, "CONTEXTUALIZES")
 
+    relation_scope = _relation_scope(normalized)
+    sequence_candidate = relation_scope == "sequence_candidate"
+    standalone_observation = relation_scope == "standalone_observation"
+    context_bound_relation = relation_scope == "context_bound_relation"
+
     argument_family = _default_argument_family(normalized)
+    if argument_family in {"recovery_to_progression_chain", "direct_play_isolation_candidate", "late_terminal_pressure_candidate"} and not sequence_candidate:
+        hard_block_hits.append("sequence_argument_requires_sequence_scope")
+    if argument_family == "rhythm_shift_candidate_from_event_density" and relation_scope == "standalone_observation":
+        hard_block_hits.append("rhythm_argument_requires_context_or_sequence_scope")
+
     counter_scenarios = list(normalized.get("counter_scenarios") or DEFAULT_COUNTER_SCENARIOS.get(argument_family) or [
         "alternative_explanation_may_account_for_observed_relation",
         "sample_window_or_surface_coverage_may_limit_argument",
@@ -202,6 +264,15 @@ def build_argument_candidate(fusion: dict[str, Any], idx: int = 0) -> dict[str, 
         "supporting_relation_disappears_in_same_context",
         "explicit_contradiction_becomes_stronger_than_support",
     ])
+
+    if standalone_observation:
+        counter_scenarios.append("observation_may_be_munferit_not_chain_evidence")
+        withdrawal_conditions.append("no_context_or_sequence_marker_available")
+    if context_bound_relation:
+        counter_scenarios.append("context_may_explain_relation_without_sequence_dependency")
+    if sequence_candidate:
+        counter_scenarios.append("precedent_successor_link_requires_sequence_validation")
+        withdrawal_conditions.append("sequence_marker_removed_or_window_not_repeated")
 
     if not counter_scenarios:
         hard_block_hits.append("counter_scenario_required")
@@ -215,6 +286,12 @@ def build_argument_candidate(fusion: dict[str, Any], idx: int = 0) -> dict[str, 
         "argument_id": f"arg_{fusion_id}",
         "fusion_id": fusion_id,
         "argument_family": argument_family,
+        "relation_scope": relation_scope,
+        "standalone_observation": standalone_observation,
+        "context_bound_relation": context_bound_relation,
+        "sequence_candidate": sequence_candidate,
+        "sequence_truth": False,
+        "organism_truth": False,
         "supporting_refs": support_refs,
         "qualifying_refs": qualifier_refs,
         "contradicting_refs": contradiction_refs,
@@ -280,8 +357,8 @@ def write_outputs(fusions: list[dict[str, Any]], out_dir: str | Path) -> dict[st
     ]
     for argument in report["arguments"][:50]:
         lines.append(
-            f"- {argument['argument_id']} family={argument['argument_family']} status={argument['status']} "
-            f"decision={argument['decision']} support={len(argument['supporting_refs'])} "
+            f"- {argument['argument_id']} family={argument['argument_family']} scope={argument['relation_scope']} "
+            f"status={argument['status']} decision={argument['decision']} support={len(argument['supporting_refs'])} "
             f"qualifies={len(argument['qualifying_refs'])} contradicts={len(argument['contradicting_refs'])}"
         )
     (out / OUTPUT_TXT).write_text("\n".join(lines) + "\n", encoding="utf-8")
