@@ -45,6 +45,7 @@ FORBIDDEN_UPSTREAM_FIELDS = {
     "off_ball_truth",
     "pitch_control_truth",
     "causal_truth",
+    "quality_truth",
     "sequence_truth",
     "organism_truth",
 }
@@ -203,6 +204,18 @@ def _default_argument_family(fusion: dict[str, Any]) -> str:
     return "progression_without_terminal_value"
 
 
+def _upstream_fusion_failed(fusion: dict[str, Any]) -> bool:
+    if _as_list(fusion.get("hard_block_hits")):
+        return True
+    if str(fusion.get("decision") or "").upper().startswith("BLOCK"):
+        return True
+    if str(fusion.get("fusion_status") or "").upper() == "BLOCKED":
+        return True
+    if str(fusion.get("status") or "").upper() in {"FAIL_CLOSED", "BLOCKED"}:
+        return True
+    return False
+
+
 def _status_and_decision(hard_block_hits: list[str], support_refs: list[str], qualifier_refs: list[str], contradiction_refs: list[str]) -> tuple[str, str]:
     if hard_block_hits:
         return "BLOCKED", "BLOCK_ARGUMENT"
@@ -232,6 +245,8 @@ def build_argument_candidate(fusion: dict[str, Any], idx: int = 0) -> dict[str, 
     hard_block_hits: list[str] = []
     if missing_fields:
         hard_block_hits.append("fusion_required_fields_missing")
+    if _upstream_fusion_failed(normalized):
+        hard_block_hits.append("upstream_fusion_failed_closed")
     if forbidden_hits:
         hard_block_hits.append("upstream_fusion_forbidden_output_attempted")
     if normalized.get("claim_output_allowed") not in [False, None]:
@@ -316,6 +331,7 @@ def build_argument_candidate(fusion: dict[str, Any], idx: int = 0) -> dict[str, 
         "off_ball_truth": False,
         "pitch_control_truth": False,
         "causal_truth": False,
+        "quality_truth": False,
         "blocked_language_families": list(BLOCKED_LANGUAGE_FAMILIES),
         "canonical_event_count": "UNKNOWN",
     }
