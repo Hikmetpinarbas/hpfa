@@ -15,6 +15,8 @@ MISSING_SAFE_SENTENCE_ID = "MISSING_SAFE_SENTENCE_ID"
 
 FORBIDDEN_UPSTREAM_FIELDS = {
     "claim_text",
+    "report_text",
+    "report_language",
     "final_report_text",
     "production_report",
     "tactical_truth",
@@ -111,7 +113,7 @@ def _forbidden_text_hits(text: str) -> list[str]:
 
 
 def _sentence_text(item: dict[str, Any]) -> str:
-    return str(item.get("safe_sentence_candidate_tr") or item.get("sentence_candidate_tr") or "")
+    return str(item.get("safe_sentence_candidate_tr") or "")
 
 
 def compose_report_block(item: dict[str, Any], idx: int = 0) -> dict[str, Any]:
@@ -121,7 +123,7 @@ def compose_report_block(item: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     if not safe_sentence_id:
         missing_fields.append("safe_sentence_id")
         safe_sentence_id = MISSING_SAFE_SENTENCE_ID
-    if "safe_sentence_candidate_tr" not in normalized:
+    if "safe_sentence_candidate_tr" not in normalized or normalized.get("safe_sentence_candidate_tr") in [None, ""]:
         missing_fields.append("safe_sentence_candidate_tr")
     if normalized.get("claim_ceiling") != UPSTREAM_CLAIM_CEILING:
         missing_fields.append("claim_ceiling")
