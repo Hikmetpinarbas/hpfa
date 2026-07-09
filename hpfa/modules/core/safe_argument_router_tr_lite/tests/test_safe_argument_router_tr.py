@@ -65,10 +65,16 @@ def test_router_creates_safe_turkish_sentence_candidate():
     assert item["status"] == "SMOKE_PASS"
     assert item["decision"] == "READY_FOR_REPORT_COMPOSER_CANDIDATE"
     assert item["sentence_language"] == "tr"
-    assert "Görünür kanıt grafiği" in item["sentence_candidate_tr"]
-    assert "right_channel_access" in item["sentence_candidate_tr"]
-    assert "low_shot_volume" in item["sentence_candidate_tr"]
-    assert "geri çekilebileceğini" in item["sentence_candidate_tr"]
+    assert "Görünür kanıt grafiği" in item["safe_sentence_candidate_tr"]
+    assert "right_channel_access" in item["safe_sentence_candidate_tr"]
+    assert "low_shot_volume" in item["safe_sentence_candidate_tr"]
+    assert "geri çekilebileceğini" in item["safe_sentence_candidate_tr"]
+
+
+def test_router_emits_standard_safe_sentence_candidate_key():
+    item = route_safe_sentence(base_graph())
+    assert item["safe_sentence_candidate_tr"]
+    assert item["sentence_candidate_tr"] == item["safe_sentence_candidate_tr"]
 
 
 def test_router_blocks_failed_upstream_graph():
@@ -78,7 +84,7 @@ def test_router_blocks_failed_upstream_graph():
     item = route_safe_sentence(graph)
     assert item["decision"] == "BLOCK_SAFE_SENTENCE"
     assert "upstream_graph_failed_closed" in item["hard_block_hits"]
-    assert item["sentence_candidate_tr"] == ""
+    assert item["safe_sentence_candidate_tr"] == ""
 
 
 def test_router_blocks_upstream_truth_output():
@@ -88,6 +94,16 @@ def test_router_blocks_upstream_truth_output():
     assert item["decision"] == "BLOCK_SAFE_SENTENCE"
     assert "upstream_graph_forbidden_output_attempted" in item["hard_block_hits"]
     assert "coach_intention_truth" in item["forbidden_upstream_hits"]
+
+
+def test_router_blocks_nested_payload_forbidden_output():
+    graph = base_graph()
+    graph["nodes"].append(node("unsafe_payload", "support_ref", {"ref": "unsafe_ref", "claim_text": "unsafe claim"}))
+    item = route_safe_sentence(graph)
+    assert item["decision"] == "BLOCK_SAFE_SENTENCE"
+    assert "upstream_graph_forbidden_output_attempted" in item["hard_block_hits"]
+    assert "nodes[unsafe_payload].payload.claim_text" in item["forbidden_upstream_hits"]
+    assert item["safe_sentence_candidate_tr"] == ""
 
 
 def test_router_does_not_emit_claim_text_or_report_language():
@@ -117,7 +133,7 @@ def test_router_blocks_truth_language_families():
 def test_sentence_avoids_forbidden_claim_fragments():
     item = route_safe_sentence(base_graph())
     assert item["forbidden_sentence_hits"] == []
-    lowered = item["sentence_candidate_tr"].lower()
+    lowered = item["safe_sentence_candidate_tr"].lower()
     for fragment in ["domine etti", "hoca planladı", "bilinçli olarak", "kanıtlıyor", "nedeni budur"]:
         assert fragment not in lowered
 
@@ -139,6 +155,7 @@ def test_build_report_and_write_outputs(tmp_path):
     assert (tmp_path / "safe_argument_router_tr_lite_v1.txt").exists()
     loaded = json.loads((tmp_path / "safe_argument_router_tr_lite_v1.json").read_text(encoding="utf-8"))
     assert loaded["safe_sentence_count"] == 1
+    assert loaded["safe_sentences"][0]["safe_sentence_candidate_tr"]
 
 
 def test_no_sample_match_identity_leak():
