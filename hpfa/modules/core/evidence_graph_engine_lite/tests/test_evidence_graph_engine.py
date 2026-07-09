@@ -106,6 +106,15 @@ def test_forbidden_upstream_argument_output_blocks_graph():
     assert "safe_sentence" in graph["forbidden_output_hits"]
 
 
+def test_coach_intention_truth_upstream_argument_blocks_graph():
+    argument = base_argument()
+    argument["coach_intention_truth"] = True
+    graph = build_evidence_graph(argument)
+    assert graph["decision"] == "BLOCK_GRAPH"
+    assert "upstream_argument_forbidden_output_attempted" in graph["hard_block_hits"]
+    assert "coach_intention_truth" in graph["forbidden_output_hits"]
+
+
 def test_graph_does_not_emit_claim_or_sentence():
     graph = build_evidence_graph(base_argument())
     assert "claim_text" not in graph
