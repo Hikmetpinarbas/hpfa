@@ -19,6 +19,7 @@ supporting refs
 qualifying refs
 contradicting refs
 context refs
+relation scope
 counter scenarios
 withdrawal conditions
 claim ceiling
@@ -30,8 +31,31 @@ Example product reading:
 right_channel_access SUPPORTS
 low_shot_volume QUALIFIES
 window_001 CONTEXTUALIZES
+→ context_bound_relation
 → progression_without_terminal_value argument candidate
 ```
+
+## Event relation scope rule
+
+A football event may be an isolated observation, a context-bound relation, or part of a sequence candidate. It must not be treated as a chain member by default.
+
+The module therefore emits one of:
+
+```text
+standalone_observation
+context_bound_relation
+sequence_candidate
+```
+
+Meaning:
+
+```text
+standalone_observation = event/feature can be read individually; no context or sequence marker is present
+context_bound_relation = event/feature is linked to a context/window but not promoted to sequence truth
+sequence_candidate = event/feature has sequence marker support; still not sequence truth
+```
+
+No sequence truth or organism truth is produced.
 
 ## Runtime authority
 
@@ -66,6 +90,10 @@ rhythm_shift_candidate_from_event_density
 
 ```text
 argument candidate
+relation scope
+standalone observation flag
+context-bound relation flag
+sequence candidate flag
 support ref list
 qualifier ref list
 contradiction ref list
@@ -88,6 +116,8 @@ off-ball truth
 pitch-control truth
 causal truth
 quality truth
+sequence truth
+organism truth
 canonical event count claim
 ```
 
@@ -105,22 +135,33 @@ BLOCK_ARGUMENT
 
 ```text
 fusion_required_fields_missing
+upstream_fusion_failed_closed
 upstream_fusion_forbidden_output_attempted
 upstream_fusion_claim_output_allowed
 upstream_fusion_report_language_allowed
+sequence_argument_requires_sequence_scope
+rhythm_argument_requires_context_or_sequence_scope
 counter_scenario_required
 withdrawal_condition_required
 ```
+
+## Upstream failure rule
+
+If the upstream fusion record carries hard blocks, `decision=BLOCK_FUSION`, `fusion_status=BLOCKED`, or `status=FAIL_CLOSED`, the argument builder must fail closed. A failed fusion must never be promoted into an argument candidate.
 
 ## Test requirements
 
 ```text
 test_argument_requires_fusion_id
 test_argument_requires_relation_records
-test_argument_uses_predefined_family
+test_context_bound_relation_scope_detected
+test_standalone_observation_scope_detected
+test_sequence_candidate_scope_detected
+test_sequence_argument_requires_sequence_scope
 test_argument_preserves_support_qualifier_context_refs
 test_argument_preserves_explicit_contradiction_refs
-test_argument_requires_counter_scenario_and_withdrawal_condition
+test_failed_upstream_fusion_blocks_argument
+test_quality_truth_upstream_output_blocks_argument
 test_forbidden_upstream_output_blocks_argument
 test_argument_does_not_emit_claim_or_sentence
 test_argument_blocks_truth_language_families
