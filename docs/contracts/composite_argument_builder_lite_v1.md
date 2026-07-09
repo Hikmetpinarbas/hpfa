@@ -12,18 +12,7 @@ It does not create claim text, safe sentences or analyst report prose.
 
 ## Football value
 
-The analyst can now see a candidate argument object with:
-
-```text
-supporting refs
-qualifying refs
-contradicting refs
-context refs
-relation scope
-counter scenarios
-withdrawal conditions
-claim ceiling
-```
+The analyst can now see a candidate argument object with supporting refs, qualifying refs, contradicting refs, context refs, relation scope, analysis route, counter scenarios, withdrawal conditions and claim ceiling.
 
 Example product reading:
 
@@ -31,15 +20,16 @@ Example product reading:
 right_channel_access SUPPORTS
 low_shot_volume QUALIFIES
 window_001 CONTEXTUALIZES
-→ context_bound_relation
-→ progression_without_terminal_value argument candidate
+-> context_bound_relation
+-> bidirectional
+-> progression_without_terminal_value argument candidate
 ```
 
 ## Event relation scope rule
 
 A football event may be an isolated observation, a context-bound relation, or part of a sequence candidate. It must not be treated as a chain member by default.
 
-The module therefore emits one of:
+The module emits one of:
 
 ```text
 standalone_observation
@@ -47,15 +37,28 @@ context_bound_relation
 sequence_candidate
 ```
 
+No sequence truth or organism truth is produced.
+
+## Bidirectional analysis route rule
+
+The module also emits one of:
+
+```text
+unit_to_whole
+whole_to_unit
+bidirectional
+undetermined
+```
+
 Meaning:
 
 ```text
-standalone_observation = event/feature can be read individually; no context or sequence marker is present
-context_bound_relation = event/feature is linked to a context/window but not promoted to sequence truth
-sequence_candidate = event/feature has sequence marker support; still not sequence truth
+whole_to_unit = whole/context/team/phase/window surface helps read the unit action
+unit_to_whole = unit/action/event/feature surface helps form a whole/context candidate
+bidirectional = both routes are present in the same argument candidate
 ```
 
-No sequence truth or organism truth is produced.
+`bidirectional` is candidate-only. It does not create tactical truth, causal truth, sequence truth or organism truth.
 
 ## Runtime authority
 
@@ -91,6 +94,10 @@ rhythm_shift_candidate_from_event_density
 ```text
 argument candidate
 relation scope
+analysis route
+whole-to-unit flag
+unit-to-whole flag
+bidirectional flag
 standalone observation flag
 context-bound relation flag
 sequence candidate flag
@@ -141,6 +148,7 @@ upstream_fusion_claim_output_allowed
 upstream_fusion_report_language_allowed
 sequence_argument_requires_sequence_scope
 rhythm_argument_requires_context_or_sequence_scope
+analysis_route_undetermined
 counter_scenario_required
 withdrawal_condition_required
 ```
@@ -157,6 +165,9 @@ test_argument_requires_relation_records
 test_context_bound_relation_scope_detected
 test_standalone_observation_scope_detected
 test_sequence_candidate_scope_detected
+test_bidirectional_route_detected_from_unit_and_whole_refs
+test_whole_to_unit_route_detected
+test_unit_to_whole_route_detected
 test_sequence_argument_requires_sequence_scope
 test_argument_preserves_support_qualifier_context_refs
 test_argument_preserves_explicit_contradiction_refs
