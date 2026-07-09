@@ -16,6 +16,7 @@ FUSION_CLAIM_CEILING = "fusion_relation_candidate_only"
 RELATION_TYPES = {
     "SUPPORTS",
     "CONTRADICTS",
+    "QUALIFIES",
     "COMPLEMENTS",
     "CONTEXTUALIZES",
     "ABSTAINS",
@@ -69,8 +70,22 @@ def _packet_id(packet: dict[str, Any], idx: int) -> str:
     return str(packet.get("packet_id") or f"packet_{idx:03d}")
 
 
+def _ref_from_item(item: Any, fallback_prefix: str, idx: int) -> str:
+    if isinstance(item, dict):
+        for key in ["signal_ref", "signal_id", "ref_id", "id", "feature_id", "window_id", "metric_id", "sequence_id"]:
+            if item.get(key) not in [None, ""]:
+                return str(item[key])
+    if item not in [None, ""]:
+        return str(item)
+    return f"{fallback_prefix}_{idx}"
+
+
+def _items(packet: dict[str, Any], key: str) -> list[Any]:
+    return [item for item in _as_list(packet.get(key)) if item not in [None, ""]]
+
+
 def _refs(packet: dict[str, Any], key: str) -> list[str]:
-    return [str(item) for item in _as_list(packet.get(key)) if item not in [None, ""]]
+    return [_ref_from_item(item, key, idx) for idx, item in enumerate(_items(packet, key))]
 
 
 def _forbidden_packet_hits(packet: dict[str, Any]) -> list[str]:
@@ -95,54 +110,51 @@ def _required_packet_missing(packet: dict[str, Any]) -> list[str]:
     return [key for key in required if key not in packet]
 
 
+def _is_explicit_contradiction(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return False
+    relation_type = str(item.get("relation_type") or "").upper()
+    if relation_type == "CONTRADICTS":
+        return True
+    if item.get("explicit_contradiction") is True:
+        return True
+    if item.get("contradiction_basis") not in [None, "", []]:
+        return True
+    return False
+
+
+def _record(packet_id: str, signal_ref: str, relation_type: str, evidence_role: str) -> dict[str, Any]:
+    return {
+        "packet_id": packet_id,
+        "signal_ref": signal_ref,
+        "relation_type": relation_type,
+        "evidence_role": evidence_role,
+        "claim_ceiling": FUSION_CLAIM_CEILING,
+    }
+
+
 def _signal_relation_records(packet: dict[str, Any]) -> list[dict[str, Any]]:
     packet_id = str(packet["packet_id"])
     records: list[dict[str, Any]] = []
 
-    for signal in _refs(packet, "supporting_signals"):
-        records.append({
-            "packet_id": packet_id,
-            "signal_ref": signal,
-            "relation_type": "SUPPORTS",
-            "evidence_role": "supporting_signal",
-            "claim_ceiling": FUSION_CLAIM_CEILING,
-        })
+    for idx, signal in enumerate(_items(packet, "supporting_signals")):
+        records.append(_record(packet_id, _ref_from_item(signal, "supporting_signals", idx), "SUPPORTS", "supporting_signal"))
 
-    for signal in _refs(packet, "contradicting_signals"):
-        records.append({
-            "packet_id": packet_id,
-            "signal_ref": signal,
-            "relation_type": "CONTRADICTS",
-            "evidence_role": "contradicting_signal",
-            "claim_ceiling": FUSION_CLAIM_CEILING,
-        })
+    for idx, signal in enumerate(_items(packet, "contradicting_signals")):
+        signal_ref = _ref_from_item(signal, "contradicting_signals", idx)
+        if _is_explicit_contradiction(signal):
+            records.append(_record(packet_id, signal_ref, "CONTRADICTS", "explicit_contradiction_signal"))
+        else:
+            records.append(_record(packet_id, signal_ref, "QUALIFIES", "qualifying_or_tension_signal"))
 
     for feature in _refs(packet, "input_features"):
-        records.append({
-            "packet_id": packet_id,
-            "signal_ref": feature,
-            "relation_type": "COMPLEMENTS",
-            "evidence_role": "input_feature_ref",
-            "claim_ceiling": FUSION_CLAIM_CEILING,
-        })
+        records.append(_record(packet_id, feature, "COMPLEMENTS", "input_feature_ref"))
 
     for window in _refs(packet, "input_windows"):
-        records.append({
-            "packet_id": packet_id,
-            "signal_ref": window,
-            "relation_type": "CONTEXTUALIZES",
-            "evidence_role": "input_window_ref",
-            "claim_ceiling": FUSION_CLAIM_CEILING,
-        })
+        records.append(_record(packet_id, window, "CONTEXTUALIZES", "input_window_ref"))
 
     if not records:
-        records.append({
-            "packet_id": packet_id,
-            "signal_ref": packet_id,
-            "relation_type": "ABSTAINS",
-            "evidence_role": "insufficient_signal_surface",
-            "claim_ceiling": FUSION_CLAIM_CEILING,
-        })
+        records.append(_record(packet_id, packet_id, "ABSTAINS", "insufficient_signal_surface"))
 
     return records
 
@@ -170,18 +182,25 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     relation_counts = Counter(row["relation_type"] for row in relation_records)
     has_support = relation_counts.get("SUPPORTS", 0) > 0
     has_contradiction = relation_counts.get("CONTRADICTS", 0) > 0
+    has_qualifier = relation_counts.get("QUALIFIES", 0) > 0
 
     if hard_block_hits:
         fusion_status = "BLOCKED"
         decision = "BLOCK_FUSION"
     elif has_support and has_contradiction:
-        fusion_status = "MIXED_WITH_CONTRADICTION"
+        fusion_status = "MIXED_WITH_EXPLICIT_CONTRADICTION"
         decision = "READY_FOR_ARGUMENT_WITH_CONTRADICTION"
+    elif has_support and has_qualifier:
+        fusion_status = "SUPPORTED_WITH_QUALIFIER"
+        decision = "READY_FOR_ARGUMENT_WITH_QUALIFIER"
     elif has_support:
         fusion_status = "SUPPORTED"
         decision = "READY_FOR_ARGUMENT_SUPPORT"
     elif has_contradiction:
-        fusion_status = "CONTRADICTED"
+        fusion_status = "EXPLICITLY_CONTRADICTED"
+        decision = "REVIEW_REQUIRED"
+    elif has_qualifier:
+        fusion_status = "QUALIFIED_ONLY"
         decision = "REVIEW_REQUIRED"
     else:
         fusion_status = "ABSTAINS"
@@ -196,6 +215,7 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
         "relation_counts": dict(sorted(relation_counts.items())),
         "support_signal_count": relation_counts.get("SUPPORTS", 0),
         "contradiction_signal_count": relation_counts.get("CONTRADICTS", 0),
+        "qualifier_signal_count": relation_counts.get("QUALIFIES", 0),
         "context_signal_count": relation_counts.get("CONTEXTUALIZES", 0),
         "complement_signal_count": relation_counts.get("COMPLEMENTS", 0),
         "fusion_status": fusion_status,
@@ -256,7 +276,7 @@ def write_outputs(packets: list[dict[str, Any]], out_dir: str | Path) -> dict[st
         lines.append(
             f"- {record['fusion_id']} packet={record['packet_id']} status={record['fusion_status']} "
             f"decision={record['decision']} supports={record['support_signal_count']} "
-            f"contradicts={record['contradiction_signal_count']}"
+            f"qualifies={record['qualifier_signal_count']} contradicts={record['contradiction_signal_count']}"
         )
     (out / OUTPUT_TXT).write_text("\n".join(lines) + "\n", encoding="utf-8")
     return report
