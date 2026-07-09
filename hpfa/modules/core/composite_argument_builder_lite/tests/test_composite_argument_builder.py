@@ -26,6 +26,23 @@ def base_fusion():
     }
 
 
+def standalone_fusion():
+    fusion = base_fusion()
+    fusion["relation_records"] = [
+        {"signal_ref": "single_action_ref", "relation_type": "SUPPORTS"},
+        {"signal_ref": "action_family_count", "relation_type": "COMPLEMENTS"},
+    ]
+    return fusion
+
+
+def sequence_fusion():
+    fusion = base_fusion()
+    fusion["sequence_candidate"] = True
+    fusion["sequence_refs"] = ["sequence_001"]
+    fusion["relation_records"].append({"signal_ref": "sequence_001", "relation_type": "COMPLEMENTS", "evidence_role": "sequence_window_ref"})
+    return fusion
+
+
 def explicit_contradiction_fusion():
     fusion = base_fusion()
     fusion["relation_records"].append({"signal_ref": "same_construct_opposite_direction", "relation_type": "CONTRADICTS"})
@@ -54,6 +71,40 @@ def test_argument_uses_predefined_family():
     argument = build_argument_candidate(base_fusion())
     assert argument["argument_family"] == "progression_without_terminal_value"
     assert argument["claim_ceiling"] == "argument_candidate_only"
+
+
+def test_context_bound_relation_scope_detected():
+    argument = build_argument_candidate(base_fusion())
+    assert argument["relation_scope"] == "context_bound_relation"
+    assert argument["context_bound_relation"] is True
+    assert argument["standalone_observation"] is False
+    assert argument["sequence_candidate"] is False
+
+
+def test_standalone_observation_scope_detected():
+    argument = build_argument_candidate(standalone_fusion())
+    assert argument["relation_scope"] == "standalone_observation"
+    assert argument["standalone_observation"] is True
+    assert argument["context_bound_relation"] is False
+    assert argument["sequence_candidate"] is False
+    assert "observation_may_be_munferit_not_chain_evidence" in argument["counter_scenarios"]
+
+
+def test_sequence_candidate_scope_detected():
+    argument = build_argument_candidate(sequence_fusion())
+    assert argument["relation_scope"] == "sequence_candidate"
+    assert argument["sequence_candidate"] is True
+    assert argument["sequence_truth"] is False
+    assert argument["organism_truth"] is False
+    assert "precedent_successor_link_requires_sequence_validation" in argument["counter_scenarios"]
+
+
+def test_sequence_argument_requires_sequence_scope():
+    fusion = base_fusion()
+    fusion["argument_family"] = "recovery_to_progression_chain"
+    argument = build_argument_candidate(fusion)
+    assert argument["decision"] == "BLOCK_ARGUMENT"
+    assert "sequence_argument_requires_sequence_scope" in argument["hard_block_hits"]
 
 
 def test_argument_preserves_support_qualifier_context_refs():
@@ -86,6 +137,15 @@ def test_non_candidate_upstream_claim_ceiling_blocks_argument():
     assert "claim_ceiling" in argument["missing_fields"]
 
 
+def test_failed_upstream_fusion_blocks_argument():
+    fusion = base_fusion()
+    fusion["decision"] = "BLOCK_FUSION"
+    fusion["hard_block_hits"] = ["upstream_packet_claim_ceiling_not_candidate_only"]
+    argument = build_argument_candidate(fusion)
+    assert argument["decision"] == "BLOCK_ARGUMENT"
+    assert "upstream_fusion_failed_closed" in argument["hard_block_hits"]
+
+
 def test_forbidden_upstream_output_blocks_argument():
     fusion = base_fusion()
     fusion["safe_sentence"] = "unsafe sentence"
@@ -93,6 +153,15 @@ def test_forbidden_upstream_output_blocks_argument():
     assert argument["decision"] == "BLOCK_ARGUMENT"
     assert "upstream_fusion_forbidden_output_attempted" in argument["hard_block_hits"]
     assert "safe_sentence" in argument["forbidden_output_hits"]
+
+
+def test_quality_truth_upstream_output_blocks_argument():
+    fusion = base_fusion()
+    fusion["quality_truth"] = True
+    argument = build_argument_candidate(fusion)
+    assert argument["decision"] == "BLOCK_ARGUMENT"
+    assert "upstream_fusion_forbidden_output_attempted" in argument["hard_block_hits"]
+    assert "quality_truth" in argument["forbidden_output_hits"]
 
 
 def test_argument_does_not_emit_claim_or_sentence():
@@ -113,8 +182,12 @@ def test_argument_blocks_truth_language_families():
     assert argument["off_ball_truth"] is False
     assert argument["pitch_control_truth"] is False
     assert argument["causal_truth"] is False
+    assert argument["quality_truth"] is False
+    assert argument["sequence_truth"] is False
+    assert argument["organism_truth"] is False
     assert "tactical_truth" in argument["blocked_language_families"]
     assert "causal_truth" in argument["blocked_language_families"]
+    assert "quality_truth" in argument["blocked_language_families"]
 
 
 def test_write_outputs_rejects_nested_phone_output():
