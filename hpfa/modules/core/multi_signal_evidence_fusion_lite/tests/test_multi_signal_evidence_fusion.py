@@ -25,6 +25,18 @@ def base_packet():
     }
 
 
+def explicit_contradiction_packet():
+    packet = base_packet()
+    packet["contradicting_signals"] = [
+        {
+            "signal_id": "same_construct_opposite_direction",
+            "relation_type": "CONTRADICTS",
+            "contradiction_basis": "same metric family and same observation window show opposite direction",
+        }
+    ]
+    return packet
+
+
 def test_fusion_requires_composite_packet():
     record = fuse_packet({"packet_id": "broken"})
     assert record["decision"] == "BLOCK_FUSION"
@@ -46,10 +58,18 @@ def test_fusion_detects_support_relation():
     assert any(row["relation_type"] == "SUPPORTS" for row in record["relation_records"])
 
 
-def test_fusion_detects_contradiction_relation():
+def test_low_shot_volume_qualifies_not_contradicts_by_default():
     record = fuse_packet(base_packet())
+    assert record["qualifier_signal_count"] == 1
+    assert record["contradiction_signal_count"] == 0
+    assert record["fusion_status"] == "SUPPORTED_WITH_QUALIFIER"
+    assert any(row["signal_ref"] == "low_shot_volume" and row["relation_type"] == "QUALIFIES" for row in record["relation_records"])
+
+
+def test_explicit_contradiction_requires_basis():
+    record = fuse_packet(explicit_contradiction_packet())
     assert record["contradiction_signal_count"] == 1
-    assert record["fusion_status"] == "MIXED_WITH_CONTRADICTION"
+    assert record["fusion_status"] == "MIXED_WITH_EXPLICIT_CONTRADICTION"
     assert any(row["relation_type"] == "CONTRADICTS" for row in record["relation_records"])
 
 
