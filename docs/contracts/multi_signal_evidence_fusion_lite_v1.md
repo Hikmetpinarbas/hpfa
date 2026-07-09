@@ -12,13 +12,21 @@ It does not build a football claim, safe sentence or analyst report. It only mar
 
 ## Football value
 
-The analyst can see whether evidence inside a packet supports, contradicts, complements or contextualizes a later argument.
+The analyst can see whether evidence inside a packet supports, qualifies, explicitly contradicts, complements or contextualizes a later argument.
+
+Important distinction:
+
+```text
+low shot volume after high access does not automatically contradict the access argument.
+It qualifies the reading and opens alternative scenarios such as shot timing, shot angle, shot selection or opponent setup at shot moment.
+```
 
 Example product reading:
 
 ```text
 right_channel_access → SUPPORTS
-low_shot_volume → CONTRADICTS
+low_shot_volume → QUALIFIES
+same_construct_opposite_direction with contradiction_basis → CONTRADICTS
 final_third_entry → COMPLEMENTS
 window_001 → CONTEXTUALIZES
 ```
@@ -39,17 +47,25 @@ composite_evidence_packet_builder_lite_v1
 
 ```text
 SUPPORTS
+QUALIFIES
 CONTRADICTS
 COMPLEMENTS
 CONTEXTUALIZES
 ABSTAINS
 ```
 
+## Contradiction rule
+
+`CONTRADICTS` is reserved for explicit same-construct or same-window conflict with a declared contradiction basis.
+
+Generic terminal limitation signals such as low shot volume, low box entry, weak terminal action volume or high loss cost should not become contradiction by default. They are `QUALIFIES` unless the upstream packet explicitly declares contradiction basis.
+
 ## Allowed outputs
 
 ```text
 fusion relation record
 support relation count
+qualifier relation count
 contradiction relation count
 contextualization relation count
 fusion status candidate
@@ -75,6 +91,7 @@ canonical event count claim
 
 ```text
 READY_FOR_ARGUMENT_SUPPORT
+READY_FOR_ARGUMENT_WITH_QUALIFIER
 READY_FOR_ARGUMENT_WITH_CONTRADICTION
 REVIEW_REQUIRED
 INSUFFICIENT_FOR_ARGUMENT
@@ -97,7 +114,8 @@ upstream_packet_report_language_allowed
 test_fusion_requires_composite_packet
 test_fusion_records_signal_sources
 test_fusion_detects_support_relation
-test_fusion_detects_contradiction_relation
+test_low_shot_volume_qualifies_not_contradicts_by_default
+test_explicit_contradiction_requires_basis
 test_fusion_does_not_emit_claim_text
 test_fusion_preserves_candidate_only_claim_ceiling
 test_no_tactical_truth
