@@ -1,0 +1,288 @@
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+MODULE_ID = "composite_argument_builder_lite_v1"
+OUTPUT_JSON = "composite_argument_builder_lite_v1.json"
+OUTPUT_TXT = "composite_argument_builder_lite_v1.txt"
+
+UPSTREAM_CLAIM_CEILING = "fusion_relation_candidate_only"
+ARGUMENT_CLAIM_CEILING = "argument_candidate_only"
+MISSING_FUSION_ID = "MISSING_FUSION_ID"
+
+ALLOWED_ARGUMENT_FAMILIES = {
+    "progression_without_terminal_value",
+    "territory_access_without_shot_conversion",
+    "recovery_to_progression_chain",
+    "restart_dependency_with_low_open_play_value",
+    "high_loss_exposure_under_context",
+    "corridor_bias_with_terminal_limit",
+    "circulation_without_penetration",
+    "direct_play_isolation_candidate",
+    "late_terminal_pressure_candidate",
+    "defensive_event_height_without_pressing_truth",
+    "player_function_proxy_from_sequence_role",
+    "rhythm_shift_candidate_from_event_density",
+}
+
+FORBIDDEN_UPSTREAM_FIELDS = {
+    "claim_text",
+    "safe_sentence",
+    "safe_sentence_candidate_tr",
+    "tactical_truth",
+    "dominance_truth",
+    "control_truth",
+    "coach_intention",
+    "off_ball_truth",
+    "pitch_control_truth",
+    "causal_truth",
+}
+
+BLOCKED_LANGUAGE_FAMILIES = [
+    "tactical_truth",
+    "dominance_truth",
+    "control_truth",
+    "coach_intention",
+    "off_ball_truth",
+    "pitch_control_truth",
+    "causal_truth",
+    "quality_truth",
+]
+
+DEFAULT_COUNTER_SCENARIOS = {
+    "progression_without_terminal_value": [
+        "shot_timing_or_angle_limited_terminal_action",
+        "opponent_setup_at_terminal_moment_limited_shot_selection",
+        "sample_window_may_understate_terminal_output",
+    ],
+    "territory_access_without_shot_conversion": [
+        "territory_access_may_be_low_value_access",
+        "box_entry_surface_may_be_missing_or_sparse",
+    ],
+    "recovery_to_progression_chain": [
+        "recovery_location_may_explain_progression_access",
+        "sequence_window_may_be_too_short",
+    ],
+    "corridor_bias_with_terminal_limit": [
+        "corridor_access_may_be opponent_concession_not_plan_truth",
+        "terminal_options_may_be_blocked_at_action_moment",
+    ],
+}
+
+DEFAULT_WITHDRAWAL_CONDITIONS = {
+    "progression_without_terminal_value": [
+        "terminal_action_value_becomes_high_in_same_window",
+        "box_entry_and_shot_quality_support_conversion",
+    ],
+    "territory_access_without_shot_conversion": [
+        "shot_conversion_surface_supports_territory_output",
+        "access_window_not_repeated",
+    ],
+    "recovery_to_progression_chain": [
+        "sequence_repetition_not_detected",
+        "progression_after_recovery_not_present",
+    ],
+    "corridor_bias_with_terminal_limit": [
+        "opposite_corridor_has_equal_or_stronger_access",
+        "terminal_conversion_not_limited",
+    ],
+}
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[5]
+
+
+def _validate_output_root(out_dir: str | Path) -> Path:
+    spine_src = _repo_root() / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
+    if str(spine_src) not in sys.path:
+        sys.path.insert(0, str(spine_src))
+    from spine_runner import validate_output_root  # type: ignore
+
+    return validate_output_root(out_dir)
+
+
+def _as_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def _fusion_id(fusion: dict[str, Any]) -> str:
+    return str(fusion.get("fusion_id") or "")
+
+
+def _forbidden_hits(fusion: dict[str, Any]) -> list[str]:
+    hits: list[str] = []
+    for field in FORBIDDEN_UPSTREAM_FIELDS:
+        if field in fusion and fusion.get(field) not in [None, "", False, []]:
+            hits.append(field)
+    return sorted(hits)
+
+
+def _relations_by_type(fusion: dict[str, Any], relation_type: str) -> list[str]:
+    refs: list[str] = []
+    for record in _as_list(fusion.get("relation_records")):
+        if isinstance(record, dict) and str(record.get("relation_type") or "").upper() == relation_type:
+            if record.get("signal_ref") not in [None, ""]:
+                refs.append(str(record["signal_ref"]))
+    return refs
+
+
+def _default_argument_family(fusion: dict[str, Any]) -> str:
+    family = str(fusion.get("argument_family") or fusion.get("packet_family") or "")
+    if family in ALLOWED_ARGUMENT_FAMILIES:
+        return family
+    if family == "progression":
+        return "progression_without_terminal_value"
+    if family == "production_consequence":
+        return "progression_without_terminal_value"
+    if family == "restart":
+        return "restart_dependency_with_low_open_play_value"
+    if family == "risk":
+        return "high_loss_exposure_under_context"
+    if family == "tempo":
+        return "rhythm_shift_candidate_from_event_density"
+    return "progression_without_terminal_value"
+
+
+def _status_and_decision(hard_block_hits: list[str], support_refs: list[str], qualifier_refs: list[str], contradiction_refs: list[str]) -> tuple[str, str]:
+    if hard_block_hits:
+        return "BLOCKED", "BLOCK_ARGUMENT"
+    if not support_refs:
+        return "REVIEW_REQUIRED", "INSUFFICIENT_SUPPORT"
+    if contradiction_refs:
+        return "ARGUMENT_WITH_EXPLICIT_CONTRADICTION", "READY_FOR_SAFE_ROUTER_WITH_CONTRADICTION"
+    if qualifier_refs:
+        return "ARGUMENT_WITH_QUALIFIER", "READY_FOR_SAFE_ROUTER_WITH_QUALIFIER"
+    return "ARGUMENT_SUPPORTED", "READY_FOR_SAFE_ROUTER"
+
+
+def build_argument_candidate(fusion: dict[str, Any], idx: int = 0) -> dict[str, Any]:
+    normalized = dict(fusion)
+    fusion_id = _fusion_id(normalized)
+    missing_fields: list[str] = []
+    if not fusion_id:
+        missing_fields.append("fusion_id")
+        fusion_id = MISSING_FUSION_ID
+
+    if "relation_records" not in normalized:
+        missing_fields.append("relation_records")
+    if normalized.get("claim_ceiling") != UPSTREAM_CLAIM_CEILING:
+        missing_fields.append("claim_ceiling")
+
+    forbidden_hits = _forbidden_hits(normalized)
+    hard_block_hits: list[str] = []
+    if missing_fields:
+        hard_block_hits.append("fusion_required_fields_missing")
+    if forbidden_hits:
+        hard_block_hits.append("upstream_fusion_forbidden_output_attempted")
+    if normalized.get("claim_output_allowed") not in [False, None]:
+        hard_block_hits.append("upstream_fusion_claim_output_allowed")
+    if normalized.get("report_language_allowed") not in [False, None]:
+        hard_block_hits.append("upstream_fusion_report_language_allowed")
+
+    support_refs = _relations_by_type(normalized, "SUPPORTS")
+    qualifier_refs = _relations_by_type(normalized, "QUALIFIES")
+    contradiction_refs = _relations_by_type(normalized, "CONTRADICTS")
+    complement_refs = _relations_by_type(normalized, "COMPLEMENTS")
+    context_refs = _relations_by_type(normalized, "CONTEXTUALIZES")
+
+    argument_family = _default_argument_family(normalized)
+    counter_scenarios = list(normalized.get("counter_scenarios") or DEFAULT_COUNTER_SCENARIOS.get(argument_family) or [
+        "alternative_explanation_may_account_for_observed_relation",
+        "sample_window_or_surface_coverage_may_limit_argument",
+    ])
+    withdrawal_conditions = list(normalized.get("withdrawal_conditions") or DEFAULT_WITHDRAWAL_CONDITIONS.get(argument_family) or [
+        "supporting_relation_disappears_in_same_context",
+        "explicit_contradiction_becomes_stronger_than_support",
+    ])
+
+    if not counter_scenarios:
+        hard_block_hits.append("counter_scenario_required")
+    if not withdrawal_conditions:
+        hard_block_hits.append("withdrawal_condition_required")
+
+    status, decision = _status_and_decision(hard_block_hits, support_refs, qualifier_refs, contradiction_refs)
+
+    return {
+        "module_id": MODULE_ID,
+        "argument_id": f"arg_{fusion_id}",
+        "fusion_id": fusion_id,
+        "argument_family": argument_family,
+        "supporting_refs": support_refs,
+        "qualifying_refs": qualifier_refs,
+        "contradicting_refs": contradiction_refs,
+        "complementary_refs": complement_refs,
+        "context_refs": context_refs,
+        "counter_scenarios": counter_scenarios,
+        "withdrawal_conditions": withdrawal_conditions,
+        "minimum_support_count": 1,
+        "claim_ceiling": ARGUMENT_CLAIM_CEILING,
+        "status": status,
+        "decision": decision,
+        "hard_block_hits": hard_block_hits,
+        "missing_fields": missing_fields,
+        "forbidden_output_hits": forbidden_hits,
+        "claim_output_allowed": False,
+        "report_language_allowed": False,
+        "safe_sentence_allowed": False,
+        "tactical_truth": False,
+        "dominance_truth": False,
+        "control_truth": False,
+        "coach_intention_truth": False,
+        "off_ball_truth": False,
+        "pitch_control_truth": False,
+        "causal_truth": False,
+        "blocked_language_families": list(BLOCKED_LANGUAGE_FAMILIES),
+        "canonical_event_count": "UNKNOWN",
+    }
+
+
+def build_argument_report(fusions: list[dict[str, Any]]) -> dict[str, Any]:
+    arguments = [build_argument_candidate(fusion, idx) for idx, fusion in enumerate(fusions)]
+    blocked_count = sum(1 for argument in arguments if argument["hard_block_hits"])
+    status = "FAIL_CLOSED" if blocked_count else "SMOKE_PASS"
+    return {
+        "module_id": MODULE_ID,
+        "status": status,
+        "argument_count": len(arguments),
+        "blocked_argument_count": blocked_count,
+        "arguments": arguments,
+        "claim_output_allowed": False,
+        "report_language_allowed": False,
+        "safe_sentence_allowed": False,
+        "claim_ceiling": ARGUMENT_CLAIM_CEILING,
+        "canonical_event_count": "UNKNOWN",
+        "claim_boundary": "argument_candidate_only_no_sentence_no_claim_text",
+    }
+
+
+def write_outputs(fusions: list[dict[str, Any]], out_dir: str | Path) -> dict[str, Any]:
+    out = _validate_output_root(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    report = build_argument_report(fusions)
+    (out / OUTPUT_JSON).write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    lines = [
+        "HPFA COMPOSITE ARGUMENT BUILDER LITE V1",
+        "========================================",
+        f"status={report['status']}",
+        f"argument_count={report['argument_count']}",
+        f"blocked_argument_count={report['blocked_argument_count']}",
+        f"canonical_event_count={report['canonical_event_count']}",
+        "",
+        "[arguments]",
+    ]
+    for argument in report["arguments"][:50]:
+        lines.append(
+            f"- {argument['argument_id']} family={argument['argument_family']} status={argument['status']} "
+            f"decision={argument['decision']} support={len(argument['supporting_refs'])} "
+            f"qualifies={len(argument['qualifying_refs'])} contradicts={len(argument['contradicting_refs'])}"
+        )
+    (out / OUTPUT_TXT).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return report
