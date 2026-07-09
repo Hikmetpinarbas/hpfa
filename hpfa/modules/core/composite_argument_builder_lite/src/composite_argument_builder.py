@@ -34,6 +34,13 @@ RELATION_SCOPE_TYPES = {
     "sequence_candidate",
 }
 
+ANALYSIS_ROUTE_TYPES = {
+    "unit_to_whole",
+    "whole_to_unit",
+    "bidirectional",
+    "undetermined",
+}
+
 FORBIDDEN_UPSTREAM_FIELDS = {
     "claim_text",
     "safe_sentence",
@@ -187,6 +194,55 @@ def _relation_scope(fusion: dict[str, Any]) -> str:
     return "standalone_observation"
 
 
+def _has_unit_surface(fusion: dict[str, Any]) -> bool:
+    if fusion.get("unit_refs") not in [None, "", []]:
+        return True
+    for record in _relation_records(fusion):
+        role = str(record.get("evidence_role") or "").lower()
+        ref = str(record.get("signal_ref") or "").lower()
+        if any(token in role for token in ["feature", "metric", "action", "event", "player", "unit"]):
+            return True
+        if any(token in ref for token in ["feature", "metric", "action", "event", "player", "entry", "shot", "pass", "carry", "duel", "recovery", "loss"]):
+            return True
+    return bool(_relations_by_type(fusion, "SUPPORTS") or _relations_by_type(fusion, "COMPLEMENTS"))
+
+
+def _has_whole_surface(fusion: dict[str, Any]) -> bool:
+    if fusion.get("whole_refs") not in [None, "", []]:
+        return True
+    if fusion.get("context_window") not in [None, "", []]:
+        return True
+    if fusion.get("team_context") not in [None, "", []]:
+        return True
+    if fusion.get("phase_context") not in [None, "", []]:
+        return True
+    if _relations_by_type(fusion, "CONTEXTUALIZES"):
+        return True
+    for record in _relation_records(fusion):
+        role = str(record.get("evidence_role") or "").lower()
+        ref = str(record.get("signal_ref") or "").lower()
+        if any(token in role for token in ["context", "window", "phase", "team", "whole", "sequence"]):
+            return True
+        if any(token in ref for token in ["context", "window", "phase", "team", "whole", "sequence", "corridor", "zone"]):
+            return True
+    return False
+
+
+def _analysis_route(fusion: dict[str, Any]) -> str:
+    explicit_route = str(fusion.get("analysis_route") or "")
+    if explicit_route in ANALYSIS_ROUTE_TYPES:
+        return explicit_route
+    has_unit = _has_unit_surface(fusion)
+    has_whole = _has_whole_surface(fusion)
+    if has_unit and has_whole:
+        return "bidirectional"
+    if has_unit:
+        return "unit_to_whole"
+    if has_whole:
+        return "whole_to_unit"
+    return "undetermined"
+
+
 def _default_argument_family(fusion: dict[str, Any]) -> str:
     family = str(fusion.get("argument_family") or fusion.get("packet_family") or "")
     if family in ALLOWED_ARGUMENT_FAMILIES:
@@ -261,15 +317,21 @@ def build_argument_candidate(fusion: dict[str, Any], idx: int = 0) -> dict[str, 
     context_refs = _relations_by_type(normalized, "CONTEXTUALIZES")
 
     relation_scope = _relation_scope(normalized)
+    analysis_route = _analysis_route(normalized)
     sequence_candidate = relation_scope == "sequence_candidate"
     standalone_observation = relation_scope == "standalone_observation"
     context_bound_relation = relation_scope == "context_bound_relation"
+    whole_to_unit = analysis_route in {"whole_to_unit", "bidirectional"}
+    unit_to_whole = analysis_route in {"unit_to_whole", "bidirectional"}
+    bidirectional = analysis_route == "bidirectional"
 
     argument_family = _default_argument_family(normalized)
     if argument_family in {"recovery_to_progression_chain", "direct_play_isolation_candidate", "late_terminal_pressure_candidate"} and not sequence_candidate:
         hard_block_hits.append("sequence_argument_requires_sequence_scope")
     if argument_family == "rhythm_shift_candidate_from_event_density" and relation_scope == "standalone_observation":
         hard_block_hits.append("rhythm_argument_requires_context_or_sequence_scope")
+    if analysis_route == "undetermined":
+        hard_block_hits.append("analysis_route_undetermined")
 
     counter_scenarios = list(normalized.get("counter_scenarios") or DEFAULT_COUNTER_SCENARIOS.get(argument_family) or [
         "alternative_explanation_may_account_for_observed_relation",
@@ -288,6 +350,15 @@ def build_argument_candidate(fusion: dict[str, Any], idx: int = 0) -> dict[str, 
     if sequence_candidate:
         counter_scenarios.append("precedent_successor_link_requires_sequence_validation")
         withdrawal_conditions.append("sequence_marker_removed_or_window_not_repeated")
+    if analysis_route == "unit_to_whole":
+        counter_scenarios.append("unit_surface_may_not_scale_to_whole_pattern")
+        withdrawal_conditions.append("whole_context_does_not_support_unit_signal")
+    if analysis_route == "whole_to_unit":
+        counter_scenarios.append("whole_surface_may_not_explain_individual_action")
+        withdrawal_conditions.append("unit_signal_not_present_inside_whole_context")
+    if bidirectional:
+        counter_scenarios.append("bidirectional_alignment_requires_both_routes_to_remain_present")
+        withdrawal_conditions.append("unit_or_whole_route_removed_from_evidence_packet")
 
     if not counter_scenarios:
         hard_block_hits.append("counter_scenario_required")
@@ -302,6 +373,10 @@ def build_argument_candidate(fusion: dict[str, Any], idx: int = 0) -> dict[str, 
         "fusion_id": fusion_id,
         "argument_family": argument_family,
         "relation_scope": relation_scope,
+        "analysis_route": analysis_route,
+        "whole_to_unit": whole_to_unit,
+        "unit_to_whole": unit_to_whole,
+        "bidirectional": bidirectional,
         "standalone_observation": standalone_observation,
         "context_bound_relation": context_bound_relation,
         "sequence_candidate": sequence_candidate,
@@ -374,8 +449,9 @@ def write_outputs(fusions: list[dict[str, Any]], out_dir: str | Path) -> dict[st
     for argument in report["arguments"][:50]:
         lines.append(
             f"- {argument['argument_id']} family={argument['argument_family']} scope={argument['relation_scope']} "
-            f"status={argument['status']} decision={argument['decision']} support={len(argument['supporting_refs'])} "
-            f"qualifies={len(argument['qualifying_refs'])} contradicts={len(argument['contradicting_refs'])}"
+            f"route={argument['analysis_route']} status={argument['status']} decision={argument['decision']} "
+            f"support={len(argument['supporting_refs'])} qualifies={len(argument['qualifying_refs'])} "
+            f"contradicts={len(argument['contradicting_refs'])}"
         )
     (out / OUTPUT_TXT).write_text("\n".join(lines) + "\n", encoding="utf-8")
     return report
