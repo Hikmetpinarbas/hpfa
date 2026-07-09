@@ -60,6 +60,12 @@ ABSTAINS
 
 Generic terminal limitation signals such as low shot volume, low box entry, weak terminal action volume or high loss cost should not become contradiction by default. They are `QUALIFIES` unless the upstream packet explicitly declares contradiction basis.
 
+## Upstream identity rule
+
+Every upstream composite packet must carry a stable `packet_id`.
+
+The fusion layer must not synthesize order-dependent packet identities for missing upstream packet IDs. Missing `packet_id` fails closed with `composite_packet_required_fields_missing`.
+
 ## Allowed outputs
 
 ```text
@@ -112,12 +118,14 @@ upstream_packet_report_language_allowed
 
 ```text
 test_fusion_requires_composite_packet
+test_missing_packet_id_blocks_fusion_identity
 test_fusion_records_signal_sources
 test_fusion_detects_support_relation
 test_low_shot_volume_qualifies_not_contradicts_by_default
 test_explicit_contradiction_requires_basis
 test_fusion_does_not_emit_claim_text
 test_fusion_preserves_candidate_only_claim_ceiling
+test_causal_truth_upstream_output_blocks_fusion
 test_no_tactical_truth
 test_write_outputs_rejects_nested_phone_output
 test_no_sample_match_identity_leak
