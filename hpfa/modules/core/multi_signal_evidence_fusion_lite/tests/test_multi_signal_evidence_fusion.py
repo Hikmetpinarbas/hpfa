@@ -43,6 +43,16 @@ def test_fusion_requires_composite_packet():
     assert "composite_packet_required_fields_missing" in record["hard_block_hits"]
 
 
+def test_missing_packet_id_blocks_fusion_identity():
+    packet = base_packet()
+    packet.pop("packet_id")
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "packet_id" in record["missing_fields"]
+    assert "composite_packet_required_fields_missing" in record["hard_block_hits"]
+    assert record["packet_id"] == "MISSING_PACKET_ID"
+
+
 def test_fusion_records_signal_sources():
     record = fuse_packet(base_packet())
     signal_refs = {row["signal_ref"] for row in record["relation_records"]}
@@ -108,6 +118,15 @@ def test_forbidden_upstream_output_blocks_fusion():
     assert record["decision"] == "BLOCK_FUSION"
     assert "upstream_packet_forbidden_output_attempted" in record["hard_block_hits"]
     assert "claim_text" in record["forbidden_output_hits"]
+
+
+def test_causal_truth_upstream_output_blocks_fusion():
+    packet = base_packet()
+    packet["causal_truth"] = True
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "upstream_packet_forbidden_output_attempted" in record["hard_block_hits"]
+    assert "causal_truth" in record["forbidden_output_hits"]
 
 
 def test_no_tactical_truth():
