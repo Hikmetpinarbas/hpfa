@@ -40,6 +40,17 @@ def test_report_block_requires_standard_safe_sentence_key():
     assert "safe_sentence_candidate_tr" in block["missing_fields"]
 
 
+def test_report_block_rejects_empty_standard_value_even_with_legacy_alias():
+    item = base_safe_sentence()
+    item["safe_sentence_candidate_tr"] = ""
+    item["sentence_candidate_tr"] = "legacy alias should not be promoted"
+    block = compose_report_block(item)
+    assert block["decision"] == "BLOCK_REPORT_BLOCK"
+    assert "safe_sentence_candidate_tr" in block["missing_fields"]
+    assert "safe_sentence_candidate_required" in block["hard_block_hits"]
+    assert block["report_block_candidate_tr"] == ""
+
+
 def test_report_block_requires_upstream_claim_ceiling():
     item = base_safe_sentence()
     item["claim_ceiling"] = "claim_text_allowed"
@@ -74,6 +85,24 @@ def test_forbidden_upstream_output_blocks_report_block():
     assert block["decision"] == "BLOCK_REPORT_BLOCK"
     assert "upstream_safe_sentence_forbidden_output_attempted" in block["hard_block_hits"]
     assert "claim_text" in block["forbidden_upstream_hits"]
+
+
+def test_report_text_upstream_output_blocks_report_block():
+    item = base_safe_sentence()
+    item["report_text"] = "premature report text"
+    block = compose_report_block(item)
+    assert block["decision"] == "BLOCK_REPORT_BLOCK"
+    assert "upstream_safe_sentence_forbidden_output_attempted" in block["hard_block_hits"]
+    assert "report_text" in block["forbidden_upstream_hits"]
+
+
+def test_report_language_upstream_output_blocks_report_block():
+    item = base_safe_sentence()
+    item["report_language"] = "premature report language"
+    block = compose_report_block(item)
+    assert block["decision"] == "BLOCK_REPORT_BLOCK"
+    assert "upstream_safe_sentence_forbidden_output_attempted" in block["hard_block_hits"]
+    assert "report_language" in block["forbidden_upstream_hits"]
 
 
 def test_report_block_does_not_emit_final_report_or_claim_text():
