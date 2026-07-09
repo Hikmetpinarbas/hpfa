@@ -12,6 +12,7 @@ OUTPUT_TXT = "multi_signal_evidence_fusion_lite_v1.txt"
 
 CANDIDATE_ONLY_CLAIM_CEILING = "composite_candidate_only"
 FUSION_CLAIM_CEILING = "fusion_relation_candidate_only"
+MISSING_PACKET_ID = "MISSING_PACKET_ID"
 
 RELATION_TYPES = {
     "SUPPORTS",
@@ -42,6 +43,7 @@ FORBIDDEN_PACKET_FIELDS = {
     "coach_intention",
     "off_ball_truth",
     "pitch_control_truth",
+    "causal_truth",
 }
 
 
@@ -66,8 +68,8 @@ def _as_list(value: Any) -> list[Any]:
     return [value]
 
 
-def _packet_id(packet: dict[str, Any], idx: int) -> str:
-    return str(packet.get("packet_id") or f"packet_{idx:03d}")
+def _packet_id(packet: dict[str, Any]) -> str:
+    return str(packet.get("packet_id") or "")
 
 
 def _ref_from_item(item: Any, fallback_prefix: str, idx: int) -> str:
@@ -107,7 +109,7 @@ def _required_packet_missing(packet: dict[str, Any]) -> list[str]:
         "contradicting_signals",
         "claim_ceiling",
     ]
-    return [key for key in required if key not in packet]
+    return [key for key in required if packet.get(key) in [None, ""]]
 
 
 def _is_explicit_contradiction(item: Any) -> bool:
@@ -161,9 +163,15 @@ def _signal_relation_records(packet: dict[str, Any]) -> list[dict[str, Any]]:
 
 def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     normalized_packet = dict(packet)
-    normalized_packet["packet_id"] = _packet_id(normalized_packet, idx)
+    original_packet_id = _packet_id(normalized_packet)
 
     missing_fields = _required_packet_missing(normalized_packet)
+    packet_id = original_packet_id or MISSING_PACKET_ID
+    if original_packet_id:
+        normalized_packet["packet_id"] = original_packet_id
+    else:
+        normalized_packet["packet_id"] = packet_id
+
     forbidden_hits = _forbidden_packet_hits(normalized_packet)
     hard_block_hits: list[str] = []
 
@@ -208,8 +216,8 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
 
     return {
         "module_id": MODULE_ID,
-        "fusion_id": f"fusion_{normalized_packet['packet_id']}",
-        "packet_id": normalized_packet["packet_id"],
+        "fusion_id": f"fusion_{packet_id}",
+        "packet_id": packet_id,
         "packet_family": normalized_packet.get("packet_family", "unknown"),
         "relation_records": relation_records,
         "relation_counts": dict(sorted(relation_counts.items())),
