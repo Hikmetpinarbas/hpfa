@@ -15,6 +15,8 @@ MISSING_GRAPH_ID = "MISSING_GRAPH_ID"
 
 FORBIDDEN_UPSTREAM_FIELDS = {
     "claim_text",
+    "safe_sentence_candidate_tr",
+    "sentence_candidate_tr",
     "report_text",
     "report_language",
     "tactical_truth",
@@ -92,11 +94,31 @@ def _graph_id(graph: dict[str, Any]) -> str:
     return str(graph.get("graph_id") or "")
 
 
+def _is_forbidden_value(value: Any) -> bool:
+    return value not in [None, "", False, []]
+
+
+def _payload_forbidden_hits(graph: dict[str, Any]) -> list[str]:
+    hits: list[str] = []
+    for index, node in enumerate(_as_list(graph.get("nodes"))):
+        if not isinstance(node, dict):
+            continue
+        payload = node.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        node_id = str(node.get("node_id") or f"node_{index}")
+        for field in FORBIDDEN_UPSTREAM_FIELDS:
+            if field in payload and _is_forbidden_value(payload.get(field)):
+                hits.append(f"nodes[{node_id}].payload.{field}")
+    return hits
+
+
 def _forbidden_upstream_hits(graph: dict[str, Any]) -> list[str]:
     hits: list[str] = []
     for field in FORBIDDEN_UPSTREAM_FIELDS:
-        if field in graph and graph.get(field) not in [None, "", False, []]:
+        if field in graph and _is_forbidden_value(graph.get(field)):
             hits.append(field)
+    hits.extend(_payload_forbidden_hits(graph))
     return sorted(hits)
 
 
@@ -196,11 +218,11 @@ def route_safe_sentence(graph: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     if normalized.get("report_language_allowed") not in [False, None]:
         hard_block_hits.append("upstream_graph_report_language_allowed")
 
-    sentence_candidate = "" if hard_block_hits else _safe_sentence(normalized)
-    forbidden_sentence_hits = _forbidden_sentence_hits(sentence_candidate)
+    safe_sentence_candidate_tr = "" if hard_block_hits else _safe_sentence(normalized)
+    forbidden_sentence_hits = _forbidden_sentence_hits(safe_sentence_candidate_tr)
     if forbidden_sentence_hits:
         hard_block_hits.append("safe_sentence_forbidden_language_detected")
-        sentence_candidate = ""
+        safe_sentence_candidate_tr = ""
 
     status = "FAIL_CLOSED" if hard_block_hits else "SMOKE_PASS"
     decision = "BLOCK_SAFE_SENTENCE" if hard_block_hits else "READY_FOR_REPORT_COMPOSER_CANDIDATE"
@@ -209,7 +231,8 @@ def route_safe_sentence(graph: dict[str, Any], idx: int = 0) -> dict[str, Any]:
         "module_id": MODULE_ID,
         "safe_sentence_id": f"safe_sentence_{graph_id}",
         "graph_id": graph_id,
-        "sentence_candidate_tr": sentence_candidate,
+        "safe_sentence_candidate_tr": safe_sentence_candidate_tr,
+        "sentence_candidate_tr": safe_sentence_candidate_tr,
         "sentence_language": "tr",
         "claim_ceiling": SAFE_SENTENCE_CLAIM_CEILING,
         "upstream_claim_ceiling": normalized.get("claim_ceiling"),
@@ -272,7 +295,7 @@ def write_outputs(graphs: list[dict[str, Any]], out_dir: str | Path) -> dict[str
     ]
     for item in report["safe_sentences"][:50]:
         lines.append(f"- {item['safe_sentence_id']} status={item['status']} decision={item['decision']}")
-        if item["sentence_candidate_tr"]:
-            lines.append(f"  {item['sentence_candidate_tr']}")
+        if item["safe_sentence_candidate_tr"]:
+            lines.append(f"  {item['safe_sentence_candidate_tr']}")
     (out / OUTPUT_TXT).write_text("\n".join(lines) + "\n", encoding="utf-8")
     return report
