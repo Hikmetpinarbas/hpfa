@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -52,6 +53,19 @@ ALLOWED_PACKET_FAMILIES = {
     "production_consequence",
     "weak_signal",
 }
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[5]
+
+
+def _validate_output_root(out_dir: str | Path) -> Path:
+    spine_src = _repo_root() / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
+    if str(spine_src) not in sys.path:
+        sys.path.insert(0, str(spine_src))
+    from spine_runner import validate_output_root  # type: ignore
+
+    return validate_output_root(out_dir)
 
 
 def _as_list(value: Any) -> list[Any]:
@@ -119,6 +133,16 @@ def _detect_forbidden_output_attempt(candidate: dict[str, Any]) -> list[str]:
     return sorted(hits)
 
 
+def _normalized_blocked_language_families(candidate: dict[str, Any]) -> list[str]:
+    requested = {str(item) for item in _as_list(candidate.get("blocked_language_families")) if item not in [None, ""]}
+    required = set(BLOCKED_LANGUAGE_FAMILIES)
+    return sorted(required | requested)
+
+
+def _claim_ceiling(candidate: dict[str, Any]) -> str:
+    return str(candidate.get("claim_ceiling") or "")
+
+
 def _evidence_strength(signal_count: int, contradiction_count: int, surface_count: int) -> str:
     if signal_count < DEFAULT_MINIMUM_SIGNAL_COUNT:
         return "weak"
@@ -141,13 +165,16 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
     contradicting_count = len(refs["contradicting_signals"])
     source_surface_count = _source_surface_count(candidate)
     forbidden_hits = _detect_forbidden_output_attempt(candidate)
+    claim_ceiling = _claim_ceiling(candidate)
 
     hard_block_hits: list[str] = []
     if unique_ref_count < DEFAULT_MINIMUM_SIGNAL_COUNT:
         hard_block_hits.append("minimum_two_sources_required")
         hard_block_hits.append("single_signal_cannot_create_composite_argument")
-    if candidate.get("claim_ceiling") in [None, ""]:
+    if not claim_ceiling:
         hard_block_hits.append("claim_ceiling_missing")
+    elif claim_ceiling != DEFAULT_CLAIM_CEILING:
+        hard_block_hits.append("non_candidate_claim_ceiling_rejected")
     if forbidden_hits:
         hard_block_hits.append("forbidden_output_attempted")
 
@@ -170,9 +197,9 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         "source_surface_count": source_surface_count,
         "evidence_strength": _evidence_strength(unique_ref_count, contradicting_count, source_surface_count),
         "minimum_signal_count": DEFAULT_MINIMUM_SIGNAL_COUNT,
-        "claim_ceiling": candidate.get("claim_ceiling") or DEFAULT_CLAIM_CEILING,
+        "claim_ceiling": claim_ceiling or DEFAULT_CLAIM_CEILING,
         "report_consumers": list(candidate.get("report_consumers") or DEFAULT_REPORT_CONSUMERS),
-        "blocked_language_families": list(candidate.get("blocked_language_families") or BLOCKED_LANGUAGE_FAMILIES),
+        "blocked_language_families": _normalized_blocked_language_families(candidate),
         "hard_block_hits": hard_block_hits,
         "forbidden_output_hits": forbidden_hits,
         "decision": decision,
@@ -184,6 +211,7 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         "control_truth": False,
         "coach_intention_truth": False,
         "off_ball_truth": False,
+        "pitch_control_truth": False,
         "canonical_event_count": "UNKNOWN",
     }
     return packet
@@ -209,7 +237,7 @@ def build_report(candidates: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def write_outputs(candidates: list[dict[str, Any]], out_dir: str | Path) -> dict[str, Any]:
-    out = Path(out_dir)
+    out = _validate_output_root(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     report = build_report(candidates)
     (out / OUTPUT_JSON).write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
