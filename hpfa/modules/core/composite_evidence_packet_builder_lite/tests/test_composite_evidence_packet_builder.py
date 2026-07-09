@@ -70,6 +70,22 @@ def test_packet_claim_ceiling_candidate_only():
     assert packet["canonical_event_count"] == "UNKNOWN"
 
 
+def test_non_candidate_claim_ceiling_fails_closed():
+    candidate = base_candidate()
+    candidate["claim_ceiling"] = "claim_text_allowed"
+    packet = build_composite_packet(candidate)
+    assert packet["status"] == "FAIL_CLOSED"
+    assert "non_candidate_claim_ceiling_rejected" in packet["hard_block_hits"]
+
+
+def test_blocked_language_families_cannot_be_shortened():
+    candidate = base_candidate()
+    candidate["blocked_language_families"] = ["tactical_truth"]
+    packet = build_composite_packet(candidate)
+    for required in ["tactical_truth", "dominance_truth", "control_truth", "coach_intention", "off_ball_truth", "pitch_control_truth"]:
+        assert required in packet["blocked_language_families"]
+
+
 def test_no_tactical_truth():
     packet = build_composite_packet(base_candidate())
     assert packet["tactical_truth"] is False
@@ -77,6 +93,7 @@ def test_no_tactical_truth():
     assert packet["control_truth"] is False
     assert packet["coach_intention_truth"] is False
     assert packet["off_ball_truth"] is False
+    assert packet["pitch_control_truth"] is False
     assert "tactical_truth" in packet["blocked_language_families"]
     assert "dominance_truth" in packet["blocked_language_families"]
     assert "control_truth" in packet["blocked_language_families"]
@@ -97,6 +114,15 @@ def test_forbidden_output_attempt_blocks_packet():
     assert packet["status"] == "FAIL_CLOSED"
     assert "forbidden_output_attempted" in packet["hard_block_hits"]
     assert "claim_text" in packet["forbidden_output_hits"]
+
+
+def test_write_outputs_rejects_nested_phone_output():
+    try:
+        write_outputs([base_candidate()], "/sdcard/Download/HPFA/composite_evidence_packet_builder_lite")
+    except ValueError as exc:
+        assert "nested_phone_output_directory_rejected" in str(exc)
+    else:
+        raise AssertionError("nested phone output directory was not rejected")
 
 
 def test_build_report_and_write_outputs(tmp_path):
