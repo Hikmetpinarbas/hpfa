@@ -37,6 +37,7 @@ FORBIDDEN_UPSTREAM_FIELDS = {
     "dominance_truth",
     "control_truth",
     "coach_intention",
+    "coach_intention_truth",
     "off_ball_truth",
     "pitch_control_truth",
     "causal_truth",
