@@ -1,0 +1,32 @@
+name: Deterministic analysis command runtime tests
+
+on:
+  push:
+    branches:
+      - deterministic-analysis-command-runtime-v1
+  pull_request:
+    paths:
+      - hpfa/modules/core/deterministic_analysis_command_runtime/**
+      - hpfa_analysis_command_runtime.py
+      - docs/contracts/deterministic_analysis_command_runtime_v1.md
+      - .github/workflows/deterministic-analysis-command-runtime-tests.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-runtime-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile runtime
+        run: python -m py_compile hpfa_analysis_command_runtime.py hpfa/modules/core/deterministic_analysis_command_runtime/src/runtime.py
+      - name: Run standard-library tests
+        run: python -m unittest discover -s hpfa/modules/core/deterministic_analysis_command_runtime/tests -p "test_*.py" -v
