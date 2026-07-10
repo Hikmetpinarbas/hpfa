@@ -12,7 +12,7 @@ SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_analyst_report_lite" / 
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from report_lite import OUTPUT_JSON, OUTPUT_TXT, write_report
+from secure_report_lite import OUTPUT_JSON, OUTPUT_TXT, write_report
 
 
 def main() -> int:
