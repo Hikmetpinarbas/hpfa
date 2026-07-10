@@ -19,8 +19,12 @@ def test_surface_files_accept_only_event_formats(tmp_path):
 
 
 def test_declared_phone_roots_are_accepted():
-    assert MODULE._validate_flat_phone_output(Path("/sdcard/Download/HPFA")) == Path("/sdcard/Download/HPFA")
-    assert MODULE._validate_flat_phone_output(Path("/storage/emulated/0/Download/HPFA")) == Path("/storage/emulated/0/Download/HPFA")
+    for declared in (
+        Path("/sdcard/Download/HPFA"),
+        Path("/storage/emulated/0/Download/HPFA"),
+    ):
+        validated = MODULE._validate_flat_phone_output(declared)
+        assert validated == declared.resolve(strict=False)
 
 
 def test_nested_phone_output_is_rejected():
