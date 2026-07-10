@@ -53,6 +53,35 @@ def test_missing_packet_id_blocks_fusion_identity():
     assert record["packet_id"] == "MISSING_PACKET_ID"
 
 
+def test_failed_upstream_packet_blocks_fusion():
+    packet = base_packet()
+    packet["status"] = "FAIL_CLOSED"
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert record["fusion_status"] == "BLOCKED"
+    assert "upstream_composite_packet_failed_closed" in record["hard_block_hits"]
+    assert record["relation_records"] == []
+
+
+def test_block_packet_decision_blocks_fusion():
+    packet = base_packet()
+    packet["decision"] = "BLOCK_PACKET"
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "upstream_composite_packet_failed_closed" in record["hard_block_hits"]
+    assert record["relation_records"] == []
+
+
+def test_packet_hard_block_hits_propagate_to_fusion():
+    packet = base_packet()
+    packet["hard_block_hits"] = ["minimum_two_sources_required"]
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "upstream_composite_packet_failed_closed" in record["hard_block_hits"]
+    assert record["support_signal_count"] == 0
+    assert record["qualifier_signal_count"] == 0
+
+
 def test_fusion_records_signal_sources():
     record = fuse_packet(base_packet())
     signal_refs = {row["signal_ref"] for row in record["relation_records"]}
