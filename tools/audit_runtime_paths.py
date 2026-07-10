@@ -1,50 +1,62 @@
-import sys, site, os
-from pathlib import Path
 import importlib
+import site
+import subprocess
+import sys
+from pathlib import Path
+
 
 def show(title, items):
     print(f"\n== {title} ==")
-    for x in items:
-        print(x)
+    for item in items:
+        print(item)
+
+
+def pip_show(package_name: str) -> None:
+    print(f"\n== pip show {package_name} ==")
+    completed = subprocess.run(
+        [sys.executable, "-m", "pip", "show", package_name],
+        check=False,
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+    output = completed.stdout if completed.stdout else completed.stderr
+    for line in output.splitlines()[:120]:
+        print(line)
+    if completed.returncode not in {0, 1}:
+        print(f"pip_show_failed:returncode={completed.returncode}")
+
 
 print("python:", sys.executable)
 print("prefix:", sys.prefix)
 print("base_prefix:", sys.base_prefix)
 
-# sys.path
 show("sys.path (head)", sys.path[:30])
 
-# site-packages + .pth files
-sp = []
+site_packages = []
 try:
-    sp = site.getsitepackages()
+    site_packages = site.getsitepackages()
 except Exception:
     pass
-show("site-packages", sp)
+show("site-packages", site_packages)
 
-pths = []
-for p in sp:
-    d = Path(p)
-    if d.exists():
-        pths += sorted(d.glob("*.pth"))
-show(".pth files", [str(p) for p in pths])
+pth_files = []
+for package_path in site_packages:
+    directory = Path(package_path)
+    if directory.exists():
+        pth_files += sorted(directory.glob("*.pth"))
+show(".pth files", [str(path) for path in pth_files])
 
-# import targets
-targets = ["hpfa", "hp_motor"]
-for t in targets:
+for target in ["hpfa", "hp_motor"]:
     try:
-        m = importlib.import_module(t)
-        print(f"\n== import {t} ==")
-        print("module:", m)
-        print("__file__:", getattr(m, "__file__", None))
-        print("__path__:", list(getattr(m, "__path__", [])) if hasattr(m, "__path__") else None)
-        print("__spec__:", getattr(m, "__spec__", None))
-    except Exception as e:
-        print(f"\n== import {t} FAIL == {e}")
+        module = importlib.import_module(target)
+        print(f"\n== import {target} ==")
+        print("module:", module)
+        print("__file__:", getattr(module, "__file__", None))
+        print("__path__:", list(getattr(module, "__path__", [])) if hasattr(module, "__path__") else None)
+        print("__spec__:", getattr(module, "__spec__", None))
+    except Exception as exc:
+        print(f"\n== import {target} FAIL == {exc}")
 
-# pip editable check
-print("\n== pip show hp-motor ==")
-os.system("python -m pip show hp-motor | sed -n '1,120p'")
-
-print("\n== pip show hpfa ==")
-os.system("python -m pip show hpfa | sed -n '1,120p'")
+pip_show("hp-motor")
+pip_show("hpfa")
