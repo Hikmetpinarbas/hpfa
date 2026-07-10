@@ -1,0 +1,21 @@
+prompt_id	short_name	decision	priority	product_value_1_5	engineering_cost_1_5	maintainability_1_5	runtime_cost_1_5	future_reuse_1_5	ai_reuse_1_5	football_value_1_5	claim_safety_1_5	release_risk_1_5	founder_note
+1	read_only_donor_connector	ADAPT	P0	5	4	5	2	5	4	2	5	2	Build provenance manifests, not donor code ingestion
+2	fusion_mismatch_err101	ADAPT	P1	4	3	4	2	4	3	2	5	2	Use for capability/schema mismatch, not football truth fusion
+3	pr_dependency_compatibility_ci	ACCEPT	P0	5	3	5	1	5	4	4	5	2	Canonical HPFA schema remains authority
+4	connection_failure_unknown_protocol	ACCEPT	P0	5	2	5	1	5	4	4	5	1	No prediction on ConnectionError or timeout
+5	event_only_intake_gate	ADAPT	P0	5	4	5	2	5	3	5	5	2	Content-aware inspection required; extension alone is insufficient
+6	reference_isolation_protocol	ACCEPT	P0	5	3	5	1	5	3	2	5	1	References can never promote into authority paths
+7	no_imputation_canonical_stop	ACCEPT	P0	5	3	5	1	5	4	5	5	1	Required-field conflict blocks canonical promotion
+8	extractable_primitives_registry	ADAPT	P1	5	4	5	2	5	5	5	5	2	Raw field to canonical semantic field to primitive
+9	micro_mezzo_macro_from_donor_match	REJECT_AS_WRITTEN	P3	3	4	3	3	3	3	4	2	4	Use ACTIVE_MATCH data, not donor repo data
+10	donor_fact_six_phase_fix	REJECT	NONE	2	3	2	2	2	2	3	1	5	Donor data is not fact; replace Fix with intervention option candidate
+11	claim_safe_scout_report	ADAPT	P2	5	4	4	3	4	5	5	5	3	Every strong inference needs falsification and counter-scenario
+12	team_ontology_socioeconomic_osint	ADAPT	P3	3	5	3	4	3	4	4	2	4	Keep sociological context reference-only and non-causal
+13	analyst_attention_router	ACCEPT	P1	5	3	5	2	5	5	5	4	2	Do not hide contradictory evidence to reduce cognitive load
+14	black_white_chiaroscuro_heatmap	REJECT_AS_WRITTEN	P3	2	3	3	3	3	3	3	1	4	Allow high-contrast style but preserve uncertainty and no-data masks
+15	broadcast_script_consumer	ADAPT	P3	4	3	4	2	4	5	4	4	3	Consumer layer after claim gate and ACTIVE_MATCH proof
+16	simulation_coach_brief	DEFER	P3	4	5	3	5	4	5	5	2	5	Requires calibration, assumptions, uncertainty and OOD controls
+17	automatic_literature_support	ADAPT	P2	4	4	4	3	5	5	3	4	3	Research support cannot explain match anomaly automatically
+18	osint_prematch_adapter	ADAPT	P2	5	4	4	4	5	5	5	4	3	Keep verified facts, reported items, context candidates and unknowns separate
+19	pass_network_entropy_topology	ADAPT	P2	5	4	5	3	5	5	5	4	3	Event-action concentration, not player-space parcelization
+20	mandatory_aphorism	REJECT_AS_MANDATORY	LOW	1	1	3	1	1	2	1	4	2	Optional editorial epigraph only
