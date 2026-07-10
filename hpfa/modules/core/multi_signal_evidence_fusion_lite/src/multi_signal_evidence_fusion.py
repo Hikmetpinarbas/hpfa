@@ -90,12 +90,22 @@ def _refs(packet: dict[str, Any], key: str) -> list[str]:
     return [_ref_from_item(item, key, idx) for idx, item in enumerate(_items(packet, key))]
 
 
-def _forbidden_packet_hits(packet: dict[str, Any]) -> list[str]:
-    hits = []
-    for field in FORBIDDEN_PACKET_FIELDS:
-        if field in packet and packet.get(field) not in [None, "", False, []]:
-            hits.append(field)
-    return sorted(hits)
+def _is_forbidden_value(value: Any) -> bool:
+    return value not in [None, "", False, [], {}]
+
+
+def _forbidden_packet_hits(value: Any, path: str = "") -> list[str]:
+    hits: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_PACKET_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_forbidden_packet_hits(child, child_path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            hits.extend(_forbidden_packet_hits(child, f"{path}[{index}]"))
+    return sorted(set(hits))
 
 
 def _required_packet_missing(packet: dict[str, Any]) -> list[str]:
@@ -113,11 +123,15 @@ def _required_packet_missing(packet: dict[str, Any]) -> list[str]:
 
 
 def _upstream_packet_failed(packet: dict[str, Any]) -> bool:
-    if _as_list(packet.get("hard_block_hits")):
+    meaningful_hard_blocks = [
+        item for item in _as_list(packet.get("hard_block_hits"))
+        if item not in [None, "", False, [], {}]
+    ]
+    if meaningful_hard_blocks:
         return True
     if str(packet.get("decision") or "").upper().startswith("BLOCK"):
         return True
-    if str(packet.get("status") or "").upper() in {"FAIL_CLOSED", "BLOCKED"}:
+    if str(packet.get("status") or "").upper() in {"FAIL", "FAILED", "FAIL_CLOSED", "BLOCKED", "ERROR"}:
         return True
     return False
 
