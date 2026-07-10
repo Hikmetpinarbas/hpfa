@@ -112,6 +112,16 @@ def _required_packet_missing(packet: dict[str, Any]) -> list[str]:
     return [key for key in required if packet.get(key) in [None, ""]]
 
 
+def _upstream_packet_failed(packet: dict[str, Any]) -> bool:
+    if _as_list(packet.get("hard_block_hits")):
+        return True
+    if str(packet.get("decision") or "").upper().startswith("BLOCK"):
+        return True
+    if str(packet.get("status") or "").upper() in {"FAIL_CLOSED", "BLOCKED"}:
+        return True
+    return False
+
+
 def _is_explicit_contradiction(item: Any) -> bool:
     if not isinstance(item, dict):
         return False
@@ -167,16 +177,15 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
 
     missing_fields = _required_packet_missing(normalized_packet)
     packet_id = original_packet_id or MISSING_PACKET_ID
-    if original_packet_id:
-        normalized_packet["packet_id"] = original_packet_id
-    else:
-        normalized_packet["packet_id"] = packet_id
+    normalized_packet["packet_id"] = packet_id
 
     forbidden_hits = _forbidden_packet_hits(normalized_packet)
     hard_block_hits: list[str] = []
 
     if missing_fields:
         hard_block_hits.append("composite_packet_required_fields_missing")
+    if _upstream_packet_failed(normalized_packet):
+        hard_block_hits.append("upstream_composite_packet_failed_closed")
     if normalized_packet.get("claim_ceiling") != CANDIDATE_ONLY_CLAIM_CEILING:
         hard_block_hits.append("upstream_packet_claim_ceiling_not_candidate_only")
     if forbidden_hits:
@@ -186,7 +195,7 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     if normalized_packet.get("report_language_allowed") not in [False, None]:
         hard_block_hits.append("upstream_packet_report_language_allowed")
 
-    relation_records = _signal_relation_records(normalized_packet) if not missing_fields else []
+    relation_records = _signal_relation_records(normalized_packet) if not hard_block_hits else []
     relation_counts = Counter(row["relation_type"] for row in relation_records)
     has_support = relation_counts.get("SUPPORTS", 0) > 0
     has_contradiction = relation_counts.get("CONTRADICTS", 0) > 0
