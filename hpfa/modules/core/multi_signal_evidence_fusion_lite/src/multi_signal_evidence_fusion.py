@@ -90,12 +90,22 @@ def _refs(packet: dict[str, Any], key: str) -> list[str]:
     return [_ref_from_item(item, key, idx) for idx, item in enumerate(_items(packet, key))]
 
 
-def _forbidden_packet_hits(packet: dict[str, Any]) -> list[str]:
-    hits = []
-    for field in FORBIDDEN_PACKET_FIELDS:
-        if field in packet and packet.get(field) not in [None, "", False, []]:
-            hits.append(field)
-    return sorted(hits)
+def _is_forbidden_value(value: Any) -> bool:
+    return value not in [None, "", False, [], {}]
+
+
+def _forbidden_packet_hits(value: Any, path: str = "") -> list[str]:
+    hits: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_PACKET_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_forbidden_packet_hits(child, child_path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            hits.extend(_forbidden_packet_hits(child, f"{path}[{index}]"))
+    return sorted(set(hits))
 
 
 def _required_packet_missing(packet: dict[str, Any]) -> list[str]:
@@ -110,6 +120,21 @@ def _required_packet_missing(packet: dict[str, Any]) -> list[str]:
         "claim_ceiling",
     ]
     return [key for key in required if packet.get(key) in [None, ""]]
+
+
+def _upstream_packet_failed(packet: dict[str, Any]) -> bool:
+    meaningful_hard_blocks = [
+        item
+        for item in _as_list(packet.get("hard_block_hits"))
+        if item not in [None, "", False, [], {}]
+    ]
+    if meaningful_hard_blocks:
+        return True
+    if str(packet.get("decision") or "").upper().startswith("BLOCK"):
+        return True
+    if str(packet.get("status") or "").upper() in {"FAIL", "FAILED", "FAIL_CLOSED", "BLOCKED", "ERROR"}:
+        return True
+    return False
 
 
 def _is_explicit_contradiction(item: Any) -> bool:
@@ -167,16 +192,15 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
 
     missing_fields = _required_packet_missing(normalized_packet)
     packet_id = original_packet_id or MISSING_PACKET_ID
-    if original_packet_id:
-        normalized_packet["packet_id"] = original_packet_id
-    else:
-        normalized_packet["packet_id"] = packet_id
+    normalized_packet["packet_id"] = packet_id
 
     forbidden_hits = _forbidden_packet_hits(normalized_packet)
     hard_block_hits: list[str] = []
 
     if missing_fields:
         hard_block_hits.append("composite_packet_required_fields_missing")
+    if _upstream_packet_failed(normalized_packet):
+        hard_block_hits.append("upstream_composite_packet_failed_closed")
     if normalized_packet.get("claim_ceiling") != CANDIDATE_ONLY_CLAIM_CEILING:
         hard_block_hits.append("upstream_packet_claim_ceiling_not_candidate_only")
     if forbidden_hits:
@@ -186,7 +210,7 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     if normalized_packet.get("report_language_allowed") not in [False, None]:
         hard_block_hits.append("upstream_packet_report_language_allowed")
 
-    relation_records = _signal_relation_records(normalized_packet) if not missing_fields else []
+    relation_records = _signal_relation_records(normalized_packet) if not hard_block_hits else []
     relation_counts = Counter(row["relation_type"] for row in relation_records)
     has_support = relation_counts.get("SUPPORTS", 0) > 0
     has_contradiction = relation_counts.get("CONTRADICTS", 0) > 0
