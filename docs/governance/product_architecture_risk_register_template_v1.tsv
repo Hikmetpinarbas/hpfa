@@ -1,0 +1,2 @@
+risk_id	risk_family	trigger	impact_1_5	likelihood_1_5	mitigation	regression_test	owner_module	release_blocking	status
+RISK-EXAMPLE-001	claim_safety	nested_forbidden_output_survives_upstream	5	3	recursive_path_aware_scan	test_nested_forbidden_output_fails_closed	shared_validation_guard	true	OPEN
