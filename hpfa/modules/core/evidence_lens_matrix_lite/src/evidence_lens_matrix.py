@@ -90,12 +90,23 @@ def _is_forbidden_value(value: Any) -> bool:
     return value not in [None, "", False, []]
 
 
+def _collect_forbidden_hits(value: Any, path: str = "") -> list[str]:
+    hits: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_UPSTREAM_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            child_path = f"{path}[{idx}]" if path else f"[{idx}]"
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    return hits
+
+
 def _forbidden_hits(graph: dict[str, Any]) -> list[str]:
-    return sorted(
-        field
-        for field in FORBIDDEN_UPSTREAM_FIELDS
-        if field in graph and _is_forbidden_value(graph.get(field))
-    )
+    return sorted(set(_collect_forbidden_hits(graph)))
 
 
 def _upstream_failed(graph: dict[str, Any]) -> bool:
@@ -280,4 +291,3 @@ def write_outputs(graphs: list[dict[str, Any]], out_dir: str | Path) -> dict[str
     lines.append("")
     (out / OUTPUT_TXT).write_text("\n".join(lines), encoding="utf-8")
     return report
-
