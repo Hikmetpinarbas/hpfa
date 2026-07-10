@@ -25,7 +25,7 @@ def _ensure_module_path(path: Path) -> None:
 def _surface_manifest_module(root: Path):
     src = root / "hpfa" / "modules" / "core" / "canonical_ingest_surface_manifest" / "src"
     _ensure_module_path(src)
-    import surface_manifest  # type: ignore
+    import secure_surface_manifest as surface_manifest  # type: ignore
 
     return surface_manifest
 
@@ -105,6 +105,7 @@ def run_spine_check(
             "canonical_event_count": manifest.get("canonical_event_count"),
             "missing_expected_surfaces": manifest.get("missing_expected_surfaces"),
             "unexpected_surfaces": manifest.get("unexpected_surfaces"),
+            "security_failures": manifest.get("security_failures", []),
             "claim_safety": manifest.get("claim_safety"),
             "report_language_allowed": manifest.get("report_language_allowed"),
             "production_binding_allowed": manifest.get("production_binding_allowed"),
@@ -145,16 +146,9 @@ def render_summary(result: dict[str, Any]) -> str:
     ]
     surface = result.get("surface_manifest") or {}
     for key in [
-        "status",
-        "surface_file_count",
-        "expected_surface_count",
-        "canonical_event_count",
-        "missing_expected_surfaces",
-        "unexpected_surfaces",
-        "claim_safety",
-        "report_language_allowed",
-        "production_binding_allowed",
-        "out",
+        "status", "surface_file_count", "expected_surface_count", "canonical_event_count",
+        "missing_expected_surfaces", "unexpected_surfaces", "security_failures", "claim_safety",
+        "report_language_allowed", "production_binding_allowed", "out",
     ]:
         lines.append(f"{key}={surface.get(key)}")
 
