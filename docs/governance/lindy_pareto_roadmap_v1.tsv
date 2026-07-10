@@ -1,0 +1,12 @@
+phase	work_item	pareto_priority	lindy_value	analyst_value	product_leverage	dependency	decision	exit_condition
+0	open_pr_hygiene	DO_NOW	HIGH	MEDIUM	HIGH	none	START_NOW	no ambiguous open PR remains
+1	packet_to_fusion_failure_propagation	DO_NOW	HIGH	HIGH	HIGH	open_pr_hygiene	IN_PROGRESS	blocked packet cannot create fusion relations
+1	shared_recursive_forbidden_scan	DO_NOW	HIGH	HIGH	HIGH	packet_to_fusion_failure_propagation	DO_NEXT	nested restricted output fails closed across early intelligence stages
+1	canonical_defeasible_route_contract	DO_NOW	HIGH	HIGH	HIGH	shared_recursive_forbidden_scan	DO_NEXT	argument route order and field contract are explicit
+1	end_to_end_intelligence_chain_fixture	DO_NOW	HIGH	HIGH	VERY_HIGH	canonical_defeasible_route_contract	DO_NEXT	one synthetic artifact traverses the full chain safely
+2	intelligence_pipeline_orchestrator_lite	DO_NEXT	HIGH	HIGH	VERY_HIGH	end_to_end_intelligence_chain_fixture	BLOCKED_UNTIL_READY	complete stage ledger without silent repair or state promotion
+3	contradiction_candidate_engine_lite	DO_NEXT	HIGH	VERY_HIGH	HIGH	intelligence_pipeline_orchestrator_lite	DEFER_UNTIL_ORCHESTRATOR	counter evidence weakens or withdraws an argument
+4	donor_capability_registry	DO_NEXT	HIGH	MEDIUM	HIGH	integration_core_stable	DO_NEXT	no donor capability enters without adaptation decision
+5	knowledge_graph_v2	DO_NEXT	MEDIUM_HIGH	HIGH	HIGH	stable_identity_contracts	DEFER_UNTIL_IDENTITIES_STABLE	report block traces to evidence and counter evidence
+6	active_match_intelligence_run	DO_NEXT	VERY_HIGH	VERY_HIGH	VERY_HIGH	orchestrator_and_runtime_ready	REQUIRED_FOR_RELEASE	engineering and analyst evidence produced from ACTIVE_MATCH
+7	analytical_diversity_expansion	DEFER	VARIABLE	HIGH	MEDIUM	integration_spine_stable	DEFER	new method answers a unique question and has a downstream consumer
