@@ -50,3 +50,35 @@ def test_upstream_hard_blocks_stop_signal_counts():
     assert record["decision"] == "BLOCK_FUSION"
     assert record["support_signal_count"] == 0
     assert record["qualifier_signal_count"] == 0
+
+
+def test_nested_forbidden_output_stops_fusion():
+    packet = packet_fixture()
+    packet["supporting_signals"] = [
+        {"signal_id": "unsafe_signal", "payload": {"tactical_truth": True}}
+    ]
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert record["relation_records"] == []
+    assert record["forbidden_output_hits"] == [
+        "supporting_signals[0].payload.tactical_truth"
+    ]
+
+
+def test_error_status_stops_relation_creation():
+    packet = packet_fixture()
+    packet["status"] = "ERROR"
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "upstream_composite_packet_failed_closed" in record["hard_block_hits"]
+
+
+def test_empty_hard_block_container_does_not_block_valid_packet():
+    packet = packet_fixture()
+    packet["hard_block_hits"] = []
+    record = fuse_packet(packet)
+    assert record["decision"] == "READY_FOR_ARGUMENT_WITH_QUALIFIER"
+    packet["hard_block_hits"] = False
+    record = fuse_packet(packet)
+    assert record["decision"] == "READY_FOR_ARGUMENT_WITH_QUALIFIER"
+
