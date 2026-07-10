@@ -1,0 +1,6 @@
+prompt_id	prompt_name	decision	risk_tier	product_value_1_5	engineering_cost_1_5	maintainability_1_5	future_reuse_1_5	football_value_1_5	claim_safety_1_5	release_risk_1_5	founder_note
+1	Automa Board Room	ADAPT	R2_R3	5	2	4	5	3	4	2	Use risk-tiered disagreement; avoid mandatory theatre for trivial changes
+2	Evolution Engine	ACCEPT	R2	5	2	5	5	4	5	1	Reverse-roadmap from durable capability and interface contracts
+3	Zero Debt Auditor	ADAPT	R3	5	3	5	5	4	5	1	Classify missingness; fail closed only where authority or analysis requires it
+4	Strategy Shredder	ADAPT_STRONGLY	R3	4	3	4	4	5	4	3	Keep falsification and counter-scenarios; reject black-white football certainty and definitive Fix
+5	High Value Synthesizer	ADAPT	R1_R2	5	2	5	5	5	4	2	Compress noise but preserve contradiction, uncertainty and blockers
