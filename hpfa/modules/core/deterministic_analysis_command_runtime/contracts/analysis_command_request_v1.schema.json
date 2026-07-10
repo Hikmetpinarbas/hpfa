@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HPFA Deterministic Analysis Command Request V1",
+  "type": "object",
+  "required": ["command"],
+  "properties": {
+    "command": {
+      "enum": [
+        "RAW-PARSER",
+        "MATH-METRIC",
+        "TACTIC-MATRIX",
+        "DEFENSIVE-ACTION-HEIGHT-PROXY",
+        "XT-MATRIX",
+        "RAW-DEBUG"
+      ]
+    },
+    "events": {"type": "array", "items": {"type": "object"}},
+    "team_id": {"type": ["string", "number"]},
+    "coordinate_frame": {
+      "enum": ["attacking_normalized", "absolute_with_direction"]
+    },
+    "shot": {
+      "type": "object",
+      "properties": {
+        "x": {"type": "number", "minimum": 0, "maximum": 105},
+        "y": {"type": "number", "minimum": 0, "maximum": 68},
+        "attacking_direction": {
+          "enum": ["left_to_right", "right_to_left"]
+        }
+      },
+      "required": ["x", "y"]
+    },
+    "coefficients": {
+      "type": "object",
+      "properties": {
+        "intercept": {"type": "number"},
+        "distance": {"type": "number"},
+        "angle": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "raw_event": {},
+    "error": {"type": "string"}
+  },
+  "additionalProperties": true
+}
