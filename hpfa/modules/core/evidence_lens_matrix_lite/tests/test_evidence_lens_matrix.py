@@ -125,6 +125,24 @@ def test_forbidden_upstream_output_fails_closed():
     assert "claim_text" in matrix["forbidden_upstream_hits"]
 
 
+def test_forbidden_node_field_fails_closed():
+    graph = base_graph()
+    graph["nodes"][0]["claim_text"] = "forbidden nested node claim"
+    matrix = build_lens_matrix(graph)
+    assert matrix["decision"] == "BLOCK_LENS_MATRIX"
+    assert "upstream_graph_forbidden_output_attempted" in matrix["hard_block_hits"]
+    assert "nodes[0].claim_text" in matrix["forbidden_upstream_hits"]
+
+
+def test_forbidden_node_payload_field_fails_closed():
+    graph = base_graph()
+    graph["nodes"][0]["payload"]["tactical_truth"] = True
+    matrix = build_lens_matrix(graph)
+    assert matrix["decision"] == "BLOCK_LENS_MATRIX"
+    assert "upstream_graph_forbidden_output_attempted" in matrix["hard_block_hits"]
+    assert "nodes[0].payload.tactical_truth" in matrix["forbidden_upstream_hits"]
+
+
 def test_canonical_event_count_claim_fails_closed():
     graph = base_graph()
     graph["canonical_event_count"] = 100
