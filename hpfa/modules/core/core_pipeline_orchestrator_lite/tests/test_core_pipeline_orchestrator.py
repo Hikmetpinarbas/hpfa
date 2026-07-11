@@ -218,6 +218,23 @@ def test_run_id_is_required():
         raise AssertionError("run_id_required was not raised")
 
 
+def test_non_serializable_stage_output_fails_closed():
+    def runner(artifact: dict) -> dict:
+        output = stage_output(artifact, artifact_id="feature_001", artifact_type="feature_candidate")
+        output["auxiliary"] = {"not", "json", "serializable"}
+        return output
+
+    result = run_pipeline(
+        run_id="run_010",
+        initial_artifact=initial_artifact(),
+        stages=[StageSpec("stage_a", "surface_candidate", "feature_candidate", runner)],
+    )
+    record = result["stage_ledger"][0]
+    assert result["status"] == "FAIL_CLOSED"
+    assert record["error_code"] == "stage_output_not_json_serializable"
+    assert record["hard_block_hits"] == ["stage_output_not_json_serializable"]
+
+
 def test_no_sample_match_identity_leak():
     source = (SRC / "core_pipeline_orchestrator.py").read_text(encoding="utf-8").lower()
     forbidden = ["france", "morocco", "galatasaray", "fenerbahce", "world cup"]
