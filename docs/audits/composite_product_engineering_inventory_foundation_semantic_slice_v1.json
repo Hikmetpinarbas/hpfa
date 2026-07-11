@@ -1,0 +1,92 @@
+{
+  "inventory_id": "HPFA-COMPOSITE-INVENTORY-FOUNDATION-SEMANTIC-SLICE-001",
+  "directive_id": "HPFA-COMPOSITE-IMPLEMENTATION-001",
+  "inventory_scope": "current-main executable inventory; first verified foundation/semantic slice only",
+  "repository": "Hikmetpinarbas/hpfa",
+  "main_sha": "6cc540399d56e52c021a3a02e3f72b416d393184",
+  "canonical_event_count": "UNKNOWN",
+  "truth_claim": false,
+  "production_binding": false,
+  "active_match_runtime_authority": "runtime/active_single_match/current",
+  "classification_dictionary": [
+    "EXECUTABLE",
+    "CONTRACT_ONLY",
+    "DOC_ONLY",
+    "DUPLICATE",
+    "PARTIAL",
+    "NOT_FOUND",
+    "ACTIVE_MATCH_PROVEN",
+    "NOT_RUNTIME_PROVEN"
+  ],
+  "classification_rule": "Capability status is assigned from current main only. Open pull requests and donor repositories are not counted as current-main executable product evidence.",
+  "records": [
+    {
+      "directive_module": "Canonical Donor Resolver Lite V1",
+      "directive_module_number": 1,
+      "primary_status": "NOT_FOUND",
+      "runtime_status": "NOT_RUNTIME_PROVEN",
+      "evidence": [],
+      "search_basis": [
+        "exact current-main repository search: canonical donor resolver"
+      ],
+      "confidence": "MEDIUM",
+      "gap": "No exact current-main producer, contract, schema or test evidence was resolved in this inventory pass.",
+      "next_verification": "Inspect donor-governance producers and superseded-source policies for an adaptable existing producer before creating a new module.",
+      "release_status": "DISCOVERY_PASS_PLAN_ONLY"
+    },
+    {
+      "directive_module": "Concept Atom Registry Resolver Lite V1",
+      "directive_module_number": 2,
+      "primary_status": "NOT_FOUND",
+      "runtime_status": "NOT_RUNTIME_PROVEN",
+      "evidence": [],
+      "search_basis": [
+        "exact current-main repository search: concept atom registry"
+      ],
+      "confidence": "MEDIUM",
+      "gap": "No exact current-main lazy atom resolver, executable producer, contract, schema or test evidence was resolved in this inventory pass.",
+      "next_verification": "Inspect ontology, taxonomy and registry producers for equivalent capability and alias/ambiguity handling before declaring a new abstraction necessary.",
+      "release_status": "DISCOVERY_PASS_PLAN_ONLY"
+    },
+    {
+      "directive_module": "Field Semantic Reader Lite V2",
+      "directive_module_number": 5,
+      "primary_status": "EXECUTABLE",
+      "runtime_status": "NOT_RUNTIME_PROVEN",
+      "evidence": [
+        "docs/contracts/field_semantic_reader_lite_v1.md",
+        "hpfa/modules/core/field_semantic_reader_lite/src/field_semantic_reader.py",
+        "hpfa/modules/core/field_semantic_reader_lite/contracts/field_semantic_reader_lite_v1.schema.json",
+        "hpfa/modules/core/field_semantic_reader_lite/tests/test_field_semantic_reader.py",
+        "hpfa/modules/core/field_semantic_reader_lite/tests/test_field_semantic_reader_downstream_eligibility.py"
+      ],
+      "search_basis": [
+        "current-main repository search: field semantic reader"
+      ],
+      "confidence": "HIGH",
+      "gap": "Executable V1 and downstream-eligibility tests are present, but this inventory pass did not establish ACTIVE_MATCH execution evidence or full V2 contract conformance against every directive field and fail action.",
+      "next_verification": "Run contract-diff audit against V2 required output, semantic families, fail actions and ACTIVE_MATCH evidence requirements.",
+      "release_status": "SMOKE_PASS"
+    }
+  ],
+  "engineering_evidence": {
+    "main_verified": true,
+    "main_sha": "6cc540399d56e52c021a3a02e3f72b416d393184",
+    "open_pull_requests_observed": true,
+    "inventory_records_written": 3,
+    "tests_executed": false,
+    "active_match_execution_performed": false
+  },
+  "analyst_evidence": {
+    "football_output_generated": false,
+    "analyst_claims_generated": false,
+    "product_value": "Establishes the first claim-safe current-main capability map and prevents open-PR or donor artifacts from being misclassified as executable product truth."
+  },
+  "known_limitations": [
+    "This is intentionally a partial inventory slice, not the full directive inventory.",
+    "NOT_FOUND means not resolved in the current-main search pass; it is not proof that no adjacent or differently named producer exists.",
+    "No test pass or ACTIVE_MATCH evidence is claimed for this inventory artifact."
+  ],
+  "next_node_candidate": "Complete equivalence search for Modules 1-4 and then audit Field Semantic Reader V1-to-V2 contract delta before selecting implementation work.",
+  "overall_release_status": "DISCOVERY_PASS_PLAN_ONLY"
+}
