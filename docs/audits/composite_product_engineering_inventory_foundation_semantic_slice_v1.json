@@ -77,8 +77,10 @@
     {
       "directive_module": "Field Semantic Reader Lite V2",
       "directive_module_number": 5,
-      "primary_status": "EXECUTABLE",
+      "primary_status": "PARTIAL",
       "runtime_status": "NOT_RUNTIME_PROVEN",
+      "implemented_evidence_version": "V1",
+      "target_capability_version": "V2",
       "evidence": [
         "docs/contracts/field_semantic_reader_lite_v1.md",
         "hpfa/modules/core/field_semantic_reader_lite/src/field_semantic_reader.py",
@@ -87,12 +89,19 @@
         "hpfa/modules/core/field_semantic_reader_lite/tests/test_field_semantic_reader_downstream_eligibility.py"
       ],
       "search_basis": [
-        "current-main repository search: field semantic reader"
+        "current-main repository search: field semantic reader",
+        "explicit current-main search for field_semantic_reader_lite_v2 and Field Semantic Reader Lite V2"
       ],
       "confidence": "HIGH",
-      "gap": "Executable V1 and downstream-eligibility tests are present, but this inventory pass did not establish ACTIVE_MATCH execution evidence or full V2 contract conformance against every directive field and fail action.",
-      "next_verification": "Run contract-diff audit against V2 required output, semantic families, fail actions and ACTIVE_MATCH evidence requirements.",
-      "release_status": "SMOKE_PASS"
+      "does_exist": [
+        "an executable V1 field semantic reader producer",
+        "a V1 contract and schema",
+        "V1 unit tests and downstream-eligibility test coverage"
+      ],
+      "gap": "No current-main V2 producer, V2 contract, V2 schema or V2 test artifact was resolved. Existing V1 evidence does not establish full V2 output fields, semantic families, fail actions, provider-agnostic routing requirements or ACTIVE_MATCH evidence.",
+      "claim_boundary": "Current evidence proves only that a V1 executable candidate exists. It does not prove that Field Semantic Reader Lite V2 is implemented, contract-complete or runtime-proven.",
+      "next_verification": "Perform a field-by-field V1-to-V2 contract delta audit before selecting extension or replacement work.",
+      "release_status": "DISCOVERY_PASS_PLAN_ONLY"
     }
   ],
   "engineering_evidence": {
@@ -106,12 +115,13 @@
   "analyst_evidence": {
     "football_output_generated": false,
     "analyst_claims_generated": false,
-    "product_value": "Extends the claim-safe current-main capability map by separating source-role governance and basic surface classification from the still-missing executable admission and independence enforcement layer."
+    "product_value": "Extends the claim-safe current-main capability map by separating source-role governance and basic surface classification from the still-missing executable admission and independence enforcement layer, and by separating V1 Field Semantic Reader evidence from the unproven V2 target capability."
   },
   "known_limitations": [
     "This is intentionally a partial inventory slice, not the full directive inventory.",
     "NOT_FOUND means not resolved in the current-main search pass; it is not proof that no adjacent or differently named producer exists.",
     "PARTIAL does not imply that directive hard blocks or runtime admission decisions are enforced end to end.",
+    "A lower-version executable producer does not make a higher-version target capability executable.",
     "No test pass or ACTIVE_MATCH evidence is claimed for this inventory artifact."
   ],
   "next_node_candidate": "Complete capability-equivalence search for Triplex Source Alignment Guard and adjacent provenance/source-conflict producers, then audit Field Semantic Reader V1-to-V2 contract delta before selecting implementation work.",
