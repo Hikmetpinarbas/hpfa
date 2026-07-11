@@ -1,0 +1,27 @@
+name: Core Pipeline Orchestrator Lite V1
+
+on:
+  push:
+    branches: [core-pipeline-orchestrator-lite-v1]
+  pull_request:
+    paths:
+      - hpfa/modules/core/core_pipeline_orchestrator_lite/**
+      - docs/contracts/core_pipeline_orchestrator_lite_v1.md
+      - .github/workflows/core-pipeline-orchestrator-lite-v1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pytest
+      - run: python -m py_compile hpfa/modules/core/core_pipeline_orchestrator_lite/src/core_pipeline_orchestrator.py
+      - run: python -m pytest hpfa/modules/core/core_pipeline_orchestrator_lite/tests -q
