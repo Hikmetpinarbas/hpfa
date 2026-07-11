@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from hashlib import sha256
 import json
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 
 MODULE_ID = "core_pipeline_orchestrator_lite_v1"
@@ -150,39 +151,41 @@ def run_pipeline(
     if not isinstance(initial_artifact, dict):
         raise OrchestrationContractError("initial_artifact_must_be_dict")
 
-    current = dict(initial_artifact)
+    current = deepcopy(initial_artifact)
     ledger: list[dict[str, Any]] = []
     pipeline_halted = False
     halt_reason = ""
 
     for index, stage in enumerate(stages):
         _validate_stage_spec(stage)
+        input_snapshot = deepcopy(current)
+        input_fingerprint = artifact_fingerprint(input_snapshot)
 
-        if current.get("artifact_type") != stage.input_artifact_type:
+        if input_snapshot.get("artifact_type") != stage.input_artifact_type:
             output = _failure_artifact(
                 run_id=run_id,
                 stage=stage,
-                input_artifact=current,
+                input_artifact=input_snapshot,
                 error_code="input_artifact_type_mismatch",
             )
             error_code = "input_artifact_type_mismatch"
-        elif artifact_is_blocking(current):
+        elif artifact_is_blocking(input_snapshot):
             output = _failure_artifact(
                 run_id=run_id,
                 stage=stage,
-                input_artifact=current,
+                input_artifact=input_snapshot,
                 error_code="upstream_artifact_failed_closed",
             )
             error_code = "upstream_artifact_failed_closed"
         else:
             try:
-                output = _validate_stage_output(stage, stage.runner(dict(current)))
+                output = _validate_stage_output(stage, stage.runner(deepcopy(input_snapshot)))
                 error_code = ""
             except OrchestrationContractError as exc:
                 output = _failure_artifact(
                     run_id=run_id,
                     stage=stage,
-                    input_artifact=current,
+                    input_artifact=input_snapshot,
                     error_code=str(exc),
                 )
                 error_code = str(exc)
@@ -190,7 +193,7 @@ def run_pipeline(
                 output = _failure_artifact(
                     run_id=run_id,
                     stage=stage,
-                    input_artifact=current,
+                    input_artifact=input_snapshot,
                     error_code="stage_runner_exception",
                 )
                 error_code = "stage_runner_exception"
@@ -200,8 +203,8 @@ def run_pipeline(
             "stage_index": index,
             "stage_module_id": stage.stage_id,
             "input_artifact_type": stage.input_artifact_type,
-            "input_artifact_ids": [current.get("artifact_id")],
-            "input_fingerprint": artifact_fingerprint(current),
+            "input_artifact_ids": [input_snapshot.get("artifact_id")],
+            "input_fingerprint": input_fingerprint,
             "output_artifact_type": stage.output_artifact_type,
             "output_artifact_ids": [output.get("artifact_id")],
             "output_fingerprint": artifact_fingerprint(output),
@@ -225,8 +228,8 @@ def run_pipeline(
             break
 
     completed_all_stages = len(ledger) == len(stages) and not pipeline_halted
-    has_block = any(record["hard_block_hits"] for record in ledger)
-    has_review = any(record["review_hits"] for record in ledger)
+    has_block = any(artifact_is_blocking(record) for record in ledger)
+    has_review = any(artifact_requires_review(record) for record in ledger)
 
     if has_block:
         status = "FAIL_CLOSED"
