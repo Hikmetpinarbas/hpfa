@@ -49,6 +49,32 @@
       "release_status": "DISCOVERY_PASS_PLAN_ONLY"
     },
     {
+      "directive_module": "Source Role and Admission Registry V1",
+      "directive_module_number": 3,
+      "primary_status": "PARTIAL",
+      "runtime_status": "NOT_RUNTIME_PROVEN",
+      "evidence": [
+        "docs/governance/runtime_pack_v1/source_role_registry.json",
+        "hpfa/modules/core/canonical_ingest_surface_manifest/src/surface_manifest.py"
+      ],
+      "search_basis": [
+        "current-main capability-equivalence search: source_role",
+        "inspection of governance source-role registry",
+        "inspection of executable canonical ingest surface manifest"
+      ],
+      "confidence": "HIGH",
+      "does_exist": [
+        "the required top-level source-role families are registered in governance",
+        "ACTIVE_MATCH runtime authority and canonical_event_count=UNKNOWN are explicit",
+        "an executable surface manifest classifies file role and surface family",
+        "reference-path markers can fail closed"
+      ],
+      "gap": "The directive requires per-source source_id, source_path, source_type, authority_scope, independence_group, upstream_origin, derived_status, admission_status, allowed_consumers, forbidden_consumers and claim_capacity. Current-main evidence does not establish a unified executable admission registry, independence-group enforcement, duplicate/dependency detection or consumer-level allow/block routing.",
+      "claim_boundary": "Current evidence supports governance-role registration and basic ingest-surface classification only; it does not prove source independence, raw authority, admission eligibility or runtime claim capacity.",
+      "next_verification": "Inspect provenance, duplicate-surface and source-conflict producers for reusable enforcement before deciding whether to extend an existing producer or add a narrow admission gate.",
+      "release_status": "DISCOVERY_PASS_PLAN_ONLY"
+    },
+    {
       "directive_module": "Field Semantic Reader Lite V2",
       "directive_module_number": 5,
       "primary_status": "EXECUTABLE",
@@ -73,20 +99,21 @@
     "main_verified": true,
     "main_sha": "6cc540399d56e52c021a3a02e3f72b416d393184",
     "open_pull_requests_observed": true,
-    "inventory_records_written": 3,
+    "inventory_records_written": 4,
     "tests_executed": false,
     "active_match_execution_performed": false
   },
   "analyst_evidence": {
     "football_output_generated": false,
     "analyst_claims_generated": false,
-    "product_value": "Establishes the first claim-safe current-main capability map and prevents open-PR or donor artifacts from being misclassified as executable product truth."
+    "product_value": "Extends the claim-safe current-main capability map by separating source-role governance and basic surface classification from the still-missing executable admission and independence enforcement layer."
   },
   "known_limitations": [
     "This is intentionally a partial inventory slice, not the full directive inventory.",
     "NOT_FOUND means not resolved in the current-main search pass; it is not proof that no adjacent or differently named producer exists.",
+    "PARTIAL does not imply that directive hard blocks or runtime admission decisions are enforced end to end.",
     "No test pass or ACTIVE_MATCH evidence is claimed for this inventory artifact."
   ],
-  "next_node_candidate": "Complete equivalence search for Modules 1-4 and then audit Field Semantic Reader V1-to-V2 contract delta before selecting implementation work.",
+  "next_node_candidate": "Complete capability-equivalence search for Triplex Source Alignment Guard and adjacent provenance/source-conflict producers, then audit Field Semantic Reader V1-to-V2 contract delta before selecting implementation work.",
   "overall_release_status": "DISCOVERY_PASS_PLAN_ONLY"
 }
