@@ -78,6 +78,45 @@
       "release_status": "DISCOVERY_PASS_PLAN_ONLY"
     },
     {
+      "directive_module": "Triplex Source Alignment Guard V1",
+      "directive_module_number": 4,
+      "primary_status": "NOT_FOUND",
+      "runtime_status": "NOT_RUNTIME_PROVEN",
+      "evidence": [],
+      "search_basis": [
+        "exact current-main and donor-repository capability-equivalence search: Triplex Source Alignment Guard",
+        "current-main search: provenance, source conflict, duplicate surface, source dependency and independence group",
+        "Google Drive donor search: Triplex Source Alignment",
+        "Dropbox donor archive inspection: hpfa_triplex_source_alignment_guard_v1"
+      ],
+      "confidence": "HIGH",
+      "donor_equivalence": {
+        "source": "Dropbox HPFA_RESEARCH_ARCHIVE/04_EXTRACTION_AND_NODE_PACKS/hpfa_triplex_source_alignment_guard_v1",
+        "status": "SPEC_CONTRACT",
+        "claim_gate": "CLOSED",
+        "truth_claim": false,
+        "artifacts": [
+          "hpfa_triplex_source_alignment_guard_v1.json",
+          "hpfa_triplex_source_alignment_guard_v1_contract.md",
+          "hpfa_triplex_source_alignment_guard_v1_field_contract.csv",
+          "hpfa_triplex_source_alignment_guard_v1_runner_pseudocode.md",
+          "SHA256SUMS_hpfa_triplex_source_alignment_guard_v1.txt"
+        ],
+        "capability_summary": [
+          "admissibility check for CSV, XML and XLSX source alignment before metric fusion",
+          "canonical event identity component specification",
+          "duplicate-surface and derived-output-as-source guards",
+          "source dependency warning and claim-capacity downgrade guards",
+          "fail-closed conditions for missing keys, ambiguous time-window matching and absent unit/scope/denominator"
+        ],
+        "product_evidence_rule": "Donor spec/contract evidence is not executable current-main product evidence and is not counted as CONTRACT_ONLY for the product repository."
+      },
+      "gap": "No current-main executable producer, product contract, schema, deterministic tests or ACTIVE_MATCH evidence was resolved. The donor archive contains a closed-gate SPEC_CONTRACT candidate only.",
+      "claim_boundary": "The donor pack establishes an adaptable design candidate for fusion admissibility; it does not prove current-main implementation, source independence, event identity correctness, metric validity or runtime truth.",
+      "next_verification": "Compare the donor field contract against current-main canonical_ingest_surface_manifest, source_mapping_contract_lite and any provenance producers; identify the minimum ADAPT_NOT_COPY adapter surface and deterministic fail-closed tests.",
+      "release_status": "DISCOVERY_PASS_PLAN_ONLY"
+    },
+    {
       "directive_module": "Field Semantic Reader Lite V2",
       "directive_module_number": 5,
       "primary_status": "PARTIAL",
@@ -119,14 +158,14 @@
     "main_verified": true,
     "main_sha": "6cc540399d56e52c021a3a02e3f72b416d393184",
     "open_pull_requests_observed": true,
-    "inventory_records_written": 4,
+    "inventory_records_written": 5,
     "tests_executed": false,
     "active_match_execution_performed": false
   },
   "analyst_evidence": {
     "football_output_generated": false,
     "analyst_claims_generated": false,
-    "product_value": "Separates current executable V1 behavior from the V2 target and identifies existing alias/source-policy producers that should be reused rather than duplicated."
+    "product_value": "Separates current executable behavior from target capabilities, records a donor Triplex fusion-admissibility design without promoting it to product evidence, and identifies existing alias/source-policy producers that should be reused rather than duplicated."
   },
   "known_limitations": [
     "This is intentionally a partial inventory slice, not the full directive inventory.",
@@ -134,8 +173,9 @@
     "PARTIAL does not imply end-to-end enforcement or target-version completion.",
     "A lower-version executable producer does not make a higher-version target capability executable.",
     "Adjacent reusable producers are not proof of completed integration.",
+    "Donor SPEC_CONTRACT artifacts are design evidence only and do not establish current-main CONTRACT_ONLY status.",
     "No test pass or ACTIVE_MATCH evidence is claimed for this inventory artifact."
   ],
-  "next_node_candidate": "Select the smallest Field Semantic Reader V2 compatibility/adapter pack that reuses provider_alias_registry_binding_lite_v1 and source_mapping_contract_lite_v1; do not create parallel alias or source-policy producers.",
+  "next_node_candidate": "Audit the Triplex donor field contract against current-main source-role, surface-manifest and source-mapping producers; select the smallest ADAPT_NOT_COPY fail-closed adapter before any implementation PR.",
   "overall_release_status": "DISCOVERY_PASS_PLAN_ONLY"
 }
