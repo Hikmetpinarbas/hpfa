@@ -169,6 +169,7 @@ def run_pipeline(
                 error_code="input_artifact_type_mismatch",
             )
             error_code = "input_artifact_type_mismatch"
+            output_fingerprint = artifact_fingerprint(output)
         elif artifact_is_blocking(input_snapshot):
             output = _failure_artifact(
                 run_id=run_id,
@@ -177,9 +178,11 @@ def run_pipeline(
                 error_code="upstream_artifact_failed_closed",
             )
             error_code = "upstream_artifact_failed_closed"
+            output_fingerprint = artifact_fingerprint(output)
         else:
             try:
                 output = _validate_stage_output(stage, stage.runner(deepcopy(input_snapshot)))
+                output_fingerprint = artifact_fingerprint(output)
                 error_code = ""
             except OrchestrationContractError as exc:
                 output = _failure_artifact(
@@ -189,6 +192,16 @@ def run_pipeline(
                     error_code=str(exc),
                 )
                 error_code = str(exc)
+                output_fingerprint = artifact_fingerprint(output)
+            except (TypeError, ValueError):
+                output = _failure_artifact(
+                    run_id=run_id,
+                    stage=stage,
+                    input_artifact=input_snapshot,
+                    error_code="stage_output_not_json_serializable",
+                )
+                error_code = "stage_output_not_json_serializable"
+                output_fingerprint = artifact_fingerprint(output)
             except Exception:
                 output = _failure_artifact(
                     run_id=run_id,
@@ -197,6 +210,7 @@ def run_pipeline(
                     error_code="stage_runner_exception",
                 )
                 error_code = "stage_runner_exception"
+                output_fingerprint = artifact_fingerprint(output)
 
         stage_record = {
             "run_id": run_id,
@@ -207,7 +221,7 @@ def run_pipeline(
             "input_fingerprint": input_fingerprint,
             "output_artifact_type": stage.output_artifact_type,
             "output_artifact_ids": [output.get("artifact_id")],
-            "output_fingerprint": artifact_fingerprint(output),
+            "output_fingerprint": output_fingerprint,
             "status": output.get("status"),
             "decision": output.get("decision"),
             "claim_ceiling": output.get("claim_ceiling"),
