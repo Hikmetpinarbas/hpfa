@@ -55,23 +55,26 @@
       "runtime_status": "NOT_RUNTIME_PROVEN",
       "evidence": [
         "docs/governance/runtime_pack_v1/source_role_registry.json",
-        "hpfa/modules/core/canonical_ingest_surface_manifest/src/surface_manifest.py"
+        "hpfa/modules/core/canonical_ingest_surface_manifest/src/surface_manifest.py",
+        "hpfa/modules/core/source_mapping_contract_lite/src/source_mapping_contract.py"
       ],
       "search_basis": [
         "current-main capability-equivalence search: source_role",
         "inspection of governance source-role registry",
-        "inspection of executable canonical ingest surface manifest"
+        "inspection of executable canonical ingest surface manifest",
+        "inspection of source mapping contract source-role and per-source decisions"
       ],
       "confidence": "HIGH",
       "does_exist": [
         "the required top-level source-role families are registered in governance",
         "ACTIVE_MATCH runtime authority and canonical_event_count=UNKNOWN are explicit",
         "an executable surface manifest classifies file role and surface family",
+        "source_mapping_contract_lite_v1 emits source_surface_kind, missing_required_fields, required_field_policy and per-source decision",
         "reference-path markers can fail closed"
       ],
-      "gap": "The directive requires per-source source_id, source_path, source_type, authority_scope, independence_group, upstream_origin, derived_status, admission_status, allowed_consumers, forbidden_consumers and claim_capacity. Current-main evidence does not establish a unified executable admission registry, independence-group enforcement, duplicate/dependency detection or consumer-level allow/block routing.",
-      "claim_boundary": "Current evidence supports governance-role registration and basic ingest-surface classification only; it does not prove source independence, raw authority, admission eligibility or runtime claim capacity.",
-      "next_verification": "Inspect provenance, duplicate-surface and source-conflict producers for reusable enforcement before deciding whether to extend an existing producer or add a narrow admission gate.",
+      "gap": "Current main still does not establish a unified executable admission registry with independence_group enforcement, upstream-origin lineage, duplicate/dependency adjudication, consumer allow/block routing and runtime claim-capacity decisions.",
+      "claim_boundary": "Current evidence supports governance-role registration, basic surface classification and per-source mapping decisions only; it does not prove source independence, admission completeness or runtime claim capacity.",
+      "next_verification": "Inspect provenance, duplicate-surface and source-conflict producers for reusable enforcement before selecting a narrow admission adapter or extension.",
       "release_status": "DISCOVERY_PASS_PLAN_ONLY"
     },
     {
@@ -86,21 +89,29 @@
         "hpfa/modules/core/field_semantic_reader_lite/src/field_semantic_reader.py",
         "hpfa/modules/core/field_semantic_reader_lite/contracts/field_semantic_reader_lite_v1.schema.json",
         "hpfa/modules/core/field_semantic_reader_lite/tests/test_field_semantic_reader.py",
-        "hpfa/modules/core/field_semantic_reader_lite/tests/test_field_semantic_reader_downstream_eligibility.py"
+        "hpfa/modules/core/field_semantic_reader_lite/tests/test_field_semantic_reader_downstream_eligibility.py",
+        "hpfa/modules/core/provider_alias_registry_binding_lite/src/provider_alias_registry_binding.py",
+        "hpfa/modules/core/source_mapping_contract_lite/src/source_mapping_contract.py",
+        "docs/audits/field_semantic_reader_v1_to_v2_contract_delta_audit.md"
       ],
       "search_basis": [
         "current-main repository search: field semantic reader",
-        "explicit current-main search for field_semantic_reader_lite_v2 and Field Semantic Reader Lite V2"
+        "explicit current-main search for field_semantic_reader_lite_v2 and Field Semantic Reader Lite V2",
+        "capability-equivalence inspection of provider alias and source mapping producers",
+        "completed field-by-field V1-to-V2 delta audit"
       ],
       "confidence": "HIGH",
       "does_exist": [
         "an executable V1 field semantic reader producer",
-        "a V1 contract and schema",
-        "V1 unit tests and downstream-eligibility test coverage"
+        "a V1 schema and V1 unit tests",
+        "provider_alias_registry_binding_lite_v1 for alias candidate lookup",
+        "source_mapping_contract_lite_v1 for source surface kind, missing required fields and per-source decisions",
+        "a completed V1-to-V2 contract delta audit"
       ],
-      "gap": "No current-main V2 producer, V2 contract, V2 schema or V2 test artifact was resolved. Existing V1 evidence does not establish full V2 output fields, semantic families, fail actions, provider-agnostic routing requirements or ACTIVE_MATCH evidence.",
-      "claim_boundary": "Current evidence proves only that a V1 executable candidate exists. It does not prove that Field Semantic Reader Lite V2 is implemented, contract-complete or runtime-proven.",
-      "next_verification": "Perform a field-by-field V1-to-V2 contract delta audit before selecting extension or replacement work.",
+      "gap": "No current-main V2 producer, typed V2 schema, V2 compatibility adapter, integrated alias/source-policy consumption, V2 tests or ACTIVE_MATCH V2 evidence was resolved.",
+      "claim_boundary": "Current evidence proves a V1 executable candidate and adjacent reusable producers only. It does not prove that Field Semantic Reader Lite V2 is implemented, integrated, contract-complete or runtime-proven.",
+      "completed_verification": "docs/audits/field_semantic_reader_v1_to_v2_contract_delta_audit.md",
+      "next_verification": "Use the completed delta audit to decide the minimum compatibility/adapter pack that consumes provider_alias_registry_binding_lite_v1 and source_mapping_contract_lite_v1 without creating parallel registries or source-policy contracts.",
       "release_status": "DISCOVERY_PASS_PLAN_ONLY"
     }
   ],
@@ -115,15 +126,16 @@
   "analyst_evidence": {
     "football_output_generated": false,
     "analyst_claims_generated": false,
-    "product_value": "Extends the claim-safe current-main capability map by separating source-role governance and basic surface classification from the still-missing executable admission and independence enforcement layer, and by separating V1 Field Semantic Reader evidence from the unproven V2 target capability."
+    "product_value": "Separates current executable V1 behavior from the V2 target and identifies existing alias/source-policy producers that should be reused rather than duplicated."
   },
   "known_limitations": [
     "This is intentionally a partial inventory slice, not the full directive inventory.",
     "NOT_FOUND means not resolved in the current-main search pass; it is not proof that no adjacent or differently named producer exists.",
-    "PARTIAL does not imply that directive hard blocks or runtime admission decisions are enforced end to end.",
+    "PARTIAL does not imply end-to-end enforcement or target-version completion.",
     "A lower-version executable producer does not make a higher-version target capability executable.",
+    "Adjacent reusable producers are not proof of completed integration.",
     "No test pass or ACTIVE_MATCH evidence is claimed for this inventory artifact."
   ],
-  "next_node_candidate": "Complete capability-equivalence search for Triplex Source Alignment Guard and adjacent provenance/source-conflict producers, then audit Field Semantic Reader V1-to-V2 contract delta before selecting implementation work.",
+  "next_node_candidate": "Select the smallest Field Semantic Reader V2 compatibility/adapter pack that reuses provider_alias_registry_binding_lite_v1 and source_mapping_contract_lite_v1; do not create parallel alias or source-policy producers.",
   "overall_release_status": "DISCOVERY_PASS_PLAN_ONLY"
 }
