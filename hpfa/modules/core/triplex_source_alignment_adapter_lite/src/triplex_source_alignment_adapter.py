@@ -115,9 +115,8 @@ def detect_alignment_findings(sources: list[dict[str, Any]]) -> list[dict[str, A
             findings.append(finding("DUPLICATE_UPSTREAM_ORIGIN", "REVIEW_REQUIRED", "Multiple source surfaces share one upstream origin and must not be counted as independent evidence.", {"upstream_origin_id": origin_id, "source_files": files}))
 
     for group, group_sources in by_independence_group.items():
-        origins = {str(item.get("upstream_origin_id")) for item in group_sources if item.get("upstream_origin_id")}
-        if len(group_sources) > 1 and len(origins) <= 1:
-            findings.append(finding("DEPENDENT_SOURCE_GROUP", "REVIEW_REQUIRED", "Independence group does not contain independently originated evidence.", {"independence_group": group, "source_files": sorted(str(item.get("source_file")) for item in group_sources)}))
+        if len(group_sources) > 1:
+            findings.append(finding("DEPENDENT_SOURCE_GROUP", "REVIEW_REQUIRED", "Multiple source surfaces share one independence group and must not be counted as independent evidence.", {"independence_group": group, "upstream_origin_ids": sorted({str(item.get("upstream_origin_id")) for item in group_sources if item.get("upstream_origin_id")}), "source_files": sorted(str(item.get("source_file")) for item in group_sources)}))
 
     return findings
 
