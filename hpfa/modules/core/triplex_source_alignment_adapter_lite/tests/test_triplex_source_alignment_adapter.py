@@ -58,6 +58,22 @@ def test_duplicate_upstream_origin_not_independent(tmp_path):
     assert payload["fusion_admissible"] is False
 
 
+def test_shared_independence_group_blocks_different_origins(tmp_path):
+    write_json(tmp_path / "source_mapping_contract_v1.json", {"sources": [
+        valid_source("Teams.csv", "provider-export-1", "triplex-a"),
+        valid_source("Teams.xml", "independent-export-2", "triplex-a"),
+    ]})
+    write_json(tmp_path / "source_conflict_registry_lite_v1.json", {"conflict_count": 0})
+
+    payload = build_alignment(tmp_path, root=ROOT)
+
+    assert payload["status"] == "REVIEW_REQUIRED"
+    assert payload["finding_class_counts"]["DEPENDENT_SOURCE_GROUP"] == 1
+    assert payload["fusion_admissible"] is False
+    finding = next(item for item in payload["findings"] if item["finding_class"] == "DEPENDENT_SOURCE_GROUP")
+    assert finding["evidence"]["upstream_origin_ids"] == ["independent-export-2", "provider-export-1"]
+
+
 def test_derived_output_as_source_fails_closed(tmp_path):
     source = valid_source("derived.json", "derived-1", "triplex-a")
     source["lineage_role"] = "DERIVED_OUTPUT"
