@@ -1,9 +1,9 @@
 {
   "inventory_id": "HPFA-COMPOSITE-INVENTORY-FOUNDATION-SEMANTIC-SLICE-001",
   "directive_id": "HPFA-COMPOSITE-IMPLEMENTATION-001",
-  "inventory_scope": "current-main executable inventory; first verified foundation/semantic slice only",
+  "inventory_scope": "current-main executable inventory; corrected foundation/semantic slice",
   "repository": "Hikmetpinarbas/hpfa",
-  "main_sha": "6cc540399d56e52c021a3a02e3f72b416d393184",
+  "main_sha": "4df891d845c77909cab37554a046e58a8ce3822d",
   "canonical_event_count": "UNKNOWN",
   "truth_claim": false,
   "production_binding": false,
@@ -26,12 +26,9 @@
       "primary_status": "NOT_FOUND",
       "runtime_status": "NOT_RUNTIME_PROVEN",
       "evidence": [],
-      "search_basis": [
-        "exact current-main repository search: canonical donor resolver"
-      ],
       "confidence": "MEDIUM",
       "gap": "No exact current-main producer, contract, schema or test evidence was resolved in this inventory pass.",
-      "next_verification": "Inspect donor-governance producers and superseded-source policies for an adaptable existing producer before creating a new module.",
+      "next_verification": "Inspect donor-governance producers and superseded-source policies before creating a new module.",
       "release_status": "DISCOVERY_PASS_PLAN_ONLY"
     },
     {
@@ -40,12 +37,9 @@
       "primary_status": "NOT_FOUND",
       "runtime_status": "NOT_RUNTIME_PROVEN",
       "evidence": [],
-      "search_basis": [
-        "exact current-main repository search: concept atom registry"
-      ],
       "confidence": "MEDIUM",
-      "gap": "No exact current-main lazy atom resolver, executable producer, contract, schema or test evidence was resolved in this inventory pass.",
-      "next_verification": "Inspect ontology, taxonomy and registry producers for equivalent capability and alias/ambiguity handling before declaring a new abstraction necessary.",
+      "gap": "No exact current-main lazy atom resolver, executable producer, contract, schema or test evidence was resolved.",
+      "next_verification": "Inspect ontology, taxonomy and registry producers for equivalent alias and ambiguity handling.",
       "release_status": "DISCOVERY_PASS_PLAN_ONLY"
     },
     {
@@ -56,64 +50,55 @@
       "evidence": [
         "docs/governance/runtime_pack_v1/source_role_registry.json",
         "hpfa/modules/core/canonical_ingest_surface_manifest/src/surface_manifest.py",
-        "hpfa/modules/core/source_mapping_contract_lite/src/source_mapping_contract.py"
-      ],
-      "search_basis": [
-        "current-main capability-equivalence search: source_role",
-        "inspection of governance source-role registry",
-        "inspection of executable canonical ingest surface manifest",
-        "inspection of source mapping contract source-role and per-source decisions"
+        "hpfa/modules/core/source_mapping_contract_lite/src/source_mapping_contract.py",
+        "hpfa/modules/core/source_conflict_registry_lite/src/source_conflict_registry.py",
+        "hpfa/modules/core/source_conflict_registry_lite/tests/test_source_conflict_registry.py"
       ],
       "confidence": "HIGH",
       "does_exist": [
-        "the required top-level source-role families are registered in governance",
-        "ACTIVE_MATCH runtime authority and canonical_event_count=UNKNOWN are explicit",
-        "an executable surface manifest classifies file role and surface family",
-        "source_mapping_contract_lite_v1 emits source_surface_kind, missing_required_fields, required_field_policy and per-source decision",
-        "reference-path markers can fail closed"
+        "top-level source-role families and ACTIVE_MATCH authority are registered",
+        "surface manifest classifies visible source roles and families",
+        "source mapping emits required-field and per-source decisions",
+        "source conflict registry fails closed on absent supported surfaces and preserves blocked claim boundaries",
+        "source conflict registry detects role, schema and row-count divergence candidates"
       ],
-      "gap": "Current main still does not establish a unified executable admission registry with independence_group enforcement, upstream-origin lineage, duplicate/dependency adjudication, consumer allow/block routing and runtime claim-capacity decisions.",
-      "claim_boundary": "Current evidence supports governance-role registration, basic surface classification and per-source mapping decisions only; it does not prove source independence, admission completeness or runtime claim capacity.",
-      "next_verification": "Inspect provenance, duplicate-surface and source-conflict producers for reusable enforcement before selecting a narrow admission adapter or extension.",
+      "gap": "No unified executable admission registry yet enforces independence groups, upstream lineage, duplicate-origin adjudication, consumer routing and runtime claim-capacity decisions.",
+      "claim_boundary": "Existing producers establish partial source-role, mapping and conflict-governance capability only.",
+      "next_verification": "Extend existing producers through a narrow compatibility adapter; do not create a parallel conflict registry.",
       "release_status": "DISCOVERY_PASS_PLAN_ONLY"
     },
     {
       "directive_module": "Triplex Source Alignment Guard V1",
       "directive_module_number": 4,
-      "primary_status": "NOT_FOUND",
+      "primary_status": "PARTIAL",
       "runtime_status": "NOT_RUNTIME_PROVEN",
-      "evidence": [],
-      "search_basis": [
-        "exact current-main and donor-repository capability-equivalence search: Triplex Source Alignment Guard",
-        "current-main search: provenance, source conflict, duplicate surface, source dependency and independence group",
-        "Google Drive donor search: Triplex Source Alignment",
-        "Dropbox donor archive inspection: hpfa_triplex_source_alignment_guard_v1"
+      "evidence": [
+        "hpfa/modules/core/canonical_ingest_surface_manifest/src/surface_manifest.py",
+        "hpfa/modules/core/source_mapping_contract_lite/src/source_mapping_contract.py",
+        "hpfa/modules/core/source_conflict_registry_lite/src/source_conflict_registry.py",
+        "hpfa/modules/core/source_conflict_registry_lite/tests/test_source_conflict_registry.py",
+        "hpfa/modules/core/primary_surface_review_resolution_lite/src/primary_surface_review_resolution.py",
+        "docs/audits/triplex_source_alignment_current_main_equivalence_check_v1.md"
       ],
       "confidence": "HIGH",
+      "does_exist": [
+        "executable fail-closed source conflict detection",
+        "event-like versus aggregate-support misuse detection",
+        "schema divergence and row-count discrepancy detection by source role",
+        "unresolved primary-surface conflict propagation",
+        "canonical_event_count and deduplicated_event_count remain UNKNOWN",
+        "event-count claims and production binding remain blocked"
+      ],
       "donor_equivalence": {
         "source": "Dropbox HPFA_RESEARCH_ARCHIVE/04_EXTRACTION_AND_NODE_PACKS/hpfa_triplex_source_alignment_guard_v1",
         "status": "SPEC_CONTRACT",
         "claim_gate": "CLOSED",
         "truth_claim": false,
-        "artifacts": [
-          "hpfa_triplex_source_alignment_guard_v1.json",
-          "hpfa_triplex_source_alignment_guard_v1_contract.md",
-          "hpfa_triplex_source_alignment_guard_v1_field_contract.csv",
-          "hpfa_triplex_source_alignment_guard_v1_runner_pseudocode.md",
-          "SHA256SUMS_hpfa_triplex_source_alignment_guard_v1.txt"
-        ],
-        "capability_summary": [
-          "admissibility check for CSV, XML and XLSX source alignment before metric fusion",
-          "canonical event identity component specification",
-          "duplicate-surface and derived-output-as-source guards",
-          "source dependency warning and claim-capacity downgrade guards",
-          "fail-closed conditions for missing keys, ambiguous time-window matching and absent unit/scope/denominator"
-        ],
-        "product_evidence_rule": "Donor spec/contract evidence is not executable current-main product evidence and is not counted as CONTRACT_ONLY for the product repository."
+        "product_evidence_rule": "Donor design evidence is not executable current-main product evidence."
       },
-      "gap": "No current-main executable producer, product contract, schema, deterministic tests or ACTIVE_MATCH evidence was resolved. The donor archive contains a closed-gate SPEC_CONTRACT candidate only.",
-      "claim_boundary": "The donor pack establishes an adaptable design candidate for fusion admissibility; it does not prove current-main implementation, source independence, event identity correctness, metric validity or runtime truth.",
-      "next_verification": "Compare the donor field contract against current-main canonical_ingest_surface_manifest, source_mapping_contract_lite and any provenance producers; identify the minimum ADAPT_NOT_COPY adapter surface and deterministic fail-closed tests.",
+      "gap": "Missing explicit independence-group and upstream-origin lineage, duplicate-origin detection, canonical event identity compatibility, time-window ambiguity routing, unit/scope/denominator compatibility and unified fusion-admissibility/claim-capacity decisions.",
+      "claim_boundary": "Current main proves reusable conflict-governance prerequisites, not complete Triplex alignment or runtime source independence.",
+      "next_verification": "Define the smallest ADAPT_NOT_COPY compatibility adapter around current surface-manifest, source-mapping and source-conflict outputs, with deterministic fail-closed tests.",
       "release_status": "DISCOVERY_PASS_PLAN_ONLY"
     },
     {
@@ -133,49 +118,34 @@
         "hpfa/modules/core/source_mapping_contract_lite/src/source_mapping_contract.py",
         "docs/audits/field_semantic_reader_v1_to_v2_contract_delta_audit.md"
       ],
-      "search_basis": [
-        "current-main repository search: field semantic reader",
-        "explicit current-main search for field_semantic_reader_lite_v2 and Field Semantic Reader Lite V2",
-        "capability-equivalence inspection of provider alias and source mapping producers",
-        "completed field-by-field V1-to-V2 delta audit"
-      ],
       "confidence": "HIGH",
-      "does_exist": [
-        "an executable V1 field semantic reader producer",
-        "a V1 schema and V1 unit tests",
-        "provider_alias_registry_binding_lite_v1 for alias candidate lookup",
-        "source_mapping_contract_lite_v1 for source surface kind, missing required fields and per-source decisions",
-        "a completed V1-to-V2 contract delta audit"
-      ],
-      "gap": "No current-main V2 producer, typed V2 schema, V2 compatibility adapter, integrated alias/source-policy consumption, V2 tests or ACTIVE_MATCH V2 evidence was resolved.",
-      "claim_boundary": "Current evidence proves a V1 executable candidate and adjacent reusable producers only. It does not prove that Field Semantic Reader Lite V2 is implemented, integrated, contract-complete or runtime-proven.",
-      "completed_verification": "docs/audits/field_semantic_reader_v1_to_v2_contract_delta_audit.md",
-      "next_verification": "Use the completed delta audit to decide the minimum compatibility/adapter pack that consumes provider_alias_registry_binding_lite_v1 and source_mapping_contract_lite_v1 without creating parallel registries or source-policy contracts.",
+      "gap": "No V2 producer, typed V2 schema, compatibility adapter, integrated alias/source-policy consumption, V2 tests or ACTIVE_MATCH V2 evidence was resolved.",
+      "claim_boundary": "Current evidence proves V1 executable behavior and adjacent reusable producers only.",
+      "next_verification": "Select the minimum V2 compatibility adapter without duplicating alias or source-policy registries.",
       "release_status": "DISCOVERY_PASS_PLAN_ONLY"
     }
   ],
   "engineering_evidence": {
     "main_verified": true,
-    "main_sha": "6cc540399d56e52c021a3a02e3f72b416d393184",
+    "main_sha": "4df891d845c77909cab37554a046e58a8ce3822d",
     "open_pull_requests_observed": true,
     "inventory_records_written": 5,
+    "classification_correction": "Triplex Source Alignment Guard V1 changed from NOT_FOUND to PARTIAL after resolving executable source_conflict_registry_lite_v1 and tests.",
     "tests_executed": false,
     "active_match_execution_performed": false
   },
   "analyst_evidence": {
     "football_output_generated": false,
     "analyst_claims_generated": false,
-    "product_value": "Separates current executable behavior from target capabilities, records a donor Triplex fusion-admissibility design without promoting it to product evidence, and identifies existing alias/source-policy producers that should be reused rather than duplicated."
+    "product_value": "Prevents duplication of an existing executable conflict registry and narrows the Triplex implementation gap to lineage, independence, duplicate-origin, event-identity and compatibility decisions."
   },
   "known_limitations": [
-    "This is intentionally a partial inventory slice, not the full directive inventory.",
-    "NOT_FOUND means not resolved in the current-main search pass; it is not proof that no adjacent or differently named producer exists.",
-    "PARTIAL does not imply end-to-end enforcement or target-version completion.",
-    "A lower-version executable producer does not make a higher-version target capability executable.",
-    "Adjacent reusable producers are not proof of completed integration.",
-    "Donor SPEC_CONTRACT artifacts are design evidence only and do not establish current-main CONTRACT_ONLY status.",
-    "No test pass or ACTIVE_MATCH evidence is claimed for this inventory artifact."
+    "This remains a partial inventory slice, not the full directive inventory.",
+    "PARTIAL does not imply complete fusion admissibility or target-version completion.",
+    "Existing deterministic tests were resolved but not executed in this audit run.",
+    "No ACTIVE_MATCH execution was performed.",
+    "Donor SPEC_CONTRACT artifacts remain design evidence only."
   ],
-  "next_node_candidate": "Audit the Triplex donor field contract against current-main source-role, surface-manifest and source-mapping producers; select the smallest ADAPT_NOT_COPY fail-closed adapter before any implementation PR.",
+  "next_node_candidate": "Define an HPFA-native Triplex compatibility adapter contract and deterministic fail-closed test matrix around existing source-manifest, source-mapping and source-conflict producers.",
   "overall_release_status": "DISCOVERY_PASS_PLAN_ONLY"
 }
