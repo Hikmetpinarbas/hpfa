@@ -4,7 +4,7 @@ Status: `DISCOVERY_PASS_PLAN_ONLY`
 
 Repository authority: `Hikmetpinarbas/hpfa`
 
-Main SHA audited: `6cc540399d56e52c021a3a02e3f72b416d393184`
+Main SHA audited: `4df891d845c77909cab37554a046e58a8ce3822d`
 
 Runtime authority: `runtime/active_single_match/current`
 
@@ -12,64 +12,69 @@ Canonical event count: `UNKNOWN`
 
 ## Purpose
 
-Resolve whether current main already contains an executable producer equivalent to the directive capability `Triplex Source Alignment Guard V1`, without counting donor artifacts or open pull requests as product truth.
+Resolve whether current main already contains executable producers equivalent to parts of `Triplex Source Alignment Guard V1`, without counting donor artifacts or open pull requests as product truth.
 
 Policy: `ADAPT_NOT_COPY`
 
-## Current-main search result
+## Corrected current-main finding
 
-The current-main capability-equivalence pass inspected the already resolved adjacent producers:
+The first pass under-counted existing executable conflict-governance capability. Current main contains:
 
 - `hpfa/modules/core/canonical_ingest_surface_manifest/src/surface_manifest.py`
 - `hpfa/modules/core/source_mapping_contract_lite/src/source_mapping_contract.py`
+- `hpfa/modules/core/source_conflict_registry_lite/src/source_conflict_registry.py`
+- `hpfa/modules/core/source_conflict_registry_lite/tests/test_source_conflict_registry.py`
+- `hpfa/modules/core/primary_surface_review_resolution_lite/src/primary_surface_review_resolution.py`
+- `hpfa/modules/core/identity_review_resolution_lite/src/identity_review_resolution.py`
 - `docs/governance/runtime_pack_v1/source_role_registry.json`
 
-These surfaces provide partial prerequisites:
+`source_conflict_registry_lite_v1` is executable and fail-closed. It detects, among other conditions:
 
-- visible source/surface classification;
-- source-role registration;
-- required-field and per-source mapping decisions;
-- reference-path fail-closed behavior;
-- `canonical_event_count=UNKNOWN` preservation.
+- missing supported mapping surfaces;
+- unmapped event-like surfaces;
+- event-like versus aggregate-support role misuse;
+- review-required mapping decisions;
+- unknown source roles;
+- schema divergence between event-like formats sharing a role;
+- row-count discrepancy between event-like formats sharing a role;
+- unresolved primary-surface state.
 
-No current-main executable producer was resolved that jointly establishes all of the following:
+It explicitly preserves:
 
-- CSV/XML/XLSX independence-group adjudication;
+- `canonical_event_count=UNKNOWN`;
+- `deduplicated_event_count=UNKNOWN`;
+- `event_count_claim_allowed=false`;
+- `production_binding_allowed=false`.
+
+Therefore the Triplex target is not `NOT_FOUND`. The correct classification is `PARTIAL / NOT_RUNTIME_PROVEN`.
+
+## Capability delta that remains
+
+No current-main producer was resolved that jointly establishes all of the following:
+
+- explicit CSV/XML/XLSX `independence_group` adjudication;
 - upstream-origin lineage comparison;
-- duplicate-surface detection across differently formatted exports;
-- derived-output-as-source rejection;
+- duplicate-surface detection across differently formatted exports of the same upstream stream;
+- derived-output-as-source rejection based on lineage rather than path/name heuristics alone;
 - canonical event identity agreement across source surfaces;
-- time-window ambiguity routing;
-- unit/scope/denominator alignment before fusion;
-- claim-capacity downgrade from source dependency or conflict;
-- a typed Triplex contract/schema plus deterministic tests.
+- ambiguous time-window match routing;
+- unit, scope and denominator compatibility before fusion;
+- a unified fusion-admissibility decision and claim-capacity downgrade;
+- a typed Triplex contract/schema and deterministic end-to-end test pack.
 
-Exact repository searches for `source_provenance` and `duplicate_surface` returned no current-main matches in this pass. This is `NO_MATCH_RESOLVED`, not proof of absolute absence under every possible alias.
+Existing conflict detection is a reusable prerequisite. It must be extended or adapted rather than replaced by a parallel conflict registry.
 
-## Open-PR non-authority check
+## Donor boundary
 
-Open PR #86 (`P2C XML-CSV Temporal-Spatial Binder Lite V1`) describes a `SPEC_ONLY` Event-Time-Space fusion contract. It is not current-main evidence and does not establish an executable Triplex admission guard.
+The donor Triplex pack remains `SPEC_CONTRACT`, with a closed claim gate and `truth_claim=false`. It is design evidence only. No donor code or pseudocode is product truth.
 
-Other open PRs were also excluded from current-main classification by rule. Their presence may create future integration or collision considerations, but cannot upgrade the current capability state.
-
-## Donor equivalence boundary
-
-Dropbox contains the donor pack:
-
-```text
-HPFA_RESEARCH_ARCHIVE/04_EXTRACTION_AND_NODE_PACKS/
-hpfa_triplex_source_alignment_guard_v1
-```
-
-The pack is classified `SPEC_CONTRACT`, with closed claim gate and `truth_claim=false`. It is a design candidate only. No donor code or pseudocode is transplanted.
-
-## Classification
+## Corrected classification
 
 ```text
 DIRECTIVE CAPABILITY = Triplex Source Alignment Guard V1
-CURRENT-MAIN PRIMARY STATUS = NOT_FOUND
+CURRENT-MAIN PRIMARY STATUS = PARTIAL
 CURRENT-MAIN RUNTIME STATUS = NOT_RUNTIME_PROVEN
-ADJACENT PREREQUISITES = PARTIAL
+EXECUTABLE PREREQUISITE = source_conflict_registry_lite_v1
 DONOR EQUIVALENCE = SPEC_CONTRACT
 ACTIVE_MATCH_PROVEN = NO
 PRODUCTION_RELEASE = FALSE
@@ -78,21 +83,20 @@ PRODUCTION_RELEASE = FALSE
 ## Engineering evidence
 
 - current-main SHA pinned: yes
+- executable source-conflict producer inspected: yes
+- deterministic source-conflict tests resolved: yes
 - adjacent surface-manifest producer inspected: yes
 - adjacent source-mapping producer inspected: yes
-- governance source-role registry considered: yes
-- exact source-provenance search performed: yes
-- exact duplicate-surface search performed: yes
-- open-PR non-authority check performed: yes
-- tests executed: no
-- runtime output written: no
+- source-role registry considered: yes
+- tests executed in this audit: no
+- runtime output written in this audit: no
 - ACTIVE_MATCH execution: no
 
 ## Analyst evidence
 
 No match was analyzed and no football-performance claim was generated.
 
-Potential product value, not runtime evidence: preventing multiple exports of the same underlying event stream from being misrepresented as independent corroborating sources.
+Product value: prevents an unnecessary parallel conflict module and narrows the next implementation to lineage, independence, duplicate-origin, event-identity and unit/scope/denominator gates.
 
 ## Claim boundary
 
@@ -105,13 +109,15 @@ analytical claim capacity = not established
 production release = false
 ```
 
-## Smallest next verification
+## Smallest next implementation candidate
 
-Perform a field-by-field delta table between the donor Triplex field contract and these current-main prerequisites:
+Build an HPFA-native Triplex compatibility adapter around existing producers, not a replacement registry. The adapter should consume surface-manifest, source-mapping and source-conflict outputs, then add only the unresolved fields and fail-closed decisions:
 
-1. canonical ingest surface manifest;
-2. source mapping contract lite;
-3. source role registry;
-4. any differently named lineage/conflict producer resolved by repository-tree inspection.
+1. `independence_group` and `upstream_origin_id`;
+2. duplicate/dependency adjudication;
+3. canonical event identity compatibility;
+4. time-window ambiguity state;
+5. unit/scope/denominator compatibility;
+6. fusion-admissibility and claim-capacity decision.
 
-Only after that delta should an HPFA-native adapter contract and deterministic fail-closed test pack be selected. No implementation or merge is authorized by this audit.
+Before implementation, the adapter contract and deterministic test matrix must explicitly preserve the existing source-conflict output and ACTIVE_MATCH authority boundary.
