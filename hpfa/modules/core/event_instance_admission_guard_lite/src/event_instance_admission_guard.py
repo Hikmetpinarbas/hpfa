@@ -78,6 +78,13 @@ def _team(row: dict[str, Any]) -> str:
     return value
 
 
+def _player(row: dict[str, Any]) -> str:
+    value = _clean(row.get("player_normalized") or row.get("player_raw"))
+    if value.lower() in {"", "none", "null", "nan"}:
+        return ""
+    return value
+
+
 def _period(row: dict[str, Any]) -> str:
     return _clean(row.get("period_candidate")) or "UNKNOWN_PERIOD"
 
@@ -144,12 +151,16 @@ def build_report(canonical_json: str | Path, source_manifest_json: str | Path) -
     failures, manifest_by_file = _validate_manifest(manifest)
 
     labels: dict[tuple[str, str], dict[str, Any]] = {}
+    provisional_event_candidates: list[dict[str, Any]] = []
     event_candidates: list[dict[str, Any]] = []
     support_records: list[dict[str, Any]] = []
     quarantined: list[dict[str, Any]] = []
     duplicate_row_candidates: list[dict[str, Any]] = []
     fingerprint_index: dict[str, list[str]] = defaultdict(list)
     source_counts = Counter()
+    unknown_label_audit_only_count = 0
+    primary_identity_missing_player_count = 0
+    primary_generator_row_count = 0
 
     for row in rows:
         source_file = _clean(row.get("source_file"))
@@ -193,13 +204,28 @@ def build_report(canonical_json: str | Path, source_manifest_json: str | Path) -
         if not bool(entry.get("event_generation_allowed")):
             support_records.append({"support_type": role or "SUPPORT_ONLY", "source_file": source_file, "source_row_index": row.get("source_row_index"), "raw_event_label": raw_label, "canonical_family_candidate": family})
             continue
+        if family == "UNKNOWN_OR_OTHER":
+            unknown_label_audit_only_count += 1
+            support_records.append({
+                "support_type": "UNKNOWN_LABEL_AUDIT_ONLY",
+                "source_file": source_file,
+                "source_row_index": row.get("source_row_index"),
+                "raw_event_label": raw_label,
+                "canonical_family_candidate": family,
+            })
+            continue
 
+        primary_generator_row_count += 1
         source_file_id = _clean(entry.get("source_file_id"))
         match_binding_id = _clean(entry.get("match_binding_id"))
         row_index = _source_row_index(row)
         if not source_file_id or not match_binding_id or row_index is None:
             quarantined.append({"reason": "EVENT_INSTANCE_IDENTITY_INCOMPLETE", "source_file": source_file, "source_row_index": row.get("source_row_index")})
             continue
+
+        player = _player(row)
+        if _clean(row.get("source_role")).lower() == "players" and not player:
+            primary_identity_missing_player_count += 1
 
         candidate_id = _sha256([match_binding_id, source_file_id, str(row_index)])[:32]
         fingerprint = _sha256([
@@ -208,19 +234,20 @@ def build_report(canonical_json: str | Path, source_manifest_json: str | Path) -
             _period(row),
             _clean(row.get("start_raw") or row.get("source_event_id_raw") or row_index),
             family,
-            _clean(row.get("player_normalized") or row.get("player_raw")),
+            player,
             _clean(row.get("x_meters")),
             _clean(row.get("y_meters")),
             _clean(row.get("outcome_candidate")),
         ])
         fingerprint_index[fingerprint].append(candidate_id)
-        event_candidates.append({
+        provisional_event_candidates.append({
             "event_candidate_id": candidate_id,
             "match_binding_id": match_binding_id,
             "source_file_id": source_file_id,
             "source_file": source_file,
             "source_row_index": row_index,
             "team_or_side": _team(row),
+            "player_candidate": player or None,
             "period": _period(row),
             "timestamp_or_order": row.get("start_raw") or row.get("source_event_id_raw") or row_index,
             "raw_event_label": raw_label,
@@ -229,7 +256,7 @@ def build_report(canonical_json: str | Path, source_manifest_json: str | Path) -
             "row_fingerprint": fingerprint,
             "primary_source_role": role,
             "supporting_surfaces": [],
-            "claim_safety": "EVENT_INSTANCE_CANDIDATE_ONLY",
+            "claim_safety": "PROVISIONAL_EVENT_INSTANCE_CANDIDATE_ONLY",
         })
 
     for fingerprint, candidate_ids in fingerprint_index.items():
@@ -240,8 +267,30 @@ def build_report(canonical_json: str | Path, source_manifest_json: str | Path) -
                 "decision": "POSSIBLE_COLLISION_REVIEW_REQUIRED",
             })
 
+    collision_ids = {
+        candidate_id
+        for item in duplicate_row_candidates
+        for candidate_id in item["candidate_ids"]
+    }
+    collision_row_count = len(collision_ids)
+    provisional_count = len(provisional_event_candidates)
+    collision_ratio = round(collision_row_count / provisional_count, 6) if provisional_count else 0.0
+    missing_player_ratio = (
+        round(primary_identity_missing_player_count / primary_generator_row_count, 6)
+        if primary_generator_row_count
+        else 0.0
+    )
+
+    atomicity_reasons: list[str] = []
+    if duplicate_row_candidates:
+        atomicity_reasons.append("ROW_FINGERPRINT_COLLISIONS")
+    if primary_identity_missing_player_count:
+        atomicity_reasons.append("PRIMARY_PLAYER_BINDING_MISSING")
+
     manifest_decision = "PASS_EVENT_INSTANCE_ADMISSION"
+    primary_surface_atomicity_status = "PASS"
     if failures:
+        primary_surface_atomicity_status = "NOT_EVALUATED"
         if "multiple_event_generation_surfaces" in failures:
             manifest_decision = "BLOCK_MULTIPLE_EVENT_GENERATORS"
         elif "duplicate_source_hash" in failures:
@@ -252,7 +301,11 @@ def build_report(canonical_json: str | Path, source_manifest_json: str | Path) -
             manifest_decision = "BLOCK_NON_TARGET_MATCH"
         else:
             manifest_decision = "FAIL_CLOSED"
-        event_candidates = []
+    elif atomicity_reasons:
+        manifest_decision = "REVIEW_REQUIRED_PRIMARY_SURFACE_NOT_ATOMIC"
+        primary_surface_atomicity_status = "REVIEW_REQUIRED"
+    else:
+        event_candidates = list(provisional_event_candidates)
 
     return {
         "module_id": MODULE_ID,
@@ -260,11 +313,22 @@ def build_report(canonical_json: str | Path, source_manifest_json: str | Path) -
         "manifest_failures": failures,
         "source_manifest_count": len(manifest),
         "visible_surface_row_count": len(rows),
+        "primary_generator_row_count": primary_generator_row_count,
+        "provisional_event_candidate_count": provisional_count,
         "admitted_event_candidate_count": len(event_candidates),
         "support_only_row_count": len(support_records),
         "quarantined_row_count": len(quarantined),
         "label_registry_count": len(labels),
+        "unknown_label_audit_only_count": unknown_label_audit_only_count,
+        "primary_surface_atomicity_status": primary_surface_atomicity_status,
+        "primary_surface_atomicity_reasons": atomicity_reasons,
+        "primary_identity_missing_player_count": primary_identity_missing_player_count,
+        "primary_identity_missing_player_ratio": missing_player_ratio,
+        "fingerprint_collision_group_count": len(duplicate_row_candidates),
+        "fingerprint_collision_row_count": collision_row_count,
+        "fingerprint_collision_row_ratio": collision_ratio,
         "event_instance_candidates": event_candidates,
+        "provisional_event_instance_candidates": provisional_event_candidates,
         "label_registry": list(labels.values()),
         "support_surface_records": support_records,
         "quarantined_records": quarantined,
@@ -273,7 +337,7 @@ def build_report(canonical_json: str | Path, source_manifest_json: str | Path) -
         "source_row_counts": dict(source_counts),
         "canonical_event_count": "UNKNOWN",
         "production_release": False,
-        "claim_boundary": "EVENT_INSTANCE_ADMISSION_ONLY",
+        "claim_boundary": "EVENT_INSTANCE_ADMISSION_AND_PRIMARY_ATOMICITY_GATE",
     }
 
 
@@ -282,16 +346,26 @@ def render_txt(report: dict[str, Any]) -> str:
         "decision_state",
         "source_manifest_count",
         "visible_surface_row_count",
+        "primary_generator_row_count",
+        "provisional_event_candidate_count",
         "admitted_event_candidate_count",
         "support_only_row_count",
         "quarantined_row_count",
         "label_registry_count",
+        "unknown_label_audit_only_count",
+        "primary_surface_atomicity_status",
+        "primary_identity_missing_player_count",
+        "primary_identity_missing_player_ratio",
+        "fingerprint_collision_group_count",
+        "fingerprint_collision_row_count",
+        "fingerprint_collision_row_ratio",
         "canonical_event_count",
         "production_release",
     ]
     lines = ["HPFA EVENT INSTANCE ADMISSION GUARD LITE V1"]
     lines.extend(f"{key}={report[key]}" for key in keys)
     lines.append(f"manifest_failures={report['manifest_failures']}")
+    lines.append(f"primary_surface_atomicity_reasons={report['primary_surface_atomicity_reasons']}")
     return "\n".join(lines) + "\n"
 
 
