@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import re
 import sys
@@ -39,11 +40,11 @@ SYNONYMS = {
 }
 
 OUTPUT_FIELDS = [
-    "source_file","source_format","source_role","source_sheet","source_row_index",
+    "source_file","source_format","source_role","source_sheet","source_row_index","row_surface_class",
     "source_event_id_raw","event_type_raw","event_family","team_raw","team_normalized",
     "player_raw","minute_raw","second_raw","timestamp_raw","start_raw","end_raw",
     "duration_seconds_candidate","code_raw","period_raw","period_candidate",
-    "x_raw","y_raw","x_meters","y_meters","coordinate_system_candidate",
+    "x_raw","y_raw","x_meters","y_meters","fixed_x_band","fixed_y_band","coordinate_system_candidate",
     "coordinate_frame_status","attacking_direction_candidate","directional_features_allowed",
     "source_labels_raw","source_extra_fields","row_claim_safety","row_warnings",
 ]
@@ -133,6 +134,42 @@ def _label_record(node: ET.Element) -> dict[str, Any]:
             record[f"{key}_attributes"] = dict(child.attrib)
     return record
 
+def _first_scalar(value: Any) -> str | None:
+    values = value if isinstance(value, list) else [value]
+    for item in values:
+        if item is None:
+            continue
+        candidate = str(item).strip()
+        if candidate:
+            return candidate
+    return None
+
+def _merge_source_value(row: dict[str, Any], key: str, value: Any) -> None:
+    clean = _first_scalar(value)
+    if not key or clean is None:
+        return
+    if key not in row:
+        row[key] = clean
+    elif isinstance(row[key], list):
+        row[key].append(clean)
+    else:
+        row[key] = [row[key], clean]
+
+def _flatten_label_fields(labels: list[dict[str, Any]]) -> dict[str, Any]:
+    flattened: dict[str, Any] = {}
+    for label in labels:
+        group = _first_scalar(label.get("group"))
+        value = _first_scalar(label.get("text"))
+        if not group or value is None:
+            continue
+        if group not in flattened:
+            flattened[group] = value
+        elif isinstance(flattened[group], list):
+            flattened[group].append(value)
+        else:
+            flattened[group] = [flattened[group], value]
+    return flattened
+
 def read_xml_rows(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
     try:
         root = ET.parse(path).getroot()
@@ -163,6 +200,8 @@ def read_xml_rows(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
                 extra_children[f"{key}_attributes"] = dict(child.attrib)
         if labels:
             row["__labels__"] = labels
+            for label_key, label_value in _flatten_label_fields(labels).items():
+                _merge_source_value(row, label_key, label_value)
         if extra_children:
             row["__xml_child_attributes__"] = extra_children
         row["__xml_node__"] = _local(node.tag)
@@ -266,11 +305,7 @@ def read_surface(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
 def first_value(row: dict[str, Any], column: str | None) -> str | None:
     if not column:
         return None
-    value = row.get(column)
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text if text else None
+    return _first_scalar(row.get(column))
 
 def to_float(value: str | None) -> float | None:
     if value is None:
@@ -322,19 +357,19 @@ def zone_from_x(x: float | None) -> str:
     if x is None:
         return "UNKNOWN"
     if x <= 35.0:
-        return "DEFENSIVE_THIRD"
+        return "FIXED_X_LOW_THIRD"
     if x <= 70.0:
-        return "MIDDLE_THIRD"
-    return "FINAL_THIRD"
+        return "FIXED_X_MIDDLE_THIRD"
+    return "FIXED_X_HIGH_THIRD"
 
 def channel_from_y(y: float | None) -> str:
     if y is None:
         return "UNKNOWN"
     if y < 68.0 / 3.0:
-        return "LEFT_CHANNEL"
+        return "FIXED_Y_LOW_CHANNEL"
     if y < 2.0 * 68.0 / 3.0:
-        return "CENTRAL_CHANNEL"
-    return "RIGHT_CHANNEL"
+        return "FIXED_Y_MIDDLE_CHANNEL"
+    return "FIXED_Y_HIGH_CHANNEL"
 
 def _period_candidate(raw: str | None) -> str | None:
     if raw is None:
@@ -356,6 +391,13 @@ def _duration(start_raw: str | None, end_raw: str | None) -> float | None:
 def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 def _surface_candidates(active_match_path: Path) -> tuple[list[Path], list[dict[str, str]]]:
     files = sorted(
         [p for p in active_match_path.rglob("*") if p.is_file() and source_format(p) in {"csv","xml","xlsx"}],
@@ -363,9 +405,9 @@ def _surface_candidates(active_match_path: Path) -> tuple[list[Path], list[dict[
     )
     selected: list[Path] = []
     skipped: list[dict[str, str]] = []
-    seen: dict[tuple[str, int], Path] = {}
+    seen: dict[tuple[str, int, str], Path] = {}
     for path in files:
-        key = (path.name.lower(), path.stat().st_size)
+        key = (path.name.lower(), path.stat().st_size, _file_digest(path))
         if key in seen:
             skipped.append({"source_file": str(path.relative_to(active_match_path)), "duplicate_of": str(seen[key].relative_to(active_match_path))})
             continue
@@ -397,6 +439,7 @@ def build_canonical_lite(active_match_dir: str | Path) -> tuple[list[dict[str, A
         used_columns = {v for v in detected.values() if v}
         mapped_columns = sorted(used_columns)
         unmapped_columns = [h for h in headers if h not in used_columns and not h.startswith("__")]
+        row_surface_class = "AGGREGATE_VALIDATION" if fmt == "xlsx" else "EVENT_LIKE_SOURCE_CANDIDATE"
         surface_role_counter[role] += len(rows)
         source_surface_counter[str(path.relative_to(active_match_path))] += len(rows)
 
@@ -408,12 +451,19 @@ def build_canonical_lite(active_match_dir: str | Path) -> tuple[list[dict[str, A
             player_raw = first_value(row, detected.get("player"))
             x_raw = first_value(row, detected.get("x"))
             y_raw = first_value(row, detected.get("y"))
-            x_m, x_warn = coordinate_with_warning(x_raw, "x")
-            y_m, y_warn = coordinate_with_warning(y_raw, "y")
-            warnings = x_warn + y_warn
-            family = normalize_event_family(event_raw)
-            zone = zone_from_x(x_m if not warnings else None)
-            channel = channel_from_y(y_m if not warnings else None)
+            if row_surface_class == "EVENT_LIKE_SOURCE_CANDIDATE":
+                x_m, x_warn = coordinate_with_warning(x_raw, "x")
+                y_m, y_warn = coordinate_with_warning(y_raw, "y")
+                warnings = x_warn + y_warn
+                family = normalize_event_family(event_raw)
+                zone = zone_from_x(x_m if not warnings else None)
+                channel = channel_from_y(y_m if not warnings else None)
+            else:
+                x_m, y_m = None, None
+                x_warn, y_warn, warnings = [], [], []
+                family = "AGGREGATE_VALIDATION_ROW"
+                zone = "NOT_APPLICABLE"
+                channel = "NOT_APPLICABLE"
             team_norm = normalize_team(team_raw)
             source_labels = row.get("__labels__", [])
             label_count += len(source_labels) if isinstance(source_labels, list) else 0
@@ -431,16 +481,17 @@ def build_canonical_lite(active_match_dir: str | Path) -> tuple[list[dict[str, A
             if team_norm:
                 coverage["team_rows"] += 1
                 team_counter[team_norm] += 1
-            if x_m is not None and y_m is not None and not warnings:
+            if row_surface_class == "EVENT_LIKE_SOURCE_CANDIDATE" and x_m is not None and y_m is not None and not warnings:
                 coverage["coordinate_rows"] += 1
             if start_raw:
                 coverage["start_rows"] += 1
             if period_raw:
                 coverage["period_rows"] += 1
 
-            family_counter[family] += 1
-            zone_counter[zone] += 1
-            channel_counter[channel] += 1
+            if row_surface_class == "EVENT_LIKE_SOURCE_CANDIDATE":
+                family_counter[family] += 1
+                zone_counter[zone] += 1
+                channel_counter[channel] += 1
 
             rows_out.append({
                 "source_file": str(path.relative_to(active_match_path)),
@@ -448,6 +499,7 @@ def build_canonical_lite(active_match_dir: str | Path) -> tuple[list[dict[str, A
                 "source_role": role,
                 "source_sheet": row.get("__source_sheet__"),
                 "source_row_index": idx,
+                "row_surface_class": row_surface_class,
                 "source_event_id_raw": first_value(row, detected.get("source_event_id")),
                 "event_type_raw": event_raw,
                 "event_family": family,
@@ -467,7 +519,15 @@ def build_canonical_lite(active_match_dir: str | Path) -> tuple[list[dict[str, A
                 "y_raw": y_raw,
                 "x_meters": x_m if not x_warn else None,
                 "y_meters": y_m if not y_warn else None,
-                "coordinate_system_candidate": "PITCH_105_X_68_CANDIDATE" if x_m is not None and y_m is not None and not warnings else "UNKNOWN",
+                "fixed_x_band": zone,
+                "fixed_y_band": channel,
+                "coordinate_system_candidate": (
+                    "PITCH_105_X_68_CANDIDATE"
+                    if row_surface_class == "EVENT_LIKE_SOURCE_CANDIDATE" and x_m is not None and y_m is not None and not warnings
+                    else "NOT_APPLICABLE_AGGREGATE"
+                    if row_surface_class == "AGGREGATE_VALIDATION"
+                    else "UNKNOWN"
+                ),
                 "coordinate_frame_status": "FIXED_PITCH_FRAME_UNPROVEN_DIRECTION",
                 "attacking_direction_candidate": "UNKNOWN",
                 "directional_features_allowed": False,
@@ -510,6 +570,7 @@ def build_canonical_lite(active_match_dir: str | Path) -> tuple[list[dict[str, A
         "event_family_volume": dict(family_counter.most_common()),
         "zone_distribution": _distribution(zone_counter),
         "channel_distribution": _distribution(channel_counter),
+        "zone_semantics": "FIXED_PITCH_FRAME_ONLY_NOT_ATTACKING_ORIENTATION",
         "team_row_volume": dict(team_counter.most_common()),
         "coverage": {
             "event_type_rows": coverage["event_type_rows"],

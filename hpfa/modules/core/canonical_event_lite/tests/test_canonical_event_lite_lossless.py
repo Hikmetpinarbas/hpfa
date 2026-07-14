@@ -103,3 +103,44 @@ def test_no_sample_match_identity_leak():
     for token in ["Australia", "Turkey", "World Cup", "13.06.2026", "77798", "6935"]:
         assert token not in src
 
+
+
+def test_xml_group_text_fields_feed_canonical_candidates(tmp_path):
+    p = tmp_path / "Players.xml"
+    p.write_text(
+        "<file><ALL_INSTANCES><instance><ID>9</ID><start>100</start><end>101.5</end>"
+        "<label><group>Team</group><text>Alpha</text></label>"
+        "<label><group>Half</group><text>2</text></label>"
+        "<label><group>Action</group><text>Pass</text></label>"
+        "<label><group>pos_x</group><text>80</text></label>"
+        "<label><group>pos_y</group><text>40</text></label>"
+        "</instance></ALL_INSTANCES></file>", encoding="utf-8")
+    rows, _ = read_xml_rows(p)
+    assert rows[0]["Half"] == "2"
+    assert rows[0]["Action"] == "Pass"
+    match = tmp_path / "runtime/active_single_match/current"
+    match.mkdir(parents=True)
+    (match / "Players.xml").write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
+    canonical, audit = build_canonical_lite(match)
+    assert canonical[0]["period_candidate"] == "SECOND_HALF"
+    assert canonical[0]["event_type_raw"] == "Pass"
+    assert canonical[0]["x_meters"] == 80.0
+    assert canonical[0]["y_meters"] == 40.0
+    assert audit["coverage"]["period_rows"] == 1
+
+
+def test_fixed_frame_names_do_not_claim_attacking_direction(tmp_path):
+    rows, audit = build_canonical_lite(make_match(tmp_path))
+    forbidden = {"DEFENSIVE_THIRD", "MIDDLE_THIRD", "FINAL_THIRD", "LEFT_CHANNEL", "RIGHT_CHANNEL"}
+    assert all(row.get("fixed_x_band") not in forbidden for row in rows)
+    assert all(row.get("fixed_y_band") not in forbidden for row in rows)
+    assert audit["zone_semantics"] == "FIXED_PITCH_FRAME_ONLY_NOT_ATTACKING_ORIENTATION"
+
+
+def test_xlsx_is_explicit_aggregate_validation(tmp_path):
+    rows, audit = build_canonical_lite(make_match(tmp_path))
+    xlsx = [row for row in rows if row["source_format"] == "xlsx"]
+    assert xlsx
+    assert all(row["row_surface_class"] == "AGGREGATE_VALIDATION" for row in xlsx)
+    assert all(row["event_family"] == "AGGREGATE_VALIDATION_ROW" for row in xlsx)
+    assert "AGGREGATE_VALIDATION_ROW" not in audit["event_family_volume"]
