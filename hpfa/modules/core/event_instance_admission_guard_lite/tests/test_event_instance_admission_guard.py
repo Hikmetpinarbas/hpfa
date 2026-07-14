@@ -10,8 +10,8 @@ sys.path.insert(0, str(SRC))
 from event_instance_admission_guard import build_report, write_outputs
 
 
-def _row(source_file: str, row_index: int, *, label: str = "Successful pass", fmt: str = "csv") -> dict:
-    return {
+def _row(source_file: str, row_index: int, *, label: str = "Successful pass", fmt: str = "csv", player: str | None = "Player 1") -> dict:
+    row = {
         "source_file": source_file,
         "source_format": fmt,
         "source_role": "players",
@@ -26,6 +26,9 @@ def _row(source_file: str, row_index: int, *, label: str = "Successful pass", fm
         "x_meters": 10.0,
         "y_meters": 20.0,
     }
+    if player is not None:
+        row["player_raw"] = player
+    return row
 
 
 def _manifest(*entries: dict) -> dict:
@@ -201,6 +204,8 @@ def test_unknown_label_is_audit_only(tmp_path):
     canonical, manifest = _write(tmp_path, [row], _manifest(_primary()))
     report = build_report(canonical, manifest)
     assert report["label_registry"][0]["audit_status"] == "AUDIT_ONLY"
+    assert report["admitted_event_candidate_count"] == 0
+    assert report["unknown_label_audit_only_count"] == 1
 
 
 def test_support_surface_does_not_create_duplicate_candidate(tmp_path):
@@ -221,6 +226,17 @@ def test_row_fingerprint_collision_requires_review(tmp_path):
     canonical, manifest = _write(tmp_path, rows, _manifest(_primary()))
     report = build_report(canonical, manifest)
     assert report["duplicate_row_candidates"][0]["decision"] == "POSSIBLE_COLLISION_REVIEW_REQUIRED"
+    assert report["decision_state"] == "REVIEW_REQUIRED_PRIMARY_SURFACE_NOT_ATOMIC"
+    assert report["admitted_event_candidate_count"] == 0
+    assert report["provisional_event_candidate_count"] == 2
+
+
+def test_player_primary_without_player_binding_requires_review(tmp_path):
+    canonical, manifest = _write(tmp_path, [_row("Players.csv", 1, player=None)], _manifest(_primary()))
+    report = build_report(canonical, manifest)
+    assert report["primary_identity_missing_player_count"] == 1
+    assert report["decision_state"] == "REVIEW_REQUIRED_PRIMARY_SURFACE_NOT_ATOMIC"
+    assert report["admitted_event_candidate_count"] == 0
 
 
 def test_boundary_marker_is_support_not_event(tmp_path):
