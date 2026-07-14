@@ -53,17 +53,41 @@ def test_canonical_event_lite_reads_csv_xml_xlsx_and_writes_outputs(tmp_path):
     assert audit["deduplicated_event_count"] == "UNKNOWN"
     assert audit["primary_event_surface_candidate"] == "UNRESOLVED"
     assert audit["event_count_claim_allowed"] is False
-    assert audit["surface_row_inventory_total"] >= 12
+    # Corrected record-boundary semantics: 4 CSV rows + 3 XML instance rows + 2 XLSX aggregate rows = 9.
+    # The legacy >=12 expectation depended on counting XML event/config nodes that are no longer valid row records.
+    assert audit["surface_row_inventory_total"] == 9
     assert audit["canonical_lite_row_count_deprecated"] == audit["surface_row_inventory_total"]
     assert "canonical_lite_row_count" not in audit
     assert audit["surface_role_row_counts"]["players"] >= 1
-    assert audit["coverage"]["coordinate_rows"] >= 8
+    # Coordinate coverage includes 4 CSV rows + 3 XML instance rows.
+    # XLSX rows are aggregate validation rows and must not inflate event-like coordinate coverage.
+    assert audit["coverage"]["coordinate_rows"] == 7
     assert audit["coverage"]["surface_row_inventory_total"] == audit["surface_row_inventory_total"]
     assert (out / "canonical_event_lite_v1.json").exists()
     assert (out / "canonical_event_lite_v1.tsv").exists()
     assert (out / "canonical_event_lite_audit_v1.json").exists()
     assert (out / "canonical_event_lite_audit_v1.txt").exists()
     assert not any(p.is_dir() for p in out.iterdir())
+
+
+
+def test_xml_reader_prefers_instance_boundary_and_excludes_non_instance_rows(tmp_path):
+    p = tmp_path / "sample.xml"
+    p.write_text(
+        "<root>"
+        "<instance team='Alpha' action='Pass'><x>25</x><y>30</y></instance>"
+        "<event><team>Beta</team><action>Recovery</action></event>"
+        "<row><label>sort configuration</label></row>"
+        "</root>",
+        encoding="utf-8",
+    )
+
+    rows, _ = read_xml_rows(p)
+
+    assert len(rows) == 1
+    assert rows[0]["team"] == "Alpha"
+    assert rows[0]["action"] == "Pass"
+    assert rows[0]["__xml_node__"] == "instance"
 
 
 def test_xml_reader_flattens_attributes_and_child_text(tmp_path):
@@ -77,6 +101,17 @@ def test_xml_reader_flattens_attributes_and_child_text(tmp_path):
     assert rows[0]["x"] == "25"
     assert rows[0]["y"] == "30"
     assert "team" in headers
+
+
+
+def test_xlsx_aggregate_rows_do_not_inflate_event_coordinate_coverage(tmp_path):
+    match = make_active_match(tmp_path)
+
+    _, audit = build_canonical_lite(match)
+
+    assert audit["surface_row_inventory_total"] == 9
+    assert audit["coverage"]["coordinate_rows"] == 7
+    assert audit["coverage"]["coordinate_rows"] < audit["surface_row_inventory_total"]
 
 
 def test_nested_phone_output_directory_is_rejected(tmp_path):
