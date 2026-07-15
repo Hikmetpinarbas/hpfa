@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 MODULE_ID = "active_match_pipeline_manifest_lite_v1"
+ENVELOPE_MODULE_ID = "pipeline_stage_provenance_envelope_lite_v1"
 RUNTIME_AUTHORITY = "runtime/active_single_match/current"
 REQUIRED_STAGES = (
     "evidence_atom_contract_lite_v1",
@@ -25,6 +26,61 @@ def _clean(value: Any) -> str:
     return " ".join("" if value is None else str(value).split()).strip()
 
 
+def _stage_link(payload: dict[str, Any]) -> tuple[str, str, str, list[str], str]:
+    """Return effective module, input hash, output hash, failures, and payload mode.
+
+    Raw stage payloads remain supported for backwards-compatible synthetic tests. A
+    provenance envelope is accepted only when its embedded payload, module identity,
+    claim boundary, and declared stage hash all validate exactly.
+    """
+    if _clean(payload.get("module_id")) != ENVELOPE_MODULE_ID:
+        return (
+            _clean(payload.get("module_id")),
+            _clean(payload.get("input_sha256")),
+            _canonical_sha256(payload),
+            [],
+            "RAW_STAGE_PAYLOAD",
+        )
+
+    failures: list[str] = []
+    stage_payload = payload.get("stage_payload")
+    if not isinstance(stage_payload, dict):
+        stage_payload = {}
+        failures.append("ENVELOPE_STAGE_PAYLOAD_MISSING_OR_INVALID")
+
+    stage_module_id = _clean(payload.get("stage_module_id"))
+    embedded_module_id = _clean(stage_payload.get("module_id"))
+    expected_stage_module_id = _clean(payload.get("expected_stage_module_id"))
+    if not stage_module_id or stage_module_id != embedded_module_id:
+        failures.append("ENVELOPE_STAGE_MODULE_ID_MISMATCH")
+    if expected_stage_module_id and expected_stage_module_id != stage_module_id:
+        failures.append("ENVELOPE_EXPECTED_MODULE_ID_MISMATCH")
+
+    declared_stage_sha256 = _clean(payload.get("stage_payload_sha256"))
+    computed_stage_sha256 = _canonical_sha256(stage_payload)
+    if not declared_stage_sha256:
+        failures.append("ENVELOPE_STAGE_PAYLOAD_SHA256_MISSING")
+    elif declared_stage_sha256 != computed_stage_sha256:
+        failures.append("ENVELOPE_STAGE_PAYLOAD_SHA256_MISMATCH")
+
+    if _clean(payload.get("decision_state")) != "PASS_STAGE_PROVENANCE_ENVELOPE":
+        failures.append("ENVELOPE_NOT_PASSING")
+    if payload.get("provenance_blocker_count") not in (0, "0"):
+        failures.append("ENVELOPE_HAS_PROVENANCE_BLOCKERS")
+    if payload.get("canonical_event_count") != "UNKNOWN":
+        failures.append("ENVELOPE_CANONICAL_EVENT_COUNT_CLAIM_VIOLATION")
+    if payload.get("production_release") is not False:
+        failures.append("ENVELOPE_PRODUCTION_RELEASE_CLAIM_VIOLATION")
+
+    return (
+        stage_module_id or embedded_module_id,
+        _clean(payload.get("input_sha256")),
+        computed_stage_sha256,
+        failures,
+        "PROVENANCE_ENVELOPE",
+    )
+
+
 def build_pipeline_manifest(
     runtime_authority: str,
     source_payload: dict[str, Any],
@@ -41,12 +97,10 @@ def build_pipeline_manifest(
     seen: list[str] = []
 
     for position, payload in enumerate(stage_payloads):
-        module_id = _clean(payload.get("module_id"))
-        input_sha256 = _clean(payload.get("input_sha256"))
-        output_sha256 = _canonical_sha256(payload)
+        module_id, input_sha256, output_sha256, envelope_failures, payload_mode = _stage_link(payload)
         expected_module = REQUIRED_STAGES[position] if position < len(REQUIRED_STAGES) else None
 
-        stage_failures: list[str] = []
+        stage_failures: list[str] = list(envelope_failures)
         if expected_module is None:
             stage_failures.append("UNEXPECTED_EXTRA_STAGE")
         elif module_id != expected_module:
@@ -63,11 +117,12 @@ def build_pipeline_manifest(
             "stage_position": position + 1,
             "module_id": module_id or "UNKNOWN",
             "expected_module_id": expected_module or "NONE",
+            "payload_mode": payload_mode,
             "input_sha256": input_sha256 or "MISSING",
             "expected_input_sha256": previous_sha256,
             "output_sha256": output_sha256,
             "stage_status": "PASS_FRESH_CHAIN_LINK" if not stage_failures else "BLOCKED_CHAIN_LINK",
-            "stage_failures": stage_failures,
+            "stage_failures": sorted(set(stage_failures)),
         })
         seen.append(module_id)
         previous_sha256 = output_sha256
