@@ -32,7 +32,7 @@ jobs:
       - name: No sample match identity leak
         run: |
           if grep -RInE 'Australia|Turkey|World Cup|6935|77798' \
-            hpfa/modules/core/base_event_label_semantic_classifier_lite \
+            hpfa/modules/core/base_event_label_semantic_classifier_lite/src \
             base_event_label_match_test.py \
             docs/contracts/base_event_and_event_label_main_rule_v1.md; then
             echo sample_identity_leak
