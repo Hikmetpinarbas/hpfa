@@ -1,0 +1,50 @@
+name: Match-Local Identity Decoder Lite V1
+
+on:
+  push:
+    branches: [match-local-identity-decoder-lite-v1]
+  pull_request:
+    paths:
+      - hpfa/modules/core/match_local_identity_decoder_lite/**
+      - .github/workflows/match-local-identity-decoder-lite-v1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  identity-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pytest
+      - run: python -m py_compile hpfa/modules/core/match_local_identity_decoder_lite/src/match_local_identity_decoder.py
+      - run: python -m pytest hpfa/modules/core/match_local_identity_decoder_lite/tests -q
+      - name: Enforce pre-bundle claim boundary
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+          src = Path("hpfa/modules/core/match_local_identity_decoder_lite/src")
+          sys.path.insert(0, str(src))
+          from match_local_identity_decoder import build_match_local_identity_decoder
+          result = build_match_local_identity_decoder({
+              "match_binding_id": "ci_match",
+              "evidence_atoms": [{
+                  "evidence_atom_id": "ea_ci",
+                  "match_binding_id": "ci_match",
+                  "team_raw": "Team A",
+                  "player_raw": "Player A",
+                  "source_extra_fields": {},
+              }],
+          })
+          assert result["identity_bound_atom_count"] == 1
+          assert result["event_instance_count"] == 0
+          assert result["action_bundle_candidate_count"] == 0
+          assert result["canonical_event_count"] == "UNKNOWN"
+          assert result["production_release"] is False
+          PY
