@@ -68,6 +68,64 @@ def test_raw_label_is_preserved_and_normalized_separately():
     assert atom["normalized_label"] == "passes_accurate"
 
 
+def test_start_raw_end_raw_period_and_duration_survive_contract():
+    result = build_evidence_atom_contract({
+        "rows": [
+            _row(
+                period_raw="1H",
+                period_candidate="FIRST_HALF",
+                start_seconds_candidate=None,
+                end_seconds_candidate=None,
+                start_raw="12:34.500",
+                end_raw="12:36.250",
+                duration_seconds_candidate=1.75,
+            )
+        ]
+    })
+    atom = result["evidence_atoms"][0]
+    assert atom["period_raw"] == "1H"
+    assert atom["period_candidate"] == "FIRST_HALF"
+    assert atom["start_raw"] == "12:34.500"
+    assert atom["end_raw"] == "12:36.250"
+    assert atom["start_seconds_candidate"] == 754.5
+    assert atom["end_seconds_candidate"] == 756.25
+    assert atom["duration_seconds_candidate"] == 1.75
+    assert result["decision_state"] == "PASS_EVIDENCE_ATOM_CONTRACT"
+
+
+def test_explicit_second_candidates_take_precedence_over_raw_time():
+    result = build_evidence_atom_contract({
+        "rows": [
+            _row(
+                start_seconds_candidate=10.0,
+                end_seconds_candidate=11.0,
+                start_raw="99:00",
+                end_raw="99:01",
+            )
+        ]
+    })
+    atom = result["evidence_atoms"][0]
+    assert atom["start_seconds_candidate"] == 10.0
+    assert atom["end_seconds_candidate"] == 11.0
+
+
+def test_unparseable_visible_raw_time_fails_closed():
+    result = build_evidence_atom_contract({
+        "rows": [
+            _row(
+                start_seconds_candidate=None,
+                end_seconds_candidate=None,
+                start_raw="not-a-time",
+                end_raw="also-not-a-time",
+            )
+        ]
+    })
+    assert result["decision_state"] == "REVIEW_REQUIRED_TIME_PARSE_GAP"
+    assert result["unparsed_time_rows"] == [0]
+    assert result["canonical_event_count"] == "UNKNOWN"
+    assert result["production_release"] is False
+
+
 def test_xlsx_total_maps_to_aggregate_atom_not_timeline():
     result = build_evidence_atom_contract({"rows": [_row(source_file="Players.xlsx", source_format="xlsx", row_surface_class="AGGREGATE_VALIDATION")]})
     assert result["evidence_atoms"][0]["atom_class"] == "AGGREGATE_OUTCOME_ATOM"
