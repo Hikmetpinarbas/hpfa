@@ -25,4 +25,6 @@ jobs:
             hpfa/modules/core/cross_role_reflection_resolver_lite/src/cross_role_reflection_resolver.py \
             hpfa/modules/core/cross_role_reflection_resolver_lite/tests/test_cross_role_reflection_resolver.py
       - name: Focused tests
-        run: pytest -q hpfa/modules/core/cross_role_reflection_resolver_lite/tests/test_cross_role_reflection_resolver.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m pytest -vv --tb=short hpfa/modules/core/cross_role_reflection_resolver_lite/tests/test_cross_role_reflection_resolver.py
