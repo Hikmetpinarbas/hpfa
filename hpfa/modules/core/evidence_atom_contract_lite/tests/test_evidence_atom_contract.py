@@ -45,6 +45,13 @@ def test_evidence_atom_preserves_source_provenance():
     assert result["source_provenance_complete"] is True
 
 
+def test_raw_label_is_preserved_and_normalized_separately():
+    result = build_evidence_atom_contract({"rows": [_row(event_type_raw=" Passes Accurate! ")]})
+    atom = result["evidence_atoms"][0]
+    assert atom["raw_label"] == " Passes Accurate! "
+    assert atom["normalized_label"] == "passes_accurate"
+
+
 def test_xlsx_total_maps_to_aggregate_atom_not_timeline():
     result = build_evidence_atom_contract({"rows": [_row(source_file="Players.xlsx", source_format="xlsx", row_surface_class="AGGREGATE_VALIDATION")]})
     assert result["evidence_atoms"][0]["atom_class"] == "AGGREGATE_OUTCOME_ATOM"
