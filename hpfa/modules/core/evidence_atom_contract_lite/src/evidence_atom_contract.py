@@ -19,8 +19,14 @@ BOUNDARY_LABELS = {
 DERIVED_ROLES = {"DERIVED_RUNTIME_OUTPUT", "REPORT_OR_VISUAL", "XLSX_DERIVED_OUTPUT_SURFACE"}
 
 
+def _raw(value: Any) -> str:
+    """Return the source text without trimming or whitespace normalization."""
+    return "" if value is None else str(value)
+
+
 def _clean(value: Any) -> str:
-    return " ".join(str(value or "").split()).strip()
+    """Return a comparison-safe view while preserving numeric zero values."""
+    return " ".join(_raw(value).split()).strip()
 
 
 def _normalize(value: Any) -> str:
@@ -29,7 +35,12 @@ def _normalize(value: Any) -> str:
 
 
 def _raw_label(row: dict[str, Any]) -> str:
-    return _clean(row.get("event_type_raw") or row.get("action_label_candidate") or row.get("code_raw"))
+    """Select the first populated label field and preserve its exact source text."""
+    for key in ("event_type_raw", "action_label_candidate", "code_raw"):
+        value = row.get(key)
+        if _clean(value):
+            return _raw(value)
+    return ""
 
 
 def _stable_atom_id(match_binding_id: str, row: dict[str, Any]) -> str:
@@ -52,7 +63,7 @@ def _atom_class(row: dict[str, Any]) -> str:
     role = _clean(row.get("source_role")).upper()
     source_format = _clean(row.get("source_format")).lower()
     row_surface_class = _clean(row.get("row_surface_class")).upper()
-    raw_label = _raw_label(row).lower()
+    raw_label = _clean(_raw_label(row)).lower()
 
     if role in DERIVED_ROLES:
         return "QUARANTINED_DERIVED_OUTPUT_ATOM"
@@ -86,6 +97,7 @@ def build_evidence_atom_contract(
         if not provenance_complete:
             missing_provenance_rows.append(index)
 
+        raw_label = _raw_label(row)
         evidence_atoms.append(
             {
                 "evidence_atom_id": _stable_atom_id(match_binding_id, row),
@@ -96,8 +108,8 @@ def build_evidence_atom_contract(
                 "source_row_index": row.get("source_row_index"),
                 "source_event_id_raw": row.get("source_event_id_raw"),
                 "atom_class": _atom_class(row),
-                "raw_label": _raw_label(row),
-                "normalized_label": _normalize(_raw_label(row)),
+                "raw_label": raw_label,
+                "normalized_label": _normalize(raw_label),
                 "period_candidate": row.get("period_candidate"),
                 "start_seconds_candidate": row.get("start_seconds_candidate"),
                 "end_seconds_candidate": row.get("end_seconds_candidate"),
