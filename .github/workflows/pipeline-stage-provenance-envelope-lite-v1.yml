@@ -1,0 +1,26 @@
+name: Pipeline Stage Provenance Envelope Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "hpfa/modules/core/pipeline_stage_provenance_envelope_lite/**"
+      - ".github/workflows/pipeline-stage-provenance-envelope-lite-v1.yml"
+  workflow_dispatch:
+
+jobs:
+  focused-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile
+        run: python -m py_compile hpfa/modules/core/pipeline_stage_provenance_envelope_lite/src/pipeline_stage_provenance_envelope.py
+      - name: Focused tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m pytest -vv --tb=short hpfa/modules/core/pipeline_stage_provenance_envelope_lite/tests/test_pipeline_stage_provenance_envelope.py
+      - name: No sample match identity leak
+        run: |
+          ! grep -R -E "Australia|Turkey|World Cup|6935|77798" hpfa/modules/core/pipeline_stage_provenance_envelope_lite
