@@ -20,12 +20,10 @@ DERIVED_ROLES = {"DERIVED_RUNTIME_OUTPUT", "REPORT_OR_VISUAL", "XLSX_DERIVED_OUT
 
 
 def _raw(value: Any) -> str:
-    """Return the source text without trimming or whitespace normalization."""
     return "" if value is None else str(value)
 
 
 def _clean(value: Any) -> str:
-    """Return a comparison-safe view while preserving numeric zero values."""
     return " ".join(_raw(value).split()).strip()
 
 
@@ -36,12 +34,46 @@ def _normalize(value: Any) -> str:
 
 
 def _raw_label(row: dict[str, Any]) -> str:
-    """Select the first populated label field and preserve its exact source text."""
     for key in ("event_type_raw", "action_label_candidate", "code_raw"):
         value = row.get(key)
         if _clean(value):
             return _raw(value)
     return ""
+
+
+def _parse_seconds(value: Any) -> float | None:
+    text = _clean(value)
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        pass
+    parts = text.split(":")
+    if len(parts) not in {2, 3}:
+        return None
+    try:
+        numbers = [float(part) for part in parts]
+    except ValueError:
+        return None
+    if any(number < 0 for number in numbers):
+        return None
+    if len(numbers) == 2:
+        minutes, seconds = numbers
+        if seconds >= 60:
+            return None
+        return minutes * 60 + seconds
+    hours, minutes, seconds = numbers
+    if minutes >= 60 or seconds >= 60:
+        return None
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def _time_candidate(row: dict[str, Any], explicit_key: str, raw_key: str) -> float | None:
+    explicit = _parse_seconds(row.get(explicit_key))
+    if explicit is not None:
+        return explicit
+    return _parse_seconds(row.get(raw_key))
 
 
 def _stable_atom_id(match_binding_id: str, row: dict[str, Any]) -> str:
@@ -53,6 +85,7 @@ def _stable_atom_id(match_binding_id: str, row: dict[str, Any]) -> str:
             _clean(row.get("source_role")),
             _clean(row.get("source_row_index")),
             _clean(row.get("source_event_id_raw")),
+            _clean(row.get("period_candidate") or row.get("period_raw")),
             _clean(row.get("start_seconds_candidate") or row.get("start_raw")),
             _raw_label(row),
         ]
@@ -85,6 +118,7 @@ def build_evidence_atom_contract(
     rows = canonical_payload.get("rows") or canonical_payload.get("canonical_rows") or []
     evidence_atoms: list[dict[str, Any]] = []
     missing_provenance_rows: list[int] = []
+    unparsed_time_rows: list[int] = []
 
     for index, row in enumerate(rows):
         if not isinstance(row, dict):
@@ -98,6 +132,15 @@ def build_evidence_atom_contract(
         if not provenance_complete:
             missing_provenance_rows.append(index)
 
+        start_seconds = _time_candidate(row, "start_seconds_candidate", "start_raw")
+        end_seconds = _time_candidate(row, "end_seconds_candidate", "end_raw")
+        atom_class = _atom_class(row)
+        if atom_class == "EXPLANATORY_EVIDENCE_ATOM" and (
+            (_clean(row.get("start_raw")) and start_seconds is None)
+            or (_clean(row.get("end_raw")) and end_seconds is None)
+        ):
+            unparsed_time_rows.append(index)
+
         raw_label = _raw_label(row)
         evidence_atoms.append(
             {
@@ -108,12 +151,16 @@ def build_evidence_atom_contract(
                 "source_role": row.get("source_role"),
                 "source_row_index": row.get("source_row_index"),
                 "source_event_id_raw": row.get("source_event_id_raw"),
-                "atom_class": _atom_class(row),
+                "atom_class": atom_class,
                 "raw_label": raw_label,
                 "normalized_label": _normalize(raw_label),
+                "period_raw": row.get("period_raw"),
                 "period_candidate": row.get("period_candidate"),
-                "start_seconds_candidate": row.get("start_seconds_candidate"),
-                "end_seconds_candidate": row.get("end_seconds_candidate"),
+                "start_raw": row.get("start_raw"),
+                "end_raw": row.get("end_raw"),
+                "start_seconds_candidate": start_seconds,
+                "end_seconds_candidate": end_seconds,
+                "duration_seconds_candidate": row.get("duration_seconds_candidate"),
                 "x_meters": row.get("x_meters"),
                 "y_meters": row.get("y_meters"),
                 "team_raw": row.get("team_raw"),
@@ -127,9 +174,14 @@ def build_evidence_atom_contract(
         )
 
     atom_class_counts = Counter(atom["atom_class"] for atom in evidence_atoms)
+    decision_state = "PASS_EVIDENCE_ATOM_CONTRACT"
+    if missing_provenance_rows:
+        decision_state = "REVIEW_REQUIRED_PROVENANCE_GAP"
+    elif unparsed_time_rows:
+        decision_state = "REVIEW_REQUIRED_TIME_PARSE_GAP"
     return {
         "module_id": MODULE_ID,
-        "decision_state": "PASS_EVIDENCE_ATOM_CONTRACT" if not missing_provenance_rows else "REVIEW_REQUIRED_PROVENANCE_GAP",
+        "decision_state": decision_state,
         "evidence_atoms": evidence_atoms,
         "evidence_atom_count": len(evidence_atoms),
         "identity_bound_atom_count": 0,
@@ -138,6 +190,7 @@ def build_evidence_atom_contract(
         "unresolved_atom_count": len(evidence_atoms),
         "source_provenance_complete": not missing_provenance_rows,
         "missing_provenance_rows": missing_provenance_rows,
+        "unparsed_time_rows": unparsed_time_rows,
         "atom_class_counts": dict(sorted(atom_class_counts.items())),
         "event_instance_count": 0,
         "canonical_event_count": "UNKNOWN",
@@ -159,6 +212,7 @@ def write_outputs(canonical_json: str | Path, out_dir: str | Path) -> dict[str, 
                 "HPFA EVIDENCE ATOM CONTRACT LITE V1",
                 f"decision_state={result['decision_state']}",
                 f"evidence_atom_count={result['evidence_atom_count']}",
+                f"unparsed_time_row_count={len(result['unparsed_time_rows'])}",
                 "event_instance_count=0",
                 "canonical_event_count=UNKNOWN",
                 "production_release=false",
