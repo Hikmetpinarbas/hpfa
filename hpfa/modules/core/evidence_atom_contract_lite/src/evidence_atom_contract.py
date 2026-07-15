@@ -31,7 +31,8 @@ def _clean(value: Any) -> str:
 
 def _normalize(value: Any) -> str:
     text = _clean(value).lower()
-    return "_".join("".join(char if char.isalnum() else "_" for char in text).split("_"))
+    tokenized = "".join(char if char.isalnum() else "_" for char in text)
+    return "_".join(part for part in tokenized.split("_") if part)
 
 
 def _raw_label(row: dict[str, Any]) -> str:
