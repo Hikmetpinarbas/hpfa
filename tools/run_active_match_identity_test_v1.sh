@@ -4,7 +4,7 @@ set -euo pipefail
 REPO="${HPFA_REPO:-$HOME/hpfa_claim_integrity/hpfa}"
 ACTIVE="$REPO/runtime/active_single_match/current"
 OUT="/sdcard/Download/HPFA"
-EXPECTED_HEAD="b19bd0a92e6570d9452dab98a99eb50eb1d42002"
+EXPECTED_BRANCH="match-local-identity-decoder-lite-v1"
 
 fail() {
   printf 'FAIL: %s\n' "$1" | tee "$OUT/match_local_identity_active_match_v1.txt" >&2
@@ -16,8 +16,10 @@ mkdir -p "$OUT"
 [[ -d "$ACTIVE" ]] || fail "active_match_runtime_not_found:$ACTIVE"
 
 cd "$REPO"
+ACTUAL_BRANCH="$(git branch --show-current)"
 ACTUAL_HEAD="$(git rev-parse HEAD)"
-[[ "$ACTUAL_HEAD" == "$EXPECTED_HEAD" ]] || fail "unexpected_head:$ACTUAL_HEAD expected:$EXPECTED_HEAD"
+[[ "$ACTUAL_BRANCH" == "$EXPECTED_BRANCH" ]] || fail "unexpected_branch:$ACTUAL_BRANCH expected:$EXPECTED_BRANCH"
+[[ -z "$(git status --porcelain --untracked-files=no)" ]] || fail "tracked_worktree_not_clean"
 
 python -m py_compile \
   hpfa/modules/core/evidence_atom_contract_lite/src/evidence_atom_contract.py \
@@ -34,7 +36,7 @@ if [[ -z "$CANONICAL_JSON" ]]; then
 fi
 [[ -n "$CANONICAL_JSON" && -f "$CANONICAL_JSON" ]] || fail "canonical_json_not_found_set_HPFA_CANONICAL_JSON"
 
-PYTHONPATH="$REPO" python - "$CANONICAL_JSON" "$OUT" <<'PY'
+PYTHONPATH="$REPO" python - "$CANONICAL_JSON" "$OUT" "$ACTUAL_HEAD" <<'PY'
 from __future__ import annotations
 
 import json
@@ -51,6 +53,7 @@ from hpfa.modules.core.match_local_identity_decoder_lite.src.match_local_identit
 
 canonical_path = Path(sys.argv[1])
 out_dir = Path(sys.argv[2])
+git_head = sys.argv[3]
 canonical = json.loads(canonical_path.read_text(encoding="utf-8"))
 evidence = build_evidence_atom_contract(canonical)
 identity = build_match_local_identity_decoder(evidence)
@@ -62,6 +65,7 @@ binding_counts = Counter(
 
 result = {
     "test_id": "active_match_identity_test_v1",
+    "git_head": git_head,
     "canonical_input": str(canonical_path),
     "evidence_decision_state": evidence["decision_state"],
     "identity_decision_state": identity["decision_state"],
