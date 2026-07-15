@@ -33,6 +33,11 @@ def _normalize(value: Any) -> str:
     return "_".join(part for part in tokenized.split("_") if part)
 
 
+def _canonical_sha256(payload: dict[str, Any]) -> str:
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _raw_label(row: dict[str, Any]) -> str:
     for key in ("event_type_raw", "action_label_candidate", "code_raw"):
         value = row.get(key)
@@ -181,6 +186,7 @@ def build_evidence_atom_contract(
         decision_state = "REVIEW_REQUIRED_TIME_PARSE_GAP"
     return {
         "module_id": MODULE_ID,
+        "input_sha256": _canonical_sha256(canonical_payload),
         "decision_state": decision_state,
         "evidence_atoms": evidence_atoms,
         "evidence_atom_count": len(evidence_atoms),
@@ -211,6 +217,7 @@ def write_outputs(canonical_json: str | Path, out_dir: str | Path) -> dict[str, 
             [
                 "HPFA EVIDENCE ATOM CONTRACT LITE V1",
                 f"decision_state={result['decision_state']}",
+                f"input_sha256={result['input_sha256']}",
                 f"evidence_atom_count={result['evidence_atom_count']}",
                 f"unparsed_time_row_count={len(result['unparsed_time_rows'])}",
                 "event_instance_count=0",
