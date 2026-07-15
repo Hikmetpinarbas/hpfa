@@ -1,4 +1,5 @@
 from hpfa.modules.core.active_match_pipeline_manifest_lite.src.active_match_pipeline_manifest import (
+    ENVELOPE_MODULE_ID,
     REQUIRED_STAGES,
     RUNTIME_AUTHORITY,
     _canonical_sha256,
@@ -16,6 +17,35 @@ def _fresh_chain(source):
     return stages
 
 
+def _fresh_envelope_chain(source):
+    previous = _canonical_sha256(source)
+    envelopes = []
+    for module_id in REQUIRED_STAGES:
+        stage_payload = {
+            "module_id": module_id,
+            "decision_state": "TEST_STAGE",
+            "canonical_event_count": "UNKNOWN",
+            "production_release": False,
+        }
+        stage_sha256 = _canonical_sha256(stage_payload)
+        envelopes.append({
+            "module_id": ENVELOPE_MODULE_ID,
+            "stage_module_id": module_id,
+            "expected_stage_module_id": module_id,
+            "input_sha256": previous,
+            "stage_payload_sha256": stage_sha256,
+            "stage_payload": stage_payload,
+            "decision_state": "PASS_STAGE_PROVENANCE_ENVELOPE",
+            "provenance_blockers": [],
+            "provenance_blocker_count": 0,
+            "identity_bound_event_count": 0,
+            "canonical_event_count": "UNKNOWN",
+            "production_release": False,
+        })
+        previous = stage_sha256
+    return envelopes
+
+
 def test_exact_runtime_authority_and_fresh_stage_chain_passes():
     source = {"match_binding_id": "opaque-test-binding", "rows": [1, 2]}
     result = build_pipeline_manifest(RUNTIME_AUTHORITY, source, _fresh_chain(source))
@@ -26,6 +56,15 @@ def test_exact_runtime_authority_and_fresh_stage_chain_passes():
     assert result["production_release"] is False
 
 
+def test_exact_provenance_envelope_chain_passes_on_embedded_stage_hashes():
+    source = {"match_binding_id": "opaque-envelope-binding", "rows": [1, 2, 3]}
+    result = build_pipeline_manifest(RUNTIME_AUTHORITY, source, _fresh_envelope_chain(source))
+    assert result["decision_state"] == "PASS_FRESH_ACTIVE_MATCH_PIPELINE_CHAIN"
+    assert result["pipeline_chain_complete"] is True
+    assert all(row["payload_mode"] == "PROVENANCE_ENVELOPE" for row in result["stage_chain"])
+    assert all(row["stage_status"] == "PASS_FRESH_CHAIN_LINK" for row in result["stage_chain"])
+
+
 def test_old_intermediate_payload_is_blocked():
     source = {"match_binding_id": "current", "rows": [1]}
     stages = _fresh_chain(source)
@@ -33,6 +72,25 @@ def test_old_intermediate_payload_is_blocked():
     result = build_pipeline_manifest(RUNTIME_AUTHORITY, source, stages)
     assert result["decision_state"] == "BLOCKED_STALE_OR_INCOMPLETE_PIPELINE_CHAIN"
     assert any("STALE_OR_FOREIGN_STAGE_INPUT" in reason for reason in result["chain_failure_reasons"])
+
+
+def test_tampered_embedded_stage_payload_is_blocked():
+    source = {"match_binding_id": "current", "rows": [1]}
+    stages = _fresh_envelope_chain(source)
+    stages[1]["stage_payload"]["decision_state"] = "TAMPERED"
+    result = build_pipeline_manifest(RUNTIME_AUTHORITY, source, stages)
+    assert result["pipeline_chain_complete"] is False
+    assert any("ENVELOPE_STAGE_PAYLOAD_SHA256_MISMATCH" in reason for reason in result["chain_failure_reasons"])
+
+
+def test_non_passing_envelope_is_blocked():
+    source = {"match_binding_id": "current"}
+    stages = _fresh_envelope_chain(source)
+    stages[0]["decision_state"] = "BLOCKED_STAGE_PROVENANCE_ENVELOPE"
+    stages[0]["provenance_blocker_count"] = 1
+    result = build_pipeline_manifest(RUNTIME_AUTHORITY, source, stages)
+    assert any("ENVELOPE_NOT_PASSING" in reason for reason in result["chain_failure_reasons"])
+    assert any("ENVELOPE_HAS_PROVENANCE_BLOCKERS" in reason for reason in result["chain_failure_reasons"])
 
 
 def test_missing_stage_is_blocked():
