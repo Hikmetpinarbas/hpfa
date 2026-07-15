@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -28,12 +29,27 @@ def _row(**overrides):
     return row
 
 
+def _canonical_sha256(payload):
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def test_visible_rows_are_not_auto_events():
     result = build_evidence_atom_contract({"rows": [_row(), _row(source_row_index=2)]})
     assert result["evidence_atom_count"] == 2
     assert result["event_instance_count"] == 0
     assert result["canonical_event_count"] == "UNKNOWN"
     assert all(atom["event_instance_allowed"] is False for atom in result["evidence_atoms"])
+
+
+def test_evidence_output_binds_exact_source_payload_hash():
+    payload = {"rows": [_row()]}
+    result = build_evidence_atom_contract(payload)
+    assert result["input_sha256"] == _canonical_sha256(payload)
+
+    changed_payload = {"rows": [_row(source_row_index=2)]}
+    changed_result = build_evidence_atom_contract(changed_payload)
+    assert changed_result["input_sha256"] != result["input_sha256"]
 
 
 def test_evidence_atom_preserves_source_provenance():
@@ -93,6 +109,7 @@ def test_flat_phone_outputs(tmp_path):
     out = tmp_path / "HPFA"
     result = write_outputs(canonical, out)
     assert result["decision_state"] == "PASS_EVIDENCE_ATOM_CONTRACT"
+    assert result["input_sha256"]
     assert (out / "evidence_atom_contract_lite_v1.json").exists()
     assert (out / "evidence_atom_contract_lite_v1.txt").exists()
 
