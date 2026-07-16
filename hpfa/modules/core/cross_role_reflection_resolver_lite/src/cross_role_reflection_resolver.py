@@ -25,18 +25,9 @@ FAMILY_PREFIXES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 NON_EVENT_PREFIXES = (
-    "involvement_in_",
-    "participation",
-    "attack_with_shot",
-    "positional_attack",
-    "counterattack",
-    "counter_attack",
-    "successful_pressure",
-    "high_threat_loss",
-    "mistake_leading_to",
-    "chance_creation",
-    "supersave",
-    "super_save",
+    "involvement_in_", "participation", "attack_with_shot", "positional_attack",
+    "counterattack", "counter_attack", "successful_pressure", "high_threat_loss",
+    "mistake_leading_to", "chance_creation", "supersave", "super_save",
 )
 
 
@@ -74,16 +65,10 @@ def _family_hints(labels: list[str], route: str) -> list[str]:
 
 
 def _spatiotemporal_signature(action_group_key: list[Any], family: str) -> tuple[str, ...]:
-    # Classifier V1 key: match, source role, route, actor, team, period, start, end, x, y.
     return (
-        _clean(action_group_key[0]),
-        _clean(action_group_key[4]),
-        _clean(action_group_key[5]),
-        _number(action_group_key[6]),
-        _number(action_group_key[7]),
-        _number(action_group_key[8]),
-        _number(action_group_key[9]),
-        family,
+        _clean(action_group_key[0]), _clean(action_group_key[4]), _clean(action_group_key[5]),
+        _number(action_group_key[6]), _number(action_group_key[7]), _number(action_group_key[8]),
+        _number(action_group_key[9]), family,
     )
 
 
@@ -97,7 +82,6 @@ def resolve_cross_role_reflections(classifier_payload: dict[str, Any]) -> dict[s
         for item in classifier_payload.get("event_label_candidates", [])
         if item.get("event_label_candidate_id")
     }
-
     primary_index: dict[tuple[str, ...], list[str]] = defaultdict(list)
     for candidate in classifier_payload.get("base_event_surface_candidates", []):
         key = candidate.get("action_group_key") or []
@@ -111,29 +95,19 @@ def resolve_cross_role_reflections(classifier_payload: dict[str, Any]) -> dict[s
     unresolved: list[dict[str, Any]] = []
     ambiguous: list[dict[str, Any]] = []
     route_counts: Counter[str] = Counter()
-
     for relation in classifier_payload.get("cross_role_reflection_relations", []):
         key = relation.get("action_group_key") or []
         route = _clean(relation.get("source_semantic_route"))
         if route not in REFLECTION_ROUTES or len(key) != 10:
             unresolved.append({**relation, "resolution_status": "BLOCKED_INVALID_REFLECTION_CONTRACT"})
             continue
-
-        labels = [
-            _clean(labels_by_id.get(label_id, {}).get("normalized_label")).lower()
-            for label_id in relation.get("event_label_candidate_ids", [])
-        ]
+        labels = [_clean(labels_by_id.get(label_id, {}).get("normalized_label")).lower() for label_id in relation.get("event_label_candidate_ids", [])]
         families = _family_hints(labels, route)
         matches: set[str] = set()
         for family in families:
             matches.update(primary_index.get(_spatiotemporal_signature(key, family), []))
-
         route_counts[route] += 1
-        base = {
-            **relation,
-            "reflected_family_hints": families,
-            "candidate_primary_event_ids": sorted(matches),
-        }
+        base = {**relation, "reflected_family_hints": families, "candidate_primary_event_ids": sorted(matches)}
         if len(matches) == 1:
             target = next(iter(matches))
             resolved.append({
@@ -153,9 +127,9 @@ def resolve_cross_role_reflections(classifier_payload: dict[str, Any]) -> dict[s
         decision_state = "REVIEW_REQUIRED_AMBIGUOUS_REFLECTION_LINKS"
     elif unresolved:
         decision_state = "REVIEW_REQUIRED_UNRESOLVED_REFLECTION_LINKS"
-
     return {
         "module_id": MODULE_ID,
+        "runtime_code_head_sha": classifier_payload.get("runtime_code_head_sha"),
         "decision_state": decision_state,
         "input_reflection_relation_count": len(classifier_payload.get("cross_role_reflection_relations", [])),
         "resolved_reflection_links": resolved,
