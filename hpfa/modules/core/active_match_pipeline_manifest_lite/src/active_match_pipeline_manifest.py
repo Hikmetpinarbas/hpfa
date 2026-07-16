@@ -29,9 +29,8 @@ def _clean(value: Any) -> str:
 def _stage_link(payload: dict[str, Any]) -> tuple[str, str, str, list[str], str]:
     """Return effective module, input hash, output hash, failures, and payload mode.
 
-    Raw stage payloads remain supported for backwards-compatible synthetic tests. A
-    provenance envelope is accepted only when its embedded payload, module identity,
-    claim boundary, and declared stage hash all validate exactly.
+    Raw stage payloads remain readable for explicitly requested legacy/synthetic
+    verification. Active-match manifests require provenance envelopes by default.
     """
     if _clean(payload.get("module_id")) != ENVELOPE_MODULE_ID:
         return (
@@ -85,6 +84,8 @@ def build_pipeline_manifest(
     runtime_authority: str,
     source_payload: dict[str, Any],
     stage_payloads: list[dict[str, Any]],
+    *,
+    require_provenance_envelopes: bool = True,
 ) -> dict[str, Any]:
     authority = _clean(runtime_authority).replace("\\", "/").rstrip("/")
     failures: list[str] = []
@@ -101,6 +102,8 @@ def build_pipeline_manifest(
         expected_module = REQUIRED_STAGES[position] if position < len(REQUIRED_STAGES) else None
 
         stage_failures: list[str] = list(envelope_failures)
+        if require_provenance_envelopes and payload_mode != "PROVENANCE_ENVELOPE":
+            stage_failures.append("RAW_STAGE_PAYLOAD_NOT_ADMISSIBLE")
         if expected_module is None:
             stage_failures.append("UNEXPECTED_EXTRA_STAGE")
         elif module_id != expected_module:
@@ -142,6 +145,7 @@ def build_pipeline_manifest(
         "stage_chain": rows,
         "chain_failure_reasons": sorted(set(failures)),
         "pipeline_chain_complete": not failures,
+        "provenance_envelopes_required": require_provenance_envelopes,
         "identity_bound_event_count": 0,
         "canonical_event_count": "UNKNOWN",
         "production_release": False,
