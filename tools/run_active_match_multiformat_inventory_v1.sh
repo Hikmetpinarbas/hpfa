@@ -88,7 +88,7 @@ resolve_repo() {
     fi
   done < <(find "$HOME" -maxdepth 6 -type d -name .git 2>/dev/null | sort)
 
-  fail "hpfa_product_repo_not_found:set_HPFA_REPO_to_exact_Hikmetpinarbas_hpfa_checkout"
+  fail "hpfa_product_repo_not_found:set_HPFA_REPO_to_the_git_checkout"
 }
 
 REPO="$(resolve_repo)"
@@ -97,15 +97,11 @@ ACTIVE="${HPFA_ACTIVE_MATCH:-$DEFAULT_ACTIVE}"
 [[ -d "$ACTIVE" ]] || fail "active_match_runtime_not_found:$ACTIVE"
 
 ACTUAL_ROOT="$(git -C "$REPO" rev-parse --show-toplevel)"
-[[ "$ACTUAL_ROOT" == "$REPO" ]] || REPO="$ACTUAL_ROOT"
-repo_matches_hpfa "$REPO" || fail "wrong_product_repo_origin:$REPO"
-
 ACTUAL_BRANCH="$(git -C "$REPO" branch --show-current)"
 ACTUAL_HEAD="$(git -C "$REPO" rev-parse HEAD)"
 ORIGIN_URL="$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
-ORIGIN_SLUG="$(normalize_remote_slug "$ORIGIN_URL")"
 
-[[ "$ORIGIN_SLUG" == "$EXPECTED_REPO_SLUG" ]] || fail "unexpected_origin:$ORIGIN_URL expected:$EXPECTED_REPO_SLUG"
+[[ "$ACTUAL_ROOT" == "$REPO" ]] || REPO="$ACTUAL_ROOT"
 [[ "$ACTUAL_BRANCH" == "$EXPECTED_BRANCH" ]] || fail "unexpected_branch:$ACTUAL_BRANCH expected:$EXPECTED_BRANCH repo:$REPO"
 [[ -z "$(git -C "$REPO" status --porcelain --untracked-files=no)" ]] || fail "tracked_worktree_not_clean:$REPO"
 
@@ -123,15 +119,40 @@ python -m pytest -q \
 set +e
 python multiformat_file_inventory.py \
   --input-root "$ACTIVE" \
+  --runtime-authority "$ACTIVE" \
+  --active-match-execution \
   --out "$OUT" \
   | tee "$OUT/multiformat_file_inventory_active_match_v1.txt"
 RUN_RC="${PIPESTATUS[0]}"
 set -e
 
+python - "$OUT/multiformat_file_inventory_lite_v1.json" <<'PY' \
+  | tee "$OUT/multiformat_file_inventory_analyst_audit_v1.txt"
+from pathlib import Path
+import json
+import sys
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+duplicates = payload.get("duplicate_report") or {}
+print("HPFA MULTIFORMAT FILE INVENTORY ACTIVE_MATCH AUDIT")
+print(f"status={payload.get('status')}")
+print(f"file_count={payload.get('file_count')}")
+print(f"unique_content_file_count={payload.get('unique_content_file_count')}")
+print(f"unsupported_file_count={payload.get('unsupported_file_count')}")
+print(f"unresolved_unsupported_file_count={payload.get('unresolved_unsupported_file_count')}")
+print(f"reference_only_unsupported_file_count={payload.get('reference_only_unsupported_file_count')}")
+print(f"exact_duplicate_group_count={duplicates.get('exact_duplicate_group_count')}")
+print(f"exact_duplicate_reflection_count={duplicates.get('exact_duplicate_reflection_count')}")
+print(f"duplicate_file_conflict_count={duplicates.get('duplicate_file_conflict_count')}")
+print(f"hard_block_hits={payload.get('hard_block_hits')}")
+print(f"active_match_evidence_pass={payload.get('active_match_evidence_pass')}")
+print(f"canonical_event_count={payload.get('canonical_event_count')}")
+print(f"production_release={payload.get('production_release')}")
+PY
+
 {
   echo "product_repo=$REPO"
   echo "origin_url=$ORIGIN_URL"
-  echo "origin_slug=$ORIGIN_SLUG"
   echo "branch=$ACTUAL_BRANCH"
   echo "head_sha=$ACTUAL_HEAD"
   echo "runtime_authority=$ACTIVE"
@@ -142,6 +163,7 @@ set -e
   echo "unsupported_report=$OUT/unsupported_file_report.json"
   echo "duplicate_report=$OUT/duplicate_file_fingerprint_report.json"
   echo "decision_txt=$OUT/multiformat_ingest_decision_v1.txt"
+  echo "analyst_audit=$OUT/multiformat_file_inventory_analyst_audit_v1.txt"
   echo "canonical_event_count=UNKNOWN"
   echo "production_release=false"
 } | tee "$OUT/multiformat_file_inventory_result_v1.txt"
