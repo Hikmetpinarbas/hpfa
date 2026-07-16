@@ -24,6 +24,7 @@ def test_exact_stage_module_and_claim_boundary_passes():
         "base_event_label_semantic_classifier_lite_v1",
     )
     assert result["decision_state"] == "PASS_STAGE_PROVENANCE_ENVELOPE"
+    assert result["stage_decision_state"] == "REVIEW_REQUIRED_IDENTITY_GAPS"
     assert result["input_sha256"] == canonical_payload_sha256(source)
     assert result["stage_payload_sha256"] == canonical_payload_sha256(stage_payload())
     assert result["provenance_blocker_count"] == 0
@@ -72,3 +73,23 @@ def test_claim_boundary_violation_is_blocked():
     assert "PRODUCTION_RELEASE_CLAIM_VIOLATION" in codes
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["production_release"] is False
+
+
+def test_missing_stage_decision_state_is_blocked():
+    payload = stage_payload()
+    del payload["decision_state"]
+    result = build_stage_envelope({}, payload, payload["module_id"])
+    codes = {blocker["code"] for blocker in result["provenance_blockers"]}
+    assert "MISSING_STAGE_DECISION_STATE" in codes
+    assert result["stage_decision_state"] == "MISSING"
+    assert result["decision_state"] == "BLOCKED_STAGE_PROVENANCE_ENVELOPE"
+
+
+def test_blocked_stage_decision_is_not_admissible():
+    payload = stage_payload()
+    payload["decision_state"] = "BLOCKED_AGGREGATE_EVENT_RECONCILIATION"
+    result = build_stage_envelope({}, payload, payload["module_id"])
+    codes = {blocker["code"] for blocker in result["provenance_blockers"]}
+    assert "BLOCKED_STAGE_DECISION_NOT_ADMISSIBLE" in codes
+    assert result["stage_decision_state"] == "BLOCKED_AGGREGATE_EVENT_RECONCILIATION"
+    assert result["decision_state"] == "BLOCKED_STAGE_PROVENANCE_ENVELOPE"
