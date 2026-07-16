@@ -63,6 +63,7 @@ def test_file_hash_manifest(tmp_path: Path) -> None:
     assert len(item["sha256"]) == 64
     assert item["file_id"].startswith("file_")
     assert item["schema_fingerprint"]
+    assert item["signature_status"] == "TEXT_TABULAR_PARSED"
 
 
 def test_csv_delimiter_detection(tmp_path: Path) -> None:
@@ -88,6 +89,7 @@ def test_xlsx_sheet_inventory(tmp_path: Path) -> None:
     assert item["sheet_names"] == ["Players", "Metadata"]
     assert item["surface_row_count"] == 3
     assert item["visible_column_count"] == 2
+    assert item["signature_status"] == "ZIP_XLSX_CONFIRMED"
 
 
 def test_xlsx_hidden_sheet_report(tmp_path: Path) -> None:
@@ -123,10 +125,18 @@ def test_xml_external_entities_disabled(tmp_path: Path) -> None:
 
 def test_exact_duplicate_detection(tmp_path: Path) -> None:
     write_csv(tmp_path / "one.csv")
-    (tmp_path / "two.csv").write_bytes((tmp_path / "one.csv").read_bytes())
+    (tmp_path / "raw").mkdir()
+    (tmp_path / "raw" / "one.csv").write_bytes((tmp_path / "one.csv").read_bytes())
     result = build_inventory(tmp_path)
     report = result["duplicate_report"]
     assert report["exact_duplicate_group_count"] == 1
+    assert report["exact_duplicate_reflection_count"] == 1
+    assert report["unique_content_file_count"] == 1
+    assert result["unique_content_file_count"] == 1
+    group = report["exact_duplicate_groups"][0]
+    assert group["status"] == "EXACT_DUPLICATE_REFLECTION"
+    assert group["representative_relative_path"] == "one.csv"
+    assert "not_source_truth" in group["representative_selection_rule"]
     assert report["duplicate_file_conflict_count"] == 0
 
 
@@ -152,12 +162,51 @@ def test_input_root_missing_fails_closed(tmp_path: Path) -> None:
     assert result["hard_block_hits"] == ["input_root_missing"]
 
 
-def test_unsupported_file_report(tmp_path: Path) -> None:
+def test_unknown_unsupported_file_requires_review(tmp_path: Path) -> None:
     write_csv(tmp_path / "surface.csv")
     (tmp_path / "video.mp4").write_bytes(b"not-a-video")
     result = build_inventory(tmp_path)
     assert result["unsupported_file_count"] == 1
+    assert result["unresolved_unsupported_file_count"] == 1
     assert result["status"] == "REVIEW_REQUIRED"
+
+
+def test_reference_pdf_does_not_degrade_status(tmp_path: Path) -> None:
+    write_csv(tmp_path / "surface.csv")
+    report = tmp_path / "reference_reports" / "report.pdf"
+    report.parent.mkdir()
+    report.write_bytes(b"%PDF-1.4 reference")
+    result = build_inventory(tmp_path)
+    assert result["unsupported_file_count"] == 1
+    assert result["reference_only_unsupported_file_count"] == 1
+    assert result["unresolved_unsupported_file_count"] == 0
+    assert result["status"] == "PASS"
+    item = result["unsupported_files"][0]
+    assert item["source_role"] == "REFERENCE_REPORT_SURFACE"
+    assert item["review_required"] is False
+
+
+def test_governance_markdown_does_not_degrade_status(tmp_path: Path) -> None:
+    write_csv(tmp_path / "surface.csv")
+    path = tmp_path / "manifest" / "ACTIVE_MATCH_AUTHORITY.md"
+    path.parent.mkdir()
+    path.write_text("authority", encoding="utf-8")
+    result = build_inventory(tmp_path)
+    assert result["status"] == "PASS"
+    item = result["unsupported_files"][0]
+    assert item["source_role"] == "GOVERNANCE_MANIFEST_SURFACE"
+    assert item["review_required"] is False
+
+
+def test_manifest_tsv_is_not_event_surface(tmp_path: Path) -> None:
+    path = tmp_path / "manifest" / "import_manifest.tsv"
+    path.parent.mkdir()
+    path.write_text("source\tstatus\n", encoding="utf-8")
+    result = build_inventory(tmp_path)
+    item = result["files"][0]
+    assert item["surface_row_count"] == 0
+    assert item["source_role"] == "MANIFEST_SURFACE_CANDIDATE"
+    assert result["status"] == "PASS"
 
 
 def test_canonical_event_count_unknown(tmp_path: Path) -> None:
@@ -167,6 +216,44 @@ def test_canonical_event_count_unknown(tmp_path: Path) -> None:
     assert all(item["canonical_event_count"] == "UNKNOWN" for item in result["files"])
     assert result["active_match_evidence_pass"] is False
     assert result["production_release"] is False
+
+
+def test_active_match_execution_is_bound_to_runtime_authority(tmp_path: Path) -> None:
+    runtime = tmp_path / "runtime" / "active_single_match" / "current"
+    runtime.mkdir(parents=True)
+    write_csv(runtime / "surface.csv")
+    output_root = tmp_path / "HPFA"
+    result = write_outputs(
+        runtime,
+        output_root,
+        root=ROOT,
+        runtime_authority=runtime,
+        active_match_execution=True,
+    )
+    assert result["active_match_evidence_pass"] is True
+    assert result["runtime_execution"]["input_matches_runtime_authority"] is True
+    assert result["status"] == "PASS"
+    decision = (output_root / "multiformat_ingest_decision_v1.txt").read_text(encoding="utf-8")
+    assert "active_match_evidence_pass=true" in decision
+
+
+def test_active_match_execution_fails_closed_on_wrong_authority(tmp_path: Path) -> None:
+    runtime = tmp_path / "runtime" / "active_single_match" / "current"
+    other = tmp_path / "other"
+    runtime.mkdir(parents=True)
+    other.mkdir()
+    write_csv(runtime / "surface.csv")
+    result = write_outputs(
+        runtime,
+        tmp_path / "HPFA",
+        root=ROOT,
+        runtime_authority=other,
+        active_match_execution=True,
+    )
+    assert result["active_match_evidence_pass"] is False
+    assert result["status"] == "FAIL_CLOSED"
+    assert "runtime_authority_mismatch" in result["hard_block_hits"]
+    assert "runtime_authority_path_invalid" in result["hard_block_hits"]
 
 
 def test_outputs_are_flat_and_complete(tmp_path: Path) -> None:
