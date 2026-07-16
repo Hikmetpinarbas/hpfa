@@ -27,6 +27,7 @@ def build_stage_envelope(
 ) -> dict[str, Any]:
     actual_stage_module_id = str(stage_payload.get("module_id") or "").strip()
     expected_stage_module_id = str(expected_stage_module_id or "").strip()
+    stage_decision_state = str(stage_payload.get("decision_state") or "").strip()
 
     blockers: list[dict[str, str]] = []
     if not expected_stage_module_id:
@@ -38,6 +39,17 @@ def build_stage_envelope(
         blockers.append({
             "code": "STAGE_MODULE_ID_MISMATCH",
             "detail": f"expected={expected_stage_module_id};actual={actual_stage_module_id or 'MISSING'}",
+        })
+
+    if not stage_decision_state:
+        blockers.append({
+            "code": "MISSING_STAGE_DECISION_STATE",
+            "detail": "stage decision_state is required for provenance admission",
+        })
+    elif stage_decision_state.startswith("BLOCKED"):
+        blockers.append({
+            "code": "BLOCKED_STAGE_DECISION_NOT_ADMISSIBLE",
+            "detail": f"stage decision_state={stage_decision_state}",
         })
 
     if stage_payload.get("canonical_event_count") != "UNKNOWN":
@@ -55,6 +67,7 @@ def build_stage_envelope(
         "module_id": MODULE_ID,
         "stage_module_id": actual_stage_module_id,
         "expected_stage_module_id": expected_stage_module_id,
+        "stage_decision_state": stage_decision_state or "MISSING",
         "input_sha256": canonical_payload_sha256(input_payload),
         "stage_payload_sha256": canonical_payload_sha256(stage_payload),
         "stage_payload": stage_payload,
@@ -98,6 +111,7 @@ def main() -> int:
     print(json.dumps({
         "decision_state": result["decision_state"],
         "stage_module_id": result["stage_module_id"],
+        "stage_decision_state": result["stage_decision_state"],
         "input_sha256": result["input_sha256"],
         "stage_payload_sha256": result["stage_payload_sha256"],
         "provenance_blocker_count": result["provenance_blocker_count"],
