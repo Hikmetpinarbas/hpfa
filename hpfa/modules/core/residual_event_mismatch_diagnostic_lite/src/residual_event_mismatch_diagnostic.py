@@ -26,14 +26,12 @@ def diagnose_residual_event_mismatch(
         _family(name): int(value)
         for name, value in (aggregate_payload.get("aggregate_family_counts") or {}).items()
     }
-
     candidate_routes: dict[str, Counter[str]] = defaultdict(Counter)
     candidate_labels: dict[str, Counter[str]] = defaultdict(Counter)
     label_by_id = {
         item.get("event_label_candidate_id"): item
         for item in classifier_payload.get("event_label_candidates") or []
     }
-
     for candidate in classifier_payload.get("base_event_surface_candidates") or []:
         family = _family(candidate.get("base_event_family"))
         if not family:
@@ -44,12 +42,10 @@ def diagnose_residual_event_mismatch(
             label = label_by_id.get(label_id) or {}
             normalized = _clean(label.get("normalized_label")) or "UNKNOWN_LABEL"
             candidate_labels[family][normalized] += 1
-
     reflection_counts: Counter[str] = Counter()
     for relation in classifier_payload.get("cross_role_reflection_relations") or []:
         route = _clean(relation.get("source_semantic_route")) or "UNKNOWN_ROUTE"
         reflection_counts[route] += 1
-
     rows: list[dict[str, Any]] = []
     blocked: list[str] = []
     for family in sorted(set(surface_counts) | set(aggregate_counts)):
@@ -70,9 +66,9 @@ def diagnose_residual_event_mismatch(
             ],
             "diagnostic_status": "EXACT_COUNT_PARITY" if delta == 0 else "RESIDUAL_MISMATCH_REQUIRES_ROW_AUDIT",
         })
-
     return {
         "module_id": MODULE_ID,
+        "runtime_code_head_sha": classifier_payload.get("runtime_code_head_sha"),
         "decision_state": "PASS_NO_RESIDUAL_MISMATCH" if not blocked else "BLOCKED_RESIDUAL_EVENT_MISMATCH",
         "family_diagnostics": rows,
         "blocked_families": blocked,
