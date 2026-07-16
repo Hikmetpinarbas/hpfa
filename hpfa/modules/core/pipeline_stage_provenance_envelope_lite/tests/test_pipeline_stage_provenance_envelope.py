@@ -6,6 +6,8 @@ sys.path.insert(0, str(ROOT))
 
 from pipeline_stage_provenance_envelope import build_stage_envelope, canonical_payload_sha256
 
+CODE_HEAD_SHA = "be772f3bf55f90443e3279b0e41581cf3731ef09"
+
 
 def stage_payload(module_id="base_event_label_semantic_classifier_lite_v1"):
     return {
@@ -16,15 +18,17 @@ def stage_payload(module_id="base_event_label_semantic_classifier_lite_v1"):
     }
 
 
-def test_exact_stage_module_and_claim_boundary_passes():
+def test_exact_stage_module_claim_boundary_and_code_head_passes():
     source = {"evidence_atoms": [{"evidence_atom_id": "a1"}]}
     result = build_stage_envelope(
         source,
         stage_payload(),
         "base_event_label_semantic_classifier_lite_v1",
+        CODE_HEAD_SHA,
     )
     assert result["decision_state"] == "PASS_STAGE_PROVENANCE_ENVELOPE"
     assert result["stage_decision_state"] == "REVIEW_REQUIRED_IDENTITY_GAPS"
+    assert result["runtime_code_head_sha"] == CODE_HEAD_SHA
     assert result["input_sha256"] == canonical_payload_sha256(source)
     assert result["stage_payload_sha256"] == canonical_payload_sha256(stage_payload())
     assert result["provenance_blocker_count"] == 0
@@ -35,11 +39,13 @@ def test_input_payload_change_changes_hash():
         {"evidence_atoms": [{"evidence_atom_id": "a1"}]},
         stage_payload(),
         "base_event_label_semantic_classifier_lite_v1",
+        CODE_HEAD_SHA,
     )
     second = build_stage_envelope(
         {"evidence_atoms": [{"evidence_atom_id": "a2"}]},
         stage_payload(),
         "base_event_label_semantic_classifier_lite_v1",
+        CODE_HEAD_SHA,
     )
     assert first["input_sha256"] != second["input_sha256"]
 
@@ -48,8 +54,8 @@ def test_stage_payload_change_changes_output_hash():
     first_stage = stage_payload()
     second_stage = stage_payload()
     second_stage["decision_state"] = "REVIEW_REQUIRED_SEMANTIC_CONFLICTS"
-    first = build_stage_envelope({}, first_stage, first_stage["module_id"])
-    second = build_stage_envelope({}, second_stage, second_stage["module_id"])
+    first = build_stage_envelope({}, first_stage, first_stage["module_id"], CODE_HEAD_SHA)
+    second = build_stage_envelope({}, second_stage, second_stage["module_id"], CODE_HEAD_SHA)
     assert first["stage_payload_sha256"] != second["stage_payload_sha256"]
 
 
@@ -58,6 +64,7 @@ def test_wrong_stage_module_is_blocked():
         {},
         stage_payload("cross_role_reflection_resolver_lite_v1"),
         "base_event_label_semantic_classifier_lite_v1",
+        CODE_HEAD_SHA,
     )
     assert result["decision_state"] == "BLOCKED_STAGE_PROVENANCE_ENVELOPE"
     assert result["provenance_blockers"][0]["code"] == "STAGE_MODULE_ID_MISMATCH"
@@ -67,7 +74,7 @@ def test_claim_boundary_violation_is_blocked():
     payload = stage_payload()
     payload["canonical_event_count"] = 10
     payload["production_release"] = True
-    result = build_stage_envelope({}, payload, payload["module_id"])
+    result = build_stage_envelope({}, payload, payload["module_id"], CODE_HEAD_SHA)
     codes = {blocker["code"] for blocker in result["provenance_blockers"]}
     assert "CANONICAL_EVENT_COUNT_CLAIM_VIOLATION" in codes
     assert "PRODUCTION_RELEASE_CLAIM_VIOLATION" in codes
@@ -78,7 +85,7 @@ def test_claim_boundary_violation_is_blocked():
 def test_missing_stage_decision_state_is_blocked():
     payload = stage_payload()
     del payload["decision_state"]
-    result = build_stage_envelope({}, payload, payload["module_id"])
+    result = build_stage_envelope({}, payload, payload["module_id"], CODE_HEAD_SHA)
     codes = {blocker["code"] for blocker in result["provenance_blockers"]}
     assert "MISSING_STAGE_DECISION_STATE" in codes
     assert result["stage_decision_state"] == "MISSING"
@@ -88,8 +95,23 @@ def test_missing_stage_decision_state_is_blocked():
 def test_blocked_stage_decision_is_not_admissible():
     payload = stage_payload()
     payload["decision_state"] = "BLOCKED_AGGREGATE_EVENT_RECONCILIATION"
-    result = build_stage_envelope({}, payload, payload["module_id"])
+    result = build_stage_envelope({}, payload, payload["module_id"], CODE_HEAD_SHA)
     codes = {blocker["code"] for blocker in result["provenance_blockers"]}
     assert "BLOCKED_STAGE_DECISION_NOT_ADMISSIBLE" in codes
     assert result["stage_decision_state"] == "BLOCKED_AGGREGATE_EVENT_RECONCILIATION"
+    assert result["decision_state"] == "BLOCKED_STAGE_PROVENANCE_ENVELOPE"
+
+
+def test_missing_runtime_code_head_sha_is_blocked():
+    result = build_stage_envelope({}, stage_payload(), stage_payload()["module_id"])
+    codes = {blocker["code"] for blocker in result["provenance_blockers"]}
+    assert "MISSING_RUNTIME_CODE_HEAD_SHA" in codes
+    assert result["runtime_code_head_sha"] == "MISSING"
+    assert result["decision_state"] == "BLOCKED_STAGE_PROVENANCE_ENVELOPE"
+
+
+def test_invalid_runtime_code_head_sha_is_blocked():
+    result = build_stage_envelope({}, stage_payload(), stage_payload()["module_id"], "be772f3")
+    codes = {blocker["code"] for blocker in result["provenance_blockers"]}
+    assert "INVALID_RUNTIME_CODE_HEAD_SHA" in codes
     assert result["decision_state"] == "BLOCKED_STAGE_PROVENANCE_ENVELOPE"
