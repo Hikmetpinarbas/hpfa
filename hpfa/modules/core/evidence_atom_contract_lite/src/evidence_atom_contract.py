@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -9,12 +11,10 @@ from typing import Any
 MODULE_ID = "evidence_atom_contract_lite_v1"
 OUTPUT_JSON = "evidence_atom_contract_lite_v1.json"
 OUTPUT_TXT = "evidence_atom_contract_lite_v1.txt"
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 BOUNDARY_LABELS = {
-    "start of the 1st half",
-    "halftime",
-    "start of the 2nd half",
-    "end of the match",
+    "start of the 1st half", "halftime", "start of the 2nd half", "end of the match",
 }
 DERIVED_ROLES = {"DERIVED_RUNTIME_OUTPUT", "REPORT_OR_VISUAL", "XLSX_DERIVED_OUTPUT_SURFACE"}
 
@@ -31,6 +31,15 @@ def _normalize(value: Any) -> str:
     text = _clean(value).lower()
     tokenized = "".join(char if char.isalnum() else "_" for char in text)
     return "_".join(part for part in tokenized.split("_") if part)
+
+
+def _runtime_head(value: Any) -> str | None:
+    text = _clean(value).lower()
+    if not text:
+        return None
+    if not SHA_RE.fullmatch(text):
+        raise ValueError("invalid_runtime_code_head_sha")
+    return text
 
 
 def _canonical_sha256(payload: dict[str, Any]) -> str:
@@ -82,19 +91,12 @@ def _time_candidate(row: dict[str, Any], explicit_key: str, raw_key: str) -> flo
 
 
 def _stable_atom_id(match_binding_id: str, row: dict[str, Any]) -> str:
-    seed = "|".join(
-        [
-            match_binding_id,
-            _clean(row.get("source_file")),
-            _clean(row.get("source_format")),
-            _clean(row.get("source_role")),
-            _clean(row.get("source_row_index")),
-            _clean(row.get("source_event_id_raw")),
-            _clean(row.get("period_candidate") or row.get("period_raw")),
-            _clean(row.get("start_seconds_candidate") or row.get("start_raw")),
-            _raw_label(row),
-        ]
-    )
+    seed = "|".join([
+        match_binding_id, _clean(row.get("source_file")), _clean(row.get("source_format")),
+        _clean(row.get("source_role")), _clean(row.get("source_row_index")),
+        _clean(row.get("source_event_id_raw")), _clean(row.get("period_candidate") or row.get("period_raw")),
+        _clean(row.get("start_seconds_candidate") or row.get("start_raw")), _raw_label(row),
+    ])
     return "ea_" + hashlib.sha256(seed.encode("utf-8")).hexdigest()[:24]
 
 
@@ -103,7 +105,6 @@ def _atom_class(row: dict[str, Any]) -> str:
     source_format = _clean(row.get("source_format")).lower()
     row_surface_class = _clean(row.get("row_surface_class")).upper()
     raw_label = _clean(_raw_label(row)).lower()
-
     if role in DERIVED_ROLES:
         return "QUARANTINED_DERIVED_OUTPUT_ATOM"
     if raw_label in BOUNDARY_LABELS:
@@ -119,24 +120,22 @@ def build_evidence_atom_contract(
     canonical_payload: dict[str, Any],
     *,
     match_binding_id: str = "active_single_match_current",
+    runtime_code_head_sha: str | None = None,
 ) -> dict[str, Any]:
+    runtime_head = _runtime_head(runtime_code_head_sha)
     rows = canonical_payload.get("rows") or canonical_payload.get("canonical_rows") or []
     evidence_atoms: list[dict[str, Any]] = []
     missing_provenance_rows: list[int] = []
     unparsed_time_rows: list[int] = []
-
     for index, row in enumerate(rows):
         if not isinstance(row, dict):
             continue
         provenance_complete = bool(
-            _clean(row.get("source_file"))
-            and _clean(row.get("source_format"))
-            and _clean(row.get("source_role"))
-            and row.get("source_row_index") is not None
+            _clean(row.get("source_file")) and _clean(row.get("source_format"))
+            and _clean(row.get("source_role")) and row.get("source_row_index") is not None
         )
         if not provenance_complete:
             missing_provenance_rows.append(index)
-
         start_seconds = _time_candidate(row, "start_seconds_candidate", "start_raw")
         end_seconds = _time_candidate(row, "end_seconds_candidate", "end_raw")
         atom_class = _atom_class(row)
@@ -145,46 +144,31 @@ def build_evidence_atom_contract(
             or (_clean(row.get("end_raw")) and end_seconds is None)
         ):
             unparsed_time_rows.append(index)
-
         raw_label = _raw_label(row)
-        evidence_atoms.append(
-            {
-                "evidence_atom_id": _stable_atom_id(match_binding_id, row),
-                "match_binding_id": match_binding_id,
-                "source_file": row.get("source_file"),
-                "source_format": row.get("source_format"),
-                "source_role": row.get("source_role"),
-                "source_row_index": row.get("source_row_index"),
-                "source_event_id_raw": row.get("source_event_id_raw"),
-                "atom_class": atom_class,
-                "raw_label": raw_label,
-                "normalized_label": _normalize(raw_label),
-                "period_raw": row.get("period_raw"),
-                "period_candidate": row.get("period_candidate"),
-                "start_raw": row.get("start_raw"),
-                "end_raw": row.get("end_raw"),
-                "start_seconds_candidate": start_seconds,
-                "end_seconds_candidate": end_seconds,
-                "duration_seconds_candidate": row.get("duration_seconds_candidate"),
-                "x_meters": row.get("x_meters"),
-                "y_meters": row.get("y_meters"),
-                "team_raw": row.get("team_raw"),
-                "player_raw": row.get("player_raw"),
-                "code_raw": row.get("code_raw"),
-                "source_labels_raw": row.get("source_labels_raw"),
-                "source_extra_fields": row.get("source_extra_fields"),
-                "event_instance_allowed": False,
-                "claim_ceiling": "EVIDENCE_ATOM_ONLY",
-            }
-        )
-
+        evidence_atoms.append({
+            "evidence_atom_id": _stable_atom_id(match_binding_id, row),
+            "match_binding_id": match_binding_id,
+            "source_file": row.get("source_file"), "source_format": row.get("source_format"),
+            "source_role": row.get("source_role"), "source_row_index": row.get("source_row_index"),
+            "source_event_id_raw": row.get("source_event_id_raw"), "atom_class": atom_class,
+            "raw_label": raw_label, "normalized_label": _normalize(raw_label),
+            "period_raw": row.get("period_raw"), "period_candidate": row.get("period_candidate"),
+            "start_raw": row.get("start_raw"), "end_raw": row.get("end_raw"),
+            "start_seconds_candidate": start_seconds, "end_seconds_candidate": end_seconds,
+            "duration_seconds_candidate": row.get("duration_seconds_candidate"),
+            "x_meters": row.get("x_meters"), "y_meters": row.get("y_meters"),
+            "team_raw": row.get("team_raw"), "player_raw": row.get("player_raw"),
+            "code_raw": row.get("code_raw"), "source_labels_raw": row.get("source_labels_raw"),
+            "source_extra_fields": row.get("source_extra_fields"),
+            "event_instance_allowed": False, "claim_ceiling": "EVIDENCE_ATOM_ONLY",
+        })
     atom_class_counts = Counter(atom["atom_class"] for atom in evidence_atoms)
     decision_state = "PASS_EVIDENCE_ATOM_CONTRACT"
     if missing_provenance_rows:
         decision_state = "REVIEW_REQUIRED_PROVENANCE_GAP"
     elif unparsed_time_rows:
         decision_state = "REVIEW_REQUIRED_TIME_PARSE_GAP"
-    return {
+    result = {
         "module_id": MODULE_ID,
         "input_sha256": _canonical_sha256(canonical_payload),
         "decision_state": decision_state,
@@ -202,30 +186,50 @@ def build_evidence_atom_contract(
         "canonical_event_count": "UNKNOWN",
         "production_release": False,
     }
+    if runtime_head is not None:
+        result["runtime_code_head_sha"] = runtime_head
+    return result
 
 
-def write_outputs(canonical_json: str | Path, out_dir: str | Path) -> dict[str, Any]:
+def write_outputs(
+    canonical_json: str | Path,
+    out_dir: str | Path,
+    runtime_code_head_sha: str | None = None,
+) -> dict[str, Any]:
     output_dir = Path(out_dir)
     if output_dir.name != "HPFA" or "HPFA" in output_dir.parts[:-1]:
         raise ValueError("nested_phone_output_directory_rejected")
     payload = json.loads(Path(canonical_json).read_text(encoding="utf-8"))
-    result = build_evidence_atom_contract(payload)
+    result = build_evidence_atom_contract(payload, runtime_code_head_sha=runtime_code_head_sha)
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / OUTPUT_JSON).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    (output_dir / OUTPUT_TXT).write_text(
-        "\n".join(
-            [
-                "HPFA EVIDENCE ATOM CONTRACT LITE V1",
-                f"decision_state={result['decision_state']}",
-                f"input_sha256={result['input_sha256']}",
-                f"evidence_atom_count={result['evidence_atom_count']}",
-                f"unparsed_time_row_count={len(result['unparsed_time_rows'])}",
-                "event_instance_count=0",
-                "canonical_event_count=UNKNOWN",
-                "production_release=false",
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    (output_dir / OUTPUT_TXT).write_text("\n".join([
+        "HPFA EVIDENCE ATOM CONTRACT LITE V1",
+        f"decision_state={result['decision_state']}",
+        f"input_sha256={result['input_sha256']}",
+        f"runtime_code_head_sha={result.get('runtime_code_head_sha', 'MISSING')}",
+        f"evidence_atom_count={result['evidence_atom_count']}",
+        f"unparsed_time_row_count={len(result['unparsed_time_rows'])}",
+        "event_instance_count=0", "canonical_event_count=UNKNOWN", "production_release=false",
+    ]) + "\n", encoding="utf-8")
     return result
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--canonical-json", required=True)
+    parser.add_argument("--out", required=True)
+    parser.add_argument("--runtime-code-head-sha", required=True)
+    args = parser.parse_args()
+    result = write_outputs(args.canonical_json, args.out, args.runtime_code_head_sha)
+    print(json.dumps({
+        "decision_state": result["decision_state"],
+        "runtime_code_head_sha": result.get("runtime_code_head_sha"),
+        "canonical_event_count": result["canonical_event_count"],
+        "production_release": result["production_release"],
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
