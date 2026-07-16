@@ -6,8 +6,8 @@ from hpfa.modules.core.active_match_pipeline_manifest_lite.src.active_match_pipe
     build_pipeline_manifest,
 )
 
-CODE_HEAD_SHA = "be772f3bf55f90443e3279b0e41581cf3731ef09"
-OTHER_HEAD_SHA = "d72839caf533fd810a235672bf5e10761835c597"
+CODE_HEAD_SHA = "5972606cc333162322ca7c6fc31ee584a36784e3"
+OTHER_HEAD_SHA = "be772f3bf55f90443e3279b0e41581cf3731ef09"
 
 
 def _fresh_chain(source):
@@ -27,6 +27,7 @@ def _fresh_envelope_chain(source, code_head_sha=CODE_HEAD_SHA):
         stage_payload = {
             "module_id": module_id,
             "decision_state": "TEST_STAGE",
+            "runtime_code_head_sha": code_head_sha,
             "canonical_event_count": "UNKNOWN",
             "production_release": False,
         }
@@ -36,6 +37,7 @@ def _fresh_envelope_chain(source, code_head_sha=CODE_HEAD_SHA):
             "stage_module_id": module_id,
             "expected_stage_module_id": module_id,
             "runtime_code_head_sha": code_head_sha,
+            "stage_runtime_code_head_sha": code_head_sha,
             "input_sha256": previous,
             "stage_payload_sha256": stage_sha256,
             "stage_payload": stage_payload,
@@ -103,6 +105,28 @@ def test_mixed_or_stale_code_head_is_blocked():
     result = _manifest(source, stages)
     assert any("RUNTIME_CODE_HEAD_SHA_MISMATCH" in reason for reason in result["chain_failure_reasons"])
     assert result["stage_chain"][2]["stage_status"] == "BLOCKED_CHAIN_LINK"
+
+
+def test_relabeled_stage_payload_code_head_is_blocked():
+    source = {"match_binding_id": "current"}
+    stages = _fresh_envelope_chain(source)
+    stage_payload = stages[1]["stage_payload"]
+    stage_payload["runtime_code_head_sha"] = OTHER_HEAD_SHA
+    stages[1]["stage_payload_sha256"] = _canonical_sha256(stage_payload)
+    stages[1]["stage_runtime_code_head_sha"] = OTHER_HEAD_SHA
+    result = _manifest(source, stages)
+    assert any("RELABELLED_STAGE_RUNTIME_CODE_HEAD_SHA" in reason for reason in result["chain_failure_reasons"])
+    assert result["stage_chain"][1]["stage_status"] == "BLOCKED_CHAIN_LINK"
+
+
+def test_missing_embedded_stage_code_head_is_blocked():
+    source = {"match_binding_id": "current"}
+    stages = _fresh_envelope_chain(source)
+    del stages[0]["stage_payload"]["runtime_code_head_sha"]
+    stages[0]["stage_payload_sha256"] = _canonical_sha256(stages[0]["stage_payload"])
+    stages[0]["stage_runtime_code_head_sha"] = "MISSING"
+    result = _manifest(source, stages)
+    assert any("EMBEDDED_STAGE_RUNTIME_CODE_HEAD_SHA_MISSING" in reason for reason in result["chain_failure_reasons"])
 
 
 def test_old_intermediate_payload_is_blocked():
