@@ -67,6 +67,17 @@ def _stage_link(payload: dict[str, Any]) -> tuple[str, str, str, list[str], str,
     elif not GIT_SHA_PATTERN.fullmatch(code_head_sha):
         failures.append("ENVELOPE_RUNTIME_CODE_HEAD_SHA_INVALID")
 
+    embedded_code_head_sha = _clean(stage_payload.get("runtime_code_head_sha")).lower()
+    declared_embedded_code_head_sha = _clean(payload.get("stage_runtime_code_head_sha")).lower()
+    if not embedded_code_head_sha or embedded_code_head_sha == "missing":
+        failures.append("EMBEDDED_STAGE_RUNTIME_CODE_HEAD_SHA_MISSING")
+    elif not GIT_SHA_PATTERN.fullmatch(embedded_code_head_sha):
+        failures.append("EMBEDDED_STAGE_RUNTIME_CODE_HEAD_SHA_INVALID")
+    if declared_embedded_code_head_sha != embedded_code_head_sha:
+        failures.append("ENVELOPE_STAGE_RUNTIME_CODE_HEAD_SHA_MISMATCH")
+    if embedded_code_head_sha and code_head_sha and embedded_code_head_sha != code_head_sha:
+        failures.append("RELABELLED_STAGE_RUNTIME_CODE_HEAD_SHA")
+
     if _clean(payload.get("decision_state")) != "PASS_STAGE_PROVENANCE_ENVELOPE":
         failures.append("ENVELOPE_NOT_PASSING")
     if payload.get("provenance_blocker_count") not in (0, "0"):
