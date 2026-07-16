@@ -32,6 +32,7 @@ def build_stage_envelope(
     expected_stage_module_id = str(expected_stage_module_id or "").strip()
     stage_decision_state = str(stage_payload.get("decision_state") or "").strip()
     runtime_code_head_sha = str(runtime_code_head_sha or "").strip().lower()
+    stage_runtime_code_head_sha = str(stage_payload.get("runtime_code_head_sha") or "").strip().lower()
 
     blockers: list[dict[str, str]] = []
     if not expected_stage_module_id:
@@ -67,6 +68,22 @@ def build_stage_envelope(
             "detail": "runtime code head SHA must be a full 40-character lowercase hexadecimal Git SHA",
         })
 
+    if not stage_runtime_code_head_sha:
+        blockers.append({
+            "code": "MISSING_STAGE_RUNTIME_CODE_HEAD_SHA",
+            "detail": "stage payload must declare the Git head under which it was produced",
+        })
+    elif not GIT_SHA_PATTERN.fullmatch(stage_runtime_code_head_sha):
+        blockers.append({
+            "code": "INVALID_STAGE_RUNTIME_CODE_HEAD_SHA",
+            "detail": "stage payload runtime_code_head_sha must be a full 40-character lowercase hexadecimal Git SHA",
+        })
+    elif runtime_code_head_sha and stage_runtime_code_head_sha != runtime_code_head_sha:
+        blockers.append({
+            "code": "STAGE_RUNTIME_CODE_HEAD_SHA_MISMATCH",
+            "detail": f"envelope={runtime_code_head_sha};stage={stage_runtime_code_head_sha}",
+        })
+
     if stage_payload.get("canonical_event_count") != "UNKNOWN":
         blockers.append({
             "code": "CANONICAL_EVENT_COUNT_CLAIM_VIOLATION",
@@ -84,6 +101,7 @@ def build_stage_envelope(
         "expected_stage_module_id": expected_stage_module_id,
         "stage_decision_state": stage_decision_state or "MISSING",
         "runtime_code_head_sha": runtime_code_head_sha or "MISSING",
+        "stage_runtime_code_head_sha": stage_runtime_code_head_sha or "MISSING",
         "input_sha256": canonical_payload_sha256(input_payload),
         "stage_payload_sha256": canonical_payload_sha256(stage_payload),
         "stage_payload": stage_payload,
@@ -137,6 +155,7 @@ def main() -> int:
         "stage_module_id": result["stage_module_id"],
         "stage_decision_state": result["stage_decision_state"],
         "runtime_code_head_sha": result["runtime_code_head_sha"],
+        "stage_runtime_code_head_sha": result["stage_runtime_code_head_sha"],
         "input_sha256": result["input_sha256"],
         "stage_payload_sha256": result["stage_payload_sha256"],
         "provenance_blocker_count": result["provenance_blocker_count"],
