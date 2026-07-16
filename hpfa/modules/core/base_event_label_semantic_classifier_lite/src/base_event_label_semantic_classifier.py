@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 MODULE_ID = "base_event_label_semantic_classifier_lite_v1"
 OUTPUT_JSON = "base_event_label_match_test_v1.json"
 OUTPUT_TXT = "base_event_label_match_test_v1.txt"
+GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 OUTCOME_TOKENS = (
     "accurate", "inaccurate", "successful", "unsuccessful", "won", "lost",
@@ -74,6 +76,15 @@ def _starts_with_any(label: str, prefixes: tuple[str, ...]) -> bool:
     return any(label == prefix or label.startswith(prefix + "_") for prefix in prefixes)
 
 
+def _runtime_code_head_sha(payload: dict[str, Any]) -> str:
+    value = _clean(payload.get("runtime_code_head_sha"))
+    if not value:
+        raise ValueError("MISSING_RUNTIME_CODE_HEAD_SHA")
+    if not GIT_SHA_RE.fullmatch(value):
+        raise ValueError("INVALID_RUNTIME_CODE_HEAD_SHA")
+    return value
+
+
 def _source_route(atom: dict[str, Any], label: str) -> str:
     role = _clean(atom.get("source_role")).lower()
     if "goalkeeper" in role:
@@ -90,9 +101,7 @@ def _is_non_event_label(label: str) -> bool:
         return True
     if label.startswith("attack_with_shot") or label.startswith("positional_attack") or label.startswith("counterattack"):
         return True
-    if any(label.startswith(token) for token in DERIVED_CLASS_TOKENS):
-        return True
-    return False
+    return any(label.startswith(token) for token in DERIVED_CLASS_TOKENS)
 
 
 def infer_base_event_families(label: str, source_route: str = "PLAYER_PRIMARY_ACTION_SURFACE") -> list[str]:
@@ -102,9 +111,7 @@ def infer_base_event_families(label: str, source_route: str = "PLAYER_PRIMARY_AC
         return []
     if _starts_with_any(label, RESTART_PREFIXES):
         return ["RESTART"]
-    if source_route == "TEAM_ACTION_REFLECTION_SURFACE":
-        return []
-    if source_route == "GOALKEEPER_OPPONENT_ACTION_REFLECTION":
+    if source_route in {"TEAM_ACTION_REFLECTION_SURFACE", "GOALKEEPER_OPPONENT_ACTION_REFLECTION"}:
         return []
     found: list[str] = []
     for family, prefixes in BASE_PREFIX_RULES:
@@ -152,9 +159,7 @@ def _actor_token(atom: dict[str, Any]) -> str:
     if " - " in code:
         return code.rsplit(" - ", 1)[0].strip()
     team = _clean(atom.get("team_raw"))
-    if team:
-        return team
-    return code or "UNKNOWN_ACTOR"
+    return team or code or "UNKNOWN_ACTOR"
 
 
 def _period_text(atom: dict[str, Any]) -> str:
@@ -163,34 +168,23 @@ def _period_text(atom: dict[str, Any]) -> str:
 
 def _trace_key(atom: dict[str, Any]) -> tuple[str, ...]:
     return (
-        _clean(atom.get("match_binding_id")),
-        _clean(atom.get("source_role")),
-        _clean(atom.get("source_event_id_raw")),
-        _period_text(atom),
-        _number_text(atom.get("start_seconds_candidate")),
-        _number_text(atom.get("end_seconds_candidate")),
-        _clean(atom.get("code_raw")),
-        _clean(atom.get("team_raw")),
-        _clean(atom.get("player_raw")),
-        _number_text(atom.get("x_meters")),
-        _number_text(atom.get("y_meters")),
-        _label(atom),
+        _clean(atom.get("match_binding_id")), _clean(atom.get("source_role")),
+        _clean(atom.get("source_event_id_raw")), _period_text(atom),
+        _number_text(atom.get("start_seconds_candidate")), _number_text(atom.get("end_seconds_candidate")),
+        _clean(atom.get("code_raw")), _clean(atom.get("team_raw")), _clean(atom.get("player_raw")),
+        _number_text(atom.get("x_meters")), _number_text(atom.get("y_meters")), _label(atom),
     )
 
 
 def _action_group_key(trace: dict[str, Any]) -> tuple[str, ...]:
     representative = trace["atoms"][0]
     return (
-        _clean(representative.get("match_binding_id")),
-        _clean(representative.get("source_role")),
-        _source_route(representative, _label(representative)),
-        _actor_token(representative),
-        _clean(representative.get("team_raw")),
-        _period_text(representative),
+        _clean(representative.get("match_binding_id")), _clean(representative.get("source_role")),
+        _source_route(representative, _label(representative)), _actor_token(representative),
+        _clean(representative.get("team_raw")), _period_text(representative),
         _number_text(representative.get("start_seconds_candidate")),
         _number_text(representative.get("end_seconds_candidate")),
-        _number_text(representative.get("x_meters")),
-        _number_text(representative.get("y_meters")),
+        _number_text(representative.get("x_meters")), _number_text(representative.get("y_meters")),
     )
 
 
@@ -203,6 +197,7 @@ def _stable_id(prefix: str, values: tuple[str, ...]) -> str:
 
 
 def build_match_test(evidence_payload: dict[str, Any]) -> dict[str, Any]:
+    runtime_code_head_sha = _runtime_code_head_sha(evidence_payload)
     atoms = evidence_payload.get("evidence_atoms") or []
     traces_by_key: dict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
     aggregate_atoms = boundary_atoms = explanatory_atoms = 0
@@ -223,18 +218,12 @@ def build_match_test(evidence_payload: dict[str, Any]) -> dict[str, Any]:
     csv_xml_conformant = one_sided_trace_units = 0
     for key, grouped_atoms in traces_by_key.items():
         formats = sorted({_clean(atom.get("source_format")).lower() for atom in grouped_atoms if _clean(atom.get("source_format"))})
-        if formats == ["csv", "xml"]:
-            conformance = "CSV_XML_CONFORMANT"
-            csv_xml_conformant += 1
-        else:
-            conformance = "ONE_SIDED_VISIBLE_TRACE"
-            one_sided_trace_units += 1
+        conformance = "CSV_XML_CONFORMANT" if formats == ["csv", "xml"] else "ONE_SIDED_VISIBLE_TRACE"
+        csv_xml_conformant += int(conformance == "CSV_XML_CONFORMANT")
+        one_sided_trace_units += int(conformance != "CSV_XML_CONFORMANT")
         trace_units.append({
-            "trace_unit_id": _stable_id("tu_", key),
-            "trace_key": list(key),
-            "atoms": grouped_atoms,
-            "source_formats": formats,
-            "conformance_status": conformance,
+            "trace_unit_id": _stable_id("tu_", key), "trace_key": list(key), "atoms": grouped_atoms,
+            "source_formats": formats, "conformance_status": conformance,
         })
 
     groups_by_key: dict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
@@ -267,12 +256,9 @@ def build_match_test(evidence_payload: dict[str, Any]) -> dict[str, Any]:
                 "event_label_candidate_id": _stable_id("el_", tuple(trace["trace_key"])),
                 "normalized_label": label,
                 "raw_labels": sorted({_raw(source_atom.get("raw_label")) for source_atom in trace["atoms"]}),
-                "semantic_roles": roles,
-                "source_semantic_route": route,
-                "base_event_family_signals": families,
-                "event_subtype_signals": infer_event_subtypes(label),
-                "label_origin": "PROVIDER_SURFACE",
-                "definition_version": "UNKNOWN",
+                "semantic_roles": roles, "source_semantic_route": route,
+                "base_event_family_signals": families, "event_subtype_signals": infer_event_subtypes(label),
+                "label_origin": "PROVIDER_SURFACE", "definition_version": "UNKNOWN",
                 "validation_status": "REVIEW_REQUIRED_DEFINITION_AUDIT",
                 "source_trace_unit_id": trace["trace_unit_id"],
             }
@@ -285,20 +271,17 @@ def build_match_test(evidence_payload: dict[str, Any]) -> dict[str, Any]:
 
         if route in {"TEAM_ACTION_REFLECTION_SURFACE", "GOALKEEPER_OPPONENT_ACTION_REFLECTION"}:
             reflection_relations.append({
-                "reflection_relation_id": _stable_id("rr_", group_key),
-                "action_group_key": list(group_key),
+                "reflection_relation_id": _stable_id("rr_", group_key), "action_group_key": list(group_key),
                 "source_semantic_route": route,
                 "event_label_candidate_ids": [entry["event_label_candidate_id"] for entry in group_labels],
-                "relation_status": "UNRESOLVED_CROSS_ROLE_LINK",
-                "canonical_admission_status": "BLOCKED_RELATION_GATE",
+                "relation_status": "UNRESOLVED_CROSS_ROLE_LINK", "canonical_admission_status": "BLOCKED_RELATION_GATE",
             })
             label_only_group_count += 1
             continue
 
         if family_set and not _identity_complete(group_key):
             identity_blockers.append({
-                "action_group_key": list(group_key),
-                "base_event_family_signals": sorted(family_set),
+                "action_group_key": list(group_key), "base_event_family_signals": sorted(family_set),
                 "status": "BLOCKED_MISSING_PERIOD_OR_TIME",
             })
             label_only_group_count += 1
@@ -306,15 +289,12 @@ def build_match_test(evidence_payload: dict[str, Any]) -> dict[str, Any]:
 
         if len(family_set) == 1:
             family = next(iter(family_set))
-            candidate_id = _stable_id("be_", group_key + (family,))
             attached_label_count += len(group_labels)
             base_family_counts[family] += 1
             base_candidates.append({
-                "base_event_candidate_id": candidate_id,
-                "base_event_family": family,
-                "event_subtype_signals": sorted(subtype_set),
-                "source_semantic_route": route,
-                "action_group_key": list(group_key),
+                "base_event_candidate_id": _stable_id("be_", group_key + (family,)),
+                "base_event_family": family, "event_subtype_signals": sorted(subtype_set),
+                "source_semantic_route": route, "action_group_key": list(group_key),
                 "source_trace_unit_ids": [trace["trace_unit_id"] for trace in traces],
                 "event_label_candidate_ids": [entry["event_label_candidate_id"] for entry in group_labels],
                 "surface_candidate_status": "BASE_EVENT_SURFACE_CANDIDATE",
@@ -324,8 +304,7 @@ def build_match_test(evidence_payload: dict[str, Any]) -> dict[str, Any]:
             })
         elif len(family_set) > 1:
             conflicts.append({
-                "action_group_key": list(group_key),
-                "base_event_family_signals": sorted(family_set),
+                "action_group_key": list(group_key), "base_event_family_signals": sorted(family_set),
                 "status": "REVIEW_REQUIRED_MULTIPLE_BASE_EVENT_FAMILIES",
             })
         else:
@@ -342,33 +321,26 @@ def build_match_test(evidence_payload: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "module_id": MODULE_ID,
+        "runtime_code_head_sha": runtime_code_head_sha,
         "decision_state": decision_state,
         "main_rule": "BASE_EVENT_AND_LABEL_ARE_DISTINCT_BUT_LINKED",
-        "evidence_atom_count": len(atoms),
-        "explanatory_atom_count": explanatory_atoms,
-        "aggregate_outcome_atom_count": aggregate_atoms,
-        "match_boundary_atom_count": boundary_atoms,
-        "surface_trace_units": trace_units,
-        "surface_trace_unit_count": len(trace_units),
+        "evidence_atom_count": len(atoms), "explanatory_atom_count": explanatory_atoms,
+        "aggregate_outcome_atom_count": aggregate_atoms, "match_boundary_atom_count": boundary_atoms,
+        "surface_trace_units": trace_units, "surface_trace_unit_count": len(trace_units),
         "csv_xml_conformant_trace_unit_count": csv_xml_conformant,
         "one_sided_trace_unit_count": one_sided_trace_units,
         "base_event_surface_candidates": base_candidates,
         "base_event_surface_candidate_count": len(base_candidates),
         "base_event_family_counts": dict(sorted(base_family_counts.items())),
-        "event_label_candidates": label_candidates,
-        "event_label_candidate_count": len(label_candidates),
+        "event_label_candidates": label_candidates, "event_label_candidate_count": len(label_candidates),
         "event_label_role_counts": dict(sorted(label_role_counts.items())),
         "attached_event_label_count": attached_label_count,
         "label_only_action_group_count": label_only_group_count,
         "cross_role_reflection_relations": reflection_relations,
         "cross_role_reflection_relation_count": len(reflection_relations),
-        "identity_gate_blockers": identity_blockers,
-        "identity_gate_blocker_count": len(identity_blockers),
-        "semantic_conflicts": conflicts,
-        "semantic_conflict_count": len(conflicts),
-        "identity_bound_event_count": 0,
-        "canonical_event_count": "UNKNOWN",
-        "production_release": False,
+        "identity_gate_blockers": identity_blockers, "identity_gate_blocker_count": len(identity_blockers),
+        "semantic_conflicts": conflicts, "semantic_conflict_count": len(conflicts),
+        "identity_bound_event_count": 0, "canonical_event_count": "UNKNOWN", "production_release": False,
         "technical_limits": [
             "Base-event candidates are surface candidates, not canonical events.",
             "Provider labels remain review-required until operational definitions and audit evidence are registered.",
@@ -392,6 +364,7 @@ def write_outputs(evidence_json: str | Path, out_dir: str | Path) -> dict[str, A
     (output_dir / OUTPUT_JSON).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     lines = [
         "HPFA BASE EVENT + EVENT LABEL MATCH TEST V1",
+        f"runtime_code_head_sha={result['runtime_code_head_sha']}",
         f"decision_state={result['decision_state']}",
         f"surface_trace_unit_count={result['surface_trace_unit_count']}",
         f"csv_xml_conformant_trace_unit_count={result['csv_xml_conformant_trace_unit_count']}",
@@ -402,9 +375,7 @@ def write_outputs(evidence_json: str | Path, out_dir: str | Path) -> dict[str, A
         f"cross_role_reflection_relation_count={result['cross_role_reflection_relation_count']}",
         f"identity_gate_blocker_count={result['identity_gate_blocker_count']}",
         f"semantic_conflict_count={result['semantic_conflict_count']}",
-        "identity_bound_event_count=0",
-        "canonical_event_count=UNKNOWN",
-        "production_release=false",
+        "identity_bound_event_count=0", "canonical_event_count=UNKNOWN", "production_release=false",
     ]
     (output_dir / OUTPUT_TXT).write_text("\n".join(lines) + "\n", encoding="utf-8")
     return result
@@ -417,6 +388,7 @@ def main() -> int:
     args = parser.parse_args()
     result = write_outputs(args.evidence_json, args.out)
     print(json.dumps({
+        "runtime_code_head_sha": result["runtime_code_head_sha"],
         "decision_state": result["decision_state"],
         "surface_trace_unit_count": result["surface_trace_unit_count"],
         "base_event_surface_candidate_count": result["base_event_surface_candidate_count"],
