@@ -35,7 +35,6 @@ def reconcile_aggregate_event_counts(
     rows: list[dict[str, Any]] = []
     blocked: list[str] = []
     review: list[str] = []
-
     for family in sorted(set(surface) | set(aggregate)):
         surface_count = surface.get(family, 0)
         aggregate_count = aggregate.get(family, 0)
@@ -59,15 +58,14 @@ def reconcile_aggregate_event_counts(
             "allowed_absolute_delta": allowed,
             "reconciliation_status": status,
         })
-
     decision = "PASS_EXACT_AGGREGATE_EVENT_COUNT_PARITY"
     if blocked:
         decision = "BLOCKED_AGGREGATE_EVENT_RECONCILIATION"
     elif review:
         decision = "REVIEW_REQUIRED_EXPLICIT_RECONCILIATION_TOLERANCE"
-
     return {
         "module_id": MODULE_ID,
+        "runtime_code_head_sha": classifier_payload.get("runtime_code_head_sha"),
         "decision_state": decision,
         "family_reconciliation": rows,
         "blocked_families": blocked,
