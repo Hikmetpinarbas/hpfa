@@ -7,6 +7,7 @@ on:
       - "hpfa/modules/core/multiformat_file_inventory_lite/**"
       - "docs/contracts/multiformat_file_inventory_lite_v1.md"
       - "tools/run_active_match_multiformat_inventory_v1.sh"
+      - "tools/bootstrap_termux_multiformat_inventory_v1.sh"
       - ".github/workflows/multiformat-file-inventory-lite-v1.yml"
   workflow_dispatch:
 
@@ -37,7 +38,11 @@ jobs:
       - name: Focused tests
         run: python -m pytest -q hpfa/modules/core/multiformat_file_inventory_lite/tests/test_multiformat_file_inventory.py
       - name: Shell syntax
-        run: bash -n tools/run_active_match_multiformat_inventory_v1.sh
+        run: |
+          bash -n tools/run_active_match_multiformat_inventory_v1.sh
+          bash -n tools/bootstrap_termux_multiformat_inventory_v1.sh
+      - name: Exact product-repo origin guard
+        run: bash tools/run_active_match_multiformat_inventory_v1.sh --self-test-repo-guard
       - name: Claim-boundary enforcement
         run: |
           python - <<'PY'
@@ -56,4 +61,5 @@ jobs:
           ! grep -R -E "Australia|Turkey|World Cup|6935|77798" \
             hpfa/modules/core/multiformat_file_inventory_lite/src \
             multiformat_file_inventory.py \
-            tools/run_active_match_multiformat_inventory_v1.sh
+            tools/run_active_match_multiformat_inventory_v1.sh \
+            tools/bootstrap_termux_multiformat_inventory_v1.sh
