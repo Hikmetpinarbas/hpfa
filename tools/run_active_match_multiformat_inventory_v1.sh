@@ -6,10 +6,13 @@ EXPECTED_BRANCH="multiformat-file-inventory-lite-v1"
 EXPECTED_REPO_SLUG="hikmetpinarbas/hpfa"
 DEFAULT_ACTIVE="$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current"
 
-mkdir -p "$OUT"
-
 fail() {
-  printf 'FAIL: %s\n' "$1" | tee "$OUT/multiformat_file_inventory_active_match_v1.txt" >&2
+  local message="$1"
+  if [[ -d "$OUT" ]] || mkdir -p "$OUT" 2>/dev/null; then
+    printf 'FAIL: %s\n' "$message" | tee "$OUT/multiformat_file_inventory_active_match_v1.txt" >&2
+  else
+    printf 'FAIL: %s\n' "$message" >&2
+  fi
   exit 1
 }
 
@@ -36,7 +39,6 @@ repo_matches_hpfa() {
 self_test_repo_guard() {
   local tmp repo
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
   repo="$tmp/repo"
   git init -q "$repo"
   git -C "$repo" remote add origin "https://github.com/Hikmetpinarbas/hpfa.git"
@@ -47,6 +49,7 @@ self_test_repo_guard() {
   fi
   git -C "$repo" remote set-url origin "git@github.com:Hikmetpinarbas/hpfa.git"
   repo_matches_hpfa "$repo" || fail "self_test_ssh_origin_rejected"
+  rm -rf "$tmp"
   echo "repo_origin_guard_self_test=PASS"
 }
 
@@ -54,6 +57,8 @@ if [[ "${1:-}" == "--self-test-repo-guard" ]]; then
   self_test_repo_guard
   exit 0
 fi
+
+mkdir -p "$OUT"
 
 resolve_repo() {
   local candidate
