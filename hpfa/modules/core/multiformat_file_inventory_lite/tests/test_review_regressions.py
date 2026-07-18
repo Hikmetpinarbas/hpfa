@@ -87,3 +87,15 @@ def test_utf16_external_entity_is_blocked_before_parse(tmp_path: Path) -> None:
     assert item["parse_status"] == "FAIL_CLOSED"
     assert "external_entity_resolution_attempted" in item["hard_block_hits"]
     assert result["status"] == "FAIL_CLOSED"
+
+
+def test_no_sample_match_identity_leak_across_split_source() -> None:
+    source = "\n".join(
+        (SRC / name).read_text(encoding="utf-8")
+        for name in (
+            "multiformat_file_inventory.py",
+            "multiformat_file_inventory_impl.py",
+        )
+    )
+    forbidden = ["Australia", "Turkey", "World Cup", "6935", "77798"]
+    assert not any(token in source for token in forbidden)
