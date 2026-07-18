@@ -109,11 +109,13 @@ cd "$REPO"
 
 python -m py_compile \
   hpfa/modules/core/multiformat_file_inventory_lite/src/multiformat_file_inventory.py \
+  hpfa/modules/core/multiformat_file_inventory_lite/src/multiformat_file_inventory_impl.py \
   hpfa/modules/core/multiformat_file_inventory_lite/tests/test_multiformat_file_inventory.py \
+  hpfa/modules/core/multiformat_file_inventory_lite/tests/test_review_regressions.py \
   multiformat_file_inventory.py
 
 python -m pytest -q \
-  hpfa/modules/core/multiformat_file_inventory_lite/tests/test_multiformat_file_inventory.py \
+  hpfa/modules/core/multiformat_file_inventory_lite/tests \
   | tee "$OUT/multiformat_file_inventory_pytest_v1.txt"
 
 set +e
