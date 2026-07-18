@@ -33,6 +33,7 @@ jobs:
         run: |
           python -m py_compile \
             hpfa/modules/core/multiformat_file_inventory_lite/src/multiformat_file_inventory.py \
+            hpfa/modules/core/multiformat_file_inventory_lite/src/multiformat_file_inventory_impl.py \
             hpfa/modules/core/multiformat_file_inventory_lite/tests/test_multiformat_file_inventory.py \
             hpfa/modules/core/multiformat_file_inventory_lite/tests/test_review_regressions.py \
             multiformat_file_inventory.py
