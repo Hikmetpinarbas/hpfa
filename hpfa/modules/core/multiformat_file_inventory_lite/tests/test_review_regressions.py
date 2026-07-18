@@ -67,7 +67,7 @@ def test_encoded_xml_doctype_is_blocked_before_parse(
     result = build_inventory(tmp_path)
     item = result["files"][0]
 
-    assert item["parse_status"] == "FAIL_CLOSED_EXTERNAL_ENTITY_ATTEMPT"
+    assert item["parse_status"] == "FAIL_CLOSED"
     assert "external_entity_resolution_attempted" in item["hard_block_hits"]
     assert result["status"] == "FAIL_CLOSED"
 
@@ -84,6 +84,6 @@ def test_utf16_external_entity_is_blocked_before_parse(tmp_path: Path) -> None:
     result = build_inventory(tmp_path)
     item = result["files"][0]
 
-    assert item["parse_status"] == "FAIL_CLOSED_EXTERNAL_ENTITY_ATTEMPT"
+    assert item["parse_status"] == "FAIL_CLOSED"
     assert "external_entity_resolution_attempted" in item["hard_block_hits"]
     assert result["status"] == "FAIL_CLOSED"
