@@ -34,9 +34,10 @@ jobs:
           python -m py_compile \
             hpfa/modules/core/multiformat_file_inventory_lite/src/multiformat_file_inventory.py \
             hpfa/modules/core/multiformat_file_inventory_lite/tests/test_multiformat_file_inventory.py \
+            hpfa/modules/core/multiformat_file_inventory_lite/tests/test_review_regressions.py \
             multiformat_file_inventory.py
       - name: Focused tests
-        run: python -m pytest -q hpfa/modules/core/multiformat_file_inventory_lite/tests/test_multiformat_file_inventory.py
+        run: python -m pytest -q hpfa/modules/core/multiformat_file_inventory_lite/tests
       - name: Shell syntax
         run: |
           bash -n tools/run_active_match_multiformat_inventory_v1.sh
