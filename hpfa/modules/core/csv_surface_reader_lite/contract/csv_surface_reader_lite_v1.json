@@ -1,0 +1,31 @@
+{
+  "module_id": "csv_surface_reader_lite_v1",
+  "input_dependency": "multiformat_file_inventory_lite_v1.json",
+  "runtime_authority": "runtime/active_single_match/current",
+  "accepted_extensions": [".csv", ".tsv"],
+  "preservation_rules": [
+    "raw_columns_preserved",
+    "raw_values_preserved",
+    "type_and_subtype_preserved_separately",
+    "missing_value_not_zero",
+    "same_timestamp_not_automatic_duplicate"
+  ],
+  "team_binding_rules": {
+    "direct_team_column": "candidate_only",
+    "home_away_final_identity": false,
+    "team_surface_embedded_code_binding": "candidate_only_when_code_prefix_precedes_exact_action_suffix",
+    "player_or_goalkeeper_code_prefix_as_team": false,
+    "provider_team_id": "candidate_only"
+  },
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "validated_team_identity": false,
+    "validated_player_identity": false,
+    "home_away_final_identity": false,
+    "time_base_assumed_zero": false,
+    "coordinate_clamp_applied": false,
+    "tactical_truth": false,
+    "production_release": false
+  },
+  "status": "SPEC_AND_EXECUTABLE_CANDIDATE_NOT_RELEASED"
+}
