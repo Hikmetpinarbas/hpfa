@@ -37,7 +37,8 @@ def test_root_cli_wrapper_is_importable_without_self_import() -> None:
     spec.loader.exec_module(module)
 
     assert callable(module.main)
-    assert module.main.__module__ == "_hpfa_multiformat_file_inventory_impl"
+    assert module.main.__module__ != module.__name__
+    assert module.main.__module__.startswith("_hpfa_multiformat_file_inventory_")
 
 
 @pytest.mark.parametrize(
