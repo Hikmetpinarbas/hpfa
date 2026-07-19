@@ -57,8 +57,10 @@ rm -f \
 python -m py_compile \
   hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_surface_reader.py \
   hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_runtime_guard.py \
+  hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_header_semantics.py \
   hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_surface_reader.py \
   hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_runtime_guard.py \
+  hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_header_semantics.py \
   xlsx_surface_reader_lite.py
 
 python -m pytest -q \
@@ -116,6 +118,7 @@ for file_row in payload.get("files", []):
             f"rows={sheet.get('surface_row_count')} "
             f"columns={sheet.get('visible_column_count')} "
             f"metric_labels={len(sheet.get('metric_inventory', []))} "
+            f"duplicate_columns={len(sheet.get('duplicate_column_names', []))} "
             f"hard_blocks={sheet.get('hard_block_hits')}"
         )
 PY
