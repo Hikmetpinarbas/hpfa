@@ -8,8 +8,14 @@ ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "hpfa" / "modules" / "core" / "xlsx_surface_reader_lite" / "src"
 sys.path.insert(0, str(SRC))
 
+import xlsx_surface_reader
+from xlsx_header_semantics import semantic_header_norm
 from xlsx_runtime_guard import XlsxRuntimeGuardError, guard_cli_arguments
-from xlsx_surface_reader import main
+
+# Product execution must preserve semantically meaningful punctuation such as
+# the percent marker before duplicate-header detection and metric inventory.
+xlsx_surface_reader.norm = semantic_header_norm
+main = xlsx_surface_reader.main
 
 
 if __name__ == "__main__":
