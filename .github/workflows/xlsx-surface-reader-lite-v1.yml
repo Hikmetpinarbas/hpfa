@@ -30,8 +30,10 @@ jobs:
             xlsx_surface_reader_lite.py \
             hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_surface_reader.py \
             hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_runtime_guard.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_header_semantics.py \
             hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_surface_reader.py \
-            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_runtime_guard.py
+            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_runtime_guard.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_header_semantics.py
       - name: Focused tests
         run: python -m pytest -q hpfa/modules/core/xlsx_surface_reader_lite/tests
       - name: Shell syntax
@@ -68,4 +70,5 @@ jobs:
         run: |
           python -m pytest -q \
             hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_surface_reader.py::test_no_sample_match_identity_leak \
-            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_runtime_guard.py::test_no_sample_match_identity_leak
+            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_runtime_guard.py::test_no_sample_match_identity_leak \
+            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_header_semantics.py::test_no_sample_match_identity_leak
