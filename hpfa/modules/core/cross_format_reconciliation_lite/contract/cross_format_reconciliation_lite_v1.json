@@ -1,0 +1,44 @@
+{
+  "module_id": "cross_format_reconciliation_lite_v1",
+  "inputs": [
+    "multiformat_file_inventory_lite_v1.json",
+    "csv_surface_audit_lite_v1.json",
+    "xlsx_surface_audit_lite_v1.json",
+    "xml_surface_audit_lite_v1.json",
+    "provider_alias_field_semantics_lite_v1.json",
+    "runtime/active_single_match/current"
+  ],
+  "outputs": [
+    "cross_format_reconciliation_lite_v1.json",
+    "cross_format_reconciliation_lite_v1.txt",
+    "cross_format_reconciliation_analyst_audit_v1.txt"
+  ],
+  "deterministic_alignment_key_candidate": [
+    "source_role",
+    "surface_row_id_candidate",
+    "start_time_candidate",
+    "end_time_candidate",
+    "period_candidate",
+    "action_label_candidate"
+  ],
+  "decision_states": [
+    "PASS_ALIGNMENT_CANDIDATE",
+    "PASS_WITH_WARNINGS",
+    "DOWNGRADE_TO_SINGLE_SURFACE",
+    "BLOCK_FUSION"
+  ],
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "validated_provider_semantics": false,
+    "validated_cross_format_equivalence": false,
+    "validated_team_identity": false,
+    "validated_player_identity": false,
+    "xlsx_independent_confirmation": false,
+    "aggregate_definition_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "production_release": false,
+    "claim_ceiling": "CROSS_FORMAT_SURFACE_RECONCILIATION_CANDIDATE_ONLY"
+  }
+}
