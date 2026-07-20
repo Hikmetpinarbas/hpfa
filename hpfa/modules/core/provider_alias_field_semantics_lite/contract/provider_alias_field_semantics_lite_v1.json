@@ -1,0 +1,26 @@
+{
+  "module_id": "provider_alias_field_semantics_lite_v1",
+  "inputs": [
+    "csv_surface_audit_lite_v1.json",
+    "xlsx_surface_audit_lite_v1.json",
+    "xml_surface_audit_lite_v1.json"
+  ],
+  "outputs": [
+    "provider_alias_field_semantics_lite_v1.json",
+    "provider_alias_field_semantics_lite_v1.txt",
+    "provider_alias_field_semantics_analyst_audit_v1.txt"
+  ],
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "validated_provider_semantics": false,
+    "validated_cross_format_equivalence": false,
+    "validated_team_identity": false,
+    "validated_player_identity": false,
+    "aggregate_definition_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "production_release": false,
+    "claim_ceiling": "FIELD_SEMANTICS_CANDIDATE_ONLY"
+  }
+}
