@@ -64,6 +64,40 @@ The following are `DONOR_SUPPORT / REFERENCE_ONLY` under `ADAPT_NOT_COPY`:
 
 No donor may override ACTIVE_MATCH evidence.
 
+## 4.1 Minimal donor adaptation rule
+
+Donor material supplies a capability hypothesis, failure mode, boundary or test idea. It is not a package to import into the product repository.
+
+Mandatory rules:
+
+- start from the current hpfa producer and current executable blocker;
+- adapt only the smallest donor idea that closes that blocker or creates measurable analyst value;
+- write HPFA-native code and contracts; do not copy donor modules, folder trees or framework structure;
+- do not import donor inventories, roadmaps, research packs, ontology bundles or broad registries into product code unless a current runtime contract requires a specific record;
+- do not create a second orchestrator, parallel semantic framework, duplicate registry or speculative abstraction;
+- one accepted capability must have one narrow contract, one deterministic responsibility and explicit outputs;
+- reject ideas that add more dependencies, state, branches or configuration than the current problem requires;
+- reject code added only because it may be useful later;
+- preserve donor attribution in engineering notes, not as runtime authority;
+- the first implementation must be the smallest portable executable slice that can be tested on ACTIVE_MATCH.
+
+A donor idea is admissible only when all answers are explicit:
+
+```text
+current_product_problem
+current_hpfa_producer
+accepted_donor_idea
+rejected_donor_scope
+target_contract
+runtime_input
+runtime_output
+claim_boundary
+focused_test
+ACTIVE_MATCH_need
+```
+
+Failure to justify these fields means `DONOR_IDEA_REJECTED_NOT_CURRENTLY_NEEDED`.
+
 ## 5. Required semantic roles
 
 Every provider label value resolves to exactly one primary semantic role candidate:
@@ -241,6 +275,8 @@ Unknown labels may produce `REVIEW_REQUIRED`; they must never be guessed.
 - upstream hard-block propagation;
 - canonical event count guard;
 - nested phone output rejection;
+- donor scope rejection for non-current capability;
+- no parallel framework or duplicate registry;
 - `test_no_sample_match_identity_leak`.
 
 ## 17. ACTIVE_MATCH evidence rule
