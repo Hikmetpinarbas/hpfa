@@ -1,0 +1,32 @@
+name: Provider Label Value Semantics Lite V1
+
+on:
+  push:
+    branches:
+      - provider-label-value-semantics-v1
+    paths:
+      - "hpfa/modules/core/provider_label_value_semantics_lite/**"
+      - "provider_label_value_semantics_lite.py"
+      - ".github/workflows/provider-label-value-semantics-v1.yml"
+  pull_request:
+    paths:
+      - "hpfa/modules/core/provider_label_value_semantics_lite/**"
+      - "provider_label_value_semantics_lite.py"
+      - ".github/workflows/provider-label-value-semantics-v1.yml"
+
+jobs:
+  focused-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip pytest
+      - name: Compile
+        run: |
+          python -m py_compile \
+            provider_label_value_semantics_lite.py \
+            hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py
+      - name: Focused tests
+        run: python -m pytest -q hpfa/modules/core/provider_label_value_semantics_lite/tests/test_provider_label_value_semantics.py
