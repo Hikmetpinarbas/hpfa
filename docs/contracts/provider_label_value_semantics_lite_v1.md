@@ -1,6 +1,6 @@
 # HPFA Provider Label Value Semantics Lite V1
 
-Status: `SPEC_ONLY / IMPLEMENTATION_START_AUTHORIZED / ACTIVE_MATCH_EVIDENCE_REQUIRED / NOT_PRODUCTION`
+Status: `IMPLEMENTATION_UPDATED / SEMANTIC_GRAMMAR_V2 / ARTIFACT_REPLAY_PASS / ACTIVE_MATCH_REVALIDATION_REQUIRED / NOT_PRODUCTION / NOT_MERGED`
 
 Product authority: `Hikmetpinarbas/hpfa`
 
@@ -10,114 +10,95 @@ Linked issue: `#174`
 
 ## 1. Purpose
 
-Convert visible SportsBase provider label values into claim-safe semantic candidate records without treating surface rows as canonical events.
-
-This module is downstream of field-name/path classification and upstream of annotation fusion, row-nucleus construction, metric admission, possession, sequence and phase logic.
+Convert visible SportsBase provider label values into deterministic, claim-safe semantic candidate records without treating provider rows, label volumes or parallel CSV/XML serializations as canonical football events.
 
 ```text
 field-path candidates
-+ raw CSV/XML provider label values
-+ provider/source provenance
-→ provider label-value inventory
-→ deterministic candidate semantic mapping
-→ unknown/conflict reports
++ CSV label/value volume surface
++ XML example-label support surface
++ XLSX aggregate-label surface
++ source role and SHA provenance
+→ reviewed provider label grammar
+→ action / context / relation / consequence / meta separation
+→ unknown, token-fallback and conflict reports
 ```
 
-## 2. Non-goals
+This node is upstream of annotation atoms, CSV/XML fusion, row nuclei, match-local identity, aggregate reconciliation, possession, sequence, phase, metrics and analyst narrative.
 
-The module does not establish:
+## 2. What this node proves
+
+It may prove only that a visible provider label has been assigned a deterministic semantic candidate decision under a versioned registry.
+
+It does not prove:
 
 - canonical event identity or count;
-- validated team/player identity;
-- validated cross-format equivalence;
-- XLSX event-level semantics;
+- physical action count;
+- validated team or player identity;
+- CSV/XML source independence;
 - aggregate metric definitions;
-- possession, sequence, phase, pattern or tactical truth;
-- coach intention, dominance, pitch control, off-ball or body-orientation truth.
+- possession, sequence, phase, pattern, intent or tactical truth.
 
 `canonical_event_count=UNKNOWN` is mandatory.
 
 ## 3. Upstream dependencies
 
-Required upstream artifacts:
+Required artifacts:
 
 1. Multiformat File Inventory Lite V1
 2. CSV Surface Reader Lite V1
 3. XLSX Surface Reader Lite V1
 4. XML Surface Reader Lite V1
-5. Field Path Classification output from PR #172
+5. Field Path Classification from PR #172
 
-Any upstream hard block fails this module closed.
+Any upstream `FAIL_CLOSED`, hard block, unexpected production claim, canonical-event-count claim, invalid source SHA reference or unresolved required CSV/XML field path fails this node closed.
 
-## 4. Source roles
+## 4. Source roles and donor policy
 
 Current hpfa producers are product authority.
 
-The following are `DONOR_SUPPORT / REFERENCE_ONLY` under `ADAPT_NOT_COPY`:
+HP-Motor, HP-Engine, HP-PROJELERI, Drive, Dropbox and academic materials are `DONOR_SUPPORT / REFERENCE_ONLY` under `ADAPT_NOT_COPY`.
 
-- HP-Motor SportsBase XML parser and no-drop/schema-drift patterns;
-- HP-Engine registry and semantic-gate patterns;
-- HP-PROJELERI conflict/gate-policy patterns;
-- Dropbox provider normalization and canonical action-family maps;
-- Google Drive action vocabulary, provider dictionary and crosswalk candidates;
-- verified local Termux fusion donor pack.
+Accepted donor ideas:
 
-No donor may override ACTIVE_MATCH evidence.
+- exact provider alias review;
+- qualifier and relation separation;
+- unknown preservation;
+- downstream eligibility and claim ceilings;
+- provenance-first pipeline records;
+- correlation is not causation or event identity.
 
-## 4.1 Minimal donor adaptation rule
+Rejected donor scope:
 
-Donor material supplies a capability hypothesis, failure mode, boundary or test idea. It is not a package to import into the product repository.
+- donor module imports;
+- broad ontology packages;
+- a parallel orchestrator or semantic framework;
+- probabilistic/LLM label guessing;
+- tracking-dependent or tactical truth.
 
-Mandatory rules:
+## 5. Semantic Grammar V2
 
-- start from the current hpfa producer and current executable blocker;
-- adapt only the smallest donor idea that closes that blocker or creates measurable analyst value;
-- write HPFA-native code and contracts; do not copy donor modules, folder trees or framework structure;
-- do not import donor inventories, roadmaps, research packs, ontology bundles or broad registries into product code unless a current runtime contract requires a specific record;
-- do not create a second orchestrator, parallel semantic framework, duplicate registry or speculative abstraction;
-- one accepted capability must have one narrow contract, one deterministic responsibility and explicit outputs;
-- reject ideas that add more dependencies, state, branches or configuration than the current problem requires;
-- reject code added only because it may be useful later;
-- preserve donor attribution in engineering notes, not as runtime authority;
-- the first implementation must be the smallest portable executable slice that can be tested on ACTIVE_MATCH.
+### 5.1 Primary roles
 
-A donor idea is admissible only when all answers are explicit:
-
-```text
-current_product_problem
-current_hpfa_producer
-accepted_donor_idea
-rejected_donor_scope
-target_contract
-runtime_input
-runtime_output
-claim_boundary
-focused_test
-ACTIVE_MATCH_need
-```
-
-Failure to justify these fields means `DONOR_IDEA_REJECTED_NOT_CURRENTLY_NEEDED`.
-
-## 5. Required semantic roles
-
-Every provider label value resolves to exactly one primary semantic role candidate:
+Every provider label resolves to one primary role candidate:
 
 ```text
 ACTION_ANCHOR
-OUTCOME_QUALIFIER
-DIRECTION_QUALIFIER
-DISTANCE_QUALIFIER
-ZONE_QUALIFIER
 CONTEXT_INTERVAL
 PARTICIPATION_INTERVAL
+OPPONENT_ACTION_REFERENCE
+RECEIVED_ACTION_REFERENCE
+DERIVED_CONSEQUENCE_CANDIDATE
+TERMINAL_OUTCOME_CANDIDATE
+ADMINISTRATIVE_MARKER
 PERIOD_OR_META
 AGGREGATE_METRIC_LABEL
-UNKNOWN_PRESERVED
+UNKNOWN_REVIEWED_PRESERVED
+UNKNOWN_UNREVIEWED
 ```
 
-A record may carry additional compatible qualifier candidates, but it may not silently promote itself to a canonical event.
+A label assigned to context, participation, reference, derived, terminal, administrative or aggregate roles must not increase physical-action volume.
 
-## 6. Initial action-family candidates
+### 5.2 Action-family candidates
 
 ```text
 PASS
@@ -131,24 +112,79 @@ FOUL
 INTERCEPTION
 BLOCK
 CROSS
-SET_PIECE
+RESTART
 GOALKEEPER_ACTION
+TACKLE
+DRIBBLE
+CONTROL_ERROR
+OFFSIDE
+CARD
+ERROR
 UNKNOWN
 ```
 
-These are candidate families, not validated football truth.
+These remain candidate families.
 
-## 7. Deterministic mapping order
+### 5.3 Additional semantic dimensions
 
 ```text
-1. exact normalized registry match
-2. approved exact alias match
-3. approved compositional anchor + qualifier rule
-4. explicit conflict candidate
-5. UNKNOWN_PRESERVED
+outcome_candidate
+direction_candidate
+distance_candidate
+zone_candidate
+context_candidate
+relation_candidate
+restart_type_candidate
+shot_result_candidate
+action_subtype_candidate
+object_action_family_candidate
+progression_candidate
+key_action_candidate
+terminal_outcome_candidate
+card_type_candidate
+downstream_eligibility
+semantics_decision
+review_status
 ```
 
-Probabilistic or language-model mapping is not allowed in Lite V1.
+Examples:
+
+- `Goal kicks long (40+ m)` → `RESTART + GOAL_KICK + LONG`.
+- `Fouls suffered` → `RECEIVED_ACTION_REFERENCE`, not an own foul action.
+- `Opponent fouls` → `OPPONENT_ACTION_REFERENCE`, not an own foul action.
+- goalkeeper-surface `Shots on target` → opponent shot reference faced by the goalkeeper.
+- team/player-surface `Shots on target` → shot action candidate.
+- `Shots saved` → goalkeeper save action with shot-object relation.
+- `Successful cross and pass interception attempts` → interception action; `pass` and `cross` are intercepted object families.
+- `Positional attacks with shots` → context interval with a shot-present terminal marker, not a shot action.
+
+## 6. Deterministic decision order
+
+```text
+1. source-role-aware reviewed exact rule
+2. reviewed context/participation prefix rule
+3. explicit multi-anchor conflict
+4. token fallback suggestion requiring review
+5. reviewed meta alias
+6. UNKNOWN_UNREVIEWED with raw-label preservation
+```
+
+Token fallback is never accepted as reviewed semantics and is downstream-blocked.
+
+Probabilistic or language-model mapping is prohibited in this node.
+
+## 7. Mapping statuses
+
+```text
+EXACT_REVIEWED_CANDIDATE
+PREFIX_RULE_REVIEWED_CANDIDATE
+XLSX_AGGREGATE_LABEL_CANDIDATE
+TOKEN_FALLBACK_REVIEW_REQUIRED
+CONFLICT_REVIEW_REQUIRED
+EXACT_ALIAS_CANDIDATE
+UNKNOWN_UNREVIEWED
+BLOCKED
+```
 
 ## 8. Required record fields
 
@@ -158,67 +194,76 @@ source_format
 source_role
 source_relative_path
 source_sha256
-provider_row_id_candidate
 raw_label
 normalized_label
+surface_row_volume
+evidence_scope
 semantic_role_candidate
 action_family_candidate
-outcome_candidate
-direction_candidate
-distance_candidate
-zone_candidate
-context_candidate
+all compatible semantic dimensions
 mapping_status
 rule_id
 registry_version
 confidence_tier
+downstream_eligibility
+semantics_decision
+review_status
 provenance_refs
 hard_block_hits
 review_hits
+validated_semantics
 claim_ceiling
 ```
 
-Raw labels must be preserved verbatim.
+Raw labels and source provenance are retained verbatim.
 
-## 9. Mapping statuses
+## 9. Coverage accounting
+
+The node reports separate volumes for:
 
 ```text
-EXACT_REGISTRY_CANDIDATE
-EXACT_ALIAS_CANDIDATE
-COMPOSITIONAL_RULE_CANDIDATE
-CONFLICT_REVIEW_REQUIRED
-UNKNOWN_PRESERVED
-BLOCKED
+reviewed semantic decisions
+token fallback requiring review
+unknown unreviewed labels
+conflicts
+action-anchor candidates
+context/participation surfaces
+opponent/received/derived/terminal references
+administrative/meta surfaces
 ```
+
+`reviewed_semantic_surface_row_volume_ratio` measures registry decision coverage only.
+
+It does not measure semantic truth, physical-action count, canonical-event count or independent multi-source confirmation.
+
+Backward-compatible `mapped_*` fields are aliases for reviewed decision coverage and must be interpreted under the same boundary.
 
 ## 10. Cross-format behavior
 
-- CSV and XML matching rows are parallel serializations of one provider annotation candidate, not two event votes.
-- Paired raw labels may support mapping consistency evidence.
-- Cross-format agreement does not validate canonical event identity.
-- XML label bundles must remain intact in provenance.
-- XLSX labels remain aggregate metric-label candidates and cannot create event-level action anchors in this module.
+- CSV and XML may be parallel serializations of one provider annotation candidate.
+- Matching labels provide mapping-consistency support only.
+- XML support in this version is limited to the reader's example-label surface; it is not a full XML label inventory.
+- XLSX labels remain aggregate-only and cannot create event semantics.
+- Cross-format agreement never validates canonical event identity.
 
 ## 11. Unknown and conflict policy
 
-Unknown provider labels are preserved with raw provenance and block any downstream metric or action-bundle logic that requires resolved action semantics.
+- `UNKNOWN_UNREVIEWED` preserves raw evidence and blocks required downstream semantics.
+- token fallback remains a suggestion and triggers `REVIEW_REQUIRED`.
+- multiple action-family token hits create `CONFLICT_REVIEW_REQUIRED`; the classifier does not select the first token.
+- a deliberately reviewed non-action label may be retained as a safe context, reference, derived, terminal or administrative candidate rather than forced into an action family.
 
-Conflicting exact mappings produce `CONFLICT_REVIEW_REQUIRED`; the module must not choose silently.
+## 12. Duplicate and hash policy
 
-## 12. Duplicate policy
-
-Exact duplicate file reflections are retained in lineage but not recounted as independent label volume.
-
-Upstream inventory duplicate reflection count and local payload reflection count must be reported separately.
+- exact duplicate file reflections with the same source role and SHA are not recounted;
+- lineage remains upstream responsibility;
+- every reader file contributing label evidence must carry a valid SHA-256 reference;
+- this node binds records to declared reader SHA references but does not re-hash runtime bytes;
+- runtime-byte re-hashing remains a reconciliation/inventory hardening responsibility.
 
 ## 13. Outputs
 
-All phone-visible outputs must be flat under:
-
-- `/sdcard/Download/HPFA`
-- `/storage/emulated/0/Download/HPFA`
-
-Required files:
+Flat phone output only:
 
 ```text
 provider_label_value_inventory_v1.json
@@ -228,72 +273,90 @@ provider_label_conflict_report_v1.json
 provider_label_value_semantics_analyst_audit_v1.txt
 ```
 
-Nested output must fail with `nested_phone_output_directory_rejected`.
+Allowed directories:
 
-## 14. Hard blocks
+- `/sdcard/Download/HPFA`
+- `/storage/emulated/0/Download/HPFA`
+
+Nested output fails with `nested_phone_output_directory_rejected`.
+
+## 14. Mandatory gates
+
+Hard blocks include:
 
 ```text
 input_root_missing
 runtime_authority_mismatch
-runtime_authority_path_invalid
-upstream_failed_closed
-upstream_hard_block_present
+upstream_fail_closed
+upstream_hard_block
 required_field_path_semantics_missing
-source_hash_mismatch
-registry_unreadable
+source_hash_missing_or_invalid
+registry_version_mismatch
 registry_duplicate_conflict
 canonical_event_count_claimed
 nested_phone_output_directory_rejected
 ```
 
-## 15. Review conditions
+Review conditions include:
 
 ```text
-unknown_provider_label_values_present
-conflicting_alias_candidates_present
-paired_csv_xml_label_mismatch
-unsupported_compositional_rule
-aggregate_label_role_ambiguous
+unknown_unreviewed_provider_label_values_present
+token_fallback_semantics_review_required
+conflicting_label_semantics_present
+paired_csv_xml_label_conflict
+upstream_not_pass
 ```
 
-Unknown labels may produce `REVIEW_REQUIRED`; they must never be guessed.
+## 15. Tests
 
-## 16. Mandatory tests
+Mandatory tests cover:
 
-- exact pass/action mapping;
-- outcome qualifier separation;
-- direction and distance qualifier separation;
-- context and participation interval separation;
-- period/meta exclusion from action volume;
-- unknown label preservation and downstream block;
-- raw label and provenance preservation;
-- CSV/XML paired-label consistency;
-- XLSX no-event-semantics guard;
-- conflicting alias review;
-- duplicate reflection no recount;
-- source hash binding;
-- upstream hard-block propagation;
-- canonical event count guard;
-- nested phone output rejection;
-- donor scope rejection for non-current capability;
-- no parallel framework or duplicate registry;
+- reviewed pass and qualifier mapping;
+- incomplete/progressive pass outcomes;
+- context and participation exclusion from action volume;
+- period/meta variants;
+- goal-kick restart semantics;
+- goalkeeper/opponent shot direction;
+- source-role-specific shot interpretation;
+- save and compound interception semantics;
+- foul relation direction;
+- XLSX no-event guard;
+- unknown preservation;
+- token fallback review;
+- multi-anchor conflict;
+- coverage accounting;
+- upstream fail-closed propagation;
+- field-path gate;
+- source SHA reference guard;
+- duplicate-reflection no recount;
+- canonical-event-count guard;
+- exact runtime authority equality;
+- suffix-only authority rejection;
+- nested phone-output rejection;
+- donor-scope guard;
 - `test_no_sample_match_identity_leak`.
 
-## 17. ACTIVE_MATCH evidence rule
+## 16. Evidence statuses
 
-Atölye tests may produce only `SMOKE_PASS`.
+Atölye tests and an offline replay of previously captured ACTIVE_MATCH artifacts may produce:
+
+```text
+SMOKE_PASS
+ARTIFACT_REPLAY_PASS
+```
+
+They do not replace execution against the exact current branch head and exact runtime authority.
 
 `ACTIVE_MATCH_EVIDENCE_PASS` requires:
 
-- exact repository, branch and head verification;
-- exact runtime authority path equality;
+- exact repository, branch and current head;
+- exact resolved runtime-authority path equality;
 - execution against `runtime/active_single_match/current`;
-- engineering evidence;
-- analyst evidence;
-- no hard blocks;
-- explicit status `PASS`.
+- explicit `status=PASS`;
+- no hard blocks or review hits;
+- engineering and analyst evidence.
 
-## 18. Claim boundary
+## 17. Claim boundary
 
 ```text
 canonical_event_count=UNKNOWN
@@ -309,16 +372,20 @@ tactical_truth=false
 production_release=false
 ```
 
-## 19. Downstream gate
+## 18. Downstream gate
 
-Only resolved label candidates may feed SportsBase Annotation Atom Fusion. Unknown/conflicting labels remain preserved but must not open action-family metrics, row nuclei, possession, sequence or tactical claims.
+Only reviewed action candidates may enter SportsBase Annotation Atom Fusion.
 
-## 20. Release status
+Context, participation, opponent/received references, consequences, terminal outcomes and administrative/meta records remain separate evidence types. Unknown, conflict and token-fallback records cannot open action-family metrics, row nuclei, possession, sequence or tactical claims.
+
+## 19. Current release state
 
 ```text
-SPEC_ONLY
-IMPLEMENTATION_START_AUTHORIZED
-ACTIVE_MATCH_EVIDENCE_REQUIRED
+IMPLEMENTATION_UPDATED
+SEMANTIC_GRAMMAR_V2
+LOCAL_FOCUSED_TESTS_PASS
+ACTIVE_MATCH_ARTIFACT_REPLAY_PASS
+ACTIVE_MATCH_REVALIDATION_REQUIRED
 NOT_PRODUCTION
 NOT_MERGED
 ```

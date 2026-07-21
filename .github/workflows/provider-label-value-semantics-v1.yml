@@ -33,7 +33,7 @@ jobs:
             provider_label_value_semantics_lite.py \
             hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py
       - name: Focused tests
-        run: python -m pytest -q hpfa/modules/core/provider_label_value_semantics_lite/tests/test_provider_label_value_semantics.py
+        run: python -m pytest -q hpfa/modules/core/provider_label_value_semantics_lite/tests
       - name: Shell syntax
         run: |
           bash -n tools/bootstrap_termux_provider_label_value_semantics_v1.sh
