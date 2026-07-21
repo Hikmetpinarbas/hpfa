@@ -7,11 +7,15 @@ on:
     paths:
       - "hpfa/modules/core/provider_label_value_semantics_lite/**"
       - "provider_label_value_semantics_lite.py"
+      - "tools/bootstrap_termux_provider_label_value_semantics_v1.sh"
+      - "tools/run_active_match_provider_label_value_semantics_v1.sh"
       - ".github/workflows/provider-label-value-semantics-v1.yml"
   pull_request:
     paths:
       - "hpfa/modules/core/provider_label_value_semantics_lite/**"
       - "provider_label_value_semantics_lite.py"
+      - "tools/bootstrap_termux_provider_label_value_semantics_v1.sh"
+      - "tools/run_active_match_provider_label_value_semantics_v1.sh"
       - ".github/workflows/provider-label-value-semantics-v1.yml"
 
 jobs:
@@ -30,3 +34,7 @@ jobs:
             hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py
       - name: Focused tests
         run: python -m pytest -q hpfa/modules/core/provider_label_value_semantics_lite/tests/test_provider_label_value_semantics.py
+      - name: Shell syntax
+        run: |
+          bash -n tools/bootstrap_termux_provider_label_value_semantics_v1.sh
+          bash -n tools/run_active_match_provider_label_value_semantics_v1.sh
