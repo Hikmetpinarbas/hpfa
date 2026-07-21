@@ -1,0 +1,63 @@
+{
+  "registry_id": "sportsbase_label_semantics_seed_v1",
+  "exact_rules": [
+    {"label":"Passes accurate","semantic_role":"ACTION_ANCHOR","action_family":"PASS","outcome":"SUCCESS","rule_id":"plvs_exact_pass_accurate"},
+    {"label":"Passes forward accurate","semantic_role":"ACTION_ANCHOR","action_family":"PASS","outcome":"SUCCESS","direction":"FORWARD","rule_id":"plvs_exact_pass_forward_accurate"},
+    {"label":"Passes backward accurate","semantic_role":"ACTION_ANCHOR","action_family":"PASS","outcome":"SUCCESS","direction":"BACKWARD","rule_id":"plvs_exact_pass_backward_accurate"},
+    {"label":"Lost balls","semantic_role":"ACTION_ANCHOR","action_family":"TURNOVER","rule_id":"plvs_exact_lost_balls"},
+    {"label":"Carry","semantic_role":"ACTION_ANCHOR","action_family":"CARRY","rule_id":"plvs_exact_carry"},
+    {"label":"Ball recoveries","semantic_role":"ACTION_ANCHOR","action_family":"RECOVERY","rule_id":"plvs_exact_recovery"},
+    {"label":"Challenges won","semantic_role":"ACTION_ANCHOR","action_family":"DUEL","outcome":"WON","rule_id":"plvs_exact_challenge_won"},
+    {"label":"Challenges lost","semantic_role":"ACTION_ANCHOR","action_family":"DUEL","outcome":"LOST","rule_id":"plvs_exact_challenge_lost"},
+    {"label":"Involvement in positional attacks","semantic_role":"PARTICIPATION_INTERVAL","context":"POSITIONAL_ATTACK_CANDIDATE","rule_id":"plvs_exact_positional_participation"},
+    {"label":"Playing in positional attacks","semantic_role":"CONTEXT_INTERVAL","context":"POSITIONAL_ATTACK_CANDIDATE","rule_id":"plvs_exact_positional_context"},
+    {"label":"Goal kicks short (0-15m)","semantic_role":"ACTION_ANCHOR","action_family":"GOALKEEPER_ACTION","distance":"SHORT","context":"GOAL_KICK_RESTART_CANDIDATE","rule_id":"plvs_exact_goal_kick_short"},
+    {"label":"Goal kicks medium (15-40m)","semantic_role":"ACTION_ANCHOR","action_family":"GOALKEEPER_ACTION","distance":"MEDIUM","context":"GOAL_KICK_RESTART_CANDIDATE","rule_id":"plvs_exact_goal_kick_medium"},
+    {"label":"Goal kicks long (40m+)","semantic_role":"ACTION_ANCHOR","action_family":"GOALKEEPER_ACTION","distance":"LONG","context":"GOAL_KICK_RESTART_CANDIDATE","rule_id":"plvs_exact_goal_kick_long"},
+    {"label":"Start of first half","semantic_role":"PERIOD_OR_META","rule_id":"plvs_exact_first_half_start"},
+    {"label":"Start of second half","semantic_role":"PERIOD_OR_META","rule_id":"plvs_exact_second_half_start"},
+    {"label":"Halftime","semantic_role":"PERIOD_OR_META","rule_id":"plvs_exact_halftime"},
+    {"label":"End of match","semantic_role":"PERIOD_OR_META","rule_id":"plvs_exact_match_end"}
+  ],
+  "prefix_rules": [
+    {"prefix":"Playing in ","semantic_role":"CONTEXT_INTERVAL","rule_id":"plvs_prefix_context"},
+    {"prefix":"Involvement in ","semantic_role":"PARTICIPATION_INTERVAL","rule_id":"plvs_prefix_participation"}
+  ],
+  "anchor_tokens": [
+    {"action_family":"PASS","tokens":["pass","passes"],"rule_id":"plvs_anchor_pass"},
+    {"action_family":"CARRY","tokens":["carry","carries"],"rule_id":"plvs_anchor_carry"},
+    {"action_family":"SHOT","tokens":["shot","shots"],"rule_id":"plvs_anchor_shot"},
+    {"action_family":"RECOVERY","tokens":["recovery","recoveries"],"rule_id":"plvs_anchor_recovery"},
+    {"action_family":"TURNOVER","tokens":["turnover","turnovers","lost ball","lost balls"],"rule_id":"plvs_anchor_turnover"},
+    {"action_family":"CLEARANCE","tokens":["clearance","clearances"],"rule_id":"plvs_anchor_clearance"},
+    {"action_family":"DUEL","tokens":["duel","duels","challenge","challenges"],"rule_id":"plvs_anchor_duel"},
+    {"action_family":"FOUL","tokens":["foul","fouls"],"rule_id":"plvs_anchor_foul"},
+    {"action_family":"INTERCEPTION","tokens":["interception","interceptions"],"rule_id":"plvs_anchor_interception"},
+    {"action_family":"BLOCK","tokens":["block","blocks","blocked"],"rule_id":"plvs_anchor_block"},
+    {"action_family":"CROSS","tokens":["cross","crosses"],"rule_id":"plvs_anchor_cross"},
+    {"action_family":"SET_PIECE","tokens":["corner","free kick","throw in","kick off"],"rule_id":"plvs_anchor_set_piece"},
+    {"action_family":"GOALKEEPER_ACTION","tokens":["save","saves","goal kick","goal kicks"],"rule_id":"plvs_anchor_goalkeeper"}
+  ],
+  "outcome_tokens": [
+    {"value":"SUCCESS","tokens":["accurate","successful","success"],"rule_id":"plvs_outcome_success"},
+    {"value":"FAILURE","tokens":["inaccurate","unsuccessful","failed"],"rule_id":"plvs_outcome_failure"},
+    {"value":"WON","tokens":["won"],"rule_id":"plvs_outcome_won"},
+    {"value":"LOST","tokens":["lost"],"rule_id":"plvs_outcome_lost"}
+  ],
+  "direction_tokens": [
+    {"value":"FORWARD","tokens":["forward"],"rule_id":"plvs_direction_forward"},
+    {"value":"BACKWARD","tokens":["backward"],"rule_id":"plvs_direction_backward"},
+    {"value":"LATERAL","tokens":["lateral","sideways"],"rule_id":"plvs_direction_lateral"}
+  ],
+  "distance_tokens": [
+    {"value":"SHORT","tokens":["short"],"rule_id":"plvs_distance_short"},
+    {"value":"MEDIUM","tokens":["medium"],"rule_id":"plvs_distance_medium"},
+    {"value":"SUPER_LONG","tokens":["super long"],"rule_id":"plvs_distance_super_long"},
+    {"value":"LONG","tokens":["long"],"rule_id":"plvs_distance_long"}
+  ],
+  "zone_tokens": [
+    {"value":"FINAL_THIRD","tokens":["final third"],"rule_id":"plvs_zone_final_third"},
+    {"value":"PENALTY_AREA","tokens":["penalty area","penalty box"],"rule_id":"plvs_zone_penalty_area"}
+  ],
+  "meta_labels":["Start of first half","Start of second half","Halftime","End of match"]
+}
