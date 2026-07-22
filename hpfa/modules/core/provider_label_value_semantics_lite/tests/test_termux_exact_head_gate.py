@@ -21,7 +21,16 @@ def test_bootstrap_binds_runner_to_fetched_head() -> None:
     assert 'git -C "$REPO" reset --hard "origin/$BRANCH"' in source
     assert 'ACTUAL_HEAD="$(git -C "$REPO" rev-parse HEAD)"' in source
     assert 'HPFA_EXPECTED_HEAD="$ACTUAL_HEAD"' in source
-    assert 'echo "expected_head_sha=$ACTUAL_HEAD"' in source
+    assert 'export HPFA_REPO HPFA_ACTIVE_MATCH HPFA_PHONE_OUTPUT HPFA_EXPECTED_HEAD' in source
+    assert '[[ "$HPFA_EXPECTED_HEAD" == "$ACTUAL_HEAD" ]]' in source
+    assert 'echo "expected_head_sha=$HPFA_EXPECTED_HEAD"' in source
+    assert 'bash "$REPO/tools/run_active_match_provider_label_value_semantics_v1.sh"' in source
+
+
+def test_bootstrap_does_not_depend_on_multiline_environment_prefix() -> None:
+    source = BOOTSTRAP.read_text(encoding="utf-8")
+    assert 'HPFA_EXPECTED_HEAD="$ACTUAL_HEAD" \\' not in source
+    assert 'HPFA_PHONE_OUTPUT="$OUT" \\' not in source
 
 
 def test_no_sample_match_identity_leak_in_head_gate_scripts() -> None:
