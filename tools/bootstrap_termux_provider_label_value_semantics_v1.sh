@@ -66,9 +66,13 @@ mkdir -p "$OUT"
   echo "origin_slug=$ORIGIN_SLUG"
   echo "branch=$ACTUAL_BRANCH"
   echo "head_sha=$ACTUAL_HEAD"
+  echo "expected_head_sha=$ACTUAL_HEAD"
   echo "runtime_authority=$ACTIVE_MATCH"
   echo "bootstrap_status=READY"
 } | tee "$OUT/provider_label_value_semantics_bootstrap_v1.txt"
 
-HPFA_REPO="$REPO" HPFA_ACTIVE_MATCH="$ACTIVE_MATCH" HPFA_PHONE_OUTPUT="$OUT" \
+HPFA_REPO="$REPO" \
+HPFA_ACTIVE_MATCH="$ACTIVE_MATCH" \
+HPFA_PHONE_OUTPUT="$OUT" \
+HPFA_EXPECTED_HEAD="$ACTUAL_HEAD" \
   bash "$REPO/tools/run_active_match_provider_label_value_semantics_v1.sh"
