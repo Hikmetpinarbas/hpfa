@@ -59,6 +59,15 @@ fi
 ACTUAL_BRANCH="$(git -C "$REPO" branch --show-current)"
 ACTUAL_HEAD="$(git -C "$REPO" rev-parse HEAD)"
 [[ "$ACTUAL_BRANCH" == "$BRANCH" ]] || fail "unexpected_branch:$ACTUAL_BRANCH expected:$BRANCH"
+[[ "$ACTUAL_HEAD" =~ ^[0-9a-fA-F]{40}$ ]] || fail "fetched_head_missing_or_invalid:$ACTUAL_HEAD"
+
+HPFA_REPO="$REPO"
+HPFA_ACTIVE_MATCH="$ACTIVE_MATCH"
+HPFA_PHONE_OUTPUT="$OUT"
+HPFA_EXPECTED_HEAD="$ACTUAL_HEAD"
+export HPFA_REPO HPFA_ACTIVE_MATCH HPFA_PHONE_OUTPUT HPFA_EXPECTED_HEAD
+
+[[ "$HPFA_EXPECTED_HEAD" == "$ACTUAL_HEAD" ]] || fail "bootstrap_expected_head_export_mismatch"
 mkdir -p "$OUT"
 {
   echo "product_repo=$REPO"
@@ -66,13 +75,9 @@ mkdir -p "$OUT"
   echo "origin_slug=$ORIGIN_SLUG"
   echo "branch=$ACTUAL_BRANCH"
   echo "head_sha=$ACTUAL_HEAD"
-  echo "expected_head_sha=$ACTUAL_HEAD"
+  echo "expected_head_sha=$HPFA_EXPECTED_HEAD"
   echo "runtime_authority=$ACTIVE_MATCH"
   echo "bootstrap_status=READY"
 } | tee "$OUT/provider_label_value_semantics_bootstrap_v1.txt"
 
-HPFA_REPO="$REPO" \
-HPFA_ACTIVE_MATCH="$ACTIVE_MATCH" \
-HPFA_PHONE_OUTPUT="$OUT" \
-HPFA_EXPECTED_HEAD="$ACTUAL_HEAD" \
-  bash "$REPO/tools/run_active_match_provider_label_value_semantics_v1.sh"
+bash "$REPO/tools/run_active_match_provider_label_value_semantics_v1.sh"
