@@ -16,6 +16,25 @@
     "cross_format_reconciliation_lite_v1.txt",
     "cross_format_reconciliation_analyst_audit_v1.txt"
   ],
+  "top_level_status_fields": [
+    "module_status",
+    "runtime_evidence_status",
+    "release_status"
+  ],
+  "module_status_states": [
+    "PASS",
+    "REVIEW_REQUIRED",
+    "FAIL_CLOSED"
+  ],
+  "runtime_evidence_status_states": [
+    "NOT_EVALUATED",
+    "ACTIVE_MATCH_EVIDENCE_PASS",
+    "ACTIVE_MATCH_EVIDENCE_NOT_GRANTED"
+  ],
+  "release_status_states": [
+    "NOT_PRODUCTION",
+    "PRODUCTION_RELEASE"
+  ],
   "provider_semantic_record_required_fields": [
     "source_file_id",
     "source_sha256",

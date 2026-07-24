@@ -44,4 +44,14 @@ Both-missing values are not exact support.
 - zero hard blocks;
 - zero review warnings.
 
+Status dimensions are separate:
+
+- `module_status`: `PASS`, `REVIEW_REQUIRED` or `FAIL_CLOSED`;
+- `runtime_evidence_status`: `NOT_EVALUATED`, `ACTIVE_MATCH_EVIDENCE_PASS`
+  or `ACTIVE_MATCH_EVIDENCE_NOT_GRANTED`;
+- `release_status`: `NOT_PRODUCTION` or `PRODUCTION_RELEASE`.
+
+The legacy `status` and `active_match_evidence_pass` fields remain for
+backward compatibility. Neither can be interpreted as release status.
+
 `canonical_event_count=UNKNOWN` and `production_release=false` are invariant.

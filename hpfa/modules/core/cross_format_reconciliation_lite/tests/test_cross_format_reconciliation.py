@@ -486,6 +486,9 @@ def test_active_match_execution_and_flat_outputs(tmp_path: Path) -> None:
         tmp_path / "HPFA",
     )
     assert result["active_match_evidence_pass"] is True
+    assert result["module_status"] == "PASS"
+    assert result["runtime_evidence_status"] == "ACTIVE_MATCH_EVIDENCE_PASS"
+    assert result["release_status"] == "NOT_PRODUCTION"
     assert result["production_release"] is False
     assert (tmp_path / "HPFA" / "cross_format_reconciliation_lite_v1.json").is_file()
 
@@ -520,7 +523,10 @@ def test_review_required_cannot_set_active_match_evidence_pass(
         tmp_path / "HPFA",
     )
     assert result["status"] == "REVIEW_REQUIRED"
+    assert result["module_status"] == "REVIEW_REQUIRED"
     assert result["active_match_evidence_pass"] is False
+    assert result["runtime_evidence_status"] == "ACTIVE_MATCH_EVIDENCE_NOT_GRANTED"
+    assert result["release_status"] == "NOT_PRODUCTION"
 
 
 def test_nested_phone_output_rejected(tmp_path: Path) -> None:

@@ -122,7 +122,7 @@ with open(sys.argv[1], encoding="utf-8") as handle:
 totals = payload.get("reconciliation_totals") or {}
 duplicates = payload.get("duplicate_reflection_audit") or {}
 print("HPFA CROSS-FORMAT RECONCILIATION ACTIVE_MATCH AUDIT")
-for key in ("status", "role_pair_count", "fusion_admissibility", "hard_block_hits", "parse_warnings", "active_match_evidence_pass", "canonical_event_count", "production_release"):
+for key in ("status", "module_status", "runtime_evidence_status", "release_status", "role_pair_count", "fusion_admissibility", "hard_block_hits", "parse_warnings", "active_match_evidence_pass", "canonical_event_count", "production_release"):
     print(f"{key}={payload.get(key)}")
 for key in ("shared_id_candidate_count", "exact_surface_alignment_candidate_count", "present_present_support_count", "both_missing_support_count", "cross_id_collision_count"):
     print(f"{key}={totals.get(key)}")

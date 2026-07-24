@@ -897,6 +897,9 @@ def build_reconciliation(
     return {
         "module_id": MODULE_ID,
         "status": status,
+        "module_status": status,
+        "runtime_evidence_status": "NOT_EVALUATED",
+        "release_status": "NOT_PRODUCTION",
         "input_root": str(root),
         "pair_reports": pair_reports,
         "unpaired_roles": unpaired_roles,
@@ -992,6 +995,9 @@ def render_summary(payload: dict[str, Any]) -> str:
         [
             "HPFA CROSS-FORMAT RECONCILIATION LITE V1",
             f"status={payload.get('status')}",
+            f"module_status={payload.get('module_status')}",
+            f"runtime_evidence_status={payload.get('runtime_evidence_status')}",
+            f"release_status={payload.get('release_status')}",
             f"role_pair_count={payload.get('role_pair_count')}",
             f"shared_id_candidate_count={totals.get('shared_id_candidate_count')}",
             f"exact_surface_alignment_candidate_count={totals.get('exact_surface_alignment_candidate_count')}",
@@ -1016,6 +1022,9 @@ def render_analyst(payload: dict[str, Any]) -> str:
     lines = [
         "HPFA CROSS-FORMAT RECONCILIATION ANALYST AUDIT V1",
         f"status={payload.get('status')}",
+        f"module_status={payload.get('module_status')}",
+        f"runtime_evidence_status={payload.get('runtime_evidence_status')}",
+        f"release_status={payload.get('release_status')}",
         f"fusion_admissibility={payload.get('fusion_admissibility')}",
     ]
     for row in payload.get("pair_reports", []) or []:
@@ -1086,12 +1095,20 @@ def write_outputs(
             set((payload.get("hard_block_hits") or []) + ["runtime_authority_mismatch"])
         )
         payload["status"] = "FAIL_CLOSED"
+        payload["module_status"] = "FAIL_CLOSED"
         payload["fusion_admissibility"] = "BLOCKED"
     payload["active_match_evidence_pass"] = (
         payload.get("status") == "PASS"
         and not payload.get("hard_block_hits")
+        and not payload.get("parse_warnings")
         and authority_equal
     )
+    payload["runtime_evidence_status"] = (
+        "ACTIVE_MATCH_EVIDENCE_PASS"
+        if payload["active_match_evidence_pass"]
+        else "ACTIVE_MATCH_EVIDENCE_NOT_GRANTED"
+    )
+    payload["release_status"] = "NOT_PRODUCTION"
     paths = {key: out / name for key, name in OUT.items()}
     payload["outputs"] = {key: str(path) for key, path in paths.items()}
     paths["main"].write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")

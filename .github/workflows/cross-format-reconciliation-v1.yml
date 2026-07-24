@@ -56,6 +56,13 @@ jobs:
           assert "source_sha_missing" in contract["hard_blocks"]
           assert "runtime_sha_mismatch" in contract["hard_blocks"]
           assert "candidate_signature_without_id" in contract["reconciliation_record_required_fields"]
+          assert contract["top_level_status_fields"] == [
+              "module_status",
+              "runtime_evidence_status",
+              "release_status",
+          ]
+          assert "ACTIVE_MATCH_EVIDENCE_PASS" in contract["runtime_evidence_status_states"]
+          assert "NOT_PRODUCTION" in contract["release_status_states"]
           PY
       - name: No sample identity leak
         run: python -m pytest -q hpfa/modules/core/cross_format_reconciliation_lite/tests/test_cross_format_reconciliation.py::test_no_sample_match_identity_leak
