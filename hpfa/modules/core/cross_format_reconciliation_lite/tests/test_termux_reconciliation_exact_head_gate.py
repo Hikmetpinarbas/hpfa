@@ -20,9 +20,12 @@ def test_runner_requires_explicit_exact_head_and_runtime_authority() -> None:
 
 def test_bootstrap_binds_runner_to_fetched_head() -> None:
     source = BOOTSTRAP.read_text(encoding="utf-8")
-    assert 'git -C "$REPO" reset --hard "origin/$BRANCH"' in source
+    assert "reset --hard" not in source
+    assert 'REMOTE_HEAD="$(git -C "$REPO" rev-parse "refs/remotes/origin/$BRANCH"' in source
+    assert 'git -C "$REPO" merge --ff-only "origin/$BRANCH"' in source
     assert 'ACTUAL_HEAD="$(git -C "$REPO" rev-parse HEAD)"' in source
-    assert 'HPFA_EXPECTED_HEAD="$ACTUAL_HEAD"' in source
+    assert '[[ "$ACTUAL_HEAD" == "$REMOTE_HEAD" ]]' in source
+    assert 'HPFA_EXPECTED_HEAD="${REQUESTED_EXPECTED_HEAD:-$REMOTE_HEAD}"' in source
     assert 'export HPFA_REPO HPFA_ACTIVE_MATCH HPFA_PHONE_OUTPUT HPFA_EXPECTED_HEAD' in source
     assert '[[ "$HPFA_EXPECTED_HEAD" == "$ACTUAL_HEAD" ]]' in source
     assert 'bash "$REPO/tools/run_active_match_cross_format_reconciliation_v1.sh"' in source

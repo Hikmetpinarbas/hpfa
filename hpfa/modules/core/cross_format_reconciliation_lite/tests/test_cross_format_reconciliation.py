@@ -563,3 +563,25 @@ def test_no_sample_match_identity_leak() -> None:
     source = (SRC / "cross_format_reconciliation.py").read_text(encoding="utf-8")
     forbidden = ["Australia", "Turkey", "World Cup", "6935", "77798", "Juventus", "Galatasaray"]
     assert not any(token in source for token in forbidden)
+
+
+def test_termux_bootstrap_installs_missing_pip_fail_closed() -> None:
+    source = (
+        ROOT / "tools" / "bootstrap_termux_cross_format_reconciliation_v1.sh"
+    ).read_text(encoding="utf-8")
+    assert "python -m pip --version" in source
+    assert "pkg install -y python-pip" in source
+    assert 'fail "python_pip_install_failed"' in source
+    assert 'fail "python_dependencies_install_failed"' in source
+    assert 'fail "python_dependencies_import_failed_after_install"' in source
+
+
+def test_termux_bootstrap_uses_non_destructive_exact_remote_head_gate() -> None:
+    source = (
+        ROOT / "tools" / "bootstrap_termux_cross_format_reconciliation_v1.sh"
+    ).read_text(encoding="utf-8")
+    assert "reset --hard" not in source
+    assert 'merge --ff-only "origin/$BRANCH"' in source
+    assert 'REQUESTED_EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"' in source
+    assert "remote_head_mismatch:" in source
+    assert "product_repo_head_not_remote_head:" in source
