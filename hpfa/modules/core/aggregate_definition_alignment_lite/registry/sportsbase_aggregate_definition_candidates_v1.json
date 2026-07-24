@@ -1,0 +1,41 @@
+{
+  "registry_version": "1.0.0",
+  "definitions": [
+    {
+      "definition_id": "sportsbase_pass_completion_candidate_v1",
+      "provider_id": "sportsbase",
+      "provider_version": "provider_definition_unverified",
+      "source_roles": [
+        "PLAYER_SURFACE_CANDIDATE"
+      ],
+      "aggregate_label": "Passes accurate, %",
+      "metric_id": "pass_completion_rate_candidate",
+      "value_type": "percentage",
+      "unit": "percent",
+      "numerator_definition": "Rows classified as PASS + SUCCESS candidates in the same declared entity and observation scope.",
+      "denominator_definition": "Rows classified as PASS + SUCCESS or PASS + FAILURE candidates in the same declared entity and observation scope.",
+      "required_occurrence_semantics": [
+        {
+          "source_roles": [
+            "PLAYER_SURFACE_CANDIDATE"
+          ],
+          "action_family_candidate": "PASS",
+          "outcome_candidate": "SUCCESS"
+        },
+        {
+          "source_roles": [
+            "PLAYER_SURFACE_CANDIDATE"
+          ],
+          "action_family_candidate": "PASS",
+          "outcome_candidate": "FAILURE"
+        }
+      ],
+      "definition_evidence_status": "PROVIDER_DEFINITION_REQUIRED",
+      "derivation_dependency": [
+        "DERIVATION_DEPENDENCY_UNRESOLVED"
+      ],
+      "independence_status": "NON_INDEPENDENT_SAME_PROVIDER",
+      "claim_ceiling": "AGGREGATE_DEFINITION_ALIGNMENT_CANDIDATE_ONLY"
+    }
+  ]
+}

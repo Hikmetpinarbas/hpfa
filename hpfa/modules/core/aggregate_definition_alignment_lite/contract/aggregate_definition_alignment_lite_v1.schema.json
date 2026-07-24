@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aggregate_definition_alignment_lite_v1.schema.json",
+  "title": "HPFA Aggregate Definition Alignment Lite V1",
+  "type": "object",
+  "required": [
+    "module_id",
+    "status",
+    "definition_candidate_count",
+    "alignment_rows",
+    "aggregate_equivalence_truth",
+    "comparison_allowed",
+    "metric_value_output_allowed",
+    "canonical_event_count",
+    "production_release"
+  ],
+  "properties": {
+    "module_id": {
+      "const": "aggregate_definition_alignment_lite_v1"
+    },
+    "status": {
+      "enum": [
+        "SMOKE_PASS",
+        "REVIEW_REQUIRED",
+        "FAIL_CLOSED"
+      ]
+    },
+    "definition_candidate_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "alignment_rows": {
+      "type": "array"
+    },
+    "aggregate_equivalence_truth": {
+      "const": false
+    },
+    "independent_confirmation_allowed": {
+      "const": false
+    },
+    "comparison_allowed": {
+      "const": false
+    },
+    "metric_value_output_allowed": {
+      "const": false
+    },
+    "claim_allowed": {
+      "const": false
+    },
+    "canonical_event_count": {
+      "const": "UNKNOWN"
+    },
+    "production_release": {
+      "const": false
+    }
+  },
+  "additionalProperties": true
+}
