@@ -24,3 +24,4 @@ jobs:
       - run: python -m pip install --disable-pip-version-check pytest
       - run: python -m compileall -q aggregate_definition_alignment_lite.py hpfa/modules/core/aggregate_definition_alignment_lite
       - run: python -m pytest -q hpfa/modules/core/aggregate_definition_alignment_lite/tests
+      - run: bash -n tools/run_active_match_aggregate_definition_alignment_v1.sh tools/bootstrap_termux_aggregate_definition_alignment_v1.sh
