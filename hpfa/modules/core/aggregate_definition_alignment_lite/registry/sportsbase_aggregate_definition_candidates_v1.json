@@ -12,13 +12,14 @@
       "metric_id": "pass_completion_rate_candidate",
       "value_type": "percentage",
       "unit": "percent",
-      "numerator_definition": "Rows classified as PASS + SUCCESS candidates in the same declared entity and observation scope.",
-      "denominator_definition": "Rows classified as PASS + SUCCESS or PASS + FAILURE candidates in the same declared entity and observation scope.",
+      "numerator_definition": "Rows classified as exact-label Passes accurate + PASS + SUCCESS candidates in the same declared entity and observation scope.",
+      "denominator_definition": "Exact-label Passes accurate + PASS + SUCCESS candidates plus exact-label Inaccurate passes + PASS + FAILURE candidates in the same declared entity and observation scope.",
       "required_occurrence_semantics": [
         {
           "source_roles": [
             "PLAYER_SURFACE_CANDIDATE"
           ],
+          "normalized_label": "passes accurate",
           "action_family_candidate": "PASS",
           "outcome_candidate": "SUCCESS"
         },
@@ -26,6 +27,7 @@
           "source_roles": [
             "PLAYER_SURFACE_CANDIDATE"
           ],
+          "normalized_label": "inaccurate passes",
           "action_family_candidate": "PASS",
           "outcome_candidate": "FAILURE"
         }
