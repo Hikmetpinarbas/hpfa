@@ -34,6 +34,16 @@ def test_runner_requires_upstream_outputs_and_never_claims_release():
     assert "production_release=false" in source
 
 
+def test_runner_separates_execution_evidence_from_definition_clearance():
+    source = RUNNER.read_text(encoding="utf-8")
+    assert 'python - "$OUTPUT" "$ACTIVE_RESOLVED" "$EXPECTED_RESOLVED" "$RUN_RC"' in source
+    assert 'payload["active_match_execution_completed"]' in source
+    assert 'payload["definition_alignment_cleared"]' in source
+    assert 'payload["downstream_gate_open"]' in source
+    assert '"ACTIVE_MATCH_EXECUTION_COMPLETED"' in source
+    assert '"DEFINITION_ALIGNMENT_REVIEW_REQUIRED"' in source
+
+
 def test_no_sample_match_identity_leak_in_scripts():
     text = (
         RUNNER.read_text(encoding="utf-8")

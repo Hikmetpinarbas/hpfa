@@ -81,7 +81,7 @@ RUN_RC="${PIPESTATUS[0]}"
 set -e
 
 [[ -f "$OUTPUT" ]] || fail "aggregate_definition_alignment_output_missing"
-python - "$OUTPUT" "$ACTIVE_RESOLVED" "$EXPECTED_RESOLVED" <<'PY' \
+python - "$OUTPUT" "$ACTIVE_RESOLVED" "$EXPECTED_RESOLVED" "$RUN_RC" <<'PY' \
   | tee "$OUT/aggregate_definition_alignment_runtime_audit_v1.txt"
 import json
 import sys
@@ -89,18 +89,37 @@ import sys
 with open(sys.argv[1], encoding="utf-8") as handle:
     payload = json.load(handle)
 authority_equal = sys.argv[2] == sys.argv[3]
+run_rc = int(sys.argv[4])
+hard_blocks = payload.get("hard_block_hits") or []
+review_hits = payload.get("review_hits") or []
+active_match_execution_completed = (
+    run_rc == 0
+    and authority_equal
+    and not hard_blocks
+)
+definition_alignment_cleared = (
+    payload.get("status") == "SMOKE_PASS"
+    and not hard_blocks
+    and not review_hits
+)
 payload["runtime_authority"] = sys.argv[2]
 payload["runtime_authority_equal"] = authority_equal
-payload["active_match_evidence_pass"] = (
-    payload.get("status") == "SMOKE_PASS"
-    and not payload.get("hard_block_hits")
-    and not payload.get("review_hits")
-    and authority_equal
+payload["run_rc"] = run_rc
+payload["active_match_execution_completed"] = active_match_execution_completed
+payload["active_match_evidence_pass"] = active_match_execution_completed
+payload["definition_alignment_cleared"] = definition_alignment_cleared
+payload["downstream_gate_open"] = (
+    active_match_execution_completed and definition_alignment_cleared
 )
 payload["runtime_evidence_status"] = (
-    "ACTIVE_MATCH_EVIDENCE_PASS"
-    if payload["active_match_evidence_pass"]
-    else "ACTIVE_MATCH_EVIDENCE_NOT_GRANTED"
+    "ACTIVE_MATCH_EXECUTION_COMPLETED"
+    if active_match_execution_completed
+    else "ACTIVE_MATCH_EXECUTION_NOT_COMPLETED"
+)
+payload["definition_alignment_status"] = (
+    "DEFINITION_ALIGNMENT_CLEARED"
+    if definition_alignment_cleared
+    else "DEFINITION_ALIGNMENT_REVIEW_REQUIRED"
 )
 payload["release_status"] = "NOT_PRODUCTION"
 with open(sys.argv[1], "w", encoding="utf-8") as handle:
@@ -109,12 +128,16 @@ print("HPFA AGGREGATE DEFINITION ALIGNMENT ACTIVE_MATCH AUDIT")
 for key in (
     "status",
     "runtime_evidence_status",
+    "definition_alignment_status",
     "release_status",
     "definition_candidate_count",
     "alignment_decision_counts",
     "hard_block_hits",
     "review_hits",
+    "active_match_execution_completed",
     "active_match_evidence_pass",
+    "definition_alignment_cleared",
+    "downstream_gate_open",
     "canonical_event_count",
     "production_release",
 ):
