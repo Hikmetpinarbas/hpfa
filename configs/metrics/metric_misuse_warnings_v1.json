@@ -1,0 +1,29 @@
+{
+  "policy_version": "1.0.0",
+  "policies": [
+    {
+      "misuse_policy_id": "surface_count_not_event_truth_v1",
+      "metric_assumption": "Eligible row-level evidence is still an event candidate, not a canonical event.",
+      "proxy_risk": "Surface rows may include paired, qualifier, administrative, derived or duplicate-reflection records.",
+      "denominator_risk": "Not applicable for the count itself; comparison scope still requires declaration.",
+      "sample_risk": "Small and provider-specific samples limit generalisation.",
+      "context_risk": "Missing match state and scope prevent contextual interpretation.",
+      "blocked_interpretation": ["canonical event count", "quality", "dominance", "tactical truth"],
+      "safe_interpretation": "Row-level surface evidence count after declared eligibility filters.",
+      "does_not_measure": ["canonical occurrence truth", "football quality", "intent"],
+      "claim_ceiling": "descriptive_surface_candidate"
+    },
+    {
+      "misuse_policy_id": "same_label_not_same_construct_v1",
+      "metric_assumption": "Provider and version definitions determine numerator, denominator and success criteria.",
+      "proxy_risk": "The same label can represent different inclusion, exclusion, set-piece and success policies.",
+      "denominator_risk": "Unknown or incompatible opportunity sets invalidate comparison.",
+      "sample_risk": "Unbalanced samples can make descriptive differences unstable.",
+      "context_risk": "Entity, period and observation-window mismatch invalidates comparison.",
+      "blocked_interpretation": ["cross-provider equivalence", "passing quality", "decision quality"],
+      "safe_interpretation": "Provider-bound descriptive rate candidate with explicit definition.",
+      "does_not_measure": ["provider-invariant construct", "causal contribution", "tactical control"],
+      "claim_ceiling": "provider_bound_descriptive_rate_candidate"
+    }
+  ]
+}
