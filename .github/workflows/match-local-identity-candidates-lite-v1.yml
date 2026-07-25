@@ -1,0 +1,74 @@
+name: Match-Local Identity Candidates Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "match_local_identity_candidates_lite.py"
+      - "hpfa/modules/core/match_local_identity_candidates_lite/**"
+      - "docs/contracts/match_local_identity_candidates_lite_v1.md"
+      - "tools/run_active_match_evidence_atom_inventory_v1.sh"
+      - "tools/run_active_match_match_local_identity_candidates_v1.sh"
+      - "tools/bootstrap_termux_match_local_identity_candidates_v1.sh"
+      - ".github/workflows/match-local-identity-candidates-lite-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: match-local-identity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Exact PR head gate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SHA"
+          echo "exact_head_sha=$actual_sha"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check pytest
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          match_local_identity_candidates_lite.py
+          hpfa/modules/core/match_local_identity_candidates_lite
+      - name: Focused tests
+        run: >-
+          python -m pytest -q
+          hpfa/modules/core/match_local_identity_candidates_lite/tests
+      - name: Upstream compatibility tests
+        run: >-
+          python -m pytest -q
+          hpfa/modules/core/evidence_atom_inventory_lite/tests
+          hpfa/modules/core/row_nucleus_inventory_lite/tests
+      - name: Shell syntax
+        run: >-
+          bash -n
+          tools/run_active_match_row_nucleus_inventory_v1.sh
+          tools/run_active_match_evidence_atom_inventory_v1.sh
+          tools/run_active_match_match_local_identity_candidates_v1.sh
+          tools/bootstrap_termux_match_local_identity_candidates_v1.sh
+      - name: Contract JSON
+        run: python -m json.tool hpfa/modules/core/match_local_identity_candidates_lite/contract/match_local_identity_candidates_lite_v1.json >/dev/null
+      - name: No sample match identity leak
+        run: |
+          ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|6935|77798" \
+            match_local_identity_candidates_lite.py \
+            hpfa/modules/core/match_local_identity_candidates_lite/src \
+            docs/contracts/match_local_identity_candidates_lite_v1.md \
+            tools/run_active_match_match_local_identity_candidates_v1.sh \
+            tools/bootstrap_termux_match_local_identity_candidates_v1.sh
