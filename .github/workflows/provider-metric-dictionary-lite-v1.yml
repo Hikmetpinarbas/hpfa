@@ -1,0 +1,25 @@
+name: Provider Metric Dictionary Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "provider_metric_dictionary_lite.py"
+      - "configs/metrics/provider_*"
+      - "configs/metrics/metric_derivation_registry_v1.json"
+      - "configs/metrics/metric_conflict_queue_v1.json"
+      - "hpfa/modules/core/provider_metric_dictionary_lite/**"
+      - "docs/contracts/provider_metric_dictionary_lite_v1.md"
+      - ".github/workflows/provider-metric-dictionary-lite-v1.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m compileall -q provider_metric_dictionary_lite.py hpfa/modules/core/provider_metric_dictionary_lite
+      - run: python -m unittest discover -s hpfa/modules/core/provider_metric_dictionary_lite/tests -p "test_*.py" -v
+
