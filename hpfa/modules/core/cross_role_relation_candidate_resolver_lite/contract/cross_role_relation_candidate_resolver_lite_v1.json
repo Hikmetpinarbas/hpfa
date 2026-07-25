@@ -1,0 +1,59 @@
+{
+  "module_id": "cross_role_relation_candidate_resolver_lite_v1",
+  "version": "1.0.0",
+  "input_modules": [
+    "semantic_role_action_bundle_candidates_lite_v1",
+    "action_bundle_multi_family_review_taxonomy_lite_v1"
+  ],
+  "relation_classes": [
+    "EXACT_PLAYER_TEAM_REFLECTION_CANDIDATE_CLEAR",
+    "EXACT_GOALKEEPER_TEAM_REFLECTION_CANDIDATE_CLEAR",
+    "EXACT_PLAYER_TEAM_REFLECTION_CANDIDATE_CLASSIFIED_CONTEXT",
+    "EXACT_GOALKEEPER_TEAM_REFLECTION_CANDIDATE_CLASSIFIED_CONTEXT",
+    "REVIEW_REQUIRED_PLAYER_TEAM_UNRESOLVED_CONTEXT",
+    "REVIEW_REQUIRED_GOALKEEPER_TEAM_UNRESOLVED_CONTEXT"
+  ],
+  "exact_match_fields": [
+    "match_surface_binding_id",
+    "team_identity_candidate_id",
+    "period_candidate",
+    "start_candidate",
+    "end_candidate",
+    "pos_x_candidate",
+    "pos_y_candidate",
+    "action_family_candidate"
+  ],
+  "allowed_role_pairs": [
+    [
+      "PLAYER_SURFACE_CANDIDATE",
+      "TEAM_SURFACE_CANDIDATE"
+    ],
+    [
+      "GOALKEEPER_SURFACE_CANDIDATE",
+      "TEAM_SURFACE_CANDIDATE"
+    ]
+  ],
+  "counting_policy": "PRIMARY_ROLE_ONLY_IF_LATER_EVENT_ADMISSION_PASSES",
+  "outputs": [
+    "cross_role_relation_candidate_resolver_lite_v1.json",
+    "cross_role_relation_candidate_resolver_lite_v1.txt",
+    "cross_role_relation_candidate_resolver_analyst_audit_v1.txt",
+    "cross_role_relation_candidate_resolver_runtime_audit_v1.txt",
+    "cross_role_relation_candidate_resolver_active_match_bundle_v1.zip"
+  ],
+  "claim_boundary": {
+    "relation_candidate_is_event_truth": false,
+    "reflection_equivalence_truth": false,
+    "double_count_suppression_is_final": false,
+    "count_value_output_allowed": false,
+    "cross_role_fusion_allowed": false,
+    "event_instance_count": 0,
+    "claim_allowed": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
