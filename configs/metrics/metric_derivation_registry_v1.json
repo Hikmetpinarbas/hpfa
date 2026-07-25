@@ -1,0 +1,24 @@
+{
+  "registry_version": "1.0.0",
+  "derivations": [
+    {
+      "metric_id": "pass_attempts",
+      "formula": "pass_accurate + pass_inaccurate",
+      "component_metric_ids": ["pass_accurate", "pass_inaccurate"],
+      "derivation_status": "DATA_CONFIRMED_CANDIDATE"
+    },
+    {
+      "metric_id": "pass_completion_rate",
+      "formula": "pass_accurate / pass_attempts",
+      "component_metric_ids": ["pass_accurate", "pass_attempts"],
+      "derivation_status": "DATA_CONFIRMED_CANDIDATE"
+    },
+    {
+      "metric_id": "challenges",
+      "formula": "challenges_won + challenges_unsuccessful",
+      "component_metric_ids": ["challenges_won", "challenges_unsuccessful"],
+      "derivation_status": "DATA_CONFIRMED_CANDIDATE"
+    }
+  ]
+}
+
