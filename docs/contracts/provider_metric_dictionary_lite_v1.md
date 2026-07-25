@@ -22,6 +22,15 @@ Only reviewed provider definitions and explicit HPFA domain contracts are eligib
 to become later runtime contracts. Data fit alone is never provider-definition
 evidence.
 
+Definition identity is provider-specific:
+
+```text
+provider_id + provider_version + metric_id
+```
+
+The same semantic metric id may therefore have multiple provider definitions, while
+the same provider/version definition key may not occur twice.
+
 ## Required separations
 
 ```text
@@ -43,4 +52,3 @@ claim. It preserves:
 canonical_event_count=UNKNOWN
 production_release=false
 ```
-
