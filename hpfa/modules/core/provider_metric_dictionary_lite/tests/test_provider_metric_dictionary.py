@@ -66,6 +66,23 @@ class ProviderMetricDictionaryTests(unittest.TestCase):
         self.assertEqual(report["status"], "FAIL_CLOSED")
         self.assertTrue(any(gap["gap_type"] == "duplicate_provider_role_alias" for gap in report["policy_gaps"]))
 
+    def test_same_semantic_metric_can_have_provider_specific_definitions(self):
+        payload = docs()
+        duplicate_semantic = copy.deepcopy(payload[0]["metrics"][0])
+        duplicate_semantic["provider_id"] = "another_provider"
+        duplicate_semantic["provider_version"] = "v2"
+        payload[0]["metrics"].append(duplicate_semantic)
+        report = build_dictionary_report(*payload)
+        self.assertEqual(report["status"], "SPEC_ONLY")
+        self.assertEqual(report["metric_record_count"], 26)
+
+    def test_same_provider_version_metric_definition_cannot_duplicate(self):
+        payload = docs()
+        payload[0]["metrics"].append(copy.deepcopy(payload[0]["metrics"][0]))
+        report = build_dictionary_report(*payload)
+        self.assertEqual(report["status"], "FAIL_CLOSED")
+        self.assertTrue(any(gap["gap_type"] == "duplicate_provider_definition_key" for gap in report["policy_gaps"]))
+
     def test_rate_requires_explicit_denominator(self):
         payload = docs()
         row = next(item for item in payload[0]["metrics"] if item["metric_id"] == "pass_completion_rate")
@@ -100,4 +117,3 @@ class ProviderMetricDictionaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
