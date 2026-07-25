@@ -20,8 +20,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out repository
+      - name: Check out exact source head
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Verify exact source head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$actual_head"
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
