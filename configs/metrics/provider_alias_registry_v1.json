@@ -1,0 +1,14 @@
+{
+  "registry_version": "1.0.0",
+  "aliases": [
+    {"provider_id": "sportsbase", "surface_role": "player_aggregate", "raw_label": "Passes accurate, %", "metric_id": "pass_completion_rate"},
+    {"provider_id": "sportsbase", "surface_role": "row_action", "raw_label": "Passes forward accurate", "metric_id": "forward_pass_accurate"},
+    {"provider_id": "sportsbase", "surface_role": "row_action", "raw_label": "Incomplete passes forward", "metric_id": "forward_pass_inaccurate"},
+    {"provider_id": "sportsbase", "surface_role": "player_aggregate", "raw_label": "Passes forward to the final third", "metric_id": "forward_pass_to_final_third"},
+    {"provider_id": "sportsbase", "surface_role": "player_aggregate", "raw_label": "Progressive open passes", "metric_id": "progressive_open_pass"},
+    {"provider_id": "sportsbase", "surface_role": "player_aggregate", "raw_label": "Final third entries", "metric_id": "final_third_boundary_entry"},
+    {"provider_id": "sportsbase_instat_namespace", "surface_role": "player_aggregate", "raw_label": "Chances successful", "metric_id": "chances_successful"},
+    {"provider_id": "opta_namespace", "surface_role": "aggregate", "raw_label": "Chances created", "metric_id": "chances_created"}
+  ]
+}
+
