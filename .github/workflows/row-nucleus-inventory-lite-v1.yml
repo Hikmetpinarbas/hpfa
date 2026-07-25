@@ -6,6 +6,8 @@ on:
       - "row_nucleus_inventory_lite.py"
       - "hpfa/modules/core/row_nucleus_inventory_lite/**"
       - "docs/contracts/row_nucleus_inventory_lite_v1.md"
+      - "tools/bootstrap_termux_row_nucleus_inventory_v1.sh"
+      - "tools/run_active_match_row_nucleus_inventory_v1.sh"
       - ".github/workflows/row-nucleus-inventory-lite-v1.yml"
   workflow_dispatch:
 
@@ -30,7 +32,12 @@ jobs:
       - name: Focused tests
         run: >-
           python -m pytest -q
-          hpfa/modules/core/row_nucleus_inventory_lite/tests/test_row_nucleus_inventory.py
+          hpfa/modules/core/row_nucleus_inventory_lite/tests
+      - name: Shell syntax
+        run: >-
+          bash -n
+          tools/bootstrap_termux_row_nucleus_inventory_v1.sh
+          tools/run_active_match_row_nucleus_inventory_v1.sh
       - name: Contract JSON
         run: python -m json.tool hpfa/modules/core/row_nucleus_inventory_lite/contract/row_nucleus_inventory_lite_v1.json >/dev/null
       - name: No sample match identity leak
@@ -38,4 +45,6 @@ jobs:
           ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|6935|77798" \
             row_nucleus_inventory_lite.py \
             hpfa/modules/core/row_nucleus_inventory_lite/src \
-            docs/contracts/row_nucleus_inventory_lite_v1.md
+            docs/contracts/row_nucleus_inventory_lite_v1.md \
+            tools/bootstrap_termux_row_nucleus_inventory_v1.sh \
+            tools/run_active_match_row_nucleus_inventory_v1.sh
