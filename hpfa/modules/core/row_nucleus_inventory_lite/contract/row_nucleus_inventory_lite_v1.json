@@ -1,0 +1,71 @@
+{
+  "module_id": "row_nucleus_inventory_lite_v1",
+  "contract_version": "1.0.0",
+  "runtime_authority": "runtime/active_single_match/current",
+  "required_inputs": [
+    "multiformat_file_inventory_lite_v1",
+    "csv_surface_reader_lite_v1",
+    "xml_surface_reader_lite_v1",
+    "provider_alias_field_semantics_lite_v1",
+    "provider_label_value_semantics_lite_v1",
+    "cross_format_reconciliation_lite_v1",
+    "aggregate_definition_alignment_lite_v1",
+    "provider_metric_dictionary_lite_v1"
+  ],
+  "status_states": ["PASS", "REVIEW_REQUIRED", "FAIL_CLOSED"],
+  "gate_states": ["PASS", "REVIEW_REQUIRED", "FAIL_CLOSED", "NOT_APPLICABLE"],
+  "gate_ids": [
+    "G01", "G02", "G03", "G04", "G05", "G06", "G07", "G08", "G09",
+    "G10", "G11", "G12", "G13", "G14", "G15", "G16", "G17", "G18"
+  ],
+  "required_nucleus_fields": [
+    "nucleus_id",
+    "source_role",
+    "provider_row_id_candidate",
+    "source_relative_paths",
+    "source_sha256_lineage",
+    "candidate_signature_without_id",
+    "candidate_signature_with_id",
+    "cross_format_support_status",
+    "mapping_statuses",
+    "cross_id_collision_status",
+    "duplicate_reflection_status",
+    "aggregate_definition_dependency",
+    "hard_block_hits",
+    "review_hits",
+    "nucleus_status",
+    "claim_ceiling"
+  ],
+  "hard_blocks": [
+    "runtime_authority_path_invalid",
+    "input_root_missing",
+    "canonical_event_count_claimed",
+    "unexpected_production_claim",
+    "duplicate_reflection_lineage_missing",
+    "reconciliation_contract_mismatch",
+    "label_semantics_contract_mismatch",
+    "metric_dictionary_contract_mismatch",
+    "surface_path_outside_active_match",
+    "duplicate_provider_row_id_candidate",
+    "missing_provider_row_id_candidate",
+    "nested_phone_output_directory_rejected"
+  ],
+  "claim_boundary": {
+    "row_nucleus_is_canonical_event": false,
+    "base_event_admission_allowed": false,
+    "validated_event_identity": false,
+    "validated_team_identity": false,
+    "validated_player_identity": false,
+    "validated_cross_role_equivalence": false,
+    "aggregate_definition_truth": false,
+    "metric_value_output_allowed": false,
+    "comparison_allowed": false,
+    "claim_allowed": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
