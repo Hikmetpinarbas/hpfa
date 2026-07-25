@@ -1,0 +1,32 @@
+{
+  "module_id": "semantic_role_action_bundle_candidates_lite_v1",
+  "version": "1.0.0",
+  "status": "SPEC_ONLY",
+  "inputs": [
+    "evidence_atom_inventory_lite_v1.json",
+    "match_local_identity_candidates_lite_v1.json"
+  ],
+  "outputs": [
+    "semantic_role_action_bundle_candidates_lite_v1.json",
+    "semantic_role_action_bundle_candidates_lite_v1.txt",
+    "semantic_role_action_bundle_candidates_analyst_audit_v1.txt",
+    "semantic_role_action_bundle_candidates_runtime_audit_v1.txt",
+    "semantic_role_action_bundle_candidates_active_match_bundle_v1.zip"
+  ],
+  "grouping_policy": "SAME_SOURCE_ROLE_EXACT_IDENTITY_PERIOD_TIME_COORDINATE_AND_FAMILY_ONLY",
+  "cross_role_policy": "CANDIDATE_STUB_ONLY_NO_FUSION",
+  "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+  "action_bundle_is_canonical_event": false,
+  "validated_event_identity": false,
+  "base_event_admission_allowed": false,
+  "event_instance_count": 0,
+  "cross_role_fusion_allowed": false,
+  "metric_value_output_allowed": false,
+  "claim_allowed": false,
+  "sequence_truth": false,
+  "possession_truth": false,
+  "phase_truth": false,
+  "tactical_truth": false,
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}
