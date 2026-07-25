@@ -1,0 +1,53 @@
+{
+  "module_id": "action_bundle_multi_family_review_taxonomy_lite_v1",
+  "version": "1.0.0",
+  "input_module_id": "semantic_role_action_bundle_candidates_lite_v1",
+  "input_contract": {
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false,
+    "required_arrays": [
+      "action_bundle_candidates"
+    ],
+    "required_counts": [
+      "action_bundle_candidate_count",
+      "action_bundle_pass_count",
+      "action_bundle_review_required_count"
+    ]
+  },
+  "taxonomy_classes": [
+    "HIERARCHICAL_SUBTYPE_CANDIDATE",
+    "RESTART_ACTION_COUPLING_CANDIDATE",
+    "COMPOUND_ACTION_CO_OCCURRENCE_REVIEW_REQUIRED",
+    "SAME_TIME_GROUPING_RISK_REVIEW_REQUIRED",
+    "MULTI_FAMILY_COMPLEX_REVIEW_REQUIRED",
+    "UNREGISTERED_FAMILY_SET_REVIEW_REQUIRED"
+  ],
+  "exact_candidate_registry": {
+    "CROSS+PASS": "HIERARCHICAL_SUBTYPE_CANDIDATE",
+    "DUEL+TACKLE": "HIERARCHICAL_SUBTYPE_CANDIDATE",
+    "CONTROL_ERROR+TURNOVER": "HIERARCHICAL_SUBTYPE_CANDIDATE",
+    "PASS+RESTART": "RESTART_ACTION_COUPLING_CANDIDATE"
+  },
+  "outputs": [
+    "action_bundle_multi_family_review_taxonomy_lite_v1.json",
+    "action_bundle_multi_family_review_taxonomy_lite_v1.txt",
+    "action_bundle_multi_family_review_taxonomy_analyst_audit_v1.txt",
+    "action_bundle_multi_family_review_taxonomy_runtime_audit_v1.txt",
+    "action_bundle_multi_family_review_taxonomy_active_match_bundle_v1.zip"
+  ],
+  "claim_boundary": {
+    "classification_is_event_truth": false,
+    "family_parent_is_validated_action": false,
+    "subtype_is_validated_action": false,
+    "restart_coupling_is_event_fusion": false,
+    "cross_role_fusion_allowed": false,
+    "event_instance_count": 0,
+    "claim_allowed": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
