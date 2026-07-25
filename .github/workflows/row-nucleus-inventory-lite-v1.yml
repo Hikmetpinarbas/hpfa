@@ -19,7 +19,20 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Exact PR head gate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SHA"
+          echo "exact_head_sha=$actual_sha"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
