@@ -1,0 +1,74 @@
+name: Cross-Role Relation Candidate Resolver Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "cross_role_relation_candidate_resolver_lite.py"
+      - "hpfa/modules/core/cross_role_relation_candidate_resolver_lite/**"
+      - "docs/contracts/cross_role_relation_candidate_resolver_lite_v1.md"
+      - "tools/run_active_match_cross_role_relation_candidate_resolver_v1.sh"
+      - "tools/bootstrap_termux_cross_role_relation_candidate_resolver_v1.sh"
+      - ".github/workflows/cross-role-relation-candidate-resolver-lite-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-role-relation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Exact PR head gate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_SHA"
+          echo "exact_head_sha=$actual_sha"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check pytest
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          cross_role_relation_candidate_resolver_lite.py
+          hpfa/modules/core/cross_role_relation_candidate_resolver_lite
+      - name: Focused tests
+        run: >-
+          python -m pytest -q
+          hpfa/modules/core/cross_role_relation_candidate_resolver_lite/tests
+      - name: Upstream compatibility tests
+        run: >-
+          python -m pytest -q
+          hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite/tests
+          hpfa/modules/core/semantic_role_action_bundle_candidates_lite/tests
+          hpfa/modules/core/match_local_identity_candidates_lite/tests
+          hpfa/modules/core/evidence_atom_inventory_lite/tests
+          hpfa/modules/core/row_nucleus_inventory_lite/tests
+      - name: Shell syntax
+        run: >-
+          bash -n
+          tools/run_active_match_cross_role_relation_candidate_resolver_v1.sh
+          tools/bootstrap_termux_cross_role_relation_candidate_resolver_v1.sh
+      - name: Contract JSON
+        run: python -m json.tool hpfa/modules/core/cross_role_relation_candidate_resolver_lite/contract/cross_role_relation_candidate_resolver_lite_v1.json >/dev/null
+      - name: No sample match identity leak
+        run: |
+          ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|6935|77798" \
+            cross_role_relation_candidate_resolver_lite.py \
+            hpfa/modules/core/cross_role_relation_candidate_resolver_lite/src \
+            docs/contracts/cross_role_relation_candidate_resolver_lite_v1.md \
+            tools/run_active_match_cross_role_relation_candidate_resolver_v1.sh \
+            tools/bootstrap_termux_cross_role_relation_candidate_resolver_v1.sh
