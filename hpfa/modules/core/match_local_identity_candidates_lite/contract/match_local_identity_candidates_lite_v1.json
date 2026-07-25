@@ -1,0 +1,100 @@
+{
+  "module_id": "match_local_identity_candidates_lite_v1",
+  "contract_version": "1.0.0",
+  "runtime_authority": "runtime/active_single_match/current",
+  "required_input_module": "evidence_atom_inventory_lite_v1",
+  "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+  "allowed_source_roles": [
+    "GOALKEEPER_SURFACE_CANDIDATE",
+    "PLAYER_SURFACE_CANDIDATE",
+    "TEAM_SURFACE_CANDIDATE"
+  ],
+  "bound_states": [
+    "TEAM_IDENTITY_CANDIDATE_BOUND",
+    "ACTOR_IDENTITY_CANDIDATE_BOUND",
+    "IDENTITY_NOT_APPLICABLE"
+  ],
+  "review_states": [
+    "TEAM_CANDIDATE_MISSING",
+    "ACTOR_CANDIDATE_MISSING",
+    "TEAM_PROVIDER_ID_CONFLICT_REVIEW_REQUIRED",
+    "ACTOR_PROVIDER_ID_CONFLICT_REVIEW_REQUIRED",
+    "CROSS_TEAM_PROVIDER_ID_CONFLICT_REVIEW_REQUIRED",
+    "AMBIGUOUS_ALIAS_REVIEW_REQUIRED",
+    "SOURCE_SUBJECT_PARSE_REVIEW_REQUIRED"
+  ],
+  "subject_extraction": {
+    "actor_source_roles": [
+      "GOALKEEPER_SURFACE_CANDIDATE",
+      "PLAYER_SURFACE_CANDIDATE"
+    ],
+    "required_code_suffix": " - {raw_label}",
+    "team_source_field": "team_raw_candidate",
+    "provider_ids_are_candidates_only": true,
+    "jersey_numbers_are_candidates_only": true
+  },
+  "required_binding_fields": [
+    "evidence_atom_id",
+    "match_surface_binding_id",
+    "source_role",
+    "atom_class",
+    "team_identity_candidate_id",
+    "actor_identity_candidate_id",
+    "team_subject_raw_candidate",
+    "team_name_raw_candidate",
+    "team_provider_id_candidate",
+    "actor_subject_raw_candidate",
+    "actor_name_raw_candidate",
+    "actor_provider_id_candidate",
+    "jersey_number_candidate",
+    "decision_state",
+    "identity_scope",
+    "claim_ceiling"
+  ],
+  "status_states": [
+    "PASS",
+    "REVIEW_REQUIRED",
+    "FAIL_CLOSED"
+  ],
+  "hard_blocks": [
+    "evidence_atom_module_id_mismatch",
+    "canonical_event_count_claimed_by_input",
+    "unexpected_production_claim_by_input",
+    "evidence_atom_hard_blocks_present",
+    "match_surface_binding_missing",
+    "evidence_atom_inventory_empty_or_invalid",
+    "evidence_atom_count_mismatch",
+    "duplicate_evidence_atom_id",
+    "match_surface_binding_mismatch",
+    "source_role_rejected",
+    "source_paths_invalid",
+    "source_sha_lineage_invalid",
+    "runtime_sha_lineage_invalid",
+    "csv_sha_mismatch",
+    "xml_sha_mismatch",
+    "canonical_event_claimed",
+    "validated_event_identity_claimed",
+    "nested_phone_output_directory_rejected"
+  ],
+  "claim_boundary": {
+    "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+    "identity_truth_admitted": false,
+    "global_roster_identity_admitted": false,
+    "cross_match_identity_admitted": false,
+    "validated_team_identity": false,
+    "validated_player_identity": false,
+    "validated_event_identity": false,
+    "base_event_admission_allowed": false,
+    "action_bundle_candidate_count": 0,
+    "event_instance_count": 0,
+    "metric_value_output_allowed": false,
+    "comparison_allowed": false,
+    "claim_allowed": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
