@@ -69,7 +69,8 @@ def build_dictionary_report(
 ) -> dict[str, Any]:
     gaps: list[dict[str, str]] = []
     metrics = dictionary.get("metrics", [])
-    metric_index: dict[str, dict[str, Any]] = {}
+    definition_index: dict[str, dict[str, Any]] = {}
+    semantic_metric_ids: set[str] = set()
 
     if dictionary.get("dictionary_version") != "1.0.0":
         gaps.append(_gap("dictionary_version_mismatch", str(dictionary.get("dictionary_version"))))
@@ -84,10 +85,18 @@ def build_dictionary_report(
             gaps.append(_gap("metric_field_missing", f"{metric_id or 'UNKNOWN'}:{field}"))
         if not metric_id:
             continue
-        if metric_id in metric_index:
-            gaps.append(_gap("duplicate_metric_id", metric_id))
+        definition_key = "::".join(
+            [
+                str(row.get("provider_id") or "").strip(),
+                str(row.get("provider_version") or "").strip(),
+                metric_id,
+            ]
+        )
+        if definition_key in definition_index:
+            gaps.append(_gap("duplicate_provider_definition_key", definition_key))
             continue
-        metric_index[metric_id] = row
+        definition_index[definition_key] = row
+        semantic_metric_ids.add(metric_id)
 
         status = row.get("definition_evidence_status")
         if status not in ALLOWED_STATUSES:
@@ -99,15 +108,15 @@ def build_dictionary_report(
                 gaps.append(_gap("rate_without_explicit_fraction", metric_id))
             if not row.get("zero_denominator_rule"):
                 gaps.append(_gap("zero_denominator_unhandled", metric_id))
-        forbidden = set(row.get("forbidden_truths", []))
-        leaked = sorted(forbidden & TRACKING_ONLY_TOKENS)
+        produced = set(row.get("produced_truths", []))
+        leaked = sorted(produced & TRACKING_ONLY_TOKENS)
         if leaked and row.get("event_only_compatible") is True:
             gaps.append(_gap("tracking_truth_leak", f"{metric_id}:{','.join(leaked)}"))
 
     alias_keys: set[tuple[str, str, str]] = set()
     for row in aliases.get("aliases", []):
         metric_id = str(row.get("metric_id") or "")
-        if metric_id not in metric_index:
+        if metric_id not in semantic_metric_ids:
             gaps.append(_gap("alias_metric_unresolved", metric_id))
         key = (
             str(row.get("provider_id") or ""),
@@ -120,14 +129,19 @@ def build_dictionary_report(
 
     for row in derivations.get("derivations", []):
         metric_id = str(row.get("metric_id") or "")
-        if metric_id not in metric_index:
+        if metric_id not in semantic_metric_ids:
             gaps.append(_gap("derivation_metric_unresolved", metric_id))
         for component in row.get("component_metric_ids", []):
-            if component not in metric_index:
+            if component not in semantic_metric_ids:
                 gaps.append(_gap("derivation_component_unresolved", f"{metric_id}:{component}"))
-        if row.get("derivation_status") == "CLEARED" and metric_index.get(metric_id, {}).get(
-            "definition_evidence_status"
-        ) not in PROMOTABLE_STATUSES:
+        matching_statuses = {
+            item.get("definition_evidence_status")
+            for item in metrics
+            if item.get("metric_id") == metric_id
+        }
+        if row.get("derivation_status") == "CLEARED" and not (
+            matching_statuses & PROMOTABLE_STATUSES
+        ):
             gaps.append(_gap("derivation_cleared_without_definition", metric_id))
 
     conflict_ids: set[str] = set()
@@ -137,7 +151,7 @@ def build_dictionary_report(
             gaps.append(_gap("invalid_or_duplicate_conflict_id", conflict_id or "EMPTY"))
         conflict_ids.add(conflict_id)
         for metric_id in row.get("metric_ids", []):
-            if metric_id not in metric_index:
+            if metric_id not in semantic_metric_ids:
                 gaps.append(_gap("conflict_metric_unresolved", f"{conflict_id}:{metric_id}"))
 
     hard = [gap for gap in gaps if gap["severity"] == "FAIL_CLOSED"]
@@ -145,8 +159,8 @@ def build_dictionary_report(
     status = "FAIL_CLOSED" if hard else ("REVIEW_REQUIRED" if review else "SPEC_ONLY")
     status_counts = dict(Counter(row.get("definition_evidence_status") for row in metrics))
     ready_ids = sorted(
-        metric_id
-        for metric_id, row in metric_index.items()
+        definition_key
+        for definition_key, row in definition_index.items()
         if row.get("definition_evidence_status") in PROMOTABLE_STATUSES
     )
 
@@ -154,7 +168,7 @@ def build_dictionary_report(
         "module_id": MODULE_ID,
         "status": status,
         "dictionary_version": dictionary.get("dictionary_version"),
-        "metric_record_count": len(metric_index),
+        "metric_record_count": len(definition_index),
         "definition_status_counts": status_counts,
         "runtime_contract_ready_metric_ids": ready_ids,
         "runtime_contract_ready_count": len(ready_ids),
@@ -177,4 +191,3 @@ def write_dictionary_report(config_dir: str | Path, output: str | Path) -> dict[
         encoding="utf-8",
     )
     return report
-
