@@ -1,0 +1,27 @@
+{
+  "queue_version": "1.0.0",
+  "conflicts": [
+    {
+      "conflict_id": "sportsbase_progressive_pass_geometry_v1",
+      "metric_ids": ["progressive_pass_accurate", "progressive_pass_inaccurate"],
+      "question": "What exact distance, direction and start/end-zone rules define SportsBase progressive passes?",
+      "decision_owner": "provider_evidence_or_analyst_domain_contract",
+      "status": "OPEN_FAIL_CLOSED"
+    },
+    {
+      "conflict_id": "sportsbase_actions_membership_v1",
+      "metric_ids": ["actions", "actions_successful", "actions_unsuccessful"],
+      "question": "Which action families are included and what outcome rule applies to each family?",
+      "decision_owner": "provider_evidence",
+      "status": "OPEN_FAIL_CLOSED"
+    },
+    {
+      "conflict_id": "sportsbase_final_third_aggregate_semantics_v1",
+      "metric_ids": ["final_third_boundary_entry", "final_third_access_established"],
+      "question": "Does the displayed SportsBase aggregate count boundary-crossing actions or possessions with established access?",
+      "decision_owner": "provider_evidence",
+      "status": "OPEN_PROVIDER_NAMESPACE_ONLY"
+    }
+  ]
+}
+
