@@ -90,10 +90,10 @@ def test_team_parser_preserves_provider_candidate() -> None:
 
 
 def test_unicode_diacritic_normalization_is_comparison_only() -> None:
-    assert _normalize("Çağrı Şen") == "cagri_sen"
-    parsed = _parse_actor_subject("7. Çağrı Şen (55)")
-    assert parsed["actor_subject_raw_candidate"] == "7. Çağrı Şen (55)"
-    assert parsed["actor_name_raw_candidate"] == "Çağrı Şen"
+    assert _normalize("José Álvarez") == "jose_alvarez"
+    parsed = _parse_actor_subject("7. José Álvarez (55)")
+    assert parsed["actor_subject_raw_candidate"] == "7. José Álvarez (55)"
+    assert parsed["actor_name_raw_candidate"] == "José Álvarez"
 
 
 def test_player_atom_binds_actor_candidate() -> None:
