@@ -99,4 +99,95 @@ mkdir -p "$OUT"
   echo "bootstrap_status=READY"
 } | tee "$OUT/row_nucleus_inventory_bootstrap_v1.txt"
 
+set +e
 bash "$REPO/tools/run_active_match_row_nucleus_inventory_v1.sh"
+RUN_RC="$?"
+set -e
+
+BUNDLE="$OUT/row_nucleus_inventory_active_match_bundle_v1.zip"
+BUNDLE_AUDIT="$OUT/row_nucleus_inventory_bundle_v1.txt"
+rm -f "$BUNDLE" "$BUNDLE_AUDIT"
+python - "$OUT" "$BUNDLE" "$ACTUAL_HEAD" "$RUN_RC" <<'PY' | tee "$BUNDLE_AUDIT"
+from __future__ import annotations
+
+import hashlib
+import json
+import sys
+import zipfile
+from pathlib import Path
+
+out = Path(sys.argv[1]).expanduser().resolve(strict=False)
+bundle = Path(sys.argv[2]).expanduser().resolve(strict=False)
+head = sys.argv[3]
+run_rc = int(sys.argv[4])
+
+allowed = {
+    Path("/sdcard/Download/HPFA").resolve(strict=False),
+    Path("/storage/emulated/0/Download/HPFA").resolve(strict=False),
+}
+if out not in allowed or bundle.parent != out:
+    raise SystemExit("bundle_output_directory_invalid")
+
+prefixes = (
+    "row_nucleus_inventory_",
+    "g01_g18_",
+    "multiformat_",
+    "input_file_inventory",
+    "unsupported_file_report",
+    "duplicate_file_fingerprint_report",
+    "csv_surface_",
+    "xlsx_surface_",
+    "xml_surface_",
+    "provider_alias_field_semantics_",
+    "provider_label_",
+    "cross_format_reconciliation_",
+    "aggregate_definition_alignment_",
+    "provider_metric_dictionary_",
+)
+excluded = {bundle.name, "row_nucleus_inventory_bundle_v1.txt"}
+files = sorted(
+    path
+    for path in out.iterdir()
+    if path.is_file()
+    and path.name not in excluded
+    and path.suffix.casefold() != ".zip"
+    and path.name.startswith(prefixes)
+)
+if not files:
+    raise SystemExit("bundle_source_outputs_missing")
+
+entries = []
+for path in files:
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    entries.append({"name": path.name, "size_bytes": path.stat().st_size, "sha256": digest})
+
+manifest = {
+    "bundle_version": "row_nucleus_inventory_active_match_bundle_v1",
+    "runtime_code_head_sha": head,
+    "run_rc": run_rc,
+    "output_directory": str(out),
+    "file_count": len(entries),
+    "files": entries,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": False,
+}
+with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
+    for path in files:
+        archive.write(path, arcname=path.name)
+    archive.writestr(
+        "HPFA_BUNDLE_MANIFEST.json",
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+    )
+
+bundle_sha = hashlib.sha256(bundle.read_bytes()).hexdigest()
+print("HPFA PHONE OUTPUT BUNDLE")
+print(f"bundle_path={bundle}")
+print(f"bundle_file_count={len(entries)}")
+print(f"bundle_sha256={bundle_sha}")
+print(f"runtime_code_head_sha={head}")
+print(f"run_rc={run_rc}")
+print("canonical_event_count=UNKNOWN")
+print("production_release=false")
+PY
+
+exit "$RUN_RC"
