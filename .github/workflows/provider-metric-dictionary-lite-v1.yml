@@ -16,10 +16,22 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Exact PR head gate
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$actual_head"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: python -m compileall -q provider_metric_dictionary_lite.py hpfa/modules/core/provider_metric_dictionary_lite
       - run: python -m unittest discover -s hpfa/modules/core/provider_metric_dictionary_lite/tests -p "test_*.py" -v
-
