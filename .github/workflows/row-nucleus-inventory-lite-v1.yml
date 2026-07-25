@@ -1,0 +1,41 @@
+name: Row Nucleus Inventory Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "row_nucleus_inventory_lite.py"
+      - "hpfa/modules/core/row_nucleus_inventory_lite/**"
+      - "docs/contracts/row_nucleus_inventory_lite_v1.md"
+      - ".github/workflows/row-nucleus-inventory-lite-v1.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: row-nucleus-inventory-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check pytest
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          row_nucleus_inventory_lite.py
+          hpfa/modules/core/row_nucleus_inventory_lite
+      - name: Focused tests
+        run: >-
+          python -m pytest -q
+          hpfa/modules/core/row_nucleus_inventory_lite/tests/test_row_nucleus_inventory.py
+      - name: Contract JSON
+        run: python -m json.tool hpfa/modules/core/row_nucleus_inventory_lite/contract/row_nucleus_inventory_lite_v1.json >/dev/null
+      - name: No sample match identity leak
+        run: |
+          ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|6935|77798" \
+            row_nucleus_inventory_lite.py \
+            hpfa/modules/core/row_nucleus_inventory_lite/src \
+            docs/contracts/row_nucleus_inventory_lite_v1.md
