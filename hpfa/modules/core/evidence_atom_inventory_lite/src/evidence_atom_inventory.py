@@ -150,8 +150,6 @@ def _classify_nucleus(nucleus: dict[str, Any]) -> tuple[str, str | None, list[st
         reasons.append("role_eligibility_contract_mismatch")
     if role == "ACTION_ANCHOR" and len(families) != 1:
         reasons.append("action_anchor_family_not_single")
-    if role != "ACTION_ANCHOR" and families:
-        reasons.append("non_action_role_has_action_family")
 
     if reasons:
         return "REVIEW_REQUIRED_ATOM", role, sorted(set(reasons))
