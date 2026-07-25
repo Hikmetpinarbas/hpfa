@@ -151,12 +151,12 @@ set -e
 
 OUTPUT="$OUT/row_nucleus_inventory_lite_v1.json"
 [[ -f "$OUTPUT" ]] || fail "row_nucleus_inventory_output_missing"
-python - "$OUTPUT" "$ACTIVE_RESOLVED" "$EXPECTED_RESOLVED" "$RUN_RC" <<'PY' \
+python - "$OUTPUT" "$ACTIVE_RESOLVED" "$EXPECTED_RESOLVED" "$RUN_RC" "$ACTUAL_HEAD" <<'PY' \
   | tee "$OUT/row_nucleus_inventory_runtime_audit_v1.txt"
 import json
 import sys
 
-path, actual_authority, expected_authority, run_rc_text = sys.argv[1:]
+path, actual_authority, expected_authority, run_rc_text, runtime_head = sys.argv[1:]
 with open(path, encoding="utf-8") as handle:
     payload = json.load(handle)
 run_rc = int(run_rc_text)
@@ -167,7 +167,7 @@ execution_completed = run_rc == 0 and authority_equal and not hard_blocks
 active_match_evidence_pass = execution_completed and module_status == "PASS"
 payload["runtime_authority"] = actual_authority
 payload["runtime_authority_equal"] = authority_equal
-payload["runtime_code_head_sha"] = None
+payload["runtime_code_head_sha"] = runtime_head
 payload["run_rc"] = run_rc
 payload["active_match_execution_completed"] = execution_completed
 payload["active_match_evidence_pass"] = active_match_evidence_pass
@@ -189,6 +189,7 @@ for key in (
     "module_status",
     "runtime_evidence_status",
     "release_status",
+    "runtime_code_head_sha",
     "row_nucleus_candidate_count",
     "row_nucleus_pass_count",
     "row_nucleus_review_required_count",
