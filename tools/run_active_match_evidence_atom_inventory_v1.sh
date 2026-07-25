@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 
-EXPECTED_BRANCH="agent/evidence-atom-inventory-lite-v1"
+EXPECTED_BRANCH="${HPFA_EXPECTED_BRANCH:-agent/evidence-atom-inventory-lite-v1}"
 EXPECTED_REPO_SLUG="hikmetpinarbas/hpfa"
 EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"
 REPO="${HPFA_REPO:-$PWD}"
