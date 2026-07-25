@@ -18,7 +18,8 @@ def test_bootstrap_exports_exact_remote_head() -> None:
 
 def test_runner_requires_exact_branch_head_and_runtime_authority() -> None:
     text = RUNNER.read_text(encoding="utf-8")
-    assert 'EXPECTED_BRANCH="agent/row-nucleus-inventory-lite-v1"' in text
+    assert "agent/row-nucleus-inventory-lite-v1" in text
+    assert "HPFA_EXPECTED_BRANCH" in text
     assert 'expected_head_missing_or_invalid' in text
     assert 'unexpected_head:$ACTUAL_HEAD expected:$EXPECTED_HEAD' in text
     assert 'active_match_runtime_authority_mismatch' in text
