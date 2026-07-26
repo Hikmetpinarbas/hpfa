@@ -9,6 +9,9 @@ on:
       - '.github/workflows/cross-role-relation-review-profiler-lite-v1.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: cross-role-relation-review-profiler-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -20,9 +23,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest
       - name: Exact PR head gate
         if: github.event_name == 'pull_request'
         run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
