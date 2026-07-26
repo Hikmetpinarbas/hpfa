@@ -1,0 +1,40 @@
+name: Cross-Role Relation Review Profiler Lite V1
+
+on:
+  pull_request:
+    paths:
+      - 'cross_role_relation_review_profiler_lite.py'
+      - 'hpfa/modules/core/cross_role_relation_review_profiler_lite/**'
+      - 'docs/contracts/cross_role_relation_review_profiler_lite_v1.md'
+      - '.github/workflows/cross-role-relation-review-profiler-lite-v1.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: cross-role-relation-review-profiler-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Exact PR head gate
+        if: github.event_name == 'pull_request'
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+      - name: Compile
+        run: python -m compileall -q cross_role_relation_review_profiler_lite.py hpfa/modules/core/cross_role_relation_review_profiler_lite
+      - name: Focused tests
+        run: python -m pytest -q hpfa/modules/core/cross_role_relation_review_profiler_lite/tests/test_cross_role_relation_review_profiler.py
+      - name: Contract JSON
+        run: python -m json.tool hpfa/modules/core/cross_role_relation_review_profiler_lite/contract/cross_role_relation_review_profiler_lite_v1.json >/dev/null
+      - name: Sample identity leak guard
+        run: |
+          ! grep -RIE '(Fenerbahce|Galatasaray|Besiktas|Gornik|sample[_ -]?match)' \
+            cross_role_relation_review_profiler_lite.py \
+            hpfa/modules/core/cross_role_relation_review_profiler_lite/src \
+            hpfa/modules/core/cross_role_relation_review_profiler_lite/contract
