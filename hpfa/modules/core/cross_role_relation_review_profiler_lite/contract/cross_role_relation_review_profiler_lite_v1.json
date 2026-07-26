@@ -1,0 +1,47 @@
+{
+  "module_id": "cross_role_relation_review_profiler_lite_v1",
+  "version": "1.0.0",
+  "input_module_id": "cross_role_relation_candidate_resolver_lite_v1",
+  "purpose": "Profile unresolved cross-role relation candidates without resolving, counting, fusing, or admitting events.",
+  "required_input_fields": [
+    "module_id",
+    "match_surface_binding_id",
+    "resolved_relation_candidates",
+    "resolved_relation_candidate_count",
+    "review_required_relation_count",
+    "hard_block_hits",
+    "canonical_event_count",
+    "production_release"
+  ],
+  "hard_blocks": [
+    "resolver_input_module_id_mismatch",
+    "resolver_hard_blocks_present",
+    "resolved_relation_candidates_invalid",
+    "resolved_relation_candidate_count_mismatch",
+    "review_required_relation_count_mismatch",
+    "event_truth_claimed",
+    "cross_role_fusion_claimed",
+    "canonical_event_count_claimed",
+    "nested_phone_output_directory_rejected"
+  ],
+  "outputs": [
+    "review_reason_counts",
+    "review_family_counts",
+    "review_role_pair_counts",
+    "review_classification_counts",
+    "taxonomy_context_counts",
+    "family_reason_matrix",
+    "review_relation_profiles"
+  ],
+  "claim_boundary": {
+    "profile_resolves_relations": false,
+    "count_value_output_allowed": false,
+    "event_instance_count": 0,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
