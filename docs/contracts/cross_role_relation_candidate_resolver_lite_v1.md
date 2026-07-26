@@ -26,9 +26,25 @@ Bir relation candidate için şu alanlar birebir eşleşmelidir:
 
 Ayrıca tam iki bundle bulunmalıdır. Biri TEAM surface, diğeri PLAYER veya GOALKEEPER surface olmalıdır. Primary tarafta actor identity candidate bulunmalı, team reflection tarafında actor identity bulunmamalıdır. Aynı zaman tek başına ilişki açamaz ve bir bundle iki relation candidate içinde kullanılamaz.
 
-## Multi-family context
+## Multi-family context integrity
 
-Bundle review-required ise PR #194 taxonomy context'i zorunludur. `PASS_CANDIDATE_CLASSIFICATION` yalnız relation context'ini clear candidate yapabilir. Unresolved taxonomy context relation'ı review-required bırakır. Hiçbir taxonomy sonucu action veya event truth üretmez.
+Bundle review-required ise PR #194 taxonomy context'i zorunludur. Taxonomy kaydı yalnız bundle ID referansı taşıdığı için kabul edilmez. Her taxonomy kaydı, desteklediği review bundle'larla yeniden doğrulanır.
+
+Zorunlu exact eşleşme alanları:
+
+- match-surface binding
+- source role
+- team identity candidate
+- actor identity candidate veya role-appropriate actor applicability
+- period
+- start ve end time
+- x ve y coordinate
+- coordinate evidence status
+- exact family set
+
+Bütün supporting bundle'lar `REVIEW_REQUIRED` olmalı, tek bir exact action-core paylaşmalı ve bundle family seti taxonomy `family_set` değeriyle birebir eşleşmelidir. Herhangi bir fark `FAIL_CLOSED` üretir.
+
+`PASS_CANDIDATE_CLASSIFICATION` yalnız bu bütünlük kapısı geçildikten sonra relation context'ini clear candidate yapabilir. Unresolved taxonomy context relation'ı review-required bırakır. Hiçbir taxonomy sonucu action veya event truth üretmez.
 
 ## Double-count sınırı
 
