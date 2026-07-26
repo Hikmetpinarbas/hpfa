@@ -23,7 +23,7 @@ ALLOWED_ROLE_PAIRS = {
     ("PLAYER_SURFACE_CANDIDATE", "TEAM_SURFACE_CANDIDATE"),
     ("GOALKEEPER_SURFACE_CANDIDATE", "TEAM_SURFACE_CANDIDATE"),
 }
-EXACT_FIELDS = (
+RELATION_EXACT_FIELDS = (
     "match_surface_binding_id",
     "team_identity_candidate_id",
     "period_candidate",
@@ -33,6 +33,18 @@ EXACT_FIELDS = (
     "pos_y_candidate",
     "action_family_candidate",
 )
+TAXONOMY_CORE_FIELDS = (
+    "match_surface_binding_id",
+    "source_role",
+    "team_identity_candidate_id",
+    "actor_identity_candidate_id",
+    "period_candidate",
+    "start_candidate",
+    "end_candidate",
+    "pos_x_candidate",
+    "pos_y_candidate",
+)
+NUMERIC_FIELDS = {"start_candidate", "end_candidate", "pos_x_candidate", "pos_y_candidate"}
 
 OUTPUTS = {
     "json": "cross_role_relation_candidate_resolver_lite_v1.json",
@@ -55,10 +67,8 @@ def _number_key(value: Any) -> str:
         return text
 
 
-def _normalized_field(bundle: dict[str, Any], field: str) -> str:
-    if field in {"start_candidate", "end_candidate", "pos_x_candidate", "pos_y_candidate"}:
-        return _number_key(bundle.get(field))
-    return _clean(bundle.get(field))
+def _normalized_field(record: dict[str, Any], field: str) -> str:
+    return _number_key(record.get(field)) if field in NUMERIC_FIELDS else _clean(record.get(field))
 
 
 def _digest(*values: Any) -> str:
@@ -118,6 +128,8 @@ def _validate_taxonomy_record(
         blocks.append(f"taxonomy_record_id_missing:{index}")
     if record.get("match_surface_binding_id") != binding_id:
         blocks.append(f"taxonomy_match_surface_binding_mismatch:{index}")
+    if record.get("source_role") not in ALLOWED_SOURCE_ROLES:
+        blocks.append(f"taxonomy_source_role_rejected:{index}")
     if record.get("record_status") not in {
         "PASS_CANDIDATE_CLASSIFICATION",
         "REVIEW_REQUIRED",
@@ -131,9 +143,74 @@ def _validate_taxonomy_record(
         blocks.append(f"taxonomy_event_instance_admission_claimed:{index}")
     if record.get("canonical_event_count") not in {None, CANONICAL_EVENT_COUNT}:
         blocks.append(f"taxonomy_canonical_event_count_claimed:{index}")
+
     bundle_ids = record.get("supporting_action_bundle_candidate_ids") or []
-    if not isinstance(bundle_ids, list) or len(bundle_ids) < 2 or not all(_clean(item) for item in bundle_ids):
+    normalized_bundle_ids = [_clean(item) for item in bundle_ids]
+    if (
+        not isinstance(bundle_ids, list)
+        or len(bundle_ids) < 2
+        or len(set(normalized_bundle_ids)) != len(bundle_ids)
+        or not all(normalized_bundle_ids)
+    ):
         blocks.append(f"taxonomy_supporting_bundle_ids_invalid:{index}")
+
+    family_set = record.get("family_set") or []
+    normalized_families = sorted({_clean(item) for item in family_set if _clean(item)})
+    if not isinstance(family_set, list) or len(normalized_families) < 2:
+        blocks.append(f"taxonomy_family_set_invalid:{index}")
+    if record.get("family_count") != len(normalized_families):
+        blocks.append(f"taxonomy_family_count_mismatch:{index}")
+
+    role = _clean(record.get("source_role"))
+    actor = _clean(record.get("actor_identity_candidate_id"))
+    if role == "TEAM_SURFACE_CANDIDATE" and actor:
+        blocks.append(f"taxonomy_team_actor_identity_present:{index}")
+    if role != "TEAM_SURFACE_CANDIDATE" and not actor:
+        blocks.append(f"taxonomy_primary_actor_identity_missing:{index}")
+    return blocks
+
+
+def _validate_taxonomy_core_against_bundles(
+    record: dict[str, Any],
+    supporting_bundles: list[dict[str, Any]],
+) -> list[str]:
+    record_id = _clean(record.get("multi_family_review_record_id")) or "UNKNOWN"
+    blocks: list[str] = []
+    if not supporting_bundles:
+        return [f"{record_id}:taxonomy_supporting_bundles_missing"]
+
+    for bundle in supporting_bundles:
+        bundle_id = _clean(bundle.get("action_bundle_candidate_id"))
+        if bundle.get("bundle_status") != "REVIEW_REQUIRED":
+            blocks.append(f"{record_id}:taxonomy_references_non_review_bundle:{bundle_id}")
+        for field in TAXONOMY_CORE_FIELDS:
+            if _normalized_field(bundle, field) != _normalized_field(record, field):
+                blocks.append(
+                    f"{record_id}:taxonomy_bundle_core_mismatch:{field}:{bundle_id}"
+                )
+        if _clean(bundle.get("coordinate_evidence_status")) != _clean(
+            record.get("coordinate_evidence_status")
+        ):
+            blocks.append(
+                f"{record_id}:taxonomy_bundle_core_mismatch:coordinate_evidence_status:{bundle_id}"
+            )
+
+    bundle_core_signatures = {
+        tuple(_normalized_field(bundle, field) for field in TAXONOMY_CORE_FIELDS)
+        + (_clean(bundle.get("coordinate_evidence_status")),)
+        for bundle in supporting_bundles
+    }
+    if len(bundle_core_signatures) != 1:
+        blocks.append(f"{record_id}:taxonomy_supporting_bundles_not_single_exact_core")
+
+    record_family_set = sorted(
+        {_clean(item) for item in (record.get("family_set") or []) if _clean(item)}
+    )
+    bundle_family_set = sorted(
+        {_clean(bundle.get("action_family_candidate")) for bundle in supporting_bundles}
+    )
+    if bundle_family_set != record_family_set:
+        blocks.append(f"{record_id}:taxonomy_bundle_family_set_mismatch")
     return blocks
 
 
@@ -207,16 +284,20 @@ def build_cross_role_relation_candidate_resolver(
         if record_id in taxonomy_record_ids:
             blocks.append(f"duplicate_taxonomy_record_id:{record_id}")
         taxonomy_record_ids.add(record_id)
-        for bundle_id in record.get("supporting_action_bundle_candidate_ids") or []:
-            bundle_id = _clean(bundle_id)
-            if bundle_id not in bundle_by_id:
+
+        supporting_bundles: list[dict[str, Any]] = []
+        for raw_bundle_id in record.get("supporting_action_bundle_candidate_ids") or []:
+            bundle_id = _clean(raw_bundle_id)
+            bundle = bundle_by_id.get(bundle_id)
+            if bundle is None:
                 blocks.append(f"taxonomy_bundle_reference_missing:{bundle_id}")
                 continue
-            if bundle_by_id[bundle_id].get("bundle_status") != "REVIEW_REQUIRED":
-                blocks.append(f"taxonomy_references_non_review_bundle:{bundle_id}")
+            supporting_bundles.append(bundle)
             if bundle_id in taxonomy_by_bundle:
                 blocks.append(f"taxonomy_bundle_mapped_multiple_times:{bundle_id}")
             taxonomy_by_bundle[bundle_id] = record
+        blocks.extend(_validate_taxonomy_core_against_bundles(record, supporting_bundles))
+
     if set(taxonomy_by_bundle) != review_bundle_ids:
         blocks.append("taxonomy_review_bundle_coverage_mismatch")
     if taxonomy_payload.get("source_review_bundle_record_count") != len(review_bundle_ids):
@@ -251,171 +332,176 @@ def build_cross_role_relation_candidate_resolver(
                 relation_blocks.append("relation_canonical_event_count_claimed")
 
             bundle_ids = relation.get("action_bundle_candidate_ids") or []
-            if not isinstance(bundle_ids, list) or len(bundle_ids) != 2 or len(set(bundle_ids)) != 2:
+            normalized_bundle_ids = [_clean(item) for item in bundle_ids]
+            if (
+                not isinstance(bundle_ids, list)
+                or len(bundle_ids) != 2
+                or len(set(normalized_bundle_ids)) != 2
+            ):
                 relation_blocks.append("relation_bundle_id_contract_invalid")
                 bundle_ids = []
             linked: list[dict[str, Any]] = []
-            for bundle_id in bundle_ids:
-                bundle_id = _clean(bundle_id)
-                if bundle_id not in bundle_by_id:
+            for raw_bundle_id in bundle_ids:
+                bundle_id = _clean(raw_bundle_id)
+                bundle = bundle_by_id.get(bundle_id)
+                if bundle is None:
                     relation_blocks.append(f"relation_bundle_reference_missing:{bundle_id}")
                     continue
                 if bundle_id in consumed_bundle_ids:
                     relation_blocks.append(f"relation_bundle_reused:{bundle_id}")
-                linked.append(bundle_by_id[bundle_id])
+                linked.append(bundle)
             consumed_bundle_ids.update(_clean(item) for item in bundle_ids)
 
-            if len(linked) == 2:
-                role_pair = tuple(sorted(_clean(bundle.get("source_role")) for bundle in linked))
-                declared_roles = tuple(sorted(_clean(item) for item in (relation.get("source_roles") or [])))
-                if role_pair not in ALLOWED_ROLE_PAIRS:
-                    relation_blocks.append("relation_source_role_pair_rejected")
-                if declared_roles != role_pair:
-                    relation_blocks.append("relation_declared_source_roles_mismatch")
-
-                team_bundles = [
-                    bundle
-                    for bundle in linked
-                    if bundle.get("source_role") == "TEAM_SURFACE_CANDIDATE"
-                ]
-                primary_bundles = [
-                    bundle
-                    for bundle in linked
-                    if bundle.get("source_role") != "TEAM_SURFACE_CANDIDATE"
-                ]
-                if len(team_bundles) != 1 or len(primary_bundles) != 1:
-                    relation_blocks.append("relation_primary_reflection_cardinality_invalid")
-                    team_bundle = primary_bundle = linked[0]
-                else:
-                    team_bundle = team_bundles[0]
-                    primary_bundle = primary_bundles[0]
-
-                if _clean(team_bundle.get("actor_identity_candidate_id")):
-                    relation_blocks.append("team_reflection_actor_identity_present")
-                if not _clean(primary_bundle.get("actor_identity_candidate_id")):
-                    relation_blocks.append("primary_actor_identity_missing")
-
-                for field in EXACT_FIELDS:
-                    values = {_normalized_field(bundle, field) for bundle in linked}
-                    if len(values) != 1:
-                        relation_blocks.append(f"relation_exact_field_mismatch:{field}")
-
-                coordinate_present = all(
-                    bundle.get("coordinate_evidence_status") == "COORDINATE_PRESENT"
-                    and bundle.get("pos_x_candidate") is not None
-                    and bundle.get("pos_y_candidate") is not None
-                    for bundle in linked
-                )
-                if not coordinate_present:
-                    relation_reviews.append("coordinate_surface_missing_preserved")
-
-                taxonomy_context_records: dict[str, dict[str, Any]] = {}
-                for bundle in linked:
-                    if bundle.get("bundle_status") != "REVIEW_REQUIRED":
-                        continue
-                    bundle_id = _clean(bundle.get("action_bundle_candidate_id"))
-                    record = taxonomy_by_bundle.get(bundle_id)
-                    if record is None:
-                        relation_blocks.append(f"taxonomy_context_missing:{bundle_id}")
-                        continue
-                    taxonomy_context_records[
-                        _clean(record.get("multi_family_review_record_id"))
-                    ] = record
-
-                pair_prefix = (
-                    "PLAYER_TEAM"
-                    if primary_bundle.get("source_role") == "PLAYER_SURFACE_CANDIDATE"
-                    else "GOALKEEPER_TEAM"
-                )
-                if all(bundle.get("bundle_status") == "PASS" for bundle in linked) and coordinate_present:
-                    relation_classification = f"EXACT_{pair_prefix}_REFLECTION_CANDIDATE_CLEAR"
-                    relation_status = "PASS_CANDIDATE_CLASSIFICATION"
-                elif (
-                    taxonomy_context_records
-                    and all(
-                        record.get("record_status") == "PASS_CANDIDATE_CLASSIFICATION"
-                        for record in taxonomy_context_records.values()
-                    )
-                    and coordinate_present
-                ):
-                    relation_classification = (
-                        f"EXACT_{pair_prefix}_REFLECTION_CANDIDATE_CLASSIFIED_CONTEXT"
-                    )
-                    relation_status = "PASS_CANDIDATE_CLASSIFICATION"
-                else:
-                    relation_classification = (
-                        f"REVIEW_REQUIRED_{pair_prefix}_UNRESOLVED_CONTEXT"
-                    )
-                    relation_status = "REVIEW_REQUIRED"
-                    relation_reviews.append("unresolved_multi_family_relation_context")
-
-                if relation_blocks:
-                    blocks.extend(f"{relation_id}:{item}" for item in relation_blocks)
-                    continue
-
-                relation_records.append(
-                    {
-                        "resolved_relation_candidate_id": "crr_"
-                        + _digest(action_binding, relation_id, bundle_ids)[:24],
-                        "source_relation_candidate_id": relation_id,
-                        "match_surface_binding_id": action_binding,
-                        "relation_classification": relation_classification,
-                        "relation_record_status": relation_status,
-                        "source_roles": list(role_pair),
-                        "team_identity_candidate_id": team_bundle.get(
-                            "team_identity_candidate_id"
-                        ),
-                        "actor_identity_candidate_id": primary_bundle.get(
-                            "actor_identity_candidate_id"
-                        ),
-                        "period_candidate": primary_bundle.get("period_candidate"),
-                        "start_candidate": primary_bundle.get("start_candidate"),
-                        "end_candidate": primary_bundle.get("end_candidate"),
-                        "pos_x_candidate": primary_bundle.get("pos_x_candidate"),
-                        "pos_y_candidate": primary_bundle.get("pos_y_candidate"),
-                        "coordinate_evidence_status": (
-                            "COORDINATE_PRESENT"
-                            if coordinate_present
-                            else "COORDINATE_MISSING"
-                        ),
-                        "action_family_candidate": primary_bundle.get(
-                            "action_family_candidate"
-                        ),
-                        "primary_action_bundle_candidate_id": primary_bundle.get(
-                            "action_bundle_candidate_id"
-                        ),
-                        "reflection_action_bundle_candidate_id": team_bundle.get(
-                            "action_bundle_candidate_id"
-                        ),
-                        "taxonomy_context_record_ids": sorted(
-                            taxonomy_context_records
-                        ),
-                        "review_hits": sorted(set(relation_reviews)),
-                        "counting_surface_candidate_policy": (
-                            "PRIMARY_ROLE_ONLY_IF_LATER_EVENT_ADMISSION_PASSES"
-                        ),
-                        "primary_surface_role": (
-                            "PRIMARY_COUNTING_SURFACE_CANDIDATE"
-                        ),
-                        "team_surface_role": "REFLECTION_ONLY_SURFACE_CANDIDATE",
-                        "double_count_suppression_candidate_state": (
-                            "CANDIDATE_PRIMARY_ROLE_ONLY"
-                            if relation_status == "PASS_CANDIDATE_CLASSIFICATION"
-                            else "REVIEW_REQUIRED_CONTEXT_UNRESOLVED"
-                        ),
-                        "relation_candidate_is_event_truth": False,
-                        "reflection_equivalence_truth": False,
-                        "double_count_suppression_is_final": False,
-                        "count_value_output_allowed": False,
-                        "cross_role_fusion_allowed": False,
-                        "event_instance_allowed": False,
-                        "validated_event_identity": False,
-                        "canonical_event_count": CANONICAL_EVENT_COUNT,
-                        "claim_ceiling": CLAIM_CEILING,
-                    }
-                )
-            else:
+            if len(linked) != 2:
                 blocks.extend(f"{relation_id}:{item}" for item in relation_blocks)
+                continue
+
+            role_pair = tuple(sorted(_clean(bundle.get("source_role")) for bundle in linked))
+            declared_roles = tuple(
+                sorted(_clean(item) for item in (relation.get("source_roles") or []))
+            )
+            if role_pair not in ALLOWED_ROLE_PAIRS:
+                relation_blocks.append("relation_source_role_pair_rejected")
+            if declared_roles != role_pair:
+                relation_blocks.append("relation_declared_source_roles_mismatch")
+
+            team_bundles = [
+                bundle
+                for bundle in linked
+                if bundle.get("source_role") == "TEAM_SURFACE_CANDIDATE"
+            ]
+            primary_bundles = [
+                bundle
+                for bundle in linked
+                if bundle.get("source_role") != "TEAM_SURFACE_CANDIDATE"
+            ]
+            if len(team_bundles) != 1 or len(primary_bundles) != 1:
+                relation_blocks.append("relation_primary_reflection_cardinality_invalid")
+                team_bundle = primary_bundle = linked[0]
+            else:
+                team_bundle = team_bundles[0]
+                primary_bundle = primary_bundles[0]
+
+            if _clean(team_bundle.get("actor_identity_candidate_id")):
+                relation_blocks.append("team_reflection_actor_identity_present")
+            if not _clean(primary_bundle.get("actor_identity_candidate_id")):
+                relation_blocks.append("primary_actor_identity_missing")
+
+            for field in RELATION_EXACT_FIELDS:
+                values = {_normalized_field(bundle, field) for bundle in linked}
+                if len(values) != 1:
+                    relation_blocks.append(f"relation_exact_field_mismatch:{field}")
+
+            coordinate_present = all(
+                bundle.get("coordinate_evidence_status") == "COORDINATE_PRESENT"
+                and bundle.get("pos_x_candidate") is not None
+                and bundle.get("pos_y_candidate") is not None
+                for bundle in linked
+            )
+            if not coordinate_present:
+                relation_reviews.append("coordinate_surface_missing_preserved")
+
+            taxonomy_context_records: dict[str, dict[str, Any]] = {}
+            for bundle in linked:
+                if bundle.get("bundle_status") != "REVIEW_REQUIRED":
+                    continue
+                bundle_id = _clean(bundle.get("action_bundle_candidate_id"))
+                record = taxonomy_by_bundle.get(bundle_id)
+                if record is None:
+                    relation_blocks.append(f"taxonomy_context_missing:{bundle_id}")
+                    continue
+                taxonomy_context_records[
+                    _clean(record.get("multi_family_review_record_id"))
+                ] = record
+
+            pair_prefix = (
+                "PLAYER_TEAM"
+                if primary_bundle.get("source_role") == "PLAYER_SURFACE_CANDIDATE"
+                else "GOALKEEPER_TEAM"
+            )
+            if all(bundle.get("bundle_status") == "PASS" for bundle in linked) and coordinate_present:
+                relation_classification = f"EXACT_{pair_prefix}_REFLECTION_CANDIDATE_CLEAR"
+                relation_status = "PASS_CANDIDATE_CLASSIFICATION"
+            elif (
+                taxonomy_context_records
+                and all(
+                    record.get("record_status") == "PASS_CANDIDATE_CLASSIFICATION"
+                    for record in taxonomy_context_records.values()
+                )
+                and coordinate_present
+            ):
+                relation_classification = (
+                    f"EXACT_{pair_prefix}_REFLECTION_CANDIDATE_CLASSIFIED_CONTEXT"
+                )
+                relation_status = "PASS_CANDIDATE_CLASSIFICATION"
+            else:
+                relation_classification = (
+                    f"REVIEW_REQUIRED_{pair_prefix}_UNRESOLVED_CONTEXT"
+                )
+                relation_status = "REVIEW_REQUIRED"
+                relation_reviews.append("unresolved_multi_family_relation_context")
+
+            if relation_blocks:
+                blocks.extend(f"{relation_id}:{item}" for item in relation_blocks)
+                continue
+
+            relation_records.append(
+                {
+                    "resolved_relation_candidate_id": "crr_"
+                    + _digest(action_binding, relation_id, bundle_ids)[:24],
+                    "source_relation_candidate_id": relation_id,
+                    "match_surface_binding_id": action_binding,
+                    "relation_classification": relation_classification,
+                    "relation_record_status": relation_status,
+                    "source_roles": list(role_pair),
+                    "team_identity_candidate_id": team_bundle.get(
+                        "team_identity_candidate_id"
+                    ),
+                    "actor_identity_candidate_id": primary_bundle.get(
+                        "actor_identity_candidate_id"
+                    ),
+                    "period_candidate": primary_bundle.get("period_candidate"),
+                    "start_candidate": primary_bundle.get("start_candidate"),
+                    "end_candidate": primary_bundle.get("end_candidate"),
+                    "pos_x_candidate": primary_bundle.get("pos_x_candidate"),
+                    "pos_y_candidate": primary_bundle.get("pos_y_candidate"),
+                    "coordinate_evidence_status": (
+                        "COORDINATE_PRESENT"
+                        if coordinate_present
+                        else "COORDINATE_MISSING"
+                    ),
+                    "action_family_candidate": primary_bundle.get(
+                        "action_family_candidate"
+                    ),
+                    "primary_action_bundle_candidate_id": primary_bundle.get(
+                        "action_bundle_candidate_id"
+                    ),
+                    "reflection_action_bundle_candidate_id": team_bundle.get(
+                        "action_bundle_candidate_id"
+                    ),
+                    "taxonomy_context_record_ids": sorted(taxonomy_context_records),
+                    "review_hits": sorted(set(relation_reviews)),
+                    "counting_surface_candidate_policy": (
+                        "PRIMARY_ROLE_ONLY_IF_LATER_EVENT_ADMISSION_PASSES"
+                    ),
+                    "primary_surface_role": "PRIMARY_COUNTING_SURFACE_CANDIDATE",
+                    "team_surface_role": "REFLECTION_ONLY_SURFACE_CANDIDATE",
+                    "double_count_suppression_candidate_state": (
+                        "CANDIDATE_PRIMARY_ROLE_ONLY"
+                        if relation_status == "PASS_CANDIDATE_CLASSIFICATION"
+                        else "REVIEW_REQUIRED_CONTEXT_UNRESOLVED"
+                    ),
+                    "relation_candidate_is_event_truth": False,
+                    "reflection_equivalence_truth": False,
+                    "double_count_suppression_is_final": False,
+                    "count_value_output_allowed": False,
+                    "cross_role_fusion_allowed": False,
+                    "event_instance_allowed": False,
+                    "validated_event_identity": False,
+                    "canonical_event_count": CANONICAL_EVENT_COUNT,
+                    "claim_ceiling": CLAIM_CEILING,
+                }
+            )
 
     if len(relation_records) != len(relations) and not blocks:
         blocks.append("relation_output_coverage_mismatch")
@@ -440,9 +526,13 @@ def build_cross_role_relation_candidate_resolver(
         for record in relation_records
     )
 
-    action_status = str(action_payload.get("module_status") or action_payload.get("status") or "UNKNOWN")
+    action_status = str(
+        action_payload.get("module_status") or action_payload.get("status") or "UNKNOWN"
+    )
     taxonomy_status = str(
-        taxonomy_payload.get("module_status") or taxonomy_payload.get("status") or "UNKNOWN"
+        taxonomy_payload.get("module_status")
+        or taxonomy_payload.get("status")
+        or "UNKNOWN"
     )
     for prefix, status in (("action", action_status), ("taxonomy", taxonomy_status)):
         if status == "FAIL_CLOSED":
@@ -481,6 +571,9 @@ def build_cross_role_relation_candidate_resolver(
         "review_hits": reviews,
         "link_policy": (
             "EXACT_MATCH_BINDING_TEAM_PERIOD_START_END_COORDINATE_FAMILY_AND_ROLE_PAIR"
+        ),
+        "taxonomy_core_integrity_policy": (
+            "EXACT_RECORD_TO_SUPPORTING_REVIEW_BUNDLE_CORE_AND_FAMILY_SET"
         ),
         "same_time_only_link_allowed": False,
         "relation_candidate_is_event_truth": False,
@@ -533,6 +626,10 @@ def _analyst_audit(payload: dict[str, Any]) -> str:
         (
             "Analyst-safe meaning: player or goalkeeper primary surfaces and team reflection "
             "surfaces were related only where exact time, location, team and family evidence matched."
+        ),
+        (
+            "Taxonomy context was accepted only after exact source-role, identity, time, "
+            "coordinate and family-set integrity checks against its supporting review bundles."
         ),
         (
             "The primary-role surface is only a future counting candidate; no event count, "
