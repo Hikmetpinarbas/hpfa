@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 
-EXPECTED_BRANCH="agent/selected-action-consequence-surface-lite-v1"
+EXPECTED_BRANCH="${HPFA_EXPECTED_BRANCH:-agent/selected-action-consequence-surface-lite-v1}"
 EXPECTED_REPO_SLUG="hikmetpinarbas/hpfa"
 EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"
 REPO="${HPFA_REPO:-$PWD}"
@@ -56,6 +56,7 @@ rm -f \
 python -m py_compile \
   selected_action_consequence_surface_lite.py \
   hpfa/modules/core/selected_action_consequence_surface_lite/src/selected_action_consequence_surface.py \
+  hpfa/modules/core/selected_action_consequence_surface_lite/src/field_semantics.py \
   cross_role_relation_candidate_resolver_lite.py \
   hpfa/modules/core/cross_role_relation_candidate_resolver_lite/src/cross_role_relation_candidate_resolver.py \
   action_bundle_multi_family_review_taxonomy_lite.py \
@@ -174,6 +175,8 @@ for key in (
     "release_status",
     "runtime_code_head_sha",
     "match_surface_binding_id",
+    "field_semantics_version",
+    "field_semantics_record_count",
     "source_action_bundle_candidate_count",
     "selected_action_surface_candidate_count",
     "suppressed_team_reflection_candidate_count",
@@ -195,6 +198,14 @@ for key in (
 print(f"selected_source_role_counts={payload.get('selected_source_role_counts')}")
 print(f"selected_action_family_counts={payload.get('selected_action_family_counts')}")
 print(f"primary_consequence_candidate_counts={payload.get('primary_consequence_candidate_counts')}")
+print(f"first_layer_team_state_counts={payload.get('first_layer_team_state_counts')}")
+print(f"retention_after_action_candidate_counts={payload.get('retention_after_action_candidate_counts')}")
+print(f"same_team_response_latency_class_counts={payload.get('same_team_response_latency_class_counts')}")
+print(f"opponent_response_latency_class_counts={payload.get('opponent_response_latency_class_counts')}")
+print(f"turnover_response_candidate_counts={payload.get('turnover_response_candidate_counts')}")
+print(f"coordinate_displacement_status_counts={payload.get('coordinate_displacement_status_counts')}")
+print(f"raw_coordinate_displacement_class_counts={payload.get('raw_coordinate_displacement_class_counts')}")
+print(f"actor_identity_applicability_counts={payload.get('actor_identity_applicability_counts')}")
 print(f"support_atom_class_counts={payload.get('support_atom_class_counts')}")
 PY
 
