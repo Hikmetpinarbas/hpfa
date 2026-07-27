@@ -15,6 +15,44 @@ except ImportError:  # direct src-path test import
     )
 
 
+def _team_qualified_families(
+    anchor_team: str,
+    future: list[dict[str, Any]],
+) -> tuple[set[str], set[str], bool]:
+    same_team_families: set[str] = set()
+    opponent_families: set[str] = set()
+    missing_team_identity = False
+    for node in future:
+        node_team = clean(node.get("team_identity_candidate_id"))
+        families = set(node.get("action_family_candidates") or [])
+        if not node_team:
+            missing_team_identity = True
+        elif node_team == anchor_team:
+            same_team_families.update(families)
+        else:
+            opponent_families.update(families)
+    return same_team_families, opponent_families, missing_team_identity
+
+
+def _first_layer_team_state(anchor_team: str, future: list[dict[str, Any]]) -> str:
+    if not future:
+        return "NONE"
+    first_start = number(future[0].get("start_candidate"))
+    first_layer = [node for node in future if number(node.get("start_candidate")) == first_start]
+    teams = {clean(node.get("team_identity_candidate_id")) for node in first_layer}
+    if "" in teams:
+        return "UNKNOWN"
+    has_same = anchor_team in teams
+    has_opponent = any(team != anchor_team for team in teams)
+    if has_same and has_opponent:
+        return "MIXED"
+    if has_same:
+        return "SAME_TEAM"
+    if has_opponent:
+        return "OPPONENT"
+    return "UNKNOWN"
+
+
 def consequence_class(anchor: dict[str, Any], future: list[dict[str, Any]]) -> tuple[str, list[str]]:
     team = clean(anchor.get("team_identity_candidate_id"))
     anchor_families = set(anchor.get("action_family_candidates") or [])
@@ -23,41 +61,53 @@ def consequence_class(anchor: dict[str, Any], future: list[dict[str, Any]]) -> t
         signals.add("TERMINAL_OUTCOME_SUPPORT_VISIBLE")
     if anchor.get("derived_consequence_support_visible"):
         signals.add("DERIVED_CONSEQUENCE_SUPPORT_VISIBLE")
+    if not team:
+        signals.add("ANCHOR_TEAM_IDENTITY_MISSING")
+        return "VISIBLE_FOLLOW_UP_UNCERTAIN_CANDIDATE", sorted(signals)
     if not future:
         primary = "TERMINAL_OUTCOME_SUPPORT_CANDIDATE" if "TERMINAL_OUTCOME_SUPPORT_VISIBLE" in signals else "NO_VISIBLE_FOLLOW_UP_CANDIDATE"
         return primary, sorted(signals)
-    first = future[0]
-    first_team = clean(first.get("team_identity_candidate_id"))
-    all_families = set().union(*(set(node.get("action_family_candidates") or []) for node in future))
-    same_team = any(clean(node.get("team_identity_candidate_id")) == team for node in future)
-    opponent = any(clean(node.get("team_identity_candidate_id")) not in {"", team} for node in future)
+
+    same_team_families, opponent_families, missing_team_identity = _team_qualified_families(team, future)
+    first_layer_state = _first_layer_team_state(team, future)
     flags = {
-        "SHOT_FOLLOW_UP_VISIBLE": "SHOT" in all_families,
-        "RESTART_FOLLOW_UP_VISIBLE": "RESTART" in all_families,
-        "RECOVERY_OR_INTERCEPTION_FOLLOW_UP_VISIBLE": bool({"RECOVERY", "INTERCEPTION"} & all_families),
-        "TURNOVER_OR_CONTROL_ERROR_FOLLOW_UP_VISIBLE": bool({"TURNOVER", "CONTROL_ERROR"} & all_families),
-        "SAME_TEAM_FOLLOW_UP_VISIBLE": same_team,
-        "OPPONENT_FOLLOW_UP_VISIBLE": opponent,
+        "SAME_TEAM_SHOT_FOLLOW_UP_VISIBLE": "SHOT" in same_team_families,
+        "OPPONENT_SHOT_FOLLOW_UP_VISIBLE": "SHOT" in opponent_families,
+        "SAME_TEAM_RESTART_FOLLOW_UP_VISIBLE": "RESTART" in same_team_families,
+        "OPPONENT_RESTART_FOLLOW_UP_VISIBLE": "RESTART" in opponent_families,
+        "SAME_TEAM_RECOVERY_OR_INTERCEPTION_FOLLOW_UP_VISIBLE": bool({"RECOVERY", "INTERCEPTION"} & same_team_families),
+        "OPPONENT_RECOVERY_OR_INTERCEPTION_FOLLOW_UP_VISIBLE": bool({"RECOVERY", "INTERCEPTION"} & opponent_families),
+        "SAME_TEAM_TURNOVER_OR_CONTROL_ERROR_FOLLOW_UP_VISIBLE": bool({"TURNOVER", "CONTROL_ERROR"} & same_team_families),
+        "OPPONENT_TURNOVER_OR_CONTROL_ERROR_FOLLOW_UP_VISIBLE": bool({"TURNOVER", "CONTROL_ERROR"} & opponent_families),
+        "SAME_TEAM_FOLLOW_UP_VISIBLE": bool(same_team_families),
+        "OPPONENT_FOLLOW_UP_VISIBLE": bool(opponent_families),
+        "MIXED_TEAM_FIRST_LAYER_VISIBLE": first_layer_state == "MIXED",
+        "FOLLOW_UP_TEAM_IDENTITY_MISSING": missing_team_identity,
     }
     signals.update(name for name, active in flags.items() if active)
+
     if "TERMINAL_OUTCOME_SUPPORT_VISIBLE" in signals:
         primary = "TERMINAL_OUTCOME_SUPPORT_CANDIDATE"
-    elif flags["SHOT_FOLLOW_UP_VISIBLE"] and same_team:
+    elif missing_team_identity:
+        primary = "VISIBLE_FOLLOW_UP_UNCERTAIN_CANDIDATE"
+    elif first_layer_state == "MIXED":
+        primary = "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE"
+    elif flags["SAME_TEAM_SHOT_FOLLOW_UP_VISIBLE"]:
         primary = "SHOT_FOLLOW_UP_CANDIDATE"
     elif anchor_families & {"TURNOVER", "CONTROL_ERROR"}:
-        if flags["RECOVERY_OR_INTERCEPTION_FOLLOW_UP_VISIBLE"] and same_team:
+        if flags["SAME_TEAM_RECOVERY_OR_INTERCEPTION_FOLLOW_UP_VISIBLE"]:
             primary = "RECOVERY_RESPONSE_AFTER_BREAKDOWN_CANDIDATE"
-        elif first_team and first_team != team:
+        elif first_layer_state == "OPPONENT":
             primary = "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE"
         else:
             primary = "BREAKDOWN_WITH_UNCERTAIN_VISIBLE_RESPONSE_CANDIDATE"
-    elif anchor_families & {"RECOVERY", "INTERCEPTION"} and first_team == team:
+    elif anchor_families & {"RECOVERY", "INTERCEPTION"} and first_layer_state == "SAME_TEAM":
         primary = "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE"
-    elif "RESTART" in set(first.get("action_family_candidates") or []):
+    elif first_layer_state == "SAME_TEAM" and "RESTART" in same_team_families:
         primary = "RESTART_OR_RESET_CANDIDATE"
-    elif first_team == team:
+    elif first_layer_state == "SAME_TEAM":
         primary = "SAME_TEAM_CONTINUATION_CANDIDATE"
-    elif first_team:
+    elif first_layer_state == "OPPONENT":
         primary = "OPPONENT_HANDOVER_CANDIDATE"
     else:
         primary = "VISIBLE_FOLLOW_UP_UNCERTAIN_CANDIDATE"
