@@ -65,6 +65,12 @@ def build_visible_time_layers(
                 f"unsupported_sequence_node_role:{clean(node.get('selected_action_node_id'))}"
                 for node in unsupported
             )
+
+        missing_primary_team_ids = sorted(
+            clean(node.get("selected_action_node_id"))
+            for node in primary
+            if not clean(node.get("team_identity_candidate_id"))
+        )
         primary_teams = sorted(
             {
                 clean(node.get("team_identity_candidate_id"))
@@ -79,7 +85,10 @@ def build_visible_time_layers(
                 if clean(node.get("team_identity_candidate_id"))
             }
         )
-        if len(primary_teams) == 1:
+
+        if missing_primary_team_ids:
+            state = "UNKNOWN_PRIMARY_LAYER_REVIEW_REQUIRED"
+        elif len(primary_teams) == 1:
             state = "SINGLE_TEAM_PRIMARY_LAYER"
         elif len(primary_teams) > 1:
             state = "MIXED_TEAM_PRIMARY_LAYER_REVIEW_REQUIRED"
@@ -116,6 +125,8 @@ def build_visible_time_layers(
                 "start_candidate": float(start_key),
                 "layer_state": state,
                 "primary_team_identity_candidate_ids": primary_teams,
+                "missing_primary_team_identity_node_ids": missing_primary_team_ids,
+                "missing_primary_team_identity_count": len(missing_primary_team_ids),
                 "team_context_identity_candidate_ids": context_teams,
                 "primary_selected_action_node_ids": primary_ids,
                 "team_context_selected_action_node_ids": context_ids,
