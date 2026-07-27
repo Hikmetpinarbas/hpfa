@@ -1,6 +1,6 @@
 {
   "module_id": "cross_role_relation_review_profiler_lite_v1",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "input_module_id": "cross_role_relation_candidate_resolver_lite_v1",
   "purpose": "Profile unresolved cross-role relation candidates without resolving, counting, fusing, or admitting events.",
   "required_input_fields": [
@@ -13,9 +13,17 @@
     "canonical_event_count",
     "production_release"
   ],
+  "required_relation_fields": [
+    "resolved_relation_candidate_id",
+    "match_surface_binding_id",
+    "relation_record_status"
+  ],
   "hard_blocks": [
     "resolver_input_module_id_mismatch",
     "resolver_hard_blocks_present",
+    "match_surface_binding_id_missing",
+    "relation_match_surface_binding_id_missing",
+    "relation_match_surface_binding_id_mismatch",
     "resolved_relation_candidates_invalid",
     "resolved_relation_candidate_count_mismatch",
     "review_required_relation_count_mismatch",
@@ -25,6 +33,7 @@
     "nested_phone_output_directory_rejected"
   ],
   "outputs": [
+    "match_surface_binding_id",
     "review_reason_counts",
     "review_family_counts",
     "review_role_pair_counts",
