@@ -1,0 +1,56 @@
+{
+  "module_id": "selected_action_consequence_surface_lite_v1",
+  "version": "1.0.0",
+  "input_modules": [
+    "semantic_role_action_bundle_candidates_lite_v1",
+    "action_bundle_multi_family_review_taxonomy_lite_v1",
+    "cross_role_relation_candidate_resolver_lite_v1",
+    "evidence_atom_inventory_lite_v1"
+  ],
+  "selection_states": [
+    "SELECTED_ACTION_SURFACE_CANDIDATE",
+    "SUPPRESSED_TEAM_REFLECTION_CANDIDATE",
+    "QUARANTINED_UNRESOLVED_ACTION_SURFACE"
+  ],
+  "consequence_windows_seconds": [5, 8, 12],
+  "maximum_follow_up_time_layers": 3,
+  "primary_consequence_candidates": [
+    "SAME_TEAM_CONTINUATION_CANDIDATE",
+    "OPPONENT_HANDOVER_CANDIDATE",
+    "SHOT_FOLLOW_UP_CANDIDATE",
+    "RESTART_OR_RESET_CANDIDATE",
+    "RECOVERY_RESPONSE_AFTER_BREAKDOWN_CANDIDATE",
+    "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE",
+    "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE",
+    "BREAKDOWN_WITH_UNCERTAIN_VISIBLE_RESPONSE_CANDIDATE",
+    "TERMINAL_OUTCOME_SUPPORT_CANDIDATE",
+    "VISIBLE_FOLLOW_UP_UNCERTAIN_CANDIDATE",
+    "NO_VISIBLE_FOLLOW_UP_CANDIDATE"
+  ],
+  "ordering_policy": "SAME_PERIOD_STRICT_POSITIVE_TIME_THREE_LAYER_WINDOW",
+  "outputs": [
+    "selected_action_consequence_surface_lite_v1.json",
+    "selected_action_consequence_surface_lite_v1.txt",
+    "selected_action_consequence_surface_analyst_audit_v1.txt",
+    "selected_action_consequence_surface_runtime_audit_v1.txt",
+    "selected_action_consequence_surface_active_match_bundle_v1.zip"
+  ],
+  "claim_boundary": {
+    "selected_action_surface_is_canonical_event": false,
+    "consequence_candidate_is_causal_truth": false,
+    "continuation_candidate_is_possession_truth": false,
+    "window_is_sequence_truth": false,
+    "team_response_is_tactical_truth": false,
+    "same_time_link_allowed": false,
+    "negative_time_link_allowed": false,
+    "cross_period_link_allowed": false,
+    "event_instance_count": 0,
+    "claim_allowed": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
