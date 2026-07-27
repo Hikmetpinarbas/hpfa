@@ -5,6 +5,7 @@ def _record(status="REVIEW_REQUIRED", reasons=None, family="PASS"):
     return {
         "resolved_relation_candidate_id": "crr_1",
         "source_relation_candidate_id": "src_1",
+        "match_surface_binding_id": "msb_1",
         "relation_record_status": status,
         "relation_classification": "REVIEW_REQUIRED_PLAYER_TEAM_UNRESOLVED_CONTEXT",
         "source_roles": ["PLAYER_SURFACE_CANDIDATE", "TEAM_SURFACE_CANDIDATE"],
@@ -35,6 +36,7 @@ def test_profiles_review_reasons_without_resolving_relations():
     assert result["status"] == "REVIEW_REQUIRED"
     assert result["profiled_review_relation_count"] == 1
     assert result["review_reason_counts"] == {"unresolved_multi_family_relation_context": 1}
+    assert result["review_relation_profiles"][0]["match_surface_binding_id"] == "msb_1"
     assert result["profile_resolves_relations"] is False
     assert result["canonical_event_count"] == "UNKNOWN"
 
@@ -81,3 +83,27 @@ def test_family_reason_matrix_is_emitted():
     result = build_review_profile(_payload(records))
     assert result["family_reason_matrix"]["PASS"]["unresolved_multi_family_relation_context"] == 1
     assert result["family_reason_matrix"]["DUEL"]["unresolved_multi_family_relation_context"] == 1
+
+
+def test_missing_top_level_match_binding_fails_closed():
+    payload = _payload([_record()])
+    payload["match_surface_binding_id"] = ""
+    result = build_review_profile(payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "match_surface_binding_id_missing" in result["hard_block_hits"]
+
+
+def test_missing_relation_match_binding_fails_closed():
+    record = _record()
+    record.pop("match_surface_binding_id")
+    result = build_review_profile(_payload([record]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "relation_match_surface_binding_id_missing:crr_1" in result["hard_block_hits"]
+
+
+def test_mixed_relation_match_binding_fails_closed():
+    record = _record()
+    record["match_surface_binding_id"] = "msb_other"
+    result = build_review_profile(_payload([record]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "relation_match_surface_binding_id_mismatch:crr_1" in result["hard_block_hits"]
