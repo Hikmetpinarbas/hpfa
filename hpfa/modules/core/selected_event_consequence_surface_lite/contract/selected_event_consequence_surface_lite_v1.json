@@ -1,0 +1,111 @@
+{
+  "module_id": "selected_event_consequence_surface_lite_v1",
+  "version": "1.0.0",
+  "input_module": "selected_action_consequence_surface_lite_v1",
+  "required_input_field_semantics_version": "selected_action_consequence_field_semantics_v1_1",
+  "coordinate_scale_candidates": [
+    "PROVIDER_105X68_SCALE_CANDIDATE",
+    "PROVIDER_100X100_SCALE_CANDIDATE",
+    "UNRESOLVED_COORDINATE_SCALE_REVIEW_REQUIRED"
+  ],
+  "attack_direction_candidates": [
+    "ATTACK_TOWARD_HIGH_X_CANDIDATE",
+    "ATTACK_TOWARD_LOW_X_CANDIDATE",
+    "UNRESOLVED_ATTACK_DIRECTION_REVIEW_REQUIRED"
+  ],
+  "coordinate_frame_policy": {
+    "minimum_shot_support_per_team_period": 3,
+    "shot_high_x_threshold_ratio": 0.7,
+    "shot_low_x_threshold_ratio": 0.3,
+    "direction_median_high_x_threshold_ratio": 0.72,
+    "direction_median_low_x_threshold_ratio": 0.28,
+    "direction_support_share_threshold": 0.75,
+    "coordinate_frame_is_validated_provider_truth": false,
+    "attack_direction_is_validated_truth": false
+  },
+  "zone_candidates": [
+    "OWN_THIRD_CANDIDATE",
+    "MIDDLE_THIRD_CANDIDATE",
+    "FINAL_THIRD_OUTSIDE_BOX_CANDIDATE",
+    "FINAL_THIRD_WIDE_OR_OUTSIDE_BOX_BAND_CANDIDATE",
+    "BOX_COORDINATE_CANDIDATE",
+    "CENTRAL_DEEP_BOX_GRID_CANDIDATE",
+    "UNRESOLVED_ZONE_REVIEW_REQUIRED"
+  ],
+  "zone_delta_classes": [
+    "NO_VISIBLE_FOLLOW_UP_CANDIDATE",
+    "LOSS_OR_HANDOVER_CANDIDATE",
+    "NO_ZONE_CHANGE_CANDIDATE",
+    "RESET_OR_BACKWARD_ZONE_CHANGE_CANDIDATE",
+    "ZONE_GAIN_CANDIDATE",
+    "THIRD_BREAK_CANDIDATE",
+    "BOX_ACCESS_CANDIDATE",
+    "CENTRAL_DEEP_BOX_ENTRY_CANDIDATE",
+    "MIXED_SAME_TEAM_ZONE_REVIEW_REQUIRED",
+    "UNRESOLVED_ZONE_DELTA_REVIEW_REQUIRED"
+  ],
+  "pressure_first_action_classes": [
+    "UNAVAILABLE_EVENT_ONLY_NO_EXPLICIT_PRESSURE_EVIDENCE"
+  ],
+  "turnover_window_classes": [
+    "NOT_APPLICABLE",
+    "TURNOVER_TO_SAME_TEAM_RECOVERY_CANDIDATE",
+    "TURNOVER_TO_SAME_TEAM_RETENTION_CANDIDATE",
+    "TURNOVER_TO_OPPONENT_HANDOVER_CANDIDATE",
+    "TURNOVER_TO_OPPONENT_BOX_ACCESS_CANDIDATE",
+    "TURNOVER_TO_OPPONENT_SHOT_CANDIDATE",
+    "TURNOVER_NO_VISIBLE_RESPONSE_WITHIN_12S_CANDIDATE",
+    "TURNOVER_MIXED_FIRST_LAYER_REVIEW_REQUIRED",
+    "TURNOVER_WINDOW_REFERENCE_MISSING_REVIEW_REQUIRED",
+    "TURNOVER_WINDOW_UNRESOLVED_REVIEW_REQUIRED"
+  ],
+  "retention_after_action_statuses": [
+    "VISIBLE_RETENTION_CANDIDATE_TRUE",
+    "VISIBLE_RETENTION_CANDIDATE_FALSE_HANDOVER",
+    "RETENTION_MIXED_REVIEW_REQUIRED",
+    "RETENTION_NO_VISIBLE_SIGNAL_WITHIN_12S",
+    "RETENTION_UNRESOLVED_REVIEW_REQUIRED"
+  ],
+  "false_progression_candidates": [
+    "NOT_APPLICABLE_NO_VISIBLE_ZONE_GAIN",
+    "VISIBLE_ZONE_GAIN_RETAINED_CANDIDATE",
+    "ZONE_GAIN_WITH_CONSTRUCTIVE_SUPPORT_BEFORE_HANDOVER_CANDIDATE",
+    "FALSE_PROGRESSION_CANDIDATE",
+    "UNRESOLVED_NO_FOLLOW_UP_AFTER_GAIN_REVIEW_REQUIRED",
+    "UNRESOLVED_REFERENCE_MISSING_REVIEW_REQUIRED"
+  ],
+  "consequence_class_candidates": [
+    "CONSTRUCTIVE_VISIBLE_CONSEQUENCE_CANDIDATE",
+    "RISKY_CONSTRUCTIVE_VISIBLE_CONSEQUENCE_CANDIDATE",
+    "NEUTRAL_VISIBLE_CONSEQUENCE_CANDIDATE",
+    "FAILED_VISIBLE_CONSEQUENCE_CANDIDATE",
+    "UNRESOLVED_VISIBLE_CONSEQUENCE_REVIEW_REQUIRED"
+  ],
+  "outputs": [
+    "selected_event_consequence_surface_lite_v1.json",
+    "selected_event_consequence_surface_lite_v1.txt",
+    "selected_event_consequence_surface_analyst_audit_v1.txt",
+    "selected_event_consequence_surface_runtime_audit_v1.txt",
+    "selected_event_consequence_surface_active_match_bundle_v1.zip"
+  ],
+  "claim_boundary": {
+    "consequence_not_value": true,
+    "consequence_not_quality": true,
+    "zone_delta_not_xT": true,
+    "zone_delta_not_progression_truth": true,
+    "pressure_escape_not_pressure_truth": true,
+    "turnover_to_box_not_transition_superiority": true,
+    "false_progression_not_bad_decision": true,
+    "coordinate_frame_is_validated_provider_truth": false,
+    "attack_direction_is_validated_truth": false,
+    "analysis_sentence_generated": false,
+    "event_instance_count": 0,
+    "claim_allowed": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
