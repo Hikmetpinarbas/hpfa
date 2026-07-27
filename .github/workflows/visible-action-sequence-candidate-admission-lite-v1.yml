@@ -49,10 +49,13 @@ jobs:
         run: >-
           python -m pytest -q
           hpfa/modules/core/visible_action_sequence_candidate_admission_lite/tests
-      - name: Upstream compatibility tests
+      - name: Selected event producer compatibility tests
         run: >-
           python -m pytest -q
           hpfa/modules/core/selected_event_consequence_surface_lite/tests
+      - name: Remaining upstream compatibility tests
+        run: >-
+          python -m pytest -q
           hpfa/modules/core/selected_action_consequence_surface_lite/tests
           hpfa/modules/core/cross_role_relation_candidate_resolver_lite/tests
           hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite/tests
