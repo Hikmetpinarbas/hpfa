@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_URL="https://github.com/Hikmetpinarbas/hpfa.git"
 EXPECTED_REPO_SLUG="hikmetpinarbas/hpfa"
-BRANCH="agent/selected-action-consequence-surface-lite-v1"
+BRANCH="agent/selected-action-consequence-field-semantics-closure-v1"
 REPO="${HPFA_REPO:-$HOME/hp/repos/hpfa}"
 ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
 OUT="${HPFA_PHONE_OUTPUT:-/sdcard/Download/HPFA}"
@@ -82,7 +82,8 @@ HPFA_ACTIVE_MATCH="$ACTIVE_MATCH"
 HPFA_EXPECTED_ACTIVE_MATCH="$ACTIVE_MATCH"
 HPFA_PHONE_OUTPUT="$OUT"
 HPFA_EXPECTED_HEAD="${REQUESTED_EXPECTED_HEAD:-$REMOTE_HEAD}"
-export HPFA_REPO HPFA_ACTIVE_MATCH HPFA_EXPECTED_ACTIVE_MATCH HPFA_PHONE_OUTPUT HPFA_EXPECTED_HEAD
+HPFA_EXPECTED_BRANCH="$BRANCH"
+export HPFA_REPO HPFA_ACTIVE_MATCH HPFA_EXPECTED_ACTIVE_MATCH HPFA_PHONE_OUTPUT HPFA_EXPECTED_HEAD HPFA_EXPECTED_BRANCH
 [[ "$HPFA_EXPECTED_HEAD" == "$ACTUAL_HEAD" ]] || fail "bootstrap_expected_head_export_mismatch"
 ensure_python_dependencies
 mkdir -p "$OUT"
@@ -162,7 +163,7 @@ for path in files:
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     entries.append({"name": path.name, "size_bytes": path.stat().st_size, "sha256": digest})
 manifest = {
-    "bundle_version": "selected_action_consequence_surface_active_match_bundle_v1",
+    "bundle_version": "selected_action_consequence_surface_active_match_bundle_v1_1",
     "runtime_code_head_sha": head,
     "run_rc": run_rc,
     "output_directory": str(out),
