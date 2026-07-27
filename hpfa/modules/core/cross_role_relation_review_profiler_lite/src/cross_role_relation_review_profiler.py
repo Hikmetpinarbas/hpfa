@@ -46,6 +46,10 @@ def build_review_profile(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("hard_block_hits"):
         blocks.append("resolver_hard_blocks_present")
 
+    match_surface_binding_id = _clean(payload.get("match_surface_binding_id"))
+    if not match_surface_binding_id:
+        blocks.append("match_surface_binding_id_missing")
+
     records = payload.get("resolved_relation_candidates")
     if not isinstance(records, list):
         blocks.append("resolved_relation_candidates_invalid")
@@ -72,6 +76,12 @@ def build_review_profile(payload: dict[str, Any]) -> dict[str, Any]:
         elif relation_id in seen_ids:
             blocks.append(f"duplicate_resolved_relation_candidate_id:{relation_id}")
         seen_ids.add(relation_id)
+
+        record_binding_id = _clean(record.get("match_surface_binding_id"))
+        if not record_binding_id:
+            blocks.append(f"relation_match_surface_binding_id_missing:{relation_id or index}")
+        elif match_surface_binding_id and record_binding_id != match_surface_binding_id:
+            blocks.append(f"relation_match_surface_binding_id_mismatch:{relation_id or index}")
 
         if record.get("relation_candidate_is_event_truth") is True:
             blocks.append(f"event_truth_claimed:{relation_id or index}")
@@ -106,6 +116,7 @@ def build_review_profile(payload: dict[str, Any]) -> dict[str, Any]:
             {
                 "resolved_relation_candidate_id": relation_id,
                 "source_relation_candidate_id": record.get("source_relation_candidate_id"),
+                "match_surface_binding_id": record_binding_id,
                 "action_family_candidate": family,
                 "source_role_pair": role_pair,
                 "relation_classification": classification,
@@ -140,7 +151,7 @@ def build_review_profile(payload: dict[str, Any]) -> dict[str, Any]:
         "module_status": status,
         "runtime_evidence_status": "NOT_EVALUATED",
         "release_status": "NOT_PRODUCTION",
-        "match_surface_binding_id": payload.get("match_surface_binding_id"),
+        "match_surface_binding_id": match_surface_binding_id,
         "source_resolved_relation_candidate_count": len(records),
         "profiled_review_relation_count": len(review_records),
         "review_reason_counts": dict(sorted(reason_counts.items())),
