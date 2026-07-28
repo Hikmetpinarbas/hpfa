@@ -83,3 +83,19 @@ def test_missing_primary_node_reference_breaks_sequence_and_preserves_review_lay
         "layer_missing_node"
     ]
     assert "time_layer_primary_node_reference_missing:layer_missing_node" in blocks
+
+
+def test_invalid_start_time_breaks_sequence_without_inferred_boundary_time():
+    invalid_layer = _layer("layer_invalid_time", 14, [], [TEAM])
+    invalid_layer["start_candidate"] = None
+
+    sequences, _, _, review_layers, blocks = _run(invalid_layer)
+
+    assert [sequence["time_layer_count"] for sequence in sequences] == [1, 1]
+    assert sequences[0]["end_reason_candidate"] == "INVALID_TIME_LAYER_BOUNDARY"
+    assert sequences[0]["end_time_candidate"] == 10.0
+    assert sequences[1]["start_reason_candidate"] == "AFTER_INVALID_TIME_LAYER"
+    assert [layer["visible_action_time_layer_candidate_id"] for layer in review_layers] == [
+        "layer_invalid_time"
+    ]
+    assert "time_layer_start_invalid:layer_invalid_time" in blocks
