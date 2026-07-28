@@ -112,7 +112,7 @@ def build_visible_time_layers(
             if clean(family)
         )
         unresolved_count = sum(
-            clean(event_by_node[node_id].get("consequence_class_candidate"))
+            clean((event_by_node.get(node_id) or {}).get("consequence_class_candidate"))
             == "UNRESOLVED_VISIBLE_CONSEQUENCE_REVIEW_REQUIRED"
             for node_id in primary_ids
         )
