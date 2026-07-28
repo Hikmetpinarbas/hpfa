@@ -57,6 +57,10 @@ def admit_visible_sequences(
         layer_id = clean(layer.get("visible_action_time_layer_candidate_id"))
         if start_time is None:
             blocks.append(f"time_layer_start_invalid:{layer_id}")
+            close_current("INVALID_TIME_LAYER_BOUNDARY")
+            review_layers.append(layer)
+            pending_start_reason = "AFTER_INVALID_TIME_LAYER"
+            previous_period = period
             continue
         if previous_period is not None and period != previous_period:
             close_current("PERIOD_END", start_time)
@@ -282,10 +286,16 @@ def admit_visible_sequences(
         sequences,
         boundary_records,
         assignments,
-        sorted(review_layers + context_only_layers, key=lambda layer: (
-            period_sort_key(layer.get("period_candidate")),
-            layer.get("start_candidate"),
-            layer.get("visible_action_time_layer_candidate_id"),
-        )),
+        sorted(
+            review_layers + context_only_layers,
+            key=lambda layer: (
+                period_sort_key(layer.get("period_candidate")),
+                number(layer.get("start_candidate")) is None,
+                number(layer.get("start_candidate"))
+                if number(layer.get("start_candidate")) is not None
+                else 0.0,
+                layer.get("visible_action_time_layer_candidate_id"),
+            ),
+        ),
         sorted(set(blocks)),
     )
