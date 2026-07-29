@@ -773,7 +773,10 @@ def empty_inventory(root: Path, hard_block: str) -> dict[str, Any]:
         "status": "FAIL_CLOSED",
         "input_root": str(root),
         "supported_extensions": sorted(SUPPORTED_EXTENSIONS),
+        "total_file_path_count": 0,
+        "supported_file_count": 0,
         "file_count": 0,
+        "file_count_semantics": "SUPPORTED_FILE_PATH_COUNT_LEGACY_ALIAS",
         "unique_content_file_count": 0,
         "unsupported_file_count": 0,
         "unresolved_unsupported_file_count": 0,
@@ -838,13 +841,17 @@ def build_inventory(input_root: str | Path) -> dict[str, Any]:
         if any(block in FAIL_CLOSED_BLOCKS for block in hard_blocks)
         else ("REVIEW_REQUIRED" if review_required else "PASS")
     )
+    total_file_path_count = len(files) + len(unsupported_files)
 
     return {
         "module_id": MODULE_ID,
         "status": status,
         "input_root": str(root),
         "supported_extensions": sorted(SUPPORTED_EXTENSIONS),
+        "total_file_path_count": total_file_path_count,
+        "supported_file_count": len(files),
         "file_count": len(files),
+        "file_count_semantics": "SUPPORTED_FILE_PATH_COUNT_LEGACY_ALIAS",
         "unique_content_file_count": duplicates["unique_content_file_count"],
         "unsupported_file_count": len(unsupported_files),
         "unresolved_unsupported_file_count": len(unresolved_unsupported),
@@ -858,8 +865,10 @@ def build_inventory(input_root: str | Path) -> dict[str, Any]:
         "production_release": False,
         "claim_ceiling": "FILE_DISCOVERY_ONLY",
         "analyst_evidence": {
-            "visible_file_surfaces_found": len(files),
-            "unique_content_file_surfaces_found": duplicates["unique_content_file_count"],
+            "total_file_paths_found": total_file_path_count,
+            "supported_file_paths_found": len(files),
+            "unsupported_file_paths_found": len(unsupported_files),
+            "unique_supported_content_file_surfaces_found": duplicates["unique_content_file_count"],
             "supported_format_counts": {
                 extension: sum(1 for item in files if item.get("extension") == extension)
                 for extension in sorted(SUPPORTED_EXTENSIONS)
@@ -1020,8 +1029,9 @@ def write_outputs(
             [
                 "HPFA MULTIFORMAT INGEST DECISION V1",
                 f"status={payload.get('status')}",
-                f"visible_file_surfaces={payload.get('file_count')}",
-                f"unique_content_file_surfaces={payload.get('unique_content_file_count')}",
+                f"total_file_path_count={payload.get('total_file_path_count')}",
+                f"supported_file_count={payload.get('supported_file_count')}",
+                f"unique_supported_content_file_count={payload.get('unique_content_file_count')}",
                 f"unsupported_file_count={payload.get('unsupported_file_count')}",
                 f"unresolved_unsupported_file_count={payload.get('unresolved_unsupported_file_count')}",
                 f"reference_only_unsupported_file_count={payload.get('reference_only_unsupported_file_count')}",
@@ -1057,8 +1067,9 @@ def main() -> int:
         json.dumps(
             {
                 "status": result.get("status"),
-                "file_count": result.get("file_count"),
-                "unique_content_file_count": result.get("unique_content_file_count"),
+                "total_file_path_count": result.get("total_file_path_count"),
+                "supported_file_count": result.get("supported_file_count"),
+                "unique_supported_content_file_count": result.get("unique_content_file_count"),
                 "unsupported_file_count": result.get("unsupported_file_count"),
                 "unresolved_unsupported_file_count": result.get(
                     "unresolved_unsupported_file_count"
