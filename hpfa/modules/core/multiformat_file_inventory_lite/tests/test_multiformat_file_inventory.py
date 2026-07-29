@@ -166,7 +166,18 @@ def test_unknown_unsupported_file_requires_review(tmp_path: Path) -> None:
     write_csv(tmp_path / "surface.csv")
     (tmp_path / "video.mp4").write_bytes(b"not-a-video")
     result = build_inventory(tmp_path)
+    assert result["total_file_path_count"] == 2
+    assert result["supported_file_count"] == 1
     assert result["unsupported_file_count"] == 1
+    assert (
+        result["total_file_path_count"]
+        == result["supported_file_count"] + result["unsupported_file_count"]
+    )
+    assert result["file_count"] == result["supported_file_count"]
+    assert result["file_count_semantics"] == "SUPPORTED_FILE_PATH_COUNT_LEGACY_ALIAS"
+    assert result["analyst_evidence"]["total_file_paths_found"] == 2
+    assert result["analyst_evidence"]["supported_file_paths_found"] == 1
+    assert result["analyst_evidence"]["unsupported_file_paths_found"] == 1
     assert result["unresolved_unsupported_file_count"] == 1
     assert result["status"] == "REVIEW_REQUIRED"
 
@@ -234,6 +245,9 @@ def test_active_match_execution_is_bound_to_runtime_authority(tmp_path: Path) ->
     assert result["runtime_execution"]["input_matches_runtime_authority"] is True
     assert result["status"] == "PASS"
     decision = (output_root / "multiformat_ingest_decision_v1.txt").read_text(encoding="utf-8")
+    assert "total_file_path_count=1" in decision
+    assert "supported_file_count=1" in decision
+    assert "unique_supported_content_file_count=1" in decision
     assert "active_match_evidence_pass=true" in decision
 
 
