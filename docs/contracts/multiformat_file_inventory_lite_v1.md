@@ -27,6 +27,19 @@ Supported extensions:
 
 Unsupported files are reported rather than silently discarded.
 
+## Count semantics
+
+```text
+total_file_path_count = supported_file_count + unsupported_file_count
+supported_file_count = paths with a supported extension
+unique_content_file_count = unique SHA-256 fingerprints among supported files
+file_count = legacy alias of supported_file_count
+```
+
+These counts must not be substituted for one another. In particular, `file_count`
+does not represent every visible path when unsupported reference or governance files
+are present.
+
 ## Per-file output
 
 ```text
