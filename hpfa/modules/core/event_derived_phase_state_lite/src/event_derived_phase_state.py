@@ -214,55 +214,105 @@ def _segment_sequence(
 def _transition_context_windows(
     binding: str,
     sequences: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    ordered = sorted(
-        sequences,
-        key=lambda item: (
-            clean(item.get("period_candidate")),
-            float("inf")
-            if number(item.get("start_time_candidate")) is None
-            else number(item.get("start_time_candidate")),
-            clean(item.get("visible_action_sequence_candidate_id")),
-        ),
-    )
-    windows: list[dict[str, Any]] = []
-    for previous, current in zip(ordered, ordered[1:]):
-        if clean(previous.get("period_candidate")) != clean(current.get("period_candidate")):
+    boundaries: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Build bounded windows only from explicit upstream handover boundaries."""
+
+    blocks: list[str] = []
+    sequence_by_id: dict[str, dict[str, Any]] = {}
+    for sequence in sequences:
+        sequence_id = clean(sequence.get("visible_action_sequence_candidate_id"))
+        if not sequence_id:
+            blocks.append("phase_source_sequence_id_missing")
             continue
+        if sequence_id in sequence_by_id:
+            blocks.append(f"phase_source_sequence_id_duplicate:{sequence_id}")
+            continue
+        sequence_by_id[sequence_id] = sequence
+
+    windows: list[dict[str, Any]] = []
+    for boundary in boundaries:
+        if not isinstance(boundary, dict):
+            blocks.append("visible_sequence_boundary_record_invalid")
+            continue
+        if clean(boundary.get("boundary_type")) != "VISIBLE_TEAM_HANDOVER_CANDIDATE":
+            continue
+
+        from_id = clean(boundary.get("from_visible_action_sequence_candidate_id"))
+        to_id = clean(boundary.get("to_visible_action_sequence_candidate_id"))
+        previous = sequence_by_id.get(from_id)
+        current = sequence_by_id.get(to_id)
+        if previous is None or current is None:
+            blocks.append(
+                "handover_boundary_sequence_reference_missing:"
+                f"{from_id or 'NONE'}:{to_id or 'NONE'}"
+            )
+            continue
+
+        boundary_period = clean(boundary.get("period_candidate"))
+        previous_period = clean(previous.get("period_candidate"))
+        current_period = clean(current.get("period_candidate"))
         previous_team = clean(previous.get("team_identity_candidate_id"))
         current_team = clean(current.get("team_identity_candidate_id"))
-        if not previous_team or not current_team or previous_team == current_team:
+        boundary_from_team = clean(boundary.get("from_team_identity_candidate_id"))
+        boundary_to_team = clean(boundary.get("to_team_identity_candidate_id"))
+        if (
+            not boundary_period
+            or boundary_period != previous_period
+            or boundary_period != current_period
+        ):
+            blocks.append(f"handover_boundary_period_mismatch:{from_id}:{to_id}")
             continue
+        if (
+            not previous_team
+            or not current_team
+            or previous_team == current_team
+            or boundary_from_team != previous_team
+            or boundary_to_team != current_team
+        ):
+            blocks.append(f"handover_boundary_team_mismatch:{from_id}:{to_id}")
+            continue
+
         start_time = number(current.get("start_time_candidate"))
-        end_time = number(current.get("end_time_candidate"))
+        source_end_time = number(current.get("end_time_candidate"))
+        boundary_time = number(boundary.get("boundary_time_candidate"))
+        if (
+            start_time is None
+            or source_end_time is None
+            or boundary_time is None
+            or abs(start_time - boundary_time) > 1e-6
+            or source_end_time < start_time
+        ):
+            blocks.append(f"handover_boundary_time_mismatch:{from_id}:{to_id}")
+            continue
+        end_time = min(source_end_time, start_time + TRANSITION_WINDOW_SECONDS)
+
         windows.append(
             {
                 "event_derived_transition_context_window_id": "edtw_"
-                + digest(
-                    binding,
-                    previous.get("visible_action_sequence_candidate_id"),
-                    current.get("visible_action_sequence_candidate_id"),
-                )[:24],
+                + digest(binding, from_id, to_id)[:24],
                 "match_surface_binding_id": binding,
                 "period_candidate": current.get("period_candidate"),
                 "losing_team_identity_candidate_id": previous_team,
                 "gaining_team_identity_candidate_id": current_team,
-                "source_previous_visible_sequence_candidate_id": previous.get(
-                    "visible_action_sequence_candidate_id"
+                "source_visible_sequence_boundary_candidate_id": boundary.get(
+                    "visible_sequence_boundary_candidate_id"
                 ),
-                "source_next_visible_sequence_candidate_id": current.get(
-                    "visible_action_sequence_candidate_id"
-                ),
+                "source_previous_visible_sequence_candidate_id": from_id,
+                "source_next_visible_sequence_candidate_id": to_id,
                 "window_class_candidate": "CROSS_TEAM_TRANSITION_CONTEXT_WINDOW_CANDIDATE",
                 "start_time_candidate": start_time,
                 "end_time_candidate": end_time,
+                "source_next_sequence_end_time_candidate": source_end_time,
+                "transition_window_ceiling_seconds": TRANSITION_WINDOW_SECONDS,
+                "transition_window_ceiling_applied": source_end_time > end_time,
                 "losing_team_defensive_transition_actions_observed": False,
                 "off_ball_response_truth": False,
                 "tactical_response_truth": False,
                 "canonical_event_count": CANONICAL_EVENT_COUNT,
             }
         )
-    return windows
+    return windows, blocks
 
 
 def build_event_derived_phase_state(
@@ -299,20 +349,44 @@ def build_event_derived_phase_state(
     nodes = action_payload.get("selected_action_nodes") or []
     events = event_payload.get("selected_event_consequence_candidates") or []
     sequences = sequence_payload.get("visible_action_sequence_candidates") or []
-    if not all(isinstance(items, list) for items in (nodes, events, sequences)):
+    boundaries = sequence_payload.get("visible_sequence_boundary_candidates") or []
+    if not all(
+        isinstance(items, list) for items in (nodes, events, sequences, boundaries)
+    ):
         blocks.append("phase_input_inventory_invalid")
-        nodes, events, sequences = [], [], []
+        nodes, events, sequences, boundaries = [], [], [], []
     declared_sequence_count = sequence_payload.get("visible_action_sequence_candidate_count")
     if declared_sequence_count is not None and declared_sequence_count != len(sequences):
         blocks.append("visible_action_sequence_candidate_count_mismatch")
-    node_by_id = {
-        clean(node.get("selected_action_node_id")): node for node in nodes if isinstance(node, dict)
-    }
-    event_by_node = {
-        clean(record.get("anchor_selected_action_node_id")): record
-        for record in events
-        if isinstance(record, dict)
-    }
+    declared_boundary_count = sequence_payload.get("visible_sequence_boundary_candidate_count")
+    if declared_boundary_count is not None and declared_boundary_count != len(boundaries):
+        blocks.append("visible_sequence_boundary_candidate_count_mismatch")
+
+    node_by_id: dict[str, dict[str, Any]] = {}
+    for node in nodes:
+        if not isinstance(node, dict):
+            blocks.append("selected_action_node_record_invalid")
+            continue
+        node_id = clean(node.get("selected_action_node_id"))
+        if not node_id:
+            blocks.append("selected_action_node_id_missing")
+        elif node_id in node_by_id:
+            blocks.append(f"selected_action_node_id_duplicate:{node_id}")
+        else:
+            node_by_id[node_id] = node
+
+    event_by_node: dict[str, dict[str, Any]] = {}
+    for record in events:
+        if not isinstance(record, dict):
+            blocks.append("selected_event_consequence_record_invalid")
+            continue
+        node_id = clean(record.get("anchor_selected_action_node_id"))
+        if not node_id:
+            blocks.append("selected_event_anchor_node_id_missing")
+        elif node_id in event_by_node:
+            blocks.append(f"selected_event_anchor_node_id_duplicate:{node_id}")
+        else:
+            event_by_node[node_id] = record
     segments: list[dict[str, Any]] = []
     if not blocks:
         for sequence in sequences:
@@ -326,7 +400,15 @@ def build_event_derived_phase_state(
             blocks.extend(segment_blocks)
     if blocks:
         segments = []
-    windows = [] if blocks else _transition_context_windows(binding, sequences)
+    windows: list[dict[str, Any]] = []
+    if not blocks:
+        windows, window_blocks = _transition_context_windows(
+            binding, sequences, boundaries
+        )
+        blocks.extend(window_blocks)
+    if blocks:
+        segments = []
+        windows = []
     phase_counts = Counter(segment["phase_class_candidate"] for segment in segments)
     unresolved_count = sum(
         segment["phase_derivation_status"] == "PHASE_UNRESOLVED" for segment in segments
