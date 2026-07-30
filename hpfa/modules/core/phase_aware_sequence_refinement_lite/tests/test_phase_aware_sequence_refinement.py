@@ -140,6 +140,21 @@ def test_same_timestamp_triplet_is_not_ordered_as_refinement_candidate():
     )
     assert result["insufficient_anchor_review_count"] == 1
     assert result["refinement_candidate_count"] == 0
+    assert result["hard_block_hits"] == []
+
+
+def test_equal_timestamp_segment_ids_do_not_create_false_order_failure():
+    result = build_phase_aware_sequence_refinement(
+        payload(
+            [
+                segment("z", "FINAL_THIRD_VISIBLE_PHASE_CANDIDATE", 2, 2, 1),
+                segment("a", "BUILD_UP_VISIBLE_PHASE_CANDIDATE", 2, 2, 1),
+            ]
+        )
+    )
+    assert result["hard_block_hits"] == []
+    assert result["phase_refinement_decision_count"] == 2
+    assert result["same_timestamp_adjacent_phase_pair_count"] == 1
 
 
 def test_cross_sequence_segments_do_not_form_A_B_A():
@@ -190,6 +205,18 @@ def test_source_sequence_phase_order_must_be_preserved():
             [
                 segment("late", "BUILD_UP_VISIBLE_PHASE_CANDIDATE", 5, 6),
                 segment("early", "MIDDLE_PROGRESSION_VISIBLE_PHASE_CANDIDATE", 1, 2),
+            ]
+        )
+    )
+    assert result["status"] == "FAIL_CLOSED"
+
+
+def test_source_sequence_end_time_cannot_move_backwards():
+    result = build_phase_aware_sequence_refinement(
+        payload(
+            [
+                segment("first", "BUILD_UP_VISIBLE_PHASE_CANDIDATE", 1, 4),
+                segment("second", "MIDDLE_PROGRESSION_VISIBLE_PHASE_CANDIDATE", 2, 3),
             ]
         )
     )
