@@ -57,14 +57,23 @@ def validate_out(path: str | Path) -> Path:
     return output
 
 
-def _segment_key(segment: dict[str, Any]) -> tuple[float, float, str]:
-    start = number(segment.get("start_time_candidate"))
-    end = number(segment.get("end_time_candidate"))
-    return (
-        float("inf") if start is None else start,
-        float("inf") if end is None else end,
-        clean(segment.get("event_derived_phase_segment_id")),
-    )
+def _source_phase_order_is_monotonic(
+    segments: list[dict[str, Any]],
+) -> bool:
+    previous_start: float | None = None
+    previous_end: float | None = None
+    for segment in segments:
+        start = number(segment.get("start_time_candidate"))
+        end = number(segment.get("end_time_candidate"))
+        if start is None or end is None:
+            return False
+        if previous_start is not None and start < previous_start:
+            return False
+        if previous_end is not None and end < previous_end:
+            return False
+        previous_start = start
+        previous_end = end
+    return True
 
 
 def _is_zero_span(segment: dict[str, Any]) -> bool:
@@ -205,12 +214,21 @@ def build_phase_aware_sequence_refinement(
 
     decisions: list[dict[str, Any]] = []
     oscillation_count = 0
+    same_timestamp_adjacent_phase_pair_count = 0
     if not blocks:
         for sequence_id in sorted(grouped):
             sequence_segments = grouped[sequence_id]
-            if sequence_segments != sorted(sequence_segments, key=_segment_key):
+            if not _source_phase_order_is_monotonic(sequence_segments):
                 blocks.append(f"source_sequence_phase_order_invalid:{sequence_id}")
                 continue
+            same_timestamp_adjacent_phase_pair_count += sum(
+                1
+                for previous, following in zip(
+                    sequence_segments, sequence_segments[1:]
+                )
+                if number(previous.get("start_time_candidate"))
+                == number(following.get("start_time_candidate"))
+            )
             for index, segment in enumerate(sequence_segments):
                 decision = "RETAIN_NO_A_B_A_OSCILLATION"
                 evidence = ["phase_segment_preserved"]
@@ -267,6 +285,8 @@ def build_phase_aware_sequence_refinement(
         reviews.append("single_anchor_A_B_A_refinement_candidates_preserved")
     if insufficient_count:
         reviews.append("insufficient_anchor_A_B_A_cases_preserved")
+    if same_timestamp_adjacent_phase_pair_count:
+        reviews.append("same_timestamp_phase_pairs_preserved_without_order_claim")
     blocks = sorted(set(blocks))
     reviews = sorted(set(reviews))
     status = "FAIL_CLOSED" if blocks else ("REVIEW_REQUIRED" if reviews else "PASS")
@@ -284,6 +304,9 @@ def build_phase_aware_sequence_refinement(
         "phase_refinement_decision_count": len(decisions),
         "decision_class_counts": dict(sorted(decision_counts.items())),
         "A_B_A_phase_oscillation_count": oscillation_count,
+        "same_timestamp_adjacent_phase_pair_count": (
+            same_timestamp_adjacent_phase_pair_count
+        ),
         "refinement_candidate_count": candidate_count,
         "insufficient_anchor_review_count": insufficient_count,
         "retained_source_phase_segment_count": len(decisions),
@@ -310,6 +333,7 @@ def summary(payload: dict[str, Any]) -> str:
         "phase_refinement_decision_count",
         "decision_class_counts",
         "A_B_A_phase_oscillation_count",
+        "same_timestamp_adjacent_phase_pair_count",
         "refinement_candidate_count",
         "insufficient_anchor_review_count",
         "retained_source_phase_segment_count",
@@ -331,6 +355,10 @@ def analyst_audit(payload: dict[str, Any]) -> str:
             (
                 "Observed A-B-A phase oscillations: "
                 f"{payload.get('A_B_A_phase_oscillation_count', 0)}"
+            ),
+            (
+                "Same-timestamp adjacent phase pairs: "
+                f"{payload.get('same_timestamp_adjacent_phase_pair_count', 0)}"
             ),
             (
                 "Single-anchor refinement candidates: "
