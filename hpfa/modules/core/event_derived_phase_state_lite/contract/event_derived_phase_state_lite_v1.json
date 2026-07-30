@@ -1,6 +1,6 @@
 {
   "module_id": "event_derived_phase_state_lite_v1",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "input_modules": [
     "visible_action_sequence_candidate_admission_lite_v1",
     "selected_action_consequence_surface_lite_v1",
@@ -39,6 +39,13 @@
   "transition_boundary_authority": "VISIBLE_TEAM_HANDOVER_CANDIDATE",
   "transition_window_source": "visible_sequence_boundary_candidates",
   "transition_window_end_rule": "min(next_sequence_end, next_sequence_start + 10.0s)",
+  "zero_span_handover_rule": "preserve_as_CROSS_TEAM_HANDOVER_ANCHOR_ONLY_CANDIDATE_not_window",
+  "analyst_audit_counts": [
+    "phase_review_required_segment_count",
+    "phase_derived_with_warnings_segment_count",
+    "zero_span_phase_segment_count",
+    "event_derived_transition_context_anchor_count"
+  ],
   "fail_closed_gates": [
     "duplicate_selected_action_node_id",
     "duplicate_selected_event_anchor_node_id",
