@@ -1,5 +1,11 @@
 import json
+import sys
+from pathlib import Path
 
+MODULE_ROOT = Path(__file__).resolve().parents[1]
+SRC = MODULE_ROOT / "src"
+if SRC.exists():
+    sys.path.insert(0, str(SRC))
 from event_derived_phase_state import build_event_derived_phase_state, write_outputs
 
 BINDING = "msb_generic"
