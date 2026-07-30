@@ -1,0 +1,43 @@
+{
+  "module_id": "phase_aware_sequence_refinement_lite_v1",
+  "version": "1.0.0",
+  "input_module": "event_derived_phase_state_lite_v1",
+  "decision_classes": [
+    "RETAIN_NO_A_B_A_OSCILLATION",
+    "RETAIN_PROTECTED_PHASE_CHANGE",
+    "RETAIN_SUPPORTED_PHASE_CHANGE",
+    "REFINEMENT_CANDIDATE_SINGLE_ANCHOR_OSCILLATION",
+    "INSUFFICIENT_ANCHOR_REVIEW_REQUIRED"
+  ],
+  "protected_phase_classes": [
+    "RESTART_VISIBLE_PHASE_CANDIDATE",
+    "ATTACK_TRANSITION_VISIBLE_PHASE_CANDIDATE",
+    "FINISHING_VISIBLE_PHASE_CANDIDATE"
+  ],
+  "refinement_candidate_rule": {
+    "same_source_sequence": true,
+    "pattern": "A-B-A",
+    "matching_flank_phase": true,
+    "middle_phase_differs": true,
+    "middle_visible_anchor_count": 1,
+    "middle_zero_span": true,
+    "minimum_visible_anchor_count_per_flank": 2,
+    "triplet_review_bounded": false,
+    "protected_middle_phase": false
+  },
+  "mutation_policy": {
+    "source_phase_segment_preserved": true,
+    "automatic_merge_allowed": false,
+    "automatic_delete_allowed": false
+  },
+  "claim_boundary": {
+    "refinement_candidate_is_sequence_truth": false,
+    "A_B_A_oscillation_is_data_error_truth": false,
+    "phase_truth": false,
+    "possession_truth": false,
+    "tactical_truth": false,
+    "off_ball_structure_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
