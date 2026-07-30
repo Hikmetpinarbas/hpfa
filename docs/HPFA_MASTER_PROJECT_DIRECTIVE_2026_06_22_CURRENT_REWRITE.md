@@ -1,3 +1,7 @@
+> Status: `SUPERSEDED_REFERENCE`  
+> Superseded by: `docs/governance/HPFA_MASTER_PROJECT_DIRECTIVE_SHORT_CURRENT.md`  
+> This file is retained for lineage and must not be used as current authority.
+
 # HPFA MASTER PROJECT DIRECTIVE — SHORT CURRENT
 
 Version: 2026.06.22-SHORT
