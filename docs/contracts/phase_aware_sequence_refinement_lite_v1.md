@@ -23,6 +23,11 @@ tek aksiyonluk kısa fazlar futbol anlamı taşıyabilir ve korunur.
 
 Bu koşullar karşılansa bile otomatik birleştirme yapılmaz.
 
+Aynı zaman damgasına sahip ardışık faz segmentleri kimlik adına göre yeniden
+sıralanmaz. Bunlar kaynak sırasıyla korunur, gerçek bir zaman sırası kanıtı
+sayılmaz ve ilgili A–B–A üçlüsü varsa analist incelemesine bırakılır. Sistem
+yalnız başlangıç veya bitiş zamanı gerçekten geriye gidiyorsa kapanır.
+
 ## Kararlar
 
 - `RETAIN_NO_A_B_A_OSCILLATION`
