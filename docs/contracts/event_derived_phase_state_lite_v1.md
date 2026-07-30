@@ -27,8 +27,24 @@ sözleşme penceresi ve iki görünür anchor hysteresis’i kullanılır.
 ## Cross-team geçiş sınırı
 
 Takım değişimi, kaybeden takımın savunma geçişi davranışını gözlenmiş kabul etmez.
-Yeni takımın görünür zincirini önceki zincire bağlayan bir transition context window
-üretilir. Off-ball tepki daha sonra video/tracking ile doğrulanabilir.
+Transition context window yalnız upstream sequence modülünün açık
+`VISIBLE_TEAM_HANDOVER_CANDIDATE` boundary kaydı varsa üretilir. Zaman sırasındaki
+iki farklı takım sequence'inin komşuluğu tek başına handover kanıtı sayılmaz; arada
+mixed-team, context-only, restart veya time-gap sınırı bulunabilir.
+
+Boundary'nin önceki/sonraki sequence referansı, period, takım ve boundary zamanı
+doğrulanır. Eksik veya çelişkili kayıt fail-closed olur. Pencere yeni takımın görünür
+sequence başlangıcında açılır ve en fazla on saniye sürer:
+
+`min(next_sequence_end, next_sequence_start + 10s)`
+
+Kaybeden takımın off-ball tepkisi ancak daha sonra video/tracking ile doğrulanabilir.
+
+## Kimlik ve uzlaştırma kapıları
+
+Duplicate selected-action node kimliği veya duplicate selected-event anchor kimliği
+sessizce son kayıtla ezilmez; fail-closed olur. Sequence ve boundary için ilan edilen
+sayılarla gerçek liste uzunlukları uyuşmalıdır.
 
 ## Claim ceiling
 
