@@ -24,6 +24,12 @@ Tek event bütün fazı belirlemez. Consecutive anchor’lar aynı sınıfta bir
 Geçiş başlangıcı yalnız regain-to-visible-continuation sinyali varsa açılır; on saniyelik
 sözleşme penceresi ve iki görünür anchor hysteresis’i kullanılır.
 
+Zone sınıflandırmasında reviewed `anchor_zone_rank_candidate` birincil girdidir.
+Metin fallback'i kullanıldığında özel `FINAL_THIRD_*` etiketi generic `BOX` token
+kontrolünden önce değerlendirilir. Böylece
+`FINAL_THIRD_OUTSIDE_BOX_CANDIDATE`, yalnız adında `BOX` geçtiği için ceza alanı
+erişimi olarak yanlış sınıflandırılamaz.
+
 ## Cross-team geçiş sınırı
 
 Takım değişimi, kaybeden takımın savunma geçişi davranışını gözlenmiş kabul etmez.
@@ -38,7 +44,14 @@ sequence başlangıcında açılır ve en fazla on saniye sürer:
 
 `min(next_sequence_end, next_sequence_start + 10s)`
 
+Sonraki sequence yalnız tek zaman anchor'ı içeriyor ve pozitif zaman aralığı
+üretmiyorsa kayıt “window” olarak sayılmaz. Kanıt kaybolmasın diye ayrı
+`CROSS_TEAM_HANDOVER_ANCHOR_ONLY_CANDIDATE` kaydı olarak korunur.
+
 Kaybeden takımın off-ball tepkisi ancak daha sonra video/tracking ile doğrulanabilir.
+
+Analist çıktısı; unresolved, review-required, warning ve zero-span segment sayılarını
+ayrı verir. Bu kategoriler birbirinin yerine kullanılmaz.
 
 ## Kimlik ve uzlaştırma kapıları
 
@@ -54,4 +67,4 @@ truth seviyesine henüz yükselmediği anlamına gelir.
 
 Status:
 
-`SPEC_AND_TESTED_IMPLEMENTATION / ACTIVE_MATCH_NOT_EVALUATED / NOT_PRODUCTION`
+`ACTIVE_MATCH_EXECUTION_COMPLETED_REVIEW_REQUIRED / NOT_PRODUCTION`
