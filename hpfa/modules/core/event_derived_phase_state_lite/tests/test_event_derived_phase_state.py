@@ -30,7 +30,7 @@ def event(node_id, zone):
     }
 
 
-def payloads(nodes, events, sequences, upstream_status="PASS"):
+def payloads(nodes, events, sequences, upstream_status="PASS", boundaries=None):
     common = {
         "status": upstream_status,
         "module_status": upstream_status,
@@ -49,11 +49,14 @@ def payloads(nodes, events, sequences, upstream_status="PASS"):
         "module_id": "selected_event_consequence_surface_lite_v1",
         "selected_event_consequence_candidates": events,
     }
+    boundaries = boundaries or []
     sequence = {
         **common,
         "module_id": "visible_action_sequence_candidate_admission_lite_v1",
         "visible_action_sequence_candidates": sequences,
         "visible_action_sequence_candidate_count": len(sequences),
+        "visible_sequence_boundary_candidates": boundaries,
+        "visible_sequence_boundary_candidate_count": len(boundaries),
     }
     return sequence, action, event_payload
 
@@ -67,6 +70,19 @@ def sequence(seq_id, node_ids, team="a", start=10, end=20, signals=None):
         "end_time_candidate": end,
         "primary_selected_action_node_ids": node_ids,
         "trace_signal_candidates": signals or [],
+    }
+
+
+def handover(from_id="s1", to_id="s2", from_team="a", to_team="b", time=14):
+    return {
+        "visible_sequence_boundary_candidate_id": f"boundary_{from_id}_{to_id}",
+        "boundary_type": "VISIBLE_TEAM_HANDOVER_CANDIDATE",
+        "period_candidate": "1",
+        "boundary_time_candidate": time,
+        "from_team_identity_candidate_id": from_team,
+        "to_team_identity_candidate_id": to_team,
+        "from_visible_action_sequence_candidate_id": from_id,
+        "to_visible_action_sequence_candidate_id": to_id,
     }
 
 
@@ -122,7 +138,9 @@ def test_team_handover_creates_context_window_without_claiming_off_ball_actions(
         sequence("s1", ["a"], team="a", start=10, end=10),
         sequence("s2", ["b"], team="b", start=14, end=14),
     ]
-    result = build_event_derived_phase_state(*payloads(nodes, events, sequences))
+    result = build_event_derived_phase_state(
+        *payloads(nodes, events, sequences, boundaries=[handover()])
+    )
     window = result["event_derived_transition_context_windows"][0]
     assert window["losing_team_defensive_transition_actions_observed"] is False
     assert window["off_ball_response_truth"] is False
@@ -199,3 +217,74 @@ def test_flat_outputs_are_written(tmp_path=None):
         assert all(path.exists() for path in paths.values())
         stored = json.loads(paths["json"].read_text(encoding="utf-8"))
         assert stored["module_id"] == "event_derived_phase_state_lite_v1"
+
+def test_adjacent_cross_team_sequences_without_explicit_handover_do_not_create_window():
+    nodes = [node("a", team="a", start=10), node("b", team="b", start=14)]
+    events = [event("a", "MIDDLE_THIRD_CANDIDATE"), event("b", "MIDDLE_THIRD_CANDIDATE")]
+    sequences = [
+        sequence("s1", ["a"], team="a", start=10, end=10),
+        sequence("s2", ["b"], team="b", start=14, end=30),
+    ]
+    result = build_event_derived_phase_state(*payloads(nodes, events, sequences))
+    assert result["status"] == "PASS"
+    assert result["event_derived_transition_context_window_count"] == 0
+
+
+def test_explicit_handover_window_is_capped_at_ten_seconds():
+    nodes = [node("a", team="a", start=10), node("b", team="b", start=14)]
+    events = [event("a", "MIDDLE_THIRD_CANDIDATE"), event("b", "MIDDLE_THIRD_CANDIDATE")]
+    sequences = [
+        sequence("s1", ["a"], team="a", start=10, end=10),
+        sequence("s2", ["b"], team="b", start=14, end=40),
+    ]
+    result = build_event_derived_phase_state(
+        *payloads(nodes, events, sequences, boundaries=[handover()])
+    )
+    window = result["event_derived_transition_context_windows"][0]
+    assert window["start_time_candidate"] == 14
+    assert window["end_time_candidate"] == 24
+    assert window["source_next_sequence_end_time_candidate"] == 40
+    assert window["transition_window_ceiling_applied"] is True
+
+
+def test_broken_handover_reference_fails_closed_and_clears_outputs():
+    nodes = [node("a", team="a", start=10), node("b", team="b", start=14)]
+    events = [event("a", "MIDDLE_THIRD_CANDIDATE"), event("b", "MIDDLE_THIRD_CANDIDATE")]
+    sequences = [
+        sequence("s1", ["a"], team="a", start=10, end=10),
+        sequence("s2", ["b"], team="b", start=14, end=20),
+    ]
+    broken = handover(to_id="missing")
+    result = build_event_derived_phase_state(
+        *payloads(nodes, events, sequences, boundaries=[broken])
+    )
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["event_derived_phase_segment_count"] == 0
+    assert result["event_derived_transition_context_window_count"] == 0
+
+
+def test_duplicate_action_node_identity_fails_closed():
+    duplicate_nodes = [node("a"), node("a", start=12)]
+    result = build_event_derived_phase_state(
+        *payloads(
+            duplicate_nodes,
+            [event("a", "MIDDLE_THIRD_CANDIDATE")],
+            [sequence("s1", ["a"])],
+        )
+    )
+    assert result["status"] == "FAIL_CLOSED"
+    assert "selected_action_node_id_duplicate:a" in result["hard_block_hits"]
+
+
+def test_duplicate_event_anchor_identity_fails_closed():
+    nodes = [node("a")]
+    duplicate_events = [
+        event("a", "MIDDLE_THIRD_CANDIDATE"),
+        event("a", "FINAL_THIRD_CANDIDATE"),
+    ]
+    result = build_event_derived_phase_state(
+        *payloads(nodes, duplicate_events, [sequence("s1", ["a"])])
+    )
+    assert result["status"] == "FAIL_CLOSED"
+    assert "selected_event_anchor_node_id_duplicate:a" in result["hard_block_hits"]
+
