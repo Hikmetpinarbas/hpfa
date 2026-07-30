@@ -104,6 +104,21 @@ def test_zone_progression_creates_distinct_phase_segments():
     assert result["phase_state_derived_from_event_evidence"] is True
 
 
+def test_final_third_outside_box_is_not_misclassified_as_box_access():
+    nodes = [node("a", start=10)]
+    events = [{
+        "anchor_selected_action_node_id": "a",
+        "anchor_zone_candidate": "FINAL_THIRD_OUTSIDE_BOX_CANDIDATE",
+        "anchor_zone_rank_candidate": 2,
+    }]
+    result = build_event_derived_phase_state(
+        *payloads(nodes, events, [sequence("s1", ["a"])])
+    )
+    assert result["phase_class_candidate_counts"] == {
+        "FINAL_THIRD_VISIBLE_PHASE_CANDIDATE": 1
+    }
+
+
 def test_restart_and_finishing_override_zone_label():
     nodes = [
         node("a", start=10, family="RESTART"),
@@ -136,7 +151,7 @@ def test_team_handover_creates_context_window_without_claiming_off_ball_actions(
     events = [event("a", "MIDDLE_THIRD_CANDIDATE"), event("b", "MIDDLE_THIRD_CANDIDATE")]
     sequences = [
         sequence("s1", ["a"], team="a", start=10, end=10),
-        sequence("s2", ["b"], team="b", start=14, end=14),
+        sequence("s2", ["b"], team="b", start=14, end=15),
     ]
     result = build_event_derived_phase_state(
         *payloads(nodes, events, sequences, boundaries=[handover()])
@@ -180,6 +195,7 @@ def test_sequence_context_review_is_preserved_at_segment_level():
         result["event_derived_phase_segments"][0]["phase_derivation_status"]
         == "PHASE_REVIEW_REQUIRED"
     )
+    assert result["phase_review_required_segment_count"] == 1
 
 
 def test_late_mapping_failure_removes_partial_phase_output():
@@ -247,6 +263,24 @@ def test_explicit_handover_window_is_capped_at_ten_seconds():
     assert window["transition_window_ceiling_applied"] is True
 
 
+def test_zero_span_handover_is_preserved_as_anchor_not_window():
+    nodes = [node("a", team="a", start=10), node("b", team="b", start=14)]
+    events = [event("a", "MIDDLE_THIRD_CANDIDATE"), event("b", "MIDDLE_THIRD_CANDIDATE")]
+    sequences = [
+        sequence("s1", ["a"], team="a", start=10, end=10),
+        sequence("s2", ["b"], team="b", start=14, end=14),
+    ]
+    result = build_event_derived_phase_state(
+        *payloads(nodes, events, sequences, boundaries=[handover()])
+    )
+    assert result["event_derived_transition_context_window_count"] == 0
+    assert result["event_derived_transition_context_anchor_count"] == 1
+    assert (
+        result["event_derived_transition_context_anchors"][0]["window_class_candidate"]
+        == "CROSS_TEAM_HANDOVER_ANCHOR_ONLY_CANDIDATE"
+    )
+
+
 def test_broken_handover_reference_fails_closed_and_clears_outputs():
     nodes = [node("a", team="a", start=10), node("b", team="b", start=14)]
     events = [event("a", "MIDDLE_THIRD_CANDIDATE"), event("b", "MIDDLE_THIRD_CANDIDATE")]
@@ -287,4 +321,3 @@ def test_duplicate_event_anchor_identity_fails_closed():
     )
     assert result["status"] == "FAIL_CLOSED"
     assert "selected_event_anchor_node_id_duplicate:a" in result["hard_block_hits"]
-
