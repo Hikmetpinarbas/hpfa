@@ -58,7 +58,8 @@ ORIGIN_SLUG="$(normalize_origin "$ORIGIN_URL")"
 [[ "$ORIGIN_SLUG" == "$EXPECTED_REPO_SLUG" ]] || fail "product_repo_origin_mismatch:$ORIGIN_URL"
 [[ -z "$(git -C "$REPO" status --porcelain)" ]] || fail "product_repo_worktree_not_clean:$REPO"
 
-git -C "$REPO" fetch origin "$BRANCH"
+git -C "$REPO" fetch origin \
+  "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
 REMOTE_HEAD="$(git -C "$REPO" rev-parse "refs/remotes/origin/$BRANCH" 2>/dev/null || true)"
 [[ "$REMOTE_HEAD" =~ ^[0-9a-fA-F]{40}$ ]] || fail "remote_head_missing_or_invalid:$REMOTE_HEAD"
 REQUESTED_EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"
