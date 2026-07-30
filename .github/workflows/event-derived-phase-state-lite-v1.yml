@@ -5,6 +5,8 @@ on:
     paths:
       - "hpfa/modules/core/event_derived_phase_state_lite/**"
       - "event_derived_phase_state_lite.py"
+      - "tools/bootstrap_termux_event_derived_phase_state_v1.sh"
+      - "tools/run_active_match_event_derived_phase_state_v1.sh"
       - "docs/contracts/event_derived_phase_state_lite_v1.md"
       - ".github/workflows/event-derived-phase-state-lite-v1.yml"
   workflow_dispatch:
@@ -32,10 +34,17 @@ jobs:
           python -m json.tool \
             hpfa/modules/core/event_derived_phase_state_lite/contract/event_derived_phase_state_lite_v1.json \
             >/dev/null
+      - name: Validate Termux scripts
+        run: |
+          bash -n tools/bootstrap_termux_event_derived_phase_state_v1.sh
+          bash -n tools/run_active_match_event_derived_phase_state_v1.sh
       - name: Match-agnostic guard
         run: |
           if grep -R -n -E \
             "Galatasaray|Fenerbahce|Turkey|Australia|World Cup|6935|77798" \
-            hpfa/modules/core/event_derived_phase_state_lite event_derived_phase_state_lite.py; then
+            hpfa/modules/core/event_derived_phase_state_lite \
+            event_derived_phase_state_lite.py \
+            tools/bootstrap_termux_event_derived_phase_state_v1.sh \
+            tools/run_active_match_event_derived_phase_state_v1.sh; then
             exit 1
           fi
