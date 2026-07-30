@@ -23,7 +23,7 @@
     "PHASE_REVIEW_REQUIRED",
     "FAIL_CLOSED"
   ],
-  "transition_window_seconds": 10.0,
+  "transition_window_seconds": 10,
   "transition_hysteresis_visible_anchor_count": 2,
   "claim_boundary": {
     "phase_state_can_be_derived_from_validated_event_evidence": true,
@@ -32,6 +32,18 @@
     "event_derived_phase_is_off_ball_structure_truth": false,
     "cross_team_window_observes_losing_team_actions": false,
     "canonical_event_count": "UNKNOWN",
-    "production_release": false
-  }
+    "production_release": false,
+    "cross_team_window_requires_explicit_handover_boundary": true,
+    "adjacent_cross_team_sequences_alone_are_handover_evidence": false
+  },
+  "transition_boundary_authority": "VISIBLE_TEAM_HANDOVER_CANDIDATE",
+  "transition_window_source": "visible_sequence_boundary_candidates",
+  "transition_window_end_rule": "min(next_sequence_end, next_sequence_start + 10.0s)",
+  "fail_closed_gates": [
+    "duplicate_selected_action_node_id",
+    "duplicate_selected_event_anchor_node_id",
+    "invalid_or_missing_handover_sequence_reference",
+    "handover_period_team_or_time_mismatch",
+    "declared_sequence_or_boundary_count_mismatch"
+  ]
 }
