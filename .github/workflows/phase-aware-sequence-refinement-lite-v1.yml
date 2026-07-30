@@ -6,6 +6,8 @@ on:
       - "phase_aware_sequence_refinement_lite.py"
       - "hpfa/modules/core/phase_aware_sequence_refinement_lite/**"
       - "docs/contracts/phase_aware_sequence_refinement_lite_v1.md"
+      - "tools/run_active_match_phase_aware_sequence_refinement_v1.sh"
+      - "tools/bootstrap_termux_phase_aware_sequence_refinement_v1.sh"
       - ".github/workflows/phase-aware-sequence-refinement-lite-v1.yml"
   workflow_dispatch:
 
@@ -50,9 +52,15 @@ jobs:
           python -m json.tool
           hpfa/modules/core/phase_aware_sequence_refinement_lite/contract/phase_aware_sequence_refinement_lite_v1.json
           >/dev/null
+      - name: Termux shell syntax
+        run: |
+          bash -n tools/run_active_match_phase_aware_sequence_refinement_v1.sh
+          bash -n tools/bootstrap_termux_phase_aware_sequence_refinement_v1.sh
       - name: No sample match identity leak
         run: |
           ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|6935|77798" \
             phase_aware_sequence_refinement_lite.py \
             hpfa/modules/core/phase_aware_sequence_refinement_lite/src \
-            docs/contracts/phase_aware_sequence_refinement_lite_v1.md
+            docs/contracts/phase_aware_sequence_refinement_lite_v1.md \
+            tools/run_active_match_phase_aware_sequence_refinement_v1.sh \
+            tools/bootstrap_termux_phase_aware_sequence_refinement_v1.sh
