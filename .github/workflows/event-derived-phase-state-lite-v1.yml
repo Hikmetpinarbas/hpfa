@@ -1,0 +1,41 @@
+name: Event-Derived Phase State Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "hpfa/modules/core/event_derived_phase_state_lite/**"
+      - "event_derived_phase_state_lite.py"
+      - "docs/contracts/event_derived_phase_state_lite_v1.md"
+      - ".github/workflows/event-derived-phase-state-lite-v1.yml"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile
+        run: |
+          python -m py_compile \
+            event_derived_phase_state_lite.py \
+            hpfa/modules/core/event_derived_phase_state_lite/src/event_derived_phase_state.py
+      - name: Focused tests
+        run: |
+          python -m pip install pytest
+          python -m pytest -q \
+            hpfa/modules/core/event_derived_phase_state_lite/tests
+      - name: Validate contract
+        run: |
+          python -m json.tool \
+            hpfa/modules/core/event_derived_phase_state_lite/contract/event_derived_phase_state_lite_v1.json \
+            >/dev/null
+      - name: Match-agnostic guard
+        run: |
+          if grep -R -n -E \
+            "Galatasaray|Fenerbahce|Turkey|Australia|World Cup|6935|77798" \
+            hpfa/modules/core/event_derived_phase_state_lite event_derived_phase_state_lite.py; then
+            exit 1
+          fi
