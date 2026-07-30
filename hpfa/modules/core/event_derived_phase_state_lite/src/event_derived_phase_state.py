@@ -59,14 +59,6 @@ def validate_out(path: str | Path) -> Path:
 
 def _zone_phase(record: dict[str, Any]) -> str:
     zone = clean(record.get("anchor_zone_candidate")).upper()
-    if "BOX" in zone:
-        return "BOX_ACCESS_VISIBLE_PHASE_CANDIDATE"
-    if "FINAL" in zone or "ATTACKING" in zone:
-        return "FINAL_THIRD_VISIBLE_PHASE_CANDIDATE"
-    if "MIDDLE" in zone:
-        return "MIDDLE_PROGRESSION_VISIBLE_PHASE_CANDIDATE"
-    if "OWN" in zone or "DEFENSIVE" in zone:
-        return "BUILD_UP_VISIBLE_PHASE_CANDIDATE"
     rank = record.get("anchor_zone_rank_candidate")
     if isinstance(rank, int):
         if rank >= 3:
@@ -77,6 +69,18 @@ def _zone_phase(record: dict[str, Any]) -> str:
             return "MIDDLE_PROGRESSION_VISIBLE_PHASE_CANDIDATE"
         if rank == 0:
             return "BUILD_UP_VISIBLE_PHASE_CANDIDATE"
+    # Provider labels such as FINAL_THIRD_OUTSIDE_BOX_CANDIDATE contain the
+    # token BOX but explicitly describe a location outside the box. Prefer the
+    # reviewed rank above and then test the more specific final-third labels
+    # before the generic BOX fallback.
+    if "FINAL_THIRD" in zone or "ATTACKING_THIRD" in zone:
+        return "FINAL_THIRD_VISIBLE_PHASE_CANDIDATE"
+    if "BOX" in zone:
+        return "BOX_ACCESS_VISIBLE_PHASE_CANDIDATE"
+    if "MIDDLE" in zone:
+        return "MIDDLE_PROGRESSION_VISIBLE_PHASE_CANDIDATE"
+    if "OWN" in zone or "DEFENSIVE" in zone:
+        return "BUILD_UP_VISIBLE_PHASE_CANDIDATE"
     return "OPEN_PLAY_ZONE_UNRESOLVED_PHASE_CANDIDATE"
 
 
@@ -215,7 +219,7 @@ def _transition_context_windows(
     binding: str,
     sequences: list[dict[str, Any]],
     boundaries: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[str]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     """Build bounded windows only from explicit upstream handover boundaries."""
 
     blocks: list[str] = []
@@ -231,6 +235,7 @@ def _transition_context_windows(
         sequence_by_id[sequence_id] = sequence
 
     windows: list[dict[str, Any]] = []
+    anchor_only_contexts: list[dict[str, Any]] = []
     for boundary in boundaries:
         if not isinstance(boundary, dict):
             blocks.append("visible_sequence_boundary_record_invalid")
@@ -287,8 +292,7 @@ def _transition_context_windows(
             continue
         end_time = min(source_end_time, start_time + TRANSITION_WINDOW_SECONDS)
 
-        windows.append(
-            {
+        context = {
                 "event_derived_transition_context_window_id": "edtw_"
                 + digest(binding, from_id, to_id)[:24],
                 "match_surface_binding_id": binding,
@@ -311,8 +315,17 @@ def _transition_context_windows(
                 "tactical_response_truth": False,
                 "canonical_event_count": CANONICAL_EVENT_COUNT,
             }
-        )
-    return windows, blocks
+        if end_time > start_time:
+            windows.append(context)
+        else:
+            context["window_class_candidate"] = (
+                "CROSS_TEAM_HANDOVER_ANCHOR_ONLY_CANDIDATE"
+            )
+            context["event_derived_transition_context_anchor_id"] = context.pop(
+                "event_derived_transition_context_window_id"
+            )
+            anchor_only_contexts.append(context)
+    return windows, anchor_only_contexts, blocks
 
 
 def build_event_derived_phase_state(
@@ -401,17 +414,31 @@ def build_event_derived_phase_state(
     if blocks:
         segments = []
     windows: list[dict[str, Any]] = []
+    anchor_only_contexts: list[dict[str, Any]] = []
     if not blocks:
-        windows, window_blocks = _transition_context_windows(
+        windows, anchor_only_contexts, window_blocks = _transition_context_windows(
             binding, sequences, boundaries
         )
         blocks.extend(window_blocks)
     if blocks:
         segments = []
         windows = []
+        anchor_only_contexts = []
     phase_counts = Counter(segment["phase_class_candidate"] for segment in segments)
     unresolved_count = sum(
         segment["phase_derivation_status"] == "PHASE_UNRESOLVED" for segment in segments
+    )
+    review_required_count = sum(
+        segment["phase_derivation_status"] == "PHASE_REVIEW_REQUIRED"
+        for segment in segments
+    )
+    warning_count = sum(
+        segment["phase_derivation_status"] == "PHASE_DERIVED_WITH_WARNINGS"
+        for segment in segments
+    )
+    zero_span_count = sum(
+        segment["start_time_candidate"] == segment["end_time_candidate"]
+        for segment in segments
     )
     if unresolved_count:
         reviews.append("unresolved_phase_segments_preserved")
@@ -425,7 +452,7 @@ def build_event_derived_phase_state(
     )
     return {
         "module_id": MODULE_ID,
-        "version": "1.0.0",
+        "version": "1.0.1",
         "status": status,
         "module_status": status,
         "phase_derivation_status": derivation_status,
@@ -437,8 +464,13 @@ def build_event_derived_phase_state(
         "event_derived_phase_segment_count": len(segments),
         "phase_class_candidate_counts": dict(sorted(phase_counts.items())),
         "unresolved_phase_segment_count": unresolved_count,
+        "phase_review_required_segment_count": review_required_count,
+        "phase_derived_with_warnings_segment_count": warning_count,
+        "zero_span_phase_segment_count": zero_span_count,
         "event_derived_transition_context_windows": windows,
         "event_derived_transition_context_window_count": len(windows),
+        "event_derived_transition_context_anchors": anchor_only_contexts,
+        "event_derived_transition_context_anchor_count": len(anchor_only_contexts),
         "transition_window_seconds_contract": TRANSITION_WINDOW_SECONDS,
         "transition_hysteresis_visible_anchor_count": 2,
         "hard_block_hits": blocks,
@@ -464,7 +496,11 @@ def summary(payload: dict[str, Any]) -> str:
         "event_derived_phase_segment_count",
         "phase_class_candidate_counts",
         "unresolved_phase_segment_count",
+        "phase_review_required_segment_count",
+        "phase_derived_with_warnings_segment_count",
+        "zero_span_phase_segment_count",
         "event_derived_transition_context_window_count",
+        "event_derived_transition_context_anchor_count",
         "hard_block_hits",
         "review_hits",
     )
@@ -481,8 +517,20 @@ def analyst_audit(payload: dict[str, Any]) -> str:
         f"Phase classes: {payload.get('phase_class_candidate_counts')}",
         f"Unresolved phase segments: {payload.get('unresolved_phase_segment_count', 0)}",
         (
+            "Review-required phase segments: "
+            f"{payload.get('phase_review_required_segment_count', 0)}"
+        ),
+        (
+            "Zero-span/single-time phase segments: "
+            f"{payload.get('zero_span_phase_segment_count', 0)}"
+        ),
+        (
             "Cross-team transition context windows: "
             f"{payload.get('event_derived_transition_context_window_count', 0)}"
+        ),
+        (
+            "Cross-team handover anchor-only contexts: "
+            f"{payload.get('event_derived_transition_context_anchor_count', 0)}"
         ),
         (
             "Analyst-safe meaning: visible event evidence was segmented by time, team, "
@@ -539,7 +587,9 @@ def main() -> int:
                     "phase_derivation_status",
                     "event_derived_phase_segment_count",
                     "unresolved_phase_segment_count",
+                    "phase_review_required_segment_count",
                     "event_derived_transition_context_window_count",
+                    "event_derived_transition_context_anchor_count",
                     "canonical_event_count",
                     "production_release",
                 )
