@@ -1,0 +1,37 @@
+{
+  "module_id": "event_derived_phase_state_lite_v1",
+  "version": "1.0.0",
+  "input_modules": [
+    "visible_action_sequence_candidate_admission_lite_v1",
+    "selected_action_consequence_surface_lite_v1",
+    "selected_event_consequence_surface_lite_v1"
+  ],
+  "phase_classes": [
+    "RESTART_VISIBLE_PHASE_CANDIDATE",
+    "ATTACK_TRANSITION_VISIBLE_PHASE_CANDIDATE",
+    "BUILD_UP_VISIBLE_PHASE_CANDIDATE",
+    "MIDDLE_PROGRESSION_VISIBLE_PHASE_CANDIDATE",
+    "FINAL_THIRD_VISIBLE_PHASE_CANDIDATE",
+    "BOX_ACCESS_VISIBLE_PHASE_CANDIDATE",
+    "FINISHING_VISIBLE_PHASE_CANDIDATE",
+    "OPEN_PLAY_ZONE_UNRESOLVED_PHASE_CANDIDATE"
+  ],
+  "derivation_states": [
+    "PHASE_DERIVED_PASS",
+    "PHASE_DERIVED_WITH_WARNINGS",
+    "PHASE_UNRESOLVED",
+    "PHASE_REVIEW_REQUIRED",
+    "FAIL_CLOSED"
+  ],
+  "transition_window_seconds": 10.0,
+  "transition_hysteresis_visible_anchor_count": 2,
+  "claim_boundary": {
+    "phase_state_can_be_derived_from_validated_event_evidence": true,
+    "candidate_upstream_is_validated_event_truth": false,
+    "event_derived_phase_is_tactical_intent_truth": false,
+    "event_derived_phase_is_off_ball_structure_truth": false,
+    "cross_team_window_observes_losing_team_actions": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
