@@ -30,6 +30,12 @@
     "automatic_merge_allowed": false,
     "automatic_delete_allowed": false
   },
+  "source_order_policy": {
+    "equal_timestamp_preserves_source_order": true,
+    "equal_timestamp_is_strict_order_evidence": false,
+    "backward_start_or_end_time_fails_closed": true,
+    "segment_id_lexical_order_is_time_order": false
+  },
   "claim_boundary": {
     "refinement_candidate_is_sequence_truth": false,
     "A_B_A_oscillation_is_data_error_truth": false,
