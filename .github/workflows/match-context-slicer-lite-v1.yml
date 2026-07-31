@@ -1,0 +1,66 @@
+name: Match Context Slicer Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "match_context_slicer_lite.py"
+      - "hpfa/modules/core/match_context_slicer_lite/**"
+      - "docs/contracts/match_context_slicer_lite_v1.md"
+      - "tools/run_active_match_context_slicer_v1.sh"
+      - "tools/bootstrap_termux_match_context_slicer_v1.sh"
+      - ".github/workflows/match-context-slicer-lite-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Exact PR head gate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check pytest
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          match_context_slicer_lite.py
+          hpfa/modules/core/match_context_slicer_lite
+      - name: Focused tests
+        run: >-
+          python -m pytest -q
+          hpfa/modules/core/match_context_slicer_lite/tests
+      - name: Upstream refinement compatibility
+        run: >-
+          python -m pytest -q
+          hpfa/modules/core/phase_aware_sequence_refinement_lite/tests
+      - name: Contract JSON
+        run: >-
+          python -m json.tool
+          hpfa/modules/core/match_context_slicer_lite/contract/match_context_slicer_lite_v1.json
+          >/dev/null
+      - name: Termux shell syntax
+        run: |
+          bash -n tools/run_active_match_context_slicer_v1.sh
+          bash -n tools/bootstrap_termux_match_context_slicer_v1.sh
+      - name: No sample match identity leak
+        run: |
+          ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|6935|77798" \
+            match_context_slicer_lite.py \
+            hpfa/modules/core/match_context_slicer_lite/src \
+            docs/contracts/match_context_slicer_lite_v1.md \
+            tools/run_active_match_context_slicer_v1.sh \
+            tools/bootstrap_termux_match_context_slicer_v1.sh
