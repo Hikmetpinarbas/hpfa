@@ -4,10 +4,24 @@
   "runtime_authority": "runtime/active_single_match/current",
   "upstream_dependency": {
     "pr": 208,
-    "branch": "agent/match-context-slicer-lite-v1",
-    "expected_head": "385fd3932869f3ca5c3e81253c47df3fdd5e8843",
+    "source_branch": "agent/match-context-slicer-lite-v1",
+    "merged_into_branch": "agent/phase-aware-sequence-refinement-lite-v1",
+    "exact_head": "385fd3932869f3ca5c3e81253c47df3fdd5e8843",
+    "merge_commit": "3622854ac98119e354b1e4b1d83149d855ae03b4",
     "ci_status": "SUCCESS",
-    "phone_active_match_status": "REQUIRED_NOT_YET_VERIFIED"
+    "phone_active_match_status": "EXACT_HEAD_ACTIVE_MATCH_EXECUTION_COMPLETED_REVIEW_REQUIRED",
+    "active_match_evidence_pass": false,
+    "bundle_integrity": {
+      "status": "VERIFIED",
+      "bundle": "match_context_slicer_active_match_bundle_v1.zip",
+      "sha256": "bc5e83c9864ba77206c4aca23753a44e540d87733c686b362a7b057c41333b9e",
+      "manifest_entries": 112,
+      "manifest_missing": 0,
+      "manifest_hash_mismatch": 0,
+      "zip_crc_error": null,
+      "run_rc": 0,
+      "hard_block_hits": []
+    }
   },
   "required_input_surfaces": [
     "multiformat file inventory output",
@@ -34,18 +48,18 @@
   "readiness_checks": [
     {
       "check": "upstream_exact_head_phone_bundle",
-      "status": "BLOCKED",
-      "reason": "PR #208 exact-head phone ACTIVE_MATCH bundle has not been supplied in this execution context"
+      "status": "PASS_WITH_REVIEW_REQUIRED_BOUNDARY",
+      "reason": "PR #208 exact-head ACTIVE_MATCH execution completed; bundle integrity and all manifest hashes were verified; module result remains REVIEW_REQUIRED by design and is not ACTIVE_MATCH_EVIDENCE_PASS"
     },
     {
       "check": "current_product_sequence_survival_producer",
       "status": "NOT_FOUND",
-      "reason": "repository search returned no verified producer"
+      "reason": "repository search returned no verified producer; implementation remains a downstream product task"
     },
     {
       "check": "current_product_adverse_consequence_producer",
       "status": "NOT_FOUND",
-      "reason": "repository search returned no verified producer"
+      "reason": "repository search returned no verified producer; implementation remains a downstream product task"
     },
     {
       "check": "donor_contract_available",
@@ -84,8 +98,18 @@
     "test_truth_claims_remain_false",
     "test_flat_phone_output_only"
   ],
+  "claim_boundary": {
+    "scoreboard_truth": false,
+    "phase_truth": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "tactical_truth": false,
+    "causality_truth": false,
+    "canonical_event_count": "UNKNOWN"
+  },
   "release_state": {
     "spec_complete": true,
+    "upstream_closure_complete": true,
     "implementation_started": false,
     "active_match_evidence_pass": false,
     "production_release": false
