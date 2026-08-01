@@ -42,7 +42,7 @@
     "local_focused_test_count": 10,
     "local_active_match_payload_smoke_status": "REVIEW_REQUIRED",
     "local_active_match_payload_hard_blocks": 0,
-    "ci_status": "PENDING",
+    "ci_status": "SUCCESS_ON_PREVIOUS_EXACT_HEAD_METADATA_REFRESH_REVALIDATION_REQUIRED",
     "exact_head_phone_active_match_status": "REQUIRED"
   },
   "required_input_surfaces": [
@@ -75,12 +75,12 @@
     {
       "check": "current_product_sequence_survival_producer",
       "status": "IMPLEMENTED_CANDIDATE_NOT_ACTIVE_MATCH_VALIDATED",
-      "reason": "candidate producer and denominator-gated tests exist on the implementation branch; exact-head CI and phone ACTIVE_MATCH evidence are still required"
+      "reason": "candidate producer and denominator-gated tests exist on the implementation branch; exact-head phone ACTIVE_MATCH evidence is still required"
     },
     {
       "check": "current_product_adverse_consequence_producer",
       "status": "IMPLEMENTED_CANDIDATE_NOT_ACTIVE_MATCH_VALIDATED",
-      "reason": "candidate producer and claim-safe tests exist on the implementation branch; exact-head CI and phone ACTIVE_MATCH evidence are still required"
+      "reason": "candidate producer and claim-safe tests exist on the implementation branch; exact-head phone ACTIVE_MATCH evidence is still required"
     },
     {
       "check": "progression_support_semantics",
@@ -144,7 +144,8 @@
     "upstream_closure_complete": true,
     "implementation_started": true,
     "local_smoke_pass": true,
-    "ci_success": false,
+    "ci_success_on_previous_exact_head": true,
+    "current_head_ci_revalidation_required": true,
     "active_match_execution_completed": false,
     "active_match_evidence_pass": false,
     "production_release": false
