@@ -8,6 +8,11 @@ ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/activ
 EXPECTED_ACTIVE_MATCH="${HPFA_EXPECTED_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
 OUT="${HPFA_PHONE_OUTPUT:-/sdcard/Download/HPFA}"
 
+BUNDLE_NAME="match_context_slicer_active_match_bundle_v1.zip"
+MANIFEST_NAME="match_context_slicer_active_match_bundle_manifest_v1.json"
+BUNDLE_SHA_NAME="match_context_slicer_active_match_bundle_v1.sha256"
+RUN_MARKER_NAME=".match_context_slicer_bundle_run_marker_v1"
+
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 2; }
 
 [[ -d "$REPO/.git" ]] || fail "product_repo_not_git_checkout:$REPO"
@@ -31,13 +36,26 @@ esac
 
 mkdir -p "$OUT"
 cd "$REPO"
+
+BUNDLE="$OUT/$BUNDLE_NAME"
+MANIFEST="$OUT/$MANIFEST_NAME"
+BUNDLE_SHA="$OUT/$BUNDLE_SHA_NAME"
+RUN_MARKER="$OUT/$RUN_MARKER_NAME"
+
 rm -f \
   "$OUT/match_context_slicer_lite_v1.json" \
   "$OUT/match_context_slicer_lite_v1.txt" \
   "$OUT/match_context_slicer_analyst_audit_v1.txt" \
   "$OUT/match_context_slicer_runtime_audit_v1.txt" \
   "$OUT/match_context_slicer_result_v1.txt" \
-  "$OUT/match_context_slicer_pytest_v1.txt"
+  "$OUT/match_context_slicer_pytest_v1.txt" \
+  "$OUT/match_context_slicer_active_match_v1.txt" \
+  "$BUNDLE" \
+  "$MANIFEST" \
+  "$BUNDLE_SHA" \
+  "$RUN_MARKER"
+
+: > "$RUN_MARKER"
 
 python -m py_compile \
   match_context_slicer_lite.py \
@@ -47,6 +65,9 @@ python -m pytest -q \
   | tee "$OUT/match_context_slicer_pytest_v1.txt"
 
 set +e
+HPFA_REPO="$REPO" \
+HPFA_ACTIVE_MATCH="$ACTIVE_MATCH" \
+HPFA_EXPECTED_ACTIVE_MATCH="$EXPECTED_ACTIVE_MATCH" \
 HPFA_EXPECTED_BRANCH="$EXPECTED_BRANCH" \
 HPFA_EXPECTED_HEAD="$EXPECTED_HEAD" \
   bash "$REPO/tools/run_active_match_phase_aware_sequence_refinement_v1.sh"
@@ -119,6 +140,9 @@ for key in (
     "source_phase_refinement_decision_count",
     "goal_context_candidate_count",
     "match_context_slice_count",
+    "micro_action_overlay_context_slice_count",
+    "separate_phase_display_suppressed_count",
+    "source_phase_segments_preserved",
     "team_relative_score_state_candidate_counts",
     "same_time_goal_context_review_count",
     "card_state_status",
@@ -145,5 +169,141 @@ PY
   echo "canonical_event_count=UNKNOWN"
   echo "production_release=false"
 } | tee "$OUT/match_context_slicer_result_v1.txt"
+
+python - \
+  "$OUT" \
+  "$RUN_MARKER" \
+  "$BUNDLE" \
+  "$MANIFEST" \
+  "$BUNDLE_SHA" \
+  "$ACTUAL_BRANCH" \
+  "$ACTUAL_HEAD" \
+  "$ACTIVE_RESOLVED" \
+  "$RUN_RC" <<'PY'
+from __future__ import annotations
+
+import hashlib
+import json
+import sys
+import zipfile
+from pathlib import Path
+
+(
+    out_text,
+    marker_text,
+    bundle_text,
+    manifest_text,
+    bundle_sha_text,
+    branch,
+    runtime_head,
+    runtime_authority,
+    run_rc_text,
+) = sys.argv[1:]
+
+out = Path(out_text)
+marker = Path(marker_text)
+bundle = Path(bundle_text)
+manifest = Path(manifest_text)
+bundle_sha = Path(bundle_sha_text)
+run_rc = int(run_rc_text)
+
+required = (
+    "selected_action_consequence_surface_lite_v1.json",
+    "event_derived_phase_state_lite_v1.json",
+    "phase_aware_sequence_refinement_lite_v1.json",
+    "match_context_slicer_lite_v1.json",
+)
+missing = [name for name in required if not (out / name).is_file()]
+if missing:
+    raise SystemExit("bundle_required_output_missing:" + ",".join(missing))
+
+marker_mtime_ns = marker.stat().st_mtime_ns
+allowed_suffixes = {".json", ".txt", ".tsv", ".csv", ".log"}
+excluded_names = {
+    marker.name,
+    bundle.name,
+    manifest.name,
+    bundle_sha.name,
+}
+
+candidates = sorted(
+    (
+        path
+        for path in out.iterdir()
+        if path.is_file()
+        and path.name not in excluded_names
+        and path.suffix.lower() in allowed_suffixes
+        and path.stat().st_mtime_ns >= marker_mtime_ns
+    ),
+    key=lambda path: path.name,
+)
+
+candidate_names = {path.name for path in candidates}
+missing_from_current_run = [name for name in required if name not in candidate_names]
+if missing_from_current_run:
+    raise SystemExit(
+        "bundle_required_output_not_current_run:"
+        + ",".join(missing_from_current_run)
+    )
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+files = [
+    {
+        "name": path.name,
+        "size_bytes": path.stat().st_size,
+        "sha256": sha256(path),
+    }
+    for path in candidates
+]
+
+payload = {
+    "schema": "hpfa.match_context_slicer_active_match_bundle_manifest",
+    "version": "1.0.0",
+    "status": "BUNDLE_CREATED",
+    "branch": branch,
+    "runtime_code_head_sha": runtime_head,
+    "runtime_authority": runtime_authority,
+    "run_rc": run_rc,
+    "included_file_count": len(files),
+    "files": files,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": False,
+}
+manifest.write_text(
+    json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+
+with zipfile.ZipFile(
+    bundle,
+    mode="w",
+    compression=zipfile.ZIP_DEFLATED,
+    compresslevel=9,
+) as archive:
+    for path in candidates:
+        archive.write(path, arcname=path.name)
+    archive.write(manifest, arcname=manifest.name)
+
+bundle_digest = sha256(bundle)
+bundle_sha.write_text(
+    f"{bundle_digest}  {bundle.name}\n",
+    encoding="utf-8",
+)
+
+print("HPFA ACTIVE_MATCH BUNDLE")
+print(f"bundle_file={bundle}")
+print(f"bundle_manifest={manifest}")
+print(f"bundle_sha256={bundle_digest}")
+print(f"included_file_count={len(files)}")
+print("bundle_internal_paths=FLAT")
+PY
+
+rm -f "$RUN_MARKER"
 
 exit "$RUN_RC"
