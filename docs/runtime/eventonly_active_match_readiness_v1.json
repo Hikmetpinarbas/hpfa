@@ -1,0 +1,93 @@
+{
+  "schema": "HPFA_EVENTONLY_ACTIVE_MATCH_READINESS_V1",
+  "status": "SPEC_ONLY",
+  "runtime_authority": "runtime/active_single_match/current",
+  "upstream_dependency": {
+    "pr": 208,
+    "branch": "agent/match-context-slicer-lite-v1",
+    "expected_head": "385fd3932869f3ca5c3e81253c47df3fdd5e8843",
+    "ci_status": "SUCCESS",
+    "phone_active_match_status": "REQUIRED_NOT_YET_VERIFIED"
+  },
+  "required_input_surfaces": [
+    "multiformat file inventory output",
+    "CSV action/coordinate surface",
+    "XML temporal/action-label surface when present",
+    "XLSX aggregate validation surface when present",
+    "provider label semantics output",
+    "identity-gated team/player references",
+    "time/order-gated visible sequence output",
+    "phase/context candidate output"
+  ],
+  "required_gates": [
+    "source_authority_gate",
+    "duplicate_reflection_gate",
+    "provider_label_semantics_gate",
+    "time_order_gate",
+    "coordinate_orientation_gate_when_coordinates_used",
+    "identity_gate",
+    "sequence_window_integrity_gate",
+    "denominator_gate",
+    "claim_gate",
+    "football_output_audit"
+  ],
+  "readiness_checks": [
+    {
+      "check": "upstream_exact_head_phone_bundle",
+      "status": "BLOCKED",
+      "reason": "PR #208 exact-head phone ACTIVE_MATCH bundle has not been supplied in this execution context"
+    },
+    {
+      "check": "current_product_sequence_survival_producer",
+      "status": "NOT_FOUND",
+      "reason": "repository search returned no verified producer"
+    },
+    {
+      "check": "current_product_adverse_consequence_producer",
+      "status": "NOT_FOUND",
+      "reason": "repository search returned no verified producer"
+    },
+    {
+      "check": "donor_contract_available",
+      "status": "PASS",
+      "reason": "Dropbox B05 and B06 provide source-role, window, denominator and claim-ceiling donor support"
+    },
+    {
+      "check": "tracking_video_dependency",
+      "status": "PASS",
+      "reason": "not required and permanently de-scoped"
+    }
+  ],
+  "future_executable_output_names": [
+    "eventonly_sequence_consequence_result_v1.json",
+    "eventonly_sequence_consequence_analyst_audit_v1.txt",
+    "eventonly_sequence_consequence_active_match_v1.txt",
+    "eventonly_sequence_consequence_pytest_v1.txt",
+    "eventonly_sequence_consequence_bundle_v1.zip",
+    "eventonly_sequence_consequence_bundle_v1.sha256"
+  ],
+  "phone_output_policy": {
+    "allowed_directories": [
+      "/sdcard/Download/HPFA",
+      "/storage/emulated/0/Download/HPFA"
+    ],
+    "nested_output": false,
+    "nested_rejection_code": "nested_phone_output_directory_rejected"
+  },
+  "required_tests_before_active_match": [
+    "test_no_sample_match_identity_leak",
+    "test_duplicate_reflection_not_double_counted",
+    "test_missing_denominator_blocks_metric",
+    "test_missing_time_blocks_ordered_consequence",
+    "test_period_boundary_is_respected",
+    "test_unknown_labels_are_quarantined",
+    "test_truth_claims_remain_false",
+    "test_flat_phone_output_only"
+  ],
+  "release_state": {
+    "spec_complete": true,
+    "implementation_started": false,
+    "active_match_evidence_pass": false,
+    "production_release": false
+  }
+}
