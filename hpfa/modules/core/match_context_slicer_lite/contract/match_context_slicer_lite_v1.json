@@ -1,0 +1,38 @@
+{
+  "module_id": "match_context_slicer_lite_v1",
+  "version": "1.0.0",
+  "inputs": [
+    "selected_action_consequence_surface_lite_v1",
+    "event_derived_phase_state_lite_v1",
+    "phase_aware_sequence_refinement_lite_v1"
+  ],
+  "time_policy": {
+    "source_start_seconds_used": true,
+    "football_minute_is_derived": true,
+    "current_supported_axis": "CUMULATIVE_ABSOLUTE_SECONDS_CANDIDATE",
+    "cross_period_backward_axis_fails_closed": true,
+    "same_timestamp_internal_ordering_allowed": false
+  },
+  "score_context_policy": {
+    "goal_candidate_requires_action_family": "SHOT",
+    "goal_candidate_requires_terminal_outcome_support_visible": true,
+    "goal_candidate_requires_normalized_label": "goals",
+    "score_state_is_scoreboard_truth": false,
+    "same_timestamp_goal_context": "REVIEW_REQUIRED"
+  },
+  "unavailable_context_policy": {
+    "card_state_without_validated_surface": "UNKNOWN",
+    "lineup_state_without_validated_surface": "UNKNOWN",
+    "silent_default_allowed": false
+  },
+  "claim_boundary": {
+    "scoreboard_truth": false,
+    "phase_truth": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "tactical_truth": false,
+    "off_ball_structure_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}

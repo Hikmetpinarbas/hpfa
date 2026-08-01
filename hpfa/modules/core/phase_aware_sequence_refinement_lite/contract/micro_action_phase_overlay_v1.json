@@ -1,0 +1,29 @@
+{
+  "module_id": "micro_action_phase_overlay_v1",
+  "version": "1.0.0",
+  "source_module": "phase_aware_sequence_refinement_lite_v1",
+  "decision_gate": {
+    "required_decision_class": "REFINEMENT_CANDIDATE_SINGLE_ANCHOR_OSCILLATION",
+    "middle_visible_anchor_count": 1,
+    "middle_interval_span": "ZERO_SPAN_CANDIDATE",
+    "matching_flank_phase_required": true,
+    "minimum_visible_anchor_count_per_flank": 2
+  },
+  "representation_policy": {
+    "source_phase_segment_preserved": true,
+    "automatic_merge_allowed": false,
+    "automatic_delete_allowed": false,
+    "analyst_effective_phase_uses_matching_flank_phase": true,
+    "separate_phase_display_allowed_for_overlay": false,
+    "insufficient_anchor_review_is_auto_suppressed": false
+  },
+  "claim_boundary": {
+    "phase_truth": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "tactical_truth": false,
+    "off_ball_structure_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
