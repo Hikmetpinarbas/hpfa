@@ -1,0 +1,81 @@
+{
+  "schema": "HPFA_EVENTONLY_DENOMINATOR_CONTRACT_V1",
+  "status": "SPEC_ONLY",
+  "runtime_authority": "runtime/active_single_match/current",
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false,
+  "rules": [
+    {
+      "metric_family": "volume",
+      "required_denominator": "observation_window",
+      "fail_action": "downgrade_to_descriptive",
+      "reason": "prevents raw count overread"
+    },
+    {
+      "metric_family": "rate",
+      "required_denominator": "validated_possession_count_or_visible_sequence_count",
+      "fail_action": "downgrade_to_count_only",
+      "reason": "normalizes visible opportunity"
+    },
+    {
+      "metric_family": "sequence",
+      "required_denominator": "total_eligible_visible_sequences",
+      "fail_action": "block_sequence_metric",
+      "reason": "prevents cherry-picked chains"
+    },
+    {
+      "metric_family": "consequence",
+      "required_denominator": "total_eligible_anchor_actions",
+      "fail_action": "block_consequence_metric",
+      "reason": "anchors consequence frequency"
+    },
+    {
+      "metric_family": "turnover_regain",
+      "required_denominator": "total_eligible_turnovers_or_regains",
+      "fail_action": "block_transition_rate",
+      "reason": "normalizes visible opportunity"
+    },
+    {
+      "metric_family": "restart",
+      "required_denominator": "total_validated_restart_actions",
+      "fail_action": "block_restart_metric",
+      "reason": "normalizes restart opportunity"
+    },
+    {
+      "metric_family": "distribution",
+      "required_denominator": "total_valid_rows_in_window",
+      "fail_action": "block_entropy",
+      "reason": "defines the probability distribution"
+    },
+    {
+      "metric_family": "source_integrity",
+      "required_denominator": "total_required_fields_or_comparisons",
+      "fail_action": "block_source_score",
+      "reason": "defines audit scope"
+    },
+    {
+      "metric_family": "sensitivity",
+      "required_denominator": "total_parameter_runs",
+      "fail_action": "block_stability_score",
+      "reason": "defines perturbation scope"
+    }
+  ],
+  "global_fail_closed_conditions": [
+    "missing_or_zero_denominator",
+    "unresolved_duplicate_reflection",
+    "time_order_gate_failed",
+    "anchor_identity_unresolved",
+    "window_crosses_invalid_period_boundary",
+    "source_surface_role_unknown"
+  ],
+  "required_output_fields": [
+    "numerator",
+    "denominator",
+    "eligible_population_definition",
+    "excluded_population_count",
+    "exclusion_reasons",
+    "source_surface",
+    "claim_ceiling",
+    "status"
+  ]
+}

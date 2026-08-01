@@ -1,0 +1,134 @@
+{
+  "schema": "HPFA_EVENTONLY_SEQUENCE_CONSEQUENCE_CONTRACT_V1",
+  "status": "SPEC_ONLY",
+  "runtime_authority": "runtime/active_single_match/current",
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false,
+  "purpose": "Convert ordered event and event-label surfaces into claim-safe sequence continuation and downstream consequence candidates.",
+  "hard_scope": {
+    "allowed_inputs": [
+      "provider action/event labels",
+      "outcome/result labels",
+      "ordered start/end timestamps",
+      "start/end coordinates when present",
+      "period/half",
+      "team/player/provider references after identity gate",
+      "validated possession_id when present",
+      "visible sequence/context slices"
+    ],
+    "excluded_inputs": [
+      "tracking",
+      "video",
+      "360_or_freeze_frame",
+      "GPS",
+      "opponent_position_truth"
+    ],
+    "blocked_truths": [
+      "causality",
+      "player_quality_truth",
+      "team_quality_truth",
+      "tactical_plan_truth",
+      "possession_truth",
+      "sequence_truth",
+      "phase_truth",
+      "line_break_truth",
+      "packing_truth"
+    ]
+  },
+  "anchor_families": {
+    "pass": {"followup_windows": [1, 3, 5]},
+    "carry": {"followup_windows": [1, 3, 5]},
+    "progressive_action": {"followup_windows": [1, 3, 5]},
+    "turnover_or_loss": {"followup_windows": [3, 5, 8]},
+    "recovery": {"followup_windows": [3, 5, 8]},
+    "clearance": {"followup_windows": [1, 3, 5]},
+    "shot": {"prior_windows": [5, 8]},
+    "cross": {"followup_windows": [1, 3]},
+    "restart": {"followup_windows": [1, 3, 5]}
+  },
+  "window_integrity": {
+    "must_preserve_period": true,
+    "must_preserve_order": true,
+    "must_not_cross_hard_break_without_rule": true,
+    "must_not_double_count_duplicate_reflections": true,
+    "unknown_team_or_actor_policy": "retain_surface_with_unknown_identity_and_block_identity_rate",
+    "missing_time_policy": "block_ordered_consequence_and_downgrade_to_descriptive"
+  },
+  "candidate_outcomes": [
+    "retained_visible_continuation",
+    "further_progression_support",
+    "final_third_threshold_support",
+    "box_threshold_support",
+    "shot_support",
+    "backward_or_horizontal_reset",
+    "turnover_or_loss_followup",
+    "opponent_adverse_followup_candidate",
+    "dead_ball_reset",
+    "unknown_or_no_stable_followup"
+  ],
+  "metric_candidates": [
+    {
+      "metric_id": "sequence_survival_rate",
+      "numerator": "eligible anchors with retained visible continuation",
+      "denominator": "total eligible anchor actions",
+      "claim_ceiling": "candidate_sequence_continuation"
+    },
+    {
+      "metric_id": "adverse_consequence_rate",
+      "numerator": "eligible anchors followed by configured adverse visible outcome",
+      "denominator": "total eligible anchor actions",
+      "claim_ceiling": "candidate_consequence_signal"
+    },
+    {
+      "metric_id": "progression_to_final_third_support",
+      "numerator": "eligible progression anchors followed by final-third threshold crossing",
+      "denominator": "total eligible progression anchors",
+      "claim_ceiling": "candidate_progression_support"
+    },
+    {
+      "metric_id": "progression_to_box_entry_support",
+      "numerator": "eligible progression anchors followed by box threshold crossing",
+      "denominator": "total eligible progression anchors",
+      "claim_ceiling": "candidate_progression_support"
+    },
+    {
+      "metric_id": "progression_to_shot_support",
+      "numerator": "eligible progression anchors followed by visible shot label",
+      "denominator": "total eligible progression anchors",
+      "claim_ceiling": "candidate_progression_support"
+    },
+    {
+      "metric_id": "regain_stabilization_rate",
+      "numerator": "eligible recovery anchors followed by retained visible sequence",
+      "denominator": "total eligible recovery anchors",
+      "claim_ceiling": "candidate_stabilization_pattern"
+    },
+    {
+      "metric_id": "restart_trace_yield",
+      "numerator": "eligible restarts followed by retained attack, threshold entry or shot support",
+      "denominator": "total eligible restart anchors",
+      "claim_ceiling": "candidate_restart_pattern"
+    }
+  ],
+  "required_evidence_per_finding": [
+    "source_surface",
+    "anchor_row_reference",
+    "window_row_references",
+    "time_or_order_support",
+    "location_support_when_used",
+    "candidate_outcome",
+    "counter_scenario",
+    "claim_ceiling",
+    "status"
+  ],
+  "required_tests": [
+    "test_no_sample_match_identity_leak",
+    "test_duplicate_reflection_not_double_counted",
+    "test_missing_denominator_blocks_metric",
+    "test_missing_time_blocks_ordered_consequence",
+    "test_period_boundary_is_respected",
+    "test_unknown_labels_are_quarantined",
+    "test_truth_claims_remain_false",
+    "test_flat_phone_output_only"
+  ]
+}
