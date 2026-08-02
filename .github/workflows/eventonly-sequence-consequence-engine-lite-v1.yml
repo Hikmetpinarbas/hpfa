@@ -1,0 +1,65 @@
+name: Event-Only Sequence Consequence Engine Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "eventonly_sequence_consequence_engine_lite.py"
+      - "hpfa/modules/core/eventonly_sequence_consequence_engine_lite/**"
+      - "docs/contracts/eventonly_sequence_consequence_contract_v1.json"
+      - "docs/contracts/eventonly_denominator_contract_v1.json"
+      - "docs/governance/eventonly_claim_grammar_v1.md"
+      - "docs/runtime/eventonly_active_match_readiness_v1.json"
+      - "tools/run_active_match_eventonly_sequence_consequence_v1.sh"
+      - ".github/workflows/eventonly-sequence-consequence-engine-lite-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Exact PR head gate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check pytest
+      - name: Compile
+        run: >-
+          python -m compileall -q
+          eventonly_sequence_consequence_engine_lite.py
+          hpfa/modules/core/eventonly_sequence_consequence_engine_lite
+      - name: Focused tests
+        run: >-
+          python -m pytest -q
+          hpfa/modules/core/eventonly_sequence_consequence_engine_lite/tests
+      - name: Upstream selected-action compatibility
+        run: >-
+          python -m pytest -q
+          hpfa/modules/core/selected_action_consequence_surface_lite/tests
+      - name: Contract JSON
+        run: |
+          python -m json.tool docs/contracts/eventonly_sequence_consequence_contract_v1.json >/dev/null
+          python -m json.tool docs/contracts/eventonly_denominator_contract_v1.json >/dev/null
+          python -m json.tool docs/runtime/eventonly_active_match_readiness_v1.json >/dev/null
+      - name: Termux shell syntax
+        run: bash -n tools/run_active_match_eventonly_sequence_consequence_v1.sh
+      - name: No sample match identity leak
+        run: |
+          ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|Fenerbahce|Sturm Graz|6935|77798" \
+            eventonly_sequence_consequence_engine_lite.py \
+            hpfa/modules/core/eventonly_sequence_consequence_engine_lite/src \
+            docs/contracts/eventonly_sequence_consequence_contract_v1.json \
+            tools/run_active_match_eventonly_sequence_consequence_v1.sh

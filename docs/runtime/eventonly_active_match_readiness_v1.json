@@ -1,6 +1,6 @@
 {
   "schema": "HPFA_EVENTONLY_ACTIVE_MATCH_READINESS_V1",
-  "status": "SPEC_ONLY",
+  "status": "REVIEW_REQUIRED",
   "runtime_authority": "runtime/active_single_match/current",
   "upstream_dependency": {
     "pr": 208,
@@ -23,6 +23,28 @@
       "hard_block_hits": []
     }
   },
+  "implementation_candidate": {
+    "module_id": "eventonly_sequence_consequence_engine_lite_v1",
+    "branch": "agent/eventonly-sequence-consequence-engine-lite-v1",
+    "input_module": "selected_action_consequence_surface_lite_v1",
+    "implemented_metric_candidates": [
+      "sequence_survival_rate",
+      "adverse_consequence_rate",
+      "regain_stabilization_rate",
+      "restart_trace_yield"
+    ],
+    "blocked_until_semantics_contract": [
+      "progression_to_final_third_support",
+      "progression_to_box_entry_support",
+      "progression_to_shot_support"
+    ],
+    "local_focused_test_status": "SMOKE_PASS",
+    "local_focused_test_count": 10,
+    "local_active_match_payload_smoke_status": "REVIEW_REQUIRED",
+    "local_active_match_payload_hard_blocks": 0,
+    "ci_status": "SUCCESS_ON_PREVIOUS_EXACT_HEAD_METADATA_REFRESH_REVALIDATION_REQUIRED",
+    "exact_head_phone_active_match_status": "REQUIRED"
+  },
   "required_input_surfaces": [
     "multiformat file inventory output",
     "CSV action/coordinate surface",
@@ -30,7 +52,7 @@
     "XLSX aggregate validation surface when present",
     "provider label semantics output",
     "identity-gated team/player references",
-    "time/order-gated visible sequence output",
+    "time/order-gated selected-action consequence surface",
     "phase/context candidate output"
   ],
   "required_gates": [
@@ -38,7 +60,6 @@
     "duplicate_reflection_gate",
     "provider_label_semantics_gate",
     "time_order_gate",
-    "coordinate_orientation_gate_when_coordinates_used",
     "identity_gate",
     "sequence_window_integrity_gate",
     "denominator_gate",
@@ -49,17 +70,22 @@
     {
       "check": "upstream_exact_head_phone_bundle",
       "status": "PASS_WITH_REVIEW_REQUIRED_BOUNDARY",
-      "reason": "PR #208 exact-head ACTIVE_MATCH execution completed; bundle integrity and all manifest hashes were verified; module result remains REVIEW_REQUIRED by design and is not ACTIVE_MATCH_EVIDENCE_PASS"
+      "reason": "PR #208 exact-head ACTIVE_MATCH execution completed and bundle integrity was verified; upstream result remains REVIEW_REQUIRED by design"
     },
     {
       "check": "current_product_sequence_survival_producer",
-      "status": "NOT_FOUND",
-      "reason": "repository search returned no verified producer; implementation remains a downstream product task"
+      "status": "IMPLEMENTED_CANDIDATE_NOT_ACTIVE_MATCH_VALIDATED",
+      "reason": "candidate producer and denominator-gated tests exist on the implementation branch; exact-head phone ACTIVE_MATCH evidence is still required"
     },
     {
       "check": "current_product_adverse_consequence_producer",
-      "status": "NOT_FOUND",
-      "reason": "repository search returned no verified producer; implementation remains a downstream product task"
+      "status": "IMPLEMENTED_CANDIDATE_NOT_ACTIVE_MATCH_VALIDATED",
+      "reason": "candidate producer and claim-safe tests exist on the implementation branch; exact-head phone ACTIVE_MATCH evidence is still required"
+    },
+    {
+      "check": "progression_support_semantics",
+      "status": "FAIL_CLOSED",
+      "reason": "validated progression anchor semantics and attack-direction/coordinate-scale contract are unavailable; progression support metrics remain blocked"
     },
     {
       "check": "donor_contract_available",
@@ -72,9 +98,11 @@
       "reason": "not required and permanently de-scoped"
     }
   ],
-  "future_executable_output_names": [
+  "executable_output_names": [
     "eventonly_sequence_consequence_result_v1.json",
+    "eventonly_sequence_consequence_summary_v1.txt",
     "eventonly_sequence_consequence_analyst_audit_v1.txt",
+    "eventonly_sequence_consequence_runtime_audit_v1.txt",
     "eventonly_sequence_consequence_active_match_v1.txt",
     "eventonly_sequence_consequence_pytest_v1.txt",
     "eventonly_sequence_consequence_bundle_v1.zip",
@@ -89,14 +117,16 @@
     "nested_rejection_code": "nested_phone_output_directory_rejected"
   },
   "required_tests_before_active_match": [
-    "test_no_sample_match_identity_leak",
-    "test_duplicate_reflection_not_double_counted",
-    "test_missing_denominator_blocks_metric",
-    "test_missing_time_blocks_ordered_consequence",
-    "test_period_boundary_is_respected",
-    "test_unknown_labels_are_quarantined",
-    "test_truth_claims_remain_false",
-    "test_flat_phone_output_only"
+    "test_denominator_gated_survival_and_restart_yield",
+    "test_duplicate_reflection_same_bundle_is_counted_once",
+    "test_distinct_bundle_ids_at_same_time_are_not_collapsed",
+    "test_missing_denominator_blocks_recovery_metric",
+    "test_progression_metrics_block_without_semantics_contract",
+    "test_missing_time_is_quarantined_not_invented",
+    "test_period_boundary_violation_fails_closed",
+    "test_adverse_signal_is_candidate_not_causality",
+    "test_truth_flags_and_canonical_count_remain_safe",
+    "test_nested_output_and_sample_identity_leak_guards"
   ],
   "claim_boundary": {
     "scoreboard_truth": false,
@@ -105,12 +135,18 @@
     "possession_truth": false,
     "tactical_truth": false,
     "causality_truth": false,
+    "line_break_truth": false,
+    "packing_truth": false,
     "canonical_event_count": "UNKNOWN"
   },
   "release_state": {
     "spec_complete": true,
     "upstream_closure_complete": true,
-    "implementation_started": false,
+    "implementation_started": true,
+    "local_smoke_pass": true,
+    "ci_success_on_previous_exact_head": true,
+    "current_head_ci_revalidation_required": true,
+    "active_match_execution_completed": false,
     "active_match_evidence_pass": false,
     "production_release": false
   }
