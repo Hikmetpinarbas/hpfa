@@ -38,6 +38,10 @@ NEGATIVE_GEOMETRY_CLASSES = {
     "RESET_OR_BACKWARD_ZONE_CHANGE_CANDIDATE",
     "LOSS_OR_HANDOVER_CANDIDATE",
 }
+BOX_GAIN_CLASSES = {
+    "BOX_ACCESS_CANDIDATE",
+    "CENTRAL_DEEP_BOX_ENTRY_CANDIDATE",
+}
 UNRESOLVED_MARKERS = ("UNRESOLVED", "REVIEW_REQUIRED", "UNKNOWN")
 PROGRESSION_METRICS = {
     "progression_to_final_third_support",
@@ -360,6 +364,7 @@ def _structural_progression(
     axis_state: str,
     event: dict[str, Any],
     consequence_support: str,
+    outcome_support: str,
 ) -> tuple[str, list[str]]:
     zone_delta = clean(event.get("zone_delta_class"))
     evidence = [zone_delta] if zone_delta else []
@@ -381,23 +386,34 @@ def _structural_progression(
             return "STRUCTURAL_PROGRESSION_CANDIDATE", evidence
         return "TERRITORIAL_ADVANCEMENT_CANDIDATE", evidence
     if zone_delta == "THIRD_BREAK_CANDIDATE":
-        return "DEEP_ADVANCEMENT_CANDIDATE", evidence
-    if zone_delta in {"BOX_ACCESS_CANDIDATE", "CENTRAL_DEEP_BOX_ENTRY_CANDIDATE"}:
-        return "BOX_PENETRATION_CANDIDATE", evidence
+        if outcome_support == "SUPPORTED_CANDIDATE":
+            return "DEEP_ADVANCEMENT_CANDIDATE", evidence
+        return "TERRITORIAL_ADVANCEMENT_CANDIDATE", evidence
+    if zone_delta in BOX_GAIN_CLASSES:
+        if outcome_support == "SUPPORTED_CANDIDATE":
+            return "BOX_PENETRATION_CANDIDATE", evidence
+        return "TERRITORIAL_ADVANCEMENT_CANDIDATE", evidence
     return "PROGRESSION_CONTEXT_UNRESOLVED", evidence
 
 
 def _persistence(event: dict[str, Any]) -> str:
+    source = clean(event.get("false_progression_candidate"))
+    zone_delta = clean(event.get("zone_delta_class"))
+    if source == "FALSE_PROGRESSION_CANDIDATE":
+        return "FALSE_PROGRESSION_CANDIDATE"
+    if zone_delta in BOX_GAIN_CLASSES and source in {
+        "VISIBLE_ZONE_GAIN_RETAINED_CANDIDATE",
+        "ZONE_GAIN_WITH_CONSTRUCTIVE_SUPPORT_BEFORE_HANDOVER_CANDIDATE",
+    }:
+        return "TERMINAL_PROGRESSION_CANDIDATE"
     mapping = {
         "VISIBLE_ZONE_GAIN_RETAINED_CANDIDATE": "VISIBLE_PROGRESSION_RETAINED_CANDIDATE",
-        "FALSE_PROGRESSION_CANDIDATE": "FALSE_PROGRESSION_CANDIDATE",
         "ZONE_GAIN_WITH_CONSTRUCTIVE_SUPPORT_BEFORE_HANDOVER_CANDIDATE": "TERMINAL_PROGRESSION_CANDIDATE",
         "NOT_APPLICABLE_NO_VISIBLE_ZONE_GAIN": "PROGRESSION_CONTEXT_UNRESOLVED",
     }
-    source = clean(event.get("false_progression_candidate"))
     if source in mapping:
         return mapping[source]
-    if "BACKWARD" in clean(event.get("zone_delta_class")):
+    if "BACKWARD" in zone_delta:
         return "REVERSIBLE_PROGRESSION_CANDIDATE"
     return "PROGRESSION_CONTEXT_UNRESOLVED"
 
@@ -577,6 +593,7 @@ def build_event_label_structural_progression_evidence(
             axis["axis_eligibility_state"],
             event,
             dimensions["consequence_support"],
+            dimensions["outcome_support"],
         )
         persistence_class = _persistence(event)
         line_break = _line_break_evidence(provider_support, axis, dimensions)
