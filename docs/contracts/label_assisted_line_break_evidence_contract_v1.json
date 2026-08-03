@@ -5,7 +5,9 @@
   "evidence_components": [
     "provider_label_evidence",
     "geometry_support",
-    "consequence_support"
+    "outcome_support",
+    "consequence_support",
+    "aggregate_support"
   ],
   "result_classes": [
     "LABEL_ONLY",
@@ -24,7 +26,9 @@
   "eligibility": {
     "provider_label_evidence": "exact reviewed semantic candidate only",
     "geometry_support": "coordinate axis/zone/lane eligibility must pass",
-    "consequence_support": "reuse existing consequence windows; no reimplementation"
+    "outcome_support": "visible outcome support must be disclosed separately and cannot be inferred from the label",
+    "consequence_support": "reuse existing consequence windows; no reimplementation",
+    "aggregate_support": "support-only aggregate alignment status must be disclosed separately; aggregate totals do not create occurrence truth"
   },
   "blocked_names": [
     "line_break_truth",
