@@ -56,11 +56,59 @@ jobs:
               Path("docs/contracts/aggregate_occurrence_alignment_contract_v1.json"),
               Path("docs/runtime/event_label_structural_progression_active_match_readiness_v1.json"),
           ]
+
+          def assert_fixed_boundaries(value, location):
+              if isinstance(value, dict):
+                  for key, child in value.items():
+                      child_location = f"{location}.{key}"
+                      if key.endswith("_truth"):
+                          assert child is False, child_location
+                      if key in {"production_release", "claim_allowed"}:
+                          assert child is False, child_location
+                      if key == "canonical_event_count":
+                          assert child == "UNKNOWN", child_location
+                      assert_fixed_boundaries(child, child_location)
+              elif isinstance(value, list):
+                  for index, child in enumerate(value):
+                      assert_fixed_boundaries(child, f"{location}[{index}]")
+
+          payloads = {}
           for path in json_paths:
               payload = json.loads(path.read_text(encoding="utf-8"))
+              payloads[path.name] = payload
               assert payload["status"] == "SPEC_ONLY", path
               assert payload["canonical_event_count"] == "UNKNOWN", path
               assert payload["production_release"] is False, path
+              assert_fixed_boundaries(payload, str(path))
+
+          label_payload = payloads["event_label_semantic_verification_contract_v1.json"]
+          label_rules = {rule["rule_id"]: rule for rule in label_payload["eligibility_rules"]}
+          assert "EVL00" in label_rules
+          assert "no independent visible event-only support dimension" in label_rules["EVL00"]["when"]
+          assert "at least one independent visible event-only support dimension" in label_rules["EVL01"]["when"]
+
+          axis_payload = payloads["coordinate_axis_zone_lane_eligibility_contract_v1.json"]
+          axis_rules = {rule["id"]: rule for rule in axis_payload["rules"]}
+          ax01 = axis_rules["AX01"]["require"]
+          assert "attack_direction_support_status=SUPPORTED_CANDIDATE" in ax01
+          assert "ATTACK_TOWARD_HIGH_X_CANDIDATE" in ax01
+          assert "ATTACK_TOWARD_LOW_X_CANDIDATE" in ax01
+
+          line_break_payload = payloads["label_assisted_line_break_evidence_contract_v1.json"]
+          required_disclosures = {
+              "provider_label_evidence",
+              "geometry_support",
+              "outcome_support",
+              "consequence_support",
+              "aggregate_support",
+          }
+          assert required_disclosures.issubset(line_break_payload["evidence_components"])
+          assert required_disclosures.issubset(line_break_payload["eligibility"])
+
+          readiness = payloads["event_label_structural_progression_active_match_readiness_v1.json"]
+          assert readiness["release_state"]["active_match_evidence_pass"] is False
+          assert readiness["release_state"]["implementation_started"] is False
+          assert readiness["release_state"]["production_release"] is False
 
           source_map = Path(
               "docs/research/eventonly/event_label_verification_source_role_map_v1.tsv"
