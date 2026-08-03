@@ -26,12 +26,12 @@
   "rules": [
     {
       "id": "AX01",
-      "require": "supported coordinate bounds and one team-period direction candidate",
+      "require": "supported coordinate bounds, attack_direction_support_status=SUPPORTED_CANDIDATE, and exactly one resolved team-period direction candidate in {ATTACK_TOWARD_HIGH_X_CANDIDATE, ATTACK_TOWARD_LOW_X_CANDIDATE}",
       "allow": "signed forward_coordinate_delta_candidate"
     },
     {
       "id": "AX02",
-      "require": "scale available but direction unresolved",
+      "require": "scale available but direction unresolved, conflicted, or attack_direction_support_status is not SUPPORTED_CANDIDATE",
       "allow": "unsigned displacement and raw zone concentration only"
     },
     {
