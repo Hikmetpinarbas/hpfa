@@ -1,0 +1,55 @@
+{
+  "schema": "HPFA_FALSE_PROGRESSION_PERSISTENCE_CONTRACT_V1",
+  "status": "SPEC_ONLY",
+  "current_component_producer": "selected_event_consequence_surface_lite_v1.event_consequence",
+  "candidate_classes": [
+    "VISIBLE_PROGRESSION_RETAINED_CANDIDATE",
+    "REVERSIBLE_PROGRESSION_CANDIDATE",
+    "TERMINAL_PROGRESSION_CANDIDATE",
+    "FALSE_PROGRESSION_CANDIDATE",
+    "PROGRESSION_CONTEXT_UNRESOLVED"
+  ],
+  "persistence_surfaces": [
+    "seconds_retained_candidate",
+    "events_retained_candidate",
+    "deepest_subsequent_zone_candidate",
+    "backward_reset_ratio_candidate",
+    "immediate_loss_candidate"
+  ],
+  "window_rule": "consume existing ordered selected-action consequence windows; do not build a second window engine",
+  "classification_rules": [
+    {
+      "id": "FP01",
+      "when": "gain remains with same team through eligible visible window",
+      "result": "VISIBLE_PROGRESSION_RETAINED_CANDIDATE"
+    },
+    {
+      "id": "FP02",
+      "when": "gain is followed by backward reset before terminal support",
+      "result": "REVERSIBLE_PROGRESSION_CANDIDATE"
+    },
+    {
+      "id": "FP03",
+      "when": "gain reaches terminal shot/box support",
+      "result": "TERMINAL_PROGRESSION_CANDIDATE"
+    },
+    {
+      "id": "FP04",
+      "when": "gain is followed by opponent handover without constructive support",
+      "result": "FALSE_PROGRESSION_CANDIDATE"
+    },
+    {
+      "id": "FP05",
+      "when": "time/order/team/axis support unresolved",
+      "result": "PROGRESSION_CONTEXT_UNRESOLVED"
+    }
+  ],
+  "blocked_interpretations": [
+    "bad_decision_truth",
+    "player_quality_truth",
+    "tactical_failure_truth",
+    "causality_truth"
+  ],
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}

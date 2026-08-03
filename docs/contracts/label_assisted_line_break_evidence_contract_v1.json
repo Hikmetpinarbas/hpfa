@@ -1,0 +1,49 @@
+{
+  "schema": "HPFA_LABEL_ASSISTED_LINE_BREAK_EVIDENCE_CONTRACT_V1",
+  "status": "SPEC_ONLY",
+  "purpose": "Expose label-assisted event-only evidence without claiming a real defensive line was broken.",
+  "evidence_components": [
+    "provider_label_evidence",
+    "geometry_support",
+    "outcome_support",
+    "consequence_support",
+    "aggregate_support"
+  ],
+  "result_classes": [
+    "LABEL_ONLY",
+    "LABEL_GEOMETRY_SUPPORTED",
+    "LABEL_CONSEQUENCE_SUPPORTED",
+    "LABEL_FULLY_SUPPORTED",
+    "LABEL_CONFLICTED",
+    "UNKNOWN"
+  ],
+  "score_candidate": {
+    "name": "line_break_evidence_score_candidate",
+    "weights_must_be_exposed": true,
+    "component_only_fallback_required": true,
+    "default_hidden_composite_allowed": false
+  },
+  "eligibility": {
+    "provider_label_evidence": "exact reviewed semantic candidate only",
+    "geometry_support": "coordinate axis/zone/lane eligibility must pass",
+    "outcome_support": "visible outcome support must be disclosed separately and cannot be inferred from the label",
+    "consequence_support": "reuse existing consequence windows; no reimplementation",
+    "aggregate_support": "support-only aggregate alignment status must be disclosed separately; aggregate totals do not create occurrence truth"
+  },
+  "blocked_names": [
+    "line_break_truth",
+    "defensive_line_broken",
+    "players_bypassed",
+    "opponents_eliminated",
+    "estimated_lines_crossed",
+    "packing_count"
+  ],
+  "claim_boundary": {
+    "line_break_truth": false,
+    "packing_truth": false,
+    "opponent_structure_truth": false,
+    "tactical_truth": false
+  },
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}

@@ -1,0 +1,67 @@
+{
+  "schema": "HPFA_EVENT_LABEL_STRUCTURAL_PROGRESSION_ACTIVE_MATCH_READINESS_V1",
+  "status": "SPEC_ONLY",
+  "runtime_authority": "runtime/active_single_match/current",
+  "base_integration": {
+    "pr": 207,
+    "branch": "agent/phase-aware-sequence-refinement-lite-v1",
+    "head": "5d799035d88b68bded1959e61411216e265a1a14"
+  },
+  "upstream_evidence": {
+    "pr_213_merged": true,
+    "pr_215_evidence_closure_merged": true,
+    "eventonly_bundle_sha256": "0867332a271493bdc4a346e46fbadc1932daf37d8e3f81b2f2a3462954a77350",
+    "eventonly_runtime_status": "ACTIVE_MATCH_EXECUTION_COMPLETED_REVIEW_REQUIRED"
+  },
+  "required_inputs": [
+    "provider_label_value_semantics_lite_v1 output",
+    "selected_event_consequence_surface_lite_v1 output",
+    "selected_action_consequence_surface_lite_v1 output",
+    "eventonly_sequence_consequence_engine_lite_v1 output",
+    "aggregate_definition_alignment_lite_v1 output"
+  ],
+  "required_gates": [
+    "source_authority_gate",
+    "duplicate_reflection_gate",
+    "provider_label_semantics_gate",
+    "action_label_compatibility_gate",
+    "time_order_gate",
+    "coordinate_axis_integrity_gate",
+    "coordinate_orientation_gate",
+    "zone_lane_contract_gate",
+    "identity_gate",
+    "consequence_window_integrity_gate",
+    "denominator_gate",
+    "aggregate_definition_gate",
+    "claim_gate",
+    "football_output_audit"
+  ],
+  "required_tests": [
+    "test_no_sample_match_identity_leak",
+    "test_provider_label_not_auto_truth",
+    "test_label_geometry_conflict",
+    "test_label_outcome_conflict",
+    "test_unknown_label_quarantine",
+    "test_missing_axis_blocks_geometry_support",
+    "test_missing_denominator_blocks_rate",
+    "test_component_only_fallback",
+    "test_true_packing_and_line_break_claims_remain_false",
+    "test_duplicate_reflection_not_double_counted",
+    "test_distinct_bundle_identity_not_auto_merged",
+    "test_existing_consequence_windows_reused",
+    "test_flat_phone_output_only"
+  ],
+  "implementation_ready": false,
+  "active_match_execution_required_after_implementation": true,
+  "release_state": {
+    "producer_audit_complete": true,
+    "donor_audit_complete_for_spec_start": true,
+    "contract_pack_complete": true,
+    "implementation_started": false,
+    "active_match_execution_completed": false,
+    "active_match_evidence_pass": false,
+    "production_release": false
+  },
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}

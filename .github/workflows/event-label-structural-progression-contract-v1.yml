@@ -1,0 +1,156 @@
+name: Event Label Structural Progression Contract V1
+
+on:
+  pull_request:
+    paths:
+      - "docs/research/eventonly/event_label_verification_source_role_map_v1.tsv"
+      - "docs/contracts/event_label_semantic_verification_contract_v1.json"
+      - "docs/contracts/coordinate_axis_zone_lane_eligibility_contract_v1.json"
+      - "docs/contracts/structural_progression_evidence_contract_v1.json"
+      - "docs/contracts/label_assisted_line_break_evidence_contract_v1.json"
+      - "docs/contracts/false_progression_persistence_contract_v1.json"
+      - "docs/contracts/aggregate_occurrence_alignment_contract_v1.json"
+      - "docs/governance/event_label_structural_progression_claim_grammar_v1.md"
+      - "docs/runtime/event_label_structural_progression_active_match_readiness_v1.json"
+      - ".github/workflows/event-label-structural-progression-contract-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Exact PR head gate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate JSON contracts and fixed boundaries
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          json_paths = [
+              Path("docs/contracts/event_label_semantic_verification_contract_v1.json"),
+              Path("docs/contracts/coordinate_axis_zone_lane_eligibility_contract_v1.json"),
+              Path("docs/contracts/structural_progression_evidence_contract_v1.json"),
+              Path("docs/contracts/label_assisted_line_break_evidence_contract_v1.json"),
+              Path("docs/contracts/false_progression_persistence_contract_v1.json"),
+              Path("docs/contracts/aggregate_occurrence_alignment_contract_v1.json"),
+              Path("docs/runtime/event_label_structural_progression_active_match_readiness_v1.json"),
+          ]
+
+          def assert_fixed_boundaries(value, location):
+              if isinstance(value, dict):
+                  for key, child in value.items():
+                      child_location = f"{location}.{key}"
+                      if key.endswith("_truth"):
+                          assert child is False, child_location
+                      if key in {"production_release", "claim_allowed"}:
+                          assert child is False, child_location
+                      if key == "canonical_event_count":
+                          assert child == "UNKNOWN", child_location
+                      assert_fixed_boundaries(child, child_location)
+              elif isinstance(value, list):
+                  for index, child in enumerate(value):
+                      assert_fixed_boundaries(child, f"{location}[{index}]")
+
+          payloads = {}
+          for path in json_paths:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              payloads[path.name] = payload
+              assert payload["status"] == "SPEC_ONLY", path
+              assert payload["canonical_event_count"] == "UNKNOWN", path
+              assert payload["production_release"] is False, path
+              assert_fixed_boundaries(payload, str(path))
+
+          label_payload = payloads["event_label_semantic_verification_contract_v1.json"]
+          label_rules = {rule["rule_id"]: rule for rule in label_payload["eligibility_rules"]}
+          assert "EVL00" in label_rules
+          assert "no independent visible event-only support dimension" in label_rules["EVL00"]["when"]
+          assert "at least one independent visible event-only support dimension" in label_rules["EVL01"]["when"]
+
+          axis_payload = payloads["coordinate_axis_zone_lane_eligibility_contract_v1.json"]
+          axis_rules = {rule["id"]: rule for rule in axis_payload["rules"]}
+          ax01 = axis_rules["AX01"]["require"]
+          assert "attack_direction_support_status=SUPPORTED_CANDIDATE" in ax01
+          assert "ATTACK_TOWARD_HIGH_X_CANDIDATE" in ax01
+          assert "ATTACK_TOWARD_LOW_X_CANDIDATE" in ax01
+
+          line_break_payload = payloads["label_assisted_line_break_evidence_contract_v1.json"]
+          required_disclosures = {
+              "provider_label_evidence",
+              "geometry_support",
+              "outcome_support",
+              "consequence_support",
+              "aggregate_support",
+          }
+          assert required_disclosures.issubset(line_break_payload["evidence_components"])
+          assert required_disclosures.issubset(line_break_payload["eligibility"])
+
+          readiness = payloads["event_label_structural_progression_active_match_readiness_v1.json"]
+          assert readiness["release_state"]["active_match_evidence_pass"] is False
+          assert readiness["release_state"]["implementation_started"] is False
+          assert readiness["release_state"]["production_release"] is False
+
+          source_map = Path(
+              "docs/research/eventonly/event_label_verification_source_role_map_v1.tsv"
+          )
+          with source_map.open(encoding="utf-8", newline="") as handle:
+              rows = list(csv.DictReader(handle, delimiter="\t"))
+          required = {
+              "source_id",
+              "source_role",
+              "current_status",
+              "reuse_decision",
+              "allowed_use",
+              "blocked_use",
+              "lineage_note",
+          }
+          assert rows and required.issubset(rows[0]), source_map
+          assert any(row["source_role"] == "ACTIVE_MATCH_AUTHORITY" for row in rows)
+          assert any(row["source_role"] == "PRODUCT_PRODUCER" for row in rows)
+
+          grammar = Path(
+              "docs/governance/event_label_structural_progression_claim_grammar_v1.md"
+          ).read_text(encoding="utf-8")
+          for marker in (
+              "canonical_event_count=UNKNOWN",
+              "production_release=false",
+              "line_break_truth=false",
+              "packing_truth=false",
+              "tactical_truth=false",
+              "causality_truth=false",
+          ):
+              assert marker in grammar, marker
+          PY
+
+      - name: No sample match identity leak
+        run: |
+          ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|Fenerbahce|Sturm Graz|6935|77798" \
+            docs/research/eventonly/event_label_verification_source_role_map_v1.tsv \
+            docs/contracts/event_label_semantic_verification_contract_v1.json \
+            docs/contracts/coordinate_axis_zone_lane_eligibility_contract_v1.json \
+            docs/contracts/structural_progression_evidence_contract_v1.json \
+            docs/contracts/label_assisted_line_break_evidence_contract_v1.json \
+            docs/contracts/false_progression_persistence_contract_v1.json \
+            docs/contracts/aggregate_occurrence_alignment_contract_v1.json \
+            docs/governance/event_label_structural_progression_claim_grammar_v1.md \
+            docs/runtime/event_label_structural_progression_active_match_readiness_v1.json
