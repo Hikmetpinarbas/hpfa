@@ -1,0 +1,52 @@
+{
+  "schema": "HPFA_AGGREGATE_OCCURRENCE_ALIGNMENT_CONTRACT_V1",
+  "status": "SPEC_ONLY",
+  "purpose": "Explain differences between provider aggregate totals and visible occurrence candidates without treating mismatch as automatic error.",
+  "upstream_module": "aggregate_definition_alignment_lite_v1",
+  "allowed_difference_reasons": [
+    "definition_mismatch",
+    "population_mismatch",
+    "window_mismatch",
+    "label_rule_difference",
+    "coordinate_rule_difference",
+    "missing_occurrence_candidate",
+    "duplicate_reflection",
+    "identity_unresolved",
+    "unknown_provider_definition"
+  ],
+  "rules": [
+    {
+      "id": "AO01",
+      "when": "exact provider definition unavailable",
+      "result": "REVIEW_REQUIRED_UNKNOWN_PROVIDER_DEFINITION"
+    },
+    {
+      "id": "AO02",
+      "when": "same label but definition not aligned",
+      "result": "NO_EQUIVALENCE_CLAIM"
+    },
+    {
+      "id": "AO03",
+      "when": "duplicate reflection confirmed",
+      "result": "suppress duplicate contribution; preserve lineage"
+    },
+    {
+      "id": "AO04",
+      "when": "aggregate and occurrence populations differ",
+      "result": "explain population mismatch; do not fail data automatically"
+    },
+    {
+      "id": "AO05",
+      "when": "exact definition, population and window align",
+      "result": "ALIGNMENT_CANDIDATE_ONLY"
+    }
+  ],
+  "blocked_claims": [
+    "aggregate_equals_occurrence_truth",
+    "xlsx_independent_confirmation",
+    "canonical_event_count_from_aggregate",
+    "automatic_data_error"
+  ],
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}
