@@ -57,7 +57,9 @@
   ],
   "semantic_downgrade_rules": [
     "RESET_OR_BACKWARD_ZONE_CHANGE_CANDIDATE must not be promoted to LATERAL_RELOCATION_CANDIDATE without independent lane-transition evidence.",
-    "LABEL_FULLY_SUPPORTED requires disclosed geometry, outcome, consequence and aggregate support components; geometry plus consequence alone is insufficient."
+    "LABEL_FULLY_SUPPORTED requires disclosed geometry, outcome, consequence and aggregate support components; geometry plus consequence alone is insufficient.",
+    "DEEP_ADVANCEMENT_CANDIDATE and BOX_PENETRATION_CANDIDATE require visible outcome support; boundary crossing without it is downgraded to territorial advancement candidate.",
+    "A retained visible gain reaching a box-entry class is TERMINAL_PROGRESSION_CANDIDATE unless the upstream false-progression candidate explicitly indicates failure."
   ],
   "persistence_classes": [
     "VISIBLE_PROGRESSION_RETAINED_CANDIDATE",
@@ -103,6 +105,8 @@
     "test_claim_boundaries_remain_false",
     "test_backward_or_reset_zone_change_is_not_called_lateral_relocation",
     "test_line_break_fully_supported_requires_all_disclosed_support_components",
+    "test_deep_and_box_classes_require_visible_outcome_support",
+    "test_box_reaching_retained_gain_is_terminal_progression_candidate",
     "test_no_sample_match_identity_leak"
   ],
   "active_match_need": "REQUIRED_AFTER_CURRENT_HEAD_CI_AND_REVIEW_CLOSURE",
