@@ -1,0 +1,108 @@
+name: Event Label Structural Progression Contract V1
+
+on:
+  pull_request:
+    paths:
+      - "docs/research/eventonly/event_label_verification_source_role_map_v1.tsv"
+      - "docs/contracts/event_label_semantic_verification_contract_v1.json"
+      - "docs/contracts/coordinate_axis_zone_lane_eligibility_contract_v1.json"
+      - "docs/contracts/structural_progression_evidence_contract_v1.json"
+      - "docs/contracts/label_assisted_line_break_evidence_contract_v1.json"
+      - "docs/contracts/false_progression_persistence_contract_v1.json"
+      - "docs/contracts/aggregate_occurrence_alignment_contract_v1.json"
+      - "docs/governance/event_label_structural_progression_claim_grammar_v1.md"
+      - "docs/runtime/event_label_structural_progression_active_match_readiness_v1.json"
+      - ".github/workflows/event-label-structural-progression-contract-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Exact PR head gate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate JSON contracts and fixed boundaries
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          from pathlib import Path
+
+          json_paths = [
+              Path("docs/contracts/event_label_semantic_verification_contract_v1.json"),
+              Path("docs/contracts/coordinate_axis_zone_lane_eligibility_contract_v1.json"),
+              Path("docs/contracts/structural_progression_evidence_contract_v1.json"),
+              Path("docs/contracts/label_assisted_line_break_evidence_contract_v1.json"),
+              Path("docs/contracts/false_progression_persistence_contract_v1.json"),
+              Path("docs/contracts/aggregate_occurrence_alignment_contract_v1.json"),
+              Path("docs/runtime/event_label_structural_progression_active_match_readiness_v1.json"),
+          ]
+          for path in json_paths:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              assert payload["status"] == "SPEC_ONLY", path
+              assert payload["canonical_event_count"] == "UNKNOWN", path
+              assert payload["production_release"] is False, path
+
+          source_map = Path(
+              "docs/research/eventonly/event_label_verification_source_role_map_v1.tsv"
+          )
+          with source_map.open(encoding="utf-8", newline="") as handle:
+              rows = list(csv.DictReader(handle, delimiter="\t"))
+          required = {
+              "source_id",
+              "source_role",
+              "current_status",
+              "reuse_decision",
+              "allowed_use",
+              "blocked_use",
+              "lineage_note",
+          }
+          assert rows and required.issubset(rows[0]), source_map
+          assert any(row["source_role"] == "ACTIVE_MATCH_AUTHORITY" for row in rows)
+          assert any(row["source_role"] == "PRODUCT_PRODUCER" for row in rows)
+
+          grammar = Path(
+              "docs/governance/event_label_structural_progression_claim_grammar_v1.md"
+          ).read_text(encoding="utf-8")
+          for marker in (
+              "canonical_event_count=UNKNOWN",
+              "production_release=false",
+              "line_break_truth=false",
+              "packing_truth=false",
+              "tactical_truth=false",
+              "causality_truth=false",
+          ):
+              assert marker in grammar, marker
+          PY
+
+      - name: No sample match identity leak
+        run: |
+          ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|Fenerbahce|Sturm Graz|6935|77798" \
+            docs/research/eventonly/event_label_verification_source_role_map_v1.tsv \
+            docs/contracts/event_label_semantic_verification_contract_v1.json \
+            docs/contracts/coordinate_axis_zone_lane_eligibility_contract_v1.json \
+            docs/contracts/structural_progression_evidence_contract_v1.json \
+            docs/contracts/label_assisted_line_break_evidence_contract_v1.json \
+            docs/contracts/false_progression_persistence_contract_v1.json \
+            docs/contracts/aggregate_occurrence_alignment_contract_v1.json \
+            docs/governance/event_label_structural_progression_claim_grammar_v1.md \
+            docs/runtime/event_label_structural_progression_active_match_readiness_v1.json
