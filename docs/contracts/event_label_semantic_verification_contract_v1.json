@@ -70,8 +70,13 @@
   },
   "eligibility_rules": [
     {
+      "rule_id": "EVL00",
+      "when": "exact reviewed provider rule but no independent visible event-only support dimension is present",
+      "result": "LABEL_ONLY; component-only fallback; downstream verification support is not admitted"
+    },
+    {
       "rule_id": "EVL01",
-      "when": "exact reviewed provider rule and no hard conflict",
+      "when": "exact reviewed provider rule, no hard conflict, and at least one independent visible event-only support dimension is present: coordinate, outcome, duration, consequence or aggregate support",
       "result": "LABEL_SUPPORTED_OR_PARTIALLY_SUPPORTED_CANDIDATE"
     },
     {
@@ -86,7 +91,7 @@
     },
     {
       "rule_id": "EVL04",
-      "when": "support dimension unavailable",
+      "when": "a support dimension is unavailable",
       "result": "component_only_fallback; do not invent support"
     }
   ],
