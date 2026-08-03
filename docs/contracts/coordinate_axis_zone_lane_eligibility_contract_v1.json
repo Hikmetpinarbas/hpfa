@@ -3,10 +3,17 @@
   "status": "SPEC_ONLY",
   "purpose": "Decide when coordinate evidence may support signed territorial advancement and zone/lane transitions.",
   "current_producer": "selected_event_consequence_surface_lite_v1.coordinate_frame",
+  "producer_status_mapping": {
+    "PASS_SHOT_CONCENTRATION_CANDIDATE": "SUPPORTED_CANDIDATE",
+    "INSUFFICIENT_SHOT_SUPPORT": "UNSUPPORTED_OR_UNRESOLVED",
+    "SHOT_CONCENTRATION_AMBIGUOUS_REVIEW_REQUIRED": "UNSUPPORTED_OR_UNRESOLVED"
+  },
+  "mapping_rule": "Raw producer status must be preserved next to the gate status. Mapping is explicit, versioned and candidate-only; it is not validated attack-direction truth.",
   "required_inputs": [
     "coordinate_scale_candidate",
     "coordinate_bounds_status",
     "team_period_attack_direction_candidate",
+    "producer_attack_direction_support_status",
     "attack_direction_support_status",
     "start_x",
     "start_y",
@@ -26,12 +33,12 @@
   "rules": [
     {
       "id": "AX01",
-      "require": "supported coordinate bounds, attack_direction_support_status=SUPPORTED_CANDIDATE, and exactly one resolved team-period direction candidate in {ATTACK_TOWARD_HIGH_X_CANDIDATE, ATTACK_TOWARD_LOW_X_CANDIDATE}",
+      "require": "supported coordinate bounds, explicitly mapped attack_direction_support_status=SUPPORTED_CANDIDATE, and exactly one resolved team-period direction candidate in {ATTACK_TOWARD_HIGH_X_CANDIDATE, ATTACK_TOWARD_LOW_X_CANDIDATE}",
       "allow": "signed forward_coordinate_delta_candidate"
     },
     {
       "id": "AX02",
-      "require": "scale available but direction unresolved, conflicted, or attack_direction_support_status is not SUPPORTED_CANDIDATE",
+      "require": "scale available but direction unresolved, conflicted, unmapped, or attack_direction_support_status is not SUPPORTED_CANDIDATE",
       "allow": "unsigned displacement and raw zone concentration only"
     },
     {
