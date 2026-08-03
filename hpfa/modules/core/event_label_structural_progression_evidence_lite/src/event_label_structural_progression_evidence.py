@@ -21,10 +21,7 @@ OUTPUTS = {
     "summary": "event_label_structural_progression_evidence_lite_v1.txt",
     "analyst": "event_label_structural_progression_evidence_analyst_audit_v1.txt",
 }
-EXACT_MAPPING_STATUSES = {
-    "EXACT_REVIEWED_CANDIDATE",
-    "EXACT_ALIAS_CANDIDATE",
-}
+EXACT_MAPPING_STATUSES = {"EXACT_REVIEWED_CANDIDATE", "EXACT_ALIAS_CANDIDATE"}
 PREFIX_MAPPING_STATUSES = {"PREFIX_RULE_REVIEWED_CANDIDATE"}
 AMBIGUOUS_MAPPING_STATUSES = {
     "TOKEN_FALLBACK_REVIEW_REQUIRED",
@@ -36,12 +33,6 @@ RESOLVED_DIRECTIONS = {
 }
 PRODUCER_DIRECTION_SUPPORT_MAP = {
     "PASS_SHOT_CONCENTRATION_CANDIDATE": "SUPPORTED_CANDIDATE",
-}
-GAIN_CLASSES = {
-    "ZONE_GAIN_CANDIDATE",
-    "THIRD_BREAK_CANDIDATE",
-    "BOX_ACCESS_CANDIDATE",
-    "CENTRAL_DEEP_BOX_ENTRY_CANDIDATE",
 }
 NEGATIVE_GEOMETRY_CLASSES = {
     "RESET_OR_BACKWARD_ZONE_CHANGE_CANDIDATE",
@@ -110,9 +101,9 @@ def _records(
     payload: dict[str, Any], key: str, declared_key: str, code: str
 ) -> tuple[list[dict[str, Any]], list[str]]:
     rows = payload.get(key)
-    blocks: list[str] = []
     if not isinstance(rows, list):
         return [], [f"{code}_inventory_invalid"]
+    blocks: list[str] = []
     if payload.get(declared_key) != len(rows):
         blocks.append(f"{code}_count_mismatch")
     if any(not isinstance(row, dict) for row in rows):
@@ -126,10 +117,9 @@ def _label_index(
 ) -> dict[tuple[str, str], list[dict[str, Any]]]:
     index: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for row in rows:
-        normalized = clean(row.get("normalized_label"))
-        source_role = clean(row.get("source_role"))
-        if normalized and source_role:
-            index.setdefault((source_role, normalized), []).append(row)
+        key = (clean(row.get("source_role")), clean(row.get("normalized_label")))
+        if all(key):
+            index.setdefault(key, []).append(row)
     return index
 
 
@@ -138,25 +128,21 @@ def _provider_matches(
     index: dict[tuple[str, str], list[dict[str, Any]]],
 ) -> list[dict[str, Any]]:
     role = clean(node.get("source_role"))
-    labels = sorted(
-        {
-            clean(value)
-            for value in node.get("support_normalized_labels") or []
-            if clean(value)
-        }
-    )
-    matches: list[dict[str, Any]] = []
-    for label in labels:
-        matches.extend(index.get((role, label), []))
+    labels = {
+        clean(value)
+        for value in node.get("support_normalized_labels") or []
+        if clean(value)
+    }
+    matches = [row for label in labels for row in index.get((role, label), [])]
     deduped: dict[str, dict[str, Any]] = {}
     for row in matches:
-        key = clean(row.get("record_id")) or digest(
+        record_id = clean(row.get("record_id")) or digest(
             row.get("source_role"),
             row.get("normalized_label"),
             row.get("mapping_status"),
             row.get("rule_id"),
         )
-        deduped[key] = row
+        deduped[record_id] = row
     return list(deduped.values())
 
 
@@ -168,8 +154,6 @@ def _provider_support(matches: list[dict[str, Any]]) -> tuple[str, str]:
         return "EXACT_REVIEWED_RULE", ""
     if statuses & PREFIX_MAPPING_STATUSES:
         return "PREFIX_REVIEWED_RULE", ""
-    if matches:
-        return "UNKNOWN", "LABEL_UNKNOWN"
     return "UNKNOWN", "LABEL_UNKNOWN"
 
 
@@ -179,26 +163,23 @@ def _direction_record(
     team = clean(event.get("team_identity_candidate_id"))
     period = clean(event.get("period_candidate"))
     for row in frame.get("team_period_attack_direction_candidates") or []:
+        if not isinstance(row, dict):
+            continue
         if (
-            isinstance(row, dict)
-            and clean(row.get("team_identity_candidate_id")) == team
+            clean(row.get("team_identity_candidate_id")) == team
             and clean(row.get("period_candidate")) == period
         ):
             return row
     return None
 
 
-def _axis_eligibility(
-    event: dict[str, Any], frame: dict[str, Any]
-) -> dict[str, Any]:
+def _axis_eligibility(event: dict[str, Any], frame: dict[str, Any]) -> dict[str, Any]:
     direction = _direction_record(event, frame)
     raw_support = clean((direction or {}).get("attack_direction_support_status"))
     gate_support = PRODUCER_DIRECTION_SUPPORT_MAP.get(
         raw_support, "UNSUPPORTED_OR_UNRESOLVED"
     )
-    direction_candidate = clean(
-        (direction or {}).get("attack_direction_candidate")
-    )
+    direction_candidate = clean((direction or {}).get("attack_direction_candidate"))
     bounds = clean(frame.get("coordinate_bounds_status"))
     scale = clean(frame.get("coordinate_scale_candidate"))
     zone_status = clean(event.get("zone_delta_status"))
@@ -226,7 +207,9 @@ def _axis_eligibility(
     coordinate_support = (
         "SUPPORTED_CANDIDATE"
         if state == "AXIS_ELIGIBLE_CANDIDATE"
-        else ("CONFLICTED" if state == "AXIS_CONFLICTED" else "UNAVAILABLE")
+        else "CONFLICTED"
+        if state == "AXIS_CONFLICTED"
+        else "UNAVAILABLE"
     )
     return {
         "axis_eligibility_state": state,
@@ -250,13 +233,6 @@ def _duration_support(node: dict[str, Any]) -> str:
     return "SUPPORTED_CANDIDATE" if start >= 0 and end >= start else "CONFLICTED"
 
 
-def _consequence_support(event: dict[str, Any]) -> str:
-    value = clean(event.get("consequence_class_candidate"))
-    if not value or _is_unresolved(value):
-        return "UNAVAILABLE"
-    return "SUPPORTED_CANDIDATE"
-
-
 def _outcome_support(node: dict[str, Any]) -> str:
     if node.get("terminal_outcome_support_visible") is True:
         return "SUPPORTED_CANDIDATE"
@@ -265,52 +241,53 @@ def _outcome_support(node: dict[str, Any]) -> str:
     return "UNAVAILABLE"
 
 
+def _consequence_support(event: dict[str, Any]) -> str:
+    value = clean(event.get("consequence_class_candidate"))
+    return "UNAVAILABLE" if not value or _is_unresolved(value) else "SUPPORTED_CANDIDATE"
+
+
 def _alignment_support(
     matches: list[dict[str, Any]],
     alignment_rows: list[dict[str, Any]],
 ) -> tuple[str, list[str], list[str]]:
     record_ids = {
-        clean(row.get("record_id"))
-        for row in matches
-        if clean(row.get("record_id"))
+        clean(row.get("record_id")) for row in matches if clean(row.get("record_id"))
     }
-    supported_definitions: list[str] = []
-    reasons: set[str] = set()
     if not record_ids:
-        return "NOT_AVAILABLE", supported_definitions, ["missing_provider_record_lineage"]
+        return "NOT_AVAILABLE", [], ["missing_provider_record_lineage"]
+
+    definition_ids: list[str] = []
+    reasons: set[str] = set()
     for row in alignment_rows:
-        found = False
-        for support in row.get("semantic_support") or []:
-            if not isinstance(support, dict):
-                continue
-            support_ids = {
-                clean(value)
-                for value in support.get("record_ids") or []
-                if clean(value)
-            }
-            if record_ids & support_ids:
-                found = True
-                break
-        if not found:
+        support_ids = {
+            clean(record_id)
+            for support in row.get("semantic_support") or []
+            if isinstance(support, dict)
+            for record_id in support.get("record_ids") or []
+            if clean(record_id)
+        }
+        if not record_ids & support_ids:
             continue
-        supported_definitions.append(clean(row.get("definition_id")))
+        definition_ids.append(clean(row.get("definition_id")))
         decision = clean(row.get("alignment_decision"))
-        if decision == "DEFINITION_ALIGNMENT_CANDIDATE":
-            reasons.add("definition_and_occurrence_semantics_alignment_candidate")
-        else:
-            reasons.add("definition_alignment_review_required")
+        reasons.add(
+            "definition_and_occurrence_semantics_alignment_candidate"
+            if decision == "DEFINITION_ALIGNMENT_CANDIDATE"
+            else "definition_alignment_review_required"
+        )
         for hit in row.get("alignment_hits") or []:
             if isinstance(hit, dict) and clean(hit.get("code")):
                 reasons.add(clean(hit.get("code")))
-    if not supported_definitions:
+
+    if not definition_ids:
         return "NOT_AVAILABLE", [], ["no_aggregate_semantic_lineage_match"]
     if reasons == {"definition_and_occurrence_semantics_alignment_candidate"}:
-        return "SUPPORT_ONLY", sorted(set(supported_definitions)), sorted(reasons)
-    return "UNRESOLVED", sorted(set(supported_definitions)), sorted(reasons)
+        return "SUPPORT_ONLY", sorted(set(definition_ids)), sorted(reasons)
+    return "UNRESOLVED", sorted(set(definition_ids)), sorted(reasons)
 
 
 def _label_progression_profile(matches: list[dict[str, Any]]) -> dict[str, Any]:
-    progression_values = sorted(
+    progression = sorted(
         {
             clean(row.get("progression_candidate"))
             for row in matches
@@ -325,12 +302,12 @@ def _label_progression_profile(matches: list[dict[str, Any]]) -> dict[str, Any]:
         }
     )
     progressive = any(
-        value not in {"NONE", "NOT_APPLICABLE", "UNKNOWN"}
-        for value in progression_values
+        value not in {"NONE", "NOT_APPLICABLE", "UNKNOWN"} for value in progression
     )
     successful = any(
-        "SUCCESS" in value or "ACCURATE" in value or "WON" in value
+        marker in value
         for value in outcomes
+        for marker in ("SUCCESS", "ACCURATE", "WON")
     )
     unsuccessful = any(
         marker in value
@@ -338,7 +315,7 @@ def _label_progression_profile(matches: list[dict[str, Any]]) -> dict[str, Any]:
         for marker in ("UNSUCCESS", "INACCURATE", "LOST", "FAILED")
     )
     return {
-        "provider_progression_label_candidate": progression_values,
+        "provider_progression_label_candidate": progression,
         "provider_outcome_candidates": outcomes,
         "provider_progression_label_present": progressive,
         "provider_successful_outcome_candidate": successful,
@@ -359,13 +336,12 @@ def _verification(
         return "LABEL_UNKNOWN", "DOWNSTREAM_BLOCKED_REVIEW_REQUIRED"
 
     zone_delta = clean(event.get("zone_delta_class"))
-    explicit_geometry_conflict = (
+    if (
         profile["provider_progression_label_present"]
         and profile["provider_successful_outcome_candidate"]
         and zone_delta in NEGATIVE_GEOMETRY_CLASSES
         and dimensions["coordinate_support"] == "SUPPORTED_CANDIDATE"
-    )
-    if explicit_geometry_conflict:
+    ):
         return "LABEL_CONFLICTED", "LABEL_CONFLICTED_AND_DOWNSTREAM_BLOCKED"
 
     independent = sum(
@@ -386,9 +362,7 @@ def _structural_progression(
     consequence_support: str,
 ) -> tuple[str, list[str]]:
     zone_delta = clean(event.get("zone_delta_class"))
-    evidence: list[str] = []
-    if zone_delta:
-        evidence.append(zone_delta)
+    evidence = [zone_delta] if zone_delta else []
     if consequence_support == "SUPPORTED_CANDIDATE":
         evidence.append(clean(event.get("consequence_class_candidate")))
     if verification_status in {"LABEL_UNKNOWN", "LABEL_AMBIGUOUS", "LABEL_CONFLICTED"}:
@@ -396,7 +370,7 @@ def _structural_progression(
     if zone_delta == "NO_ZONE_CHANGE_CANDIDATE":
         return "CIRCULATION_CANDIDATE", evidence
     if zone_delta == "RESET_OR_BACKWARD_ZONE_CHANGE_CANDIDATE":
-        return "LATERAL_RELOCATION_CANDIDATE", evidence
+        return "PROGRESSION_CONTEXT_UNRESOLVED", evidence
     if axis_state != "AXIS_ELIGIBLE_CANDIDATE":
         return "PROGRESSION_CONTEXT_UNRESOLVED", evidence
     if zone_delta == "ZONE_GAIN_CANDIDATE":
@@ -414,15 +388,15 @@ def _structural_progression(
 
 
 def _persistence(event: dict[str, Any]) -> str:
-    value = clean(event.get("false_progression_candidate"))
     mapping = {
         "VISIBLE_ZONE_GAIN_RETAINED_CANDIDATE": "VISIBLE_PROGRESSION_RETAINED_CANDIDATE",
         "FALSE_PROGRESSION_CANDIDATE": "FALSE_PROGRESSION_CANDIDATE",
         "ZONE_GAIN_WITH_CONSTRUCTIVE_SUPPORT_BEFORE_HANDOVER_CANDIDATE": "TERMINAL_PROGRESSION_CANDIDATE",
         "NOT_APPLICABLE_NO_VISIBLE_ZONE_GAIN": "PROGRESSION_CONTEXT_UNRESOLVED",
     }
-    if value in mapping:
-        return mapping[value]
+    source = clean(event.get("false_progression_candidate"))
+    if source in mapping:
+        return mapping[source]
     if "BACKWARD" in clean(event.get("zone_delta_class")):
         return "REVERSIBLE_PROGRESSION_CANDIDATE"
     return "PROGRESSION_CONTEXT_UNRESOLVED"
@@ -440,14 +414,17 @@ def _line_break_evidence(
         "consequence_support": dimensions["consequence_support"],
         "aggregate_support": dimensions["aggregate_support"],
     }
+    full_support = (
+        axis["coordinate_support"] == "SUPPORTED_CANDIDATE"
+        and dimensions["outcome_support"] == "SUPPORTED_CANDIDATE"
+        and dimensions["consequence_support"] == "SUPPORTED_CANDIDATE"
+        and dimensions["aggregate_support"] == "SUPPORT_ONLY"
+    )
     if provider_support not in {"EXACT_REVIEWED_RULE", "PREFIX_REVIEWED_RULE"}:
         result_class = "UNKNOWN"
     elif axis["coordinate_support"] == "CONFLICTED":
         result_class = "LABEL_CONFLICTED"
-    elif (
-        axis["coordinate_support"] == "SUPPORTED_CANDIDATE"
-        and dimensions["consequence_support"] == "SUPPORTED_CANDIDATE"
-    ):
+    elif full_support:
         result_class = "LABEL_FULLY_SUPPORTED"
     elif axis["coordinate_support"] == "SUPPORTED_CANDIDATE":
         result_class = "LABEL_GEOMETRY_SUPPORTED"
@@ -505,51 +482,52 @@ def build_event_label_structural_progression_evidence(
         blocks.extend(found_blocks)
         reviews.extend(found_reviews)
 
-    action_nodes, action_blocks = _records(
+    action_nodes, found = _records(
         selected_action,
         "selected_action_nodes",
         "selected_action_node_count",
         "selected_action_node",
     )
-    event_rows, event_blocks = _records(
+    blocks.extend(found)
+    event_rows, found = _records(
         selected_event,
         "selected_event_consequence_candidates",
         "selected_event_consequence_candidate_count",
         "selected_event_consequence",
     )
-    provider_rows, provider_blocks = _records(
+    blocks.extend(found)
+    provider_rows, found = _records(
         provider_labels,
         "provider_label_records",
         "provider_label_record_count",
         "provider_label",
     )
-    alignment_rows, alignment_blocks = _records(
+    blocks.extend(found)
+    alignment_rows, found = _records(
         aggregate_alignment,
         "alignment_rows",
         "definition_candidate_count",
         "aggregate_alignment",
     )
-    blocks.extend(action_blocks + event_blocks + provider_blocks + alignment_blocks)
+    blocks.extend(found)
 
     action_by_id: dict[str, dict[str, Any]] = {}
     for node in action_nodes:
         node_id = clean(node.get("selected_action_node_id"))
         if not node_id or node_id in action_by_id:
-            blocks.append(
-                f"selected_action_node_id_invalid_or_duplicate:{node_id or 'NONE'}"
-            )
+            blocks.append(f"selected_action_node_id_invalid_or_duplicate:{node_id or 'NONE'}")
         else:
             action_by_id[node_id] = node
 
-    binding_candidates = {
+    bindings = {
         clean(selected_action.get("match_surface_binding_id")),
         clean(selected_event.get("match_surface_binding_id")),
         clean(sequence_consequence.get("match_surface_binding_id")),
     }
-    binding_candidates.discard("")
-    if len(binding_candidates) != 1:
+    bindings.discard("")
+    if len(bindings) != 1:
         blocks.append("match_surface_binding_mismatch_or_missing")
-    binding = next(iter(binding_candidates), "")
+    binding = next(iter(bindings), "")
 
     frame = selected_event.get("coordinate_frame_candidate")
     if not isinstance(frame, dict):
@@ -563,16 +541,12 @@ def build_event_label_structural_progression_evidence(
         event_id = clean(event.get("selected_event_consequence_candidate_id"))
         anchor_id = clean(event.get("anchor_selected_action_node_id"))
         if not event_id or event_id in seen_event_ids:
-            blocks.append(
-                f"selected_event_candidate_id_invalid_or_duplicate:{event_id or 'NONE'}"
-            )
+            blocks.append(f"selected_event_candidate_id_invalid_or_duplicate:{event_id or 'NONE'}")
             continue
         seen_event_ids.add(event_id)
         node = action_by_id.get(anchor_id)
         if node is None:
-            blocks.append(
-                f"selected_event_anchor_missing:{event_id}:{anchor_id or 'NONE'}"
-            )
+            blocks.append(f"selected_event_anchor_missing:{event_id}:{anchor_id or 'NONE'}")
             continue
         if (
             clean(event.get("match_surface_binding_id")) != binding
@@ -598,7 +572,7 @@ def build_event_label_structural_progression_evidence(
         verification_status, downstream = _verification(
             provider_support, pre_status, profile, event, dimensions
         )
-        structural_class, evidence = _structural_progression(
+        structural_class, structural_evidence = _structural_progression(
             verification_status,
             axis["axis_eligibility_state"],
             event,
@@ -606,14 +580,9 @@ def build_event_label_structural_progression_evidence(
         )
         persistence_class = _persistence(event)
         line_break = _line_break_evidence(provider_support, axis, dimensions)
-        if verification_status in {
-            "LABEL_UNKNOWN",
-            "LABEL_AMBIGUOUS",
-            "LABEL_CONFLICTED",
-        }:
-            reviews.append(
-                f"label_verification_review:{event_id}:{verification_status}"
-            )
+
+        if verification_status in {"LABEL_UNKNOWN", "LABEL_AMBIGUOUS", "LABEL_CONFLICTED"}:
+            reviews.append(f"label_verification_review:{event_id}:{verification_status}")
         if axis["axis_eligibility_state"] != "AXIS_ELIGIBLE_CANDIDATE":
             reviews.append(
                 f"axis_not_fully_eligible:{event_id}:{axis['axis_eligibility_state']}"
@@ -621,27 +590,16 @@ def build_event_label_structural_progression_evidence(
 
         output_records.append(
             {
-                "evidence_record_id": "elspe_"
-                + digest(binding, event_id, anchor_id)[:24],
+                "evidence_record_id": "elspe_" + digest(binding, event_id, anchor_id)[:24],
                 "match_surface_binding_id": binding,
                 "source_selected_event_consequence_candidate_id": event_id,
                 "anchor_selected_action_node_id": anchor_id,
-                "team_identity_candidate_id": event.get(
-                    "team_identity_candidate_id"
-                ),
-                "actor_identity_candidate_id": event.get(
-                    "actor_identity_candidate_id"
-                ),
+                "team_identity_candidate_id": event.get("team_identity_candidate_id"),
+                "actor_identity_candidate_id": event.get("actor_identity_candidate_id"),
                 "source_role": event.get("source_role"),
                 "period_candidate": event.get("period_candidate"),
-                "action_family_candidates": event.get(
-                    "anchor_action_family_candidates"
-                )
-                or [],
-                "support_normalized_labels": node.get(
-                    "support_normalized_labels"
-                )
-                or [],
+                "action_family_candidates": event.get("anchor_action_family_candidates") or [],
+                "support_normalized_labels": node.get("support_normalized_labels") or [],
                 "provider_label_record_ids": sorted(
                     clean(row.get("record_id"))
                     for row in matches
@@ -655,14 +613,10 @@ def build_event_label_structural_progression_evidence(
                 "axis_eligibility": axis,
                 "zone_delta_class": event.get("zone_delta_class"),
                 "structural_progression_classification": structural_class,
-                "structural_progression_evidence": evidence,
+                "structural_progression_evidence": structural_evidence,
                 "persistence_classification": persistence_class,
-                "source_false_progression_candidate": event.get(
-                    "false_progression_candidate"
-                ),
-                "source_consequence_class_candidate": event.get(
-                    "consequence_class_candidate"
-                ),
+                "source_false_progression_candidate": event.get("false_progression_candidate"),
+                "source_consequence_class_candidate": event.get("consequence_class_candidate"),
                 "label_assisted_line_break_evidence": line_break,
                 "aggregate_definition_support_ids": definition_ids,
                 "aggregate_alignment_reasons": alignment_reasons,
@@ -684,21 +638,15 @@ def build_event_label_structural_progression_evidence(
 
     blocks = sorted(set(blocks))
     reviews = sorted(set(reviews))
-    status = "FAIL_CLOSED" if blocks else ("REVIEW_REQUIRED" if reviews else "PASS")
+    status = "FAIL_CLOSED" if blocks else "REVIEW_REQUIRED" if reviews else "PASS"
 
     def counts(field: str) -> dict[str, int]:
-        return dict(
-            sorted(Counter(clean(row.get(field)) for row in output_records).items())
-        )
+        return dict(sorted(Counter(clean(row.get(field)) for row in output_records).items()))
 
     axis_counts = dict(
         sorted(
             Counter(
-                clean(
-                    (row.get("axis_eligibility") or {}).get(
-                        "axis_eligibility_state"
-                    )
-                )
+                clean((row.get("axis_eligibility") or {}).get("axis_eligibility_state"))
                 for row in output_records
             ).items()
         )
@@ -719,9 +667,7 @@ def build_event_label_structural_progression_evidence(
         "structural_progression_classification_counts": counts(
             "structural_progression_classification"
         ),
-        "persistence_classification_counts": counts(
-            "persistence_classification"
-        ),
+        "persistence_classification_counts": counts("persistence_classification"),
         "progression_metric_gate": _progression_metric_gate(sequence_consequence),
         "hard_block_hits": blocks,
         "review_hits": reviews,
@@ -806,15 +752,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("--out", required=True)
     args = parser.parse_args(list(argv) if argv is not None else None)
     payload = build_event_label_structural_progression_evidence(
-        load_json(
-            args.provider_labels, "provider_label_input_unreadable_or_malformed"
-        ),
-        load_json(
-            args.selected_action, "selected_action_input_unreadable_or_malformed"
-        ),
-        load_json(
-            args.selected_event, "selected_event_input_unreadable_or_malformed"
-        ),
+        load_json(args.provider_labels, "provider_label_input_unreadable_or_malformed"),
+        load_json(args.selected_action, "selected_action_input_unreadable_or_malformed"),
+        load_json(args.selected_event, "selected_event_input_unreadable_or_malformed"),
         load_json(
             args.sequence_consequence,
             "sequence_consequence_input_unreadable_or_malformed",
