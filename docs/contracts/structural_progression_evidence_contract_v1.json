@@ -1,0 +1,87 @@
+{
+  "schema": "HPFA_STRUCTURAL_PROGRESSION_EVIDENCE_CONTRACT_V1",
+  "status": "SPEC_ONLY",
+  "purpose": "Combine label, geometry, outcome and visible consequence components into event-only structural progression evidence.",
+  "upstream_reuse": [
+    "provider_label_value_semantics_lite_v1",
+    "selected_event_consequence_surface_lite_v1",
+    "selected_action_consequence_surface_lite_v1",
+    "eventonly_sequence_consequence_engine_lite_v1"
+  ],
+  "components": [
+    "provider_progression_label_candidate",
+    "forward_coordinate_delta_candidate",
+    "goal_distance_reduction_candidate",
+    "zone_advancement_candidate",
+    "lane_transition_candidate",
+    "final_third_crossing_candidate",
+    "box_crossing_candidate",
+    "central_destination_candidate",
+    "successful_outcome_support",
+    "sequence_continuation_support",
+    "immediate_loss_penalty"
+  ],
+  "classification_vocabulary": [
+    "CIRCULATION_CANDIDATE",
+    "LATERAL_RELOCATION_CANDIDATE",
+    "TERRITORIAL_ADVANCEMENT_CANDIDATE",
+    "DEEP_ADVANCEMENT_CANDIDATE",
+    "BOX_PENETRATION_CANDIDATE",
+    "STRUCTURAL_PROGRESSION_CANDIDATE",
+    "PROGRESSION_CONTEXT_UNRESOLVED"
+  ],
+  "admission_rules": [
+    {
+      "id": "SP01",
+      "minimum": "label-only support",
+      "classification": "provider-labelled progression candidate only; no geometry claim"
+    },
+    {
+      "id": "SP02",
+      "minimum": "axis eligible plus positive zone advancement",
+      "classification": "territorial advancement candidate"
+    },
+    {
+      "id": "SP03",
+      "minimum": "final-third or box boundary crossing plus outcome support",
+      "classification": "deep advancement or box penetration candidate"
+    },
+    {
+      "id": "SP04",
+      "minimum": "label plus geometry plus visible continuation",
+      "classification": "structural progression candidate"
+    },
+    {
+      "id": "SP05",
+      "minimum": "visible gain followed by handover without constructive support",
+      "classification": "false progression candidate support"
+    },
+    {
+      "id": "SP06",
+      "minimum": "missing axis, missing denominator or semantic conflict",
+      "classification": "component-only fallback or blocked"
+    }
+  ],
+  "denominator_rules": {
+    "support_rate": "total_eligible_progression_anchor_candidates",
+    "missing_denominator": "METRIC_BLOCKED",
+    "raw_volume": "descriptive only"
+  },
+  "forbidden_shortcuts": [
+    "fixed_x_threshold_without_scale_orientation_contract",
+    "provider_label_auto_truth",
+    "same_label_equals_same_definition",
+    "zone_delta_equals_xT",
+    "progression_equals_quality"
+  ],
+  "claim_boundary": {
+    "progression_truth": false,
+    "line_break_truth": false,
+    "packing_truth": false,
+    "opponent_displacement_truth": false,
+    "tactical_truth": false,
+    "causality_truth": false
+  },
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}
