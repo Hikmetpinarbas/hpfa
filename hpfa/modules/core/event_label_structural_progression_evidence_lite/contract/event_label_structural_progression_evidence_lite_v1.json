@@ -1,0 +1,108 @@
+{
+  "schema": "HPFA_EVENT_LABEL_STRUCTURAL_PROGRESSION_EVIDENCE_LITE_V1",
+  "version": "1.0.0",
+  "status": "IMPLEMENTATION_CANDIDATE_NOT_RUNTIME_VALIDATED",
+  "module_id": "event_label_structural_progression_evidence_lite_v1",
+  "purpose": "Bind reviewed provider-label lineage, selected-action support labels, current coordinate/zone candidates, existing consequence windows and aggregate-definition support into component-first event-only progression evidence records.",
+  "source_role": "PRODUCT_GATE_CONSUMER",
+  "input_modules": {
+    "provider_labels": "provider_label_value_semantics_lite_v1",
+    "selected_action": "selected_action_consequence_surface_lite_v1",
+    "selected_event": "selected_event_consequence_surface_lite_v1",
+    "sequence_consequence": "eventonly_sequence_consequence_engine_lite_v1",
+    "aggregate_alignment": "aggregate_definition_alignment_lite_v1"
+  },
+  "lineage_join": [
+    "selected_event.anchor_selected_action_node_id",
+    "selected_action.selected_action_node_id",
+    "selected_action.support_normalized_labels",
+    "provider_label_records.normalized_label + compatible source_role"
+  ],
+  "lineage_rule": "Provider label inventory must not be attached to an anchor by raw text alone. Missing, conflicting or ambiguous lineage is blocked or component-only.",
+  "producer_reuse": {
+    "coordinate_engine_reimplemented": false,
+    "consequence_window_engine_reimplemented": false,
+    "zone_delta_reimplemented": false,
+    "false_progression_reimplemented": false,
+    "aggregate_value_reimplemented": false
+  },
+  "output_files": [
+    "event_label_structural_progression_evidence_lite_v1.json",
+    "event_label_structural_progression_evidence_lite_v1.txt",
+    "event_label_structural_progression_evidence_analyst_audit_v1.txt"
+  ],
+  "verification_status_vocabulary": [
+    "LABEL_ONLY",
+    "LABEL_SUPPORTED",
+    "LABEL_PARTIALLY_SUPPORTED",
+    "LABEL_CONFLICTED",
+    "LABEL_AMBIGUOUS",
+    "LABEL_UNKNOWN"
+  ],
+  "axis_eligibility_states": [
+    "AXIS_ELIGIBLE_CANDIDATE",
+    "AXIS_PARTIALLY_ELIGIBLE",
+    "AXIS_CONFLICTED",
+    "AXIS_UNRESOLVED",
+    "COORDINATE_UNAVAILABLE"
+  ],
+  "structural_progression_classes": [
+    "CIRCULATION_CANDIDATE",
+    "LATERAL_RELOCATION_CANDIDATE",
+    "TERRITORIAL_ADVANCEMENT_CANDIDATE",
+    "DEEP_ADVANCEMENT_CANDIDATE",
+    "BOX_PENETRATION_CANDIDATE",
+    "STRUCTURAL_PROGRESSION_CANDIDATE",
+    "PROGRESSION_CONTEXT_UNRESOLVED"
+  ],
+  "persistence_classes": [
+    "VISIBLE_PROGRESSION_RETAINED_CANDIDATE",
+    "REVERSIBLE_PROGRESSION_CANDIDATE",
+    "TERMINAL_PROGRESSION_CANDIDATE",
+    "FALSE_PROGRESSION_CANDIDATE",
+    "PROGRESSION_CONTEXT_UNRESOLVED"
+  ],
+  "denominator_rule": "This module emits component evidence only. No progression rate is produced. Existing progression metric records remain METRIC_BLOCKED until a later denominator and eligibility release gate opens them.",
+  "duplicate_rule": "Current selected-action and selected-event producer lineage is preserved. Distinct selected-event candidate identities are not auto-merged. Exact provider record reflections are deduplicated only by stable record identity or exact lineage digest.",
+  "time_order_rule": "Duration support requires non-negative start and end candidates with end >= start. This is candidate support, not sequence truth.",
+  "claim_ceiling": "EVENT_ONLY_COMPONENT_FIRST_PROGRESSION_EVIDENCE_CANDIDATE",
+  "claim_boundary": {
+    "progression_truth": false,
+    "line_break_truth": false,
+    "packing_truth": false,
+    "opponent_structure_truth": false,
+    "possession_truth": false,
+    "sequence_truth": false,
+    "tactical_truth": false,
+    "causality_truth": false,
+    "claim_allowed": false
+  },
+  "phone_output_policy": {
+    "allowed_directories": [
+      "/sdcard/Download/HPFA",
+      "/storage/emulated/0/Download/HPFA"
+    ],
+    "nested_output_allowed": false,
+    "nested_error_code": "nested_phone_output_directory_rejected"
+  },
+  "required_tests": [
+    "test_provider_label_not_auto_truth_without_independent_support",
+    "test_supported_progression_uses_current_producer_status_mapping",
+    "test_explicit_successful_progression_geometry_conflict_blocks_downstream",
+    "test_unknown_label_is_preserved_and_blocked",
+    "test_missing_axis_blocks_geometry_support_not_component_evidence",
+    "test_distinct_event_candidates_are_not_auto_merged",
+    "test_progression_rates_remain_blocked",
+    "test_line_break_components_are_disclosed_without_truth_promotion",
+    "test_upstream_production_claim_fails_closed",
+    "test_flat_phone_output_policy_and_outputs",
+    "test_claim_boundaries_remain_false",
+    "test_no_sample_match_identity_leak"
+  ],
+  "active_match_need": "REQUIRED_AFTER_CURRENT_HEAD_CI_AND_REVIEW_CLOSURE",
+  "runtime_evidence_status": "NOT_EVALUATED",
+  "release_status": "NOT_PRODUCTION",
+  "metric_rate_output_allowed": false,
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}
