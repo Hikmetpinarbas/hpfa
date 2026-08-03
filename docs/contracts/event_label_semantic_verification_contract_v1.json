@@ -1,0 +1,105 @@
+{
+  "schema": "HPFA_EVENT_LABEL_SEMANTIC_VERIFICATION_CONTRACT_V1",
+  "status": "SPEC_ONLY",
+  "runtime_authority": "runtime/active_single_match/current",
+  "upstream_modules": [
+    "provider_label_value_semantics_lite_v1",
+    "selected_action_consequence_surface_lite_v1",
+    "selected_event_consequence_surface_lite_v1",
+    "aggregate_definition_alignment_lite_v1"
+  ],
+  "purpose": "Verify provider-label candidates against independent visible event-only support without promoting labels to truth.",
+  "required_record_fields": [
+    "raw_label",
+    "normalized_label_candidate",
+    "action_family_candidate",
+    "provider_source_support",
+    "semantic_ambiguity",
+    "coordinate_support",
+    "outcome_support",
+    "duration_support",
+    "consequence_support",
+    "aggregate_support",
+    "verification_status",
+    "downstream_eligibility",
+    "provenance_refs",
+    "claim_ceiling"
+  ],
+  "verification_status_vocabulary": [
+    "LABEL_ONLY",
+    "LABEL_SUPPORTED",
+    "LABEL_PARTIALLY_SUPPORTED",
+    "LABEL_CONFLICTED",
+    "LABEL_AMBIGUOUS",
+    "LABEL_UNKNOWN"
+  ],
+  "support_dimensions": {
+    "provider_source_support": [
+      "EXACT_REVIEWED_RULE",
+      "PREFIX_REVIEWED_RULE",
+      "TOKEN_FALLBACK_REVIEW_REQUIRED",
+      "UNKNOWN"
+    ],
+    "coordinate_support": [
+      "NOT_APPLICABLE",
+      "SUPPORTED_CANDIDATE",
+      "CONFLICTED",
+      "UNAVAILABLE"
+    ],
+    "outcome_support": [
+      "SUPPORTED_CANDIDATE",
+      "CONFLICTED",
+      "UNAVAILABLE"
+    ],
+    "duration_support": [
+      "SUPPORTED_CANDIDATE",
+      "CONFLICTED",
+      "UNAVAILABLE"
+    ],
+    "consequence_support": [
+      "SUPPORTED_CANDIDATE",
+      "CONFLICTED",
+      "UNAVAILABLE"
+    ],
+    "aggregate_support": [
+      "SUPPORT_ONLY",
+      "DEFINITION_MISMATCH",
+      "UNRESOLVED",
+      "NOT_AVAILABLE"
+    ]
+  },
+  "eligibility_rules": [
+    {
+      "rule_id": "EVL01",
+      "when": "exact reviewed provider rule and no hard conflict",
+      "result": "LABEL_SUPPORTED_OR_PARTIALLY_SUPPORTED_CANDIDATE"
+    },
+    {
+      "rule_id": "EVL02",
+      "when": "token fallback, unknown label or multi-anchor conflict",
+      "result": "DOWNSTREAM_BLOCKED_REVIEW_REQUIRED"
+    },
+    {
+      "rule_id": "EVL03",
+      "when": "geometry/outcome contradict label",
+      "result": "LABEL_CONFLICTED_AND_DOWNSTREAM_BLOCKED"
+    },
+    {
+      "rule_id": "EVL04",
+      "when": "support dimension unavailable",
+      "result": "component_only_fallback; do not invent support"
+    }
+  ],
+  "duplicate_rule": "same source-role and exact source lineage reflection is counted once; distinct bundle identities are not auto-merged",
+  "blocked_promotions": [
+    "validated_provider_semantics",
+    "canonical_event_identity",
+    "progression_truth",
+    "line_break_truth",
+    "packing_truth",
+    "tactical_truth",
+    "causality_truth"
+  ],
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}
