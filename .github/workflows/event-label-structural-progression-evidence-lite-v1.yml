@@ -1,0 +1,92 @@
+name: Event Label Structural Progression Evidence Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "event_label_structural_progression_evidence_lite.py"
+      - "hpfa/modules/core/event_label_structural_progression_evidence_lite/**"
+      - "docs/contracts/coordinate_axis_zone_lane_eligibility_contract_v1.json"
+      - ".github/workflows/event-label-structural-progression-evidence-lite-v1.yml"
+      - "tools/run_active_match_event_label_structural_progression_evidence_v1.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Exact PR head gate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile
+        run: |
+          python -m py_compile \
+            event_label_structural_progression_evidence_lite.py \
+            hpfa/modules/core/event_label_structural_progression_evidence_lite/src/event_label_structural_progression_evidence.py
+
+      - name: Focused tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/event_label_structural_progression_evidence_lite/tests
+
+      - name: Validate contracts and fixed claim boundaries
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          module_contract = json.loads(Path(
+              "hpfa/modules/core/event_label_structural_progression_evidence_lite/contract/event_label_structural_progression_evidence_lite_v1.json"
+          ).read_text(encoding="utf-8"))
+          axis_contract = json.loads(Path(
+              "docs/contracts/coordinate_axis_zone_lane_eligibility_contract_v1.json"
+          ).read_text(encoding="utf-8"))
+
+          assert module_contract["module_id"] == "event_label_structural_progression_evidence_lite_v1"
+          assert module_contract["runtime_evidence_status"] == "NOT_EVALUATED"
+          assert module_contract["release_status"] == "NOT_PRODUCTION"
+          assert module_contract["metric_rate_output_allowed"] is False
+          assert module_contract["canonical_event_count"] == "UNKNOWN"
+          assert module_contract["production_release"] is False
+          for key, value in module_contract["claim_boundary"].items():
+              assert value is False, key
+
+          mapping = axis_contract["producer_status_mapping"]
+          assert mapping["PASS_SHOT_CONCENTRATION_CANDIDATE"] == "SUPPORTED_CANDIDATE"
+          assert "explicitly mapped" in next(
+              row["require"] for row in axis_contract["rules"] if row["id"] == "AX01"
+          )
+          assert axis_contract["canonical_event_count"] == "UNKNOWN"
+          assert axis_contract["production_release"] is False
+          PY
+
+      - name: No sample match identity leak
+        run: |
+          ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|Fenerbahce|Sturm Graz|6935|77798" \
+            event_label_structural_progression_evidence_lite.py \
+            hpfa/modules/core/event_label_structural_progression_evidence_lite \
+            docs/contracts/coordinate_axis_zone_lane_eligibility_contract_v1.json
+
+      - name: Diff and shell syntax
+        run: |
+          git diff --check ${{ github.event.pull_request.base.sha || github.event.before }} ${{ github.event.pull_request.head.sha || github.sha }}
+          if test -f tools/run_active_match_event_label_structural_progression_evidence_v1.sh; then
+            bash -n tools/run_active_match_event_label_structural_progression_evidence_v1.sh
+          fi
