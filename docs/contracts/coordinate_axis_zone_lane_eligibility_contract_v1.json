@@ -1,0 +1,78 @@
+{
+  "schema": "HPFA_COORDINATE_AXIS_ZONE_LANE_ELIGIBILITY_CONTRACT_V1",
+  "status": "SPEC_ONLY",
+  "purpose": "Decide when coordinate evidence may support signed territorial advancement and zone/lane transitions.",
+  "current_producer": "selected_event_consequence_surface_lite_v1.coordinate_frame",
+  "required_inputs": [
+    "coordinate_scale_candidate",
+    "coordinate_bounds_status",
+    "team_period_attack_direction_candidate",
+    "attack_direction_support_status",
+    "start_x",
+    "start_y",
+    "end_x_or_first_visible_follow_up_x",
+    "end_y_or_first_visible_follow_up_y",
+    "period_candidate",
+    "team_identity_candidate_id",
+    "source_lineage"
+  ],
+  "eligibility_states": [
+    "AXIS_ELIGIBLE_CANDIDATE",
+    "AXIS_PARTIALLY_ELIGIBLE",
+    "AXIS_CONFLICTED",
+    "AXIS_UNRESOLVED",
+    "COORDINATE_UNAVAILABLE"
+  ],
+  "rules": [
+    {
+      "id": "AX01",
+      "require": "supported coordinate bounds and one team-period direction candidate",
+      "allow": "signed forward_coordinate_delta_candidate"
+    },
+    {
+      "id": "AX02",
+      "require": "scale available but direction unresolved",
+      "allow": "unsigned displacement and raw zone concentration only"
+    },
+    {
+      "id": "AX03",
+      "require": "direction or scale conflict",
+      "allow": "component-only fallback; no progression classification"
+    },
+    {
+      "id": "AX04",
+      "require": "period/team mismatch",
+      "allow": "FAIL_CLOSED"
+    },
+    {
+      "id": "AX05",
+      "require": "lane model version recorded",
+      "allow": "lane_transition_candidate"
+    },
+    {
+      "id": "AX06",
+      "require": "duplicate reflection lineage resolved",
+      "allow": "single coordinate support contribution"
+    }
+  ],
+  "zone_model": {
+    "required_versioning": true,
+    "minimum_classes": [
+      "OWN_THIRD_CANDIDATE",
+      "MIDDLE_THIRD_CANDIDATE",
+      "FINAL_THIRD_OUTSIDE_BOX_CANDIDATE",
+      "BOX_COORDINATE_CANDIDATE"
+    ],
+    "lane_model": "versioned normalized lateral bands; no occupation/control claim"
+  },
+  "blocked_claims": [
+    "validated_attack_direction_truth",
+    "pitch_control",
+    "opponent_displacement",
+    "players_bypassed",
+    "defensive_line_broken",
+    "line_break_truth"
+  ],
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}
