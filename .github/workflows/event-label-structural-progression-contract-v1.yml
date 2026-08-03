@@ -12,6 +12,9 @@ on:
       - "docs/contracts/aggregate_occurrence_alignment_contract_v1.json"
       - "docs/governance/event_label_structural_progression_claim_grammar_v1.md"
       - "docs/runtime/event_label_structural_progression_active_match_readiness_v1.json"
+      - "event_label_structural_progression_evidence_lite.py"
+      - "hpfa/modules/core/event_label_structural_progression_evidence_lite/**"
+      - "tools/run_active_match_event_label_structural_progression_evidence_v1.sh"
       - ".github/workflows/event-label-structural-progression-contract-v1.yml"
   workflow_dispatch:
 
@@ -39,6 +42,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Compile implementation
+        run: |
+          python -m py_compile \
+            event_label_structural_progression_evidence_lite.py \
+            hpfa/modules/core/event_label_structural_progression_evidence_lite/src/event_label_structural_progression_evidence.py
+
+      - name: Focused implementation tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/event_label_structural_progression_evidence_lite/tests
 
       - name: Validate JSON contracts and fixed boundaries
         run: |
@@ -93,6 +107,7 @@ jobs:
           assert "attack_direction_support_status=SUPPORTED_CANDIDATE" in ax01
           assert "ATTACK_TOWARD_HIGH_X_CANDIDATE" in ax01
           assert "ATTACK_TOWARD_LOW_X_CANDIDATE" in ax01
+          assert axis_payload["producer_status_mapping"]["PASS_SHOT_CONCENTRATION_CANDIDATE"] == "SUPPORTED_CANDIDATE"
 
           line_break_payload = payloads["label_assisted_line_break_evidence_contract_v1.json"]
           required_disclosures = {
@@ -109,6 +124,17 @@ jobs:
           assert readiness["release_state"]["active_match_evidence_pass"] is False
           assert readiness["release_state"]["implementation_started"] is False
           assert readiness["release_state"]["production_release"] is False
+
+          implementation = json.loads(Path(
+              "hpfa/modules/core/event_label_structural_progression_evidence_lite/contract/event_label_structural_progression_evidence_lite_v1.json"
+          ).read_text(encoding="utf-8"))
+          assert implementation["module_id"] == "event_label_structural_progression_evidence_lite_v1"
+          assert implementation["runtime_evidence_status"] == "NOT_EVALUATED"
+          assert implementation["release_status"] == "NOT_PRODUCTION"
+          assert implementation["metric_rate_output_allowed"] is False
+          assert implementation["canonical_event_count"] == "UNKNOWN"
+          assert implementation["production_release"] is False
+          assert all(value is False for value in implementation["claim_boundary"].values())
 
           source_map = Path(
               "docs/research/eventonly/event_label_verification_source_role_map_v1.tsv"
@@ -153,4 +179,12 @@ jobs:
             docs/contracts/false_progression_persistence_contract_v1.json \
             docs/contracts/aggregate_occurrence_alignment_contract_v1.json \
             docs/governance/event_label_structural_progression_claim_grammar_v1.md \
-            docs/runtime/event_label_structural_progression_active_match_readiness_v1.json
+            docs/runtime/event_label_structural_progression_active_match_readiness_v1.json \
+            event_label_structural_progression_evidence_lite.py \
+            hpfa/modules/core/event_label_structural_progression_evidence_lite \
+            tools/run_active_match_event_label_structural_progression_evidence_v1.sh
+
+      - name: Shell syntax and diff hygiene
+        run: |
+          bash -n tools/run_active_match_event_label_structural_progression_evidence_v1.sh
+          git diff --check ${{ github.event.pull_request.base.sha || github.event.before }} ${{ github.event.pull_request.head.sha || github.sha }}
