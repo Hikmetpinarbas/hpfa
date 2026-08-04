@@ -11,8 +11,12 @@ MARKER="$OUT/.event_label_structural_progression_evidence_run_marker_v1"
 BUNDLE="$OUT/event_label_structural_progression_evidence_bundle_v1.zip"
 MANIFEST="$OUT/event_label_structural_progression_evidence_bundle_manifest_v1.json"
 BUNDLE_SHA="$OUT/event_label_structural_progression_evidence_bundle_v1.sha256"
+STATE="$OUT/event_label_structural_progression_evidence_operator_state_v1.txt"
 
-fail() { printf 'FAIL: %s\n' "$1" >&2; exit 2; }
+fail() {
+  printf 'status=FAILED\nreason=%s\ncanonical_event_count=UNKNOWN\nproduction_release=false\n' "$1" | tee "$STATE" >&2
+  exit 2
+}
 
 [[ -d "$REPO/.git" ]] || fail "product_repo_not_git_checkout:$REPO"
 [[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_missing:$ACTIVE_MATCH"
@@ -45,14 +49,13 @@ rm -f \
   "$OUT/event_label_structural_progression_evidence_result_v1.txt" \
   "$OUT/event_label_structural_progression_evidence_pytest_v1.txt" \
   "$OUT/event_label_structural_progression_evidence_active_match_v1.txt" \
-  "$BUNDLE" "$MANIFEST" "$BUNDLE_SHA" "$MARKER"
+  "$BUNDLE" "$MANIFEST" "$BUNDLE_SHA" "$MARKER" "$STATE"
 : > "$MARKER"
 
 python -m py_compile \
   event_label_structural_progression_evidence_lite.py \
   hpfa/modules/core/event_label_structural_progression_evidence_lite/src/event_label_structural_progression_evidence.py
-python -m pytest -q \
-  hpfa/modules/core/event_label_structural_progression_evidence_lite/tests \
+python -m pytest -q hpfa/modules/core/event_label_structural_progression_evidence_lite/tests \
   | tee "$OUT/event_label_structural_progression_evidence_pytest_v1.txt"
 
 set +e
@@ -68,6 +71,7 @@ set -e
 [[ "$SPINE_RC" -eq 0 ]] || fail "context_spine_failed:$SPINE_RC"
 
 PROVIDER_LABELS="$OUT/provider_label_value_semantics_lite_v1.json"
+ACTION_BUNDLES="$OUT/semantic_role_action_bundle_candidates_lite_v1.json"
 SELECTED_ACTION="$OUT/selected_action_consequence_surface_lite_v1.json"
 XLSX_AUDIT="$OUT/xlsx_surface_audit_lite_v1.json"
 SELECTED_EVENT="$OUT/selected_event_consequence_surface_lite_v1.json"
@@ -76,20 +80,15 @@ AGGREGATE_ALIGNMENT="$OUT/aggregate_definition_alignment_lite_v1.json"
 AGGREGATE_REGISTRY="$REPO/hpfa/modules/core/aggregate_definition_alignment_lite/registry/sportsbase_aggregate_definition_candidates_v1.json"
 OUTPUT="$OUT/event_label_structural_progression_evidence_lite_v1.json"
 
-[[ -f "$PROVIDER_LABELS" ]] || fail "provider_label_semantics_output_missing"
-[[ -f "$SELECTED_ACTION" ]] || fail "selected_action_consequence_output_missing"
-[[ -f "$XLSX_AUDIT" ]] || fail "xlsx_surface_audit_output_missing"
-[[ -f "$AGGREGATE_REGISTRY" ]] || fail "aggregate_definition_registry_missing"
+for required in "$PROVIDER_LABELS" "$ACTION_BUNDLES" "$SELECTED_ACTION" "$XLSX_AUDIT" "$AGGREGATE_REGISTRY"; do
+  [[ -f "$required" ]] || fail "required_input_missing:$required"
+done
 [[ -d "$REPO/configs/metrics" ]] || fail "metric_config_directory_missing"
 
 set +e
-python selected_event_consequence_surface_lite.py \
-  --selected-action-consequence "$SELECTED_ACTION" \
-  --out "$OUT"
+python selected_event_consequence_surface_lite.py --selected-action-consequence "$SELECTED_ACTION" --out "$OUT"
 SELECTED_EVENT_RC=$?
-python eventonly_sequence_consequence_engine_lite.py \
-  --selected-action-consequence "$SELECTED_ACTION" \
-  --out "$OUT"
+python eventonly_sequence_consequence_engine_lite.py --selected-action-consequence "$SELECTED_ACTION" --out "$OUT"
 SEQUENCE_RC=$?
 python aggregate_definition_alignment_lite.py \
   --xlsx-audit "$XLSX_AUDIT" \
@@ -103,13 +102,14 @@ set -e
 [[ "$SELECTED_EVENT_RC" -ne 2 ]] || fail "selected_event_consequence_fail_closed"
 [[ "$SEQUENCE_RC" -ne 2 ]] || fail "sequence_consequence_fail_closed"
 [[ "$AGGREGATE_RC" -ne 2 ]] || fail "aggregate_alignment_fail_closed"
-[[ -f "$SELECTED_EVENT" ]] || fail "selected_event_consequence_output_missing"
-[[ -f "$SEQUENCE_CONSEQUENCE" ]] || fail "sequence_consequence_output_missing"
-[[ -f "$AGGREGATE_ALIGNMENT" ]] || fail "aggregate_alignment_output_missing"
+for required in "$SELECTED_EVENT" "$SEQUENCE_CONSEQUENCE" "$AGGREGATE_ALIGNMENT"; do
+  [[ -f "$required" ]] || fail "derived_input_missing:$required"
+done
 
 set +e
 python event_label_structural_progression_evidence_lite.py \
   --provider-labels "$PROVIDER_LABELS" \
+  --action-bundles "$ACTION_BUNDLES" \
   --selected-action "$SELECTED_ACTION" \
   --selected-event "$SELECTED_EVENT" \
   --sequence-consequence "$SEQUENCE_CONSEQUENCE" \
@@ -149,7 +149,6 @@ payload.update({
 with open(path, "w", encoding="utf-8") as handle:
     json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
     handle.write("\n")
-print("HPFA EVENT LABEL STRUCTURAL PROGRESSION EVIDENCE ACTIVE_MATCH AUDIT")
 for key in (
     "status", "runtime_evidence_status", "release_status", "runtime_code_head_sha",
     "match_surface_binding_id", "evidence_record_count", "verification_status_counts",
@@ -177,8 +176,7 @@ PY
   echo "production_release=false"
 } | tee "$OUT/event_label_structural_progression_evidence_result_v1.txt"
 
-python - "$OUT" "$MARKER" "$BUNDLE" "$MANIFEST" "$BUNDLE_SHA" \
-  "$BRANCH" "$HEAD" "$ACTIVE_RESOLVED" "$RUN_RC" <<'PY'
+python - "$OUT" "$MARKER" "$BUNDLE" "$MANIFEST" "$BUNDLE_SHA" "$BRANCH" "$HEAD" "$ACTIVE_RESOLVED" "$RUN_RC" <<'PY'
 from __future__ import annotations
 
 import hashlib
@@ -191,6 +189,7 @@ out, marker, bundle, manifest, bundle_sha = map(Path, sys.argv[1:6])
 branch, head, authority, rc_text = sys.argv[6:]
 required = (
     "provider_label_value_semantics_lite_v1.json",
+    "semantic_role_action_bundle_candidates_lite_v1.json",
     "selected_action_consequence_surface_lite_v1.json",
     "selected_event_consequence_surface_lite_v1.json",
     "eventonly_sequence_consequence_result_v1.json",
@@ -237,11 +236,7 @@ manifest.write_text(
             "run_rc": int(rc_text),
             "file_count": len(files),
             "files": [
-                {
-                    "name": path.name,
-                    "size_bytes": path.stat().st_size,
-                    "sha256": sha256(path),
-                }
+                {"name": path.name, "size_bytes": path.stat().st_size, "sha256": sha256(path)}
                 for path in files
             ],
             "canonical_event_count": "UNKNOWN",
@@ -262,5 +257,6 @@ print(f"bundle={bundle}")
 print(f"bundle_file_count={len(files) + 1}")
 PY
 
+printf 'status=COMPLETED\nrun_rc=%s\nbundle=%s\ncanonical_event_count=UNKNOWN\nproduction_release=false\n' "$RUN_RC" "$BUNDLE" | tee "$STATE"
 rm -f "$MARKER"
 exit "$RUN_RC"
