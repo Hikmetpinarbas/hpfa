@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 MODULE_ID = "outcome_support_bridge_lite_v1"
+VERSION = "1.0.1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 INPUT_MODULES = {
     "selected_action": "selected_action_consequence_surface_lite_v1",
@@ -28,6 +29,22 @@ RESOLVED_VISIBLE = {
     "FAILED_VISIBLE_CONSEQUENCE_CANDIDATE",
 }
 SEQUENCE_STATUSES = {"PASS_CANDIDATE", "REVIEW_REQUIRED_CANDIDATE"}
+LINEAGE_FIELDS = (
+    "match_surface_binding_id",
+    "team_identity_candidate_id",
+    "actor_identity_candidate_id",
+    "source_role",
+    "period_candidate",
+)
+NONEMPTY_LINEAGE_FIELDS = {
+    "match_surface_binding_id",
+    "team_identity_candidate_id",
+    "source_role",
+    "period_candidate",
+}
+ACTOR_BOUND_ROLES = {"PLAYER_SURFACE_CANDIDATE", "GOALKEEPER_SURFACE_CANDIDATE"}
+TERMINAL_ATOM_CLASS = "TERMINAL_OUTCOME_ATOM"
+DERIVED_ATOM_CLASS = "DERIVED_CONSEQUENCE_ATOM"
 
 
 def clean(value: Any) -> str:
@@ -75,7 +92,9 @@ def _guard(name: str, payload: dict[str, Any]) -> tuple[list[str], list[str]]:
     return blocks, reviews
 
 
-def _rows(payload: dict[str, Any], key: str, count_key: str, code: str) -> tuple[list[dict[str, Any]], list[str]]:
+def _rows(
+    payload: dict[str, Any], key: str, count_key: str, code: str
+) -> tuple[list[dict[str, Any]], list[str]]:
     raw = payload.get(key)
     if not isinstance(raw, list):
         return [], [f"{code}_inventory_invalid"]
@@ -87,7 +106,9 @@ def _rows(payload: dict[str, Any], key: str, count_key: str, code: str) -> tuple
     return [row for row in raw if isinstance(row, dict)], blocks
 
 
-def _index(rows: list[dict[str, Any]], key: str, code: str) -> tuple[dict[str, dict[str, Any]], list[str]]:
+def _index(
+    rows: list[dict[str, Any]], key: str, code: str
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
     result: dict[str, dict[str, Any]] = {}
     blocks: list[str] = []
     for position, row in enumerate(rows):
@@ -99,25 +120,112 @@ def _index(rows: list[dict[str, Any]], key: str, code: str) -> tuple[dict[str, d
     return result, blocks
 
 
-def _lineage_conflicts(node: dict[str, Any], event: dict[str, Any], binding: str) -> list[str]:
+def _lineage_conflicts(
+    node: dict[str, Any], event: dict[str, Any], binding: str
+) -> list[str]:
     conflicts: list[str] = []
-    for field in (
-        "match_surface_binding_id",
-        "team_identity_candidate_id",
-        "actor_identity_candidate_id",
-        "source_role",
-        "period_candidate",
-    ):
+    node_id = clean(node.get("selected_action_node_id"))
+    event_anchor = clean(event.get("anchor_selected_action_node_id"))
+    if not node_id:
+        conflicts.append("selected_action_node_id_missing")
+    if not event_anchor:
+        conflicts.append("anchor_selected_action_node_id_missing")
+    if node_id and event_anchor and node_id != event_anchor:
+        conflicts.append("selected_action_node_id_mismatch")
+
+    for field in LINEAGE_FIELDS:
+        left_present = field in node
+        right_present = field in event
+        if not left_present:
+            conflicts.append(f"{field}_missing_on_selected_action")
+        if not right_present:
+            conflicts.append(f"{field}_missing_on_selected_event")
+        if not left_present or not right_present:
+            continue
+
         left = clean(node.get(field))
         right = clean(event.get(field))
-        if field == "match_surface_binding_id":
-            left, right = left or binding, right or binding
+        if field in NONEMPTY_LINEAGE_FIELDS:
+            if not left:
+                conflicts.append(f"{field}_empty_on_selected_action")
+            if not right:
+                conflicts.append(f"{field}_empty_on_selected_event")
         if left != right:
             conflicts.append(f"{field}_mismatch")
+        if field == "match_surface_binding_id":
+            if left != binding:
+                conflicts.append("selected_action_match_surface_binding_payload_mismatch")
+            if right != binding:
+                conflicts.append("selected_event_match_surface_binding_payload_mismatch")
+
+    role = clean(node.get("source_role"))
+    event_role = clean(event.get("source_role"))
+    if role in ACTOR_BOUND_ROLES and not clean(node.get("actor_identity_candidate_id")):
+        conflicts.append("actor_identity_candidate_id_missing_for_selected_action_role")
+    if event_role in ACTOR_BOUND_ROLES and not clean(event.get("actor_identity_candidate_id")):
+        conflicts.append("actor_identity_candidate_id_missing_for_selected_event_role")
     return conflicts
 
 
-def _classify(terminal: bool, derived: bool, visible: bool, sequence: bool, conflicts: list[str]) -> tuple[str, str, bool]:
+def _support_atom_state(
+    node: dict[str, Any],
+) -> tuple[list[str], dict[str, int], bool, bool, list[str]]:
+    conflicts: list[str] = []
+    atom_ids_raw = node.get("supporting_evidence_atom_ids")
+    if not isinstance(atom_ids_raw, list):
+        conflicts.append("supporting_evidence_atom_inventory_invalid")
+        atom_ids_raw = []
+    cleaned_ids = [clean(value) for value in atom_ids_raw if clean(value)]
+    if len(cleaned_ids) != len(set(cleaned_ids)):
+        conflicts.append("supporting_evidence_atom_id_duplicate")
+    atom_ids = sorted(set(cleaned_ids))
+
+    counts_raw = node.get("support_atom_class_counts")
+    counts: dict[str, int] = {}
+    if not isinstance(counts_raw, dict):
+        conflicts.append("support_atom_class_counts_invalid")
+    else:
+        for raw_key, raw_value in counts_raw.items():
+            key = clean(raw_key)
+            if not key or isinstance(raw_value, bool) or not isinstance(raw_value, int) or raw_value < 0:
+                conflicts.append(f"support_atom_class_count_invalid:{key or 'EMPTY'}")
+                continue
+            counts[key] = raw_value
+    if sum(counts.values()) != len(atom_ids):
+        conflicts.append("support_atom_count_id_mismatch")
+
+    terminal_raw = node.get("terminal_outcome_support_visible")
+    derived_raw = node.get("derived_consequence_support_visible")
+    if not isinstance(terminal_raw, bool):
+        conflicts.append("terminal_outcome_support_visible_not_boolean")
+    if not isinstance(derived_raw, bool):
+        conflicts.append("derived_consequence_support_visible_not_boolean")
+    terminal_flag = terminal_raw is True
+    derived_flag = derived_raw is True
+    terminal_count = counts.get(TERMINAL_ATOM_CLASS, 0)
+    derived_count = counts.get(DERIVED_ATOM_CLASS, 0)
+
+    if terminal_flag and terminal_count == 0:
+        conflicts.append("terminal_support_flag_without_matching_atom_class")
+    if not terminal_flag and terminal_count > 0:
+        conflicts.append("terminal_atom_class_without_support_flag")
+    if derived_flag and derived_count == 0:
+        conflicts.append("derived_support_flag_without_matching_atom_class")
+    if not derived_flag and derived_count > 0:
+        conflicts.append("derived_atom_class_without_support_flag")
+
+    terminal = terminal_flag and terminal_count > 0
+    derived = derived_flag and derived_count > 0
+    return atom_ids, dict(sorted(counts.items())), terminal, derived, conflicts
+
+
+def _classify(
+    terminal: bool,
+    derived: bool,
+    visible: bool,
+    sequence: bool,
+    conflicts: list[str],
+) -> tuple[str, str, bool]:
     if conflicts:
         return "CONFLICTED_OUTCOME_SUPPORT", "CONFLICTED", False
     source_count = sum((terminal, derived, visible, sequence))
@@ -174,7 +282,9 @@ def build_outcome_support_bridge(
         "selected_event_consequence",
     )
     blocks.extend(node_blocks + event_blocks)
-    node_by_id, node_index_blocks = _index(nodes, "selected_action_node_id", "selected_action_node")
+    node_by_id, node_index_blocks = _index(
+        nodes, "selected_action_node_id", "selected_action_node"
+    )
     blocks.extend(node_index_blocks)
 
     event_by_anchor: dict[str, dict[str, Any]] = {}
@@ -183,11 +293,15 @@ def build_outcome_support_bridge(
         event_id = clean(event.get("selected_event_consequence_candidate_id"))
         anchor_id = clean(event.get("anchor_selected_action_node_id"))
         if not event_id or event_id in event_ids:
-            blocks.append(f"selected_event_candidate_id_invalid_or_duplicate:{event_id or position}")
+            blocks.append(
+                f"selected_event_candidate_id_invalid_or_duplicate:{event_id or position}"
+            )
             continue
         event_ids.add(event_id)
         if not anchor_id or anchor_id in event_by_anchor:
-            blocks.append(f"selected_event_anchor_invalid_or_duplicate:{anchor_id or position}")
+            blocks.append(
+                f"selected_event_anchor_invalid_or_duplicate:{anchor_id or position}"
+            )
             continue
         event_by_anchor[anchor_id] = event
 
@@ -215,11 +329,15 @@ def build_outcome_support_bridge(
             continue
         if clean(metric.get("status")) not in SEQUENCE_STATUSES:
             continue
-        metric_id = clean(metric.get("metric_record_id")) or digest(metric.get("metric_id"), position)
+        metric_id = clean(metric.get("metric_record_id")) or digest(
+            metric.get("metric_id"), position
+        )
         for raw_id in anchors:
             node_id = clean(raw_id)
             if node_id not in node_by_id:
-                blocks.append(f"sequence_metric_anchor_reference_missing:{metric_id}:{node_id or 'NONE'}")
+                blocks.append(
+                    f"sequence_metric_anchor_reference_missing:{metric_id}:{node_id or 'NONE'}"
+                )
                 continue
             sequence_index.setdefault(node_id, []).append(
                 {
@@ -237,22 +355,23 @@ def build_outcome_support_bridge(
     for node_id in sorted(node_by_id):
         node = node_by_id[node_id]
         event = event_by_anchor.get(node_id, {})
-        record_conflicts = _lineage_conflicts(node, event, binding) if event else ["selected_event_missing"]
-        atom_ids_raw = node.get("supporting_evidence_atom_ids")
-        if not isinstance(atom_ids_raw, list):
-            record_conflicts.append("supporting_evidence_atom_inventory_invalid")
-            atom_ids_raw = []
-        atom_ids = sorted({clean(value) for value in atom_ids_raw if clean(value)})
-        terminal = node.get("terminal_outcome_support_visible") is True
-        derived = node.get("derived_consequence_support_visible") is True
-        if (terminal or derived) and not atom_ids:
-            record_conflicts.append("explicit_support_flag_without_evidence_atom_lineage")
+        record_conflicts = (
+            _lineage_conflicts(node, event, binding)
+            if event
+            else ["selected_event_missing"]
+        )
+        atom_ids, atom_counts, terminal, derived, atom_conflicts = _support_atom_state(node)
+        record_conflicts.extend(atom_conflicts)
         visible_class = clean(event.get("consequence_class_candidate"))
         visible = visible_class in RESOLVED_VISIBLE
         sequence_rows = sequence_index.get(node_id, [])
         sequence = bool(sequence_rows)
         classification, support_status, promotion = _classify(
-            terminal, derived, visible, sequence, record_conflicts
+            terminal,
+            derived,
+            visible,
+            sequence,
+            record_conflicts,
         )
         sources: list[str] = []
         if terminal:
@@ -263,29 +382,38 @@ def build_outcome_support_bridge(
             sources.append("SELECTED_EVENT_VISIBLE_CONSEQUENCE")
         if sequence:
             sources.append("SEQUENCE_METRIC_EVIDENCE_ANCHOR_SUPPORT")
+
+        unique_conflicts = sorted(set(record_conflicts))
         record = {
             "outcome_support_bridge_record_id": "osb_" + digest(binding, node_id)[:24],
             "match_surface_binding_id": binding or None,
             "selected_action_node_id": node_id,
-            "selected_event_consequence_candidate_id": event.get("selected_event_consequence_candidate_id"),
+            "selected_event_consequence_candidate_id": event.get(
+                "selected_event_consequence_candidate_id"
+            ),
             "team_identity_candidate_id": node.get("team_identity_candidate_id"),
             "actor_identity_candidate_id": node.get("actor_identity_candidate_id"),
             "source_role": node.get("source_role"),
             "period_candidate": node.get("period_candidate"),
             "action_family_candidates": node.get("action_family_candidates") or [],
             "supporting_evidence_atom_ids": atom_ids,
+            "support_atom_class_counts": atom_counts,
             "terminal_outcome_support_visible": terminal,
             "derived_consequence_support_visible": derived,
-            "visible_consequence_class_candidate": event.get("consequence_class_candidate"),
+            "visible_consequence_class_candidate": event.get(
+                "consequence_class_candidate"
+            ),
             "visible_zone_delta_class": event.get("zone_delta_class"),
             "visible_turnover_window_class": event.get("turnover_window_class"),
-            "visible_retention_after_action_status": event.get("retention_after_action_status"),
+            "visible_retention_after_action_status": event.get(
+                "retention_after_action_status"
+            ),
             "sequence_metric_evidence_anchor_support": sequence_rows,
             "support_sources": sources,
             "outcome_support_classification": classification,
             "downstream_outcome_support_status": support_status,
             "downstream_promotion_allowed": promotion,
-            "conflict_reasons": sorted(set(record_conflicts)),
+            "conflict_reasons": unique_conflicts,
             "terminal_outcome_truth": False,
             "sequence_trace_truth": False,
             "causality_truth": False,
@@ -295,17 +423,21 @@ def build_outcome_support_bridge(
             "canonical_event_count": CANONICAL_EVENT_COUNT,
         }
         records.append(record)
-        if record_conflicts:
+        if unique_conflicts:
             conflicts.append(
                 {
-                    "outcome_support_bridge_record_id": record["outcome_support_bridge_record_id"],
+                    "outcome_support_bridge_record_id": record[
+                        "outcome_support_bridge_record_id"
+                    ],
                     "selected_action_node_id": node_id,
-                    "conflict_reasons": record["conflict_reasons"],
+                    "conflict_reasons": unique_conflicts,
                 }
             )
 
     class_counts = Counter(row["outcome_support_classification"] for row in records)
-    support_counts = Counter(row["downstream_outcome_support_status"] for row in records)
+    support_counts = Counter(
+        row["downstream_outcome_support_status"] for row in records
+    )
     if class_counts.get("OUTCOME_SUPPORT_UNAVAILABLE"):
         reviews.append("outcome_support_unavailable_records_present")
     if conflicts:
@@ -315,7 +447,7 @@ def build_outcome_support_bridge(
     status = "FAIL_CLOSED" if blocks else ("REVIEW_REQUIRED" if reviews else "PASS")
     return {
         "module_id": MODULE_ID,
-        "version": "1.0.0",
+        "version": VERSION,
         "status": status,
         "module_status": status,
         "runtime_evidence_status": "NOT_EVALUATED",
@@ -359,8 +491,12 @@ def summary(payload: dict[str, Any]) -> str:
         "hard_block_hits",
         "review_hits",
     )
-    lines = ["HPFA OUTCOME SUPPORT BRIDGE LITE V1"] + [f"{key}={payload.get(key)}" for key in keys]
-    return "\n".join(lines + ["canonical_event_count=UNKNOWN", "production_release=false"]) + "\n"
+    lines = ["HPFA OUTCOME SUPPORT BRIDGE LITE V1"] + [
+        f"{key}={payload.get(key)}" for key in keys
+    ]
+    return "\n".join(
+        lines + ["canonical_event_count=UNKNOWN", "production_release=false"]
+    ) + "\n"
 
 
 def analyst_audit(payload: dict[str, Any]) -> str:
@@ -368,7 +504,7 @@ def analyst_audit(payload: dict[str, Any]) -> str:
         "HPFA ANALYST AUDIT — OUTCOME SUPPORT BRIDGE LITE V1",
         "",
         "Ne görüldü?",
-        "Selected-action anchors were joined to explicit atom support, selected-event visible consequence candidates and sequence-metric evidence-anchor support.",
+        "Selected-action anchors were joined to explicit class-matched atom support, selected-event visible consequence candidates and sequence-metric evidence-anchor support.",
         "",
         "Nerede görüldü?",
         f"match_surface_binding_id={payload.get('match_surface_binding_id')}",
@@ -380,7 +516,7 @@ def analyst_audit(payload: dict[str, Any]) -> str:
         f"conflict_record_count={payload.get('conflict_record_count')}",
         "",
         "Analist için güvenli anlamı nedir?",
-        "Explicit atom support, visible consequence support and sequence-metric anchor support are disclosed separately. Sequence support alone cannot create terminal outcome truth or downstream promotion.",
+        "Explicit terminal and derived support require their matching evidence-atom classes and complete per-record lineage. Sequence support alone cannot create terminal outcome truth or downstream promotion.",
         "These records do not prove possession, sequence truth, causality, progression quality, tactical intent or player quality.",
         "canonical_event_count=UNKNOWN",
         "production_release=false",
@@ -427,7 +563,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         payload = build_outcome_support_bridge(
-            load_json(args.selected_action_consequence, "selected_action_input_invalid"),
+            load_json(
+                args.selected_action_consequence, "selected_action_input_invalid"
+            ),
             load_json(args.selected_event_consequence, "selected_event_input_invalid"),
             load_json(args.sequence_consequence, "sequence_consequence_input_invalid"),
         )
