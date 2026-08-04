@@ -23,11 +23,14 @@ Method: `ADAPT_NOT_COPY`.
 1. **missing lineage must fail closed**: a payload-level binding cannot fill a missing record-level lineage field.
 2. **terminal ownership ambiguity must block promotion**: a terminal flag requires a matching `TERMINAL_OUTCOME_ATOM`; a derived flag requires a matching `DERIVED_CONSEQUENCE_ATOM`.
 3. Evidence-atom class counts must reconcile with unique evidence-atom IDs.
-4. Explicit null actor lineage is allowed only when the source role itself is not actor-bound; missing actor fields are not equivalent to explicit null.
+4. Explicit null actor lineage is allowed only when the source role itself is not actor-bound; missing, blank and whitespace actor fields are not equivalent to explicit JSON null.
 5. Sequence metric anchor support is support-only and intentionally partial; it cannot independently create terminal outcome truth.
 6. Phone runtime outputs must remain flat under `/sdcard/Download/HPFA` or `/storage/emulated/0/Download/HPFA`.
 7. Invalid output paths are rejected without writing into the rejected path.
 8. Generated upstream artifacts are resolved from the flat phone-output surface where their producer runners write them.
+9. Every input payload must explicitly carry a non-empty match-surface binding; a missing sequence binding cannot be inferred from the other producers.
+10. The three payload bindings must agree before any sequence evidence-anchor support can enter the bridge.
+11. A selected-event record must explicitly carry a non-empty `consequence_class_candidate`; terminal or derived atom support cannot bypass this required event-side contract field.
 
 ## Football-intelligence effect
 
