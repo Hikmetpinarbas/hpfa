@@ -32,7 +32,7 @@ Method: `ADAPT_NOT_COPY`.
 10. The three payload bindings must agree before the sequence index is built or any record can disclose sequence support.
 11. A failed payload-binding gate adds `payload_binding_gate_failed` to record-level conflicts and blocks all downstream promotion in the failed module output.
 12. A selected-event record must explicitly carry a non-empty `consequence_class_candidate`; terminal or derived atom support cannot bypass this required event-side contract field.
-13. Invalid evidence-atom IDs—blank, whitespace-only, null or non-string entries—must be detected before filtering or reconciliation; they cannot be silently dropped.
+13. invalid evidence-atom IDs—blank, whitespace-only, null or non-string entries—must be detected before filtering or reconciliation; they cannot be silently dropped.
 14. A valid atom-count total does not repair a malformed evidence-atom inventory.
 
 ## Football-intelligence effect
