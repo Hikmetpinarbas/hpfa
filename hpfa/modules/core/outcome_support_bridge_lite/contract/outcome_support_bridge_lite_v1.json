@@ -1,0 +1,158 @@
+{
+  "module_id": "outcome_support_bridge_lite_v1",
+  "version": "1.0.0",
+  "status": "SPEC_ONLY",
+  "runtime_evidence_status": "NOT_EVALUATED",
+  "release_status": "NOT_PRODUCTION",
+  "purpose": "Join selected-action anchors to explicit atom support, selected-event visible consequence support, and sequence-metric evidence-anchor support without creating terminal, sequence, possession, causal, progression, or tactical truth.",
+  "source_role": "PRODUCT_MODULE",
+  "input_contract": {
+    "selected_action": {
+      "module_id": "selected_action_consequence_surface_lite_v1",
+      "required_inventories": [
+        "selected_action_nodes"
+      ],
+      "required_lineage_fields": [
+        "selected_action_node_id",
+        "match_surface_binding_id",
+        "team_identity_candidate_id",
+        "actor_identity_candidate_id",
+        "source_role",
+        "period_candidate",
+        "supporting_evidence_atom_ids",
+        "terminal_outcome_support_visible",
+        "derived_consequence_support_visible"
+      ]
+    },
+    "selected_event": {
+      "module_id": "selected_event_consequence_surface_lite_v1",
+      "required_inventories": [
+        "selected_event_consequence_candidates"
+      ],
+      "required_lineage_fields": [
+        "selected_event_consequence_candidate_id",
+        "anchor_selected_action_node_id",
+        "match_surface_binding_id",
+        "team_identity_candidate_id",
+        "actor_identity_candidate_id",
+        "source_role",
+        "period_candidate",
+        "consequence_class_candidate"
+      ]
+    },
+    "sequence_consequence": {
+      "module_id": "eventonly_sequence_consequence_engine_lite_v1",
+      "required_inventories": [
+        "metric_records"
+      ],
+      "support_field": "evidence_anchor_node_ids",
+      "support_limit": "Sequence metric evidence-anchor IDs are support-only and may be intentionally partial. They are not a complete per-anchor trace inventory."
+    }
+  },
+  "exact_join": [
+    "selected_event.anchor_selected_action_node_id=selected_action.selected_action_node_id",
+    "match_surface_binding_id equality",
+    "team_identity_candidate_id equality",
+    "actor_identity_candidate_id equality",
+    "source_role equality",
+    "period_candidate equality",
+    "sequence metric evidence_anchor_node_id references an existing selected_action_node_id"
+  ],
+  "classification_vocabulary": [
+    "EXPLICIT_TERMINAL_OUTCOME_SUPPORT",
+    "EXPLICIT_DERIVED_CONSEQUENCE_SUPPORT",
+    "VISIBLE_CONSEQUENCE_SUPPORT_ONLY",
+    "SEQUENCE_TRACE_SUPPORT_ONLY",
+    "MULTI_SOURCE_COMPATIBLE_OUTCOME_SUPPORT",
+    "CONFLICTED_OUTCOME_SUPPORT",
+    "OUTCOME_SUPPORT_UNAVAILABLE",
+    "NOT_APPLICABLE"
+  ],
+  "downstream_support_status_vocabulary": [
+    "SUPPORTED_CANDIDATE",
+    "SUPPORT_ONLY",
+    "CONFLICTED",
+    "UNAVAILABLE"
+  ],
+  "admission_rules": [
+    {
+      "id": "OSB01",
+      "when": "terminal_outcome_support_visible=true and explicit evidence atom lineage exists",
+      "classification": "EXPLICIT_TERMINAL_OUTCOME_SUPPORT",
+      "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
+    },
+    {
+      "id": "OSB02",
+      "when": "derived_consequence_support_visible=true and explicit evidence atom lineage exists",
+      "classification": "EXPLICIT_DERIVED_CONSEQUENCE_SUPPORT",
+      "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
+    },
+    {
+      "id": "OSB03",
+      "when": "selected-event consequence class is resolved and exact lineage is compatible",
+      "classification": "VISIBLE_CONSEQUENCE_SUPPORT_ONLY",
+      "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
+    },
+    {
+      "id": "OSB04",
+      "when": "only sequence metric evidence-anchor support is available",
+      "classification": "SEQUENCE_TRACE_SUPPORT_ONLY",
+      "downstream_outcome_support_status": "SUPPORT_ONLY",
+      "downstream_promotion_allowed": false
+    },
+    {
+      "id": "OSB05",
+      "when": "two or more compatible support sources are visible",
+      "classification": "MULTI_SOURCE_COMPATIBLE_OUTCOME_SUPPORT",
+      "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
+    },
+    {
+      "id": "OSB06",
+      "when": "lineage fields conflict or an explicit support flag lacks evidence atom lineage",
+      "classification": "CONFLICTED_OUTCOME_SUPPORT",
+      "downstream_outcome_support_status": "CONFLICTED",
+      "downstream_promotion_allowed": false
+    },
+    {
+      "id": "OSB07",
+      "when": "no compatible support source is visible",
+      "classification": "OUTCOME_SUPPORT_UNAVAILABLE",
+      "downstream_outcome_support_status": "UNAVAILABLE",
+      "downstream_promotion_allowed": false
+    }
+  ],
+  "required_outputs": [
+    "outcome_support_bridge_lite_v1.json",
+    "outcome_support_bridge_summary_v1.txt",
+    "outcome_support_bridge_analyst_audit_v1.txt",
+    "outcome_support_bridge_conflict_report_v1.json"
+  ],
+  "required_tests": [
+    "test_exact_action_lineage_required",
+    "test_terminal_support_requires_atom_lineage",
+    "test_derived_support_is_separate",
+    "test_visible_consequence_support_is_not_terminal_truth",
+    "test_cross_period_support_rejected",
+    "test_cross_team_support_rejected",
+    "test_sequence_trace_alone_does_not_create_terminal_truth",
+    "test_conflicting_support_blocks_promotion",
+    "test_missing_support_remains_unavailable",
+    "test_no_metric_rate_output",
+    "test_no_sample_match_identity_leak",
+    "test_nested_phone_output_directory_rejected"
+  ],
+  "claim_boundary": {
+    "terminal_outcome_truth": false,
+    "sequence_trace_truth": false,
+    "progression_truth": false,
+    "line_break_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "causality_truth": false,
+    "claim_allowed": false
+  },
+  "metric_rate_output_allowed": false,
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}
