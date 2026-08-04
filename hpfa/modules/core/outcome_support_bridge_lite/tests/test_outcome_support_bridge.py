@@ -12,8 +12,22 @@ assert spec.loader is not None
 spec.loader.exec_module(module)
 
 
-def payloads(*, terminal=False, derived=False, visible="NEUTRAL_VISIBLE_CONSEQUENCE_CANDIDATE", sequence=False):
+def payloads(
+    *,
+    terminal=False,
+    derived=False,
+    visible="NEUTRAL_VISIBLE_CONSEQUENCE_CANDIDATE",
+    sequence=False,
+):
     binding = "msb_test"
+    atom_ids = []
+    atom_counts = {}
+    if terminal:
+        atom_ids.append("atom_terminal")
+        atom_counts["TERMINAL_OUTCOME_ATOM"] = 1
+    if derived:
+        atom_ids.append("atom_derived")
+        atom_counts["DERIVED_CONSEQUENCE_ATOM"] = 1
     node = {
         "selected_action_node_id": "node_1",
         "match_surface_binding_id": binding,
@@ -22,7 +36,8 @@ def payloads(*, terminal=False, derived=False, visible="NEUTRAL_VISIBLE_CONSEQUE
         "source_role": "PLAYER_SURFACE_CANDIDATE",
         "period_candidate": "1",
         "action_family_candidates": ["PASS"],
-        "supporting_evidence_atom_ids": ["atom_1"] if terminal or derived else [],
+        "supporting_evidence_atom_ids": atom_ids,
+        "support_atom_class_counts": atom_counts,
         "terminal_outcome_support_visible": terminal,
         "derived_consequence_support_visible": derived,
     }
@@ -87,7 +102,9 @@ def build(**kwargs):
 
 
 def test_explicit_terminal_support_is_admitted():
-    result = build(terminal=True, visible="UNRESOLVED_VISIBLE_CONSEQUENCE_REVIEW_REQUIRED")
+    result = build(
+        terminal=True, visible="UNRESOLVED_VISIBLE_CONSEQUENCE_REVIEW_REQUIRED"
+    )
     record = result["outcome_support_bridge_records"][0]
     assert record["outcome_support_classification"] == "EXPLICIT_TERMINAL_OUTCOME_SUPPORT"
     assert record["downstream_promotion_allowed"] is True
@@ -95,7 +112,9 @@ def test_explicit_terminal_support_is_admitted():
 
 
 def test_explicit_derived_support_is_admitted():
-    result = build(derived=True, visible="UNRESOLVED_VISIBLE_CONSEQUENCE_REVIEW_REQUIRED")
+    result = build(
+        derived=True, visible="UNRESOLVED_VISIBLE_CONSEQUENCE_REVIEW_REQUIRED"
+    )
     record = result["outcome_support_bridge_records"][0]
     assert record["outcome_support_classification"] == "EXPLICIT_DERIVED_CONSEQUENCE_SUPPORT"
 
@@ -109,7 +128,9 @@ def test_visible_consequence_support_is_separate_from_terminal_truth():
 
 
 def test_sequence_support_alone_cannot_promote():
-    result = build(visible="UNRESOLVED_VISIBLE_CONSEQUENCE_REVIEW_REQUIRED", sequence=True)
+    result = build(
+        visible="UNRESOLVED_VISIBLE_CONSEQUENCE_REVIEW_REQUIRED", sequence=True
+    )
     record = result["outcome_support_bridge_records"][0]
     assert record["outcome_support_classification"] == "SEQUENCE_TRACE_SUPPORT_ONLY"
     assert record["downstream_outcome_support_status"] == "SUPPORT_ONLY"
@@ -141,13 +162,84 @@ def test_cross_period_lineage_is_conflicted_not_promoted():
     assert record["downstream_promotion_allowed"] is False
 
 
+def test_missing_record_binding_cannot_use_payload_fallback():
+    selected_action, selected_event, sequence = payloads()
+    del selected_action["selected_action_nodes"][0]["match_surface_binding_id"]
+    result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
+    record = result["outcome_support_bridge_records"][0]
+    assert record["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
+    assert "match_surface_binding_id_missing_on_selected_action" in record["conflict_reasons"]
+    assert record["downstream_promotion_allowed"] is False
+
+
+def test_missing_actor_fields_cannot_compare_as_equal_for_player_role():
+    selected_action, selected_event, sequence = payloads()
+    del selected_action["selected_action_nodes"][0]["actor_identity_candidate_id"]
+    del selected_event["selected_event_consequence_candidates"][0]["actor_identity_candidate_id"]
+    result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
+    record = result["outcome_support_bridge_records"][0]
+    assert record["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
+    assert "actor_identity_candidate_id_missing_on_selected_action" in record["conflict_reasons"]
+    assert "actor_identity_candidate_id_missing_on_selected_event" in record["conflict_reasons"]
+
+
+def test_explicit_team_actor_null_is_allowed_when_field_is_present():
+    selected_action, selected_event, sequence = payloads()
+    node = selected_action["selected_action_nodes"][0]
+    event = selected_event["selected_event_consequence_candidates"][0]
+    node["source_role"] = "TEAM_SURFACE_CANDIDATE"
+    event["source_role"] = "TEAM_SURFACE_CANDIDATE"
+    node["actor_identity_candidate_id"] = None
+    event["actor_identity_candidate_id"] = None
+    result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
+    record = result["outcome_support_bridge_records"][0]
+    assert record["outcome_support_classification"] == "VISIBLE_CONSEQUENCE_SUPPORT_ONLY"
+    assert not any("actor_identity" in reason for reason in record["conflict_reasons"])
+
+
+def test_terminal_flag_requires_terminal_atom_class():
+    selected_action, selected_event, sequence = payloads(terminal=True)
+    node = selected_action["selected_action_nodes"][0]
+    node["support_atom_class_counts"] = {"DERIVED_CONSEQUENCE_ATOM": 1}
+    result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
+    record = result["outcome_support_bridge_records"][0]
+    assert record["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
+    assert "terminal_support_flag_without_matching_atom_class" in record["conflict_reasons"]
+    assert "derived_atom_class_without_support_flag" in record["conflict_reasons"]
+    assert record["downstream_promotion_allowed"] is False
+
+
+def test_derived_flag_requires_derived_atom_class():
+    selected_action, selected_event, sequence = payloads(derived=True)
+    node = selected_action["selected_action_nodes"][0]
+    node["support_atom_class_counts"] = {"TERMINAL_OUTCOME_ATOM": 1}
+    result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
+    record = result["outcome_support_bridge_records"][0]
+    assert record["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
+    assert "derived_support_flag_without_matching_atom_class" in record["conflict_reasons"]
+    assert "terminal_atom_class_without_support_flag" in record["conflict_reasons"]
+
+
+def test_support_atom_counts_must_reconcile_with_ids():
+    selected_action, selected_event, sequence = payloads(terminal=True)
+    node = selected_action["selected_action_nodes"][0]
+    node["support_atom_class_counts"] = {"TERMINAL_OUTCOME_ATOM": 2}
+    result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
+    record = result["outcome_support_bridge_records"][0]
+    assert record["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
+    assert "support_atom_count_id_mismatch" in record["conflict_reasons"]
+
+
 def test_missing_selected_event_coverage_fails_closed():
     selected_action, selected_event, sequence = payloads()
     selected_event["selected_event_consequence_candidates"] = []
     selected_event["selected_event_consequence_candidate_count"] = 0
     result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
     assert result["status"] == "FAIL_CLOSED"
-    assert any(hit.startswith("selected_event_coverage_missing") for hit in result["hard_block_hits"])
+    assert any(
+        hit.startswith("selected_event_coverage_missing")
+        for hit in result["hard_block_hits"]
+    )
 
 
 def test_sequence_anchor_reference_must_exist():
@@ -155,7 +247,10 @@ def test_sequence_anchor_reference_must_exist():
     sequence["metric_records"][0]["evidence_anchor_node_ids"] = ["missing"]
     result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
     assert result["status"] == "FAIL_CLOSED"
-    assert any(hit.startswith("sequence_metric_anchor_reference_missing") for hit in result["hard_block_hits"])
+    assert any(
+        hit.startswith("sequence_metric_anchor_reference_missing")
+        for hit in result["hard_block_hits"]
+    )
 
 
 def test_explicit_support_requires_atom_lineage():
@@ -164,7 +259,7 @@ def test_explicit_support_requires_atom_lineage():
     result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
     record = result["outcome_support_bridge_records"][0]
     assert record["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
-    assert "explicit_support_flag_without_evidence_atom_lineage" in record["conflict_reasons"]
+    assert "support_atom_count_id_mismatch" in record["conflict_reasons"]
 
 
 def test_nested_phone_output_is_rejected(tmp_path):
@@ -177,3 +272,4 @@ def test_no_metric_rate_output():
     assert result["metric_rate_output_allowed"] is False
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["production_release"] is False
+    assert result["version"] == "1.0.1"
