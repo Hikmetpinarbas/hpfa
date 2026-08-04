@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 MODULE_ID = "outcome_support_bridge_lite_v1"
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 INPUT_MODULES = {
     "selected_action": "selected_action_consequence_surface_lite_v1",
@@ -160,10 +160,27 @@ def _lineage_conflicts(
 
     role = clean(node.get("source_role"))
     event_role = clean(event.get("source_role"))
-    if role in ACTOR_BOUND_ROLES and not clean(node.get("actor_identity_candidate_id")):
-        conflicts.append("actor_identity_candidate_id_missing_for_selected_action_role")
-    if event_role in ACTOR_BOUND_ROLES and not clean(event.get("actor_identity_candidate_id")):
-        conflicts.append("actor_identity_candidate_id_missing_for_selected_event_role")
+    for side, record, source_role in (
+        ("selected_action", node, role),
+        ("selected_event", event, event_role),
+    ):
+        if "actor_identity_candidate_id" not in record:
+            if source_role in ACTOR_BOUND_ROLES:
+                conflicts.append(
+                    f"actor_identity_candidate_id_missing_for_{side}_role"
+                )
+            continue
+        raw_actor = record.get("actor_identity_candidate_id")
+        actor = clean(raw_actor)
+        if raw_actor is not None and not actor:
+            conflicts.append(f"actor_identity_candidate_id_blank_on_{side}")
+        if source_role in ACTOR_BOUND_ROLES and not actor:
+            conflicts.append(f"actor_identity_candidate_id_missing_for_{side}_role")
+
+    if "consequence_class_candidate" not in event:
+        conflicts.append("consequence_class_candidate_missing_on_selected_event")
+    elif not clean(event.get("consequence_class_candidate")):
+        conflicts.append("consequence_class_candidate_empty_on_selected_event")
     return conflicts
 
 
@@ -187,7 +204,12 @@ def _support_atom_state(
     else:
         for raw_key, raw_value in counts_raw.items():
             key = clean(raw_key)
-            if not key or isinstance(raw_value, bool) or not isinstance(raw_value, int) or raw_value < 0:
+            if (
+                not key
+                or isinstance(raw_value, bool)
+                or not isinstance(raw_value, int)
+                or raw_value < 0
+            ):
                 conflicts.append(f"support_atom_class_count_invalid:{key or 'EMPTY'}")
                 continue
             counts[key] = raw_value
@@ -249,23 +271,30 @@ def build_outcome_support_bridge(
 ) -> dict[str, Any]:
     blocks: list[str] = []
     reviews: list[str] = []
-    for name, payload in (
+    named_payloads = (
         ("selected_action", selected_action),
         ("selected_event", selected_event),
         ("sequence", sequence_consequence),
-    ):
+    )
+    for name, payload in named_payloads:
         item_blocks, item_reviews = _guard(name, payload)
         blocks.extend(item_blocks)
         reviews.extend(item_reviews)
 
-    bindings = {
-        clean(payload.get("match_surface_binding_id"))
-        for payload in (selected_action, selected_event, sequence_consequence)
-        if clean(payload.get("match_surface_binding_id"))
-    }
-    binding = next(iter(bindings), "")
-    if len(bindings) != 1:
-        blocks.append(f"input_match_surface_binding_mismatch:{sorted(bindings)}")
+    payload_bindings: dict[str, str] = {}
+    for name, payload in named_payloads:
+        if "match_surface_binding_id" not in payload:
+            blocks.append(f"{name}_match_surface_binding_missing")
+            payload_bindings[name] = ""
+            continue
+        value = clean(payload.get("match_surface_binding_id"))
+        if not value:
+            blocks.append(f"{name}_match_surface_binding_empty")
+        payload_bindings[name] = value
+
+    binding = next((value for value in payload_bindings.values() if value), "")
+    if len(set(payload_bindings.values())) != 1:
+        blocks.append(f"input_match_surface_binding_mismatch:{payload_bindings}")
     if not binding:
         blocks.append("match_surface_binding_missing")
 
@@ -360,7 +389,9 @@ def build_outcome_support_bridge(
             if event
             else ["selected_event_missing"]
         )
-        atom_ids, atom_counts, terminal, derived, atom_conflicts = _support_atom_state(node)
+        atom_ids, atom_counts, terminal, derived, atom_conflicts = _support_atom_state(
+            node
+        )
         record_conflicts.extend(atom_conflicts)
         visible_class = clean(event.get("consequence_class_candidate"))
         visible = visible_class in RESOLVED_VISIBLE
