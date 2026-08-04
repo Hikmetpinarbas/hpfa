@@ -304,12 +304,15 @@ def _label_progression_profile(matches: list[dict[str, Any]]) -> dict[str, Any]:
     progression = sorted({clean(row.get("progression_candidate")) for row in matches if clean(row.get("progression_candidate"))})
     outcomes = sorted({clean(row.get("outcome_candidate")).upper() for row in matches if clean(row.get("outcome_candidate"))})
     progressive = any(value not in {"NONE", "NOT_APPLICABLE", "UNKNOWN"} for value in progression)
+    successful = any(value in SUCCESS_OUTCOMES for value in outcomes)
+    unsuccessful = any(value in FAILURE_OUTCOMES for value in outcomes)
     return {
         "provider_progression_label_candidate": progression,
         "provider_outcome_candidates": outcomes,
         "provider_progression_label_present": progressive,
-        "provider_successful_outcome_candidate": any(value in SUCCESS_OUTCOMES for value in outcomes),
-        "provider_unsuccessful_outcome_candidate": any(value in FAILURE_OUTCOMES for value in outcomes),
+        "provider_successful_outcome_candidate": successful,
+        "provider_unsuccessful_outcome_candidate": unsuccessful,
+        "provider_outcome_conflicted": successful and unsuccessful,
     }
 
 
@@ -324,6 +327,8 @@ def _verification(
         return pre_status, "DOWNSTREAM_BLOCKED_REVIEW_REQUIRED"
     if provider_support not in {"EXACT_REVIEWED_RULE", "PREFIX_REVIEWED_RULE"}:
         return "LABEL_UNKNOWN", "DOWNSTREAM_BLOCKED_REVIEW_REQUIRED"
+    if profile["provider_outcome_conflicted"]:
+        return "LABEL_AMBIGUOUS", "DOWNSTREAM_BLOCKED_REVIEW_REQUIRED"
     zone_delta = clean(event.get("zone_delta_class"))
     if (
         profile["provider_progression_label_present"]
@@ -621,7 +626,7 @@ def build_event_label_structural_progression_evidence(
     )
     return {
         "module_id": MODULE_ID,
-        "version": "1.1.0",
+        "version": "1.1.1",
         "status": status,
         "module_status": status,
         "runtime_evidence_status": "NOT_EVALUATED",
