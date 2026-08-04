@@ -1,10 +1,10 @@
 {
   "module_id": "outcome_support_bridge_lite_v1",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "status": "SMOKE_PASS",
   "runtime_evidence_status": "NOT_EVALUATED",
   "release_status": "NOT_PRODUCTION",
-  "purpose": "Join selected-action anchors to explicit atom support, selected-event visible consequence support, and sequence-metric evidence-anchor support without creating terminal, sequence, possession, causal, progression, or tactical truth.",
+  "purpose": "Join selected-action anchors to explicit class-matched atom support, selected-event visible consequence support, and sequence-metric evidence-anchor support without creating terminal, sequence, possession, causal, progression, or tactical truth.",
   "source_role": "PRODUCT_MODULE",
   "input_contract": {
     "selected_action": {
@@ -20,6 +20,7 @@
         "source_role",
         "period_candidate",
         "supporting_evidence_atom_ids",
+        "support_atom_class_counts",
         "terminal_outcome_support_visible",
         "derived_consequence_support_visible"
       ]
@@ -51,12 +52,19 @@
   },
   "exact_join": [
     "selected_event.anchor_selected_action_node_id=selected_action.selected_action_node_id",
-    "match_surface_binding_id equality",
-    "team_identity_candidate_id equality",
-    "actor_identity_candidate_id equality",
-    "source_role equality",
-    "period_candidate equality",
+    "explicit per-record match_surface_binding_id equality without payload fallback",
+    "explicit per-record team_identity_candidate_id equality",
+    "explicit per-record actor_identity_candidate_id presence and equality; explicit null is allowed only for non-actor-bound source roles",
+    "explicit per-record source_role equality",
+    "explicit per-record period_candidate equality",
     "sequence metric evidence_anchor_node_id references an existing selected_action_node_id"
+  ],
+  "atom_support_integrity": [
+    "support_atom_class_counts total equals unique supporting_evidence_atom_ids count",
+    "terminal_outcome_support_visible=true requires TERMINAL_OUTCOME_ATOM count greater than zero",
+    "derived_consequence_support_visible=true requires DERIVED_CONSEQUENCE_ATOM count greater than zero",
+    "atom class present while corresponding flag is false is a conflict",
+    "mismatched flag, class count, duplicate ID, invalid count, or missing inventory blocks downstream promotion"
   ],
   "classification_vocabulary": [
     "EXPLICIT_TERMINAL_OUTCOME_SUPPORT",
@@ -77,19 +85,19 @@
   "admission_rules": [
     {
       "id": "OSB01",
-      "when": "terminal_outcome_support_visible=true and explicit evidence atom lineage exists",
+      "when": "terminal_outcome_support_visible=true, TERMINAL_OUTCOME_ATOM count is positive, atom IDs reconcile with class counts, and exact record lineage exists",
       "classification": "EXPLICIT_TERMINAL_OUTCOME_SUPPORT",
       "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
     },
     {
       "id": "OSB02",
-      "when": "derived_consequence_support_visible=true and explicit evidence atom lineage exists",
+      "when": "derived_consequence_support_visible=true, DERIVED_CONSEQUENCE_ATOM count is positive, atom IDs reconcile with class counts, and exact record lineage exists",
       "classification": "EXPLICIT_DERIVED_CONSEQUENCE_SUPPORT",
       "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
     },
     {
       "id": "OSB03",
-      "when": "selected-event consequence class is resolved and exact lineage is compatible",
+      "when": "selected-event consequence class is resolved and every required record-level lineage field is explicitly present and compatible",
       "classification": "VISIBLE_CONSEQUENCE_SUPPORT_ONLY",
       "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
     },
@@ -102,13 +110,13 @@
     },
     {
       "id": "OSB05",
-      "when": "two or more compatible support sources are visible",
+      "when": "two or more compatible support sources are visible after exact-lineage and atom-class integrity gates",
       "classification": "MULTI_SOURCE_COMPATIBLE_OUTCOME_SUPPORT",
       "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
     },
     {
       "id": "OSB06",
-      "when": "lineage fields conflict or an explicit support flag lacks evidence atom lineage",
+      "when": "required lineage is missing or conflicting, payload fallback would be required, or explicit support flags and atom classes do not reconcile",
       "classification": "CONFLICTED_OUTCOME_SUPPORT",
       "downstream_outcome_support_status": "CONFLICTED",
       "downstream_promotion_allowed": false
@@ -129,8 +137,12 @@
   ],
   "required_tests": [
     "test_exact_action_lineage_required",
-    "test_terminal_support_requires_atom_lineage",
-    "test_derived_support_is_separate",
+    "test_missing_record_binding_cannot_use_payload_fallback",
+    "test_missing_actor_fields_cannot_compare_as_equal_for_player_role",
+    "test_explicit_team_actor_null_is_allowed_when_field_is_present",
+    "test_terminal_flag_requires_terminal_atom_class",
+    "test_derived_flag_requires_derived_atom_class",
+    "test_support_atom_counts_must_reconcile_with_ids",
     "test_visible_consequence_support_is_not_terminal_truth",
     "test_cross_period_support_rejected",
     "test_cross_team_support_rejected",
@@ -139,7 +151,9 @@
     "test_missing_support_remains_unavailable",
     "test_no_metric_rate_output",
     "test_no_sample_match_identity_leak",
-    "test_nested_phone_output_directory_rejected"
+    "test_nested_phone_output_directory_rejected",
+    "test_invalid_phone_path_creates_no_forbidden_directory",
+    "test_runtime_inputs_resolve_from_flat_phone_output"
   ],
   "claim_boundary": {
     "terminal_outcome_truth": false,
