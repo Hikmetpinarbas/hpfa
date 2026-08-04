@@ -7,6 +7,17 @@ EXPECTED_ACTIVE="${HPFA_EXPECTED_ACTIVE_MATCH:-$REPO/runtime/active_single_match
 EXPECTED_BRANCH="${HPFA_EXPECTED_BRANCH:-agent/outcome-support-bridge-lite-v1}"
 EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"
 OUT="${HPFA_PHONE_OUTPUT:-/sdcard/Download/HPFA}"
+
+case "$OUT" in
+  /sdcard/Download/HPFA|/storage/emulated/0/Download/HPFA) ;;
+  *)
+    echo "FAIL_CLOSED:nested_phone_output_directory_rejected" >&2
+    echo "canonical_event_count=UNKNOWN" >&2
+    echo "production_release=false" >&2
+    exit 2
+    ;;
+esac
+
 STATE="$OUT/outcome_support_bridge_operator_state_v1.txt"
 
 fail() {
@@ -22,11 +33,6 @@ fail() {
   exit 2
 }
 
-case "$OUT" in
-  /sdcard/Download/HPFA|/storage/emulated/0/Download/HPFA) ;;
-  *) fail nested_phone_output_directory_rejected ;;
-esac
-
 [ "$ACTIVE" = "$EXPECTED_ACTIVE" ] || fail active_match_runtime_authority_mismatch
 [ -d "$REPO/.git" ] || fail product_repo_missing
 [ -d "$ACTIVE" ] || fail active_match_runtime_missing
@@ -39,17 +45,16 @@ ACTUAL_HEAD="$(git rev-parse HEAD)"
 [ "$ACTUAL_HEAD" = "$EXPECTED_HEAD" ] || fail "head_mismatch:$ACTUAL_HEAD"
 [ -z "$(git status --porcelain --untracked-files=no)" ] || fail tracked_worktree_not_clean
 
-resolve_unique() {
+resolve_input() {
   local name="$1"
-  local found
-  mapfile -t found < <(find "$ACTIVE" -type f -name "$name" -print)
-  [ "${#found[@]}" -eq 1 ] || fail "input_resolution_failed:$name:${#found[@]}"
-  printf '%s\n' "${found[0]}"
+  local path="$OUT/$name"
+  [ -f "$path" ] || fail "input_resolution_failed:$name:0"
+  printf '%s\n' "$path"
 }
 
-SELECTED_ACTION="$(resolve_unique selected_action_consequence_surface_lite_v1.json)"
-SELECTED_EVENT="$(resolve_unique selected_event_consequence_surface_lite_v1.json)"
-SEQUENCE="$(resolve_unique eventonly_sequence_consequence_result_v1.json)"
+SELECTED_ACTION="$(resolve_input selected_action_consequence_surface_lite_v1.json)"
+SELECTED_EVENT="$(resolve_input selected_event_consequence_surface_lite_v1.json)"
+SEQUENCE="$(resolve_input eventonly_sequence_consequence_result_v1.json)"
 
 mkdir -p "$OUT"
 rm -f \
