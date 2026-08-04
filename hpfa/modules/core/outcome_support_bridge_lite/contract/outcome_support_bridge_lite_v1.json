@@ -1,7 +1,7 @@
 {
   "module_id": "outcome_support_bridge_lite_v1",
   "version": "1.0.0",
-  "status": "SPEC_ONLY",
+  "status": "SMOKE_PASS",
   "runtime_evidence_status": "NOT_EVALUATED",
   "release_status": "NOT_PRODUCTION",
   "purpose": "Join selected-action anchors to explicit atom support, selected-event visible consequence support, and sequence-metric evidence-anchor support without creating terminal, sequence, possession, causal, progression, or tactical truth.",
