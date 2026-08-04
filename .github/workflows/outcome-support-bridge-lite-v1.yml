@@ -1,0 +1,86 @@
+name: Outcome Support Bridge Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "outcome_support_bridge_lite.py"
+      - "hpfa/modules/core/outcome_support_bridge_lite/**"
+      - "tools/run_active_match_outcome_support_bridge_v1.sh"
+      - ".github/workflows/outcome-support-bridge-lite-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Exact PR head gate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependency
+        run: python -m pip install pytest
+
+      - name: Compile implementation
+        run: |
+          python -m py_compile \
+            outcome_support_bridge_lite.py \
+            hpfa/modules/core/outcome_support_bridge_lite/src/outcome_support_bridge.py
+
+      - name: Focused implementation tests
+        run: python -m pytest -q hpfa/modules/core/outcome_support_bridge_lite/tests
+
+      - name: Validate contract and fixed boundaries
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("hpfa/modules/core/outcome_support_bridge_lite/contract/outcome_support_bridge_lite_v1.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          assert payload["module_id"] == "outcome_support_bridge_lite_v1"
+          assert payload["status"] == "SPEC_ONLY"
+          assert payload["runtime_evidence_status"] == "NOT_EVALUATED"
+          assert payload["release_status"] == "NOT_PRODUCTION"
+          assert payload["metric_rate_output_allowed"] is False
+          assert payload["canonical_event_count"] == "UNKNOWN"
+          assert payload["production_release"] is False
+          assert all(value is False for value in payload["claim_boundary"].values())
+          assert "SEQUENCE_TRACE_SUPPORT_ONLY" in payload["classification_vocabulary"]
+          sequence_rule = next(rule for rule in payload["admission_rules"] if rule["id"] == "OSB04")
+          assert sequence_rule["downstream_promotion_allowed"] is False
+          PY
+
+      - name: Shell syntax and fixed output policy
+        run: |
+          set -euo pipefail
+          bash -n tools/run_active_match_outcome_support_bridge_v1.sh
+          grep -F 'nested_phone_output_directory_rejected' tools/run_active_match_outcome_support_bridge_v1.sh
+          grep -F 'canonical_event_count=UNKNOWN' tools/run_active_match_outcome_support_bridge_v1.sh
+          grep -F 'production_release=false' tools/run_active_match_outcome_support_bridge_v1.sh
+
+      - name: No sample match identity leak
+        run: |
+          ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|Fenerbahce|Sturm Graz|6935|77798" \
+            outcome_support_bridge_lite.py \
+            hpfa/modules/core/outcome_support_bridge_lite \
+            tools/run_active_match_outcome_support_bridge_v1.sh
+
+      - name: Diff hygiene
+        run: git diff --check ${{ github.event.pull_request.base.sha || github.event.before }} ${{ github.event.pull_request.head.sha || github.sha }}
