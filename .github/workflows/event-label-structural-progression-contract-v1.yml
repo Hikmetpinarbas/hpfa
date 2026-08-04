@@ -14,6 +14,7 @@ on:
       - "docs/runtime/event_label_structural_progression_active_match_readiness_v1.json"
       - "event_label_structural_progression_evidence_lite.py"
       - "hpfa/modules/core/event_label_structural_progression_evidence_lite/**"
+      - "tools/bootstrap_termux_event_label_structural_progression_evidence_v1.sh"
       - "tools/run_active_match_event_label_structural_progression_evidence_v1.sh"
       - ".github/workflows/event-label-structural-progression-contract-v1.yml"
   workflow_dispatch:
@@ -185,9 +186,18 @@ jobs:
             docs/runtime/event_label_structural_progression_active_match_readiness_v1.json \
             event_label_structural_progression_evidence_lite.py \
             hpfa/modules/core/event_label_structural_progression_evidence_lite \
+            tools/bootstrap_termux_event_label_structural_progression_evidence_v1.sh \
             tools/run_active_match_event_label_structural_progression_evidence_v1.sh
 
-      - name: Shell syntax and diff hygiene
+      - name: Shell syntax, bootstrap contract and diff hygiene
         run: |
+          set -euo pipefail
+          bash -n tools/bootstrap_termux_event_label_structural_progression_evidence_v1.sh
           bash -n tools/run_active_match_event_label_structural_progression_evidence_v1.sh
+          grep -F 'BRANCH="agent/event-label-structural-progression-evidence-lite-v1"' tools/bootstrap_termux_event_label_structural_progression_evidence_v1.sh
+          grep -F 'export HPFA_EXPECTED_HEAD="$ACTUAL_HEAD"' tools/bootstrap_termux_event_label_structural_progression_evidence_v1.sh
+          grep -F 'run_active_match_event_label_structural_progression_evidence_v1.sh' tools/bootstrap_termux_event_label_structural_progression_evidence_v1.sh
+          grep -F 'nested_phone_output_directory_rejected' tools/bootstrap_termux_event_label_structural_progression_evidence_v1.sh
+          grep -F 'canonical_event_count=UNKNOWN' tools/bootstrap_termux_event_label_structural_progression_evidence_v1.sh
+          grep -F 'production_release=false' tools/bootstrap_termux_event_label_structural_progression_evidence_v1.sh
           git diff --check ${{ github.event.pull_request.base.sha || github.event.before }} ${{ github.event.pull_request.head.sha || github.sha }}
