@@ -130,6 +130,7 @@ def test_sequence_support_alone_cannot_promote():
     result = build(visible="UNRESOLVED_VISIBLE_CONSEQUENCE_REVIEW_REQUIRED", sequence=True)
     row = record(result)
     assert result["payload_binding_gate_pass"] is True
+    assert result["module_hard_block_gate_pass"] is True
     assert row["outcome_support_classification"] == "SEQUENCE_TRACE_SUPPORT_ONLY"
     assert row["downstream_outcome_support_status"] == "SUPPORT_ONLY"
     assert row["downstream_promotion_allowed"] is False
@@ -241,10 +242,12 @@ def test_missing_sequence_payload_binding_fails_closed_without_sequence_admissio
     row = record(result)
     assert result["status"] == "FAIL_CLOSED"
     assert result["payload_binding_gate_pass"] is False
+    assert result["module_hard_block_gate_pass"] is False
     assert result["sequence_supported_anchor_count"] == 0
     assert row["sequence_metric_evidence_anchor_support"] == []
     assert row["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
     assert "payload_binding_gate_failed" in row["conflict_reasons"]
+    assert "module_hard_block_gate_failed" in row["conflict_reasons"]
     assert row["downstream_promotion_allowed"] is False
 
 
@@ -255,6 +258,7 @@ def test_mismatched_sequence_binding_cannot_create_multi_source_promotion():
     row = record(result)
     assert result["status"] == "FAIL_CLOSED"
     assert result["payload_binding_gate_pass"] is False
+    assert result["module_hard_block_gate_pass"] is False
     assert result["sequence_supported_anchor_count"] == 0
     assert row["sequence_metric_evidence_anchor_support"] == []
     assert row["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
@@ -267,6 +271,7 @@ def test_missing_selected_event_coverage_fails_closed():
     selected_event["selected_event_consequence_candidate_count"] = 0
     result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
     assert result["status"] == "FAIL_CLOSED"
+    assert result["module_hard_block_gate_pass"] is False
     assert any(hit.startswith("selected_event_coverage_missing") for hit in result["hard_block_hits"])
 
 
@@ -275,6 +280,7 @@ def test_sequence_anchor_reference_must_exist():
     sequence["metric_records"][0]["evidence_anchor_node_ids"] = ["missing"]
     result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
     assert result["status"] == "FAIL_CLOSED"
+    assert result["module_hard_block_gate_pass"] is False
     assert any(
         hit.startswith("sequence_metric_anchor_reference_missing")
         for hit in result["hard_block_hits"]
@@ -302,6 +308,39 @@ def test_blank_and_null_atom_ids_conflict_before_reconciliation():
     assert row["downstream_promotion_allowed"] is False
 
 
+def test_module_hard_block_prevents_all_record_promotion():
+    selected_action, selected_event, sequence = payloads(terminal=True, sequence=True)
+    selected_action["hard_block_hits"] = ["upstream_integrity_failure"]
+    result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
+    row = record(result)
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["module_hard_block_gate_pass"] is False
+    assert "selected_action_hard_blocks_present" in result["hard_block_hits"]
+    assert "module_hard_block_gate_failed" in row["conflict_reasons"]
+    assert row["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
+    assert row["downstream_outcome_support_status"] == "CONFLICTED"
+    assert row["downstream_promotion_allowed"] is False
+    assert not any(
+        candidate["downstream_promotion_allowed"]
+        for candidate in result["outcome_support_bridge_records"]
+    )
+
+
+def test_normalized_atom_class_key_collision_conflicts():
+    selected_action, selected_event, sequence = payloads(terminal=True)
+    selected_action["selected_action_nodes"][0]["support_atom_class_counts"] = {
+        " TERMINAL_OUTCOME_ATOM": 1,
+        "TERMINAL_OUTCOME_ATOM": 1,
+    }
+    row = record(module.build_outcome_support_bridge(selected_action, selected_event, sequence))
+    assert (
+        "support_atom_class_key_normalization_collision:TERMINAL_OUTCOME_ATOM"
+        in row["conflict_reasons"]
+    )
+    assert row["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
+    assert row["downstream_promotion_allowed"] is False
+
+
 def test_nested_phone_output_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="nested_phone_output_directory_rejected"):
         module.validate_out(tmp_path / "HPFA" / "nested")
@@ -312,4 +351,4 @@ def test_no_metric_rate_output():
     assert result["metric_rate_output_allowed"] is False
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["production_release"] is False
-    assert result["version"] == "1.0.3"
+    assert result["version"] == "1.0.4"
