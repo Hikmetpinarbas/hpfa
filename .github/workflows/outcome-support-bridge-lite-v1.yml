@@ -57,7 +57,7 @@ jobs:
           path = Path("hpfa/modules/core/outcome_support_bridge_lite/contract/outcome_support_bridge_lite_v1.json")
           payload = json.loads(path.read_text(encoding="utf-8"))
           assert payload["module_id"] == "outcome_support_bridge_lite_v1"
-          assert payload["version"] == "1.0.2"
+          assert payload["version"] == "1.0.3"
           assert payload["status"] == "SMOKE_PASS"
           assert payload["runtime_evidence_status"] == "NOT_EVALUATED"
           assert payload["release_status"] == "NOT_PRODUCTION"
@@ -67,11 +67,10 @@ jobs:
           assert all(value is False for value in payload["claim_boundary"].values())
           for source in ("selected_action", "selected_event", "sequence_consequence"):
               assert "match_surface_binding_id" in payload["input_contract"][source]["required_payload_fields"]
-          assert "support_atom_class_counts" in payload["input_contract"]["selected_action"]["required_lineage_fields"]
-          assert "consequence_class_candidate" in payload["input_contract"]["selected_event"]["required_lineage_fields"]
-          assert any("without payload fallback" in item for item in payload["exact_join"])
-          assert any("blank or whitespace actor IDs are invalid" in item for item in payload["exact_join"])
-          assert any("consequence_class_candidate" in item for item in payload["exact_join"])
+          assert payload["payload_binding_gate"]["required_before_sequence_index_build"] is True
+          assert payload["payload_binding_gate"]["required_before_record_promotion"] is True
+          assert payload["payload_binding_gate"]["failure_record_conflict"] == "payload_binding_gate_failed"
+          assert any("not silently dropped" in item for item in payload["atom_support_integrity"])
           assert any("TERMINAL_OUTCOME_ATOM" in item for item in payload["atom_support_integrity"])
           assert any("DERIVED_CONSEQUENCE_ATOM" in item for item in payload["atom_support_integrity"])
           sequence_rule = next(rule for rule in payload["admission_rules"] if rule["id"] == "OSB04")
@@ -111,6 +110,15 @@ jobs:
           assert 'SEQUENCE="$(resolve_input eventonly_sequence_consequence_result_v1.json)"' in text
           PY
 
+      - name: Source fail-closed invariants
+        run: |
+          set -euo pipefail
+          source=hpfa/modules/core/outcome_support_bridge_lite/src/outcome_support_bridge.py
+          grep -F 'if not binding_gate_pass:' "$source"
+          grep -F 'record_conflicts.append("payload_binding_gate_failed")' "$source"
+          grep -F 'supporting_evidence_atom_id_invalid' "$source"
+          grep -F 'payload_binding_gate_pass' "$source"
+
       - name: Research trace and authority boundaries
         run: |
           set -euo pipefail
@@ -121,6 +129,8 @@ jobs:
           grep -F 'ACTIVE_MATCH_AUTHORITY' "$trace"
           grep -F 'missing lineage must fail closed' "$trace"
           grep -F 'terminal ownership ambiguity must block promotion' "$trace"
+          grep -F 'sequence index' "$trace"
+          grep -F 'invalid evidence-atom IDs' "$trace"
           grep -F 'canonical_event_count=UNKNOWN' "$trace"
           grep -F 'production_release=false' "$trace"
 
