@@ -4,9 +4,18 @@ set -Eeuo pipefail
 REPO_URL="https://github.com/Hikmetpinarbas/hpfa.git"
 EXPECTED_REPO_SLUG="hikmetpinarbas/hpfa"
 BRANCH="agent/event-label-structural-progression-evidence-lite-v1"
-REPO="${HPFA_REPO:-$HOME/hpfa_claim_integrity/hpfa}"
-ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
-EXPECTED_ACTIVE_MATCH="${HPFA_EXPECTED_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
+RUNTIME_ROOT="${HPFA_RUNTIME_ROOT:-$HOME/hpfa_claim_integrity/hpfa}"
+DEFAULT_REPO="$HOME/hp/repos/hpfa"
+FALLBACK_REPO="$HOME/hp/repos/hpfa_event_label_structural_progression_checkout"
+REPO_SOURCE="environment"
+if [[ -n "${HPFA_REPO:-}" ]]; then
+  REPO="$HPFA_REPO"
+else
+  REPO="$DEFAULT_REPO"
+  REPO_SOURCE="default_product_checkout"
+fi
+ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$RUNTIME_ROOT/runtime/active_single_match/current}"
+EXPECTED_ACTIVE_MATCH="${HPFA_EXPECTED_ACTIVE_MATCH:-$RUNTIME_ROOT/runtime/active_single_match/current}"
 OUT="${HPFA_PHONE_OUTPUT:-/sdcard/Download/HPFA}"
 STATE="$OUT/event_label_structural_progression_bootstrap_state_v1.txt"
 CONSOLE="$OUT/event_label_structural_progression_bootstrap_console_v1.log"
@@ -26,6 +35,8 @@ write_state() {
     [[ -n "$line" ]] && echo "failed_line=$line"
     [[ -n "$command" ]] && echo "failed_command=$command"
     echo "product_repo=$REPO"
+    echo "product_repo_source=$REPO_SOURCE"
+    echo "runtime_root=$RUNTIME_ROOT"
     echo "branch=$BRANCH"
     echo "runtime_authority=$ACTIVE_MATCH"
     echo "phone_output=$OUT"
@@ -66,6 +77,38 @@ normalize_origin() {
   printf '%s\n' "${origin,,}"
 }
 
+is_git_checkout() {
+  local path="$1"
+  git -C "$path" rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
+select_product_repo() {
+  if [[ "$REPO" == "$RUNTIME_ROOT" || "$REPO" == "$RUNTIME_ROOT/"* ]]; then
+    if [[ -n "${HPFA_REPO:-}" ]]; then
+      fail "product_repo_must_be_outside_runtime_tree:$REPO"
+    fi
+    REPO="$FALLBACK_REPO"
+    REPO_SOURCE="fallback_runtime_tree_separation"
+  fi
+
+  if [[ -e "$REPO" ]] && ! is_git_checkout "$REPO"; then
+    if [[ -n "${HPFA_REPO:-}" ]]; then
+      fail "explicit_product_repo_path_exists_but_is_not_git:$REPO"
+    fi
+    if [[ "$REPO" != "$FALLBACK_REPO" ]]; then
+      REPO="$FALLBACK_REPO"
+      REPO_SOURCE="fallback_non_git_default"
+    fi
+  fi
+
+  if [[ -e "$REPO" ]] && ! is_git_checkout "$REPO"; then
+    fail "fallback_product_repo_path_exists_but_is_not_git:$REPO"
+  fi
+
+  [[ "$REPO" != "$RUNTIME_ROOT" && "$REPO" != "$RUNTIME_ROOT/"* ]] \
+    || fail "product_repo_runtime_tree_overlap:$REPO"
+}
+
 case "$OUT" in
   /sdcard/Download/HPFA|/storage/emulated/0/Download/HPFA) ;;
   */HPFA/*) fail "nested_phone_output_directory_rejected" ;;
@@ -77,10 +120,9 @@ exec > >(tee "$CONSOLE") 2>&1
 
 [[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_missing:$ACTIVE_MATCH"
 [[ -d "$EXPECTED_ACTIVE_MATCH" ]] || fail "expected_active_match_runtime_missing:$EXPECTED_ACTIVE_MATCH"
-if [[ -e "$REPO" && ! -d "$REPO/.git" ]]; then
-  fail "product_repo_path_exists_but_is_not_git:$REPO"
-fi
-if [[ ! -d "$REPO/.git" ]]; then
+select_product_repo
+
+if ! is_git_checkout "$REPO"; then
   mkdir -p "$(dirname "$REPO")"
   git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$REPO"
 fi
@@ -126,6 +168,8 @@ export HPFA_EXPECTED_HEAD="$ACTUAL_HEAD"
 {
   echo "status=READY"
   echo "product_repo=$REPO"
+  echo "product_repo_source=$REPO_SOURCE"
+  echo "runtime_root=$RUNTIME_ROOT"
   echo "origin_url=$ORIGIN_URL"
   echo "origin_slug=$ORIGIN_SLUG"
   echo "branch=$ACTUAL_BRANCH"
@@ -150,6 +194,8 @@ if [[ "$RUN_RC" -ne 0 ]]; then
     echo "runner_state=$RUNNER_STATE"
     echo "console_log=$CONSOLE"
     echo "product_repo=$REPO"
+    echo "product_repo_source=$REPO_SOURCE"
+    echo "runtime_root=$RUNTIME_ROOT"
     echo "branch=$ACTUAL_BRANCH"
     echo "head_sha=$ACTUAL_HEAD"
     echo "runtime_authority=$ACTIVE_MATCH"
@@ -167,6 +213,8 @@ fi
   echo "bundle=$BUNDLE"
   echo "console_log=$CONSOLE"
   echo "product_repo=$REPO"
+  echo "product_repo_source=$REPO_SOURCE"
+  echo "runtime_root=$RUNTIME_ROOT"
   echo "branch=$ACTUAL_BRANCH"
   echo "head_sha=$ACTUAL_HEAD"
   echo "runtime_authority=$ACTIVE_MATCH"
