@@ -3,8 +3,10 @@ name: Outcome Support Bridge Lite V1
 on:
   pull_request:
     paths:
+      - "docs/research/eventonly/outcome_support_bridge_research_trace_v1.md"
       - "outcome_support_bridge_lite.py"
       - "hpfa/modules/core/outcome_support_bridge_lite/**"
+      - "tools/bootstrap_termux_outcome_support_bridge_v1.sh"
       - "tools/run_active_match_outcome_support_bridge_v1.sh"
       - ".github/workflows/outcome-support-bridge-lite-v1.yml"
   workflow_dispatch:
@@ -55,6 +57,7 @@ jobs:
           path = Path("hpfa/modules/core/outcome_support_bridge_lite/contract/outcome_support_bridge_lite_v1.json")
           payload = json.loads(path.read_text(encoding="utf-8"))
           assert payload["module_id"] == "outcome_support_bridge_lite_v1"
+          assert payload["version"] == "1.0.1"
           assert payload["status"] == "SMOKE_PASS"
           assert payload["runtime_evidence_status"] == "NOT_EVALUATED"
           assert payload["release_status"] == "NOT_PRODUCTION"
@@ -62,24 +65,67 @@ jobs:
           assert payload["canonical_event_count"] == "UNKNOWN"
           assert payload["production_release"] is False
           assert all(value is False for value in payload["claim_boundary"].values())
-          assert "SEQUENCE_TRACE_SUPPORT_ONLY" in payload["classification_vocabulary"]
+          assert "support_atom_class_counts" in payload["input_contract"]["selected_action"]["required_lineage_fields"]
+          assert any("without payload fallback" in item for item in payload["exact_join"])
+          assert any("TERMINAL_OUTCOME_ATOM" in item for item in payload["atom_support_integrity"])
+          assert any("DERIVED_CONSEQUENCE_ATOM" in item for item in payload["atom_support_integrity"])
           sequence_rule = next(rule for rule in payload["admission_rules"] if rule["id"] == "OSB04")
           assert sequence_rule["downstream_promotion_allowed"] is False
           PY
 
-      - name: Shell syntax and fixed output policy
+      - name: Shell syntax, phone guard and runtime input contract
         run: |
           set -euo pipefail
+          bash -n tools/bootstrap_termux_outcome_support_bridge_v1.sh
           bash -n tools/run_active_match_outcome_support_bridge_v1.sh
+          grep -F 'BRANCH="agent/outcome-support-bridge-lite-v1"' tools/bootstrap_termux_outcome_support_bridge_v1.sh
+          grep -F 'run_active_match_event_label_structural_progression_evidence_v1.sh' tools/bootstrap_termux_outcome_support_bridge_v1.sh
+          grep -F 'run_active_match_outcome_support_bridge_v1.sh' tools/bootstrap_termux_outcome_support_bridge_v1.sh
           grep -F 'nested_phone_output_directory_rejected' tools/run_active_match_outcome_support_bridge_v1.sh
+          grep -F 'local path="$OUT/$name"' tools/run_active_match_outcome_support_bridge_v1.sh
+          ! grep -F 'find "$ACTIVE"' tools/run_active_match_outcome_support_bridge_v1.sh
           grep -F 'canonical_event_count=UNKNOWN' tools/run_active_match_outcome_support_bridge_v1.sh
           grep -F 'production_release=false' tools/run_active_match_outcome_support_bridge_v1.sh
+
+          bad="$RUNNER_TEMP/HPFA/nested"
+          rm -rf "$RUNNER_TEMP/HPFA"
+          set +e
+          output="$(HPFA_PHONE_OUTPUT="$bad" bash tools/run_active_match_outcome_support_bridge_v1.sh 2>&1)"
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          grep -F 'nested_phone_output_directory_rejected' <<<"$output"
+          test ! -e "$bad"
+
+          python - <<'PY'
+          from pathlib import Path
+          text = Path("tools/run_active_match_outcome_support_bridge_v1.sh").read_text(encoding="utf-8")
+          assert text.index('case "$OUT"') < text.index('STATE="$OUT/outcome_support_bridge_operator_state_v1.txt"')
+          assert 'SELECTED_ACTION="$(resolve_input selected_action_consequence_surface_lite_v1.json)"' in text
+          assert 'SELECTED_EVENT="$(resolve_input selected_event_consequence_surface_lite_v1.json)"' in text
+          assert 'SEQUENCE="$(resolve_input eventonly_sequence_consequence_result_v1.json)"' in text
+          PY
+
+      - name: Research trace and authority boundaries
+        run: |
+          set -euo pipefail
+          trace=docs/research/eventonly/outcome_support_bridge_research_trace_v1.md
+          grep -F 'ADAPT_NOT_COPY' "$trace"
+          grep -F 'REFERENCE_ONLY' "$trace"
+          grep -F 'DONOR_SUPPORT' "$trace"
+          grep -F 'ACTIVE_MATCH_AUTHORITY' "$trace"
+          grep -F 'missing lineage must fail closed' "$trace"
+          grep -F 'terminal ownership ambiguity must block promotion' "$trace"
+          grep -F 'canonical_event_count=UNKNOWN' "$trace"
+          grep -F 'production_release=false' "$trace"
 
       - name: No sample match identity leak
         run: |
           ! grep -RInE "Australia|Turkey|World Cup|Juventus|Galatasaray|Fenerbahce|Sturm Graz|6935|77798" \
+            docs/research/eventonly/outcome_support_bridge_research_trace_v1.md \
             outcome_support_bridge_lite.py \
             hpfa/modules/core/outcome_support_bridge_lite \
+            tools/bootstrap_termux_outcome_support_bridge_v1.sh \
             tools/run_active_match_outcome_support_bridge_v1.sh
 
       - name: Diff hygiene
