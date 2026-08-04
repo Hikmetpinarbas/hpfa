@@ -29,8 +29,11 @@ Method: `ADAPT_NOT_COPY`.
 7. Invalid output paths are rejected without writing into the rejected path.
 8. Generated upstream artifacts are resolved from the flat phone-output surface where their producer runners write them.
 9. Every input payload must explicitly carry a non-empty match-surface binding; a missing sequence binding cannot be inferred from the other producers.
-10. The three payload bindings must agree before any sequence evidence-anchor support can enter the bridge.
-11. A selected-event record must explicitly carry a non-empty `consequence_class_candidate`; terminal or derived atom support cannot bypass this required event-side contract field.
+10. The three payload bindings must agree before the sequence index is built or any record can disclose sequence support.
+11. A failed payload-binding gate adds `payload_binding_gate_failed` to record-level conflicts and blocks all downstream promotion in the failed module output.
+12. A selected-event record must explicitly carry a non-empty `consequence_class_candidate`; terminal or derived atom support cannot bypass this required event-side contract field.
+13. Invalid evidence-atom IDs—blank, whitespace-only, null or non-string entries—must be detected before filtering or reconciliation; they cannot be silently dropped.
+14. A valid atom-count total does not repair a malformed evidence-atom inventory.
 
 ## Football-intelligence effect
 
