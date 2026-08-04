@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 MODULE_ID = "outcome_support_bridge_lite_v1"
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 INPUT_MODULES = {
     "selected_action": "selected_action_consequence_surface_lite_v1",
@@ -202,6 +202,7 @@ def _support_atom_state(
 
     counts_raw = node.get("support_atom_class_counts")
     counts: dict[str, int] = {}
+    normalized_key_sources: dict[str, str] = {}
     if not isinstance(counts_raw, dict):
         conflicts.append("support_atom_class_counts_invalid")
     else:
@@ -215,6 +216,14 @@ def _support_atom_state(
             ):
                 conflicts.append(f"support_atom_class_count_invalid:{key or 'EMPTY'}")
                 continue
+            raw_key_text = str(raw_key)
+            previous_raw_key = normalized_key_sources.get(key)
+            if previous_raw_key is not None and previous_raw_key != raw_key_text:
+                conflicts.append(
+                    f"support_atom_class_key_normalization_collision:{key}"
+                )
+                continue
+            normalized_key_sources[key] = raw_key_text
             counts[key] = raw_value
     if sum(counts.values()) != len(atom_ids):
         conflicts.append("support_atom_count_id_mismatch")
@@ -389,6 +398,7 @@ def build_outcome_support_bridge(
     if sequence_index:
         reviews.append("sequence_metric_evidence_anchor_support_is_partial_by_design")
 
+    module_hard_block_gate_pass = not bool(blocks)
     records: list[dict[str, Any]] = []
     conflicts: list[dict[str, Any]] = []
     for node_id in sorted(node_by_id):
@@ -401,6 +411,8 @@ def build_outcome_support_bridge(
         )
         if not binding_gate_pass:
             record_conflicts.append("payload_binding_gate_failed")
+        if not module_hard_block_gate_pass:
+            record_conflicts.append("module_hard_block_gate_failed")
         atom_ids, atom_counts, terminal, derived, atom_conflicts = _support_atom_state(
             node
         )
@@ -497,6 +509,7 @@ def build_outcome_support_bridge(
         "release_status": "NOT_PRODUCTION",
         "match_surface_binding_id": binding or None,
         "payload_binding_gate_pass": binding_gate_pass,
+        "module_hard_block_gate_pass": module_hard_block_gate_pass,
         "source_module_ids": dict(INPUT_MODULES),
         "outcome_support_bridge_records": records,
         "outcome_support_bridge_record_count": len(records),
@@ -528,6 +541,7 @@ def summary(payload: dict[str, Any]) -> str:
     keys = (
         "status",
         "payload_binding_gate_pass",
+        "module_hard_block_gate_pass",
         "outcome_support_bridge_record_count",
         "outcome_support_classification_counts",
         "downstream_outcome_support_status_counts",
@@ -557,12 +571,14 @@ def analyst_audit(payload: dict[str, Any]) -> str:
         "",
         "Hangi evidence destekliyor?",
         f"payload_binding_gate_pass={payload.get('payload_binding_gate_pass')}",
+        f"module_hard_block_gate_pass={payload.get('module_hard_block_gate_pass')}",
         f"classification_counts={payload.get('outcome_support_classification_counts')}",
         f"sequence_supported_anchor_count={payload.get('sequence_supported_anchor_count')}",
         f"conflict_record_count={payload.get('conflict_record_count')}",
         "",
         "Analist için güvenli anlamı nedir?",
         "Explicit terminal and derived support require their matching evidence-atom classes and complete per-record lineage. Sequence support is admitted only after all payload bindings are explicit and equal, and it cannot create terminal outcome truth or downstream promotion by itself.",
+        "Any module-level hard block makes every emitted record non-promotable. Normalized evidence-atom class key collisions are conflicts and are never silently overwritten.",
         "These records do not prove possession, sequence truth, causality, progression quality, tactical intent or player quality.",
         "canonical_event_count=UNKNOWN",
         "production_release=false",
@@ -586,6 +602,9 @@ def write_outputs(payload: dict[str, Any], out: str | Path) -> dict[str, Path]:
                 "module_id": MODULE_ID,
                 "match_surface_binding_id": payload.get("match_surface_binding_id"),
                 "payload_binding_gate_pass": payload.get("payload_binding_gate_pass"),
+                "module_hard_block_gate_pass": payload.get(
+                    "module_hard_block_gate_pass"
+                ),
                 "conflict_record_count": payload.get("conflict_record_count"),
                 "conflict_records": payload.get("conflict_records"),
                 "canonical_event_count": CANONICAL_EVENT_COUNT,
