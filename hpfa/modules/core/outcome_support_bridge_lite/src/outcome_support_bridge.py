@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 MODULE_ID = "outcome_support_bridge_lite_v1"
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 INPUT_MODULES = {
     "selected_action": "selected_action_consequence_surface_lite_v1",
@@ -166,9 +166,7 @@ def _lineage_conflicts(
     ):
         if "actor_identity_candidate_id" not in record:
             if source_role in ACTOR_BOUND_ROLES:
-                conflicts.append(
-                    f"actor_identity_candidate_id_missing_for_{side}_role"
-                )
+                conflicts.append(f"actor_identity_candidate_id_missing_for_{side}_role")
             continue
         raw_actor = record.get("actor_identity_candidate_id")
         actor = clean(raw_actor)
@@ -189,13 +187,18 @@ def _support_atom_state(
 ) -> tuple[list[str], dict[str, int], bool, bool, list[str]]:
     conflicts: list[str] = []
     atom_ids_raw = node.get("supporting_evidence_atom_ids")
+    valid_ids: list[str] = []
     if not isinstance(atom_ids_raw, list):
         conflicts.append("supporting_evidence_atom_inventory_invalid")
         atom_ids_raw = []
-    cleaned_ids = [clean(value) for value in atom_ids_raw if clean(value)]
-    if len(cleaned_ids) != len(set(cleaned_ids)):
+    for index, raw_value in enumerate(atom_ids_raw):
+        if not isinstance(raw_value, str) or not clean(raw_value):
+            conflicts.append(f"supporting_evidence_atom_id_invalid:{index}")
+            continue
+        valid_ids.append(clean(raw_value))
+    if len(valid_ids) != len(set(valid_ids)):
         conflicts.append("supporting_evidence_atom_id_duplicate")
-    atom_ids = sorted(set(cleaned_ids))
+    atom_ids = sorted(set(valid_ids))
 
     counts_raw = node.get("support_atom_class_counts")
     counts: dict[str, int] = {}
@@ -293,7 +296,12 @@ def build_outcome_support_bridge(
         payload_bindings[name] = value
 
     binding = next((value for value in payload_bindings.values() if value), "")
-    if len(set(payload_bindings.values())) != 1:
+    binding_gate_pass = (
+        len(payload_bindings) == len(named_payloads)
+        and all(payload_bindings.values())
+        and len(set(payload_bindings.values())) == 1
+    )
+    if not binding_gate_pass:
         blocks.append(f"input_match_surface_binding_mismatch:{payload_bindings}")
     if not binding:
         blocks.append("match_surface_binding_missing")
@@ -358,6 +366,8 @@ def build_outcome_support_bridge(
             continue
         if clean(metric.get("status")) not in SEQUENCE_STATUSES:
             continue
+        if not binding_gate_pass:
+            continue
         metric_id = clean(metric.get("metric_record_id")) or digest(
             metric.get("metric_id"), position
         )
@@ -389,6 +399,8 @@ def build_outcome_support_bridge(
             if event
             else ["selected_event_missing"]
         )
+        if not binding_gate_pass:
+            record_conflicts.append("payload_binding_gate_failed")
         atom_ids, atom_counts, terminal, derived, atom_conflicts = _support_atom_state(
             node
         )
@@ -484,6 +496,7 @@ def build_outcome_support_bridge(
         "runtime_evidence_status": "NOT_EVALUATED",
         "release_status": "NOT_PRODUCTION",
         "match_surface_binding_id": binding or None,
+        "payload_binding_gate_pass": binding_gate_pass,
         "source_module_ids": dict(INPUT_MODULES),
         "outcome_support_bridge_records": records,
         "outcome_support_bridge_record_count": len(records),
@@ -514,6 +527,7 @@ def build_outcome_support_bridge(
 def summary(payload: dict[str, Any]) -> str:
     keys = (
         "status",
+        "payload_binding_gate_pass",
         "outcome_support_bridge_record_count",
         "outcome_support_classification_counts",
         "downstream_outcome_support_status_counts",
@@ -542,12 +556,13 @@ def analyst_audit(payload: dict[str, Any]) -> str:
         f"record_count={payload.get('outcome_support_bridge_record_count')}",
         "",
         "Hangi evidence destekliyor?",
+        f"payload_binding_gate_pass={payload.get('payload_binding_gate_pass')}",
         f"classification_counts={payload.get('outcome_support_classification_counts')}",
         f"sequence_supported_anchor_count={payload.get('sequence_supported_anchor_count')}",
         f"conflict_record_count={payload.get('conflict_record_count')}",
         "",
         "Analist için güvenli anlamı nedir?",
-        "Explicit terminal and derived support require their matching evidence-atom classes and complete per-record lineage. Sequence support alone cannot create terminal outcome truth or downstream promotion.",
+        "Explicit terminal and derived support require their matching evidence-atom classes and complete per-record lineage. Sequence support is admitted only after all payload bindings are explicit and equal, and it cannot create terminal outcome truth or downstream promotion by itself.",
         "These records do not prove possession, sequence truth, causality, progression quality, tactical intent or player quality.",
         "canonical_event_count=UNKNOWN",
         "production_release=false",
@@ -570,6 +585,7 @@ def write_outputs(payload: dict[str, Any], out: str | Path) -> dict[str, Path]:
             {
                 "module_id": MODULE_ID,
                 "match_surface_binding_id": payload.get("match_surface_binding_id"),
+                "payload_binding_gate_pass": payload.get("payload_binding_gate_pass"),
                 "conflict_record_count": payload.get("conflict_record_count"),
                 "conflict_records": payload.get("conflict_records"),
                 "canonical_event_count": CANONICAL_EVENT_COUNT,
