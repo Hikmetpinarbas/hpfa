@@ -11,10 +11,14 @@ Method: `ADAPT_NOT_COPY`.
 | Source | Role | Accepted contribution | Explicit exclusion |
 |---|---|---|---|
 | Current `hpfa` selected-action, selected-event and event-only sequence-consequence producers | `PRODUCT_PRODUCER` | Executable input contracts, exact field vocabulary, output lineage | None of their candidate outputs become canonical event, possession, sequence, tactical or causal truth |
+| Current `hpfa` core pipeline orchestrator | `PRODUCT_SUPPORT` | A blocking artifact halts downstream execution and produces a fail-closed artifact rather than a promotable downstream result | It does not supply football evidence to this module |
 | `runtime/active_single_match/current` | `ACTIVE_MATCH_AUTHORITY` | The only match-local runtime evidence authority | No archive, research file, Drive or Dropbox surface may override it |
 | `HPFA_NODE_ROADMAP.md`, `HPFA_NEXT_CONSEQUENCE_NODE_SPEC.md`, `HPFA_CURRENT_STATE.md`, `HPFA_GUARDRAILS.md` | `REFERENCE_ONLY` | Categorical-first consequence framing; consequence is not value or quality; argument building remains downstream | Their historical input names and counts are not current runtime truth |
 | `HPFA_DONOR_USAGE_MAP.md` and action/sequence/consequence research packs | `DONOR_SUPPORT` | Sequence compression, consequence surface, structure traceback, guarded progression and turnover concepts | No direct tactical, intention, dominance, pressure, possession or event truth promotion |
+| HP-Engine fail-closed validation rules and constitutional runner patterns | `DONOR_SUPPORT` | Validation failure blocks output promotion; required artifacts and non-empty inputs are checked before continuation | Match identity, hard-coded paths, historical possession/sequence claims and donor execution layouts are not copied |
 | Event-core object contracts, semantic caps and negative-test plans in the uploaded archives | `DONOR_SUPPORT` | Fail-closed behavior, terminal-ownership ambiguity guard, blocked downstream on missing identity/location/schema | Archive contracts are not executable product authority |
+| Drive fail-closed governance, deterministic decision-system and pipeline-design studies | `REFERENCE_ONLY` | Integrity gates, deterministic validation and provenance-aware pipeline design | They cannot establish match-local football evidence or current product status |
+| Peer-reviewed validation, workflow-integrity and provenance research | `REFERENCE_ONLY` | Adjacent-stage integrity verification, schema validation before commit, lineage recording and reproducible execution | General software research does not create HPFA runtime truth or provider semantics |
 | `Archive Governance and Runtime Isolation.pdf` | `REFERENCE_ONLY` | Runtime/archive isolation and authority-drift prevention | Archived or research artifacts cannot enter the runtime execution path |
 | `Football Analytics Claim Support Extraction.pdf` and outcome-model research | `REFERENCE_ONLY` | Claim-support/invalidator separation and the distinction between mechanism support and proof | Tracking, video, freeze-frame, off-ball, tactical-template and causal claims are not admitted by this event-only bridge |
 
@@ -34,6 +38,20 @@ Method: `ADAPT_NOT_COPY`.
 12. A selected-event record must explicitly carry a non-empty `consequence_class_candidate`; terminal or derived atom support cannot bypass this required event-side contract field.
 13. invalid evidence-atom IDs—blank, whitespace-only, null or non-string entries—must be detected before filtering or reconciliation; they cannot be silently dropped.
 14. A valid atom-count total does not repair a malformed evidence-atom inventory.
+15. Any **module-level hard block** adds `module_hard_block_gate_failed` to every emitted record. A failed module may write a diagnostic artifact, but that artifact cannot contain any promotable record.
+16. A **normalized atom-class key collision** is a contract conflict. Distinct raw keys that normalize to the same class cannot be silently overwritten, merged or used to satisfy atom-count reconciliation.
+
+## External method support
+
+The adopted guards are consistent with current HPFA pipeline behavior and with external workflow-integrity research:
+
+- the current HPFA orchestrator treats upstream hard blocks as pipeline-stopping conditions and emits a fail-closed artifact;
+- HP-Engine donor validation rules use fail-closed mode and block on validation failure;
+- provenance-aware workflow research supports recording exact inputs, versions, dependencies and execution lineage;
+- integrity-verification research treats chained stages as dependent on the correctness of adjacent upstream data;
+- schema-validation research supports validating field structure and bounds before committing downstream state.
+
+These sources support the engineering method only. They do not override `ACTIVE_MATCH_AUTHORITY`, validate provider semantics or create football truth.
 
 ## Football-intelligence effect
 
