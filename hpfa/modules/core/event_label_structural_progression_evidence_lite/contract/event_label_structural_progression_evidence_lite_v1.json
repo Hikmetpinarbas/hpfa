@@ -1,12 +1,13 @@
 {
   "schema": "HPFA_EVENT_LABEL_STRUCTURAL_PROGRESSION_EVIDENCE_LITE_V1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "IMPLEMENTATION_CANDIDATE_NOT_RUNTIME_VALIDATED",
   "module_id": "event_label_structural_progression_evidence_lite_v1",
-  "purpose": "Bind reviewed provider-label lineage, selected-action support labels, current coordinate/zone candidates, existing consequence windows and aggregate-definition support into component-first event-only progression evidence records.",
+  "purpose": "Bind reviewed provider-label lineage, exact action-anchor bundle labels, current coordinate/zone candidates, existing consequence windows and aggregate-definition support into component-first event-only progression evidence records.",
   "source_role": "PRODUCT_GATE_CONSUMER",
   "input_modules": {
     "provider_labels": "provider_label_value_semantics_lite_v1",
+    "action_bundles": "semantic_role_action_bundle_candidates_lite_v1",
     "selected_action": "selected_action_consequence_surface_lite_v1",
     "selected_event": "selected_event_consequence_surface_lite_v1",
     "sequence_consequence": "eventonly_sequence_consequence_engine_lite_v1",
@@ -15,10 +16,35 @@
   "lineage_join": [
     "selected_event.anchor_selected_action_node_id",
     "selected_action.selected_action_node_id",
-    "selected_action.support_normalized_labels",
+    "selected_action.selected_action_bundle_candidate_ids",
+    "action_bundle_candidates.action_bundle_candidate_id",
+    "action_bundle_candidates.normalized_labels",
     "provider_label_records.normalized_label + compatible source_role"
   ],
-  "lineage_rule": "Provider label inventory must not be attached to an anchor by raw text alone. Missing, conflicting or ambiguous lineage is blocked or component-only.",
+  "lineage_rule": "Provider label inventory must be attached only through selected action node to exact action-bundle IDs and their normalized action-anchor labels. Derived-consequence and terminal-outcome support labels must not substitute for the action-anchor label. Missing, conflicting or ambiguous lineage is blocked or component-only.",
+  "provider_outcome_vocabulary": {
+    "successful": [
+      "SUCCESS",
+      "SUCCESSFUL_CANDIDATE",
+      "ACCURATE",
+      "ACCURATE_CANDIDATE",
+      "WON",
+      "WON_CANDIDATE"
+    ],
+    "unsuccessful": [
+      "FAILURE",
+      "FAILURE_CANDIDATE",
+      "UNSUCCESSFUL",
+      "UNSUCCESSFUL_CANDIDATE",
+      "INACCURATE",
+      "INACCURATE_CANDIDATE",
+      "LOST",
+      "LOST_CANDIDATE",
+      "FAILED",
+      "FAILED_CANDIDATE"
+    ],
+    "matching_rule": "Exact reviewed vocabulary only; substring inference is not used."
+  },
   "producer_reuse": {
     "coordinate_engine_reimplemented": false,
     "consequence_window_engine_reimplemented": false,
@@ -69,7 +95,7 @@
     "PROGRESSION_CONTEXT_UNRESOLVED"
   ],
   "denominator_rule": "This module emits component evidence only. No progression rate is produced. Existing progression metric records remain METRIC_BLOCKED until a later denominator and eligibility release gate opens them.",
-  "duplicate_rule": "Current selected-action and selected-event producer lineage is preserved. Distinct selected-event candidate identities are not auto-merged. Exact provider record reflections are deduplicated only by stable record identity or exact lineage digest.",
+  "duplicate_rule": "Current action-bundle, selected-action and selected-event producer lineage is preserved. Distinct selected-event candidate identities are not auto-merged. Exact provider record reflections are deduplicated only by stable record identity or exact lineage digest.",
   "time_order_rule": "Duration support requires non-negative start and end candidates with end >= start. This is candidate support, not sequence truth.",
   "claim_ceiling": "EVENT_ONLY_COMPONENT_FIRST_PROGRESSION_EVIDENCE_CANDIDATE",
   "claim_boundary": {
@@ -92,6 +118,9 @@
     "nested_error_code": "nested_phone_output_directory_rejected"
   },
   "required_tests": [
+    "test_action_anchor_lineage_not_support_label_drives_provider_match",
+    "test_failure_outcome_is_recognized_exactly",
+    "test_missing_action_bundle_reference_fails_closed",
     "test_provider_label_not_auto_truth_without_independent_support",
     "test_supported_progression_uses_current_producer_status_mapping",
     "test_explicit_successful_progression_geometry_conflict_blocks_downstream",
