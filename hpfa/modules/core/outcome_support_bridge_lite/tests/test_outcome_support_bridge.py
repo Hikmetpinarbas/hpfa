@@ -197,6 +197,22 @@ def test_explicit_team_actor_null_is_allowed_when_field_is_present():
     assert not any("actor_identity" in reason for reason in record["conflict_reasons"])
 
 
+def test_blank_team_actor_ids_are_not_explicit_null():
+    selected_action, selected_event, sequence = payloads()
+    node = selected_action["selected_action_nodes"][0]
+    event = selected_event["selected_event_consequence_candidates"][0]
+    node["source_role"] = "TEAM_SURFACE_CANDIDATE"
+    event["source_role"] = "TEAM_SURFACE_CANDIDATE"
+    node["actor_identity_candidate_id"] = ""
+    event["actor_identity_candidate_id"] = "   "
+    result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
+    record = result["outcome_support_bridge_records"][0]
+    assert record["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
+    assert "actor_identity_candidate_id_blank_on_selected_action" in record["conflict_reasons"]
+    assert "actor_identity_candidate_id_blank_on_selected_event" in record["conflict_reasons"]
+    assert record["downstream_promotion_allowed"] is False
+
+
 def test_terminal_flag_requires_terminal_atom_class():
     selected_action, selected_event, sequence = payloads(terminal=True)
     node = selected_action["selected_action_nodes"][0]
@@ -228,6 +244,30 @@ def test_support_atom_counts_must_reconcile_with_ids():
     record = result["outcome_support_bridge_records"][0]
     assert record["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
     assert "support_atom_count_id_mismatch" in record["conflict_reasons"]
+
+
+def test_missing_selected_event_consequence_class_conflicts_even_with_terminal_support():
+    selected_action, selected_event, sequence = payloads(terminal=True)
+    del selected_event["selected_event_consequence_candidates"][0][
+        "consequence_class_candidate"
+    ]
+    result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
+    record = result["outcome_support_bridge_records"][0]
+    assert record["outcome_support_classification"] == "CONFLICTED_OUTCOME_SUPPORT"
+    assert "consequence_class_candidate_missing_on_selected_event" in record["conflict_reasons"]
+    assert record["downstream_promotion_allowed"] is False
+
+
+def test_missing_sequence_payload_binding_fails_closed():
+    selected_action, selected_event, sequence = payloads(sequence=True)
+    del sequence["match_surface_binding_id"]
+    result = module.build_outcome_support_bridge(selected_action, selected_event, sequence)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "sequence_match_surface_binding_missing" in result["hard_block_hits"]
+    assert any(
+        hit.startswith("input_match_surface_binding_mismatch")
+        for hit in result["hard_block_hits"]
+    )
 
 
 def test_missing_selected_event_coverage_fails_closed():
@@ -272,4 +312,4 @@ def test_no_metric_rate_output():
     assert result["metric_rate_output_allowed"] is False
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["production_release"] is False
-    assert result["version"] == "1.0.1"
+    assert result["version"] == "1.0.2"
