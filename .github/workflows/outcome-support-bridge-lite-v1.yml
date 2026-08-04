@@ -55,7 +55,7 @@ jobs:
           path = Path("hpfa/modules/core/outcome_support_bridge_lite/contract/outcome_support_bridge_lite_v1.json")
           payload = json.loads(path.read_text(encoding="utf-8"))
           assert payload["module_id"] == "outcome_support_bridge_lite_v1"
-          assert payload["status"] == "SPEC_ONLY"
+          assert payload["status"] == "SMOKE_PASS"
           assert payload["runtime_evidence_status"] == "NOT_EVALUATED"
           assert payload["release_status"] == "NOT_PRODUCTION"
           assert payload["metric_rate_output_allowed"] is False
