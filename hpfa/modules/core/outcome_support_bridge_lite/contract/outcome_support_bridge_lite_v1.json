@@ -1,6 +1,6 @@
 {
   "module_id": "outcome_support_bridge_lite_v1",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "status": "SMOKE_PASS",
   "runtime_evidence_status": "NOT_EVALUATED",
   "release_status": "NOT_PRODUCTION",
@@ -9,12 +9,8 @@
   "input_contract": {
     "selected_action": {
       "module_id": "selected_action_consequence_surface_lite_v1",
-      "required_payload_fields": [
-        "match_surface_binding_id"
-      ],
-      "required_inventories": [
-        "selected_action_nodes"
-      ],
+      "required_payload_fields": ["match_surface_binding_id"],
+      "required_inventories": ["selected_action_nodes"],
       "required_lineage_fields": [
         "selected_action_node_id",
         "match_surface_binding_id",
@@ -30,12 +26,8 @@
     },
     "selected_event": {
       "module_id": "selected_event_consequence_surface_lite_v1",
-      "required_payload_fields": [
-        "match_surface_binding_id"
-      ],
-      "required_inventories": [
-        "selected_event_consequence_candidates"
-      ],
+      "required_payload_fields": ["match_surface_binding_id"],
+      "required_inventories": ["selected_event_consequence_candidates"],
       "required_lineage_fields": [
         "selected_event_consequence_candidate_id",
         "anchor_selected_action_node_id",
@@ -49,14 +41,10 @@
     },
     "sequence_consequence": {
       "module_id": "eventonly_sequence_consequence_engine_lite_v1",
-      "required_payload_fields": [
-        "match_surface_binding_id"
-      ],
-      "required_inventories": [
-        "metric_records"
-      ],
+      "required_payload_fields": ["match_surface_binding_id"],
+      "required_inventories": ["metric_records"],
       "support_field": "evidence_anchor_node_ids",
-      "support_limit": "Sequence metric evidence-anchor IDs are support-only and may be intentionally partial. They are not a complete per-anchor trace inventory."
+      "support_limit": "Sequence metric evidence-anchor IDs are support-only, intentionally partial, and inadmissible unless all three payload bindings are explicit, non-empty and equal."
     }
   },
   "exact_join": [
@@ -71,12 +59,20 @@
     "selected-event consequence_class_candidate is explicitly present and non-empty",
     "sequence metric evidence_anchor_node_id references an existing selected_action_node_id"
   ],
+  "payload_binding_gate": {
+    "required_before_sequence_index_build": true,
+    "required_before_record_promotion": true,
+    "failure_record_conflict": "payload_binding_gate_failed",
+    "failure_module_status": "FAIL_CLOSED"
+  },
   "atom_support_integrity": [
-    "support_atom_class_counts total equals unique supporting_evidence_atom_ids count",
+    "every supporting_evidence_atom_ids entry is a non-empty string before normalization",
+    "blank, whitespace-only, null or non-string atom IDs are conflicts and are not silently dropped",
+    "support_atom_class_counts total equals unique valid supporting_evidence_atom_ids count",
     "terminal_outcome_support_visible=true requires TERMINAL_OUTCOME_ATOM count greater than zero",
     "derived_consequence_support_visible=true requires DERIVED_CONSEQUENCE_ATOM count greater than zero",
     "atom class present while corresponding flag is false is a conflict",
-    "mismatched flag, class count, duplicate ID, invalid count, or missing inventory blocks downstream promotion"
+    "mismatched flag, class count, duplicate ID, invalid ID, invalid count, or missing inventory blocks downstream promotion"
   ],
   "classification_vocabulary": [
     "EXPLICIT_TERMINAL_OUTCOME_SUPPORT",
@@ -97,38 +93,38 @@
   "admission_rules": [
     {
       "id": "OSB01",
-      "when": "terminal_outcome_support_visible=true, TERMINAL_OUTCOME_ATOM count is positive, atom IDs reconcile with class counts, all payload bindings are explicit and equal, selected-event consequence class exists, and exact record lineage exists",
+      "when": "terminal flag, matching atom class, valid atom IDs, reconciled counts, complete exact lineage, required consequence class and passing payload-binding gate",
       "classification": "EXPLICIT_TERMINAL_OUTCOME_SUPPORT",
       "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
     },
     {
       "id": "OSB02",
-      "when": "derived_consequence_support_visible=true, DERIVED_CONSEQUENCE_ATOM count is positive, atom IDs reconcile with class counts, all payload bindings are explicit and equal, selected-event consequence class exists, and exact record lineage exists",
+      "when": "derived flag, matching atom class, valid atom IDs, reconciled counts, complete exact lineage, required consequence class and passing payload-binding gate",
       "classification": "EXPLICIT_DERIVED_CONSEQUENCE_SUPPORT",
       "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
     },
     {
       "id": "OSB03",
-      "when": "selected-event consequence class is explicitly present, non-empty and resolved, and every required record-level lineage field is explicitly present and compatible",
+      "when": "selected-event consequence class is explicit, non-empty and resolved; exact lineage and payload-binding gate pass",
       "classification": "VISIBLE_CONSEQUENCE_SUPPORT_ONLY",
       "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
     },
     {
       "id": "OSB04",
-      "when": "only sequence metric evidence-anchor support is available after all three payload bindings are explicitly present and equal",
+      "when": "only sequence metric evidence-anchor support is available after the payload-binding gate passes",
       "classification": "SEQUENCE_TRACE_SUPPORT_ONLY",
       "downstream_outcome_support_status": "SUPPORT_ONLY",
       "downstream_promotion_allowed": false
     },
     {
       "id": "OSB05",
-      "when": "two or more compatible support sources are visible after payload-binding, exact-lineage, consequence-class and atom-class integrity gates",
+      "when": "two or more compatible support sources are visible after payload-binding, exact-lineage, consequence-class and atom-integrity gates",
       "classification": "MULTI_SOURCE_COMPATIBLE_OUTCOME_SUPPORT",
       "downstream_outcome_support_status": "SUPPORTED_CANDIDATE"
     },
     {
       "id": "OSB06",
-      "when": "required payload binding or record lineage is missing or conflicting, actor identity is blank instead of explicit null, selected-event consequence class is missing or empty, payload fallback would be required, or explicit support flags and atom classes do not reconcile",
+      "when": "required payload binding or record lineage is missing/conflicting; actor or atom ID is blank/invalid; consequence class is missing/empty; or flag/class/count reconciliation fails",
       "classification": "CONFLICTED_OUTCOME_SUPPORT",
       "downstream_outcome_support_status": "CONFLICTED",
       "downstream_promotion_allowed": false
@@ -148,27 +144,16 @@
     "outcome_support_bridge_conflict_report_v1.json"
   ],
   "required_tests": [
-    "test_exact_action_lineage_required",
-    "test_missing_record_binding_cannot_use_payload_fallback",
-    "test_missing_actor_fields_cannot_compare_as_equal_for_player_role",
-    "test_explicit_team_actor_null_is_allowed_when_field_is_present",
-    "test_blank_team_actor_ids_are_not_explicit_null",
-    "test_terminal_flag_requires_terminal_atom_class",
-    "test_derived_flag_requires_derived_atom_class",
-    "test_support_atom_counts_must_reconcile_with_ids",
-    "test_missing_selected_event_consequence_class_conflicts_even_with_terminal_support",
-    "test_missing_sequence_payload_binding_fails_closed",
-    "test_visible_consequence_support_is_not_terminal_truth",
-    "test_cross_period_support_rejected",
-    "test_cross_team_support_rejected",
+    "test_missing_sequence_payload_binding_fails_closed_without_sequence_admission",
+    "test_mismatched_sequence_binding_cannot_create_multi_source_promotion",
+    "test_blank_and_null_atom_ids_conflict_before_reconciliation",
     "test_sequence_trace_alone_does_not_create_terminal_truth",
-    "test_conflicting_support_blocks_promotion",
-    "test_missing_support_remains_unavailable",
-    "test_no_metric_rate_output",
-    "test_no_sample_match_identity_leak",
-    "test_nested_phone_output_directory_rejected",
+    "test_no_payload_fallback",
+    "test_matching_atom_classes_required",
+    "test_atom_count_id_reconciliation",
+    "test_missing_consequence_class_conflicts",
     "test_invalid_phone_path_creates_no_forbidden_directory",
-    "test_runtime_inputs_resolve_from_flat_phone_output"
+    "test_no_sample_match_identity_leak"
   ],
   "claim_boundary": {
     "terminal_outcome_truth": false,
