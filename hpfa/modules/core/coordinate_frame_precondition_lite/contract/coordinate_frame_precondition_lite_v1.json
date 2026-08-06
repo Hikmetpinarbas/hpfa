@@ -1,0 +1,80 @@
+{
+  "module_id": "coordinate_frame_precondition_lite_v1",
+  "version": "1.0.0",
+  "status_vocabulary": [
+    "PASS",
+    "REVIEW_REQUIRED",
+    "FAIL_CLOSED"
+  ],
+  "inputs": {
+    "provider_labels": {
+      "module_id": "provider_label_value_semantics_lite_v1",
+      "required_fields": [
+        "provider_label_records",
+        "provider_label_record_count",
+        "canonical_event_count",
+        "production_release"
+      ]
+    },
+    "action_bundles": {
+      "module_id": "semantic_role_action_bundle_candidates_lite_v1",
+      "required_fields": [
+        "match_surface_binding_id",
+        "action_bundle_candidates",
+        "action_bundle_candidate_count",
+        "canonical_event_count",
+        "production_release"
+      ]
+    },
+    "selected_event": {
+      "module_id": "selected_event_consequence_surface_lite_v1",
+      "required_fields": [
+        "match_surface_binding_id",
+        "coordinate_frame_candidate",
+        "canonical_event_count",
+        "production_release"
+      ]
+    }
+  },
+  "anchor_contract": {
+    "primary_anchor_families": [
+      "SHOT_CONCENTRATION",
+      "GOALKEEPER_GOAL_KICK_START"
+    ],
+    "support_only_anchor_families": [
+      "CLEARANCE_COUNTER_SUPPORT"
+    ],
+    "goal_kick_role_required": "GOALKEEPER_SURFACE_CANDIDATE",
+    "goal_kick_semantics_required": "restart_type_candidate=GOAL_KICK with exact reviewed provider-label lineage",
+    "team_reflection_goal_kick_anchor_allowed": false,
+    "minimum_shot_support_per_team_period": 3,
+    "minimum_goal_kick_support_per_team_period": 2,
+    "minimum_clearance_support_per_team_period": 3,
+    "clearance_can_open_gate": false
+  },
+  "admission": {
+    "required_coordinate_scale_candidate": "PROVIDER_105X68_SCALE_CANDIDATE",
+    "required_coordinate_bounds_status": "PASS_CANDIDATE_BOUNDS",
+    "all_expected_team_period_groups_require_primary_anchor_agreement": true,
+    "conflicting_primary_anchor_blocks_recheck": true,
+    "progression_metric_recheck_allowed_field": "progression_metric_recheck_allowed"
+  },
+  "outputs": [
+    "coordinate_frame_precondition_lite_v1.json",
+    "coordinate_frame_precondition_lite_v1.txt",
+    "coordinate_frame_precondition_analyst_audit_v1.txt"
+  ],
+  "claim_boundary": {
+    "coordinate_frame_is_validated_provider_truth": false,
+    "attack_direction_is_validated_truth": false,
+    "clearance_is_primary_direction_anchor": false,
+    "progression_truth": false,
+    "line_break_truth": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
