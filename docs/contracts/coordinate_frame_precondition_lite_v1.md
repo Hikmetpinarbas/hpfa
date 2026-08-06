@@ -64,6 +64,75 @@ Clearance dağılımı yalnız counter-support'tur. Clearance tek başına direc
 
 Bu alan progression metriğinin otomatik PASS olduğu anlamına gelmez. Sonraki metric-recheck node'u numerator, denominator, outcome support ve definition alignment sözleşmelerini ayrıca doğrulamalıdır.
 
+## ACTIVE_MATCH orchestration contract
+
+Termux runner hazır telefon dosyalarının varlığını varsaymaz. Current exact head üzerinde şu sıra zorunludur:
+
+```text
+run_active_match_context_slicer_v1.sh
+→ current-head upstream producer refresh
+→ provider label semantics
+→ semantic action bundles
+→ selected action consequence
+→ selected event consequence refresh
+→ coordinate frame precondition
+```
+
+Runner:
+
+- product repo origin, branch ve exact head değerini doğrular;
+- ACTIVE_MATCH path'ini exact runtime authority ile karşılaştırır;
+- tracked worktree kirliyse fail-closed olur;
+- upstream producer'ları current branch/head üzerinde yeniler;
+- required input dosyalarının aynı çalışma sırasında üretildiğini doğrular;
+- eski veya stale telefon çıktısını current evidence olarak kabul etmez;
+- legacy branch adına kilitli provider runner'ını current stacked branch üzerinde çağırmaz.
+
+## Telefon çıktı sözleşmesi
+
+Kullanıcıya görünür bütün dosyalar yalnız şu düz dizinlerden birine yazılır:
+
+```text
+/sdcard/Download/HPFA
+/storage/emulated/0/Download/HPFA
+```
+
+Nested output yasaktır.
+
+### Başarılı çalışma
+
+```text
+coordinate_frame_precondition_lite_v1.json
+coordinate_frame_precondition_lite_v1.txt
+coordinate_frame_precondition_analyst_audit_v1.txt
+coordinate_frame_precondition_pytest_v1.txt
+coordinate_frame_precondition_operator_state_v1.txt
+coordinate_frame_precondition_active_match_bundle_manifest_v1.json
+coordinate_frame_precondition_manifest_v1.sha256
+coordinate_frame_precondition_active_match_bundle_v1.zip
+```
+
+Başarı ZIP'i current-run upstream lineage dosyalarını da flat olarak içerir:
+
+```text
+provider_label_value_semantics_lite_v1.json
+semantic_role_action_bundle_candidates_lite_v1.json
+selected_action_consequence_surface_lite_v1.json
+selected_event_consequence_surface_lite_v1.json
+```
+
+### Başarısız çalışma
+
+Upstream veya coordinate node fail-closed olduğunda yalnız terminal mesajı bırakılmaz. Runner şu tanı yüzeylerini telefon dizinine yazar:
+
+```text
+coordinate_frame_precondition_operator_state_v1.txt
+coordinate_frame_precondition_failure_inventory_v1.txt
+coordinate_frame_precondition_failure_bundle_v1.zip
+```
+
+Böylece operatör başarısız çalışmayı da indirilebilir ZIP olarak teslim edebilir. Failure bundle production veya ACTIVE_MATCH pass değildir; yalnız engineering diagnosis evidence'dır.
+
 ## Claim boundary
 
 ```text
