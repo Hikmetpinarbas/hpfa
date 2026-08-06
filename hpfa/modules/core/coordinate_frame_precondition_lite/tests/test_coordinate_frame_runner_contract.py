@@ -15,7 +15,9 @@ def test_runner_refreshes_current_head_upstream_spine() -> None:
     assert "run_active_match_context_slicer_v1.sh" in text
     assert 'HPFA_EXPECTED_BRANCH="$EXPECTED_BRANCH"' in text
     assert 'HPFA_EXPECTED_HEAD="$EXPECTED_HEAD"' in text
-    assert "selected_event_consequence_surface_lite.py" in text
+    assert "selected_event_consequence_surface_lite.py" not in text
+    assert "CONTEXT_SPINE_ACTIVE_MATCH_OUTPUT_PRESERVED" in text
+    assert "selected_event_active_match_provenance_invalid" in text
     assert "provider_label_output_missing_after_upstream_refresh" in text
 
 
@@ -50,3 +52,12 @@ def test_runner_does_not_call_legacy_branch_locked_provider_runner() -> None:
     text = runner_text()
     assert "run_active_match_provider_label_value_semantics_v1.sh" not in text
     assert 'EXPECTED_BRANCH="provider-label-value-semantics-v1"' not in text
+
+
+def test_runner_preserves_selected_event_active_match_provenance() -> None:
+    text = runner_text()
+    assert 'payload.get("runtime_authority") != expected_authority' in text
+    assert 'payload.get("runtime_code_head_sha") != expected_head' in text
+    assert 'payload.get("active_match_execution_completed") is not True' in text
+    assert '"ACTIVE_MATCH_EXECUTION_COMPLETED_REVIEW_REQUIRED"' in text
+    assert "coordinate_frame_precondition_selected_event_refresh_v1.txt" not in text
