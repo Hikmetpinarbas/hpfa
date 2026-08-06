@@ -128,7 +128,6 @@ rm -f \
   "$OUT/coordinate_frame_precondition_pytest_v1.txt" \
   "$OUT/coordinate_frame_precondition_active_match_v1.txt" \
   "$OUT/coordinate_frame_precondition_upstream_refresh_v1.txt" \
-  "$OUT/coordinate_frame_precondition_selected_event_refresh_v1.txt" \
   "$STATE" "$FAILURE_INVENTORY" "$FAILURE_BUNDLE" \
   "$SUCCESS_BUNDLE" "$SUCCESS_MANIFEST" "$SUCCESS_SHA"
 
@@ -153,16 +152,38 @@ SELECTED_EVENT="$OUT/selected_event_consequence_surface_lite_v1.json"
 [ -s "$PROVIDER" ] || fail "provider_label_output_missing_after_upstream_refresh"
 [ -s "$BUNDLES" ] || fail "action_bundle_output_missing_after_upstream_refresh"
 [ -s "$SELECTED_ACTION" ] || fail "selected_action_output_missing_after_upstream_refresh"
+[ -s "$SELECTED_EVENT" ] || fail "selected_event_output_missing_after_upstream_refresh"
 
-set +e
-python selected_event_consequence_surface_lite.py \
-  --selected-action-consequence "$SELECTED_ACTION" \
-  --out "$OUT" 2>&1 \
-  | tee "$OUT/coordinate_frame_precondition_selected_event_refresh_v1.txt"
-SELECTED_EVENT_RC="${PIPESTATUS[0]}"
-set -e
-[ "$SELECTED_EVENT_RC" -ne 2 ] || fail "selected_event_consequence_fail_closed"
-[ -s "$SELECTED_EVENT" ] || fail "selected_event_output_missing_after_refresh"
+SELECTED_EVENT_RC=0
+SELECTED_EVENT_SOURCE="CONTEXT_SPINE_ACTIVE_MATCH_OUTPUT_PRESERVED"
+
+if ! python - "$SELECTED_EVENT" "$ACTIVE_RESOLVED" "$CURRENT_HEAD" <<'PY'
+import json
+import sys
+
+path, expected_authority, expected_head = sys.argv[1:]
+with open(path, encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+errors = []
+if payload.get("runtime_authority") != expected_authority:
+    errors.append("runtime_authority_mismatch")
+if payload.get("runtime_code_head_sha") != expected_head:
+    errors.append("runtime_code_head_sha_mismatch")
+if payload.get("active_match_execution_completed") is not True:
+    errors.append("active_match_execution_not_completed")
+if payload.get("runtime_evidence_status") not in {
+    "ACTIVE_MATCH_EVIDENCE_PASS",
+    "ACTIVE_MATCH_EXECUTION_COMPLETED_REVIEW_REQUIRED",
+}:
+    errors.append("runtime_evidence_status_not_active_match")
+
+if errors:
+    raise SystemExit("selected_event_active_match_provenance_invalid:" + ",".join(errors))
+PY
+then
+  fail "selected_event_active_match_provenance_invalid"
+fi
 
 if ! python - "$RUN_MARKER" "$PROVIDER" "$BUNDLES" "$SELECTED_ACTION" "$SELECTED_EVENT" <<'PY'
 import sys
@@ -208,6 +229,7 @@ set -e
   printf 'expected_head_sha=%s\n' "$EXPECTED_HEAD"
   printf 'upstream_rc=%s\n' "$UPSTREAM_RC"
   printf 'selected_event_rc=%s\n' "$SELECTED_EVENT_RC"
+  printf 'selected_event_source=%s\n' "$SELECTED_EVENT_SOURCE"
   printf 'run_rc=%s\n' "$RUN_RC"
   printf 'canonical_event_count=UNKNOWN\n'
   printf 'production_release=false\n'
