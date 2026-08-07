@@ -1,0 +1,50 @@
+name: XLSX Entity Metric Row Projection Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "xlsx_entity_metric_row_projection_lite.py"
+      - "hpfa/modules/core/xlsx_entity_metric_row_projection_lite/**"
+      - "docs/contracts/xlsx_entity_metric_row_projection_lite_v1.md"
+      - "tools/run_active_match_xlsx_entity_metric_row_projection_v1.sh"
+      - ".github/workflows/xlsx-entity-metric-row-projection-lite-v1.yml"
+  workflow_dispatch:
+
+jobs:
+  focused-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Exact PR head gate
+        if: github.event_name == 'pull_request'
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install focused dependencies
+        run: python -m pip install --upgrade pytest openpyxl
+
+      - name: Compile
+        run: |
+          python -m py_compile \
+            hpfa/modules/core/xlsx_entity_metric_row_projection_lite/src/xlsx_entity_metric_row_projection.py \
+            hpfa/modules/core/xlsx_entity_metric_row_projection_lite/tests/test_xlsx_entity_metric_row_projection.py \
+            xlsx_entity_metric_row_projection_lite.py
+
+      - name: Focused tests
+        run: python -m pytest -q hpfa/modules/core/xlsx_entity_metric_row_projection_lite/tests
+
+      - name: Contract JSON
+        run: python -m json.tool hpfa/modules/core/xlsx_entity_metric_row_projection_lite/contract/xlsx_entity_metric_row_projection_lite_v1.json >/dev/null
+
+      - name: Termux runner shell syntax
+        run: bash -n tools/run_active_match_xlsx_entity_metric_row_projection_v1.sh
