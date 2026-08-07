@@ -1,0 +1,84 @@
+{
+  "module_id": "xlsx_entity_metric_row_projection_lite_v1",
+  "version": "1.0.0",
+  "source_role": "HPFA_PRODUCT",
+  "purpose": "Project row-aligned XLSX identity candidates and metric cells only after exact inventory and XLSX surface-audit binding.",
+  "inputs": [
+    "runtime/active_single_match/current",
+    "multiformat_file_inventory_lite_v1.json",
+    "xlsx_surface_audit_lite_v1.json",
+    "raw_xlsx_representatives_bound_by_exact_sha256"
+  ],
+  "outputs": [
+    "xlsx_entity_metric_row_projection_lite_v1.json",
+    "xlsx_entity_metric_row_projection_lite_v1.txt",
+    "xlsx_entity_metric_row_projection_analyst_audit_v1.txt"
+  ],
+  "admission_rules": {
+    "xlsx_surface_audit_fail_closed_rejected": true,
+    "inventory_file_id_required": true,
+    "inventory_audit_relative_path_match_required": true,
+    "inventory_audit_sha256_match_required": true,
+    "raw_xlsx_sha256_match_required": true,
+    "audited_visible_sheet_only": true,
+    "audited_header_row_exact_match_required": true,
+    "duplicate_normalized_metric_key_blocks_projection": true,
+    "formula_without_cached_value_not_admitted": true,
+    "numeric_zero_is_not_missing": true,
+    "string_dash_is_not_numeric_zero": true
+  },
+  "row_projection_fields": [
+    "row_projection_id",
+    "file_id",
+    "relative_path",
+    "source_sha256",
+    "source_role",
+    "sheet_name",
+    "sheet_state",
+    "header_row_index",
+    "source_row_number",
+    "match_surface_binding_id",
+    "identity_candidates",
+    "metric_values",
+    "row_surface_claim_ceiling",
+    "validated_identity",
+    "canonical_event_count",
+    "production_release",
+    "review_hits"
+  ],
+  "claim_boundary": {
+    "row_projection_is_canonical_event": false,
+    "validated_player_identity": false,
+    "validated_team_identity": false,
+    "aggregate_definition_truth": false,
+    "metric_truth": false,
+    "comparison_allowed": false,
+    "claim_allowed": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  },
+  "phone_output_policy": {
+    "allowed_directories": [
+      "/sdcard/Download/HPFA",
+      "/storage/emulated/0/Download/HPFA"
+    ],
+    "nested_output_rejected_with": "nested_phone_output_directory_rejected"
+  },
+  "required_tests": [
+    "exact_inventory_audit_sha_binding",
+    "visible_sheet_row_projection",
+    "hidden_sheet_not_projected",
+    "duplicate_normalized_metric_column",
+    "formula_without_cached_value",
+    "numeric_zero_vs_missing",
+    "string_dash_preserved",
+    "identity_candidate_row_alignment",
+    "row_number_provenance",
+    "source_role_preserved",
+    "active_match_runtime_self_description",
+    "nested_phone_output_directory_rejected",
+    "test_no_sample_match_identity_leak"
+  ],
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}
