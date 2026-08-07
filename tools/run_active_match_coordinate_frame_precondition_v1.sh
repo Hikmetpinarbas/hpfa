@@ -22,6 +22,8 @@ FAILURE_BUNDLE="$OUT/coordinate_frame_precondition_failure_bundle_v1.zip"
 SUCCESS_BUNDLE="$OUT/coordinate_frame_precondition_active_match_bundle_v1.zip"
 SUCCESS_MANIFEST="$OUT/coordinate_frame_precondition_active_match_bundle_manifest_v1.json"
 SUCCESS_SHA="$OUT/coordinate_frame_precondition_manifest_v1.sha256"
+RUNTIME_AUDIT="$OUT/coordinate_frame_precondition_runtime_audit_v1.txt"
+DEPENDENCY_AUDIT="$OUT/coordinate_frame_precondition_dependency_audit_v1.json"
 : > "$RUN_MARKER"
 
 normalize_origin() {
@@ -128,6 +130,8 @@ rm -f \
   "$OUT/coordinate_frame_precondition_pytest_v1.txt" \
   "$OUT/coordinate_frame_precondition_active_match_v1.txt" \
   "$OUT/coordinate_frame_precondition_upstream_refresh_v1.txt" \
+  "$RUNTIME_AUDIT" \
+  "$DEPENDENCY_AUDIT" \
   "$STATE" "$FAILURE_INVENTORY" "$FAILURE_BUNDLE" \
   "$SUCCESS_BUNDLE" "$SUCCESS_MANIFEST" "$SUCCESS_SHA"
 
@@ -148,11 +152,15 @@ PROVIDER="$OUT/provider_label_value_semantics_lite_v1.json"
 BUNDLES="$OUT/semantic_role_action_bundle_candidates_lite_v1.json"
 SELECTED_ACTION="$OUT/selected_action_consequence_surface_lite_v1.json"
 SELECTED_EVENT="$OUT/selected_event_consequence_surface_lite_v1.json"
+ROLLUP="$OUT/g01_g18_data_quality_rollup_v1.json"
+AGGREGATE_ALIGNMENT="$OUT/aggregate_definition_alignment_lite_v1.json"
 
 [ -s "$PROVIDER" ] || fail "provider_label_output_missing_after_upstream_refresh"
 [ -s "$BUNDLES" ] || fail "action_bundle_output_missing_after_upstream_refresh"
 [ -s "$SELECTED_ACTION" ] || fail "selected_action_output_missing_after_upstream_refresh"
 [ -s "$SELECTED_EVENT" ] || fail "selected_event_output_missing_after_upstream_refresh"
+[ -s "$ROLLUP" ] || fail "g01_g18_rollup_missing_after_upstream_refresh"
+[ -s "$AGGREGATE_ALIGNMENT" ] || fail "aggregate_definition_alignment_missing_after_upstream_refresh"
 
 SELECTED_EVENT_RC=0
 SELECTED_EVENT_SOURCE="CONTEXT_SPINE_ACTIVE_MATCH_OUTPUT_PRESERVED"
@@ -185,7 +193,7 @@ then
   fail "selected_event_active_match_provenance_invalid"
 fi
 
-if ! python - "$RUN_MARKER" "$PROVIDER" "$BUNDLES" "$SELECTED_ACTION" "$SELECTED_EVENT" <<'PY'
+if ! python - "$RUN_MARKER" "$PROVIDER" "$BUNDLES" "$SELECTED_ACTION" "$SELECTED_EVENT" "$ROLLUP" "$AGGREGATE_ALIGNMENT" <<'PY'
 import sys
 from pathlib import Path
 
@@ -212,12 +220,57 @@ python coordinate_frame_precondition_lite.py \
   --provider-labels "$PROVIDER" \
   --action-bundles "$BUNDLES" \
   --selected-event "$SELECTED_EVENT" \
-  --out "$OUT"
-RUN_RC="$?"
+  --out "$OUT" \
+  | tee "$OUT/coordinate_frame_precondition_active_match_v1.txt"
+RUN_RC="${PIPESTATUS[0]}"
 set -e
 
-[ -s "$OUT/coordinate_frame_precondition_lite_v1.json" ] || fail "coordinate_frame_precondition_output_missing"
+OUTPUT="$OUT/coordinate_frame_precondition_lite_v1.json"
+[ -s "$OUTPUT" ] || fail "coordinate_frame_precondition_output_missing"
 [ "$RUN_RC" -ne 2 ] || fail "coordinate_frame_precondition_fail_closed"
+
+python "$PRODUCT_REPO/tools/coordinate_frame_precondition_active_match_audit_v1.py" \
+  --output "$OUTPUT" \
+  --runtime-authority "$ACTIVE_RESOLVED" \
+  --expected-runtime-authority "$EXPECTED_ACTIVE_RESOLVED" \
+  --runtime-head "$CURRENT_HEAD" \
+  --run-rc "$RUN_RC" \
+  --rollup "$ROLLUP" \
+  --aggregate-alignment "$AGGREGATE_ALIGNMENT" \
+  --dependency-audit-out "$DEPENDENCY_AUDIT" \
+  | tee "$RUNTIME_AUDIT"
+
+if ! python - "$OUTPUT" "$ACTIVE_RESOLVED" "$CURRENT_HEAD" <<'PY'
+import json
+import sys
+
+path, expected_authority, expected_head = sys.argv[1:]
+with open(path, encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+errors = []
+if payload.get("runtime_authority") != expected_authority:
+    errors.append("runtime_authority_mismatch")
+if payload.get("runtime_code_head_sha") != expected_head:
+    errors.append("runtime_code_head_sha_mismatch")
+if payload.get("active_match_execution_completed") is not True:
+    errors.append("active_match_execution_not_completed")
+if payload.get("runtime_evidence_status") not in {
+    "ACTIVE_MATCH_EVIDENCE_PASS",
+    "ACTIVE_MATCH_EXECUTION_COMPLETED_REVIEW_REQUIRED",
+}:
+    errors.append("runtime_evidence_status_not_active_match")
+if payload.get("canonical_event_count") != "UNKNOWN":
+    errors.append("canonical_event_count_claimed")
+if payload.get("production_release") is not False:
+    errors.append("production_release_claimed")
+
+if errors:
+    raise SystemExit("coordinate_frame_active_match_provenance_invalid:" + ",".join(errors))
+PY
+then
+  fail "coordinate_frame_active_match_provenance_invalid"
+fi
 
 {
   printf 'status=COMPLETED\n'
@@ -231,6 +284,8 @@ set -e
   printf 'selected_event_rc=%s\n' "$SELECTED_EVENT_RC"
   printf 'selected_event_source=%s\n' "$SELECTED_EVENT_SOURCE"
   printf 'run_rc=%s\n' "$RUN_RC"
+  printf 'runtime_audit=%s\n' "$RUNTIME_AUDIT"
+  printf 'dependency_audit=%s\n' "$DEPENDENCY_AUDIT"
   printf 'canonical_event_count=UNKNOWN\n'
   printf 'production_release=false\n'
 } > "$STATE"
@@ -272,6 +327,9 @@ required = (
     "coordinate_frame_precondition_lite_v1.txt",
     "coordinate_frame_precondition_analyst_audit_v1.txt",
     "coordinate_frame_precondition_pytest_v1.txt",
+    "coordinate_frame_precondition_active_match_v1.txt",
+    "coordinate_frame_precondition_runtime_audit_v1.txt",
+    "coordinate_frame_precondition_dependency_audit_v1.json",
     "coordinate_frame_precondition_operator_state_v1.txt",
 )
 missing = [name for name in required if not (out / name).is_file()]
@@ -305,7 +363,7 @@ def sha256(path: Path) -> str:
 
 payload = {
     "schema": "hpfa.coordinate_frame_precondition_active_match_bundle_manifest",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "status": "BUNDLE_CREATED",
     "branch": branch,
     "runtime_code_head_sha": head,
