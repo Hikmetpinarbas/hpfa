@@ -83,6 +83,22 @@ Her metric hücresi raw label/value, value kind, number format, percent-header c
 
 `--active-match-execution` kullanıldığında input root ile runtime authority aynı olmalı ve path `runtime/active_single_match/current` ile bitmelidir.
 
+Termux ACTIVE_MATCH runner ayrıca execution başlamadan önce product checkout'u exact branch **ve exact expected head SHA** ile doğrular. `HPFA_EXPECTED_HEAD` zorunludur; eksik, geçersiz veya actual checkout SHA ile eşleşmeyen değer fail-closed olur:
+
+```text
+expected_head_not_set
+invalid_expected_head:<value>
+unexpected_head:<actual> expected:<expected>
+```
+
+Bu preflight, doğru branch üzerindeki stale/wrong commit'in ACTIVE_MATCH evidence üretmesini engeller. Ana JSON hem actual hem expected SHA'yı taşır:
+
+```text
+runtime_code_head_sha
+runtime_expected_head_sha
+runtime_execution.exact_head_match=true
+```
+
 Ana output kendi runtime durumunu taşır:
 
 ```text
