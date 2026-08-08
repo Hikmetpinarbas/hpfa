@@ -2,6 +2,7 @@
 set -euo pipefail
 
 EXPECTED_BRANCH="${HPFA_EXPECTED_BRANCH:-agent/xlsx-entity-metric-row-projection-lite-v1}"
+EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"
 EXPECTED_REPO_SLUG="hikmetpinarbas/hpfa"
 REPO="${HPFA_REPO:-$PWD}"
 ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
@@ -35,6 +36,9 @@ ACTUAL_HEAD="$(git -C "$REPO" rev-parse HEAD)"
 
 [[ "$ORIGIN_SLUG" == "$EXPECTED_REPO_SLUG" ]] || fail "product_repo_origin_mismatch:$ORIGIN_URL"
 [[ "$ACTUAL_BRANCH" == "$EXPECTED_BRANCH" ]] || fail "unexpected_branch:$ACTUAL_BRANCH expected:$EXPECTED_BRANCH"
+[[ -n "$EXPECTED_HEAD" ]] || fail "expected_head_not_set"
+[[ "$EXPECTED_HEAD" =~ ^[0-9a-fA-F]{40}$ ]] || fail "invalid_expected_head:$EXPECTED_HEAD"
+[[ "${ACTUAL_HEAD,,}" == "${EXPECTED_HEAD,,}" ]] || fail "unexpected_head:$ACTUAL_HEAD expected:$EXPECTED_HEAD"
 [[ -z "$(git -C "$REPO" status --porcelain --untracked-files=no)" ]] || fail "tracked_worktree_not_clean:$REPO"
 
 case "$(cd "$ACTIVE_MATCH" && pwd -P)" in
@@ -122,21 +126,24 @@ MAIN="$OUT/xlsx_entity_metric_row_projection_lite_v1.json"
 [[ -f "$MAIN" ]] || fail "xlsx_entity_metric_row_projection_main_output_missing"
 
 # Exact-code provenance is written into the product JSON itself.
-python - "$MAIN" "$ACTUAL_BRANCH" "$ACTUAL_HEAD" "$ACTIVE_MATCH" <<'PY'
+python - "$MAIN" "$ACTUAL_BRANCH" "$ACTUAL_HEAD" "$EXPECTED_HEAD" "$ACTIVE_MATCH" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-branch, head, authority = sys.argv[2:5]
+branch, head, expected_head, authority = sys.argv[2:6]
 payload = json.loads(path.read_text(encoding="utf-8"))
 payload["runtime_branch"] = branch
 payload["runtime_code_head_sha"] = head
+payload["runtime_expected_head_sha"] = expected_head
 payload["runtime_execution"] = {
     "branch": branch,
     "head_sha": head,
+    "expected_head_sha": expected_head,
     "runtime_authority": authority,
     "execution_completed": True,
+    "exact_head_match": head.casefold() == expected_head.casefold(),
 }
 path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
@@ -155,6 +162,7 @@ for key in (
     "runtime_evidence_status",
     "runtime_branch",
     "runtime_code_head_sha",
+    "runtime_expected_head_sha",
     "runtime_authority",
     "xlsx_file_count",
     "row_projection_count",
