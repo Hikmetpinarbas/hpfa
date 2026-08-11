@@ -1,0 +1,49 @@
+name: Coordinate Anchor Family Discovery V1
+
+on:
+  pull_request:
+    paths:
+      - "tools/coordinate_anchor_family_discovery_v1.py"
+      - "tools/tests/test_coordinate_anchor_family_discovery_v1.py"
+      - "tools/run_active_match_coordinate_anchor_family_discovery_v1.sh"
+      - "docs/research/eventonly/coordinate_anchor_family_discovery_v1.md"
+      - ".github/workflows/coordinate-anchor-family-discovery-v1.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: coordinate-anchor-family-discovery-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Exact PR head gate
+        if: github.event_name == 'pull_request'
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install focused dependencies
+        run: python -m pip install --upgrade pytest
+
+      - name: Compile
+        run: |
+          python -m py_compile \
+            tools/coordinate_anchor_family_discovery_v1.py \
+            tools/tests/test_coordinate_anchor_family_discovery_v1.py
+
+      - name: Focused tests
+        run: python -m pytest -q tools/tests/test_coordinate_anchor_family_discovery_v1.py
+
+      - name: Termux runner shell syntax
+        run: bash -n tools/run_active_match_coordinate_anchor_family_discovery_v1.sh
