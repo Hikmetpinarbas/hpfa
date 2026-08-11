@@ -2,7 +2,7 @@
 
 ## Status
 
-`SPEC_ONLY / IMPLEMENTATION_NOT_STARTED / ACTIVE_MATCH_NOT_APPLICABLE / NOT_PRODUCTION`
+`SMOKE_PASS / CURRENT_HEAD_CI_SUCCESS / ACTIVE_MATCH_REVALIDATION_REQUIRED / REVIEW_REQUIRED / NOT_PRODUCTION / NOT_MERGED`
 
 This contract implements the discovery boundary recorded in Issue #230. It does not
 produce G16 PASS, provider-definition truth, metric release, comparison permission,
