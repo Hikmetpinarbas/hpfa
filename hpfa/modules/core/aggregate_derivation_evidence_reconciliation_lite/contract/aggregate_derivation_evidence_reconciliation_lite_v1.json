@@ -1,0 +1,147 @@
+{
+  "module_id": "aggregate_derivation_evidence_reconciliation_lite_v1",
+  "version": "1.0.0",
+  "source_role": "HPFA_PRODUCT",
+  "purpose": "Reconcile row-level exact semantic occurrence evidence with an observed XLSX aggregate for the same match-local entity candidate without promoting arithmetic agreement to provider-definition truth.",
+  "inputs": [
+    "xlsx_entity_metric_row_projection_lite_v1.json",
+    "evidence_atom_inventory_lite_v1.json",
+    "match_local_identity_candidates_lite_v1.json",
+    "provider_label_value_semantics_lite_v1.json",
+    "aggregate_definition_alignment_lite_v1.json",
+    "sportsbase_aggregate_definition_candidates_v1.json"
+  ],
+  "outputs": [
+    "aggregate_derivation_evidence_reconciliation_lite_v1.json",
+    "aggregate_derivation_evidence_reconciliation_lite_v1.txt",
+    "aggregate_derivation_evidence_reconciliation_analyst_audit_v1.txt"
+  ],
+  "admission_rules": {
+    "non_null_match_surface_binding_required": true,
+    "evidence_and_identity_binding_must_match": true,
+    "xlsx_entity_alignment_exact_and_unique": true,
+    "fuzzy_identity_join_forbidden": true,
+    "provider_id_only_identity_join_forbidden": true,
+    "shirt_number_only_identity_join_forbidden": true,
+    "occurrence_count_from_unique_evidence_atom_ids_only": true,
+    "provider_label_surface_row_volume_is_not_entity_count": true,
+    "exact_label_action_outcome_source_role_required": true,
+    "exact_reviewed_mapping_required": true,
+    "semantic_near_miss_blocks_derivation_lineage": true,
+    "zero_denominator_explicit": true,
+    "numeric_zero_is_not_missing": true,
+    "string_dash_is_not_numeric_zero": true,
+    "arbitrary_numeric_tolerance_forbidden": true,
+    "simple_xlsx_percentage_display_precision_may_support_candidate_reproduction": true,
+    "arithmetic_reproduction_is_not_provider_definition_truth": true,
+    "same_provider_cross_format_is_not_independent_confirmation": true,
+    "g16_recheck_admitted_is_not_g16_pass": true
+  },
+  "required_record_fields": [
+    "reconciliation_record_id",
+    "definition_id",
+    "provider_id",
+    "provider_version",
+    "match_surface_binding_id",
+    "source_role",
+    "entity_scope_candidate",
+    "team_identity_candidate_id",
+    "actor_identity_candidate_id",
+    "observation_scope_candidate",
+    "xlsx_row_projection_id",
+    "xlsx_relative_path",
+    "xlsx_source_sha256",
+    "xlsx_sheet_name",
+    "xlsx_source_row_number",
+    "aggregate_label",
+    "aggregate_value_observed",
+    "aggregate_value_kind",
+    "aggregate_number_format",
+    "numerator_semantic_contract",
+    "denominator_semantic_contract",
+    "numerator_support_record_ids",
+    "denominator_support_record_ids",
+    "numerator_observed_candidate",
+    "denominator_observed_candidate",
+    "zero_denominator_state",
+    "exact_ratio_candidate",
+    "arithmetic_percentage_candidate",
+    "arithmetic_comparison_method",
+    "provider_rounding_delta_candidate",
+    "observed_arithmetic_status",
+    "scope_alignment_status",
+    "derivation_lineage_status",
+    "provider_definition_evidence_status",
+    "independence_status",
+    "g16_recheck_admission",
+    "hard_block_hits",
+    "review_hits"
+  ],
+  "status_vocabularies": {
+    "arithmetic": [
+      "ARITHMETIC_CANDIDATE_REPRODUCED",
+      "ARITHMETIC_CANDIDATE_MISMATCH",
+      "ARITHMETIC_CANDIDATE_NOT_COMPUTABLE"
+    ],
+    "scope": [
+      "SCOPE_ALIGNMENT_CANDIDATE",
+      "SCOPE_ALIGNMENT_REVIEW_REQUIRED"
+    ],
+    "derivation": [
+      "DERIVATION_LINEAGE_CANDIDATE_COMPLETE",
+      "DERIVATION_LINEAGE_REVIEW_REQUIRED"
+    ],
+    "provider_definition": [
+      "PROVIDER_DEFINITION_REVIEWED_CANDIDATE",
+      "PROVIDER_DEFINITION_REQUIRED"
+    ],
+    "g16_recheck": [
+      "G16_RECHECK_ADMITTED",
+      "G16_RECHECK_BLOCKED"
+    ]
+  },
+  "claim_boundary": {
+    "arithmetic_reproduction_is_provider_definition_truth": false,
+    "arithmetic_reproduction_is_metric_truth": false,
+    "count_parity_is_definition_equivalence": false,
+    "same_provider_is_independent_confirmation": false,
+    "entity_scope_candidate_is_validated_identity": false,
+    "aggregate_equivalence_truth": false,
+    "metric_value_release_allowed": false,
+    "comparison_allowed": false,
+    "claim_allowed": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  },
+  "phone_output_policy": {
+    "allowed_directories": [
+      "/sdcard/Download/HPFA",
+      "/storage/emulated/0/Download/HPFA"
+    ],
+    "nested_output_rejected_with": "nested_phone_output_directory_rejected"
+  },
+  "required_tests": [
+    "exact_numerator_denominator_semantics",
+    "wrong_action_family_rejected",
+    "wrong_outcome_rejected",
+    "wrong_source_role_rejected",
+    "wrong_entity_rejected",
+    "ambiguous_entity_rejected",
+    "provider_id_only_join_rejected",
+    "wrong_match_binding_rejected",
+    "missing_denominator_semantic_support",
+    "zero_denominator_dash",
+    "zero_denominator_numeric_zero",
+    "numeric_zero_vs_missing",
+    "visible_percentage_precision_reproduction",
+    "unsupported_number_format_no_tolerance",
+    "duplicate_evidence_atom_rejected",
+    "same_provider_independence_promotion_rejected",
+    "label_profile_volume_not_entity_count",
+    "provider_definition_separate_from_arithmetic",
+    "nested_phone_output_directory_rejected",
+    "test_no_sample_match_identity_leak"
+  ],
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false
+}
