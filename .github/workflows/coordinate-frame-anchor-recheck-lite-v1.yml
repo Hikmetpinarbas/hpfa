@@ -1,0 +1,52 @@
+name: Coordinate Frame Anchor Recheck Lite V1
+
+on:
+  pull_request:
+    paths:
+      - 'hpfa/modules/core/coordinate_frame_anchor_recheck_lite/**'
+      - 'coordinate_frame_anchor_recheck_lite.py'
+      - 'tools/run_active_match_coordinate_frame_anchor_recheck_v1.sh'
+      - 'docs/contracts/coordinate_frame_anchor_recheck_lite_v1.md'
+      - '.github/workflows/coordinate-frame-anchor-recheck-lite-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Exact PR head gate
+        if: github.event_name == 'pull_request'
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused dependencies
+        run: python -m pip install --upgrade pytest
+
+      - name: Compile
+        run: |
+          python -m py_compile \
+            hpfa/modules/core/coordinate_frame_anchor_recheck_lite/src/coordinate_frame_anchor_recheck.py \
+            hpfa/modules/core/coordinate_frame_anchor_recheck_lite/tests/test_coordinate_frame_anchor_recheck.py \
+            coordinate_frame_anchor_recheck_lite.py
+
+      - name: Focused tests
+        run: python -m pytest -q hpfa/modules/core/coordinate_frame_anchor_recheck_lite/tests
+
+      - name: Contract JSON
+        run: python -m json.tool hpfa/modules/core/coordinate_frame_anchor_recheck_lite/contract/coordinate_frame_anchor_recheck_lite_v1.json >/dev/null
+
+      - name: Termux runner shell syntax
+        run: bash -n tools/run_active_match_coordinate_frame_anchor_recheck_v1.sh
