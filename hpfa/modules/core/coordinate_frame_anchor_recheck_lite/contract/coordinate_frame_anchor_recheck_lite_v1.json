@@ -1,0 +1,41 @@
+{
+  "module_id": "coordinate_frame_anchor_recheck_lite_v1",
+  "version": "1.0.0",
+  "inputs": [
+    "coordinate_frame_precondition_lite_v1",
+    "provider_coordinate_attachment_semantics_lite_v1"
+  ],
+  "primary_counter_anchor_minimum_support": 2,
+  "goal_side_normalized_x_bands": {
+    "low_x_max": 0.30,
+    "high_x_min": 0.70
+  },
+  "requires": {
+    "same_match_surface_binding": true,
+    "coordinate_attachment_status_pass": true,
+    "event_action_location_candidate_supported": true,
+    "goalkeeper_interception_primary_direction_anchor_candidate_allowed": true,
+    "outcome_stratified_support_pooling_allowed": true,
+    "event_fusion_allowed": false,
+    "reflection_clear_records": true,
+    "csv_xml_required_aligned_support": true
+  },
+  "conflict_policy": "ALL_RESOLVED_PRIMARY_ANCHOR_FAMILIES_MUST_AGREE",
+  "threshold_relaxation_allowed": false,
+  "coordinate_frame_contract_overwrite": false,
+  "claim_boundary": {
+    "coordinate_attachment_is_validated_provider_truth": false,
+    "coordinate_is_goalkeeper_physical_position_truth": false,
+    "coordinate_frame_is_validated_provider_truth": false,
+    "attack_direction_is_validated_truth": false,
+    "progression_truth": false,
+    "line_break_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  },
+  "phone_output_roots": [
+    "/sdcard/Download/HPFA",
+    "/storage/emulated/0/Download/HPFA"
+  ],
+  "nested_phone_output_error": "nested_phone_output_directory_rejected"
+}
