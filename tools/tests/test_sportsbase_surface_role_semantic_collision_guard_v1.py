@@ -10,6 +10,7 @@ EVIDENCE_SRC = ROOT / "hpfa" / "modules" / "core" / "evidence_atom_inventory_lit
 BUNDLE_SRC = ROOT / "hpfa" / "modules" / "core" / "semantic_role_action_bundle_candidates_lite" / "src"
 REGISTRY = ROOT / "hpfa" / "modules" / "core" / "provider_label_value_semantics_lite" / "registry" / "sportsbase_label_semantics_seed_v1.json"
 CSV_REGISTRY = ROOT / "hpfa" / "modules" / "core" / "provider_label_value_semantics_lite" / "registry" / "sportsbase_label_semantics_reviewed_v2.csv"
+RUNNER = ROOT / "tools" / "run_active_match_sportsbase_surface_role_semantic_collision_guard_v1.sh"
 
 for path in (PLVS_SRC, EVIDENCE_SRC, BUNDLE_SRC):
     sys.path.insert(0, str(path))
@@ -105,6 +106,39 @@ def test_attribute_reference_never_routes_to_action_bundle() -> None:
     }
 
 
+def test_runner_uses_current_downstream_cli_contracts() -> None:
+    text = RUNNER.read_text(encoding="utf-8")
+    required = (
+        '--runtime-authority "$RUNTIME_REAL"',
+        '--expected-runtime-authority "$EXPECTED_RUNTIME_REAL"',
+        '--csv-audit "$CSV"',
+        '--xlsx-audit "$XLSX"',
+        '--xml-audit "$XML"',
+        '--evidence-atom "$EVIDENCE"',
+        '--evidence-atoms "$EVIDENCE"',
+        '--identity-candidates "$IDENTITY"',
+    )
+    assert all(item in text for item in required)
+    forbidden = (
+        '--runtime-root "$RUNTIME_REAL"',
+        '--expected-active-match "$EXPECTED_RUNTIME_REAL"',
+        '--csv "$CSV"',
+        '--xlsx "$XLSX"',
+        '--xml "$XML"',
+        '--evidence "$EVIDENCE"',
+        '--identity "$IDENTITY"',
+    )
+    assert all(item not in text for item in forbidden)
+
+
+def test_active_match_collision_audit_is_casefolded_and_format_agnostic() -> None:
+    text = RUNNER.read_text(encoding="utf-8")
+    assert 'norm=lambda value: str(value or "").strip().casefold()' in text
+    assert '"team_surface_three_labels_observed": team_sem_observed_labels==affected' in text
+    assert 'len(team_sem_ok)==len(team_sem)' in text
+    assert 'len(team_sem)==3' not in text
+
+
 def test_claim_boundaries_remain_fail_closed() -> None:
     assert classify("Goal kicks short (0-15 m)", "TEAM_SURFACE_CANDIDATE")["semantics_decision"] == "CONTEXT_DEPENDENT_SEMANTIC_COLLISION"
     source = (EVIDENCE_SRC / "evidence_atom_inventory.py").read_text(encoding="utf-8")
@@ -116,6 +150,7 @@ def test_no_sample_match_identity_leak() -> None:
     texts = [
         CSV_REGISTRY.read_text(encoding="utf-8"),
         (EVIDENCE_SRC / "evidence_atom_inventory.py").read_text(encoding="utf-8"),
+        RUNNER.read_text(encoding="utf-8"),
     ]
     forbidden = ["Sturm Graz", "Heart of Midlothian", "Fenerbahce", "Galatasaray", "Besiktas"]
     assert not any(token in text for token in forbidden for text in texts)
