@@ -13,15 +13,15 @@ fail() {
   exit 2
 }
 
-[ -d "$CODE/.git" ] || fail "PRODUCT_REPO_NOT_GIT:$CODE"
-[ -d "$RUNTIME" ] || fail "ACTIVE_MATCH_NOT_FOUND:$RUNTIME"
-
 realpath_py() {
   python - "$1" <<'PY'
 import os, sys
 print(os.path.realpath(sys.argv[1]))
 PY
 }
+
+[ -d "$CODE/.git" ] || fail "PRODUCT_REPO_NOT_GIT:$CODE"
+[ -d "$RUNTIME" ] || fail "ACTIVE_MATCH_NOT_FOUND:$RUNTIME"
 
 CODE_REAL="$(realpath_py "$CODE")"
 RUNTIME_REAL="$(realpath_py "$RUNTIME")"
@@ -33,7 +33,6 @@ case "$RUNTIME_REAL" in
   */runtime/active_single_match/current) ;;
   *) fail "RUNTIME_AUTHORITY_PATH_INVALID:$RUNTIME_REAL" ;;
 esac
-
 case "$PHONE_REAL" in
   /sdcard/Download/HPFA|/storage/emulated/0/Download/HPFA) ;;
   *) fail "nested_phone_output_directory_rejected" ;;
@@ -43,142 +42,193 @@ ACTUAL_BRANCH="$(git -C "$CODE_REAL" symbolic-ref --quiet --short HEAD || true)"
 ACTUAL_HEAD="$(git -C "$CODE_REAL" rev-parse HEAD)"
 [ "$ACTUAL_BRANCH" = "$EXPECTED_BRANCH" ] || fail "WRONG_BRANCH:$ACTUAL_BRANCH"
 [ "$ACTUAL_HEAD" = "$EXPECTED_HEAD" ] || fail "WRONG_HEAD:$ACTUAL_HEAD"
+[ -z "$(git -C "$CODE_REAL" status --porcelain --untracked-files=no)" ] || fail "TRACKED_WORKTREE_NOT_CLEAN:$CODE_REAL"
 
 mkdir -p "$PHONE_REAL"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/hpfa-surface-role-collision.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
-mkdir -p "$WORK/fresh/semantics" "$WORK/fresh/row" "$WORK/fresh/evidence" "$WORK/fresh/identity" "$WORK/fresh/bundles" "$WORK/bundle"
-
-DISCOVERY="$WORK/runtime_artifact_discovery.json"
-python - "$RUNTIME_REAL" "$DISCOVERY" <<'PY'
-from __future__ import annotations
-import hashlib, json, sys
-from pathlib import Path
-
-root = Path(sys.argv[1]).resolve()
-out = Path(sys.argv[2])
-required = [
-    "multiformat_file_inventory_lite_v1",
-    "csv_surface_reader_lite_v1",
-    "xlsx_surface_reader_lite_v1",
-    "xml_surface_reader_lite_v1",
-    "provider_alias_field_semantics_lite_v1",
-    "cross_format_reconciliation_lite_v1",
-    "aggregate_definition_alignment_lite_v1",
-    "provider_metric_dictionary_lite_v1",
-]
-by_module: dict[str, list[tuple[Path, str]]] = {key: [] for key in required}
-registry_candidates: list[tuple[Path, str]] = []
-
-for path in root.rglob("*.json"):
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        continue
-    if not isinstance(payload, dict):
-        continue
-    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-    module_id = payload.get("module_id")
-    if module_id in by_module:
-        by_module[module_id].append((path, digest))
-    rules = payload.get("exact_group_rules")
-    if payload.get("candidate_only") is True and isinstance(rules, list) and rules:
-        required_keys = {"action", "period", "team", "pos_x", "pos_y"}
-        found = {str(row.get("field_key_candidate")) for row in rules if isinstance(row, dict)}
-        if required_keys.issubset(found):
-            registry_candidates.append((path, digest))
-
-def resolve(name: str, rows: list[tuple[Path, str]]) -> dict[str, object]:
-    if not rows:
-        raise SystemExit(f"FAIL:runtime_artifact_missing:{name}")
-    hashes = {digest for _, digest in rows}
-    if len(hashes) != 1:
-        detail = ",".join(str(path.relative_to(root)) for path, _ in sorted(rows))
-        raise SystemExit(f"FAIL:runtime_artifact_divergent:{name}:{detail}")
-    chosen = sorted(rows, key=lambda item: (len(item[0].parts), str(item[0])))[0][0]
-    return {
-        "path": str(chosen),
-        "duplicate_reflection_count": len(rows) - 1,
-        "payload_sha256": next(iter(hashes)),
-    }
-
-resolved = {key: resolve(key, value) for key, value in by_module.items()}
-resolved["xml_group_registry"] = resolve("xml_group_registry", registry_candidates)
-out.write_text(json.dumps({"runtime_authority": str(root), "artifacts": resolved}, indent=2, sort_keys=True), encoding="utf-8")
-PY
-
-artifact_path() {
-  python - "$DISCOVERY" "$1" <<'PY'
-import json, sys
-p=json.load(open(sys.argv[1], encoding="utf-8"))
-print(p["artifacts"][sys.argv[2]]["path"])
-PY
-}
-
-INVENTORY="$(artifact_path multiformat_file_inventory_lite_v1)"
-CSV="$(artifact_path csv_surface_reader_lite_v1)"
-XLSX="$(artifact_path xlsx_surface_reader_lite_v1)"
-XML="$(artifact_path xml_surface_reader_lite_v1)"
-FIELD="$(artifact_path provider_alias_field_semantics_lite_v1)"
-RECON="$(artifact_path cross_format_reconciliation_lite_v1)"
-AGG="$(artifact_path aggregate_definition_alignment_lite_v1)"
-METRIC="$(artifact_path provider_metric_dictionary_lite_v1)"
-XML_GROUP="$(artifact_path xml_group_registry)"
-REGISTRY="$CODE_REAL/hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_seed_v1.json"
+mkdir -p \
+  "$WORK/fresh/inventory" \
+  "$WORK/fresh/csv" \
+  "$WORK/fresh/xlsx" \
+  "$WORK/fresh/xml" \
+  "$WORK/fresh/field" \
+  "$WORK/fresh/semantics" \
+  "$WORK/fresh/reconciliation" \
+  "$WORK/fresh/metric" \
+  "$WORK/fresh/aggregate" \
+  "$WORK/fresh/row" \
+  "$WORK/fresh/evidence" \
+  "$WORK/fresh/identity" \
+  "$WORK/fresh/bundles" \
+  "$WORK/logs" \
+  "$WORK/bundle"
 
 export PYTHONPATH="$CODE_REAL${PYTHONPATH:+:$PYTHONPATH}"
+cd "$CODE_REAL"
 
-python "$CODE_REAL/hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py" \
-  --runtime-root "$RUNTIME_REAL" \
-  --expected-active-match "$EXPECTED_RUNTIME_REAL" \
-  --csv "$CSV" \
-  --xlsx "$XLSX" \
-  --xml "$XML" \
-  --field-semantics "$FIELD" \
-  --registry "$REGISTRY" \
-  --out "$WORK/fresh/semantics" \
-  >"$WORK/provider_semantics_stdout.txt" 2>&1
+run_stage() {
+  local name="$1"
+  shift
+  local log="$WORK/logs/${name}.txt"
+  echo "STAGE_START=$name"
+  set +e
+  "$@" >"$log" 2>&1
+  local rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    echo "STAGE_FAIL=$name rc=$rc" >&2
+    cat "$log" >&2 || true
+    fail "stage_failed:$name:rc=$rc"
+  fi
+  echo "STAGE_PASS=$name"
+}
 
+# Fresh upstream production from raw ACTIVE_MATCH. No runtime-discovered or phone-stored
+# derived JSON is consumed by this runner.
+run_stage inventory \
+  python "$CODE_REAL/multiformat_file_inventory.py" \
+    --input-root "$RUNTIME_REAL" \
+    --runtime-authority "$EXPECTED_RUNTIME_REAL" \
+    --active-match-execution \
+    --out "$WORK/fresh/inventory"
+
+INVENTORY="$WORK/fresh/inventory/multiformat_file_inventory_lite_v1.json"
+[ -f "$INVENTORY" ] || fail "fresh_inventory_output_missing"
+
+run_stage csv_surface \
+  python "$CODE_REAL/csv_surface_reader_lite.py" \
+    --input-root "$RUNTIME_REAL" \
+    --inventory "$INVENTORY" \
+    --out "$WORK/fresh/csv"
+CSV="$WORK/fresh/csv/csv_surface_audit_lite_v1.json"
+[ -f "$CSV" ] || fail "fresh_csv_output_missing"
+
+run_stage xlsx_surface \
+  python "$CODE_REAL/xlsx_surface_reader_lite.py" \
+    --input-root "$RUNTIME_REAL" \
+    --inventory "$INVENTORY" \
+    --out "$WORK/fresh/xlsx"
+XLSX="$WORK/fresh/xlsx/xlsx_surface_audit_lite_v1.json"
+[ -f "$XLSX" ] || fail "fresh_xlsx_output_missing"
+
+run_stage xml_surface \
+  python "$CODE_REAL/hpfa/modules/core/xml_surface_reader_lite/src/xml_surface_reader.py" \
+    --input-root "$RUNTIME_REAL" \
+    --inventory "$INVENTORY" \
+    --out "$WORK/fresh/xml"
+XML="$WORK/fresh/xml/xml_surface_audit_lite_v1.json"
+[ -f "$XML" ] || fail "fresh_xml_output_missing"
+
+run_stage field_semantics \
+  python "$CODE_REAL/hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_alias_field_semantics.py" \
+    --input-root "$RUNTIME_REAL" \
+    --csv-audit "$CSV" \
+    --xlsx-audit "$XLSX" \
+    --xml-audit "$XML" \
+    --out "$WORK/fresh/field"
+FIELD="$WORK/fresh/field/provider_alias_field_semantics_lite_v1.json"
+[ -f "$FIELD" ] || fail "fresh_field_semantics_output_missing"
+
+LABEL_REGISTRY="$CODE_REAL/hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_seed_v1.json"
+XML_GROUP_REGISTRY="$CODE_REAL/hpfa/modules/core/cross_format_reconciliation_lite/registry/sportsbase_xml_group_semantics_v1.json"
+AGGREGATE_REGISTRY="$CODE_REAL/hpfa/modules/core/aggregate_definition_alignment_lite/registry/sportsbase_aggregate_definition_candidates_v1.json"
+METRIC_CONFIG="$CODE_REAL/configs/metrics"
+for required in "$LABEL_REGISTRY" "$XML_GROUP_REGISTRY" "$AGGREGATE_REGISTRY"; do
+  [ -f "$required" ] || fail "product_registry_missing:$required"
+done
+[ -d "$METRIC_CONFIG" ] || fail "metric_config_directory_missing:$METRIC_CONFIG"
+
+run_stage label_semantics \
+  python "$CODE_REAL/hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py" \
+    --runtime-root "$RUNTIME_REAL" \
+    --expected-active-match "$EXPECTED_RUNTIME_REAL" \
+    --csv "$CSV" \
+    --xlsx "$XLSX" \
+    --xml "$XML" \
+    --field-semantics "$FIELD" \
+    --registry "$LABEL_REGISTRY" \
+    --out "$WORK/fresh/semantics"
 SEM="$WORK/fresh/semantics/provider_label_value_semantics_lite_v1.json"
+[ -f "$SEM" ] || fail "fresh_label_semantics_output_missing"
 
-python "$CODE_REAL/hpfa/modules/core/row_nucleus_inventory_lite/src/row_nucleus_inventory_hardened.py" \
-  --input-root "$RUNTIME_REAL" \
-  --inventory "$INVENTORY" \
-  --csv-audit "$CSV" \
-  --xml-audit "$XML" \
-  --field-semantics "$FIELD" \
-  --label-semantics "$SEM" \
-  --reconciliation "$RECON" \
-  --aggregate-alignment "$AGG" \
-  --metric-dictionary "$METRIC" \
-  --xml-group-registry "$XML_GROUP" \
-  --out "$WORK/fresh/row" \
-  >"$WORK/row_nucleus_stdout.txt" 2>&1
+run_stage reconciliation \
+  python "$CODE_REAL/hpfa/modules/core/cross_format_reconciliation_lite/src/cross_format_reconciliation.py" \
+    --input-root "$RUNTIME_REAL" \
+    --expected-runtime-authority "$EXPECTED_RUNTIME_REAL" \
+    --inventory "$INVENTORY" \
+    --csv-audit "$CSV" \
+    --xlsx-audit "$XLSX" \
+    --xml-audit "$XML" \
+    --field-semantics "$FIELD" \
+    --label-semantics "$SEM" \
+    --xml-group-registry "$XML_GROUP_REGISTRY" \
+    --out "$WORK/fresh/reconciliation"
+RECON="$WORK/fresh/reconciliation/cross_format_reconciliation_lite_v1.json"
+[ -f "$RECON" ] || fail "fresh_reconciliation_output_missing"
 
+run_stage metric_dictionary \
+  python - "$METRIC_CONFIG" "$WORK/fresh/metric/provider_metric_dictionary_lite_v1.json" <<'PY'
+import json, sys
+from pathlib import Path
+from hpfa.modules.core.provider_metric_dictionary_lite.src.provider_metric_dictionary import load_dictionary_pack
+payload = load_dictionary_pack(sys.argv[1])
+out = Path(sys.argv[2])
+out.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+if payload.get("status") == "FAIL_CLOSED":
+    raise SystemExit(2)
+PY
+METRIC="$WORK/fresh/metric/provider_metric_dictionary_lite_v1.json"
+[ -f "$METRIC" ] || fail "fresh_metric_dictionary_output_missing"
+
+AGG="$WORK/fresh/aggregate/aggregate_definition_alignment_lite_v1.json"
+run_stage aggregate_alignment \
+  python "$CODE_REAL/aggregate_definition_alignment_lite.py" \
+    --xlsx-audit "$XLSX" \
+    --label-semantics "$SEM" \
+    --metric-config-dir "$METRIC_CONFIG" \
+    --registry "$AGGREGATE_REGISTRY" \
+    --output "$AGG"
+[ -f "$AGG" ] || fail "fresh_aggregate_alignment_output_missing"
+
+run_stage row_nucleus \
+  python "$CODE_REAL/hpfa/modules/core/row_nucleus_inventory_lite/src/row_nucleus_inventory_hardened.py" \
+    --input-root "$RUNTIME_REAL" \
+    --inventory "$INVENTORY" \
+    --csv-audit "$CSV" \
+    --xml-audit "$XML" \
+    --field-semantics "$FIELD" \
+    --label-semantics "$SEM" \
+    --reconciliation "$RECON" \
+    --aggregate-alignment "$AGG" \
+    --metric-dictionary "$METRIC" \
+    --xml-group-registry "$XML_GROUP_REGISTRY" \
+    --out "$WORK/fresh/row"
 ROW="$WORK/fresh/row/row_nucleus_inventory_lite_v1.json"
+[ -f "$ROW" ] || fail "fresh_row_nucleus_output_missing"
 
-python "$CODE_REAL/hpfa/modules/core/evidence_atom_inventory_lite/src/evidence_atom_inventory.py" \
-  --row-nucleus "$ROW" \
-  --out "$WORK/fresh/evidence" \
-  >"$WORK/evidence_atom_stdout.txt" 2>&1
-
+run_stage evidence_atoms \
+  python "$CODE_REAL/hpfa/modules/core/evidence_atom_inventory_lite/src/evidence_atom_inventory.py" \
+    --row-nucleus "$ROW" \
+    --out "$WORK/fresh/evidence"
 EVIDENCE="$WORK/fresh/evidence/evidence_atom_inventory_lite_v1.json"
+[ -f "$EVIDENCE" ] || fail "fresh_evidence_atom_output_missing"
 
-python "$CODE_REAL/hpfa/modules/core/match_local_identity_candidates_lite/src/match_local_identity_candidates.py" \
-  --evidence "$EVIDENCE" \
-  --out "$WORK/fresh/identity" \
-  >"$WORK/match_local_identity_stdout.txt" 2>&1
-
+run_stage match_local_identity \
+  python "$CODE_REAL/hpfa/modules/core/match_local_identity_candidates_lite/src/match_local_identity_candidates.py" \
+    --evidence "$EVIDENCE" \
+    --out "$WORK/fresh/identity"
 IDENTITY="$WORK/fresh/identity/match_local_identity_candidates_lite_v1.json"
+[ -f "$IDENTITY" ] || fail "fresh_identity_output_missing"
 
-python "$CODE_REAL/hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src/semantic_role_action_bundle_candidates.py" \
-  --evidence "$EVIDENCE" \
-  --identity "$IDENTITY" \
-  --out "$WORK/fresh/bundles" \
-  >"$WORK/action_bundle_stdout.txt" 2>&1
-
+run_stage action_bundles \
+  python "$CODE_REAL/hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src/semantic_role_action_bundle_candidates.py" \
+    --evidence "$EVIDENCE" \
+    --identity "$IDENTITY" \
+    --out "$WORK/fresh/bundles"
 BUNDLES="$WORK/fresh/bundles/semantic_role_action_bundle_candidates_lite_v1.json"
+[ -f "$BUNDLES" ] || fail "fresh_action_bundle_output_missing"
+
 VERIFY_JSON="$WORK/bundle/sportsbase_surface_role_semantic_collision_guard_active_match_v1.json"
 VERIFY_TXT="$WORK/bundle/sportsbase_surface_role_semantic_collision_guard_active_match_v1.txt"
 
@@ -209,7 +259,6 @@ team_ref_atoms=[a for a in ev.get("evidence_atoms", []) if a.get("source_role")=
 gk_goal_kick_atoms=[a for a in ev.get("evidence_atoms", []) if a.get("source_role")=="GOALKEEPER_SURFACE_CANDIDATE" and a.get("raw_label") in all_goal_kick_labels and a.get("semantic_role_candidate")=="ACTION_ANCHOR" and a.get("atom_class")=="ACTION_ANCHOR_ATOM" and "RESTART" in (a.get("action_family_candidates") or [])]
 
 team_contaminated_bundles=[b for b in bundles.get("action_bundle_candidates", []) if b.get("source_role")=="TEAM_SURFACE_CANDIDATE" and b.get("action_family_candidate")=="RESTART" and bool(set(b.get("raw_labels") or []) & affected)]
-
 team_any_affected_bundles=[b for b in bundles.get("action_bundle_candidates", []) if b.get("source_role")=="TEAM_SURFACE_CANDIDATE" and bool(set(b.get("raw_labels") or []) & affected)]
 
 team_ref_routes=[]
@@ -292,20 +341,25 @@ if status != "ACTIVE_MATCH_EVIDENCE_PASS":
     raise SystemExit(2)
 PY
 
-python -m pytest -q "$CODE_REAL/tools/tests/test_sportsbase_surface_role_semantic_collision_guard_v1.py" \
-  >"$WORK/bundle/sportsbase_surface_role_semantic_collision_guard_pytest_v1.txt" 2>&1
+run_stage focused_tests \
+  python -m pytest -q "$CODE_REAL/tools/tests/test_sportsbase_surface_role_semantic_collision_guard_v1.py"
 
-cp "$DISCOVERY" "$WORK/bundle/runtime_artifact_discovery_v1.json"
+cp "$INVENTORY" "$WORK/bundle/multiformat_file_inventory_lite_v1.json"
+cp "$CSV" "$WORK/bundle/csv_surface_audit_lite_v1.json"
+cp "$XLSX" "$WORK/bundle/xlsx_surface_audit_lite_v1.json"
+cp "$XML" "$WORK/bundle/xml_surface_audit_lite_v1.json"
+cp "$FIELD" "$WORK/bundle/provider_alias_field_semantics_lite_v1.json"
 cp "$SEM" "$WORK/bundle/provider_label_value_semantics_lite_v1.json"
+cp "$RECON" "$WORK/bundle/cross_format_reconciliation_lite_v1.json"
+cp "$METRIC" "$WORK/bundle/provider_metric_dictionary_lite_v1.json"
+cp "$AGG" "$WORK/bundle/aggregate_definition_alignment_lite_v1.json"
 cp "$ROW" "$WORK/bundle/row_nucleus_inventory_lite_v1.json"
 cp "$EVIDENCE" "$WORK/bundle/evidence_atom_inventory_lite_v1.json"
 cp "$IDENTITY" "$WORK/bundle/match_local_identity_candidates_lite_v1.json"
 cp "$BUNDLES" "$WORK/bundle/semantic_role_action_bundle_candidates_lite_v1.json"
-cp "$WORK/provider_semantics_stdout.txt" "$WORK/bundle/provider_semantics_stdout_v1.txt"
-cp "$WORK/row_nucleus_stdout.txt" "$WORK/bundle/row_nucleus_stdout_v1.txt"
-cp "$WORK/evidence_atom_stdout.txt" "$WORK/bundle/evidence_atom_stdout_v1.txt"
-cp "$WORK/match_local_identity_stdout.txt" "$WORK/bundle/match_local_identity_stdout_v1.txt"
-cp "$WORK/action_bundle_stdout.txt" "$WORK/bundle/action_bundle_stdout_v1.txt"
+for log in "$WORK"/logs/*.txt; do
+  cp "$log" "$WORK/bundle/$(basename "$log")"
+done
 
 python - "$WORK/bundle" <<'PY'
 import hashlib, json, sys
@@ -342,6 +396,7 @@ with zipfile.ZipFile(p) as zf:
     print(f"ZIP_FILE_COUNT={len(zf.infolist())}")
 PY
 
+cat "$VERIFY_TXT"
 echo "PRODUCT_CODE_OK=$CODE_REAL"
 echo "ACTIVE_MATCH_OK=$RUNTIME_REAL"
 echo "BRANCH_OK=$ACTUAL_BRANCH"
