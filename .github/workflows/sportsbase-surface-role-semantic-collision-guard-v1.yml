@@ -65,13 +65,27 @@ jobs:
           python xlsx_surface_reader_lite.py --help >/dev/null
           python hpfa/modules/core/xml_surface_reader_lite/src/xml_surface_reader.py --help >/dev/null
           python hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_alias_field_semantics.py --help >/dev/null
-          python hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py --help >/dev/null
+
+          LABEL_HELP="$(python hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py --help)"
+          grep -q -- '--runtime-authority' <<<"$LABEL_HELP"
+          grep -q -- '--expected-runtime-authority' <<<"$LABEL_HELP"
+          grep -q -- '--csv-audit' <<<"$LABEL_HELP"
+          grep -q -- '--xlsx-audit' <<<"$LABEL_HELP"
+          grep -q -- '--xml-audit' <<<"$LABEL_HELP"
+          grep -q -- '--field-semantics' <<<"$LABEL_HELP"
+
           python hpfa/modules/core/cross_format_reconciliation_lite/src/cross_format_reconciliation.py --help >/dev/null
           python aggregate_definition_alignment_lite.py --help >/dev/null
           python hpfa/modules/core/row_nucleus_inventory_lite/src/row_nucleus_inventory_hardened.py --help >/dev/null
           python hpfa/modules/core/evidence_atom_inventory_lite/src/evidence_atom_inventory.py --help >/dev/null
-          python hpfa/modules/core/match_local_identity_candidates_lite/src/match_local_identity_candidates.py --help >/dev/null
-          python hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src/semantic_role_action_bundle_candidates.py --help >/dev/null
+
+          ID_HELP="$(python hpfa/modules/core/match_local_identity_candidates_lite/src/match_local_identity_candidates.py --help)"
+          grep -q -- '--evidence-atom' <<<"$ID_HELP"
+
+          BUNDLE_HELP="$(python hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src/semantic_role_action_bundle_candidates.py --help)"
+          grep -q -- '--evidence-atoms' <<<"$BUNDLE_HELP"
+          grep -q -- '--identity-candidates' <<<"$BUNDLE_HELP"
+
           python - <<'PY'
           from hpfa.modules.core.provider_metric_dictionary_lite.src.provider_metric_dictionary import load_dictionary_pack
           payload = load_dictionary_pack('configs/metrics')
