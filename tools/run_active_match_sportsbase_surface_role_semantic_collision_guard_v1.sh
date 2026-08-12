@@ -139,13 +139,14 @@ for required in "$LABEL_REGISTRY" "$XML_GROUP_REGISTRY" "$AGGREGATE_REGISTRY"; d
 done
 [ -d "$METRIC_CONFIG" ] || fail "metric_config_directory_missing:$METRIC_CONFIG"
 
+# Keep this invocation synchronized with provider_label_value_semantics.py::main.
 run_stage label_semantics \
   python "$CODE_REAL/hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py" \
-    --runtime-root "$RUNTIME_REAL" \
-    --expected-active-match "$EXPECTED_RUNTIME_REAL" \
-    --csv "$CSV" \
-    --xlsx "$XLSX" \
-    --xml "$XML" \
+    --runtime-authority "$RUNTIME_REAL" \
+    --expected-runtime-authority "$EXPECTED_RUNTIME_REAL" \
+    --csv-audit "$CSV" \
+    --xlsx-audit "$XLSX" \
+    --xml-audit "$XML" \
     --field-semantics "$FIELD" \
     --registry "$LABEL_REGISTRY" \
     --out "$WORK/fresh/semantics"
@@ -214,17 +215,19 @@ run_stage evidence_atoms \
 EVIDENCE="$WORK/fresh/evidence/evidence_atom_inventory_lite_v1.json"
 [ -f "$EVIDENCE" ] || fail "fresh_evidence_atom_output_missing"
 
+# Keep this invocation synchronized with match_local_identity_candidates.py::main.
 run_stage match_local_identity \
   python "$CODE_REAL/hpfa/modules/core/match_local_identity_candidates_lite/src/match_local_identity_candidates.py" \
-    --evidence "$EVIDENCE" \
+    --evidence-atom "$EVIDENCE" \
     --out "$WORK/fresh/identity"
 IDENTITY="$WORK/fresh/identity/match_local_identity_candidates_lite_v1.json"
 [ -f "$IDENTITY" ] || fail "fresh_identity_output_missing"
 
+# Keep this invocation synchronized with semantic_role_action_bundle_candidates.py::main.
 run_stage action_bundles \
   python "$CODE_REAL/hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src/semantic_role_action_bundle_candidates.py" \
-    --evidence "$EVIDENCE" \
-    --identity "$IDENTITY" \
+    --evidence-atoms "$EVIDENCE" \
+    --identity-candidates "$IDENTITY" \
     --out "$WORK/fresh/bundles"
 BUNDLES="$WORK/fresh/bundles/semantic_role_action_bundle_candidates_lite_v1.json"
 [ -f "$BUNDLES" ] || fail "fresh_action_bundle_output_missing"
@@ -244,22 +247,59 @@ ev=json.load(open(ev_p, encoding="utf-8"))
 ident=json.load(open(id_p, encoding="utf-8"))
 bundles=json.load(open(bundle_p, encoding="utf-8"))
 
+norm=lambda value: str(value or "").strip().casefold()
 affected={
-    "Goal kicks short (0-15 m)",
-    "Goal kicks medium (15-40 m)",
-    "Goal kicks long (40+ m)",
+    norm("Goal kicks short (0-15 m)"),
+    norm("Goal kicks medium (15-40 m)"),
+    norm("Goal kicks long (40+ m)"),
 }
-all_goal_kick_labels=affected | {"Goal kicks"}
+all_goal_kick_labels=affected | {norm("Goal kicks")}
 
-team_sem=[r for r in sem.get("provider_label_records", []) if r.get("source_role")=="TEAM_SURFACE_CANDIDATE" and r.get("raw_label") in affected]
-team_sem_ok=[r for r in team_sem if r.get("semantic_role_candidate")=="ATTRIBUTE_REFERENCE" and r.get("action_family_candidate")=="PASS" and r.get("restart_type_candidate") in {None, ""} and r.get("downstream_eligibility")=="REFERENCE_ONLY" and r.get("semantics_decision")=="CONTEXT_DEPENDENT_SEMANTIC_COLLISION"]
+team_sem=[
+    r for r in sem.get("provider_label_records", [])
+    if r.get("source_role")=="TEAM_SURFACE_CANDIDATE" and norm(r.get("raw_label")) in affected
+]
+team_sem_ok=[
+    r for r in team_sem
+    if r.get("semantic_role_candidate")=="ATTRIBUTE_REFERENCE"
+    and r.get("action_family_candidate")=="PASS"
+    and r.get("restart_type_candidate") in {None, ""}
+    and r.get("downstream_eligibility")=="REFERENCE_ONLY"
+    and r.get("semantics_decision")=="CONTEXT_DEPENDENT_SEMANTIC_COLLISION"
+]
+team_sem_observed_labels={norm(r.get("raw_label")) for r in team_sem}
 
-team_ref_atoms=[a for a in ev.get("evidence_atoms", []) if a.get("source_role")=="TEAM_SURFACE_CANDIDATE" and a.get("raw_label") in affected and a.get("semantic_role_candidate")=="ATTRIBUTE_REFERENCE" and a.get("atom_class")=="REFERENCE_ATOM"]
+team_ref_atoms=[
+    a for a in ev.get("evidence_atoms", [])
+    if a.get("source_role")=="TEAM_SURFACE_CANDIDATE"
+    and norm(a.get("raw_label")) in affected
+    and a.get("semantic_role_candidate")=="ATTRIBUTE_REFERENCE"
+    and a.get("atom_class")=="REFERENCE_ATOM"
+]
 
-gk_goal_kick_atoms=[a for a in ev.get("evidence_atoms", []) if a.get("source_role")=="GOALKEEPER_SURFACE_CANDIDATE" and a.get("raw_label") in all_goal_kick_labels and a.get("semantic_role_candidate")=="ACTION_ANCHOR" and a.get("atom_class")=="ACTION_ANCHOR_ATOM" and "RESTART" in (a.get("action_family_candidates") or [])]
+gk_goal_kick_atoms=[
+    a for a in ev.get("evidence_atoms", [])
+    if a.get("source_role")=="GOALKEEPER_SURFACE_CANDIDATE"
+    and norm(a.get("raw_label")) in all_goal_kick_labels
+    and a.get("semantic_role_candidate")=="ACTION_ANCHOR"
+    and a.get("atom_class")=="ACTION_ANCHOR_ATOM"
+    and "RESTART" in (a.get("action_family_candidates") or [])
+]
 
-team_contaminated_bundles=[b for b in bundles.get("action_bundle_candidates", []) if b.get("source_role")=="TEAM_SURFACE_CANDIDATE" and b.get("action_family_candidate")=="RESTART" and bool(set(b.get("raw_labels") or []) & affected)]
-team_any_affected_bundles=[b for b in bundles.get("action_bundle_candidates", []) if b.get("source_role")=="TEAM_SURFACE_CANDIDATE" and bool(set(b.get("raw_labels") or []) & affected)]
+def normalized_raw_labels(bundle):
+    return {norm(value) for value in (bundle.get("raw_labels") or [])}
+
+team_contaminated_bundles=[
+    b for b in bundles.get("action_bundle_candidates", [])
+    if b.get("source_role")=="TEAM_SURFACE_CANDIDATE"
+    and b.get("action_family_candidate")=="RESTART"
+    and bool(normalized_raw_labels(b) & affected)
+]
+team_any_affected_bundles=[
+    b for b in bundles.get("action_bundle_candidates", [])
+    if b.get("source_role")=="TEAM_SURFACE_CANDIDATE"
+    and bool(normalized_raw_labels(b) & affected)
+]
 
 team_ref_routes=[]
 atom_ids={a.get("evidence_atom_id") for a in team_ref_atoms}
@@ -277,8 +317,8 @@ for name,payload in (("semantics",sem),("row_nucleus",row),("evidence_atom",ev),
     claims_ok &= good
 
 checks={
-    "team_surface_three_exact_semantic_records_present": len(team_sem)==3,
-    "team_surface_semantics_collision_contract_pass": len(team_sem_ok)==3,
+    "team_surface_three_labels_observed": team_sem_observed_labels==affected,
+    "team_surface_semantics_collision_contract_pass": bool(team_sem) and len(team_sem_ok)==len(team_sem),
     "team_goal_kick_length_reference_atoms_preserved": len(team_ref_atoms)>0,
     "team_goal_kick_length_reference_routes_preserved": len(team_ref_routes)==len(team_ref_atoms) and len(team_ref_atoms)>0,
     "team_goal_kick_length_restart_action_bundle_count_zero": len(team_contaminated_bundles)==0,
@@ -296,8 +336,9 @@ result={
     "runtime_code_head_sha":head,
     "checks":checks,
     "counts":{
-        "team_surface_semantic_records":len(team_sem),
-        "team_surface_semantic_records_contract_ok":len(team_sem_ok),
+        "team_surface_semantic_record_count":len(team_sem),
+        "team_surface_semantic_record_contract_ok_count":len(team_sem_ok),
+        "team_surface_distinct_affected_label_count":len(team_sem_observed_labels),
         "team_goal_kick_length_reference_atom_count":len(team_ref_atoms),
         "team_goal_kick_length_reference_route_count":len(team_ref_routes),
         "team_goal_kick_length_restart_action_bundle_count":len(team_contaminated_bundles),
