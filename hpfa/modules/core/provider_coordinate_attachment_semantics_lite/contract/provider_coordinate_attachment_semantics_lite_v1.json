@@ -1,0 +1,58 @@
+{
+  "module_id": "provider_coordinate_attachment_semantics_lite_v1",
+  "version": "1.0.0",
+  "status_vocabulary": [
+    "PASS",
+    "REVIEW_REQUIRED",
+    "FAIL_CLOSED"
+  ],
+  "inputs": {
+    "field_semantics": "provider_alias_field_semantics_lite_v1",
+    "label_semantics": "provider_label_value_semantics_lite_v1",
+    "row_nuclei": "row_nucleus_inventory_lite_v1",
+    "action_bundles": "semantic_role_action_bundle_candidates_lite_v1",
+    "coordinate_frame": "coordinate_frame_precondition_lite_v1"
+  },
+  "attachment_contract": {
+    "required_source_role": "GOALKEEPER_SURFACE_CANDIDATE",
+    "required_coordinate_fields": {
+      "pos_x": "event.start_x_candidate",
+      "pos_y": "event.start_y_candidate"
+    },
+    "required_field_mapping_status": "EXACT_RULE_CANDIDATE",
+    "required_field_reliability": "HIGH",
+    "required_row_cross_format_support": "CSV_XML_REQUIRED_ALIGNED_PRESENT_SUPPORT",
+    "interception_action_family": "INTERCEPTION",
+    "interception_action_subtype": "CROSS_OR_PASS_INTERCEPTION",
+    "interception_object_action_family": "PASS_OR_CROSS",
+    "required_label_mapping_status": "EXACT_REVIEWED_CANDIDATE",
+    "review_bundle_primary_admission_allowed": false,
+    "exact_object_action_surface_overlap_primary_admission_allowed": false,
+    "overlapping_same_coordinate_object_action_primary_admission_allowed": false,
+    "outcome_stratified_support_pooling": "UNIQUE_ACTION_BUNDLE_SUPPORT_ONLY",
+    "event_fusion_allowed": false,
+    "save_family_role": "NEGATIVE_REFLECTION_CONTROL"
+  },
+  "candidate_output_states": [
+    "EVENT_START_LOCATION_CANDIDATE_SUPPORTED",
+    "EVENT_ACTION_LOCATION_CANDIDATE_SUPPORTED",
+    "ATTACHMENT_REVIEW_REQUIRED",
+    "FIELD_ATTACHMENT_BASIS_UNRESOLVED",
+    "OBJECT_ACTION_REFLECTION_CONTROL_CONFIRMED"
+  ],
+  "outputs": [
+    "provider_coordinate_attachment_semantics_lite_v1.json",
+    "provider_coordinate_attachment_semantics_lite_v1.txt",
+    "provider_coordinate_attachment_semantics_analyst_audit_v1.txt"
+  ],
+  "claim_boundary": {
+    "coordinate_attachment_is_validated_provider_truth": false,
+    "coordinate_is_goalkeeper_physical_position_truth": false,
+    "attack_direction_is_validated_truth": false,
+    "coordinate_frame_is_validated_provider_truth": false,
+    "progression_truth": false,
+    "line_break_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
