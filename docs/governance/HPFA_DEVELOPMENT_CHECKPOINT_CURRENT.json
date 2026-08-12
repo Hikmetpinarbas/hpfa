@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0.0",
+  "record_status": "CURRENT_INTEGRATION_CHECKPOINT",
+  "authority_model": {
+    "product_main": "main",
+    "development_checkpoint_is_main_truth": false,
+    "active_match_runtime": "runtime/active_single_match/current",
+    "active_match_runtime_is_only_match_truth": true
+  },
+  "active_governance_version": "2026.07.18-SHORT",
+  "main_head": "85507f0b2c358c6312b7e3abe1b5992e07dcb3c4",
+  "development_head": "fdb8e109daebd7a9875d6f257011cb93e0372677",
+  "development_branch": "agent/sportsbase-surface-role-semantic-collision-guard-v1",
+  "active_stack_root": {
+    "historical_ancestry_sha": "8090805c5aaa4f92fb6bc6334c4f0ff1555967f1",
+    "capability_root_pr": 164,
+    "capability_root_branch": "multiformat-file-inventory-lite-v1",
+    "current_capability_root_head": "f5a33c03d78d7c7a8c9dcfd733531d4b6125f782",
+    "note": "The current PR #164 head contains later hardening and is not the same commit as the historical ancestry used by the stacked development line. Landing must use the final capability snapshot, not historical ancestry alone."
+  },
+  "active_stack_tip": {
+    "pr": 243,
+    "branch": "agent/sportsbase-surface-role-semantic-collision-guard-v1",
+    "sha": "fdb8e109daebd7a9875d6f257011cb93e0372677"
+  },
+  "last_active_match_validated_head": "fdb8e109daebd7a9875d6f257011cb93e0372677",
+  "main_vs_development": {
+    "status": "diverged",
+    "ahead_by": 447,
+    "behind_by": 1,
+    "merge_base": "0605abadcc6455b4852905a5aa2a52d51380e6f3"
+  },
+  "integration_freeze_state": "FEATURE_FREEZE_FOR_CONSOLIDATION",
+  "allowed_change_classes_during_freeze": [
+    "ACTIVE_MATCH_UPSTREAM_SEMANTIC_OR_DATA_BUG_FIX",
+    "CONTROLLED_MAINLINE_INTEGRATION_CHANGE",
+    "CONSOLIDATION_REVALIDATION_BLOCKER_FIX"
+  ],
+  "landing_policy": {
+    "giant_merge_allowed": false,
+    "blind_stack_wide_rebase_allowed": false,
+    "chronological_historical_pr_merge_train_allowed": false,
+    "landing_unit": "FINAL_CAPABILITY_SNAPSHOT",
+    "exact_integration_head_revalidation_required": true,
+    "explicit_user_merge_approval_required": true
+  },
+  "current_tranche": "TRANCHE_0_GOVERNANCE_AUTHORITY_NORMALIZATION",
+  "canonical_event_count": "UNKNOWN",
+  "production_release": false,
+  "issues": {
+    "integration_governance_debt": 233,
+    "controlled_consolidation_plan": 244
+  },
+  "updated_at": "2026-08-13T01:34:00+03:00"
+}
