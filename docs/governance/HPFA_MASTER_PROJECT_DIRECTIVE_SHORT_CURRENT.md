@@ -1,7 +1,22 @@
 # HPFA MASTER PROJECT DIRECTIVE — SHORT CURRENT
 
-Version: 2026.07.17-SHORT
-Status: ACTIVE_GOVERNANCE_RECORD
+Version: 2026.07.18-SHORT
+Status: CURRENT GOVERNANCE AUTHORITY
+Repository: Hikmetpinarbas/hpfa
+
+## AUTHORITY RESOLUTION
+This file, when landed on `main`, is the single unqualified repository governance authority.
+
+The development checkpoint is a frozen product-development snapshot, not a second governance authority. Any `CURRENT` wording embedded inside a non-main development snapshot is historical snapshot content and does not override this main governance record.
+
+Three authorities are separate and must never substitute for one another:
+
+1. `PRODUCT_MAIN` — code actually accepted into `main`.
+2. `DEVELOPMENT_CHECKPOINT` — the current integration reference outside main.
+3. `ACTIVE_MATCH_RUNTIME` — the only match-runtime truth at `runtime/active_single_match/current`.
+
+Current machine-readable values are recorded in:
+`docs/governance/HPFA_DEVELOPMENT_CHECKPOINT_CURRENT.json`
 
 ## PROJECT
 HPFA = Hikmet Pınarbaş Football Analytics.
@@ -38,25 +53,37 @@ current hpfa producer → donor capability → source role → claim boundary �
 
 ## PRODUCT MODE
 HPFA is in Product Engineering mode.
-Every new capability must declare:
+During controlled mainline consolidation, new independent intelligence features are temporarily secondary.
+
+Allowed consolidation-period changes are limited to:
+1. upstream semantic/data bug corrections found by ACTIVE_MATCH;
+2. changes required to integrate the existing product spine;
+3. fail-closed blocker corrections discovered during integration/revalidation.
+
+Every capability must still declare:
 source role, target module, input/output contract, deterministic tests, ACTIVE_MATCH need, claim ceiling, phone output, dependency order and release status.
 Code is the final step, not the first.
 
 ## CURRENT CORE SPINE
 RAW DATA → SOURCE AUTHORITY → ACTIVE MATCH → SURFACE INVENTORY → SOURCE ALIGNMENT → CANONICAL INTAKE → DATA QUALITY GATE → GATE CONSUMER → IDENTITY → TIME/PERIOD → SEMANTIC ROLE → ACTION BUNDLE → RELATION → POSSESSION/SEQUENCE/PHASE CANDIDATES → METRIC/CONTEXT → CLAIM GATE → FOOTBALL OUTPUT AUDIT → MATCH STORY → RUNTIME EVIDENCE
 
-## MAIN TRUTH
-Current main reference:
-`0605abadcc6455b4852905a5aa2a52d51380e6f3`
+Event-derived phase candidates may be produced from validated time, order, team, action-family, restart and coordinate/zone evidence, but phase derivation is not tactical intent, off-ball structure, pressure, fatigue, pitch control or tracking truth.
 
-Main includes the established runtime spine plus merged modules such as:
-- `canonical_ingest_surface_manifest`
-- `boundary_analysis_scorer`
-- `active_match_spine_runner`
-- `core_pipeline_orchestrator_lite_v1`
-- `triplex_source_alignment_adapter_lite_v1`
+Implementation may use a two-pass refinement:
+1. visible time/team/action continuity;
+2. event-derived phase segmentation;
+3. phase-aware sequence refinement.
 
-A merged module may still be `IMPLEMENTED_NOT_RUNTIME_PROVEN`. Main membership does not automatically establish ACTIVE_MATCH evidence or production release.
+## MAIN AND DEVELOPMENT TRUTH
+`main` is the product truth for accepted repository code.
+Open, draft or stacked PRs are not main truth.
+
+The development checkpoint is an integration reference only. It may contain capabilities with valid CI or ACTIVE_MATCH evidence, but those capabilities become main truth only after controlled landing and revalidation.
+
+The current consolidation policy is tracked in Issue #244 and the integration/governance debt in Issue #233.
+
+No blind stack-wide rebase, giant merge, or chronological historical-PR merge train is allowed.
+Landing units are final capability snapshots: later hardening and bug fixes that semantically belong to an earlier capability must be included in that capability's integration snapshot.
 
 ## SURFACE AND COUNT RULES
 CSV, TSV, XML, XLS/XLSX, JSON and JSONL are evidence surfaces.
@@ -110,6 +137,11 @@ The main analyst text states:
 what was observed, where it was observed, which evidence supports it and why it matters.
 Technical limits, missing evidence and claim ceilings stay in a separate technical block.
 
+Evidence may be promoted through explicit, reversible levels such as:
+`RAW_SURFACE → EVIDENCE_ATOM → SUPPORTED_CANDIDATE → RECONCILED_CANDIDATE → ANALYST_USABLE_EVIDENCE → METRIC_ELIGIBLE → CLAIM_ELIGIBLE`.
+
+`TACTICAL_TRUTH` is not a mandatory final promotion state.
+
 ## PHONE OUTPUT POLICY
 All user-visible Termux outputs must be written directly under:
 - `/sdcard/Download/HPFA`
@@ -146,29 +178,20 @@ Rules:
 - open, draft or stacked PRs are not main truth.
 - historical failed runs superseded by a newer green head are not current blockers.
 - a moved head invalidates prior current-head readiness and runtime evidence unless explicitly regenerated.
+- MERGED is not PRODUCTION_RELEASE.
 
-## CURRENT OPEN PRODUCT PATH
-The current ingest-modernisation path is stacked and remains outside main:
-1. PR #164 — Multiformat File Inventory Lite V1.
-   Current-head ACTIVE_MATCH evidence exists; not merged; not production.
-2. PR #166 — CSV Surface Reader Lite V1, stacked on PR #164.
-   Current-head CI succeeds; corrected-head ACTIVE_MATCH revalidation is required; not merged; not production.
+## CONTROLLED LANDING ORDER
+During consolidation, capabilities are landed by final-state dependency, not by historical PR date.
 
-The older event-admission stack (#155, #157, #158, #159 and composite #161) remains review/decomposition territory. Composite PR #161 must not merge as one change.
+Tranche 0 — Governance / authority normalization.
+Tranche 1 — Data foundation: inventory → CSV/XLSX/XML readers → field semantics → label/value semantics → reconciliation → aggregate/metric-definition support → row nuclei → G01–G18.
+Tranche 2 — Evidence spine: evidence atoms → match-local identity → semantic roles → action bundles → multi-family taxonomy → cross-role relations.
+Tranche 3 — Behaviour / sequence / context: selected action → consequence → selected event consequence → visible sequence → event-derived phase → phase refinement → match context → outcome support.
+Tranche 4 — Coordinate / progression preconditions.
+Tranche 5 — Modular runtime orchestrator.
+Tranche 6 — Analyst product: Analyst Report + Evidence Notebook + Engineering Audit.
 
-## CURRENT PRODUCT ORDER
-1. Multiformat File Inventory
-2. CSV Surface Reader
-3. XLSX Surface Reader
-4. XML Surface Reader
-5. Provider alias and field semantics
-6. Cross-format reconciliation
-7. Aggregate definition alignment
-8. Row nuclei and G01–G18 gate rollup
-9. Evidence atoms and match-local identity
-10. Semantic roles, action bundles and cross-role relations
-11. Context, possession, sequence, phase, metric and visual evidence
-12. Claim gate, grammar gate, football output audit and analyst report integration
+Every runtime-relevant tranche requires fresh exact integration-head CI and ACTIVE_MATCH revalidation before merge consideration.
 
 ## RHYTHM AND FITNESS
 Event-Only Rhythm Evidence Stack remains downstream of canonical event lite, sequence candidates and a signal-density gate.
@@ -177,7 +200,7 @@ Fitness/load/GPS/HRV/wellness/RPE data may support analysis but cannot override 
 
 ## SOURCE SEARCH ORDER BEFORE CODING
 1. hpfa current main
-2. relevant open product PR
+2. relevant current development checkpoint / product PR
 3. HP-Motor
 4. HP-Engine
 5. HP-PROJELERI
@@ -187,3 +210,9 @@ Fitness/load/GPS/HRV/wellness/RPE data may support analysis but cannot override 
 9. Termux discovery and runtime reports
 
 CODE IS LAST STEP.
+
+## RELEASE AUTHORITY
+No merge, release, production marking or production binding may be performed without explicit user approval.
+
+Until explicitly released:
+`production_release=false`
