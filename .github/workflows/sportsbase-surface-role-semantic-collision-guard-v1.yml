@@ -40,13 +40,48 @@ jobs:
       - name: Compile
         run: |
           python -m py_compile \
+            multiformat_file_inventory.py \
+            csv_surface_reader_lite.py \
+            xlsx_surface_reader_lite.py \
+            aggregate_definition_alignment_lite.py \
+            hpfa/modules/core/xml_surface_reader_lite/src/xml_surface_reader.py \
+            hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_alias_field_semantics.py \
             hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py \
+            hpfa/modules/core/cross_format_reconciliation_lite/src/cross_format_reconciliation.py \
+            hpfa/modules/core/provider_metric_dictionary_lite/src/provider_metric_dictionary.py \
+            hpfa/modules/core/row_nucleus_inventory_lite/src/row_nucleus_inventory_hardened.py \
             hpfa/modules/core/evidence_atom_inventory_lite/src/evidence_atom_inventory.py \
+            hpfa/modules/core/match_local_identity_candidates_lite/src/match_local_identity_candidates.py \
             hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src/semantic_role_action_bundle_candidates.py \
             tools/tests/test_sportsbase_surface_role_semantic_collision_guard_v1.py
 
       - name: ACTIVE_MATCH runner shell syntax
         run: bash -n tools/run_active_match_sportsbase_surface_role_semantic_collision_guard_v1.sh
+
+      - name: Fresh producer CLI contracts
+        run: |
+          python multiformat_file_inventory.py --help >/dev/null
+          python csv_surface_reader_lite.py --help >/dev/null
+          python xlsx_surface_reader_lite.py --help >/dev/null
+          python hpfa/modules/core/xml_surface_reader_lite/src/xml_surface_reader.py --help >/dev/null
+          python hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_alias_field_semantics.py --help >/dev/null
+          python hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py --help >/dev/null
+          python hpfa/modules/core/cross_format_reconciliation_lite/src/cross_format_reconciliation.py --help >/dev/null
+          python aggregate_definition_alignment_lite.py --help >/dev/null
+          python hpfa/modules/core/row_nucleus_inventory_lite/src/row_nucleus_inventory_hardened.py --help >/dev/null
+          python hpfa/modules/core/evidence_atom_inventory_lite/src/evidence_atom_inventory.py --help >/dev/null
+          python hpfa/modules/core/match_local_identity_candidates_lite/src/match_local_identity_candidates.py --help >/dev/null
+          python hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src/semantic_role_action_bundle_candidates.py --help >/dev/null
+          python - <<'PY'
+          from hpfa.modules.core.provider_metric_dictionary_lite.src.provider_metric_dictionary import load_dictionary_pack
+          payload = load_dictionary_pack('configs/metrics')
+          assert payload.get('status') != 'FAIL_CLOSED', payload
+          assert payload.get('canonical_event_count') == 'UNKNOWN'
+          assert payload.get('production_release') is False
+          PY
+          test -f hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_seed_v1.json
+          test -f hpfa/modules/core/cross_format_reconciliation_lite/registry/sportsbase_xml_group_semantics_v1.json
+          test -f hpfa/modules/core/aggregate_definition_alignment_lite/registry/sportsbase_aggregate_definition_candidates_v1.json
 
       - name: Focused tests
         run: |
