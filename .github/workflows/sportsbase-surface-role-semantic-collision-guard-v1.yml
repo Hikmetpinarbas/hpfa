@@ -6,6 +6,7 @@ on:
       - 'hpfa/modules/core/provider_label_value_semantics_lite/**'
       - 'hpfa/modules/core/evidence_atom_inventory_lite/**'
       - 'hpfa/modules/core/semantic_role_action_bundle_candidates_lite/**'
+      - 'tools/run_active_match_sportsbase_surface_role_semantic_collision_guard_v1.sh'
       - 'tools/tests/test_sportsbase_surface_role_semantic_collision_guard_v1.py'
       - 'docs/research/eventonly/sportsbase_surface_role_semantic_collision_guard_v1.md'
       - '.github/workflows/sportsbase-surface-role-semantic-collision-guard-v1.yml'
@@ -43,6 +44,9 @@ jobs:
             hpfa/modules/core/evidence_atom_inventory_lite/src/evidence_atom_inventory.py \
             hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src/semantic_role_action_bundle_candidates.py \
             tools/tests/test_sportsbase_surface_role_semantic_collision_guard_v1.py
+
+      - name: ACTIVE_MATCH runner shell syntax
+        run: bash -n tools/run_active_match_sportsbase_surface_role_semantic_collision_guard_v1.sh
 
       - name: Focused tests
         run: |
