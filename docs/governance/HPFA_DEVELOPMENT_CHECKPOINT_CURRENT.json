@@ -1,97 +1,69 @@
 {
-  "checkpoint_schema_version": "1.0.3",
-  "checkpoint_id": "hpfa_controlled_foundation_tranche_a_v1",
-  "status": "FOUNDATION_ROOT_ACTIVE_MATCH_EVIDENCE_PASS_PR_166_RECONSTRUCTION_ALLOWED",
-  "product_main": {
-    "branch": "main",
-    "base_sha": "85507f0b2c358c6312b7e3abe1b5992e07dcb3c4",
-    "production_release": false
-  },
-  "development_checkpoint": {
-    "branch": "integration/foundation-tranche-a-v1",
-    "role": "CONTROLLED_INTEGRATION_WORKSPACE",
-    "landing_tranche": "FOUNDATION_A",
-    "integration_pr": 247,
-    "last_engineering_validated_head": "4a7d7ff4447c830d8c31f7c7e684c719a7cf2dd4",
-    "last_product_code_change_head": "4a7d7ff4447c830d8c31f7c7e684c719a7cf2dd4",
-    "last_active_match_validated_head": "390bead216f7e7982a40dbc6efa9a5c3521a6535",
-    "checkpoint_commit_is_governance_only": true,
-    "mainline_authority": false,
-    "production_authority": false,
-    "active_match_authority": false
-  },
-  "reference_stack": {
-    "leading_checked_tip_pr": 243,
-    "leading_checked_tip_sha": "fdb8e109daebd7a9875d6f257011cb93e0372677",
-    "relationship_to_main_at_discovery": "DIVERGED_AHEAD_447_BEHIND_1",
-    "role": "PRODUCT_DEVELOPMENT_REFERENCE_NOT_MAIN"
-  },
-  "runtime_authority": "runtime/active_single_match/current",
-  "governance": {
-    "authority_split_status": "UNRESOLVED_TRACKED_BY_ISSUE_233",
-    "controlled_consolidation_issue": 246,
-    "blind_rebase_allowed": false,
-    "blind_stack_merge_allowed": false,
-    "automatic_merge_allowed": false
-  },
-  "foundation_tranche_a": {
-    "inspection_order": [164, 166, 170, 171, 172, 175, 177, 178, 181, 183, 185],
-    "superseded_reference_prs": [173],
-    "confirmed_stale_base_prs": [164, 166, 181, 183, 185],
-    "confirmed_parent_matched_but_inherited_block_prs": [170, 171, 172, 175, 177, 178],
-    "landing_started": true,
-    "foundation_root_source_pr": 164,
-    "foundation_root_reconstructed": true,
-    "foundation_root_integrated_ci": {
-      "workflow": "Multiformat File Inventory Lite V1",
-      "run_id": 31687885083,
-      "run_number": 25,
-      "conclusion": "success",
-      "compile": "PASS",
-      "focused_tests": "PASS",
-      "shell_syntax": "PASS",
-      "repo_origin_guard": "PASS",
-      "integration_branch_head_guard": "PASS",
-      "claim_boundary": "PASS",
-      "sample_identity_leak_guard": "PASS"
+  "checkpoint_schema_version": "2.0.0",
+  "checkpoint_id": "hpfa_development_current_state_resolver_v2",
+  "record_role": "CURRENT_STATE_RESOLUTION_POLICY",
+  "purpose": "Resolve current engineering, CI and ACTIVE_MATCH state without embedding mutable external state or a self-referential containing commit SHA.",
+  "authorities": {
+    "engineering_head": {
+      "authority": "GIT_BRANCH_REF",
+      "repository": "Hikmetpinarbas/hpfa",
+      "ref": "refs/heads/integration/foundation-tranche-a-v1"
     },
-    "foundation_root_active_match": {
-      "validated_head": "390bead216f7e7982a40dbc6efa9a5c3521a6535",
-      "runtime_authority": "/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/runtime/active_single_match/current",
-      "run_rc": 0,
-      "status": "PASS",
-      "active_match_evidence_pass": true,
-      "total_file_path_count": 24,
-      "supported_file_count": 18,
-      "unique_supported_content_file_count": 10,
-      "unsupported_file_count": 6,
-      "unresolved_unsupported_file_count": 0,
-      "reference_only_unsupported_file_count": 6,
-      "exact_duplicate_group_count": 8,
-      "exact_duplicate_reflection_count": 8,
-      "duplicate_file_conflict_count": 0,
-      "hard_block_hits": [],
-      "claim_ceiling": "FILE_DISCOVERY_ONLY",
-      "canonical_event_count": "UNKNOWN",
-      "production_release": false
+    "ci_state": {
+      "authority": "GITHUB_ACTIONS_EXACT_HEAD",
+      "must_match_resolved_engineering_head": true
     },
-    "active_match_runner_integration_guard_repaired": true,
-    "active_match_runner_expected_branch_env": "HPFA_EXPECTED_BRANCH",
-    "active_match_runner_expected_head_env": "HPFA_EXPECTED_HEAD",
-    "active_match_revalidation_completed_on_integrated_head": true,
-    "downstream_reconstruction_allowed": true,
-    "next_reconstruction_source_pr": 166
+    "active_match_state": {
+      "authority": "runtime/active_single_match/current",
+      "evidence_head_must_match_resolved_engineering_head": true,
+      "historical_evidence_inheritance_allowed": false
+    },
+    "operator_handoff": {
+      "authority": "EXACT_HEAD_RUNTIME_EVIDENCE_MANIFEST_PLUS_OPERATOR_RECORD"
+    }
+  },
+  "self_reference_policy": {
+    "embed_containing_commit_sha": false,
+    "reason": "A committed file cannot require its own embedded containing commit SHA to equal git rev-parse HEAD because changing the embedded SHA changes the containing commit SHA.",
+    "checkpoint_head_resolution": "READ_GIT_BRANCH_REF_AT_RESOLUTION_TIME"
+  },
+  "foundation_tranche_a_order": [
+    164,
+    166,
+    170,
+    171,
+    172,
+    175,
+    177,
+    178,
+    181,
+    183,
+    185
+  ],
+  "runtime_handoff_policy": {
+    "phone_output_mode": "ONE_ZIP_ONLY",
+    "intermediate_workspace": "TERMUX_TMP_NOT_PHONE_OUTPUT",
+    "nested_runner_reexecution": false,
+    "phone_runtime_pytest": false,
+    "exact_head_ci_required_before_runtime": true,
+    "single_pass_upstream_refresh": true,
+    "manifest_required": true
+  },
+  "research_acceptance": {
+    "R07_metric_definition_fingerprint": "ACCEPT_P0_NOW_SPEC_IMPLEMENT_IN_178_181_183",
+    "R08_partial_order_temporal_semantics": "IMPLEMENTED_IN_172_AND_REQUIRED_IN_177",
+    "R09_observation_completeness": "ACCEPT_P0_NOW_SPEC_REQUIRED_BEFORE_CONSEQUENCE_SEQUENCE_OUTCOME_SUPPORT_RECONSTRUCTION"
   },
   "claim_boundary": {
     "canonical_event_count": "UNKNOWN",
     "validated_event_identity": false,
+    "validated_team_identity": false,
+    "validated_player_identity": false,
     "possession_truth": false,
     "sequence_truth": false,
     "phase_truth": false,
     "progression_truth": false,
-    "line_break_truth": false,
     "tactical_truth": false,
     "production_release": false
-  },
-  "next_gate": "PR_166_CSV_SURFACE_READER_RECONSTRUCTION_ON_CURRENT_INTEGRATION_HEAD"
+  }
 }
