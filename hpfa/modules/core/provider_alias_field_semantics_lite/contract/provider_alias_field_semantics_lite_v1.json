@@ -1,0 +1,46 @@
+{
+  "claim_boundary": {
+    "aggregate_definition_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "claim_ceiling": "FIELD_SEMANTICS_CANDIDATE_ONLY",
+    "phase_truth": false,
+    "production_release": false,
+    "same_time_means_simultaneous_truth": false,
+    "sequence_truth": false,
+    "source_row_order_truth": false,
+    "tactical_truth": false,
+    "validated_cross_format_equivalence": false,
+    "validated_player_identity": false,
+    "validated_provider_semantics": false,
+    "validated_team_identity": false,
+    "validated_temporal_order": false
+  },
+  "inputs": [
+    "csv_surface_audit_lite_v1.json",
+    "xlsx_surface_audit_lite_v1.json",
+    "xml_surface_audit_lite_v1.json"
+  ],
+  "module_id": "provider_alias_field_semantics_lite_v1",
+  "outputs": [
+    "provider_alias_field_semantics_lite_v1.json",
+    "provider_alias_field_semantics_lite_v1.txt",
+    "provider_alias_field_semantics_analyst_audit_v1.txt"
+  ],
+  "temporal_order_guard": {
+    "allowed_relation_states": [
+      "BEFORE_CONFIRMED",
+      "AFTER_CONFIRMED",
+      "SAME_TIME_UNORDERED",
+      "ORDER_INDETERMINATE",
+      "PROVENANCE_ORDER_ONLY"
+    ],
+    "claim_ceiling": "TEMPORAL_FIELD_CANDIDATE_ONLY",
+    "downstream_order_sensitive_claim_decision": "REVIEW_REQUIRED",
+    "event_type_priority_ordering_allowed": false,
+    "legacy_strict_total_order_assumption": "SUPERSEDE_FOR_EVENT_ONLY_SEQUENCE_ADMISSION",
+    "same_time_default_without_admitted_order_evidence": "SAME_TIME_UNORDERED",
+    "same_time_means_simultaneous_truth": false,
+    "source_row_index_role": "PROVENANCE_ORDER_ONLY",
+    "time_field_candidate_is_football_order_truth": false
+  }
+}
