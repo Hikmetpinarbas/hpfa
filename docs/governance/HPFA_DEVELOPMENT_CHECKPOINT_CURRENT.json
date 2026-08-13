@@ -1,0 +1,52 @@
+{
+  "checkpoint_schema_version": "1.0.0",
+  "checkpoint_id": "hpfa_controlled_foundation_tranche_a_v1",
+  "status": "CONTROLLED_INTEGRATION_BRANCH_CREATED",
+  "product_main": {
+    "branch": "main",
+    "base_sha": "85507f0b2c358c6312b7e3abe1b5992e07dcb3c4",
+    "production_release": false
+  },
+  "development_checkpoint": {
+    "branch": "integration/foundation-tranche-a-v1",
+    "role": "CONTROLLED_INTEGRATION_WORKSPACE",
+    "landing_tranche": "FOUNDATION_A",
+    "mainline_authority": false,
+    "production_authority": false,
+    "active_match_authority": false
+  },
+  "reference_stack": {
+    "leading_checked_tip_pr": 243,
+    "leading_checked_tip_sha": "fdb8e109daebd7a9875d6f257011cb93e0372677",
+    "relationship_to_main_at_discovery": "DIVERGED_AHEAD_447_BEHIND_1",
+    "role": "PRODUCT_DEVELOPMENT_REFERENCE_NOT_MAIN"
+  },
+  "runtime_authority": "runtime/active_single_match/current",
+  "governance": {
+    "authority_split_status": "UNRESOLVED_TRACKED_BY_ISSUE_233",
+    "controlled_consolidation_issue": 246,
+    "blind_rebase_allowed": false,
+    "blind_stack_merge_allowed": false,
+    "automatic_merge_allowed": false
+  },
+  "foundation_tranche_a": {
+    "inspection_order": [164, 166, 170, 171, 172, 175, 177, 178, 181, 183, 185],
+    "superseded_reference_prs": [173],
+    "confirmed_stale_base_prs": [164, 166, 181, 183, 185],
+    "confirmed_parent_matched_but_inherited_block_prs": [170, 171, 172, 175, 177, 178],
+    "landing_started": false,
+    "active_match_revalidation_completed_on_integrated_head": false
+  },
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "validated_event_identity": false,
+    "possession_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "progression_truth": false,
+    "line_break_truth": false,
+    "tactical_truth": false,
+    "production_release": false
+  },
+  "next_gate": "RECONSTRUCT_PR_164_CAPABILITY_ON_CURRENT_MAIN_WITHOUT_MUTATING_HISTORICAL_STACK"
+}
