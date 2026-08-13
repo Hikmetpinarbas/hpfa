@@ -87,6 +87,7 @@ CONTEXT_INTERVAL
 PARTICIPATION_INTERVAL
 OPPONENT_ACTION_REFERENCE
 RECEIVED_ACTION_REFERENCE
+ATTRIBUTE_REFERENCE
 DERIVED_CONSEQUENCE_CANDIDATE
 TERMINAL_OUTCOME_CANDIDATE
 ADMINISTRATIVE_MARKER
@@ -149,7 +150,9 @@ review_status
 
 Examples:
 
-- `Goal kicks long (40+ m)` → `RESTART + GOAL_KICK + LONG`.
+- goalkeeper-surface `Goal kicks long (40+ m)` → `ACTION_ANCHOR + RESTART + GOAL_KICK + LONG`.
+- team-surface `Goal kicks short/medium/long` → `ATTRIBUTE_REFERENCE + PASS_DISTANCE_ATTRIBUTE_CANDIDATE + REFERENCE_ONLY`; this is a context-dependent semantic collision candidate, not a literal goal-kick action.
+- unreviewed PLAYER or unexpected-role goal-kick labels remain review-required/fail-closed.
 - `Fouls suffered` → `RECEIVED_ACTION_REFERENCE`, not an own foul action.
 - `Opponent fouls` → `OPPONENT_ACTION_REFERENCE`, not an own foul action.
 - goalkeeper-surface `Shots on target` → opponent shot reference faced by the goalkeeper.
@@ -157,6 +160,36 @@ Examples:
 - `Shots saved` → goalkeeper save action with shot-object relation.
 - `Successful cross and pass interception attempts` → interception action; `pass` and `cross` are intercepted object families.
 - `Positional attacks with shots` → context interval with a shot-present terminal marker, not a shot action.
+
+## 5.4 Surface-role semantic collision guard
+
+The same literal provider label may have different candidate meaning on different source roles.
+
+For the reviewed SportsBase goal-kick family:
+
+```text
+GOALKEEPER_SURFACE_CANDIDATE
++ Goal kicks / Goal kicks short-medium-long
+→ ACTION_ANCHOR
+→ RESTART
+→ restart_type_candidate=GOAL_KICK
+```
+
+while:
+
+```text
+TEAM_SURFACE_CANDIDATE
++ Goal kicks short-medium-long
+→ ATTRIBUTE_REFERENCE
+→ action_family_candidate=PASS
+→ action_subtype_candidate=PASS_DISTANCE_ATTRIBUTE_CANDIDATE
+→ downstream_eligibility=REFERENCE_ONLY
+→ semantics_decision=CONTEXT_DEPENDENT_SEMANTIC_COLLISION
+```
+
+This does not validate a provider definition, does not rename the raw label canonically and must not increase physical-action volume.
+
+A global literal alias must not override a reviewed source-role-specific rule. Unexpected source roles fail closed to review.
 
 ## 6. Deterministic decision order
 

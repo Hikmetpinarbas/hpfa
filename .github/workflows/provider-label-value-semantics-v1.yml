@@ -39,15 +39,27 @@ jobs:
           bash -n tools/run_active_match_provider_label_value_semantics_v1.sh
           bash -n tools/bootstrap_termux_provider_label_value_semantics_v1.sh
           bash tools/run_active_match_provider_label_value_semantics_v1.sh --self-test-execution-identity-guard
-      - name: Historical final capability blob lineage
+      - name: Historical capability plus accepted PR 243 correction lineage
         run: |
-          test "$(git hash-object docs/contracts/provider_label_value_semantics_lite_v1.md)" = "67e9f53d1c91586404f0fc9befae6e605cb204f0"
-          test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_reviewed_v2.csv)" = "47f004f1d83838e6ae7dfe7ec8976162bd53d6a9"
+          HIST="fdb8e109daebd7a9875d6f257011cb93e0372677"
+          git fetch origin pull/243/head
+          test "$(git rev-parse FETCH_HEAD)" = "$HIST"
+
+          REG="hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_reviewed_v2.csv"
+          TST="hpfa/modules/core/provider_label_value_semantics_lite/tests/test_provider_label_value_semantics.py"
+
+          test "$(git hash-object "$REG")" = "$(git rev-parse "$HIST:$REG")"
+          test "$(git hash-object "$TST")" = "$(git rev-parse "$HIST:$TST")"
+
           test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_seed_v1.json)" = "e2c7f721f5ea9060e86d8b4487ef0775fd74c64e"
           test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py)" = "72e4818e8f155c7ea7984afa73f4fc5dde055c07"
-          test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/tests/test_provider_label_value_semantics.py)" = "74b6a0d7fcb40136d596196c7a716bfd5c6f23ac"
           test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/tests/test_provider_label_value_semantics_registry_safety.py)" = "069e64a98bd940a40485d8c259e877ee621dcf2f"
           test "$(git hash-object provider_label_value_semantics_lite.py)" = "7d8fee4ef7735bd1f134b470125a6eeab0d0a4e7"
+
+          grep -F 'ATTRIBUTE_REFERENCE' docs/contracts/provider_label_value_semantics_lite_v1.md
+          grep -F 'CONTEXT_DEPENDENT_SEMANTIC_COLLISION' docs/contracts/provider_label_value_semantics_lite_v1.md
+          grep -F 'TEAM_SURFACE_CANDIDATE' docs/contracts/provider_label_value_semantics_lite_v1.md
+          grep -F 'GOALKEEPER_SURFACE_CANDIDATE' docs/contracts/provider_label_value_semantics_lite_v1.md
       - name: Checkpoint resolver policy
         run: |
           python - <<'PY'

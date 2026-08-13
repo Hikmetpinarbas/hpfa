@@ -154,11 +154,50 @@ def test_meta_variants_are_excluded_from_action_family() -> None:
         assert result["action_family_candidate"] is None
 
 
-def test_goal_kicks_are_restart_anchors_with_distance() -> None:
-    result = classify("Goal kicks long (40+ m)", "TEAM_SURFACE_CANDIDATE")
+def test_goalkeeper_goal_kick_length_is_restart_anchor() -> None:
+    result = classify("Goal kicks long (40+ m)", "GOALKEEPER_SURFACE_CANDIDATE")
+    assert result["semantic_role_candidate"] == "ACTION_ANCHOR"
     assert result["action_family_candidate"] == "RESTART"
     assert result["restart_type_candidate"] == "GOAL_KICK"
     assert result["distance_candidate"] == "LONG"
+    assert result["downstream_eligibility"] == "ACTION_CANDIDATE_ELIGIBLE"
+
+
+@pytest.mark.parametrize(
+    ("label", "distance"),
+    [
+        ("Goal kicks short (0-15 m)", "SHORT"),
+        ("Goal kicks medium (15-40 m)", "MEDIUM"),
+        ("Goal kicks long (40+ m)", "LONG"),
+    ],
+)
+def test_team_goal_kick_length_is_attribute_reference_not_restart(label: str, distance: str) -> None:
+    result = classify(label, "TEAM_SURFACE_CANDIDATE")
+    assert result["mapping_status"] == "EXACT_REVIEWED_CANDIDATE"
+    assert result["semantic_role_candidate"] == "ATTRIBUTE_REFERENCE"
+    assert result["action_family_candidate"] == "PASS"
+    assert result["distance_candidate"] == distance
+    assert result["restart_type_candidate"] is None
+    assert result["action_subtype_candidate"] == "PASS_DISTANCE_ATTRIBUTE_CANDIDATE"
+    assert result["downstream_eligibility"] == "REFERENCE_ONLY"
+    assert result["semantics_decision"] == "CONTEXT_DEPENDENT_SEMANTIC_COLLISION"
+
+
+def test_plain_goal_kicks_is_goalkeeper_scoped() -> None:
+    goalkeeper = classify("Goal kicks", "GOALKEEPER_SURFACE_CANDIDATE")
+    team = classify("Goal kicks", "TEAM_SURFACE_CANDIDATE")
+    assert goalkeeper["mapping_status"] == "EXACT_REVIEWED_CANDIDATE"
+    assert goalkeeper["action_family_candidate"] == "RESTART"
+    assert goalkeeper["restart_type_candidate"] == "GOAL_KICK"
+    assert team["mapping_status"] == "TOKEN_FALLBACK_REVIEW_REQUIRED"
+    assert team["downstream_eligibility"] == "BLOCKED_PENDING_REVIEW"
+
+
+def test_player_goal_kick_length_fails_closed_to_review() -> None:
+    result = classify("Goal kicks medium (15-40 m)", "PLAYER_SURFACE_CANDIDATE")
+    assert result["mapping_status"] == "TOKEN_FALLBACK_REVIEW_REQUIRED"
+    assert result["downstream_eligibility"] == "BLOCKED_PENDING_REVIEW"
+    assert result["review_status"] == "REVIEW_REQUIRED"
 
 
 def test_opponent_shot_is_reference_not_own_action() -> None:
