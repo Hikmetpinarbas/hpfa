@@ -39,3 +39,14 @@ def test_no_sample_match_identity_leak_in_head_gate_scripts() -> None:
     content = RUNNER.read_text(encoding="utf-8") + BOOTSTRAP.read_text(encoding="utf-8")
     forbidden = ["Australia", "Turkey", "World Cup", "Sturm Graz", "Heart of Midlothian", "6935", "77798"]
     assert not any(token in content for token in forbidden)
+
+
+def test_run_step_uses_subshell_so_step_exit_cannot_terminate_parent_runner() -> None:
+    source = RUNNER.read_text(encoding="utf-8")
+    start = source.index("run_step(){")
+    end = source.index("\n}\n", start) + 3
+    block = source[start:end]
+    assert '  (\n' in block
+    assert '  ) >>"$LOG" 2>&1' in block
+    assert '  {\n' not in block
+    assert '    exit "$rc"' in block

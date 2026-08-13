@@ -75,13 +75,13 @@ FAILED_STEP=""
 
 run_step(){
   local name="$1"; shift
-  {
+  (
     printf '\n===== STEP %s =====\n' "$name"
     "$@"
     rc=$?
     printf '===== STEP %s RC=%s =====\n' "$name" "$rc"
     exit "$rc"
-  } >>"$LOG" 2>&1
+  ) >>"$LOG" 2>&1
   rc=$?
   if [[ "$rc" -ne 0 ]]; then
     FINAL_RC="$rc"
