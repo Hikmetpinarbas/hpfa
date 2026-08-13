@@ -45,6 +45,11 @@ jobs:
           bash -n tools/bootstrap_termux_multiformat_inventory_v1.sh
       - name: Exact product-repo origin guard
         run: bash tools/run_active_match_multiformat_inventory_v1.sh --self-test-repo-guard
+      - name: Exact integration branch/head guard contract
+        run: |
+          HPFA_EXPECTED_BRANCH="integration/guard-test" \
+          HPFA_EXPECTED_HEAD="0123456789abcdef0123456789abcdef01234567" \
+          bash tools/run_active_match_multiformat_inventory_v1.sh --self-test-execution-guard
       - name: Claim-boundary enforcement
         run: |
           python - <<'PY'
