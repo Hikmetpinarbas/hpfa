@@ -2,7 +2,8 @@
 set -euo pipefail
 
 OUT="/sdcard/Download/HPFA"
-EXPECTED_BRANCH="multiformat-file-inventory-lite-v1"
+EXPECTED_BRANCH="${HPFA_EXPECTED_BRANCH:-multiformat-file-inventory-lite-v1}"
+EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"
 EXPECTED_REPO_SLUG="hikmetpinarbas/hpfa"
 DEFAULT_ACTIVE="$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current"
 
@@ -36,6 +37,16 @@ repo_matches_hpfa() {
   [[ "$slug" == "$EXPECTED_REPO_SLUG" ]]
 }
 
+execution_identity_matches() {
+  local actual_branch="$1"
+  local actual_head="$2"
+  [[ "$actual_branch" == "$EXPECTED_BRANCH" ]] || return 1
+  if [[ -n "$EXPECTED_HEAD" && "$actual_head" != "$EXPECTED_HEAD" ]]; then
+    return 1
+  fi
+  return 0
+}
+
 self_test_repo_guard() {
   local tmp repo
   tmp="$(mktemp -d)"
@@ -53,8 +64,25 @@ self_test_repo_guard() {
   echo "repo_origin_guard_self_test=PASS"
 }
 
+self_test_execution_guard() {
+  [[ -n "$EXPECTED_HEAD" ]] || fail "self_test_expected_head_required"
+  execution_identity_matches "$EXPECTED_BRANCH" "$EXPECTED_HEAD" || fail "self_test_expected_identity_rejected"
+  if execution_identity_matches "${EXPECTED_BRANCH}-wrong" "$EXPECTED_HEAD"; then
+    fail "self_test_wrong_branch_accepted"
+  fi
+  if execution_identity_matches "$EXPECTED_BRANCH" "${EXPECTED_HEAD}0"; then
+    fail "self_test_wrong_head_accepted"
+  fi
+  echo "execution_identity_guard_self_test=PASS"
+}
+
 if [[ "${1:-}" == "--self-test-repo-guard" ]]; then
   self_test_repo_guard
+  exit 0
+fi
+
+if [[ "${1:-}" == "--self-test-execution-guard" ]]; then
+  self_test_execution_guard
   exit 0
 fi
 
@@ -103,6 +131,9 @@ ORIGIN_URL="$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
 
 [[ "$ACTUAL_ROOT" == "$REPO" ]] || REPO="$ACTUAL_ROOT"
 [[ "$ACTUAL_BRANCH" == "$EXPECTED_BRANCH" ]] || fail "unexpected_branch:$ACTUAL_BRANCH expected:$EXPECTED_BRANCH repo:$REPO"
+if [[ -n "$EXPECTED_HEAD" && "$ACTUAL_HEAD" != "$EXPECTED_HEAD" ]]; then
+  fail "unexpected_head:$ACTUAL_HEAD expected:$EXPECTED_HEAD repo:$REPO"
+fi
 [[ -z "$(git -C "$REPO" status --porcelain --untracked-files=no)" ]] || fail "tracked_worktree_not_clean:$REPO"
 
 cd "$REPO"
@@ -158,6 +189,8 @@ PY
   echo "origin_url=$ORIGIN_URL"
   echo "branch=$ACTUAL_BRANCH"
   echo "head_sha=$ACTUAL_HEAD"
+  echo "expected_branch=$EXPECTED_BRANCH"
+  echo "expected_head=${EXPECTED_HEAD:-UNSET}"
   echo "runtime_authority=$ACTIVE"
   echo "run_rc=$RUN_RC"
   echo "main_output=$OUT/multiformat_file_inventory_lite_v1.json"
