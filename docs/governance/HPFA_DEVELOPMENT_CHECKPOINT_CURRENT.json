@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "record_status": "CURRENT_INTEGRATION_CHECKPOINT",
   "authority_model": {
     "product_main": "main",
@@ -35,7 +35,7 @@
     "issue": 244,
     "pr": 245,
     "branch": "integration/governance-authority-checkpoint-v1",
-    "audited_head_before_this_record_update": "f3667951b799cdec4021daef97a50c3765a45247",
+    "audited_head_before_this_record_update": "26b08ff518bec884d096ed79233e6c9f004e8fb2",
     "base_branch": "main",
     "base_head": "85507f0b2c358c6312b7e3abe1b5992e07dcb3c4",
     "product_files_changed": 0,
@@ -50,8 +50,10 @@
     "tranche_1_final_state_audit": "READY",
     "landing_1a_file_manifest": "READY",
     "landing_1b_file_manifest": "READY",
+    "tranche_2_evidence_spine_file_manifest": "READY",
     "landing_1a_product_branch_created": false,
     "landing_1b_product_branch_created": false,
+    "tranche_2_product_branch_created": false,
     "g16_full_reconciliation_stage": "TRANCHE_2_EXIT_CROSS_TRANCHE_QUALITY_CLOSURE"
   },
   "integration_freeze_state": "FEATURE_FREEZE_FOR_CONSOLIDATION",
@@ -75,5 +77,5 @@
     "integration_governance_debt": 233,
     "controlled_consolidation_plan": 244
   },
-  "updated_at": "2026-08-13T11:57:00+03:00"
+  "updated_at": "2026-08-13T12:08:00+03:00"
 }
