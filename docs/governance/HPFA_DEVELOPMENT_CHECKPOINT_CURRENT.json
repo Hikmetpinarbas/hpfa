@@ -1,7 +1,7 @@
 {
-  "checkpoint_schema_version": "1.0.0",
+  "checkpoint_schema_version": "1.0.1",
   "checkpoint_id": "hpfa_controlled_foundation_tranche_a_v1",
-  "status": "CONTROLLED_INTEGRATION_BRANCH_CREATED",
+  "status": "FOUNDATION_ROOT_ENGINEERING_GATE_PASS_ACTIVE_MATCH_REQUIRED",
   "product_main": {
     "branch": "main",
     "base_sha": "85507f0b2c358c6312b7e3abe1b5992e07dcb3c4",
@@ -11,6 +11,8 @@
     "branch": "integration/foundation-tranche-a-v1",
     "role": "CONTROLLED_INTEGRATION_WORKSPACE",
     "landing_tranche": "FOUNDATION_A",
+    "integration_pr": 247,
+    "last_engineering_validated_head": "79bd7499ab1b6525be7359a63199bcaf4f8c4fd3",
     "mainline_authority": false,
     "production_authority": false,
     "active_match_authority": false
@@ -34,8 +36,23 @@
     "superseded_reference_prs": [173],
     "confirmed_stale_base_prs": [164, 166, 181, 183, 185],
     "confirmed_parent_matched_but_inherited_block_prs": [170, 171, 172, 175, 177, 178],
-    "landing_started": false,
-    "active_match_revalidation_completed_on_integrated_head": false
+    "landing_started": true,
+    "foundation_root_source_pr": 164,
+    "foundation_root_reconstructed": true,
+    "foundation_root_integrated_ci": {
+      "workflow": "Multiformat File Inventory Lite V1",
+      "run_id": 31683051604,
+      "run_number": 22,
+      "conclusion": "success",
+      "compile": "PASS",
+      "focused_tests": "PASS",
+      "shell_syntax": "PASS",
+      "repo_origin_guard": "PASS",
+      "claim_boundary": "PASS",
+      "sample_identity_leak_guard": "PASS"
+    },
+    "active_match_revalidation_completed_on_integrated_head": false,
+    "downstream_reconstruction_allowed": false
   },
   "claim_boundary": {
     "canonical_event_count": "UNKNOWN",
@@ -48,5 +65,5 @@
     "tactical_truth": false,
     "production_release": false
   },
-  "next_gate": "RECONSTRUCT_PR_164_CAPABILITY_ON_CURRENT_MAIN_WITHOUT_MUTATING_HISTORICAL_STACK"
+  "next_gate": "ACTIVE_MATCH_REVALIDATION_ON_CURRENT_INTEGRATED_HEAD_BEFORE_PR_166_RECONSTRUCTION"
 }
