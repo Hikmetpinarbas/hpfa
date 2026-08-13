@@ -1,7 +1,7 @@
 {
-  "checkpoint_schema_version": "1.0.2",
+  "checkpoint_schema_version": "1.0.3",
   "checkpoint_id": "hpfa_controlled_foundation_tranche_a_v1",
-  "status": "FOUNDATION_ROOT_ENGINEERING_GATE_PASS_ACTIVE_MATCH_REQUIRED",
+  "status": "FOUNDATION_ROOT_ACTIVE_MATCH_EVIDENCE_PASS_PR_166_RECONSTRUCTION_ALLOWED",
   "product_main": {
     "branch": "main",
     "base_sha": "85507f0b2c358c6312b7e3abe1b5992e07dcb3c4",
@@ -14,6 +14,7 @@
     "integration_pr": 247,
     "last_engineering_validated_head": "4a7d7ff4447c830d8c31f7c7e684c719a7cf2dd4",
     "last_product_code_change_head": "4a7d7ff4447c830d8c31f7c7e684c719a7cf2dd4",
+    "last_active_match_validated_head": "390bead216f7e7982a40dbc6efa9a5c3521a6535",
     "checkpoint_commit_is_governance_only": true,
     "mainline_authority": false,
     "production_authority": false,
@@ -54,11 +55,32 @@
       "claim_boundary": "PASS",
       "sample_identity_leak_guard": "PASS"
     },
+    "foundation_root_active_match": {
+      "validated_head": "390bead216f7e7982a40dbc6efa9a5c3521a6535",
+      "runtime_authority": "/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/runtime/active_single_match/current",
+      "run_rc": 0,
+      "status": "PASS",
+      "active_match_evidence_pass": true,
+      "total_file_path_count": 24,
+      "supported_file_count": 18,
+      "unique_supported_content_file_count": 10,
+      "unsupported_file_count": 6,
+      "unresolved_unsupported_file_count": 0,
+      "reference_only_unsupported_file_count": 6,
+      "exact_duplicate_group_count": 8,
+      "exact_duplicate_reflection_count": 8,
+      "duplicate_file_conflict_count": 0,
+      "hard_block_hits": [],
+      "claim_ceiling": "FILE_DISCOVERY_ONLY",
+      "canonical_event_count": "UNKNOWN",
+      "production_release": false
+    },
     "active_match_runner_integration_guard_repaired": true,
     "active_match_runner_expected_branch_env": "HPFA_EXPECTED_BRANCH",
     "active_match_runner_expected_head_env": "HPFA_EXPECTED_HEAD",
-    "active_match_revalidation_completed_on_integrated_head": false,
-    "downstream_reconstruction_allowed": false
+    "active_match_revalidation_completed_on_integrated_head": true,
+    "downstream_reconstruction_allowed": true,
+    "next_reconstruction_source_pr": 166
   },
   "claim_boundary": {
     "canonical_event_count": "UNKNOWN",
@@ -71,5 +93,5 @@
     "tactical_truth": false,
     "production_release": false
   },
-  "next_gate": "ACTIVE_MATCH_REVALIDATION_ON_CURRENT_INTEGRATED_HEAD_BEFORE_PR_166_RECONSTRUCTION"
+  "next_gate": "PR_166_CSV_SURFACE_READER_RECONSTRUCTION_ON_CURRENT_INTEGRATION_HEAD"
 }
