@@ -1,5 +1,5 @@
 {
-  "checkpoint_schema_version": "1.0.1",
+  "checkpoint_schema_version": "1.0.2",
   "checkpoint_id": "hpfa_controlled_foundation_tranche_a_v1",
   "status": "FOUNDATION_ROOT_ENGINEERING_GATE_PASS_ACTIVE_MATCH_REQUIRED",
   "product_main": {
@@ -12,7 +12,9 @@
     "role": "CONTROLLED_INTEGRATION_WORKSPACE",
     "landing_tranche": "FOUNDATION_A",
     "integration_pr": 247,
-    "last_engineering_validated_head": "79bd7499ab1b6525be7359a63199bcaf4f8c4fd3",
+    "last_engineering_validated_head": "4a7d7ff4447c830d8c31f7c7e684c719a7cf2dd4",
+    "last_product_code_change_head": "4a7d7ff4447c830d8c31f7c7e684c719a7cf2dd4",
+    "checkpoint_commit_is_governance_only": true,
     "mainline_authority": false,
     "production_authority": false,
     "active_match_authority": false
@@ -41,16 +43,20 @@
     "foundation_root_reconstructed": true,
     "foundation_root_integrated_ci": {
       "workflow": "Multiformat File Inventory Lite V1",
-      "run_id": 31683051604,
-      "run_number": 22,
+      "run_id": 31687885083,
+      "run_number": 25,
       "conclusion": "success",
       "compile": "PASS",
       "focused_tests": "PASS",
       "shell_syntax": "PASS",
       "repo_origin_guard": "PASS",
+      "integration_branch_head_guard": "PASS",
       "claim_boundary": "PASS",
       "sample_identity_leak_guard": "PASS"
     },
+    "active_match_runner_integration_guard_repaired": true,
+    "active_match_runner_expected_branch_env": "HPFA_EXPECTED_BRANCH",
+    "active_match_runner_expected_head_env": "HPFA_EXPECTED_HEAD",
     "active_match_revalidation_completed_on_integrated_head": false,
     "downstream_reconstruction_allowed": false
   },
