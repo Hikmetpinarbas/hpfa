@@ -1,6 +1,6 @@
 {
   "module_id": "cross_format_reconciliation_lite_v1",
-  "contract_version": "provider_semantic_provenance_hardening_v1",
+  "contract_version": "provider_semantic_provenance_research_hardening_v2",
   "inputs": [
     "multiformat_file_inventory_lite_v1.json",
     "csv_surface_audit_lite_v1.json",
@@ -90,6 +90,51 @@
     "pos_x",
     "pos_y"
   ],
+  "research_hardening_guards": {
+    "R16_no_transitive_promotion": {
+      "pairwise_link_is_canonical_identity": false,
+      "pairwise_link_can_promote_other_links": false,
+      "claim_ceiling": "DIRECT_PAIRWISE_EVIDENCE_ONLY"
+    },
+    "R20_temporal_attachment": {
+      "start_end_role": "SOURCE_TIMELINE_EVIDENCE_ONLY",
+      "football_order_truth": false,
+      "same_time_simultaneity_truth": false,
+      "sequence_attachment_allowed": false
+    },
+    "R21_counterpart_expectation": {
+      "missing_counterpart_without_expectation_is_contradiction": false,
+      "unresolved_state": "MISSING_COUNTERPART_EXPECTATION_UNRESOLVED"
+    },
+    "R23_measurement_resolution": {
+      "numeric_comparison_mode": "EXACT_NORMALIZED_CANDIDATE_ONLY",
+      "arbitrary_epsilon_allowed": false,
+      "numeric_equality_is_semantic_equivalence_truth": false
+    },
+    "R24_conflict_authority": {
+      "format_precedence": "NONE",
+      "majority_vote_allowed": false,
+      "automatic_resolution_allowed": false,
+      "conflict_state": "UNRESOLVED_REVIEW_REQUIRED"
+    },
+    "R26_identifier_namespace": {
+      "bare_id_is_global_event_identity": false,
+      "cross_role_join_allowed": false,
+      "same_role_shared_id_claim_ceiling": "MATCH_LOCAL_SAME_ROLE_SHARED_ID_CANDIDATE_ONLY",
+      "namespace_requirements": [
+        "provider_or_version_candidate",
+        "match_scope",
+        "source_role",
+        "source_surface",
+        "identifier_semantics",
+        "uniqueness_evidence",
+        "collision_or_reuse_policy",
+        "serialization_normalization",
+        "linkage_eligibility",
+        "claim_ceiling"
+      ]
+    }
+  },
   "hard_blocks": [
     "source_sha_missing",
     "runtime_sha_mismatch",
@@ -103,7 +148,10 @@
     "xml_label_priority_used_without_authority_contract",
     "review_required_promoted_to_active_match_pass",
     "upstream_duplicate_lineage_lost",
-    "canonical_event_count_claimed"
+    "canonical_event_count_claimed",
+    "transitive_promotion_without_direct_evidence",
+    "cross_role_identifier_join_forbidden",
+    "identifier_namespace_collision_unresolved"
   ],
   "decision_states": [
     "PASS_ALIGNMENT_CANDIDATE",
@@ -111,6 +159,12 @@
     "DOWNGRADE_TO_SINGLE_SURFACE",
     "BLOCK_FUSION"
   ],
+  "phone_runtime_policy": {
+    "handoff_mode": "ONE_ZIP_ONLY",
+    "phone_runtime_pytest": false,
+    "single_pass_upstream_refresh": true,
+    "nested_phone_output_allowed": false
+  },
   "claim_boundary": {
     "canonical_event_count": "UNKNOWN",
     "validated_provider_semantics": false,
