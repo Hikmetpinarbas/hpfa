@@ -23,7 +23,8 @@ def test_bootstrap_uses_current_integration_branch_and_exact_head() -> None:
     assert "reset --hard" not in source
     assert 'git -C "$REPO" merge --ff-only "origin/$BRANCH"' in source
     assert 'ACTUAL_HEAD="$(git -C "$REPO" rev-parse HEAD)"' in source
-    assert '[[ "$ACTUAL_HEAD" == "$EXPECTED_HEAD" ]]' in source
+    assert '[[ "$ACTUAL_HEAD" == "$REMOTE_HEAD" ]]' in source
+    assert '[[ "$ACTUAL_HEAD" == "$HPFA_EXPECTED_HEAD" ]]' in source
     assert 'HPFA_EXPECTED_BRANCH="$BRANCH"' in source
     assert 'bash "$REPO/tools/run_active_match_cross_format_reconciliation_v1.sh"' in source
 
