@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "hpfa" / "modules" / "core" / "cross_format_reconciliation_lite" / "src"
 sys.path.insert(0, str(SRC))
 
-from cross_format_reconciliation import main
+from research_hardening import guarded_main
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(guarded_main())
