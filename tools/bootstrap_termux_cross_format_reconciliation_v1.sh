@@ -3,26 +3,57 @@ set -euo pipefail
 
 REPO="${HPFA_REPO:-$HOME/hp/repos/hpfa}"
 BRANCH="integration/foundation-tranche-a-v1"
-EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"
 ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
 OUT="${HPFA_PHONE_OUTPUT:-/sdcard/Download/HPFA}"
 
 fail(){ printf 'FAIL: %s\n' "$1" >&2; exit 2; }
 
+verify_python_dependencies(){
+  python - <<'PY'
+import openpyxl
+print(f"openpyxl_version={openpyxl.__version__}")
+PY
+}
+
+ensure_python_dependencies(){
+  if verify_python_dependencies; then
+    return
+  fi
+  if ! python -m pip --version >/dev/null 2>&1; then
+    command -v pkg >/dev/null 2>&1 || fail "python_pip_missing_and_pkg_unavailable"
+    pkg install -y python-pip || fail "python_pip_install_failed"
+  fi
+  python -m pip install --upgrade openpyxl || fail "python_dependencies_install_failed"
+  verify_python_dependencies || fail "python_dependencies_import_failed_after_install"
+}
+
 [[ -d "$REPO/.git" ]] || fail "product_repo_not_git_checkout:$REPO"
-[[ -n "$EXPECTED_HEAD" ]] || fail "expected_head_required:set_HPFA_EXPECTED_HEAD"
+[[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_missing:$ACTIVE_MATCH"
 [[ -z "$(git -C "$REPO" status --porcelain)" ]] || fail "product_repo_worktree_not_clean:$REPO"
 
 git -C "$REPO" fetch origin "$BRANCH"
+REMOTE_HEAD="$(git -C "$REPO" rev-parse "refs/remotes/origin/$BRANCH" 2>/dev/null || true)"
+[[ "$REMOTE_HEAD" =~ ^[0-9a-fA-F]{40}$ ]] || fail "remote_head_missing_or_invalid:$REMOTE_HEAD"
+
+REQUESTED_EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"
+if [[ -n "$REQUESTED_EXPECTED_HEAD" ]]; then
+  [[ "$REQUESTED_EXPECTED_HEAD" =~ ^[0-9a-fA-F]{40}$ ]] || fail "requested_expected_head_invalid:$REQUESTED_EXPECTED_HEAD"
+  [[ "$REQUESTED_EXPECTED_HEAD" == "$REMOTE_HEAD" ]] || fail "remote_head_mismatch:$REMOTE_HEAD expected:$REQUESTED_EXPECTED_HEAD"
+fi
+
 git -C "$REPO" switch "$BRANCH"
 git -C "$REPO" merge --ff-only "origin/$BRANCH"
 
 ACTUAL_HEAD="$(git -C "$REPO" rev-parse HEAD)"
-[[ "$ACTUAL_HEAD" == "$EXPECTED_HEAD" ]] || fail "unexpected_head:$ACTUAL_HEAD expected:$EXPECTED_HEAD"
+[[ "$ACTUAL_HEAD" == "$REMOTE_HEAD" ]] || fail "product_repo_head_not_remote_head:$ACTUAL_HEAD remote:$REMOTE_HEAD"
+HPFA_EXPECTED_HEAD="${REQUESTED_EXPECTED_HEAD:-$REMOTE_HEAD}"
+[[ "$ACTUAL_HEAD" == "$HPFA_EXPECTED_HEAD" ]] || fail "unexpected_head:$ACTUAL_HEAD expected:$HPFA_EXPECTED_HEAD"
+
+ensure_python_dependencies
 
 HPFA_REPO="$REPO" \
 HPFA_ACTIVE_MATCH="$ACTIVE_MATCH" \
 HPFA_PHONE_OUTPUT="$OUT" \
 HPFA_EXPECTED_BRANCH="$BRANCH" \
-HPFA_EXPECTED_HEAD="$EXPECTED_HEAD" \
+HPFA_EXPECTED_HEAD="$HPFA_EXPECTED_HEAD" \
 bash "$REPO/tools/run_active_match_cross_format_reconciliation_v1.sh"
