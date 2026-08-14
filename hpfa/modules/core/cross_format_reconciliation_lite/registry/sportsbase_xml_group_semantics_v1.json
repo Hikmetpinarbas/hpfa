@@ -1,0 +1,59 @@
+{
+  "registry_id": "sportsbase_xml_group_semantics_v1",
+  "candidate_only": true,
+  "validated_semantics": false,
+  "source_refs": [
+    "docs/contracts/cross_format_reconciliation_lite_v1.md"
+  ],
+  "claim_ceiling": "XML_GROUP_FIELD_KEY_CANDIDATE_ONLY",
+  "exact_group_rules": [
+    {
+      "rule_id": "sb_xml_group_action_v1",
+      "raw_group_label": "Action",
+      "field_key_candidate": "action",
+      "source_ref": "provider-visible XML label group surface"
+    },
+    {
+      "rule_id": "sb_xml_group_half_v1",
+      "raw_group_label": "Half",
+      "field_key_candidate": "period",
+      "source_ref": "provider-visible XML label group surface"
+    },
+    {
+      "rule_id": "sb_xml_group_period_v1",
+      "raw_group_label": "Period",
+      "field_key_candidate": "period",
+      "source_ref": "provider-visible XML label group surface"
+    },
+    {
+      "rule_id": "sb_xml_group_team_v1",
+      "raw_group_label": "Team",
+      "field_key_candidate": "team",
+      "source_ref": "provider-visible XML label group surface"
+    },
+    {
+      "rule_id": "sb_xml_group_pos_x_v1",
+      "raw_group_label": "pos_x",
+      "field_key_candidate": "pos_x",
+      "source_ref": "provider-visible XML label group surface"
+    },
+    {
+      "rule_id": "sb_xml_group_x_v1",
+      "raw_group_label": "x",
+      "field_key_candidate": "pos_x",
+      "source_ref": "provider-visible XML label group surface"
+    },
+    {
+      "rule_id": "sb_xml_group_pos_y_v1",
+      "raw_group_label": "pos_y",
+      "field_key_candidate": "pos_y",
+      "source_ref": "provider-visible XML label group surface"
+    },
+    {
+      "rule_id": "sb_xml_group_y_v1",
+      "raw_group_label": "y",
+      "field_key_candidate": "pos_y",
+      "source_ref": "provider-visible XML label group surface"
+    }
+  ]
+}
