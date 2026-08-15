@@ -65,8 +65,10 @@ LOG="$TMP_ROOT/cross_format_reconciliation_runtime_full_v1.log"
 RESULT="$TMP_ROOT/cross_format_reconciliation_result_v1.txt"
 MANIFEST="$TMP_ROOT/HPFA_177_ACTIVE_MATCH_EVIDENCE_MANIFEST.json"
 ZIP="$OUT/HPFA_177_ACTIVE_MATCH_${ACTUAL_HEAD:0:7}.zip"
-rm -f "$ZIP"
-trap 'rm -rf "$TMP_ROOT"' EXIT
+ZIP_TMP="$OUT/.HPFA_177_ACTIVE_MATCH_${ACTUAL_HEAD:0:7}.$$.zip.partial"
+rm -f "$ZIP" "$ZIP_TMP"
+trap 'rm -rf "$TMP_ROOT"; rm -f "$ZIP_TMP"' EXIT
+trap 'exit 130' INT TERM HUP
 
 cd "$REPO"
 FINAL_RC=0
@@ -259,7 +261,7 @@ POSTPROCESS_RC=$?
 record_post_step_failure "$POSTPROCESS_RC" "evidence_postprocess"
 
 if [[ "$POSTPROCESS_RC" -eq 0 ]]; then
-  python - "$TMP_ROOT" "$ZIP" <<'PY'
+  python - "$TMP_ROOT" "$ZIP_TMP" <<'PY'
 import hashlib, json, sys, zipfile
 from pathlib import Path
 root=Path(sys.argv[1]); zip_path=Path(sys.argv[2])
@@ -273,12 +275,19 @@ with zipfile.ZipFile(zip_path,"w",compression=zipfile.ZIP_DEFLATED) as z:
     for p in sorted(files): z.write(p,arcname=p.name)
 PY
   PACKAGING_RC=$?
-  if [[ "$PACKAGING_RC" -ne 0 ]]; then
-    rm -f "$ZIP"
-  fi
   record_post_step_failure "$PACKAGING_RC" "evidence_bundle_packaging"
+  if [[ "$PACKAGING_RC" -eq 0 ]]; then
+    mv -f "$ZIP_TMP" "$ZIP"
+    PUBLISH_RC=$?
+    record_post_step_failure "$PUBLISH_RC" "evidence_bundle_publish"
+    if [[ "$PUBLISH_RC" -ne 0 ]]; then
+      rm -f "$ZIP" "$ZIP_TMP"
+    fi
+  else
+    rm -f "$ZIP" "$ZIP_TMP"
+  fi
 else
-  rm -f "$ZIP"
+  rm -f "$ZIP" "$ZIP_TMP"
 fi
 
 echo

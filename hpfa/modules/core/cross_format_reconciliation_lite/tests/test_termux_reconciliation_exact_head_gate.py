@@ -35,7 +35,7 @@ def test_runner_is_one_zip_phone_handoff_without_pytest() -> None:
     assert "HPFA_177_ACTIVE_MATCH_" in source
     assert "HPFA_177_ZIP_CONTENT_MANIFEST.json" in source
     assert 'TMP_ROOT=' in source
-    assert 'trap \'rm -rf "$TMP_ROOT"\' EXIT' in source
+    assert 'trap \'rm -rf "$TMP_ROOT"; rm -f "$ZIP_TMP"\' EXIT' in source
     assert "ONE_ZIP_ONLY" in source
     assert 'phone_runtime_pytest' in source
     assert 'single_pass_upstream_refresh' in source
@@ -58,11 +58,23 @@ def test_runner_propagates_postprocess_and_packaging_failures() -> None:
     assert 'record_post_step_failure "$POSTPROCESS_RC" "evidence_postprocess"' in source
     assert "PACKAGING_RC=$?" in source
     assert 'record_post_step_failure "$PACKAGING_RC" "evidence_bundle_packaging"' in source
-    assert 'rm -f "$ZIP"' in source
+    assert "PUBLISH_RC=$?" in source
+    assert 'record_post_step_failure "$PUBLISH_RC" "evidence_bundle_publish"' in source
+    assert 'rm -f "$ZIP" "$ZIP_TMP"' in source
     assert 'echo "run_rc=$FINAL_RC"' in source
     assert 'echo "failed_step=$FAILED_STEP"' in source
     assert 'echo "ZIP=NOT_CREATED"' in source
     assert 'exit "$FINAL_RC"' in source
+
+
+def test_runner_publishes_evidence_zip_atomically() -> None:
+    source = RUNNER.read_text(encoding="utf-8")
+    assert 'ZIP_TMP="$OUT/' in source
+    assert '.zip.partial"' in source
+    assert 'python - "$TMP_ROOT" "$ZIP_TMP"' in source
+    assert 'mv -f "$ZIP_TMP" "$ZIP"' in source
+    assert 'trap \'rm -rf "$TMP_ROOT"; rm -f "$ZIP_TMP"\' EXIT' in source
+    assert "trap 'exit 130' INT TERM HUP" in source
 
 
 def test_runner_integrates_current_semantics_and_research_hardening() -> None:
