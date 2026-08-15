@@ -51,6 +51,20 @@ def test_runner_step_exit_cannot_terminate_parent_runner() -> None:
     assert '  {\n' not in block
 
 
+def test_runner_propagates_postprocess_and_packaging_failures() -> None:
+    source = RUNNER.read_text(encoding="utf-8")
+    assert "record_post_step_failure(){" in source
+    assert "POSTPROCESS_RC=$?" in source
+    assert 'record_post_step_failure "$POSTPROCESS_RC" "evidence_postprocess"' in source
+    assert "PACKAGING_RC=$?" in source
+    assert 'record_post_step_failure "$PACKAGING_RC" "evidence_bundle_packaging"' in source
+    assert 'rm -f "$ZIP"' in source
+    assert 'echo "run_rc=$FINAL_RC"' in source
+    assert 'echo "failed_step=$FAILED_STEP"' in source
+    assert 'echo "ZIP=NOT_CREATED"' in source
+    assert 'exit "$FINAL_RC"' in source
+
+
 def test_runner_integrates_current_semantics_and_research_hardening() -> None:
     source = RUNNER.read_text(encoding="utf-8")
     assert "provider_alias_field_semantics_lite.py" in source
