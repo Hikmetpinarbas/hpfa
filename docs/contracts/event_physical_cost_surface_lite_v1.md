@@ -1,111 +1,43 @@
-# HPFA Event Physical Cost Surface Lite V1 Contract
+# HPFA Event Physical Cost / Exposure Surface Lite V1 Contract
 
-Date: 2026-06-23
+Date: 2026-08-15
 
-Status: SPEC_WRITTEN
+Status: SPEC_CORRECTION_ACCEPTED
 
-## Product Node
-
-```text
-P2D Event Physical Cost Surface Lite V1
-```
-
-## Core Invariant
+## Core invariants
 
 ```text
 physical_cost_surface != event_surface
 physical_cost_row_count != event_count
 physical_cost_metric_value != event_count
 physical_cost_metric_value != tactical_truth
+minutes_played != physical_cost
+exposure_candidate != validated_on_pitch_time
 ```
 
 ## Purpose
 
-Classify ACTIVE_MATCH-adjacent fitness files, fitness reports, form reports, FIFA reports and match reports into non-event support surfaces.
+Classify ACTIVE_MATCH-adjacent fitness/reference material into non-event support surfaces while keeping physical load, report context and playing-time exposure semantically separate.
 
-The node extracts physical-cost and report-context metric names when visible in extracted reference text.
+The node does not produce event truth, event count, possession, phase, sequence, tactical causality, fatigue truth or validated playing-time truth.
 
-It does not produce event truth, event count, possession truth, phase truth, sequence truth or tactical causality.
-
-## Surface Ontology
-
-HPFA currently separates four surface classes:
+## Surface ontology
 
 ```text
 EVENT_SURFACE
 PHYSICAL_COST_SURFACE
+EXPOSURE_NORMALIZATION_SURFACE
 REPORT_METRIC_SURFACE
 CLAIM_SURFACE
 ```
 
-### EVENT_SURFACE
+`PHYSICAL_COST_SURFACE` contains physical-load candidates such as distance, speed, acceleration/deceleration, metabolic/player load and recovery-time references.
 
-Examples:
+`EXPOSURE_NORMALIZATION_SURFACE` contains playing-time/exposure candidates. `MINUTES_PLAYED` belongs here and carries `exposure_authority_status=UNKNOWN` until an explicit ExposureAuthority contract admits the operational definition and on-pitch interval evidence.
 
-```text
-Players CSV/XML
-Teams CSV/XML
-Goalkeepers CSV/XML
-```
+`REPORT_METRIC_SURFACE` contains FIFA/form/match/official/technical report context. None of these reference surfaces override ACTIVE_MATCH evidence.
 
-Boundary:
-
-```text
-multi-surface rows are not event count
-```
-
-### PHYSICAL_COST_SURFACE
-
-Examples:
-
-```text
-fitness PDFs
-fitness reports
-player physical sheets
-load or physical output reports
-```
-
-Meaning:
-
-```text
-physical-cost context around player/team/event/role/time surfaces
-```
-
-### REPORT_METRIC_SURFACE
-
-Examples:
-
-```text
-FIFA report
-form report
-match report
-official metric report
-technical report
-```
-
-Meaning:
-
-```text
-reference/report metric context
-```
-
-### CLAIM_SURFACE
-
-Examples:
-
-```text
-claim router output
-report grammar gate output
-football output audit
-```
-
-Meaning:
-
-```text
-allowed / downgraded / blocked claim decisions
-```
-
-## Required Inputs
+## Required inputs
 
 Preferred inputs:
 
@@ -117,9 +49,7 @@ fitness_signal_pdf_index_v1.json
 fitness_tactical_bridge_lite_v1.json
 ```
 
-## Outputs
-
-Flat phone output only:
+## Flat outputs
 
 ```text
 physical_cost_surface_manifest_v1.json
@@ -128,9 +58,7 @@ physical_cost_surface_audit_v1.json
 physical_cost_surface_audit_v1.txt
 ```
 
-## Metric Families
-
-Initial physical-cost metric family set:
+## Physical-cost families
 
 ```text
 DISTANCE_TOTAL
@@ -143,12 +71,21 @@ DECELERATION
 METABOLIC_LOAD
 PLAYER_LOAD
 WORK_RATE
-MINUTES_PLAYED
 RECOVERY_TIME
 UNKNOWN_PHYSICAL
 ```
 
-Initial report/metric surface family set:
+## Exposure-normalization families
+
+```text
+MINUTES_PLAYED
+```
+
+`MINUTES_PLAYED` must not enter `metric_family_counts` for physical cost. It is emitted through `exposure_family_counts` and `EXPOSURE_NORMALIZATION_SURFACE`.
+
+Rejected exposure proxies include first-to-last observed action span, raw event timeline interval, and provider numeric minutes without admitted operational semantics.
+
+## Report/context families
 
 ```text
 FIFA_TECHNICAL_CONTEXT
@@ -158,91 +95,44 @@ OFFICIAL_METRIC_CONTEXT
 UNCLASSIFIED_REPORT_CONTEXT
 ```
 
-## Binding Status
-
-Allowed binding statuses:
+## Default binding and authority
 
 ```text
-UNBOUND
-TEAM_BOUND
-PLAYER_BOUND
-TIME_BOUND
-EVENT_BOUND_CANDIDATE_ONLY
+event_binding_status=UNBOUND
+exposure_authority_status=UNKNOWN
+runtime_event_truth=false
+event_count_claim_allowed=false
+metric_count_allowed=false
+exposure_authority_truth=false
 ```
 
-Default:
+## Allowed analyst language
 
 ```text
-UNBOUND
+physical-cost surface evidence is present
+exposure/playing-time candidate is present
+reported minutes require ExposureAuthority validation
+report context can be reviewed beside ACTIVE_MATCH evidence
 ```
 
-Event binding cannot become event truth inside this node.
-
-## Allowed Analyst Language
-
-Allowed:
-
-```text
-physical-cost metric is present
-physical-cost surface is available
-report/metric surface is available
-this can be reviewed beside event evidence
-this requires later claim routing
-```
-
-## Blocked Language Families
-
-Blocked:
+## Blocked language
 
 ```text
 physical_cost_as_event_count
 physical_cost_as_event_truth
 physical_cost_as_tactical_truth
 physical_cost_as_medical_truth
+minutes_played_as_physical_cost
+exposure_candidate_as_validated_playing_time
 report_surface_as_event_truth
 report_surface_overrides_active_match_evidence
 ```
 
-## Acceptance Criteria
+## Downstream rule
 
-This node can reach ACTIVE_MATCH_EVIDENCE_PASS only if:
+This node may feed metric-family registry, ExposureAuthority, claim routing, reference concept extraction and analyst support sections. It must not promote event identity, canonical event count, phase/possession/sequence truth, fatigue truth, or per-90 admission.
 
-1. module compiles;
-2. tests pass;
-3. ACTIVE_MATCH flat outputs are written;
-4. physical-cost and report/metric surfaces are classified separately;
-5. metric names are extracted when visible;
-6. page/file provenance is preserved;
-7. runtime_event_truth=false;
-8. event_count_claim_allowed=false;
-9. metric_count_allowed=false for event metrics;
-10. no blocked language family is emitted as a football claim.
+Per-90 remains blocked until both the R22 ExposureAuthority gate and the R19 denominator-closure gate are admitted.
 
-## Downstream Rule
-
-This node may feed:
-
-```text
-claim router
-reference concept extractor
-postmatch physical cost context bridge
-analyst support section
-```
-
-This node must not feed:
-
-```text
-event identity resolution as event rows
-primary event surface selection as event source
-metric primitive event count
-phase or possession assertion
-```
-
-## Current Status
-
-```text
-SPEC_WRITTEN
-IMPLEMENTATION_PENDING
-ACTIVE_MATCH_EXECUTION_NOT_RUN
-PRODUCTION_RELEASE_NOT_GRANTED
-```
+`canonical_event_count=UNKNOWN`
+`production_release=false`
