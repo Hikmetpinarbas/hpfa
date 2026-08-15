@@ -6,6 +6,8 @@
       "metric_name": "Surface action volume candidate",
       "normalized_label_patterns": ["action volume", "event count"],
       "metric_family": "action_volume_surface",
+      "construct_target": "declared eligible row-level action-family surface volume",
+      "aggregation_class": "SUMMABLE_COUNT",
       "value_type": "count",
       "unit": "candidate_rows",
       "numerator_definition": "Eligible non-aggregate row-level action-family candidates in the declared scope after exact-reflection suppression.",
@@ -32,6 +34,7 @@
       "context_policy_id": "match_surface_context_v1",
       "confidence_policy_id": "candidate_evidence_calibration_required_v1",
       "misuse_policy_ids": ["surface_count_not_event_truth_v1"],
+      "exposure_policy_id": null,
       "comparison_allowed": false,
       "aggregate_definition_status": "UNKNOWN"
     },
@@ -40,6 +43,8 @@
       "metric_name": "Pass completion rate definition candidate",
       "normalized_label_patterns": ["pass completion", "successful passes percent"],
       "metric_family": "passing_surface",
+      "construct_target": "provider-version successful-pass share within an admitted attempted-pass opportunity set",
+      "aggregation_class": "DENOMINATOR_RECOMPUTABLE_RATE",
       "value_type": "percentage",
       "unit": "percent",
       "numerator_definition": "Provider-version rows eligible under the declared successful-pass candidate definition.",
@@ -66,6 +71,7 @@
       "context_policy_id": "match_surface_context_v1",
       "confidence_policy_id": "candidate_evidence_calibration_required_v1",
       "misuse_policy_ids": ["same_label_not_same_construct_v1"],
+      "exposure_policy_id": null,
       "comparison_allowed": false,
       "aggregate_definition_status": "UNKNOWN"
     }
