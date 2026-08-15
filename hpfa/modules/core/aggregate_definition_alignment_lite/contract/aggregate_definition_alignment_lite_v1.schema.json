@@ -30,7 +30,7 @@
       ]
     },
     "research_hardening_version": {
-      "const": "R18_R19_R22_R24_R36_SOURCE_ROLE_v1"
+      "const": "R18_R19_R22_R24_R36_SOURCE_ROLE_v2"
     },
     "definition_candidate_count": {
       "type": "integer",
