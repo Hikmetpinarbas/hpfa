@@ -11,6 +11,8 @@ on:
       - hpfa/modules/core/metric_family_registry_lite/**
       - hpfa/modules/support/event_physical_cost_surface_lite/**
       - hpfa/modules/reporting/postmatch_analyst_report_lite/**
+      - tools/run_active_match_metric_definition_policy_v1.sh
+      - tools/bootstrap_termux_metric_definition_policy_v1.sh
       - docs/contracts/metric_definition_policy_lite_v1.md
       - docs/contracts/event_physical_cost_surface_lite_v1.md
       - .github/workflows/metric-definition-policy-lite-v1.yml
@@ -51,7 +53,11 @@ jobs:
             hpfa/modules/core/metric_family_registry_lite/src/metric_family_registry.py \
             hpfa/modules/support/event_physical_cost_surface_lite/src/event_physical_cost_surface.py \
             hpfa/modules/reporting/postmatch_analyst_report_lite/src/postmatch_analyst_report.py
-      - name: Run deterministic policy and producer tests
+      - name: Validate Termux shell syntax
+        run: |
+          bash -n tools/run_active_match_metric_definition_policy_v1.sh
+          bash -n tools/bootstrap_termux_metric_definition_policy_v1.sh
+      - name: Run deterministic policy producer and operator tests
         run: |
           python -m pytest -q \
             hpfa/modules/core/metric_definition_policy_lite/tests \
