@@ -1,9 +1,6 @@
 name: Metric Definition Policy Lite V1
 
 on:
-  push:
-    branches:
-      - work/reconstruct-178-research-hardened-v1
   pull_request:
     paths:
       - configs/metrics/**
