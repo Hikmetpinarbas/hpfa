@@ -1,0 +1,23 @@
+{
+  "policy_version": "1.0.0",
+  "policies": [
+    {
+      "exposure_policy_id": "player_on_pitch_exposure_candidate_v1",
+      "construct_family": "EXPOSURE_NORMALIZATION",
+      "exposure_semantic_type": "PLAYER_ON_PITCH_TIME",
+      "exposure_authority_status": "UNKNOWN",
+      "admissible_authority_evidence": [
+        "validated_substitution_and_period_clock",
+        "provider_reported_minutes_with_admitted_operational_definition"
+      ],
+      "rejected_proxy_sources": [
+        "first_to_last_observed_event_span",
+        "raw_event_timeline_interval",
+        "provider_numeric_minutes_without_definition_admission"
+      ],
+      "per90_admission_rule": "REQUIRES_VALIDATED_EXPOSURE_AUTHORITY",
+      "physical_cost_semantics": false,
+      "claim_ceiling": "EXPOSURE_DEFINITION_CANDIDATE_ONLY"
+    }
+  ]
+}
