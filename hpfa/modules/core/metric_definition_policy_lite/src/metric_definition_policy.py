@@ -34,6 +34,13 @@ R19_DENOMINATOR_FIELDS = {
     "mutual_exclusivity_status", "collective_exhaustiveness_status",
     "uncovered_opportunity_status", "denominator_nucleus_count",
 }
+R19_CLOSED_COMPONENT_RELATIONS = {"PARTITION"}
+R19_AFFIRMATIVE_EXCLUSIVITY_STATES = {"TRUE", "PROVEN", "CONFIRMED", "YES"}
+R19_AFFIRMATIVE_EXHAUSTIVENESS_STATES = {"TRUE", "PROVEN", "CONFIRMED", "YES", "COMPLETE"}
+R19_NO_UNCOVERED_OPPORTUNITY_STATES = {"NONE", "ABSENT", "NO", "ZERO", "PROVEN_NONE"}
+R19_NEGATIVE_EXCLUSIVITY_STATES = {"FALSE", "VIOLATED", "NO"}
+R19_NEGATIVE_EXHAUSTIVENESS_STATES = {"FALSE", "VIOLATED", "NO", "INCOMPLETE"}
+R19_UNCOVERED_PRESENT_STATES = {"PRESENT", "YES", "NONZERO"}
 FAIL_CLOSED = "FAIL_CLOSED"
 BLOCKED = "BLOCKED"
 
@@ -153,24 +160,44 @@ def _known_status(value: Any) -> bool:
 
 
 def _denominator_closure_status(policy: dict[str, Any]) -> str:
-    subset = str(policy.get("numerator_subset_status", "")).upper()
+    subset = str(policy.get("numerator_subset_status", "")).strip().upper()
     if subset == "NOT_APPLICABLE":
         return "NOT_APPLICABLE"
     if subset == "VIOLATED":
         return "VIOLATED"
     if subset != "PROVEN" or not _non_empty(policy.get("denominator_set_id")):
         return "UNKNOWN"
-    # R19: subset membership alone is insufficient. A denominator is admitted only
-    # when the applicable set relations and uncovered-opportunity state are known.
-    if not _known_status(policy.get("component_relation")):
+
+    relation = str(policy.get("component_relation", "")).strip().upper()
+    exclusivity = str(policy.get("mutual_exclusivity_status", "")).strip().upper()
+    exhaustiveness = str(policy.get("collective_exhaustiveness_status", "")).strip().upper()
+    uncovered = str(policy.get("uncovered_opportunity_status", "")).strip().upper()
+
+    # R19 fail-closed rule: merely having a non-UNKNOWN token is not evidence of
+    # closure. Current Lite admits only an explicit partition whose components are
+    # affirmatively exclusive and exhaustive with explicitly no uncovered
+    # opportunities. Nested/overlapping relations remain non-admitted until a
+    # later aggregation algebra contract authorizes them.
+    if exclusivity in R19_NEGATIVE_EXCLUSIVITY_STATES:
+        return "VIOLATED"
+    if exhaustiveness in R19_NEGATIVE_EXHAUSTIVENESS_STATES:
+        return "VIOLATED"
+    if uncovered in R19_UNCOVERED_PRESENT_STATES:
+        return "VIOLATED"
+    if relation not in R19_CLOSED_COMPONENT_RELATIONS:
         return "UNKNOWN"
-    if not _known_status(policy.get("mutual_exclusivity_status")):
+    if exclusivity not in R19_AFFIRMATIVE_EXCLUSIVITY_STATES:
         return "UNKNOWN"
-    if not _known_status(policy.get("collective_exhaustiveness_status")):
+    if exhaustiveness not in R19_AFFIRMATIVE_EXHAUSTIVENESS_STATES:
         return "UNKNOWN"
-    if not _known_status(policy.get("uncovered_opportunity_status")):
+    if uncovered not in R19_NO_UNCOVERED_OPPORTUNITY_STATES:
         return "UNKNOWN"
-    if policy.get("denominator_nucleus_count") is None:
+
+    nucleus = policy.get("denominator_nucleus_count")
+    try:
+        if int(nucleus) <= 0:
+            return "UNKNOWN"
+    except (TypeError, ValueError):
         return "UNKNOWN"
     return "CLOSED"
 
