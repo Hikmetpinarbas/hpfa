@@ -5,6 +5,10 @@ from hpfa.modules.core.aggregate_definition_alignment_lite.src.aggregate_definit
     normalize_label,
 )
 
+METRIC_FP = "42b89dca3e3e07580a3267bba6388fe44fbb81048962d145bd74f9c615a1bb42"
+NUMERATOR = "Provider-version rows eligible under the declared successful-pass candidate definition."
+DENOMINATOR = "Provider-version rows eligible under the declared attempted-pass candidate definition in the same entity, period and observation window."
+
 
 def xlsx_payload(label: str = "Passes accurate, %"):
     return {
@@ -31,7 +35,7 @@ def xlsx_payload(label: str = "Passes accurate, %"):
     }
 
 
-def label_payload(include_failure: bool = True):
+def label_payload(include_failure: bool = True, status: str = "PASS"):
     records = [
         {
             "record_id": "csv:player:pass-success",
@@ -55,17 +59,17 @@ def label_payload(include_failure: bool = True):
         )
     return {
         "module_id": "provider_label_value_semantics_lite_v1",
-        "status": "PASS",
+        "status": status,
         "canonical_event_count": "UNKNOWN",
         "production_release": False,
         "provider_label_records": records,
     }
 
 
-def reconciliation_payload():
+def reconciliation_payload(status: str = "PASS"):
     return {
         "module_id": "cross_format_reconciliation_lite_v1",
-        "status": "PASS",
+        "status": status,
         "canonical_event_count": "UNKNOWN",
         "production_release": False,
         "validated_cross_format_equivalence": False,
@@ -84,9 +88,11 @@ def metric_payload(*, closed: bool = True, ready: bool = True):
             {
                 "metric_id": "pass_completion_rate_candidate",
                 "definition_status": "DEFINITION_CANDIDATE_READY" if ready else "BLOCKED",
-                "definition_fingerprint_sha256": "a" * 64,
+                "definition_fingerprint_sha256": METRIC_FP,
                 "value_type": "percentage",
                 "unit": "percent",
+                "numerator_definition": NUMERATOR,
+                "denominator_definition": DENOMINATOR,
                 "denominator_closure_status": "CLOSED" if closed else "UNKNOWN",
                 "rate_calculation_admitted": closed,
             }
@@ -115,10 +121,11 @@ def registry(*, reviewed: bool = True):
                 "source_roles": ["PLAYER_SURFACE_CANDIDATE"],
                 "aggregate_label": "Passes accurate, %",
                 "metric_id": "pass_completion_rate_candidate",
+                "metric_definition_fingerprint_sha256": METRIC_FP,
                 "value_type": "percentage",
                 "unit": "percent",
-                "numerator_definition": "PASS + SUCCESS candidate",
-                "denominator_definition": "PASS + SUCCESS or FAILURE candidate",
+                "numerator_definition": NUMERATOR,
+                "denominator_definition": DENOMINATOR,
                 "required_occurrence_semantics": [
                     {
                         "source_formats": ["csv", "xml"],
@@ -153,6 +160,7 @@ def test_reviewed_closed_definition_is_candidate_not_truth():
     assert result["status"] == "SMOKE_PASS"
     row = result["alignment_rows"][0]
     assert row["alignment_decision"] == "DEFINITION_ALIGNMENT_CANDIDATE"
+    assert row["metric_definition_bound"] is True
     assert row["aggregate_equivalence_truth"] is False
     assert row["comparison_allowed"] is False
     assert row["measurement_invariance_truth"] is False
@@ -192,6 +200,66 @@ def test_r19_open_denominator_keeps_rate_alignment_under_review():
     codes = {hit["code"] for hit in result["review_hits"]}
     assert "metric_denominator_closure_unresolved" in codes
     assert "metric_rate_calculation_not_admitted" in codes
+
+
+def test_denominator_closure_cannot_cross_definition_boundary():
+    data = registry(reviewed=True)
+    data["definitions"][0]["denominator_definition"] = "Different denominator."
+    result = build_alignment(
+        xlsx_payload(),
+        label_payload(),
+        reconciliation_payload(),
+        metric_payload(closed=True),
+        data,
+    )
+    assert result["status"] == "FAIL_CLOSED"
+    row = result["alignment_rows"][0]
+    assert row["metric_definition_bound"] is False
+    assert row["denominator_closure_status"] == "UNBOUND"
+    assert row["rate_calculation_admitted"] is False
+    codes = {hit["code"] for hit in result["hard_block_hits"]}
+    assert "metric_denominator_definition_mismatch" in codes
+    assert "denominator_closure_not_bound_to_aligned_definition" in codes
+
+
+def test_metric_fingerprint_mismatch_fails_closed():
+    data = registry(reviewed=True)
+    data["definitions"][0]["metric_definition_fingerprint_sha256"] = "b" * 64
+    result = build_alignment(
+        xlsx_payload(),
+        label_payload(),
+        reconciliation_payload(),
+        metric_payload(closed=True),
+        data,
+    )
+    assert result["status"] == "FAIL_CLOSED"
+    assert "metric_definition_fingerprint_mismatch" in {
+        hit["code"] for hit in result["hard_block_hits"]
+    }
+
+
+def test_upstream_review_required_is_preserved_for_label_semantics():
+    result = build_alignment(
+        xlsx_payload(),
+        label_payload(status="REVIEW_REQUIRED"),
+        reconciliation_payload(),
+        metric_payload(closed=True),
+        registry(reviewed=True),
+    )
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert "upstream_review_required" in {hit["code"] for hit in result["review_hits"]}
+
+
+def test_upstream_review_required_is_preserved_for_reconciliation():
+    result = build_alignment(
+        xlsx_payload(),
+        label_payload(),
+        reconciliation_payload(status="REVIEW_REQUIRED"),
+        metric_payload(closed=True),
+        registry(reviewed=True),
+    )
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert "upstream_review_required" in {hit["code"] for hit in result["review_hits"]}
 
 
 def test_missing_occurrence_semantics_requires_review():
