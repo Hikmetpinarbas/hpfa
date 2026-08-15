@@ -223,6 +223,19 @@ definition_cleared=(
 )
 downstream_gate_open=bool(execution_completed and definition_cleared)
 codes=[str(item.get("code")) for item in reviews]
+align.update({
+    "runtime_authority":runtime,
+    "run_rc":run_rc,
+    "active_match_execution_completed":execution_completed,
+    "active_match_evidence_pass":execution_completed,
+    "definition_alignment_cleared":definition_cleared,
+    "downstream_gate_open":downstream_gate_open,
+    "runtime_evidence_status":"ACTIVE_MATCH_EXECUTION_COMPLETED" if execution_completed else "FAIL_CLOSED",
+    "release_status":"NOT_PRODUCTION",
+})
+(root/"aggregate_definition_alignment_lite_v1.json").write_text(
+    json.dumps(align, ensure_ascii=False, indent=2, sort_keys=True)+"\n", encoding="utf-8"
+)
 record={
     "bundle_version":"HPFA_181_ACTIVE_MATCH_EVIDENCE_V1",
     "branch":branch,
