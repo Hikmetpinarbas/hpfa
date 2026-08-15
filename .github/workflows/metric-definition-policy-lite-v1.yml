@@ -10,6 +10,7 @@ on:
       - hpfa/modules/core/metric_definition_policy_lite/**
       - hpfa/modules/core/metric_family_registry_lite/**
       - hpfa/modules/support/event_physical_cost_surface_lite/**
+      - hpfa/modules/reporting/postmatch_analyst_report_lite/**
       - docs/contracts/metric_definition_policy_lite_v1.md
       - docs/contracts/event_physical_cost_surface_lite_v1.md
       - .github/workflows/metric-definition-policy-lite-v1.yml
@@ -43,12 +44,13 @@ jobs:
           python-version: "3.12"
       - name: Install test dependency
         run: python -m pip install pytest
-      - name: Compile policy and producer modules
+      - name: Compile policy producer and reporting modules
         run: |
           python -m py_compile \
             hpfa/modules/core/metric_definition_policy_lite/src/metric_definition_policy.py \
             hpfa/modules/core/metric_family_registry_lite/src/metric_family_registry.py \
-            hpfa/modules/support/event_physical_cost_surface_lite/src/event_physical_cost_surface.py
+            hpfa/modules/support/event_physical_cost_surface_lite/src/event_physical_cost_surface.py \
+            hpfa/modules/reporting/postmatch_analyst_report_lite/src/postmatch_analyst_report.py
       - name: Run deterministic policy and producer tests
         run: |
           python -m pytest -q \
