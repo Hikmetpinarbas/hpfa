@@ -21,6 +21,7 @@ FAMILIES = [
     "RECOVERY_DEFENSIVE_ACTION_FAMILY",
     "GOALKEEPER_RESTART_FAMILY",
     "PHYSICAL_COST_FAMILY",
+    "EXPOSURE_NORMALIZATION_FAMILY",
     "REPORT_CONTEXT_FAMILY",
     "EFFICIENCY_FAMILY",
     "FUSION_READINESS_FAMILY",
@@ -34,6 +35,10 @@ REPORT_CONTEXT_NAMES = {
     "UNCLASSIFIED_REPORT_CONTEXT",
 }
 
+EXPOSURE_NORMALIZATION_NAMES = {
+    "MINUTES_PLAYED",
+}
+
 PHYSICAL_COST_NAMES = {
     "DISTANCE_TOTAL",
     "DISTANCE_HIGH_INTENSITY",
@@ -45,7 +50,6 @@ PHYSICAL_COST_NAMES = {
     "METABOLIC_LOAD",
     "PLAYER_LOAD",
     "WORK_RATE",
-    "MINUTES_PLAYED",
     "RECOVERY_TIME",
     "UNKNOWN_PHYSICAL",
 }
@@ -99,6 +103,7 @@ def record(metric_family: str, metric_name: str, source_surface_class: str, sour
             "metric_value_as_validated_performance_truth",
             "metric_family_as_tactical_truth",
             "physical_cost_value_as_event_count",
+            "exposure_candidate_as_validated_playing_time",
             "efficiency_candidate_as_causality",
         ],
     }
@@ -107,6 +112,13 @@ def record(metric_family: str, metric_name: str, source_surface_class: str, sour
 def classify_support_metric_name(name: str) -> tuple[str, str, str, list[str]]:
     if name in REPORT_CONTEXT_NAMES or name.endswith("_REPORT_CONTEXT") or name.endswith("_CONTEXT"):
         return "REPORT_CONTEXT_FAMILY", "REPORT_METRIC_SURFACE", "REGISTRY_ONLY", ["claim router"]
+    if name in EXPOSURE_NORMALIZATION_NAMES:
+        return (
+            "EXPOSURE_NORMALIZATION_FAMILY",
+            "EXPOSURE_SURFACE_CANDIDATE",
+            "WAIT_EXPOSURE_AUTHORITY",
+            ["exposure authority", "claim router"],
+        )
     if name in PHYSICAL_COST_NAMES:
         return "PHYSICAL_COST_FAMILY", "PHYSICAL_COST_SURFACE", "READY_FOR_CANDIDATE_CALCULATION", ["physical cost surface", "claim router"]
     return "PHYSICAL_COST_FAMILY", "PHYSICAL_COST_SURFACE", "WAIT_PHYSICAL_COST_BINDING", ["physical cost surface", "claim router"]
@@ -192,6 +204,11 @@ def build_registry(out_dir: str | Path) -> dict[str, Any]:
             "record_count": physical.get("record_count"),
             "surface_counts": physical.get("surface_counts"),
         },
+        "exposure_normalization_state": {
+            "semantic_correction": "MINUTES_PLAYED_NOT_PHYSICAL_COST",
+            "exposure_authority_required": True,
+            "validated_exposure_truth": False,
+        },
         "canonical_event_count": "UNKNOWN",
         "deduplicated_event_count": "UNKNOWN",
         "metric_value_output_allowed": False,
@@ -201,11 +218,13 @@ def build_registry(out_dir: str | Path) -> dict[str, Any]:
             "metric_value_as_validated_performance_truth",
             "metric_family_as_tactical_truth",
             "physical_cost_value_as_event_count",
+            "exposure_candidate_as_validated_playing_time",
             "efficiency_candidate_as_causality",
         ],
         "required_next_gates": [
             "primary surface review resolution",
             "time binding",
+            "exposure authority",
             "metric primitive contract",
             "claim router",
         ],
