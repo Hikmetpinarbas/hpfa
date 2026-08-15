@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aggregate_definition_alignment_lite_v1.schema.json",
+  "title": "HPFA Aggregate Definition Alignment Lite V1",
+  "type": "object",
+  "required": [
+    "module_id",
+    "status",
+    "research_hardening_version",
+    "definition_candidate_count",
+    "alignment_rows",
+    "source_surface_contract",
+    "source_role_separation_required",
+    "aggregate_equivalence_truth",
+    "comparison_allowed",
+    "measurement_invariance_truth",
+    "metric_value_output_allowed",
+    "canonical_event_count",
+    "production_release"
+  ],
+  "properties": {
+    "module_id": {
+      "const": "aggregate_definition_alignment_lite_v1"
+    },
+    "status": {
+      "enum": [
+        "SMOKE_PASS",
+        "REVIEW_REQUIRED",
+        "FAIL_CLOSED"
+      ]
+    },
+    "research_hardening_version": {
+      "const": "R18_R19_R22_R24_R36_SOURCE_ROLE_v1"
+    },
+    "definition_candidate_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "alignment_rows": {
+      "type": "array"
+    },
+    "source_surface_contract": {
+      "type": "object"
+    },
+    "source_role_separation_required": {
+      "const": true
+    },
+    "xlsx_row_is_event_identity": {
+      "const": false
+    },
+    "csv_xml_candidate_linkage_is_physical_event_identity": {
+      "const": false
+    },
+    "same_label_is_same_definition": {
+      "const": false
+    },
+    "count_parity_is_definition_equivalence": {
+      "const": false
+    },
+    "same_provider_multi_surface_is_independent_confirmation": {
+      "const": false
+    },
+    "aggregate_equivalence_truth": {
+      "const": false
+    },
+    "independent_confirmation_allowed": {
+      "const": false
+    },
+    "comparison_allowed": {
+      "const": false
+    },
+    "measurement_invariance_truth": {
+      "const": false
+    },
+    "metric_value_output_allowed": {
+      "const": false
+    },
+    "claim_allowed": {
+      "const": false
+    },
+    "canonical_event_count": {
+      "const": "UNKNOWN"
+    },
+    "production_release": {
+      "const": false
+    }
+  },
+  "additionalProperties": true
+}
