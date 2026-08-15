@@ -9,7 +9,7 @@ from typing import Any
 
 MODULE_ID = "aggregate_definition_alignment_lite_v1"
 REGISTRY_VERSION = "2.0.0"
-RESEARCH_HARDENING_VERSION = "R18_R19_R22_R24_R36_SOURCE_ROLE_v1"
+RESEARCH_HARDENING_VERSION = "R18_R19_R22_R24_R36_SOURCE_ROLE_v2"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 
 REQUIRED_DEFINITION_FIELDS = {
@@ -19,6 +19,7 @@ REQUIRED_DEFINITION_FIELDS = {
     "source_roles",
     "aggregate_label",
     "metric_id",
+    "metric_definition_fingerprint_sha256",
     "value_type",
     "unit",
     "numerator_definition",
@@ -70,6 +71,10 @@ def _list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else [value]
 
 
+def _text(value: Any) -> str:
+    return str(value or "").strip()
+
+
 def _fail(code: str, detail: Any = None) -> dict[str, Any]:
     item = {"code": code, "severity": "FAIL_CLOSED"}
     if detail is not None:
@@ -96,6 +101,8 @@ def _upstream_guard(
     status = str(payload.get("status") or "")
     if status not in allowed_statuses:
         hits.append(_fail("upstream_status_not_admitted", {"module": expected_module_id, "status": status}))
+    elif status == "REVIEW_REQUIRED":
+        hits.append(_review("upstream_review_required", {"module": expected_module_id, "status": status}))
     if payload.get("canonical_event_count") not in (None, CANONICAL_EVENT_COUNT):
         hits.append(_fail("upstream_canonical_event_count_claimed", expected_module_id))
     if payload.get("production_release") is True:
@@ -195,6 +202,9 @@ def _validate_definition(row: dict[str, Any], seen: set[str]) -> tuple[str | Non
     )
     for field in missing:
         hits.append(_fail("definition_field_missing", f"{definition_id}:{field}"))
+    fingerprint = _text(row.get("metric_definition_fingerprint_sha256"))
+    if fingerprint and not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+        hits.append(_fail("metric_definition_fingerprint_invalid", definition_id))
     if not isinstance(row.get("required_occurrence_semantics"), list):
         hits.append(_fail("required_occurrence_semantics_must_be_array", definition_id))
     independence = str(row.get("independence_status") or "").upper()
@@ -259,20 +269,40 @@ def build_alignment(
         metric_fp = None
         denominator_closure_status = "UNRESOLVED"
         rate_calculation_admitted = False
+        metric_definition_bound = False
         if metric is None:
             row_hits.append(_fail("metric_definition_unresolved", metric_id))
         else:
-            metric_fp = metric.get("definition_fingerprint_sha256")
+            metric_fp = _text(metric.get("definition_fingerprint_sha256"))
+            expected_fp = _text(raw.get("metric_definition_fingerprint_sha256"))
             if metric.get("definition_status") != "DEFINITION_CANDIDATE_READY":
                 row_hits.append(_fail("metric_policy_not_ready", metric_id))
             if str(metric.get("value_type") or "").lower() != str(raw.get("value_type") or "").lower():
                 row_hits.append(_fail("metric_value_type_mismatch", metric_id))
             if str(metric.get("unit") or "") != str(raw.get("unit") or ""):
                 row_hits.append(_review("metric_unit_surface_mismatch", metric_id))
+            if expected_fp != metric_fp:
+                row_hits.append(_fail("metric_definition_fingerprint_mismatch", {"metric_id": metric_id, "expected": expected_fp, "actual": metric_fp}))
+            if _text(raw.get("numerator_definition")) != _text(metric.get("numerator_definition")):
+                row_hits.append(_fail("metric_numerator_definition_mismatch", metric_id))
+            if _text(raw.get("denominator_definition")) != _text(metric.get("denominator_definition")):
+                row_hits.append(_fail("metric_denominator_definition_mismatch", metric_id))
+            metric_definition_bound = not any(
+                hit["code"] in {
+                    "metric_definition_fingerprint_mismatch",
+                    "metric_numerator_definition_mismatch",
+                    "metric_denominator_definition_mismatch",
+                }
+                for hit in row_hits
+            )
             denominator_closure_status = str(metric.get("denominator_closure_status") or "UNKNOWN")
             rate_calculation_admitted = bool(metric.get("rate_calculation_admitted", False))
             if str(raw.get("value_type") or "").lower() in RATE_TYPES:
-                if denominator_closure_status != "CLOSED":
+                if not metric_definition_bound:
+                    row_hits.append(_fail("denominator_closure_not_bound_to_aligned_definition", metric_id))
+                    denominator_closure_status = "UNBOUND"
+                    rate_calculation_admitted = False
+                elif denominator_closure_status != "CLOSED":
                     row_hits.append(_review("metric_denominator_closure_unresolved", denominator_closure_status))
                 if not rate_calculation_admitted:
                     row_hits.append(_review("metric_rate_calculation_not_admitted", metric_id))
@@ -320,6 +350,7 @@ def build_alignment(
                 "definition_id": definition_id,
                 "metric_id": metric_id,
                 "metric_definition_fingerprint_sha256": metric_fp,
+                "metric_definition_bound": metric_definition_bound,
                 "provider_id": raw.get("provider_id"),
                 "provider_version": raw.get("provider_version"),
                 "source_roles": sorted(roles),
@@ -357,20 +388,26 @@ def build_alignment(
     }
     hits = list(deduped.values())
 
+    row_review_hits = [
+        hit for row in rows for hit in row["alignment_hits"]
+        if hit["severity"] == "REVIEW_REQUIRED"
+    ]
+    top_review_hits = [hit for hit in hits if hit["severity"] == "REVIEW_REQUIRED"]
+    review_hits = list({
+        json.dumps(hit, sort_keys=True, ensure_ascii=False): hit
+        for hit in (top_review_hits + row_review_hits)
+    }.values())
+
     status = (
         "FAIL_CLOSED"
         if any(hit["severity"] == "FAIL_CLOSED" for hit in hits)
         else (
             "REVIEW_REQUIRED"
-            if any(row["alignment_decision"] == "REVIEW_REQUIRED_DEFINITION_ALIGNMENT" for row in rows)
+            if review_hits or any(row["alignment_decision"] == "REVIEW_REQUIRED_DEFINITION_ALIGNMENT" for row in rows)
             else "SMOKE_PASS"
         )
     )
 
-    review_hits = [
-        hit for row in rows for hit in row["alignment_hits"]
-        if hit["severity"] == "REVIEW_REQUIRED"
-    ]
     return {
         "module_id": MODULE_ID,
         "status": status,
