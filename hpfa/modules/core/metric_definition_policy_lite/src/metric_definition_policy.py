@@ -41,6 +41,7 @@ R19_NO_UNCOVERED_OPPORTUNITY_STATES = {"NONE", "ABSENT", "NO", "ZERO", "PROVEN_N
 R19_NEGATIVE_EXCLUSIVITY_STATES = {"FALSE", "VIOLATED", "NO"}
 R19_NEGATIVE_EXHAUSTIVENESS_STATES = {"FALSE", "VIOLATED", "NO", "INCOMPLETE"}
 R19_UNCOVERED_PRESENT_STATES = {"PRESENT", "YES", "NONZERO"}
+R19_DENOMINATOR_SET_SENTINELS = {"UNKNOWN", "NOT_APPLICABLE", "UNRESOLVED", "NONE", "NULL"}
 FAIL_CLOSED = "FAIL_CLOSED"
 BLOCKED = "BLOCKED"
 
@@ -155,17 +156,20 @@ def _validate_exposure_policies(policies: dict[str, dict[str, Any]]) -> list[dic
     return gaps
 
 
-def _known_status(value: Any) -> bool:
-    return str(value or "").strip().upper() not in {"", "UNKNOWN", "NOT_APPLICABLE", "UNRESOLVED"}
-
-
 def _denominator_closure_status(policy: dict[str, Any]) -> str:
     subset = str(policy.get("numerator_subset_status", "")).strip().upper()
     if subset == "NOT_APPLICABLE":
         return "NOT_APPLICABLE"
     if subset == "VIOLATED":
         return "VIOLATED"
-    if subset != "PROVEN" or not _non_empty(policy.get("denominator_set_id")):
+
+    denominator_set_id = policy.get("denominator_set_id")
+    if subset != "PROVEN":
+        return "UNKNOWN"
+    if not isinstance(denominator_set_id, str):
+        return "UNKNOWN"
+    denominator_set_id = denominator_set_id.strip()
+    if not denominator_set_id or denominator_set_id.upper() in R19_DENOMINATOR_SET_SENTINELS:
         return "UNKNOWN"
 
     relation = str(policy.get("component_relation", "")).strip().upper()
@@ -194,10 +198,7 @@ def _denominator_closure_status(policy: dict[str, Any]) -> str:
         return "UNKNOWN"
 
     nucleus = policy.get("denominator_nucleus_count")
-    try:
-        if int(nucleus) <= 0:
-            return "UNKNOWN"
-    except (TypeError, ValueError):
+    if isinstance(nucleus, bool) or not isinstance(nucleus, int) or nucleus <= 0:
         return "UNKNOWN"
     return "CLOSED"
 
