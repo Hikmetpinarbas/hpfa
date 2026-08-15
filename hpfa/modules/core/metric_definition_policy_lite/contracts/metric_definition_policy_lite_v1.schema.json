@@ -27,7 +27,7 @@
     "module_id": {"const": "metric_definition_policy_lite_v1"},
     "status": {"enum": ["SMOKE_PASS", "REVIEW_REQUIRED", "FAIL_CLOSED"]},
     "policy_version": {"const": "1.0.0"},
-    "research_hardening_version": {"const": "R07_R17_R18_R19_R22_v1"},
+    "research_hardening_version": {"const": "R07_R17_R18_R19_R22_v2"},
     "metric_definition_candidate_count": {"type": "integer", "minimum": 0},
     "policy_gaps": {"type": "array"},
     "metrics": {"type": "array"},
