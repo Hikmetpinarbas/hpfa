@@ -45,6 +45,9 @@ case "$OUT" in
 esac
 
 mkdir -p "$OUT"
+# ONE_ZIP_ONLY: remove stale #181 final/partial bundles before the current run.
+rm -f "$OUT"/HPFA_181_ACTIVE_MATCH_*.zip "$OUT"/.HPFA_181_ACTIVE_MATCH_*.zip.partial
+
 TMP_ROOT="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}/hpfa_181_${ACTUAL_HEAD:0:12}_$$"
 mkdir -p "$TMP_ROOT"
 LOG="$TMP_ROOT/aggregate_definition_alignment_runtime_full_v1.log"
