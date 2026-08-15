@@ -84,6 +84,7 @@ def read(name):
     try: return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
     except Exception: return {}
 inv=read("multiformat_file_inventory_lite_v1.json")
+dup=read("duplicate_file_fingerprint_report.json")
 policy=read("metric_definition_policy_lite_v1.json")
 runtime_state=inv.get("runtime_execution") or {}
 metrics=policy.get("metrics") or []
@@ -101,6 +102,10 @@ metric_states=[{
     "per90_calculation_admitted":m.get("per90_calculation_admitted"),
     "metric_value_output_allowed":m.get("metric_value_output_allowed"),
 } for m in metrics]
+legacy_dup=(inv.get("duplicate_reflection_audit") or {}).get("exact_duplicate_reflection_count")
+exact_duplicate_reflection_count=dup.get("duplicate_reflection_path_count")
+if exact_duplicate_reflection_count is None:
+    exact_duplicate_reflection_count=dup.get("exact_duplicate_reflection_count", legacy_dup)
 record={
     "bundle_version":"HPFA_178_ACTIVE_MATCH_EVIDENCE_V1",
     "branch":branch, "head_sha":head, "runtime_authority":runtime,
@@ -114,7 +119,8 @@ record={
     "policy_gap_count":len(policy.get("policy_gaps") or []),
     "supported_file_path_count":inv.get("supported_file_count"),
     "unique_content_file_count":inv.get("unique_content_file_count"),
-    "exact_duplicate_reflection_count":(inv.get("duplicate_reflection_audit") or {}).get("exact_duplicate_reflection_count"),
+    "duplicate_reflection_group_count":dup.get("exact_duplicate_content_group_count"),
+    "exact_duplicate_reflection_count":exact_duplicate_reflection_count,
     "metric_states":metric_states,
     "validated_metric_truth":False, "construct_validity_truth":False,
     "aggregate_equivalence_truth":False, "exposure_authority_truth":False,
@@ -130,6 +136,7 @@ lines=[
     f"module_status={record['module_status']}", f"active_match_evidence_pass={record['active_match_evidence_pass']}",
     f"metric_definition_candidate_count={record['metric_definition_candidate_count']}", f"policy_gap_count={record['policy_gap_count']}",
     f"supported_file_path_count={record['supported_file_path_count']}", f"unique_content_file_count={record['unique_content_file_count']}",
+    f"exact_duplicate_reflection_count={record['exact_duplicate_reflection_count']}",
     "metric_value_output_allowed=false", "construct_validity_truth=false", "exposure_authority_truth=false",
     "canonical_event_count=UNKNOWN", "production_release=false",
 ]
@@ -165,7 +172,7 @@ echo "HPFA #178 KISA SONUÇ"
 echo "=============================="
 echo "run_rc=$FINAL_RC"
 echo "failed_step=$FAILED_STEP"
-if [[ -f "$RESULT" ]]; then grep -E '^(status|module_status|active_match_evidence_pass|metric_definition_candidate_count|policy_gap_count|supported_file_path_count|unique_content_file_count|metric_value_output_allowed|construct_validity_truth|exposure_authority_truth|canonical_event_count|production_release)=' "$RESULT" || true; else echo "status=FAIL_CLOSED"; fi
+if [[ -f "$RESULT" ]]; then grep -E '^(status|module_status|active_match_evidence_pass|metric_definition_candidate_count|policy_gap_count|supported_file_path_count|unique_content_file_count|exact_duplicate_reflection_count|metric_value_output_allowed|construct_validity_truth|exposure_authority_truth|canonical_event_count|production_release)=' "$RESULT" || true; else echo "status=FAIL_CLOSED"; fi
 if [[ "$FINAL_RC" -eq 0 && -f "$ZIP" ]]; then echo "ZIP=$ZIP"; else echo "ZIP=NOT_CREATED"; fi
 echo "=============================="
 exit "$FINAL_RC"
