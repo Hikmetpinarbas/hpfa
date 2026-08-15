@@ -1,6 +1,6 @@
 {
   "registry_version": "2.0.0",
-  "research_hardening_version": "R18_R19_R22_R24_R36_SOURCE_ROLE_v1",
+  "research_hardening_version": "R18_R19_R22_R24_R36_SOURCE_ROLE_v2",
   "definitions": [
     {
       "definition_id": "sportsbase_pass_completion_candidate_v2",
@@ -11,10 +11,11 @@
       ],
       "aggregate_label": "Passes accurate, %",
       "metric_id": "pass_completion_rate_candidate",
+      "metric_definition_fingerprint_sha256": "42b89dca3e3e07580a3267bba6388fe44fbb81048962d145bd74f9c615a1bb42",
       "value_type": "percentage",
       "unit": "percent",
-      "numerator_definition": "Candidate hypothesis only: exact admitted PASS + SUCCESS occurrence semantics within the same entity and observation scope.",
-      "denominator_definition": "Candidate hypothesis only: admitted PASS + SUCCESS and PASS + FAILURE occurrence semantics within the same entity and observation scope.",
+      "numerator_definition": "Provider-version rows eligible under the declared successful-pass candidate definition.",
+      "denominator_definition": "Provider-version rows eligible under the declared attempted-pass candidate definition in the same entity, period and observation window.",
       "required_occurrence_semantics": [
         {
           "source_formats": [
