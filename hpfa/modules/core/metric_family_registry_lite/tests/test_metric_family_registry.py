@@ -45,6 +45,31 @@ def test_registers_physical_cost_family_from_audit(tmp_path):
     assert report["efficiency_calculation_allowed"] is False
 
 
+def test_minutes_played_is_exposure_normalization_not_physical_cost(tmp_path):
+    out = tmp_path / "HPFA"
+    out.mkdir()
+    write_json(out / "physical_cost_surface_audit_v1.json", {
+        "record_count": 2,
+        "surface_counts": {"PHYSICAL_COST_SURFACE": 2},
+        "metric_family_counts": {"MINUTES_PLAYED": 1, "DISTANCE_TOTAL": 1},
+    })
+
+    report = build_registry(out)
+
+    exposure = [r for r in report["registry_records"] if r["metric_name"] == "MINUTES_PLAYED"]
+    assert len(exposure) == 1
+    assert exposure[0]["metric_family"] == "EXPOSURE_NORMALIZATION_FAMILY"
+    assert exposure[0]["source_surface_class"] == "EXPOSURE_SURFACE_CANDIDATE"
+    assert exposure[0]["calculation_status"] == "WAIT_EXPOSURE_AUTHORITY"
+    assert "exposure authority" in exposure[0]["required_upstream_gates"]
+    assert not any(
+        r["metric_name"] == "MINUTES_PLAYED" and r["metric_family"] == "PHYSICAL_COST_FAMILY"
+        for r in report["registry_records"]
+    )
+    assert report["exposure_normalization_state"]["validated_exposure_truth"] is False
+    assert report["metric_value_output_allowed"] is False
+
+
 def test_report_context_metrics_do_not_enter_physical_cost_family(tmp_path):
     out = tmp_path / "HPFA"
     out.mkdir()
@@ -117,6 +142,6 @@ def test_nested_phone_output_directory_is_rejected():
 
 def test_no_sample_match_identity_leak():
     src = (SRC / "metric_family_registry.py").read_text(encoding="utf-8")
-    forbidden = ["Australia", "Turkey", "World Cup", "13.06.2026", "77798", "6935"]
+    forbidden = ["Australia", "Turkey", "World Cup", "13.06.2026", "77798", "6935", "Sturm Graz", "Heart of Midlothian"]
     for token in forbidden:
         assert token not in src
