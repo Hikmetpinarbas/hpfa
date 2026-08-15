@@ -1,0 +1,60 @@
+{
+  "registry_version": "2.0.0",
+  "research_hardening_version": "R18_R19_R22_R24_R36_SOURCE_ROLE_v1",
+  "definitions": [
+    {
+      "definition_id": "sportsbase_pass_completion_candidate_v2",
+      "provider_id": "sportsbase",
+      "provider_version": "provider_definition_unverified",
+      "source_roles": [
+        "PLAYER_SURFACE_CANDIDATE"
+      ],
+      "aggregate_label": "Passes accurate, %",
+      "metric_id": "pass_completion_rate_candidate",
+      "value_type": "percentage",
+      "unit": "percent",
+      "numerator_definition": "Candidate hypothesis only: exact admitted PASS + SUCCESS occurrence semantics within the same entity and observation scope.",
+      "denominator_definition": "Candidate hypothesis only: admitted PASS + SUCCESS and PASS + FAILURE occurrence semantics within the same entity and observation scope.",
+      "required_occurrence_semantics": [
+        {
+          "source_formats": [
+            "csv",
+            "xml"
+          ],
+          "source_roles": [
+            "PLAYER_SURFACE_CANDIDATE"
+          ],
+          "action_family_candidate": "PASS",
+          "outcome_candidate": "SUCCESS"
+        },
+        {
+          "source_formats": [
+            "csv",
+            "xml"
+          ],
+          "source_roles": [
+            "PLAYER_SURFACE_CANDIDATE"
+          ],
+          "action_family_candidate": "PASS",
+          "outcome_candidate": "FAILURE"
+        }
+      ],
+      "definition_evidence_status": "PROVIDER_DEFINITION_REQUIRED",
+      "derivation_dependency": [
+        "DERIVATION_DEPENDENCY_UNRESOLVED"
+      ],
+      "independence_status": "NON_INDEPENDENT_SAME_PROVIDER",
+      "claim_ceiling": "AGGREGATE_DEFINITION_ALIGNMENT_CANDIDATE_ONLY"
+    }
+  ],
+  "global_claim_rules": {
+    "same_label_is_same_definition": false,
+    "count_parity_is_definition_equivalence": false,
+    "same_provider_multi_surface_is_independent_confirmation": false,
+    "xlsx_row_is_event_identity": false,
+    "csv_xml_candidate_linkage_is_physical_event_identity": false,
+    "comparison_requires_R36_measurement_invariance": true,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}
