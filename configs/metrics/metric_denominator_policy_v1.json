@@ -1,0 +1,33 @@
+{
+  "policy_version": "1.0.0",
+  "policies": [
+    {
+      "denominator_policy_id": "count_not_applicable_v1",
+      "metric_family": "count_surface",
+      "allowed_denominator_types": ["not_applicable"],
+      "required_scope_keys": ["observation_window", "entity_scope"],
+      "zero_denominator_behavior": "not_applicable",
+      "missing_denominator_behavior": "not_applicable",
+      "cross_provider_compatibility": "not_assumed",
+      "period_compatibility": "exact_scope_only",
+      "team_scope_compatibility": "exact_candidate_scope_only",
+      "player_scope_compatibility": "exact_candidate_scope_only",
+      "comparison_allowed": false,
+      "review_reason": "Counts remain surface candidates until occurrence eligibility and definition alignment pass."
+    },
+    {
+      "denominator_policy_id": "provider_bound_rate_v1",
+      "metric_family": "rate_surface",
+      "allowed_denominator_types": ["eligible_opportunities", "eligible_attempts"],
+      "required_scope_keys": ["provider", "provider_version", "observation_window", "entity_scope", "period_scope"],
+      "zero_denominator_behavior": "RETURN_NOT_APPLICABLE",
+      "missing_denominator_behavior": "FAIL_CLOSED",
+      "cross_provider_compatibility": "requires_explicit_definition_alignment",
+      "period_compatibility": "exact_scope_only",
+      "team_scope_compatibility": "exact_candidate_scope_only",
+      "player_scope_compatibility": "exact_candidate_scope_only",
+      "comparison_allowed": false,
+      "review_reason": "Same metric label does not establish numerator, denominator or success-rule equivalence."
+    }
+  ]
+}

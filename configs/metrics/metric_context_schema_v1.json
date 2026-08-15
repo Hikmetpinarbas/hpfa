@@ -1,0 +1,18 @@
+{
+  "policy_version": "1.0.0",
+  "policies": [
+    {
+      "context_policy_id": "match_surface_context_v1",
+      "required_context_fields": ["source_provenance", "observation_window", "entity_scope"],
+      "optional_context_fields": ["score_state_candidate", "card_state_candidate", "period_candidate", "role_family_candidate", "team_candidate"],
+      "score_state_required": false,
+      "card_state_required": false,
+      "period_required": true,
+      "observation_window_required": true,
+      "role_family_required": false,
+      "team_context_required": true,
+      "context_missing_decision": "FAIL_CLOSED_FOR_COMPARISON",
+      "claim_ceiling_adjustment": "DOWNGRADE_TO_UNCONTEXTUALIZED_SURFACE_CANDIDATE"
+    }
+  ]
+}
