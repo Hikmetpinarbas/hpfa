@@ -15,6 +15,13 @@ def test_phone_runner_is_one_zip_no_pytest_single_pass():
     assert 'phone_handoff_mode":"ONE_ZIP_ONLY"' in text
 
 
+def test_runner_removes_stale_181_bundles_before_current_publish():
+    text = RUNNER.read_text(encoding="utf-8")
+    cleanup = 'rm -f "$OUT"/HPFA_181_ACTIVE_MATCH_*.zip "$OUT"/.HPFA_181_ACTIVE_MATCH_*.zip.partial'
+    assert cleanup in text
+    assert text.index(cleanup) < text.index('ZIP="$OUT/HPFA_181_ACTIVE_MATCH_')
+
+
 def test_runner_enforces_exact_branch_and_head():
     text = RUNNER.read_text(encoding="utf-8")
     assert 'EXPECTED_BRANCH="${HPFA_EXPECTED_BRANCH:-}"' in text
