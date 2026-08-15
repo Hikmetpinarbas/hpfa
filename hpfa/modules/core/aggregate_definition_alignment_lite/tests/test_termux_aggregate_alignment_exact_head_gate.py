@@ -31,6 +31,15 @@ def test_runner_preserves_source_role_and_claim_boundaries():
     assert '"canonical_event_count":"UNKNOWN"' in text
 
 
+def test_runner_persists_runtime_state_into_main_alignment_json():
+    text = RUNNER.read_text(encoding="utf-8")
+    assert "align.update({" in text
+    assert '"active_match_evidence_pass":execution_completed' in text
+    assert '"definition_alignment_cleared":definition_cleared' in text
+    assert '"downstream_gate_open":downstream_gate_open' in text
+    assert '(root/"aggregate_definition_alignment_lite_v1.json").write_text' in text
+
+
 def test_bootstrap_uses_current_181_work_branch_without_reset_hard():
     text = BOOTSTRAP.read_text(encoding="utf-8")
     assert 'BRANCH="work/reconstruct-181-research-hardened-v1"' in text
