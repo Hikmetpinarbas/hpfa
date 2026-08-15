@@ -90,6 +90,20 @@ run_step(){
   return 0
 }
 
+record_post_step_failure(){
+  local rc="$1" name="$2"
+  [[ "$rc" -eq 0 ]] && return 0
+  if [[ "$FINAL_RC" -eq 0 ]]; then
+    FINAL_RC="$rc"
+  fi
+  if [[ -n "$FAILED_STEP" ]]; then
+    FAILED_STEP="${FAILED_STEP}+${name}"
+  else
+    FAILED_STEP="$name"
+  fi
+  return 0
+}
+
 # Phone runtime is evidence execution only. Tests stay in exact-head GitHub CI.
 run_step inventory \
   python multiformat_file_inventory.py \
@@ -241,8 +255,11 @@ lines=[
     "\n".join(lines)+"\n", encoding="utf-8"
 )
 PY
+POSTPROCESS_RC=$?
+record_post_step_failure "$POSTPROCESS_RC" "evidence_postprocess"
 
-python - "$TMP_ROOT" "$ZIP" <<'PY'
+if [[ "$POSTPROCESS_RC" -eq 0 ]]; then
+  python - "$TMP_ROOT" "$ZIP" <<'PY'
 import hashlib, json, sys, zipfile
 from pathlib import Path
 root=Path(sys.argv[1]); zip_path=Path(sys.argv[2])
@@ -255,13 +272,34 @@ files=[p for p in root.iterdir() if p.is_file()]
 with zipfile.ZipFile(zip_path,"w",compression=zipfile.ZIP_DEFLATED) as z:
     for p in sorted(files): z.write(p,arcname=p.name)
 PY
+  PACKAGING_RC=$?
+  if [[ "$PACKAGING_RC" -ne 0 ]]; then
+    rm -f "$ZIP"
+  fi
+  record_post_step_failure "$PACKAGING_RC" "evidence_bundle_packaging"
+else
+  rm -f "$ZIP"
+fi
 
 echo
 echo "=============================="
 echo "HPFA #177 KISA SONUÇ"
 echo "=============================="
-grep -E '^(run_rc|failed_step|status|research_hardening_status|active_match_evidence_pass|role_pair_count|hard_block_hits|parse_warnings|canonical_event_count|production_release)=' "$RESULT" || true
-echo "ZIP=$ZIP"
+echo "run_rc=$FINAL_RC"
+echo "failed_step=$FAILED_STEP"
+if [[ -f "$RESULT" ]]; then
+  grep -E '^(status|research_hardening_status|active_match_evidence_pass|role_pair_count|hard_block_hits|parse_warnings|canonical_event_count|production_release)=' "$RESULT" || true
+else
+  echo "status=FAIL_CLOSED"
+  echo "active_match_evidence_pass=False"
+  echo "canonical_event_count=UNKNOWN"
+  echo "production_release=false"
+fi
+if [[ "$FINAL_RC" -eq 0 && -f "$ZIP" ]]; then
+  echo "ZIP=$ZIP"
+else
+  echo "ZIP=NOT_CREATED"
+fi
 echo "=============================="
 
 exit "$FINAL_RC"
