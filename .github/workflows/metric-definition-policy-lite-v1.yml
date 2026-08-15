@@ -3,11 +3,12 @@ name: Metric Definition Policy Lite V1
 on:
   push:
     branches:
-      - agent/metric-definition-policy-lite-v1
+      - work/reconstruct-178-research-hardened-v1
   pull_request:
     paths:
       - configs/metrics/**
       - hpfa/modules/core/metric_definition_policy_lite/**
+      - hpfa/modules/core/metric_family_registry_lite/**
       - docs/contracts/metric_definition_policy_lite_v1.md
       - .github/workflows/metric-definition-policy-lite-v1.yml
   workflow_dispatch:
@@ -40,7 +41,13 @@ jobs:
           python-version: "3.12"
       - name: Install test dependency
         run: python -m pip install pytest
-      - name: Compile policy module
-        run: python -m py_compile hpfa/modules/core/metric_definition_policy_lite/src/metric_definition_policy.py
+      - name: Compile policy modules
+        run: |
+          python -m py_compile \
+            hpfa/modules/core/metric_definition_policy_lite/src/metric_definition_policy.py \
+            hpfa/modules/core/metric_family_registry_lite/src/metric_family_registry.py
       - name: Run deterministic policy tests
-        run: python -m pytest hpfa/modules/core/metric_definition_policy_lite/tests -q
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/metric_definition_policy_lite/tests \
+            hpfa/modules/core/metric_family_registry_lite/tests
