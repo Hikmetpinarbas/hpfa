@@ -125,6 +125,28 @@ class ProviderMetricDictionaryTests(unittest.TestCase):
         )
         self.assertEqual(r["provider_definition_ready_count"], 0)
 
+    def test_placeholder_provider_version_variants_cannot_be_admitted(self):
+        for placeholder in ("unknown", "Unknown", "UNPUBLISHED"):
+            with self.subTest(placeholder=placeholder):
+                d = load("provider_metric_dictionary_v1.json")
+                row = next(
+                    x for x in d["metrics"] if x["metric_id"] == "pass_accurate"
+                )
+                row["provider_version"] = placeholder
+                row["source_role"] = "PROVIDER_DOCUMENTATION"
+                row["definition_evidence_status"] = "REVIEWED_PROVIDER_DEFINITION"
+                row["provider_binding_admitted"] = True
+                row["definition_fingerprint_sha256"] = definition_fingerprint(row)
+                row["operational_semantic_fingerprint_sha256"] = (
+                    operational_semantic_fingerprint(row)
+                )
+                r = build(dictionary=d)
+                self.assertIn(
+                    "provider_binding_admitted_without_version",
+                    {g["gap_type"] for g in r["hard_block_hits"]},
+                )
+                self.assertEqual(r["provider_definition_ready_count"], 0)
+
     def test_provider_source_role_allowlist_fails_closed(self):
         d = load("provider_metric_dictionary_v1.json")
         row = next(x for x in d["metrics"] if x["metric_id"] == "pass_accurate")
@@ -163,6 +185,20 @@ class ProviderMetricDictionaryTests(unittest.TestCase):
         row["metric_family"] = "changed"
         changed = operational_semantic_fingerprint(row)
         self.assertNotEqual(original, changed)
+
+    def test_invalid_domain_contract_is_not_published_ready(self):
+        d = load("provider_metric_dictionary_v1.json")
+        row = next(x for x in d["metrics"] if x["metric_id"] == "progressive_open_pass")
+        key = "::".join((row["provider_id"], row["provider_version"], row["metric_id"]))
+        baseline = build(dictionary=d)
+        self.assertIn(key, baseline["hpfa_domain_contract_ready_metric_ids"])
+        row["construct"] = "tampered-domain-contract"
+        r = build(dictionary=d)
+        self.assertIn(
+            "definition_fingerprint_mismatch",
+            {g["gap_type"] for g in r["hard_block_hits"]},
+        )
+        self.assertNotIn(key, r["hpfa_domain_contract_ready_metric_ids"])
 
     def test_hpfa_domain_contract_does_not_validate_provider_alias(self):
         aliases = load("provider_alias_registry_v1.json")
@@ -277,6 +313,16 @@ class ProviderMetricDictionaryTests(unittest.TestCase):
             {g["gap_type"] for g in r["hard_block_hits"]},
         )
 
+    def test_aggregate_binding_requires_metric_policy_binding(self):
+        d = load("provider_metric_dictionary_v1.json")
+        row = next(x for x in d["metrics"] if x["metric_id"] == "pass_completion_rate")
+        row["upstream_bindings"].pop("metric_policy_id")
+        r = build(dictionary=d)
+        self.assertIn(
+            "upstream_aggregate_metric_policy_binding_required",
+            {g["gap_type"] for g in r["hard_block_hits"]},
+        )
+
     def test_upstream_aggregate_source_role_drift_fails_closed(self):
         aggregate = json.loads(AGG.read_text(encoding="utf-8"))
         aggregate["definitions"][0]["source_roles"] = ["REFERENCE_ONLY"]
@@ -301,6 +347,27 @@ class ProviderMetricDictionaryTests(unittest.TestCase):
         r = build(derivations=deriv)
         self.assertIn(
             "derivation_cleared_without_admitted_definition",
+            {g["gap_type"] for g in r["hard_block_hits"]},
+        )
+
+    def test_cleared_derivation_requires_components_same_admitted_namespace(self):
+        d = load("provider_metric_dictionary_v1.json")
+        target = next(x for x in d["metrics"] if x["metric_id"] == "pass_attempts")
+        target["provider_version"] = "sportsbase-v1"
+        target["source_role"] = "PROVIDER_DOCUMENTATION"
+        target["definition_evidence_status"] = "REVIEWED_PROVIDER_DEFINITION"
+        target["provider_binding_admitted"] = True
+        target["definition_fingerprint_sha256"] = definition_fingerprint(target)
+        target["operational_semantic_fingerprint_sha256"] = (
+            operational_semantic_fingerprint(target)
+        )
+        deriv = load("metric_derivation_registry_v1.json")
+        deriv["derivations"][0]["derivation_status"] = "CLEARED"
+        r = build(dictionary=d, derivations=deriv)
+        target_key = "sportsbase::sportsbase-v1::pass_attempts"
+        self.assertIn(target_key, r["provider_definition_ready_metric_ids"])
+        self.assertIn(
+            "derivation_components_not_admitted_same_namespace",
             {g["gap_type"] for g in r["hard_block_hits"]},
         )
 
