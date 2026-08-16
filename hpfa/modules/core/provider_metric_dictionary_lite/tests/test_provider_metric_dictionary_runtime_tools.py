@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import unittest
 from pathlib import Path
@@ -18,6 +19,10 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
             self.assertTrue(path.exists(), path)
             self.assertIsNone(forbidden.search(path.read_text(encoding="utf-8")), path)
 
+    def test_runtime_tools_are_executable(self):
+        for path in (BOOTSTRAP, RUNNER):
+            self.assertTrue(os.access(path, os.X_OK), path)
+
     def test_bootstrap_discovers_supported_termux_checkouts_and_pins_branch(self):
         text = BOOTSTRAP.read_text(encoding="utf-8")
         self.assertIn('$HOME/hp/repos/hpfa', text)
@@ -27,13 +32,17 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
         self.assertIn('merge --ff-only', text)
         self.assertIn('remote_head_mismatch', text)
 
-    def test_bootstrap_validates_origin_before_fetch(self):
+    def test_bootstrap_trust_boundary_precedes_status_and_fetch(self):
         text = BOOTSTRAP.read_text(encoding="utf-8")
-        origin_guard = 'product_repo_origin_mismatch_before_fetch'
-        fetch_cmd = 'git -C "$REPO" fetch origin "$BRANCH"'
-        self.assertIn(origin_guard, text)
-        self.assertIn(fetch_cmd, text)
-        self.assertLess(text.index(origin_guard), text.index(fetch_cmd))
+        self.assertIn('core.fsmonitor=false', text)
+        self.assertIn('core.hooksPath=/dev/null', text)
+        self.assertIn('product_repo_origin_transport_or_identity_rejected', text)
+        self.assertNotIn('http://github.com/', text)
+        origin_guard = text.index('product_repo_origin_transport_or_identity_rejected')
+        status = text.index('status --porcelain --untracked-files=all')
+        fetch = text.index('safe_git fetch origin "$BRANCH"')
+        self.assertLess(origin_guard, status)
+        self.assertLess(origin_guard, fetch)
 
     def test_runner_enforces_runtime_and_phone_authority(self):
         text = RUNNER.read_text(encoding="utf-8")
@@ -43,16 +52,19 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
             '/sdcard/Download/HPFA',
             '/storage/emulated/0/Download/HPFA',
             'execution_identity_mismatch',
-            'product_repo_origin_mismatch',
             'HPFA_183_ACTIVE_MATCH_',
             'ONE_ZIP_ONLY',
         ):
             self.assertIn(token, text)
 
-    def test_runner_rejects_empty_active_match_inventory(self):
+    def test_runner_rejects_untracked_and_empty_active_match_inventory(self):
         text = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('status --porcelain --untracked-files=all', text)
+        self.assertNotIn('--untracked-files=no', text)
+        self.assertIn('core.fsmonitor=false', text)
+        self.assertIn('core.hooksPath=/dev/null', text)
         self.assertIn('supported_file_count=int(inv.get("supported_file_count") or 0)', text)
-        self.assertIn('unique_content_file_count=int(inv.get("unique_content_file_count") or 0)', text)
+        self.assertIn'unique_content_file_count=int(inv.get("unique_content_file_count") or 0)', text)
         self.assertIn('and supported_file_count > 0', text)
         self.assertIn('and unique_content_file_count > 0', text)
 
@@ -76,10 +88,10 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
 
     def test_runner_binds_inventory_authority_without_inventing_provider_truth(self):
         text = RUNNER.read_text(encoding="utf-8")
-        self.assertIn('multiformat_file_inventory.py', text)
-        self.assertIn('provider_metric_dictionary_lite.py', text)
-        self.assertIn('INVENTORY_AUTHORITY_PLUS_PROVIDER_DICTIONARY_ADMISSION', text)
-        self.assertIn('Provider metric semantics remain candidate/reference-only', text)
+        self.assertIn("multiformat_file_inventory.py", text)
+        self.assertIn("provider_metric_dictionary_lite.py", text)
+        self.assertIn("INVENTORY_AUTHORITY_PLUS_PROVIDER_DICTIONARY_ADMISSION", text)
+        self.assertIn("Provider metric semantics remain candidate/reference-only", text)
 
 
 if __name__ == "__main__":

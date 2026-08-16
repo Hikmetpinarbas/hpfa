@@ -36,12 +36,14 @@ jobs:
           python-version: "3.12"
       - name: Compile
         run: python -m compileall -q provider_metric_dictionary_lite.py hpfa/modules/core/provider_metric_dictionary_lite
-      - name: Runtime shell syntax
+      - name: Runtime shell syntax and mode
         shell: bash
         run: |
           set -euo pipefail
           bash -n tools/bootstrap_termux_provider_metric_dictionary_v1.sh
           bash -n tools/run_active_match_provider_metric_dictionary_v1.sh
+          test -x tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          test -x tools/run_active_match_provider_metric_dictionary_v1.sh
       - name: Focused tests
         run: python -m unittest discover -s hpfa/modules/core/provider_metric_dictionary_lite/tests -p "test_*.py" -v
       - name: Runtime contract smoke
@@ -53,6 +55,10 @@ jobs:
           grep -q 'ONE_ZIP_ONLY' tools/run_active_match_provider_metric_dictionary_v1.sh
           grep -q 'canonical_event_count.*UNKNOWN' tools/run_active_match_provider_metric_dictionary_v1.sh
           grep -q 'provider_definition_inferred_from_active_match.*False' tools/run_active_match_provider_metric_dictionary_v1.sh
+          grep -q 'core.fsmonitor=false' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          grep -q 'core.hooksPath=/dev/null' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          grep -q 'status --porcelain --untracked-files=all' tools/run_active_match_provider_metric_dictionary_v1.sh
+          ! grep -q 'http://github.com/' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
           ! grep -Eq '^[[:space:]]*(pytest|python[[:space:]]+-m[[:space:]]+(pytest|unittest))([[:space:]]|$)' tools/run_active_match_provider_metric_dictionary_v1.sh
       - name: Contract smoke
         run: |

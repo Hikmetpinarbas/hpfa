@@ -3,13 +3,24 @@ set -u -o pipefail
 
 EXPECTED_BRANCH="${HPFA_EXPECTED_BRANCH:-}"
 EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"
-EXPECTED_REPO_SLUG="hikmetpinarbas/hpfa"
 REPO="${HPFA_REPO:-$PWD}"
 ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
 OUT="${HPFA_PHONE_OUTPUT:-/sdcard/Download/HPFA}"
 
 fail(){ printf 'FAIL: %s\n' "$1" >&2; exit 2; }
-normalize_origin(){ local o="${1:-}"; o="${o%/}"; o="${o%.git}"; o="${o#https://github.com/}"; o="${o#http://github.com/}"; o="${o#git@github.com:}"; o="${o#ssh://git@github.com/}"; printf '%s\n' "${o,,}"; }
+origin_is_trusted(){
+  local o="${1:-}"
+  o="${o%/}"
+  local lower="${o,,}"
+  case "$lower" in
+    https://github.com/hikmetpinarbas/hpfa|https://github.com/hikmetpinarbas/hpfa.git|\
+git@github.com:hikmetpinarbas/hpfa|git@github.com:hikmetpinarbas/hpfa.git|\
+ssh://git@github.com/hikmetpinarbas/hpfa|ssh://git@github.com/hikmetpinarbas/hpfa.git)
+      return 0 ;;
+    *)
+      return 1 ;;
+  esac
+}
 identity_matches(){ [[ -n "$3" && -n "$4" && "$1" == "$3" && "$2" == "$4" ]]; }
 
 [[ -n "$EXPECTED_BRANCH" ]] || fail "expected_branch_required:set_HPFA_EXPECTED_BRANCH"
@@ -17,13 +28,16 @@ identity_matches(){ [[ -n "$3" && -n "$4" && "$1" == "$3" && "$2" == "$4" ]]; }
 [[ -d "$REPO/.git" ]] || fail "product_repo_not_git_checkout:$REPO"
 [[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_missing:$ACTIVE_MATCH"
 
-ORIGIN_URL="$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
-ORIGIN_SLUG="$(normalize_origin "$ORIGIN_URL")"
-ACTUAL_BRANCH="$(git -C "$REPO" branch --show-current)"
-ACTUAL_HEAD="$(git -C "$REPO" rev-parse HEAD)"
-[[ "$ORIGIN_SLUG" == "$EXPECTED_REPO_SLUG" ]] || fail "product_repo_origin_mismatch:$ORIGIN_URL"
+safe_git(){
+  git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.untrackedCache=false -C "$REPO" "$@"
+}
+
+ORIGIN_URL="$(safe_git remote get-url origin 2>/dev/null || true)"
+origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identity_rejected:$ORIGIN_URL"
+ACTUAL_BRANCH="$(safe_git branch --show-current)"
+ACTUAL_HEAD="$(safe_git rev-parse HEAD)"
 identity_matches "$ACTUAL_BRANCH" "$ACTUAL_HEAD" "$EXPECTED_BRANCH" "$EXPECTED_HEAD" || fail "execution_identity_mismatch:branch=$ACTUAL_BRANCH head=$ACTUAL_HEAD expected_branch=$EXPECTED_BRANCH expected_head=$EXPECTED_HEAD"
-[[ -z "$(git -C "$REPO" status --porcelain --untracked-files=no)" ]] || fail "tracked_worktree_not_clean:$REPO"
+[[ -z "$(safe_git status --porcelain --untracked-files=all)" ]] || fail "product_repo_worktree_not_clean:$REPO"
 
 ACTIVE_RESOLVED="$(cd "$ACTIVE_MATCH" && pwd -P)"
 case "$ACTIVE_RESOLVED" in */runtime/active_single_match/current) ;; *) fail "active_match_runtime_authority_mismatch:$ACTIVE_RESOLVED" ;; esac
