@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -90,6 +91,7 @@ UPSTREAM_SHARED_SEMANTICS = (
     ("event_only_compatible", "event_only_compatible"),
     ("comparison_allowed", "comparison_allowed"),
 )
+_FORMULA_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -115,6 +117,10 @@ def definition_fingerprint(row: dict[str, Any]) -> str:
 
 def derivation_semantic_fingerprint(row: dict[str, Any]) -> str:
     return _canonical_hash({field: row.get(field) for field in DERIVATION_SEMANTIC_FIELDS})
+
+
+def _formula_metric_references(formula: str) -> list[str]:
+    return _FORMULA_IDENTIFIER_RE.findall(formula)
 
 
 def _domain_operational_fingerprint(row: dict[str, Any]) -> str:
@@ -277,9 +283,22 @@ def build_dictionary_report(
             if row.get("missing_zero_denominator_policy") in (None, "", "NOT_APPLICABLE"):
                 hard.append(_gap("rate_without_zero_denominator_policy", metric_id))
 
-        leaked = sorted(set(row.get("produced_truths", [])) & TRACKING_ONLY_TOKENS)
-        if leaked:
-            hard.append(_gap("tracking_truth_leak", f"{metric_id}:{','.join(leaked)}"))
+        produced_truths = row.get("produced_truths", [])
+        if produced_truths is None:
+            produced_truths = []
+        if not isinstance(produced_truths, list):
+            hard.append(_gap("produced_truths_invalid", metric_id or "UNKNOWN"))
+            produced_truths = []
+        else:
+            normalized_truths = [str(value) for value in produced_truths]
+            leaked = sorted(set(normalized_truths) & TRACKING_ONLY_TOKENS)
+            if leaked:
+                hard.append(_gap("tracking_truth_leak", f"{metric_id}:{','.join(leaked)}"))
+            if normalized_truths:
+                hard.append(_gap(
+                    "produced_truths_not_allowed_in_dictionary_layer",
+                    f"{metric_id}:{','.join(normalized_truths)}",
+                ))
 
         provider_admitted = row.get("provider_binding_admitted") is True
         domain_admitted = row.get("domain_contract_admitted") is True
@@ -457,6 +476,14 @@ def build_dictionary_report(
         formula = row.get("formula")
         if not isinstance(formula, str) or not formula.strip():
             hard.append(_gap("cleared_derivation_formula_missing", metric_id))
+        else:
+            formula_references = set(_formula_metric_references(formula))
+            declared_components = set(components)
+            if formula_references != declared_components:
+                hard.append(_gap(
+                    "cleared_derivation_formula_component_mismatch",
+                    f"{metric_id}:formula={','.join(sorted(formula_references)) or 'EMPTY'};declared={','.join(sorted(declared_components)) or 'EMPTY'}",
+                ))
         stored_derivation_fp = str(row.get("derivation_semantic_fingerprint_sha256") or "")
         actual_derivation_fp = derivation_semantic_fingerprint(row)
         if len(stored_derivation_fp) != 64 or stored_derivation_fp != actual_derivation_fp:

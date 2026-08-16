@@ -50,7 +50,7 @@ ORIGIN_URL="$(safe_git remote get-url origin 2>/dev/null || true)"
 origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identity_rejected:$ORIGIN_URL"
 [[ -z "$(safe_git status --porcelain --untracked-files=all)" ]] || fail "product_repo_worktree_not_clean:$REPO"
 
-safe_git fetch origin "$BRANCH"
+safe_git fetch --no-recurse-submodules origin "$BRANCH"
 REMOTE_HEAD="$(safe_git rev-parse "refs/remotes/origin/$BRANCH" 2>/dev/null || true)"
 [[ "$REMOTE_HEAD" =~ ^[0-9a-fA-F]{40}$ ]] || fail "remote_head_missing_or_invalid:$REMOTE_HEAD"
 
