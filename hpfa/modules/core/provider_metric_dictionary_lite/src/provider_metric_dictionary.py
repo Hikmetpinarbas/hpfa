@@ -201,6 +201,16 @@ def build_dictionary_report(
         hard.append(_gap("metric_registry_empty", "metrics"))
         metrics = []
 
+    global_derivation_rules = derivations.get("global_derivation_rules")
+    if not isinstance(global_derivation_rules, dict):
+        hard.append(_gap("derivation_global_rules_missing_or_invalid", "global_derivation_rules"))
+        global_derivation_rules = {}
+    if global_derivation_rules.get("arithmetic_reproduction_is_provider_definition_truth") is not False:
+        hard.append(_gap(
+            "arithmetic_reproduction_provider_truth_policy_must_be_false",
+            str(global_derivation_rules.get("arithmetic_reproduction_is_provider_definition_truth")),
+        ))
+
     policy_index, duplicate_policy_ids = _unique_index(
         (metric_policy or {}).get("metrics", []), "metric_id"
     )
@@ -317,6 +327,8 @@ def build_dictionary_report(
         if domain_admitted:
             if status != DOMAIN_ADMISSIBLE_STATUS or provider_id != "hpfa" or source_role != "HPFA_DOMAIN_CONTRACT":
                 hard.append(_gap("invalid_domain_contract_admission", metric_id))
+            if row.get("raw_labels") != []:
+                hard.append(_gap("domain_contract_raw_labels_must_be_empty", metric_id))
             expected_domain_fp = EXPECTED_DOMAIN_OPERATIONAL_FINGERPRINTS.get(metric_id)
             if expected_domain_fp is None:
                 hard.append(_gap("domain_operational_fingerprint_not_registered", metric_id))
@@ -497,6 +509,59 @@ def build_dictionary_report(
                 hard.append(_gap("duplicate_cleared_derivation_key", derivation_key))
             else:
                 cleared_derivation_keys.add(derivation_key)
+
+        declared_denominator_policy_id = str(row.get("upstream_denominator_policy_id") or "").strip()
+        if declared_denominator_policy_id:
+            if declared_denominator_policy_id in duplicate_denominator_ids:
+                hard.append(_gap(
+                    "cleared_derivation_denominator_policy_identifier_ambiguous",
+                    f"{metric_id}:{declared_denominator_policy_id}",
+                ))
+                declared_denominator_row = None
+            else:
+                declared_denominator_row = denominator_index.get(declared_denominator_policy_id)
+                if declared_denominator_row is None:
+                    hard.append(_gap(
+                        "cleared_derivation_denominator_policy_missing",
+                        f"{metric_id}:{declared_denominator_policy_id}",
+                    ))
+
+            if namespace_provider and namespace_version:
+                target_key_for_policy = f"{namespace_provider}::{namespace_version}::{metric_id}"
+                target_definition = definition_index.get(target_key_for_policy)
+                if target_definition is not None:
+                    target_upstream = target_definition.get("upstream_bindings") or {}
+                    if not isinstance(target_upstream, dict):
+                        target_upstream = {}
+                    target_policy_id = str(target_upstream.get("metric_policy_id") or "")
+                    target_policy_row = (
+                        None
+                        if not target_policy_id or target_policy_id in duplicate_policy_ids
+                        else policy_index.get(target_policy_id)
+                    )
+                    expected_denominator_policy_id = (
+                        str(target_policy_row.get("denominator_policy_id") or "")
+                        if target_policy_row is not None
+                        else ""
+                    )
+                    if not expected_denominator_policy_id:
+                        hard.append(_gap(
+                            "cleared_derivation_denominator_policy_not_bound_by_target",
+                            f"{target_key_for_policy}:{declared_denominator_policy_id}",
+                        ))
+                    elif declared_denominator_policy_id != expected_denominator_policy_id:
+                        hard.append(_gap(
+                            "cleared_derivation_denominator_policy_mismatch",
+                            f"{target_key_for_policy}:{declared_denominator_policy_id}!={expected_denominator_policy_id}",
+                        ))
+                    elif declared_denominator_row is not None:
+                        expected_behavior = _denominator_behavior_contract(declared_denominator_row)
+                        if target_definition.get("missing_zero_denominator_policy") != expected_behavior:
+                            hard.append(_gap(
+                                "cleared_derivation_denominator_behavior_mismatch",
+                                target_key_for_policy,
+                            ))
+
         if not namespace_provider or not namespace_version:
             hard.append(_gap("derivation_namespace_required", metric_id))
             ready_targets = [

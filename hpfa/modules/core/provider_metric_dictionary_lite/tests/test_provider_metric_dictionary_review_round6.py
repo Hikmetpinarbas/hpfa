@@ -95,7 +95,8 @@ def build_synthetic_report(*, formula: str = "component_a + component_b", target
 class ProviderMetricDictionaryReviewRound6Tests(unittest.TestCase):
     def test_bootstrap_disables_recursive_submodule_fetch(self):
         text = BOOTSTRAP.read_text(encoding="utf-8")
-        self.assertIn('safe_git fetch --no-recurse-submodules origin "$BRANCH"', text)
+        self.assertIn('clean_fetch_git --git-dir="$FETCH_REPO" fetch --no-tags --no-recurse-submodules', text)
+        self.assertIn('"$ORIGIN_URL" "$BRANCH:refs/heads/remote"', text)
 
     def test_cleared_formula_references_must_match_declared_components(self):
         report = build_synthetic_report(formula="component_a + unadmitted_metric")

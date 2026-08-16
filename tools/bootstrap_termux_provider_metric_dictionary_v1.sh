@@ -34,6 +34,9 @@ fi
 [[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_missing:$ACTIVE_MATCH"
 
 safe_git(){
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_CONFIG_SYSTEM=/dev/null \
+  GIT_CONFIG_NOSYSTEM=1 \
   GIT_SSH_COMMAND="ssh" \
   git \
     -c core.fsmonitor=false \
@@ -43,15 +46,37 @@ safe_git(){
     -C "$REPO" "$@"
 }
 
-# Trust boundary: do not run status/fetch/switch/merge until the remote transport and
-# repository identity are admitted. safe_git disables checkout-local hooks/fsmonitor and
-# neutralizes repository/inherited SSH command overrides before any fetch.
+clean_fetch_git(){
+  env \
+    -u GIT_SSL_NO_VERIFY \
+    -u GIT_ASKPASS \
+    -u SSH_ASKPASS \
+    GIT_CONFIG_GLOBAL=/dev/null \
+    GIT_CONFIG_SYSTEM=/dev/null \
+    GIT_CONFIG_NOSYSTEM=1 \
+    GIT_SSH_COMMAND="ssh" \
+    git \
+      -c core.hooksPath=/dev/null \
+      -c core.sshCommand=ssh \
+      -c http.sslVerify=true \
+      -c protocol.ext.allow=never \
+      "$@"
+}
+
+# Trust boundary: inspect the checkout only with unsafe hook/fsmonitor paths neutralized.
+# The network fetch itself is performed from a new bare repository with repository,
+# global and system Git configuration isolated from the checkout.
 ORIGIN_URL="$(safe_git remote get-url origin 2>/dev/null || true)"
 origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identity_rejected:$ORIGIN_URL"
 [[ -z "$(safe_git status --porcelain --untracked-files=all)" ]] || fail "product_repo_worktree_not_clean:$REPO"
 
-safe_git fetch --no-recurse-submodules origin "$BRANCH"
-REMOTE_HEAD="$(safe_git rev-parse "refs/remotes/origin/$BRANCH" 2>/dev/null || true)"
+FETCH_TMP="$(mktemp -d "${TMPDIR:-/tmp}/hpfa-provider-dictionary-fetch.XXXXXX")" || fail "trusted_fetch_tempdir_create_failed"
+cleanup_fetch_tmp(){ rm -rf "$FETCH_TMP"; }
+trap cleanup_fetch_tmp EXIT
+FETCH_REPO="$FETCH_TMP/fetch.git"
+clean_fetch_git init --bare "$FETCH_REPO" >/dev/null
+clean_fetch_git --git-dir="$FETCH_REPO" fetch --no-tags --no-recurse-submodules "$ORIGIN_URL" "$BRANCH:refs/heads/remote"
+REMOTE_HEAD="$(clean_fetch_git --git-dir="$FETCH_REPO" rev-parse refs/heads/remote 2>/dev/null || true)"
 [[ "$REMOTE_HEAD" =~ ^[0-9a-fA-F]{40}$ ]] || fail "remote_head_missing_or_invalid:$REMOTE_HEAD"
 
 REQUESTED_EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"
@@ -59,6 +84,10 @@ if [[ -n "$REQUESTED_EXPECTED_HEAD" ]]; then
   [[ "$REQUESTED_EXPECTED_HEAD" =~ ^[0-9a-fA-F]{40}$ ]] || fail "requested_expected_head_invalid:$REQUESTED_EXPECTED_HEAD"
   [[ "$REQUESTED_EXPECTED_HEAD" == "$REMOTE_HEAD" ]] || fail "remote_head_mismatch:$REMOTE_HEAD expected:$REQUESTED_EXPECTED_HEAD"
 fi
+
+# Import only the already-fetched commit graph into the product checkout; no checkout-local
+# configuration participates in the network transfer above.
+safe_git fetch --no-tags --no-recurse-submodules "$FETCH_REPO" "refs/heads/remote:refs/remotes/origin/$BRANCH"
 
 if safe_git show-ref --verify --quiet "refs/heads/$BRANCH"; then
   safe_git switch "$BRANCH"
