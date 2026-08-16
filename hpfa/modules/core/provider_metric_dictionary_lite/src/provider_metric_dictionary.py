@@ -442,6 +442,7 @@ def build_dictionary_report(
         elif status != "REFERENCE_ONLY":
             hard.append(_gap("invalid_alias_status", f"{metric_id}:{status}"))
 
+    cleared_derivation_keys: set[str] = set()
     for row in derivations.get("derivations", []):
         metric_id = str(row.get("metric_id") or "")
         components = [str(x) for x in row.get("component_metric_ids", [])]
@@ -463,6 +464,12 @@ def build_dictionary_report(
 
         namespace_provider = str(row.get("provider_id") or "").strip()
         namespace_version = str(row.get("provider_version") or "").strip()
+        if namespace_provider and namespace_version:
+            derivation_key = f"{namespace_provider}::{namespace_version}::{metric_id}"
+            if derivation_key in cleared_derivation_keys:
+                hard.append(_gap("duplicate_cleared_derivation_key", derivation_key))
+            else:
+                cleared_derivation_keys.add(derivation_key)
         if not namespace_provider or not namespace_version:
             hard.append(_gap("derivation_namespace_required", metric_id))
             ready_targets = [

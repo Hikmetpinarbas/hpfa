@@ -34,11 +34,18 @@ fi
 [[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_missing:$ACTIVE_MATCH"
 
 safe_git(){
-  git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.untrackedCache=false -C "$REPO" "$@"
+  GIT_SSH_COMMAND="ssh" \
+  git \
+    -c core.fsmonitor=false \
+    -c core.hooksPath=/dev/null \
+    -c core.untrackedCache=false \
+    -c core.sshCommand=ssh \
+    -C "$REPO" "$@"
 }
 
 # Trust boundary: do not run status/fetch/switch/merge until the remote transport and
-# repository identity are admitted. safe_git disables checkout-local fsmonitor/hooks.
+# repository identity are admitted. safe_git disables checkout-local hooks/fsmonitor and
+# neutralizes repository/inherited SSH command overrides before any fetch.
 ORIGIN_URL="$(safe_git remote get-url origin 2>/dev/null || true)"
 origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identity_rejected:$ORIGIN_URL"
 [[ -z "$(safe_git status --porcelain --untracked-files=all)" ]] || fail "product_repo_worktree_not_clean:$REPO"

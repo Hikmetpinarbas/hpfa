@@ -8,6 +8,9 @@ on:
       - "configs/metrics/provider_alias_registry_v1.json"
       - "configs/metrics/metric_derivation_registry_v1.json"
       - "configs/metrics/metric_conflict_queue_v1.json"
+      - "configs/metrics/metric_registry_v1.json"
+      - "configs/metrics/metric_denominator_policy_v1.json"
+      - "hpfa/modules/core/aggregate_definition_alignment_lite/registry/sportsbase_aggregate_definition_candidates_v1.json"
       - "hpfa/modules/core/provider_metric_dictionary_lite/**"
       - "docs/contracts/provider_metric_dictionary_lite_v1.md"
       - "tools/bootstrap_termux_provider_metric_dictionary_v1.sh"
@@ -57,6 +60,8 @@ jobs:
           grep -q 'provider_definition_inferred_from_active_match.*False' tools/run_active_match_provider_metric_dictionary_v1.sh
           grep -q 'core.fsmonitor=false' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
           grep -q 'core.hooksPath=/dev/null' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          grep -q 'core.sshCommand=ssh' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          grep -q 'GIT_SSH_COMMAND="ssh"' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
           grep -q 'status --porcelain --untracked-files=all' tools/run_active_match_provider_metric_dictionary_v1.sh
           ! grep -q 'http://github.com/' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
           ! grep -Eq '^[[:space:]]*(pytest|python[[:space:]]+-m[[:space:]]+(pytest|unittest))([[:space:]]|$)' tools/run_active_match_provider_metric_dictionary_v1.sh
