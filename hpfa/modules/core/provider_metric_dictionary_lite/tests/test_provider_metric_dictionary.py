@@ -110,7 +110,8 @@ class ProviderMetricDictionaryTests(unittest.TestCase):
 
     def test_upstream_denominator_drift_fails_closed(self):
         policy = load("metric_registry_v1.json")
-        policy["metrics"][0]["denominator_definition"] = "different denominator"
+        row = next(x for x in policy["metrics"] if x["metric_id"] == "pass_completion_rate_candidate")
+        row["denominator_definition"] = "different denominator"
         r = build(metric_policy=policy)
         self.assertIn("upstream_metric_policy_semantic_mismatch", {g["gap_type"] for g in r["hard_block_hits"]})
 
