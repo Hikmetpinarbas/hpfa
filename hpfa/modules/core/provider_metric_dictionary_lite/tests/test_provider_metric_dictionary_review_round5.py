@@ -108,7 +108,7 @@ class ProviderMetricDictionaryReviewRound5Tests(unittest.TestCase):
         text = BOOTSTRAP.read_text(encoding="utf-8")
         self.assertIn('GIT_SSH_COMMAND="ssh"', text)
         self.assertIn('-c core.sshCommand=ssh', text)
-        fetch_index = text.index('safe_git fetch origin "$BRANCH"')
+        fetch_index = text.index('safe_git fetch --no-recurse-submodules origin "$BRANCH"')
         wrapper_index = text.index('GIT_SSH_COMMAND="ssh"')
         self.assertLess(wrapper_index, fetch_index)
 

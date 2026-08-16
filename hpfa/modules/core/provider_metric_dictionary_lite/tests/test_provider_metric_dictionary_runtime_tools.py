@@ -40,7 +40,7 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
         self.assertNotIn('http://github.com/', text)
         origin_guard = text.index('product_repo_origin_transport_or_identity_rejected')
         status = text.index('status --porcelain --untracked-files=all')
-        fetch = text.index('safe_git fetch origin "$BRANCH"')
+        fetch = text.index('safe_git fetch --no-recurse-submodules origin "$BRANCH"')
         self.assertLess(origin_guard, status)
         self.assertLess(origin_guard, fetch)
 
