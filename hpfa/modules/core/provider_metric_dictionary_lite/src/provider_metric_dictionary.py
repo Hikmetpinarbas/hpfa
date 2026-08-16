@@ -33,7 +33,7 @@ ALLOWED_DEFINITION_STATUSES = {
 PROVIDER_ADMISSIBLE_STATUS = "REVIEWED_PROVIDER_DEFINITION"
 DOMAIN_ADMISSIBLE_STATUS = "USER_DEFINED_DOMAIN_CONTRACT"
 UNVERIFIED_PROVIDER_VERSIONS = {
-    "", "UNKNOWN", "unpublished", "provider_definition_unverified",
+    "", "unknown", "unpublished", "provider_definition_unverified",
     "reference_definition_unversioned",
 }
 TRACKING_ONLY_TOKENS = {
@@ -290,7 +290,7 @@ def build_dictionary_report(
                     "provider_binding_admitted_without_reviewed_definition",
                     metric_id,
                 ))
-            if provider_version in UNVERIFIED_PROVIDER_VERSIONS:
+            if provider_version.casefold() in UNVERIFIED_PROVIDER_VERSIONS:
                 hard.append(_gap("provider_binding_admitted_without_version", metric_id))
             if provider_id == "hpfa":
                 hard.append(_gap("provider_binding_admitted_for_hpfa_domain_namespace", metric_id))
@@ -313,8 +313,6 @@ def build_dictionary_report(
                 or source_role != "HPFA_DOMAIN_CONTRACT"
             ):
                 hard.append(_gap("invalid_domain_contract_admission", metric_id))
-            else:
-                domain_ready.append(key)
         elif status == DOMAIN_ADMISSIBLE_STATUS:
             hard.append(_gap("domain_contract_status_without_admission", metric_id))
 
@@ -405,6 +403,11 @@ def build_dictionary_report(
 
         if aggregate_id:
             binding_start = len(hard)
+            if not policy_id:
+                hard.append(_gap(
+                    "upstream_aggregate_metric_policy_binding_required",
+                    metric_id,
+                ))
             aggregate_row = aggregate_index.get(aggregate_id)
             if not aggregate_row:
                 hard.append(_gap(
@@ -493,6 +496,8 @@ def build_dictionary_report(
                 ))
             if len(hard) == row_hard_start:
                 provider_ready.append(key)
+        if domain_admitted and len(hard) == row_hard_start:
+            domain_ready.append(key)
 
     provider_ready_set = set(provider_ready)
     domain_ready_set = set(domain_ready)
@@ -555,9 +560,12 @@ def build_dictionary_report(
 
     for row in derivations.get("derivations", []):
         metric_id = str(row.get("metric_id") or "")
+        component_metric_ids = [
+            str(component) for component in row.get("component_metric_ids", [])
+        ]
         if metric_id not in metric_ids:
             hard.append(_gap("derivation_metric_unresolved", metric_id))
-        for component in row.get("component_metric_ids", []):
+        for component in component_metric_ids:
             if component not in metric_ids:
                 hard.append(_gap(
                     "derivation_component_unresolved",
@@ -565,20 +573,47 @@ def build_dictionary_report(
                 ))
         if row.get("derivation_status") == "CLEARED":
             targets = [m for m in metrics if m.get("metric_id") == metric_id]
-            admitted = False
+            admitted_target_found = False
+            complete_namespace_found = False
+            missing_namespace_components: list[str] = []
             for target in targets:
+                target_provider = str(target.get("provider_id") or "")
+                target_version = str(target.get("provider_version") or "")
                 target_key = "::".join((
-                    str(target.get("provider_id") or ""),
-                    str(target.get("provider_version") or ""),
+                    target_provider,
+                    target_version,
                     str(target.get("metric_id") or ""),
                 ))
-                if target_key in provider_ready_set or target_key in domain_ready_set:
-                    admitted = True
+                if target_key in provider_ready_set:
+                    namespace_ready = provider_ready_set
+                elif target_key in domain_ready_set:
+                    namespace_ready = domain_ready_set
+                else:
+                    continue
+
+                admitted_target_found = True
+                missing_components = [
+                    component
+                    for component in component_metric_ids
+                    if "::".join((target_provider, target_version, component))
+                    not in namespace_ready
+                ]
+                if not missing_components:
+                    complete_namespace_found = True
                     break
-            if not admitted:
+                missing_namespace_components.append(
+                    f"{target_provider}::{target_version}:{','.join(missing_components)}"
+                )
+
+            if not admitted_target_found:
                 hard.append(_gap(
                     "derivation_cleared_without_admitted_definition",
                     metric_id,
+                ))
+            elif not complete_namespace_found:
+                hard.append(_gap(
+                    "derivation_components_not_admitted_same_namespace",
+                    f"{metric_id}:{'|'.join(missing_namespace_components)}",
                 ))
 
     conflict_ids: set[str] = set()
