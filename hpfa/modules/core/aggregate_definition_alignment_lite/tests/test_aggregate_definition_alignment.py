@@ -8,6 +8,9 @@ from hpfa.modules.core.aggregate_definition_alignment_lite.src.aggregate_definit
 METRIC_FP = "42b89dca3e3e07580a3267bba6388fe44fbb81048962d145bd74f9c615a1bb42"
 NUMERATOR = "Provider-version rows eligible under the declared successful-pass candidate definition."
 DENOMINATOR = "Provider-version rows eligible under the declared attempted-pass candidate definition in the same entity, period and observation window."
+XLSX_SHA = "a" * 64
+CSV_SHA = "b" * 64
+XML_SHA = "c" * 64
 
 
 def xlsx_payload(label: str = "Passes accurate, %"):
@@ -19,6 +22,8 @@ def xlsx_payload(label: str = "Passes accurate, %"):
         "files": [
             {
                 "source_role": "PLAYER_SURFACE_CANDIDATE",
+                "relative_path": "Players.xlsx",
+                "sha256": XLSX_SHA,
                 "sheets": [
                     {
                         "source_role": "PLAYER_SURFACE_CANDIDATE",
@@ -41,6 +46,9 @@ def label_payload(include_failure: bool = True, status: str = "PASS"):
             "record_id": "csv:player:pass-success",
             "source_format": "csv",
             "source_role": "PLAYER_SURFACE_CANDIDATE",
+            "source_sha256": CSV_SHA,
+            "raw_label": "Pass Success",
+            "normalized_label": normalize_label("Pass Success"),
             "mapping_status": "EXACT_REVIEWED_CANDIDATE",
             "action_family_candidate": "PASS",
             "outcome_candidate": "SUCCESS",
@@ -52,6 +60,9 @@ def label_payload(include_failure: bool = True, status: str = "PASS"):
                 "record_id": "xml:player:pass-failure",
                 "source_format": "xml",
                 "source_role": "PLAYER_SURFACE_CANDIDATE",
+                "source_sha256": XML_SHA,
+                "raw_label": "Pass Failure",
+                "normalized_label": normalize_label("Pass Failure"),
                 "mapping_status": "EXACT_REVIEWED_CANDIDATE",
                 "action_family_candidate": "PASS",
                 "outcome_candidate": "FAILURE",
@@ -66,7 +77,30 @@ def label_payload(include_failure: bool = True, status: str = "PASS"):
     }
 
 
-def reconciliation_payload(status: str = "PASS"):
+def _prov(sha, label, *, provider_id="sportsbase", provider_version="reviewed_surface_v1", admitted=True):
+    row = {
+        "source_sha256": sha,
+        "source_role": "PLAYER_SURFACE_CANDIDATE",
+        "normalized_label": normalize_label(label),
+        "provider_candidate": "SPORTSBASE_PROVIDER_CANDIDATE",
+    }
+    if provider_id is not None:
+        row["provider_id"] = provider_id
+    if provider_version is not None:
+        row["provider_version"] = provider_version
+    if admitted is not None:
+        row["provider_provenance_admitted"] = admitted
+    return row
+
+
+def reconciliation_payload(
+    status: str = "PASS",
+    *,
+    validated_provider_semantics: bool = True,
+    provider_id: str | None = "sportsbase",
+    provider_version: str | None = "reviewed_surface_v1",
+    admitted: bool | None = True,
+):
     return {
         "module_id": "cross_format_reconciliation_lite_v1",
         "status": status,
@@ -75,6 +109,30 @@ def reconciliation_payload(status: str = "PASS"):
         "validated_cross_format_equivalence": False,
         "validated_team_identity": False,
         "validated_player_identity": False,
+        "validated_provider_semantics": validated_provider_semantics,
+        "provider_semantic_provenance_records": [
+            _prov(
+                XLSX_SHA,
+                "Passes accurate, %",
+                provider_id=provider_id,
+                provider_version=provider_version,
+                admitted=admitted,
+            ),
+            _prov(
+                CSV_SHA,
+                "Pass Success",
+                provider_id=provider_id,
+                provider_version=provider_version,
+                admitted=admitted,
+            ),
+            _prov(
+                XML_SHA,
+                "Pass Failure",
+                provider_id=provider_id,
+                provider_version=provider_version,
+                admitted=admitted,
+            ),
+        ],
     }
 
 
@@ -161,6 +219,8 @@ def test_reviewed_closed_definition_is_candidate_not_truth():
     row = result["alignment_rows"][0]
     assert row["alignment_decision"] == "DEFINITION_ALIGNMENT_CANDIDATE"
     assert row["metric_definition_bound"] is True
+    assert row["aggregate_label_surface_observed"] is True
+    assert row["aggregate_label_observed"] is True
     assert row["aggregate_equivalence_truth"] is False
     assert row["comparison_allowed"] is False
     assert row["measurement_invariance_truth"] is False
@@ -168,6 +228,8 @@ def test_reviewed_closed_definition_is_candidate_not_truth():
     assert result["same_label_is_same_definition"] is False
     assert result["count_parity_is_definition_equivalence"] is False
     assert result["same_provider_multi_surface_is_independent_confirmation"] is False
+    assert result["provider_provenance_binding_required"] is True
+    assert result["provider_candidate_is_validated_provider_identity"] is False
     assert result["canonical_event_count"] == "UNKNOWN"
 
 
@@ -175,7 +237,7 @@ def test_current_unresolved_provider_definition_requires_review():
     result = build_alignment(
         xlsx_payload(),
         label_payload(),
-        reconciliation_payload(),
+        reconciliation_payload(provider_version="provider_definition_unverified"),
         metric_payload(closed=True),
         registry(reviewed=False),
     )
@@ -183,6 +245,112 @@ def test_current_unresolved_provider_definition_requires_review():
     codes = {hit["code"] for hit in result["review_hits"]}
     assert "provider_definition_evidence_unresolved" in codes
     assert "derivation_dependency_unresolved" in codes
+
+
+def test_provider_candidate_only_cannot_confirm_definition():
+    recon = reconciliation_payload(
+        validated_provider_semantics=False,
+        provider_id=None,
+        provider_version=None,
+        admitted=None,
+    )
+    result = build_alignment(
+        xlsx_payload(),
+        label_payload(),
+        recon,
+        metric_payload(closed=True),
+        registry(reviewed=True),
+    )
+    assert result["status"] == "REVIEW_REQUIRED"
+    row = result["alignment_rows"][0]
+    assert row["aggregate_label_surface_observed"] is True
+    assert row["aggregate_label_observed"] is False
+    assert row["alignment_decision"] == "REVIEW_REQUIRED_DEFINITION_ALIGNMENT"
+    assert "aggregate_provider_binding_unresolved" in {
+        hit["code"] for hit in result["review_hits"]
+    }
+
+
+def test_unknown_provider_cannot_confirm_definition():
+    result = build_alignment(
+        xlsx_payload(),
+        label_payload(),
+        reconciliation_payload(provider_id=None),
+        metric_payload(closed=True),
+        registry(reviewed=True),
+    )
+    row = result["alignment_rows"][0]
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert row["aggregate_label_observed"] is False
+    assert "aggregate_provider_binding_unresolved" in {
+        hit["code"] for hit in result["review_hits"]
+    }
+
+
+def test_provider_mismatch_cannot_confirm_definition():
+    result = build_alignment(
+        xlsx_payload(),
+        label_payload(),
+        reconciliation_payload(provider_id="another_provider"),
+        metric_payload(closed=True),
+        registry(reviewed=True),
+    )
+    row = result["alignment_rows"][0]
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert row["aggregate_label_observed"] is False
+    serialized = json.dumps(result["review_hits"], ensure_ascii=False)
+    assert "provider_id_mismatch" in serialized
+
+
+def test_required_provider_version_missing_cannot_confirm_definition():
+    result = build_alignment(
+        xlsx_payload(),
+        label_payload(),
+        reconciliation_payload(provider_version=None),
+        metric_payload(closed=True),
+        registry(reviewed=True),
+    )
+    row = result["alignment_rows"][0]
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert row["aggregate_label_observed"] is False
+    serialized = json.dumps(result["review_hits"], ensure_ascii=False)
+    assert "provider_version_missing" in serialized
+
+
+def test_provider_version_mismatch_cannot_confirm_definition():
+    result = build_alignment(
+        xlsx_payload(),
+        label_payload(),
+        reconciliation_payload(provider_version="different_version"),
+        metric_payload(closed=True),
+        registry(reviewed=True),
+    )
+    row = result["alignment_rows"][0]
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert row["aggregate_label_observed"] is False
+    serialized = json.dumps(result["review_hits"], ensure_ascii=False)
+    assert "provider_version_mismatch" in serialized
+
+
+def test_occurrence_semantics_from_wrong_provider_cannot_confirm_definition():
+    recon = reconciliation_payload()
+    recon["provider_semantic_provenance_records"][1]["provider_id"] = "another_provider"
+    result = build_alignment(
+        xlsx_payload(),
+        label_payload(),
+        recon,
+        metric_payload(closed=True),
+        registry(reviewed=True),
+    )
+    assert result["status"] == "REVIEW_REQUIRED"
+    row = result["alignment_rows"][0]
+    assert row["aggregate_label_observed"] is True
+    support = row["semantic_support"][0]
+    assert support["match_count"] == 1
+    assert support["provider_bound_match_count"] == 0
+    assert "required_occurrence_provider_binding_unresolved" in {
+        hit["code"] for hit in result["review_hits"]
+    }
 
 
 def test_r19_open_denominator_keeps_rate_alignment_under_review():
@@ -341,7 +509,12 @@ def test_no_sample_match_identity_leak():
     result = build_alignment(
         xlsx_payload(),
         label_payload(),
-        reconciliation_payload(),
+        reconciliation_payload(
+            validated_provider_semantics=False,
+            provider_id=None,
+            provider_version=None,
+            admitted=None,
+        ),
         metric_payload(closed=False),
         registry(reviewed=False),
     )
