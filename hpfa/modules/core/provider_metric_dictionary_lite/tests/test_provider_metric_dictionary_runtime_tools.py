@@ -27,6 +27,14 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
         self.assertIn('merge --ff-only', text)
         self.assertIn('remote_head_mismatch', text)
 
+    def test_bootstrap_validates_origin_before_fetch(self):
+        text = BOOTSTRAP.read_text(encoding="utf-8")
+        origin_guard = 'product_repo_origin_mismatch_before_fetch'
+        fetch_cmd = 'git -C "$REPO" fetch origin "$BRANCH"'
+        self.assertIn(origin_guard, text)
+        self.assertIn(fetch_cmd, text)
+        self.assertLess(text.index(origin_guard), text.index(fetch_cmd))
+
     def test_runner_enforces_runtime_and_phone_authority(self):
         text = RUNNER.read_text(encoding="utf-8")
         for token in (
@@ -40,6 +48,13 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
             'ONE_ZIP_ONLY',
         ):
             self.assertIn(token, text)
+
+    def test_runner_rejects_empty_active_match_inventory(self):
+        text = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('supported_file_count=int(inv.get("supported_file_count") or 0)', text)
+        self.assertIn('unique_content_file_count=int(inv.get("unique_content_file_count") or 0)', text)
+        self.assertIn('and supported_file_count > 0', text)
+        self.assertIn('and unique_content_file_count > 0', text)
 
     def test_runner_preserves_claim_boundaries(self):
         text = RUNNER.read_text(encoding="utf-8")

@@ -2,9 +2,11 @@
 set -euo pipefail
 
 BRANCH="work/reconstruct-183-research-hardened-v1"
+EXPECTED_REPO_SLUG="hikmetpinarbas/hpfa"
 ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
 OUT="${HPFA_PHONE_OUTPUT:-/sdcard/Download/HPFA}"
 fail(){ printf 'FAIL: %s\n' "$1" >&2; exit 2; }
+normalize_origin(){ local o="${1:-}"; o="${o%/}"; o="${o%.git}"; o="${o#https://github.com/}"; o="${o#http://github.com/}"; o="${o#git@github.com:}"; o="${o#ssh://git@github.com/}"; printf '%s\n' "${o,,}"; }
 
 REPO="${HPFA_REPO:-}"
 if [[ -z "$REPO" ]]; then
@@ -18,6 +20,10 @@ fi
 [[ -n "$REPO" && -d "$REPO/.git" ]] || fail "hpfa_repo_not_found"
 [[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_missing:$ACTIVE_MATCH"
 [[ -z "$(git -C "$REPO" status --porcelain)" ]] || fail "product_repo_worktree_not_clean:$REPO"
+
+ORIGIN_URL="$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
+ORIGIN_SLUG="$(normalize_origin "$ORIGIN_URL")"
+[[ "$ORIGIN_SLUG" == "$EXPECTED_REPO_SLUG" ]] || fail "product_repo_origin_mismatch_before_fetch:$ORIGIN_URL"
 
 git -C "$REPO" fetch origin "$BRANCH"
 REMOTE_HEAD="$(git -C "$REPO" rev-parse "refs/remotes/origin/$BRANCH" 2>/dev/null || true)"

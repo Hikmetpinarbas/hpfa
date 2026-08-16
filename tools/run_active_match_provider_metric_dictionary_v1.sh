@@ -77,10 +77,14 @@ dictionary=read("provider_metric_dictionary_lite_v1.json")
 runtime_state=inv.get("runtime_execution") or {}
 hard=dictionary.get("hard_block_hits") or []
 reviews=dictionary.get("review_hits") or []
+supported_file_count=int(inv.get("supported_file_count") or 0)
+unique_content_file_count=int(inv.get("unique_content_file_count") or 0)
 inv_ok=(
     inv.get("status") == "PASS"
     and runtime_state.get("execution_status") == "ACTIVE_MATCH_EVIDENCE_PASS"
     and runtime_state.get("input_matches_runtime_authority") is True
+    and supported_file_count > 0
+    and unique_content_file_count > 0
 )
 dictionary_ok=(
     dictionary.get("status") in {"SPEC_ONLY", "REVIEW_REQUIRED"}
@@ -107,8 +111,8 @@ if duplicate_reflection_group_count is None:
 
 analyst_evidence={
     "surface_scope":"CURRENT_ACTIVE_MATCH_FILE_SURFACE",
-    "supported_file_path_count":inv.get("supported_file_count"),
-    "unique_content_file_count":inv.get("unique_content_file_count"),
+    "supported_file_path_count":supported_file_count,
+    "unique_content_file_count":unique_content_file_count,
     "provider_definition_ready_count":dictionary.get("provider_definition_ready_count"),
     "hpfa_domain_contract_ready_count":dictionary.get("hpfa_domain_contract_ready_count"),
     "candidate_only_metric_count":len(dictionary.get("candidate_only_metric_ids") or []),
@@ -148,8 +152,8 @@ record={
     "open_conflict_count":dictionary.get("open_conflict_count"),
     "hard_block_hit_count":len(hard),
     "review_hit_count":len(reviews),
-    "supported_file_path_count":inv.get("supported_file_count"),
-    "unique_content_file_count":inv.get("unique_content_file_count"),
+    "supported_file_path_count":supported_file_count,
+    "unique_content_file_count":unique_content_file_count,
     "duplicate_reflection_group_count":duplicate_reflection_group_count,
     "exact_duplicate_reflection_count":exact_duplicate_reflection_count,
     "provider_candidate_is_validated_provider_identity":False,
