@@ -64,7 +64,7 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
         self.assertIn('core.fsmonitor=false', text)
         self.assertIn('core.hooksPath=/dev/null', text)
         self.assertIn('supported_file_count=int(inv.get("supported_file_count") or 0)', text)
-        self.assertIn'unique_content_file_count=int(inv.get("unique_content_file_count") or 0)', text)
+        self.assertIn('unique_content_file_count=int(inv.get("unique_content_file_count") or 0)', text)
         self.assertIn('and supported_file_count > 0', text)
         self.assertIn('and unique_content_file_count > 0', text)
 
@@ -88,10 +88,10 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
 
     def test_runner_binds_inventory_authority_without_inventing_provider_truth(self):
         text = RUNNER.read_text(encoding="utf-8")
-        self.assertIn("multiformat_file_inventory.py", text)
-        self.assertIn("provider_metric_dictionary_lite.py", text)
-        self.assertIn("INVENTORY_AUTHORITY_PLUS_PROVIDER_DICTIONARY_ADMISSION", text)
-        self.assertIn("Provider metric semantics remain candidate/reference-only", text)
+        self.assertIn('multiformat_file_inventory.py', text)
+        self.assertIn('provider_metric_dictionary_lite.py', text)
+        self.assertIn('INVENTORY_AUTHORITY_PLUS_PROVIDER_DICTIONARY_ADMISSION', text)
+        self.assertIn('Provider metric semantics remain candidate/reference-only', text)
 
 
 if __name__ == "__main__":
