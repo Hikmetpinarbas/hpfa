@@ -21,6 +21,11 @@ OPERATIONAL_SEMANTIC_FIELDS = (
     "metric_family", "event_only_compatible", "comparison_allowed",
     "metric_value_output_allowed", "upstream_bindings",
 )
+DERIVATION_SEMANTIC_FIELDS = (
+    "provider_id", "provider_version", "metric_id", "formula",
+    "component_metric_ids", "derivation_status", "provider_definition_required",
+    "upstream_denominator_policy_id",
+)
 ALLOWED_DEFINITION_STATUSES = {
     "REVIEWED_PROVIDER_DEFINITION", "USER_DEFINED_DOMAIN_CONTRACT",
     "DATA_CONFIRMED_CANDIDATE", "DATA_INFERRED_CANDIDATE",
@@ -108,6 +113,10 @@ def definition_fingerprint(row: dict[str, Any]) -> str:
     return _canonical_hash(_fingerprint_payload(row))
 
 
+def derivation_semantic_fingerprint(row: dict[str, Any]) -> str:
+    return _canonical_hash({field: row.get(field) for field in DERIVATION_SEMANTIC_FIELDS})
+
+
 def _domain_operational_fingerprint(row: dict[str, Any]) -> str:
     payload = {}
     for field in DOMAIN_OPERATIONAL_FIELDS:
@@ -138,8 +147,23 @@ def operational_semantic_fingerprint(
     return _canonical_hash(payload)
 
 
-def _index(rows: list[dict[str, Any]], field: str) -> dict[str, dict[str, Any]]:
-    return {str(row.get(field)): row for row in rows if row.get(field)}
+def _unique_index(
+    rows: list[dict[str, Any]], field: str,
+) -> tuple[dict[str, dict[str, Any]], set[str]]:
+    index: dict[str, dict[str, Any]] = {}
+    duplicates: set[str] = set()
+    for row in rows:
+        raw = row.get(field)
+        if raw in (None, ""):
+            continue
+        key = str(raw)
+        if key in index:
+            duplicates.add(key)
+            continue
+        index[key] = row
+    for key in duplicates:
+        index.pop(key, None)
+    return index, duplicates
 
 
 def _denominator_behavior_contract(policy_row: dict[str, Any]) -> str:
@@ -171,9 +195,21 @@ def build_dictionary_report(
         hard.append(_gap("metric_registry_empty", "metrics"))
         metrics = []
 
-    policy_index = _index((metric_policy or {}).get("metrics", []), "metric_id")
-    denominator_index = _index((denominator_policy or {}).get("policies", []), "denominator_policy_id")
-    aggregate_index = _index((aggregate_registry or {}).get("definitions", []), "definition_id")
+    policy_index, duplicate_policy_ids = _unique_index(
+        (metric_policy or {}).get("metrics", []), "metric_id"
+    )
+    denominator_index, duplicate_denominator_ids = _unique_index(
+        (denominator_policy or {}).get("policies", []), "denominator_policy_id"
+    )
+    aggregate_index, duplicate_aggregate_ids = _unique_index(
+        (aggregate_registry or {}).get("definitions", []), "definition_id"
+    )
+    for identifier in sorted(duplicate_policy_ids):
+        hard.append(_gap("duplicate_upstream_metric_policy_id", identifier))
+    for identifier in sorted(duplicate_denominator_ids):
+        hard.append(_gap("duplicate_upstream_denominator_policy_id", identifier))
+    for identifier in sorted(duplicate_aggregate_ids):
+        hard.append(_gap("duplicate_upstream_aggregate_definition_id", identifier))
 
     definition_index: dict[str, dict[str, Any]] = {}
     metric_ids: set[str] = set()
@@ -283,29 +319,34 @@ def build_dictionary_report(
 
         if policy_id:
             binding_start = len(hard)
-            policy_row = policy_index.get(policy_id)
-            if not policy_row:
-                hard.append(_gap("upstream_metric_policy_missing", f"{metric_id}:{policy_id}"))
+            if policy_id in duplicate_policy_ids:
+                hard.append(_gap("upstream_metric_policy_identifier_ambiguous", f"{metric_id}:{policy_id}"))
             else:
-                for local_field, upstream_field in UPSTREAM_SHARED_SEMANTICS:
-                    if row.get(local_field) != policy_row.get(upstream_field):
-                        hard.append(_gap("upstream_metric_policy_semantic_mismatch", f"{metric_id}:{local_field}"))
-                expected_family = EXPECTED_DICTIONARY_METRIC_FAMILY_BY_POLICY.get(policy_id)
-                if expected_family and row.get("metric_family") != expected_family:
-                    hard.append(_gap("upstream_metric_family_binding_mismatch", f"{metric_id}:{row.get('metric_family')}!={expected_family}"))
-                denominator_policy_id = str(policy_row.get("denominator_policy_id") or "")
-                if not denominator_policy_id:
-                    hard.append(_gap("upstream_denominator_policy_id_missing", metric_id))
+                policy_row = policy_index.get(policy_id)
+                if not policy_row:
+                    hard.append(_gap("upstream_metric_policy_missing", f"{metric_id}:{policy_id}"))
                 else:
-                    denominator_row = denominator_index.get(denominator_policy_id)
-                    if not denominator_row:
-                        hard.append(_gap("upstream_denominator_policy_missing", f"{metric_id}:{denominator_policy_id}"))
+                    for local_field, upstream_field in UPSTREAM_SHARED_SEMANTICS:
+                        if row.get(local_field) != policy_row.get(upstream_field):
+                            hard.append(_gap("upstream_metric_policy_semantic_mismatch", f"{metric_id}:{local_field}"))
+                    expected_family = EXPECTED_DICTIONARY_METRIC_FAMILY_BY_POLICY.get(policy_id)
+                    if expected_family and row.get("metric_family") != expected_family:
+                        hard.append(_gap("upstream_metric_family_binding_mismatch", f"{metric_id}:{row.get('metric_family')}!={expected_family}"))
+                    denominator_policy_id = str(policy_row.get("denominator_policy_id") or "")
+                    if not denominator_policy_id:
+                        hard.append(_gap("upstream_denominator_policy_id_missing", metric_id))
+                    elif denominator_policy_id in duplicate_denominator_ids:
+                        hard.append(_gap("upstream_denominator_policy_identifier_ambiguous", f"{metric_id}:{denominator_policy_id}"))
                     else:
-                        expected_denominator_fp = EXPECTED_DENOMINATOR_POLICY_FINGERPRINTS.get(denominator_policy_id)
-                        if expected_denominator_fp is None or _canonical_hash(denominator_row) != expected_denominator_fp:
-                            hard.append(_gap("upstream_denominator_policy_fingerprint_mismatch", f"{metric_id}:{denominator_policy_id}"))
-                        if row.get("missing_zero_denominator_policy") != _denominator_behavior_contract(denominator_row):
-                            hard.append(_gap("upstream_denominator_behavior_mismatch", metric_id))
+                        denominator_row = denominator_index.get(denominator_policy_id)
+                        if not denominator_row:
+                            hard.append(_gap("upstream_denominator_policy_missing", f"{metric_id}:{denominator_policy_id}"))
+                        else:
+                            expected_denominator_fp = EXPECTED_DENOMINATOR_POLICY_FINGERPRINTS.get(denominator_policy_id)
+                            if expected_denominator_fp is None or _canonical_hash(denominator_row) != expected_denominator_fp:
+                                hard.append(_gap("upstream_denominator_policy_fingerprint_mismatch", f"{metric_id}:{denominator_policy_id}"))
+                            if row.get("missing_zero_denominator_policy") != _denominator_behavior_contract(denominator_row):
+                                hard.append(_gap("upstream_denominator_behavior_mismatch", metric_id))
             upstream_binding_results.append({
                 "metric_id": metric_id,
                 "binding": "metric_policy",
@@ -316,28 +357,31 @@ def build_dictionary_report(
             binding_start = len(hard)
             if not policy_id:
                 hard.append(_gap("upstream_aggregate_metric_policy_binding_required", metric_id))
-            aggregate_row = aggregate_index.get(aggregate_id)
-            if not aggregate_row:
-                hard.append(_gap("upstream_aggregate_definition_missing", f"{metric_id}:{aggregate_id}"))
+            if aggregate_id in duplicate_aggregate_ids:
+                hard.append(_gap("upstream_aggregate_definition_identifier_ambiguous", f"{metric_id}:{aggregate_id}"))
             else:
-                expected = str(upstream.get("aggregate_definition_fingerprint_sha256") or "")
-                actual = str(aggregate_row.get("metric_definition_fingerprint_sha256") or "")
-                if expected != actual or not expected:
-                    hard.append(_gap("upstream_aggregate_fingerprint_mismatch", metric_id))
-                if row.get("numerator_definition") != aggregate_row.get("numerator_definition") or row.get("denominator_definition") != aggregate_row.get("denominator_definition"):
-                    hard.append(_gap("upstream_aggregate_fraction_mismatch", metric_id))
-                if aggregate_row.get("provider_id") != provider_id:
-                    hard.append(_gap("upstream_aggregate_provider_mismatch", metric_id))
-                if aggregate_row.get("provider_version") != provider_version:
-                    hard.append(_gap("upstream_aggregate_provider_version_mismatch", metric_id))
-                if not policy_id or aggregate_row.get("metric_id") != policy_id:
-                    hard.append(_gap("upstream_aggregate_metric_namespace_mismatch", f"{metric_id}:{aggregate_row.get('metric_id')}!={policy_id or 'MISSING'}"))
-                aggregate_roles = set(aggregate_row.get("source_roles", []))
-                allowed_roles = AGGREGATE_SOURCE_ROLE_COMPATIBILITY.get(source_role, set())
-                if not aggregate_roles or not aggregate_roles.issubset(allowed_roles):
-                    hard.append(_gap("upstream_aggregate_source_role_mismatch", f"{metric_id}:{','.join(sorted(aggregate_roles)) or 'EMPTY'}"))
-                if policy_row is not None and "aggregate_candidate" not in set(policy_row.get("source_surface_roles", [])):
-                    hard.append(_gap("upstream_metric_policy_aggregate_role_missing", metric_id))
+                aggregate_row = aggregate_index.get(aggregate_id)
+                if not aggregate_row:
+                    hard.append(_gap("upstream_aggregate_definition_missing", f"{metric_id}:{aggregate_id}"))
+                else:
+                    expected = str(upstream.get("aggregate_definition_fingerprint_sha256") or "")
+                    actual = str(aggregate_row.get("metric_definition_fingerprint_sha256") or "")
+                    if expected != actual or not expected:
+                        hard.append(_gap("upstream_aggregate_fingerprint_mismatch", metric_id))
+                    if row.get("numerator_definition") != aggregate_row.get("numerator_definition") or row.get("denominator_definition") != aggregate_row.get("denominator_definition"):
+                        hard.append(_gap("upstream_aggregate_fraction_mismatch", metric_id))
+                    if aggregate_row.get("provider_id") != provider_id:
+                        hard.append(_gap("upstream_aggregate_provider_mismatch", metric_id))
+                    if aggregate_row.get("provider_version") != provider_version:
+                        hard.append(_gap("upstream_aggregate_provider_version_mismatch", metric_id))
+                    if not policy_id or aggregate_row.get("metric_id") != policy_id:
+                        hard.append(_gap("upstream_aggregate_metric_namespace_mismatch", f"{metric_id}:{aggregate_row.get('metric_id')}!={policy_id or 'MISSING'}"))
+                    aggregate_roles = set(aggregate_row.get("source_roles", []))
+                    allowed_roles = AGGREGATE_SOURCE_ROLE_COMPATIBILITY.get(source_role, set())
+                    if not aggregate_roles or not aggregate_roles.issubset(allowed_roles):
+                        hard.append(_gap("upstream_aggregate_source_role_mismatch", f"{metric_id}:{','.join(sorted(aggregate_roles)) or 'EMPTY'}"))
+                    if policy_row is not None and "aggregate_candidate" not in set(policy_row.get("source_surface_roles", [])):
+                        hard.append(_gap("upstream_metric_policy_aggregate_role_missing", metric_id))
             upstream_binding_results.append({
                 "metric_id": metric_id,
                 "binding": "aggregate_definition",
@@ -408,6 +452,14 @@ def build_dictionary_report(
                 hard.append(_gap("derivation_component_unresolved", f"{metric_id}:{component}"))
         if row.get("derivation_status") != "CLEARED":
             continue
+
+        formula = row.get("formula")
+        if not isinstance(formula, str) or not formula.strip():
+            hard.append(_gap("cleared_derivation_formula_missing", metric_id))
+        stored_derivation_fp = str(row.get("derivation_semantic_fingerprint_sha256") or "")
+        actual_derivation_fp = derivation_semantic_fingerprint(row)
+        if len(stored_derivation_fp) != 64 or stored_derivation_fp != actual_derivation_fp:
+            hard.append(_gap("cleared_derivation_semantic_fingerprint_mismatch", metric_id))
 
         namespace_provider = str(row.get("provider_id") or "").strip()
         namespace_version = str(row.get("provider_version") or "").strip()
