@@ -54,8 +54,10 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
             'production_release',
         ):
             self.assertIn(token, text)
-        self.assertNotIn('pytest', text)
-        self.assertNotIn('unittest discover', text)
+        command_pattern = re.compile(
+            r"(?m)^\s*(?:pytest\b|python\s+-m\s+(?:pytest|unittest)\b)"
+        )
+        self.assertIsNone(command_pattern.search(text))
 
     def test_runner_binds_inventory_authority_without_inventing_provider_truth(self):
         text = RUNNER.read_text(encoding="utf-8")

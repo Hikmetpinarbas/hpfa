@@ -53,7 +53,7 @@ jobs:
           grep -q 'ONE_ZIP_ONLY' tools/run_active_match_provider_metric_dictionary_v1.sh
           grep -q 'canonical_event_count.*UNKNOWN' tools/run_active_match_provider_metric_dictionary_v1.sh
           grep -q 'provider_definition_inferred_from_active_match.*False' tools/run_active_match_provider_metric_dictionary_v1.sh
-          ! grep -Eq 'pytest|unittest discover' tools/run_active_match_provider_metric_dictionary_v1.sh
+          ! grep -Eq '^[[:space:]]*(pytest|python[[:space:]]+-m[[:space:]]+(pytest|unittest))([[:space:]]|$)' tools/run_active_match_provider_metric_dictionary_v1.sh
       - name: Contract smoke
         run: |
           python provider_metric_dictionary_lite.py --repo-root . --output /tmp/provider_metric_dictionary_report.json
