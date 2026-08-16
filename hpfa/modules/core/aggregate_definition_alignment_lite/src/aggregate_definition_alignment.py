@@ -131,17 +131,26 @@ def _reconciliation_guard(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return hits
 
 
-def _aggregate_labels(xlsx_payload: dict[str, Any]) -> set[tuple[str, str]]:
-    labels: set[tuple[str, str]] = set()
+def _aggregate_surfaces(xlsx_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    surfaces: list[dict[str, Any]] = []
     for file_row in xlsx_payload.get("files", []) or []:
         file_role = str(file_row.get("source_role") or "UNKNOWN")
+        source_sha256 = _text(file_row.get("sha256"))
+        relative_path = _text(file_row.get("relative_path") or file_row.get("file_name"))
         for sheet in file_row.get("sheets", []) or []:
             role = str(sheet.get("source_role") or file_role)
             for metric in sheet.get("metric_inventory", []) or []:
                 label = normalize_label(metric.get("normalized_metric_label") or metric.get("raw_metric_label"))
                 if label:
-                    labels.add((role, label))
-    return labels
+                    surfaces.append(
+                        {
+                            "source_role": role,
+                            "normalized_label": label,
+                            "source_sha256": source_sha256 or None,
+                            "source_relative_path": relative_path or None,
+                        }
+                    )
+    return surfaces
 
 
 def _semantic_records(label_payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -172,6 +181,119 @@ def _semantic_match(row: dict[str, Any], required: dict[str, Any]) -> bool:
         if row.get(key) not in _list(expected):
             return False
     return True
+
+
+def _provider_provenance_records(reconciliation_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = reconciliation_payload.get("provider_semantic_provenance_records", []) or []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _surface_provenance_matches(
+    *,
+    source_sha256: Any,
+    source_role: Any,
+    normalized_label: Any,
+    provenance_records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    sha = _text(source_sha256).casefold()
+    role = _text(source_role)
+    label = normalize_label(normalized_label)
+    if not sha or not role or not label:
+        return []
+    return [
+        row
+        for row in provenance_records
+        if _text(row.get("source_sha256")).casefold() == sha
+        and _text(row.get("source_role")) == role
+        and normalize_label(row.get("normalized_label") or row.get("raw_label")) == label
+    ]
+
+
+def _provider_binding(
+    provenance_records: list[dict[str, Any]],
+    *,
+    expected_provider_id: Any,
+    expected_provider_version: Any,
+    provider_semantics_validated: bool,
+) -> dict[str, Any]:
+    expected_id = normalize_label(expected_provider_id)
+    expected_version = _text(expected_provider_version)
+    result = {
+        "admitted": False,
+        "expected_provider_id": _text(expected_provider_id),
+        "expected_provider_version": expected_version,
+        "observed_provider_ids": [],
+        "observed_provider_versions": [],
+        "candidate_provider_values": [],
+        "binding_hits": [],
+    }
+    candidates = sorted(
+        {
+            _text(row.get("provider_candidate"))
+            for row in provenance_records
+            if _text(row.get("provider_candidate"))
+        }
+    )
+    result["candidate_provider_values"] = candidates
+
+    if not provenance_records:
+        result["binding_hits"].append(_review("provider_provenance_missing"))
+        return result
+
+    if not provider_semantics_validated:
+        result["binding_hits"].append(_review("provider_semantics_not_validated"))
+        return result
+
+    admitted_records = [
+        row for row in provenance_records if row.get("provider_provenance_admitted") is True
+    ]
+    if not admitted_records:
+        result["binding_hits"].append(_review("provider_provenance_not_admitted"))
+        return result
+
+    provider_ids = sorted(
+        {
+            _text(row.get("provider_id"))
+            for row in admitted_records
+            if _text(row.get("provider_id"))
+        }
+    )
+    versions = sorted(
+        {
+            _text(row.get("provider_version"))
+            for row in admitted_records
+            if _text(row.get("provider_version"))
+        }
+    )
+    result["observed_provider_ids"] = provider_ids
+    result["observed_provider_versions"] = versions
+
+    if not provider_ids:
+        result["binding_hits"].append(_review("provider_id_missing"))
+    elif len({normalize_label(value) for value in provider_ids}) != 1:
+        result["binding_hits"].append(_review("provider_id_ambiguous", provider_ids))
+    elif normalize_label(provider_ids[0]) != expected_id:
+        result["binding_hits"].append(
+            _review(
+                "provider_id_mismatch",
+                {"expected": _text(expected_provider_id), "observed": provider_ids[0]},
+            )
+        )
+
+    if not versions:
+        result["binding_hits"].append(_review("provider_version_missing"))
+    elif len(set(versions)) != 1:
+        result["binding_hits"].append(_review("provider_version_ambiguous", versions))
+    elif versions[0] != expected_version:
+        result["binding_hits"].append(
+            _review(
+                "provider_version_mismatch",
+                {"expected": expected_version, "observed": versions[0]},
+            )
+        )
+
+    result["admitted"] = not result["binding_hits"]
+    return result
 
 
 def _metric_index(metric_policy: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
@@ -243,8 +365,10 @@ def build_alignment(
 
     metric_index, metric_hits = _metric_index(metric_policy_payload)
     hits.extend(metric_hits)
-    aggregate_labels = _aggregate_labels(xlsx_payload)
+    aggregate_surfaces = _aggregate_surfaces(xlsx_payload)
     semantic_records = _semantic_records(label_semantics_payload)
+    provenance_records = _provider_provenance_records(reconciliation_payload)
+    provider_semantics_validated = reconciliation_payload.get("validated_provider_semantics") is True
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
 
@@ -260,9 +384,46 @@ def build_alignment(
         row_hits: list[dict[str, Any]] = list(definition_hits)
         roles = {str(role) for role in _list(raw.get("source_roles"))}
         label = normalize_label(raw.get("aggregate_label"))
-        aggregate_present = any((role, label) in aggregate_labels for role in roles)
-        if not aggregate_present:
+        expected_provider_id = raw.get("provider_id")
+        expected_provider_version = raw.get("provider_version")
+
+        matching_aggregate_surfaces = [
+            surface
+            for surface in aggregate_surfaces
+            if surface["source_role"] in roles and surface["normalized_label"] == label
+        ]
+        aggregate_label_surface_observed = bool(matching_aggregate_surfaces)
+        aggregate_bindings: list[dict[str, Any]] = []
+        for surface in matching_aggregate_surfaces:
+            matches = _surface_provenance_matches(
+                source_sha256=surface.get("source_sha256"),
+                source_role=surface.get("source_role"),
+                normalized_label=surface.get("normalized_label"),
+                provenance_records=provenance_records,
+            )
+            binding = _provider_binding(
+                matches,
+                expected_provider_id=expected_provider_id,
+                expected_provider_version=expected_provider_version,
+                provider_semantics_validated=provider_semantics_validated,
+            )
+            aggregate_bindings.append({**surface, **binding})
+
+        aggregate_label_observed = any(binding["admitted"] for binding in aggregate_bindings)
+        if not aggregate_label_surface_observed:
             row_hits.append(_review("aggregate_label_not_observed", label))
+        elif not aggregate_label_observed:
+            detail = [
+                hit
+                for binding in aggregate_bindings
+                for hit in binding.get("binding_hits", [])
+            ]
+            row_hits.append(
+                _review(
+                    "aggregate_provider_binding_unresolved",
+                    detail or [{"code": "provider_provenance_missing"}],
+                )
+            )
 
         metric_id = str(raw.get("metric_id") or "")
         metric = metric_index.get(metric_id)
@@ -313,18 +474,52 @@ def build_alignment(
                 record for record in semantic_records
                 if isinstance(requirement, dict) and _semantic_match(record, requirement)
             ]
+            provider_bound_record_ids: list[str] = []
+            binding_details: list[dict[str, Any]] = []
+            for record in matches:
+                provenance_matches = _surface_provenance_matches(
+                    source_sha256=record.get("source_sha256"),
+                    source_role=record.get("source_role"),
+                    normalized_label=record.get("normalized_label") or record.get("raw_label"),
+                    provenance_records=provenance_records,
+                )
+                binding = _provider_binding(
+                    provenance_matches,
+                    expected_provider_id=expected_provider_id,
+                    expected_provider_version=expected_provider_version,
+                    provider_semantics_validated=provider_semantics_validated,
+                )
+                binding_details.append(
+                    {
+                        "record_id": str(record.get("record_id")),
+                        **binding,
+                    }
+                )
+                if binding["admitted"]:
+                    provider_bound_record_ids.append(str(record.get("record_id")))
+
             formats = sorted({str(record.get("source_format") or "").casefold() for record in matches})
             semantic_support.append(
                 {
                     "requirement": requirement,
                     "match_count": len(matches),
+                    "provider_bound_match_count": len(provider_bound_record_ids),
                     "source_formats": formats,
                     "record_ids": [str(record.get("record_id")) for record in matches[:20]],
+                    "provider_bound_record_ids": provider_bound_record_ids[:20],
+                    "provider_bindings": binding_details[:20],
                     "independent_confirmation": False,
                 }
             )
             if not matches:
                 row_hits.append(_review("required_occurrence_semantics_not_observed", requirement))
+            elif not provider_bound_record_ids:
+                row_hits.append(
+                    _review(
+                        "required_occurrence_provider_binding_unresolved",
+                        requirement,
+                    )
+                )
 
         if raw.get("definition_evidence_status") != REVIEWED_DEFINITION_STATUS:
             row_hits.append(_review("provider_definition_evidence_unresolved", raw.get("definition_evidence_status")))
@@ -356,7 +551,10 @@ def build_alignment(
                 "source_roles": sorted(roles),
                 "aggregate_label": raw.get("aggregate_label"),
                 "normalized_aggregate_label": label,
-                "aggregate_label_observed": aggregate_present,
+                "aggregate_label_surface_observed": aggregate_label_surface_observed,
+                "aggregate_label_observed": aggregate_label_observed,
+                "aggregate_provider_bindings": aggregate_bindings,
+                "provider_semantics_validated_upstream": provider_semantics_validated,
                 "semantic_support": semantic_support,
                 "definition_evidence_status": raw.get("definition_evidence_status"),
                 "derivation_dependency": raw.get("derivation_dependency"),
@@ -420,6 +618,8 @@ def build_alignment(
         "review_hits": review_hits,
         "source_surface_contract": SOURCE_SURFACE_CONTRACT,
         "source_role_separation_required": True,
+        "provider_provenance_binding_required": True,
+        "provider_candidate_is_validated_provider_identity": False,
         "csv_xml_candidate_linkage_is_physical_event_identity": False,
         "xlsx_row_is_event_identity": False,
         "same_label_is_same_definition": False,
@@ -439,8 +639,8 @@ def build_alignment(
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "production_release": False,
         "claim_boundary": (
-            "aggregate_definition_candidate_only_no_value_no_equivalence_no_event_identity_"
-            "no_independent_confirmation_no_group_comparison_no_claim"
+            "aggregate_definition_candidate_only_provider_provenance_bound_no_value_"
+            "no_equivalence_no_event_identity_no_independent_confirmation_no_group_comparison_no_claim"
         ),
     }
 
