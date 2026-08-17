@@ -40,6 +40,17 @@ INSIDE_WORK_TREE="$(safe_git rev-parse --is-inside-work-tree 2>/dev/null || true
 GIT_DIR_PATH="$(safe_git rev-parse --git-dir 2>/dev/null || true)"
 [[ -n "$GIT_DIR_PATH" ]] || fail "product_repo_git_dir_unresolved:$REPO"
 
+# REPO must be the exact canonical worktree root, not an ignored or nested directory
+# that merely belongs to a trusted parent checkout. This preserves linked-worktree
+# support while preventing execution from an attacker-controlled subdirectory.
+REPO_RESOLVED="$(cd "$REPO" 2>/dev/null && pwd -P || true)"
+[[ -n "$REPO_RESOLVED" ]] || fail "product_repo_path_unresolved:$REPO"
+WORKTREE_TOP="$(safe_git rev-parse --show-toplevel 2>/dev/null || true)"
+[[ -n "$WORKTREE_TOP" ]] || fail "product_repo_worktree_root_unresolved:$REPO"
+WORKTREE_TOP_RESOLVED="$(cd "$WORKTREE_TOP" 2>/dev/null && pwd -P || true)"
+[[ -n "$WORKTREE_TOP_RESOLVED" ]] || fail "product_repo_worktree_root_unresolved:$REPO"
+[[ "$WORKTREE_TOP_RESOLVED" == "$REPO_RESOLVED" ]] || fail "product_repo_worktree_root_mismatch:repo=$REPO_RESOLVED top=$WORKTREE_TOP_RESOLVED"
+
 ORIGIN_URL="$(safe_git remote get-url origin 2>/dev/null || true)"
 origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identity_rejected:$ORIGIN_URL"
 ACTUAL_BRANCH="$(safe_git branch --show-current)"

@@ -75,6 +75,18 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
         self.assertIn('rev-parse --git-dir', text)
         self.assertIn('product_repo_git_dir_unresolved', text)
 
+    def test_runner_requires_repo_to_be_exact_worktree_root(self):
+        text = RUNNER.read_text(encoding="utf-8")
+        self.assertIn('rev-parse --show-toplevel', text)
+        self.assertIn('REPO_RESOLVED=', text)
+        self.assertIn('WORKTREE_TOP_RESOLVED=', text)
+        self.assertIn('product_repo_worktree_root_mismatch', text)
+        root_guard = text.index('product_repo_worktree_root_mismatch')
+        origin_guard = text.index('product_repo_origin_transport_or_identity_rejected')
+        execution_cd = text.index('\ncd "$REPO"\n')
+        self.assertLess(root_guard, origin_guard)
+        self.assertLess(root_guard, execution_cd)
+
     def test_runner_preserves_claim_boundaries(self):
         text = RUNNER.read_text(encoding="utf-8")
         for token in (
