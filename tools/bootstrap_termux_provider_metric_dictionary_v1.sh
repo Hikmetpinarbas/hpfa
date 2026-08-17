@@ -32,11 +32,16 @@ ssh://git@github.com/hikmetpinarbas/hpfa|ssh://git@github.com:hikmetpinarbas/hpf
 ORIGIN_URL="${HPFA_TRUSTED_ORIGIN:-$DEFAULT_ORIGIN_URL}"
 origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identity_rejected:$ORIGIN_URL"
 
+# Network/bootstrap Git commands run from a deliberately empty environment. This
+# removes inherited GIT_CONFIG_COUNT/GIT_CONFIG_KEY_*/GIT_CONFIG_VALUE_*,
+# GIT_CONFIG_PARAMETERS, GIT_CONFIG and other command-scope Git overrides before any
+# trusted-origin fetch. Only the minimum deterministic environment is reintroduced.
 clean_fetch_git(){
-  env \
-    -u GIT_SSL_NO_VERIFY \
-    -u GIT_ASKPASS \
-    -u SSH_ASKPASS \
+  env -i \
+    HOME="${HOME:-}" \
+    PATH="${PATH:-/data/data/com.termux/files/usr/bin:/system/bin}" \
+    TMPDIR="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}" \
+    LC_ALL=C \
     GIT_CONFIG_GLOBAL=/dev/null \
     GIT_CONFIG_SYSTEM=/dev/null \
     GIT_CONFIG_NOSYSTEM=1 \

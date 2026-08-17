@@ -15,7 +15,7 @@ origin_is_trusted(){
   case "$lower" in
     https://github.com/hikmetpinarbas/hpfa|https://github.com/hikmetpinarbas/hpfa.git|\
 git@github.com:hikmetpinarbas/hpfa|git@github.com:hikmetpinarbas/hpfa.git|\
-ssh://git@github.com/hikmetpinarbas/hpfa|ssh://git@github.com/hikmetpinarbas/hpfa.git)
+ssh://git@github.com/hikmetpinarbas/hpfa|ssh://git@github.com:hikmetpinarbas/hpfa.git)
       return 0 ;;
     *)
       return 1 ;;
@@ -88,6 +88,22 @@ origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identi
 ACTUAL_BRANCH="$(safe_git branch --show-current)"
 ACTUAL_HEAD="$(safe_git rev-parse HEAD)"
 identity_matches "$ACTUAL_BRANCH" "$ACTUAL_HEAD" "$EXPECTED_BRANCH" "$EXPECTED_HEAD" || fail "execution_identity_mismatch:branch=$ACTUAL_BRANCH head=$ACTUAL_HEAD expected_branch=$EXPECTED_BRANCH expected_head=$EXPECTED_HEAD"
+
+# Git index visibility flags can deliberately hide modified tracked code from normal
+# porcelain status. Reject assume-unchanged (lowercase ls-files -v tags) and
+# skip-worktree (S tag) before trusting cleanliness or executing repository code.
+INDEX_VISIBILITY="$(safe_git ls-files -v 2>/dev/null)"
+INDEX_VISIBILITY_RC=$?
+[[ "$INDEX_VISIBILITY_RC" -eq 0 ]] || fail "product_repo_index_visibility_query_failed:rc=$INDEX_VISIBILITY_RC"
+INDEX_FLAGGED=""
+while IFS= read -r index_line; do
+  index_tag="${index_line:0:1}"
+  case "$index_tag" in
+    S|[a-z]) INDEX_FLAGGED+="${index_line}"$'\n' ;;
+  esac
+done <<< "$INDEX_VISIBILITY"
+[[ -z "$INDEX_FLAGGED" ]] || fail "product_repo_index_visibility_flags_rejected"
+
 # The official bootstrap creates a clean worktree, so ignored untracked material is not
 # accepted either; otherwise an ignored top-level Python module could shadow pinned code.
 [[ -z "$(safe_git status --porcelain --untracked-files=all --ignored=matching)" ]] || fail "product_repo_worktree_not_clean:$REPO_RESOLVED"
