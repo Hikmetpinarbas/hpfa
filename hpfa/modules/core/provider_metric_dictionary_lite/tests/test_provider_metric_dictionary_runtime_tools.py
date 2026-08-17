@@ -68,6 +68,13 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
         self.assertIn('and supported_file_count > 0', text)
         self.assertIn('and unique_content_file_count > 0', text)
 
+    def test_runner_accepts_valid_linked_worktree_gitfiles(self):
+        text = RUNNER.read_text(encoding="utf-8")
+        self.assertNotIn('[[ -d "$REPO/.git" ]]', text)
+        self.assertIn('rev-parse --is-inside-work-tree', text)
+        self.assertIn('rev-parse --git-dir', text)
+        self.assertIn('product_repo_git_dir_unresolved', text)
+
     def test_runner_preserves_claim_boundaries(self):
         text = RUNNER.read_text(encoding="utf-8")
         for token in (

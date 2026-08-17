@@ -25,12 +25,20 @@ identity_matches(){ [[ -n "$3" && -n "$4" && "$1" == "$3" && "$2" == "$4" ]]; }
 
 [[ -n "$EXPECTED_BRANCH" ]] || fail "expected_branch_required:set_HPFA_EXPECTED_BRANCH"
 [[ -n "$EXPECTED_HEAD" ]] || fail "expected_head_required:set_HPFA_EXPECTED_HEAD"
-[[ -d "$REPO/.git" ]] || fail "product_repo_not_git_checkout:$REPO"
+[[ -d "$REPO" ]] || fail "product_repo_not_git_checkout:$REPO"
 [[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_missing:$ACTIVE_MATCH"
 
 safe_git(){
   git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.untrackedCache=false -C "$REPO" "$@"
 }
+
+# A clean bootstrap materializes a valid linked worktree, where .git is a file rather
+# than a directory. Validate the Git worktree through Git itself so both standalone
+# checkouts and linked worktrees are accepted without weakening identity checks.
+INSIDE_WORK_TREE="$(safe_git rev-parse --is-inside-work-tree 2>/dev/null || true)"
+[[ "$INSIDE_WORK_TREE" == "true" ]] || fail "product_repo_not_git_checkout:$REPO"
+GIT_DIR_PATH="$(safe_git rev-parse --git-dir 2>/dev/null || true)"
+[[ -n "$GIT_DIR_PATH" ]] || fail "product_repo_git_dir_unresolved:$REPO"
 
 ORIGIN_URL="$(safe_git remote get-url origin 2>/dev/null || true)"
 origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identity_rejected:$ORIGIN_URL"
