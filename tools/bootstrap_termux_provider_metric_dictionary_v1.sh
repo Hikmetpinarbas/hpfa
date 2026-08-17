@@ -35,9 +35,11 @@ origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identi
 # Network/bootstrap Git commands run from a deliberately empty environment. This
 # removes inherited GIT_CONFIG_COUNT/GIT_CONFIG_KEY_*/GIT_CONFIG_VALUE_*,
 # GIT_CONFIG_PARAMETERS, GIT_CONFIG and other command-scope Git overrides before any
-# trusted-origin fetch. Only the minimum deterministic environment is reintroduced.
+# trusted-origin fetch. The explicit GIT_SSL_NO_VERIFY unset is retained as a
+# compatibility/audit guard even though env -i already starts from an empty environment.
 clean_fetch_git(){
   env -i \
+    -u GIT_SSL_NO_VERIFY \
     HOME="${HOME:-}" \
     PATH="${PATH:-/data/data/com.termux/files/usr/bin:/system/bin}" \
     TMPDIR="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}" \
