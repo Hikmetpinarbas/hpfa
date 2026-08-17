@@ -23,6 +23,29 @@ ssh://git@github.com/hikmetpinarbas/hpfa|ssh://git@github.com:hikmetpinarbas/hpf
 }
 identity_matches(){ [[ -n "$3" && -n "$4" && "$1" == "$3" && "$2" == "$4" ]]; }
 
+# Runtime Python must come from the Termux installation itself, not from PATH or an
+# inherited Python module search path. env -i removes all inherited environment state;
+# the explicit unsets document the module-path trust boundary and PYTHONNOUSERSITE keeps
+# user-site packages out of the evidence run.
+TRUSTED_PYTHON="/data/data/com.termux/files/usr/bin/python"
+safe_python(){
+  [[ -x "$TRUSTED_PYTHON" ]] || fail "trusted_python_interpreter_missing:$TRUSTED_PYTHON"
+  env -i \
+    -u PYTHONPATH \
+    -u PYTHONHOME \
+    -u PYTHONSTARTUP \
+    -u PYTHONUSERBASE \
+    -u PYTHONINSPECT \
+    -u PYTHONBREAKPOINT \
+    -u PYTHONPYCACHEPREFIX \
+    -u PYTHONPLATLIBDIR \
+    HOME="${HOME:-}" \
+    PATH="/data/data/com.termux/files/usr/bin:/system/bin" \
+    TMPDIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}" \
+    PYTHONNOUSERSITE=1 \
+    "$TRUSTED_PYTHON" "$@"
+}
+
 [[ -n "$EXPECTED_BRANCH" ]] || fail "expected_branch_required:set_HPFA_EXPECTED_BRANCH"
 [[ -n "$EXPECTED_HEAD" ]] || fail "expected_head_required:set_HPFA_EXPECTED_HEAD"
 [[ -d "$REPO" ]] || fail "product_repo_not_git_checkout:$REPO"
@@ -138,13 +161,13 @@ record_failure(){ local rc="$1" name="$2"; [[ "$rc" -eq 0 ]] && return 0; [[ "$F
 
 # Runtime evidence binds the semantic dictionary to the one authoritative ACTIVE_MATCH file surface.
 # It does not infer provider definitions, versions, formulas or metric values from match files.
-run_step inventory python multiformat_file_inventory.py --input-root "$ACTIVE_RESOLVED" --runtime-authority "$ACTIVE_RESOLVED" --active-match-execution --out "$TMP_ROOT" || true
+run_step inventory safe_python multiformat_file_inventory.py --input-root "$ACTIVE_RESOLVED" --runtime-authority "$ACTIVE_RESOLVED" --active-match-execution --out "$TMP_ROOT" || true
 
 if [[ "$FINAL_RC" -eq 0 ]]; then
-  run_step provider_metric_dictionary python provider_metric_dictionary_lite.py --repo-root "$REPO_RESOLVED" --output "$TMP_ROOT/provider_metric_dictionary_lite_v1.json" || true
+  run_step provider_metric_dictionary safe_python provider_metric_dictionary_lite.py --repo-root "$REPO_RESOLVED" --output "$TMP_ROOT/provider_metric_dictionary_lite_v1.json" || true
 fi
 
-python - "$TMP_ROOT" "$ACTUAL_BRANCH" "$ACTUAL_HEAD" "$ACTIVE_RESOLVED" "$FINAL_RC" "$FAILED_STEP" <<'PY'
+safe_python - "$TMP_ROOT" "$ACTUAL_BRANCH" "$ACTUAL_HEAD" "$ACTIVE_RESOLVED" "$FINAL_RC" "$FAILED_STEP" <<'PY'
 import json, sys
 from pathlib import Path
 root=Path(sys.argv[1]); branch=sys.argv[2]; head=sys.argv[3]; runtime=sys.argv[4]; run_rc=int(sys.argv[5]); failed=sys.argv[6] or None
@@ -281,7 +304,7 @@ POST_RC=$?
 record_failure "$POST_RC" "evidence_postprocess"
 
 if [[ "$FINAL_RC" -eq 0 ]]; then
-  python - "$TMP_ROOT" "$ZIP_TMP" <<'PY'
+  safe_python - "$TMP_ROOT" "$ZIP_TMP" <<'PY'
 import hashlib,json,sys,zipfile
 from pathlib import Path
 root=Path(sys.argv[1]); zp=Path(sys.argv[2])
