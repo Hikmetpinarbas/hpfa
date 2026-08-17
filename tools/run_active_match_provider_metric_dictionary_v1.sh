@@ -47,6 +47,7 @@ safe_git(){
     -u GIT_DISCOVERY_ACROSS_FILESYSTEM \
     -u GIT_NAMESPACE \
     -u GIT_SHALLOW_FILE \
+    -u GIT_CONFIG \
     -u GIT_CONFIG_COUNT \
     -u GIT_CONFIG_PARAMETERS \
     GIT_CONFIG_NOSYSTEM=1 \
@@ -57,8 +58,13 @@ safe_git(){
 
 # A repository-local/worktree-local core.worktree setting can remap a trusted Git
 # directory onto an attacker-controlled nested copy. Reject that ambiguity before
-# trusting --show-toplevel, branch/head identity, or cleanliness.
-CORE_WORKTREE_OVERRIDE="$(safe_git config --show-origin --get-all core.worktree 2>/dev/null || true)"
+# trusting --show-toplevel, branch/head identity, or cleanliness. A missing key is
+# normal (git config rc=1); any other query failure closes the runtime gate.
+CORE_WORKTREE_OVERRIDE="$(safe_git config --show-origin --get-all core.worktree 2>/dev/null)"
+CORE_WORKTREE_QUERY_RC=$?
+if [[ "$CORE_WORKTREE_QUERY_RC" -ne 0 && "$CORE_WORKTREE_QUERY_RC" -ne 1 ]]; then
+  fail "product_repo_core_worktree_query_failed:rc=$CORE_WORKTREE_QUERY_RC"
+fi
 [[ -z "$CORE_WORKTREE_OVERRIDE" ]] || fail "product_repo_core_worktree_override_rejected:$CORE_WORKTREE_OVERRIDE"
 
 # A clean bootstrap materializes a valid linked worktree, where .git is a file rather

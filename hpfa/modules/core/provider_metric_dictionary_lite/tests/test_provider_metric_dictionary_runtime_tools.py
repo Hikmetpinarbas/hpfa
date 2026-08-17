@@ -81,18 +81,24 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
             '-u GIT_DIR',
             '-u GIT_WORK_TREE',
             '-u GIT_COMMON_DIR',
+            '-u GIT_CONFIG',
             '-u GIT_CONFIG_COUNT',
             '-u GIT_CONFIG_PARAMETERS',
             'GIT_CONFIG_NOSYSTEM=1',
             'GIT_CONFIG_GLOBAL=/dev/null',
             'config --show-origin --get-all core.worktree',
+            'product_repo_core_worktree_query_failed',
             'product_repo_core_worktree_override_rejected',
         ):
             self.assertIn(token, text)
+        self.assertNotIn('config --show-origin --get-all core.worktree 2>/dev/null || true', text)
+        inherited_config_guard = text.index('-u GIT_CONFIG')
+        config_query = text.index('config --show-origin --get-all core.worktree')
         core_worktree_guard = text.index('product_repo_core_worktree_override_rejected')
         root_resolution = text.index('rev-parse --show-toplevel')
         origin_guard = text.index('product_repo_origin_transport_or_identity_rejected')
         execution_cd = text.index('\ncd "$REPO_RESOLVED"\n')
+        self.assertLess(inherited_config_guard, config_query)
         self.assertLess(core_worktree_guard, root_resolution)
         self.assertLess(core_worktree_guard, origin_guard)
         self.assertLess(core_worktree_guard, execution_cd)
