@@ -57,9 +57,9 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
         ):
             self.assertIn(token, text)
 
-    def test_runner_rejects_untracked_and_empty_active_match_inventory(self):
+    def test_runner_rejects_untracked_ignored_and_empty_active_match_inventory(self):
         text = RUNNER.read_text(encoding="utf-8")
-        self.assertIn('status --porcelain --untracked-files=all', text)
+        self.assertIn('status --porcelain --untracked-files=all --ignored=matching', text)
         self.assertNotIn('--untracked-files=no', text)
         self.assertIn('core.fsmonitor=false', text)
         self.assertIn('core.hooksPath=/dev/null', text)
@@ -75,6 +75,28 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
         self.assertIn('rev-parse --git-dir', text)
         self.assertIn('product_repo_git_dir_unresolved', text)
 
+    def test_runner_isolates_core_worktree_and_git_environment_before_root_check(self):
+        text = RUNNER.read_text(encoding="utf-8")
+        for token in (
+            '-u GIT_DIR',
+            '-u GIT_WORK_TREE',
+            '-u GIT_COMMON_DIR',
+            '-u GIT_CONFIG_COUNT',
+            '-u GIT_CONFIG_PARAMETERS',
+            'GIT_CONFIG_NOSYSTEM=1',
+            'GIT_CONFIG_GLOBAL=/dev/null',
+            'config --show-origin --get-all core.worktree',
+            'product_repo_core_worktree_override_rejected',
+        ):
+            self.assertIn(token, text)
+        core_worktree_guard = text.index('product_repo_core_worktree_override_rejected')
+        root_resolution = text.index('rev-parse --show-toplevel')
+        origin_guard = text.index('product_repo_origin_transport_or_identity_rejected')
+        execution_cd = text.index('\ncd "$REPO_RESOLVED"\n')
+        self.assertLess(core_worktree_guard, root_resolution)
+        self.assertLess(core_worktree_guard, origin_guard)
+        self.assertLess(core_worktree_guard, execution_cd)
+
     def test_runner_requires_repo_to_be_exact_worktree_root(self):
         text = RUNNER.read_text(encoding="utf-8")
         self.assertIn('rev-parse --show-toplevel', text)
@@ -83,7 +105,7 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
         self.assertIn('product_repo_worktree_root_mismatch', text)
         root_guard = text.index('product_repo_worktree_root_mismatch')
         origin_guard = text.index('product_repo_origin_transport_or_identity_rejected')
-        execution_cd = text.index('\ncd "$REPO"\n')
+        execution_cd = text.index('\ncd "$REPO_RESOLVED"\n')
         self.assertLess(root_guard, origin_guard)
         self.assertLess(root_guard, execution_cd)
 

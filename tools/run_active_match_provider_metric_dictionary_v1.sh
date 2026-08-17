@@ -28,27 +28,53 @@ identity_matches(){ [[ -n "$3" && -n "$4" && "$1" == "$3" && "$2" == "$4" ]]; }
 [[ -d "$REPO" ]] || fail "product_repo_not_git_checkout:$REPO"
 [[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_missing:$ACTIVE_MATCH"
 
+REPO_RESOLVED="$(cd "$REPO" 2>/dev/null && pwd -P || true)"
+[[ -n "$REPO_RESOLVED" ]] || fail "product_repo_path_unresolved:$REPO"
+REPO="$REPO_RESOLVED"
+
+# Do not let inherited Git environment or user/system configuration redefine which
+# repository/worktree is being inspected. Repository-local config is still visible so
+# it can be checked explicitly, while executable status hooks are neutralized.
 safe_git(){
-  git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.untrackedCache=false -C "$REPO" "$@"
+  env \
+    -u GIT_DIR \
+    -u GIT_WORK_TREE \
+    -u GIT_COMMON_DIR \
+    -u GIT_INDEX_FILE \
+    -u GIT_OBJECT_DIRECTORY \
+    -u GIT_ALTERNATE_OBJECT_DIRECTORIES \
+    -u GIT_CEILING_DIRECTORIES \
+    -u GIT_DISCOVERY_ACROSS_FILESYSTEM \
+    -u GIT_NAMESPACE \
+    -u GIT_SHALLOW_FILE \
+    -u GIT_CONFIG_COUNT \
+    -u GIT_CONFIG_PARAMETERS \
+    GIT_CONFIG_NOSYSTEM=1 \
+    GIT_CONFIG_SYSTEM=/dev/null \
+    GIT_CONFIG_GLOBAL=/dev/null \
+    git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.untrackedCache=false -C "$REPO_RESOLVED" "$@"
 }
+
+# A repository-local/worktree-local core.worktree setting can remap a trusted Git
+# directory onto an attacker-controlled nested copy. Reject that ambiguity before
+# trusting --show-toplevel, branch/head identity, or cleanliness.
+CORE_WORKTREE_OVERRIDE="$(safe_git config --show-origin --get-all core.worktree 2>/dev/null || true)"
+[[ -z "$CORE_WORKTREE_OVERRIDE" ]] || fail "product_repo_core_worktree_override_rejected:$CORE_WORKTREE_OVERRIDE"
 
 # A clean bootstrap materializes a valid linked worktree, where .git is a file rather
 # than a directory. Validate the Git worktree through Git itself so both standalone
 # checkouts and linked worktrees are accepted without weakening identity checks.
 INSIDE_WORK_TREE="$(safe_git rev-parse --is-inside-work-tree 2>/dev/null || true)"
-[[ "$INSIDE_WORK_TREE" == "true" ]] || fail "product_repo_not_git_checkout:$REPO"
+[[ "$INSIDE_WORK_TREE" == "true" ]] || fail "product_repo_not_git_checkout:$REPO_RESOLVED"
 GIT_DIR_PATH="$(safe_git rev-parse --git-dir 2>/dev/null || true)"
-[[ -n "$GIT_DIR_PATH" ]] || fail "product_repo_git_dir_unresolved:$REPO"
+[[ -n "$GIT_DIR_PATH" ]] || fail "product_repo_git_dir_unresolved:$REPO_RESOLVED"
 
 # REPO must be the exact canonical worktree root, not an ignored or nested directory
-# that merely belongs to a trusted parent checkout. This preserves linked-worktree
-# support while preventing execution from an attacker-controlled subdirectory.
-REPO_RESOLVED="$(cd "$REPO" 2>/dev/null && pwd -P || true)"
-[[ -n "$REPO_RESOLVED" ]] || fail "product_repo_path_unresolved:$REPO"
+# that merely belongs to a trusted parent checkout.
 WORKTREE_TOP="$(safe_git rev-parse --show-toplevel 2>/dev/null || true)"
-[[ -n "$WORKTREE_TOP" ]] || fail "product_repo_worktree_root_unresolved:$REPO"
+[[ -n "$WORKTREE_TOP" ]] || fail "product_repo_worktree_root_unresolved:$REPO_RESOLVED"
 WORKTREE_TOP_RESOLVED="$(cd "$WORKTREE_TOP" 2>/dev/null && pwd -P || true)"
-[[ -n "$WORKTREE_TOP_RESOLVED" ]] || fail "product_repo_worktree_root_unresolved:$REPO"
+[[ -n "$WORKTREE_TOP_RESOLVED" ]] || fail "product_repo_worktree_root_unresolved:$REPO_RESOLVED"
 [[ "$WORKTREE_TOP_RESOLVED" == "$REPO_RESOLVED" ]] || fail "product_repo_worktree_root_mismatch:repo=$REPO_RESOLVED top=$WORKTREE_TOP_RESOLVED"
 
 ORIGIN_URL="$(safe_git remote get-url origin 2>/dev/null || true)"
@@ -56,7 +82,9 @@ origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identi
 ACTUAL_BRANCH="$(safe_git branch --show-current)"
 ACTUAL_HEAD="$(safe_git rev-parse HEAD)"
 identity_matches "$ACTUAL_BRANCH" "$ACTUAL_HEAD" "$EXPECTED_BRANCH" "$EXPECTED_HEAD" || fail "execution_identity_mismatch:branch=$ACTUAL_BRANCH head=$ACTUAL_HEAD expected_branch=$EXPECTED_BRANCH expected_head=$EXPECTED_HEAD"
-[[ -z "$(safe_git status --porcelain --untracked-files=all)" ]] || fail "product_repo_worktree_not_clean:$REPO"
+# The official bootstrap creates a clean worktree, so ignored untracked material is not
+# accepted either; otherwise an ignored top-level Python module could shadow pinned code.
+[[ -z "$(safe_git status --porcelain --untracked-files=all --ignored=matching)" ]] || fail "product_repo_worktree_not_clean:$REPO_RESOLVED"
 
 ACTIVE_RESOLVED="$(cd "$ACTIVE_MATCH" && pwd -P)"
 case "$ACTIVE_RESOLVED" in */runtime/active_single_match/current) ;; *) fail "active_match_runtime_authority_mismatch:$ACTIVE_RESOLVED" ;; esac
@@ -74,7 +102,7 @@ rm -f "$ZIP" "$ZIP_TMP"
 trap 'rm -rf "$TMP_ROOT"; rm -f "$ZIP_TMP"' EXIT
 trap 'exit 130' INT TERM HUP
 
-cd "$REPO"
+cd "$REPO_RESOLVED"
 FINAL_RC=0
 FAILED_STEP=""
 run_step(){
@@ -91,7 +119,7 @@ record_failure(){ local rc="$1" name="$2"; [[ "$rc" -eq 0 ]] && return 0; [[ "$F
 run_step inventory python multiformat_file_inventory.py --input-root "$ACTIVE_RESOLVED" --runtime-authority "$ACTIVE_RESOLVED" --active-match-execution --out "$TMP_ROOT" || true
 
 if [[ "$FINAL_RC" -eq 0 ]]; then
-  run_step provider_metric_dictionary python provider_metric_dictionary_lite.py --repo-root "$REPO" --output "$TMP_ROOT/provider_metric_dictionary_lite_v1.json" || true
+  run_step provider_metric_dictionary python provider_metric_dictionary_lite.py --repo-root "$REPO_RESOLVED" --output "$TMP_ROOT/provider_metric_dictionary_lite_v1.json" || true
 fi
 
 python - "$TMP_ROOT" "$ACTUAL_BRANCH" "$ACTUAL_HEAD" "$ACTIVE_RESOLVED" "$FINAL_RC" "$FAILED_STEP" <<'PY'
