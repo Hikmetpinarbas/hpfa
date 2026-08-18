@@ -16,6 +16,9 @@ RUNTIME_CHAIN_FILES = (
     "hpfa/modules/core/csv_surface_reader_lite/src/csv_surface_reader.py",
     "hpfa/modules/core/xml_surface_reader_lite/src/xml_surface_reader.py",
     "hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_surface_reader.py",
+    "hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_surface_reader/native_reader.py",
+    "hpfa/modules/core/xlsx_surface_reader_lite/src/native_ooxml.py",
+    "hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_header_semantics.py",
     "hpfa/modules/core/multiformat_file_inventory_lite/src/multiformat_file_inventory.py",
     "hpfa/modules/core/active_match_spine_runner/src/spine_runner.py",
 )
@@ -27,6 +30,9 @@ LOCAL_DYNAMIC_IMPORTS = {
     "spine_runner",
     "surface_manifest",
     "boundary_analysis_scorer",
+    "xml_common",
+    "xml_rows",
+    "xml_structure",
 }
 
 FORBIDDEN_NETWORK_MODULES = {
