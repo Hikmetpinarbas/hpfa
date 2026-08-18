@@ -9,7 +9,9 @@ on:
       - 'hpfa/modules/core/statistical_spatial_evidence_lite/**'
       - 'docs/contracts/row_nucleus_content_role_bridge_lite_v1.md'
       - 'docs/contracts/statistical_spatial_evidence_lite_v1.md'
+      - 'docs/contracts/self_contained_runtime_dependency_policy_v1.md'
       - 'docs/research/eventonly/statistical_method_admission_registry_v1.md'
+      - 'docs/research/eventonly/autonomous_scientific_capability_registry_v1.md'
       - '.github/workflows/statistical-spatial-evidence-lite-v1.yml'
 
 jobs:
@@ -29,7 +31,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install test dependencies
-        run: python -m pip install --upgrade pip pytest openpyxl
+        run: python -m pip install --upgrade pip pytest
 
       - name: Exact PR head gate
         run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
@@ -42,13 +44,15 @@ jobs:
             hpfa/modules/core/row_nucleus_content_role_bridge_lite/src/__init__.py \
             hpfa/modules/core/row_nucleus_content_role_bridge_lite/src/row_nucleus_content_role_bridge.py \
             hpfa/modules/core/statistical_spatial_evidence_lite/src/__init__.py \
-            hpfa/modules/core/statistical_spatial_evidence_lite/src/statistical_spatial_evidence.py
+            hpfa/modules/core/statistical_spatial_evidence_lite/src/statistical_spatial_evidence.py \
+            hpfa/modules/core/statistical_spatial_evidence_lite/tests/test_self_contained_runtime.py
 
       - name: Focused tests
         run: |
           pytest -q \
             hpfa/modules/core/row_nucleus_content_role_bridge_lite/tests/test_row_nucleus_content_role_bridge.py \
-            hpfa/modules/core/statistical_spatial_evidence_lite/tests/test_statistical_spatial_evidence.py
+            hpfa/modules/core/statistical_spatial_evidence_lite/tests/test_statistical_spatial_evidence.py \
+            hpfa/modules/core/statistical_spatial_evidence_lite/tests/test_self_contained_runtime.py
 
       - name: Claim boundary
         run: |
@@ -58,6 +62,14 @@ jobs:
           grep -q 'pitch_control_truth=false' docs/contracts/statistical_spatial_evidence_lite_v1.md
           grep -q 'dominance_truth=false' docs/contracts/statistical_spatial_evidence_lite_v1.md
           grep -q 'production_release=false' docs/contracts/statistical_spatial_evidence_lite_v1.md
+
+      - name: Self-contained runtime guards
+        run: |
+          grep -q 'NO_NETWORK_RUNTIME' docs/contracts/self_contained_runtime_dependency_policy_v1.md
+          grep -q 'NO_DYNAMIC_CODE_FETCH' docs/contracts/self_contained_runtime_dependency_policy_v1.md
+          grep -q 'ADAPT_NOT_COPY' docs/contracts/self_contained_runtime_dependency_policy_v1.md
+          grep -q 'Synthetic 22-player trajectories' docs/research/eventonly/autonomous_scientific_capability_registry_v1.md
+          grep -q 'Reflection-safe cross-surface relational fusion' docs/research/eventonly/autonomous_scientific_capability_registry_v1.md
 
       - name: Deferred method guards
         run: |
