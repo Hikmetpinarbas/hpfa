@@ -7,11 +7,4 @@ The active implementation is HPFA-owned and stdlib-only under the
 and direct-file tests. No external workbook library is required at runtime.
 """
 
-import sys
-from pathlib import Path
-
-SRC = Path(__file__).resolve().parent
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-from xlsx_surface_reader.native_reader import *  # noqa: F401,F403
+from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader.native_reader import *  # noqa: F401,F403
