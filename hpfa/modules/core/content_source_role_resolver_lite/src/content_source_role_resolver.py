@@ -31,6 +31,17 @@ OUTPUT_TXT = "content_source_role_resolution_lite_v1.txt"
 OUTPUT_INVENTORY = "resolved_input_file_inventory_v1.json"
 ANALYST_TXT = "content_source_role_resolution_analyst_audit_v1.txt"
 
+_ENGLISH_EXACT_ROLE_TERMS = {
+    "GOALKEEPER": {"goalkeeper", "goalkeepers", "keeper", "keepers"},
+    "PLAYER": {"player", "players"},
+    "TEAM": {"team", "teams"},
+}
+_TURKISH_ROLE_STEMS = {
+    "GOALKEEPER": {"kaleci"},
+    "PLAYER": {"oyuncu", "futbolcu"},
+    "TEAM": {"takım", "takim", "ekip"},
+}
+
 
 def normalize_label(value: Any) -> str:
     text = str(value or "").strip().casefold().replace("%", " percent ")
@@ -43,6 +54,18 @@ def normalize_token_text(value: Any) -> str:
     text = str(value or "").strip().casefold()
     text = re.sub(r"[^\w]+", " ", text, flags=re.UNICODE)
     return re.sub(r"\s+", " ", text).strip()
+
+
+def _role_terms(value: Any) -> set[str]:
+    tokens = set(normalize_token_text(value).split())
+    roles: set[str] = set()
+    for role, exact_terms in _ENGLISH_EXACT_ROLE_TERMS.items():
+        if tokens & exact_terms:
+            roles.add(role)
+    for role, stems in _TURKISH_ROLE_STEMS.items():
+        if any(any(token.startswith(stem) for stem in stems) for token in tokens):
+            roles.add(role)
+    return roles
 
 
 def repo_root_from_file() -> Path:
@@ -86,27 +109,13 @@ def load_role_registry(path: str | Path) -> dict[str, list[set[str]]]:
 
 
 def filename_support(path: Path) -> list[str]:
-    tokens = set(normalize_token_text(path.name).split())
-    support: set[str] = set()
-    if tokens & {"goalkeeper", "goalkeepers", "keeper", "keepers", "kaleci", "kaleciler"}:
-        support.add("GOALKEEPER")
-    if tokens & {"player", "players", "oyuncu", "oyuncular", "futbolcu", "futbolcular"}:
-        support.add("PLAYER")
-    if tokens & {"team", "teams", "takim", "takım", "ekip"}:
-        support.add("TEAM")
-    return sorted(support)
+    return sorted(_role_terms(path.name))
 
 
 def sheet_name_support(names: Iterable[str]) -> list[str]:
     support: set[str] = set()
     for raw in names:
-        tokens = set(normalize_token_text(raw).split())
-        if tokens & {"goalkeeper", "goalkeepers", "keeper", "keepers", "kaleci", "kaleciler"}:
-            support.add("GOALKEEPER")
-        if tokens & {"player", "players", "oyuncu", "oyuncular", "futbolcu", "futbolcular"}:
-            support.add("PLAYER")
-        if tokens & {"team", "teams", "takim", "takım", "ekip"}:
-            support.add("TEAM")
+        support.update(_role_terms(raw))
     return sorted(support)
 
 
@@ -193,13 +202,10 @@ def base_resolution(path: Path) -> dict[str, Any]:
     }
 
 
-def resolve_csv(
+def _resolve_row_surface(
     path: Path,
     registry: dict[str, list[set[str]]],
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    audit = csv_surface_reader.inspect_csv_file(
-        path, "UNRESOLVED_SOURCE_ROLE_CANDIDATE"
-    )
+) -> dict[str, Any]:
     rows = surface_rows(path)
     direct_team = any(str(row.get("team") or "").strip() for row in rows)
     structural_roles = {"PLAYER", "GOALKEEPER"} if direct_team else set(ALL_SHORT_ROLES)
@@ -231,7 +237,17 @@ def resolve_csv(
         "structural_role_candidates": sorted(structural_roles),
         "reviewed_label_role_votes": votes,
         "content_role_support": [],
-    }, audit
+    }
+
+
+def resolve_csv(
+    path: Path,
+    registry: dict[str, list[set[str]]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    audit = csv_surface_reader.inspect_csv_file(
+        path, "UNRESOLVED_SOURCE_ROLE_CANDIDATE"
+    )
+    return _resolve_row_surface(path, registry), audit
 
 
 def resolve_xml(
@@ -241,38 +257,7 @@ def resolve_xml(
     audit = xml_surface_reader.inspect_xml_file(
         path, "UNRESOLVED_SOURCE_ROLE_CANDIDATE"
     )
-    rows = surface_rows(path)
-    direct_team = any(str(row.get("team") or "").strip() for row in rows)
-    structural_roles = {"PLAYER", "GOALKEEPER"} if direct_team else set(ALL_SHORT_ROLES)
-    structural_admission: str | None = None
-    if not direct_team and embedded_team_candidate(rows):
-        structural_roles = {"TEAM"}
-        structural_admission = "TEAM"
-
-    labels = [
-        str(row.get("action") or "")
-        for row in rows
-        if str(row.get("action") or "")
-    ]
-    votes = label_role_votes(labels, registry, structural_roles)
-    role, status, reasons = admit_from_evidence(
-        structural_roles=structural_roles,
-        structural_admission=structural_admission,
-        semantic_votes=votes,
-        content_support=[],
-    )
-    return {
-        **base_resolution(path),
-        "resolved_short_role": role,
-        "resolved_source_role": ROLE_CANDIDATES.get(
-            role, "UNRESOLVED_SOURCE_ROLE_CANDIDATE"
-        ),
-        "resolution_status": status,
-        "resolution_reasons": reasons,
-        "structural_role_candidates": sorted(structural_roles),
-        "reviewed_label_role_votes": votes,
-        "content_role_support": [],
-    }, audit
+    return _resolve_row_surface(path, registry), audit
 
 
 def xlsx_metric_labels(audit: dict[str, Any]) -> list[str]:
