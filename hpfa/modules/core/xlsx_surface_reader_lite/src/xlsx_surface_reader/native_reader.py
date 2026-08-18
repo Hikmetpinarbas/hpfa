@@ -10,10 +10,15 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
-from native_ooxml import InvalidFileException, load_workbook
+from hpfa.modules.core.xlsx_surface_reader_lite.src.native_ooxml import (
+    InvalidFileException,
+    load_workbook,
+)
 
 try:
-    from xlsx_header_semantics import semantic_header_norm as _semantic_header_norm
+    from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_header_semantics import (
+        semantic_header_norm as _semantic_header_norm,
+    )
 except ImportError:
     _semantic_header_norm = None
 
