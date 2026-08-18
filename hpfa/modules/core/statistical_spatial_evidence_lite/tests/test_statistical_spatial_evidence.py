@@ -12,9 +12,11 @@ def _nucleus(
     *,
     x: float | None,
     y: float | None,
-    team: str = "team_candidate",
+    team: str | None = "team_candidate",
     role: str = "PLAYER",
     status: str = "PASS",
+    code: str = "candidate_action",
+    action: str = "candidate_action",
 ) -> dict[str, object]:
     return {
         "row_nucleus_candidate_id": nucleus_id,
@@ -24,6 +26,8 @@ def _nucleus(
             "pos_x": None if x is None else str(x),
             "pos_y": None if y is None else str(y),
             "team": team,
+            "code": code,
+            "action": action,
         },
     }
 
@@ -81,13 +85,48 @@ def test_raw_x_thirds_are_absolute_not_team_relative() -> None:
     assert spatial._raw_x_third(70.0, 105.0) == "RAW_X_THIRD_3"
 
 
+def test_team_candidate_prefers_direct_visible_field() -> None:
+    value, source = spatial._team_candidate(
+        "PLAYER",
+        {"team": "A", "code": "ignored", "action": "ignored"},
+    )
+    assert value == "A"
+    assert source == "DIRECT_VISIBLE_TEAM_FIELD_CANDIDATE"
+
+
+def test_team_surface_candidate_can_be_extracted_from_exact_code_suffix() -> None:
+    value, source = spatial._team_candidate(
+        "TEAM",
+        {"team": "", "code": "A - Positional attack", "action": "Positional attack"},
+    )
+    assert value == "A"
+    assert source == "TEAM_CODE_PREFIX_CANDIDATE"
+
+
+def test_team_code_prefix_is_not_guessed_without_exact_action_suffix() -> None:
+    value, source = spatial._team_candidate(
+        "TEAM",
+        {"team": "", "code": "A - Something else", "action": "Positional attack"},
+    )
+    assert value is None
+    assert source == "TEAM_CANDIDATE_UNRESOLVED"
+
+
 def test_groups_never_mix_source_roles_or_team_candidates() -> None:
     report = spatial.build_from_bridge_report(
         _bridge_report(
             [
                 _nucleus("a", x=10, y=10, team="A", role="PLAYER"),
                 _nucleus("b", x=20, y=20, team="B", role="PLAYER"),
-                _nucleus("c", x=30, y=30, team="A", role="TEAM"),
+                _nucleus(
+                    "c",
+                    x=30,
+                    y=30,
+                    team=None,
+                    role="TEAM",
+                    code="A - candidate_action",
+                    action="candidate_action",
+                ),
             ]
         ),
         pitch_length=105.0,
@@ -100,6 +139,40 @@ def test_groups_never_mix_source_roles_or_team_candidates() -> None:
     }
     assert keys == {("PLAYER", "A"), ("PLAYER", "B"), ("TEAM", "A")}
     assert report["spatial_distribution_candidate_group_count"] == 3
+    team_group = next(
+        item
+        for item in report["spatial_distribution_candidates"]
+        if item["source_role"] == "TEAM"
+    )
+    assert team_group["team_candidate_derivation_counts"] == {
+        "TEAM_CODE_PREFIX_CANDIDATE": 1
+    }
+
+
+def test_unresolved_team_candidate_is_excluded_not_pooled() -> None:
+    report = spatial.build_from_bridge_report(
+        _bridge_report(
+            [
+                _nucleus(
+                    "a",
+                    x=10,
+                    y=10,
+                    team=None,
+                    role="TEAM",
+                    code="unresolved",
+                    action="candidate_action",
+                )
+            ]
+        ),
+        pitch_length=105.0,
+        pitch_width=68.0,
+        frame_provenance="TEST_FRAME_CANDIDATE",
+    )
+    assert report["eligible_coordinate_nucleus_count"] == 0
+    assert report["excluded_missing_team_candidate_nucleus_count"] == 1
+    assert report["spatial_distribution_candidates"] == []
+    assert "team_candidate_unresolved_nuclei_excluded" in report["review_hits"]
+    assert report["status"] == "REVIEW_REQUIRED"
 
 
 def test_review_required_nuclei_do_not_enter_spatial_denominator() -> None:
@@ -145,7 +218,10 @@ def test_invalid_frame_fails_deterministically() -> None:
 
 
 def test_method_registry_defers_unadmitted_inference_families() -> None:
-    statuses = {item["method"]: item["status"] for item in spatial.METHOD_ADMISSION_REGISTRY}
+    statuses = {
+        item["method"]: item["status"]
+        for item in spatial.METHOD_ADMISSION_REGISTRY
+    }
     assert statuses["SPATIAL_GRID_SHANNON_ENTROPY"] == "IMPLEMENTED_CANDIDATE_ONLY"
     assert statuses["BIVARIATE_POISSON_DIXON_COLES"] == "DEFERRED"
     assert statuses["KAPLAN_MEIER_COX"] == "DEFERRED"
@@ -160,6 +236,7 @@ def test_claim_boundaries_remain_closed() -> None:
         pitch_width=68.0,
         frame_provenance="TEST_FRAME_CANDIDATE",
     )
+    assert report["team_candidate_is_validated_identity"] is False
     assert report["spatial_point_is_canonical_event"] is False
     assert report["row_nucleus_is_physical_action"] is False
     assert report["team_shape_truth"] is False
@@ -167,4 +244,8 @@ def test_claim_boundaries_remain_closed() -> None:
     assert report["dominance_truth"] is False
     assert report["canonical_event_count"] == "UNKNOWN"
     assert report["production_release"] is False
-    assert math.isfinite(report["spatial_distribution_candidates"][0]["coordinate_centroid_candidate"]["x"])
+    assert math.isfinite(
+        report["spatial_distribution_candidates"][0][
+            "coordinate_centroid_candidate"
+        ]["x"]
+    )
