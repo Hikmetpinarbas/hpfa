@@ -41,6 +41,11 @@ _TURKISH_ROLE_STEMS = {
     "PLAYER": {"oyuncu", "futbolcu"},
     "TEAM": {"takım", "takim", "ekip"},
 }
+_CONFLICT_REASONS = {
+    "CONTENT_ROLE_EVIDENCE_CONFLICT",
+    "AGGREGATE_SEMANTIC_ROLE_CONFLICT",
+    "CROSS_FORMAT_ROLE_CONFLICT",
+}
 
 
 def normalize_label(value: Any) -> str:
@@ -54,6 +59,16 @@ def normalize_token_text(value: Any) -> str:
     text = str(value or "").strip().casefold()
     text = re.sub(r"[^\w]+", " ", text, flags=re.UNICODE)
     return re.sub(r"\s+", " ", text).strip()
+
+
+def normalized_profile(values: Iterable[Any]) -> list[str]:
+    return sorted(
+        {
+            normalized
+            for value in values
+            if (normalized := normalize_label(value))
+        }
+    )
 
 
 def _role_terms(value: Any) -> set[str]:
@@ -168,6 +183,13 @@ def admit_from_evidence(
     return "UNRESOLVED", "REVIEW_REQUIRED", ["CONTENT_ROLE_EVIDENCE_INSUFFICIENT"]
 
 
+def relational_resolution_allowed(resolution: dict[str, Any]) -> bool:
+    if resolution.get("resolution_status") == "ROLE_CANDIDATE_ADMITTED":
+        return False
+    reasons = set(resolution.get("resolution_reasons") or [])
+    return not bool(reasons & _CONFLICT_REASONS)
+
+
 def roleless_row_fingerprint(row: dict[str, Any]) -> tuple[str, ...]:
     return tuple(str(row.get(field, "")) for field in reflection.FINGERPRINT_FIELDS)
 
@@ -198,6 +220,7 @@ def base_resolution(path: Path) -> dict[str, Any]:
     return {
         "filename_role_support": filename_support(path),
         "filename_support_used_for_admission": False,
+        "aggregate_semantic_support_candidates": [],
         "cross_format_support_candidates": [],
     }
 
@@ -237,6 +260,7 @@ def _resolve_row_surface(
         "structural_role_candidates": sorted(structural_roles),
         "reviewed_label_role_votes": votes,
         "content_role_support": [],
+        "semantic_label_profile": normalized_profile(labels),
     }
 
 
@@ -296,9 +320,8 @@ def resolve_xlsx(
     elif player_binding:
         structural_roles = {"PLAYER", "GOALKEEPER"}
 
-    votes = label_role_votes(
-        xlsx_metric_labels(audit), registry, structural_roles
-    )
+    metric_labels = xlsx_metric_labels(audit)
+    votes = label_role_votes(metric_labels, registry, structural_roles)
     role, status, reasons = admit_from_evidence(
         structural_roles=structural_roles,
         structural_admission=None,
@@ -316,7 +339,100 @@ def resolve_xlsx(
         "structural_role_candidates": sorted(structural_roles),
         "reviewed_label_role_votes": votes,
         "content_role_support": content_support,
+        "semantic_label_profile": normalized_profile(metric_labels),
     }, audit
+
+
+def aggregate_semantic_support(records: list[dict[str, Any]]) -> None:
+    profiles: dict[str, set[str]] = {}
+    for record in records:
+        if record.get("extension") != ".xlsx":
+            continue
+        resolution = record["resolution"]
+        if resolution.get("resolution_status") != "ROLE_CANDIDATE_ADMITTED":
+            continue
+        role = str(resolution.get("resolved_short_role") or "")
+        if role not in ALL_SHORT_ROLES:
+            continue
+        profiles.setdefault(role, set()).update(
+            resolution.get("semantic_label_profile") or []
+        )
+
+    if not profiles:
+        return
+
+    for record in records:
+        if record.get("extension") not in {".csv", ".tsv", ".xml"}:
+            continue
+        resolution = record["resolution"]
+        structural = set(resolution.get("structural_role_candidates") or [])
+        row_profile = set(resolution.get("semantic_label_profile") or [])
+        candidates = [
+            {
+                "role": role,
+                "exact_semantic_label_overlap_count": len(row_profile & profile),
+            }
+            for role, profile in profiles.items()
+            if role in structural
+        ]
+        candidates = [
+            item for item in candidates if item["exact_semantic_label_overlap_count"] > 0
+        ]
+        candidates.sort(
+            key=lambda item: (-item["exact_semantic_label_overlap_count"], item["role"])
+        )
+        resolution["aggregate_semantic_support_candidates"] = candidates
+        if not candidates:
+            continue
+
+        top = candidates[0]
+        tied = [
+            item
+            for item in candidates
+            if item["exact_semantic_label_overlap_count"]
+            == top["exact_semantic_label_overlap_count"]
+        ]
+        if len(tied) != 1:
+            resolution["resolution_reasons"] = sorted(
+                set(
+                    resolution.get("resolution_reasons", [])
+                    + ["AGGREGATE_SEMANTIC_ROLE_SUPPORT_TIE"]
+                )
+            )
+            continue
+
+        top_role = top["role"]
+        if resolution.get("resolution_status") == "ROLE_CANDIDATE_ADMITTED":
+            current_role = resolution.get("resolved_short_role")
+            if current_role in {"PLAYER", "GOALKEEPER"} and current_role != top_role:
+                resolution["resolution_status"] = "REVIEW_REQUIRED"
+                resolution["resolved_short_role"] = "UNRESOLVED"
+                resolution["resolved_source_role"] = "UNRESOLVED_SOURCE_ROLE_CANDIDATE"
+                resolution["resolution_reasons"] = sorted(
+                    set(
+                        resolution.get("resolution_reasons", [])
+                        + ["AGGREGATE_SEMANTIC_ROLE_CONFLICT"]
+                    )
+                )
+            elif current_role == top_role:
+                resolution["resolution_reasons"] = sorted(
+                    set(
+                        resolution.get("resolution_reasons", [])
+                        + ["AGGREGATE_SEMANTIC_ROLE_SUPPORT"]
+                    )
+                )
+            continue
+
+        if relational_resolution_allowed(resolution):
+            resolution["resolved_short_role"] = top_role
+            resolution["resolved_source_role"] = ROLE_CANDIDATES[top_role]
+            resolution["resolution_status"] = "ROLE_CANDIDATE_ADMITTED"
+            resolution["resolution_reasons"] = sorted(
+                set(
+                    resolution.get("resolution_reasons", [])
+                    + ["AGGREGATE_SEMANTIC_UNIQUE_BEST_SUPPORT"]
+                )
+            )
 
 
 def cross_format_support(records: list[dict[str, Any]], input_root: Path) -> None:
@@ -376,26 +492,39 @@ def cross_format_support(records: list[dict[str, Any]], input_root: Path) -> Non
         ]
         if len(tied) != 1:
             current["resolution_reasons"] = sorted(
-                set(current["resolution_reasons"] + ["CROSS_FORMAT_ROLE_SUPPORT_TIE"])
+                set(
+                    current.get("resolution_reasons", [])
+                    + ["CROSS_FORMAT_ROLE_SUPPORT_TIE"]
+                )
             )
             continue
-        if (
-            current["resolution_status"] == "ROLE_CANDIDATE_ADMITTED"
-            and current["resolved_short_role"] != top["role"]
-        ):
-            current["resolution_status"] = "REVIEW_REQUIRED"
-            current["resolved_short_role"] = "UNRESOLVED"
-            current["resolved_source_role"] = "UNRESOLVED_SOURCE_ROLE_CANDIDATE"
-            current["resolution_reasons"] = sorted(
-                set(current["resolution_reasons"] + ["CROSS_FORMAT_ROLE_CONFLICT"])
-            )
-        elif current["resolution_status"] != "ROLE_CANDIDATE_ADMITTED":
-            current["resolved_short_role"] = top["role"]
-            current["resolved_source_role"] = ROLE_CANDIDATES[top["role"]]
+
+        top_role = top["role"]
+        if current["resolution_status"] == "ROLE_CANDIDATE_ADMITTED":
+            if current["resolved_short_role"] != top_role:
+                current["resolution_status"] = "REVIEW_REQUIRED"
+                current["resolved_short_role"] = "UNRESOLVED"
+                current["resolved_source_role"] = "UNRESOLVED_SOURCE_ROLE_CANDIDATE"
+                current["resolution_reasons"] = sorted(
+                    set(
+                        current.get("resolution_reasons", [])
+                        + ["CROSS_FORMAT_ROLE_CONFLICT"]
+                    )
+                )
+            else:
+                current["resolution_reasons"] = sorted(
+                    set(
+                        current.get("resolution_reasons", [])
+                        + ["CROSS_FORMAT_ROLE_SUPPORT"]
+                    )
+                )
+        elif relational_resolution_allowed(current):
+            current["resolved_short_role"] = top_role
+            current["resolved_source_role"] = ROLE_CANDIDATES[top_role]
             current["resolution_status"] = "ROLE_CANDIDATE_ADMITTED"
             current["resolution_reasons"] = sorted(
                 set(
-                    current["resolution_reasons"]
+                    current.get("resolution_reasons", [])
                     + ["CROSS_FORMAT_UNIQUE_BEST_VISIBLE_FINGERPRINT_SUPPORT"]
                 )
             )
@@ -455,6 +584,7 @@ def build_report(
                 "structural_role_candidates": [],
                 "reviewed_label_role_votes": {},
                 "content_role_support": [],
+                "semantic_label_profile": [],
             }
         if audit and audit.get("status") == "FAIL_CLOSED":
             hard_blocks.extend(
@@ -474,6 +604,7 @@ def build_report(
             }
         )
 
+    aggregate_semantic_support(records)
     cross_format_support(records, input_root)
     unresolved = [
         record
@@ -620,6 +751,8 @@ def write_outputs(
                 f"structural_role_candidates={resolution.get('structural_role_candidates')}",
                 f"content_role_support={resolution.get('content_role_support')}",
                 f"reviewed_label_role_votes={resolution.get('reviewed_label_role_votes')}",
+                f"aggregate_semantic_support_candidates={resolution.get('aggregate_semantic_support_candidates')}",
+                f"cross_format_support_candidates={resolution.get('cross_format_support_candidates')}",
                 f"filename_role_support={resolution.get('filename_role_support')}",
                 "filename_support_used_for_admission=false",
             ]
