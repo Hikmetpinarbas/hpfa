@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import importlib.util
-import json
-import sys
 from pathlib import Path
 
-from openpyxl import Workbook
+from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_header_semantics import (
+    semantic_header_norm,
+)
+from hpfa.modules.core.xlsx_surface_reader_lite.tests.ooxml_fixture import write_xlsx
 
 ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "xlsx_surface_reader_lite" / "src"
-sys.path.insert(0, str(SRC))
-
-from xlsx_header_semantics import semantic_header_norm
 
 
 def load_product_entrypoint():
@@ -31,21 +29,25 @@ def test_percent_marker_preserves_distinct_semantic_header() -> None:
 
 def test_product_entrypoint_avoids_false_duplicate_header_review(tmp_path: Path) -> None:
     workbook_path = tmp_path / "players.xlsx"
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "Main statistics"
-    sheet.append(
-        [
-            "Player",
-            "Team",
-            "Passes accurate",
-            "Passes accurate, %",
-            "Shots on target",
-            "Shots on target, %",
-        ]
+    write_xlsx(
+        workbook_path,
+        sheets=[
+            {
+                "name": "Main statistics",
+                "rows": [
+                    [
+                        "Player",
+                        "Team",
+                        "Passes accurate",
+                        "Passes accurate, %",
+                        "Shots on target",
+                        "Shots on target, %",
+                    ],
+                    ["Alpha", "Side A", 40, 80, 2, 50],
+                ],
+            }
+        ],
     )
-    sheet.append(["Alpha", "Side A", 40, 80, 2, 50])
-    workbook.save(workbook_path)
 
     inventory = {
         "files": [
@@ -77,6 +79,8 @@ def test_product_entrypoint_avoids_false_duplicate_header_review(tmp_path: Path)
         "shots_on_target",
         "shots_on_target_percent",
     ]
+    assert payload["xlsx_backend"] == "HPFA_NATIVE_OOXML_V1"
+    assert payload["runtime_external_dependency"] is False
     assert payload["canonical_event_count"] == "UNKNOWN"
     assert payload["production_release"] is False
 
