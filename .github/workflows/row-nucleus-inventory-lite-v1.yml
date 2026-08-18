@@ -1,0 +1,36 @@
+name: Row Nucleus Inventory Lite V1
+
+on:
+  push:
+    branches:
+      - work/reconstruct-row-nucleus-research-hardened-v1
+  pull_request:
+    paths:
+      - hpfa/modules/core/row_nucleus_inventory_lite/**
+      - docs/contracts/row_nucleus_inventory_lite_v1.md
+      - row_nucleus_inventory.py
+      - .github/workflows/row-nucleus-inventory-lite-v1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  row-nucleus-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependency
+        run: python -m pip install pytest
+      - name: Compile row nucleus producer
+        run: python -m py_compile hpfa/modules/core/row_nucleus_inventory_lite/src/row_nucleus_inventory.py row_nucleus_inventory.py
+      - name: Run row nucleus deterministic tests
+        run: python -m pytest hpfa/modules/core/row_nucleus_inventory_lite/tests -q
+      - name: Verify sample match identity leak guard
+        run: python -m pytest hpfa/modules/core/row_nucleus_inventory_lite/tests/test_row_nucleus_inventory.py::test_no_sample_match_identity_leak -q
