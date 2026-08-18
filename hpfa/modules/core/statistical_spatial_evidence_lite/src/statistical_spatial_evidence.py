@@ -20,7 +20,6 @@ OUTPUT_JSON = "statistical_spatial_evidence_lite_v1.json"
 OUTPUT_TXT = "statistical_spatial_evidence_lite_v1.txt"
 ANALYST_TXT = "statistical_spatial_evidence_analyst_audit_v1.txt"
 GRID_SPECS = ((12, 8), (16, 12))
-MISSING_TEAM = "MISSING_TEAM_CANDIDATE"
 
 METHOD_ADMISSION_REGISTRY = [
     {
@@ -131,6 +130,30 @@ def _raw_x_third(x: float, pitch_length: float) -> str:
     return "RAW_X_THIRD_3"
 
 
+def _team_candidate(
+    source_role: str,
+    fields: dict[str, Any],
+) -> tuple[str | None, str]:
+    direct = str(fields.get("team") or "").strip()
+    if direct:
+        return direct, "DIRECT_VISIBLE_TEAM_FIELD_CANDIDATE"
+
+    # TEAM surfaces in the current provider family may encode team context as
+    # '<team candidate> - <action label>' inside code. Preserve it only when
+    # the resolved action label is an exact visible suffix. This is candidate
+    # extraction, not validated team identity.
+    if source_role == "TEAM":
+        code = str(fields.get("code") or "").strip()
+        action = str(fields.get("action") or "").strip()
+        suffix = f" - {action}"
+        if code and action and code.casefold().endswith(suffix.casefold()):
+            prefix = code[: -len(suffix)].strip()
+            if prefix:
+                return prefix, "TEAM_CODE_PREFIX_CANDIDATE"
+
+    return None, "TEAM_CANDIDATE_UNRESOLVED"
+
+
 def _entropy_from_counts(counts: Iterable[int]) -> float:
     values = [int(value) for value in counts if int(value) > 0]
     total = sum(values)
@@ -172,7 +195,7 @@ def _grid_distribution(
             "cell_x": cell[0],
             "cell_y": cell[1],
             "row_nucleus_count": count,
-            "share": count / total if total else 0.0,
+            "share": round(count / total, 6) if total else 0.0,
         }
         for cell, count in counts.most_common(10)
     ]
@@ -196,6 +219,7 @@ def _group_metrics(
     *,
     source_role: str,
     team_candidate: str,
+    team_candidate_sources: Counter[str],
     pitch_length: float,
     pitch_width: float,
 ) -> dict[str, Any]:
@@ -208,6 +232,7 @@ def _group_metrics(
     return {
         "source_role": source_role,
         "team_candidate": team_candidate,
+        "team_candidate_derivation_counts": dict(sorted(team_candidate_sources.items())),
         "validated_team_identity": False,
         "eligible_coordinate_nucleus_count": total,
         "coordinate_centroid_candidate": {
@@ -277,10 +302,11 @@ def build_from_bridge_report(
             "production_release": False,
         }
 
-    grouped: dict[tuple[str, str], list[tuple[float, float]]] = defaultdict(list)
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
     excluded_review = 0
     excluded_missing = 0
     excluded_out_of_frame = 0
+    excluded_missing_team = 0
     eligible = 0
 
     for item in bridge_report.get("row_nuclei", []) or []:
@@ -300,25 +326,36 @@ def build_from_bridge_report(
         if source_role not in nucleus.ROLE_PROJECTION:
             excluded_review += 1
             continue
-        team_candidate = str(fields.get("team") or "").strip() or MISSING_TEAM
-        grouped[(source_role, team_candidate)].append((x, y))
+        team_candidate, team_source = _team_candidate(source_role, fields)
+        if not team_candidate:
+            excluded_missing_team += 1
+            continue
+
+        key = (source_role, team_candidate)
+        if key not in grouped:
+            grouped[key] = {"points": [], "team_sources": Counter()}
+        grouped[key]["points"].append((x, y))
+        grouped[key]["team_sources"][team_source] += 1
         eligible += 1
 
     groups = [
         _group_metrics(
-            points,
+            payload["points"],
             source_role=source_role,
             team_candidate=team_candidate,
+            team_candidate_sources=payload["team_sources"],
             pitch_length=pitch_length,
             pitch_width=pitch_width,
         )
-        for (source_role, team_candidate), points in sorted(grouped.items())
+        for (source_role, team_candidate), payload in sorted(grouped.items())
     ]
     review_hits: list[str] = []
     if bridge_report.get("status") == "REVIEW_REQUIRED":
         review_hits.append("upstream_row_nucleus_review_preserved")
     if excluded_out_of_frame:
         review_hits.append("coordinate_out_of_frame_nuclei_excluded")
+    if excluded_missing_team:
+        review_hits.append("team_candidate_unresolved_nuclei_excluded")
     if not groups:
         review_hits.append("no_eligible_coordinate_nuclei")
     status = "REVIEW_REQUIRED" if review_hits else "PASS"
@@ -344,11 +381,13 @@ def build_from_bridge_report(
         "excluded_review_required_nucleus_count": excluded_review,
         "excluded_missing_coordinate_nucleus_count": excluded_missing,
         "excluded_out_of_frame_nucleus_count": excluded_out_of_frame,
+        "excluded_missing_team_candidate_nucleus_count": excluded_missing_team,
         "spatial_distribution_candidate_group_count": len(groups),
         "spatial_distribution_candidates": groups,
         "method_admission_registry": METHOD_ADMISSION_REGISTRY,
         "review_hits": review_hits,
         "hard_block_hits": [],
+        "team_candidate_is_validated_identity": False,
         "spatial_point_is_canonical_event": False,
         "row_nucleus_is_physical_action": False,
         "team_shape_truth": False,
@@ -415,6 +454,7 @@ def write_outputs(
         f"excluded_review_required_nucleus_count={report.get('excluded_review_required_nucleus_count', 0)}",
         f"excluded_missing_coordinate_nucleus_count={report.get('excluded_missing_coordinate_nucleus_count', 0)}",
         f"excluded_out_of_frame_nucleus_count={report.get('excluded_out_of_frame_nucleus_count', 0)}",
+        f"excluded_missing_team_candidate_nucleus_count={report.get('excluded_missing_team_candidate_nucleus_count', 0)}",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "production_release=false",
@@ -425,6 +465,8 @@ def write_outputs(
         f"status={report.get('status')}",
         "Implemented: grid occupancy, Shannon entropy, effective-cell count, HHI concentration and raw x-third distribution.",
         "The unit is an eligible row-nucleus coordinate candidate, not a canonical event or physical action.",
+        "TEAM context may expose a team candidate only through exact '<team> - <action>' visible code suffix structure; this remains candidate-only identity evidence.",
+        "Unresolved team candidates are excluded rather than pooled across teams.",
         "Centroid/dispersion are coordinate-evidence summaries, not team shape, compactness or pitch-control truth.",
         "Raw x-thirds are not own/middle/final thirds until attack direction is separately admitted.",
         "Deferred methods and prerequisites are disclosed in method_admission_registry.",
