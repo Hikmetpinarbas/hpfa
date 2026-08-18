@@ -129,7 +129,12 @@ def test_roleless_fingerprint_does_not_depend_on_filename_or_role() -> None:
 
 
 def test_no_sample_match_identity_leak() -> None:
-    root = Path(__file__).resolve().parents[1]
+    source_path = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "content_source_role_resolver.py"
+    )
+    source = source_path.read_text(encoding="utf-8").casefold()
     forbidden = (
         "genclerbirligi",
         "fenerbahce",
@@ -138,10 +143,5 @@ def test_no_sample_match_identity_leak() -> None:
         "3337",
         "174",
     )
-    product_files = [
-        root / "src" / "content_source_role_resolver.py",
-        Path(__file__),
-    ]
-    source = "\n".join(path.read_text(encoding="utf-8").casefold() for path in product_files)
     for token in forbidden:
         assert token.casefold() not in source
