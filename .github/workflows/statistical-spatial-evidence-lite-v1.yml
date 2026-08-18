@@ -1,0 +1,73 @@
+name: Statistical Spatial Evidence Lite V1
+
+on:
+  pull_request:
+    paths:
+      - 'row_nucleus_content_role_bridge.py'
+      - 'statistical_spatial_evidence.py'
+      - 'hpfa/modules/core/row_nucleus_content_role_bridge_lite/**'
+      - 'hpfa/modules/core/statistical_spatial_evidence_lite/**'
+      - 'docs/contracts/row_nucleus_content_role_bridge_lite_v1.md'
+      - 'docs/contracts/statistical_spatial_evidence_lite_v1.md'
+      - 'docs/research/eventonly/statistical_method_admission_registry_v1.md'
+      - '.github/workflows/statistical-spatial-evidence-lite-v1.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip pytest openpyxl
+
+      - name: Exact PR head gate
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - name: Compile
+        run: |
+          python -m py_compile \
+            row_nucleus_content_role_bridge.py \
+            statistical_spatial_evidence.py \
+            hpfa/modules/core/row_nucleus_content_role_bridge_lite/src/__init__.py \
+            hpfa/modules/core/row_nucleus_content_role_bridge_lite/src/row_nucleus_content_role_bridge.py \
+            hpfa/modules/core/statistical_spatial_evidence_lite/src/__init__.py \
+            hpfa/modules/core/statistical_spatial_evidence_lite/src/statistical_spatial_evidence.py
+
+      - name: Focused tests
+        run: |
+          pytest -q \
+            hpfa/modules/core/row_nucleus_content_role_bridge_lite/tests/test_row_nucleus_content_role_bridge.py \
+            hpfa/modules/core/statistical_spatial_evidence_lite/tests/test_statistical_spatial_evidence.py
+
+      - name: Claim boundary
+        run: |
+          grep -q 'filename_role_used_for_nucleus_grouping=false' docs/contracts/row_nucleus_content_role_bridge_lite_v1.md
+          grep -q 'canonical_event_count=UNKNOWN' docs/contracts/row_nucleus_content_role_bridge_lite_v1.md
+          grep -q 'spatial_point_is_canonical_event=false' docs/contracts/statistical_spatial_evidence_lite_v1.md
+          grep -q 'pitch_control_truth=false' docs/contracts/statistical_spatial_evidence_lite_v1.md
+          grep -q 'dominance_truth=false' docs/contracts/statistical_spatial_evidence_lite_v1.md
+          grep -q 'production_release=false' docs/contracts/statistical_spatial_evidence_lite_v1.md
+
+      - name: Deferred method guards
+        run: |
+          grep -q 'BIVARIATE_POISSON_DIXON_COLES' hpfa/modules/core/statistical_spatial_evidence_lite/src/statistical_spatial_evidence.py
+          grep -q 'KAPLAN_MEIER_COX' hpfa/modules/core/statistical_spatial_evidence_lite/src/statistical_spatial_evidence.py
+          grep -q 'PCA_FACTOR_ANALYSIS' hpfa/modules/core/statistical_spatial_evidence_lite/src/statistical_spatial_evidence.py
+          grep -q 'BETA_BINOMIAL_BAYESIAN_SHRINKAGE' hpfa/modules/core/statistical_spatial_evidence_lite/src/statistical_spatial_evidence.py
+
+      - name: No sample identity leak
+        run: |
+          ! grep -Eiq 'Genclerbirligi|Fenerbahce|15\.08\.2026' \
+            hpfa/modules/core/row_nucleus_content_role_bridge_lite/src/row_nucleus_content_role_bridge.py \
+            hpfa/modules/core/statistical_spatial_evidence_lite/src/statistical_spatial_evidence.py
