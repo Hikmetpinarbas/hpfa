@@ -12,7 +12,7 @@ def test_phone_runner_is_one_zip_no_pytest_single_pass():
     assert "python -m pytest" not in text
     assert text.count("python multiformat_file_inventory.py") == 1
     assert "nested_phone_output_directory_rejected" in text
-    assert 'phone_handoff_mode":"ONE_ZIP_ONLY"' in text
+    assert 'phone_handoff_mode\":\"ONE_ZIP_ONLY\"' in text
 
 
 def test_runner_removes_stale_181_bundles_before_current_publish():
@@ -47,11 +47,29 @@ def test_runner_persists_runtime_state_into_main_alignment_json():
     assert '(root/"aggregate_definition_alignment_lite_v1.json").write_text' in text
 
 
-def test_bootstrap_uses_current_181_work_branch_without_reset_hard():
+def test_bootstrap_uses_clean_current_181_work_branch_without_checkout_mutation():
     text = BOOTSTRAP.read_text(encoding="utf-8")
     assert 'BRANCH="work/reconstruct-181-research-hardened-v1"' in text
-    assert "merge --ff-only" in text
+    assert "clone --no-tags --no-recurse-submodules --single-branch --branch" in text
+    assert "merge --ff-only" not in text
     assert "reset --hard" not in text
+    assert "git -C \"$REPO\" fetch" not in text
+    assert "git -C \"$REPO\" switch" not in text
+
+
+def test_bootstrap_isolates_git_and_python_environment_before_evidence_run():
+    text = BOOTSTRAP.read_text(encoding="utf-8")
+    assert "env -i" in text
+    assert "GIT_CONFIG_GLOBAL=/dev/null" in text
+    assert "GIT_CONFIG_SYSTEM=/dev/null" in text
+    assert "GIT_CONFIG_NOSYSTEM=1" in text
+    assert "core.hooksPath=/dev/null" in text
+    assert "http.sslVerify=true" in text
+    assert "protocol.ext.allow=never" in text
+    assert "PYTHONNOUSERSITE=1" in text
+    assert "--ignored=matching" in text
+    assert "product_repo_origin_transport_or_identity_rejected" in text
+    assert "remote_head_mismatch" in text
 
 
 def test_no_sample_match_identity_leak_in_operator_scripts():
