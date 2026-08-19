@@ -3,6 +3,7 @@ set -euo pipefail
 
 BRANCH="work/reconstruct-181-research-hardened-v1"
 DEFAULT_ORIGIN_URL="https://github.com/Hikmetpinarbas/hpfa.git"
+SYSTEM_PATH="/data/data/com.termux/files/usr/bin:/system/bin"
 ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
 OUT="${HPFA_PHONE_OUTPUT:-/sdcard/Download/HPFA}"
 fail(){ printf 'FAIL: %s\n' "$1" >&2; exit 2; }
@@ -12,9 +13,7 @@ origin_is_trusted(){
   o="${o%/}"
   local lower="${o,,}"
   case "$lower" in
-    https://github.com/hikmetpinarbas/hpfa|https://github.com/hikmetpinarbas/hpfa.git|\
-git@github.com:hikmetpinarbas/hpfa|git@github.com:hikmetpinarbas/hpfa.git|\
-ssh://git@github.com/hikmetpinarbas/hpfa|ssh://git@github.com/hikmetpinarbas/hpfa.git)
+    https://github.com/hikmetpinarbas/hpfa|https://github.com/hikmetpinarbas/hpfa.git)
       return 0 ;;
     *) return 1 ;;
   esac
@@ -25,23 +24,22 @@ ORIGIN_URL="${HPFA_TRUSTED_ORIGIN:-$DEFAULT_ORIGIN_URL}"
 origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identity_rejected:$ORIGIN_URL"
 
 # Bootstrap must not trust an existing product checkout. Network Git runs from an
-# empty environment with hooks/fsmonitor/ext transport disabled and verified TLS.
+# empty environment with fixed system PATH, user/system Git config disabled,
+# hooks/fsmonitor/ext transport disabled and verified TLS. Only HTTPS origin is admitted.
 clean_git(){
   env -i \
-    -u GIT_SSL_NO_VERIFY \
     HOME="${HOME:-}" \
-    PATH="${PATH:-/data/data/com.termux/files/usr/bin:/system/bin}" \
+    PATH="$SYSTEM_PATH" \
     TMPDIR="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}" \
     LC_ALL=C \
     GIT_CONFIG_GLOBAL=/dev/null \
     GIT_CONFIG_SYSTEM=/dev/null \
     GIT_CONFIG_NOSYSTEM=1 \
-    GIT_SSH_COMMAND="ssh" \
+    GIT_TERMINAL_PROMPT=0 \
     git \
       -c core.fsmonitor=false \
       -c core.hooksPath=/dev/null \
       -c core.untrackedCache=false \
-      -c core.sshCommand=ssh \
       -c http.sslVerify=true \
       -c protocol.ext.allow=never \
       "$@"
@@ -72,9 +70,13 @@ RUNNER="$WORK_REPO/tools/run_active_match_aggregate_definition_alignment_v1.sh"
 # PYTHONPATH/PYTHONHOME/Git variables cannot inject code or repository state.
 env -i \
   HOME="${HOME:-}" \
-  PATH="/data/data/com.termux/files/usr/bin:/system/bin" \
+  PATH="$SYSTEM_PATH" \
   TMPDIR="$TMP_BASE" \
   PYTHONNOUSERSITE=1 \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_CONFIG_SYSTEM=/dev/null \
+  GIT_CONFIG_NOSYSTEM=1 \
+  GIT_TERMINAL_PROMPT=0 \
   HPFA_REPO="$WORK_REPO" \
   HPFA_ACTIVE_MATCH="$ACTIVE_MATCH" \
   HPFA_PHONE_OUTPUT="$OUT" \
