@@ -5,6 +5,10 @@ RUNNER = ROOT / "tools" / "run_active_match_aggregate_definition_alignment_v1.sh
 BOOTSTRAP = ROOT / "tools" / "bootstrap_termux_aggregate_definition_alignment_v1.sh"
 
 
+def test_phone_runner_is_repository_executable():
+    assert (RUNNER.stat().st_mode & 0o111) == 0o111
+
+
 def test_phone_runner_is_one_zip_no_pytest_single_pass():
     text = RUNNER.read_text(encoding="utf-8")
     assert "HPFA_181_ACTIVE_MATCH_" in text
