@@ -17,6 +17,11 @@ from hpfa.modules.core.content_source_role_resolver_lite.src import (
 _CORE_NORM_FIELD = core.norm_field
 _CORE_BUILD_RECONCILIATION = core.build_reconciliation
 _MISSING_IDENTIFIER_TOKENS = {"none", "null", "nan", "n/a", "na", "-"}
+_SUPERSEDED_INTERMEDIATE_ROLE_REASONS = {"CONTENT_ROLE_EVIDENCE_INSUFFICIENT"}
+_POSITIVE_RELATIONAL_ROLE_REASONS = {
+    "AGGREGATE_SEMANTIC_UNIQUE_BEST_SUPPORT",
+    "CROSS_FORMAT_UNIQUE_BEST_VISIBLE_FINGERPRINT_SUPPORT",
+}
 
 
 def normalize_identifier_candidate(value: Any) -> str | None:
@@ -33,6 +38,17 @@ def runtime_norm_field(field: str, value: Any) -> str | None:
     if field == "id":
         return normalize_identifier_candidate(value)
     return _CORE_NORM_FIELD(field, value)
+
+
+def admitted_role_reasons(resolution: dict[str, Any]) -> list[str]:
+    """Drop only superseded intermediate insufficiency after positive relational admission."""
+    reasons = {str(value) for value in resolution.get("resolution_reasons", []) or []}
+    if (
+        resolution.get("resolution_status") == "ROLE_CANDIDATE_ADMITTED"
+        and reasons & _POSITIVE_RELATIONAL_ROLE_REASONS
+    ):
+        reasons -= _SUPERSEDED_INTERMEDIATE_ROLE_REASONS
+    return sorted(reasons)
 
 
 def _role_resolution_index(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -62,9 +78,7 @@ def _overlay_resolved_roles(
         row["inventory_source_role"] = row.get("source_role")
         row["source_role"] = resolution.get("resolved_source_role")
         row["source_role_resolution_status"] = resolution.get("resolution_status")
-        row["source_role_resolution_reasons"] = list(
-            resolution.get("resolution_reasons") or []
-        )
+        row["source_role_resolution_reasons"] = admitted_role_reasons(resolution)
         row["filename_support_used_for_role_admission"] = False
     return result
 
