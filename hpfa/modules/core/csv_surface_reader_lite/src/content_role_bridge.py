@@ -6,10 +6,18 @@ This adapts the already-existing content-source-role structural rule without
 promoting filenames, provider labels, or embedded prefixes to validated team
 identity. It only allows the CSV reader to treat the provider's documented
 no-direct-team-column TEAM surface as a TEAM surface candidate when the
-existing exact `code = <prefix> - <action>` evidence is present.
+existing exact `code = <prefix> - <action>` evidence is present and no
+PLAYER/GOALKEEPER/TEAM role has already been admitted upstream.
 """
 
 from typing import Any
+
+
+_ADMITTED_SOURCE_ROLES = {
+    "PLAYER_SURFACE_CANDIDATE",
+    "GOALKEEPER_SURFACE_CANDIDATE",
+    "TEAM_SURFACE_CANDIDATE",
+}
 
 
 def install_content_team_binding(reader_module: Any) -> None:
@@ -30,11 +38,14 @@ def install_content_team_binding(reader_module: Any) -> None:
             return direct
         if indexes.get("team") is not None:
             return direct
+        if source_role in _ADMITTED_SOURCE_ROLES:
+            return direct
 
         # ADAPT_NOT_COPY from Content Source Role Resolver Lite V1:
-        # no direct team column + exact embedded `<prefix> - <action>` support
-        # admits TEAM_SURFACE_CANDIDATE only. The prefix itself remains a raw
-        # provider/team candidate and is never promoted to validated identity.
+        # for a still-generic role only, no direct team column + exact embedded
+        # `<prefix> - <action>` support admits TEAM_SURFACE_CANDIDATE. The
+        # prefix itself remains a raw provider/team candidate and is never
+        # promoted to validated identity.
         embedded = original(rows, headers, indexes, team_surface_role)
         if embedded.get("binding_status") != "EMBEDDED_CODE_TEAM_CANDIDATE":
             return direct
