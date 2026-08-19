@@ -25,7 +25,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install test dependencies
-        run: python -m pip install --upgrade pip pytest openpyxl
+        run: python -m pip install --upgrade pip pytest
 
       - name: Exact PR head gate
         run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
@@ -38,7 +38,7 @@ jobs:
             hpfa/modules/core/content_source_role_resolver_lite/src/content_source_role_resolver.py
 
       - name: Focused tests
-        run: pytest -q hpfa/modules/core/content_source_role_resolver_lite/tests/test_content_source_role_resolver.py
+        run: pytest -q hpfa/modules/core/content_source_role_resolver_lite/tests
 
       - name: Claim boundary
         run: |
@@ -49,3 +49,4 @@ jobs:
       - name: No sample identity leak
         run: |
           ! grep -Eiq 'Genclerbirligi|Fenerbahce|15\.08\.2026' hpfa/modules/core/content_source_role_resolver_lite/src/content_source_role_resolver.py
+          ! grep -Eiq 'Genclerbirligi|Fenerbahce|15\.08\.2026' hpfa/modules/core/content_source_role_resolver_lite/src/__init__.py
