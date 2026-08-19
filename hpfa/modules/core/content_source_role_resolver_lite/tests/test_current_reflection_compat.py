@@ -19,9 +19,12 @@ def test_current_reflection_api_is_canonicalized_without_filename_role_truth(
     xml_path = tmp_path / "generic.xml"
     xml_path.write_text(
         "<root><instance>"
-        "<ID>1</ID><start>0</start><end>1</end>"
-        "<code>Club - PASS</code><action>PASS</action>"
-        "<half>1</half><pos_x>10</pos_x><pos_y>20</pos_y>"
+        "<ID>1</ID><start>0</start><end>1</end><code>Club - PASS</code>"
+        "<label><group>Action</group><text>PASS</text></label>"
+        "<label><group>Half</group><text>1</text></label>"
+        "<label><group>Team</group><text>Club</text></label>"
+        "<label><group>pos_x</group><text>10</text></label>"
+        "<label><group>pos_y</group><text>20</text></label>"
         "</instance></root>",
         encoding="utf-8",
     )
@@ -31,6 +34,11 @@ def test_current_reflection_api_is_canonicalized_without_filename_role_truth(
 
     assert len(csv_rows) == 1
     assert len(xml_rows) == 1
+    assert xml_rows[0]["team"] == "club"
+    assert xml_rows[0]["action"] == "pass"
+    assert xml_rows[0]["half"] == "1"
+    assert xml_rows[0]["pos_x"] == "10"
+    assert xml_rows[0]["pos_y"] == "20"
     assert resolver.roleless_row_fingerprint(csv_rows[0]) == (
         resolver.roleless_row_fingerprint(xml_rows[0])
     )

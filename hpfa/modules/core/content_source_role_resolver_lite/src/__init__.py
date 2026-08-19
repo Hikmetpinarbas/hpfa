@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import sys
+import xml.etree.ElementTree as ET
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -32,7 +33,6 @@ if not hasattr(reflection, "FINGERPRINT_FIELDS"):
     )
 
     _ORIGINAL_READ_CSV_OR_TSV = reflection.read_csv_or_tsv
-    _ORIGINAL_READ_XML = reflection.read_xml
 
     def _text(value: Any) -> str:
         return " ".join(str(value or "").strip().casefold().split())
@@ -100,8 +100,55 @@ if not hasattr(reflection, "FINGERPRINT_FIELDS"):
             for row in _ORIGINAL_READ_CSV_OR_TSV(path, delimiter)
         ]
 
+    def _local_name(tag: Any) -> str:
+        return str(tag).rsplit("}", 1)[-1].rsplit(":", 1)[-1]
+
+    def _label_group_text_compat(label: ET.Element) -> tuple[str, str] | None:
+        group = ""
+        text = ""
+        for child in list(label):
+            tag = _local_name(child.tag).casefold()
+            value = (child.text or "").strip()
+            if tag == "group":
+                group = value
+            elif tag == "text":
+                text = value
+        if not group or not text:
+            return None
+        return _text(group), text
+
+    def _flatten_xml_instance_compat(instance: ET.Element) -> dict[str, Any]:
+        raw: dict[str, Any] = {}
+        labels: dict[str, str] = {}
+        for child in list(instance):
+            tag = _local_name(child.tag).casefold()
+            value = (child.text or "").strip()
+            if tag == "label":
+                pair = _label_group_text_compat(child)
+                if pair is not None:
+                    labels.setdefault(pair[0], pair[1])
+                continue
+            if value:
+                raw.setdefault(tag, value)
+        for group, value in labels.items():
+            raw.setdefault(group, value)
+        return raw
+
     def _read_xml_compat(path: Path) -> list[dict[str, Any]]:
-        return [_canonicalize_row(row) for row in _ORIGINAL_READ_XML(path)]
+        try:
+            root = ET.parse(path).getroot()
+        except (OSError, ET.ParseError):
+            return []
+        rows: list[dict[str, Any]] = []
+        for idx, instance in enumerate(root.iter()):
+            if _local_name(instance.tag).casefold() != "instance":
+                continue
+            raw = _flatten_xml_instance_compat(instance)
+            raw["_source_file"] = path.name
+            raw["_source_format"] = "xml"
+            raw["_source_row_index"] = idx
+            rows.append(_canonicalize_row(raw))
+        return rows
 
     reflection.read_csv_or_tsv = _read_csv_or_tsv_compat
     reflection.read_xml = _read_xml_compat
