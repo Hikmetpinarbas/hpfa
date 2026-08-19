@@ -7,6 +7,7 @@ on:
       - "hpfa/modules/core/aggregate_definition_alignment_lite/**"
       - "hpfa/modules/core/csv_surface_reader_lite/**"
       - "csv_surface_reader_lite.py"
+      - ".github/workflows/csv-surface-reader-lite-v1.yml"
       - "hpfa/modules/core/xlsx_surface_reader_lite/**"
       - "xlsx_surface_reader_lite.py"
       - "docs/contracts/aggregate_definition_alignment_lite_v1.md"
@@ -56,3 +57,5 @@ jobs:
           set -euo pipefail
           grep -q '"xlsx_row_is_event_identity": false' hpfa/modules/core/aggregate_definition_alignment_lite/registry/sportsbase_aggregate_definition_candidates_v1.json
           grep -q '"csv_xml_candidate_linkage_is_physical_event_identity": false' hpfa/modules/core/aggregate_definition_alignment_lite/registry/sportsbase_aggregate_definition_candidates_v1.json
+          grep -q '"filename_support_used_for_admission": False' hpfa/modules/core/csv_surface_reader_lite/src/content_role_bridge.py
+          grep -q '"validated_team_identity": False' hpfa/modules/core/csv_surface_reader_lite/src/content_role_bridge.py

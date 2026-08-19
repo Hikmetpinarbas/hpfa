@@ -25,7 +25,7 @@ jobs:
       - name: Install pytest
         run: python -m pip install pytest
       - name: Compile
-        run: python -m py_compile hpfa/modules/core/csv_surface_reader_lite/src/csv_surface_reader.py csv_surface_reader_lite.py
+        run: python -m py_compile hpfa/modules/core/csv_surface_reader_lite/src/csv_surface_reader.py hpfa/modules/core/csv_surface_reader_lite/src/content_role_bridge.py csv_surface_reader_lite.py
       - name: Focused tests
         run: python -m pytest -q hpfa/modules/core/csv_surface_reader_lite/tests
       - name: Shell syntax
@@ -40,14 +40,18 @@ jobs:
           ! grep -F 'BRANCH="csv-surface-reader-lite-v1"' \
             tools/run_active_match_csv_surface_reader_v1.sh \
             tools/bootstrap_termux_csv_surface_reader_v1.sh
-      - name: Historical final capability blob lineage
+      - name: Historical core capability lineage and controlled adapter
         run: |
-          test "$(git hash-object csv_surface_reader_lite.py)" = "7b2d48d45618ffaed9e9e73a10e648fb2956eb66"
+          # Historical CSV capability core remains byte-identical.
           test "$(git hash-object hpfa/modules/core/csv_surface_reader_lite/contract/csv_surface_reader_lite_v1.json)" = "6a90613761ae04ef8fc36b46c738fd7a62a18708"
           test "$(git hash-object hpfa/modules/core/csv_surface_reader_lite/src/csv_surface_reader.py)" = "2c4938e456a5e95d65b1ec1eb78807a01558aee1"
           test "$(git hash-object hpfa/modules/core/csv_surface_reader_lite/tests/test_csv_surface_reader.py)" = "b4a205d09b88a36aaffb08bcdfc88f1ee6ac6149"
           test "$(git hash-object hpfa/modules/core/csv_surface_reader_lite/tests/test_csv_surface_reader_regressions.py)" = "c734d74f8e62a836d35e57a730e8c352839588ba"
           test "$(git hash-object hpfa/modules/core/csv_surface_reader_lite/tests/test_csv_surface_reader_team_binding.py)" = "3d8db44cbe0615c2b376fd82943d30cf2708aa92"
+          # Current wrapper/bridge are explicitly pinned as the controlled #181 adapter surface.
+          test "$(git hash-object csv_surface_reader_lite.py)" = "f074bf82643fd0df699f2241c72e1e219174f97a"
+          test "$(git hash-object hpfa/modules/core/csv_surface_reader_lite/src/content_role_bridge.py)" = "003d8f64a2ee4405c542b16cf11c77ba91c878f9"
+          test "$(git hash-object hpfa/modules/core/csv_surface_reader_lite/tests/test_content_role_bridge.py)" = "e3fa13aed1b200b95f251b3a21b29b918d6e4abd"
       - name: Claim boundary
         run: |
           python - <<'PY'
@@ -73,6 +77,10 @@ jobs:
           assert boundary["validated_player_identity"] is False
           assert boundary["tactical_truth"] is False
           assert boundary["production_release"] is False
+
+          bridge = Path("hpfa/modules/core/csv_surface_reader_lite/src/content_role_bridge.py").read_text(encoding="utf-8")
+          assert '"filename_support_used_for_admission": False' in bridge
+          assert '"validated_team_identity": False' in bridge
           PY
       - name: No sample identity leak
-        run: python -m pytest -q hpfa/modules/core/csv_surface_reader_lite/tests/test_csv_surface_reader.py::test_no_sample_match_identity_leak
+        run: python -m pytest -q hpfa/modules/core/csv_surface_reader_lite/tests/test_csv_surface_reader.py::test_no_sample_match_identity_leak hpfa/modules/core/csv_surface_reader_lite/tests/test_content_role_bridge.py
