@@ -61,8 +61,14 @@ def test_bootstrap_isolates_git_and_python_environment_before_evidence_run():
     text = BOOTSTRAP.read_text(encoding="utf-8")
     assert "env -i" in text
     assert 'SYSTEM_PATH="/data/data/com.termux/files/usr/bin:/system/bin"' in text
+    assert 'SYSTEM_TMP="/data/data/com.termux/files/usr/tmp"' in text
     assert 'PATH="$SYSTEM_PATH"' in text
+    assert 'TMPDIR="$SYSTEM_TMP"' in text
+    assert 'TMP_BASE="$SYSTEM_TMP"' in text
     assert '${PATH:-' not in text
+    assert '${TMPDIR:-' not in text
+    assert '${PREFIX:-' not in text
+    assert "umask 077" in text
     assert text.count("GIT_CONFIG_GLOBAL=/dev/null") >= 2
     assert text.count("GIT_CONFIG_SYSTEM=/dev/null") >= 2
     assert text.count("GIT_CONFIG_NOSYSTEM=1") >= 2
@@ -74,6 +80,7 @@ def test_bootstrap_isolates_git_and_python_environment_before_evidence_run():
     assert "--ignored=matching" in text
     assert "product_repo_origin_transport_or_identity_rejected" in text
     assert "remote_head_mismatch" in text
+    assert "trusted_system_temp_missing" in text
 
 
 def test_bootstrap_rejects_ssh_transport_and_user_ssh_config_surface():
