@@ -1,9 +1,11 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
+umask 077
 
 BRANCH="work/reconstruct-181-research-hardened-v1"
 DEFAULT_ORIGIN_URL="https://github.com/Hikmetpinarbas/hpfa.git"
 SYSTEM_PATH="/data/data/com.termux/files/usr/bin:/system/bin"
+SYSTEM_TMP="/data/data/com.termux/files/usr/tmp"
 ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
 OUT="${HPFA_PHONE_OUTPUT:-/sdcard/Download/HPFA}"
 fail(){ printf 'FAIL: %s\n' "$1" >&2; exit 2; }
@@ -22,15 +24,16 @@ origin_is_trusted(){
 [[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_missing:$ACTIVE_MATCH"
 ORIGIN_URL="${HPFA_TRUSTED_ORIGIN:-$DEFAULT_ORIGIN_URL}"
 origin_is_trusted "$ORIGIN_URL" || fail "product_repo_origin_transport_or_identity_rejected:$ORIGIN_URL"
+[[ -d "$SYSTEM_TMP" ]] || fail "trusted_system_temp_missing:$SYSTEM_TMP"
 
-# Bootstrap must not trust an existing product checkout. Network Git runs from an
-# empty environment with fixed system PATH, user/system Git config disabled,
-# hooks/fsmonitor/ext transport disabled and verified TLS. Only HTTPS origin is admitted.
+# Bootstrap must not trust an existing product checkout or caller-controlled temp path.
+# Network Git runs from an empty environment with fixed system PATH/TMP, user/system
+# Git config disabled, hooks/fsmonitor/ext transport disabled and verified TLS.
 clean_git(){
   env -i \
     HOME="${HOME:-}" \
     PATH="$SYSTEM_PATH" \
-    TMPDIR="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}" \
+    TMPDIR="$SYSTEM_TMP" \
     LC_ALL=C \
     GIT_CONFIG_GLOBAL=/dev/null \
     GIT_CONFIG_SYSTEM=/dev/null \
@@ -45,7 +48,7 @@ clean_git(){
       "$@"
 }
 
-TMP_BASE="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
+TMP_BASE="$SYSTEM_TMP"
 FETCH_TMP="$(mktemp -d "$TMP_BASE/hpfa-181-fetch.XXXXXX")" || fail "trusted_fetch_tempdir_create_failed"
 cleanup(){ rm -rf "$FETCH_TMP"; }
 trap cleanup EXIT
@@ -67,11 +70,11 @@ RUNNER="$WORK_REPO/tools/run_active_match_aggregate_definition_alignment_v1.sh"
 [[ -x "$RUNNER" ]] || fail "aggregate_definition_alignment_runner_not_executable:$RUNNER"
 
 # Evidence execution also starts with a clean process environment so inherited
-# PYTHONPATH/PYTHONHOME/Git variables cannot inject code or repository state.
+# PYTHONPATH/PYTHONHOME/Git/temp variables cannot inject code or repository state.
 env -i \
   HOME="${HOME:-}" \
   PATH="$SYSTEM_PATH" \
-  TMPDIR="$TMP_BASE" \
+  TMPDIR="$SYSTEM_TMP" \
   PYTHONNOUSERSITE=1 \
   GIT_CONFIG_GLOBAL=/dev/null \
   GIT_CONFIG_SYSTEM=/dev/null \
