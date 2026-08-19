@@ -60,9 +60,13 @@ def test_bootstrap_uses_clean_current_181_work_branch_without_checkout_mutation(
 def test_bootstrap_isolates_git_and_python_environment_before_evidence_run():
     text = BOOTSTRAP.read_text(encoding="utf-8")
     assert "env -i" in text
-    assert "GIT_CONFIG_GLOBAL=/dev/null" in text
-    assert "GIT_CONFIG_SYSTEM=/dev/null" in text
-    assert "GIT_CONFIG_NOSYSTEM=1" in text
+    assert 'SYSTEM_PATH="/data/data/com.termux/files/usr/bin:/system/bin"' in text
+    assert 'PATH="$SYSTEM_PATH"' in text
+    assert '${PATH:-' not in text
+    assert text.count("GIT_CONFIG_GLOBAL=/dev/null") >= 2
+    assert text.count("GIT_CONFIG_SYSTEM=/dev/null") >= 2
+    assert text.count("GIT_CONFIG_NOSYSTEM=1") >= 2
+    assert "GIT_TERMINAL_PROMPT=0" in text
     assert "core.hooksPath=/dev/null" in text
     assert "http.sslVerify=true" in text
     assert "protocol.ext.allow=never" in text
@@ -70,6 +74,15 @@ def test_bootstrap_isolates_git_and_python_environment_before_evidence_run():
     assert "--ignored=matching" in text
     assert "product_repo_origin_transport_or_identity_rejected" in text
     assert "remote_head_mismatch" in text
+
+
+def test_bootstrap_rejects_ssh_transport_and_user_ssh_config_surface():
+    text = BOOTSTRAP.read_text(encoding="utf-8")
+    assert "https://github.com/hikmetpinarbas/hpfa" in text.casefold()
+    assert "git@github.com:hikmetpinarbas/hpfa" not in text.casefold()
+    assert "ssh://git@github.com/hikmetpinarbas/hpfa" not in text.casefold()
+    assert "GIT_SSH_COMMAND" not in text
+    assert "core.sshCommand" not in text
 
 
 def test_no_sample_match_identity_leak_in_operator_scripts():
