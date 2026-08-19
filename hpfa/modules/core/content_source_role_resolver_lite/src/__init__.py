@@ -69,11 +69,13 @@ if not hasattr(reflection, "FINGERPRINT_FIELDS"):
             if not action_raw or action_raw.casefold() == code_raw.casefold():
                 action_raw = suffix
 
+        # IMPORTANT: do not synthesize a direct `team` field from `code`.
+        # SportsBase TEAM surfaces intentionally omit the Team column/label and
+        # encode a team candidate in `code=<team> - <action>`.  Promoting that
+        # embedded candidate into `team` destroys the structural distinction
+        # used by the content source-role resolver and can misroute TEAM rows
+        # into the PLAYER/GOALKEEPER structural pool.
         team_raw = str(first("team", "team_name", "team_raw")).strip()
-        if not team_raw and code_raw and action_raw:
-            suffix = f" - {action_raw}"
-            if code_raw.casefold().endswith(suffix.casefold()):
-                team_raw = code_raw[: -len(suffix)].strip()
 
         result = dict(row)
         result.update(
