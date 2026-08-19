@@ -6,7 +6,8 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from openpyxl import Workbook
+
+from hpfa.modules.core.xlsx_surface_reader_lite.tests.ooxml_fixture import write_xlsx
 
 ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "xlsx_surface_reader_lite" / "src"
@@ -16,11 +17,18 @@ import xlsx_runtime_guard as guard
 
 
 def make_workbook(path: Path) -> None:
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.append(["Player", "Team", "Minutes"])
-    sheet.append(["Alpha", "Side A", 90])
-    workbook.save(path)
+    write_xlsx(
+        path,
+        sheets=[
+            {
+                "name": "Main statistics",
+                "rows": [
+                    ["Player", "Team", "Minutes"],
+                    ["Alpha", "Side A", 90],
+                ],
+            }
+        ],
+    )
 
 
 def inventory(path: Path, relative_path: str | None = None) -> dict:
