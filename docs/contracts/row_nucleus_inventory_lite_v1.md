@@ -13,15 +13,27 @@ row_nucleus_candidate != action_bundle
 row_nucleus_candidate != validated_identity
 ```
 
-## Upstream
+## Current upstream admission path
 
-Current producer:
+Current executable path:
 
-`triangulated_event_reflection_resolver_lite_v1`
+```text
+content_source_role_resolver_lite_v1
+→ triangulated_event_reflection_resolver_lite_v1
+→ row_nucleus_inventory_lite_v1
+```
 
 Row Nucleus, mevcut resolver'ın CSV/XML parsing ve visible-field normalization davranışını yeniden icat etmez. Aynı current product primitive'lerini tüketir.
 
-XLSX row identity üretmez; aggregate/reconciliation support yüzeyi olarak kalır.
+Source role admission artık filename-derived role hint ile açılamaz. Current content-role authority tüm uygulanabilir yüzeyleri admit etmeden Row Nucleus yayımlanmaz.
+
+```text
+filename_support_used_for_role_admission=false
+content_source_role_bridge_status=PASS  -> grouping allowed
+content_source_role_bridge_status!=PASS -> FAIL_CLOSED
+```
+
+PLAYER / GOALKEEPER / TEAM route'ları content evidence ile ayrı kalır. XLSX row identity üretmez; aggregate/reconciliation support yüzeyi olarak kalır.
 
 ## Candidate key
 
@@ -105,12 +117,15 @@ REVIEW_REQUIRED
 
 Exact same-content reflection paths current resolver tarafından bir kez parse edilir; duplicate reflection lineage kaydı korunur. Duplicate path row/nucleus volume'u ikinci kez artırmaz.
 
+CSV/XML reflections independent source votes değildir.
+
 ## G01-G18 compatibility rollup
 
 Bu node yalnız gerçekten gözleyebildiği gate'leri değerlendirir. Downstream semantic/action/event gates `NOT_APPLICABLE` kalabilir; bilinmeyen truth için PASS üretilmez.
 
 Özellikle:
 
+- G05 source-role isolation current content-role authority'ye bağlıdır
 - G07 coordinate surface eligibility
 - G09 serialization lineage readiness
 - G15 XLSX identity exclusion
@@ -142,6 +157,8 @@ production_release=false
 
 ## Required regressions
 
+- content roles override generic filenames before Row Nucleus grouping
+- unresolved/incomplete content-role authority fails closed
 - provider ID textual representation preserved (`001` != `1`)
 - exact duplicate reflection not double-counted
 - visible-field discrepancy propagates REVIEW_REQUIRED
@@ -150,3 +167,16 @@ production_release=false
 - missing coordinate remains REVIEW_REQUIRED without explicit admin exemption
 - XLSX excluded from row identity
 - `test_no_sample_match_identity_leak`
+
+## Donor adaptation
+
+Current #258 Row Nucleus Content Role Bridge behavior is donor support only. #254 retains its existing Row Nucleus primitive and adapts only the proven admission rule:
+
+```text
+content role first
+filename cannot admit
+unresolved role cannot publish role-resolved nuclei
+no event/action identity promotion
+```
+
+ADAPT_NOT_COPY.
