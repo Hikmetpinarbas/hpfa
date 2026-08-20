@@ -5,7 +5,8 @@ import json
 from pathlib import Path
 
 import pytest
-from openpyxl import Workbook
+
+from hpfa.modules.core.xlsx_surface_reader_lite.tests.ooxml_fixture import write_xlsx
 
 SOURCE = (
     Path(__file__).resolve().parents[1]
@@ -19,21 +20,31 @@ SPEC.loader.exec_module(MODULE)
 
 
 def make_workbook(path: Path, *, hidden_sheet: bool = False, formula: bool = False) -> None:
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Main statistics"
-    ws.append(["Player", "Team", "Minutes played", "Passes", "Passes accurate, %"])
-    ws.append(["Alpha", "Side A", 90, 50, 80])
-    ws.append(["Beta", "Side B", 75, 41, 78])
+    rows: list[list[object]] = [
+        ["Player", "Team", "Minutes played", "Passes", "Passes accurate, %"],
+        ["Alpha", "Side A", 90, 50, 80],
+        ["Beta", "Side B", 75, 41, 78],
+    ]
+    formulas = {"D4": ("SUM(D2:D3)", None)} if formula else {}
     if formula:
-        ws["D4"] = "=SUM(D2:D3)"
-        ws["A4"] = "Total"
+        rows.append(["Total"])
+    sheets: list[dict[str, object]] = [
+        {
+            "name": "Main statistics",
+            "state": "visible",
+            "rows": rows,
+            "formulas": formulas,
+        }
+    ]
     if hidden_sheet:
-        hidden = wb.create_sheet("Metadata")
-        hidden.sheet_state = "hidden"
-        hidden.append(["Key", "Value"])
-        hidden.append(["provider", "candidate"])
-    wb.save(path)
+        sheets.append(
+            {
+                "name": "Metadata",
+                "state": "hidden",
+                "rows": [["Key", "Value"], ["provider", "candidate"]],
+            }
+        )
+    write_xlsx(path, sheets=sheets)
 
 
 def inventory_for(path: Path, *, duplicate: bool = False) -> dict:
@@ -58,6 +69,8 @@ def test_visible_sheet_profile_and_identity_candidate_only(tmp_path: Path) -> No
     payload = MODULE.build_xlsx_surface_audit(tmp_path, inventory_for(path))
     assert payload["status"] == "PASS"
     assert payload["xlsx_file_count"] == 1
+    assert payload["xlsx_backend"] == "HPFA_NATIVE_OOXML_V1"
+    assert payload["runtime_external_dependency"] is False
     sheet = payload["files"][0]["sheets"][0]
     assert sheet["surface_row_count"] == 2
     assert sheet["visible_column_count"] == 5
@@ -94,14 +107,20 @@ def test_formula_audit_does_not_evaluate_formula(tmp_path: Path) -> None:
 
 def test_header_discovery_skips_title_row(tmp_path: Path) -> None:
     path = tmp_path / "players.xlsx"
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Main statistics"
-    ws.append(["Match report"])
-    ws.append([])
-    ws.append(["Player", "Team", "Minutes played"])
-    ws.append(["Alpha", "Side A", 90])
-    wb.save(path)
+    write_xlsx(
+        path,
+        sheets=[
+            {
+                "name": "Main statistics",
+                "rows": [
+                    ["Match report"],
+                    [],
+                    ["Player", "Team", "Minutes played"],
+                    ["Alpha", "Side A", 90],
+                ],
+            }
+        ],
+    )
     payload = MODULE.build_xlsx_surface_audit(tmp_path, inventory_for(path))
     sheet = payload["files"][0]["sheets"][0]
     assert sheet["header_row_index"] == 3

@@ -5,6 +5,17 @@ on:
     paths:
       - "aggregate_definition_alignment_lite.py"
       - "hpfa/modules/core/aggregate_definition_alignment_lite/**"
+      - "hpfa/modules/core/csv_surface_reader_lite/**"
+      - "csv_surface_reader_lite.py"
+      - ".github/workflows/csv-surface-reader-lite-v1.yml"
+      - "hpfa/modules/core/xlsx_surface_reader_lite/**"
+      - "xlsx_surface_reader_lite.py"
+      - "cross_format_reconciliation_lite.py"
+      - "hpfa/modules/core/cross_format_reconciliation_lite/**"
+      - "content_source_role_resolver.py"
+      - "hpfa/modules/core/content_source_role_resolver_lite/**"
+      - "docs/contracts/content_source_role_resolver_lite_v1.md"
+      - ".github/workflows/content-source-role-resolver-lite-v1.yml"
       - "docs/contracts/aggregate_definition_alignment_lite_v1.md"
       - "tools/run_active_match_aggregate_definition_alignment_v1.sh"
       - "tools/bootstrap_termux_aggregate_definition_alignment_v1.sh"
@@ -37,8 +48,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install --disable-pip-version-check pytest
-      - run: python -m compileall -q aggregate_definition_alignment_lite.py hpfa/modules/core/aggregate_definition_alignment_lite
-      - run: python -m pytest -q hpfa/modules/core/aggregate_definition_alignment_lite/tests hpfa/modules/core/metric_definition_policy_lite/tests/test_metric_definition_policy.py hpfa/modules/core/metric_definition_policy_lite/tests/test_r19_edge_cases.py
+      - run: python -m compileall -q aggregate_definition_alignment_lite.py cross_format_reconciliation_lite.py content_source_role_resolver.py hpfa/modules/core/aggregate_definition_alignment_lite hpfa/modules/core/csv_surface_reader_lite hpfa/modules/core/xlsx_surface_reader_lite hpfa/modules/core/cross_format_reconciliation_lite hpfa/modules/core/content_source_role_resolver_lite
+      - name: Native XLSX dependency guard
+        run: |
+          set -euo pipefail
+          ! grep -R -n -E '^[[:space:]]*(from|import)[[:space:]]+openpyxl([[:space:].]|$)' \
+            xlsx_surface_reader_lite.py \
+            hpfa/modules/core/xlsx_surface_reader_lite
+      - run: python -m pytest -q hpfa/modules/core/aggregate_definition_alignment_lite/tests hpfa/modules/core/metric_definition_policy_lite/tests/test_metric_definition_policy.py hpfa/modules/core/metric_definition_policy_lite/tests/test_r19_edge_cases.py hpfa/modules/core/csv_surface_reader_lite/tests hpfa/modules/core/xlsx_surface_reader_lite/tests hpfa/modules/core/cross_format_reconciliation_lite/tests hpfa/modules/core/content_source_role_resolver_lite/tests
       - run: bash -n tools/run_active_match_aggregate_definition_alignment_v1.sh tools/bootstrap_termux_aggregate_definition_alignment_v1.sh
       - name: Claim-boundary guard
         shell: bash
@@ -46,3 +63,9 @@ jobs:
           set -euo pipefail
           grep -q '"xlsx_row_is_event_identity": false' hpfa/modules/core/aggregate_definition_alignment_lite/registry/sportsbase_aggregate_definition_candidates_v1.json
           grep -q '"csv_xml_candidate_linkage_is_physical_event_identity": false' hpfa/modules/core/aggregate_definition_alignment_lite/registry/sportsbase_aggregate_definition_candidates_v1.json
+          grep -q '"filename_support_used_for_admission": False' hpfa/modules/core/csv_surface_reader_lite/src/content_role_bridge.py
+          grep -q '"validated_team_identity": False' hpfa/modules/core/csv_surface_reader_lite/src/content_role_bridge.py
+          grep -q '"filename_support_used_for_admission": False' hpfa/modules/core/content_source_role_resolver_lite/src/content_source_role_resolver.py
+          grep -q '"validated_event_identity": False' hpfa/modules/core/content_source_role_resolver_lite/src/content_source_role_resolver.py
+          grep -q 'content_source_role_resolution_gate_not_pass' cross_format_reconciliation_lite.py
+          grep -q '"filename_support_used_for_role_admission"] = False' cross_format_reconciliation_lite.py
