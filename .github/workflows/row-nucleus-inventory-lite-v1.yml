@@ -11,6 +11,7 @@ on:
       - hpfa/modules/core/triangulated_event_reflection_resolver_lite/**
       - docs/contracts/row_nucleus_inventory_lite_v1.md
       - row_nucleus_inventory.py
+      - tools/bootstrap_termux_row_nucleus_inventory_v1.sh
       - .github/workflows/row-nucleus-inventory-lite-v1.yml
   workflow_dispatch:
 
@@ -38,6 +39,8 @@ jobs:
         run: python -m pytest hpfa/modules/core/row_nucleus_inventory_lite/tests -q
       - name: Verify content-role admission regressions
         run: python -m pytest hpfa/modules/core/row_nucleus_inventory_lite/tests/test_content_role_bridge.py -q
+      - name: Verify ACTIVE_MATCH bootstrap syntax
+        run: bash -n tools/bootstrap_termux_row_nucleus_inventory_v1.sh
       - name: Verify sample match identity leak guard
         run: |
           python -m pytest hpfa/modules/core/row_nucleus_inventory_lite/tests/test_row_nucleus_inventory.py::test_no_sample_match_identity_leak -q
