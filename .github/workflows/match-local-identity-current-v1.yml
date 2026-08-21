@@ -42,7 +42,7 @@ jobs:
       - name: Focused Match-Local Identity migration tests
         run: |
           python -m pytest -q \
-            hpfa/modules/core/match_local_identity_candidates_lite/tests/test_current_evidence_atom_migration.py
+            hpfa/modules/core/match_local_identity_candidates_lite/tests
 
       - name: Current Evidence Atom compatibility tests
         run: |
