@@ -84,7 +84,6 @@ jobs:
           paths = [
               Path('match_local_identity_candidates_lite.py'),
               Path('hpfa/modules/core/match_local_identity_candidates_lite/src/match_local_identity_candidates.py'),
-              Path('hpfa/modules/core/match_local_identity_candidates_lite/tests/test_current_evidence_atom_migration.py'),
               Path('tools/bootstrap_termux_match_local_identity_current_v1.sh'),
           ]
           text = '\n'.join(path.read_text(encoding='utf-8') for path in paths)
