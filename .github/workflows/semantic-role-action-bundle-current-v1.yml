@@ -1,0 +1,103 @@
+name: Semantic Role Action Bundle Current V1
+
+on:
+  pull_request:
+    branches:
+      - work/reconstruct-match-local-identity-current-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-action-current:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Exact head gate
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Compile current semantic migration
+        run: |
+          python -m py_compile \
+            semantic_role_action_bundle_candidates_lite.py \
+            match_local_identity_candidates_lite.py \
+            evidence_atom_inventory_lite.py \
+            hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src/semantic_role_action_bundle_candidates.py
+
+      - name: Focused current semantic migration tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/semantic_role_action_bundle_candidates_lite/tests/test_current_contract_migration.py
+
+      - name: Current Match-Local Identity compatibility tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/match_local_identity_candidates_lite/tests
+
+      - name: Current Evidence Atom compatibility tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/evidence_atom_inventory_lite/tests/test_current_row_nucleus_migration.py
+
+      - name: Current Row Nucleus compatibility tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/row_nucleus_inventory_lite/tests/test_content_role_bridge.py \
+            hpfa/modules/core/row_nucleus_inventory_lite/tests/test_row_nucleus_inventory.py
+
+      - name: Contract JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('hpfa/modules/core/semantic_role_action_bundle_candidates_lite/contract/semantic_role_action_bundle_candidates_lite_v1.json')
+          payload = json.loads(path.read_text(encoding='utf-8'))
+          assert payload['module_id'] == 'semantic_role_action_bundle_candidates_lite_v1'
+          assert payload['source_authority']['structured_source_lineage_records'] is True
+          assert payload['source_authority']['historical_positional_two_path_two_sha_authority'] is False
+          assert payload['route_rules']['administrative_review_role_preserved'] is True
+          assert payload['route_rules']['administrative_review_action_eligible'] is False
+          assert payload['bundle_rules']['same_time_order_truth_admitted'] is False
+          assert payload['bundle_rules']['cross_role_fusion_allowed'] is False
+          assert payload['claim_boundary']['canonical_event_count'] == 'UNKNOWN'
+          assert payload['claim_boundary']['physical_action_identity_truth'] is False
+          assert payload['claim_boundary']['production_release'] is False
+          PY
+
+      - name: Termux bootstrap syntax
+        run: bash -n tools/bootstrap_termux_semantic_role_action_bundle_current_v1.sh
+
+      - name: Claim and match-agnostic guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path('semantic_role_action_bundle_candidates_lite.py'),
+              Path('hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src/semantic_role_action_bundle_candidates.py'),
+              Path('tools/bootstrap_termux_semantic_role_action_bundle_current_v1.sh'),
+          ]
+          text = '\n'.join(path.read_text(encoding='utf-8') for path in paths)
+          for token in ('Genclerbirligi', 'Fenerbahce', '15.08.2026', 'Galatasaray'):
+              assert token not in text, token
+          for required in ('canonical_event_count', 'production_release', 'cross_role_fusion_allowed'):
+              assert required in text
+          PY
+
+      - name: Diff hygiene
+        run: git diff --check ${{ github.event.pull_request.base.sha || 'HEAD^' }}..HEAD
