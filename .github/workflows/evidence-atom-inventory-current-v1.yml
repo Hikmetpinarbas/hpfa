@@ -1,0 +1,91 @@
+name: Evidence Atom Inventory Current V1
+
+on:
+  pull_request:
+    branches:
+      - work/reconstruct-row-nucleus-research-hardened-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-atom-current:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Exact head gate
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Compile current migration
+        run: |
+          python -m py_compile \
+            evidence_atom_inventory_lite.py \
+            row_nucleus_inventory.py \
+            hpfa/modules/core/evidence_atom_inventory_lite/src/evidence_atom_inventory.py
+
+      - name: Focused Evidence Atom migration tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/evidence_atom_inventory_lite/tests/test_current_row_nucleus_migration.py
+
+      - name: Current Row Nucleus compatibility tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/row_nucleus_inventory_lite/tests/test_content_role_bridge.py \
+            hpfa/modules/core/row_nucleus_inventory_lite/tests/test_row_nucleus_inventory.py
+
+      - name: Contract JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('hpfa/modules/core/evidence_atom_inventory_lite/contract/evidence_atom_inventory_lite_v1.json')
+          payload = json.loads(path.read_text(encoding='utf-8'))
+          assert payload['module_id'] == 'evidence_atom_inventory_lite_v1'
+          assert payload['claim_boundary']['canonical_event_count'] == 'UNKNOWN'
+          assert payload['claim_boundary']['physical_action_identity_truth'] is False
+          assert payload['claim_boundary']['event_instance_allowed'] is False
+          assert payload['claim_boundary']['cross_role_fusion_allowed'] is False
+          assert payload['claim_boundary']['production_release'] is False
+          PY
+
+      - name: Termux bootstrap syntax
+        run: bash -n tools/bootstrap_termux_evidence_atom_inventory_current_v1.sh
+
+      - name: Claim and match-agnostic guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path('evidence_atom_inventory_lite.py'),
+              Path('hpfa/modules/core/evidence_atom_inventory_lite/src/evidence_atom_inventory.py'),
+              Path('hpfa/modules/core/evidence_atom_inventory_lite/tests/test_current_row_nucleus_migration.py'),
+              Path('tools/bootstrap_termux_evidence_atom_inventory_current_v1.sh'),
+          ]
+          text = '\n'.join(path.read_text(encoding='utf-8') for path in paths)
+          forbidden = ['Genclerbirligi', 'Fenerbahce', '15.08.2026']
+          for token in forbidden:
+              assert token not in text, token
+          assert 'canonical_event_count' in text
+          assert 'production_release' in text
+          PY
+
+      - name: Diff hygiene
+        run: git diff --check ${{ github.event.pull_request.base.sha || 'HEAD^' }}..HEAD
