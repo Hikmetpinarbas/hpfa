@@ -1,0 +1,50 @@
+{
+  "module_id": "match_local_identity_candidates_lite_v1",
+  "version": "2.0.0-current-evidence-atom-migration",
+  "input_module": "evidence_atom_inventory_lite_v1",
+  "input_authority": "current_evidence_atom_candidate",
+  "output_objects": [
+    "team_identity_candidate",
+    "actor_identity_candidate",
+    "identity_binding"
+  ],
+  "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+  "binding_rules": {
+    "one_evidence_atom_one_identity_binding_record": true,
+    "team_surface_actor_binding_allowed": false,
+    "player_surface_actor_binding_candidate_allowed": true,
+    "goalkeeper_surface_actor_binding_candidate_allowed": true,
+    "administrative_identity_state": "IDENTITY_NOT_APPLICABLE",
+    "exact_subject_suffix_required_for_actor_candidate": true,
+    "provider_ids_are_candidates_only": true,
+    "semantic_review_does_not_equal_identity_failure": true,
+    "upstream_review_hits_preserved": true
+  },
+  "source_rules": {
+    "structured_source_lineage_records_authoritative": true,
+    "legacy_positional_sha_lists_authoritative": false,
+    "xlsx_identity_allowed": false,
+    "dependent_reflection_adds_support_vote": false,
+    "source_row_index_is_order_truth": false
+  },
+  "claim_boundary": {
+    "identity_truth_admitted": false,
+    "global_roster_identity_admitted": false,
+    "cross_match_identity_admitted": false,
+    "validated_team_identity": false,
+    "validated_player_identity": false,
+    "validated_event_identity": false,
+    "physical_action_identity_truth": false,
+    "event_instance_allowed": false,
+    "cross_role_fusion_allowed": false,
+    "independent_source_vote_allowed": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "donor_policy": "ADAPT_NOT_COPY"
+}
