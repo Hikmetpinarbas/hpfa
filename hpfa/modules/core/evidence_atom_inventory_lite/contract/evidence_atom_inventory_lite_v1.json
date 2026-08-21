@@ -1,0 +1,71 @@
+{
+  "module_id": "evidence_atom_inventory_lite_v1",
+  "version": "2.0.0-current-row-nucleus-migration",
+  "input_module": "row_nucleus_inventory_lite_v1",
+  "input_authority": "current_content_role_bound_row_nucleus",
+  "output_object": "evidence_atom_candidate",
+  "one_row_nucleus_one_evidence_atom_candidate": true,
+  "source_roles": [
+    "PLAYER_SURFACE_CANDIDATE",
+    "GOALKEEPER_SURFACE_CANDIDATE",
+    "TEAM_SURFACE_CANDIDATE"
+  ],
+  "atom_classes": [
+    "ACTION_ANCHOR_ATOM",
+    "CONTEXT_INTERVAL_ATOM",
+    "PARTICIPATION_INTERVAL_ATOM",
+    "DERIVED_CONSEQUENCE_ATOM",
+    "TERMINAL_OUTCOME_ATOM",
+    "REFERENCE_ATOM",
+    "ADMINISTRATIVE_ATOM",
+    "REVIEW_REQUIRED_ATOM"
+  ],
+  "administrative_policy": {
+    "downstream_eligibility": "ADMIN_ONLY",
+    "action_eligible": false,
+    "sequence_eligible": false,
+    "spatial_eligible": false,
+    "metric_event_denominator_eligible": false,
+    "identity_not_applicable": true,
+    "reflection_discrepancy_preserved": true
+  },
+  "source_independence_policy": {
+    "dependent_csv_xml_reflection_adds_support_vote": false,
+    "same_provider_serialization_is_independent_confirmation": false,
+    "xlsx_row_identity_allowed": false,
+    "provider_row_id_numeric_canonicalization_allowed": false
+  },
+  "temporal_policy": {
+    "source_row_index_is_temporal_order_truth": false,
+    "same_time_artificial_order_allowed": false,
+    "same_time_link_allowed": false,
+    "negative_time_link_allowed": false,
+    "cross_period_link_allowed": false
+  },
+  "claim_boundary": {
+    "event_instance_allowed": false,
+    "cross_role_fusion_allowed": false,
+    "physical_action_identity_truth": false,
+    "validated_event_identity": false,
+    "validated_team_identity": false,
+    "validated_player_identity": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "comparison_allowed": false,
+    "claim_allowed": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "phone_output_policy": {
+    "allowed_roots": [
+      "/sdcard/Download/HPFA",
+      "/storage/emulated/0/Download/HPFA"
+    ],
+    "nested_output_rejected": true,
+    "nested_output_error": "nested_phone_output_directory_rejected"
+  },
+  "release_status": "NOT_PRODUCTION"
+}
