@@ -12,6 +12,69 @@ from hpfa.modules.core.match_local_identity_candidates_lite.src import (
 ROOT = Path(__file__).resolve().parent
 
 
+def _bridge_team_subject_candidates(evidence: dict) -> tuple[dict, int, int]:
+    """Adapt current TEAM atoms without mutating the upstream Evidence Atom artifact.
+
+    Current TEAM surfaces may have no direct team field while the exact visible
+    subject is preserved in ``code_raw`` as ``<team subject> - <raw label>``.
+    Promote that prefix only when the raw-label suffix matches exactly. This is
+    a match-local identity candidate bridge, not provider/global identity truth.
+    """
+    bridged = dict(evidence)
+    bridged_atoms: list[dict] = []
+    applied = 0
+    review = 0
+
+    for atom in list(evidence.get("evidence_atoms") or []):
+        if not isinstance(atom, dict):
+            bridged_atoms.append(atom)
+            continue
+        row = dict(atom)
+        is_team = row.get("source_role") == "TEAM_SURFACE_CANDIDATE"
+        is_admin = bool(row.get("identity_not_applicable")) or row.get("atom_class") == "ADMINISTRATIVE_ATOM"
+        has_team = bool(str(row.get("team_raw_candidate") or "").strip())
+        if is_team and not is_admin and not has_team:
+            prefix = identity._exact_subject_prefix(row.get("code_raw"), row.get("raw_label"))
+            if prefix:
+                row["team_raw_candidate"] = prefix
+                row["team_subject_bridge"] = "EXACT_CODE_PREFIX_CANDIDATE"
+                applied += 1
+            else:
+                row["team_subject_bridge"] = "EXACT_CODE_PREFIX_UNAVAILABLE"
+                review += 1
+        bridged_atoms.append(row)
+
+    bridged["evidence_atoms"] = bridged_atoms
+    return bridged, applied, review
+
+
+def _decorate_current_context(payload: dict, evidence: dict, *, bridge_applied: int, bridge_review: int) -> dict:
+    payload["current_evidence_atom_status"] = evidence.get("status")
+    payload["current_evidence_atom_count"] = evidence.get("evidence_atom_count")
+    payload["current_evidence_atom_pass_count"] = evidence.get("evidence_atom_pass_count")
+    payload["current_evidence_atom_review_required_count"] = evidence.get(
+        "evidence_atom_review_required_count"
+    )
+    payload["current_content_source_role_bridge_status"] = evidence.get(
+        "current_content_source_role_bridge_status"
+    )
+    payload["team_subject_code_prefix_bridge_mode"] = "EXACT_SUFFIX_ONLY_WHEN_TEAM_FIELD_ABSENT"
+    payload["team_subject_code_prefix_bridge_applied_count"] = bridge_applied
+    payload["team_subject_code_prefix_bridge_review_count"] = bridge_review
+    return payload
+
+
+def _build_identity_payload(evidence: dict) -> dict:
+    bridged, applied, review = _bridge_team_subject_candidates(evidence)
+    payload = identity.build_match_local_identity_candidates(bridged)
+    return _decorate_current_context(
+        payload,
+        evidence,
+        bridge_applied=applied,
+        bridge_review=review,
+    )
+
+
 def runtime_build_report(input_dir: str | Path) -> dict:
     evidence = current_atoms.runtime_build_report(input_dir)
     if evidence.get("status") == "FAIL_CLOSED":
@@ -58,18 +121,11 @@ def runtime_build_report(input_dir: str | Path) -> dict:
             "production_release": False,
             "claim_ceiling": identity.CLAIM_CEILING,
             "current_evidence_atom_status": evidence.get("status"),
+            "team_subject_code_prefix_bridge_mode": "EXACT_SUFFIX_ONLY_WHEN_TEAM_FIELD_ABSENT",
+            "team_subject_code_prefix_bridge_applied_count": 0,
+            "team_subject_code_prefix_bridge_review_count": 0,
         }
-    payload = identity.build_match_local_identity_candidates(evidence)
-    payload["current_evidence_atom_status"] = evidence.get("status")
-    payload["current_evidence_atom_count"] = evidence.get("evidence_atom_count")
-    payload["current_evidence_atom_pass_count"] = evidence.get("evidence_atom_pass_count")
-    payload["current_evidence_atom_review_required_count"] = evidence.get(
-        "evidence_atom_review_required_count"
-    )
-    payload["current_content_source_role_bridge_status"] = evidence.get(
-        "current_content_source_role_bridge_status"
-    )
-    return payload
+    return _build_identity_payload(evidence)
 
 
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
@@ -79,16 +135,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     if evidence.get("status") == "FAIL_CLOSED":
         payload = runtime_build_report(input_dir)
     else:
-        payload = identity.build_match_local_identity_candidates(evidence)
-        payload["current_evidence_atom_status"] = evidence.get("status")
-        payload["current_evidence_atom_count"] = evidence.get("evidence_atom_count")
-        payload["current_evidence_atom_pass_count"] = evidence.get("evidence_atom_pass_count")
-        payload["current_evidence_atom_review_required_count"] = evidence.get(
-            "evidence_atom_review_required_count"
-        )
-        payload["current_content_source_role_bridge_status"] = evidence.get(
-            "current_content_source_role_bridge_status"
-        )
+        payload = _build_identity_payload(evidence)
     paths = identity.write_outputs(payload, output)
     payload["outputs"] = {key: str(path) for key, path in paths.items()}
     return payload
@@ -111,8 +158,16 @@ def main() -> int:
                 "team_identity_candidate_count": payload.get("team_identity_candidate_count"),
                 "actor_identity_candidate_count": payload.get("actor_identity_candidate_count"),
                 "identity_candidate_bound_atom_count": payload.get("identity_candidate_bound_atom_count"),
+                "team_candidate_bound_atom_count": payload.get("team_candidate_bound_atom_count"),
+                "actor_candidate_bound_atom_count": payload.get("actor_candidate_bound_atom_count"),
                 "identity_not_applicable_atom_count": payload.get("identity_not_applicable_atom_count"),
                 "identity_review_required_atom_count": payload.get("identity_review_required_atom_count"),
+                "team_subject_code_prefix_bridge_applied_count": payload.get(
+                    "team_subject_code_prefix_bridge_applied_count"
+                ),
+                "team_subject_code_prefix_bridge_review_count": payload.get(
+                    "team_subject_code_prefix_bridge_review_count"
+                ),
                 "decision_state_counts": payload.get("decision_state_counts") or {},
                 "hard_block_hits": payload.get("hard_block_hits") or [],
                 "review_hits": payload.get("review_hits") or [],
