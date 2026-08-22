@@ -1,0 +1,110 @@
+name: Visible Action Sequence Current V1
+
+on:
+  pull_request:
+    branches:
+      - work/reconstruct-trackable-action-consequence-current-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visible-action-sequence-current:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Exact head gate
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Compile current visible sequence migration
+        run: |
+          python -m py_compile \
+            visible_action_sequence_candidates_current_v1.py \
+            trackable_action_consequence_candidates_current_v1.py \
+            hpfa/modules/core/visible_action_sequence_candidates_lite/src/visible_action_sequence_candidates.py
+
+      - name: Focused current visible sequence tests
+        run: python -m pytest -q hpfa/modules/core/visible_action_sequence_candidates_lite/tests/test_current_contract_migration.py
+
+      - name: Current Consequence compatibility tests
+        run: python -m pytest -q hpfa/modules/core/trackable_action_consequence_candidates_lite/tests/test_current_contract_migration.py
+
+      - name: Current Trackable Action compatibility tests
+        run: python -m pytest -q hpfa/modules/core/trackable_action_trace_candidates_lite/tests/test_current_contract_migration.py
+
+      - name: Current Cross-Role Relation compatibility tests
+        run: python -m pytest -q hpfa/modules/core/cross_role_relation_candidate_resolver_lite/tests/test_current_contract_migration.py
+
+      - name: Current Multi-Family Taxonomy compatibility tests
+        run: python -m pytest -q hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite/tests/test_current_contract_migration.py
+
+      - name: Current Semantic Action Bundle compatibility tests
+        run: python -m pytest -q hpfa/modules/core/semantic_role_action_bundle_candidates_lite/tests/test_current_contract_migration.py
+
+      - name: Current Match-Local Identity compatibility tests
+        run: python -m pytest -q hpfa/modules/core/match_local_identity_candidates_lite/tests/test_current_evidence_atom_migration.py
+
+      - name: Current Evidence Atom compatibility tests
+        run: python -m pytest -q hpfa/modules/core/evidence_atom_inventory_lite/tests/test_current_row_nucleus_migration.py
+
+      - name: Current Row Nucleus compatibility tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/row_nucleus_inventory_lite/tests/test_content_role_bridge.py \
+            hpfa/modules/core/row_nucleus_inventory_lite/tests/test_row_nucleus_inventory.py
+
+      - name: Contract JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('hpfa/modules/core/visible_action_sequence_candidates_lite/contract/visible_action_sequence_candidates_lite_v1.json')
+          payload = json.loads(path.read_text(encoding='utf-8'))
+          assert payload['module_id'] == 'visible_action_sequence_candidates_lite_v1'
+          assert payload['time_layer_rules']['same_timestamp_internal_ordering_allowed'] is False
+          assert payload['sequence_admission_rules']['strict_positive_inter_layer_time_required'] is True
+          assert payload['sequence_admission_rules']['max_inter_layer_gap_seconds'] == 12.0
+          assert payload['assignment_rules']['every_trace_exactly_one_assignment'] is True
+          assert payload['claim_boundary']['sequence_truth'] is False
+          assert payload['claim_boundary']['possession_truth'] is False
+          assert payload['claim_boundary']['canonical_event_count'] == 'UNKNOWN'
+          assert payload['claim_boundary']['production_release'] is False
+          PY
+
+      - name: Termux bootstrap syntax
+        run: bash -n tools/bootstrap_termux_visible_action_sequence_current_v1.sh
+
+      - name: Claim and match-agnostic guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path('visible_action_sequence_candidates_current_v1.py'),
+              Path('hpfa/modules/core/visible_action_sequence_candidates_lite/src/visible_action_sequence_candidates.py'),
+              Path('tools/bootstrap_termux_visible_action_sequence_current_v1.sh'),
+          ]
+          text = '\n'.join(path.read_text(encoding='utf-8') for path in paths)
+          for token in ('Genclerbirligi', 'Fenerbahce', '15.08.2026'):
+              assert token not in text, token
+          for required in ('canonical_event_count', 'true_action_count', 'sequence_truth', 'possession_truth'):
+              assert required in text
+          PY
+
+      - name: Diff hygiene
+        run: git diff --check ${{ github.event.pull_request.base.sha || 'HEAD^' }}..HEAD
