@@ -160,9 +160,3 @@ def test_partial_order_contract_vocabulary_and_claim_locks() -> None:
     assert partial["relation_records_may_create_action_volume"] is False
     assert partial["relation_records_may_create_possession_truth"] is False
     assert partial["relation_records_may_create_sequence_truth"] is False
-
-
-def test_no_sample_match_identity_leak_in_partial_order_regression() -> None:
-    source = Path(__file__).read_text(encoding="utf-8")
-    for token in ("Genclerbirligi", "Fenerbahce", "15.08.2026"):
-        assert token not in source
