@@ -1,0 +1,62 @@
+{
+  "module_id": "trackable_action_consequence_candidates_lite_v1",
+  "version": "1.0.0-current-migration",
+  "input_modules": {
+    "trackable_action_trace": "trackable_action_trace_candidates_lite_v1",
+    "evidence_atoms": "evidence_atom_inventory_lite_v1"
+  },
+  "purpose": "Attach claim-safe visible consequence candidates to current Trackable Action trace candidates without opening event, possession, sequence, causal or tactical truth.",
+  "timeline_rules": {
+    "same_period_only": true,
+    "positive_time_delta_only": true,
+    "same_timestamp_link_allowed": false,
+    "negative_time_link_allowed": false,
+    "cross_period_link_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "window_seconds": [5.0, 8.0, 12.0],
+    "max_follow_up_time_layers": 3
+  },
+  "support_rules": {
+    "allowed_atom_classes": ["DERIVED_CONSEQUENCE_ATOM", "TERMINAL_OUTCOME_ATOM"],
+    "pass_atoms_only": true,
+    "exact_support_core_fields": [
+      "match_surface_binding_id",
+      "source_role",
+      "period_candidate",
+      "start_candidate",
+      "end_candidate",
+      "pos_x_candidate",
+      "pos_y_candidate"
+    ],
+    "support_is_causal_truth": false
+  },
+  "trace_rules": {
+    "allowed_source_roles": ["PLAYER_SURFACE_CANDIDATE", "GOALKEEPER_SURFACE_CANDIDATE"],
+    "team_identity_candidate_required": true,
+    "actor_identity_candidate_required": true,
+    "one_consequence_candidate_per_trace_candidate": true,
+    "trace_count_is_physical_action_count": false
+  },
+  "review_rules": {
+    "mixed_team_same_time_first_follow_up_layer": "REVIEW_REQUIRED",
+    "missing_team_visible_follow_up": "REVIEW_REQUIRED"
+  },
+  "claim_boundary": {
+    "consequence_candidate_is_causal_truth": false,
+    "continuation_candidate_is_possession_truth": false,
+    "window_is_sequence_truth": false,
+    "team_response_is_tactical_truth": false,
+    "sequence_link_allowed": false,
+    "event_instance_count": 0,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "phone_output": {
+    "allowed_directories": [
+      "/sdcard/Download/HPFA",
+      "/storage/emulated/0/Download/HPFA"
+    ],
+    "nested_directory_error": "nested_phone_output_directory_rejected"
+  }
+}
