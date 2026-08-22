@@ -12,6 +12,23 @@
     "mixed_team_primary_layer": "REVIEW_REQUIRED",
     "source_row_order_is_temporal_truth": false
   },
+  "partial_order_audit": {
+    "relation_states": [
+      "BEFORE_CONFIRMED",
+      "AFTER_CONFIRMED",
+      "SAME_TIME_UNORDERED",
+      "ORDER_INDETERMINATE",
+      "PROVENANCE_ORDER_ONLY"
+    ],
+    "ordering_evidence_scope": "VISIBLE_TIMESTAMP_ONLY",
+    "same_timestamp_default": "SAME_TIME_UNORDERED",
+    "missing_or_ambiguous_order_default": "ORDER_INDETERMINATE",
+    "source_row_index_relation": "PROVENANCE_ORDER_ONLY",
+    "directly_follows_truth": false,
+    "relation_records_may_create_action_volume": false,
+    "relation_records_may_create_possession_truth": false,
+    "relation_records_may_create_sequence_truth": false
+  },
   "sequence_admission_rules": {
     "single_team_primary_layer_only": true,
     "strict_positive_inter_layer_time_required": true,
