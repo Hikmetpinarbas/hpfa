@@ -77,15 +77,25 @@ jobs:
           assert payload['claim_boundary']['production_release'] is False
           PY
 
+      - name: Partial-order Termux runner syntax and branch binding
+        run: |
+          bash -n tools/bootstrap_termux_visible_action_sequence_partial_order_v1.sh
+          grep -F 'BRANCH="work/reconstruct-visible-sequence-partial-order-v1"' tools/bootstrap_termux_visible_action_sequence_partial_order_v1.sh
+          grep -F 'partial_order_contract_guard_failed' tools/bootstrap_termux_visible_action_sequence_partial_order_v1.sh
+
       - name: Claim and match-agnostic guards
         run: |
           python - <<'PY'
           from pathlib import Path
-          source = Path('hpfa/modules/core/visible_action_sequence_candidates_lite/src/visible_action_sequence_candidates.py').read_text(encoding='utf-8')
+          paths = [
+              Path('hpfa/modules/core/visible_action_sequence_candidates_lite/src/visible_action_sequence_candidates.py'),
+              Path('tools/bootstrap_termux_visible_action_sequence_partial_order_v1.sh'),
+          ]
+          text = '\n'.join(path.read_text(encoding='utf-8') for path in paths)
           for token in ('Genclerbirligi', 'Fenerbahce', '15.08.2026'):
-              assert token not in source, token
+              assert token not in text, token
           for required in ('canonical_event_count', 'sequence_truth', 'possession_truth'):
-              assert required in source
+              assert required in text
           PY
 
       - name: Diff hygiene
