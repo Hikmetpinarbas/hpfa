@@ -1,0 +1,96 @@
+name: Visible Action Sequence Partial Order V1
+
+on:
+  pull_request:
+    branches:
+      - work/reconstruct-visible-sequence-current-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visible-action-sequence-partial-order:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Exact head gate
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Compile current visible sequence producer
+        run: |
+          python -m py_compile \
+            visible_action_sequence_candidates_current_v1.py \
+            hpfa/modules/core/visible_action_sequence_candidates_lite/src/visible_action_sequence_candidates.py
+
+      - name: Visible sequence regressions including partial order
+        run: python -m pytest -q hpfa/modules/core/visible_action_sequence_candidates_lite/tests
+
+      - name: Current Consequence compatibility tests
+        run: python -m pytest -q hpfa/modules/core/trackable_action_consequence_candidates_lite/tests/test_current_contract_migration.py
+
+      - name: Current Trackable Action compatibility tests
+        run: python -m pytest -q hpfa/modules/core/trackable_action_trace_candidates_lite/tests/test_current_contract_migration.py
+
+      - name: Partial-order contract guard
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('hpfa/modules/core/visible_action_sequence_candidates_lite/contract/visible_action_sequence_candidates_lite_v1.json')
+          payload = json.loads(path.read_text(encoding='utf-8'))
+          partial = payload['partial_order_audit']
+          assert partial['relation_states'] == [
+              'BEFORE_CONFIRMED',
+              'AFTER_CONFIRMED',
+              'SAME_TIME_UNORDERED',
+              'ORDER_INDETERMINATE',
+              'PROVENANCE_ORDER_ONLY',
+          ]
+          assert partial['ordering_evidence_scope'] == 'VISIBLE_TIMESTAMP_ONLY'
+          assert partial['same_timestamp_default'] == 'SAME_TIME_UNORDERED'
+          assert partial['missing_or_ambiguous_order_default'] == 'ORDER_INDETERMINATE'
+          assert partial['source_row_index_relation'] == 'PROVENANCE_ORDER_ONLY'
+          assert partial['directly_follows_truth'] is False
+          assert partial['relation_records_may_create_action_volume'] is False
+          assert partial['relation_records_may_create_possession_truth'] is False
+          assert partial['relation_records_may_create_sequence_truth'] is False
+          assert payload['time_layer_rules']['same_timestamp_internal_ordering_allowed'] is False
+          assert payload['time_layer_rules']['source_row_order_is_temporal_truth'] is False
+          assert payload['claim_boundary']['canonical_event_count'] == 'UNKNOWN'
+          assert payload['claim_boundary']['true_action_count'] == 'UNKNOWN'
+          assert payload['claim_boundary']['production_release'] is False
+          PY
+
+      - name: Claim and match-agnostic guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path('hpfa/modules/core/visible_action_sequence_candidates_lite/src/visible_action_sequence_candidates.py'),
+              Path('hpfa/modules/core/visible_action_sequence_candidates_lite/tests/test_partial_order_same_time_regression.py'),
+          ]
+          text = '\n'.join(path.read_text(encoding='utf-8') for path in paths)
+          for token in ('Genclerbirligi', 'Fenerbahce', '15.08.2026'):
+              assert token not in text, token
+          for required in ('canonical_event_count', 'sequence_truth', 'possession_truth'):
+              assert required in text
+          PY
+
+      - name: Diff hygiene
+        run: git diff --check ${{ github.event.pull_request.base.sha || 'HEAD^' }}..HEAD
