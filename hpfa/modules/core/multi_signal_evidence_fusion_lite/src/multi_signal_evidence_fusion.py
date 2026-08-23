@@ -112,6 +112,16 @@ def _required_packet_missing(packet: dict[str, Any]) -> list[str]:
     return [key for key in required if packet.get(key) in [None, ""]]
 
 
+def _upstream_packet_failed(packet: dict[str, Any]) -> bool:
+    if _as_list(packet.get("hard_block_hits")):
+        return True
+    if str(packet.get("decision") or "").upper().startswith("BLOCK"):
+        return True
+    if str(packet.get("status") or "").upper() in {"FAIL_CLOSED", "BLOCKED"}:
+        return True
+    return False
+
+
 def _is_explicit_contradiction(item: Any) -> bool:
     if not isinstance(item, dict):
         return False
@@ -173,10 +183,13 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
         normalized_packet["packet_id"] = packet_id
 
     forbidden_hits = _forbidden_packet_hits(normalized_packet)
+    upstream_hard_block_hits = [str(item) for item in _as_list(normalized_packet.get("hard_block_hits")) if item not in [None, ""]]
     hard_block_hits: list[str] = []
 
     if missing_fields:
         hard_block_hits.append("composite_packet_required_fields_missing")
+    if _upstream_packet_failed(normalized_packet):
+        hard_block_hits.append("upstream_packet_failed_closed")
     if normalized_packet.get("claim_ceiling") != CANDIDATE_ONLY_CLAIM_CEILING:
         hard_block_hits.append("upstream_packet_claim_ceiling_not_candidate_only")
     if forbidden_hits:
@@ -230,6 +243,9 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
         "decision": decision,
         "claim_ceiling": FUSION_CLAIM_CEILING,
         "upstream_claim_ceiling": normalized_packet.get("claim_ceiling"),
+        "upstream_status": normalized_packet.get("status"),
+        "upstream_decision": normalized_packet.get("decision"),
+        "upstream_hard_block_hits": upstream_hard_block_hits,
         "hard_block_hits": hard_block_hits,
         "missing_fields": missing_fields,
         "forbidden_output_hits": forbidden_hits,
