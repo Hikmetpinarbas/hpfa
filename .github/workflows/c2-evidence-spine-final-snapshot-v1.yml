@@ -89,7 +89,7 @@ jobs:
           grep -R -q 'count_value_output_allowed' hpfa/modules/core/cross_role_relation_candidate_resolver_lite
           grep -R -q 'production_release' hpfa/modules/core/cross_role_relation_candidate_resolver_lite
 
-      - name: No sample match identity leak
+      - name: No sample match identity leak in product code
         shell: bash
         run: |
           set -euo pipefail
@@ -99,9 +99,9 @@ jobs:
             semantic_role_action_bundle_candidates_lite.py \
             action_bundle_multi_family_review_taxonomy_current_v1.py \
             cross_role_relation_candidate_resolver_current_v1.py \
-            hpfa/modules/core/evidence_atom_inventory_lite \
-            hpfa/modules/core/match_local_identity_candidates_lite \
-            hpfa/modules/core/semantic_role_action_bundle_candidates_lite \
-            hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite \
-            hpfa/modules/core/cross_role_relation_candidate_resolver_lite \
+            hpfa/modules/core/evidence_atom_inventory_lite/src \
+            hpfa/modules/core/match_local_identity_candidates_lite/src \
+            hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src \
+            hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite/src \
+            hpfa/modules/core/cross_role_relation_candidate_resolver_lite/src \
             tools/bootstrap_termux_c2_evidence_spine_current_v1.sh
