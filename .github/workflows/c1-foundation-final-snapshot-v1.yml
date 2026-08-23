@@ -4,16 +4,33 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   foundation-final-snapshot:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Verify exact source head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$actual_head"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install focused test dependency
-        run: python -m pip install --disable-pip-version-check pytest
+      - name: Install focused test dependencies
+        run: python -m pip install --disable-pip-version-check pytest openpyxl
       - name: Compile selected Foundation modules
         run: |
           python -m compileall -q \
@@ -31,25 +48,34 @@ jobs:
             hpfa/modules/core/provider_metric_dictionary_lite \
             hpfa/modules/core/triangulated_event_reflection_resolver_lite \
             hpfa/modules/core/row_nucleus_inventory_lite
-      - name: Run selected Foundation test surface
+      - name: Run selected Foundation test suites independently
+        shell: bash
         run: |
-          python -m pytest -q \
-            hpfa/modules/core/multiformat_file_inventory_lite/tests \
-            hpfa/modules/core/csv_surface_reader_lite/tests \
-            hpfa/modules/core/xlsx_surface_reader_lite/tests \
-            hpfa/modules/core/xml_surface_reader_lite/tests \
-            hpfa/modules/core/provider_alias_field_semantics_lite/tests \
-            hpfa/modules/core/provider_label_value_semantics_lite/tests \
-            hpfa/modules/core/content_source_role_resolver_lite/tests \
-            hpfa/modules/core/cross_format_reconciliation_lite/tests \
-            hpfa/modules/core/metric_definition_policy_lite/tests \
-            hpfa/modules/core/metric_family_registry_lite/tests \
-            hpfa/modules/core/aggregate_definition_alignment_lite/tests \
-            hpfa/modules/core/provider_metric_dictionary_lite/tests \
-            hpfa/modules/core/triangulated_event_reflection_resolver_lite/tests \
+          set -euo pipefail
+          suites=(
+            hpfa/modules/core/multiformat_file_inventory_lite/tests
+            hpfa/modules/core/csv_surface_reader_lite/tests
+            hpfa/modules/core/xlsx_surface_reader_lite/tests
+            hpfa/modules/core/xml_surface_reader_lite/tests
+            hpfa/modules/core/provider_alias_field_semantics_lite/tests
+            hpfa/modules/core/provider_label_value_semantics_lite/tests
+            hpfa/modules/core/content_source_role_resolver_lite/tests
+            hpfa/modules/core/cross_format_reconciliation_lite/tests
+            hpfa/modules/core/metric_definition_policy_lite/tests
+            hpfa/modules/core/metric_family_registry_lite/tests
+            hpfa/modules/core/aggregate_definition_alignment_lite/tests
+            hpfa/modules/core/provider_metric_dictionary_lite/tests
+            hpfa/modules/core/triangulated_event_reflection_resolver_lite/tests
             hpfa/modules/core/row_nucleus_inventory_lite/tests
+          )
+          for suite in "${suites[@]}"; do
+            echo "===== C1 SUITE: $suite ====="
+            python -m pytest -q "$suite"
+          done
       - name: Claim-boundary static guard
         run: |
           grep -R -q 'canonical_event_count' hpfa/modules/core/row_nucleus_inventory_lite
           grep -R -q 'production_release' hpfa/modules/core/row_nucleus_inventory_lite
           grep -R -q 'filename_support_used_for_admission' hpfa/modules/core/content_source_role_resolver_lite
+          grep -R -q 'comparison_allowed' hpfa/modules/core/metric_definition_policy_lite
+          grep -R -q 'claim_output_allowed' hpfa/modules/core/metric_definition_policy_lite
