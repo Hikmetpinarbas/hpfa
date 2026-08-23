@@ -93,12 +93,23 @@ def _contract_item_id(item: dict[str, Any]) -> str:
     return str(item.get("contract_item_id") or "")
 
 
-def _forbidden_upstream_hits(item: dict[str, Any]) -> list[str]:
+def _collect_forbidden_hits(value: Any, path: str = "") -> list[str]:
     hits: list[str] = []
-    for field in FORBIDDEN_UPSTREAM_FIELDS:
-        if field in item and _is_forbidden_value(item.get(field)):
-            hits.append(field)
-    return sorted(hits)
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_UPSTREAM_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            child_path = f"{path}[{idx}]" if path else f"[{idx}]"
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    return hits
+
+
+def _forbidden_upstream_hits(item: dict[str, Any]) -> list[str]:
+    return sorted(set(_collect_forbidden_hits(item)))
 
 
 def _upstream_item_failed(item: dict[str, Any]) -> bool:
