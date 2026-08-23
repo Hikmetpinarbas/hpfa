@@ -7,7 +7,6 @@ on:
       - "provider_label_value_semantics_lite.py"
       - "tools/bootstrap_termux_provider_label_value_semantics_v1.sh"
       - "tools/run_active_match_provider_label_value_semantics_v1.sh"
-      - "docs/governance/HPFA_DEVELOPMENT_CHECKPOINT_CURRENT.json"
       - ".github/workflows/provider-label-value-semantics-v1.yml"
   workflow_dispatch:
 
@@ -18,10 +17,20 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out exact source head
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+      - name: Verify exact source head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$actual_head"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -29,10 +38,12 @@ jobs:
         run: python -m pip install pytest openpyxl
       - name: Compile
         run: |
-          python -m py_compile             provider_label_value_semantics_lite.py             hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py
+          python -m py_compile \
+            provider_label_value_semantics_lite.py \
+            hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py
       - name: Focused tests
         run: python -m pytest -q hpfa/modules/core/provider_label_value_semantics_lite/tests
-      - name: Upstream #172 compatibility
+      - name: Upstream provider alias compatibility
         run: python -m pytest -q hpfa/modules/core/provider_alias_field_semantics_lite/tests
       - name: Shell syntax and execution identity
         run: |
@@ -60,34 +71,30 @@ jobs:
           grep -F 'CONTEXT_DEPENDENT_SEMANTIC_COLLISION' docs/contracts/provider_label_value_semantics_lite_v1.md
           grep -F 'TEAM_SURFACE_CANDIDATE' docs/contracts/provider_label_value_semantics_lite_v1.md
           grep -F 'GOALKEEPER_SURFACE_CANDIDATE' docs/contracts/provider_label_value_semantics_lite_v1.md
-      - name: Checkpoint resolver policy
+      - name: Current integration authority policy
         run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          p=json.loads(Path("docs/governance/HPFA_DEVELOPMENT_CHECKPOINT_CURRENT.json").read_text())
-          assert p["record_role"] == "CURRENT_STATE_RESOLUTION_POLICY"
-          assert p["authorities"]["engineering_head"]["authority"] == "GIT_BRANCH_REF"
-          assert p["authorities"]["ci_state"]["authority"] == "GITHUB_ACTIONS_EXACT_HEAD"
-          assert p["authorities"]["active_match_state"]["authority"] == "runtime/active_single_match/current"
-          assert p["self_reference_policy"]["embed_containing_commit_sha"] is False
-          assert p["runtime_handoff_policy"]["phone_output_mode"] == "ONE_ZIP_ONLY"
-          assert p["runtime_handoff_policy"]["phone_runtime_pytest"] is False
-          assert p["runtime_handoff_policy"]["single_pass_upstream_refresh"] is True
-          assert p["research_acceptance"]["R09_observation_completeness"].startswith("ACCEPT_P0_NOW_SPEC")
-          assert p["claim_boundary"]["canonical_event_count"] == "UNKNOWN"
-          assert p["claim_boundary"]["production_release"] is False
-          PY
+          grep -F 'EXPECTED_BRANCH="${HPFA_EXPECTED_BRANCH:-}"' tools/run_active_match_provider_label_value_semantics_v1.sh
+          grep -F 'EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"' tools/run_active_match_provider_label_value_semantics_v1.sh
+          grep -F 'BRANCH="${HPFA_EXPECTED_BRANCH:-}"' tools/bootstrap_termux_provider_label_value_semantics_v1.sh
+          grep -F 'merge --ff-only "origin/$BRANCH"' tools/bootstrap_termux_provider_label_value_semantics_v1.sh
+          ! grep -F 'integration/foundation-tranche-a-v1' tools/bootstrap_termux_provider_label_value_semantics_v1.sh
+          grep -F 'runtime/active_single_match/current' tools/run_active_match_provider_label_value_semantics_v1.sh
+          grep -F 'runtime/active_single_match/current' tools/bootstrap_termux_provider_label_value_semantics_v1.sh
       - name: Runtime operability guards
         run: |
           ! grep -F 'python -m pytest' tools/run_active_match_provider_label_value_semantics_v1.sh
           ! grep -F 'run_active_match_csv_surface_reader_v1.sh' tools/run_active_match_provider_label_value_semantics_v1.sh
           ! grep -F 'run_active_match_xlsx_surface_reader_v1.sh' tools/run_active_match_provider_label_value_semantics_v1.sh
           ! grep -F 'run_active_match_xml_surface_reader_v1.sh' tools/run_active_match_provider_label_value_semantics_v1.sh
-          grep -F 'ONE_ZIP_ONLY' docs/governance/HPFA_DEVELOPMENT_CHECKPOINT_CURRENT.json
+          grep -F '"phone_handoff_mode":"ONE_ZIP_ONLY"' tools/run_active_match_provider_label_value_semantics_v1.sh
           grep -F 'HPFA_175_ACTIVE_MATCH_' tools/run_active_match_provider_label_value_semantics_v1.sh
           grep -F 'nested_phone_output_directory_rejected' tools/run_active_match_provider_label_value_semantics_v1.sh
+          grep -F 'nested_phone_output_directory_rejected' tools/bootstrap_termux_provider_label_value_semantics_v1.sh
       - name: Claim boundary and no sample identity leak
         run: |
           grep -F 'CANONICAL_EVENT_COUNT = "UNKNOWN"' hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py
-          ! grep -RInE "Sturm Graz|Heart of Midlothian|Australia|Turkey|World Cup|6935|77798"             provider_label_value_semantics_lite.py             hpfa/modules/core/provider_label_value_semantics_lite/src             tools/run_active_match_provider_label_value_semantics_v1.sh             tools/bootstrap_termux_provider_label_value_semantics_v1.sh
+          ! grep -RInE "Sturm Graz|Heart of Midlothian|Australia|Turkey|World Cup|6935|77798" \
+            provider_label_value_semantics_lite.py \
+            hpfa/modules/core/provider_label_value_semantics_lite/src \
+            tools/run_active_match_provider_label_value_semantics_v1.sh \
+            tools/bootstrap_termux_provider_label_value_semantics_v1.sh
