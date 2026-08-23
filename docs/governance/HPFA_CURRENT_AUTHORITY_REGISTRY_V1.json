@@ -5,7 +5,7 @@
   "product_repository": "Hikmetpinarbas/hpfa",
   "product_main": {
     "branch": "main",
-    "head_at_registry_creation": "d23f868a5287811b4dc6e2912085aa85fd547a64",
+    "bridge_capability_landing_commit": "ab8c9a7a3152108eeede5b3a2204d2d1fcb14726",
     "role": "PRODUCT_MAIN"
   },
   "active_match_runtime_authority": {
@@ -28,6 +28,11 @@
     "C4_INTELLIGENCE_CORRECTNESS_INTEGRATION": {
       "merge_commit": "d23f868a5287811b4dc6e2912085aa85fd547a64",
       "final_state_source_pr": 278
+    },
+    "RECONSTRUCTION_TO_INTELLIGENCE_PACKET_BRIDGE": {
+      "merge_commit": "ab8c9a7a3152108eeede5b3a2204d2d1fcb14726",
+      "source_pr": 284,
+      "exact_pr_head_active_match_evidence": "9b3db1afb88b2d4c592a6c7eabae718c6ab993e8"
     }
   },
   "authority_separation": {
@@ -38,19 +43,21 @@
     "merged_is_production_release": false
   },
   "current_gap": {
-    "reconstruction_to_intelligence_runtime_bridge": "MISSING_NOT_ADMITTED",
-    "integrated_head_active_match_revalidation": "REQUIRED",
+    "reconstruction_to_intelligence_runtime_bridge": "LANDED_ON_MAIN",
+    "bridge_pr_head_active_match_evidence": "ACTIVE_MATCH_EVIDENCE_PASS_REVIEW_REQUIRED_PRESERVED",
+    "merged_main_head_active_match_revalidation": "REQUIRED",
     "canonical_event_count": "UNKNOWN",
     "true_action_count": "UNKNOWN",
     "production_release": false
   },
   "next_frontier": [
-    "RECONSTRUCTION_TO_INTELLIGENCE_BRIDGE",
-    "INTEGRATED_ACTIVE_MATCH_REVALIDATION",
+    "MERGED_MAIN_ACTIVE_MATCH_REVALIDATION",
     "CONTEXT_EVIDENCE_RE_BINDING",
     "ANALYST_EPISODE_LOCATOR",
     "RHYTHM_CHANGE_DETECTION",
-    "RECURRENCE_VARIATION_DEVIATION"
+    "RECURRENCE_VARIATION_DEVIATION",
+    "EVIDENCE_REASONING_ENRICHMENT",
+    "VIDEO_VISUAL_EVIDENCE_BRIDGE"
   ],
   "donor_rule": "ADAPT_NOT_COPY"
 }
