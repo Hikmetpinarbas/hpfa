@@ -1,0 +1,73 @@
+name: Intelligence Report Review Continuity V1
+
+on:
+  pull_request:
+    branches:
+      - fix/intelligence-safe-router-review-continuity-v1
+    paths:
+      - 'hpfa/modules/core/safe_argument_router_tr_lite/**'
+      - 'hpfa/modules/core/analyst_report_block_composer_lite/**'
+      - 'hpfa/modules/core/report_output_contract_lite/**'
+      - 'hpfa/modules/core/final_report_assembly_gate_lite/**'
+      - 'docs/contracts/analyst_report_block_composer_lite_v1.md'
+      - 'docs/contracts/report_output_contract_lite_v1.md'
+      - '.github/workflows/intelligence-report-review-continuity-v1.yml'
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pytest
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Compile downstream intelligence producers
+        run: |
+          python -m py_compile hpfa/modules/core/safe_argument_router_tr_lite/src/safe_argument_router_tr.py
+          python -m py_compile hpfa/modules/core/analyst_report_block_composer_lite/src/analyst_report_block_composer.py
+          python -m py_compile hpfa/modules/core/report_output_contract_lite/src/report_output_contract.py
+          python -m py_compile hpfa/modules/core/final_report_assembly_gate_lite/src/final_report_assembly_gate.py
+
+      - name: Run downstream regressions
+        run: |
+          python -m pytest -q hpfa/modules/core/safe_argument_router_tr_lite/tests/test_safe_argument_router_tr.py
+          python -m pytest -q hpfa/modules/core/analyst_report_block_composer_lite/tests/test_analyst_report_block_composer.py
+          python -m pytest -q hpfa/modules/core/report_output_contract_lite/tests/test_report_output_contract.py
+          python -m pytest -q hpfa/modules/core/final_report_assembly_gate_lite/tests/test_final_report_assembly_gate.py
+
+      - name: Review continuity and claim guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          safe = Path('hpfa/modules/core/safe_argument_router_tr_lite/src/safe_argument_router_tr.py').read_text(encoding='utf-8')
+          block = Path('hpfa/modules/core/analyst_report_block_composer_lite/src/analyst_report_block_composer.py').read_text(encoding='utf-8')
+          output = Path('hpfa/modules/core/report_output_contract_lite/src/report_output_contract.py').read_text(encoding='utf-8')
+          assembly = Path('hpfa/modules/core/final_report_assembly_gate_lite/src/final_report_assembly_gate.py').read_text(encoding='utf-8')
+
+          assert 'ROUTE_REVIEW_SAFE_SENTENCE_CANDIDATE' in safe
+          assert 'ROUTE_REPORT_BLOCK_TO_REVIEW' in block
+          assert 'review_required_candidate' in block
+          assert 'upstream_report_block_requires_review' in output
+          assert 'REVIEW_BLOCK' in output
+          assert 'ROUTE_ASSEMBLY_ITEM_TO_REVIEW' in assembly
+          assert '_collect_forbidden_hits' in block
+          assert '_collect_forbidden_hits' in output
+          for source in (safe, block, output, assembly):
+              assert 'canonical_event_count' in source
+          for token in ('Genclerbirligi', 'Fenerbahce', '15.08.2026'):
+              assert token not in safe
+              assert token not in block
+              assert token not in output
+              assert token not in assembly
+          PY
