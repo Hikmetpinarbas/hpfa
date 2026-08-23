@@ -84,12 +84,25 @@ def _stable_packet_id(packet_family: str, refs: list[str]) -> str:
 
 def _ref_from_item(item: Any, fallback_prefix: str, idx: int) -> str:
     if isinstance(item, dict):
-        for key in ["ref_id", "id", "feature_id", "window_id", "sequence_id", "metric_id", "signal_id"]:
+        for key in ["ref_id", "id", "feature_id", "window_id", "sequence_id", "metric_id", "signal_id", "signal_ref"]:
             if item.get(key) not in [None, ""]:
                 return str(item[key])
     if item not in [None, ""]:
         return str(item)
     return f"{fallback_prefix}_{idx}"
+
+
+def _preserve_signal_records(candidate: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for idx, item in enumerate(_as_list(candidate.get(key))):
+        signal_ref = _ref_from_item(item, key, idx)
+        if isinstance(item, dict):
+            record = dict(item)
+            record["signal_ref"] = signal_ref
+        else:
+            record = {"signal_ref": signal_ref}
+        records.append(record)
+    return records
 
 
 def collect_input_refs(candidate: dict[str, Any]) -> dict[str, list[str]]:
@@ -174,6 +187,8 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         packet_family = "weak_signal"
 
     refs = collect_input_refs(candidate)
+    supporting_signal_records = _preserve_signal_records(candidate, "supporting_signals")
+    contradicting_signal_records = _preserve_signal_records(candidate, "contradicting_signals")
     all_refs = _all_refs(refs)
     unique_ref_count = len(set(all_refs))
     supporting_count = len(refs["supporting_signals"])
@@ -206,6 +221,8 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         "input_metrics": refs["input_metrics"],
         "supporting_signals": refs["supporting_signals"],
         "contradicting_signals": refs["contradicting_signals"],
+        "supporting_signal_records": supporting_signal_records,
+        "contradicting_signal_records": contradicting_signal_records,
         "input_ref_count": unique_ref_count,
         "supporting_signal_count": supporting_count,
         "contradicting_signal_count": contradicting_count,
