@@ -1,0 +1,58 @@
+{
+  "module_id": "cross_role_relation_candidate_resolver_lite_v1",
+  "version": "1.0-current-contract-migration",
+  "inputs": {
+    "action_bundle_module_id": "semantic_role_action_bundle_candidates_lite_v1",
+    "taxonomy_module_id": "action_bundle_multi_family_review_taxonomy_lite_v1"
+  },
+  "relation_rules": {
+    "relation_requires_exactly_two_bundles": true,
+    "allowed_role_pairs": [
+      ["PLAYER_SURFACE_CANDIDATE", "TEAM_SURFACE_CANDIDATE"],
+      ["GOALKEEPER_SURFACE_CANDIDATE", "TEAM_SURFACE_CANDIDATE"]
+    ],
+    "exact_fields": [
+      "match_surface_binding_id",
+      "team_identity_candidate_id",
+      "period_candidate",
+      "start_candidate",
+      "end_candidate",
+      "pos_x_candidate",
+      "pos_y_candidate",
+      "action_family_candidate"
+    ],
+    "primary_actor_required": true,
+    "team_actor_forbidden": true,
+    "bundle_reuse_forbidden": true,
+    "same_time_only_link_allowed": false,
+    "source_row_order_is_temporal_truth": false
+  },
+  "taxonomy_integrity": {
+    "every_review_bundle_covered_exactly_once": true,
+    "taxonomy_record_must_match_supporting_bundle_core": true,
+    "taxonomy_family_set_must_match_supporting_bundles": true,
+    "classified_context_can_clear_relation_candidate_only": true,
+    "unresolved_taxonomy_context_stays_review_required": true
+  },
+  "counting_policy": {
+    "primary_surface_is_future_counting_candidate_only": true,
+    "team_surface_is_reflection_only_candidate": true,
+    "double_count_suppression_is_final": false,
+    "count_value_output_allowed": false
+  },
+  "claim_boundary": {
+    "relation_candidate_is_event_truth": false,
+    "reflection_equivalence_truth": false,
+    "cross_role_fusion_allowed": false,
+    "event_instance_count": 0,
+    "validated_event_identity": false,
+    "claim_allowed": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}
