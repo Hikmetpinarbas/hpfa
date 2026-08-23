@@ -6,19 +6,7 @@ Module id: `safe_argument_router_tr_lite_v1`
 
 Safe Argument Router TR Lite V1 reads candidate-only evidence graph records and creates Turkish safe sentence candidates.
 
-It is the fifth productive intelligence node in the Composite Football Intelligence line.
-
 It does not create claim text or final report language.
-
-## Football value
-
-The analyst can receive a Turkish sentence candidate that preserves support, qualifier, context, counter-scenario and withdrawal information.
-
-## Runtime authority
-
-Only HPFA-generated ACTIVE_MATCH artifacts may become runtime input.
-
-Google Drive, Dropbox, Sider Scholar and donor repos are reference-only and may guide contracts, naming and tests. They do not become runtime truth.
 
 ## Required upstream
 
@@ -26,11 +14,37 @@ Google Drive, Dropbox, Sider Scholar and donor repos are reference-only and may 
 evidence_graph_engine_lite_v1
 ```
 
+Canonical reasoning order:
+
+```text
+composite argument
+→ defeasible route
+→ evidence graph
+→ safe argument router TR
+```
+
+The router must not bypass the defeasible state already preserved by Evidence Graph.
+
+## Football / analyst value
+
+The analyst can receive a Turkish sentence candidate that preserves support, qualifier, context, counter-scenario, contradiction and withdrawal information while keeping uncertainty explicit.
+
+A weakened or withdrawn argument is not rewritten as an ordinary positive sentence candidate.
+
+## Runtime authority
+
+Only HPFA-generated ACTIVE_MATCH artifacts may become runtime input.
+
+Google Drive, Dropbox, academic sources and donor repos are reference/donor support only. They do not become runtime truth.
+
 ## Allowed outputs
 
 ```text
 safe sentence candidate TR
 sentence language
+defeasible state
+review-required state
+review reasons
 claim ceiling
 blocked language scan result
 report composer readiness candidate
@@ -58,7 +72,44 @@ canonical event count claim
 
 ```text
 READY_FOR_REPORT_COMPOSER_CANDIDATE
+ROUTE_REVIEW_SAFE_SENTENCE_CANDIDATE
 BLOCK_SAFE_SENTENCE
+```
+
+## Status propagation invariant
+
+```text
+upstream FAIL_CLOSED/BLOCKED -> FAIL_CLOSED
+upstream REVIEW_REQUIRED     -> REVIEW_REQUIRED
+WEAKENED                     -> REVIEW_REQUIRED
+WITHDRAWN                    -> REVIEW_REQUIRED
+SUPPORTED without review     -> SMOKE_PASS
+```
+
+`REVIEW_REQUIRED` must survive both record-level routing and report-level rollup.
+
+If upstream review state is present without an explicit reason, the router emits:
+
+```text
+upstream_graph_review_required
+```
+
+rather than silently normalizing the record to `SMOKE_PASS`.
+
+## Defeasible language boundary
+
+`WEAKENED` sentence candidates must explicitly state that the argument candidate is weakened.
+
+`WITHDRAWN` sentence candidates must explicitly state that the argument candidate is withdrawn and, when available, expose the matched withdrawal condition.
+
+These are analyst-safe candidate statements, not final report claims.
+
+## Recursive forbidden-field guard
+
+Forbidden fields are scanned recursively through nested dict/list payloads. A nested truth/claim attempt must fail closed with a path-aware hit, for example:
+
+```text
+nodes[0].payload.metadata.nested.quality_truth
 ```
 
 ## Hard blocks
@@ -74,31 +125,40 @@ safe_sentence_forbidden_language_detected
 
 ## Upstream failure rule
 
-If the upstream graph record carries hard blocks, `decision=BLOCK_GRAPH`, or `status=FAIL_CLOSED`, the safe argument router must fail closed. A failed graph must never become a sentence candidate.
+If the upstream graph record carries hard blocks, `decision=BLOCK_GRAPH`, or `status=FAIL_CLOSED/BLOCKED`, the safe argument router must fail closed. A failed graph must never become a sentence candidate.
 
 ## Language safety rule
 
-The router must reject finalizing unsafe certainty, tactical truth, dominance, control, coach intention, causal truth, off-ball truth, pitch-control truth, sequence truth and organism truth language.
+The router must reject unsafe certainty, tactical truth, dominance, control, coach intention, causal truth, off-ball truth, pitch-control truth, sequence truth and organism truth language.
 
-## Test requirements
+## Mandatory regression coverage
+
+At minimum tests must cover:
 
 ```text
-test_router_requires_graph_id
-test_router_requires_nodes_edges_and_claim_ceiling
-test_router_creates_safe_turkish_sentence_candidate
-test_router_blocks_failed_upstream_graph
-test_router_blocks_upstream_truth_output
-test_router_does_not_emit_claim_text_or_report_language
-test_router_blocks_truth_language_families
-test_sentence_avoids_forbidden_claim_fragments
-test_write_outputs_rejects_nested_phone_output
-test_no_sample_match_identity_leak
+required graph identity/schema/claim ceiling
+upstream fail-closed propagation
+recursive nested forbidden-field detection
+SUPPORTED normal sentence candidate
+upstream REVIEW_REQUIRED continuity
+fallback review reason
+WEAKENED review-safe language
+WITHDRAWN review-safe language + matched withdrawal condition
+report-level REVIEW_REQUIRED rollup
+truth-language blocking
+flat phone-output policy
+no sample match identity leak
 ```
 
-## Release status
+## Claim / release boundary
 
-SMOKE_PASS target only.
-Not ACTIVE_MATCH_EVIDENCE_PASS.
-Not PRODUCTION_RELEASE.
+```text
+claim_output_allowed=false
+report_language_allowed=false
+claim_ceiling=safe_sentence_candidate_only
+canonical_event_count=UNKNOWN
+production_release=false
+```
 
+`SMOKE_PASS` and `REVIEW_REQUIRED` are both non-production states.
 PASS != RELEASE.
