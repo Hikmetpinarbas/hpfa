@@ -1,6 +1,6 @@
 {
   "registry_id": "HPFA_CURRENT_AUTHORITY_REGISTRY_V1",
-  "registry_version": "1.1",
+  "registry_version": "1.2",
   "observed_date": "2026-08-23",
   "scope": "governance_and_consolidation_only",
   "authority_surfaces": {
@@ -54,6 +54,30 @@
     "football_reconstruction": [264, 265, 266, 267],
     "intelligence_correctness_hardening": [270, 271, 272, 273, 274, 275, 276, 277, 278]
   },
+  "final_capability_snapshot_sources": {
+    "C1_foundation": {
+      "pr": 254,
+      "head": "a8ae2334473fb792e01c53fb0e6867e8087715c4",
+      "role": "COHERENT_FOUNDATION_EXTRACTION_SNAPSHOT"
+    },
+    "C2_evidence_spine": {
+      "pr": 263,
+      "head": "d75b5881d6fee0d9153978cd81b3e0c4ed4a9b5a",
+      "role": "COHERENT_EVIDENCE_SPINE_EXTRACTION_SNAPSHOT"
+    },
+    "C3_reconstruction_boundary": {
+      "pr": 267,
+      "head": "a8b5d84ff40982b4ed20ddd673a93b0c87ffd55f",
+      "role": "RECONSTRUCTION_FINAL_BEHAVIOURAL_BOUNDARY"
+    },
+    "C3_combined_reconstruction_intelligence": {
+      "pr": 278,
+      "head": "33ebcc161576e0e11012cc8f3c221512013c77f2",
+      "role": "COHERENT_C3_COMBINED_EXTRACTION_SNAPSHOT",
+      "strict_descendant_of_reconstruction_boundary": true,
+      "reconstruction_files_changed_after_267": false
+    }
+  },
   "open_pr_inventory": {
     "observed_open_pr_count": 79,
     "classification_is_merge_authority": false,
@@ -79,15 +103,17 @@
   "lineage_records": {
     "foundation": "docs/governance/HPFA_C0B_FOUNDATION_FINAL_STATE_FILE_LINEAGE_2026_08_23.md",
     "evidence_spine": "docs/governance/HPFA_C0B_EVIDENCE_SPINE_FINAL_STATE_FILE_LINEAGE_2026_08_23.md",
-    "reconstruction_intelligence": null
+    "reconstruction": "docs/governance/HPFA_C0B_RECONSTRUCTION_FINAL_STATE_FILE_LINEAGE_2026_08_23.md",
+    "intelligence": "docs/governance/HPFA_C0B_INTELLIGENCE_FINAL_STATE_FILE_LINEAGE_2026_08_23.md"
   },
   "c0_progress": {
     "authority_surface_normalized": true,
     "open_prs_classified": true,
     "foundation_final_state_file_lineage_complete": true,
     "evidence_spine_final_state_file_lineage_complete": true,
-    "reconstruction_intelligence_final_state_file_lineage_complete": false,
-    "exact_final_state_file_lineage_complete": false,
-    "status": "C0A_CLOSED__C0B_FOUNDATION_CLOSED__C0B_EVIDENCE_CLOSED__C0B_RECONSTRUCTION_INTELLIGENCE_NEXT"
+    "reconstruction_final_state_file_lineage_complete": true,
+    "intelligence_final_state_file_lineage_complete": true,
+    "exact_final_state_file_lineage_complete": true,
+    "status": "C0_FULLY_CLOSED__C1_C2_C3_FINAL_CAPABILITY_SNAPSHOT_ASSEMBLY_NEXT"
   }
 }
