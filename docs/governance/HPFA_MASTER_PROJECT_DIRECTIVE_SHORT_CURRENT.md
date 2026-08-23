@@ -55,14 +55,19 @@ Code is the final step, not the first.
 8. Termux discovery/capability-recovery corpus
 
 ## CURRENT MAIN AUTHORITY
-Current product main:
+Authoritative product ref:
+`refs/heads/main`
+
+C4 integrated product-capability baseline before the governance-only authority refresh:
 `d23f868a5287811b4dc6e2912085aa85fd547a64`
+
+The live `main` ref is authoritative after governance-only commits as well; the capability baseline SHA is recorded for lineage and must not be misread as a permanently fixed branch head.
 
 Controlled consolidation completed on 2026-08-23 as four final-capability snapshots:
 
 ```text
 C1 Foundation
-  merge=d23 main ancestor f3dc7b44d6bb899033a605a690f6cc51fb0199a4
+  merge=f3dc7b44d6bb899033a605a690f6cc51fb0199a4
   final_state_source_pr=#254
 
 C2 Evidence Spine
@@ -245,7 +250,8 @@ Rules:
 ## CURRENT RELEASE STATE
 
 ```text
-main_head=d23f868a5287811b4dc6e2912085aa85fd547a64
+main_authority_ref=refs/heads/main
+integrated_product_capability_baseline=d23f868a5287811b4dc6e2912085aa85fd547a64
 foundation_integrated=true
 evidence_spine_integrated=true
 reconstruction_integrated=true
