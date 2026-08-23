@@ -1,0 +1,56 @@
+{
+  "record": "HPFA_CURRENT_AUTHORITY_REGISTRY_V1",
+  "record_date": "2026-08-23",
+  "status": "ACTIVE_GOVERNANCE_RECORD",
+  "product_repository": "Hikmetpinarbas/hpfa",
+  "product_main": {
+    "branch": "main",
+    "head_at_registry_creation": "d23f868a5287811b4dc6e2912085aa85fd547a64",
+    "role": "PRODUCT_MAIN"
+  },
+  "active_match_runtime_authority": {
+    "path": "runtime/active_single_match/current",
+    "role": "SOLE_ACTIVE_MATCH_RUNTIME_AUTHORITY"
+  },
+  "controlled_landings": {
+    "C1_FOUNDATION": {
+      "merge_commit": "f3dc7b44d6bb899033a605a690f6cc51fb0199a4",
+      "final_state_source_pr": 254
+    },
+    "C2_EVIDENCE_SPINE": {
+      "merge_commit": "871cd3c4948dd72b80aaa2983268811d7a22b39b",
+      "final_state_source_pr": 263
+    },
+    "C3_RECONSTRUCTION_PARTIAL_ORDER": {
+      "merge_commit": "adb9c1d60cf98c79fd1de1c7a6df7b822c11496a",
+      "final_state_source_pr": 267
+    },
+    "C4_INTELLIGENCE_CORRECTNESS_INTEGRATION": {
+      "merge_commit": "d23f868a5287811b4dc6e2912085aa85fd547a64",
+      "final_state_source_pr": 278
+    }
+  },
+  "authority_separation": {
+    "product_main_is_active_match_runtime": false,
+    "donor_repo_is_product_truth": false,
+    "historical_pr_runtime_evidence_is_current_main_runtime_evidence": false,
+    "ci_success_is_active_match_evidence": false,
+    "merged_is_production_release": false
+  },
+  "current_gap": {
+    "reconstruction_to_intelligence_runtime_bridge": "MISSING_NOT_ADMITTED",
+    "integrated_head_active_match_revalidation": "REQUIRED",
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "next_frontier": [
+    "RECONSTRUCTION_TO_INTELLIGENCE_BRIDGE",
+    "INTEGRATED_ACTIVE_MATCH_REVALIDATION",
+    "CONTEXT_EVIDENCE_RE_BINDING",
+    "ANALYST_EPISODE_LOCATOR",
+    "RHYTHM_CHANGE_DETECTION",
+    "RECURRENCE_VARIATION_DEVIATION"
+  ],
+  "donor_rule": "ADAPT_NOT_COPY"
+}
