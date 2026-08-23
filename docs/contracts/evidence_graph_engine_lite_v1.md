@@ -4,54 +4,111 @@ Module id: `evidence_graph_engine_lite_v1`
 
 ## Product purpose
 
-Evidence Graph Engine Lite V1 reads candidate-only argument records and builds a traceable evidence graph.
+Evidence Graph Engine Lite V1 reads a **defeasibly routed argument candidate** and builds a traceable evidence graph.
 
-It is the fourth productive intelligence node in the Composite Football Intelligence line.
+Canonical upstream order:
 
-It does not create claim text, safe sentences or analyst report prose.
+```text
+composite_argument_builder_lite_v1
+-> defeasible_argument_router_lite_v1
+-> evidence_graph_engine_lite_v1
+```
+
+The graph must represent the argument after support / weakening / withdrawal routing. It must not rebuild a pre-routing argument and silently ignore counter-evidence.
+
+It does not create claim text, final safe sentences or analyst report prose.
 
 ## Football value
 
-The analyst can trace how an argument candidate is supported, qualified, contextualized, challenged and withdrawn.
-
-Example product reading:
+The analyst can trace:
 
 ```text
-fusion_cep_progression_001
--> arg_fusion_cep_progression_001
-right_channel_access -> SUPPORTS_ARGUMENT
-low_shot_volume -> QUALIFIES_ARGUMENT
-window_001 -> CONTEXTUALIZES_ARGUMENT
-shot_timing_or_angle_limited_terminal_action -> CHALLENGES_ARGUMENT
-terminal_action_value_becomes_high_in_same_window -> WITHDRAWS_ARGUMENT_IF_TRUE
+what supports the argument candidate
+what qualifies it
+what explicit counter-evidence weakens it
+which context references bind it
+which counter-scenarios remain live
+which withdrawal conditions were declared
+which withdrawal conditions actually matched
+whether the argument remains SUPPORTED, is WEAKENED, or is WITHDRAWN
 ```
+
+These remain evidence-routing states, not tactical truth.
 
 ## Runtime authority
 
 Only HPFA-generated ACTIVE_MATCH artifacts may become runtime input.
 
-Google Drive, Dropbox, Sider Scholar and donor repos are reference-only and may guide contracts, naming and tests. They do not become runtime truth.
+Google Drive, Dropbox, Termux and donor repos are donor/reference only and may guide contracts, naming and tests. They do not become runtime truth.
 
 ## Required upstream
 
 ```text
-composite_argument_builder_lite_v1
+defeasible_argument_router_lite_v1
+```
+
+Required minimum fields:
+
+```text
+route_id
+argument_id
+supporting_refs
+claim_ceiling=defeasible_argument_candidate_only
+defeasible_state in {SUPPORTED, WEAKENED, WITHDRAWN}
+```
+
+Optional lineage/context fields preserved when present:
+
+```text
+fusion_id
+argument_family
+relation_scope
+analysis_route
+whole_to_unit
+unit_to_whole
+bidirectional
+qualifying_refs
+counter_evidence_refs
+complementary_refs
+context_refs
+counter_scenarios
+declared_withdrawal_conditions
+matched_withdrawal_conditions
 ```
 
 ## Allowed outputs
 
 ```text
 evidence graph candidate
-graph nodes
-graph edges
-trace start
-trace end
-support edge
-qualifier edge
-contradiction edge
-context edge
-counter-scenario edge
-withdrawal-condition edge
+defeasible route node
+argument node
+fusion lineage node
+support / qualifier / counter-evidence nodes
+context / complement nodes
+counter-scenario nodes
+declared withdrawal-condition nodes
+matched withdrawal-condition nodes
+relation-scope / analysis-route nodes
+review_required
+review_reasons
+```
+
+## Review propagation
+
+```text
+SUPPORTED -> graph status may be SMOKE_PASS
+WEAKENED -> graph status=REVIEW_REQUIRED
+WITHDRAWN -> graph status=REVIEW_REQUIRED
+BLOCKED / failed route -> FAIL_CLOSED
+```
+
+`REVIEW_REQUIRED` is not an engineering failure. It preserves analyst-facing uncertainty / withdrawal state.
+
+Required review reasons:
+
+```text
+defeasible_argument_weakened
+defeasible_argument_withdrawn
 ```
 
 ## Blocked outputs
@@ -73,51 +130,45 @@ organism truth
 canonical event count claim
 ```
 
+Nested forbidden outputs must be scanned recursively with path-aware hits.
+
 ## Decision states
 
 ```text
 READY_FOR_EVIDENCE_TRACE_CONSUMER
+ROUTE_EVIDENCE_GRAPH_TO_REVIEW
 BLOCK_GRAPH
 ```
 
 ## Hard blocks
 
 ```text
-argument_required_fields_missing
-upstream_argument_failed_closed
-upstream_argument_forbidden_output_attempted
-upstream_argument_claim_output_allowed
-upstream_argument_report_language_allowed
-upstream_argument_safe_sentence_allowed
+defeasible_route_required_fields_missing
+upstream_defeasible_route_failed_closed
+defeasible_state_invalid
+upstream_defeasible_route_forbidden_output_attempted
+upstream_defeasible_route_claim_output_allowed
+upstream_defeasible_route_report_language_allowed
+upstream_defeasible_route_safe_sentence_allowed
+canonical_event_count_claim_rejected
 duplicate_graph_node_id
 supporting_refs_required_for_graph
 ```
 
-## Upstream failure rule
-
-If the upstream argument record carries hard blocks, `decision=BLOCK_ARGUMENT`, or `status=FAIL_CLOSED`, the evidence graph must fail closed. A failed argument must never become a traceable graph candidate.
-
-## Test requirements
+## Claim boundary
 
 ```text
-test_graph_requires_argument_id
-test_graph_requires_fusion_id_and_supporting_refs
-test_graph_preserves_argument_and_fusion_nodes
-test_graph_preserves_support_qualifier_context_nodes
-test_graph_preserves_scope_and_route_nodes
-test_graph_keeps_counter_scenarios_and_withdrawal_conditions
-test_failed_upstream_argument_blocks_graph
-test_forbidden_upstream_argument_output_blocks_graph
-test_graph_does_not_emit_claim_or_sentence
-test_graph_blocks_truth_language_families
-test_write_outputs_rejects_nested_phone_output
-test_no_sample_match_identity_leak
+claim_ceiling=evidence_graph_candidate_only
+canonical_event_count=UNKNOWN
+claim_output_allowed=false
+report_language_allowed=false
+safe_sentence_allowed=false
+production_release=false
 ```
 
 ## Release status
 
-SMOKE_PASS target only.
-Not ACTIVE_MATCH_EVIDENCE_PASS.
-Not PRODUCTION_RELEASE.
-
+Exact-head CI is required for this contract change.
+ACTIVE_MATCH evidence is not implied by contract/CI success.
 PASS != RELEASE.
+MERGED != PRODUCTION_RELEASE.
