@@ -1,0 +1,58 @@
+name: Intelligence Recursive Forbidden Field Guard V1
+
+on:
+  pull_request:
+    branches:
+      - fix/intelligence-fusion-upstream-failure-propagation-v1
+    paths:
+      - 'hpfa/modules/core/composite_evidence_packet_builder_lite/**'
+      - 'hpfa/modules/core/multi_signal_evidence_fusion_lite/**'
+      - '.github/workflows/intelligence-recursive-forbidden-field-guard-v1.yml'
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pytest
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Compile guarded producers and tests
+        run: |
+          python -m py_compile hpfa/modules/core/composite_evidence_packet_builder_lite/src/composite_evidence_packet_builder.py
+          python -m py_compile hpfa/modules/core/multi_signal_evidence_fusion_lite/src/multi_signal_evidence_fusion.py
+          python -m py_compile hpfa/modules/core/composite_evidence_packet_builder_lite/tests/test_composite_evidence_packet_builder.py
+          python -m py_compile hpfa/modules/core/multi_signal_evidence_fusion_lite/tests/test_multi_signal_evidence_fusion.py
+
+      - name: Run recursive guard regressions
+        run: |
+          python -m pytest -q hpfa/modules/core/composite_evidence_packet_builder_lite/tests/test_composite_evidence_packet_builder.py
+          python -m pytest -q hpfa/modules/core/multi_signal_evidence_fusion_lite/tests/test_multi_signal_evidence_fusion.py
+
+      - name: Recursive path-aware and claim guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          packet = Path('hpfa/modules/core/composite_evidence_packet_builder_lite/src/composite_evidence_packet_builder.py').read_text(encoding='utf-8')
+          fusion = Path('hpfa/modules/core/multi_signal_evidence_fusion_lite/src/multi_signal_evidence_fusion.py').read_text(encoding='utf-8')
+          packet_tests = Path('hpfa/modules/core/composite_evidence_packet_builder_lite/tests/test_composite_evidence_packet_builder.py').read_text(encoding='utf-8')
+          fusion_tests = Path('hpfa/modules/core/multi_signal_evidence_fusion_lite/tests/test_multi_signal_evidence_fusion.py').read_text(encoding='utf-8')
+          for source in (packet, fusion):
+              assert '_collect_forbidden_hits' in source
+              assert 'canonical_event_count' in source
+          assert 'input_features[0].claim_text' in packet_tests
+          assert 'supporting_signals[0].payload.tactical_truth' in packet_tests
+          assert 'supporting_signals[0].payload.tactical_truth' in fusion_tests
+          assert 'input_features[0].payload.claim_text' in fusion_tests
+          for token in ('Genclerbirligi', 'Fenerbahce', '15.08.2026'):
+              assert token not in packet
+              assert token not in fusion
+          PY
