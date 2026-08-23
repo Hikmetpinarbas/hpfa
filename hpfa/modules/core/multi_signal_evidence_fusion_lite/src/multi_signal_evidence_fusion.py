@@ -86,6 +86,18 @@ def _items(packet: dict[str, Any], key: str) -> list[Any]:
     return [item for item in _as_list(packet.get(key)) if item not in [None, ""]]
 
 
+def _signal_items(packet: dict[str, Any], key: str) -> list[Any]:
+    record_key = {
+        "supporting_signals": "supporting_signal_records",
+        "contradicting_signals": "contradicting_signal_records",
+    }.get(key)
+    if record_key:
+        records = _items(packet, record_key)
+        if records:
+            return records
+    return _items(packet, key)
+
+
 def _refs(packet: dict[str, Any], key: str) -> list[str]:
     return [_ref_from_item(item, key, idx) for idx, item in enumerate(_items(packet, key))]
 
@@ -150,27 +162,31 @@ def _is_explicit_contradiction(item: Any) -> bool:
     return False
 
 
-def _record(packet_id: str, signal_ref: str, relation_type: str, evidence_role: str) -> dict[str, Any]:
-    return {
+def _record(packet_id: str, signal_ref: str, relation_type: str, evidence_role: str, relation_basis: str = "") -> dict[str, Any]:
+    record = {
         "packet_id": packet_id,
         "signal_ref": signal_ref,
         "relation_type": relation_type,
         "evidence_role": evidence_role,
         "claim_ceiling": FUSION_CLAIM_CEILING,
     }
+    if relation_basis:
+        record["relation_basis"] = relation_basis
+    return record
 
 
 def _signal_relation_records(packet: dict[str, Any]) -> list[dict[str, Any]]:
     packet_id = str(packet["packet_id"])
     records: list[dict[str, Any]] = []
 
-    for idx, signal in enumerate(_items(packet, "supporting_signals")):
+    for idx, signal in enumerate(_signal_items(packet, "supporting_signals")):
         records.append(_record(packet_id, _ref_from_item(signal, "supporting_signals", idx), "SUPPORTS", "supporting_signal"))
 
-    for idx, signal in enumerate(_items(packet, "contradicting_signals")):
+    for idx, signal in enumerate(_signal_items(packet, "contradicting_signals")):
         signal_ref = _ref_from_item(signal, "contradicting_signals", idx)
         if _is_explicit_contradiction(signal):
-            records.append(_record(packet_id, signal_ref, "CONTRADICTS", "explicit_contradiction_signal"))
+            basis = str(signal.get("contradiction_basis") or signal.get("relation_basis") or "") if isinstance(signal, dict) else ""
+            records.append(_record(packet_id, signal_ref, "CONTRADICTS", "explicit_contradiction_signal", basis))
         else:
             records.append(_record(packet_id, signal_ref, "QUALIFIES", "qualifying_or_tension_signal"))
 
