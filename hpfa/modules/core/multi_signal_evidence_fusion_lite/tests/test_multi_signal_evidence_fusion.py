@@ -166,6 +166,27 @@ def test_causal_truth_upstream_output_blocks_fusion():
     assert "causal_truth" in record["forbidden_output_hits"]
 
 
+def test_nested_support_signal_truth_blocks_fusion_with_path():
+    packet = base_packet()
+    packet["supporting_signals"] = [
+        {"signal_id": "right_channel_access", "payload": {"tactical_truth": True}}
+    ]
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "upstream_packet_forbidden_output_attempted" in record["hard_block_hits"]
+    assert "supporting_signals[0].payload.tactical_truth" in record["forbidden_output_hits"]
+
+
+def test_nested_input_feature_claim_blocks_fusion_with_path():
+    packet = base_packet()
+    packet["input_features"] = [
+        {"feature_id": "final_third_entry", "payload": {"claim_text": "unsafe nested claim"}}
+    ]
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "input_features[0].payload.claim_text" in record["forbidden_output_hits"]
+
+
 def test_no_tactical_truth():
     record = fuse_packet(base_packet())
     assert record["tactical_truth"] is False
