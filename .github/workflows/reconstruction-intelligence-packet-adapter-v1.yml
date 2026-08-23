@@ -1,0 +1,96 @@
+name: Reconstruction Intelligence Packet Adapter V1
+
+on:
+  pull_request:
+    paths:
+      - 'hpfa/modules/core/reconstruction_intelligence_packet_adapter_lite/**'
+      - 'reconstruction_intelligence_packet_adapter_current_v1.py'
+      - 'docs/contracts/reconstruction_intelligence_packet_adapter_lite_v1.md'
+      - 'tools/bootstrap_termux_reconstruction_intelligence_packet_adapter_current_v1.sh'
+      - '.github/workflows/reconstruction-intelligence-packet-adapter-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  reconstruction-intelligence-packet-adapter:
+    runs-on: ubuntu-24.04
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$actual_head"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused test dependencies
+        run: python -m pip install --disable-pip-version-check pytest openpyxl
+
+      - name: Compile bridge and consumer modules
+        run: |
+          python -m compileall -q \
+            reconstruction_intelligence_packet_adapter_current_v1.py \
+            hpfa/modules/core/reconstruction_intelligence_packet_adapter_lite \
+            hpfa/modules/core/composite_evidence_packet_builder_lite \
+            hpfa/modules/core/multi_signal_evidence_fusion_lite
+
+      - name: Run bridge contract and integration tests
+        run: |
+          python -m pytest -q hpfa/modules/core/reconstruction_intelligence_packet_adapter_lite/tests
+
+      - name: Run current C4 packet and fusion regressions
+        run: |
+          python -m pytest -q hpfa/modules/core/composite_evidence_packet_builder_lite/tests
+          python -m pytest -q hpfa/modules/core/multi_signal_evidence_fusion_lite/tests
+
+      - name: Run current C3 sequence boundary regressions
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/visible_action_sequence_candidates_lite/tests/test_current_contract_migration.py \
+            hpfa/modules/core/visible_action_sequence_candidates_lite/tests/test_partial_order_same_time_regression.py
+
+      - name: Runtime bootstrap syntax and authority guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCRIPT=tools/bootstrap_termux_reconstruction_intelligence_packet_adapter_current_v1.sh
+          bash -n "$SCRIPT"
+          grep -F 'BRANCH="${HPFA_EXPECTED_BRANCH:-}"' "$SCRIPT"
+          grep -F 'EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"' "$SCRIPT"
+          grep -F 'runtime/active_single_match/current' "$SCRIPT"
+          grep -F 'nested_phone_output_directory_rejected' "$SCRIPT"
+          ! grep -F 'work/reconstruct-' "$SCRIPT"
+          ! grep -F 'python -m pytest' "$SCRIPT"
+
+      - name: Claim and independence boundary guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=hpfa/modules/core/reconstruction_intelligence_packet_adapter_lite/src/reconstruction_intelligence_packet_adapter.py
+          grep -F 'independent_support_vote_allowed' "$SRC"
+          grep -F 'packet_input_ref_count_is_independent_source_count' "$SRC"
+          grep -F 'same_timestamp_internal_ordering_allowed' "$SRC"
+          grep -F 'source_row_order_is_temporal_truth' "$SRC"
+          grep -F 'visible_sequence_candidate_is_sequence_truth' "$SRC"
+          grep -F 'visible_sequence_candidate_is_possession_truth' "$SRC"
+          grep -F 'canonical_event_count' "$SRC"
+          grep -F 'production_release' "$SRC"
+
+      - name: No sample match identity leak
+        run: |
+          python -m pytest -q hpfa/modules/core/reconstruction_intelligence_packet_adapter_lite/tests/test_reconstruction_intelligence_packet_adapter.py::test_no_sample_match_identity_leak
