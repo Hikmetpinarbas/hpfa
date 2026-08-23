@@ -1,0 +1,58 @@
+name: Intelligence Remaining Recursive Guards V1
+
+on:
+  pull_request:
+    branches:
+      - fix/intelligence-report-review-continuity-v1
+    paths:
+      - 'hpfa/modules/core/defeasible_argument_router_lite/**'
+      - 'hpfa/modules/core/final_report_assembly_gate_lite/**'
+      - '.github/workflows/intelligence-remaining-recursive-guards-v1.yml'
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pytest
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Compile modified producers and tests
+        run: |
+          python -m py_compile hpfa/modules/core/defeasible_argument_router_lite/src/defeasible_argument_router.py
+          python -m py_compile hpfa/modules/core/final_report_assembly_gate_lite/src/final_report_assembly_gate.py
+          python -m py_compile hpfa/modules/core/defeasible_argument_router_lite/tests/test_defeasible_recursive_forbidden_guard_v1.py
+          python -m py_compile hpfa/modules/core/final_report_assembly_gate_lite/tests/test_final_assembly_recursive_forbidden_guard_v1.py
+
+      - name: Run full affected regressions
+        run: |
+          python -m pytest -q hpfa/modules/core/defeasible_argument_router_lite/tests/test_defeasible_argument_router.py
+          python -m pytest -q hpfa/modules/core/defeasible_argument_router_lite/tests/test_defeasible_recursive_forbidden_guard_v1.py
+          python -m pytest -q hpfa/modules/core/final_report_assembly_gate_lite/tests/test_final_report_assembly_gate.py
+          python -m pytest -q hpfa/modules/core/final_report_assembly_gate_lite/tests/test_final_assembly_recursive_forbidden_guard_v1.py
+
+      - name: Recursive guard and claim checks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          router = Path('hpfa/modules/core/defeasible_argument_router_lite/src/defeasible_argument_router.py').read_text(encoding='utf-8')
+          assembly = Path('hpfa/modules/core/final_report_assembly_gate_lite/src/final_report_assembly_gate.py').read_text(encoding='utf-8')
+          for source in (router, assembly):
+              assert '_collect_forbidden_hits' in source
+              assert 'canonical_event_count' in source
+          assert 'upstream_argument_forbidden_output_attempted' in router
+          assert 'upstream_contract_forbidden_output_attempted' in assembly
+          for token in ('Genclerbirligi', 'Fenerbahce', '15.08.2026'):
+              assert token not in router
+              assert token not in assembly
+          PY
