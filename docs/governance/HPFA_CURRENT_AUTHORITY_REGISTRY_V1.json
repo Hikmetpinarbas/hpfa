@@ -1,6 +1,6 @@
 {
   "registry_id": "HPFA_CURRENT_AUTHORITY_REGISTRY_V1",
-  "registry_version": "1.0",
+  "registry_version": "1.1",
   "observed_date": "2026-08-23",
   "scope": "governance_and_consolidation_only",
   "authority_surfaces": {
@@ -70,16 +70,24 @@
   "classification_semantics": {
     "SPEC_REFERENCE_BACKLOG": "Keep as specification or reference backlog; not executable current authority.",
     "SUPERSEDED_HISTORICAL_IMPLEMENTATION": "Do not merge chronologically; mine only final reviewed behaviour or tests when needed.",
-    "CURRENT_CORRECTION_EXTRACTION_SOURCE": "Extract only the repaired behaviour into the relevant final capability snapshot after exact file-lineage audit.",
-    "DEFERRED_SIDE_CAPABILITY": "Potentially useful capability, but outside current P0 consolidation spine; preserve for post-consolidation decision.",
+    "CURRENT_CORRECTION_EXTRACTION_SOURCE": "Subject to C0B capability-specific disposition; extract only behaviour proven compatible with the current target layer.",
+    "DEFERRED_SIDE_CAPABILITY": "Potentially useful capability, but outside the current P0 consolidation spine; preserve for post-consolidation decision.",
     "SUPERSEDED_CONSOLIDATION_CONTROL": "Earlier consolidation/control attempt; do not treat as current control authority.",
     "CURRENT_FRONTIER_STACK": "Current capability source surface for final-state extraction; still NOT_MERGED and NOT_PRODUCTION.",
     "CURRENT_CONSOLIDATION_CONTROL": "Current governance/control surface for consolidation planning; does not itself create product runtime truth."
   },
+  "lineage_records": {
+    "foundation": "docs/governance/HPFA_C0B_FOUNDATION_FINAL_STATE_FILE_LINEAGE_2026_08_23.md",
+    "evidence_spine": "docs/governance/HPFA_C0B_EVIDENCE_SPINE_FINAL_STATE_FILE_LINEAGE_2026_08_23.md",
+    "reconstruction_intelligence": null
+  },
   "c0_progress": {
     "authority_surface_normalized": true,
     "open_prs_classified": true,
+    "foundation_final_state_file_lineage_complete": true,
+    "evidence_spine_final_state_file_lineage_complete": true,
+    "reconstruction_intelligence_final_state_file_lineage_complete": false,
     "exact_final_state_file_lineage_complete": false,
-    "status": "C0A_AUTHORITY_AND_PR_CLASSIFICATION_CLOSED__C0B_FILE_LINEAGE_NEXT"
+    "status": "C0A_CLOSED__C0B_FOUNDATION_CLOSED__C0B_EVIDENCE_CLOSED__C0B_RECONSTRUCTION_INTELLIGENCE_NEXT"
   }
 }
