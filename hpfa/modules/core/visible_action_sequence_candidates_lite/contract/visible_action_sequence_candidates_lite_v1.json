@@ -1,0 +1,67 @@
+{
+  "module_id": "visible_action_sequence_candidates_lite_v1",
+  "input_contract": {
+    "trace_module_id": "trackable_action_trace_candidates_lite_v1",
+    "consequence_module_id": "trackable_action_consequence_candidates_lite_v1",
+    "trace_consequence_anchor_coverage_required": true,
+    "actor_bearing_trace_roles_only": true
+  },
+  "time_layer_rules": {
+    "group_by": ["match_surface_binding_id", "period_candidate", "start_candidate"],
+    "same_timestamp_internal_ordering_allowed": false,
+    "mixed_team_primary_layer": "REVIEW_REQUIRED",
+    "source_row_order_is_temporal_truth": false
+  },
+  "partial_order_audit": {
+    "relation_states": [
+      "BEFORE_CONFIRMED",
+      "AFTER_CONFIRMED",
+      "SAME_TIME_UNORDERED",
+      "ORDER_INDETERMINATE",
+      "PROVENANCE_ORDER_ONLY"
+    ],
+    "ordering_evidence_scope": "VISIBLE_TIMESTAMP_ONLY",
+    "same_timestamp_default": "SAME_TIME_UNORDERED",
+    "missing_or_ambiguous_order_default": "ORDER_INDETERMINATE",
+    "source_row_index_relation": "PROVENANCE_ORDER_ONLY",
+    "directly_follows_truth": false,
+    "relation_records_may_create_action_volume": false,
+    "relation_records_may_create_possession_truth": false,
+    "relation_records_may_create_sequence_truth": false
+  },
+  "sequence_admission_rules": {
+    "single_team_primary_layer_only": true,
+    "strict_positive_inter_layer_time_required": true,
+    "max_inter_layer_gap_seconds": 12.0,
+    "split_on_period_change": true,
+    "split_on_team_handover": true,
+    "split_before_restart_primary_layer": true,
+    "split_on_terminal_outcome_support": true,
+    "consequence_review_marks_context_review_not_order_truth": true
+  },
+  "assignment_rules": {
+    "every_trace_exactly_one_assignment": true,
+    "assignment_types": ["PRIMARY_SEQUENCE_MEMBER", "REVIEW_LAYER_MEMBER"]
+  },
+  "claim_boundary": {
+    "visible_sequence_candidate_is_sequence_truth": false,
+    "visible_sequence_candidate_is_possession_truth": false,
+    "single_team_continuity_is_control_truth": false,
+    "restart_trace_is_set_piece_design_truth": false,
+    "shot_chain_is_chance_quality_truth": false,
+    "sequence_duration_is_physical_action_duration": false,
+    "consequence_context_is_causal_truth": false,
+    "phase_truth": false,
+    "possession_truth": false,
+    "sequence_truth": false,
+    "tactical_truth": false,
+    "event_instance_count": 0,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "phone_output": {
+    "allowed_directories": ["/sdcard/Download/HPFA", "/storage/emulated/0/Download/HPFA"],
+    "nested_directory_error": "nested_phone_output_directory_rejected"
+  }
+}

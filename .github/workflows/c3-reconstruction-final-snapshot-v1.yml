@@ -1,0 +1,123 @@
+name: C3 Reconstruction Final Snapshot V1
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconstruction-final-snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact source head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$actual_head"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused test dependencies
+        run: python -m pip install --disable-pip-version-check pytest openpyxl
+
+      - name: Compile C3 adapters and modules
+        run: |
+          python -m compileall -q \
+            trackable_action_trace_candidates_current_v1.py \
+            trackable_action_consequence_candidates_current_v1.py \
+            visible_action_sequence_candidates_current_v1.py \
+            hpfa/modules/core/trackable_action_trace_candidates_lite \
+            hpfa/modules/core/trackable_action_consequence_candidates_lite \
+            hpfa/modules/core/visible_action_sequence_candidates_lite
+
+      - name: Run C3 test suites independently
+        shell: bash
+        run: |
+          set -euo pipefail
+          suites=(
+            hpfa/modules/core/trackable_action_trace_candidates_lite/tests
+            hpfa/modules/core/trackable_action_consequence_candidates_lite/tests
+            hpfa/modules/core/visible_action_sequence_candidates_lite/tests
+          )
+          for suite in "${suites[@]}"; do
+            echo "===== C3 SUITE: $suite ====="
+            python -m pytest -q "$suite"
+          done
+
+      - name: Partial-order contract guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONTRACT=hpfa/modules/core/visible_action_sequence_candidates_lite/contract/visible_action_sequence_candidates_lite_v1.json
+          grep -F '"BEFORE_CONFIRMED"' "$CONTRACT"
+          grep -F '"AFTER_CONFIRMED"' "$CONTRACT"
+          grep -F '"SAME_TIME_UNORDERED"' "$CONTRACT"
+          grep -F '"ORDER_INDETERMINATE"' "$CONTRACT"
+          grep -F '"PROVENANCE_ORDER_ONLY"' "$CONTRACT"
+          grep -F '"ordering_evidence_scope": "VISIBLE_TIMESTAMP_ONLY"' "$CONTRACT"
+          grep -F '"same_timestamp_default": "SAME_TIME_UNORDERED"' "$CONTRACT"
+          grep -F '"missing_or_ambiguous_order_default": "ORDER_INDETERMINATE"' "$CONTRACT"
+          grep -F '"source_row_index_relation": "PROVENANCE_ORDER_ONLY"' "$CONTRACT"
+          grep -F '"same_timestamp_internal_ordering_allowed": false' "$CONTRACT"
+          grep -F '"source_row_order_is_temporal_truth": false' "$CONTRACT"
+          grep -F '"directly_follows_truth": false' "$CONTRACT"
+          grep -F '"relation_records_may_create_action_volume": false' "$CONTRACT"
+          grep -F '"relation_records_may_create_possession_truth": false' "$CONTRACT"
+          grep -F '"relation_records_may_create_sequence_truth": false' "$CONTRACT"
+
+      - name: Runtime bootstrap syntax and authority guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER=tools/bootstrap_termux_c3_reconstruction_current_v1.sh
+          bash -n "$RUNNER"
+          grep -F 'BRANCH="${HPFA_EXPECTED_BRANCH:-}"' "$RUNNER"
+          grep -F 'EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"' "$RUNNER"
+          grep -F 'runtime/active_single_match/current' "$RUNNER"
+          grep -F 'nested_phone_output_directory_rejected' "$RUNNER"
+          grep -F 'visible_action_sequence_candidates_current_v1.py' "$RUNNER"
+          ! grep -F 'work/reconstruct-' "$RUNNER"
+          ! grep -F 'python -m pytest' "$RUNNER"
+
+      - name: Claim-boundary static guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -R -q 'trackable_action_candidate_is_event_truth' hpfa/modules/core/trackable_action_trace_candidates_lite
+          grep -R -q 'trace_count_is_physical_action_count' hpfa/modules/core/trackable_action_trace_candidates_lite
+          grep -R -q 'consequence_candidate_is_causal_truth' hpfa/modules/core/trackable_action_consequence_candidates_lite
+          grep -R -q 'window_is_sequence_truth' hpfa/modules/core/trackable_action_consequence_candidates_lite
+          grep -R -q 'visible_sequence_candidate_is_sequence_truth' hpfa/modules/core/visible_action_sequence_candidates_lite
+          grep -R -q 'visible_sequence_candidate_is_possession_truth' hpfa/modules/core/visible_action_sequence_candidates_lite
+          grep -R -q 'same_timestamp_internal_ordering_allowed' hpfa/modules/core/visible_action_sequence_candidates_lite
+          grep -R -q 'source_row_order_is_temporal_truth' hpfa/modules/core/visible_action_sequence_candidates_lite
+          grep -R -q 'canonical_event_count' hpfa/modules/core/visible_action_sequence_candidates_lite
+          grep -R -q 'production_release' hpfa/modules/core/visible_action_sequence_candidates_lite
+
+      - name: No sample match identity leak in product code
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RInE 'Genclerbirligi|Fenerbahce|Sturm Graz|Heart of Midlothian|15\.08\.2026|22\.08\.2026|World Cup' \
+            trackable_action_trace_candidates_current_v1.py \
+            trackable_action_consequence_candidates_current_v1.py \
+            visible_action_sequence_candidates_current_v1.py \
+            hpfa/modules/core/trackable_action_trace_candidates_lite/src \
+            hpfa/modules/core/trackable_action_consequence_candidates_lite/src \
+            hpfa/modules/core/visible_action_sequence_candidates_lite/src \
+            tools/bootstrap_termux_c3_reconstruction_current_v1.sh
