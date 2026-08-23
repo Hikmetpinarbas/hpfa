@@ -2,67 +2,46 @@
 
 Module id: `report_output_contract_lite_v1`
 
-## Product purpose
+## Purpose
 
-Report Output Contract Lite V1 reads analyst report block candidates and decides whether each block may be included as an output candidate, routed to review, or rejected.
+Reads analyst report-block candidates and decides whether each block can continue as an output candidate, requires review, or must be rejected. It does not create final report text or claim truth.
 
-It is the seventh productive intelligence node in the Composite Football Intelligence line.
+## Upstream
 
-It does not create final report text, production report output or claim truth.
+`analyst_report_block_composer_lite_v1`
 
-## Football value
+Required field: `report_block_candidate_tr`.
 
-The analyst can see which candidate blocks are safe to carry forward, which require review, and which must be rejected before any final report assembly.
+## Review continuity
 
-## Runtime authority
+Review status must not depend only on `block_family`.
 
-Only HPFA-generated ACTIVE_MATCH artifacts may become runtime input.
-
-Google Drive, Dropbox, Sider Scholar and donor repos are reference-only and may guide contracts, naming and tests. They do not become runtime truth.
-
-## Required upstream
+A block routes to review when any of these are present:
 
 ```text
-analyst_report_block_composer_lite_v1
+review_required=true
+review_reasons non-empty
+status=REVIEW_REQUIRED
+block_family=review_required_candidate
 ```
 
-## Required upstream field
+The output must then be:
 
 ```text
-report_block_candidate_tr
+status=REVIEW_REQUIRED
+inclusion_decision=REVIEW_BLOCK
+output_text_candidate_tr=""
 ```
 
-## Allowed outputs
+Preserve upstream review reasons. If review is explicit without a reason, add `upstream_report_block_review_required`.
 
-```text
-report output contract candidate
-include block candidate decision
-review block decision
-reject block decision
-output text candidate TR
-contract counters
-```
+This prevents a weakened/withdrawn/review-bounded analyst sentence from becoming an include-ready output candidate downstream.
 
-## Blocked outputs
+## Recursive guard
 
-```text
-claim text
-final report text
-production report output
-tactical truth
-dominance truth
-control truth
-coach intention truth
-off-ball truth
-pitch-control truth
-causal truth
-quality truth
-sequence truth
-organism truth
-canonical event count claim
-```
+Forbidden claim/truth fields are scanned recursively through nested dict/list payloads and fail closed with path-aware evidence.
 
-## Decision states
+## Decisions
 
 ```text
 INCLUDE_BLOCK_CANDIDATE
@@ -70,52 +49,25 @@ REVIEW_BLOCK
 REJECT_BLOCK
 ```
 
-## Hard blocks
-
-```text
-report_block_required_fields_missing
-upstream_report_block_failed_closed
-upstream_report_block_forbidden_output_attempted
-upstream_report_block_claim_output_allowed
-upstream_report_block_production_output_allowed
-upstream_report_block_final_output_allowed
-report_block_forbidden_language_detected
-canonical_event_count_claim_rejected
-```
-
-## Review route
+## Review hits
 
 ```text
 block_family_requires_review
+upstream_report_block_requires_review
 ```
 
-## Upstream failure rule
+## Downstream
 
-If the upstream report block carries hard blocks, `decision=BLOCK_REPORT_BLOCK`, or `status=FAIL_CLOSED`, the contract must reject it.
+`REVIEW_BLOCK` is intended to become `ROUTE_ASSEMBLY_ITEM_TO_REVIEW` in `final_report_assembly_gate_lite_v1`.
 
-## Test requirements
+## Boundaries
 
 ```text
-test_contract_requires_report_block_id
-test_contract_requires_report_block_candidate_text
-test_contract_requires_upstream_claim_ceiling
-test_contract_includes_valid_block_candidate
-test_review_required_block_family_routes_to_review
-test_failed_upstream_block_is_rejected
-test_forbidden_upstream_claim_text_rejected
-test_final_or_production_output_flags_rejected
-test_canonical_event_count_claim_rejected
-test_contract_does_not_emit_final_report_or_claim_text
-test_contract_blocks_truth_language_families
-test_build_contract_counts_include_review_reject
-test_write_outputs_rejects_nested_phone_output
-test_no_sample_match_identity_leak
+claim_output_allowed=false
+final_report_allowed=false
+production_report_allowed=false
+canonical_event_count=UNKNOWN
+production_release=false
 ```
 
-## Release status
-
-SMOKE_PASS target only.
-Not ACTIVE_MATCH_EVIDENCE_PASS.
-Not PRODUCTION_RELEASE.
-
-PASS != RELEASE.
+Drive, Dropbox, academic sources and donor repositories are support only. Current hpfa product path and runtime authority remain authoritative.
