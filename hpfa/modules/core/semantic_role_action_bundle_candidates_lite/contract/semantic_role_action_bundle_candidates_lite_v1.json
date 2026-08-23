@@ -1,0 +1,40 @@
+{
+  "module_id": "semantic_role_action_bundle_candidates_lite_v1",
+  "input_modules": [
+    "evidence_atom_inventory_lite_v1",
+    "match_local_identity_candidates_lite_v1"
+  ],
+  "source_authority": {
+    "structured_source_lineage_records": true,
+    "historical_positional_two_path_two_sha_authority": false,
+    "xlsx_timeline_or_identity_authority": false,
+    "dependent_csv_xml_independent_vote_allowed": false
+  },
+  "route_rules": {
+    "one_evidence_atom_one_semantic_route_record": true,
+    "administrative_review_role_preserved": true,
+    "administrative_review_action_eligible": false,
+    "semantic_review_action_anchor_blocked_from_bundle": true,
+    "player_team_goalkeeper_roles_remain_separate": true
+  },
+  "bundle_rules": {
+    "same_source_role_exact_grouping_only": true,
+    "same_timestamp_different_actor_grouping_allowed": false,
+    "same_time_order_truth_admitted": false,
+    "source_row_order_is_temporal_truth": false,
+    "cross_role_fusion_allowed": false,
+    "event_instance_allowed": false,
+    "action_bundle_is_canonical_event": false
+  },
+  "claim_boundary": {
+    "validated_event_identity": false,
+    "physical_action_identity_truth": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}

@@ -1,0 +1,107 @@
+name: C2 Evidence Spine Final Snapshot V1
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-spine-final-snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact source head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$actual_head"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused test dependencies
+        run: python -m pip install --disable-pip-version-check pytest openpyxl
+
+      - name: Compile C2 adapters and modules
+        run: |
+          python -m compileall -q \
+            evidence_atom_inventory_lite.py \
+            match_local_identity_candidates_lite.py \
+            semantic_role_action_bundle_candidates_lite.py \
+            action_bundle_multi_family_review_taxonomy_current_v1.py \
+            cross_role_relation_candidate_resolver_current_v1.py \
+            hpfa/modules/core/evidence_atom_inventory_lite \
+            hpfa/modules/core/match_local_identity_candidates_lite \
+            hpfa/modules/core/semantic_role_action_bundle_candidates_lite \
+            hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite \
+            hpfa/modules/core/cross_role_relation_candidate_resolver_lite
+
+      - name: Run C2 test suites independently
+        shell: bash
+        run: |
+          set -euo pipefail
+          suites=(
+            hpfa/modules/core/evidence_atom_inventory_lite/tests
+            hpfa/modules/core/match_local_identity_candidates_lite/tests
+            hpfa/modules/core/semantic_role_action_bundle_candidates_lite/tests
+            hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite/tests
+            hpfa/modules/core/cross_role_relation_candidate_resolver_lite/tests
+          )
+          for suite in "${suites[@]}"; do
+            echo "===== C2 SUITE: $suite ====="
+            python -m pytest -q "$suite"
+          done
+
+      - name: Runtime bootstrap syntax and authority guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tools/bootstrap_termux_c2_evidence_spine_current_v1.sh
+          grep -F 'BRANCH="${HPFA_EXPECTED_BRANCH:-}"' tools/bootstrap_termux_c2_evidence_spine_current_v1.sh
+          grep -F 'EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"' tools/bootstrap_termux_c2_evidence_spine_current_v1.sh
+          grep -F 'runtime/active_single_match/current' tools/bootstrap_termux_c2_evidence_spine_current_v1.sh
+          grep -F 'nested_phone_output_directory_rejected' tools/bootstrap_termux_c2_evidence_spine_current_v1.sh
+          ! grep -F 'work/reconstruct-' tools/bootstrap_termux_c2_evidence_spine_current_v1.sh
+          ! grep -F 'python -m pytest' tools/bootstrap_termux_c2_evidence_spine_current_v1.sh
+
+      - name: Claim-boundary static guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -R -q 'canonical_event_count' hpfa/modules/core/evidence_atom_inventory_lite
+          grep -R -q 'physical_action_identity_truth' hpfa/modules/core/match_local_identity_candidates_lite
+          grep -R -q 'action_bundle_is_canonical_event' hpfa/modules/core/semantic_role_action_bundle_candidates_lite
+          grep -R -q 'classification_is_event_truth' hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite
+          grep -R -q 'relation_candidate_is_event_truth' hpfa/modules/core/cross_role_relation_candidate_resolver_lite
+          grep -R -q 'count_value_output_allowed' hpfa/modules/core/cross_role_relation_candidate_resolver_lite
+          grep -R -q 'production_release' hpfa/modules/core/cross_role_relation_candidate_resolver_lite
+
+      - name: No sample match identity leak
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RInE 'Genclerbirligi|Fenerbahce|Sturm Graz|Heart of Midlothian|15\.08\.2026|22\.08\.2026|World Cup' \
+            evidence_atom_inventory_lite.py \
+            match_local_identity_candidates_lite.py \
+            semantic_role_action_bundle_candidates_lite.py \
+            action_bundle_multi_family_review_taxonomy_current_v1.py \
+            cross_role_relation_candidate_resolver_current_v1.py \
+            hpfa/modules/core/evidence_atom_inventory_lite \
+            hpfa/modules/core/match_local_identity_candidates_lite \
+            hpfa/modules/core/semantic_role_action_bundle_candidates_lite \
+            hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite \
+            hpfa/modules/core/cross_role_relation_candidate_resolver_lite \
+            tools/bootstrap_termux_c2_evidence_spine_current_v1.sh
