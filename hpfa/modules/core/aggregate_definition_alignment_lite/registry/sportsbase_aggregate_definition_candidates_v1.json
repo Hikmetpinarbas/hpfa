@@ -1,0 +1,61 @@
+{
+  "registry_version": "2.0.0",
+  "research_hardening_version": "R18_R19_R22_R24_R36_SOURCE_ROLE_v2",
+  "definitions": [
+    {
+      "definition_id": "sportsbase_pass_completion_candidate_v2",
+      "provider_id": "sportsbase",
+      "provider_version": "provider_definition_unverified",
+      "source_roles": [
+        "PLAYER_SURFACE_CANDIDATE"
+      ],
+      "aggregate_label": "Passes accurate, %",
+      "metric_id": "pass_completion_rate_candidate",
+      "metric_definition_fingerprint_sha256": "42b89dca3e3e07580a3267bba6388fe44fbb81048962d145bd74f9c615a1bb42",
+      "value_type": "percentage",
+      "unit": "percent",
+      "numerator_definition": "Provider-version rows eligible under the declared successful-pass candidate definition.",
+      "denominator_definition": "Provider-version rows eligible under the declared attempted-pass candidate definition in the same entity, period and observation window.",
+      "required_occurrence_semantics": [
+        {
+          "source_formats": [
+            "csv",
+            "xml"
+          ],
+          "source_roles": [
+            "PLAYER_SURFACE_CANDIDATE"
+          ],
+          "action_family_candidate": "PASS",
+          "outcome_candidate": "SUCCESS"
+        },
+        {
+          "source_formats": [
+            "csv",
+            "xml"
+          ],
+          "source_roles": [
+            "PLAYER_SURFACE_CANDIDATE"
+          ],
+          "action_family_candidate": "PASS",
+          "outcome_candidate": "FAILURE"
+        }
+      ],
+      "definition_evidence_status": "PROVIDER_DEFINITION_REQUIRED",
+      "derivation_dependency": [
+        "DERIVATION_DEPENDENCY_UNRESOLVED"
+      ],
+      "independence_status": "NON_INDEPENDENT_SAME_PROVIDER",
+      "claim_ceiling": "AGGREGATE_DEFINITION_ALIGNMENT_CANDIDATE_ONLY"
+    }
+  ],
+  "global_claim_rules": {
+    "same_label_is_same_definition": false,
+    "count_parity_is_definition_equivalence": false,
+    "same_provider_multi_surface_is_independent_confirmation": false,
+    "xlsx_row_is_event_identity": false,
+    "csv_xml_candidate_linkage_is_physical_event_identity": false,
+    "comparison_requires_R36_measurement_invariance": true,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  }
+}

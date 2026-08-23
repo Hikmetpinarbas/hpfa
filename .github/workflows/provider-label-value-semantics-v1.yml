@@ -1,0 +1,100 @@
+name: Provider Label Value Semantics Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "hpfa/modules/core/provider_label_value_semantics_lite/**"
+      - "provider_label_value_semantics_lite.py"
+      - "tools/bootstrap_termux_provider_label_value_semantics_v1.sh"
+      - "tools/run_active_match_provider_label_value_semantics_v1.sh"
+      - ".github/workflows/provider-label-value-semantics-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact source head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$actual_head"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install tests
+        run: python -m pip install pytest openpyxl
+      - name: Compile
+        run: |
+          python -m py_compile \
+            provider_label_value_semantics_lite.py \
+            hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py
+      - name: Focused tests
+        run: python -m pytest -q hpfa/modules/core/provider_label_value_semantics_lite/tests
+      - name: Upstream provider alias compatibility
+        run: python -m pytest -q hpfa/modules/core/provider_alias_field_semantics_lite/tests
+      - name: Shell syntax and execution identity
+        run: |
+          bash -n tools/run_active_match_provider_label_value_semantics_v1.sh
+          bash -n tools/bootstrap_termux_provider_label_value_semantics_v1.sh
+          bash tools/run_active_match_provider_label_value_semantics_v1.sh --self-test-execution-identity-guard
+      - name: Historical capability plus accepted PR 243 correction lineage
+        run: |
+          HIST="fdb8e109daebd7a9875d6f257011cb93e0372677"
+          git fetch origin pull/243/head
+          test "$(git rev-parse FETCH_HEAD)" = "$HIST"
+
+          REG="hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_reviewed_v2.csv"
+          TST="hpfa/modules/core/provider_label_value_semantics_lite/tests/test_provider_label_value_semantics.py"
+
+          test "$(git hash-object "$REG")" = "$(git rev-parse "$HIST:$REG")"
+          test "$(git hash-object "$TST")" = "$(git rev-parse "$HIST:$TST")"
+
+          test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_seed_v1.json)" = "e2c7f721f5ea9060e86d8b4487ef0775fd74c64e"
+          test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py)" = "72e4818e8f155c7ea7984afa73f4fc5dde055c07"
+          test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/tests/test_provider_label_value_semantics_registry_safety.py)" = "069e64a98bd940a40485d8c259e877ee621dcf2f"
+          test "$(git hash-object provider_label_value_semantics_lite.py)" = "7d8fee4ef7735bd1f134b470125a6eeab0d0a4e7"
+
+          grep -F 'ATTRIBUTE_REFERENCE' docs/contracts/provider_label_value_semantics_lite_v1.md
+          grep -F 'CONTEXT_DEPENDENT_SEMANTIC_COLLISION' docs/contracts/provider_label_value_semantics_lite_v1.md
+          grep -F 'TEAM_SURFACE_CANDIDATE' docs/contracts/provider_label_value_semantics_lite_v1.md
+          grep -F 'GOALKEEPER_SURFACE_CANDIDATE' docs/contracts/provider_label_value_semantics_lite_v1.md
+      - name: Current integration authority policy
+        run: |
+          grep -F 'EXPECTED_BRANCH="${HPFA_EXPECTED_BRANCH:-}"' tools/run_active_match_provider_label_value_semantics_v1.sh
+          grep -F 'EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"' tools/run_active_match_provider_label_value_semantics_v1.sh
+          grep -F 'BRANCH="${HPFA_EXPECTED_BRANCH:-}"' tools/bootstrap_termux_provider_label_value_semantics_v1.sh
+          grep -F 'merge --ff-only "origin/$BRANCH"' tools/bootstrap_termux_provider_label_value_semantics_v1.sh
+          ! grep -F 'integration/foundation-tranche-a-v1' tools/bootstrap_termux_provider_label_value_semantics_v1.sh
+          grep -F 'runtime/active_single_match/current' tools/run_active_match_provider_label_value_semantics_v1.sh
+          grep -F 'runtime/active_single_match/current' tools/bootstrap_termux_provider_label_value_semantics_v1.sh
+      - name: Runtime operability guards
+        run: |
+          ! grep -F 'python -m pytest' tools/run_active_match_provider_label_value_semantics_v1.sh
+          ! grep -F 'run_active_match_csv_surface_reader_v1.sh' tools/run_active_match_provider_label_value_semantics_v1.sh
+          ! grep -F 'run_active_match_xlsx_surface_reader_v1.sh' tools/run_active_match_provider_label_value_semantics_v1.sh
+          ! grep -F 'run_active_match_xml_surface_reader_v1.sh' tools/run_active_match_provider_label_value_semantics_v1.sh
+          grep -F '"phone_handoff_mode":"ONE_ZIP_ONLY"' tools/run_active_match_provider_label_value_semantics_v1.sh
+          grep -F 'HPFA_175_ACTIVE_MATCH_' tools/run_active_match_provider_label_value_semantics_v1.sh
+          grep -F 'nested_phone_output_directory_rejected' tools/run_active_match_provider_label_value_semantics_v1.sh
+          grep -F 'nested_phone_output_directory_rejected' tools/bootstrap_termux_provider_label_value_semantics_v1.sh
+      - name: Claim boundary and no sample identity leak
+        run: |
+          grep -F 'CANONICAL_EVENT_COUNT = "UNKNOWN"' hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py
+          ! grep -RInE "Sturm Graz|Heart of Midlothian|Australia|Turkey|World Cup|6935|77798" \
+            provider_label_value_semantics_lite.py \
+            hpfa/modules/core/provider_label_value_semantics_lite/src \
+            tools/run_active_match_provider_label_value_semantics_v1.sh \
+            tools/bootstrap_termux_provider_label_value_semantics_v1.sh

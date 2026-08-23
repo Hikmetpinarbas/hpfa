@@ -1,0 +1,57 @@
+{
+  "module_id": "xml_surface_reader_lite_v1",
+  "version": "1.0.0",
+  "input": {
+    "runtime_authority": "runtime/active_single_match/current",
+    "inventory_module": "multiformat_file_inventory_lite_v1",
+    "accepted_extension": ".xml",
+    "duplicate_policy": "exact_content_reflections_consumed_once"
+  },
+  "outputs": [
+    "xml_surface_audit_lite_v1.json",
+    "xml_surface_audit_lite_v1.txt",
+    "xml_surface_analyst_audit_lite_v1.txt"
+  ],
+  "hard_blocks": [
+    "input_root_missing",
+    "inventory_file_unreadable",
+    "inventory_json_malformed",
+    "inventory_payload_not_object",
+    "inventory_relative_path_missing",
+    "inventory_relative_path_absolute_rejected",
+    "inventory_relative_path_outside_input_root",
+    "xml_surface_missing",
+    "xml_file_missing",
+    "xml_file_unreadable",
+    "empty_xml_file",
+    "xml_file_size_budget_exceeded",
+    "external_entity_resolution_attempted",
+    "malformed_xml",
+    "xml_root_missing",
+    "xml_element_budget_exceeded",
+    "xml_depth_budget_exceeded",
+    "xml_attribute_budget_exceeded",
+    "xml_text_budget_exceeded",
+    "xml_row_candidate_budget_exceeded",
+    "xml_field_path_budget_exceeded",
+    "nested_phone_output_directory_rejected"
+  ],
+  "review_conditions": [
+    "xml_row_container_candidate_unresolved",
+    "xml_row_container_candidate_ambiguous"
+  ],
+  "claim_boundary": {
+    "xml_row_candidate_is_canonical_event": false,
+    "canonical_event_count": "UNKNOWN",
+    "validated_event_identity": false,
+    "validated_team_identity": false,
+    "validated_player_identity": false,
+    "provider_semantics_truth": false,
+    "cross_format_reconciliation_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "production_release": false,
+    "claim_ceiling": "XML_SURFACE_AUDIT_ONLY"
+  }
+}

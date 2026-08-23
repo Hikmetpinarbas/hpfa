@@ -1,0 +1,40 @@
+{
+  "registry_version": "2.0.0",
+  "derivations": [
+    {
+      "metric_id": "pass_attempts",
+      "formula": "pass_accurate + pass_inaccurate",
+      "component_metric_ids": [
+        "pass_accurate",
+        "pass_inaccurate"
+      ],
+      "derivation_status": "ARITHMETIC_CANDIDATE_ONLY",
+      "provider_definition_required": true
+    },
+    {
+      "metric_id": "pass_completion_rate",
+      "formula": "pass_accurate / pass_attempts",
+      "component_metric_ids": [
+        "pass_accurate",
+        "pass_attempts"
+      ],
+      "derivation_status": "DENOMINATOR_AND_PROVIDER_DEFINITION_REQUIRED",
+      "provider_definition_required": true,
+      "upstream_denominator_policy_id": "provider_bound_rate_v1"
+    },
+    {
+      "metric_id": "challenges",
+      "formula": "challenges_won + challenges_unsuccessful",
+      "component_metric_ids": [
+        "challenges_won",
+        "challenges_unsuccessful"
+      ],
+      "derivation_status": "ARITHMETIC_CANDIDATE_ONLY",
+      "provider_definition_required": true
+    }
+  ],
+  "global_derivation_rules": {
+    "arithmetic_reproduction_is_provider_definition_truth": false,
+    "cleared_derivation_requires_admitted_definition": true
+  }
+}

@@ -1,0 +1,94 @@
+name: XLSX Surface Reader Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "xlsx_surface_reader_lite.py"
+      - "hpfa/modules/core/xlsx_surface_reader_lite/**"
+      - "tools/bootstrap_termux_xlsx_surface_reader_v1.sh"
+      - "tools/run_active_match_xlsx_surface_reader_v1.sh"
+      - ".github/workflows/xlsx-surface-reader-lite-v1.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: xlsx-surface-reader-lite-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependency
+        run: python -m pip install --upgrade pip pytest
+      - name: Compile
+        run: |
+          python -m py_compile \
+            xlsx_surface_reader_lite.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_surface_reader.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_surface_reader/__init__.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_surface_reader/native_reader.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/src/native_ooxml.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_runtime_guard.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_header_semantics.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/tests/ooxml_fixture.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_surface_reader.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_runtime_guard.py \
+            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_header_semantics.py
+      - name: Native XLSX dependency guard
+        run: |
+          set -euo pipefail
+          ! grep -R -n -E '^[[:space:]]*(from|import)[[:space:]]+openpyxl([[:space:].]|$)' \
+            xlsx_surface_reader_lite.py \
+            hpfa/modules/core/xlsx_surface_reader_lite
+      - name: Focused tests
+        run: python -m pytest -q hpfa/modules/core/xlsx_surface_reader_lite/tests
+      - name: Shell syntax
+        run: bash -n tools/run_active_match_xlsx_surface_reader_v1.sh tools/bootstrap_termux_xlsx_surface_reader_v1.sh
+      - name: Integration execution identity guard
+        run: |
+          bash tools/run_active_match_xlsx_surface_reader_v1.sh --self-test-execution-identity-guard
+          grep -q 'HPFA_EXPECTED_BRANCH' tools/run_active_match_xlsx_surface_reader_v1.sh
+          grep -q 'HPFA_EXPECTED_HEAD' tools/run_active_match_xlsx_surface_reader_v1.sh
+          grep -q 'HPFA_EXPECTED_BRANCH' tools/bootstrap_termux_xlsx_surface_reader_v1.sh
+          grep -q 'HPFA_EXPECTED_HEAD' tools/bootstrap_termux_xlsx_surface_reader_v1.sh
+          ! grep -F 'BRANCH="xlsx-surface-reader-lite-v1"' \
+            tools/run_active_match_xlsx_surface_reader_v1.sh \
+            tools/bootstrap_termux_xlsx_surface_reader_v1.sh
+      - name: Claim boundary
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import json
+          from pathlib import Path
+
+          source = Path("hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_surface_reader.py")
+          spec = importlib.util.spec_from_file_location("xlsx_surface_reader_claim_check", source)
+          module = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          spec.loader.exec_module(module)
+          assert module.CANONICAL_EVENT_COUNT == "UNKNOWN"
+          assert module.CLAIM_CEILING == "XLSX_SURFACE_AUDIT_ONLY"
+
+          contract = json.loads(
+              Path("hpfa/modules/core/xlsx_surface_reader_lite/contract/xlsx_surface_reader_lite_v1.json")
+              .read_text(encoding="utf-8")
+          )
+          boundary = contract["claim_boundary"]
+          assert boundary["canonical_event_count"] == "UNKNOWN"
+          assert boundary["validated_team_identity"] is False
+          assert boundary["validated_player_identity"] is False
+          assert boundary["aggregate_definition_truth"] is False
+          assert boundary["cross_format_reconciliation_truth"] is False
+          assert boundary["tactical_truth"] is False
+          assert boundary["production_release"] is False
+          PY
+      - name: No sample identity leak
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_surface_reader.py::test_no_sample_match_identity_leak \
+            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_runtime_guard.py::test_no_sample_match_identity_leak \
+            hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_header_semantics.py::test_no_sample_match_identity_leak

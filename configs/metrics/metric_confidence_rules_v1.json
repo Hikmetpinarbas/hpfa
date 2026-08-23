@@ -1,0 +1,22 @@
+{
+  "policy_version": "1.0.0",
+  "policies": [
+    {
+      "confidence_policy_id": "candidate_evidence_calibration_required_v1",
+      "minimum_observation_count": null,
+      "minimum_opportunity_count": null,
+      "sample_size_penalty": "CALIBRATION_REQUIRED_NO_DEFAULT_FORMULA",
+      "missing_input_penalty": "FAIL_CLOSED_OR_DOWNGRADE",
+      "context_variance_penalty": "CALIBRATION_REQUIRED",
+      "source_dependency_penalty": "REQUIRED_FOR_DERIVED_OR_REFLECTED_SURFACES",
+      "definition_gap_penalty": "BLOCK_COMPARISON",
+      "stationarity_penalty": "REQUIRED_ONLY_WHEN_DECLARED_BY_METRIC",
+      "contradiction_penalty": "REVIEW_REQUIRED_OR_FAIL_CLOSED",
+      "maximum_confidence": "UNSET_UNTIL_CALIBRATED",
+      "minimum_claim_level": "DESCRIPTIVE_CANDIDATE",
+      "calibration_required": true,
+      "calibration_metrics": ["brier_score", "log_loss", "calibration_in_the_large", "calibration_slope"],
+      "validation_splits": ["temporal_holdout", "competition_holdout", "provider_holdout"]
+    }
+  ]
+}

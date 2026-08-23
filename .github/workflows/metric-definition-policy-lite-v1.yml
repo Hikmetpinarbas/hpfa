@@ -1,0 +1,62 @@
+name: Metric Definition Policy Lite V1
+
+on:
+  pull_request:
+    paths:
+      - configs/metrics/**
+      - hpfa/modules/core/metric_definition_policy_lite/**
+      - hpfa/modules/core/metric_family_registry_lite/**
+      - hpfa/modules/support/event_physical_cost_surface_lite/**
+      - hpfa/modules/reporting/postmatch_analyst_report_lite/**
+      - tools/run_active_match_metric_definition_policy_v1.sh
+      - tools/bootstrap_termux_metric_definition_policy_v1.sh
+      - docs/contracts/metric_definition_policy_lite_v1.md
+      - docs/contracts/event_physical_cost_surface_lite_v1.md
+      - .github/workflows/metric-definition-policy-lite-v1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Verify exact source head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$actual_head"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependency
+        run: python -m pip install pytest
+      - name: Compile policy producer and reporting modules
+        run: |
+          python -m py_compile \
+            hpfa/modules/core/metric_definition_policy_lite/src/metric_definition_policy.py \
+            hpfa/modules/core/metric_family_registry_lite/src/metric_family_registry.py \
+            hpfa/modules/support/event_physical_cost_surface_lite/src/event_physical_cost_surface.py \
+            hpfa/modules/reporting/postmatch_analyst_report_lite/src/postmatch_analyst_report.py
+      - name: Validate Termux shell syntax
+        run: |
+          bash -n tools/run_active_match_metric_definition_policy_v1.sh
+          bash -n tools/bootstrap_termux_metric_definition_policy_v1.sh
+      - name: Run deterministic policy producer and operator tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/metric_definition_policy_lite/tests \
+            hpfa/modules/core/metric_family_registry_lite/tests \
+            hpfa/modules/support/event_physical_cost_surface_lite/tests
