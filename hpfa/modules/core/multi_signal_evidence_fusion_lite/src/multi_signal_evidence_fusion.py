@@ -90,12 +90,27 @@ def _refs(packet: dict[str, Any], key: str) -> list[str]:
     return [_ref_from_item(item, key, idx) for idx, item in enumerate(_items(packet, key))]
 
 
+def _is_forbidden_value(value: Any) -> bool:
+    return value not in [None, "", False, []]
+
+
+def _collect_forbidden_hits(value: Any, path: str = "") -> list[str]:
+    hits: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_PACKET_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            child_path = f"{path}[{idx}]" if path else f"[{idx}]"
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    return hits
+
+
 def _forbidden_packet_hits(packet: dict[str, Any]) -> list[str]:
-    hits = []
-    for field in FORBIDDEN_PACKET_FIELDS:
-        if field in packet and packet.get(field) not in [None, "", False, []]:
-            hits.append(field)
-    return sorted(hits)
+    return sorted(set(_collect_forbidden_hits(packet)))
 
 
 def _required_packet_missing(packet: dict[str, Any]) -> list[str]:
