@@ -135,12 +135,27 @@ def _fusion_id(fusion: dict[str, Any]) -> str:
     return str(fusion.get("fusion_id") or "")
 
 
-def _forbidden_hits(fusion: dict[str, Any]) -> list[str]:
+def _is_forbidden_value(value: Any) -> bool:
+    return value not in [None, "", False, []]
+
+
+def _collect_forbidden_hits(value: Any, path: str = "") -> list[str]:
     hits: list[str] = []
-    for field in FORBIDDEN_UPSTREAM_FIELDS:
-        if field in fusion and fusion.get(field) not in [None, "", False, []]:
-            hits.append(field)
-    return sorted(hits)
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_UPSTREAM_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            child_path = f"{path}[{idx}]" if path else f"[{idx}]"
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    return hits
+
+
+def _forbidden_hits(fusion: dict[str, Any]) -> list[str]:
+    return sorted(set(_collect_forbidden_hits(fusion)))
 
 
 def _relation_records(fusion: dict[str, Any]) -> list[dict[str, Any]]:

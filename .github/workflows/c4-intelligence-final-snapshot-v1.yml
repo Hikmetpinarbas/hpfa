@@ -1,0 +1,114 @@
+name: C4 Intelligence Final Snapshot V1
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  intelligence-final-snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact source head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$actual_head"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused test dependencies
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Compile C4 integration surface
+        run: |
+          python -m compileall -q \
+            hpfa/tests/integration/test_intelligence_chain_contract_v1.py \
+            hpfa/modules/core/composite_evidence_packet_builder_lite \
+            hpfa/modules/core/multi_signal_evidence_fusion_lite \
+            hpfa/modules/core/composite_argument_builder_lite \
+            hpfa/modules/core/defeasible_argument_router_lite \
+            hpfa/modules/core/evidence_graph_engine_lite \
+            hpfa/modules/core/evidence_lens_matrix_lite \
+            hpfa/modules/core/safe_argument_router_tr_lite \
+            hpfa/modules/core/analyst_report_block_composer_lite \
+            hpfa/modules/core/report_output_contract_lite \
+            hpfa/modules/core/final_report_assembly_gate_lite
+
+      - name: Run C4 module regressions independently
+        shell: bash
+        run: |
+          set -euo pipefail
+          suites=(
+            hpfa/modules/core/composite_evidence_packet_builder_lite/tests
+            hpfa/modules/core/multi_signal_evidence_fusion_lite/tests
+            hpfa/modules/core/composite_argument_builder_lite/tests
+            hpfa/modules/core/defeasible_argument_router_lite/tests
+            hpfa/modules/core/evidence_graph_engine_lite/tests
+            hpfa/modules/core/evidence_lens_matrix_lite/tests
+            hpfa/modules/core/safe_argument_router_tr_lite/tests
+            hpfa/modules/core/analyst_report_block_composer_lite/tests
+            hpfa/modules/core/report_output_contract_lite/tests
+            hpfa/modules/core/final_report_assembly_gate_lite/tests
+          )
+          for suite in "${suites[@]}"; do
+            echo "===== C4 SUITE: $suite ====="
+            python -m pytest -q "$suite"
+          done
+
+      - name: Run canonical producer-consumer integration fixture
+        run: python -m pytest -q hpfa/tests/integration/test_intelligence_chain_contract_v1.py
+
+      - name: Intelligence claim-boundary guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEST=hpfa/tests/integration/test_intelligence_chain_contract_v1.py
+          grep -F 'test_intelligence_chain_explicit_counterevidence_remains_review_bounded' "$TEST"
+          grep -F 'test_intelligence_chain_upstream_failure_propagates' "$TEST"
+          grep -F 'test_intelligence_chain_nested_forbidden_field_fails_closed' "$TEST"
+          grep -F 'test_intelligence_chain_canonical_event_count_stays_unknown' "$TEST"
+          grep -F 'test_intelligence_chain_lens_review_is_explicit_sidecar_evidence' "$TEST"
+          grep -F 'test_intelligence_chain_no_sample_match_identity_leak' "$TEST"
+          grep -R -q 'canonical_event_count' \
+            hpfa/modules/core/composite_evidence_packet_builder_lite \
+            hpfa/modules/core/multi_signal_evidence_fusion_lite \
+            hpfa/modules/core/composite_argument_builder_lite \
+            hpfa/modules/core/defeasible_argument_router_lite \
+            hpfa/modules/core/evidence_graph_engine_lite \
+            hpfa/modules/core/evidence_lens_matrix_lite \
+            hpfa/modules/core/safe_argument_router_tr_lite \
+            hpfa/modules/core/analyst_report_block_composer_lite \
+            hpfa/modules/core/report_output_contract_lite \
+            hpfa/modules/core/final_report_assembly_gate_lite
+
+      - name: No sample match identity leak in C4 product code
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RInE 'Genclerbirligi|Fenerbahce|Sturm Graz|Heart of Midlothian|Turkey|Australia|Türkiye|Avustralya|World Cup|13\.06\.2026|15\.08\.2026|22\.08\.2026' \
+            hpfa/modules/core/composite_evidence_packet_builder_lite/src \
+            hpfa/modules/core/multi_signal_evidence_fusion_lite/src \
+            hpfa/modules/core/composite_argument_builder_lite/src \
+            hpfa/modules/core/defeasible_argument_router_lite/src \
+            hpfa/modules/core/evidence_graph_engine_lite/src \
+            hpfa/modules/core/evidence_lens_matrix_lite/src \
+            hpfa/modules/core/safe_argument_router_tr_lite/src \
+            hpfa/modules/core/analyst_report_block_composer_lite/src \
+            hpfa/modules/core/report_output_contract_lite/src \
+            hpfa/modules/core/final_report_assembly_gate_lite/src

@@ -212,6 +212,23 @@ def test_quality_truth_upstream_output_blocks_argument():
     assert "quality_truth" in argument["forbidden_output_hits"]
 
 
+def test_nested_relation_safe_sentence_blocks_argument_with_path():
+    fusion = base_fusion()
+    fusion["relation_records"][0]["payload"] = {"safe_sentence_candidate_tr": "unsafe nested sentence"}
+    argument = build_argument_candidate(fusion)
+    assert argument["decision"] == "BLOCK_ARGUMENT"
+    assert "upstream_fusion_forbidden_output_attempted" in argument["hard_block_hits"]
+    assert "relation_records[0].payload.safe_sentence_candidate_tr" in argument["forbidden_output_hits"]
+
+
+def test_nested_relation_quality_truth_blocks_argument_with_path():
+    fusion = base_fusion()
+    fusion["relation_records"][1]["metadata"] = {"quality_truth": True}
+    argument = build_argument_candidate(fusion)
+    assert argument["decision"] == "BLOCK_ARGUMENT"
+    assert "relation_records[1].metadata.quality_truth" in argument["forbidden_output_hits"]
+
+
 def test_argument_does_not_emit_claim_or_sentence():
     argument = build_argument_candidate(base_fusion())
     assert "claim_text" not in argument
