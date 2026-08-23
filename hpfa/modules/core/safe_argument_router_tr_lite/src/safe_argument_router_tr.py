@@ -98,28 +98,23 @@ def _is_forbidden_value(value: Any) -> bool:
     return value not in [None, "", False, []]
 
 
-def _payload_forbidden_hits(graph: dict[str, Any]) -> list[str]:
+def _collect_forbidden_hits(value: Any, path: str = "") -> list[str]:
     hits: list[str] = []
-    for index, node in enumerate(_as_list(graph.get("nodes"))):
-        if not isinstance(node, dict):
-            continue
-        payload = node.get("payload")
-        if not isinstance(payload, dict):
-            continue
-        node_id = str(node.get("node_id") or f"node_{index}")
-        for field in FORBIDDEN_UPSTREAM_FIELDS:
-            if field in payload and _is_forbidden_value(payload.get(field)):
-                hits.append(f"nodes[{node_id}].payload.{field}")
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_UPSTREAM_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            child_path = f"{path}[{idx}]" if path else f"[{idx}]"
+            hits.extend(_collect_forbidden_hits(child, child_path))
     return hits
 
 
 def _forbidden_upstream_hits(graph: dict[str, Any]) -> list[str]:
-    hits: list[str] = []
-    for field in FORBIDDEN_UPSTREAM_FIELDS:
-        if field in graph and _is_forbidden_value(graph.get(field)):
-            hits.append(field)
-    hits.extend(_payload_forbidden_hits(graph))
-    return sorted(hits)
+    return sorted(set(_collect_forbidden_hits(graph)))
 
 
 def _upstream_graph_failed(graph: dict[str, Any]) -> bool:
@@ -130,6 +125,14 @@ def _upstream_graph_failed(graph: dict[str, Any]) -> bool:
     if str(graph.get("status") or "").upper() in {"FAIL_CLOSED", "BLOCKED"}:
         return True
     return False
+
+
+def _upstream_review_required(graph: dict[str, Any]) -> bool:
+    if graph.get("review_required") is True:
+        return True
+    if _as_list(graph.get("review_reasons")):
+        return True
+    return str(graph.get("status") or "").upper() == "REVIEW_REQUIRED"
 
 
 def _nodes_by_type(graph: dict[str, Any], node_type: str) -> list[dict[str, Any]]:
@@ -159,6 +162,13 @@ def _clip(values: list[str], limit: int = 2) -> str:
     return ", ".join(values[:limit])
 
 
+def _defeasible_state(graph: dict[str, Any]) -> str:
+    explicit = str(graph.get("defeasible_state") or "").upper()
+    if explicit:
+        return explicit
+    return _first_payload_value(graph, "defeasible_route", "defeasible_state").upper()
+
+
 def _safe_sentence(graph: dict[str, Any]) -> str:
     support_refs = _payload_refs(graph, "support_ref")
     qualifier_refs = _payload_refs(graph, "qualifier_ref")
@@ -166,11 +176,41 @@ def _safe_sentence(graph: dict[str, Any]) -> str:
     context_refs = _payload_refs(graph, "context_ref")
     counter_scenarios = _payload_refs(graph, "counter_scenario")
     withdrawal_conditions = _payload_refs(graph, "withdrawal_condition")
+    matched_withdrawal_conditions = _payload_refs(graph, "matched_withdrawal_condition")
     relation_scope = _first_payload_value(graph, "relation_scope", "relation_scope")
     analysis_route = _first_payload_value(graph, "analysis_route", "analysis_route")
+    state = _defeasible_state(graph)
+    review_required = _upstream_review_required(graph)
+    prefix = SAFE_PREFIX_BY_STATUS["REVIEW_REQUIRED" if review_required else "SMOKE_PASS"]
+
+    if state == "WITHDRAWN":
+        sentence = (
+            f"{prefix} {relation_scope} kapsamındaki {analysis_route} okumasında "
+            f"{_clip(support_refs)} referanslarının destek yüzeyi sağladığını; "
+            f"{_clip(contradiction_refs)} referanslarının karşı-kanıt taşıdığını"
+        )
+        if matched_withdrawal_conditions:
+            sentence += f"; {_clip(matched_withdrawal_conditions)} geri çekme koşulunun eşleştiğini"
+        sentence += "; bu nedenle argüman adayının geri çekilmiş durumda olduğunu gösterir."
+        return sentence
+
+    if state == "WEAKENED":
+        sentence = (
+            f"{prefix} {relation_scope} kapsamındaki {analysis_route} okumasında "
+            f"{_clip(support_refs)} referanslarının argüman adayını desteklediğini"
+        )
+        if qualifier_refs:
+            sentence += f"; {_clip(qualifier_refs)} referanslarının okumayı nitelendirdiğini"
+        if contradiction_refs:
+            sentence += f"; {_clip(contradiction_refs)} referanslarının karşı-kanıt taşıdığını"
+        sentence += "; bu nedenle argüman adayının zayıflamış durumda olduğunu"
+        if context_refs:
+            sentence += f"; {_clip(context_refs)} referanslarının bağlam verdiğini"
+        sentence += " gösterir."
+        return sentence
 
     sentence = (
-        f"Görünür kanıt grafiği {relation_scope} kapsamındaki {analysis_route} okumasında "
+        f"{prefix} {relation_scope} kapsamındaki {analysis_route} okumasında "
         f"{_clip(support_refs)} referanslarının argüman adayını desteklediğini; "
         f"{_clip(qualifier_refs)} referanslarının okumayı nitelendirdiğini"
     )
@@ -218,19 +258,35 @@ def route_safe_sentence(graph: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     if normalized.get("report_language_allowed") not in [False, None]:
         hard_block_hits.append("upstream_graph_report_language_allowed")
 
+    review_required = _upstream_review_required(normalized) and not hard_block_hits
+    review_reasons = _string_list(normalized.get("review_reasons"))
+    if review_required and not review_reasons:
+        review_reasons = ["upstream_graph_review_required"]
+
     safe_sentence_candidate_tr = "" if hard_block_hits else _safe_sentence(normalized)
     forbidden_sentence_hits = _forbidden_sentence_hits(safe_sentence_candidate_tr)
     if forbidden_sentence_hits:
         hard_block_hits.append("safe_sentence_forbidden_language_detected")
         safe_sentence_candidate_tr = ""
+        review_required = False
 
-    status = "FAIL_CLOSED" if hard_block_hits else "SMOKE_PASS"
-    decision = "BLOCK_SAFE_SENTENCE" if hard_block_hits else "READY_FOR_REPORT_COMPOSER_CANDIDATE"
+    if hard_block_hits:
+        status = "FAIL_CLOSED"
+        decision = "BLOCK_SAFE_SENTENCE"
+    elif review_required:
+        status = "REVIEW_REQUIRED"
+        decision = "ROUTE_REVIEW_SAFE_SENTENCE_CANDIDATE"
+    else:
+        status = "SMOKE_PASS"
+        decision = "READY_FOR_REPORT_COMPOSER_CANDIDATE"
 
     return {
         "module_id": MODULE_ID,
         "safe_sentence_id": f"safe_sentence_{graph_id}",
         "graph_id": graph_id,
+        "defeasible_state": _defeasible_state(normalized),
+        "review_required": review_required,
+        "review_reasons": review_reasons,
         "safe_sentence_candidate_tr": safe_sentence_candidate_tr,
         "sentence_candidate_tr": safe_sentence_candidate_tr,
         "sentence_language": "tr",
@@ -263,12 +319,19 @@ def route_safe_sentence(graph: dict[str, Any], idx: int = 0) -> dict[str, Any]:
 def build_safe_sentence_report(graphs: list[dict[str, Any]]) -> dict[str, Any]:
     routed = [route_safe_sentence(graph, idx) for idx, graph in enumerate(graphs)]
     blocked_count = sum(1 for item in routed if item["hard_block_hits"])
-    status = "FAIL_CLOSED" if blocked_count else "SMOKE_PASS"
+    review_count = sum(1 for item in routed if item["review_required"] and not item["hard_block_hits"])
+    if blocked_count:
+        status = "FAIL_CLOSED"
+    elif review_count:
+        status = "REVIEW_REQUIRED"
+    else:
+        status = "SMOKE_PASS"
     return {
         "module_id": MODULE_ID,
         "status": status,
         "safe_sentence_count": len(routed),
         "blocked_safe_sentence_count": blocked_count,
+        "review_safe_sentence_count": review_count,
         "safe_sentences": routed,
         "claim_output_allowed": False,
         "report_language_allowed": False,
@@ -289,6 +352,7 @@ def write_outputs(graphs: list[dict[str, Any]], out_dir: str | Path) -> dict[str
         f"status={report['status']}",
         f"safe_sentence_count={report['safe_sentence_count']}",
         f"blocked_safe_sentence_count={report['blocked_safe_sentence_count']}",
+        f"review_safe_sentence_count={report['review_safe_sentence_count']}",
         f"canonical_event_count={report['canonical_event_count']}",
         "",
         "[safe_sentence_candidates]",

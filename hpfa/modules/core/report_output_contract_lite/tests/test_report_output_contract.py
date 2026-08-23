@@ -13,6 +13,11 @@ def base_report_block():
     return {
         "report_block_id": "report_block_safe_sentence_graph_arg_fusion_cep_progression_001",
         "safe_sentence_id": "safe_sentence_graph_arg_fusion_cep_progression_001",
+        "defeasible_state": "SUPPORTED",
+        "review_required": False,
+        "review_reasons": [],
+        "status": "SMOKE_PASS",
+        "decision": "READY_FOR_REPORT_OUTPUT_CONTRACT_CANDIDATE",
         "report_block_candidate_tr": "Analist okuması: Görünür kanıt grafiği context_bound_relation kapsamındaki bidirectional okumasında right_channel_access referanslarının argüman adayını desteklediğini; low_shot_volume referanslarının okumayı nitelendirdiğini gösterir.",
         "block_language": "tr",
         "block_family": "analyst_reading_candidate",
@@ -61,11 +66,38 @@ def test_contract_includes_valid_block_candidate():
 def test_review_required_block_family_routes_to_review():
     block = base_report_block()
     block["block_family"] = "review_required_candidate"
+    block["status"] = "REVIEW_REQUIRED"
+    block["review_required"] = True
+    block["review_reasons"] = ["defeasible_argument_weakened"]
     item = evaluate_report_block(block)
     assert item["status"] == "REVIEW_REQUIRED"
     assert item["inclusion_decision"] == "REVIEW_BLOCK"
     assert "block_family_requires_review" in item["review_hits"]
+    assert "upstream_report_block_requires_review" in item["review_hits"]
+    assert item["upstream_review_required"] is True
+    assert item["upstream_review_reasons"] == ["defeasible_argument_weakened"]
     assert item["output_text_candidate_tr"] == ""
+
+
+def test_review_status_routes_to_review_even_if_family_is_not_review_family():
+    block = base_report_block()
+    block["status"] = "REVIEW_REQUIRED"
+    block["review_required"] = True
+    block["review_reasons"] = ["upstream_safe_sentence_review_required"]
+    item = evaluate_report_block(block)
+    assert item["status"] == "REVIEW_REQUIRED"
+    assert item["inclusion_decision"] == "REVIEW_BLOCK"
+    assert "upstream_report_block_requires_review" in item["review_hits"]
+
+
+def test_review_without_reason_gets_explicit_fallback_reason():
+    block = base_report_block()
+    block["status"] = "REVIEW_REQUIRED"
+    block["review_required"] = True
+    block["review_reasons"] = []
+    item = evaluate_report_block(block)
+    assert item["status"] == "REVIEW_REQUIRED"
+    assert item["upstream_review_reasons"] == ["upstream_report_block_review_required"]
 
 
 def test_failed_upstream_block_is_rejected():
@@ -84,6 +116,14 @@ def test_forbidden_upstream_claim_text_rejected():
     assert item["inclusion_decision"] == "REJECT_BLOCK"
     assert "upstream_report_block_forbidden_output_attempted" in item["hard_block_hits"]
     assert "claim_text" in item["forbidden_upstream_hits"]
+
+
+def test_nested_forbidden_upstream_truth_rejected():
+    block = base_report_block()
+    block["metadata"] = {"nested": {"quality_truth": "unsafe"}}
+    item = evaluate_report_block(block)
+    assert item["inclusion_decision"] == "REJECT_BLOCK"
+    assert "metadata.nested.quality_truth" in item["forbidden_upstream_hits"]
 
 
 def test_final_or_production_output_flags_rejected():
@@ -136,6 +176,9 @@ def test_build_contract_counts_include_review_reject():
     review = base_report_block()
     review["report_block_id"] = "report_block_review"
     review["block_family"] = "review_required_candidate"
+    review["status"] = "REVIEW_REQUIRED"
+    review["review_required"] = True
+    review["review_reasons"] = ["defeasible_argument_weakened"]
     reject = base_report_block()
     reject["report_block_id"] = "report_block_reject"
     reject["claim_text"] = "unsafe claim"

@@ -84,12 +84,25 @@ def _stable_packet_id(packet_family: str, refs: list[str]) -> str:
 
 def _ref_from_item(item: Any, fallback_prefix: str, idx: int) -> str:
     if isinstance(item, dict):
-        for key in ["ref_id", "id", "feature_id", "window_id", "sequence_id", "metric_id", "signal_id"]:
+        for key in ["ref_id", "id", "feature_id", "window_id", "sequence_id", "metric_id", "signal_id", "signal_ref"]:
             if item.get(key) not in [None, ""]:
                 return str(item[key])
     if item not in [None, ""]:
         return str(item)
     return f"{fallback_prefix}_{idx}"
+
+
+def _preserve_signal_records(candidate: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for idx, item in enumerate(_as_list(candidate.get(key))):
+        signal_ref = _ref_from_item(item, key, idx)
+        if isinstance(item, dict):
+            record = dict(item)
+            record["signal_ref"] = signal_ref
+        else:
+            record = {"signal_ref": signal_ref}
+        records.append(record)
+    return records
 
 
 def collect_input_refs(candidate: dict[str, Any]) -> dict[str, list[str]]:
@@ -125,12 +138,27 @@ def _source_surface_count(candidate: dict[str, Any]) -> int:
     return len(surfaces)
 
 
+def _is_forbidden_value(value: Any) -> bool:
+    return value not in [None, "", False, []]
+
+
+def _collect_forbidden_hits(value: Any, path: str = "") -> list[str]:
+    hits: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_OUTPUT_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            child_path = f"{path}[{idx}]" if path else f"[{idx}]"
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    return hits
+
+
 def _detect_forbidden_output_attempt(candidate: dict[str, Any]) -> list[str]:
-    hits = []
-    for field in FORBIDDEN_OUTPUT_FIELDS:
-        if field in candidate and candidate.get(field) not in [None, "", False, []]:
-            hits.append(field)
-    return sorted(hits)
+    return sorted(set(_collect_forbidden_hits(candidate)))
 
 
 def _normalized_blocked_language_families(candidate: dict[str, Any]) -> list[str]:
@@ -159,6 +187,8 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         packet_family = "weak_signal"
 
     refs = collect_input_refs(candidate)
+    supporting_signal_records = _preserve_signal_records(candidate, "supporting_signals")
+    contradicting_signal_records = _preserve_signal_records(candidate, "contradicting_signals")
     all_refs = _all_refs(refs)
     unique_ref_count = len(set(all_refs))
     supporting_count = len(refs["supporting_signals"])
@@ -191,6 +221,8 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         "input_metrics": refs["input_metrics"],
         "supporting_signals": refs["supporting_signals"],
         "contradicting_signals": refs["contradicting_signals"],
+        "supporting_signal_records": supporting_signal_records,
+        "contradicting_signal_records": contradicting_signal_records,
         "input_ref_count": unique_ref_count,
         "supporting_signal_count": supporting_count,
         "contradicting_signal_count": contradicting_count,

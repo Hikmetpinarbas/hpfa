@@ -77,12 +77,23 @@ def _is_forbidden_value(value: Any) -> bool:
     return value not in [None, "", False, []]
 
 
+def _collect_forbidden_hits(value: Any, path: str = "") -> list[str]:
+    hits: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_UPSTREAM_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            child_path = f"{path}[{idx}]" if path else f"[{idx}]"
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    return hits
+
+
 def _forbidden_hits(argument: dict[str, Any]) -> list[str]:
-    return sorted(
-        field
-        for field in FORBIDDEN_UPSTREAM_FIELDS
-        if field in argument and _is_forbidden_value(argument.get(field))
-    )
+    return sorted(set(_collect_forbidden_hits(argument)))
 
 
 def _upstream_failed(argument: dict[str, Any]) -> bool:
@@ -164,7 +175,18 @@ def route_argument(argument: dict[str, Any]) -> dict[str, Any]:
         "module_id": MODULE_ID,
         "route_id": f"defeasible_route_{argument_id}",
         "argument_id": argument_id,
+        "fusion_id": str(normalized.get("fusion_id") or ""),
         "argument_family": str(normalized.get("argument_family") or ""),
+        "relation_scope": str(normalized.get("relation_scope") or ""),
+        "analysis_route": str(normalized.get("analysis_route") or ""),
+        "whole_to_unit": bool(normalized.get("whole_to_unit")),
+        "unit_to_whole": bool(normalized.get("unit_to_whole")),
+        "bidirectional": bool(normalized.get("bidirectional")),
+        "complementary_refs": _string_list(normalized.get("complementary_refs")),
+        "context_refs": _string_list(normalized.get("context_refs")),
+        "counter_scenarios": _string_list(normalized.get("counter_scenarios")),
+        "upstream_argument_status": str(normalized.get("status") or ""),
+        "upstream_argument_decision": str(normalized.get("decision") or ""),
         "status": status,
         "defeasible_state": defeasible_state,
         "decision": decision,
@@ -245,4 +267,3 @@ def write_outputs(arguments: list[dict[str, Any]], out_dir: str | Path) -> dict[
     lines.append("")
     (out / OUTPUT_TXT).write_text("\n".join(lines), encoding="utf-8")
     return report
-

@@ -37,6 +37,14 @@ def explicit_contradiction_packet():
     return packet
 
 
+def failed_upstream_packet():
+    packet = base_packet()
+    packet["status"] = "FAIL_CLOSED"
+    packet["decision"] = "BLOCK_PACKET"
+    packet["hard_block_hits"] = ["minimum_source_count_not_met"]
+    return packet
+
+
 def test_fusion_requires_composite_packet():
     record = fuse_packet({"packet_id": "broken"})
     assert record["decision"] == "BLOCK_FUSION"
@@ -89,6 +97,35 @@ def test_fusion_preserves_contextualizes_relation():
     assert any(row["relation_type"] == "CONTEXTUALIZES" for row in record["relation_records"])
 
 
+def test_failed_upstream_packet_blocks_fusion():
+    record = fuse_packet(failed_upstream_packet())
+    assert record["fusion_status"] == "BLOCKED"
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "upstream_packet_failed_closed" in record["hard_block_hits"]
+    assert record["upstream_status"] == "FAIL_CLOSED"
+    assert record["upstream_decision"] == "BLOCK_PACKET"
+
+
+def test_block_packet_decision_blocks_fusion():
+    packet = base_packet()
+    packet["status"] = "REVIEW_REQUIRED"
+    packet["decision"] = "BLOCK_PACKET"
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "upstream_packet_failed_closed" in record["hard_block_hits"]
+
+
+def test_packet_hard_block_hits_propagate_to_fusion():
+    packet = base_packet()
+    packet["status"] = "SMOKE_PASS"
+    packet["decision"] = "READY_FOR_FUSION"
+    packet["hard_block_hits"] = ["minimum_source_count_not_met", "source_conflict_unresolved"]
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "upstream_packet_failed_closed" in record["hard_block_hits"]
+    assert record["upstream_hard_block_hits"] == ["minimum_source_count_not_met", "source_conflict_unresolved"]
+
+
 def test_fusion_does_not_emit_claim_text():
     record = fuse_packet(base_packet())
     assert "claim_text" not in record
@@ -127,6 +164,27 @@ def test_causal_truth_upstream_output_blocks_fusion():
     assert record["decision"] == "BLOCK_FUSION"
     assert "upstream_packet_forbidden_output_attempted" in record["hard_block_hits"]
     assert "causal_truth" in record["forbidden_output_hits"]
+
+
+def test_nested_support_signal_truth_blocks_fusion_with_path():
+    packet = base_packet()
+    packet["supporting_signals"] = [
+        {"signal_id": "right_channel_access", "payload": {"tactical_truth": True}}
+    ]
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "upstream_packet_forbidden_output_attempted" in record["hard_block_hits"]
+    assert "supporting_signals[0].payload.tactical_truth" in record["forbidden_output_hits"]
+
+
+def test_nested_input_feature_claim_blocks_fusion_with_path():
+    packet = base_packet()
+    packet["input_features"] = [
+        {"feature_id": "final_third_entry", "payload": {"claim_text": "unsafe nested claim"}}
+    ]
+    record = fuse_packet(packet)
+    assert record["decision"] == "BLOCK_FUSION"
+    assert "input_features[0].payload.claim_text" in record["forbidden_output_hits"]
 
 
 def test_no_tactical_truth():

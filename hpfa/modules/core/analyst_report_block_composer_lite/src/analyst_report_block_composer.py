@@ -81,6 +81,10 @@ def _as_list(value: Any) -> list[Any]:
     return [value]
 
 
+def _string_list(value: Any) -> list[str]:
+    return [str(item) for item in _as_list(value) if item not in [None, ""]]
+
+
 def _safe_sentence_id(item: dict[str, Any]) -> str:
     return str(item.get("safe_sentence_id") or "")
 
@@ -89,12 +93,23 @@ def _is_forbidden_value(value: Any) -> bool:
     return value not in [None, "", False, []]
 
 
-def _forbidden_upstream_hits(item: dict[str, Any]) -> list[str]:
+def _collect_forbidden_hits(value: Any, path: str = "") -> list[str]:
     hits: list[str] = []
-    for field in FORBIDDEN_UPSTREAM_FIELDS:
-        if field in item and _is_forbidden_value(item.get(field)):
-            hits.append(field)
-    return sorted(hits)
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_UPSTREAM_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            child_path = f"{path}[{idx}]" if path else f"[{idx}]"
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    return hits
+
+
+def _forbidden_upstream_hits(item: dict[str, Any]) -> list[str]:
+    return sorted(set(_collect_forbidden_hits(item)))
 
 
 def _upstream_safe_sentence_failed(item: dict[str, Any]) -> bool:
@@ -105,6 +120,14 @@ def _upstream_safe_sentence_failed(item: dict[str, Any]) -> bool:
     if str(item.get("status") or "").upper() in {"FAIL_CLOSED", "BLOCKED"}:
         return True
     return False
+
+
+def _upstream_review_required(item: dict[str, Any]) -> bool:
+    if item.get("review_required") is True:
+        return True
+    if _as_list(item.get("review_reasons")):
+        return True
+    return str(item.get("status") or "").upper() == "REVIEW_REQUIRED"
 
 
 def _forbidden_text_hits(text: str) -> list[str]:
@@ -146,24 +169,45 @@ def compose_report_block(item: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     if not sentence:
         hard_block_hits.append("safe_sentence_candidate_required")
 
+    review_required = _upstream_review_required(normalized) and not hard_block_hits
+    review_reasons = _string_list(normalized.get("review_reasons"))
+    if review_required and not review_reasons:
+        review_reasons = ["upstream_safe_sentence_review_required"]
+
     report_block_candidate_tr = "" if hard_block_hits else "Analist okuması: " + sentence
     forbidden_block_hits = _forbidden_text_hits(report_block_candidate_tr)
     if forbidden_block_hits:
         hard_block_hits.append("report_block_forbidden_language_detected")
         report_block_candidate_tr = ""
+        review_required = False
 
-    status = "FAIL_CLOSED" if hard_block_hits else "SMOKE_PASS"
-    decision = "BLOCK_REPORT_BLOCK" if hard_block_hits else "READY_FOR_REPORT_OUTPUT_CONTRACT_CANDIDATE"
+    if hard_block_hits:
+        status = "FAIL_CLOSED"
+        decision = "BLOCK_REPORT_BLOCK"
+        block_family = "analyst_reading_candidate"
+    elif review_required:
+        status = "REVIEW_REQUIRED"
+        decision = "ROUTE_REPORT_BLOCK_TO_REVIEW"
+        block_family = "review_required_candidate"
+    else:
+        status = "SMOKE_PASS"
+        decision = "READY_FOR_REPORT_OUTPUT_CONTRACT_CANDIDATE"
+        block_family = "analyst_reading_candidate"
 
     return {
         "module_id": MODULE_ID,
         "report_block_id": f"report_block_{safe_sentence_id}",
         "safe_sentence_id": safe_sentence_id,
+        "defeasible_state": str(normalized.get("defeasible_state") or ""),
+        "review_required": review_required,
+        "review_reasons": review_reasons,
         "report_block_candidate_tr": report_block_candidate_tr,
         "block_language": "tr",
-        "block_family": "analyst_reading_candidate",
+        "block_family": block_family,
         "claim_ceiling": REPORT_BLOCK_CLAIM_CEILING,
         "upstream_claim_ceiling": normalized.get("claim_ceiling"),
+        "upstream_status": normalized.get("status"),
+        "upstream_decision": normalized.get("decision"),
         "status": status,
         "decision": decision,
         "hard_block_hits": hard_block_hits,
@@ -191,12 +235,19 @@ def compose_report_block(item: dict[str, Any], idx: int = 0) -> dict[str, Any]:
 def build_report_block_report(items: list[dict[str, Any]]) -> dict[str, Any]:
     blocks = [compose_report_block(item, idx) for idx, item in enumerate(items)]
     blocked_count = sum(1 for block in blocks if block["hard_block_hits"])
-    status = "FAIL_CLOSED" if blocked_count else "SMOKE_PASS"
+    review_count = sum(1 for block in blocks if block["review_required"] and not block["hard_block_hits"])
+    if blocked_count:
+        status = "FAIL_CLOSED"
+    elif review_count:
+        status = "REVIEW_REQUIRED"
+    else:
+        status = "SMOKE_PASS"
     return {
         "module_id": MODULE_ID,
         "status": status,
         "report_block_count": len(blocks),
         "blocked_report_block_count": blocked_count,
+        "review_report_block_count": review_count,
         "report_blocks": blocks,
         "claim_output_allowed": False,
         "production_report_allowed": False,
@@ -218,6 +269,7 @@ def write_outputs(items: list[dict[str, Any]], out_dir: str | Path) -> dict[str,
         f"status={report['status']}",
         f"report_block_count={report['report_block_count']}",
         f"blocked_report_block_count={report['blocked_report_block_count']}",
+        f"review_report_block_count={report['review_report_block_count']}",
         f"canonical_event_count={report['canonical_event_count']}",
         "",
         "[report_block_candidates]",

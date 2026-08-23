@@ -86,16 +86,43 @@ def _items(packet: dict[str, Any], key: str) -> list[Any]:
     return [item for item in _as_list(packet.get(key)) if item not in [None, ""]]
 
 
+def _signal_items(packet: dict[str, Any], key: str) -> list[Any]:
+    record_key = {
+        "supporting_signals": "supporting_signal_records",
+        "contradicting_signals": "contradicting_signal_records",
+    }.get(key)
+    if record_key:
+        records = _items(packet, record_key)
+        if records:
+            return records
+    return _items(packet, key)
+
+
 def _refs(packet: dict[str, Any], key: str) -> list[str]:
     return [_ref_from_item(item, key, idx) for idx, item in enumerate(_items(packet, key))]
 
 
+def _is_forbidden_value(value: Any) -> bool:
+    return value not in [None, "", False, []]
+
+
+def _collect_forbidden_hits(value: Any, path: str = "") -> list[str]:
+    hits: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_PACKET_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            child_path = f"{path}[{idx}]" if path else f"[{idx}]"
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    return hits
+
+
 def _forbidden_packet_hits(packet: dict[str, Any]) -> list[str]:
-    hits = []
-    for field in FORBIDDEN_PACKET_FIELDS:
-        if field in packet and packet.get(field) not in [None, "", False, []]:
-            hits.append(field)
-    return sorted(hits)
+    return sorted(set(_collect_forbidden_hits(packet)))
 
 
 def _required_packet_missing(packet: dict[str, Any]) -> list[str]:
@@ -112,6 +139,16 @@ def _required_packet_missing(packet: dict[str, Any]) -> list[str]:
     return [key for key in required if packet.get(key) in [None, ""]]
 
 
+def _upstream_packet_failed(packet: dict[str, Any]) -> bool:
+    if _as_list(packet.get("hard_block_hits")):
+        return True
+    if str(packet.get("decision") or "").upper().startswith("BLOCK"):
+        return True
+    if str(packet.get("status") or "").upper() in {"FAIL_CLOSED", "BLOCKED"}:
+        return True
+    return False
+
+
 def _is_explicit_contradiction(item: Any) -> bool:
     if not isinstance(item, dict):
         return False
@@ -125,27 +162,31 @@ def _is_explicit_contradiction(item: Any) -> bool:
     return False
 
 
-def _record(packet_id: str, signal_ref: str, relation_type: str, evidence_role: str) -> dict[str, Any]:
-    return {
+def _record(packet_id: str, signal_ref: str, relation_type: str, evidence_role: str, relation_basis: str = "") -> dict[str, Any]:
+    record = {
         "packet_id": packet_id,
         "signal_ref": signal_ref,
         "relation_type": relation_type,
         "evidence_role": evidence_role,
         "claim_ceiling": FUSION_CLAIM_CEILING,
     }
+    if relation_basis:
+        record["relation_basis"] = relation_basis
+    return record
 
 
 def _signal_relation_records(packet: dict[str, Any]) -> list[dict[str, Any]]:
     packet_id = str(packet["packet_id"])
     records: list[dict[str, Any]] = []
 
-    for idx, signal in enumerate(_items(packet, "supporting_signals")):
+    for idx, signal in enumerate(_signal_items(packet, "supporting_signals")):
         records.append(_record(packet_id, _ref_from_item(signal, "supporting_signals", idx), "SUPPORTS", "supporting_signal"))
 
-    for idx, signal in enumerate(_items(packet, "contradicting_signals")):
+    for idx, signal in enumerate(_signal_items(packet, "contradicting_signals")):
         signal_ref = _ref_from_item(signal, "contradicting_signals", idx)
         if _is_explicit_contradiction(signal):
-            records.append(_record(packet_id, signal_ref, "CONTRADICTS", "explicit_contradiction_signal"))
+            basis = str(signal.get("contradiction_basis") or signal.get("relation_basis") or "") if isinstance(signal, dict) else ""
+            records.append(_record(packet_id, signal_ref, "CONTRADICTS", "explicit_contradiction_signal", basis))
         else:
             records.append(_record(packet_id, signal_ref, "QUALIFIES", "qualifying_or_tension_signal"))
 
@@ -173,10 +214,13 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
         normalized_packet["packet_id"] = packet_id
 
     forbidden_hits = _forbidden_packet_hits(normalized_packet)
+    upstream_hard_block_hits = [str(item) for item in _as_list(normalized_packet.get("hard_block_hits")) if item not in [None, ""]]
     hard_block_hits: list[str] = []
 
     if missing_fields:
         hard_block_hits.append("composite_packet_required_fields_missing")
+    if _upstream_packet_failed(normalized_packet):
+        hard_block_hits.append("upstream_packet_failed_closed")
     if normalized_packet.get("claim_ceiling") != CANDIDATE_ONLY_CLAIM_CEILING:
         hard_block_hits.append("upstream_packet_claim_ceiling_not_candidate_only")
     if forbidden_hits:
@@ -230,6 +274,9 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
         "decision": decision,
         "claim_ceiling": FUSION_CLAIM_CEILING,
         "upstream_claim_ceiling": normalized_packet.get("claim_ceiling"),
+        "upstream_status": normalized_packet.get("status"),
+        "upstream_decision": normalized_packet.get("decision"),
+        "upstream_hard_block_hits": upstream_hard_block_hits,
         "hard_block_hits": hard_block_hits,
         "missing_fields": missing_fields,
         "forbidden_output_hits": forbidden_hits,

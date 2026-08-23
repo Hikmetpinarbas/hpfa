@@ -88,6 +88,10 @@ def _as_list(value: Any) -> list[Any]:
     return [value]
 
 
+def _string_list(value: Any) -> list[str]:
+    return [str(item) for item in _as_list(value) if item not in [None, ""]]
+
+
 def _is_forbidden_value(value: Any) -> bool:
     return value not in [None, "", False, []]
 
@@ -96,12 +100,23 @@ def _report_block_id(block: dict[str, Any]) -> str:
     return str(block.get("report_block_id") or "")
 
 
-def _forbidden_upstream_hits(block: dict[str, Any]) -> list[str]:
+def _collect_forbidden_hits(value: Any, path: str = "") -> list[str]:
     hits: list[str] = []
-    for field in FORBIDDEN_UPSTREAM_FIELDS:
-        if field in block and _is_forbidden_value(block.get(field)):
-            hits.append(field)
-    return sorted(hits)
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key in FORBIDDEN_UPSTREAM_FIELDS and _is_forbidden_value(child):
+                hits.append(child_path)
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            child_path = f"{path}[{idx}]" if path else f"[{idx}]"
+            hits.extend(_collect_forbidden_hits(child, child_path))
+    return hits
+
+
+def _forbidden_upstream_hits(block: dict[str, Any]) -> list[str]:
+    return sorted(set(_collect_forbidden_hits(block)))
 
 
 def _upstream_block_failed(block: dict[str, Any]) -> bool:
@@ -112,6 +127,16 @@ def _upstream_block_failed(block: dict[str, Any]) -> bool:
     if str(block.get("status") or "").upper() in {"FAIL_CLOSED", "BLOCKED"}:
         return True
     return False
+
+
+def _upstream_review_required(block: dict[str, Any]) -> bool:
+    if block.get("review_required") is True:
+        return True
+    if _as_list(block.get("review_reasons")):
+        return True
+    if str(block.get("status") or "").upper() == "REVIEW_REQUIRED":
+        return True
+    return str(block.get("block_family") or "") == "review_required_candidate"
 
 
 def _forbidden_text_hits(text: str) -> list[str]:
@@ -156,8 +181,16 @@ def evaluate_report_block(block: dict[str, Any], idx: int = 0) -> dict[str, Any]
     if forbidden_block_hits:
         hard_block_hits.append("report_block_forbidden_language_detected")
 
+    upstream_review_required = _upstream_review_required(normalized)
+    upstream_review_reasons = _string_list(normalized.get("review_reasons"))
     if block_family == "review_required_candidate":
         review_hits.append("block_family_requires_review")
+    if upstream_review_required:
+        review_hits.append("upstream_report_block_requires_review")
+        if not upstream_review_reasons:
+            upstream_review_reasons = ["upstream_report_block_review_required"]
+    review_hits = sorted(set(review_hits))
+
     if normalized.get("canonical_event_count") not in [None, "UNKNOWN"]:
         hard_block_hits.append("canonical_event_count_claim_rejected")
 
@@ -180,10 +213,15 @@ def evaluate_report_block(block: dict[str, Any], idx: int = 0) -> dict[str, Any]
         "report_block_id": block_id,
         "block_family": block_family,
         "block_language": str(normalized.get("block_language") or "UNKNOWN"),
+        "defeasible_state": str(normalized.get("defeasible_state") or ""),
+        "upstream_review_required": upstream_review_required,
+        "upstream_review_reasons": upstream_review_reasons,
         "inclusion_decision": inclusion_decision,
         "output_text_candidate_tr": output_text,
         "claim_ceiling": OUTPUT_CONTRACT_CLAIM_CEILING,
         "upstream_claim_ceiling": normalized.get("claim_ceiling"),
+        "upstream_status": normalized.get("status"),
+        "upstream_decision": normalized.get("decision"),
         "status": status,
         "hard_block_hits": hard_block_hits,
         "review_hits": review_hits,

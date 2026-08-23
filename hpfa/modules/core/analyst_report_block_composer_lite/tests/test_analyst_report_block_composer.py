@@ -13,6 +13,11 @@ def base_safe_sentence():
     return {
         "safe_sentence_id": "safe_sentence_graph_arg_fusion_cep_progression_001",
         "graph_id": "graph_arg_fusion_cep_progression_001",
+        "defeasible_state": "SUPPORTED",
+        "review_required": False,
+        "review_reasons": [],
+        "status": "SMOKE_PASS",
+        "decision": "READY_FOR_REPORT_COMPOSER_CANDIDATE",
         "safe_sentence_candidate_tr": "Görünür kanıt grafiği context_bound_relation kapsamındaki bidirectional okumasında right_channel_access referanslarının argüman adayını desteklediğini; low_shot_volume referanslarının okumayı nitelendirdiğini; window_001 referanslarının bağlam verdiğini; shot_timing_or_angle_limited_terminal_action karşı senaryosunun dikkate alınması gerektiğini; terminal_action_value_becomes_high_in_same_window gerçekleşirse aday okumanın geri çekilebileceğini gösterir.",
         "claim_ceiling": "safe_sentence_candidate_only",
         "claim_output_allowed": False,
@@ -63,9 +68,38 @@ def test_report_block_composes_candidate_tr():
     block = compose_report_block(base_safe_sentence())
     assert block["status"] == "SMOKE_PASS"
     assert block["decision"] == "READY_FOR_REPORT_OUTPUT_CONTRACT_CANDIDATE"
+    assert block["block_family"] == "analyst_reading_candidate"
+    assert block["review_required"] is False
     assert block["report_block_candidate_tr"].startswith("Analist okuması:")
     assert "right_channel_access" in block["report_block_candidate_tr"]
     assert block["claim_ceiling"] == "analyst_report_block_candidate_only"
+
+
+def test_review_required_safe_sentence_routes_report_block_to_review():
+    item = base_safe_sentence()
+    item["defeasible_state"] = "WEAKENED"
+    item["status"] = "REVIEW_REQUIRED"
+    item["decision"] = "ROUTE_REVIEW_SAFE_SENTENCE_CANDIDATE"
+    item["review_required"] = True
+    item["review_reasons"] = ["defeasible_argument_weakened"]
+    item["safe_sentence_candidate_tr"] = "Gözden geçirme gerektiren kanıt grafiği context_bound_relation kapsamındaki bidirectional okumasında support_1 referanslarının argüman adayını desteklediğini; counter_1 referanslarının karşı-kanıt taşıdığını; bu nedenle argüman adayının zayıflamış durumda olduğunu gösterir."
+    block = compose_report_block(item)
+    assert block["status"] == "REVIEW_REQUIRED"
+    assert block["decision"] == "ROUTE_REPORT_BLOCK_TO_REVIEW"
+    assert block["block_family"] == "review_required_candidate"
+    assert block["review_required"] is True
+    assert block["review_reasons"] == ["defeasible_argument_weakened"]
+    assert block["defeasible_state"] == "WEAKENED"
+    assert block["report_block_candidate_tr"].startswith("Analist okuması:")
+
+
+def test_review_required_without_reason_gets_fallback_reason():
+    item = base_safe_sentence()
+    item["status"] = "REVIEW_REQUIRED"
+    item["review_required"] = True
+    block = compose_report_block(item)
+    assert block["status"] == "REVIEW_REQUIRED"
+    assert block["review_reasons"] == ["upstream_safe_sentence_review_required"]
 
 
 def test_failed_upstream_safe_sentence_blocks_report_block():
@@ -85,6 +119,14 @@ def test_forbidden_upstream_output_blocks_report_block():
     assert block["decision"] == "BLOCK_REPORT_BLOCK"
     assert "upstream_safe_sentence_forbidden_output_attempted" in block["hard_block_hits"]
     assert "claim_text" in block["forbidden_upstream_hits"]
+
+
+def test_nested_forbidden_upstream_output_blocks_report_block():
+    item = base_safe_sentence()
+    item["metadata"] = {"nested": {"quality_truth": "unsafe"}}
+    block = compose_report_block(item)
+    assert block["decision"] == "BLOCK_REPORT_BLOCK"
+    assert "metadata.nested.quality_truth" in block["forbidden_upstream_hits"]
 
 
 def test_report_text_upstream_output_blocks_report_block():
@@ -136,6 +178,19 @@ def test_report_block_avoids_forbidden_fragments():
         assert fragment not in lowered
 
 
+def test_report_rollup_preserves_review_required():
+    normal = base_safe_sentence()
+    review = base_safe_sentence()
+    review["safe_sentence_id"] = "safe_sentence_review"
+    review["status"] = "REVIEW_REQUIRED"
+    review["review_required"] = True
+    review["review_reasons"] = ["defeasible_argument_weakened"]
+    report = build_report_block_report([normal, review])
+    assert report["status"] == "REVIEW_REQUIRED"
+    assert report["blocked_report_block_count"] == 0
+    assert report["review_report_block_count"] == 1
+
+
 def test_write_outputs_rejects_nested_phone_output():
     try:
         write_outputs([base_safe_sentence()], "/sdcard/Download/HPFA/analyst_report_block_composer_lite")
@@ -149,6 +204,7 @@ def test_build_report_and_write_outputs(tmp_path):
     report = write_outputs([base_safe_sentence()], tmp_path)
     assert report["module_id"] == "analyst_report_block_composer_lite_v1"
     assert report["status"] == "SMOKE_PASS"
+    assert report["review_report_block_count"] == 0
     assert (tmp_path / "analyst_report_block_composer_lite_v1.json").exists()
     assert (tmp_path / "analyst_report_block_composer_lite_v1.txt").exists()
     loaded = json.loads((tmp_path / "analyst_report_block_composer_lite_v1.json").read_text(encoding="utf-8"))

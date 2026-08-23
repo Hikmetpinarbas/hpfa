@@ -30,6 +30,22 @@ def base_argument():
     }
 
 
+def structured_argument():
+    argument = base_argument()
+    argument.update({
+        "fusion_id": "fusion_progression_001",
+        "relation_scope": "context_bound_relation",
+        "analysis_route": "bidirectional",
+        "whole_to_unit": True,
+        "unit_to_whole": True,
+        "bidirectional": True,
+        "complementary_refs": ["final_third_entry"],
+        "context_refs": ["window_001"],
+        "counter_scenarios": ["sample_window_may_understate_terminal_output"],
+    })
+    return argument
+
+
 def test_router_requires_core_argument_fields():
     argument = base_argument()
     for field in ["argument_id", "supporting_refs", "contradicting_refs", "withdrawal_conditions"]:
@@ -45,6 +61,21 @@ def test_supported_route_requires_support_and_no_defeater():
     assert route["defeasible_state"] == "SUPPORTED"
     assert route["decision"] == "ROUTE_ARGUMENT_AS_SUPPORTED_CANDIDATE"
     assert route["absence_of_counter_evidence_proves_support"] is False
+
+
+def test_router_preserves_argument_structure_for_graph_consumer():
+    route = route_argument(structured_argument())
+    assert route["fusion_id"] == "fusion_progression_001"
+    assert route["relation_scope"] == "context_bound_relation"
+    assert route["analysis_route"] == "bidirectional"
+    assert route["whole_to_unit"] is True
+    assert route["unit_to_whole"] is True
+    assert route["bidirectional"] is True
+    assert route["complementary_refs"] == ["final_third_entry"]
+    assert route["context_refs"] == ["window_001"]
+    assert route["counter_scenarios"] == ["sample_window_may_understate_terminal_output"]
+    assert route["upstream_argument_status"] == "ARGUMENT_SUPPORTED"
+    assert route["upstream_argument_decision"] == "READY_FOR_SAFE_ROUTER"
 
 
 def test_qualifier_weakens_argument():

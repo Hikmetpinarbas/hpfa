@@ -116,6 +116,23 @@ def test_forbidden_output_attempt_blocks_packet():
     assert "claim_text" in packet["forbidden_output_hits"]
 
 
+def test_nested_feature_claim_text_blocks_packet_with_path():
+    candidate = base_candidate()
+    candidate["input_features"][0]["claim_text"] = "unsafe nested claim"
+    packet = build_composite_packet(candidate)
+    assert packet["status"] == "FAIL_CLOSED"
+    assert "forbidden_output_attempted" in packet["hard_block_hits"]
+    assert "input_features[0].claim_text" in packet["forbidden_output_hits"]
+
+
+def test_nested_signal_truth_blocks_packet_with_path():
+    candidate = base_candidate()
+    candidate["supporting_signals"][0]["payload"] = {"tactical_truth": True}
+    packet = build_composite_packet(candidate)
+    assert packet["status"] == "FAIL_CLOSED"
+    assert "supporting_signals[0].payload.tactical_truth" in packet["forbidden_output_hits"]
+
+
 def test_write_outputs_rejects_nested_phone_output():
     try:
         write_outputs([base_candidate()], "/sdcard/Download/HPFA/composite_evidence_packet_builder_lite")
