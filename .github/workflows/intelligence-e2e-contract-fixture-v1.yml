@@ -16,6 +16,7 @@ on:
       - 'hpfa/modules/core/analyst_report_block_composer_lite/**'
       - 'hpfa/modules/core/report_output_contract_lite/**'
       - 'hpfa/modules/core/final_report_assembly_gate_lite/**'
+      - 'docs/audits/INTELLIGENCE_INTEGRATION_DEBT_CLOSURE_2026_08_23.md'
       - '.github/workflows/intelligence-e2e-contract-fixture-v1.yml'
   workflow_dispatch:
 
@@ -67,11 +68,12 @@ jobs:
       - name: Run end-to-end producer-consumer fixture
         run: python -m pytest -q hpfa/tests/integration/test_intelligence_chain_contract_v1.py
 
-      - name: Contract and claim invariants
+      - name: Contract, debt closure and claim invariants
         run: |
           python - <<'PY'
           from pathlib import Path
           test = Path('hpfa/tests/integration/test_intelligence_chain_contract_v1.py').read_text(encoding='utf-8')
+          closure = Path('docs/audits/INTELLIGENCE_INTEGRATION_DEBT_CLOSURE_2026_08_23.md').read_text(encoding='utf-8')
           required = [
               'test_intelligence_chain_standard_fields_connect',
               'test_intelligence_chain_explicit_counterevidence_remains_review_bounded',
@@ -85,4 +87,7 @@ jobs:
           assert 'ROUTE_ASSEMBLY_ITEM_TO_REVIEW' in test
           assert 'MIXED_WITH_EXPLICIT_CONTRADICTION' in test
           assert 'canonical_event_count' in test
+          assert 'CONSOLIDATION_REQUIRED' in closure
+          assert 'mainline integration debt is not closed' in closure
+          assert 'canonical_event_count=UNKNOWN' in closure
           PY
