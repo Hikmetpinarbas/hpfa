@@ -164,7 +164,18 @@ def route_argument(argument: dict[str, Any]) -> dict[str, Any]:
         "module_id": MODULE_ID,
         "route_id": f"defeasible_route_{argument_id}",
         "argument_id": argument_id,
+        "fusion_id": str(normalized.get("fusion_id") or ""),
         "argument_family": str(normalized.get("argument_family") or ""),
+        "relation_scope": str(normalized.get("relation_scope") or ""),
+        "analysis_route": str(normalized.get("analysis_route") or ""),
+        "whole_to_unit": bool(normalized.get("whole_to_unit")),
+        "unit_to_whole": bool(normalized.get("unit_to_whole")),
+        "bidirectional": bool(normalized.get("bidirectional")),
+        "complementary_refs": _string_list(normalized.get("complementary_refs")),
+        "context_refs": _string_list(normalized.get("context_refs")),
+        "counter_scenarios": _string_list(normalized.get("counter_scenarios")),
+        "upstream_argument_status": str(normalized.get("status") or ""),
+        "upstream_argument_decision": str(normalized.get("decision") or ""),
         "status": status,
         "defeasible_state": defeasible_state,
         "decision": decision,
@@ -245,4 +256,3 @@ def write_outputs(arguments: list[dict[str, Any]], out_dir: str | Path) -> dict[
     lines.append("")
     (out / OUTPUT_TXT).write_text("\n".join(lines), encoding="utf-8")
     return report
-
