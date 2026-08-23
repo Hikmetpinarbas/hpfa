@@ -1,0 +1,60 @@
+{
+  "queue_version": "2.0.0",
+  "conflicts": [
+    {
+      "conflict_id": "sportsbase_provider_identity_version_v2",
+      "metric_ids": [
+        "pass_completion_rate",
+        "pass_attempts",
+        "pass_accurate",
+        "pass_inaccurate"
+      ],
+      "question": "What admitted provider identity/version governs these SportsBase-labelled surfaces?",
+      "decision_owner": "provider_evidence",
+      "status": "OPEN_FAIL_CLOSED"
+    },
+    {
+      "conflict_id": "sportsbase_progressive_pass_geometry_v2",
+      "metric_ids": [
+        "progressive_pass_accurate",
+        "progressive_pass_inaccurate",
+        "sportsbase_progressive_open_pass_label_candidate"
+      ],
+      "question": "What exact geometry/threshold/success rules define SportsBase progressive and progressive-open passes?",
+      "decision_owner": "provider_evidence",
+      "status": "OPEN_FAIL_CLOSED"
+    },
+    {
+      "conflict_id": "sportsbase_actions_membership_v2",
+      "metric_ids": [
+        "actions",
+        "actions_successful",
+        "actions_unsuccessful"
+      ],
+      "question": "Which action families are included and what outcome rule applies to each family?",
+      "decision_owner": "provider_evidence",
+      "status": "OPEN_FAIL_CLOSED"
+    },
+    {
+      "conflict_id": "sportsbase_final_third_aggregate_semantics_v2",
+      "metric_ids": [
+        "sportsbase_final_third_entries_label_candidate",
+        "final_third_boundary_entry",
+        "final_third_access_established"
+      ],
+      "question": "Does the displayed provider aggregate count boundary-crossing actions, established access, or another construct?",
+      "decision_owner": "provider_evidence",
+      "status": "OPEN_FAIL_CLOSED"
+    },
+    {
+      "conflict_id": "reference_definition_runtime_binding_v2",
+      "metric_ids": [
+        "chances_successful",
+        "chances_created"
+      ],
+      "question": "Reference definitions are not ACTIVE_MATCH provider bindings; keep them reference-only until provider/version admission exists.",
+      "decision_owner": "provider_evidence",
+      "status": "OPEN_REFERENCE_ONLY"
+    }
+  ]
+}

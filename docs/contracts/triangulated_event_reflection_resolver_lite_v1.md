@@ -1,70 +1,91 @@
 # Triangulated Event Reflection Resolver Lite V1
 
-Status: IMPLEMENTATION_WRITTEN_EXECUTION_PENDING
+Status: RESEARCH_HARDENING_IMPLEMENTED_CI_PENDING
 Module id: `triangulated_event_reflection_resolver_lite_v1`
-Claim safety: `REFLECTION_RESOLUTION_CANDIDATE_ONLY`
+Claim safety: `SERIALIZATION_EQUIVALENCE_EVIDENCE_ONLY`
 
 ## Purpose
 
-Group possible multi-surface reflections of the same visible match action across CSV, XML and XLSX-like surfaces before analyst-facing action volume is interpreted.
+Audit whether CSV and XML event-like surfaces for the same source role are exact visible-field serializations of one another before downstream row-nucleus and multi-label action-bundle logic is allowed to interpret them.
 
-This module does not create true event counts, canonical event truth or deduplicated event truth.
+This module does **not** create physical-action identity, canonical event identity, true event counts, deduplicated event truth, sequence truth or independent-source votes.
 
-## Problem
+## Scope
 
-CSV/XML/XLSX surfaces may contain different reflections of the same action. Summing them can overstate football actions.
-
-Example:
+Event-like serialization surfaces admitted here:
 
 ```text
-1300 pass-family surface rows
+CSV
+XML
+TSV when present as a delimited diagnostic surface
 ```
 
-must not be written as:
+XLSX statistical workbooks are outside this resolver's event-like serialization role. They remain aggregate candidate / reconciliation surfaces and cannot override event-like surface evidence.
+
+## Exact visible-field fingerprint
+
+CSV and XML rows are compared within the same source role using the exact-normalized visible fields:
 
 ```text
-1300 passes
+provider_row_id
+start
+end
+code
+team candidate when present
+action semantic label
+half
+pos_x
+pos_y
+source_role
 ```
 
-## Inputs
+Numeric formatting normalization is allowed, for example `10.0 == 10`. Text whitespace/case normalization is allowed.
 
-Primary input directory:
+The resolver must **not** use time-proximity buckets, minute buckets or coordinate buckets to establish serialization equivalence.
+
+Different semantic labels sharing the same start/end/coordinate anchor remain distinct semantic rows at this layer. Their possible interpretation as one physical on-ball action belongs to a downstream `resolved multi-label on-ball action bundle candidate` layer and requires its own contract/gates.
+
+`start/end` are preserved as visible temporal fields. This module does not promote them to physical action onset, physical duration or total-order truth.
+
+## Source roles
+
+CSV/XML pairing is performed separately for generic source roles derived from input metadata/file identity:
 
 ```text
-/sdcard/Download/HPFA
+PLAYER
+TEAM
+GOALKEEPER
 ```
 
-Required support files when available:
+Missing, ambiguous or multiple CSV/XML members for a role remain review-required rather than being arbitrarily paired.
+
+## Exact duplicate reflections
+
+Same-suffix files with identical SHA-256 content are recorded as exact duplicate reflections. They do not add a second copy of surface-row volume.
+
+Different paths with identical content are not automatically data conflicts.
+
+## Pair states
 
 ```text
-canonical_event_lite_audit_v1.json
-primary_event_surface_gate_lite_v1.json
-source_mapping_contract_v1.json
-source_conflict_registry_lite_v1.json
-event_identity_resolution_gate_lite_v1.json
+EXACT_VISIBLE_FIELD_MULTISET_EQUIVALENCE
+VISIBLE_FIELD_SERIALIZATION_DISCREPANCY
+PAIRING_REVIEW_REQUIRED
 ```
 
-Event-like local surfaces may be discovered from flat input directory files with supported suffixes:
+`EXACT_VISIBLE_FIELD_MULTISET_EQUIVALENCE` means only that the admitted visible-field row multisets match after permitted formatting normalization.
+
+It does **not** prove:
 
 ```text
-.csv
-.xml
-.tsv
+same physical action identity
+same upstream-origin truth
+canonical event identity
+independent provider confirmation
+complete event stream
 ```
 
-## Reflection candidate keys
-
-```text
-time proximity bucket
-team label
-player label if available
-action family
-event type/code/label
-x/y coordinate bucket
-source role
-source file
-row provenance
-```
+Therefore CSV and XML are not promoted to independent votes by this resolver.
 
 ## Outputs
 
@@ -75,58 +96,78 @@ triangulated_event_reflection_resolver_lite_v1.json
 triangulated_event_reflection_resolver_lite_v1.txt
 ```
 
-## Output concepts
+Key evidence fields include:
 
 ```text
+surface_file_count
+unique_surface_file_count
+duplicate_surface_file_reflection_count
 surface_row_count
 reflection_group_count
 single_surface_group_count
 multi_surface_group_count
-unresolved_reflection_count
-candidate_action_family_volume
+serialization_role_audit_count
+serialization_exact_role_count
+serialization_discrepancy_role_count
+serialization_pairing_review_role_count
+serialization_role_audits
 reflection_group_examples
 ```
 
+Per-role audits expose CSV/XML surface-row totals, exact matched row count, discrepancy count and bounded discrepancy examples.
+
 ## Claim boundary
 
-Always emit:
+Always fail closed:
 
 ```text
 canonical_event_count=UNKNOWN
 true_action_count=UNKNOWN
 deduplicated_event_count=UNKNOWN
+physical_action_identity_truth=false
+same_upstream_origin_truth=false
 reflection_group_truth=false
 action_count_claim_allowed=false
-claim_safety=REFLECTION_RESOLUTION_CANDIDATE_ONLY
+independent_source_vote_allowed=false
+claim_safety=SERIALIZATION_EQUIVALENCE_EVIDENCE_ONLY
 ```
 
-## Allowed language
+## Allowed analyst/engineering language
 
 ```text
-pass-family surface rows
-candidate pass reflection groups
-multi-surface reflection candidate
-requires canonical validation
+surface rows
+exact visible-field CSV/XML serialization equivalence
+serialization discrepancy
+exact duplicate reflection
+semantic row reflection
+requires downstream action-bundle validation
 ```
 
-## Forbidden language
+## Forbidden promotions
 
 ```text
-1300 passes
-2700 attacks
-true event count
 validated action count
+true event count
+canonical event count
 complete event stream
+CSV and XML independently confirm the action
+same upstream origin proven
+physical action proven
 ```
 
 ## Required tests
 
 ```text
 test_groups_same_action_across_surfaces
+test_exact_csv_xml_multiset_equivalence
+test_nearby_time_or_coordinate_is_not_bucket_merged
+test_multi_label_same_anchor_is_not_collapsed_into_one_action
+test_duplicate_same_content_file_is_reflection_not_extra_volume
+test_xml_group_text_labels_map_to_canonical_fields
 test_keeps_surface_rows_separate_from_candidate_groups
-test_does_not_emit_true_action_count
-test_unknown_count_claims_stay_unknown
-test_no_sample_match_identity_leak
+test_counts_and_claims_remain_fail_closed
 test_flat_outputs
-test_nested_phone_output_directory_rejected
+test_no_sample_match_identity_leak
 ```
+
+Phone-output policy remains delegated to the shared output-root validator; nested user-visible output directories must remain rejected by the upstream output-root contract.

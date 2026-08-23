@@ -1,0 +1,98 @@
+name: XML Surface Reader Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "xml_surface_reader_lite.py"
+      - "hpfa/modules/core/xml_surface_reader_lite/**"
+      - "tools/bootstrap_termux_xml_surface_reader_v1.sh"
+      - "tools/run_active_match_xml_surface_reader_v1.sh"
+      - ".github/workflows/xml-surface-reader-lite-v1.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: xml-surface-reader-lite-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Compile
+        run: |
+          python -m py_compile \
+            xml_surface_reader_lite.py \
+            hpfa/modules/core/xml_surface_reader_lite/src/xml_common.py \
+            hpfa/modules/core/xml_surface_reader_lite/src/xml_structure.py \
+            hpfa/modules/core/xml_surface_reader_lite/src/xml_rows.py \
+            hpfa/modules/core/xml_surface_reader_lite/src/xml_surface_reader.py \
+            hpfa/modules/core/xml_surface_reader_lite/tests/test_xml_surface_reader.py
+
+      - name: Focused tests
+        run: python -m pytest -q hpfa/modules/core/xml_surface_reader_lite/tests
+
+      - name: Shell syntax
+        run: bash -n tools/run_active_match_xml_surface_reader_v1.sh tools/bootstrap_termux_xml_surface_reader_v1.sh
+
+      - name: Integration execution identity guard
+        run: |
+          bash tools/run_active_match_xml_surface_reader_v1.sh --self-test-execution-identity-guard
+          grep -q 'HPFA_EXPECTED_BRANCH' tools/run_active_match_xml_surface_reader_v1.sh
+          grep -q 'HPFA_EXPECTED_HEAD' tools/run_active_match_xml_surface_reader_v1.sh
+          grep -q 'HPFA_EXPECTED_BRANCH' tools/bootstrap_termux_xml_surface_reader_v1.sh
+          grep -q 'HPFA_EXPECTED_HEAD' tools/bootstrap_termux_xml_surface_reader_v1.sh
+          ! grep -F 'BRANCH="xml-surface-reader-lite-v1"' \
+            tools/run_active_match_xml_surface_reader_v1.sh \
+            tools/bootstrap_termux_xml_surface_reader_v1.sh
+          ! grep -F 'reset --hard' tools/bootstrap_termux_xml_surface_reader_v1.sh
+
+      - name: Historical final capability blob lineage
+        run: |
+          test "$(git hash-object xml_surface_reader_lite.py)" = "4f36505976a10051060c47e4a6198384e85072db"
+          test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/contract/xml_surface_reader_lite_v1.json)" = "fc61e9098fae2107fe1cb25981a948f53f82bec6"
+          test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/src/xml_common.py)" = "17ad5bd5b9ae86237c664c8a06bdf5b10b8deb3b"
+          test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/src/xml_rows.py)" = "ff6241bdd701d3b35c8db144c9ea44806e63c16f"
+          test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/src/xml_structure.py)" = "f06c640d6fbfabfdce29a7535bce2a95fe1c6d35"
+          test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/src/xml_surface_reader.py)" = "dd6d27259aaaf2b53e646a9f1013e59fac352285"
+          test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/tests/test_xml_surface_reader.py)" = "b03b2e939684e4937969d5a65c367ba2133983e3"
+
+      - name: Claim boundary
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          src = Path("hpfa/modules/core/xml_surface_reader_lite/src")
+          sys.path.insert(0, str(src))
+          import xml_common
+
+          assert xml_common.CANONICAL_EVENT_COUNT == "UNKNOWN"
+          assert xml_common.CLAIM_CEILING == "XML_SURFACE_AUDIT_ONLY"
+
+          contract = json.loads(
+              Path("hpfa/modules/core/xml_surface_reader_lite/contract/xml_surface_reader_lite_v1.json")
+              .read_text(encoding="utf-8")
+          )
+          boundary = contract["claim_boundary"]
+          assert boundary["xml_row_candidate_is_canonical_event"] is False
+          assert boundary["canonical_event_count"] == "UNKNOWN"
+          assert boundary["validated_event_identity"] is False
+          assert boundary["validated_team_identity"] is False
+          assert boundary["validated_player_identity"] is False
+          assert boundary["provider_semantics_truth"] is False
+          assert boundary["cross_format_reconciliation_truth"] is False
+          assert boundary["tactical_truth"] is False
+          assert boundary["production_release"] is False
+          PY
+
+      - name: No sample identity leak
+        run: python -m pytest -q hpfa/modules/core/xml_surface_reader_lite/tests/test_xml_surface_reader.py::test_no_sample_match_identity_leak

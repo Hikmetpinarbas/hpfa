@@ -1,0 +1,38 @@
+{
+  "module_id": "xlsx_surface_reader_lite_v1",
+  "source_role": "ACTIVE_MATCH_XLSX_AGGREGATE_SURFACE_CANDIDATE",
+  "input": {
+    "inventory_module": "multiformat_file_inventory_lite_v1",
+    "extensions": [".xlsx"],
+    "duplicate_policy": "consume_unique_inventory_representatives_only"
+  },
+  "output": {
+    "main": "xlsx_surface_audit_lite_v1.json",
+    "summary": "xlsx_surface_audit_lite_v1.txt",
+    "analyst": "xlsx_surface_analyst_audit_lite_v1.txt",
+    "phone_output_policy": "flat_HPFA_directory_only"
+  },
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "validated_team_identity": false,
+    "validated_player_identity": false,
+    "aggregate_definition_truth": false,
+    "cross_format_reconciliation_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "production_release": false,
+    "claim_ceiling": "XLSX_SURFACE_AUDIT_ONLY"
+  },
+  "required_tests": [
+    "visible_sheet_profile",
+    "all_sheet_state_audit",
+    "formula_and_cached_value_audit",
+    "header_discovery",
+    "identity_candidate_only",
+    "duplicate_inventory_representative_deduplication",
+    "malformed_xlsx_fail_closed",
+    "nested_phone_output_directory_rejected",
+    "test_no_sample_match_identity_leak"
+  ]
+}

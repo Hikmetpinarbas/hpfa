@@ -1,0 +1,81 @@
+name: Provider Metric Dictionary Lite V1
+
+on:
+  pull_request:
+    paths:
+      - "provider_metric_dictionary_lite.py"
+      - "configs/metrics/provider_metric_dictionary_v1.json"
+      - "configs/metrics/provider_alias_registry_v1.json"
+      - "configs/metrics/metric_derivation_registry_v1.json"
+      - "configs/metrics/metric_conflict_queue_v1.json"
+      - "configs/metrics/metric_registry_v1.json"
+      - "configs/metrics/metric_denominator_policy_v1.json"
+      - "hpfa/modules/core/aggregate_definition_alignment_lite/registry/sportsbase_aggregate_definition_candidates_v1.json"
+      - "hpfa/modules/core/provider_metric_dictionary_lite/**"
+      - "docs/contracts/provider_metric_dictionary_lite_v1.md"
+      - "tools/bootstrap_termux_provider_metric_dictionary_v1.sh"
+      - "tools/run_active_match_provider_metric_dictionary_v1.sh"
+      - ".github/workflows/provider-metric-dictionary-lite-v1.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - name: Exact PR head gate
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile
+        run: python -m compileall -q provider_metric_dictionary_lite.py hpfa/modules/core/provider_metric_dictionary_lite
+      - name: Runtime shell syntax and mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          bash -n tools/run_active_match_provider_metric_dictionary_v1.sh
+          test -x tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          test -x tools/run_active_match_provider_metric_dictionary_v1.sh
+      - name: Focused tests
+        run: python -m unittest discover -s hpfa/modules/core/provider_metric_dictionary_lite/tests -p "test_*.py" -v
+      - name: Runtime contract smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'runtime/active_single_match/current' tools/run_active_match_provider_metric_dictionary_v1.sh
+          grep -q 'nested_phone_output_directory_rejected' tools/run_active_match_provider_metric_dictionary_v1.sh
+          grep -q 'ONE_ZIP_ONLY' tools/run_active_match_provider_metric_dictionary_v1.sh
+          grep -q 'canonical_event_count.*UNKNOWN' tools/run_active_match_provider_metric_dictionary_v1.sh
+          grep -q 'provider_definition_inferred_from_active_match.*False' tools/run_active_match_provider_metric_dictionary_v1.sh
+          grep -q 'core.fsmonitor=false' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          grep -q 'core.hooksPath=/dev/null' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          grep -q 'core.sshCommand=ssh' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          grep -q 'GIT_SSH_COMMAND="ssh"' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          grep -q 'status --porcelain --untracked-files=all' tools/run_active_match_provider_metric_dictionary_v1.sh
+          ! grep -q 'http://github.com/' tools/bootstrap_termux_provider_metric_dictionary_v1.sh
+          ! grep -Eq '^[[:space:]]*(pytest|python[[:space:]]+-m[[:space:]]+(pytest|unittest))([[:space:]]|$)' tools/run_active_match_provider_metric_dictionary_v1.sh
+      - name: Contract smoke
+        run: |
+          python provider_metric_dictionary_lite.py --repo-root . --output /tmp/provider_metric_dictionary_report.json
+          python - <<'PY2'
+          import json
+          r=json.load(open('/tmp/provider_metric_dictionary_report.json'))
+          assert r['status']=='REVIEW_REQUIRED'
+          assert r['spec_contract_valid'] is True
+          assert r['provider_definition_ready_count']==0
+          assert r['hpfa_domain_contract_ready_count']>=3
+          assert r['downstream_provider_definition_gate_open'] is False
+          assert r['canonical_event_count']=='UNKNOWN'
+          assert r['production_release'] is False
+          PY2

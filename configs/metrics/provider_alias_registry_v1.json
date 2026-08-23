@@ -1,0 +1,73 @@
+{
+  "registry_version": "2.0.0",
+  "aliases": [
+    {
+      "provider_id": "sportsbase",
+      "provider_version": "provider_definition_unverified",
+      "surface_role": "player_aggregate",
+      "raw_label": "Passes accurate, %",
+      "metric_id": "pass_completion_rate",
+      "alias_status": "CANDIDATE_ONLY"
+    },
+    {
+      "provider_id": "sportsbase",
+      "provider_version": "provider_definition_unverified",
+      "surface_role": "row_action",
+      "raw_label": "Passes forward accurate",
+      "metric_id": "forward_pass_accurate",
+      "alias_status": "CANDIDATE_ONLY"
+    },
+    {
+      "provider_id": "sportsbase",
+      "provider_version": "provider_definition_unverified",
+      "surface_role": "row_action",
+      "raw_label": "Incomplete passes forward",
+      "metric_id": "forward_pass_inaccurate",
+      "alias_status": "CANDIDATE_ONLY"
+    },
+    {
+      "provider_id": "sportsbase",
+      "provider_version": "provider_definition_unverified",
+      "surface_role": "player_aggregate",
+      "raw_label": "Passes forward to the final third",
+      "metric_id": "forward_pass_to_final_third",
+      "alias_status": "CANDIDATE_ONLY"
+    },
+    {
+      "provider_id": "sportsbase",
+      "provider_version": "provider_definition_unverified",
+      "surface_role": "player_aggregate",
+      "raw_label": "Progressive open passes",
+      "metric_id": "sportsbase_progressive_open_pass_label_candidate",
+      "alias_status": "CANDIDATE_ONLY"
+    },
+    {
+      "provider_id": "sportsbase",
+      "provider_version": "provider_definition_unverified",
+      "surface_role": "player_aggregate",
+      "raw_label": "Final third entries",
+      "metric_id": "sportsbase_final_third_entries_label_candidate",
+      "alias_status": "CANDIDATE_ONLY"
+    },
+    {
+      "provider_id": "instat_reference",
+      "provider_version": "reference_definition_unversioned",
+      "surface_role": "reference_only",
+      "raw_label": "Chances successful",
+      "metric_id": "chances_successful",
+      "alias_status": "REFERENCE_ONLY"
+    },
+    {
+      "provider_id": "opta_reference",
+      "provider_version": "reference_definition_unversioned",
+      "surface_role": "reference_only",
+      "raw_label": "Chances created",
+      "metric_id": "chances_created",
+      "alias_status": "REFERENCE_ONLY"
+    }
+  ],
+  "global_alias_rules": {
+    "cross_namespace_alias_requires_explicit_equivalence": true,
+    "candidate_alias_opens_provider_binding": false
+  }
+}
