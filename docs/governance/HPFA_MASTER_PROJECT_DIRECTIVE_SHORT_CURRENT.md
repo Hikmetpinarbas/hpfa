@@ -1,98 +1,94 @@
 # HPFA MASTER PROJECT DIRECTIVE — SHORT CURRENT
 
-Version: 2026.08.23-C4-CONSOLIDATED
+Version: 2026.08.23-BRIDGE-LANDED
 Status: ACTIVE_GOVERNANCE_RECORD
 
 ## PROJECT
 HPFA = Hikmet Pınarbaş Football Analytics.
 Event-only, claim-safe, modular and portable Football Intelligence Platform.
-HPFA produces football-behaviour evidence, pattern evidence, sequence evidence/candidates, match-local identity evidence, rhythm evidence/candidates, metric evidence and analyst-facing outputs.
 
-## USER ROLE AND REQUIRED EVIDENCE
+HPFA produces football-behaviour evidence, pattern/sequence evidence, match-local identity evidence, rhythm/metric evidence and analyst-facing outputs without promoting unsupported tactical, causal, physical-action, possession or event truth.
+
+## USER ROLE AND RUNTIME EVIDENCE
 The user is a football analyst.
 Every real runtime result must provide two separate evidence layers:
-1. engineering evidence: module execution, tests, status, output paths and failure/review hits;
-2. analyst evidence: what is visible on the match surface, where it appears, which evidence supports it and what it safely means for analysis.
+1. Engineering evidence: execution, tests, status, output paths, hard-block/review state.
+2. Analyst evidence: what is visible on the match surface, where it appears, which evidence supports it and its safe analyst meaning.
 
 ## RUNTIME AUTHORITY
-The only match-runtime authority is:
+The sole ACTIVE_MATCH truth is:
 `runtime/active_single_match/current`
 
 Termux reference:
 `/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/runtime/active_single_match/current`
 
-The Git product checkout and ACTIVE_MATCH runtime directory are separate paths.
-Google Drive, Dropbox, PDFs, archives, samples, reports, donor repositories and academic papers are REFERENCE_ONLY / DONOR_SUPPORT. They do not override ACTIVE_MATCH.
+Google Drive, Dropbox, PDFs, archives, reports, donor repos, academic literature and historical Termux apparatus are REFERENCE_ONLY / DONOR_SUPPORT. They never override ACTIVE_MATCH.
 
-Termux/local historical apparatus is also a capability-recovery reserve: when current hpfa lacks a capability, viable local apparatus may be adapted into hpfa under `ADAPT_NOT_COPY`. It does not become product or ACTIVE_MATCH truth until adapted, tested and validated on the current product head.
+Termux/local historical material may be used as capability-recovery reserve under `ADAPT_NOT_COPY`; it becomes product capability only after adaptation into current hpfa, tests and applicable current-head runtime validation.
 
 ## REPOSITORY ROLES
-- `hpfa`: only product repository; executable product modules are born here.
+- `hpfa`: only product repository.
 - `HP-Motor`: ingest, phase, possession, sequence, metric primitive and narrative donor.
 - `HP-Engine`: pattern, sequence intelligence, behaviour graph, semantic gate, metric graph and explanation donor.
-- `HP-PROJELERI`: governance, policy, authority, registry and release donor.
+- `HP-PROJELERI`: governance, policy, authority, release and registry donor.
 
 ## DONOR RULE
 `ADAPT_NOT_COPY`
 
 Required path:
-current hpfa producer → donor capability → source role → boundary → HPFA contract → HPFA module → tests → ACTIVE_MATCH execution when applicable → engineering evidence → analyst evidence → football audit → release decision.
-
-## PRODUCT ENGINEERING MODE
-Every new capability must declare:
-source role, target module, input/output contract, deterministic tests, ACTIVE_MATCH need, claim ceiling, phone output, dependency order and release status.
-
-Code is the final step, not the first.
+current hpfa producer → donor capability → source role → boundary → HPFA contract → HPFA module → tests → ACTIVE_MATCH when applicable → engineering evidence → analyst evidence → football audit → release decision.
 
 ## SOURCE SEARCH ORDER BEFORE CODING
-1. hpfa current main / current producer
+1. current hpfa main / current producer
 2. HP-Motor
 3. HP-Engine
 4. HP-PROJELERI
-5. Google Drive governance/donor library
-6. Dropbox archive/donor library
+5. Google Drive
+6. Dropbox
 7. academic support
-8. Termux discovery/capability-recovery corpus
+8. Termux capability-recovery corpus
+
+Code is the final step.
 
 ## CURRENT MAIN AUTHORITY
 Authoritative product ref:
 `refs/heads/main`
 
-C4 integrated product-capability baseline before the governance-only authority refresh:
-`d23f868a5287811b4dc6e2912085aa85fd547a64`
-
-The live `main` ref is authoritative after governance-only commits as well; the capability baseline SHA is recorded for lineage and must not be misread as a permanently fixed branch head.
-
-Controlled consolidation completed on 2026-08-23 as four final-capability snapshots:
+Controlled mainline landings:
 
 ```text
 C1 Foundation
   merge=f3dc7b44d6bb899033a605a690f6cc51fb0199a4
-  final_state_source_pr=#254
+  source_pr=#254
 
 C2 Evidence Spine
   merge=871cd3c4948dd72b80aaa2983268811d7a22b39b
-  final_state_source_pr=#263
+  source_pr=#263
 
 C3 Reconstruction / Partial-Order
   merge=adb9c1d60cf98c79fd1de1c7a6df7b822c11496a
-  final_state_source_pr=#267
+  source_pr=#267
 
 C4 Intelligence Correctness / Integration
   merge=d23f868a5287811b4dc6e2912085aa85fd547a64
-  final_state_source_pr=#278
+  source_pr=#278
+
+Reconstruction → Intelligence Packet Bridge
+  merge=ab8c9a7a3152108eeede5b3a2204d2d1fcb14726
+  source_pr=#284
+  exact_pr_head_active_match=9b3db1afb88b2d4c592a6c7eabae718c6ab993e8
 ```
 
-Historical stacked PR commits were not replayed chronologically. Final reviewed capability state was extracted/adapted as controlled landing units.
+Historical stacked commits were not replayed as a chronological merge train. Final reviewed capability states were landed as controlled units.
 
-Main membership does not establish ACTIVE_MATCH evidence or production release for the integrated head.
+Main membership does not automatically establish ACTIVE_MATCH or production release.
 
-## CURRENT INTEGRATED PRODUCT SPINE
+## CURRENT PRODUCT SPINE
 
 ```text
 Multiformat File Inventory
-→ CSV / XLSX / XML surface readers
-→ Provider alias/field + label/value semantics
+→ CSV / XLSX / XML Surface Readers
+→ Provider Alias / Field / Label / Value Semantics
 → Content Source Role Resolver
 → Cross-Format Reconciliation
 → Metric Definition / Aggregate Alignment
@@ -107,13 +103,9 @@ Multiformat File Inventory
 → Trackable Action Trace Candidates
 → Trackable Action Consequence Candidates
 → Visible Action Sequence Candidates
-→ Partial-Order hardening
-```
-
-Current Intelligence engineering chain:
-
-```text
-Composite Evidence Packet
+→ Partial-Order Hardening
+→ Reconstruction → Intelligence Packet Adapter
+→ Composite Evidence Packet
 → Multi-Signal Fusion
 → Composite Argument
 → Defeasible Argument Route
@@ -124,21 +116,39 @@ Composite Evidence Packet
 → Final Report Assembly Gate
 ```
 
-Evidence Lens Matrix consumes Evidence Graph as an explicit review sidecar. Missing lens coverage cannot be converted into evidence of absence.
+Evidence Lens Matrix consumes Evidence Graph as an explicit review sidecar. Missing lens coverage cannot be treated as evidence of absence.
 
-## CURRENT INTEGRATION GAP
-C1–C4 are engineering-integrated on main, but current main does not yet contain an admitted product adapter that converts C3 Reconstruction output directly into C4 Composite Evidence Packet input.
+## RECONSTRUCTION → INTELLIGENCE BRIDGE STATUS
+The thin product bridge is now landed on main through PR #284.
 
-Therefore:
-- integrated-main Intelligence ACTIVE_MATCH truth is not claimed;
-- historical #267 runtime evidence remains historical exact-head evidence only;
-- historical #278 engineering evidence remains historical exact-head evidence only;
-- a safe Reconstruction → Intelligence bridge/orchestration contract must be discovered/adapted before end-to-end integrated ACTIVE_MATCH promotion.
+Exact PR head runtime evidence:
 
-The preferred bridge is a thin adapter if current/donor behaviour supports it. It must preserve sequence candidate lineage, review/uncertainty state, provenance and partial-order ambiguity without promoting sequence, possession, causal or tactical truth.
+```text
+head=9b3db1afb88b2d4c592a6c7eabae718c6ab993e8
+runtime_authority=runtime/active_single_match/current
+run_rc=0
+runtime_evidence_status=ACTIVE_MATCH_EVIDENCE_PASS
+module_status=REVIEW_REQUIRED
+source_visible_action_sequence_candidate_count=295
+packet_input_candidate_count=295
+composite_packet_count=295
+blocked_composite_packet_count=0
+review_required_packet_input_candidate_count=56
+packet_input_assignment_complete=true
+packet_contract_pass=true
+partial_order_boundary_pass=true
+canonical_event_count=UNKNOWN
+true_action_count=UNKNOWN
+production_release=false
+```
+
+Bundle SHA-256:
+`33c363534fe932a07b22a9e462e2c3765ca8a4cf2f11cae5d4f9c8f58ca0a205`
+
+This runtime evidence is bound to the exact PR head above. Because #284 was squash-merged, the merged main head still requires fresh ACTIVE_MATCH revalidation before merged-main runtime promotion.
 
 ## PARTIAL-ORDER AUTHORITY
-Allowed audit states:
+Allowed states:
 
 ```text
 BEFORE_CONFIRMED
@@ -152,42 +162,44 @@ Rules:
 - visible timestamp is the ordering evidence scope;
 - same timestamp does not admit internal order;
 - source row index is provenance order only;
-- missing/ambiguous order remains indeterminate;
-- relation records cannot manufacture action volume, sequence truth or possession truth.
+- missing or ambiguous order remains indeterminate;
+- relation records cannot create action volume, sequence truth or possession truth;
+- directly-later time does not establish causal/directly-follows football truth.
 
-## SURFACE AND COUNT RULES
+## SURFACE / COUNT RULES
 CSV, TSV, XML, XLS/XLSX, JSON and JSONL are evidence surfaces.
 Surface rows are not canonical events.
-Correct terms include:
+
+Use:
 `surface rows`, `visible rows`, `event-like rows`, `row-level evidence`, `event-row evidence`, `action-family volume`, `candidate count`.
 
 Do not infer:
 - missing value = zero;
-- missing column = absent football behaviour;
+- missing column = absent behaviour;
 - same timestamp = duplicate event;
 - provider label = canonical event key;
-- CSV/XML mirror = two independent actions;
+- CSV/XML mirror = independent actions;
 - XLSX aggregate row = timeline event.
 
-Until a later explicit admission contract passes:
+Until explicit later admission:
 `canonical_event_count=UNKNOWN`
 `true_action_count=UNKNOWN`
 
 ## DUPLICATE / REFLECTION RULE
-The same SHA-256 content observed at different paths is an exact duplicate reflection/lineage observation, not automatically a data conflict.
-Duplicate reflections must not be counted twice as row/event/action volume.
+Same SHA-256 at different paths is an exact duplicate reflection/lineage observation, not automatically a conflict.
+Duplicate/reflection lineage must not be counted twice as row/event/action/evidence volume or independent evidence votes.
 
-## IDENTITY AND EVENT ADMISSION
-Identity is match-local unless a later explicit global registry proves otherwise.
-Provider fields, codes, team/player tokens, action labels and aliases begin as candidates.
+## IDENTITY RULE
+Provider fields, codes, aliases, team/player tokens and action labels begin as candidates.
+Identity is match-local unless a later explicit registry proves otherwise.
 Identity binding is not event truth.
 No raw surface row directly becomes an event instance.
 
 ## CLAIM SAFETY
 HPFA does not directly produce:
-pitch-control truth, body-orientation truth, coach intention, dominance truth, fatigue truth, off-ball truth, tactical truth, clean phase truth, complete event-stream truth, sequence truth or possession truth without the relevant later gate.
+pitch-control truth, body-orientation truth, coach intention, dominance truth, fatigue truth, off-ball truth, tactical truth, clean phase truth, complete event-stream truth, sequence truth, possession truth, causal truth or physical-action truth without the relevant later gate.
 
-Safe language includes:
+Safe analyst language includes:
 - row-level evidence shows...
 - visible surface evidence indicates...
 - action-family volume suggests...
@@ -196,7 +208,7 @@ Safe language includes:
 - sequence/rhythm candidate detected...
 - requires later validation...
 
-Blocked without a later explicit gate:
+Blocked without later explicit admission:
 - the team intentionally...
 - the coach planned...
 - dominated...
@@ -206,74 +218,62 @@ Blocked without a later explicit gate:
 
 ## ANALYST LANGUAGE
 HPFA must not become a silent compliance system.
-The main analyst text should state:
-what was observed, where it was observed, which evidence supports it and why it matters.
-Technical limits, missing evidence and claim ceilings stay in a separate technical block.
+Main analyst text should state what was observed, where it was observed, which evidence supports it and why it matters.
+Technical limitations and claim ceilings belong in a separate technical block.
 
 ## PHONE OUTPUT POLICY
 All user-visible Termux outputs must be written directly under:
 - `/sdcard/Download/HPFA`
 - `/storage/emulated/0/Download/HPFA`
 
-Nested user-visible output directories are rejected with:
+Nested output is rejected with:
 `nested_phone_output_directory_rejected`
 
 ## MATCH-AGNOSTIC RULE
-Product code must not hardcode match name, teams, date, tournament, sample ID or sample row counts.
-Generic metadata read from input is allowed.
-Mandatory regression:
+Product code must not hardcode match names, teams, dates, tournaments, sample IDs or sample row counts.
+Generic input metadata is allowed.
+Required regression:
 `test_no_sample_match_identity_leak`
 
 ## RELEASE STATUS
 PASS is not release.
-Use explicit states including:
-`DISCOVERY_PASS_PLAN_ONLY`
-`POLICY_CORRECTION_PASS`
-`SPEC_ONLY`
-`SPEC_CORRECTION_ACCEPTED`
-`SMOKE_PASS`
-`REVIEW_REQUIRED`
-`FAIL_CLOSED`
-`WAITING_OPERATOR_SELECTION`
-`RELEASE_CANDIDATE_NOT_PRODUCTION_BOUND`
-`ACTIVE_MATCH_EVIDENCE_PASS`
-`PRODUCTION_RELEASE`
-
-Rules:
-- CI success proves deterministic engineering checks only.
-- SMOKE_PASS is not ACTIVE_MATCH evidence.
-- ACTIVE_MATCH_EVIDENCE_PASS is not PRODUCTION_RELEASE.
-- MERGED is not PRODUCTION_RELEASE.
-- historical failed runs superseded by a newer green head are not current blockers.
-- a moved head invalidates prior current-head readiness/runtime evidence unless regenerated.
+CI SUCCESS is not ACTIVE_MATCH evidence.
+ACTIVE_MATCH_EVIDENCE_PASS is not PRODUCTION_RELEASE.
+MERGED is not PRODUCTION_RELEASE.
+A moved exact head invalidates its prior exact-head readiness/runtime evidence unless regenerated.
+Historical failed CI superseded by a newer green head is not a current blocker.
 
 ## CURRENT RELEASE STATE
 
 ```text
 main_authority_ref=refs/heads/main
-integrated_product_capability_baseline=d23f868a5287811b4dc6e2912085aa85fd547a64
 foundation_integrated=true
 evidence_spine_integrated=true
 reconstruction_integrated=true
 intelligence_correctness_integrated=true
-reconstruction_to_intelligence_runtime_bridge=false
-integrated_head_active_match_revalidated=false
+reconstruction_to_intelligence_runtime_bridge=true
+bridge_pr_head_active_match_evidence=ACTIVE_MATCH_EVIDENCE_PASS
+bridge_pr_head_status=REVIEW_REQUIRED
+merged_main_head_active_match_revalidated=false
 canonical_event_count=UNKNOWN
 true_action_count=UNKNOWN
 production_release=false
 ```
 
 Status:
-`MAINLINE_CONSOLIDATION_C1_C4_COMPLETE / ENGINEERING_INTEGRATED / RECONSTRUCTION_TO_INTELLIGENCE_BRIDGE_REQUIRED / ACTIVE_MATCH_REVALIDATION_REQUIRED / NOT_PRODUCTION`
+`BRIDGE_LANDED / PR_HEAD_ACTIVE_MATCH_EVIDENCE_PASS / REVIEW_REQUIRED_PRESERVED / MERGED_MAIN_ACTIVE_MATCH_REVALIDATION_REQUIRED / NOT_PRODUCTION`
 
 ## NEXT PRODUCT ORDER
-1. Reconstruction → Intelligence bridge/orchestration discovery and safe adaptation.
-2. Fresh integrated-head ACTIVE_MATCH execution when the bridge contract is admitted.
-3. Context Evidence Re-binding / Match Context Slicer on the current spine.
-4. Analyst Episode Locator.
-5. Rhythm / Change Detection.
-6. Process Trace / Recurrence / Variation / Deviation.
-7. Evidence/counterevidence reasoning expansion and analyst-safe output integration.
-8. Spatial/progression, metric intelligence, visual/video evidence and cross-match profiling only through their own evidence/claim gates.
+1. Fresh ACTIVE_MATCH execution on the final current merged main head.
+2. Context Evidence Re-binding on the current Reconstruction/Intelligence spine.
+3. Analyst Episode Locator.
+4. Rhythm / Change Detection.
+5. Recurrence / Variation / Deviation.
+6. Counterevidence / falsifier reasoning enrichment and analyst-safe language.
+7. Metric Intelligence strengthening.
+8. Spatial / Progression Evidence integration.
+9. Relation Graph enrichment.
+10. Video / Visual Evidence bridge.
+11. Cross-match / player-team profiling after match-local foundations are stable.
 
 Pattern/recurrence intelligence must not precede context/episode grounding when doing so would manufacture meaning from unbound sequences.
