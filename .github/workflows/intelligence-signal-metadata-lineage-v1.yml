@@ -1,0 +1,58 @@
+name: Intelligence Signal Metadata Lineage V1
+
+on:
+  pull_request:
+    branches:
+      - fix/intelligence-remaining-recursive-guards-v1
+    paths:
+      - 'hpfa/modules/core/composite_evidence_packet_builder_lite/**'
+      - 'hpfa/modules/core/multi_signal_evidence_fusion_lite/**'
+      - '.github/workflows/intelligence-signal-metadata-lineage-v1.yml'
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pytest
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Compile Packet and Fusion producers
+        run: |
+          python -m py_compile hpfa/modules/core/composite_evidence_packet_builder_lite/src/composite_evidence_packet_builder.py
+          python -m py_compile hpfa/modules/core/multi_signal_evidence_fusion_lite/src/multi_signal_evidence_fusion.py
+          python -m py_compile hpfa/modules/core/multi_signal_evidence_fusion_lite/tests/test_packet_signal_metadata_lineage_v1.py
+
+      - name: Run Packet and Fusion regressions
+        run: |
+          python -m pytest -q hpfa/modules/core/composite_evidence_packet_builder_lite/tests/test_composite_evidence_packet_builder.py
+          python -m pytest -q hpfa/modules/core/multi_signal_evidence_fusion_lite/tests/test_multi_signal_evidence_fusion.py
+          python -m pytest -q hpfa/modules/core/multi_signal_evidence_fusion_lite/tests/test_packet_signal_metadata_lineage_v1.py
+
+      - name: Signal metadata and claim guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          packet = Path('hpfa/modules/core/composite_evidence_packet_builder_lite/src/composite_evidence_packet_builder.py').read_text(encoding='utf-8')
+          fusion = Path('hpfa/modules/core/multi_signal_evidence_fusion_lite/src/multi_signal_evidence_fusion.py').read_text(encoding='utf-8')
+          assert 'supporting_signal_records' in packet
+          assert 'contradicting_signal_records' in packet
+          assert '_signal_items' in fusion
+          assert 'relation_basis' in fusion
+          assert 'MIXED_WITH_EXPLICIT_CONTRADICTION' in fusion
+          for source in (packet, fusion):
+              assert 'canonical_event_count' in source
+          for token in ('Genclerbirligi', 'Fenerbahce', '15.08.2026'):
+              assert token not in packet
+              assert token not in fusion
+          PY
