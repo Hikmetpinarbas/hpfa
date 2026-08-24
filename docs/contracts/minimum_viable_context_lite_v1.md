@@ -1,127 +1,44 @@
 # Minimum Viable Context Lite V1
 
-Status: IMPLEMENTATION_WRITTEN_EXECUTION_PENDING
+Status: P0_TIME_SEMANTIC_HARDENING_CANDIDATE
 Module id: `minimum_viable_context_lite_v1`
 Claim safety: `CONTEXT_CANDIDATE_ONLY`
 
 ## Purpose
+Build match-local visible context candidates without converting raw numeric fields or source row order into football temporal truth.
 
-Build minimal event-only context candidates from ACTIVE_MATCH surface rows before analyst-facing interpretation.
+## Time semantic admission
+Only explicit unit-bearing field roles are admitted generically:
+- minute/minutes/minute_raw/match_minute -> `MINUTE`
+- second/seconds/second_raw/absolute_time_seconds/match_second -> `SECOND`
+- clock-shaped values may be admitted as `CLOCK` when parseable.
 
-This module does not create phase truth, possession truth, sequence truth or tactical truth.
+Generic numeric `time`, `timestamp`, `start`, `end`, `start_time`, `end_time`, `match_time`, `game_time`, `t`, `tc` do **not** acquire a unit from magnitude. They remain `UNKNOWN_TIME_UNIT` unless an upstream validated semantic mapping gives an explicit minute/second role.
 
-## Why this exists
+Required candidate fields:
+`time_field_admission_status`, `time_unit_status`, `raw_time_candidates`, `admitted_time_evidence`, `rejected_time_field_candidates`.
 
-Surface-row evidence without context can create misleading football readings.
+## Ordering boundary
+`source_row_index` is provenance only.
+No global source-row sort creates previous/next football actions.
+`previous_action_family=UNKNOWN_PREVIOUS_ACTION`
+`next_action_family=UNKNOWN_NEXT_ACTION`
+`ordering_authority=PARTIAL_ORDER_ONLY`
+`source_row_order_is_temporal_truth=false`
+`same_timestamp_internal_ordering_allowed=false`
 
-HPFA must know at least:
-
-```text
-minute or time bucket
-team label
-action family
-zone/channel candidate
-previous/next visible action family when order is available
-source confidence
-```
-
-before downstream report grammar can produce analyst sentences.
-
-## Inputs
-
-Flat input directory:
-
-```text
-/sdcard/Download/HPFA
-```
-
-Supported local surface suffixes:
-
-```text
-.csv
-.tsv
-.xml
-```
-
-Optional upstream support files:
-
-```text
-triangulated_event_reflection_resolver_lite_v1.json
-primary_event_surface_gate_lite_v1.json
-identity_review_resolution_lite_v1.json
-```
-
-## Outputs
-
-Flat phone outputs only:
-
-```text
-minimum_viable_context_lite_v1.json
-minimum_viable_context_lite_v1.txt
-```
-
-## Context candidate fields
-
-```text
-context_id
-source_file
-source_format
-source_row_index
-minute_bucket
-team_label
-action_family
-zone_candidate
-channel_candidate
-previous_action_family
-next_action_family
-context_completeness
-source_confidence
-claim_allowed
-```
-
-## Claim boundary
-
-Always emit:
-
-```text
-canonical_event_count=UNKNOWN
-deduplicated_event_count=UNKNOWN
-phase_truth=false
-possession_truth=false
-sequence_truth=false
-tactical_truth=false
-dominance_truth=false
-claim_safety=CONTEXT_CANDIDATE_ONLY
-```
-
-## Allowed language
-
-```text
-context candidate
-visible event context surface
-minute-bucket context candidate
-zone/channel candidate
-previous/next visible action family
-```
-
-## Forbidden language
-
-```text
-phase truth
-possession truth
-sequence truth
-tactical truth
-coach intention
-dominance
-validated event count
-```
+## Claim locks
+`canonical_event_count=UNKNOWN`
+`true_action_count=UNKNOWN`
+`phase_truth=false`
+`possession_truth=false`
+`sequence_truth=false`
+`tactical_truth=false`
+`production_release=false`
 
 ## Required tests
-
-```text
-test_semicolon_csv_context_extraction
-test_previous_next_action_context
-test_claim_boundaries_remain_false
-test_no_sample_match_identity_leak
-test_flat_outputs
-```
+- explicit minute admission
+- explicit second conversion without magnitude heuristic
+- generic numeric start/time/timestamp does not create time truth
+- source order does not create previous/next adjacency
+- no sample match identity leak
