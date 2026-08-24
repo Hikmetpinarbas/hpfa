@@ -10,6 +10,7 @@ from typing import Any
 RUN_JSON = "active_match_full_run_lite_v1.json"
 RUN_TXT = "active_match_full_run_lite_v1.txt"
 SURFACE_SUFFIXES = {".csv", ".xml", ".xlsx"}
+ROW_NUCLEUS_JSON = "row_nucleus_inventory_lite_v1.json"
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -38,6 +39,7 @@ def spine_runner_module(repo_root: Path):
     src = repo_root / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
     ensure_module_path(src)
     import spine_runner  # type: ignore
+
     return spine_runner
 
 
@@ -52,6 +54,7 @@ def provider_time_module(repo_root: Path):
     )
     ensure_module_path(src)
     import provider_time_semantic_admission  # type: ignore
+
     return provider_time_semantic_admission
 
 
@@ -85,6 +88,7 @@ def run_provider_time_context_step(
     repo_root: Path,
     match_dir: Path,
     out_dir: Path,
+    row_nucleus_path: Path,
 ) -> dict[str, Any]:
     try:
         module = provider_time_module(repo_root)
@@ -92,6 +96,7 @@ def run_provider_time_context_step(
             match_dir,
             out_dir,
             repo_root,
+            row_nucleus_path=row_nucleus_path,
         )
     except Exception as exc:
         return {
@@ -102,6 +107,7 @@ def run_provider_time_context_step(
             "passed": False,
         }
     admission = report.get("provider_time_semantic_admission") or {}
+    binding = report.get("row_nucleus_context_binding") or {}
     return {
         "command": ["internal:provider_time_semantic_admission_lite_v1"],
         "returncode": 0,
@@ -113,6 +119,13 @@ def run_provider_time_context_step(
                 "review_reasons": admission.get("review_reasons"),
                 "context_candidate_count": report.get("context_candidate_count"),
                 "time_admission_status": report.get("time_admission_status"),
+                "context_input_scope": report.get("context_input_scope"),
+                "row_nucleus_candidate_count": binding.get(
+                    "row_nucleus_candidate_count"
+                ),
+                "reflection_inflation_prevented": binding.get(
+                    "reflection_inflation_prevented"
+                ),
             },
             ensure_ascii=False,
             sort_keys=True,
@@ -127,21 +140,31 @@ def write_summary(
     steps: list[dict[str, Any]],
     input_status: dict[str, Any],
 ) -> dict[str, Any]:
+    row_nucleus = read_json(out_dir / ROW_NUCLEUS_JSON)
     minimum_context = read_json(out_dir / "minimum_viable_context_lite_v1.json")
     event_window = read_json(out_dir / "event_window_builder_lite_v1.json")
     time_scale = read_json(out_dir / "time_scale_router_lite_v1.json")
     axis = read_json(out_dir / "axis_integrity_tagger_lite_v1.json")
     provider_time = minimum_context.get("provider_time_semantic_admission") or {}
+    context_binding = minimum_context.get("row_nucleus_context_binding") or {}
 
     evidence_nonzero = (
         safe_int(event_window.get("input_context_count")) > 0
         and safe_int(event_window.get("event_window_count")) > 0
     )
     all_steps_passed = all(step.get("passed") is True for step in steps)
+    row_nucleus_bound = (
+        bool(row_nucleus)
+        and context_binding.get("enabled") is True
+        and context_binding.get("reflection_inflation_prevented") is True
+        and safe_int(context_binding.get("row_nucleus_candidate_count"))
+        == safe_int(minimum_context.get("context_candidate_count"))
+    )
     valid_run = (
         bool(input_status.get("input_surface_ready"))
         and all_steps_passed
         and evidence_nonzero
+        and row_nucleus_bound
     )
     report = {
         "module_id": "active_match_full_run_lite_v1",
@@ -158,7 +181,17 @@ def write_summary(
             "all_steps_passed": all_steps_passed,
             "evidence_nonzero": evidence_nonzero,
             "valid_run": valid_run,
+            "row_nucleus_output_exists": bool(row_nucleus),
+            "row_nucleus_status": row_nucleus.get("status"),
+            "row_nucleus_candidate_count": row_nucleus.get(
+                "row_nucleus_candidate_count"
+            ),
+            "row_nucleus_context_binding": row_nucleus_bound,
+            "reflection_inflation_prevented": context_binding.get(
+                "reflection_inflation_prevented"
+            ),
             "minimum_context_output_exists": bool(minimum_context),
+            "context_input_scope": minimum_context.get("context_input_scope"),
             "provider_time_admission_status": provider_time.get("status"),
             "provider_time_unit_candidate": provider_time.get("unit_candidate"),
             "provider_time_basis_candidate": provider_time.get(
@@ -169,6 +202,18 @@ def write_summary(
             "axis_integrity_output_exists": bool(axis),
         },
         "analyst_evidence": {
+            "row_nucleus_candidate_count": row_nucleus.get(
+                "row_nucleus_candidate_count"
+            ),
+            "row_nucleus_review_required_count": row_nucleus.get(
+                "row_nucleus_review_required_count"
+            ),
+            "context_candidate_count": minimum_context.get(
+                "context_candidate_count"
+            ),
+            "context_occurrence_basis": minimum_context.get(
+                "context_occurrence_basis"
+            ),
             "input_context_count": event_window.get("input_context_count"),
             "minute_bearing_context_count": event_window.get(
                 "minute_bearing_context_count"
@@ -184,10 +229,19 @@ def write_summary(
             "axis_integrity_score": axis.get("axis_integrity_score"),
             "axis_status": axis.get("axis_status"),
             "downstream_permissions": axis.get("downstream_permissions"),
+            "rhythm_interpretation_allowed": False,
+            "phase_interpretation_allowed": False,
+            "safe_statement": (
+                "Context windows are now bound to row-nucleus candidates so "
+                "CSV/XML serialization reflections do not multiply the context "
+                "population. Phase and rhythm interpretation remain blocked "
+                "until their own evidence gates are rebound."
+            ),
         },
         "claim_boundary": {
             "canonical_event_count": "UNKNOWN",
             "deduplicated_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
             "phase_truth": False,
             "possession_truth": False,
             "sequence_truth": False,
@@ -280,8 +334,25 @@ def main() -> int:
         )
         return 1
 
+    row_nucleus_path = out_dir / ROW_NUCLEUS_JSON
     steps = [
-        run_provider_time_context_step(repo_root, match_dir, out_dir),
+        run_step(
+            repo_root,
+            [
+                sys.executable,
+                "row_nucleus_inventory.py",
+                "--input-dir",
+                str(match_dir),
+                "--out-dir",
+                str(out_dir),
+            ],
+        ),
+        run_provider_time_context_step(
+            repo_root,
+            match_dir,
+            out_dir,
+            row_nucleus_path,
+        ),
         run_step(
             repo_root,
             [

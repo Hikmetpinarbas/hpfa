@@ -1,7 +1,10 @@
 import csv
+import json
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "provider_alias_field_semantics_lite" / "src"
@@ -20,7 +23,16 @@ def _write_csv(path: Path, rows: list[dict[str, str]]) -> None:
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["ID", "start", "end", "action", "half", "pos_x", "pos_y"],
+            fieldnames=[
+                "ID",
+                "start",
+                "end",
+                "team",
+                "action",
+                "half",
+                "pos_x",
+                "pos_y",
+            ],
             delimiter=";",
         )
         writer.writeheader()
@@ -30,9 +42,9 @@ def _write_csv(path: Path, rows: list[dict[str, str]]) -> None:
 def _write_xml(path: Path, rows: list[dict[str, str]]) -> None:
     root = ET.Element("file")
     all_instances = ET.SubElement(root, "ALL_INSTANCES")
-    for index, row in enumerate(rows):
+    for row in rows:
         instance = ET.SubElement(all_instances, "instance")
-        ET.SubElement(instance, "ID").text = str(index + 1)
+        ET.SubElement(instance, "ID").text = row["ID"]
         ET.SubElement(instance, "start").text = row["start"]
         ET.SubElement(instance, "end").text = row["end"]
         ET.SubElement(instance, "code").text = row["action"]
@@ -41,11 +53,98 @@ def _write_xml(path: Path, rows: list[dict[str, str]]) -> None:
 
 def _absolute_rows() -> list[dict[str, str]]:
     return [
-        {"ID": "1", "start": "10.0", "end": "12.0", "action": "pass", "half": "1", "pos_x": "20", "pos_y": "30"},
-        {"ID": "2", "start": "2700.0", "end": "2702.0", "action": "shot", "half": "1", "pos_x": "80", "pos_y": "30"},
-        {"ID": "3", "start": "2760.0", "end": "2761.0", "action": "pass", "half": "2", "pos_x": "40", "pos_y": "30"},
-        {"ID": "4", "start": "5400.0", "end": "5401.0", "action": "shot", "half": "2", "pos_x": "85", "pos_y": "30"},
+        {
+            "ID": "1",
+            "start": "10.0",
+            "end": "12.0",
+            "team": "A",
+            "action": "pass",
+            "half": "1",
+            "pos_x": "20",
+            "pos_y": "30",
+        },
+        {
+            "ID": "2",
+            "start": "2700.0",
+            "end": "2702.0",
+            "team": "A",
+            "action": "shot",
+            "half": "1",
+            "pos_x": "80",
+            "pos_y": "30",
+        },
+        {
+            "ID": "3",
+            "start": "2760.0",
+            "end": "2761.0",
+            "team": "B",
+            "action": "pass",
+            "half": "2",
+            "pos_x": "40",
+            "pos_y": "30",
+        },
+        {
+            "ID": "4",
+            "start": "5400.0",
+            "end": "5401.0",
+            "team": "B",
+            "action": "shot",
+            "half": "2",
+            "pos_x": "85",
+            "pos_y": "30",
+        },
     ]
+
+
+def _row_nucleus_payload(rows: list[dict[str, str]]) -> dict:
+    nuclei = []
+    for index, row in enumerate(rows):
+        nuclei.append(
+            {
+                "row_nucleus_candidate_id": f"rn_{index + 1}",
+                "status": "PASS",
+                "source_role": "PLAYER",
+                "serialization_relation_candidate": "REFLECTION_CANDIDATE_EXACT",
+                "lineage_admission_status": "CANDIDATE_EXACT_VISIBLE_FIELDS",
+                "lineage_review_reasons": [],
+                "review_reasons": [],
+                "source_refs": [
+                    {
+                        "source_file": "surface.csv",
+                        "source_format": "csv",
+                        "source_role": "PLAYER",
+                        "source_row_index": index,
+                    },
+                    {
+                        "source_file": "surface.xml",
+                        "source_format": "xml",
+                        "source_role": "PLAYER",
+                        "source_row_index": index,
+                    },
+                ],
+                "resolved_visible_fields": {
+                    "start": row["start"],
+                    "end": row["end"],
+                    "code": row["action"],
+                    "team": row["team"],
+                    "action": row["action"],
+                    "half": row["half"],
+                    "pos_x": row["pos_x"],
+                    "pos_y": row["pos_y"],
+                },
+            }
+        )
+    return {
+        "module_id": "row_nucleus_inventory_lite_v1",
+        "status": "PASS",
+        "content_source_role_bridge_status": "PASS",
+        "row_nucleus_candidate_count": len(nuclei),
+        "row_nucleus_review_required_count": 0,
+        "row_nuclei": nuclei,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
 
 
 def test_admits_cross_format_absolute_match_seconds(tmp_path: Path) -> None:
@@ -84,7 +183,9 @@ def test_rejects_cross_format_time_mismatch(tmp_path: Path) -> None:
     assert "csv_xml_start_surface_mismatch" in result["review_reasons"]
 
 
-def test_admitted_adapter_builds_time_context_without_source_order_truth(tmp_path: Path) -> None:
+def test_legacy_adapter_keeps_raw_reflection_surface_when_no_nucleus_binding(
+    tmp_path: Path,
+) -> None:
     rows = _absolute_rows()
     _write_csv(tmp_path / "surface.csv", rows)
     _write_xml(tmp_path / "surface.xml", rows)
@@ -92,13 +193,80 @@ def test_admitted_adapter_builds_time_context_without_source_order_truth(tmp_pat
     assert report["time_admission_status"] == "ADMITTED"
     assert report["context_candidate_count"] == 8
     assert report["context_summary"]["time_unit_status_counts"] == {"SECOND": 8}
+    assert report["context_input_scope"] == "provider_time_admitted_csv_xml_surface"
+    assert report["reflection_inflation_prevented"] is False
     assert report["source_row_order_is_temporal_truth"] is False
     assert report["sequence_truth"] is False
     assert report["canonical_event_count"] == "UNKNOWN"
     assert report["production_release"] is False
 
 
+def test_row_nucleus_binding_prevents_csv_xml_context_multiplication(
+    tmp_path: Path,
+) -> None:
+    rows = _absolute_rows()
+    _write_csv(tmp_path / "surface.csv", rows)
+    _write_xml(tmp_path / "surface.xml", rows)
+    nucleus_path = tmp_path / "row_nucleus_inventory_lite_v1.json"
+    nucleus_path.write_text(
+        json.dumps(_row_nucleus_payload(rows), ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    report = build_minimum_context_report(
+        tmp_path,
+        ROOT,
+        row_nucleus_path=nucleus_path,
+    )
+
+    assert report["time_admission_status"] == "ADMITTED"
+    assert report["context_candidate_count"] == 4
+    assert report["context_summary"]["time_unit_status_counts"] == {"SECOND": 4}
+    assert report["context_input_scope"] == "provider_time_admitted_row_nucleus_surface"
+    assert report["context_occurrence_basis"] == "ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT"
+    assert report["reflection_inflation_prevented"] is True
+    assert report["row_nucleus_context_binding"]["row_nucleus_candidate_count"] == 4
+    assert (
+        report["row_nucleus_context_binding"][
+            "dependent_reflection_adds_context_candidate"
+        ]
+        is False
+    )
+    preserved = report["context_candidates"][0]["_preserved_unmapped"]
+    assert preserved["row_nucleus_candidate_id"] == "rn_1"
+    assert preserved["independent_source_vote_allowed"] is False
+    assert report["canonical_event_count"] == "UNKNOWN"
+    assert report["true_action_count"] == "UNKNOWN"
+    assert report["production_release"] is False
+
+
+def test_explicit_invalid_row_nucleus_binding_fails_closed_without_raw_fallback(
+    tmp_path: Path,
+) -> None:
+    rows = _absolute_rows()
+    _write_csv(tmp_path / "surface.csv", rows)
+    _write_xml(tmp_path / "surface.xml", rows)
+    nucleus_path = tmp_path / "row_nucleus_inventory_lite_v1.json"
+    payload = _row_nucleus_payload(rows)
+    payload["module_id"] = "wrong_module"
+    nucleus_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="row_nucleus_binding_module_mismatch"):
+        build_minimum_context_report(
+            tmp_path,
+            ROOT,
+            row_nucleus_path=nucleus_path,
+        )
+
+
 def test_no_sample_match_identity_leak() -> None:
     src = (SRC / "provider_time_semantic_admission.py").read_text(encoding="utf-8")
-    for token in ["Turkey", "Australia", "World Cup", "Fenerbahce", "Galatasaray", "25.06.2026"]:
+    for token in [
+        "Turkey",
+        "Australia",
+        "World Cup",
+        "Fenerbahce",
+        "Galatasaray",
+        "25.06.2026",
+    ]:
         assert token not in src

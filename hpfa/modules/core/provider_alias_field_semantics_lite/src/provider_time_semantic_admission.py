@@ -19,6 +19,7 @@ TOLERANCE = 0.02
 
 CSV_REQUIRED = {"start", "end", "half"}
 XML_REQUIRED = {"start", "end"}
+ROW_NUCLEUS_MODULE_ID = "row_nucleus_inventory_lite_v1"
 
 
 def _norm(value: Any) -> str:
@@ -221,6 +222,7 @@ def _load_mvc(repo_root: Path):
     if str(src) not in sys.path:
         sys.path.insert(0, str(src))
     import minimum_viable_context  # type: ignore
+
     return minimum_viable_context
 
 
@@ -243,18 +245,110 @@ def _normalize_rows_for_mvc(
     return normalized
 
 
+def _load_row_nucleus_payload(path: str | Path) -> dict[str, Any]:
+    source = Path(path)
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError("row_nucleus_binding_unreadable") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError("row_nucleus_binding_malformed") from exc
+
+    if not isinstance(payload, dict):
+        raise ValueError("row_nucleus_binding_not_object")
+    if payload.get("module_id") != ROW_NUCLEUS_MODULE_ID:
+        raise ValueError("row_nucleus_binding_module_mismatch")
+    if payload.get("status") == "FAIL_CLOSED":
+        raise ValueError("row_nucleus_binding_fail_closed")
+    if payload.get("content_source_role_bridge_status") != "PASS":
+        raise ValueError("row_nucleus_source_role_bridge_not_pass")
+    if payload.get("canonical_event_count") != "UNKNOWN":
+        raise ValueError("row_nucleus_canonical_event_count_claimed")
+    if payload.get("true_action_count") not in (None, "UNKNOWN"):
+        raise ValueError("row_nucleus_true_action_count_claimed")
+    if payload.get("production_release") is True:
+        raise ValueError("row_nucleus_production_release_claimed")
+
+    nuclei = payload.get("row_nuclei")
+    if not isinstance(nuclei, list) or not nuclei:
+        raise ValueError("row_nucleus_binding_empty")
+    if payload.get("row_nucleus_candidate_count") != len(nuclei):
+        raise ValueError("row_nucleus_binding_count_mismatch")
+    return payload
+
+
+def _row_nucleus_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for index, nucleus in enumerate(payload.get("row_nuclei") or []):
+        if not isinstance(nucleus, dict):
+            raise ValueError(f"row_nucleus_record_invalid:{index}")
+        resolved = nucleus.get("resolved_visible_fields") or {}
+        if not isinstance(resolved, dict):
+            raise ValueError(f"row_nucleus_resolved_fields_invalid:{index}")
+
+        row = {
+            "start": resolved.get("start"),
+            "end": resolved.get("end"),
+            "code": resolved.get("code"),
+            "team": resolved.get("team"),
+            "action": resolved.get("action"),
+            "half": resolved.get("half"),
+            "pos_x": resolved.get("pos_x"),
+            "pos_y": resolved.get("pos_y"),
+            "_source_file": str(nucleus.get("row_nucleus_candidate_id") or f"row_nucleus_{index}"),
+            "_source_format": "row_nucleus",
+            "_source_row_index": index,
+            "_preserved_unmapped": {
+                "row_nucleus_candidate_id": nucleus.get("row_nucleus_candidate_id"),
+                "row_nucleus_status": nucleus.get("status"),
+                "row_nucleus_source_role": nucleus.get("source_role"),
+                "serialization_relation_candidate": nucleus.get(
+                    "serialization_relation_candidate"
+                ),
+                "lineage_admission_status": nucleus.get("lineage_admission_status"),
+                "review_reasons": list(nucleus.get("review_reasons") or []),
+                "lineage_review_reasons": list(
+                    nucleus.get("lineage_review_reasons") or []
+                ),
+                "source_refs": list(nucleus.get("source_refs") or []),
+                "independent_source_vote_allowed": False,
+                "row_nucleus_is_canonical_event": False,
+            },
+        }
+        rows.append(row)
+    return rows
+
+
 def build_minimum_context_report(
     input_root: str | Path,
     repo_root: str | Path,
+    row_nucleus_path: str | Path | None = None,
 ) -> dict[str, Any]:
     root = Path(input_root).expanduser().resolve(strict=False)
     repo = Path(repo_root).resolve()
     mvc = _load_mvc(repo)
     admission = build_time_admission(root)
 
-    if admission.get("status") == ADMITTED:
-        csv_rows = [row for path in sorted(root.glob("*.csv")) for row in _read_csv_rows(path)]
-        xml_rows = [row for path in sorted(root.glob("*.xml")) for row in _read_xml_instance_rows(path)]
+    row_nucleus_payload: dict[str, Any] | None = None
+    reflection_inflation_prevented = False
+    row_nucleus_candidate_count: int | None = None
+
+    if row_nucleus_path is not None:
+        row_nucleus_payload = _load_row_nucleus_payload(row_nucleus_path)
+        rows = _row_nucleus_rows(row_nucleus_payload)
+        rows = _normalize_rows_for_mvc(rows, admission)
+        input_scope = "provider_time_admitted_row_nucleus_surface"
+        reflection_inflation_prevented = True
+        row_nucleus_candidate_count = len(rows)
+    elif admission.get("status") == ADMITTED:
+        csv_rows = [
+            row for path in sorted(root.glob("*.csv")) for row in _read_csv_rows(path)
+        ]
+        xml_rows = [
+            row
+            for path in sorted(root.glob("*.xml"))
+            for row in _read_xml_instance_rows(path)
+        ]
         rows = _normalize_rows_for_mvc(csv_rows + xml_rows, admission)
         input_scope = "provider_time_admitted_csv_xml_surface"
     else:
@@ -267,6 +361,13 @@ def build_minimum_context_report(
     admitted = bool(candidates) and all(
         row.get("time_admission_status") == "ADMITTED" for row in candidates
     )
+
+    row_nucleus_review_count = None
+    if row_nucleus_payload is not None:
+        row_nucleus_review_count = int(
+            row_nucleus_payload.get("row_nucleus_review_required_count") or 0
+        )
+
     return {
         "module_id": mvc.MODULE_ID,
         "status": "REVIEW_REQUIRED",
@@ -280,6 +381,23 @@ def build_minimum_context_report(
         "time_admission_status": "ADMITTED" if admitted else "REVIEW_REQUIRED",
         "provider_time_semantic_admission": admission,
         "context_input_scope": input_scope,
+        "context_occurrence_basis": (
+            "ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT"
+            if row_nucleus_payload is not None
+            else "RAW_SURFACE_CONTEXT_CANDIDATE"
+        ),
+        "row_nucleus_context_binding": {
+            "enabled": row_nucleus_payload is not None,
+            "module_id": ROW_NUCLEUS_MODULE_ID if row_nucleus_payload is not None else None,
+            "row_nucleus_candidate_count": row_nucleus_candidate_count,
+            "row_nucleus_review_required_count": row_nucleus_review_count,
+            "reflection_inflation_prevented": reflection_inflation_prevented,
+            "dependent_reflection_adds_context_candidate": False
+            if row_nucleus_payload is not None
+            else None,
+            "xlsx_creates_occurrence_context": False,
+        },
+        "reflection_inflation_prevented": reflection_inflation_prevented,
         "ordering_authority": mvc.ORDERING_AUTHORITY,
         "source_row_order_is_temporal_truth": False,
         "same_timestamp_internal_ordering_allowed": False,
@@ -289,6 +407,7 @@ def build_minimum_context_report(
         "phase_truth": False,
         "possession_truth": False,
         "sequence_truth": False,
+        "rhythm_truth": False,
         "tactical_truth": False,
         "dominance_truth": False,
         "analyst_sentence_allowed": False,
@@ -302,13 +421,18 @@ def write_minimum_context_with_provider_time(
     input_root: str | Path,
     out_dir: str | Path,
     repo_root: str | Path,
+    row_nucleus_path: str | Path | None = None,
 ) -> dict[str, Any]:
     repo = Path(repo_root).resolve()
     mvc = _load_mvc(repo)
     spine = mvc.spine_runner_module(repo)
     out = spine.validate_output_root(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    report = build_minimum_context_report(input_root, repo)
+    report = build_minimum_context_report(
+        input_root,
+        repo,
+        row_nucleus_path=row_nucleus_path,
+    )
     json_out = out / mvc.OUTPUT_JSON
     txt_out = out / mvc.OUTPUT_TXT
     report["outputs"] = {"json": str(json_out), "txt": str(txt_out)}

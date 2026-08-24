@@ -45,6 +45,17 @@
     "source_unit_candidate": "SECOND",
     "unknown_or_conflicted_basis_action": "REVIEW_REQUIRED"
   },
+  "row_nucleus_context_binding": {
+    "claim_ceiling": "CONTEXT_CANDIDATE_ONLY",
+    "dependent_serialization_reflection_creates_second_context_candidate": false,
+    "explicit_binding_failure_action": "FAIL_CLOSED",
+    "preferred_occurrence_surface": "row_nucleus_inventory_lite_v1",
+    "raw_csv_xml_fallback_when_explicit_binding_requested": false,
+    "review_debt_must_remain_visible": true,
+    "row_nucleus_candidate_is_event_truth": false,
+    "row_nucleus_candidate_is_true_action_count": false,
+    "xlsx_creates_occurrence_context": false
+  },
   "temporal_order_guard": {
     "allowed_relation_states": [
       "BEFORE_CONFIRMED",
