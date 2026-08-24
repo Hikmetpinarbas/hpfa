@@ -9,6 +9,7 @@
     "sequence_truth": false,
     "source_row_order_truth": false,
     "tactical_truth": false,
+    "true_action_count": "UNKNOWN",
     "validated_cross_format_equivalence": false,
     "validated_player_identity": false,
     "validated_provider_semantics": false,
@@ -26,6 +27,24 @@
     "provider_alias_field_semantics_lite_v1.txt",
     "provider_alias_field_semantics_analyst_audit_v1.txt"
   ],
+  "provider_time_semantic_admission": {
+    "admitted_time_basis": "ABSOLUTE_MATCH_SECONDS",
+    "claim_ceiling": "PROVIDER_TIME_SEMANTIC_CANDIDATE_ONLY",
+    "generic_numeric_time_unit_inference_allowed": false,
+    "rule_id": "sportsbase_like_start_end_absolute_seconds_v1",
+    "runtime_basis_checks": [
+      "required_csv_start_end_half_surface",
+      "required_xml_instance_start_end_surface",
+      "start_end_pair_validity",
+      "csv_xml_start_multiset_conformance",
+      "csv_xml_end_multiset_conformance",
+      "half_2_start_range_continues_after_half_1"
+    ],
+    "same_timestamp_internal_ordering_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "source_unit_candidate": "SECOND",
+    "unknown_or_conflicted_basis_action": "REVIEW_REQUIRED"
+  },
   "temporal_order_guard": {
     "allowed_relation_states": [
       "BEFORE_CONFIRMED",
