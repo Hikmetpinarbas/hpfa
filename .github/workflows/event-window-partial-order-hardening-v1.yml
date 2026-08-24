@@ -1,0 +1,102 @@
+name: Event Window Partial Order Hardening V1
+
+on:
+  pull_request:
+    paths:
+      - 'hpfa/modules/core/minimum_viable_context_lite/**'
+      - 'hpfa/modules/core/event_window_builder_lite/**'
+      - 'hpfa/modules/core/time_scale_router_lite/**'
+      - 'hpfa/modules/core/axis_integrity_tagger_lite/**'
+      - 'docs/contracts/minimum_viable_context_lite_v1.md'
+      - 'docs/contracts/event_window_builder_lite_v1.md'
+      - 'docs/contracts/time_scale_router_lite_v1.md'
+      - 'docs/contracts/axis_integrity_tagger_lite_v1.md'
+      - 'docs/contracts/sequence_output_contract_guard_lite_v1.md'
+      - '.github/workflows/event-window-partial-order-hardening-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  event-window-partial-order-hardening:
+    runs-on: ubuntu-24.04
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+      - name: Verify exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$EXPECTED_HEAD"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install focused dependencies
+        run: python -m pip install --disable-pip-version-check pytest openpyxl
+      - name: Compile P0 time chain
+        run: |
+          python -m compileall -q \
+            hpfa/modules/core/minimum_viable_context_lite \
+            hpfa/modules/core/event_window_builder_lite \
+            hpfa/modules/core/time_scale_router_lite \
+            hpfa/modules/core/axis_integrity_tagger_lite \
+            event_window_builder.py time_scale_router.py axis_integrity_tagger.py active_match_full_run.py
+      - name: Run P0 time-chain tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/minimum_viable_context_lite/tests \
+            hpfa/modules/core/event_window_builder_lite/tests \
+            hpfa/modules/core/time_scale_router_lite/tests \
+            hpfa/modules/core/axis_integrity_tagger_lite/tests
+      - name: Run current C3 partial-order regressions
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/visible_action_sequence_candidates_lite/tests/test_current_contract_migration.py \
+            hpfa/modules/core/visible_action_sequence_candidates_lite/tests/test_partial_order_same_time_regression.py
+      - name: Run Reconstruction to Intelligence bridge regressions
+        run: python -m pytest -q hpfa/modules/core/reconstruction_intelligence_packet_adapter_lite/tests
+      - name: P0 policy guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          MVC=hpfa/modules/core/minimum_viable_context_lite/src/minimum_viable_context.py
+          SCA=hpfa/modules/core/minimum_viable_context_lite/src/semantic_context_adapter.py
+          EWB=hpfa/modules/core/event_window_builder_lite/src/event_window_builder.py
+          TSR=hpfa/modules/core/time_scale_router_lite/src/time_scale_router.py
+          AIT=hpfa/modules/core/axis_integrity_tagger_lite/src/axis_integrity_tagger.py
+          SOG=hpfa/modules/core/event_window_builder_lite/src/sequence_output_contract_guard.py
+          grep -F 'PARTIAL_ORDER_ONLY' "$MVC"
+          grep -F 'UNKNOWN_TIME_UNIT' "$MVC"
+          ! grep -F 'value > 1000' "$MVC"
+          grep -F 'normalized in {"minute","minutes","minute_raw","match_minute"}' "$SCA"
+          grep -F 'normalized in {"second","seconds","second_raw","absolute_time_seconds","match_second"}' "$SCA"
+          ! grep -F 'normalized in {"minute","time","timestamp"}' "$SCA"
+          grep -F 'ORDER_INDETERMINATE' "$EWB"
+          grep -F 'SAME_TIME_UNORDERED' "$EWB"
+          grep -F 'temporal_gap_flags_are_admission_blockers' "$EWB"
+          grep -F 'UPSTREAM_TIME_REVIEW_REQUIRED' "$TSR"
+          grep -F 'upstream_time_semantics_not_admitted' "$AIT"
+          grep -F 'context_ordinal_is_temporal_admission' "$SOG"
+          grep -F 'event_index_is_temporal_admission' "$SOG"
+      - name: Claim boundary guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          for SRC in \
+            hpfa/modules/core/minimum_viable_context_lite/src/minimum_viable_context.py \
+            hpfa/modules/core/event_window_builder_lite/src/event_window_builder.py \
+            hpfa/modules/core/time_scale_router_lite/src/time_scale_router.py \
+            hpfa/modules/core/axis_integrity_tagger_lite/src/axis_integrity_tagger.py \
+            hpfa/modules/core/event_window_builder_lite/src/sequence_output_contract_guard.py
+          do
+            grep -F 'canonical_event_count' "$SRC"
+            grep -F 'true_action_count' "$SRC"
+            grep -F 'production_release' "$SRC"
+          done
