@@ -5,6 +5,7 @@ on:
     paths:
       - 'episode_feature_vector.py'
       - 'active_match_full_run.py'
+      - 'tools/run_active_match_episode_feature_vector_v1.sh'
       - 'hpfa/modules/core/episode_feature_vector_lite/**'
       - 'hpfa/modules/core/analyst_episode_locator_lite/**'
       - 'hpfa/modules/core/context_action_semantics_rebind_lite/**'
@@ -48,6 +49,10 @@ jobs:
             hpfa/modules/core/context_action_semantics_rebind_lite \
             episode_feature_vector.py \
             active_match_full_run.py
+
+      - name: Validate Termux ACTIVE_MATCH helper syntax
+        shell: bash
+        run: bash -n tools/run_active_match_episode_feature_vector_v1.sh
 
       - name: Run episode feature tests
         run: |
