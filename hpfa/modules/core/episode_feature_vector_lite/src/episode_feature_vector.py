@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -265,7 +266,9 @@ def build_episode_feature_vectors(
         unknown_channel_count = len(eligible) - len(known_channel_rows)
 
         duration = _safe_float(ep.get("duration_candidate_seconds"))
-        duration = duration if duration is not None and duration >= 0 else 0.0
+        if duration is None or not math.isfinite(duration) or duration < 0:
+            blocks.append(f"episode_duration_invalid:{episode_id}")
+            continue
         if duration > 0:
             density_status = "AVAILABLE"
             density = round(len(eligible) * 60.0 / duration, 6)
