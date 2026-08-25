@@ -14,10 +14,23 @@
   },
   "hard_boundary_rule": "ADMINISTRATIVE_MATCH_BOUNDARY",
   "soft_boundary_rules": [
-    "VISIBLE_TIME_GAP_BOUNDARY",
-    "RESTART_VISIBLE_BOUNDARY",
-    "TERMINAL_ACTION_VISIBLE_BOUNDARY"
+    "VISIBLE_TIME_GAP_BOUNDARY"
   ],
+  "observation_only_signals": [
+    "RESTART_VISIBLE_OBSERVATION",
+    "TERMINAL_ACTION_VISIBLE_OBSERVATION",
+    "BALL_LOSS_VISIBLE",
+    "RECOVERY_VISIBLE",
+    "MULTI_ACTION_FAMILY_VISIBLE"
+  ],
+  "boundary_authority_policy": {
+    "restart_boundary_authority": false,
+    "terminal_action_boundary_authority": false,
+    "action_family_labels_are_boundary_authority": false,
+    "team_handover_boundary_authority": false,
+    "visible_time_gap_boundary_authority": true,
+    "administrative_match_boundary_authority": true
+  },
   "administrative_boundary_policy": {
     "boundary_is_football_action_truth": false,
     "nullable_team_or_space_difference_is_automatic_football_contradiction": false,

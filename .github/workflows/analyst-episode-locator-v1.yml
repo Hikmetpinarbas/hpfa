@@ -52,8 +52,7 @@ jobs:
 
       - name: Run episode locator tests
         run: |
-          python -m pytest -q \
-            hpfa/modules/core/analyst_episode_locator_lite/tests/test_analyst_episode_locator.py
+          python -m pytest -q hpfa/modules/core/analyst_episode_locator_lite/tests
 
       - name: Run upstream context/time regressions
         run: |
@@ -68,10 +67,14 @@ jobs:
           P=hpfa/modules/core/analyst_episode_locator_lite/src/analyst_episode_locator.py
           grep -F 'ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT' "$P"
           grep -F 'ADMINISTRATIVE_MATCH_BOUNDARY' "$P"
-          grep -F 'RESTART_VISIBLE_BOUNDARY' "$P"
-          grep -F 'TERMINAL_ACTION_VISIBLE_BOUNDARY' "$P"
+          grep -F 'VISIBLE_TIME_GAP_BOUNDARY' "$P"
+          grep -F '"restart_boundary_authority": False' "$P"
+          grep -F '"terminal_action_boundary_authority": False' "$P"
+          grep -F '"action_family_labels_are_boundary_authority": False' "$P"
           grep -F 'same_timestamp_internal_ordering_allowed' "$P"
           grep -F 'source_row_order_is_temporal_truth' "$P"
+          ! grep -F 'RESTART_VISIBLE_BOUNDARY' "$P"
+          ! grep -F 'TERMINAL_ACTION_VISIBLE_BOUNDARY' "$P"
           ! grep -F 'TEAM_HANDOVER_BOUNDARY' "$P"
           ! grep -F 'possession change' "$P"
 

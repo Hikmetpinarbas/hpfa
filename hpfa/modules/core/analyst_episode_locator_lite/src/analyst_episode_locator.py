@@ -78,14 +78,12 @@ def _context_second(context: dict[str, Any]) -> float | None:
     value = _number(context.get("time_source_value"))
     if value is not None and context.get("time_unit_status") in {"SECOND", "MIXED_ADMITTED"}:
         return value
-    admitted = context.get("admitted_time_evidence") or []
     seconds = [
         _number(item.get("raw_value"))
-        for item in admitted
+        for item in (context.get("admitted_time_evidence") or [])
         if isinstance(item, dict) and item.get("unit") == "SECOND"
     ]
-    seconds = [value for value in seconds if value is not None]
-    unique = sorted(set(seconds))
+    unique = sorted({value for value in seconds if value is not None})
     return unique[0] if len(unique) == 1 else None
 
 
@@ -160,6 +158,39 @@ def _validate_inputs(mvc: dict[str, Any], row_nucleus: dict[str, Any]) -> tuple[
     return sorted(set(blocks)), sorted(set(reviews))
 
 
+def _fail_payload(blocks: list[str], reviews: list[str], context_count: int) -> dict[str, Any]:
+    return {
+        "module_id": MODULE_ID,
+        "status": "FAIL_CLOSED",
+        "decision": "EPISODE_INPUT_REJECTED",
+        "claim_ceiling": CLAIM_CEILING,
+        "episode_candidates": [],
+        "administrative_boundary_candidates": [],
+        "episode_candidate_count": 0,
+        "administrative_boundary_candidate_count": 0,
+        "context_assignment_count": 0,
+        "context_assignment_complete": False,
+        "unassigned_context_count": context_count,
+        "hard_block_hits": sorted(set(blocks)),
+        "review_hits": sorted(set(reviews)),
+        "same_timestamp_internal_ordering_allowed": False,
+        "source_row_order_is_temporal_truth": False,
+        "restart_boundary_authority": False,
+        "terminal_action_boundary_authority": False,
+        "action_family_labels_are_boundary_authority": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "possession_truth": False,
+        "sequence_truth": False,
+        "phase_truth": False,
+        "rhythm_truth": False,
+        "tactical_truth": False,
+        "dominance_truth": False,
+        "fatigue_truth": False,
+        "production_release": False,
+    }
+
+
 def build_episode_locator(
     mvc: dict[str, Any],
     row_nucleus: dict[str, Any],
@@ -224,36 +255,8 @@ def build_episode_locator(
         })
     if set(nucleus_by_id) != seen_nucleus_ids:
         blocks.append("row_nucleus_context_assignment_coverage_mismatch")
-
-    blocks = sorted(set(blocks))
     if blocks:
-        return {
-            "module_id": MODULE_ID,
-            "status": "FAIL_CLOSED",
-            "decision": "EPISODE_INPUT_REJECTED",
-            "claim_ceiling": CLAIM_CEILING,
-            "episode_candidates": [],
-            "administrative_boundary_candidates": [],
-            "episode_candidate_count": 0,
-            "administrative_boundary_candidate_count": 0,
-            "context_assignment_count": 0,
-            "context_assignment_complete": False,
-            "unassigned_context_count": len(contexts),
-            "hard_block_hits": blocks,
-            "review_hits": reviews,
-            "same_timestamp_internal_ordering_allowed": False,
-            "source_row_order_is_temporal_truth": False,
-            "canonical_event_count": "UNKNOWN",
-            "true_action_count": "UNKNOWN",
-            "possession_truth": False,
-            "sequence_truth": False,
-            "phase_truth": False,
-            "rhythm_truth": False,
-            "tactical_truth": False,
-            "dominance_truth": False,
-            "fatigue_truth": False,
-            "production_release": False,
-        }
+        return _fail_payload(blocks, reviews, len(contexts))
 
     grouped: dict[tuple[str, float], list[dict[str, Any]]] = defaultdict(list)
     for record in context_records:
@@ -265,6 +268,7 @@ def build_episode_locator(
         members = sorted(members, key=lambda row: row["context_id"])
         admin_members = [row for row in members if row.get("admin_type")]
         football_members = [row for row in members if not row.get("admin_type")]
+
         if admin_members:
             by_admin: dict[str, list[dict[str, Any]]] = defaultdict(list)
             for row in admin_members:
@@ -292,6 +296,7 @@ def build_episode_locator(
                     "same_timestamp_internal_ordering_allowed": False,
                     "claim_ceiling": CLAIM_CEILING,
                 })
+
         if football_members:
             context_ids = [row["context_id"] for row in football_members]
             action_counts = Counter(row["action_family"] for row in football_members)
@@ -323,6 +328,8 @@ def build_episode_locator(
                 "terminal_action_visible": action_counts.get("SHOT", 0) > 0,
                 "ball_loss_visible": action_counts.get("BALL_LOSS", 0) > 0,
                 "recovery_visible": action_counts.get("RECOVERY", 0) > 0,
+                "restart_is_boundary_authority": False,
+                "terminal_action_is_boundary_authority": False,
                 "review_debt_refs": debt,
                 "same_time_unordered": len(context_ids) > 1,
                 "same_timestamp_internal_ordering_allowed": False,
@@ -369,9 +376,9 @@ def build_episode_locator(
         recovery_count = sum(1 for layer in layers if layer.get("recovery_visible"))
         selection_reasons = {f"START:{temp['start_reason']}", f"END:{end_reason}"}
         if restart_count:
-            selection_reasons.add("RESTART_VISIBLE")
+            selection_reasons.add("RESTART_VISIBLE_OBSERVATION")
         if terminal_count:
-            selection_reasons.add("TERMINAL_ACTION_VISIBLE")
+            selection_reasons.add("TERMINAL_ACTION_VISIBLE_OBSERVATION")
         if loss_count:
             selection_reasons.add("BALL_LOSS_VISIBLE")
         if recovery_count:
@@ -415,6 +422,8 @@ def build_episode_locator(
             "terminal_layer_count": terminal_count,
             "ball_loss_layer_count": loss_count,
             "recovery_layer_count": recovery_count,
+            "restart_observation_only": True,
+            "terminal_action_observation_only": True,
             "same_time_unordered_refs": [layer["episode_time_layer_candidate_id"] for layer in layers if layer.get("same_time_unordered")],
             "review_debt_refs": review_debt,
             "review_debt_count": len(review_debt),
@@ -467,21 +476,14 @@ def build_episode_locator(
                 elif gap > max_inter_layer_gap_seconds:
                     close_current("VISIBLE_TIME_GAP_BOUNDARY")
                     pending_start_reason = "AFTER_VISIBLE_TIME_GAP"
-                elif layer.get("restart_visible"):
-                    close_current("RESTART_VISIBLE_BOUNDARY")
-                    pending_start_reason = "RESTART_VISIBLE_START"
             if current is None:
                 current = {
                     "period_candidate": period,
-                    "start_reason": "RESTART_VISIBLE_START" if layer.get("restart_visible") else pending_start_reason,
+                    "start_reason": pending_start_reason,
                     "layers": [],
                 }
             current["layers"].append(layer)
-            if layer.get("terminal_action_visible"):
-                close_current("TERMINAL_ACTION_VISIBLE_BOUNDARY")
-                pending_start_reason = "AFTER_TERMINAL_ACTION"
-            else:
-                pending_start_reason = "CONTINUATION"
+            pending_start_reason = "CONTINUATION"
         close_current("PERIOD_LAST_VISIBLE_LAYER")
 
     assigned_context_ids: set[str] = set()
@@ -505,6 +507,7 @@ def build_episode_locator(
                 "target_candidate_id": episode["episode_candidate_id"],
             })
             assigned_context_ids.add(context_id)
+
     expected_context_ids = {row["context_id"] for row in context_records}
     unassigned = sorted(expected_context_ids - assigned_context_ids)
     if unassigned:
@@ -523,6 +526,7 @@ def build_episode_locator(
     priority_counts = Counter(episode["analyst_review_priority_candidate"] for episode in episodes)
     episode_status_counts = Counter(episode["status"] for episode in episodes)
     boundary_type_counts = Counter(boundary["boundary_type"] for boundary in admin_boundaries)
+    zero_duration_count = sum(episode.get("duration_candidate_seconds") == 0 for episode in episodes)
 
     return {
         "module_id": MODULE_ID,
@@ -540,6 +544,7 @@ def build_episode_locator(
         "administrative_boundary_review_debt_count": admin_review_debt_count,
         "episode_candidates": episodes,
         "episode_candidate_count": len(episodes),
+        "zero_duration_episode_candidate_count": zero_duration_count,
         "episode_status_counts": dict(sorted(episode_status_counts.items())),
         "analyst_review_priority_counts": dict(sorted(priority_counts.items())),
         "administrative_boundary_type_counts": dict(sorted(boundary_type_counts.items())),
@@ -552,8 +557,18 @@ def build_episode_locator(
         "reflection_inflation_prevented": True,
         "context_occurrence_basis": "ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT",
         "max_inter_layer_gap_seconds": max_inter_layer_gap_seconds,
-        "soft_boundary_rules": ["VISIBLE_TIME_GAP_BOUNDARY", "RESTART_VISIBLE_BOUNDARY", "TERMINAL_ACTION_VISIBLE_BOUNDARY"],
+        "soft_boundary_rules": ["VISIBLE_TIME_GAP_BOUNDARY"],
+        "non_boundary_observation_signals": [
+            "RESTART_VISIBLE_OBSERVATION",
+            "TERMINAL_ACTION_VISIBLE_OBSERVATION",
+            "BALL_LOSS_VISIBLE",
+            "RECOVERY_VISIBLE",
+            "MULTI_ACTION_FAMILY_VISIBLE",
+        ],
         "hard_boundary_rule": "ADMINISTRATIVE_MATCH_BOUNDARY",
+        "restart_boundary_authority": False,
+        "terminal_action_boundary_authority": False,
+        "action_family_labels_are_boundary_authority": False,
         "hard_block_hits": blocks,
         "review_hits": reviews,
         "same_timestamp_internal_ordering_allowed": False,
@@ -580,10 +595,13 @@ def _summary_text(report: dict[str, Any]) -> str:
         f"status={report.get('status')}",
         f"input_context_count={report.get('input_context_count')}",
         f"episode_candidate_count={report.get('episode_candidate_count')}",
+        f"zero_duration_episode_candidate_count={report.get('zero_duration_episode_candidate_count')}",
         f"administrative_boundary_candidate_count={report.get('administrative_boundary_candidate_count')}",
         f"same_time_unordered_layer_count={report.get('same_time_unordered_layer_count')}",
         f"context_assignment_complete={str(report.get('context_assignment_complete')).lower()}",
         f"review_hits={report.get('review_hits')}",
+        "restart_boundary_authority=false",
+        "terminal_action_boundary_authority=false",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "phase_truth=false",
@@ -597,6 +615,7 @@ def _analyst_text(report: dict[str, Any]) -> str:
     lines = [
         "HPFA ANALYST AUDIT — EPISODE LOCATOR",
         f"Episode candidates: {report.get('episode_candidate_count', 0)}",
+        f"Zero-duration episode candidates: {report.get('zero_duration_episode_candidate_count', 0)}",
         f"Administrative boundary candidates: {report.get('administrative_boundary_candidate_count', 0)}",
         f"Same-time unordered layers: {report.get('same_time_unordered_layer_count', 0)}",
         "",
@@ -612,6 +631,7 @@ def _analyst_text(report: dict[str, Any]) -> str:
     lines.extend([
         "",
         "Safe meaning: these are analyst navigation/evidence units only.",
+        "Restart/terminal action-family labels are observations, not episode-boundary authority.",
         "They are not possession, sequence, phase, rhythm, dominance or tactical truth.",
         "",
     ])
@@ -635,7 +655,10 @@ def write_outputs(
         "summary": str(output / OUTPUT_TXT),
         "analyst": str(output / ANALYST_TXT),
     }
-    (output / OUTPUT_JSON).write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output / OUTPUT_JSON).write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     (output / OUTPUT_TXT).write_text(_summary_text(report), encoding="utf-8")
     (output / ANALYST_TXT).write_text(_analyst_text(report), encoding="utf-8")
     return report
@@ -647,11 +670,16 @@ def main() -> int:
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--max-inter-layer-gap-seconds", type=float, default=MAX_INTER_LAYER_GAP_SECONDS)
     args = parser.parse_args()
-    report = write_outputs(args.input_dir, args.out_dir, max_inter_layer_gap_seconds=args.max_inter_layer_gap_seconds)
+    report = write_outputs(
+        args.input_dir,
+        args.out_dir,
+        max_inter_layer_gap_seconds=args.max_inter_layer_gap_seconds,
+    )
     print(json.dumps({
         "status": report.get("status"),
         "decision": report.get("decision"),
         "episode_candidate_count": report.get("episode_candidate_count"),
+        "zero_duration_episode_candidate_count": report.get("zero_duration_episode_candidate_count"),
         "administrative_boundary_candidate_count": report.get("administrative_boundary_candidate_count"),
         "context_assignment_complete": report.get("context_assignment_complete"),
         "same_time_unordered_layer_count": report.get("same_time_unordered_layer_count"),
