@@ -54,13 +54,15 @@ jobs:
       - name: Run upstream episode feature regressions
         run: |
           python -m pytest -q \
-            hpfa/modules/core/episode_feature_vector_lite/tests/test_episode_feature_vector.py
+            hpfa/modules/core/episode_feature_vector_lite/tests/test_episode_feature_vector.py \
+            hpfa/modules/core/episode_feature_vector_lite/tests/test_episode_feature_vector_duration_guard.py
 
       - name: Temporal policy guards
         shell: bash
         run: |
           set -euo pipefail
           P=hpfa/modules/core/temporal_episode_signature_lite/src/temporal_episode_signature.py
+          F=hpfa/modules/core/episode_feature_vector_lite/src/episode_feature_vector.py
           grep -F 'REVIEWED_ACTION_OCCURRENCE_ELIGIBLE_ONLY' "$P"
           grep -F 'same_timestamp_internal_ordering_allowed' "$P"
           grep -F 'source_row_order_is_temporal_truth' "$P"
@@ -70,6 +72,8 @@ jobs:
           grep -F 'ORDER_INDETERMINATE_SAME_START' "$P"
           grep -F 'NO_PRIOR_EPISODE_IN_PERIOD' "$P"
           ! grep -F 'context_ordinal' "$P"
+          grep -F 'math.isfinite(duration)' "$F"
+          grep -F 'episode_duration_invalid:' "$F"
 
       - name: Claim locks
         shell: bash
@@ -88,8 +92,11 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          text = Path('hpfa/modules/core/temporal_episode_signature_lite/src/temporal_episode_signature.py').read_text(encoding='utf-8')
+          temporal = Path('hpfa/modules/core/temporal_episode_signature_lite/src/temporal_episode_signature.py').read_text(encoding='utf-8')
+          feature = Path('hpfa/modules/core/episode_feature_vector_lite/src/episode_feature_vector.py').read_text(encoding='utf-8')
           forbidden = ['Fenerbahce', 'Galatasaray', 'Genclerbirligi', '15.08.2026', 'Turkey', 'World Cup']
-          assert not any(token in text for token in forbidden)
-          assert 'context_ordinal' not in text
+          assert not any(token in temporal for token in forbidden)
+          assert not any(token in feature for token in forbidden)
+          assert 'context_ordinal' not in temporal
+          assert 'context_ordinal' not in feature
           PY
