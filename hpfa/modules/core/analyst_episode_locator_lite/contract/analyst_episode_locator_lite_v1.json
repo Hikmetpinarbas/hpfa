@@ -1,0 +1,73 @@
+{
+  "module_id": "analyst_episode_locator_lite_v1",
+  "input_authority": [
+    "minimum_viable_context_lite_v1.json",
+    "row_nucleus_inventory_lite_v1.json",
+    "context_action_semantics_rebind_lite_v1.json"
+  ],
+  "input_requirements": {
+    "time_admission_status": "ADMITTED",
+    "context_occurrence_basis": "ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT",
+    "row_nucleus_context_binding_required": true,
+    "reviewed_action_semantics_binding_required": true,
+    "reflection_inflation_prevented_required": true,
+    "context_semantic_assignment_complete_required": true,
+    "same_timestamp_internal_ordering_allowed": false,
+    "source_row_order_is_temporal_truth": false
+  },
+  "navigation_time_layer_basis": "ALL_VISIBLE_CONTEXT_TIME_LAYERS_NAVIGATION_ONLY",
+  "action_volume_basis": "REVIEWED_ACTION_OCCURRENCE_ELIGIBLE_ONLY",
+  "support_policy": {
+    "context_reference_participation_rows_remain_visible": true,
+    "context_reference_participation_rows_add_action_volume": false,
+    "review_limited_semantics_add_action_volume": false,
+    "episode_action_family_distribution_must_reconcile_upstream": true
+  },
+  "hard_boundary_rule": "ADMINISTRATIVE_MATCH_BOUNDARY",
+  "soft_boundary_rules": [
+    "VISIBLE_TIME_GAP_BOUNDARY"
+  ],
+  "boundary_authority_policy": {
+    "restart_boundary_authority": false,
+    "terminal_action_boundary_authority": false,
+    "action_family_labels_are_boundary_authority": false,
+    "team_handover_boundary_authority": false,
+    "visible_time_gap_boundary_authority": true,
+    "administrative_match_boundary_authority": true
+  },
+  "semantic_collision_guards": {
+    "team_goal_kick_length_reference_adds_action_volume": false,
+    "goalkeeper_opponent_shot_reference_adds_action_volume": false,
+    "goalkeeper_goal_kick_action_anchor_may_add_restart_candidate": true,
+    "lost_ball_reviewed_action_anchor_may_add_turnover_candidate": true,
+    "ball_recovery_reviewed_action_anchor_may_add_recovery_candidate": true
+  },
+  "episode_claim_ceiling": "ANALYST_EPISODE_NAVIGATION_CANDIDATE_ONLY",
+  "episode_non_truths": [
+    "physical_action_truth",
+    "possession_truth",
+    "sequence_truth",
+    "phase_truth",
+    "rhythm_truth",
+    "tactical_truth",
+    "dominance_truth",
+    "fatigue_truth"
+  ],
+  "outputs": [
+    "analyst_episode_locator_lite_v1.json",
+    "analyst_episode_locator_lite_v1.txt",
+    "analyst_episode_locator_analyst_audit_v1.txt"
+  ],
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "possession_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "rhythm_truth": false,
+    "tactical_truth": false,
+    "dominance_truth": false,
+    "fatigue_truth": false,
+    "production_release": false
+  }
+}
