@@ -1,0 +1,96 @@
+name: Analyst Episode Locator V1
+
+on:
+  pull_request:
+    paths:
+      - 'analyst_episode_locator.py'
+      - 'active_match_full_run.py'
+      - 'hpfa/modules/core/analyst_episode_locator_lite/**'
+      - 'hpfa/modules/core/provider_alias_field_semantics_lite/**'
+      - 'hpfa/modules/core/minimum_viable_context_lite/**'
+      - 'row_nucleus_inventory.py'
+      - '.github/workflows/analyst-episode-locator-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  analyst-episode-locator:
+    runs-on: ubuntu-24.04
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$EXPECTED_HEAD"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused dependencies
+        run: python -m pip install --disable-pip-version-check pytest openpyxl
+
+      - name: Compile episode chain
+        run: |
+          python -m compileall -q \
+            hpfa/modules/core/analyst_episode_locator_lite \
+            hpfa/modules/core/minimum_viable_context_lite \
+            hpfa/modules/core/provider_alias_field_semantics_lite \
+            analyst_episode_locator.py \
+            active_match_full_run.py
+
+      - name: Run episode locator tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/analyst_episode_locator_lite/tests/test_analyst_episode_locator.py
+
+      - name: Run upstream context/time regressions
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/provider_alias_field_semantics_lite/tests/test_provider_time_semantic_admission.py \
+            hpfa/modules/core/minimum_viable_context_lite/tests
+
+      - name: Episode policy guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=hpfa/modules/core/analyst_episode_locator_lite/src/analyst_episode_locator.py
+          grep -F 'ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT' "$P"
+          grep -F 'ADMINISTRATIVE_MATCH_BOUNDARY' "$P"
+          grep -F 'RESTART_VISIBLE_BOUNDARY' "$P"
+          grep -F 'TERMINAL_ACTION_VISIBLE_BOUNDARY' "$P"
+          grep -F 'same_timestamp_internal_ordering_allowed' "$P"
+          grep -F 'source_row_order_is_temporal_truth' "$P"
+          ! grep -F 'TEAM_HANDOVER_BOUNDARY' "$P"
+          ! grep -F 'possession change' "$P"
+
+      - name: Claim locks
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=hpfa/modules/core/analyst_episode_locator_lite/src/analyst_episode_locator.py
+          grep -F '"canonical_event_count": "UNKNOWN"' "$P"
+          grep -F '"true_action_count": "UNKNOWN"' "$P"
+          grep -F '"phase_truth": False' "$P"
+          grep -F '"rhythm_truth": False' "$P"
+          grep -F '"production_release": False' "$P"
+
+      - name: No sample identity leak
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('hpfa/modules/core/analyst_episode_locator_lite/src/analyst_episode_locator.py').read_text(encoding='utf-8')
+          forbidden = ['Fenerbahce', 'Galatasaray', 'Genclerbirligi', '15.08.2026', 'Turkey', 'World Cup']
+          assert not any(token in text for token in forbidden)
+          PY

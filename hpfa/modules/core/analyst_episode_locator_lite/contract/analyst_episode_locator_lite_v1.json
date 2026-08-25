@@ -1,0 +1,53 @@
+{
+  "module_id": "analyst_episode_locator_lite_v1",
+  "input_authority": [
+    "minimum_viable_context_lite_v1.json",
+    "row_nucleus_inventory_lite_v1.json"
+  ],
+  "input_requirements": {
+    "time_admission_status": "ADMITTED",
+    "context_occurrence_basis": "ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT",
+    "row_nucleus_context_binding_required": true,
+    "reflection_inflation_prevented_required": true,
+    "same_timestamp_internal_ordering_allowed": false,
+    "source_row_order_is_temporal_truth": false
+  },
+  "hard_boundary_rule": "ADMINISTRATIVE_MATCH_BOUNDARY",
+  "soft_boundary_rules": [
+    "VISIBLE_TIME_GAP_BOUNDARY",
+    "RESTART_VISIBLE_BOUNDARY",
+    "TERMINAL_ACTION_VISIBLE_BOUNDARY"
+  ],
+  "administrative_boundary_policy": {
+    "boundary_is_football_action_truth": false,
+    "nullable_team_or_space_difference_is_automatic_football_contradiction": false,
+    "review_debt_must_remain_visible": true
+  },
+  "episode_claim_ceiling": "ANALYST_EPISODE_NAVIGATION_CANDIDATE_ONLY",
+  "episode_non_truths": [
+    "possession_truth",
+    "sequence_truth",
+    "phase_truth",
+    "rhythm_truth",
+    "tactical_truth",
+    "dominance_truth",
+    "fatigue_truth"
+  ],
+  "outputs": [
+    "analyst_episode_locator_lite_v1.json",
+    "analyst_episode_locator_lite_v1.txt",
+    "analyst_episode_locator_analyst_audit_v1.txt"
+  ],
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "possession_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "rhythm_truth": false,
+    "tactical_truth": false,
+    "dominance_truth": false,
+    "fatigue_truth": false,
+    "production_release": false
+  }
+}

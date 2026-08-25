@@ -11,6 +11,7 @@ RUN_JSON = "active_match_full_run_lite_v1.json"
 RUN_TXT = "active_match_full_run_lite_v1.txt"
 SURFACE_SUFFIXES = {".csv", ".xml", ".xlsx"}
 ROW_NUCLEUS_JSON = "row_nucleus_inventory_lite_v1.json"
+EPISODE_JSON = "analyst_episode_locator_lite_v1.json"
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -39,22 +40,13 @@ def spine_runner_module(repo_root: Path):
     src = repo_root / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
     ensure_module_path(src)
     import spine_runner  # type: ignore
-
     return spine_runner
 
 
 def provider_time_module(repo_root: Path):
-    src = (
-        repo_root
-        / "hpfa"
-        / "modules"
-        / "core"
-        / "provider_alias_field_semantics_lite"
-        / "src"
-    )
+    src = repo_root / "hpfa" / "modules" / "core" / "provider_alias_field_semantics_lite" / "src"
     ensure_module_path(src)
     import provider_time_semantic_admission  # type: ignore
-
     return provider_time_semantic_admission
 
 
@@ -69,12 +61,7 @@ def readable_surface_files(match_dir: Path) -> list[Path]:
 
 
 def run_step(repo_root: Path, command: list[str]) -> dict[str, Any]:
-    completed = subprocess.run(
-        command,
-        cwd=repo_root,
-        text=True,
-        capture_output=True,
-    )
+    completed = subprocess.run(command, cwd=repo_root, text=True, capture_output=True)
     return {
         "command": command,
         "returncode": completed.returncode,
@@ -111,28 +98,36 @@ def run_provider_time_context_step(
     return {
         "command": ["internal:provider_time_semantic_admission_lite_v1"],
         "returncode": 0,
-        "stdout": json.dumps(
-            {
-                "status": admission.get("status"),
-                "unit_candidate": admission.get("unit_candidate"),
-                "time_basis_candidate": admission.get("time_basis_candidate"),
-                "review_reasons": admission.get("review_reasons"),
-                "context_candidate_count": report.get("context_candidate_count"),
-                "time_admission_status": report.get("time_admission_status"),
-                "context_input_scope": report.get("context_input_scope"),
-                "row_nucleus_candidate_count": binding.get(
-                    "row_nucleus_candidate_count"
-                ),
-                "reflection_inflation_prevented": binding.get(
-                    "reflection_inflation_prevented"
-                ),
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        ),
+        "stdout": json.dumps({
+            "status": admission.get("status"),
+            "unit_candidate": admission.get("unit_candidate"),
+            "time_basis_candidate": admission.get("time_basis_candidate"),
+            "review_reasons": admission.get("review_reasons"),
+            "context_candidate_count": report.get("context_candidate_count"),
+            "time_admission_status": report.get("time_admission_status"),
+            "context_input_scope": report.get("context_input_scope"),
+            "row_nucleus_candidate_count": binding.get("row_nucleus_candidate_count"),
+            "reflection_inflation_prevented": binding.get("reflection_inflation_prevented"),
+        }, ensure_ascii=False, sort_keys=True),
         "stderr": "",
         "passed": True,
     }
+
+
+def _episode_sample(episode: dict[str, Any]) -> list[dict[str, Any]]:
+    sample: list[dict[str, Any]] = []
+    for row in (episode.get("episode_candidates") or [])[:12]:
+        sample.append({
+            "episode_candidate_id": row.get("episode_candidate_id"),
+            "period_candidate": row.get("period_candidate"),
+            "start_minute_candidate": row.get("start_minute_candidate"),
+            "end_minute_candidate": row.get("end_minute_candidate"),
+            "analyst_review_priority_candidate": row.get("analyst_review_priority_candidate"),
+            "selection_reason": row.get("selection_reason"),
+            "action_family_distribution": row.get("action_family_distribution"),
+            "review_debt_count": row.get("review_debt_count"),
+        })
+    return sample
 
 
 def write_summary(
@@ -142,6 +137,7 @@ def write_summary(
 ) -> dict[str, Any]:
     row_nucleus = read_json(out_dir / ROW_NUCLEUS_JSON)
     minimum_context = read_json(out_dir / "minimum_viable_context_lite_v1.json")
+    episode = read_json(out_dir / EPISODE_JSON)
     event_window = read_json(out_dir / "event_window_builder_lite_v1.json")
     time_scale = read_json(out_dir / "time_scale_router_lite_v1.json")
     axis = read_json(out_dir / "axis_integrity_tagger_lite_v1.json")
@@ -160,20 +156,28 @@ def write_summary(
         and safe_int(context_binding.get("row_nucleus_candidate_count"))
         == safe_int(minimum_context.get("context_candidate_count"))
     )
+    episode_ready = (
+        bool(episode)
+        and episode.get("context_assignment_complete") is True
+        and episode.get("reflection_inflation_prevented") is True
+        and safe_int(episode.get("input_context_count"))
+        == safe_int(minimum_context.get("context_candidate_count"))
+        and safe_int(episode.get("episode_candidate_count")) > 0
+        and episode.get("canonical_event_count") == "UNKNOWN"
+        and episode.get("production_release") is False
+    )
     valid_run = (
         bool(input_status.get("input_surface_ready"))
         and all_steps_passed
         and evidence_nonzero
         and row_nucleus_bound
+        and episode_ready
     )
+
     report = {
         "module_id": "active_match_full_run_lite_v1",
         "status": "REVIEW_REQUIRED" if valid_run else "FAIL_CLOSED",
-        "decision": (
-            "ACTIVE_MATCH_REPO_CHAIN_EXECUTED"
-            if valid_run
-            else "ACTIVE_MATCH_INPUT_OR_EVIDENCE_REJECTED"
-        ),
+        "decision": "ACTIVE_MATCH_REPO_CHAIN_EXECUTED" if valid_run else "ACTIVE_MATCH_INPUT_OR_EVIDENCE_REJECTED",
         "claim_safety": "RUNTIME_EVIDENCE_ONLY",
         "input_status": input_status,
         "steps": steps,
@@ -183,59 +187,53 @@ def write_summary(
             "valid_run": valid_run,
             "row_nucleus_output_exists": bool(row_nucleus),
             "row_nucleus_status": row_nucleus.get("status"),
-            "row_nucleus_candidate_count": row_nucleus.get(
-                "row_nucleus_candidate_count"
-            ),
+            "row_nucleus_candidate_count": row_nucleus.get("row_nucleus_candidate_count"),
             "row_nucleus_context_binding": row_nucleus_bound,
-            "reflection_inflation_prevented": context_binding.get(
-                "reflection_inflation_prevented"
-            ),
+            "reflection_inflation_prevented": context_binding.get("reflection_inflation_prevented"),
             "minimum_context_output_exists": bool(minimum_context),
             "context_input_scope": minimum_context.get("context_input_scope"),
             "provider_time_admission_status": provider_time.get("status"),
             "provider_time_unit_candidate": provider_time.get("unit_candidate"),
-            "provider_time_basis_candidate": provider_time.get(
-                "time_basis_candidate"
-            ),
+            "provider_time_basis_candidate": provider_time.get("time_basis_candidate"),
+            "episode_locator_output_exists": bool(episode),
+            "episode_locator_status": episode.get("status"),
+            "episode_context_assignment_complete": episode.get("context_assignment_complete"),
+            "episode_candidate_count": episode.get("episode_candidate_count"),
+            "administrative_boundary_candidate_count": episode.get("administrative_boundary_candidate_count"),
+            "episode_locator_ready": episode_ready,
             "event_window_output_exists": bool(event_window),
             "time_scale_output_exists": bool(time_scale),
             "axis_integrity_output_exists": bool(axis),
         },
         "analyst_evidence": {
-            "row_nucleus_candidate_count": row_nucleus.get(
-                "row_nucleus_candidate_count"
-            ),
-            "row_nucleus_review_required_count": row_nucleus.get(
-                "row_nucleus_review_required_count"
-            ),
-            "context_candidate_count": minimum_context.get(
-                "context_candidate_count"
-            ),
-            "context_occurrence_basis": minimum_context.get(
-                "context_occurrence_basis"
-            ),
+            "row_nucleus_candidate_count": row_nucleus.get("row_nucleus_candidate_count"),
+            "row_nucleus_review_required_count": row_nucleus.get("row_nucleus_review_required_count"),
+            "context_candidate_count": minimum_context.get("context_candidate_count"),
+            "context_occurrence_basis": minimum_context.get("context_occurrence_basis"),
+            "episode_candidate_count": episode.get("episode_candidate_count"),
+            "episode_status_counts": episode.get("episode_status_counts"),
+            "analyst_review_priority_counts": episode.get("analyst_review_priority_counts"),
+            "administrative_boundary_candidate_count": episode.get("administrative_boundary_candidate_count"),
+            "administrative_boundary_type_counts": episode.get("administrative_boundary_type_counts"),
+            "administrative_boundary_review_debt_count": episode.get("administrative_boundary_review_debt_count"),
+            "same_time_unordered_episode_layer_count": episode.get("same_time_unordered_layer_count"),
+            "episode_sample": _episode_sample(episode),
             "input_context_count": event_window.get("input_context_count"),
-            "minute_bearing_context_count": event_window.get(
-                "minute_bearing_context_count"
-            ),
+            "minute_bearing_context_count": event_window.get("minute_bearing_context_count"),
             "event_window_count": event_window.get("event_window_count"),
             "routed_window_count": time_scale.get("routed_window_count"),
-            "minute_axis_window_count": time_scale.get(
-                "minute_axis_window_count"
-            ),
+            "minute_axis_window_count": time_scale.get("minute_axis_window_count"),
             "provider_time_runtime_checks": provider_time.get("runtime_checks"),
             "time_admission_status": event_window.get("time_admission_status"),
             "ordering_status": event_window.get("ordering_status"),
             "axis_integrity_score": axis.get("axis_integrity_score"),
             "axis_status": axis.get("axis_status"),
             "downstream_permissions": axis.get("downstream_permissions"),
+            "episode_navigation_allowed": episode_ready,
             "rhythm_interpretation_allowed": False,
             "phase_interpretation_allowed": False,
             "safe_statement": (
-                "Context windows are now bound to row-nucleus candidates so "
-                "CSV/XML serialization reflections do not multiply the context "
-                "population. Phase and rhythm interpretation remain blocked "
-                "until their own evidence gates are rebound."
+                "Row-nucleus-bound contexts are now segmented into analyst navigation episode candidates using admitted time, administrative match boundaries and neutral visible restart/terminal/time-gap anchors. Episode candidates are not possession, sequence, phase or rhythm truth."
             ),
         },
         "claim_boundary": {
@@ -248,6 +246,7 @@ def write_summary(
             "rhythm_truth": False,
             "tactical_truth": False,
             "dominance_truth": False,
+            "fatigue_truth": False,
             "production_release": False,
         },
         "outputs": {
@@ -255,10 +254,7 @@ def write_summary(
             "txt": str(out_dir / RUN_TXT),
         },
     }
-    (out_dir / RUN_JSON).write_text(
-        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+    (out_dir / RUN_JSON).write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     lines = [
         "HPFA ACTIVE MATCH FULL RUN LITE V1",
         "===================================",
@@ -270,11 +266,7 @@ def write_summary(
         json.dumps(report["input_status"], ensure_ascii=False, sort_keys=True),
         "",
         "[engineering_evidence]",
-        json.dumps(
-            report["engineering_evidence"],
-            ensure_ascii=False,
-            sort_keys=True,
-        ),
+        json.dumps(report["engineering_evidence"], ensure_ascii=False, sort_keys=True),
         "",
         "[analyst_evidence]",
         json.dumps(report["analyst_evidence"], ensure_ascii=False, sort_keys=True),
@@ -290,14 +282,8 @@ def write_summary(
 def main() -> int:
     repo_root = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--match-dir",
-        default="runtime/active_single_match/current",
-    )
-    parser.add_argument(
-        "--out-dir",
-        default="runtime/outputs/active_match_current",
-    )
+    parser.add_argument("--match-dir", default="runtime/active_single_match/current")
+    parser.add_argument("--out-dir", default="runtime/outputs/active_match_current")
     args = parser.parse_args()
 
     match_dir = Path(args.match_dir)
@@ -319,92 +305,60 @@ def main() -> int:
 
     if not input_status["input_surface_ready"]:
         report = write_summary(out_dir, [], input_status)
-        print(
-            json.dumps(
-                {
-                    "status": report.get("status"),
-                    "decision": report.get("decision"),
-                    "input_status": report.get("input_status"),
-                    "engineering_evidence": report.get("engineering_evidence"),
-                    "outputs": report.get("outputs"),
-                },
-                ensure_ascii=False,
-                sort_keys=True,
-            )
-        )
+        print(json.dumps({
+            "status": report.get("status"),
+            "decision": report.get("decision"),
+            "input_status": report.get("input_status"),
+            "engineering_evidence": report.get("engineering_evidence"),
+            "outputs": report.get("outputs"),
+        }, ensure_ascii=False, sort_keys=True))
         return 1
 
     row_nucleus_path = out_dir / ROW_NUCLEUS_JSON
     steps = [
-        run_step(
-            repo_root,
-            [
-                sys.executable,
-                "row_nucleus_inventory.py",
-                "--input-dir",
-                str(match_dir),
-                "--out-dir",
-                str(out_dir),
-            ],
-        ),
-        run_provider_time_context_step(
-            repo_root,
-            match_dir,
-            out_dir,
-            row_nucleus_path,
-        ),
-        run_step(
-            repo_root,
-            [
-                sys.executable,
-                "event_window_builder.py",
-                "--input-dir",
-                str(out_dir),
-                "--raw-input-dir",
-                str(match_dir),
-                "--out-dir",
-                str(out_dir),
-            ],
-        ),
-        run_step(
-            repo_root,
-            [
-                sys.executable,
-                "time_scale_router.py",
-                "--input-dir",
-                str(out_dir),
-                "--out-dir",
-                str(out_dir),
-            ],
-        ),
-        run_step(
-            repo_root,
-            [
-                sys.executable,
-                "axis_integrity_tagger.py",
-                "--input-dir",
-                str(out_dir),
-                "--out-dir",
-                str(out_dir),
-            ],
-        ),
+        run_step(repo_root, [
+            sys.executable,
+            "row_nucleus_inventory.py",
+            "--input-dir", str(match_dir),
+            "--out-dir", str(out_dir),
+        ]),
+        run_provider_time_context_step(repo_root, match_dir, out_dir, row_nucleus_path),
+        run_step(repo_root, [
+            sys.executable,
+            "analyst_episode_locator.py",
+            "--input-dir", str(out_dir),
+            "--out-dir", str(out_dir),
+        ]),
+        run_step(repo_root, [
+            sys.executable,
+            "event_window_builder.py",
+            "--input-dir", str(out_dir),
+            "--raw-input-dir", str(match_dir),
+            "--out-dir", str(out_dir),
+        ]),
+        run_step(repo_root, [
+            sys.executable,
+            "time_scale_router.py",
+            "--input-dir", str(out_dir),
+            "--out-dir", str(out_dir),
+        ]),
+        run_step(repo_root, [
+            sys.executable,
+            "axis_integrity_tagger.py",
+            "--input-dir", str(out_dir),
+            "--out-dir", str(out_dir),
+        ]),
     ]
     report = write_summary(out_dir, steps, input_status)
-    print(
-        json.dumps(
-            {
-                "status": report.get("status"),
-                "decision": report.get("decision"),
-                "input_status": report.get("input_status"),
-                "engineering_evidence": report.get("engineering_evidence"),
-                "analyst_evidence": report.get("analyst_evidence"),
-                "claim_boundary": report.get("claim_boundary"),
-                "outputs": report.get("outputs"),
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-    )
+    print(json.dumps({
+        "status": report.get("status"),
+        "decision": report.get("decision"),
+        "input_status": report.get("input_status"),
+        "engineering_evidence": report.get("engineering_evidence"),
+        "analyst_evidence": report.get("analyst_evidence"),
+        "claim_boundary": report.get("claim_boundary"),
+        "outputs": report.get("outputs"),
+    }, ensure_ascii=False, sort_keys=True))
     return 0 if report.get("engineering_evidence", {}).get("valid_run") is True else 1
 
 
