@@ -1,0 +1,54 @@
+{
+  "module_id": "context_action_semantics_rebind_lite_v1",
+  "input_authority": [
+    "minimum_viable_context_lite_v1.json",
+    "row_nucleus_inventory_lite_v1.json",
+    "provider_label_value_semantics_lite registry"
+  ],
+  "purpose": "Bind reviewed provider label semantics onto Row-Nucleus-bound context before Episode / Phase / Rhythm action-volume use.",
+  "required_rules": {
+    "row_nucleus_is_action_occurrence_truth": false,
+    "reference_participation_context_adds_action_volume": false,
+    "review_limited_semantics_adds_action_volume": false,
+    "same_timestamp_internal_ordering_allowed": false,
+    "source_row_order_is_temporal_truth": false
+  },
+  "action_occurrence_eligibility": {
+    "semantic_role_candidate": "ACTION_ANCHOR",
+    "downstream_eligibility": "ACTION_CANDIDATE_ELIGIBLE",
+    "review_status": "REVIEWED_CANDIDATE",
+    "mapping_status_allowed": [
+      "EXACT_REVIEWED_CANDIDATE",
+      "PREFIX_RULE_REVIEWED_CANDIDATE"
+    ]
+  },
+  "non_action_roles": [
+    "ATTRIBUTE_REFERENCE",
+    "PARTICIPATION_INTERVAL",
+    "CONTEXT_INTERVAL",
+    "OPPONENT_ACTION_REFERENCE",
+    "RECEIVED_ACTION_REFERENCE",
+    "ADMINISTRATIVE_MARKER",
+    "PERIOD_OR_META",
+    "AGGREGATE_METRIC_LABEL"
+  ],
+  "sportsbase_collision_guards": {
+    "team_goal_kick_length_reference_is_action_occurrence": false,
+    "goalkeeper_opponent_shot_reference_is_action_occurrence": false,
+    "goalkeeper_goal_kick_action_anchor_may_be_occurrence_candidate": true,
+    "lost_balls_action_family_candidate": "TURNOVER",
+    "ball_recoveries_action_family_candidate": "RECOVERY"
+  },
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "physical_action_truth": false,
+    "possession_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "rhythm_truth": false,
+    "tactical_truth": false,
+    "dominance_truth": false,
+    "production_release": false
+  }
+}

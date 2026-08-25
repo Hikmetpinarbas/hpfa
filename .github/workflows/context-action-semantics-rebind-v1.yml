@@ -1,0 +1,93 @@
+name: Context Action Semantics Rebind V1
+
+on:
+  pull_request:
+    paths:
+      - 'context_action_semantics_rebind.py'
+      - 'hpfa/modules/core/context_action_semantics_rebind_lite/**'
+      - 'hpfa/modules/core/provider_label_value_semantics_lite/**'
+      - 'hpfa/modules/core/minimum_viable_context_lite/**'
+      - 'hpfa/modules/core/row_nucleus_inventory_lite/**'
+      - '.github/workflows/context-action-semantics-rebind-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  context-action-semantics-rebind:
+    runs-on: ubuntu-24.04
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$EXPECTED_HEAD"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused dependencies
+        run: python -m pip install --disable-pip-version-check pytest openpyxl
+
+      - name: Compile semantic rebind chain
+        run: |
+          python -m compileall -q \
+            hpfa/modules/core/context_action_semantics_rebind_lite \
+            hpfa/modules/core/provider_label_value_semantics_lite \
+            hpfa/modules/core/minimum_viable_context_lite \
+            context_action_semantics_rebind.py
+
+      - name: Run semantic rebind tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/context_action_semantics_rebind_lite/tests/test_context_action_semantics_rebind.py
+
+      - name: Run provider semantics regression tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/provider_label_value_semantics_lite/tests
+
+      - name: Policy guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=hpfa/modules/core/context_action_semantics_rebind_lite/src/context_action_semantics_rebind.py
+          grep -F 'ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT' "$P"
+          grep -F 'ACTION_CANDIDATE_ELIGIBLE' "$P"
+          grep -F 'reference_participation_context_adds_action_volume' "$P"
+          grep -F 'team_goal_kick_length_action_occurrence_eligible_count' "$P"
+          grep -F 'goalkeeper_shot_reference_action_occurrence_eligible_count' "$P"
+          grep -F 'same_timestamp_internal_ordering_allowed' "$P"
+          grep -F 'source_row_order_is_temporal_truth' "$P"
+
+      - name: Claim locks
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=hpfa/modules/core/context_action_semantics_rebind_lite/src/context_action_semantics_rebind.py
+          grep -F '"canonical_event_count": "UNKNOWN"' "$P"
+          grep -F '"true_action_count": "UNKNOWN"' "$P"
+          grep -F '"physical_action_truth": False' "$P"
+          grep -F '"phase_truth": False' "$P"
+          grep -F '"rhythm_truth": False' "$P"
+          grep -F '"production_release": False' "$P"
+
+      - name: No sample identity leak
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('hpfa/modules/core/context_action_semantics_rebind_lite/src/context_action_semantics_rebind.py').read_text(encoding='utf-8')
+          forbidden = ['Fenerbahce', 'Galatasaray', 'Genclerbirligi', '15.08.2026', 'World Cup']
+          assert not any(token in text for token in forbidden)
+          PY
