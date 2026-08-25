@@ -1,0 +1,102 @@
+name: Episode Feature Vector V1
+
+on:
+  pull_request:
+    paths:
+      - 'episode_feature_vector.py'
+      - 'active_match_full_run.py'
+      - 'tools/run_active_match_episode_feature_vector_v1.sh'
+      - 'hpfa/modules/core/episode_feature_vector_lite/**'
+      - 'hpfa/modules/core/analyst_episode_locator_lite/**'
+      - 'hpfa/modules/core/context_action_semantics_rebind_lite/**'
+      - '.github/workflows/episode-feature-vector-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  episode-feature-vector:
+    runs-on: ubuntu-24.04
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$EXPECTED_HEAD"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused dependencies
+        run: python -m pip install --disable-pip-version-check pytest openpyxl
+
+      - name: Compile episode feature chain
+        run: |
+          python -m compileall -q \
+            hpfa/modules/core/episode_feature_vector_lite \
+            hpfa/modules/core/analyst_episode_locator_lite \
+            hpfa/modules/core/context_action_semantics_rebind_lite \
+            episode_feature_vector.py \
+            active_match_full_run.py
+
+      - name: Validate Termux ACTIVE_MATCH helper syntax
+        shell: bash
+        run: bash -n tools/run_active_match_episode_feature_vector_v1.sh
+
+      - name: Run episode feature tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/episode_feature_vector_lite/tests/test_episode_feature_vector.py
+
+      - name: Run upstream episode and semantic regressions
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/analyst_episode_locator_lite/tests/test_analyst_episode_locator.py \
+            hpfa/modules/core/context_action_semantics_rebind_lite/tests/test_context_action_semantics_rebind.py
+
+      - name: Football feature policy guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=hpfa/modules/core/episode_feature_vector_lite/src/episode_feature_vector.py
+          grep -F 'REVIEWED_ACTION_OCCURRENCE_ELIGIBLE_ONLY' "$P"
+          grep -F 'NOT_APPLICABLE_ZERO_DURATION' "$P"
+          grep -F 'support_rows_add_action_volume' "$P"
+          grep -F 'episode_feature_action_family_reconciliation_mismatch' "$P"
+          grep -F 'density_is_physical_intensity_truth' "$P"
+          grep -F 'team_share_is_possession_or_control_truth' "$P"
+          grep -F 'space_share_is_territorial_control_truth' "$P"
+          grep -F 'same_timestamp_internal_ordering_allowed' "$P"
+          grep -F 'source_row_order_is_temporal_truth' "$P"
+          ! grep -F 'context_ordinal' "$P"
+
+      - name: Claim locks
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=hpfa/modules/core/episode_feature_vector_lite/src/episode_feature_vector.py
+          grep -F '"canonical_event_count": "UNKNOWN"' "$P"
+          grep -F '"true_action_count": "UNKNOWN"' "$P"
+          grep -F '"phase_truth": False' "$P"
+          grep -F '"rhythm_truth": False' "$P"
+          grep -F '"production_release": False' "$P"
+
+      - name: No sample identity leak
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('hpfa/modules/core/episode_feature_vector_lite/src/episode_feature_vector.py').read_text(encoding='utf-8')
+          forbidden = ['Fenerbahce', 'Galatasaray', 'Genclerbirligi', '15.08.2026', 'Turkey', 'World Cup']
+          assert not any(token in text for token in forbidden)
+          PY

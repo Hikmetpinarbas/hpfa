@@ -1,0 +1,67 @@
+{
+  "module_id": "episode_feature_vector_lite_v1",
+  "input_authority": [
+    "analyst_episode_locator_lite_v1.json",
+    "context_action_semantics_rebind_lite_v1.json"
+  ],
+  "football_purpose": "Describe each analyst navigation episode with transparent visible-action composition before phase/rhythm interpretation.",
+  "action_volume_basis": "REVIEWED_ACTION_OCCURRENCE_ELIGIBLE_ONLY",
+  "required_feature_families": [
+    "TIME_AND_SIZE",
+    "ACTION_COMPOSITION",
+    "TEAM_VISIBLE_COMPOSITION",
+    "SPACE_SURFACE",
+    "PROCESS_MARKERS",
+    "ELIGIBLE_ACTION_CANDIDATE_DENSITY",
+    "REVIEW_AND_COMPLETENESS"
+  ],
+  "denominator_policy": {
+    "action_family_shares": "episode eligible action candidates only",
+    "team_shares": "eligible action candidates with known team only; unknown team count exposed",
+    "zone_shares": "eligible action candidates with known zone only; unknown zone count exposed",
+    "channel_shares": "eligible action candidates with known channel only; unknown channel count exposed",
+    "density": "eligible action candidates divided by admitted positive episode duration; zero-duration episode => NOT_APPLICABLE_ZERO_DURATION"
+  },
+  "reconciliation_policy": {
+    "one_feature_vector_per_episode": true,
+    "global_eligible_action_total_must_equal_semantic_rebind": true,
+    "global_action_family_totals_must_equal_semantic_rebind": true,
+    "episode_eligible_action_total_must_equal_episode_locator": true,
+    "episode_action_family_totals_must_equal_episode_locator": true,
+    "support_reference_participation_adds_action_volume": false,
+    "mismatch_behavior": "FAIL_CLOSED"
+  },
+  "ordering_policy": {
+    "same_timestamp_internal_ordering_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "context_ordinal_is_temporal_truth": false
+  },
+  "zero_duration_policy": {
+    "point_episode_allowed": true,
+    "density_feature_status": "NOT_APPLICABLE_ZERO_DURATION",
+    "synthetic_duration_fallback_allowed": false
+  },
+  "deferred_features": [
+    "progression_truth",
+    "box_or_final_third_directional_advancement_truth",
+    "sequence_truth",
+    "phase_labels",
+    "rhythm_regimes",
+    "momentum_or_physical_intensity",
+    "causal_consequence",
+    "possession_share"
+  ],
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "physical_action_truth": false,
+    "possession_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "rhythm_truth": false,
+    "tactical_truth": false,
+    "dominance_truth": false,
+    "fatigue_truth": false,
+    "production_release": false
+  }
+}
