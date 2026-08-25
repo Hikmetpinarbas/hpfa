@@ -1,0 +1,124 @@
+name: Context Row Nucleus Re-binding V1
+
+on:
+  pull_request:
+    paths:
+      - 'active_match_full_run.py'
+      - 'row_nucleus_inventory.py'
+      - 'hpfa/modules/core/provider_alias_field_semantics_lite/**'
+      - 'hpfa/modules/core/row_nucleus_inventory_lite/**'
+      - 'hpfa/modules/core/content_source_role_resolver_lite/**'
+      - 'hpfa/modules/core/minimum_viable_context_lite/**'
+      - 'hpfa/modules/core/event_window_builder_lite/**'
+      - 'hpfa/modules/core/time_scale_router_lite/**'
+      - 'hpfa/modules/core/axis_integrity_tagger_lite/**'
+      - '.github/workflows/context-row-nucleus-rebinding-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  context-row-nucleus-rebinding:
+    runs-on: ubuntu-24.04
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$EXPECTED_HEAD"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused dependencies
+        run: python -m pip install --disable-pip-version-check pytest openpyxl
+
+      - name: Compile rebinding chain
+        run: |
+          python -m compileall -q \
+            hpfa/modules/core/provider_alias_field_semantics_lite \
+            hpfa/modules/core/row_nucleus_inventory_lite \
+            hpfa/modules/core/content_source_role_resolver_lite \
+            hpfa/modules/core/minimum_viable_context_lite \
+            hpfa/modules/core/event_window_builder_lite \
+            hpfa/modules/core/time_scale_router_lite \
+            hpfa/modules/core/axis_integrity_tagger_lite \
+            row_nucleus_inventory.py \
+            active_match_full_run.py
+
+      - name: Run provider-time and context rebinding tests
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/provider_alias_field_semantics_lite/tests/test_provider_time_semantic_admission.py \
+            hpfa/modules/core/provider_alias_field_semantics_lite/tests/test_provider_alias_field_semantics.py
+
+      - name: Run row-nucleus regressions
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/row_nucleus_inventory_lite/tests \
+            hpfa/modules/core/content_source_role_resolver_lite/tests
+
+      - name: Run P0 time-chain regressions
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/minimum_viable_context_lite/tests \
+            hpfa/modules/core/event_window_builder_lite/tests \
+            hpfa/modules/core/time_scale_router_lite/tests \
+            hpfa/modules/core/axis_integrity_tagger_lite/tests
+
+      - name: Rebinding policy guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_time_semantic_admission.py
+          R=active_match_full_run.py
+          grep -F 'ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT' "$P"
+          grep -F 'dependent_reflection_adds_context_candidate' "$P"
+          grep -F 'row_nucleus_inventory.py' "$R"
+          grep -F 'reflection_inflation_prevented' "$R"
+          ! grep -F 'row_nucleus_candidate_is_event_truth": true' \
+            hpfa/modules/core/provider_alias_field_semantics_lite/contract/provider_alias_field_semantics_lite_v1.json
+
+      - name: Claim locks
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_time_semantic_admission.py
+          R=active_match_full_run.py
+          grep -F '"canonical_event_count": "UNKNOWN"' "$P"
+          grep -F '"true_action_count": "UNKNOWN"' "$P"
+          grep -F '"production_release": False' "$P"
+          grep -F '"phase_truth": False' "$R"
+          grep -F '"rhythm_truth": False' "$R"
+
+      - name: No sample identity leak
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          files = [
+              Path('hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_time_semantic_admission.py'),
+              Path('active_match_full_run.py'),
+          ]
+          forbidden = [
+              'Turkey',
+              'Australia',
+              'World Cup',
+              'Fenerbahce',
+              'Galatasaray',
+              '25.06.2026',
+          ]
+          for path in files:
+              text = path.read_text(encoding='utf-8')
+              assert not any(token in text for token in forbidden), path
+          PY
