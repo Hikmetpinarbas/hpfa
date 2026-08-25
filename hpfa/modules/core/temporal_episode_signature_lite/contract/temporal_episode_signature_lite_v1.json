@@ -1,0 +1,74 @@
+{
+  "contract_id": "temporal_episode_signature_lite_v1",
+  "status": "SPEC_ACCEPTED",
+  "source_role": "CURRENT_PRODUCT_EXTENSION",
+  "upstream_required": [
+    "episode_feature_vector_lite_v1"
+  ],
+  "purpose": "Describe safe, reversible episode-to-episode visible-action change candidates before rhythm or phase interpretation.",
+  "input_requirements": {
+    "feature_assignment_complete": true,
+    "action_volume_basis": "REVIEWED_ACTION_OCCURRENCE_ELIGIBLE_ONLY",
+    "support_rows_add_action_volume": false,
+    "same_timestamp_internal_ordering_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "production_release": false
+  },
+  "primitive_families": {
+    "T01": "eligible_action_candidate_rate_per_minute",
+    "T02": "action_family_candidate_rates_per_minute",
+    "T03": "adjacent_same_period_rate_deltas",
+    "T04": "action_family_composition_shift_candidate_total_variation",
+    "T05": "team_visible_share_change_candidate",
+    "T06": "zone_channel_visible_share_shift_candidate",
+    "T07": "review_and_falsifier_readiness"
+  },
+  "comparison_rules": {
+    "same_period_required": true,
+    "episode_start_time_is_only_comparison_order_basis": true,
+    "same_start_time_internal_ordering_allowed": false,
+    "zero_duration_rate": "NOT_APPLICABLE",
+    "missing_predecessor": "NO_PRIOR_EPISODE_IN_PERIOD",
+    "cross_period_comparison_allowed": false
+  },
+  "deferred": [
+    "rhythm_regime",
+    "phase_label",
+    "momentum",
+    "pressure_wave",
+    "possession_wave",
+    "spectral_entropy",
+    "fft_dominant_frequency",
+    "welch_psd",
+    "stft",
+    "wavelet",
+    "recurrence_truth",
+    "physical_intensity",
+    "fatigue",
+    "tactical_adaptation",
+    "coach_intention"
+  ],
+  "claim_locks": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "possession_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "rhythm_truth": false,
+    "momentum_truth": false,
+    "physical_intensity_truth": false,
+    "tactical_truth": false,
+    "dominance_truth": false,
+    "fatigue_truth": false,
+    "production_release": false
+  },
+  "phone_output_policy": {
+    "allowed_roots": [
+      "/sdcard/Download/HPFA",
+      "/storage/emulated/0/Download/HPFA"
+    ],
+    "nested_output_allowed": false
+  },
+  "donor_policy": "ADAPT_NOT_COPY"
+}
