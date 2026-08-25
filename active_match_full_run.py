@@ -13,6 +13,7 @@ SURFACE_SUFFIXES = {".csv", ".xml", ".xlsx"}
 ROW_NUCLEUS_JSON = "row_nucleus_inventory_lite_v1.json"
 SEMANTIC_JSON = "context_action_semantics_rebind_lite_v1.json"
 EPISODE_JSON = "analyst_episode_locator_lite_v1.json"
+FEATURE_JSON = "episode_feature_vector_lite_v1.json"
 ACTION_VOLUME_BASIS = "REVIEWED_ACTION_OCCURRENCE_ELIGIBLE_ONLY"
 
 
@@ -126,22 +127,47 @@ def _episode_sample(episode: dict[str, Any]) -> list[dict[str, Any]]:
         -float(row.get("duration_candidate_seconds") or 0),
         float(row.get("start_second_candidate") or 0),
     ))
-    sample: list[dict[str, Any]] = []
-    for row in rows[:12]:
-        sample.append({
-            "episode_candidate_id": row.get("episode_candidate_id"),
-            "period_candidate": row.get("period_candidate"),
-            "start_minute_candidate": row.get("start_minute_candidate"),
-            "end_minute_candidate": row.get("end_minute_candidate"),
-            "duration_candidate_seconds": row.get("duration_candidate_seconds"),
-            "action_occurrence_eligible_count": row.get("action_occurrence_eligible_count"),
-            "support_only_context_count": row.get("support_only_context_count"),
-            "action_family_distribution": row.get("action_family_distribution"),
-            "analyst_review_priority_candidate": row.get("analyst_review_priority_candidate"),
-            "selection_reason": row.get("selection_reason"),
-            "review_debt_count": row.get("review_debt_count"),
-        })
-    return sample
+    return [{
+        "episode_candidate_id": row.get("episode_candidate_id"),
+        "period_candidate": row.get("period_candidate"),
+        "start_minute_candidate": row.get("start_minute_candidate"),
+        "end_minute_candidate": row.get("end_minute_candidate"),
+        "duration_candidate_seconds": row.get("duration_candidate_seconds"),
+        "action_occurrence_eligible_count": row.get("action_occurrence_eligible_count"),
+        "support_only_context_count": row.get("support_only_context_count"),
+        "action_family_distribution": row.get("action_family_distribution"),
+        "analyst_review_priority_candidate": row.get("analyst_review_priority_candidate"),
+        "selection_reason": row.get("selection_reason"),
+        "review_debt_count": row.get("review_debt_count"),
+    } for row in rows[:12]]
+
+
+def _feature_sample(feature: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = list(feature.get("episode_feature_vectors") or [])
+    rows.sort(key=lambda row: (
+        -safe_int(row.get("shot_candidate_count")),
+        -safe_int(row.get("turnover_candidate_count")),
+        -safe_int(row.get("eligible_action_candidate_count")),
+        float(row.get("start_second_candidate") or 0),
+    ))
+    return [{
+        "episode_candidate_id": row.get("episode_candidate_id"),
+        "period_candidate": row.get("period_candidate"),
+        "start_minute_candidate": row.get("start_minute_candidate"),
+        "end_minute_candidate": row.get("end_minute_candidate"),
+        "duration_seconds_candidate": row.get("duration_seconds_candidate"),
+        "eligible_action_candidate_count": row.get("eligible_action_candidate_count"),
+        "support_only_context_count": row.get("support_only_context_count"),
+        "action_family_counts": row.get("action_family_counts"),
+        "eligible_action_count_by_team_candidate": row.get("eligible_action_count_by_team_candidate"),
+        "eligible_action_zone_counts": row.get("eligible_action_zone_counts"),
+        "shot_candidate_count": row.get("shot_candidate_count"),
+        "turnover_candidate_count": row.get("turnover_candidate_count"),
+        "recovery_candidate_count": row.get("recovery_candidate_count"),
+        "eligible_visible_action_candidate_density_per_minute": row.get("eligible_visible_action_candidate_density_per_minute"),
+        "density_feature_status": row.get("density_feature_status"),
+        "feature_readiness": row.get("feature_readiness"),
+    } for row in rows[:12]]
 
 
 def write_summary(
@@ -153,6 +179,7 @@ def write_summary(
     minimum_context = read_json(out_dir / "minimum_viable_context_lite_v1.json")
     semantics = read_json(out_dir / SEMANTIC_JSON)
     episode = read_json(out_dir / EPISODE_JSON)
+    feature = read_json(out_dir / FEATURE_JSON)
     event_window = read_json(out_dir / "event_window_builder_lite_v1.json")
     time_scale = read_json(out_dir / "time_scale_router_lite_v1.json")
     axis = read_json(out_dir / "axis_integrity_tagger_lite_v1.json")
@@ -192,6 +219,18 @@ def write_summary(
         and episode.get("canonical_event_count") == "UNKNOWN"
         and episode.get("production_release") is False
     )
+    feature_ready = (
+        bool(feature)
+        and feature.get("feature_assignment_complete") is True
+        and feature.get("action_volume_basis") == ACTION_VOLUME_BASIS
+        and feature.get("support_rows_add_action_volume") is False
+        and safe_int(feature.get("episode_feature_vector_count")) == safe_int(episode.get("episode_candidate_count"))
+        and safe_int(feature.get("total_eligible_action_candidate_count")) == safe_int(semantics.get("action_occurrence_eligible_count"))
+        and (feature.get("eligible_action_family_candidate_counts") or {}) == (semantics.get("eligible_action_family_candidate_counts") or {})
+        and not (feature.get("hard_block_hits") or [])
+        and feature.get("canonical_event_count") == "UNKNOWN"
+        and feature.get("production_release") is False
+    )
     valid_run = (
         bool(input_status.get("input_surface_ready"))
         and all_steps_passed
@@ -199,6 +238,7 @@ def write_summary(
         and row_nucleus_bound
         and semantic_ready
         and episode_ready
+        and feature_ready
     )
 
     report = {
@@ -230,6 +270,11 @@ def write_summary(
             "episode_context_assignment_complete": episode.get("context_assignment_complete"),
             "episode_candidate_count": episode.get("episode_candidate_count"),
             "episode_locator_ready": episode_ready,
+            "episode_feature_output_exists": bool(feature),
+            "episode_feature_status": feature.get("status"),
+            "episode_feature_vector_count": feature.get("episode_feature_vector_count"),
+            "episode_feature_assignment_complete": feature.get("feature_assignment_complete"),
+            "episode_feature_ready": feature_ready,
             "event_window_output_exists": bool(event_window),
             "time_scale_output_exists": bool(time_scale),
             "axis_integrity_output_exists": bool(axis),
@@ -256,6 +301,15 @@ def write_summary(
             "same_time_unordered_episode_layer_count": episode.get("same_time_unordered_layer_count"),
             "action_volume_basis": episode.get("action_volume_basis"),
             "episode_sample": _episode_sample(episode),
+            "episode_feature_vector_count": feature.get("episode_feature_vector_count"),
+            "episode_feature_total_eligible_action_candidate_count": feature.get("total_eligible_action_candidate_count"),
+            "episode_feature_total_support_only_context_count": feature.get("total_support_only_context_count"),
+            "episode_feature_total_unresolved_semantics_context_count": feature.get("total_unresolved_semantics_context_count"),
+            "episode_feature_point_episode_count": feature.get("point_episode_count"),
+            "episode_feature_density_available_episode_count": feature.get("density_available_episode_count"),
+            "episode_feature_density_not_applicable_zero_duration_count": feature.get("density_not_applicable_zero_duration_count"),
+            "episode_feature_review_debt_vector_count": feature.get("review_debt_feature_vector_count"),
+            "episode_feature_sample": _feature_sample(feature),
             "input_context_count": event_window.get("input_context_count"),
             "minute_bearing_context_count": event_window.get("minute_bearing_context_count"),
             "event_window_count": event_window.get("event_window_count"),
@@ -268,10 +322,11 @@ def write_summary(
             "axis_status": axis.get("axis_status"),
             "downstream_permissions": axis.get("downstream_permissions"),
             "episode_navigation_allowed": episode_ready,
+            "episode_feature_description_allowed": feature_ready,
             "rhythm_interpretation_allowed": False,
             "phase_interpretation_allowed": False,
             "safe_statement": (
-                "Visible match contexts are now segmented into analyst navigation episode candidates while only reviewed action-occurrence-eligible evidence contributes to PASS/SHOT/RESTART/TURNOVER/RECOVERY and other action-family volume. Context/reference/participation rows remain visible support and do not add action volume. Episode candidates are not possession, sequence, phase or rhythm truth."
+                "Each analyst navigation episode now has a transparent visible-football feature card built only from reviewed action-occurrence-eligible evidence for action volume, while support/reference contexts remain visible without inflating action counts. Team/space shares are descriptive candidate surfaces and eligible-action density is not physical intensity, momentum, phase or rhythm truth."
             ),
         },
         "claim_boundary": {
@@ -371,6 +426,12 @@ def main() -> int:
         run_step(repo_root, [
             sys.executable,
             "analyst_episode_locator.py",
+            "--input-dir", str(out_dir),
+            "--out-dir", str(out_dir),
+        ]),
+        run_step(repo_root, [
+            sys.executable,
+            "episode_feature_vector.py",
             "--input-dir", str(out_dir),
             "--out-dir", str(out_dir),
         ]),
