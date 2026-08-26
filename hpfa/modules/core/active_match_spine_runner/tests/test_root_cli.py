@@ -1,41 +1,83 @@
 import json
 import subprocess
 import sys
-import zipfile
 from pathlib import Path
+
+from hpfa.modules.core.xlsx_surface_reader_lite.tests.ooxml_fixture import (
+    write_xlsx as write_ooxml_xlsx,
+)
 
 
 PRODUCT_ROOT = Path(__file__).resolve().parents[5]
 CLI = PRODUCT_ROOT / "active_match_spine_runner.py"
 
 
-def _write_csv(path: Path) -> None:
-    path.write_text("id,x,y\n1,10,20\n", encoding="utf-8")
-
-
-def _write_xml(path: Path) -> None:
-    path.write_text("<root><instance/><instance/></root>", encoding="utf-8")
-
-
-def _write_xlsx(path: Path) -> None:
-    with zipfile.ZipFile(path, "w") as zf:
-        zf.writestr(
-            "xl/worksheets/sheet1.xml",
-            "<worksheet><sheetData><row/><row/></sheetData></worksheet>",
+def _write_role_csv(path: Path, role: str) -> None:
+    if role == "TEAM":
+        path.write_text(
+            "ID,start,end,code,action,half,pos_x,pos_y\n"
+            "1,0.0,1.0,Club - Shots,Shots,1,10.0,20.0\n",
+            encoding="utf-8",
         )
+        return
+    action = "Shots saved" if role == "GOALKEEPER" else "Passes accurate"
+    path.write_text(
+        "ID,start,end,code,team,action,half,pos_x,pos_y\n"
+        f"1,0.0,1.0,Subject - {action},Club,{action},1,10.0,20.0\n",
+        encoding="utf-8",
+    )
+
+
+def _write_role_xml(path: Path, role: str) -> None:
+    if role == "TEAM":
+        action = "Shots"
+        code = "Club - Shots"
+        team_label = ""
+    else:
+        action = "Shots saved" if role == "GOALKEEPER" else "Passes accurate"
+        code = f"Subject - {action}"
+        team_label = "<label><group>Team</group><text>Club</text></label>"
+    path.write_text(
+        "<root><instance>"
+        "<ID>1</ID><start>0</start><end>1</end>"
+        f"<code>{code}</code>"
+        f"<label><group>Action</group><text>{action}</text></label>"
+        "<label><group>Half</group><text>1</text></label>"
+        f"{team_label}"
+        "<label><group>pos_x</group><text>10</text></label>"
+        "<label><group>pos_y</group><text>20</text></label>"
+        "</instance></root>",
+        encoding="utf-8",
+    )
+
+
+def _write_role_xlsx(path: Path, role: str) -> None:
+    if role == "GOALKEEPER":
+        name = "Kaleci verileri"
+        rows = [
+            ["Player", "Team", "Shots saved", "Goal kicks"],
+            ["Alpha", "Club", 4, 8],
+        ]
+    else:
+        name = "Oyuncuların verileri"
+        rows = [
+            ["Player", "Team", "Passes accurate", "Dribbles successful"],
+            ["Alpha", "Club", 40, 2],
+        ]
+    write_ooxml_xlsx(path, sheets=[{"name": name, "rows": rows}])
 
 
 def _make_active_match(execution_root: Path) -> Path:
     match = execution_root / "runtime" / "active_single_match" / "current"
     match.mkdir(parents=True)
-    _write_csv(match / "Players.csv")
-    _write_csv(match / "Teams.csv")
-    _write_csv(match / "Goalkeepers.csv")
-    _write_xml(match / "Players.xml")
-    _write_xml(match / "Teams.xml")
-    _write_xml(match / "Goalkeepers.xml")
-    _write_xlsx(match / "Players.xlsx")
-    _write_xlsx(match / "Goalkeepers.xlsx")
+    _write_role_csv(match / "surface_a.csv", "PLAYER")
+    _write_role_xml(match / "surface_b.xml", "PLAYER")
+    _write_role_xlsx(match / "surface_c.xlsx", "PLAYER")
+    _write_role_csv(match / "surface_d.csv", "TEAM")
+    _write_role_xml(match / "surface_e.xml", "TEAM")
+    _write_role_csv(match / "surface_f.csv", "GOALKEEPER")
+    _write_role_xml(match / "surface_g.xml", "GOALKEEPER")
+    _write_role_xlsx(match / "surface_h.xlsx", "GOALKEEPER")
     return match
 
 
@@ -55,6 +97,10 @@ def test_root_cli_accepts_explicit_execution_root_separate_from_product_root(tmp
     out_dir = tmp_path / "HPFA"
 
     assert execution_root.resolve() != PRODUCT_ROOT.resolve()
+    assert all(
+        not any(token in path.name.casefold() for token in ("players", "teams", "goalkeepers"))
+        for path in active_match.iterdir()
+    )
 
     completed = _run_cli(
         str(active_match),
@@ -74,6 +120,15 @@ def test_root_cli_accepts_explicit_execution_root_separate_from_product_root(tmp
     assert result["active_match_authority_validated"] is True
     assert result["execution_root"] == str(execution_root.resolve())
     assert result["active_match_dir"] == str(active_match.resolve())
+    assert result["source_role_resolution"]["resolved_role_counts"] == {
+        "GOALKEEPER_SURFACE_CANDIDATE": 3,
+        "PLAYER_SURFACE_CANDIDATE": 3,
+        "TEAM_SURFACE_CANDIDATE": 2,
+    }
+    assert result["source_role_resolution"]["filename_support_used_for_admission"] is False
+    assert result["canonical_event_count"] == "UNKNOWN"
+    assert result["true_action_count"] == "UNKNOWN"
+    assert result["production_release"] is False
     assert result["production_binding_allowed"] is False
 
 
