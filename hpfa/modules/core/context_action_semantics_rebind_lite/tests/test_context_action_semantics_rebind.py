@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "context_action_semantics_rebind_lite" / "src"
 sys.path.insert(0, str(SRC))
 
+import context_action_semantics_rebind as rebind_module
 from context_action_semantics_rebind import build_rebind, validate_output_root
 
 
@@ -82,8 +83,33 @@ def _payloads() -> tuple[dict, dict]:
     return mvc, row_payload
 
 
+def _append_row(mvc: dict, row: dict, role: str, label: str) -> int:
+    idx = len(row["row_nuclei"])
+    row["row_nuclei"].append(_nucleus(idx, role, label))
+    mvc["context_candidates"].append(_context(idx))
+    row["row_nucleus_candidate_count"] = len(row["row_nuclei"])
+    mvc["context_candidate_count"] = len(mvc["context_candidates"])
+    mvc["row_nucleus_context_binding"]["row_nucleus_candidate_count"] = len(row["row_nuclei"])
+    return idx
+
+
 def _record(result: dict, context_id: str) -> dict:
     return next(row for row in result["context_action_semantic_records"] if row["context_id"] == context_id)
+
+
+def _patched_provider(monkeypatch: pytest.MonkeyPatch, mutate):
+    provider_module, registry = rebind_module.load_registry(ROOT)
+    original = provider_module.classify_label
+
+    class PatchedProvider:
+        normalize_label = staticmethod(provider_module.normalize_label)
+
+        @staticmethod
+        def classify_label(label, **kwargs):
+            result = dict(original(label, **kwargs))
+            return mutate(label, kwargs, result)
+
+    monkeypatch.setattr(rebind_module, "load_registry", lambda _root: (PatchedProvider, registry))
 
 
 def test_reviewed_provider_semantics_rebinds_action_and_non_action_surfaces() -> None:
@@ -132,7 +158,9 @@ def test_lost_balls_and_ball_recoveries_are_correct_action_candidates() -> None:
     assert recovery["action_occurrence_eligible"] is True
     audit = result["semantic_collision_audit"]
     assert audit["lost_ball_turnover_candidate_count"] == 1
+    assert audit["lost_ball_reconciliation_mismatch_count"] == 0
     assert audit["ball_recovery_candidate_count"] == 1
+    assert audit["ball_recovery_reconciliation_mismatch_count"] == 0
 
 
 def test_participation_and_goalkeeper_opponent_shot_reference_do_not_add_action_volume() -> None:
@@ -145,7 +173,72 @@ def test_participation_and_goalkeeper_opponent_shot_reference_do_not_add_action_
     assert gk_reference["provider_semantic_role_candidate"] == "OPPONENT_ACTION_REFERENCE"
     assert gk_reference["provider_action_family_candidate"] == "SHOT"
     assert gk_reference["action_occurrence_eligible"] is False
-    assert result["semantic_collision_audit"]["goalkeeper_shot_reference_action_occurrence_eligible_count"] == 0
+    audit = result["semantic_collision_audit"]
+    assert audit["goalkeeper_shot_reference_record_count"] == 1
+    assert audit["goalkeeper_shot_reference_routing_mismatch_count"] == 0
+    assert audit["goalkeeper_shot_reference_action_occurrence_eligible_count"] == 0
+
+
+def test_goalkeeper_shot_reference_audit_survives_semantic_role_regression(monkeypatch: pytest.MonkeyPatch) -> None:
+    mvc, row = _payloads()
+
+    def mutate(label, kwargs, result):
+        if label == "Shots on target" and kwargs.get("source_role") == "GOALKEEPER_SURFACE_CANDIDATE":
+            result.update({
+                "semantic_role_candidate": "ACTION_ANCHOR",
+                "action_family_candidate": "SHOT",
+                "downstream_eligibility": "ACTION_CANDIDATE_ELIGIBLE",
+                "mapping_status": "EXACT_REVIEWED_CANDIDATE",
+                "review_status": "REVIEWED_CANDIDATE",
+            })
+        return result
+
+    _patched_provider(monkeypatch, mutate)
+    result = build_rebind(mvc, row, repo_root=ROOT)
+    audit = result["semantic_collision_audit"]
+    assert result["status"] == "FAIL_CLOSED"
+    assert audit["goalkeeper_shot_reference_record_count"] == 1
+    assert audit["goalkeeper_shot_reference_action_occurrence_eligible_count"] == 1
+    assert audit["goalkeeper_shot_reference_routing_mismatch_count"] == 1
+    assert "goalkeeper_opponent_shot_reference_promoted_to_action_occurrence" in result["hard_block_hits"]
+
+
+def test_partial_lost_ball_and_recovery_regressions_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    mvc, row = _payloads()
+    _append_row(mvc, row, "PLAYER", "Lost balls in own half")
+    _append_row(mvc, row, "PLAYER", "Ball recoveries in opponent's half")
+
+    def mutate(label, _kwargs, result):
+        if label == "Lost balls in own half":
+            result.update({
+                "semantic_role_candidate": "ACTION_ANCHOR",
+                "action_family_candidate": "PASS",
+                "downstream_eligibility": "ACTION_CANDIDATE_ELIGIBLE",
+                "mapping_status": "EXACT_REVIEWED_CANDIDATE",
+                "review_status": "REVIEWED_CANDIDATE",
+            })
+        if label == "Ball recoveries in opponent's half":
+            result.update({
+                "semantic_role_candidate": "ACTION_ANCHOR",
+                "action_family_candidate": "PASS",
+                "downstream_eligibility": "ACTION_CANDIDATE_ELIGIBLE",
+                "mapping_status": "EXACT_REVIEWED_CANDIDATE",
+                "review_status": "REVIEWED_CANDIDATE",
+            })
+        return result
+
+    _patched_provider(monkeypatch, mutate)
+    result = build_rebind(mvc, row, repo_root=ROOT)
+    audit = result["semantic_collision_audit"]
+    assert result["status"] == "FAIL_CLOSED"
+    assert audit["lost_ball_reviewed_record_count"] == 2
+    assert audit["lost_ball_turnover_candidate_count"] == 1
+    assert audit["lost_ball_reconciliation_mismatch_count"] == 1
+    assert audit["ball_recovery_reviewed_record_count"] == 2
+    assert audit["ball_recovery_candidate_count"] == 1
+    assert audit["ball_recovery_reconciliation_mismatch_count"] == 1
+    assert "lost_ball_turnover_reconciliation_mismatch" in result["hard_block_hits"]
+    assert "ball_recovery_reconciliation_mismatch" in result["hard_block_hits"]
 
 
 def test_attacking_team_shot_anchor_can_remain_action_candidate() -> None:

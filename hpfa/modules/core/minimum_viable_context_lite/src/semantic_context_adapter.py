@@ -6,20 +6,31 @@ CANONICAL_TO_CONTEXT_KEY={
  "event.action":"event_type","event.team":"team","event.player":"player","event.minute":"minute","event.second":"second","event.period":"period",
  "event.start_x":"x","event.start_y":"y","event.end_x":"end_x","event.end_y":"end_y","event.source_file":"_source_file",
 }
+ABSOLUTE_SECOND_CONTEXT_KEYS={"absolute_time_seconds":"absolute_time_seconds","match_second":"match_second"}
+COMPONENT_SECOND_SOURCE_KEYS={"second","seconds","second_raw"}
 def _norm(value): return str(value or "").strip().lower().replace(" ","_")
+def _time_target(source, normalized=None):
+    value=_norm(normalized or source)
+    if value in ABSOLUTE_SECOND_CONTEXT_KEYS: return ABSOLUTE_SECOND_CONTEXT_KEYS[value]
+    if value in COMPONENT_SECOND_SOURCE_KEYS: return "second"
+    return None
 def build_column_map(field_surface,mapping_report=None):
     column_map={}
     for record in (mapping_report or {}).get("mapping_records",[]) or []:
         canonical=record.get("canonical_key_candidate"); source=record.get("source_column")
-        if canonical in CANONICAL_TO_CONTEXT_KEY and source: column_map[str(source)]=CANONICAL_TO_CONTEXT_KEY[str(canonical)]
+        time_target=_time_target(source)
+        if time_target and source: column_map[str(source)]=time_target
+        elif canonical in CANONICAL_TO_CONTEXT_KEY and source: column_map[str(source)]=CANONICAL_TO_CONTEXT_KEY[str(canonical)]
     for record in field_surface.get("field_semantic_records",[]) or []:
         source=record.get("source_column"); normalized=_norm(record.get("normalized_column") or source); canonical=record.get("canonical_key") or record.get("canonical_key_candidate")
-        if canonical in CANONICAL_TO_CONTEXT_KEY and source:
+        time_target=_time_target(source, normalized)
+        if time_target and source:
+            column_map[str(source)]=time_target
+        elif canonical in CANONICAL_TO_CONTEXT_KEY and source:
             column_map.setdefault(str(source),CANONICAL_TO_CONTEXT_KEY[str(canonical)])
         elif normalized in {"event_type","action","type"} and source: column_map.setdefault(str(source),"event_type")
         elif normalized in {"team","team_id","team_name"} and source: column_map.setdefault(str(source),"team")
         elif normalized in {"minute","minutes","minute_raw","match_minute"} and source: column_map.setdefault(str(source),"minute")
-        elif normalized in {"second","seconds","second_raw","absolute_time_seconds","match_second"} and source: column_map.setdefault(str(source),"second")
         elif normalized in {"period","half"} and source: column_map.setdefault(str(source),"period")
         elif normalized in {"x","start_x","pos_x"} and source: column_map.setdefault(str(source),"x")
         elif normalized in {"y","start_y","pos_y"} and source: column_map.setdefault(str(source),"y")
