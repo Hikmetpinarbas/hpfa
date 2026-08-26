@@ -172,8 +172,9 @@ def run_pipeline(
     first_failed_reason_code: str | None = None
     first_failed_artifact_id: str | None = None
     first_failed_stage_index: int | None = None
+    initial_blocking = artifact_is_blocking(current)
 
-    if artifact_is_blocking(current):
+    if initial_blocking:
         first_failed_node = "INITIAL_ARTIFACT"
         first_failed_reason_code = _blocking_reason(current) or "initial_artifact_failed_closed"
         first_failed_artifact_id = str(current.get("artifact_id") or "") or None
@@ -269,8 +270,8 @@ def run_pipeline(
             halt_reason = "review_required"
             break
 
-    completed_all_stages = len(ledger) == len(stages) and not pipeline_halted
-    has_block = any(artifact_is_blocking(record) for record in ledger)
+    completed_all_stages = len(ledger) == len(stages) and not pipeline_halted and not initial_blocking
+    has_block = initial_blocking or any(artifact_is_blocking(record) for record in ledger)
     has_review = any(artifact_requires_review(record) for record in ledger)
 
     if has_block:
