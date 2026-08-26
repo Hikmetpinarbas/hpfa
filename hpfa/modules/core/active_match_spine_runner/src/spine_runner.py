@@ -30,8 +30,10 @@ def repo_root_from_file() -> Path:
 
 
 def _ensure_module_path(path: Path) -> None:
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
+    path_text = str(path)
+    while path_text in sys.path:
+        sys.path.remove(path_text)
+    sys.path.insert(0, path_text)
 
 
 def _resolve_path(path: Path) -> Path:
@@ -40,7 +42,7 @@ def _resolve_path(path: Path) -> Path:
 
 def validate_active_match_authority(path: str | Path) -> Path:
     resolved = _resolve_path(Path(path))
-    if tuple(part.lower() for part in resolved.parts[-3:]) != (
+    if tuple(resolved.parts[-3:]) != (
         "runtime",
         "active_single_match",
         "current",
@@ -70,6 +72,12 @@ def validate_runtime_surface(root: str | Path, path: str | Path) -> Path:
     raise ValueError(f"unregistered_runtime_surface:{relative.as_posix()}")
 
 
+def _validate_imported_module_origin(module: Any, expected_file: Path, module_name: str) -> None:
+    module_file = getattr(module, "__file__", None)
+    if module_file is None or _resolve_path(Path(module_file)) != _resolve_path(expected_file):
+        raise ValueError(f"runtime_module_origin_mismatch:{module_name}")
+
+
 def _surface_manifest_module(root: Path):
     src = validate_runtime_surface(
         root,
@@ -78,6 +86,7 @@ def _surface_manifest_module(root: Path):
     _ensure_module_path(src)
     import surface_manifest  # type: ignore
 
+    _validate_imported_module_origin(surface_manifest, src / "surface_manifest.py", "surface_manifest")
     return surface_manifest
 
 
@@ -89,6 +98,11 @@ def _boundary_scorer_module(root: Path):
     _ensure_module_path(src)
     import boundary_analysis_scorer  # type: ignore
 
+    _validate_imported_module_origin(
+        boundary_analysis_scorer,
+        src / "boundary_analysis_scorer.py",
+        "boundary_analysis_scorer",
+    )
     return boundary_analysis_scorer
 
 
