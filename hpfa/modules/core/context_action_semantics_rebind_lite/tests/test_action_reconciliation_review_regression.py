@@ -1,3 +1,4 @@
+import copy
 import sys
 from pathlib import Path
 
@@ -133,6 +134,37 @@ def test_known_lost_ball_and_recovery_rows_cannot_escape_reconciliation_by_losin
     assert audit["ball_recovery_reconciliation_mismatch_count"] == 1
     assert "lost_ball_turnover_reconciliation_mismatch" in result["hard_block_hits"]
     assert "ball_recovery_reconciliation_mismatch" in result["hard_block_hits"]
+
+
+@pytest.mark.parametrize(
+    ("label", "hard_block"),
+    [
+        ("Lost balls", "lost_ball_turnover_reconciliation_mismatch"),
+        ("Ball recoveries", "ball_recovery_reconciliation_mismatch"),
+    ],
+)
+def test_known_registry_label_remains_in_reconciliation_population_when_routing_fields_regress(
+    monkeypatch: pytest.MonkeyPatch,
+    label: str,
+    hard_block: str,
+) -> None:
+    mvc, row = _payloads()
+    provider_module, registry = rebind_module.load_registry(ROOT)
+    mutated_registry = copy.deepcopy(registry)
+    target = next(rule for rule in mutated_registry["exact_rules"] if rule.get("label") == label)
+    target["action_family"] = "PASS"
+    target["review_status"] = "REVIEW_REQUIRED"
+    target["downstream_eligibility"] = "ACTION_CANDIDATE_REVIEW_LIMITED"
+
+    monkeypatch.setattr(
+        rebind_module,
+        "load_registry",
+        lambda _root: (provider_module, mutated_registry),
+    )
+    result = build_rebind(mvc, row, repo_root=ROOT)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert hard_block in result["hard_block_hits"]
 
 
 def test_unreviewed_prefix_variants_remain_review_debt_not_fail_closed() -> None:
