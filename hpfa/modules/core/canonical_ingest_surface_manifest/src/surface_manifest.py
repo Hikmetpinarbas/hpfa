@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import zipfile
 import xml.etree.ElementTree as ET
@@ -37,6 +38,14 @@ REFERENCE_MARKERS = (
 def source_format(path: Path) -> str:
     suffix = path.suffix.lower().lstrip(".")
     return "xlsx" if suffix == "xlsm" else suffix
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def csv_rows(path: Path) -> int:
@@ -154,11 +163,24 @@ def _candidate_role_evidence(
         status = resolution.get("resolution_status")
         candidate = str(resolution.get("resolved_source_role") or "")
         role = ROLE_CANDIDATE_TO_SURFACE_ROLE.get(candidate)
+        expected_sha256 = str(record.get("sha256") or "").strip().lower()
         if status != "ROLE_CANDIDATE_ADMITTED" or role is None:
             errors.append(f"source_role_candidate_unresolved_or_conflicting:{relative_path}")
             continue
         if relative_path in evidence:
             errors.append(f"source_role_candidate_duplicate_path:{relative_path}")
+            continue
+        if len(expected_sha256) != 64 or any(
+            char not in "0123456789abcdef" for char in expected_sha256
+        ):
+            errors.append(f"source_role_candidate_sha256_missing_or_invalid:{relative_path}")
+            continue
+        current_path = root / relative_path
+        if not current_path.is_file():
+            errors.append(f"source_role_candidate_surface_missing:{relative_path}")
+            continue
+        if file_sha256(current_path) != expected_sha256:
+            errors.append(f"source_role_candidate_content_hash_mismatch:{relative_path}")
             continue
         evidence[relative_path] = {
             "source_file_role": role,
@@ -167,6 +189,7 @@ def _candidate_role_evidence(
             "source_role_resolution_reasons": list(
                 resolution.get("resolution_reasons") or []
             ),
+            "source_role_evidence_sha256": expected_sha256,
             "filename_support_used_for_admission": False,
         }
     return evidence, sorted(set(errors))
@@ -190,6 +213,7 @@ def inventory(
         "source_role_resolution_reasons": role_evidence[
             "source_role_resolution_reasons"
         ],
+        "source_role_evidence_sha256": role_evidence["source_role_evidence_sha256"],
         "filename_support_used_for_admission": False,
         "source_format": fmt,
         "surface_family": surface_family(role, fmt),
@@ -268,6 +292,7 @@ def build_manifest(
         "surfaces": surfaces,
         "source_role_candidate_evidence_status": "PASS",
         "source_role_candidate_admission_policy": "CONTENT_EVIDENCE_ONLY",
+        "source_role_candidate_content_binding": "SHA256_EXACT",
         "filename_support_used_for_admission": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
