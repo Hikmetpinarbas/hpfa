@@ -227,6 +227,41 @@ def _validate_transitive_reader_implementation_origins(
                 f"xml_surface_reader.{attribute}"
             )
 
+    xml_common = xml_modules["xml_common"][0]
+    captured_xml_common_bindings = {
+        "xml_rows": (
+            "MAX_FIELD_PATHS",
+            "MAX_XML_ROW_CANDIDATES",
+            "ROLE_ALIASES",
+            "XmlSurfaceError",
+            "local_name",
+            "norm",
+            "role_for_field",
+            "stable_json",
+        ),
+        "xml_structure": (
+            "MAX_XML_ATTRIBUTES_PER_ELEMENT",
+            "MAX_XML_DEPTH",
+            "MAX_XML_ELEMENTS",
+            "MAX_XML_TEXT_CHARS",
+            "PREFERRED_ROW_TAGS",
+            "XmlSurfaceError",
+            "local_name",
+            "namespace_uri",
+            "norm",
+        ),
+    }
+    for module_name, attributes in captured_xml_common_bindings.items():
+        implementation_module = xml_modules[module_name][0]
+        for attribute in attributes:
+            if getattr(implementation_module, attribute, None) is not getattr(
+                xml_common, attribute, None
+            ):
+                raise ValueError(
+                    "runtime_transitive_import_binding_mismatch:"
+                    f"{module_name}.{attribute}"
+                )
+
 
 def _load_product_legacy_module(
     root: Path,
