@@ -179,8 +179,12 @@ def run_pipeline(
         first_failed_reason_code = _blocking_reason(current) or "initial_artifact_failed_closed"
         first_failed_artifact_id = str(current.get("artifact_id") or "") or None
         first_failed_stage_index = -1
+        pipeline_halted = True
+        halt_reason = "blocking_initial_artifact"
 
     for index, stage in enumerate(stages):
+        if initial_blocking:
+            break
         _validate_stage_spec(stage)
         input_snapshot = deepcopy(current)
         input_fingerprint = artifact_fingerprint(input_snapshot)
