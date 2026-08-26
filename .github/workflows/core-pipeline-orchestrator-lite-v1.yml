@@ -6,6 +6,7 @@ on:
       - hpfa/modules/core/core_pipeline_orchestrator_lite/**
       - hpfa/modules/core/active_match_spine_runner/**
       - docs/contracts/core_pipeline_orchestrator_lite_v1.md
+      - docs/contracts/runtime_closure_integrity_v1.md
       - .github/workflows/core-pipeline-orchestrator-lite-v1.yml
   workflow_dispatch:
 
