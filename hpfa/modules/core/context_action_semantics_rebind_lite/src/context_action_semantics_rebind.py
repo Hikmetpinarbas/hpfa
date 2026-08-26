@@ -158,6 +158,12 @@ def _raw_label(nucleus: dict[str, Any]) -> str:
     return _clean(resolved.get("action") or resolved.get("code"))
 
 
+def _goalkeeper_opponent_shot_reference_label(normalized_label: str) -> bool:
+    if normalized_label in {"shots on target", "shots off target", "free-kick shots"}:
+        return True
+    return normalized_label.startswith("opponent's ") and "shots on target" in normalized_label
+
+
 def _semantic_record(
     *,
     context: dict[str, Any],
@@ -342,12 +348,49 @@ def build_rebind(
     ]
     lost_ball_rows = [row for row in records if row["normalized_label"].startswith("lost balls")]
     recovery_rows = [row for row in records if row["normalized_label"].startswith("ball recoveries")]
+    reviewed_lost_ball_rows = [
+        row for row in lost_ball_rows if row["provider_semantics_review_status"] == "REVIEWED_CANDIDATE"
+    ]
+    reviewed_recovery_rows = [
+        row for row in recovery_rows if row["provider_semantics_review_status"] == "REVIEWED_CANDIDATE"
+    ]
     gk_shot_reference_rows = [
         row
         for row in records
         if row["source_role"] == "GOALKEEPER"
-        and row["provider_semantic_role_candidate"] == "OPPONENT_ACTION_REFERENCE"
-        and row["provider_action_family_candidate"] == "SHOT"
+        and _goalkeeper_opponent_shot_reference_label(row["normalized_label"])
+    ]
+
+    lost_ball_mismatches = [
+        row
+        for row in reviewed_lost_ball_rows
+        if not (
+            row["provider_semantic_role_candidate"] == "ACTION_ANCHOR"
+            and row["provider_action_family_candidate"] == "TURNOVER"
+            and row["provider_downstream_eligibility"] == "ACTION_CANDIDATE_ELIGIBLE"
+            and row["action_occurrence_eligible"] is True
+        )
+    ]
+    recovery_mismatches = [
+        row
+        for row in reviewed_recovery_rows
+        if not (
+            row["provider_semantic_role_candidate"] == "ACTION_ANCHOR"
+            and row["provider_action_family_candidate"] == "RECOVERY"
+            and row["provider_downstream_eligibility"] == "ACTION_CANDIDATE_ELIGIBLE"
+            and row["action_occurrence_eligible"] is True
+        )
+    ]
+    gk_shot_reference_mismatches = [
+        row
+        for row in gk_shot_reference_rows
+        if not (
+            row["provider_semantic_role_candidate"] == "OPPONENT_ACTION_REFERENCE"
+            and row["provider_action_family_candidate"] == "SHOT"
+            and row["provider_downstream_eligibility"] == "REFERENCE_ONLY"
+            and row["action_occurrence_eligible"] is False
+            and row["non_action_context_or_reference"] is True
+        )
     ]
 
     collision_audit = {
@@ -360,36 +403,51 @@ def build_rebind(
             1 for row in gk_goal_kicks if row["action_occurrence_eligible"]
         ),
         "lost_ball_record_count": len(lost_ball_rows),
+        "lost_ball_reviewed_record_count": len(reviewed_lost_ball_rows),
         "lost_ball_turnover_candidate_count": sum(
             1
-            for row in lost_ball_rows
+            for row in reviewed_lost_ball_rows
             if row["provider_action_family_candidate"] == "TURNOVER"
             and row["action_occurrence_eligible"]
         ),
+        "lost_ball_reconciliation_mismatch_count": len(lost_ball_mismatches),
         "ball_recovery_record_count": len(recovery_rows),
+        "ball_recovery_reviewed_record_count": len(reviewed_recovery_rows),
         "ball_recovery_candidate_count": sum(
             1
-            for row in recovery_rows
+            for row in reviewed_recovery_rows
             if row["provider_action_family_candidate"] == "RECOVERY"
             and row["action_occurrence_eligible"]
         ),
+        "ball_recovery_reconciliation_mismatch_count": len(recovery_mismatches),
         "goalkeeper_shot_reference_record_count": len(gk_shot_reference_rows),
         "goalkeeper_shot_reference_action_occurrence_eligible_count": sum(
             1 for row in gk_shot_reference_rows if row["action_occurrence_eligible"]
         ),
+        "goalkeeper_shot_reference_routing_mismatch_count": len(gk_shot_reference_mismatches),
     }
 
     if collision_audit["team_goal_kick_length_action_occurrence_eligible_count"]:
         blocks.append("team_goal_kick_length_reference_promoted_to_action_occurrence")
     if collision_audit["goalkeeper_shot_reference_action_occurrence_eligible_count"]:
         blocks.append("goalkeeper_opponent_shot_reference_promoted_to_action_occurrence")
+    if collision_audit["goalkeeper_shot_reference_routing_mismatch_count"]:
+        blocks.append("goalkeeper_opponent_shot_reference_routing_incomplete")
     if team_goal_kick_length and collision_audit["team_goal_kick_length_record_count"] != sum(
         1 for row in team_goal_kick_length if row["non_action_context_or_reference"]
     ):
         blocks.append("team_goal_kick_length_reference_routing_incomplete")
-    if lost_ball_rows and not collision_audit["lost_ball_turnover_candidate_count"]:
+    if collision_audit["lost_ball_reconciliation_mismatch_count"]:
+        blocks.append("lost_ball_turnover_reconciliation_mismatch")
+    elif lost_ball_rows and not reviewed_lost_ball_rows:
+        reviews.append("lost_ball_turnover_mapping_not_reviewed")
+    elif reviewed_lost_ball_rows and not collision_audit["lost_ball_turnover_candidate_count"]:
         reviews.append("lost_ball_turnover_mapping_not_visible")
-    if recovery_rows and not collision_audit["ball_recovery_candidate_count"]:
+    if collision_audit["ball_recovery_reconciliation_mismatch_count"]:
+        blocks.append("ball_recovery_reconciliation_mismatch")
+    elif recovery_rows and not reviewed_recovery_rows:
+        reviews.append("ball_recovery_mapping_not_reviewed")
+    elif reviewed_recovery_rows and not collision_audit["ball_recovery_candidate_count"]:
         reviews.append("ball_recovery_mapping_not_visible")
 
     if unresolved_count:
@@ -512,9 +570,9 @@ def _analyst_text(report: dict[str, Any]) -> str:
         "Provider semantic collision checks:",
         f"- TEAM goal-kick-length references visible: {audit.get('team_goal_kick_length_record_count', 0)}; promoted to action occurrence: {audit.get('team_goal_kick_length_action_occurrence_eligible_count', 0)}",
         f"- GOALKEEPER goal-kick action anchors visible: {audit.get('goalkeeper_goal_kick_action_occurrence_eligible_count', 0)}",
-        f"- Lost-ball turnover candidates visible: {audit.get('lost_ball_turnover_candidate_count', 0)}",
-        f"- Ball-recovery candidates visible: {audit.get('ball_recovery_candidate_count', 0)}",
-        f"- Goalkeeper opponent-shot references promoted to action occurrence: {audit.get('goalkeeper_shot_reference_action_occurrence_eligible_count', 0)}",
+        f"- Lost-ball reviewed rows: {audit.get('lost_ball_reviewed_record_count', 0)}; reconciliation mismatches: {audit.get('lost_ball_reconciliation_mismatch_count', 0)}",
+        f"- Ball-recovery reviewed rows: {audit.get('ball_recovery_reviewed_record_count', 0)}; reconciliation mismatches: {audit.get('ball_recovery_reconciliation_mismatch_count', 0)}",
+        f"- Goalkeeper opponent-shot reference labels visible: {audit.get('goalkeeper_shot_reference_record_count', 0)}; routing mismatches: {audit.get('goalkeeper_shot_reference_routing_mismatch_count', 0)}; promoted to action occurrence: {audit.get('goalkeeper_shot_reference_action_occurrence_eligible_count', 0)}",
         "",
         "Safe meaning: row-level context remains visible, but only reviewed action-anchor candidates may contribute to future action-volume analysis.",
         "This output does not establish physical action count, possession, sequence, phase, rhythm or tactical truth.",
