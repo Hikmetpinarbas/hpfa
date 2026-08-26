@@ -11,6 +11,20 @@ sys.path.insert(0, str(SRC))
 from spine_runner import _content_source_role_resolver_module  # noqa: E402
 
 
+XML_SURFACE_READER_XML_COMMON_BINDINGS = (
+    "CANONICAL_EVENT_COUNT",
+    "CLAIM_CEILING",
+    "MODULE_ID",
+    "OUT",
+    "XmlSurfaceError",
+    "is_active",
+    "representatives",
+    "resolve_inventory_path",
+    "security_guard",
+    "validate_out",
+)
+
+
 def test_product_transitive_reader_implementation_origins_are_exact():
     resolver = _content_source_role_resolver_module(ROOT)
 
@@ -41,12 +55,12 @@ def test_product_transitive_reader_implementation_origins_are_exact():
     assert Path(inventory_impl.__file__).resolve() == expected_inventory.resolve()
     assert resolver.multiformat_file_inventory.build_inventory is inventory_impl.build_inventory
 
-    assert resolver.xml_surface_reader.security_guard is sys.modules["xml_common"].security_guard
+    xml_common = sys.modules["xml_common"]
+    for attribute in XML_SURFACE_READER_XML_COMMON_BINDINGS:
+        assert getattr(resolver.xml_surface_reader, attribute) is getattr(xml_common, attribute)
     assert resolver.xml_surface_reader.profile_rows is sys.modules["xml_rows"].profile_rows
     assert resolver.xml_surface_reader.scan_structure is sys.modules["xml_structure"].scan_structure
-    assert resolver.xml_surface_reader.XmlSurfaceError is sys.modules["xml_common"].XmlSurfaceError
 
-    xml_common = sys.modules["xml_common"]
     assert sys.modules["xml_rows"].local_name is xml_common.local_name
     assert sys.modules["xml_rows"].role_for_field is xml_common.role_for_field
     assert sys.modules["xml_structure"].local_name is xml_common.local_name
@@ -129,8 +143,30 @@ def test_stale_xml_reader_callable_binding_fails_closed_before_resolver_executio
     with pytest.raises(
         ValueError,
         match=(
-            r"runtime_transitive_callable_binding_mismatch:"
+            r"runtime_transitive_import_binding_mismatch:"
             r"xml_surface_reader\.security_guard"
+        ),
+    ):
+        _content_source_role_resolver_module(ROOT)
+
+
+@pytest.mark.parametrize("attribute", XML_SURFACE_READER_XML_COMMON_BINDINGS)
+def test_every_xml_surface_reader_xml_common_capture_fails_closed_when_stale(
+    monkeypatch,
+    attribute,
+):
+    resolver = _content_source_role_resolver_module(ROOT)
+    xml_common = sys.modules["xml_common"]
+    assert getattr(resolver.xml_surface_reader, attribute) is getattr(xml_common, attribute)
+
+    stale_capture = object()
+    monkeypatch.setattr(resolver.xml_surface_reader, attribute, stale_capture)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"runtime_transitive_import_binding_mismatch:"
+            + rf"xml_surface_reader\.{attribute}"
         ),
     ):
         _content_source_role_resolver_module(ROOT)
