@@ -205,6 +205,8 @@ def _fail_payload(blocks: list[str], reviews: list[str], context_count: int) -> 
         "context_assignment_count": 0,
         "context_assignment_complete": False,
         "unassigned_context_count": context_count,
+        "administrative_boundary_visible_layer_collision_time_count": 0,
+        "administrative_boundary_visible_layer_collision_boundary_count": 0,
         "action_volume_basis": ACTION_VOLUME_BASIS,
         "navigation_time_layer_basis": NAVIGATION_TIME_BASIS,
         "support_rows_add_action_volume": False,
@@ -332,6 +334,9 @@ def build_episode_locator(
         members = sorted(members, key=lambda row: row["context_id"])
         admin_members = [row for row in members if row.get("admin_type")]
         visible_members = [row for row in members if not row.get("admin_type")]
+        same_time_admin_visible_collision = bool(admin_members and visible_members)
+        group_boundary_candidate_ids: list[str] = []
+        group_boundary_types: list[str] = []
 
         if admin_members:
             by_admin: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -344,8 +349,11 @@ def build_episode_locator(
                     for row in boundary_members
                     for reason in row["review_reasons"]
                 ]
+                boundary_id = "aeb_" + _digest(period, second, admin_type, context_ids)[:24]
+                group_boundary_candidate_ids.append(boundary_id)
+                group_boundary_types.append(admin_type)
                 admin_boundaries.append({
-                    "administrative_boundary_candidate_id": "aeb_" + _digest(period, second, admin_type, context_ids)[:24],
+                    "administrative_boundary_candidate_id": boundary_id,
                     "boundary_type": admin_type,
                     "period_candidate": period,
                     "second_candidate": second,
@@ -355,6 +363,11 @@ def build_episode_locator(
                     "context_count": len(context_ids),
                     "review_debt_refs": debt,
                     "review_debt_count": len(debt),
+                    "same_time_visible_layer_collision": same_time_admin_visible_collision,
+                    "boundary_order_relation_to_visible_layer": (
+                        "SAME_TIME_UNORDERED" if same_time_admin_visible_collision else "NO_SAME_TIME_VISIBLE_LAYER"
+                    ),
+                    "boundary_can_split_same_time_visible_layer": False,
                     "boundary_is_football_action_truth": False,
                     "boundary_is_phase_truth": False,
                     "same_timestamp_internal_ordering_allowed": False,
@@ -401,7 +414,10 @@ def build_episode_locator(
                 "ball_loss_visible": action_counts.get("TURNOVER", 0) > 0,
                 "recovery_visible": action_counts.get("RECOVERY", 0) > 0,
                 "review_debt_refs": debt,
-                "same_time_unordered": len(context_ids) > 1,
+                "administrative_boundary_same_time_collision": same_time_admin_visible_collision,
+                "same_time_administrative_boundary_refs": group_boundary_candidate_ids,
+                "same_time_administrative_boundary_types": sorted(group_boundary_types),
+                "same_time_unordered": len(context_ids) > 1 or same_time_admin_visible_collision,
                 "same_timestamp_internal_ordering_allowed": False,
                 "source_row_order_is_temporal_truth": False,
                 "action_volume_basis": ACTION_VOLUME_BASIS,
@@ -418,6 +434,12 @@ def build_episode_locator(
         boundary_times_by_period[boundary["period_candidate"]].append(boundary["second_candidate"])
     for layer in time_layers:
         layers_by_period[layer["period_candidate"]].append(layer)
+
+    same_time_boundary_collision_keys = {
+        (layer["period_candidate"], layer["second_candidate"])
+        for layer in time_layers
+        if layer.get("administrative_boundary_same_time_collision")
+    }
 
     episodes: list[dict[str, Any]] = []
     assignments: list[dict[str, Any]] = []
@@ -456,6 +478,8 @@ def build_episode_locator(
             selection_reasons.add("MULTI_ELIGIBLE_ACTION_FAMILY_VISIBLE")
         if not eligible_refs:
             selection_reasons.add("NO_ELIGIBLE_ACTION_SIGNAL")
+        if any(layer.get("administrative_boundary_same_time_collision") for layer in layers):
+            selection_reasons.add("SAME_TIME_ADMIN_BOUNDARY_COLLISION_REVIEW")
         if terminal_count and (restart_count or (loss_count and recovery_count)):
             priority = "HIGH_REVIEW_PRIORITY_CANDIDATE"
         elif terminal_count or restart_count or (loss_count and recovery_count):
@@ -522,6 +546,8 @@ def build_episode_locator(
     for period in all_periods:
         timeline: list[tuple[float, int, str, Any]] = []
         for second in sorted(set(boundary_times_by_period.get(period, []))):
+            if (period, second) in same_time_boundary_collision_keys:
+                continue
             timeline.append((second, 0, "BOUNDARY", boundaries_by_period_time[(period, second)]))
         for layer in layers_by_period.get(period, []):
             timeline.append((layer["second_candidate"], 1, "LAYER", layer))
@@ -592,10 +618,21 @@ def build_episode_locator(
     blocks = sorted(set(blocks))
     admin_review_debt_count = sum(boundary.get("review_debt_count", 0) for boundary in admin_boundaries)
     episode_review_debt_count = sum(episode.get("review_debt_count", 0) for episode in episodes)
+    admin_visible_collision_boundary_count = sum(
+        1 for boundary in admin_boundaries if boundary.get("same_time_visible_layer_collision")
+    )
+    admin_visible_collision_time_count = len(same_time_boundary_collision_keys)
+    admin_visible_collision_context_count = sum(
+        int(boundary.get("context_count") or 0)
+        for boundary in admin_boundaries
+        if boundary.get("same_time_visible_layer_collision")
+    )
     if admin_review_debt_count:
         reviews.append("administrative_boundary_review_debt_visible")
     if episode_review_debt_count:
         reviews.append("episode_review_debt_visible")
+    if admin_visible_collision_time_count:
+        reviews.append("administrative_boundary_same_time_visible_layer_collision")
     reviews = sorted(set(reviews))
     status = "FAIL_CLOSED" if blocks else ("REVIEW_REQUIRED" if reviews else "PASS")
     assignment_complete = not blocks and len(assigned_context_ids) == len(expected_context_ids)
@@ -621,6 +658,10 @@ def build_episode_locator(
         "administrative_boundary_candidate_count": len(admin_boundaries),
         "administrative_boundary_context_count": sum(boundary["context_count"] for boundary in admin_boundaries),
         "administrative_boundary_review_debt_count": admin_review_debt_count,
+        "administrative_boundary_visible_layer_collision_time_count": admin_visible_collision_time_count,
+        "administrative_boundary_visible_layer_collision_boundary_count": admin_visible_collision_boundary_count,
+        "administrative_boundary_visible_layer_collision_context_count": admin_visible_collision_context_count,
+        "administrative_boundary_same_time_collision_policy": "SAME_TIME_UNORDERED_REVIEW_NO_SPLIT",
         "episode_candidates": episodes,
         "episode_candidate_count": len(episodes),
         "zero_duration_episode_candidate_count": zero_duration_count,
@@ -682,6 +723,7 @@ def _summary_text(report: dict[str, Any]) -> str:
         f"episode_support_only_context_count={report.get('episode_support_only_context_count')}",
         f"zero_duration_episode_candidate_count={report.get('zero_duration_episode_candidate_count')}",
         f"administrative_boundary_candidate_count={report.get('administrative_boundary_candidate_count')}",
+        f"administrative_boundary_visible_layer_collision_time_count={report.get('administrative_boundary_visible_layer_collision_time_count')}",
         f"context_assignment_complete={str(report.get('context_assignment_complete')).lower()}",
         f"action_volume_basis={report.get('action_volume_basis')}",
         f"review_hits={report.get('review_hits')}",
@@ -701,6 +743,7 @@ def _analyst_text(report: dict[str, Any]) -> str:
         f"Eligible action evidence assigned to episodes: {report.get('episode_action_occurrence_eligible_count', 0)}",
         f"Support/context rows retained without adding action volume: {report.get('episode_support_only_context_count', 0)}",
         f"Administrative boundary candidates: {report.get('administrative_boundary_candidate_count', 0)}",
+        f"Same-time admin-boundary/visible-layer collisions kept unordered: {report.get('administrative_boundary_visible_layer_collision_time_count', 0)}",
         "",
         "Review-priority episode sample:",
     ]
@@ -716,6 +759,7 @@ def _analyst_text(report: dict[str, Any]) -> str:
     lines.extend([
         "",
         "Safe meaning: episode boundaries are analyst navigation candidates.",
+        "Administrative boundaries sharing the exact admitted timestamp with a visible layer do not create invented before/after order and do not split that same-time layer.",
         "Only reviewed action-occurrence-eligible evidence contributes to action-family volume and review priority.",
         "Context/reference/participation rows remain visible support but add no action volume.",
         "No possession, sequence, phase, rhythm, dominance or tactical truth is produced.",
@@ -762,6 +806,7 @@ def main() -> int:
         "episode_action_occurrence_eligible_count": report.get("episode_action_occurrence_eligible_count"),
         "episode_support_only_context_count": report.get("episode_support_only_context_count"),
         "administrative_boundary_candidate_count": report.get("administrative_boundary_candidate_count"),
+        "administrative_boundary_visible_layer_collision_time_count": report.get("administrative_boundary_visible_layer_collision_time_count"),
         "context_assignment_complete": report.get("context_assignment_complete"),
         "action_volume_basis": report.get("action_volume_basis"),
         "canonical_event_count": "UNKNOWN",
