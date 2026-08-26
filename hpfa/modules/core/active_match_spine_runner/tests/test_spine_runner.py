@@ -1,7 +1,8 @@
 import json
+import sys
+import types
 import zipfile
 from pathlib import Path
-import sys
 
 import pytest
 
@@ -10,6 +11,8 @@ SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
 sys.path.insert(0, str(SRC))
 
 from spine_runner import (  # noqa: E402
+    _boundary_scorer_module,
+    _surface_manifest_module,
     run_spine_check,
     validate_active_match_authority,
     validate_output_root,
@@ -131,6 +134,13 @@ def test_active_match_authority_is_path_discovered_but_suffix_contract_is_fixed(
         validate_active_match_authority(wrong)
 
 
+def test_case_variant_active_match_authority_suffix_is_rejected(tmp_path):
+    case_variant = tmp_path / "RUNTIME" / "ACTIVE_SINGLE_MATCH" / "CURRENT"
+    case_variant.mkdir(parents=True)
+    with pytest.raises(ValueError, match="runtime_authority_path_invalid"):
+        validate_active_match_authority(case_variant)
+
+
 def test_only_registered_product_runtime_surfaces_are_executable():
     allowed = ROOT / "hpfa" / "modules" / "core" / "canonical_ingest_surface_manifest" / "src"
     assert validate_runtime_surface(ROOT, allowed) == allowed.resolve()
@@ -158,3 +168,17 @@ def test_runtime_surface_outside_product_repo_is_rejected(tmp_path):
     outside.write_text("pass\n", encoding="utf-8")
     with pytest.raises(ValueError, match="runtime_surface_outside_product_repo"):
         validate_runtime_surface(ROOT, outside)
+
+
+def test_cached_surface_manifest_from_wrong_origin_fails_closed(monkeypatch, tmp_path):
+    fake = types.SimpleNamespace(__file__=str(tmp_path / "surface_manifest.py"))
+    monkeypatch.setitem(sys.modules, "surface_manifest", fake)
+    with pytest.raises(ValueError, match="runtime_module_origin_mismatch:surface_manifest"):
+        _surface_manifest_module(ROOT)
+
+
+def test_cached_boundary_scorer_from_wrong_origin_fails_closed(monkeypatch, tmp_path):
+    fake = types.SimpleNamespace(__file__=str(tmp_path / "boundary_analysis_scorer.py"))
+    monkeypatch.setitem(sys.modules, "boundary_analysis_scorer", fake)
+    with pytest.raises(ValueError, match="runtime_module_origin_mismatch:boundary_analysis_scorer"):
+        _boundary_scorer_module(ROOT)
