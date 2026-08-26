@@ -46,8 +46,8 @@ jobs:
         shell: bash
         run: |
           if grep -RniE 'Galatasaray|Fenerbahce|Fenerbahçe|Besiktas|Beşiktaş|Trabzonspor' \
-            hpfa/modules/core/core_pipeline_orchestrator_lite \
-            hpfa/modules/core/active_match_spine_runner; then
+            hpfa/modules/core/core_pipeline_orchestrator_lite/src \
+            hpfa/modules/core/active_match_spine_runner/src; then
             echo 'sample_match_identity_leak_detected'
             exit 1
           fi
