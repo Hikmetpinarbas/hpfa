@@ -11,6 +11,11 @@ sys.path.insert(0, str(SRC))
 from spine_runner import _content_source_role_resolver_module  # noqa: E402
 
 
+NATIVE_OOXML_MODULE = "hpfa.modules.core.xlsx_surface_reader_lite.src.native_ooxml"
+HEADER_SEMANTICS_MODULE = (
+    "hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_header_semantics"
+)
+
 XML_SURFACE_READER_XML_COMMON_BINDINGS = (
     "CANONICAL_EVENT_COUNT",
     "CLAIM_CEILING",
@@ -39,8 +44,34 @@ def test_product_transitive_reader_implementation_origins_are_exact():
         / "xlsx_surface_reader"
         / "native_reader.py"
     )
+    expected_ooxml = (
+        ROOT
+        / "hpfa"
+        / "modules"
+        / "core"
+        / "xlsx_surface_reader_lite"
+        / "src"
+        / "native_ooxml.py"
+    )
+    expected_header_semantics = (
+        ROOT
+        / "hpfa"
+        / "modules"
+        / "core"
+        / "xlsx_surface_reader_lite"
+        / "src"
+        / "xlsx_header_semantics.py"
+    )
+    native_ooxml = sys.modules[NATIVE_OOXML_MODULE]
+    header_semantics = sys.modules[HEADER_SEMANTICS_MODULE]
+
     assert Path(xlsx_native_reader.__file__).resolve() == expected_xlsx.resolve()
+    assert Path(native_ooxml.__file__).resolve() == expected_ooxml.resolve()
+    assert Path(header_semantics.__file__).resolve() == expected_header_semantics.resolve()
     assert resolver.xlsx_surface_reader.inspect_xlsx_file is xlsx_native_reader.inspect_xlsx_file
+    assert xlsx_native_reader.load_workbook is native_ooxml.load_workbook
+    assert xlsx_native_reader.InvalidFileException is native_ooxml.InvalidFileException
+    assert xlsx_native_reader._semantic_header_norm is header_semantics.semantic_header_norm
 
     inventory_impl = resolver.multiformat_file_inventory._impl
     expected_inventory = (
@@ -65,6 +96,74 @@ def test_product_transitive_reader_implementation_origins_are_exact():
     assert sys.modules["xml_rows"].role_for_field is xml_common.role_for_field
     assert sys.modules["xml_structure"].local_name is xml_common.local_name
     assert sys.modules["xml_structure"].namespace_uri is xml_common.namespace_uri
+
+
+def test_cached_xlsx_native_ooxml_from_wrong_origin_fails_closed(monkeypatch, tmp_path):
+    resolver = _content_source_role_resolver_module(ROOT)
+    xlsx_native_reader = resolver.xlsx_surface_reader.native_reader
+    product_ooxml = sys.modules[NATIVE_OOXML_MODULE]
+    fake_ooxml = types.SimpleNamespace(
+        __file__=str(tmp_path / "adversary" / "native_ooxml.py"),
+        load_workbook=product_ooxml.load_workbook,
+        InvalidFileException=product_ooxml.InvalidFileException,
+    )
+    assert Path(xlsx_native_reader.__file__).resolve().name == "native_reader.py"
+
+    monkeypatch.setitem(sys.modules, NATIVE_OOXML_MODULE, fake_ooxml)
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime_module_origin_mismatch:xlsx_surface_reader\.native_ooxml",
+    ):
+        _content_source_role_resolver_module(ROOT)
+
+
+def test_product_native_reader_with_stale_load_workbook_capture_fails_closed(monkeypatch):
+    resolver = _content_source_role_resolver_module(ROOT)
+    xlsx_native_reader = resolver.xlsx_surface_reader.native_reader
+    product_ooxml = sys.modules[NATIVE_OOXML_MODULE]
+    assert xlsx_native_reader.load_workbook is product_ooxml.load_workbook
+
+    def adversarial_load_workbook(*_args, **_kwargs):
+        raise AssertionError("stale XLSX load_workbook must never execute")
+
+    monkeypatch.setattr(xlsx_native_reader, "load_workbook", adversarial_load_workbook)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"runtime_transitive_import_binding_mismatch:"
+            r"xlsx_surface_reader\.native_reader\.load_workbook"
+        ),
+    ):
+        _content_source_role_resolver_module(ROOT)
+
+
+def test_product_native_reader_with_stale_header_normalizer_capture_fails_closed(
+    monkeypatch,
+):
+    resolver = _content_source_role_resolver_module(ROOT)
+    xlsx_native_reader = resolver.xlsx_surface_reader.native_reader
+    header_semantics = sys.modules[HEADER_SEMANTICS_MODULE]
+    assert xlsx_native_reader._semantic_header_norm is header_semantics.semantic_header_norm
+
+    def adversarial_header_norm(*_args, **_kwargs):
+        raise AssertionError("stale XLSX header normalizer must never execute")
+
+    monkeypatch.setattr(
+        xlsx_native_reader,
+        "_semantic_header_norm",
+        adversarial_header_norm,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"runtime_transitive_import_binding_mismatch:"
+            r"xlsx_surface_reader\.native_reader\._semantic_header_norm"
+        ),
+    ):
+        _content_source_role_resolver_module(ROOT)
 
 
 def test_cached_xlsx_nested_reader_from_wrong_origin_fails_closed(monkeypatch, tmp_path):
