@@ -11,6 +11,7 @@ PHONE_OUTPUT_ROOTS = (
     Path("/sdcard/Download/HPFA"),
     Path("/storage/emulated/0/Download/HPFA"),
 )
+ACTIVE_MATCH_RELATIVE_PATH = Path("runtime/active_single_match/current")
 ALLOWED_RUNTIME_SURFACES = (
     Path("hpfa/modules/core/canonical_ingest_surface_manifest"),
     Path("hpfa/modules/core/composite_integration_office"),
@@ -22,6 +23,15 @@ FORBIDDEN_RUNTIME_PARTS = {
     "donors": "donor_surface_runtime_bound",
     "reference_only": "reference_only_surface_executed",
     "fixtures": "fixture_surface_used_as_active_match",
+}
+FORBIDDEN_AUTHORITY_ANCESTRY_PARTS = {
+    "quarantine",
+    "archive",
+    "archives",
+    "donor",
+    "donors",
+    "reference_only",
+    "fixtures",
 }
 
 
@@ -40,14 +50,36 @@ def _resolve_path(path: Path) -> Path:
     return path.expanduser().resolve(strict=False)
 
 
-def validate_active_match_authority(path: str | Path) -> Path:
+def _forbidden_authority_ancestry_token(path: Path) -> str | None:
+    for part in path.parts:
+        token = part.lower()
+        if token in FORBIDDEN_AUTHORITY_ANCESTRY_PARTS:
+            return token
+    return None
+
+
+def validate_active_match_authority(
+    path: str | Path,
+    execution_root: str | Path,
+) -> Path:
     resolved = _resolve_path(Path(path))
-    if tuple(resolved.parts[-3:]) != (
-        "runtime",
-        "active_single_match",
-        "current",
-    ):
+    selected_execution_root = _resolve_path(Path(execution_root))
+
+    if tuple(resolved.parts[-3:]) != tuple(ACTIVE_MATCH_RELATIVE_PATH.parts):
         raise ValueError(f"runtime_authority_path_invalid:{resolved}")
+
+    forbidden_token = _forbidden_authority_ancestry_token(resolved)
+    if forbidden_token is not None:
+        raise ValueError(
+            f"runtime_authority_forbidden_ancestry:{forbidden_token}:{resolved}"
+        )
+
+    expected = _resolve_path(selected_execution_root / ACTIVE_MATCH_RELATIVE_PATH)
+    if resolved != expected:
+        raise ValueError(
+            "runtime_authority_root_binding_mismatch:"
+            f"{resolved}:expected:{expected}"
+        )
     return resolved
 
 
@@ -133,9 +165,18 @@ def run_spine_check(
     out_dir: str | Path,
     composite_registry: str | Path | None = None,
     root: str | Path | None = None,
+    execution_root: str | Path | None = None,
 ) -> dict[str, Any]:
     repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
-    active_match_path = validate_active_match_authority(active_match_dir)
+    selected_execution_root = (
+        _resolve_path(Path(execution_root))
+        if execution_root is not None
+        else _resolve_path(repo_root)
+    )
+    active_match_path = validate_active_match_authority(
+        active_match_dir,
+        selected_execution_root,
+    )
     output_root = validate_output_root(out_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
@@ -164,9 +205,14 @@ def run_spine_check(
         "runner_id": RUNNER_ID,
         "status": status,
         "active_match_dir": str(active_match_path),
+        "execution_root": str(selected_execution_root),
         "active_match_authority_validated": True,
+        "active_match_root_binding_policy": "DIRECT_EXECUTION_ROOT_RUNTIME_ACTIVE_SINGLE_MATCH_CURRENT",
         "output_root": str(output_root),
         "runtime_surface_policy": {
+            "active_match_relative_authority_path": ACTIVE_MATCH_RELATIVE_PATH.as_posix(),
+            "forbidden_active_match_ancestry_parts": sorted(FORBIDDEN_AUTHORITY_ANCESTRY_PARTS),
+            "reflection_authority_allowed": False,
             "allowed_runtime_surfaces": [path.as_posix() for path in ALLOWED_RUNTIME_SURFACES],
             "executed_runtime_surfaces": executed_runtime_surfaces,
             "forbidden_archive_surfaces": ["archive", "archives"],
@@ -215,7 +261,9 @@ def render_summary(result: dict[str, Any]) -> str:
         "================================",
         f"status={result.get('status')}",
         f"active_match_dir={result.get('active_match_dir')}",
+        f"execution_root={result.get('execution_root')}",
         f"active_match_authority_validated={result.get('active_match_authority_validated')}",
+        f"active_match_root_binding_policy={result.get('active_match_root_binding_policy')}",
         f"claim_safety={result.get('claim_safety')}",
         f"report_language_allowed={result.get('report_language_allowed')}",
         f"production_binding_allowed={result.get('production_binding_allowed')}",
@@ -224,6 +272,9 @@ def render_summary(result: dict[str, Any]) -> str:
     ]
     runtime_policy = result.get("runtime_surface_policy") or {}
     for key in [
+        "active_match_relative_authority_path",
+        "forbidden_active_match_ancestry_parts",
+        "reflection_authority_allowed",
         "allowed_runtime_surfaces",
         "executed_runtime_surfaces",
         "forbidden_archive_surfaces",
