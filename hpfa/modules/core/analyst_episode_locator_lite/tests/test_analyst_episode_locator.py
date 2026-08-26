@@ -176,7 +176,7 @@ def test_same_time_support_and_action_rows_remain_unordered() -> None:
     assert layer["same_timestamp_internal_ordering_allowed"] is False
 
 
-def test_same_time_admin_boundary_collision_remains_unordered_and_does_not_split_layer() -> None:
+def test_same_time_admin_boundary_collision_isolates_layer_and_preserves_hard_separation() -> None:
     mvc, row, semantics = _payloads()
     mvc = copy.deepcopy(mvc)
     mvc["context_candidates"][10]["time_source_value"] = 16.0
@@ -187,7 +187,7 @@ def test_same_time_admin_boundary_collision_remains_unordered_and_does_not_split
     assert result["status"] == "REVIEW_REQUIRED"
     assert result["administrative_boundary_visible_layer_collision_time_count"] == 1
     assert result["administrative_boundary_visible_layer_collision_boundary_count"] == 1
-    assert result["administrative_boundary_same_time_collision_policy"] == "SAME_TIME_UNORDERED_REVIEW_NO_SPLIT"
+    assert result["administrative_boundary_same_time_collision_policy"] == "SAME_TIME_UNORDERED_REVIEW_ISOLATE_LAYER"
     assert "administrative_boundary_same_time_visible_layer_collision" in result["review_hits"]
 
     boundary = next(
@@ -203,11 +203,31 @@ def test_same_time_admin_boundary_collision_remains_unordered_and_does_not_split
     assert layer["same_time_unordered"] is True
     assert "HALFTIME" in layer["same_time_administrative_boundary_types"]
 
-    assert result["episode_candidate_count"] == 2
-    assert not any(
-        episode["boundary_start_reason"].startswith("AFTER_ADMIN_BOUNDARY:HALFTIME")
+    collision_episode = next(
+        episode for episode in result["episode_candidates"]
+        if episode["start_second_candidate"] == 16.0 and episode["end_second_candidate"] == 16.0
+    )
+    assert collision_episode["status"] == "EPISODE_CANDIDATE_WITH_REVIEW_DEBT"
+    assert collision_episode["boundary_start_reason"] == "SAME_TIME_ADMIN_BOUNDARY_COLLISION_UNORDERED"
+    assert collision_episode["boundary_end_reason"] == "SAME_TIME_ADMIN_BOUNDARY_COLLISION_UNORDERED"
+    assert "SAME_TIME_ADMIN_BOUNDARY_COLLISION_REVIEW" in collision_episode["selection_reason"]
+
+    assert result["episode_candidate_count"] == 4
+    assert any(
+        episode["end_second_candidate"] == 14.0
+        and episode["boundary_end_reason"] == "BEFORE_SAME_TIME_ADMIN_BOUNDARY_COLLISION"
         for episode in result["episode_candidates"]
     )
+    assert any(
+        episode["start_second_candidate"] == 18.0
+        and episode["boundary_start_reason"] == "AFTER_SAME_TIME_ADMIN_BOUNDARY_COLLISION"
+        for episode in result["episode_candidates"]
+    )
+    assert not any(
+        episode["start_second_candidate"] < 16.0 < episode["end_second_candidate"]
+        for episode in result["episode_candidates"]
+    )
+    assert result["episode_action_occurrence_eligible_count"] == semantics["action_occurrence_eligible_count"]
     assert result["same_timestamp_internal_ordering_allowed"] is False
 
 
