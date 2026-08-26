@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import sys
@@ -13,8 +14,16 @@ PHONE_OUTPUT_ROOTS = (
     Path("/storage/emulated/0/Download/HPFA"),
 )
 ACTIVE_MATCH_RELATIVE_PATH = Path("runtime/active_single_match/current")
+ROLE_RESOLVER_DEPENDENCY_SURFACES = (
+    Path("hpfa/modules/core/csv_surface_reader_lite"),
+    Path("hpfa/modules/core/multiformat_file_inventory_lite"),
+    Path("hpfa/modules/core/triangulated_event_reflection_resolver_lite"),
+    Path("hpfa/modules/core/xlsx_surface_reader_lite"),
+    Path("hpfa/modules/core/xml_surface_reader_lite"),
+)
 ALLOWED_RUNTIME_SURFACES = (
     Path("hpfa/modules/core/content_source_role_resolver_lite"),
+    *ROLE_RESOLVER_DEPENDENCY_SURFACES,
     Path("hpfa/modules/core/canonical_ingest_surface_manifest"),
     Path("hpfa/modules/core/composite_integration_office"),
 )
@@ -153,11 +162,66 @@ def _validate_imported_module_origin(module: Any, expected_file: Path, module_na
         raise ValueError(f"runtime_module_origin_mismatch:{module_name}")
 
 
+def _load_product_legacy_module(
+    root: Path,
+    module_name: str,
+    module_file: Path,
+) -> Any:
+    expected_file = _resolve_path(module_file)
+    validate_runtime_surface(root, expected_file.parent)
+    cached = sys.modules.get(module_name)
+    if cached is not None:
+        _validate_imported_module_origin(cached, expected_file, module_name)
+        return cached
+
+    spec = importlib.util.spec_from_file_location(module_name, expected_file)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"runtime_module_load_spec_missing:{module_name}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    _validate_imported_module_origin(module, expected_file, module_name)
+    return module
+
+
 def _content_source_role_resolver_module(root: Path):
     src = validate_runtime_surface(
         root,
         root / "hpfa" / "modules" / "core" / "content_source_role_resolver_lite" / "src",
     )
+    dependency_src = {
+        "csv_surface_reader": validate_runtime_surface(
+            root, root / "hpfa" / "modules" / "core" / "csv_surface_reader_lite" / "src"
+        ),
+        "multiformat_file_inventory": validate_runtime_surface(
+            root, root / "hpfa" / "modules" / "core" / "multiformat_file_inventory_lite" / "src"
+        ),
+        "triangulated_event_reflection_resolver": validate_runtime_surface(
+            root,
+            root
+            / "hpfa"
+            / "modules"
+            / "core"
+            / "triangulated_event_reflection_resolver_lite"
+            / "src",
+        ),
+        "xlsx_surface_reader": validate_runtime_surface(
+            root, root / "hpfa" / "modules" / "core" / "xlsx_surface_reader_lite" / "src"
+        ),
+        "xml_surface_reader": validate_runtime_surface(
+            root, root / "hpfa" / "modules" / "core" / "xml_surface_reader_lite" / "src"
+        ),
+    }
+
+    xml_src = dependency_src["xml_surface_reader"]
+    _load_product_legacy_module(root, "xml_common", xml_src / "xml_common.py")
+    _load_product_legacy_module(root, "xml_rows", xml_src / "xml_rows.py")
+    _load_product_legacy_module(root, "xml_structure", xml_src / "xml_structure.py")
+
     _ensure_module_path(root)
     _ensure_module_path(src)
     import content_source_role_resolver  # type: ignore
@@ -167,6 +231,22 @@ def _content_source_role_resolver_module(root: Path):
         src / "content_source_role_resolver.py",
         "content_source_role_resolver",
     )
+    dependency_modules = {
+        "csv_surface_reader": content_source_role_resolver.csv_surface_reader,
+        "multiformat_file_inventory": content_source_role_resolver.multiformat_file_inventory,
+        "triangulated_event_reflection_resolver": content_source_role_resolver.reflection,
+        "xlsx_surface_reader": content_source_role_resolver.xlsx_surface_reader,
+        "xml_surface_reader": content_source_role_resolver.xml_surface_reader,
+    }
+    dependency_files = {
+        "csv_surface_reader": dependency_src["csv_surface_reader"] / "csv_surface_reader.py",
+        "multiformat_file_inventory": dependency_src["multiformat_file_inventory"] / "multiformat_file_inventory.py",
+        "triangulated_event_reflection_resolver": dependency_src["triangulated_event_reflection_resolver"] / "triangulated_event_reflection_resolver.py",
+        "xlsx_surface_reader": dependency_src["xlsx_surface_reader"] / "xlsx_surface_reader.py",
+        "xml_surface_reader": dependency_src["xml_surface_reader"] / "xml_surface_reader.py",
+    }
+    for module_name, module in dependency_modules.items():
+        _validate_imported_module_origin(module, dependency_files[module_name], module_name)
     return content_source_role_resolver
 
 
