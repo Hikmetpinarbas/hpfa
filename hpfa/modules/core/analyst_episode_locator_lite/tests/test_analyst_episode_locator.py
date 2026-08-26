@@ -151,6 +151,7 @@ def test_episode_uses_reviewed_action_eligible_volume_only() -> None:
     assert result["episode_eligible_action_family_candidate_counts"] == semantics["eligible_action_family_candidate_counts"]
     assert result["action_volume_basis"] == "REVIEWED_ACTION_OCCURRENCE_ELIGIBLE_ONLY"
     assert result["support_rows_add_action_volume"] is False
+    assert result["administrative_boundary_visible_layer_collision_time_count"] == 0
 
 
 def test_reference_rows_do_not_inflate_shot_pass_or_restart_volume() -> None:
@@ -173,6 +174,41 @@ def test_same_time_support_and_action_rows_remain_unordered() -> None:
     assert layer["support_only_context_count"] == 1
     assert layer["same_time_unordered"] is True
     assert layer["same_timestamp_internal_ordering_allowed"] is False
+
+
+def test_same_time_admin_boundary_collision_remains_unordered_and_does_not_split_layer() -> None:
+    mvc, row, semantics = _payloads()
+    mvc = copy.deepcopy(mvc)
+    mvc["context_candidates"][10]["time_source_value"] = 16.0
+    mvc["context_candidates"][10]["admitted_time_evidence"][0]["raw_value"] = 16.0
+
+    result = build_episode_locator(mvc, row, semantics)
+
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["administrative_boundary_visible_layer_collision_time_count"] == 1
+    assert result["administrative_boundary_visible_layer_collision_boundary_count"] == 1
+    assert result["administrative_boundary_same_time_collision_policy"] == "SAME_TIME_UNORDERED_REVIEW_NO_SPLIT"
+    assert "administrative_boundary_same_time_visible_layer_collision" in result["review_hits"]
+
+    boundary = next(
+        x for x in result["administrative_boundary_candidates"]
+        if x["boundary_type"] == "HALFTIME"
+    )
+    assert boundary["same_time_visible_layer_collision"] is True
+    assert boundary["boundary_order_relation_to_visible_layer"] == "SAME_TIME_UNORDERED"
+    assert boundary["boundary_can_split_same_time_visible_layer"] is False
+
+    layer = next(x for x in result["episode_time_layer_candidates"] if x["second_candidate"] == 16.0)
+    assert layer["administrative_boundary_same_time_collision"] is True
+    assert layer["same_time_unordered"] is True
+    assert "HALFTIME" in layer["same_time_administrative_boundary_types"]
+
+    assert result["episode_candidate_count"] == 2
+    assert not any(
+        episode["boundary_start_reason"].startswith("AFTER_ADMIN_BOUNDARY:HALFTIME")
+        for episode in result["episode_candidates"]
+    )
+    assert result["same_timestamp_internal_ordering_allowed"] is False
 
 
 def test_semantic_assignment_is_required() -> None:
