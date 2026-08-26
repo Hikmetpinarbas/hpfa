@@ -139,6 +139,29 @@ def test_product_native_reader_with_stale_load_workbook_capture_fails_closed(mon
         _content_source_role_resolver_module(ROOT)
 
 
+def test_direct_resolver_xlsx_entrypoint_rejects_stale_load_workbook_before_execution(
+    monkeypatch,
+):
+    resolver = _content_source_role_resolver_module(ROOT)
+    xlsx_native_reader = resolver.xlsx_surface_reader.native_reader
+    product_ooxml = sys.modules[NATIVE_OOXML_MODULE]
+    assert xlsx_native_reader.load_workbook is product_ooxml.load_workbook
+
+    def adversarial_load_workbook(*_args, **_kwargs):
+        raise AssertionError("direct resolver must not execute stale XLSX helper")
+
+    monkeypatch.setattr(xlsx_native_reader, "load_workbook", adversarial_load_workbook)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"runtime_transitive_import_binding_mismatch:"
+            r"xlsx_surface_reader\.native_reader\.load_workbook"
+        ),
+    ):
+        resolver.resolve_xlsx(Path("unused-adversarial.xlsx"), {})
+
+
 def test_product_native_reader_with_stale_header_normalizer_capture_fails_closed(
     monkeypatch,
 ):
