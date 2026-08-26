@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -50,6 +51,10 @@ def _resolve_path(path: Path) -> Path:
     return path.expanduser().resolve(strict=False)
 
 
+def _absolute_lexical_path(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path.expanduser())))
+
+
 def _forbidden_authority_ancestry_token(path: Path) -> str | None:
     for part in path.parts:
         token = part.lower()
@@ -58,28 +63,65 @@ def _forbidden_authority_ancestry_token(path: Path) -> str | None:
     return None
 
 
+def _authority_symlink_component(selected_execution_root: Path) -> Path | None:
+    component = selected_execution_root
+    for part in ACTIVE_MATCH_RELATIVE_PATH.parts:
+        component = component / part
+        if component.is_symlink():
+            return component
+    return None
+
+
+def _validate_resolved_authority_containment(
+    resolved_authority: Path,
+    selected_execution_root: Path,
+) -> None:
+    try:
+        resolved_authority.relative_to(selected_execution_root)
+    except ValueError as exc:
+        raise ValueError(
+            "runtime_authority_resolved_outside_execution_root:"
+            f"{resolved_authority}:root:{selected_execution_root}"
+        ) from exc
+
+
 def validate_active_match_authority(
     path: str | Path,
     execution_root: str | Path,
 ) -> Path:
-    resolved = _resolve_path(Path(path))
     selected_execution_root = _resolve_path(Path(execution_root))
+    lexical_candidate = _absolute_lexical_path(Path(path))
+    lexical_expected = selected_execution_root / ACTIVE_MATCH_RELATIVE_PATH
 
-    if tuple(resolved.parts[-3:]) != tuple(ACTIVE_MATCH_RELATIVE_PATH.parts):
-        raise ValueError(f"runtime_authority_path_invalid:{resolved}")
+    if tuple(lexical_candidate.parts[-3:]) != tuple(ACTIVE_MATCH_RELATIVE_PATH.parts):
+        raise ValueError(f"runtime_authority_path_invalid:{lexical_candidate}")
 
-    forbidden_token = _forbidden_authority_ancestry_token(resolved)
+    forbidden_token = _forbidden_authority_ancestry_token(lexical_candidate)
     if forbidden_token is not None:
         raise ValueError(
-            f"runtime_authority_forbidden_ancestry:{forbidden_token}:{resolved}"
+            f"runtime_authority_forbidden_ancestry:{forbidden_token}:{lexical_candidate}"
         )
 
-    expected = _resolve_path(selected_execution_root / ACTIVE_MATCH_RELATIVE_PATH)
-    if resolved != expected:
+    if lexical_candidate != lexical_expected:
         raise ValueError(
             "runtime_authority_root_binding_mismatch:"
-            f"{resolved}:expected:{expected}"
+            f"{lexical_candidate}:expected:{lexical_expected}"
         )
+
+    symlink_component = _authority_symlink_component(selected_execution_root)
+    if symlink_component is not None:
+        raise ValueError(f"runtime_authority_symlink_rejected:{symlink_component}")
+
+    resolved = _resolve_path(lexical_candidate)
+
+    resolved_forbidden_token = _forbidden_authority_ancestry_token(resolved)
+    if resolved_forbidden_token is not None:
+        raise ValueError(
+            "runtime_authority_forbidden_ancestry:"
+            f"{resolved_forbidden_token}:{resolved}"
+        )
+
+    _validate_resolved_authority_containment(resolved, selected_execution_root)
     return resolved
 
 
@@ -212,6 +254,8 @@ def run_spine_check(
         "runtime_surface_policy": {
             "active_match_relative_authority_path": ACTIVE_MATCH_RELATIVE_PATH.as_posix(),
             "forbidden_active_match_ancestry_parts": sorted(FORBIDDEN_AUTHORITY_ANCESTRY_PARTS),
+            "authority_symlinks_allowed": False,
+            "resolved_authority_must_remain_within_execution_root": True,
             "reflection_authority_allowed": False,
             "allowed_runtime_surfaces": [path.as_posix() for path in ALLOWED_RUNTIME_SURFACES],
             "executed_runtime_surfaces": executed_runtime_surfaces,
@@ -274,6 +318,8 @@ def render_summary(result: dict[str, Any]) -> str:
     for key in [
         "active_match_relative_authority_path",
         "forbidden_active_match_ancestry_parts",
+        "authority_symlinks_allowed",
+        "resolved_authority_must_remain_within_execution_root",
         "reflection_authority_allowed",
         "allowed_runtime_surfaces",
         "executed_runtime_surfaces",
