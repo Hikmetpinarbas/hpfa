@@ -133,15 +133,20 @@ production_release=false
 
 ## Runtime surface allowlist
 
-The current `active_match_spine_runner` may execute/import only its explicitly registered product surfaces:
+The current `active_match_spine_runner` may execute/import only its explicitly registered product surfaces. The resolver's existing HPFA-native reader/inventory dependencies are registered as part of the same runtime dependency chain:
 
 ```text
 hpfa/modules/core/content_source_role_resolver_lite
+hpfa/modules/core/csv_surface_reader_lite
+hpfa/modules/core/multiformat_file_inventory_lite
+hpfa/modules/core/triangulated_event_reflection_resolver_lite
+hpfa/modules/core/xlsx_surface_reader_lite
+hpfa/modules/core/xml_surface_reader_lite
 hpfa/modules/core/canonical_ingest_surface_manifest
 hpfa/modules/core/composite_integration_office
 ```
 
-The allowlist is deliberately narrow and versioned in code. A new runtime dependency must be reviewed and added explicitly rather than discovered permissively. Imported resolver, manifest, and optional boundary modules remain subject to exact module-origin validation before producer execution.
+The allowlist is deliberately narrow and versioned in code. A new runtime dependency must be reviewed and added explicitly rather than discovered permissively. Resolver dependencies are also checked against exact product origins before use. The XML reader's existing sibling compatibility modules (`xml_common`, `xml_rows`, `xml_structure`) are loaded only from the validated product XML-reader surface; cached modules from another origin fail closed. The XLSX reader package origin is bound to its product `xlsx_surface_reader/__init__.py` entrypoint.
 
 Hard-block families:
 
@@ -152,6 +157,7 @@ archive_surface_import_attempted
 donor_surface_runtime_bound
 reference_only_surface_executed
 fixture_surface_used_as_active_match
+runtime_module_origin_mismatch
 ```
 
 Drive, Dropbox, donor repositories, archives, reference-only material and fixtures cannot become executable ACTIVE_MATCH authority through this runner.
@@ -199,7 +205,7 @@ surface_manifest.filename_support_used_for_admission=false
 - no absolute phone home path is hardcoded;
 - nested phone output remains rejected;
 - allowed product runtime surface executes;
-- imported resolver/manifest/runtime modules are bound to validated product origins;
+- imported resolver, resolver dependencies, manifest and optional runtime modules are bound to validated product origins;
 - unregistered/archive/donor/reference/fixture surfaces fail closed;
 - sample match identity leakage remains forbidden.
 
