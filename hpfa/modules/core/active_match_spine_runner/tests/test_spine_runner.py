@@ -33,8 +33,8 @@ def write_xlsx(path: Path):
         zf.writestr("xl/worksheets/sheet1.xml", "<worksheet><sheetData><row/><row/></sheetData></worksheet>")
 
 
-def make_active_match(tmp_path: Path) -> Path:
-    match = tmp_path / "runtime" / "active_single_match" / "current"
+def make_active_match(execution_root: Path) -> Path:
+    match = execution_root / "runtime" / "active_single_match" / "current"
     match.mkdir(parents=True)
     write_csv(match / "Players.csv")
     write_csv(match / "Teams.csv")
@@ -71,14 +71,23 @@ def make_registry(tmp_path: Path) -> Path:
 
 
 def test_spine_runner_writes_flat_json_and_txt_outputs(tmp_path):
-    match = make_active_match(tmp_path)
+    execution_root = tmp_path / "selected_checkout"
+    match = make_active_match(execution_root)
     registry = make_registry(tmp_path)
     out = tmp_path / "HPFA"
 
-    result = run_spine_check(match, out, composite_registry=registry, root=ROOT)
+    result = run_spine_check(
+        match,
+        out,
+        composite_registry=registry,
+        root=ROOT,
+        execution_root=execution_root,
+    )
 
     assert result["status"] == "PASS"
     assert result["active_match_authority_validated"] is True
+    assert result["execution_root"] == str(execution_root.resolve())
+    assert result["active_match_root_binding_policy"] == "DIRECT_EXECUTION_ROOT_RUNTIME_ACTIVE_SINGLE_MATCH_CURRENT"
     assert result["surface_manifest"]["status"] == "PASS"
     assert result["surface_manifest"]["surface_file_count"] == 8
     assert result["surface_manifest"]["report_language_allowed"] is False
@@ -88,6 +97,7 @@ def test_spine_runner_writes_flat_json_and_txt_outputs(tmp_path):
         "hpfa/modules/core/canonical_ingest_surface_manifest",
         "hpfa/modules/core/composite_integration_office",
     ]
+    assert result["runtime_surface_policy"]["reflection_authority_allowed"] is False
     assert result["runtime_surface_policy"]["unregistered_runtime_surface_allowed"] is False
     assert result["runtime_surface_policy"]["donor_runtime_binding_allowed"] is False
 
@@ -99,10 +109,16 @@ def test_spine_runner_writes_flat_json_and_txt_outputs(tmp_path):
 
 
 def test_spine_runner_can_skip_boundary_scores(tmp_path):
-    match = make_active_match(tmp_path)
+    execution_root = tmp_path / "selected_checkout"
+    match = make_active_match(execution_root)
     out = tmp_path / "HPFA"
 
-    result = run_spine_check(match, out, root=ROOT)
+    result = run_spine_check(
+        match,
+        out,
+        root=ROOT,
+        execution_root=execution_root,
+    )
 
     assert result["status"] == "PASS"
     assert result["boundary_scores"] is None
@@ -110,6 +126,8 @@ def test_spine_runner_can_skip_boundary_scores(tmp_path):
         "hpfa/modules/core/canonical_ingest_surface_manifest"
     ]
     summary = (out / "active_match_spine_check_v1.txt").read_text(encoding="utf-8")
+    assert "execution_root=" in summary
+    assert "active_match_root_binding_policy=DIRECT_EXECUTION_ROOT_RUNTIME_ACTIVE_SINGLE_MATCH_CURRENT" in summary
     assert "[runtime_surface_policy]" in summary
     assert "[boundary_scores]" in summary
     assert "status=SKIPPED" in summary
@@ -124,21 +142,70 @@ def test_phone_output_root_is_allowed():
     assert str(validate_output_root("/sdcard/Download/HPFA")).endswith("/Download/HPFA")
 
 
-def test_active_match_authority_is_path_discovered_but_suffix_contract_is_fixed(tmp_path):
-    match = make_active_match(tmp_path)
-    assert validate_active_match_authority(match) == match.resolve()
+def test_active_match_authority_is_directly_bound_to_selected_execution_root(tmp_path):
+    execution_root = tmp_path / "selected_checkout"
+    match = make_active_match(execution_root)
+    assert validate_active_match_authority(match, execution_root) == match.resolve()
 
-    wrong = tmp_path / "runtime" / "some_other_match" / "current"
+    wrong = execution_root / "runtime" / "some_other_match" / "current"
     wrong.mkdir(parents=True)
     with pytest.raises(ValueError, match="runtime_authority_path_invalid"):
-        validate_active_match_authority(wrong)
+        validate_active_match_authority(wrong, execution_root)
+
+
+def test_quarantine_reflection_with_valid_suffix_is_rejected(tmp_path):
+    execution_root = tmp_path / "selected_checkout"
+    direct = make_active_match(execution_root)
+    assert validate_active_match_authority(direct, execution_root) == direct.resolve()
+
+    quarantine_reflection = (
+        execution_root
+        / "runtime"
+        / "quarantine"
+        / "active_match_cleanup_20260618_014726"
+        / "runtime"
+        / "active_single_match"
+        / "current"
+    )
+    quarantine_reflection.mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="runtime_authority_forbidden_ancestry:quarantine"):
+        validate_active_match_authority(quarantine_reflection, execution_root)
+
+
+def test_same_suffix_in_another_checkout_cannot_become_selected_truth(tmp_path):
+    selected_root = tmp_path / "selected_checkout"
+    reflection_root = tmp_path / "other_checkout"
+    selected = make_active_match(selected_root)
+    reflected = make_active_match(reflection_root)
+
+    assert validate_active_match_authority(selected, selected_root) == selected.resolve()
+    with pytest.raises(ValueError, match="runtime_authority_root_binding_mismatch"):
+        validate_active_match_authority(reflected, selected_root)
+
+
+def test_forbidden_authority_ancestry_rejects_direct_candidate_even_if_root_selected(tmp_path):
+    for token in [
+        "quarantine",
+        "archive",
+        "archives",
+        "donor",
+        "donors",
+        "reference_only",
+        "fixtures",
+    ]:
+        contaminated_root = tmp_path / token / "checkout"
+        candidate = make_active_match(contaminated_root)
+        with pytest.raises(ValueError, match=f"runtime_authority_forbidden_ancestry:{token}"):
+            validate_active_match_authority(candidate, contaminated_root)
 
 
 def test_case_variant_active_match_authority_suffix_is_rejected(tmp_path):
-    case_variant = tmp_path / "RUNTIME" / "ACTIVE_SINGLE_MATCH" / "CURRENT"
+    execution_root = tmp_path / "selected_checkout"
+    case_variant = execution_root / "RUNTIME" / "ACTIVE_SINGLE_MATCH" / "CURRENT"
     case_variant.mkdir(parents=True)
     with pytest.raises(ValueError, match="runtime_authority_path_invalid"):
-        validate_active_match_authority(case_variant)
+        validate_active_match_authority(case_variant, execution_root)
 
 
 def test_only_registered_product_runtime_surfaces_are_executable():
