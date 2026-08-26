@@ -168,20 +168,21 @@ def _reviewed_exact_action_labels(
     provider_module: Any,
     registry: dict[str, Any],
     *,
-    action_family: str,
+    rule_id_prefix: str,
     normalized_prefix: str,
 ) -> set[str]:
+    """Return the stable reviewed-label population independently of mutable routing fields.
+
+    The rule id is the registry identity surface.  Action family, review status and
+    downstream eligibility are deliberately *not* used for membership because those
+    are the fields this reconciliation guard is meant to audit for regressions.
+    """
     labels: set[str] = set()
     for rule in registry.get("exact_rules", []) or []:
         if not isinstance(rule, dict):
             continue
-        if _clean(rule.get("semantic_role")) != "ACTION_ANCHOR":
-            continue
-        if _clean(rule.get("action_family")) != action_family:
-            continue
-        if _clean(rule.get("review_status")) != "REVIEWED_CANDIDATE":
-            continue
-        if _clean(rule.get("downstream_eligibility")) != "ACTION_CANDIDATE_ELIGIBLE":
+        rule_id = _clean(rule.get("rule_id"))
+        if not rule_id.startswith(rule_id_prefix):
             continue
         normalized = provider_module.normalize_label(rule.get("label"))
         if normalized.startswith(normalized_prefix):
@@ -374,13 +375,13 @@ def build_rebind(
     reviewed_lost_ball_labels = _reviewed_exact_action_labels(
         provider_module,
         registry,
-        action_family="TURNOVER",
+        rule_id_prefix="plvs_v2_lost_balls",
         normalized_prefix="lost balls",
     )
     reviewed_recovery_labels = _reviewed_exact_action_labels(
         provider_module,
         registry,
-        action_family="RECOVERY",
+        rule_id_prefix="plvs_v2_ball_recoveries",
         normalized_prefix="ball recoveries",
     )
     if not reviewed_lost_ball_labels:
