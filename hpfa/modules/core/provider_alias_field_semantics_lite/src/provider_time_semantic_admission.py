@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import sys
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
@@ -20,6 +21,7 @@ TOLERANCE = 0.02
 CSV_REQUIRED = {"start", "end", "half"}
 XML_REQUIRED = {"start", "end"}
 ROW_NUCLEUS_MODULE_ID = "row_nucleus_inventory_lite_v1"
+PROVIDER_CONTRACT_NAME = "provider_alias_field_semantics_lite_v1.json"
 
 
 def _norm(value: Any) -> str:
@@ -31,7 +33,7 @@ def _num(value: Any) -> float | None:
         number = float(str(value).strip().replace(",", "."))
     except (TypeError, ValueError):
         return None
-    return number
+    return number if math.isfinite(number) else None
 
 
 def _delimiter(path: Path) -> str:
@@ -103,18 +105,23 @@ def _values(rows: list[dict[str, Any]], field: str) -> list[float]:
     return out
 
 
-def _pairs_valid(rows: list[dict[str, Any]]) -> bool:
-    visible = 0
+def _pair_audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    valid = 0
+    invalid = 0
     for row in rows:
         lower = {_norm(k): v for k, v in row.items()}
         start = _num(lower.get("start"))
         end = _num(lower.get("end"))
-        if start is None and end is None:
-            continue
-        visible += 1
         if start is None or end is None or start < 0 or end < start:
-            return False
-    return visible > 0
+            invalid += 1
+        else:
+            valid += 1
+    return {
+        "row_count": len(rows),
+        "valid_pair_count": valid,
+        "invalid_pair_count": invalid,
+        "all_rows_valid": bool(rows) and invalid == 0 and valid == len(rows),
+    }
 
 
 def _rounded_counter(values: list[float]) -> Counter[float]:
@@ -143,6 +150,29 @@ def _half_ranges(csv_rows: list[dict[str, Any]]) -> dict[str, dict[str, float | 
     return result
 
 
+def _provider_time_contract_authority() -> tuple[dict[str, Any], bool, list[str]]:
+    contract_path = Path(__file__).resolve().parents[1] / "contract" / PROVIDER_CONTRACT_NAME
+    reasons: list[str] = []
+    try:
+        payload = json.loads(contract_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}, False, ["provider_time_contract_unavailable_or_malformed"]
+    if not isinstance(payload, dict):
+        return {}, False, ["provider_time_contract_not_object"]
+    rule = payload.get("provider_time_semantic_admission")
+    if not isinstance(rule, dict):
+        return {}, False, ["provider_time_contract_rule_missing"]
+    if rule.get("rule_id") != RULE_ID:
+        reasons.append("provider_time_contract_rule_id_mismatch")
+    if rule.get("generic_numeric_time_unit_inference_allowed") is not False:
+        reasons.append("provider_time_contract_generic_unit_inference_not_blocked")
+    if rule.get("source_unit_candidate") != SECOND:
+        reasons.append("provider_time_contract_second_unit_not_declared")
+    if rule.get("admitted_time_basis") != ABSOLUTE_SECONDS:
+        reasons.append("provider_time_contract_absolute_seconds_basis_not_declared")
+    return rule, not reasons, reasons
+
+
 def build_time_admission(input_root: str | Path) -> dict[str, Any]:
     root = Path(input_root).expanduser().resolve(strict=False)
     csv_files = sorted(path for path in root.glob("*.csv") if path.is_file())
@@ -150,10 +180,13 @@ def build_time_admission(input_root: str | Path) -> dict[str, Any]:
     csv_rows = [row for path in csv_files for row in _read_csv_rows(path)]
     xml_rows = [row for path in xml_files for row in _read_xml_instance_rows(path)]
 
+    contract_rule, unit_authority_admitted, contract_reasons = _provider_time_contract_authority()
     csv_columns = _visible_columns(csv_rows)
     xml_columns = _visible_columns(xml_rows)
     schema_ready = CSV_REQUIRED <= csv_columns and XML_REQUIRED <= xml_columns
-    pairs_valid = _pairs_valid(csv_rows) and _pairs_valid(xml_rows)
+    csv_pair_audit = _pair_audit(csv_rows)
+    xml_pair_audit = _pair_audit(xml_rows)
+    pairs_valid = bool(csv_pair_audit["all_rows_valid"] and xml_pair_audit["all_rows_valid"])
 
     csv_start = _values(csv_rows, "start")
     csv_end = _values(csv_rows, "end")
@@ -173,7 +206,7 @@ def build_time_admission(input_root: str | Path) -> dict[str, Any]:
         and float(h2_min) > float(h1_max)
     )
 
-    reasons: list[str] = []
+    reasons: list[str] = list(contract_reasons)
     if not schema_ready:
         reasons.append("provider_time_schema_not_admitted")
     if not pairs_valid:
@@ -185,17 +218,22 @@ def build_time_admission(input_root: str | Path) -> dict[str, Any]:
     if not absolute_continuation:
         reasons.append("absolute_match_time_basis_not_demonstrated")
 
+    reasons = sorted(set(reasons))
     status = ADMITTED if not reasons else REVIEW_REQUIRED
+    basis_admitted = bool(
+        status == ADMITTED and unit_authority_admitted and absolute_continuation
+    )
     return {
         "module_id": MODULE_ID,
         "status": status,
         "rule_id": RULE_ID,
         "claim_safety": CLAIM_SAFETY,
         "source_surface_candidate": "SPORTSBASE_LIKE",
-        "unit_candidate": SECOND,
-        "unit_admission_status": status,
-        "time_basis_candidate": ABSOLUTE_SECONDS if absolute_continuation else "UNKNOWN",
-        "time_basis_admission_status": status if absolute_continuation else REVIEW_REQUIRED,
+        "unit_candidate": SECOND if unit_authority_admitted else "UNKNOWN",
+        "unit_admission_status": ADMITTED if status == ADMITTED and unit_authority_admitted else REVIEW_REQUIRED,
+        "unit_authority_basis": "CURRENT_PROVIDER_TIME_CONTRACT" if unit_authority_admitted else "UNIT_AUTHORITY_NOT_ADMITTED",
+        "time_basis_candidate": ABSOLUTE_SECONDS if basis_admitted else "UNKNOWN",
+        "time_basis_admission_status": ADMITTED if basis_admitted else REVIEW_REQUIRED,
         "runtime_checks": {
             "csv_file_count": len(csv_files),
             "xml_file_count": len(xml_files),
@@ -203,10 +241,16 @@ def build_time_admission(input_root: str | Path) -> dict[str, Any]:
             "xml_instance_surface_count": len(xml_rows),
             "schema_ready": schema_ready,
             "start_end_pairs_valid": pairs_valid,
+            "csv_pair_audit": csv_pair_audit,
+            "xml_pair_audit": xml_pair_audit,
+            "malformed_temporal_row_count": int(csv_pair_audit["invalid_pair_count"]) + int(xml_pair_audit["invalid_pair_count"]),
             "csv_xml_start_multiset_equal": cross_start,
             "csv_xml_end_multiset_equal": cross_end,
             "half_start_ranges": halves,
             "absolute_continuation_across_halves": absolute_continuation,
+            "provider_time_contract_authority_admitted": unit_authority_admitted,
+            "provider_time_contract_rule_id": contract_rule.get("rule_id"),
+            "generic_numeric_time_unit_inference_allowed": contract_rule.get("generic_numeric_time_unit_inference_allowed"),
         },
         "review_reasons": reasons,
         "source_row_order_is_temporal_truth": False,
@@ -230,7 +274,11 @@ def _normalize_rows_for_mvc(
     rows: list[dict[str, Any]],
     admission: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    if admission.get("status") != ADMITTED:
+    if (
+        admission.get("status") != ADMITTED
+        or admission.get("unit_admission_status") != ADMITTED
+        or admission.get("time_basis_candidate") != ABSOLUTE_SECONDS
+    ):
         return rows
     normalized: list[dict[str, Any]] = []
     for row in rows:
@@ -241,6 +289,7 @@ def _normalize_rows_for_mvc(
             item["absolute_time_seconds"] = start
             item["_provider_time_rule_id"] = RULE_ID
             item["_provider_time_basis"] = ABSOLUTE_SECONDS
+            item["_provider_time_unit_authority"] = "CURRENT_PROVIDER_TIME_CONTRACT"
         normalized.append(item)
     return normalized
 
@@ -282,8 +331,8 @@ def _row_nucleus_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
     for index, nucleus in enumerate(payload.get("row_nuclei") or []):
         if not isinstance(nucleus, dict):
             raise ValueError(f"row_nucleus_record_invalid:{index}")
-        resolved = nucleus.get("resolved_visible_fields") or {}
-        if not isinstance(resolved, dict):
+        resolved = nucleus.get("resolved_visible_fields")
+        if not isinstance(resolved, dict) or not resolved:
             raise ValueError(f"row_nucleus_resolved_fields_invalid:{index}")
 
         row = {
@@ -329,28 +378,38 @@ def build_minimum_context_report(
     mvc = _load_mvc(repo)
     admission = build_time_admission(root)
 
+    csv_rows = [
+        row for path in sorted(root.glob("*.csv")) for row in _read_csv_rows(path)
+    ]
+    xml_rows = [
+        row for path in sorted(root.glob("*.xml")) for row in _read_xml_instance_rows(path)
+    ]
     row_nucleus_payload: dict[str, Any] | None = None
     reflection_inflation_prevented = False
     row_nucleus_candidate_count: int | None = None
+    selected_context_surface = "GENERIC_REVIEW_SURFACE"
 
     if row_nucleus_path is not None:
         row_nucleus_payload = _load_row_nucleus_payload(row_nucleus_path)
         rows = _row_nucleus_rows(row_nucleus_payload)
         rows = _normalize_rows_for_mvc(rows, admission)
-        input_scope = "provider_time_admitted_row_nucleus_surface"
+        input_scope = (
+            "provider_time_admitted_row_nucleus_surface"
+            if admission.get("status") == ADMITTED
+            else "provider_time_review_required_row_nucleus_surface"
+        )
         reflection_inflation_prevented = True
         row_nucleus_candidate_count = len(rows)
-    elif admission.get("status") == ADMITTED:
-        csv_rows = [
-            row for path in sorted(root.glob("*.csv")) for row in _read_csv_rows(path)
-        ]
-        xml_rows = [
-            row
-            for path in sorted(root.glob("*.xml"))
-            for row in _read_xml_instance_rows(path)
-        ]
-        rows = _normalize_rows_for_mvc(csv_rows + xml_rows, admission)
-        input_scope = "provider_time_admitted_csv_xml_surface"
+        selected_context_surface = "ROW_NUCLEUS"
+    elif csv_rows:
+        rows = _normalize_rows_for_mvc(csv_rows, admission)
+        input_scope = (
+            "provider_time_admitted_primary_csv_surface"
+            if admission.get("status") == ADMITTED
+            else "provider_time_review_required_primary_csv_surface"
+        )
+        reflection_inflation_prevented = True
+        selected_context_surface = "CSV_PRIMARY"
     else:
         rows = mvc.discover_rows(root)
         rows = _normalize_rows_for_mvc(rows, admission)
@@ -368,6 +427,13 @@ def build_minimum_context_report(
             row_nucleus_payload.get("row_nucleus_review_required_count") or 0
         )
 
+    if row_nucleus_payload is not None:
+        occurrence_basis = "ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT"
+    elif selected_context_surface == "CSV_PRIMARY":
+        occurrence_basis = "PRIMARY_CSV_SERIALIZATION_CANDIDATE_NOT_EVENT_COUNT"
+    else:
+        occurrence_basis = "GENERIC_REVIEW_SURFACE_CANDIDATE_NOT_EVENT_COUNT"
+
     return {
         "module_id": mvc.MODULE_ID,
         "status": "REVIEW_REQUIRED",
@@ -381,11 +447,14 @@ def build_minimum_context_report(
         "time_admission_status": "ADMITTED" if admitted else "REVIEW_REQUIRED",
         "provider_time_semantic_admission": admission,
         "context_input_scope": input_scope,
-        "context_occurrence_basis": (
-            "ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT"
-            if row_nucleus_payload is not None
-            else "RAW_SURFACE_CONTEXT_CANDIDATE"
-        ),
+        "context_occurrence_basis": occurrence_basis,
+        "serialization_context_binding": {
+            "selected_context_surface": selected_context_surface,
+            "csv_primary_surface_row_count": len(csv_rows),
+            "xml_conformance_surface_row_count": len(xml_rows),
+            "xml_conformance_adds_context_candidate": False if csv_rows else None,
+            "csv_xml_conformance_is_independent_corroboration": False,
+        },
         "row_nucleus_context_binding": {
             "enabled": row_nucleus_payload is not None,
             "module_id": ROW_NUCLEUS_MODULE_ID if row_nucleus_payload is not None else None,

@@ -147,14 +147,17 @@ def _row_nucleus_payload(rows: list[dict[str, str]]) -> dict:
     }
 
 
-def test_admits_cross_format_absolute_match_seconds(tmp_path: Path) -> None:
+def test_admits_cross_format_absolute_match_seconds_from_reviewed_contract(tmp_path: Path) -> None:
     rows = _absolute_rows()
     _write_csv(tmp_path / "surface.csv", rows)
     _write_xml(tmp_path / "surface.xml", rows)
     result = build_time_admission(tmp_path)
     assert result["status"] == ADMITTED
     assert result["unit_candidate"] == "SECOND"
+    assert result["unit_authority_basis"] == "CURRENT_PROVIDER_TIME_CONTRACT"
     assert result["time_basis_candidate"] == ABSOLUTE_SECONDS
+    assert result["runtime_checks"]["provider_time_contract_authority_admitted"] is True
+    assert result["runtime_checks"]["generic_numeric_time_unit_inference_allowed"] is False
     assert result["runtime_checks"]["absolute_continuation_across_halves"] is True
     assert result["source_row_order_is_temporal_truth"] is False
 
@@ -183,7 +186,24 @@ def test_rejects_cross_format_time_mismatch(tmp_path: Path) -> None:
     assert "csv_xml_start_surface_mismatch" in result["review_reasons"]
 
 
-def test_legacy_adapter_keeps_raw_reflection_surface_when_no_nucleus_binding(
+def test_rejects_malformed_temporal_rows_instead_of_skipping_them(tmp_path: Path) -> None:
+    rows = _absolute_rows()
+    malformed = dict(rows[0])
+    malformed["ID"] = "bad"
+    malformed["start"] = ""
+    malformed["end"] = ""
+    rows.append(malformed)
+    _write_csv(tmp_path / "surface.csv", rows)
+    _write_xml(tmp_path / "surface.xml", rows)
+    result = build_time_admission(tmp_path)
+    assert result["status"] == REVIEW_REQUIRED
+    assert "start_end_pair_invalid" in result["review_reasons"]
+    assert result["runtime_checks"]["malformed_temporal_row_count"] == 2
+    assert result["runtime_checks"]["csv_pair_audit"]["invalid_pair_count"] == 1
+    assert result["runtime_checks"]["xml_pair_audit"]["invalid_pair_count"] == 1
+
+
+def test_primary_csv_surface_prevents_csv_xml_context_multiplication_without_nucleus(
     tmp_path: Path,
 ) -> None:
     rows = _absolute_rows()
@@ -191,10 +211,14 @@ def test_legacy_adapter_keeps_raw_reflection_surface_when_no_nucleus_binding(
     _write_xml(tmp_path / "surface.xml", rows)
     report = build_minimum_context_report(tmp_path, ROOT)
     assert report["time_admission_status"] == "ADMITTED"
-    assert report["context_candidate_count"] == 8
-    assert report["context_summary"]["time_unit_status_counts"] == {"SECOND": 8}
-    assert report["context_input_scope"] == "provider_time_admitted_csv_xml_surface"
-    assert report["reflection_inflation_prevented"] is False
+    assert report["context_candidate_count"] == 4
+    assert report["context_summary"]["time_unit_status_counts"] == {"SECOND": 4}
+    assert report["context_input_scope"] == "provider_time_admitted_primary_csv_surface"
+    assert report["context_occurrence_basis"] == "PRIMARY_CSV_SERIALIZATION_CANDIDATE_NOT_EVENT_COUNT"
+    assert report["reflection_inflation_prevented"] is True
+    assert report["serialization_context_binding"]["selected_context_surface"] == "CSV_PRIMARY"
+    assert report["serialization_context_binding"]["xml_conformance_adds_context_candidate"] is False
+    assert report["serialization_context_binding"]["csv_xml_conformance_is_independent_corroboration"] is False
     assert report["source_row_order_is_temporal_truth"] is False
     assert report["sequence_truth"] is False
     assert report["canonical_event_count"] == "UNKNOWN"
@@ -225,6 +249,7 @@ def test_row_nucleus_binding_prevents_csv_xml_context_multiplication(
     assert report["context_input_scope"] == "provider_time_admitted_row_nucleus_surface"
     assert report["context_occurrence_basis"] == "ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT"
     assert report["reflection_inflation_prevented"] is True
+    assert report["serialization_context_binding"]["selected_context_surface"] == "ROW_NUCLEUS"
     assert report["row_nucleus_context_binding"]["row_nucleus_candidate_count"] == 4
     assert (
         report["row_nucleus_context_binding"][
@@ -238,6 +263,49 @@ def test_row_nucleus_binding_prevents_csv_xml_context_multiplication(
     assert report["canonical_event_count"] == "UNKNOWN"
     assert report["true_action_count"] == "UNKNOWN"
     assert report["production_release"] is False
+
+
+def test_missing_row_nucleus_resolved_fields_fails_closed(tmp_path: Path) -> None:
+    rows = _absolute_rows()
+    _write_csv(tmp_path / "surface.csv", rows)
+    _write_xml(tmp_path / "surface.xml", rows)
+    nucleus_path = tmp_path / "row_nucleus_inventory_lite_v1.json"
+    payload = _row_nucleus_payload(rows)
+    payload["row_nuclei"][0].pop("resolved_visible_fields")
+    nucleus_path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="row_nucleus_resolved_fields_invalid:0"):
+        build_minimum_context_report(tmp_path, ROOT, row_nucleus_path=nucleus_path)
+
+
+def test_empty_row_nucleus_resolved_fields_fails_closed(tmp_path: Path) -> None:
+    rows = _absolute_rows()
+    _write_csv(tmp_path / "surface.csv", rows)
+    _write_xml(tmp_path / "surface.xml", rows)
+    nucleus_path = tmp_path / "row_nucleus_inventory_lite_v1.json"
+    payload = _row_nucleus_payload(rows)
+    payload["row_nuclei"][0]["resolved_visible_fields"] = {}
+    nucleus_path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="row_nucleus_resolved_fields_invalid:0"):
+        build_minimum_context_report(tmp_path, ROOT, row_nucleus_path=nucleus_path)
+
+
+def test_row_nucleus_scope_is_not_labeled_admitted_when_time_is_review_required(
+    tmp_path: Path,
+) -> None:
+    rows = _absolute_rows()
+    rows[2]["start"] = "20.0"
+    rows[2]["end"] = "21.0"
+    rows[3]["start"] = "2600.0"
+    rows[3]["end"] = "2601.0"
+    _write_csv(tmp_path / "surface.csv", rows)
+    _write_xml(tmp_path / "surface.xml", rows)
+    nucleus_path = tmp_path / "row_nucleus_inventory_lite_v1.json"
+    nucleus_path.write_text(json.dumps(_row_nucleus_payload(rows)), encoding="utf-8")
+    report = build_minimum_context_report(tmp_path, ROOT, row_nucleus_path=nucleus_path)
+    assert report["provider_time_semantic_admission"]["status"] == REVIEW_REQUIRED
+    assert report["time_admission_status"] == REVIEW_REQUIRED
+    assert report["context_input_scope"] == "provider_time_review_required_row_nucleus_surface"
+    assert report["reflection_inflation_prevented"] is True
 
 
 def test_explicit_invalid_row_nucleus_binding_fails_closed_without_raw_fallback(
