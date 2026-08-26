@@ -46,6 +46,12 @@ def test_product_transitive_reader_implementation_origins_are_exact():
     assert resolver.xml_surface_reader.scan_structure is sys.modules["xml_structure"].scan_structure
     assert resolver.xml_surface_reader.XmlSurfaceError is sys.modules["xml_common"].XmlSurfaceError
 
+    xml_common = sys.modules["xml_common"]
+    assert sys.modules["xml_rows"].local_name is xml_common.local_name
+    assert sys.modules["xml_rows"].role_for_field is xml_common.role_for_field
+    assert sys.modules["xml_structure"].local_name is xml_common.local_name
+    assert sys.modules["xml_structure"].namespace_uri is xml_common.namespace_uri
+
 
 def test_cached_xlsx_nested_reader_from_wrong_origin_fails_closed(monkeypatch, tmp_path):
     resolver = _content_source_role_resolver_module(ROOT)
@@ -125,6 +131,38 @@ def test_stale_xml_reader_callable_binding_fails_closed_before_resolver_executio
         match=(
             r"runtime_transitive_callable_binding_mismatch:"
             r"xml_surface_reader\.security_guard"
+        ),
+    ):
+        _content_source_role_resolver_module(ROOT)
+
+
+@pytest.mark.parametrize(
+    ("module_name", "attribute"),
+    [
+        ("xml_rows", "role_for_field"),
+        ("xml_structure", "local_name"),
+    ],
+)
+def test_stale_xml_common_binding_captured_inside_product_module_fails_closed(
+    monkeypatch,
+    module_name,
+    attribute,
+):
+    _content_source_role_resolver_module(ROOT)
+    implementation_module = sys.modules[module_name]
+    xml_common = sys.modules["xml_common"]
+    assert getattr(implementation_module, attribute) is getattr(xml_common, attribute)
+
+    def adversarial_helper(*_args, **_kwargs):
+        raise AssertionError("stale XML captured helper must never execute")
+
+    monkeypatch.setattr(implementation_module, attribute, adversarial_helper)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"runtime_transitive_import_binding_mismatch:"
+            + rf"{module_name}\.{attribute}"
         ),
     ):
         _content_source_role_resolver_module(ROOT)
