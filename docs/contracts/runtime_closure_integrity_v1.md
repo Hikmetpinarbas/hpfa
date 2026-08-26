@@ -36,19 +36,23 @@ Rules:
 
 The runner does not memorize an absolute Termux location as product truth and does not select authority from an arbitrary `find` result.
 
-Authority is bound to the explicitly selected execution root. The only admitted ACTIVE_MATCH path is the direct path:
+Authority is bound to the explicitly selected execution root. The execution root may itself be resolved to its selected real root. The only admitted ACTIVE_MATCH path remains the direct lexical path:
 
 ```text
-<execution_root>/runtime/active_single_match/current
+<selected_execution_root>/runtime/active_single_match/current
 ```
 
 The execution root is selected independently from the ACTIVE_MATCH candidate. The candidate path cannot define its own authority root.
 
 Admission requires all of the following:
 
-- literal case-sensitive suffix `runtime/active_single_match/current`;
-- exact equality with `<execution_root>/runtime/active_single_match/current` after path resolution;
-- no forbidden ancestry component in the resolved candidate path.
+- literal case-sensitive suffix `runtime/active_single_match/current` on the lexical candidate;
+- exact lexical equality with `<selected_execution_root>/runtime/active_single_match/current` before authority-component symlinks are followed;
+- no forbidden ancestry component in the lexical or resolved candidate path;
+- none of `<root>/runtime`, `<root>/runtime/active_single_match`, or `<root>/runtime/active_single_match/current` may be a symlink;
+- after resolution, the admitted ACTIVE_MATCH authority must still be contained beneath the selected real execution root.
+
+The symlink rejection is not the only escape control. Resolved-path containment is an independent fail-closed invariant, so an authority escape remains rejected even if filesystem state changes between lexical/symlink inspection and final resolution.
 
 Forbidden ACTIVE_MATCH ancestry components include at least:
 
@@ -68,9 +72,11 @@ Rejections are explicit:
 runtime_authority_path_invalid
 runtime_authority_forbidden_ancestry
 runtime_authority_root_binding_mismatch
+runtime_authority_symlink_rejected
+runtime_authority_resolved_outside_execution_root
 ```
 
-A quarantine copy, archive copy, donor/reference/fixture path, sibling checkout, old checkout or any other reflection with the same final suffix cannot silently become ACTIVE_MATCH truth merely because the suffix matches.
+A quarantine copy, archive copy, donor/reference/fixture path, sibling checkout, old checkout, symlinked reflection or any other same-suffix reflection cannot silently become ACTIVE_MATCH truth.
 
 ## Runtime surface allowlist
 
@@ -105,6 +111,8 @@ execution_root
 active_match_root_binding_policy
 runtime_surface_policy.active_match_relative_authority_path
 runtime_surface_policy.forbidden_active_match_ancestry_parts
+runtime_surface_policy.authority_symlinks_allowed=false
+runtime_surface_policy.resolved_authority_must_remain_within_execution_root=true
 runtime_surface_policy.reflection_authority_allowed=false
 ```
 
@@ -116,6 +124,10 @@ runtime_surface_policy.reflection_authority_allowed=false
 - review-only runs do not invent a failure;
 - successful runs have no first failure;
 - direct `<execution_root>/runtime/active_single_match/current` authority passes;
+- `<root>/runtime` symlink to another checkout fails closed;
+- `<root>/runtime/active_single_match` symlink to an external/reflection path fails closed;
+- `<root>/runtime/active_single_match/current` symlink to an external/reflection path fails closed;
+- resolved authority escape outside the selected real execution root fails closed independently of the symlink precheck;
 - quarantine reflection with the same suffix fails closed;
 - a same-suffix candidate in another checkout/reflection cannot become the selected truth;
 - forbidden authority ancestry fails closed even if that contaminated root was explicitly selected;
