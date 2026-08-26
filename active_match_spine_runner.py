@@ -20,6 +20,13 @@ def main() -> int:
     parser.add_argument("active_match_dir")
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--composite-registry")
+    parser.add_argument(
+        "--execution-root",
+        help=(
+            "Explicit selected runtime execution root. "
+            "Defaults to the product checkout root when omitted; no runtime discovery is performed."
+        ),
+    )
     args = parser.parse_args()
 
     result = run_spine_check(
@@ -27,6 +34,7 @@ def main() -> int:
         out_dir=args.out_dir,
         composite_registry=args.composite_registry,
         root=ROOT,
+        execution_root=args.execution_root,
     )
     print(json.dumps({
         "status": result.get("status"),
