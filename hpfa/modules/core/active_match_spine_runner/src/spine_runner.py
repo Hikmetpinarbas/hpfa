@@ -162,6 +162,45 @@ def _validate_imported_module_origin(module: Any, expected_file: Path, module_na
         raise ValueError(f"runtime_module_origin_mismatch:{module_name}")
 
 
+def _validate_transitive_reader_implementation_origins(
+    content_source_role_resolver: Any,
+    dependency_src: dict[str, Path],
+) -> None:
+    xlsx_surface_reader = content_source_role_resolver.xlsx_surface_reader
+    xlsx_native_reader = getattr(xlsx_surface_reader, "native_reader", None)
+    if xlsx_native_reader is None:
+        raise ValueError("runtime_transitive_module_missing:xlsx_surface_reader.native_reader")
+    _validate_imported_module_origin(
+        xlsx_native_reader,
+        dependency_src["xlsx_surface_reader"] / "xlsx_surface_reader" / "native_reader.py",
+        "xlsx_surface_reader.native_reader",
+    )
+    if getattr(xlsx_surface_reader, "inspect_xlsx_file", None) is not getattr(
+        xlsx_native_reader, "inspect_xlsx_file", None
+    ):
+        raise ValueError(
+            "runtime_transitive_callable_binding_mismatch:"
+            "xlsx_surface_reader.inspect_xlsx_file"
+        )
+
+    multiformat_inventory = content_source_role_resolver.multiformat_file_inventory
+    multiformat_impl = getattr(multiformat_inventory, "_impl", None)
+    if multiformat_impl is None:
+        raise ValueError("runtime_transitive_module_missing:multiformat_file_inventory._impl")
+    _validate_imported_module_origin(
+        multiformat_impl,
+        dependency_src["multiformat_file_inventory"] / "multiformat_file_inventory_impl.py",
+        "multiformat_file_inventory._impl",
+    )
+    if getattr(multiformat_inventory, "build_inventory", None) is not getattr(
+        multiformat_impl, "build_inventory", None
+    ):
+        raise ValueError(
+            "runtime_transitive_callable_binding_mismatch:"
+            "multiformat_file_inventory.build_inventory"
+        )
+
+
 def _load_product_legacy_module(
     root: Path,
     module_name: str,
@@ -247,6 +286,10 @@ def _content_source_role_resolver_module(root: Path):
     }
     for module_name, module in dependency_modules.items():
         _validate_imported_module_origin(module, dependency_files[module_name], module_name)
+    _validate_transitive_reader_implementation_origins(
+        content_source_role_resolver,
+        dependency_src,
+    )
     return content_source_role_resolver
 
 
