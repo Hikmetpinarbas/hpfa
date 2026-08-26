@@ -9,7 +9,12 @@ ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
 sys.path.insert(0, str(SRC))
 
-from spine_runner import run_spine_check, validate_output_root
+from spine_runner import (  # noqa: E402
+    run_spine_check,
+    validate_active_match_authority,
+    validate_output_root,
+    validate_runtime_surface,
+)
 
 
 def write_csv(path: Path):
@@ -70,11 +75,18 @@ def test_spine_runner_writes_flat_json_and_txt_outputs(tmp_path):
     result = run_spine_check(match, out, composite_registry=registry, root=ROOT)
 
     assert result["status"] == "PASS"
+    assert result["active_match_authority_validated"] is True
     assert result["surface_manifest"]["status"] == "PASS"
     assert result["surface_manifest"]["surface_file_count"] == 8
     assert result["surface_manifest"]["report_language_allowed"] is False
     assert result["production_binding_allowed"] is False
     assert result["boundary_scores"]["score_count"] == 1
+    assert result["runtime_surface_policy"]["executed_runtime_surfaces"] == [
+        "hpfa/modules/core/canonical_ingest_surface_manifest",
+        "hpfa/modules/core/composite_integration_office",
+    ]
+    assert result["runtime_surface_policy"]["unregistered_runtime_surface_allowed"] is False
+    assert result["runtime_surface_policy"]["donor_runtime_binding_allowed"] is False
 
     assert (out / "active_match_surface_manifest_v1.json").exists()
     assert (out / "boundary_analysis_score_registry_v1.json").exists()
@@ -91,7 +103,11 @@ def test_spine_runner_can_skip_boundary_scores(tmp_path):
 
     assert result["status"] == "PASS"
     assert result["boundary_scores"] is None
+    assert result["runtime_surface_policy"]["executed_runtime_surfaces"] == [
+        "hpfa/modules/core/canonical_ingest_surface_manifest"
+    ]
     summary = (out / "active_match_spine_check_v1.txt").read_text(encoding="utf-8")
+    assert "[runtime_surface_policy]" in summary
     assert "[boundary_scores]" in summary
     assert "status=SKIPPED" in summary
 
@@ -103,3 +119,42 @@ def test_nested_phone_output_directory_is_rejected():
 
 def test_phone_output_root_is_allowed():
     assert str(validate_output_root("/sdcard/Download/HPFA")).endswith("/Download/HPFA")
+
+
+def test_active_match_authority_is_path_discovered_but_suffix_contract_is_fixed(tmp_path):
+    match = make_active_match(tmp_path)
+    assert validate_active_match_authority(match) == match.resolve()
+
+    wrong = tmp_path / "runtime" / "some_other_match" / "current"
+    wrong.mkdir(parents=True)
+    with pytest.raises(ValueError, match="runtime_authority_path_invalid"):
+        validate_active_match_authority(wrong)
+
+
+def test_only_registered_product_runtime_surfaces_are_executable():
+    allowed = ROOT / "hpfa" / "modules" / "core" / "canonical_ingest_surface_manifest" / "src"
+    assert validate_runtime_surface(ROOT, allowed) == allowed.resolve()
+
+    with pytest.raises(ValueError, match="unregistered_runtime_surface"):
+        validate_runtime_surface(ROOT, ROOT / "docs" / "contracts")
+
+
+def test_archive_donor_reference_and_fixture_runtime_surfaces_fail_closed(tmp_path):
+    for relative, error_code in [
+        ("archive/legacy.py", "archive_surface_import_attempted"),
+        ("donor/engine.py", "donor_surface_runtime_bound"),
+        ("reference_only/note.py", "reference_only_surface_executed"),
+        ("fixtures/sample.py", "fixture_surface_used_as_active_match"),
+    ]:
+        candidate = tmp_path / relative
+        candidate.parent.mkdir(parents=True, exist_ok=True)
+        candidate.write_text("pass\n", encoding="utf-8")
+        with pytest.raises(ValueError, match=error_code):
+            validate_runtime_surface(tmp_path, candidate)
+
+
+def test_runtime_surface_outside_product_repo_is_rejected(tmp_path):
+    outside = tmp_path / "outside.py"
+    outside.write_text("pass\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="runtime_surface_outside_product_repo"):
+        validate_runtime_surface(ROOT, outside)
