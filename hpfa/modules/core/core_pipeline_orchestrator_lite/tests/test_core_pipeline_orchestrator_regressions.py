@@ -239,6 +239,27 @@ def test_initial_upstream_failure_cannot_be_overwritten_by_downstream_failure_wr
     assert result["blocked_outputs"] == ["report_candidate"]
 
 
+def test_blocking_initial_artifact_with_no_stages_stays_fail_closed():
+    artifact = initial_artifact()
+    artifact["status"] = "FAIL_CLOSED"
+    artifact["decision"] = "BLOCK_INPUT"
+    artifact["hard_block_hits"] = ["source_authority_failed"]
+
+    result = run_pipeline(
+        run_id="initial_failure_no_stages",
+        initial_artifact=artifact,
+        stages=[],
+    )
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["decision"] == "PIPELINE_BLOCKED"
+    assert result["completed_all_stages"] is False
+    assert result["first_failed_node"] == "INITIAL_ARTIFACT"
+    assert result["first_failed_reason_code"] == "source_authority_failed"
+    assert result["first_failed_stage_index"] == -1
+    assert result["stage_count_executed"] == 0
+
+
 def test_successful_pipeline_has_no_first_failure_or_blocked_outputs():
     result = run_pipeline(
         run_id="no_failure_disclosure",
