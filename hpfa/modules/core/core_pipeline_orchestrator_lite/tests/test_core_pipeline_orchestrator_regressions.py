@@ -196,11 +196,21 @@ def test_first_failed_node_is_preserved_and_later_outputs_are_disclosed_as_block
     assert result["upstream_status"] == "SMOKE_PASS"
 
 
-def test_initial_upstream_failure_cannot_be_overwritten_by_downstream_failure_wrapper():
+def test_initial_upstream_failure_blocks_all_downstream_execution_and_preserves_root_cause():
     artifact = initial_artifact()
     artifact["status"] = "FAIL_CLOSED"
     artifact["decision"] = "BLOCK_INPUT"
     artifact["hard_block_hits"] = ["source_authority_failed"]
+    downstream_called = False
+
+    def should_not_run(stage_input: dict) -> dict:
+        nonlocal downstream_called
+        downstream_called = True
+        return stage_output(
+            stage_input,
+            status="SMOKE_PASS",
+            decision="READY_FOR_NEXT_STAGE",
+        )
 
     result = run_pipeline(
         run_id="initial_failure_disclosure",
@@ -210,33 +220,28 @@ def test_initial_upstream_failure_cannot_be_overwritten_by_downstream_failure_wr
                 "semantic_gate",
                 "surface_candidate",
                 "feature_candidate",
-                lambda stage_input: stage_output(
-                    stage_input,
-                    status="SMOKE_PASS",
-                    decision="READY_FOR_NEXT_STAGE",
-                ),
+                should_not_run,
             ),
             StageSpec(
                 "report_builder",
                 "feature_candidate",
                 "report_candidate",
-                lambda stage_input: stage_output(
-                    stage_input,
-                    status="SMOKE_PASS",
-                    decision="READY_FOR_NEXT_STAGE",
-                    artifact_id="report_001",
-                    artifact_type="report_candidate",
-                ),
+                should_not_run,
             ),
         ],
     )
 
+    assert downstream_called is False
     assert result["status"] == "FAIL_CLOSED"
+    assert result["decision"] == "PIPELINE_BLOCKED"
+    assert result["pipeline_halted"] is True
+    assert result["halt_reason"] == "blocking_initial_artifact"
     assert result["first_failed_node"] == "INITIAL_ARTIFACT"
     assert result["first_failed_reason_code"] == "source_authority_failed"
     assert result["first_failed_stage_index"] == -1
     assert result["first_failed_artifact_id"] == "surface_001"
-    assert result["blocked_outputs"] == ["report_candidate"]
+    assert result["stage_count_executed"] == 0
+    assert result["blocked_outputs"] == ["feature_candidate", "report_candidate"]
 
 
 def test_blocking_initial_artifact_with_no_stages_stays_fail_closed():
