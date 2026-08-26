@@ -242,7 +242,7 @@ def _content_source_role_resolver_module(root: Path):
         "csv_surface_reader": dependency_src["csv_surface_reader"] / "csv_surface_reader.py",
         "multiformat_file_inventory": dependency_src["multiformat_file_inventory"] / "multiformat_file_inventory.py",
         "triangulated_event_reflection_resolver": dependency_src["triangulated_event_reflection_resolver"] / "triangulated_event_reflection_resolver.py",
-        "xlsx_surface_reader": dependency_src["xlsx_surface_reader"] / "xlsx_surface_reader.py",
+        "xlsx_surface_reader": dependency_src["xlsx_surface_reader"] / "xlsx_surface_reader" / "__init__.py",
         "xml_surface_reader": dependency_src["xml_surface_reader"] / "xml_surface_reader.py",
     }
     for module_name, module in dependency_modules.items():
