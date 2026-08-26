@@ -8,6 +8,12 @@ from typing import Any
 from . import native_reader
 from .native_reader import *
 
+_PRODUCT_PACKAGE_DIR = Path(__file__).resolve().parent
+_PRODUCT_SRC_ROOT = _PRODUCT_PACKAGE_DIR.parent
+_EXPECTED_NATIVE_READER_FILE = _PRODUCT_PACKAGE_DIR / "native_reader.py"
+_EXPECTED_NATIVE_OOXML_FILE = _PRODUCT_SRC_ROOT / "native_ooxml.py"
+_EXPECTED_HEADER_SEMANTICS_FILE = _PRODUCT_SRC_ROOT / "xlsx_header_semantics.py"
+
 _NATIVE_READER_IMPL = native_reader
 _NATIVE_OOXML_MODULE = "hpfa.modules.core.xlsx_surface_reader_lite.src.native_ooxml"
 _HEADER_SEMANTICS_MODULE = "hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_header_semantics"
@@ -30,14 +36,12 @@ def _validated_helper_module(module_name: str, expected_file: Path, label: str) 
 
 
 def _validate_native_reader_helper_bindings() -> None:
-    native_file = _resolved_module_file(_NATIVE_READER_IMPL)
-    if native_file is None:
+    if _resolved_module_file(_NATIVE_READER_IMPL) != _EXPECTED_NATIVE_READER_FILE:
         raise ValueError("runtime_module_origin_mismatch:xlsx_surface_reader.native_reader")
-    src_root = native_file.parents[1]
 
     native_ooxml = _validated_helper_module(
         _NATIVE_OOXML_MODULE,
-        src_root / "native_ooxml.py",
+        _EXPECTED_NATIVE_OOXML_FILE,
         "native_ooxml",
     )
     for attribute in ("InvalidFileException", "load_workbook"):
@@ -51,7 +55,7 @@ def _validate_native_reader_helper_bindings() -> None:
 
     header_semantics = _validated_helper_module(
         _HEADER_SEMANTICS_MODULE,
-        src_root / "xlsx_header_semantics.py",
+        _EXPECTED_HEADER_SEMANTICS_FILE,
         "xlsx_header_semantics",
     )
     if getattr(_NATIVE_READER_IMPL, "_semantic_header_norm", None) is not getattr(
