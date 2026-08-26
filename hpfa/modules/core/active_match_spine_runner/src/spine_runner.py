@@ -11,6 +11,18 @@ PHONE_OUTPUT_ROOTS = (
     Path("/sdcard/Download/HPFA"),
     Path("/storage/emulated/0/Download/HPFA"),
 )
+ALLOWED_RUNTIME_SURFACES = (
+    Path("hpfa/modules/core/canonical_ingest_surface_manifest"),
+    Path("hpfa/modules/core/composite_integration_office"),
+)
+FORBIDDEN_RUNTIME_PARTS = {
+    "archive": "archive_surface_import_attempted",
+    "archives": "archive_surface_import_attempted",
+    "donor": "donor_surface_runtime_bound",
+    "donors": "donor_surface_runtime_bound",
+    "reference_only": "reference_only_surface_executed",
+    "fixtures": "fixture_surface_used_as_active_match",
+}
 
 
 def repo_root_from_file() -> Path:
@@ -22,8 +34,47 @@ def _ensure_module_path(path: Path) -> None:
         sys.path.insert(0, str(path))
 
 
+def _resolve_path(path: Path) -> Path:
+    return path.expanduser().resolve(strict=False)
+
+
+def validate_active_match_authority(path: str | Path) -> Path:
+    resolved = _resolve_path(Path(path))
+    if tuple(part.lower() for part in resolved.parts[-3:]) != (
+        "runtime",
+        "active_single_match",
+        "current",
+    ):
+        raise ValueError(f"runtime_authority_path_invalid:{resolved}")
+    return resolved
+
+
+def validate_runtime_surface(root: str | Path, path: str | Path) -> Path:
+    repo_root = _resolve_path(Path(root))
+    candidate = _resolve_path(Path(path))
+    try:
+        relative = candidate.relative_to(repo_root)
+    except ValueError as exc:
+        raise ValueError(f"runtime_surface_outside_product_repo:{candidate}") from exc
+
+    lowered_parts = {part.lower() for part in relative.parts}
+    for token, error_code in FORBIDDEN_RUNTIME_PARTS.items():
+        if token in lowered_parts:
+            raise ValueError(f"{error_code}:{relative.as_posix()}")
+
+    for allowed in ALLOWED_RUNTIME_SURFACES:
+        allowed_root = _resolve_path(repo_root / allowed)
+        if candidate == allowed_root or allowed_root in candidate.parents:
+            return candidate
+
+    raise ValueError(f"unregistered_runtime_surface:{relative.as_posix()}")
+
+
 def _surface_manifest_module(root: Path):
-    src = root / "hpfa" / "modules" / "core" / "canonical_ingest_surface_manifest" / "src"
+    src = validate_runtime_surface(
+        root,
+        root / "hpfa" / "modules" / "core" / "canonical_ingest_surface_manifest" / "src",
+    )
     _ensure_module_path(src)
     import surface_manifest  # type: ignore
 
@@ -31,15 +82,14 @@ def _surface_manifest_module(root: Path):
 
 
 def _boundary_scorer_module(root: Path):
-    src = root / "hpfa" / "modules" / "core" / "composite_integration_office" / "src"
+    src = validate_runtime_surface(
+        root,
+        root / "hpfa" / "modules" / "core" / "composite_integration_office" / "src",
+    )
     _ensure_module_path(src)
     import boundary_analysis_scorer  # type: ignore
 
     return boundary_analysis_scorer
-
-
-def _resolve_path(path: Path) -> Path:
-    return path.expanduser().resolve(strict=False)
 
 
 def validate_output_root(out_dir: str | Path) -> Path:
@@ -71,7 +121,7 @@ def run_spine_check(
     root: str | Path | None = None,
 ) -> dict[str, Any]:
     repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
-    active_match_path = _resolve_path(Path(active_match_dir))
+    active_match_path = validate_active_match_authority(active_match_dir)
     output_root = validate_output_root(out_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
@@ -79,6 +129,9 @@ def run_spine_check(
     spine_json_out = output_root / "active_match_spine_check_v1.json"
     spine_txt_out = output_root / "active_match_spine_check_v1.txt"
 
+    executed_runtime_surfaces = [
+        "hpfa/modules/core/canonical_ingest_surface_manifest",
+    ]
     surface_manifest = _surface_manifest_module(repo_root)
     manifest = surface_manifest.write_manifest(str(active_match_path), str(surface_out))
 
@@ -87,6 +140,7 @@ def run_spine_check(
     if composite_registry is not None:
         boundary_out_path = output_root / "boundary_analysis_score_registry_v1.json"
         scorer = _boundary_scorer_module(repo_root)
+        executed_runtime_surfaces.append("hpfa/modules/core/composite_integration_office")
         boundary_result = scorer.write_score_registry(composite_registry, boundary_out_path)
         boundary_out = str(boundary_out_path)
 
@@ -96,7 +150,17 @@ def run_spine_check(
         "runner_id": RUNNER_ID,
         "status": status,
         "active_match_dir": str(active_match_path),
+        "active_match_authority_validated": True,
         "output_root": str(output_root),
+        "runtime_surface_policy": {
+            "allowed_runtime_surfaces": [path.as_posix() for path in ALLOWED_RUNTIME_SURFACES],
+            "executed_runtime_surfaces": executed_runtime_surfaces,
+            "forbidden_archive_surfaces": ["archive", "archives"],
+            "reference_only_surfaces": ["reference_only"],
+            "fixture_surfaces": ["fixtures"],
+            "unregistered_runtime_surface_allowed": False,
+            "donor_runtime_binding_allowed": False,
+        },
         "surface_manifest": {
             "status": manifest.get("status"),
             "out": str(surface_out),
@@ -137,12 +201,26 @@ def render_summary(result: dict[str, Any]) -> str:
         "================================",
         f"status={result.get('status')}",
         f"active_match_dir={result.get('active_match_dir')}",
+        f"active_match_authority_validated={result.get('active_match_authority_validated')}",
         f"claim_safety={result.get('claim_safety')}",
         f"report_language_allowed={result.get('report_language_allowed')}",
         f"production_binding_allowed={result.get('production_binding_allowed')}",
         "",
-        "[surface_manifest]",
+        "[runtime_surface_policy]",
     ]
+    runtime_policy = result.get("runtime_surface_policy") or {}
+    for key in [
+        "allowed_runtime_surfaces",
+        "executed_runtime_surfaces",
+        "forbidden_archive_surfaces",
+        "reference_only_surfaces",
+        "fixture_surfaces",
+        "unregistered_runtime_surface_allowed",
+        "donor_runtime_binding_allowed",
+    ]:
+        lines.append(f"{key}={runtime_policy.get(key)}")
+
+    lines.extend(["", "[surface_manifest]"])
     surface = result.get("surface_manifest") or {}
     for key in [
         "status",
