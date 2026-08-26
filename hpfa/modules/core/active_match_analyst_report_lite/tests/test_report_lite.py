@@ -1,9 +1,12 @@
 import json
 import sys
-import zipfile
 from pathlib import Path
 
 import pytest
+
+from hpfa.modules.core.xlsx_surface_reader_lite.tests.ooxml_fixture import (
+    write_xlsx as write_ooxml_xlsx,
+)
 
 ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_analyst_report_lite" / "src"
@@ -28,13 +31,47 @@ def write_csv(path: Path, body: str):
     path.write_text(body, encoding="utf-8")
 
 
-def write_xml(path: Path):
-    path.write_text("<root><instance/><instance/></root>", encoding="utf-8")
+def write_xml(path: Path, role: str):
+    if role == "TEAM":
+        action = "Shots"
+        code = "Club - Shots"
+        team_label = ""
+    elif role == "GOALKEEPER":
+        action = "Goal kicks"
+        code = "Subject - Goal kicks"
+        team_label = "<label><group>Team</group><text>Club</text></label>"
+    else:
+        action = "Passes accurate"
+        code = "Subject - Passes accurate"
+        team_label = "<label><group>Team</group><text>Club</text></label>"
+    path.write_text(
+        "<root><instance>"
+        "<ID>1</ID><start>0</start><end>1</end>"
+        f"<code>{code}</code>"
+        f"<label><group>Action</group><text>{action}</text></label>"
+        "<label><group>Half</group><text>1</text></label>"
+        f"{team_label}"
+        "<label><group>pos_x</group><text>10</text></label>"
+        "<label><group>pos_y</group><text>20</text></label>"
+        "</instance></root>",
+        encoding="utf-8",
+    )
 
 
-def write_xlsx(path: Path):
-    with zipfile.ZipFile(path, "w") as zf:
-        zf.writestr("xl/worksheets/sheet1.xml", "<worksheet><sheetData><row/><row/></sheetData></worksheet>")
+def write_xlsx(path: Path, role: str):
+    if role == "GOALKEEPER":
+        sheet_name = "Kaleci verileri"
+        rows = [
+            ["Player", "Team", "Goal kicks", "Shots saved"],
+            ["Alpha", "Club", 8, 4],
+        ]
+    else:
+        sheet_name = "Oyuncuların verileri"
+        rows = [
+            ["Player", "Team", "Passes accurate", "Shots", "Lost balls"],
+            ["Alpha", "Club", 40, 2, 3],
+        ]
+    write_ooxml_xlsx(path, sheets=[{"name": sheet_name, "rows": rows}])
 
 
 def make_active_match(tmp_path: Path) -> Path:
@@ -42,21 +79,21 @@ def make_active_match(tmp_path: Path) -> Path:
     match.mkdir(parents=True)
     write_csv(
         match / "Players.csv",
-        "Team,Action,x,y\nTurkey,Pass,20,20\nTurkey,Shot,80,30\nAustralia,Ball Loss,65,50\n",
+        "Team,Action,x,y\nTurkey,Passes accurate,20,20\nTurkey,Shots,80,30\nAustralia,Lost balls,65,50\n",
     )
     write_csv(
         match / "Teams.csv",
-        "Team,Action,x,y\nTurkey,Goal Kick Short,10,10\nAustralia,Duel,60,45\n",
+        "Action,code,x,y\nGoal kicks short (0-15 m),Club - Goal kicks short (0-15 m),10,10\nShots,Club - Shots,60,45\n",
     )
     write_csv(
         match / "Goalkeepers.csv",
-        "Team,Action,x,y\nTurkey,Restart,5,34\n",
+        "Team,Action,x,y\nTurkey,Goal kicks,5,34\n",
     )
-    write_xml(match / "Players.xml")
-    write_xml(match / "Teams.xml")
-    write_xml(match / "Goalkeepers.xml")
-    write_xlsx(match / "Players.xlsx")
-    write_xlsx(match / "Goalkeepers.xlsx")
+    write_xml(match / "Players.xml", "PLAYER")
+    write_xml(match / "Teams.xml", "TEAM")
+    write_xml(match / "Goalkeepers.xml", "GOALKEEPER")
+    write_xlsx(match / "Players.xlsx", "PLAYER")
+    write_xlsx(match / "Goalkeepers.xlsx", "GOALKEEPER")
     return match
 
 
@@ -68,13 +105,21 @@ def test_report_lite_writes_flat_json_and_txt_outputs(tmp_path):
 
     assert result["status"] == "PASS"
     assert result["canonical_event_count"] == "UNKNOWN"
+    assert result["engineering_evidence"]["source_role_resolution_status"] == "PASS"
+    assert result["engineering_evidence"]["role_candidate_admitted_file_count"] == 8
+    assert result["engineering_evidence"]["unresolved_role_file_count"] == 0
+    assert len(result["surface_inventory"]) == 8
+    assert all(
+        surface["filename_support_used_for_admission"] is False
+        for surface in result["surface_inventory"]
+    )
     assert (out / OUTPUT_JSON).exists()
     assert (out / OUTPUT_TXT).exists()
     assert not any(p.is_dir() for p in out.iterdir())
 
     data = json.loads((out / OUTPUT_JSON).read_text(encoding="utf-8"))
     assert data["key_action_blocks"]["PASS"] == 1
-    assert data["key_action_blocks"]["SHOT"] == 1
+    assert data["key_action_blocks"]["SHOT"] == 2
     assert data["key_action_blocks"]["BALL_LOSS"] == 1
     assert data["key_action_blocks"]["GOALKEEPER_RESTART"] == 2
     assert data["team_row_volume"]["Turkey"] == 2
@@ -100,7 +145,7 @@ def test_report_preserves_row_level_language_and_unknown_canonical_count(tmp_pat
 
 def test_missing_columns_are_reported_not_crashed(tmp_path):
     match = make_active_match(tmp_path)
-    write_csv(match / "Players.csv", "foo,bar\n1,2\n")
+    write_csv(match / "Players.csv", "Team,Action\nTurkey,Passes accurate\n")
 
     report = build_report(match, root=ROOT)
 
@@ -108,4 +153,7 @@ def test_missing_columns_are_reported_not_crashed(tmp_path):
     assert report["missing_column_report"]
     players_missing = [r for r in report["missing_column_report"] if r["source_file"] == "Players.csv"]
     assert players_missing
-    assert "action" in players_missing[0]["missing_column_family"]
+    assert "x" in players_missing[0]["missing_column_family"]
+    assert "y" in players_missing[0]["missing_column_family"]
+    assert report["engineering_evidence"]["source_role_resolution_status"] == "PASS"
+    assert report["engineering_evidence"]["unresolved_role_file_count"] == 0

@@ -1,17 +1,25 @@
 name: Core Pipeline Orchestrator Lite V1
 
 on:
-  push:
-    branches: [core-pipeline-orchestrator-lite-v1]
   pull_request:
     paths:
+      - active_match_spine_runner.py
       - hpfa/modules/core/core_pipeline_orchestrator_lite/**
+      - hpfa/modules/core/active_match_spine_runner/**
+      - hpfa/modules/core/active_match_analyst_report_lite/**
+      - hpfa/modules/core/content_source_role_resolver_lite/**
+      - hpfa/modules/core/canonical_ingest_surface_manifest/**
       - docs/contracts/core_pipeline_orchestrator_lite_v1.md
+      - docs/contracts/runtime_closure_integrity_v1.md
       - .github/workflows/core-pipeline-orchestrator-lite-v1.yml
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: core-pipeline-orchestrator-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   contract-tests:
@@ -19,9 +27,43 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Exact head gate
+        shell: bash
+        run: |
+          EXPECTED="${{ github.event.pull_request.head.sha || github.sha }}"
+          ACTUAL="$(git rev-parse HEAD)"
+          test "$ACTUAL" = "$EXPECTED"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: python -m pip install pytest
-      - run: python -m py_compile hpfa/modules/core/core_pipeline_orchestrator_lite/src/core_pipeline_orchestrator.py
-      - run: python -m pytest hpfa/modules/core/core_pipeline_orchestrator_lite/tests -q
+      - name: Compile maintenance integrity producers
+        run: |
+          python -m py_compile active_match_spine_runner.py
+          python -m py_compile hpfa/modules/core/core_pipeline_orchestrator_lite/src/core_pipeline_orchestrator.py
+          python -m py_compile hpfa/modules/core/active_match_spine_runner/src/spine_runner.py
+          python -m py_compile hpfa/modules/core/active_match_analyst_report_lite/src/report_lite.py
+          python -m py_compile hpfa/modules/core/content_source_role_resolver_lite/src/content_source_role_resolver.py
+          python -m py_compile hpfa/modules/core/canonical_ingest_surface_manifest/src/surface_manifest.py
+      - name: Focused maintenance integrity tests
+        run: |
+          python -m pytest hpfa/modules/core/core_pipeline_orchestrator_lite/tests -q
+          python -m pytest hpfa/modules/core/content_source_role_resolver_lite/tests -q
+          python -m pytest hpfa/modules/core/canonical_ingest_surface_manifest/tests -q
+          python -m pytest hpfa/modules/core/active_match_spine_runner/tests -q
+          python -m pytest hpfa/modules/core/active_match_analyst_report_lite/tests -q
+      - name: No sample match identity leak
+        shell: bash
+        run: |
+          if grep -RniE 'Galatasaray|Fenerbahce|Fenerbahçe|Besiktas|Beşiktaş|Trabzonspor' \
+            active_match_spine_runner.py \
+            hpfa/modules/core/core_pipeline_orchestrator_lite/src \
+            hpfa/modules/core/content_source_role_resolver_lite/src \
+            hpfa/modules/core/canonical_ingest_surface_manifest/src \
+            hpfa/modules/core/active_match_spine_runner/src \
+            hpfa/modules/core/active_match_analyst_report_lite/src; then
+            echo 'sample_match_identity_leak_detected'
+            exit 1
+          fi

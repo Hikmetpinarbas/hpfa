@@ -86,6 +86,19 @@ def artifact_requires_review(artifact: Mapping[str, Any]) -> bool:
     return "REVIEW" in _normalized_decision(artifact.get("decision"))
 
 
+def _blocking_reason(artifact: Mapping[str, Any]) -> str:
+    hard_blocks = _meaningful_list(artifact.get("hard_block_hits"))
+    if hard_blocks:
+        return str(hard_blocks[0])
+    status = _normalized_status(artifact.get("status"))
+    if status in BLOCKING_STATUSES:
+        return f"status:{status}"
+    decision = _normalized_decision(artifact.get("decision"))
+    if decision.startswith("BLOCK"):
+        return f"decision:{decision}"
+    return ""
+
+
 def _validate_stage_spec(stage: StageSpec) -> None:
     if not stage.stage_id.strip():
         raise OrchestrationContractError("stage_id_required")
@@ -155,6 +168,17 @@ def run_pipeline(
     ledger: list[dict[str, Any]] = []
     pipeline_halted = False
     halt_reason = ""
+    first_failed_node: str | None = None
+    first_failed_reason_code: str | None = None
+    first_failed_artifact_id: str | None = None
+    first_failed_stage_index: int | None = None
+    initial_blocking = artifact_is_blocking(current)
+
+    if initial_blocking:
+        first_failed_node = "INITIAL_ARTIFACT"
+        first_failed_reason_code = _blocking_reason(current) or "initial_artifact_failed_closed"
+        first_failed_artifact_id = str(current.get("artifact_id") or "") or None
+        first_failed_stage_index = -1
 
     for index, stage in enumerate(stages):
         _validate_stage_spec(stage)
@@ -233,6 +257,11 @@ def run_pipeline(
         current = output
 
         if artifact_is_blocking(output):
+            if first_failed_node is None:
+                first_failed_node = stage.stage_id
+                first_failed_reason_code = error_code or _blocking_reason(output) or "blocking_stage_output"
+                first_failed_artifact_id = str(output.get("artifact_id") or "") or None
+                first_failed_stage_index = index
             pipeline_halted = True
             halt_reason = "blocking_stage_output"
             break
@@ -241,8 +270,8 @@ def run_pipeline(
             halt_reason = "review_required"
             break
 
-    completed_all_stages = len(ledger) == len(stages) and not pipeline_halted
-    has_block = any(artifact_is_blocking(record) for record in ledger)
+    completed_all_stages = len(ledger) == len(stages) and not pipeline_halted and not initial_blocking
+    has_block = initial_blocking or any(artifact_is_blocking(record) for record in ledger)
     has_review = any(artifact_requires_review(record) for record in ledger)
 
     if has_block:
@@ -258,6 +287,8 @@ def run_pipeline(
         status = "REVIEW_REQUIRED"
         decision = "PIPELINE_INCOMPLETE"
 
+    blocked_outputs = [stage.output_artifact_type for stage in stages[len(ledger):]] if pipeline_halted else []
+
     return {
         "module_id": MODULE_ID,
         "run_id": run_id,
@@ -267,6 +298,12 @@ def run_pipeline(
         "completed_all_stages": completed_all_stages,
         "pipeline_halted": pipeline_halted,
         "halt_reason": halt_reason,
+        "first_failed_node": first_failed_node,
+        "first_failed_reason_code": first_failed_reason_code,
+        "first_failed_artifact_id": first_failed_artifact_id,
+        "first_failed_stage_index": first_failed_stage_index,
+        "upstream_status": initial_artifact.get("status"),
+        "blocked_outputs": blocked_outputs,
         "stage_count_declared": len(stages),
         "stage_count_executed": len(ledger),
         "stage_ledger": ledger,
@@ -275,6 +312,7 @@ def run_pipeline(
             "deterministic_stage_order": True,
             "input_output_fingerprints_recorded": True,
             "failure_propagation_enabled": True,
+            "first_failure_disclosure_enabled": True,
             "review_halt_enabled": True,
         },
         "analyst_evidence": {

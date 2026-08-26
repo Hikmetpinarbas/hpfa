@@ -148,8 +148,14 @@ def build_report(active_match_dir: str | Path, root: str | Path | None = None) -
     repo_root = Path(root).resolve() if root is not None else repo_root_from_file()
     active_match_path = Path(active_match_dir).expanduser().resolve(strict=False)
 
-    surface_manifest = _surface_manifest_module(repo_root)
-    manifest = surface_manifest.build_manifest(str(active_match_path))
+    spine_runner = _spine_runner_module(repo_root)
+    role_resolver = spine_runner._content_source_role_resolver_module(repo_root)
+    role_report = role_resolver.build_report(str(active_match_path), root=repo_root)
+    surface_manifest = spine_runner._surface_manifest_module(repo_root)
+    manifest = surface_manifest.build_manifest(
+        str(active_match_path),
+        role_report=role_report,
+    )
 
     action_counter: Counter[str] = Counter()
     zone_counter: Counter[str] = Counter()
@@ -222,6 +228,11 @@ def build_report(active_match_dir: str | Path, root: str | Path | None = None) -
         ],
         "engineering_evidence": {
             "csv_visible_rows_scanned": csv_row_total,
+            "source_role_resolution_status": role_report.get("status"),
+            "role_candidate_admitted_file_count": role_report.get(
+                "role_candidate_admitted_file_count"
+            ),
+            "unresolved_role_file_count": role_report.get("unresolved_role_file_count"),
             "surface_manifest_status": manifest.get("status"),
             "missing_expected_surfaces": manifest.get("missing_expected_surfaces", []),
             "unexpected_surfaces": manifest.get("unexpected_surfaces", []),
