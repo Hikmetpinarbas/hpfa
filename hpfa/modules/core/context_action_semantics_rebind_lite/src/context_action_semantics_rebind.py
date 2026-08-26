@@ -363,9 +363,10 @@ def build_rebind(
 
     lost_ball_mismatches = [
         row
-        for row in reviewed_lost_ball_rows
+        for row in lost_ball_rows
         if not (
-            row["provider_semantic_role_candidate"] == "ACTION_ANCHOR"
+            row["provider_semantics_review_status"] == "REVIEWED_CANDIDATE"
+            and row["provider_semantic_role_candidate"] == "ACTION_ANCHOR"
             and row["provider_action_family_candidate"] == "TURNOVER"
             and row["provider_downstream_eligibility"] == "ACTION_CANDIDATE_ELIGIBLE"
             and row["action_occurrence_eligible"] is True
@@ -373,9 +374,10 @@ def build_rebind(
     ]
     recovery_mismatches = [
         row
-        for row in reviewed_recovery_rows
+        for row in recovery_rows
         if not (
-            row["provider_semantic_role_candidate"] == "ACTION_ANCHOR"
+            row["provider_semantics_review_status"] == "REVIEWED_CANDIDATE"
+            and row["provider_semantic_role_candidate"] == "ACTION_ANCHOR"
             and row["provider_action_family_candidate"] == "RECOVERY"
             and row["provider_downstream_eligibility"] == "ACTION_CANDIDATE_ELIGIBLE"
             and row["action_occurrence_eligible"] is True
@@ -406,8 +408,9 @@ def build_rebind(
         "lost_ball_reviewed_record_count": len(reviewed_lost_ball_rows),
         "lost_ball_turnover_candidate_count": sum(
             1
-            for row in reviewed_lost_ball_rows
-            if row["provider_action_family_candidate"] == "TURNOVER"
+            for row in lost_ball_rows
+            if row["provider_semantics_review_status"] == "REVIEWED_CANDIDATE"
+            and row["provider_action_family_candidate"] == "TURNOVER"
             and row["action_occurrence_eligible"]
         ),
         "lost_ball_reconciliation_mismatch_count": len(lost_ball_mismatches),
@@ -415,8 +418,9 @@ def build_rebind(
         "ball_recovery_reviewed_record_count": len(reviewed_recovery_rows),
         "ball_recovery_candidate_count": sum(
             1
-            for row in reviewed_recovery_rows
-            if row["provider_action_family_candidate"] == "RECOVERY"
+            for row in recovery_rows
+            if row["provider_semantics_review_status"] == "REVIEWED_CANDIDATE"
+            and row["provider_action_family_candidate"] == "RECOVERY"
             and row["action_occurrence_eligible"]
         ),
         "ball_recovery_reconciliation_mismatch_count": len(recovery_mismatches),
@@ -439,16 +443,8 @@ def build_rebind(
         blocks.append("team_goal_kick_length_reference_routing_incomplete")
     if collision_audit["lost_ball_reconciliation_mismatch_count"]:
         blocks.append("lost_ball_turnover_reconciliation_mismatch")
-    elif lost_ball_rows and not reviewed_lost_ball_rows:
-        reviews.append("lost_ball_turnover_mapping_not_reviewed")
-    elif reviewed_lost_ball_rows and not collision_audit["lost_ball_turnover_candidate_count"]:
-        reviews.append("lost_ball_turnover_mapping_not_visible")
     if collision_audit["ball_recovery_reconciliation_mismatch_count"]:
         blocks.append("ball_recovery_reconciliation_mismatch")
-    elif recovery_rows and not reviewed_recovery_rows:
-        reviews.append("ball_recovery_mapping_not_reviewed")
-    elif reviewed_recovery_rows and not collision_audit["ball_recovery_candidate_count"]:
-        reviews.append("ball_recovery_mapping_not_visible")
 
     if unresolved_count:
         reviews.append("provider_semantics_unresolved_rows_visible")
