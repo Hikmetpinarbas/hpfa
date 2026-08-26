@@ -69,6 +69,34 @@ def _payloads() -> tuple[dict, dict]:
     return mvc, row
 
 
+def _append_label(mvc: dict, row: dict, label: str) -> None:
+    idx = len(row["row_nuclei"])
+    row["row_nuclei"].append(
+        {
+            "row_nucleus_candidate_id": f"rn_{idx}",
+            "source_role": "PLAYER",
+            "status": "PASS",
+            "resolved_visible_fields": {"action": label, "code": label},
+        }
+    )
+    mvc["context_candidates"].append(
+        {
+            "context_id": f"ctx_{idx}",
+            "period": "1",
+            "team_label": "team_candidate",
+            "zone_candidate": "MIDDLE_THIRD",
+            "channel_candidate": "CENTRAL_CHANNEL",
+            "time_admission_status": "ADMITTED",
+            "football_minute_candidate": 1,
+            "_preserved_unmapped": {"row_nucleus_candidate_id": f"rn_{idx}"},
+        }
+    )
+    count = len(row["row_nuclei"])
+    row["row_nucleus_candidate_count"] = count
+    mvc["context_candidate_count"] = count
+    mvc["row_nucleus_context_binding"]["row_nucleus_candidate_count"] = count
+
+
 def test_known_lost_ball_and_recovery_rows_cannot_escape_reconciliation_by_losing_review_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -105,3 +133,21 @@ def test_known_lost_ball_and_recovery_rows_cannot_escape_reconciliation_by_losin
     assert audit["ball_recovery_reconciliation_mismatch_count"] == 1
     assert "lost_ball_turnover_reconciliation_mismatch" in result["hard_block_hits"]
     assert "ball_recovery_reconciliation_mismatch" in result["hard_block_hits"]
+
+
+def test_unreviewed_prefix_variants_remain_review_debt_not_fail_closed() -> None:
+    mvc, row = _payloads()
+    _append_label(mvc, row, "Lost balls after passes")
+    _append_label(mvc, row, "Ball recoveries after crosses")
+
+    result = build_rebind(mvc, row, repo_root=ROOT)
+    audit = result["semantic_collision_audit"]
+
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["hard_block_hits"] == []
+    assert result["provider_semantics_unresolved_or_review_required_count"] >= 2
+    assert "provider_semantics_unresolved_rows_visible" in result["review_hits"]
+    assert audit["lost_ball_record_count"] == 1
+    assert audit["lost_ball_reconciliation_mismatch_count"] == 0
+    assert audit["ball_recovery_record_count"] == 1
+    assert audit["ball_recovery_reconciliation_mismatch_count"] == 0
