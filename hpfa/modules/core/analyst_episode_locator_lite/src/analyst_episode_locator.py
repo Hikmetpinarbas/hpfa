@@ -460,6 +460,7 @@ def build_episode_locator(
             channel_counts.update({k: int(v) for k, v in layer["eligible_action_channel_candidate_counts"].items()})
         teams = sorted({team for layer in layers for team in layer["team_candidates"]})
         review_debt = [debt for layer in layers for debt in (layer.get("review_debt_refs") or [])]
+        same_time_admin_collision = any(layer.get("administrative_boundary_same_time_collision") for layer in layers)
         restart_count = sum(1 for layer in layers if layer.get("restart_visible"))
         terminal_count = sum(1 for layer in layers if layer.get("terminal_action_visible"))
         loss_count = sum(1 for layer in layers if layer.get("ball_loss_visible"))
@@ -478,7 +479,7 @@ def build_episode_locator(
             selection_reasons.add("MULTI_ELIGIBLE_ACTION_FAMILY_VISIBLE")
         if not eligible_refs:
             selection_reasons.add("NO_ELIGIBLE_ACTION_SIGNAL")
-        if any(layer.get("administrative_boundary_same_time_collision") for layer in layers):
+        if same_time_admin_collision:
             selection_reasons.add("SAME_TIME_ADMIN_BOUNDARY_COLLISION_REVIEW")
         if terminal_count and (restart_count or (loss_count and recovery_count)):
             priority = "HIGH_REVIEW_PRIORITY_CANDIDATE"
@@ -486,7 +487,11 @@ def build_episode_locator(
             priority = "MEDIUM_REVIEW_PRIORITY_CANDIDATE"
         else:
             priority = "NORMAL_REVIEW_PRIORITY_CANDIDATE"
-        status = "EPISODE_CANDIDATE_WITH_REVIEW_DEBT" if review_debt else "EPISODE_CANDIDATE_ADMITTED"
+        status = (
+            "EPISODE_CANDIDATE_WITH_REVIEW_DEBT"
+            if review_debt or same_time_admin_collision
+            else "EPISODE_CANDIDATE_ADMITTED"
+        )
         episode_id = "aep_" + _digest(
             temp["period_candidate"],
             layers[0]["second_candidate"],
@@ -525,7 +530,7 @@ def build_episode_locator(
             "recovery_layer_count": recovery_count,
             "same_time_unordered_refs": [layer["episode_time_layer_candidate_id"] for layer in layers if layer.get("same_time_unordered")],
             "review_debt_refs": review_debt,
-            "review_debt_count": len(review_debt),
+            "review_debt_count": len(review_debt) + (1 if same_time_admin_collision else 0),
             "selection_reason": sorted(selection_reasons),
             "analyst_review_priority_candidate": priority,
             "action_volume_basis": ACTION_VOLUME_BASIS,
@@ -568,6 +573,16 @@ def build_episode_locator(
                 pending_start_reason = "AFTER_ADMIN_BOUNDARY:" + "+".join(boundary_types)
                 continue
             layer = payload
+            if layer.get("administrative_boundary_same_time_collision"):
+                close_current("BEFORE_SAME_TIME_ADMIN_BOUNDARY_COLLISION")
+                current = {
+                    "period_candidate": period,
+                    "start_reason": "SAME_TIME_ADMIN_BOUNDARY_COLLISION_UNORDERED",
+                    "layers": [layer],
+                }
+                close_current("SAME_TIME_ADMIN_BOUNDARY_COLLISION_UNORDERED")
+                pending_start_reason = "AFTER_SAME_TIME_ADMIN_BOUNDARY_COLLISION"
+                continue
             if current is not None:
                 previous_second = current["layers"][-1]["second_candidate"]
                 gap = second - previous_second
@@ -661,7 +676,7 @@ def build_episode_locator(
         "administrative_boundary_visible_layer_collision_time_count": admin_visible_collision_time_count,
         "administrative_boundary_visible_layer_collision_boundary_count": admin_visible_collision_boundary_count,
         "administrative_boundary_visible_layer_collision_context_count": admin_visible_collision_context_count,
-        "administrative_boundary_same_time_collision_policy": "SAME_TIME_UNORDERED_REVIEW_NO_SPLIT",
+        "administrative_boundary_same_time_collision_policy": "SAME_TIME_UNORDERED_REVIEW_ISOLATE_LAYER",
         "episode_candidates": episodes,
         "episode_candidate_count": len(episodes),
         "zero_duration_episode_candidate_count": zero_duration_count,
@@ -759,7 +774,7 @@ def _analyst_text(report: dict[str, Any]) -> str:
     lines.extend([
         "",
         "Safe meaning: episode boundaries are analyst navigation candidates.",
-        "Administrative boundaries sharing the exact admitted timestamp with a visible layer do not create invented before/after order and do not split that same-time layer.",
+        "Administrative boundaries sharing the exact admitted timestamp with a visible layer do not create invented before/after order. The colliding visible layer is isolated for review so surrounding episodes cannot cross the hard match boundary.",
         "Only reviewed action-occurrence-eligible evidence contributes to action-family volume and review priority.",
         "Context/reference/participation rows remain visible support but add no action volume.",
         "No possession, sequence, phase, rhythm, dominance or tactical truth is produced.",
