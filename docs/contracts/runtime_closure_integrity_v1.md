@@ -146,7 +146,7 @@ hpfa/modules/core/canonical_ingest_surface_manifest
 hpfa/modules/core/composite_integration_office
 ```
 
-The allowlist is deliberately narrow and versioned in code. A new runtime dependency must be reviewed and added explicitly rather than discovered permissively. Resolver dependencies are also checked against exact product origins before use. The XML reader's existing sibling compatibility modules (`xml_common`, `xml_rows`, `xml_structure`) are loaded only from the validated product XML-reader surface; cached modules from another origin fail closed. The XLSX reader package origin is bound to its product `xlsx_surface_reader/__init__.py` entrypoint.
+The allowlist is deliberately narrow and versioned in code. A new runtime dependency must be reviewed and added explicitly rather than discovered permissively. Resolver dependencies are also checked against exact product origins before use. The XML reader's existing sibling compatibility modules (`xml_common`, `xml_rows`, `xml_structure`) are loaded only from the validated product XML-reader surface; cached modules from another origin fail closed. In addition, every direct `xml_common` object captured by `xml_rows` or `xml_structure` at import time must remain identity-bound to the currently validated product `xml_common` module. A product-origin sibling module carrying stale or adversarial captured helpers/constants fails closed before XML inspection executes. The XLSX reader package origin is bound to its product `xlsx_surface_reader/__init__.py` entrypoint.
 
 Hard-block families:
 
@@ -158,6 +158,7 @@ donor_surface_runtime_bound
 reference_only_surface_executed
 fixture_surface_used_as_active_match
 runtime_module_origin_mismatch
+runtime_transitive_import_binding_mismatch
 ```
 
 Drive, Dropbox, donor repositories, archives, reference-only material and fixtures cannot become executable ACTIVE_MATCH authority through this runner.
@@ -206,6 +207,7 @@ surface_manifest.filename_support_used_for_admission=false
 - nested phone output remains rejected;
 - allowed product runtime surface executes;
 - imported resolver, resolver dependencies, manifest and optional runtime modules are bound to validated product origins;
+- product-origin `xml_rows` / `xml_structure` modules with stale captured `xml_common` imports fail closed before resolver execution;
 - unregistered/archive/donor/reference/fixture surfaces fail closed;
 - sample match identity leakage remains forbidden.
 
