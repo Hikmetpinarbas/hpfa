@@ -212,9 +212,29 @@ def _validate_transitive_reader_implementation_origins(
             raise ValueError(f"runtime_transitive_module_missing:{module_name}")
         _validate_imported_module_origin(module, expected_file, module_name)
 
+    xml_common = xml_modules["xml_common"][0]
+    xml_surface_reader_xml_common_bindings = (
+        "CANONICAL_EVENT_COUNT",
+        "CLAIM_CEILING",
+        "MODULE_ID",
+        "OUT",
+        "XmlSurfaceError",
+        "is_active",
+        "representatives",
+        "resolve_inventory_path",
+        "security_guard",
+        "validate_out",
+    )
+    for attribute in xml_surface_reader_xml_common_bindings:
+        if getattr(xml_surface_reader, attribute, None) is not getattr(
+            xml_common, attribute, None
+        ):
+            raise ValueError(
+                "runtime_transitive_import_binding_mismatch:"
+                f"xml_surface_reader.{attribute}"
+            )
+
     xml_bindings = (
-        ("security_guard", xml_modules["xml_common"][0]),
-        ("XmlSurfaceError", xml_modules["xml_common"][0]),
         ("profile_rows", xml_modules["xml_rows"][0]),
         ("scan_structure", xml_modules["xml_structure"][0]),
     )
@@ -227,7 +247,6 @@ def _validate_transitive_reader_implementation_origins(
                 f"xml_surface_reader.{attribute}"
             )
 
-    xml_common = xml_modules["xml_common"][0]
     captured_xml_common_bindings = {
         "xml_rows": (
             "MAX_FIELD_PATHS",
