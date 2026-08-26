@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
@@ -21,25 +20,6 @@ from xml_common import (
 )
 from xml_rows import profile_rows
 from xml_structure import scan_structure
-
-
-def _transitive_binding_error() -> str | None:
-    bindings = (
-        ("xml_common", "security_guard"),
-        ("xml_rows", "profile_rows"),
-        ("xml_structure", "scan_structure"),
-        ("xml_common", "XmlSurfaceError"),
-    )
-    for module_name, attribute in bindings:
-        module = sys.modules.get(module_name)
-        if module is None:
-            return f"runtime_transitive_module_missing:{module_name}"
-        if globals().get(attribute) is not getattr(module, attribute, None):
-            return (
-                "runtime_transitive_callable_binding_mismatch:"
-                f"xml_surface_reader.{attribute}"
-            )
-    return None
 
 
 def inspect_xml_file(path: str | Path, source_role: str) -> dict[str, Any]:
@@ -62,14 +42,6 @@ def inspect_xml_file(path: str | Path, source_role: str) -> dict[str, Any]:
         return base | {
             "status": "FAIL_CLOSED",
             "hard_block_hits": ["xml_file_missing"],
-            "parse_warnings": [],
-        }
-
-    binding_error = _transitive_binding_error()
-    if binding_error is not None:
-        return base | {
-            "status": "FAIL_CLOSED",
-            "hard_block_hits": [binding_error],
             "parse_warnings": [],
         }
 

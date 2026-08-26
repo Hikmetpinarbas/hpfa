@@ -106,13 +106,10 @@ def test_cached_multiformat_inventory_impl_from_wrong_origin_fails_closed(
         _content_source_role_resolver_module(ROOT)
 
 
-def test_stale_xml_reader_callable_binding_fails_closed_before_execution(
+def test_stale_xml_reader_callable_binding_fails_closed_before_resolver_execution(
     monkeypatch,
-    tmp_path,
 ):
     resolver = _content_source_role_resolver_module(ROOT)
-    xml_path = tmp_path / "probe.xml"
-    xml_path.write_text("<root />", encoding="utf-8")
 
     def adversarial_security_guard(*_args, **_kwargs):
         raise AssertionError("stale XML helper must never execute")
@@ -123,12 +120,11 @@ def test_stale_xml_reader_callable_binding_fails_closed_before_execution(
         adversarial_security_guard,
     )
 
-    result = resolver.xml_surface_reader.inspect_xml_file(
-        xml_path,
-        "UNRESOLVED_SOURCE_ROLE_CANDIDATE",
-    )
-
-    assert result["status"] == "FAIL_CLOSED"
-    assert result["hard_block_hits"] == [
-        "runtime_transitive_callable_binding_mismatch:xml_surface_reader.security_guard"
-    ]
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"runtime_transitive_callable_binding_mismatch:"
+            r"xml_surface_reader\.security_guard"
+        ),
+    ):
+        _content_source_role_resolver_module(ROOT)

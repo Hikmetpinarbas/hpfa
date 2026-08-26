@@ -200,6 +200,33 @@ def _validate_transitive_reader_implementation_origins(
             "multiformat_file_inventory.build_inventory"
         )
 
+    xml_surface_reader = content_source_role_resolver.xml_surface_reader
+    xml_src = dependency_src["xml_surface_reader"]
+    xml_modules = {
+        "xml_common": (sys.modules.get("xml_common"), xml_src / "xml_common.py"),
+        "xml_rows": (sys.modules.get("xml_rows"), xml_src / "xml_rows.py"),
+        "xml_structure": (sys.modules.get("xml_structure"), xml_src / "xml_structure.py"),
+    }
+    for module_name, (module, expected_file) in xml_modules.items():
+        if module is None:
+            raise ValueError(f"runtime_transitive_module_missing:{module_name}")
+        _validate_imported_module_origin(module, expected_file, module_name)
+
+    xml_bindings = (
+        ("security_guard", xml_modules["xml_common"][0]),
+        ("XmlSurfaceError", xml_modules["xml_common"][0]),
+        ("profile_rows", xml_modules["xml_rows"][0]),
+        ("scan_structure", xml_modules["xml_structure"][0]),
+    )
+    for attribute, implementation_module in xml_bindings:
+        if getattr(xml_surface_reader, attribute, None) is not getattr(
+            implementation_module, attribute, None
+        ):
+            raise ValueError(
+                "runtime_transitive_callable_binding_mismatch:"
+                f"xml_surface_reader.{attribute}"
+            )
+
 
 def _load_product_legacy_module(
     root: Path,
