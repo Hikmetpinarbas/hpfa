@@ -159,9 +159,9 @@ def _raw_label(nucleus: dict[str, Any]) -> str:
 
 
 def _goalkeeper_opponent_shot_reference_label(normalized_label: str) -> bool:
-    if normalized_label in {"shots on target", "shots off target", "free-kick shots"}:
+    if normalized_label in {"shots on target", "shots off target", "free kick shots"}:
         return True
-    return normalized_label.startswith("opponent's ") and "shots on target" in normalized_label
+    return normalized_label.startswith("opponent s ") and "shots on target" in normalized_label
 
 
 def _semantic_record(
