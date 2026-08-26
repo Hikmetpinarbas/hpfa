@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "minimum_viable_context_lite" / "src"
 sys.path.insert(0, str(SRC))
 
-from minimum_viable_context import build_context_candidates
+from minimum_viable_context import build_context_candidates, resolve_time_evidence
 from semantic_context_adapter import adapt_rows, build_column_map
 
 
@@ -50,6 +50,65 @@ def test_semantic_rows_feed_minimum_viable_context_candidates():
     assert candidates[0]["team_label"] == "a"
     assert candidates[0]["zone_candidate"] == "FINAL_THIRD"
     assert candidates[0]["channel_candidate"] == "CENTRAL_CHANNEL"
+
+
+def test_absolute_time_seconds_survives_adapter_as_absolute_second():
+    surface = {
+        "field_semantic_records": [
+            {"source_column": "absolute_time_seconds", "normalized_column": "absolute_time_seconds", "semantic_family": "time"},
+        ]
+    }
+    report = {
+        "mapping_records": [
+            {"source_column": "absolute_time_seconds", "canonical_key_candidate": "event.second"},
+        ]
+    }
+    adapted = adapt_rows([{"absolute_time_seconds": "995"}], surface, report)
+    row = adapted["rows"][0]
+    assert row["absolute_time_seconds"] == "995"
+    assert "second" not in row
+    evidence = resolve_time_evidence(row)
+    assert evidence["time_admission_status"] == "ADMITTED"
+    assert evidence["time_unit_status"] == "SECOND"
+    assert evidence["football_minute_candidate"] == 16
+    assert not any(
+        item.get("reason") == "IMPLAUSIBLE_COMPONENT_SECOND_RANGE"
+        for item in evidence["rejected_time_field_candidates"]
+    )
+
+
+def test_match_second_survives_adapter_as_absolute_second():
+    surface = {
+        "field_semantic_records": [
+            {"source_column": "match_second", "normalized_column": "match_second", "semantic_family": "time"},
+        ]
+    }
+    adapted = adapt_rows([{"match_second": "995"}], surface)
+    row = adapted["rows"][0]
+    assert row["match_second"] == "995"
+    assert "second" not in row
+    evidence = resolve_time_evidence(row)
+    assert evidence["time_admission_status"] == "ADMITTED"
+    assert evidence["time_unit_status"] == "SECOND"
+    assert evidence["football_minute_candidate"] == 16
+
+
+def test_generic_second_remains_component_second_not_absolute():
+    surface = {
+        "field_semantic_records": [
+            {"source_column": "second", "normalized_column": "second", "semantic_family": "time"},
+        ]
+    }
+    adapted = adapt_rows([{"second": "34"}], surface)
+    row = adapted["rows"][0]
+    assert row["second"] == "34"
+    evidence = resolve_time_evidence(row)
+    assert evidence["time_admission_status"] == "REVIEW_REQUIRED_UNKNOWN_TIME_UNIT"
+    assert evidence["football_minute_candidate"] is None
+    assert any(
+        item.get("reason") == "COMPONENT_SECOND_RELATION_NOT_ADMITTED"
+        for item in evidence["rejected_time_field_candidates"]
+    )
 
 
 def test_unmapped_columns_are_preserved_not_guessed():
