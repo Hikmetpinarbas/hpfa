@@ -78,6 +78,26 @@ runtime_authority_resolved_outside_execution_root
 
 A quarantine copy, archive copy, donor/reference/fixture path, sibling checkout, old checkout, symlinked reflection or any other same-suffix reflection cannot silently become ACTIVE_MATCH truth.
 
+## Canonical root CLI execution-root binding
+
+The canonical repository-root operator entry point is:
+
+```text
+active_match_spine_runner.py
+```
+
+It exposes an explicit:
+
+```text
+--execution-root <selected_runtime_execution_root>
+```
+
+This allows the exact-head product code checkout and the selected runtime execution root to be intentionally different without introducing a wrapper or hardcoded environment path. The CLI forwards the value directly to `run_spine_check(..., root=ROOT, execution_root=args.execution_root)`.
+
+If `--execution-root` is omitted, the CLI passes `None` and preserves the existing safe runner default: the product checkout root is used as the execution root. No `find`, first-match selection, sibling-checkout discovery, quarantine discovery, or other implicit runtime-root selection is performed.
+
+Therefore an ACTIVE_MATCH candidate outside the product checkout root is fail-closed when `--execution-root` is omitted. A separate runtime root is admissible only when the operator explicitly supplies that root and the existing authority, ancestry, symlink, and resolved-containment gates all pass.
+
 ## Runtime surface allowlist
 
 The current `active_match_spine_runner` may execute/import only its explicitly registered product surfaces:
@@ -123,6 +143,9 @@ runtime_surface_policy.reflection_authority_allowed=false
 - later outputs are disclosed as blocked;
 - review-only runs do not invent a failure;
 - successful runs have no first failure;
+- canonical root CLI accepts a direct ACTIVE_MATCH under an explicitly supplied execution root even when `PRODUCT_ROOT != EXECUTION_ROOT`;
+- canonical root CLI rejects a valid same-suffix candidate when the supplied execution root is a wrong/reflection root;
+- canonical root CLI omission of `--execution-root` defaults to product root and does not discover an external runtime root;
 - direct `<execution_root>/runtime/active_single_match/current` authority passes;
 - `<root>/runtime` symlink to another checkout fails closed;
 - `<root>/runtime/active_single_match` symlink to an external/reflection path fails closed;
