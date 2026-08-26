@@ -6,6 +6,7 @@ on:
       - active_match_spine_runner.py
       - hpfa/modules/core/core_pipeline_orchestrator_lite/**
       - hpfa/modules/core/active_match_spine_runner/**
+      - hpfa/modules/core/active_match_analyst_report_lite/**
       - hpfa/modules/core/content_source_role_resolver_lite/**
       - hpfa/modules/core/canonical_ingest_surface_manifest/**
       - docs/contracts/core_pipeline_orchestrator_lite_v1.md
@@ -43,6 +44,7 @@ jobs:
           python -m py_compile active_match_spine_runner.py
           python -m py_compile hpfa/modules/core/core_pipeline_orchestrator_lite/src/core_pipeline_orchestrator.py
           python -m py_compile hpfa/modules/core/active_match_spine_runner/src/spine_runner.py
+          python -m py_compile hpfa/modules/core/active_match_analyst_report_lite/src/report_lite.py
           python -m py_compile hpfa/modules/core/content_source_role_resolver_lite/src/content_source_role_resolver.py
           python -m py_compile hpfa/modules/core/canonical_ingest_surface_manifest/src/surface_manifest.py
       - name: Focused maintenance integrity tests
@@ -51,6 +53,7 @@ jobs:
           python -m pytest hpfa/modules/core/content_source_role_resolver_lite/tests -q
           python -m pytest hpfa/modules/core/canonical_ingest_surface_manifest/tests -q
           python -m pytest hpfa/modules/core/active_match_spine_runner/tests -q
+          python -m pytest hpfa/modules/core/active_match_analyst_report_lite/tests -q
       - name: No sample match identity leak
         shell: bash
         run: |
@@ -59,7 +62,8 @@ jobs:
             hpfa/modules/core/core_pipeline_orchestrator_lite/src \
             hpfa/modules/core/content_source_role_resolver_lite/src \
             hpfa/modules/core/canonical_ingest_surface_manifest/src \
-            hpfa/modules/core/active_match_spine_runner/src; then
+            hpfa/modules/core/active_match_spine_runner/src \
+            hpfa/modules/core/active_match_analyst_report_lite/src; then
             echo 'sample_match_identity_leak_detected'
             exit 1
           fi
