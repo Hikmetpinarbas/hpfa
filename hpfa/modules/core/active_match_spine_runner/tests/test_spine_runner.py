@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
 sys.path.insert(0, str(SRC))
 
+import spine_runner as spine_runner_module  # noqa: E402
 from spine_runner import (  # noqa: E402
     _boundary_scorer_module,
     _surface_manifest_module,
@@ -97,6 +98,8 @@ def test_spine_runner_writes_flat_json_and_txt_outputs(tmp_path):
         "hpfa/modules/core/canonical_ingest_surface_manifest",
         "hpfa/modules/core/composite_integration_office",
     ]
+    assert result["runtime_surface_policy"]["authority_symlinks_allowed"] is False
+    assert result["runtime_surface_policy"]["resolved_authority_must_remain_within_execution_root"] is True
     assert result["runtime_surface_policy"]["reflection_authority_allowed"] is False
     assert result["runtime_surface_policy"]["unregistered_runtime_surface_allowed"] is False
     assert result["runtime_surface_policy"]["donor_runtime_binding_allowed"] is False
@@ -151,6 +154,64 @@ def test_active_match_authority_is_directly_bound_to_selected_execution_root(tmp
     wrong.mkdir(parents=True)
     with pytest.raises(ValueError, match="runtime_authority_path_invalid"):
         validate_active_match_authority(wrong, execution_root)
+
+
+def test_runtime_symlink_to_other_checkout_is_rejected(tmp_path):
+    selected_root = tmp_path / "selected_checkout"
+    other_root = tmp_path / "other_checkout"
+    make_active_match(other_root)
+    selected_root.mkdir()
+    (selected_root / "runtime").symlink_to(other_root / "runtime", target_is_directory=True)
+
+    candidate = selected_root / "runtime" / "active_single_match" / "current"
+    with pytest.raises(ValueError, match="runtime_authority_symlink_rejected"):
+        validate_active_match_authority(candidate, selected_root)
+
+
+def test_active_single_match_symlink_to_external_reflection_is_rejected(tmp_path):
+    selected_root = tmp_path / "selected_checkout"
+    other_root = tmp_path / "other_checkout"
+    make_active_match(other_root)
+    (selected_root / "runtime").mkdir(parents=True)
+    (selected_root / "runtime" / "active_single_match").symlink_to(
+        other_root / "runtime" / "active_single_match",
+        target_is_directory=True,
+    )
+
+    candidate = selected_root / "runtime" / "active_single_match" / "current"
+    with pytest.raises(ValueError, match="runtime_authority_symlink_rejected"):
+        validate_active_match_authority(candidate, selected_root)
+
+
+def test_current_symlink_to_external_reflection_is_rejected(tmp_path):
+    selected_root = tmp_path / "selected_checkout"
+    other_root = tmp_path / "other_checkout"
+    external_current = make_active_match(other_root)
+    (selected_root / "runtime" / "active_single_match").mkdir(parents=True)
+    (selected_root / "runtime" / "active_single_match" / "current").symlink_to(
+        external_current,
+        target_is_directory=True,
+    )
+
+    candidate = selected_root / "runtime" / "active_single_match" / "current"
+    with pytest.raises(ValueError, match="runtime_authority_symlink_rejected"):
+        validate_active_match_authority(candidate, selected_root)
+
+
+def test_resolved_authority_escape_is_rejected_even_if_symlink_precheck_is_bypassed(
+    monkeypatch,
+    tmp_path,
+):
+    selected_root = tmp_path / "selected_checkout"
+    other_root = tmp_path / "other_checkout"
+    make_active_match(other_root)
+    selected_root.mkdir()
+    (selected_root / "runtime").symlink_to(other_root / "runtime", target_is_directory=True)
+    candidate = selected_root / "runtime" / "active_single_match" / "current"
+
+    monkeypatch.setattr(spine_runner_module, "_authority_symlink_component", lambda _root: None)
+    with pytest.raises(ValueError, match="runtime_authority_resolved_outside_execution_root"):
+        validate_active_match_authority(candidate, selected_root)
 
 
 def test_quarantine_reflection_with_valid_suffix_is_rejected(tmp_path):
