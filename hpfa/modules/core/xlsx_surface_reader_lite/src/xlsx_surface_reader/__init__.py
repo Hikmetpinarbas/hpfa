@@ -63,15 +63,29 @@ def _validate_native_reader_helper_bindings() -> None:
         )
 
 
+def _validated_inspect_xlsx_file(namespace: dict[str, Any]) -> Any:
+    namespace["_validate_native_reader_helper_bindings"]()
+    current = namespace.get("inspect_xlsx_file")
+    expected = getattr(namespace["_NATIVE_READER_IMPL"], "inspect_xlsx_file", None)
+    if current is not expected:
+        raise ValueError(
+            "runtime_transitive_callable_binding_mismatch:"
+            "xlsx_surface_reader.inspect_xlsx_file"
+        )
+    return current
+
+
 class _RuntimeGuardedXlsxSurfaceReaderModule(ModuleType):
     def __getattribute__(self, name: str) -> Any:
-        if name == "native_reader":
+        if name in {"native_reader", "inspect_xlsx_file"}:
             namespace = ModuleType.__getattribute__(self, "__dict__")
-            current = namespace.get("native_reader")
-            expected = namespace.get("_NATIVE_READER_IMPL")
-            if current is expected:
-                namespace["_validate_native_reader_helper_bindings"]()
-            return current
+            if name == "native_reader":
+                current = namespace.get("native_reader")
+                expected = namespace.get("_NATIVE_READER_IMPL")
+                if current is expected:
+                    namespace["_validate_native_reader_helper_bindings"]()
+                return current
+            return namespace["_validated_inspect_xlsx_file"](namespace)
         return ModuleType.__getattribute__(self, name)
 
 
