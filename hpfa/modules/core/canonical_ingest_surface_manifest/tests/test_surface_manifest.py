@@ -1,5 +1,6 @@
 from pathlib import Path
 import csv
+import hashlib
 import json
 import sys
 import zipfile
@@ -9,6 +10,10 @@ SRC = ROOT / "hpfa" / "modules" / "core" / "canonical_ingest_surface_manifest" /
 sys.path.insert(0, str(SRC))
 
 from surface_manifest import build_manifest, write_manifest
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def write_csv(path: Path) -> None:
@@ -69,6 +74,7 @@ def role_report(root: Path, *, unresolved: str | None = None) -> dict:
         files.append(
             {
                 "relative_path": path.name,
+                "sha256": sha256(path),
                 "role_resolution_applicable": True,
                 "resolution": {
                     "resolution_status": status,
@@ -98,6 +104,7 @@ def test_manifest_passes_expected_surface_family_from_candidate_evidence(tmp_pat
     assert manifest["true_action_count"] == "UNKNOWN"
     assert manifest["claim_safety"] == "EVIDENCE_ONLY"
     assert manifest["source_role_candidate_admission_policy"] == "CONTENT_EVIDENCE_ONLY"
+    assert manifest["source_role_candidate_content_binding"] == "SHA256_EXACT"
     assert manifest["filename_support_used_for_admission"] is False
     assert manifest["production_release"] is False
 
@@ -106,6 +113,7 @@ def test_manifest_passes_expected_surface_family_from_candidate_evidence(tmp_pat
     assert ("teams", "xml") in roles
     assert ("goalkeepers", "xlsx") in roles
     assert all(surface["filename_support_used_for_admission"] is False for surface in manifest["surfaces"])
+    assert all(len(surface["source_role_evidence_sha256"]) == 64 for surface in manifest["surfaces"])
 
 
 def test_manifest_without_role_evidence_fails_closed(tmp_path):
@@ -122,6 +130,25 @@ def test_unresolved_or_conflicting_role_evidence_fails_closed(tmp_path):
     manifest = build_manifest(str(root), role_report=report)
     assert manifest["status"] == "FAIL_CLOSED"
     assert manifest["reason"] == "source_role_candidate_evidence_rejected"
+    assert manifest["canonical_event_count"] == "UNKNOWN"
+    assert manifest["true_action_count"] == "UNKNOWN"
+    assert manifest["production_release"] is False
+
+
+def test_stale_role_evidence_after_surface_edit_fails_closed(tmp_path):
+    root = make_surface_dir(tmp_path)
+    report = role_report(root)
+    write_csv(root / "Players.csv")
+    with (root / "Players.csv").open("a", encoding="utf-8", newline="") as handle:
+        handle.write("2,3,4,c,A,Passes accurate,1,25,35\n")
+
+    manifest = build_manifest(str(root), role_report=report)
+
+    assert manifest["status"] == "FAIL_CLOSED"
+    assert manifest["reason"] == "source_role_candidate_evidence_rejected"
+    assert "source_role_candidate_content_hash_mismatch:Players.csv" in manifest[
+        "source_role_candidate_evidence_errors"
+    ]
     assert manifest["canonical_event_count"] == "UNKNOWN"
     assert manifest["true_action_count"] == "UNKNOWN"
     assert manifest["production_release"] is False
