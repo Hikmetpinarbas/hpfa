@@ -164,6 +164,31 @@ def _goalkeeper_opponent_shot_reference_label(normalized_label: str) -> bool:
     return normalized_label.startswith("opponent s ") and "shots on target" in normalized_label
 
 
+def _reviewed_exact_action_labels(
+    provider_module: Any,
+    registry: dict[str, Any],
+    *,
+    action_family: str,
+    normalized_prefix: str,
+) -> set[str]:
+    labels: set[str] = set()
+    for rule in registry.get("exact_rules", []) or []:
+        if not isinstance(rule, dict):
+            continue
+        if _clean(rule.get("semantic_role")) != "ACTION_ANCHOR":
+            continue
+        if _clean(rule.get("action_family")) != action_family:
+            continue
+        if _clean(rule.get("review_status")) != "REVIEWED_CANDIDATE":
+            continue
+        if _clean(rule.get("downstream_eligibility")) != "ACTION_CANDIDATE_ELIGIBLE":
+            continue
+        normalized = provider_module.normalize_label(rule.get("label"))
+        if normalized.startswith(normalized_prefix):
+            labels.add(normalized)
+    return labels
+
+
 def _semantic_record(
     *,
     context: dict[str, Any],
@@ -346,8 +371,24 @@ def build_rebind(
         if row["source_role"] == "GOALKEEPER"
         and row.get("provider_restart_type_candidate") == "GOAL_KICK"
     ]
-    lost_ball_rows = [row for row in records if row["normalized_label"].startswith("lost balls")]
-    recovery_rows = [row for row in records if row["normalized_label"].startswith("ball recoveries")]
+    reviewed_lost_ball_labels = _reviewed_exact_action_labels(
+        provider_module,
+        registry,
+        action_family="TURNOVER",
+        normalized_prefix="lost balls",
+    )
+    reviewed_recovery_labels = _reviewed_exact_action_labels(
+        provider_module,
+        registry,
+        action_family="RECOVERY",
+        normalized_prefix="ball recoveries",
+    )
+    if not reviewed_lost_ball_labels:
+        blocks.append("reviewed_lost_ball_registry_population_missing")
+    if not reviewed_recovery_labels:
+        blocks.append("reviewed_ball_recovery_registry_population_missing")
+    lost_ball_rows = [row for row in records if row["normalized_label"] in reviewed_lost_ball_labels]
+    recovery_rows = [row for row in records if row["normalized_label"] in reviewed_recovery_labels]
     reviewed_lost_ball_rows = [
         row for row in lost_ball_rows if row["provider_semantics_review_status"] == "REVIEWED_CANDIDATE"
     ]
@@ -405,6 +446,7 @@ def build_rebind(
             1 for row in gk_goal_kicks if row["action_occurrence_eligible"]
         ),
         "lost_ball_record_count": len(lost_ball_rows),
+        "lost_ball_reviewed_registry_label_count": len(reviewed_lost_ball_labels),
         "lost_ball_reviewed_record_count": len(reviewed_lost_ball_rows),
         "lost_ball_turnover_candidate_count": sum(
             1
@@ -415,6 +457,7 @@ def build_rebind(
         ),
         "lost_ball_reconciliation_mismatch_count": len(lost_ball_mismatches),
         "ball_recovery_record_count": len(recovery_rows),
+        "ball_recovery_reviewed_registry_label_count": len(reviewed_recovery_labels),
         "ball_recovery_reviewed_record_count": len(reviewed_recovery_rows),
         "ball_recovery_candidate_count": sum(
             1
