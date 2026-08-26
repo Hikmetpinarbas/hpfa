@@ -11,6 +11,9 @@ sys.path.insert(0, str(SRC))
 from spine_runner import _content_source_role_resolver_module  # noqa: E402
 
 
+NATIVE_READER_MODULE = (
+    "hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader.native_reader"
+)
 NATIVE_OOXML_MODULE = "hpfa.modules.core.xlsx_surface_reader_lite.src.native_ooxml"
 HEADER_SEMANTICS_MODULE = (
     "hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_header_semantics"
@@ -118,6 +121,57 @@ def test_cached_xlsx_native_ooxml_from_wrong_origin_fails_closed(monkeypatch, tm
         _content_source_role_resolver_module(ROOT)
 
 
+def test_same_foreign_xlsx_reader_helper_tree_fails_against_product_package_anchor(
+    monkeypatch,
+    tmp_path,
+):
+    resolver = _content_source_role_resolver_module(ROOT)
+    package = resolver.xlsx_surface_reader
+    foreign_src = tmp_path / "foreign_checkout" / "xlsx_surface_reader_lite" / "src"
+
+    class ForeignInvalidFileException(Exception):
+        pass
+
+    def foreign_load_workbook(*_args, **_kwargs):
+        raise AssertionError("foreign XLSX parser must never execute")
+
+    def foreign_header_norm(*_args, **_kwargs):
+        raise AssertionError("foreign XLSX header helper must never execute")
+
+    def foreign_inspect_xlsx_file(*_args, **_kwargs):
+        raise AssertionError("foreign XLSX inspection must never execute")
+
+    fake_reader = types.SimpleNamespace(
+        __file__=str(foreign_src / "xlsx_surface_reader" / "native_reader.py"),
+        load_workbook=foreign_load_workbook,
+        InvalidFileException=ForeignInvalidFileException,
+        _semantic_header_norm=foreign_header_norm,
+        inspect_xlsx_file=foreign_inspect_xlsx_file,
+    )
+    fake_ooxml = types.SimpleNamespace(
+        __file__=str(foreign_src / "native_ooxml.py"),
+        load_workbook=foreign_load_workbook,
+        InvalidFileException=ForeignInvalidFileException,
+    )
+    fake_header_semantics = types.SimpleNamespace(
+        __file__=str(foreign_src / "xlsx_header_semantics.py"),
+        semantic_header_norm=foreign_header_norm,
+    )
+
+    monkeypatch.setattr(package, "native_reader", fake_reader)
+    monkeypatch.setattr(package, "inspect_xlsx_file", foreign_inspect_xlsx_file)
+    monkeypatch.setattr(package, "_NATIVE_READER_IMPL", fake_reader)
+    monkeypatch.setitem(sys.modules, NATIVE_READER_MODULE, fake_reader)
+    monkeypatch.setitem(sys.modules, NATIVE_OOXML_MODULE, fake_ooxml)
+    monkeypatch.setitem(sys.modules, HEADER_SEMANTICS_MODULE, fake_header_semantics)
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime_module_origin_mismatch:xlsx_surface_reader\.native_reader",
+    ):
+        resolver.resolve_xlsx(Path("unused-foreign-tree.xlsx"), {})
+
+
 def test_product_native_reader_with_stale_load_workbook_capture_fails_closed(monkeypatch):
     resolver = _content_source_role_resolver_module(ROOT)
     xlsx_native_reader = resolver.xlsx_surface_reader.native_reader
@@ -204,7 +258,7 @@ def test_cached_xlsx_nested_reader_from_wrong_origin_fails_closed(monkeypatch, t
     )
     monkeypatch.setitem(
         sys.modules,
-        "hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader.native_reader",
+        NATIVE_READER_MODULE,
         fake_native_reader,
     )
 
