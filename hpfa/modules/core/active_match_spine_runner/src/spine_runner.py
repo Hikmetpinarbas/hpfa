@@ -14,6 +14,7 @@ PHONE_OUTPUT_ROOTS = (
 )
 ACTIVE_MATCH_RELATIVE_PATH = Path("runtime/active_single_match/current")
 ALLOWED_RUNTIME_SURFACES = (
+    Path("hpfa/modules/core/content_source_role_resolver_lite"),
     Path("hpfa/modules/core/canonical_ingest_surface_manifest"),
     Path("hpfa/modules/core/composite_integration_office"),
 )
@@ -152,6 +153,23 @@ def _validate_imported_module_origin(module: Any, expected_file: Path, module_na
         raise ValueError(f"runtime_module_origin_mismatch:{module_name}")
 
 
+def _content_source_role_resolver_module(root: Path):
+    src = validate_runtime_surface(
+        root,
+        root / "hpfa" / "modules" / "core" / "content_source_role_resolver_lite" / "src",
+    )
+    _ensure_module_path(root)
+    _ensure_module_path(src)
+    import content_source_role_resolver  # type: ignore
+
+    _validate_imported_module_origin(
+        content_source_role_resolver,
+        src / "content_source_role_resolver.py",
+        "content_source_role_resolver",
+    )
+    return content_source_role_resolver
+
+
 def _surface_manifest_module(root: Path):
     src = validate_runtime_surface(
         root,
@@ -227,10 +245,17 @@ def run_spine_check(
     spine_txt_out = output_root / "active_match_spine_check_v1.txt"
 
     executed_runtime_surfaces = [
+        "hpfa/modules/core/content_source_role_resolver_lite",
         "hpfa/modules/core/canonical_ingest_surface_manifest",
     ]
+    role_resolver = _content_source_role_resolver_module(repo_root)
+    role_report = role_resolver.build_report(str(active_match_path), root=repo_root)
     surface_manifest = _surface_manifest_module(repo_root)
-    manifest = surface_manifest.write_manifest(str(active_match_path), str(surface_out))
+    manifest = surface_manifest.write_manifest(
+        str(active_match_path),
+        str(surface_out),
+        role_report=role_report,
+    )
 
     boundary_result: dict[str, Any] | None = None
     boundary_out: str | None = None
@@ -265,22 +290,53 @@ def run_spine_check(
             "unregistered_runtime_surface_allowed": False,
             "donor_runtime_binding_allowed": False,
         },
+        "source_role_resolution": {
+            "status": role_report.get("status"),
+            "claim_ceiling": role_report.get("claim_ceiling"),
+            "supported_file_count": role_report.get("supported_file_count"),
+            "role_candidate_admitted_file_count": role_report.get(
+                "role_candidate_admitted_file_count"
+            ),
+            "unresolved_role_file_count": role_report.get("unresolved_role_file_count"),
+            "resolved_role_counts": role_report.get("resolved_role_counts"),
+            "hard_block_hits": role_report.get("hard_block_hits"),
+            "filename_support_used_for_admission": False,
+            "validated_team_identity": role_report.get("validated_team_identity"),
+            "validated_player_identity": role_report.get("validated_player_identity"),
+            "validated_event_identity": role_report.get("validated_event_identity"),
+            "canonical_event_count": role_report.get("canonical_event_count"),
+            "production_release": role_report.get("production_release"),
+        },
         "surface_manifest": {
             "status": manifest.get("status"),
             "out": str(surface_out),
             "surface_file_count": manifest.get("surface_file_count"),
             "expected_surface_count": manifest.get("expected_surface_count"),
+            "source_role_candidate_evidence_status": manifest.get(
+                "source_role_candidate_evidence_status"
+            ),
+            "source_role_candidate_admission_policy": manifest.get(
+                "source_role_candidate_admission_policy"
+            ),
+            "filename_support_used_for_admission": manifest.get(
+                "filename_support_used_for_admission"
+            ),
             "canonical_event_count": manifest.get("canonical_event_count"),
+            "true_action_count": manifest.get("true_action_count"),
             "missing_expected_surfaces": manifest.get("missing_expected_surfaces"),
             "unexpected_surfaces": manifest.get("unexpected_surfaces"),
             "claim_safety": manifest.get("claim_safety"),
             "report_language_allowed": manifest.get("report_language_allowed"),
             "production_binding_allowed": manifest.get("production_binding_allowed"),
+            "production_release": manifest.get("production_release"),
         },
         "boundary_scores": None,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
         "claim_safety": CLAIM_SAFETY,
         "report_language_allowed": False,
         "production_binding_allowed": False,
+        "production_release": False,
     }
 
     if boundary_result is not None:
@@ -294,7 +350,10 @@ def run_spine_check(
             "top_10": boundary_result.get("scores", [])[:10],
         }
 
-    spine_json_out.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    spine_json_out.write_text(
+        json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     spine_txt_out.write_text(render_summary(result), encoding="utf-8")
     return result
 
@@ -308,9 +367,12 @@ def render_summary(result: dict[str, Any]) -> str:
         f"execution_root={result.get('execution_root')}",
         f"active_match_authority_validated={result.get('active_match_authority_validated')}",
         f"active_match_root_binding_policy={result.get('active_match_root_binding_policy')}",
+        f"canonical_event_count={result.get('canonical_event_count')}",
+        f"true_action_count={result.get('true_action_count')}",
         f"claim_safety={result.get('claim_safety')}",
         f"report_language_allowed={result.get('report_language_allowed')}",
         f"production_binding_allowed={result.get('production_binding_allowed')}",
+        f"production_release={result.get('production_release')}",
         "",
         "[runtime_surface_policy]",
     ]
@@ -331,18 +393,42 @@ def render_summary(result: dict[str, Any]) -> str:
     ]:
         lines.append(f"{key}={runtime_policy.get(key)}")
 
+    lines.extend(["", "[source_role_resolution]"])
+    role_resolution = result.get("source_role_resolution") or {}
+    for key in [
+        "status",
+        "claim_ceiling",
+        "supported_file_count",
+        "role_candidate_admitted_file_count",
+        "unresolved_role_file_count",
+        "resolved_role_counts",
+        "hard_block_hits",
+        "filename_support_used_for_admission",
+        "validated_team_identity",
+        "validated_player_identity",
+        "validated_event_identity",
+        "canonical_event_count",
+        "production_release",
+    ]:
+        lines.append(f"{key}={role_resolution.get(key)}")
+
     lines.extend(["", "[surface_manifest]"])
     surface = result.get("surface_manifest") or {}
     for key in [
         "status",
         "surface_file_count",
         "expected_surface_count",
+        "source_role_candidate_evidence_status",
+        "source_role_candidate_admission_policy",
+        "filename_support_used_for_admission",
         "canonical_event_count",
+        "true_action_count",
         "missing_expected_surfaces",
         "unexpected_surfaces",
         "claim_safety",
         "report_language_allowed",
         "production_binding_allowed",
+        "production_release",
         "out",
     ]:
         lines.append(f"{key}={surface.get(key)}")
