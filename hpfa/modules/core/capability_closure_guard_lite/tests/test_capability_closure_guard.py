@@ -155,6 +155,66 @@ def test_tests_ci_and_docs_do_not_become_non_test_consumers(tmp_path, monkeypatc
     assert record["decision"] == "TEST_ONLY_SURFACE"
 
 
+def test_package_importfrom_consumer_matches_only_its_capability(tmp_path, monkeypatch):
+    _minimal_governance(tmp_path)
+    for capability in ("sample_lite", "other_lite"):
+        _write(
+            tmp_path / f"docs/contracts/{capability}_v1.md",
+            f"## Product Node\n{capability}\n",
+        )
+        _write(
+            tmp_path / f"hpfa/modules/core/{capability}/src/implementation_module.py",
+            "VALUE = 1\n",
+        )
+        _write(
+            tmp_path / f"hpfa/modules/core/{capability}/tests/test_surface.py",
+            "import implementation_module\n",
+        )
+    _write(
+        tmp_path / "root_consumer.py",
+        "from hpfa.modules.core.sample_lite.src import implementation_module\n",
+    )
+    monkeypatch.setattr(guard, "current_product_tree_sha", lambda _root: "3" * 40)
+
+    report = guard.build_report(tmp_path)
+    records = {row["capability_id"]: row for row in report["capabilities"]}
+
+    assert records["sample_lite"]["evidence"]["non_test_consumer"] is True
+    assert records["sample_lite"]["evidence_paths"]["non_test_consumer"] == [
+        "root_consumer.py"
+    ]
+    assert records["other_lite"]["evidence"]["non_test_consumer"] is False
+
+
+def test_markdown_fence_declaration_does_not_create_text_capability(tmp_path, monkeypatch):
+    _minimal_governance(tmp_path)
+    _write(
+        tmp_path / "docs/contracts/fenced_lite_v1.md",
+        "## Product Node\n```text\nfenced_lite\n```\n",
+    )
+    _write(
+        tmp_path / "hpfa/modules/core/fenced_lite/src/fenced.py",
+        "VALUE = 1\n",
+    )
+    monkeypatch.setattr(guard, "current_product_tree_sha", lambda _root: "4" * 40)
+
+    report = guard.build_report(tmp_path)
+    capability_ids = {row["capability_id"] for row in report["capabilities"]}
+
+    assert "fenced_lite" in capability_ids
+    assert "text" not in capability_ids
+
+
+def test_workflow_covers_all_scanned_python_surfaces():
+    workflow = (
+        ROOT / ".github/workflows/capability-closure-guard-lite-v1.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "- '**/*.py'" in workflow
+    assert "- docs/contracts/**" in workflow
+    assert "- docs/governance/runtime_pack_v1/module_governance_matrix.tsv" in workflow
+
+
 def test_static_superseded_hint_needs_current_successor_implementation(tmp_path, monkeypatch):
     _minimal_governance(
         tmp_path,
