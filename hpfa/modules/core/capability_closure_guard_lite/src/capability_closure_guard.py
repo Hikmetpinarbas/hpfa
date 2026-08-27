@@ -327,6 +327,16 @@ def _static_path_value(
         return value if value.is_absolute() else None
     if (
         isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "validate_runtime_surface"
+        and len(node.args) >= 2
+        and isinstance(node.args[0], ast.Name)
+    ):
+        validated_roots = set(trusted_root_names)
+        validated_roots.add(node.args[0].id)
+        return _static_path_value(node.args[1], root, validated_roots)
+    if (
+        isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "resolve"
         and not node.args
