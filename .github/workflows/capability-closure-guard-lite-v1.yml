@@ -1,0 +1,75 @@
+name: Capability Closure Guard Lite V1
+
+on:
+  pull_request:
+    paths:
+      - capability_closure_guard_lite.py
+      - hpfa/modules/core/capability_closure_guard_lite/**
+      - docs/contracts/capability_closure_guard_lite_v1.md
+      - docs/contracts/**
+      - docs/governance/runtime_pack_v1/module_governance_matrix.tsv
+      - docs/governance/runtime_pack_v1/source_role_registry.json
+      - docs/governance/runtime_pack_v1/release_status_normalizer.json
+      - hpfa/modules/core/active_match_spine_runner/**
+      - active_match_spine_runner.py
+      - .github/workflows/capability-closure-guard-lite-v1.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: capability-closure-guard-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  closure-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Exact head gate
+        shell: bash
+        run: |
+          EXPECTED="${{ github.event.pull_request.head.sha || github.sha }}"
+          ACTUAL="$(git rev-parse HEAD)"
+          test "$ACTUAL" = "$EXPECTED"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pytest
+      - name: Compile guard
+        run: |
+          python -m py_compile capability_closure_guard_lite.py
+          python -m py_compile hpfa/modules/core/capability_closure_guard_lite/src/capability_closure_guard.py
+      - name: Focused guard tests
+        run: python -m pytest hpfa/modules/core/capability_closure_guard_lite/tests -q
+      - name: No-evidence smoke
+        run: |
+          OUT="$(mktemp -d)"
+          python capability_closure_guard_lite.py --root . --out-dir "$OUT"
+          test -f "$OUT/capability_closure_guard_lite_v1.json"
+          test -f "$OUT/capability_closure_guard_lite_v1.txt"
+          python - "$OUT/capability_closure_guard_lite_v1.json" <<'PY'
+          import json
+          import sys
+          data = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert data["canonical_event_count"] == "UNKNOWN"
+          assert data["true_action_count"] == "UNKNOWN"
+          assert data["production_release"] is False
+          active = [r for r in data["capabilities"] if r["decision"] == "ACTIVE_CONTRACT"]
+          assert active == [], "ACTIVE_CONTRACT must not be invented without ACTIVE_MATCH evidence"
+          PY
+      - name: No sample match identity leak
+        shell: bash
+        run: |
+          if grep -RniE 'Galatasaray|Fenerbahce|Fenerbahçe|Besiktas|Beşiktaş|Trabzonspor' \
+            capability_closure_guard_lite.py \
+            hpfa/modules/core/capability_closure_guard_lite/src \
+            hpfa/modules/core/capability_closure_guard_lite/tests; then
+            echo 'sample_match_identity_leak_detected'
+            exit 1
+          fi
