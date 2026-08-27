@@ -272,6 +272,78 @@ def _imports_leaf(text: str, leaves: Iterable[str]) -> bool:
     return bool(_imported_leaves(text) & set(leaves))
 
 
+def _literal_path_parts(node: ast.AST) -> tuple[str, ...]:
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        return _literal_path_parts(node.left) + _literal_path_parts(node.right)
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return tuple(Path(node.value).parts)
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "Path"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+    ):
+        return tuple(Path(node.args[0].value).parts)
+    return ()
+
+
+def _call_uses_name(call: ast.Call, names: set[str]) -> bool:
+    return any(
+        isinstance(child, ast.Name) and child.id in names
+        for arg in call.args
+        for child in ast.walk(arg)
+    )
+
+
+def _is_module_path_binding_call(call: ast.Call) -> bool:
+    if isinstance(call.func, ast.Name) and call.func.id == "_ensure_module_path":
+        return True
+    if not isinstance(call.func, ast.Attribute) or call.func.attr not in {"insert", "append"}:
+        return False
+    owner = call.func.value
+    return (
+        isinstance(owner, ast.Attribute)
+        and owner.attr == "path"
+        and isinstance(owner.value, ast.Name)
+        and owner.value.id == "sys"
+    )
+
+
+def _has_explicit_product_src_binding(text: str, module_dir: Path) -> bool:
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return False
+    target_parts = tuple((module_dir / "src").parts)
+    bound_names: set[str] = set()
+    for node in ast.walk(tree):
+        target_name: str | None = None
+        value: ast.AST | None = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            target_name = node.targets[0].id
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            target_name = node.target.id
+            value = node.value
+        if target_name is None or value is None:
+            continue
+        for child in ast.walk(value):
+            parts = _literal_path_parts(child)
+            if len(parts) >= len(target_parts) and tuple(parts[-len(target_parts):]) == target_parts:
+                bound_names.add(target_name)
+                break
+    if not bound_names:
+        return False
+    return any(
+        isinstance(node, ast.Call)
+        and _is_module_path_binding_call(node)
+        and _call_uses_name(node, bound_names)
+        for node in ast.walk(tree)
+    )
+
+
 def discover_consumers_and_tests(
     root: Path,
     implementations: dict[str, dict[str, Any]],
@@ -293,9 +365,11 @@ def discover_consumers_and_tests(
 
     for path in _iter_python_files(root):
         relative = path.relative_to(root)
-        references = _import_references(_read_text(path))
+        text = _read_text(path)
+        references = _import_references(text)
         matched: set[str] = set()
-        for _kind, qualified, leaf in references:
+        explicit_binding_cache: dict[str, bool] = {}
+        for kind, qualified, leaf in references:
             candidates = leaf_to_capabilities.get(leaf, set())
             if not candidates:
                 continue
@@ -303,6 +377,15 @@ def discover_consumers_and_tests(
                 prefix = package_prefixes[cid]
                 if qualified == prefix or qualified.startswith(f"{prefix}."):
                     matched.add(cid)
+                    continue
+                if kind == "module" and qualified == leaf:
+                    if cid not in explicit_binding_cache:
+                        explicit_binding_cache[cid] = _has_explicit_product_src_binding(
+                            text,
+                            module_dirs[cid],
+                        )
+                    if explicit_binding_cache[cid]:
+                        matched.add(cid)
 
         if _is_test_path(relative):
             for cid, module_dir in module_dirs.items():
