@@ -37,9 +37,14 @@ IGNORED_PARTS = {
     "__pycache__",
     "archive",
     "archives",
+    "docs",
+    "documentation",
     "donor",
     "donors",
+    "examples",
     "fixtures",
+    "reference",
+    "references",
     "reference_only",
 }
 CONTRACT_SECTION_HEADINGS = {"product node", "reused producers"}
@@ -52,6 +57,7 @@ class ClosureGuardError(ValueError):
 
 def normalize_capability_id(value: str) -> str:
     text = str(value or "").strip().casefold()
+    text = re.sub(r"^p\d+(?:\s+|\s*[:—–]\s*)", "", text, count=1)
     text = re.sub(r"\bv(?:ersion)?\s*\d+\b", " ", text)
     text = re.sub(r"[^a-z0-9]+", "_", text)
     return re.sub(r"_+", "_", text).strip("_")
@@ -289,18 +295,9 @@ def discover_consumers_and_tests(
         relative = path.relative_to(root)
         references = _import_references(_read_text(path))
         matched: set[str] = set()
-        for kind, qualified, leaf in references:
+        for _kind, qualified, leaf in references:
             candidates = leaf_to_capabilities.get(leaf, set())
             if not candidates:
-                continue
-            if kind == "from_name":
-                for cid in candidates:
-                    prefix = package_prefixes[cid]
-                    if qualified == prefix or qualified.startswith(f"{prefix}."):
-                        matched.add(cid)
-                continue
-            if len(candidates) == 1:
-                matched.update(candidates)
                 continue
             for cid in candidates:
                 prefix = package_prefixes[cid]
