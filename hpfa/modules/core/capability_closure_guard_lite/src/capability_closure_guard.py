@@ -273,83 +273,256 @@ def _imports_leaf(text: str, leaves: Iterable[str]) -> bool:
     return bool(_imported_leaves(text) & set(leaves))
 
 
-def _is_current_repo_root_expr(node: ast.AST) -> bool:
-    return (
-        isinstance(node, ast.Attribute)
-        and node.attr == "parent"
-        and isinstance(node.value, ast.Call)
-        and isinstance(node.value.func, ast.Attribute)
-        and node.value.func.attr == "resolve"
-        and isinstance(node.value.func.value, ast.Call)
-        and isinstance(node.value.func.value.func, ast.Name)
-        and node.value.func.value.func.id == "Path"
-        and len(node.value.func.value.args) == 1
-        and isinstance(node.value.func.value.args[0], ast.Name)
-        and node.value.func.value.args[0].id == "__file__"
-    )
+def _safe_resolve(path: Path) -> Path | None:
+    try:
+        return path.expanduser().resolve()
+    except (OSError, RuntimeError):
+        return None
 
 
-def _trusted_repo_root_names(tree: ast.AST) -> set[str]:
-    names: set[str] = set()
-    for node in ast.walk(tree):
-        target_name: str | None = None
-        value: ast.AST | None = None
-        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-            target_name = node.targets[0].id
-            value = node.value
-        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            target_name = node.target.id
-            value = node.value
-        if target_name and value is not None and _is_current_repo_root_expr(value):
-            names.add(target_name)
-    return names
+def _is_exact_trusted_root(path: Path | None, trusted_root: Path) -> bool:
+    resolved = _safe_resolve(path) if path is not None else None
+    root_resolved = _safe_resolve(trusted_root)
+    return resolved is not None and root_resolved is not None and resolved == root_resolved
 
 
 def _static_path_value(
     node: ast.AST,
-    root: Path,
-    trusted_root_names: set[str],
+    trusted_root: Path,
+    source_path: Path | None,
+    known_paths: dict[str, Path],
+    helper_paths: dict[str, Path],
 ) -> Path | None:
-    if isinstance(node, ast.Name) and node.id in trusted_root_names:
-        return root
+    if isinstance(node, ast.Name):
+        if node.id == "__file__" and source_path is not None:
+            return source_path
+        return known_paths.get(node.id)
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         value = Path(node.value)
         return value if value.is_absolute() else None
-    if (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "Path"
-        and len(node.args) == 1
-        and isinstance(node.args[0], ast.Constant)
-        and isinstance(node.args[0].value, str)
-    ):
-        value = Path(node.args[0].value)
-        return value if value.is_absolute() else None
-    if (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "validate_runtime_surface"
-        and len(node.args) >= 2
-        and isinstance(node.args[0], ast.Name)
-    ):
-        validated_roots = set(trusted_root_names)
-        validated_roots.add(node.args[0].id)
-        return _static_path_value(node.args[1], root, validated_roots)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id == "Path" and len(node.args) == 1:
+            return _static_path_value(
+                node.args[0], trusted_root, source_path, known_paths, helper_paths
+            )
+        if node.func.id in helper_paths and not node.args and not node.keywords:
+            return helper_paths[node.func.id]
+        if node.func.id == "validate_runtime_surface" and len(node.args) >= 2:
+            declared_root = _static_path_value(
+                node.args[0], trusted_root, source_path, known_paths, helper_paths
+            )
+            if not _is_exact_trusted_root(declared_root, trusted_root):
+                return None
+            candidate = _static_path_value(
+                node.args[1], trusted_root, source_path, known_paths, helper_paths
+            )
+            resolved = _safe_resolve(candidate) if candidate is not None else None
+            root_resolved = _safe_resolve(trusted_root)
+            if resolved is None or root_resolved is None:
+                return None
+            try:
+                resolved.relative_to(root_resolved)
+            except ValueError:
+                return None
+            return resolved
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "resolve"
         and not node.args
     ):
-        return _static_path_value(node.func.value, root, trusted_root_names)
+        candidate = _static_path_value(
+            node.func.value, trusted_root, source_path, known_paths, helper_paths
+        )
+        return _safe_resolve(candidate) if candidate is not None else None
+    if isinstance(node, ast.Attribute) and node.attr == "parent":
+        candidate = _static_path_value(
+            node.value, trusted_root, source_path, known_paths, helper_paths
+        )
+        return candidate.parent if candidate is not None else None
+    if (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Attribute)
+        and node.value.attr == "parents"
+        and isinstance(node.slice, ast.Constant)
+        and isinstance(node.slice.value, int)
+    ):
+        candidate = _static_path_value(
+            node.value.value, trusted_root, source_path, known_paths, helper_paths
+        )
+        if candidate is None or node.slice.value < 0:
+            return None
+        try:
+            return candidate.parents[node.slice.value]
+        except IndexError:
+            return None
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
-        left = _static_path_value(node.left, root, trusted_root_names)
+        left = _static_path_value(
+            node.left, trusted_root, source_path, known_paths, helper_paths
+        )
         if left is None:
             return None
         if isinstance(node.right, ast.Constant) and isinstance(node.right.value, str):
             return left / node.right.value
         return None
+    if isinstance(node, ast.IfExp):
+        body = _static_path_value(
+            node.body, trusted_root, source_path, known_paths, helper_paths
+        )
+        other = _static_path_value(
+            node.orelse, trusted_root, source_path, known_paths, helper_paths
+        )
+        body_resolved = _safe_resolve(body) if body is not None else None
+        other_resolved = _safe_resolve(other) if other is not None else None
+        if body_resolved is not None and body_resolved == other_resolved:
+            return body_resolved
+        return None
     return None
+
+
+def _assignment_target_value(node: ast.AST) -> tuple[str | None, ast.AST | None]:
+    if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+        return node.targets[0].id, node.value
+    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+        return node.target.id, node.value
+    return None, None
+
+
+def _scope_path_bindings(
+    statements: list[ast.stmt],
+    trusted_root: Path,
+    source_path: Path | None,
+    helper_paths: dict[str, Path],
+    initial_paths: dict[str, Path] | None = None,
+) -> dict[str, Path]:
+    known = dict(initial_paths or {})
+    changed = True
+    while changed:
+        changed = False
+        for node in statements:
+            target_name, value = _assignment_target_value(node)
+            if target_name is None or value is None or target_name in known:
+                continue
+            candidate = _static_path_value(
+                value, trusted_root, source_path, known, helper_paths
+            )
+            if candidate is not None:
+                known[target_name] = candidate
+                changed = True
+    return known
+
+
+def _local_path_helpers(
+    tree: ast.Module,
+    trusted_root: Path,
+    source_path: Path | None,
+) -> dict[str, Path]:
+    helpers: dict[str, Path] = {}
+    changed = True
+    while changed:
+        changed = False
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.args.args or node.args.posonlyargs or node.args.kwonlyargs:
+                continue
+            returns = [stmt for stmt in node.body if isinstance(stmt, ast.Return)]
+            if len(returns) != 1 or returns[0].value is None:
+                continue
+            candidate = _static_path_value(
+                returns[0].value,
+                trusted_root,
+                source_path,
+                {},
+                helpers,
+            )
+            if candidate is not None and helpers.get(node.name) != candidate:
+                helpers[node.name] = candidate
+                changed = True
+    return helpers
+
+
+def _function_parameter_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+    return [arg.arg for arg in (*node.args.posonlyargs, *node.args.args)]
+
+
+def _exact_root_call_arguments(
+    call: ast.Call,
+    parameter_names: list[str],
+    trusted_root: Path,
+    source_path: Path | None,
+    known_paths: dict[str, Path],
+    helper_paths: dict[str, Path],
+) -> set[str]:
+    proven: set[str] = set()
+    for index, arg in enumerate(call.args):
+        if index >= len(parameter_names):
+            break
+        candidate = _static_path_value(
+            arg, trusted_root, source_path, known_paths, helper_paths
+        )
+        if _is_exact_trusted_root(candidate, trusted_root):
+            proven.add(parameter_names[index])
+    for keyword in call.keywords:
+        if keyword.arg is None or keyword.arg not in parameter_names:
+            continue
+        candidate = _static_path_value(
+            keyword.value, trusted_root, source_path, known_paths, helper_paths
+        )
+        if _is_exact_trusted_root(candidate, trusted_root):
+            proven.add(keyword.arg)
+    return proven
+
+
+def _propagate_trusted_function_roots(
+    tree: ast.Module,
+    trusted_root: Path,
+    source_path: Path | None,
+    seed_params: dict[str, set[str]] | None = None,
+) -> tuple[dict[str, set[str]], dict[str, Path]]:
+    helper_paths = _local_path_helpers(tree, trusted_root, source_path)
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    trusted = {name: set(values) for name, values in (seed_params or {}).items()}
+    module_paths = _scope_path_bindings(
+        tree.body, trusted_root, source_path, helper_paths
+    )
+    changed = True
+    while changed:
+        changed = False
+        for function_name, function in functions.items():
+            initial = dict(module_paths)
+            for parameter in trusted.get(function_name, set()):
+                initial[parameter] = trusted_root
+            known = _scope_path_bindings(
+                function.body,
+                trusted_root,
+                source_path,
+                helper_paths,
+                initial,
+            )
+            for statement in function.body:
+                for call in [item for item in ast.walk(statement) if isinstance(item, ast.Call)]:
+                    if not isinstance(call.func, ast.Name) or call.func.id not in functions:
+                        continue
+                    callee = functions[call.func.id]
+                    proven = _exact_root_call_arguments(
+                        call,
+                        _function_parameter_names(callee),
+                        trusted_root,
+                        source_path,
+                        known,
+                        helper_paths,
+                    )
+                    before = len(trusted.get(callee.name, set()))
+                    if proven:
+                        trusted.setdefault(callee.name, set()).update(proven)
+                    if len(trusted.get(callee.name, set())) != before:
+                        changed = True
+    return trusted, helper_paths
 
 
 def _call_uses_name(call: ast.Call, names: set[str]) -> bool:
@@ -374,60 +547,169 @@ def _is_module_path_binding_call(call: ast.Call) -> bool:
     )
 
 
+def _scope_has_exact_src_binding(
+    statements: list[ast.stmt],
+    expected: Path,
+    trusted_root: Path,
+    source_path: Path | None,
+    helper_paths: dict[str, Path],
+    initial_paths: dict[str, Path] | None = None,
+) -> bool:
+    known = _scope_path_bindings(
+        statements,
+        trusted_root,
+        source_path,
+        helper_paths,
+        initial_paths,
+    )
+    bound_names = {
+        name
+        for name, candidate in known.items()
+        if _safe_resolve(candidate) == expected
+    }
+    for statement in statements:
+        for node in ast.walk(statement):
+            if not isinstance(node, ast.Call) or not _is_module_path_binding_call(node):
+                continue
+            if _call_uses_name(node, bound_names):
+                return True
+            for arg in node.args:
+                candidate = _static_path_value(
+                    arg,
+                    trusted_root,
+                    source_path,
+                    known,
+                    helper_paths,
+                )
+                if _safe_resolve(candidate) == expected if candidate is not None else False:
+                    return True
+    return False
+
+
 def _has_explicit_product_src_binding(
     text: str,
     module_dir: Path,
     root: Path,
+    source_path: Path | None = None,
+    trusted_function_params: dict[str, set[str]] | None = None,
 ) -> bool:
     try:
         tree = ast.parse(text)
     except SyntaxError:
         return False
-    expected = (root / module_dir / "src").resolve()
+    trusted_root = root.expanduser().resolve()
+    expected = (trusted_root / module_dir / "src").resolve()
     try:
-        expected.relative_to(root.resolve())
+        expected.relative_to(trusted_root)
     except ValueError:
         return False
-    trusted_root_names = _trusted_repo_root_names(tree)
-    bound_names: set[str] = set()
-    for node in ast.walk(tree):
-        target_name: str | None = None
-        value: ast.AST | None = None
-        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-            target_name = node.targets[0].id
-            value = node.value
-        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            target_name = node.target.id
-            value = node.value
-        if target_name is None or value is None:
-            continue
-        candidate = _static_path_value(value, root, trusted_root_names)
-        if candidate is None:
-            continue
+    if source_path is not None:
+        resolved_source = _safe_resolve(source_path)
+        if resolved_source is None:
+            return False
         try:
-            resolved = candidate.expanduser().resolve()
-            resolved.relative_to(root.resolve())
-        except (OSError, RuntimeError, ValueError):
+            resolved_source.relative_to(trusted_root)
+        except ValueError:
+            return False
+    trusted_params, helper_paths = _propagate_trusted_function_roots(
+        tree,
+        trusted_root,
+        source_path,
+        trusted_function_params,
+    )
+    module_paths = _scope_path_bindings(
+        tree.body, trusted_root, source_path, helper_paths
+    )
+    if _scope_has_exact_src_binding(
+        tree.body,
+        expected,
+        trusted_root,
+        source_path,
+        helper_paths,
+        module_paths,
+    ):
+        return True
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        if resolved == expected:
-            bound_names.add(target_name)
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or not _is_module_path_binding_call(node):
-            continue
-        if _call_uses_name(node, bound_names):
+        initial = dict(module_paths)
+        for parameter in trusted_params.get(node.name, set()):
+            initial[parameter] = trusted_root
+        if _scope_has_exact_src_binding(
+            node.body,
+            expected,
+            trusted_root,
+            source_path,
+            helper_paths,
+            initial,
+        ):
             return True
-        for arg in node.args:
-            candidate = _static_path_value(arg, root, trusted_root_names)
-            if candidate is None:
-                continue
-            try:
-                resolved = candidate.expanduser().resolve()
-                resolved.relative_to(root.resolve())
-            except (OSError, RuntimeError, ValueError):
-                continue
-            if resolved == expected:
-                return True
     return False
+
+
+def _trusted_entrypoint_root_seeds(
+    root: Path,
+    implementations: dict[str, dict[str, Any]],
+) -> dict[Path, dict[str, set[str]]]:
+    trusted_root = root.expanduser().resolve()
+    seeds: dict[Path, dict[str, set[str]]] = {}
+    leaf_candidates: dict[str, list[tuple[str, Path]]] = {}
+    for cid, info in implementations.items():
+        module_dir = Path(str(info["module_dir"]))
+        for leaf in info.get("import_leaves") or []:
+            implementation_file = trusted_root / module_dir / "src" / f"{leaf}.py"
+            if implementation_file.is_file():
+                leaf_candidates.setdefault(str(leaf), []).append((cid, implementation_file))
+
+    for wrapper in sorted(path for path in trusted_root.glob("*.py") if path.is_file()):
+        text = _read_text(wrapper)
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        helper_paths = _local_path_helpers(tree, trusted_root, wrapper)
+        module_paths = _scope_path_bindings(
+            tree.body, trusted_root, wrapper, helper_paths
+        )
+        imported_functions: dict[str, str] = {}
+        for node in tree.body:
+            if not isinstance(node, ast.ImportFrom) or not node.module:
+                continue
+            module_leaf = node.module.split(".")[-1]
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                imported_functions[alias.asname or alias.name] = module_leaf
+        for statement in tree.body:
+            for call in [item for item in ast.walk(statement) if isinstance(item, ast.Call)]:
+                if not isinstance(call.func, ast.Name) or call.func.id not in imported_functions:
+                    continue
+                root_keywords = [kw for kw in call.keywords if kw.arg == "root"]
+                if len(root_keywords) != 1:
+                    continue
+                candidate = _static_path_value(
+                    root_keywords[0].value,
+                    trusted_root,
+                    wrapper,
+                    module_paths,
+                    helper_paths,
+                )
+                if not _is_exact_trusted_root(candidate, trusted_root):
+                    continue
+                module_leaf = imported_functions[call.func.id]
+                for cid, implementation_file in leaf_candidates.get(module_leaf, []):
+                    module_dir = Path(str(implementations[cid]["module_dir"]))
+                    if not _has_explicit_product_src_binding(
+                        text,
+                        module_dir,
+                        trusted_root,
+                        source_path=wrapper,
+                    ):
+                        continue
+                    seeds.setdefault(implementation_file.resolve(), {}).setdefault(
+                        call.func.id, set()
+                    ).add("root")
+    return seeds
 
 
 def discover_consumers_and_tests(
@@ -449,12 +731,14 @@ def discover_consumers_and_tests(
         for leaf in info.get("import_leaves") or []:
             leaf_to_capabilities.setdefault(str(leaf), set()).add(cid)
 
+    trusted_entrypoint_seeds = _trusted_entrypoint_root_seeds(root, implementations)
     for path in _iter_python_files(root):
         relative = path.relative_to(root)
         text = _read_text(path)
         references = _import_references(text)
         matched: set[str] = set()
         explicit_binding_cache: dict[str, bool] = {}
+        source_seed = trusted_entrypoint_seeds.get(path.resolve(), {})
         for kind, qualified, leaf in references:
             candidates = leaf_to_capabilities.get(leaf, set())
             if not candidates:
@@ -470,6 +754,8 @@ def discover_consumers_and_tests(
                             text,
                             module_dirs[cid],
                             root,
+                            source_path=path,
+                            trusted_function_params=source_seed,
                         )
                     if explicit_binding_cache[cid]:
                         matched.add(cid)
