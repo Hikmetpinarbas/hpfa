@@ -226,21 +226,24 @@ def _is_test_path(relative: Path) -> bool:
     )
 
 
-def _imports_leaf(text: str, leaves: Iterable[str]) -> bool:
+def _imported_leaves(text: str) -> set[str]:
     try:
         tree = ast.parse(text)
     except SyntaxError:
-        return False
-    leaf_set = set(leaves)
+        return set()
+    leaves: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name.split(".")[-1] in leaf_set:
-                    return True
+            leaves.update(alias.name.split(".")[-1] for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
-            if (node.module or "").split(".")[-1] in leaf_set:
-                return True
-    return False
+            module = (node.module or "").split(".")[-1]
+            if module:
+                leaves.add(module)
+    return leaves
+
+
+def _imports_leaf(text: str, leaves: Iterable[str]) -> bool:
+    return bool(_imported_leaves(text) & set(leaves))
 
 
 def discover_consumers_and_tests(
@@ -249,22 +252,34 @@ def discover_consumers_and_tests(
 ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
     consumers: dict[str, list[str]] = {cid: [] for cid in implementations}
     tests: dict[str, list[str]] = {cid: [] for cid in implementations}
-    python_files = list(_iter_python_files(root))
+    leaf_to_capabilities: dict[str, set[str]] = {}
+    module_dirs = {
+        cid: Path(str(info["module_dir"]))
+        for cid, info in implementations.items()
+    }
     for cid, info in implementations.items():
-        module_dir = Path(str(info["module_dir"]))
-        leaves = list(info.get("import_leaves") or [])
-        for path in python_files:
-            relative = path.relative_to(root)
-            text = _read_text(path)
-            imports = _imports_leaf(text, leaves)
-            if _is_test_path(relative):
-                if module_dir in relative.parents or imports:
-                    tests[cid].append(relative.as_posix())
-                continue
-            if module_dir in relative.parents:
-                continue
-            if imports:
+        for leaf in info.get("import_leaves") or []:
+            leaf_to_capabilities.setdefault(str(leaf), set()).add(cid)
+
+    for path in _iter_python_files(root):
+        relative = path.relative_to(root)
+        imported = _imported_leaves(_read_text(path))
+        matched: set[str] = set()
+        for leaf in imported:
+            matched.update(leaf_to_capabilities.get(leaf, set()))
+
+        if _is_test_path(relative):
+            for cid, module_dir in module_dirs.items():
+                if module_dir in relative.parents:
+                    matched.add(cid)
+            for cid in matched:
+                tests[cid].append(relative.as_posix())
+            continue
+
+        for cid in matched:
+            if module_dirs[cid] not in relative.parents:
                 consumers[cid].append(relative.as_posix())
+
     return (
         {key: sorted(set(value)) for key, value in consumers.items()},
         {key: sorted(set(value)) for key, value in tests.items()},
