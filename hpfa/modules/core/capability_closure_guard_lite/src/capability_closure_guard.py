@@ -49,6 +49,7 @@ IGNORED_PARTS = {
 }
 CONTRACT_SECTION_HEADINGS = {"product node", "reused producers"}
 PASS_STATUSES = {"PASS", "ACTIVE_MATCH_EVIDENCE_PASS"}
+MODULE_PATH_HELPERS = {"ensure_module_path", "_ensure_module_path"}
 
 
 class ClosureGuardError(ValueError):
@@ -57,7 +58,7 @@ class ClosureGuardError(ValueError):
 
 def normalize_capability_id(value: str) -> str:
     text = str(value or "").strip().casefold()
-    text = re.sub(r"^p\d+(?:\s+|\s*[:—–]\s*)", "", text, count=1)
+    text = re.sub(r"^p\d+(?:\s+|\s*[:/\-—–]\s*)", "", text, count=1)
     text = re.sub(r"\bv(?:ersion)?\s*\d+\b", " ", text)
     text = re.sub(r"[^a-z0-9]+", "_", text)
     return re.sub(r"_+", "_", text).strip("_")
@@ -272,21 +273,73 @@ def _imports_leaf(text: str, leaves: Iterable[str]) -> bool:
     return bool(_imported_leaves(text) & set(leaves))
 
 
-def _literal_path_parts(node: ast.AST) -> tuple[str, ...]:
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
-        return _literal_path_parts(node.left) + _literal_path_parts(node.right)
+def _is_current_repo_root_expr(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == "parent"
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Attribute)
+        and node.value.func.attr == "resolve"
+        and isinstance(node.value.func.value, ast.Call)
+        and isinstance(node.value.func.value.func, ast.Name)
+        and node.value.func.value.func.id == "Path"
+        and len(node.value.func.value.args) == 1
+        and isinstance(node.value.func.value.args[0], ast.Name)
+        and node.value.func.value.args[0].id == "__file__"
+    )
+
+
+def _trusted_repo_root_names(tree: ast.AST) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        target_name: str | None = None
+        value: ast.AST | None = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            target_name = node.targets[0].id
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            target_name = node.target.id
+            value = node.value
+        if target_name and value is not None and _is_current_repo_root_expr(value):
+            names.add(target_name)
+    return names
+
+
+def _static_path_value(
+    node: ast.AST,
+    root: Path,
+    trusted_root_names: set[str],
+) -> Path | None:
+    if isinstance(node, ast.Name) and node.id in trusted_root_names:
+        return root
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return tuple(Path(node.value).parts)
+        value = Path(node.value)
+        return value if value.is_absolute() else None
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
         and node.func.id == "Path"
-        and node.args
+        and len(node.args) == 1
         and isinstance(node.args[0], ast.Constant)
         and isinstance(node.args[0].value, str)
     ):
-        return tuple(Path(node.args[0].value).parts)
-    return ()
+        value = Path(node.args[0].value)
+        return value if value.is_absolute() else None
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "resolve"
+        and not node.args
+    ):
+        return _static_path_value(node.func.value, root, trusted_root_names)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        left = _static_path_value(node.left, root, trusted_root_names)
+        if left is None:
+            return None
+        if isinstance(node.right, ast.Constant) and isinstance(node.right.value, str):
+            return left / node.right.value
+        return None
+    return None
 
 
 def _call_uses_name(call: ast.Call, names: set[str]) -> bool:
@@ -298,7 +351,7 @@ def _call_uses_name(call: ast.Call, names: set[str]) -> bool:
 
 
 def _is_module_path_binding_call(call: ast.Call) -> bool:
-    if isinstance(call.func, ast.Name) and call.func.id == "_ensure_module_path":
+    if isinstance(call.func, ast.Name) and call.func.id in MODULE_PATH_HELPERS:
         return True
     if not isinstance(call.func, ast.Attribute) or call.func.attr not in {"insert", "append"}:
         return False
@@ -311,12 +364,21 @@ def _is_module_path_binding_call(call: ast.Call) -> bool:
     )
 
 
-def _has_explicit_product_src_binding(text: str, module_dir: Path) -> bool:
+def _has_explicit_product_src_binding(
+    text: str,
+    module_dir: Path,
+    root: Path,
+) -> bool:
     try:
         tree = ast.parse(text)
     except SyntaxError:
         return False
-    target_parts = tuple((module_dir / "src").parts)
+    expected = (root / module_dir / "src").resolve()
+    try:
+        expected.relative_to(root.resolve())
+    except ValueError:
+        return False
+    trusted_root_names = _trusted_repo_root_names(tree)
     bound_names: set[str] = set()
     for node in ast.walk(tree):
         target_name: str | None = None
@@ -329,19 +391,33 @@ def _has_explicit_product_src_binding(text: str, module_dir: Path) -> bool:
             value = node.value
         if target_name is None or value is None:
             continue
-        for child in ast.walk(value):
-            parts = _literal_path_parts(child)
-            if len(parts) >= len(target_parts) and tuple(parts[-len(target_parts):]) == target_parts:
-                bound_names.add(target_name)
-                break
-    if not bound_names:
-        return False
-    return any(
-        isinstance(node, ast.Call)
-        and _is_module_path_binding_call(node)
-        and _call_uses_name(node, bound_names)
-        for node in ast.walk(tree)
-    )
+        candidate = _static_path_value(value, root, trusted_root_names)
+        if candidate is None:
+            continue
+        try:
+            resolved = candidate.expanduser().resolve()
+            resolved.relative_to(root.resolve())
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if resolved == expected:
+            bound_names.add(target_name)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not _is_module_path_binding_call(node):
+            continue
+        if _call_uses_name(node, bound_names):
+            return True
+        for arg in node.args:
+            candidate = _static_path_value(arg, root, trusted_root_names)
+            if candidate is None:
+                continue
+            try:
+                resolved = candidate.expanduser().resolve()
+                resolved.relative_to(root.resolve())
+            except (OSError, RuntimeError, ValueError):
+                continue
+            if resolved == expected:
+                return True
+    return False
 
 
 def discover_consumers_and_tests(
@@ -383,6 +459,7 @@ def discover_consumers_and_tests(
                         explicit_binding_cache[cid] = _has_explicit_product_src_binding(
                             text,
                             module_dirs[cid],
+                            root,
                         )
                     if explicit_binding_cache[cid]:
                         matched.add(cid)
