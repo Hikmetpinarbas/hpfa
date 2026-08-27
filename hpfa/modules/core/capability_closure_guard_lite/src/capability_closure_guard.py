@@ -134,6 +134,10 @@ def _contract_direct_id(path: Path) -> str:
     return normalize_capability_id(stem)
 
 
+def _is_markdown_fence_declaration(line: str) -> bool:
+    return bool(re.fullmatch(r"(?:`{3,}|~{3,})[A-Za-z0-9_+.-]*", line.strip()))
+
+
 def _explicit_contract_section_tokens(text: str) -> set[str]:
     tokens: set[str] = set()
     active = False
@@ -144,9 +148,10 @@ def _explicit_contract_section_tokens(text: str) -> set[str]:
             continue
         if not active:
             continue
-        stripped = line.strip().strip("`").strip()
-        if not stripped or stripped.startswith("#"):
+        raw = line.strip()
+        if not raw or raw.startswith("#") or _is_markdown_fence_declaration(raw):
             continue
+        stripped = raw.strip("`").strip()
         candidate = normalize_capability_id(stripped.split("/")[-1])
         if candidate:
             tokens.add(candidate)
@@ -226,20 +231,35 @@ def _is_test_path(relative: Path) -> bool:
     )
 
 
-def _imported_leaves(text: str) -> set[str]:
+def _import_references(text: str) -> set[tuple[str, str, str]]:
     try:
         tree = ast.parse(text)
     except SyntaxError:
         return set()
-    leaves: set[str] = set()
+    references: set[tuple[str, str, str]] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            leaves.update(alias.name.split(".")[-1] for alias in node.names)
+            for alias in node.names:
+                qualified = alias.name
+                leaf = qualified.split(".")[-1]
+                if leaf:
+                    references.add(("module", qualified, leaf))
         elif isinstance(node, ast.ImportFrom):
-            module = (node.module or "").split(".")[-1]
-            if module:
-                leaves.add(module)
-    return leaves
+            module = node.module or ""
+            module_leaf = module.split(".")[-1] if module else ""
+            if module_leaf:
+                references.add(("module", module, module_leaf))
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                leaf = alias.name.split(".")[-1]
+                if leaf:
+                    references.add(("from_name", module, leaf))
+    return references
+
+
+def _imported_leaves(text: str) -> set[str]:
+    return {leaf for _kind, _qualified, leaf in _import_references(text)}
 
 
 def _imports_leaf(text: str, leaves: Iterable[str]) -> bool:
@@ -257,16 +277,35 @@ def discover_consumers_and_tests(
         cid: Path(str(info["module_dir"]))
         for cid, info in implementations.items()
     }
+    package_prefixes = {
+        cid: str(info["module_dir"]).replace("/", ".")
+        for cid, info in implementations.items()
+    }
     for cid, info in implementations.items():
         for leaf in info.get("import_leaves") or []:
             leaf_to_capabilities.setdefault(str(leaf), set()).add(cid)
 
     for path in _iter_python_files(root):
         relative = path.relative_to(root)
-        imported = _imported_leaves(_read_text(path))
+        references = _import_references(_read_text(path))
         matched: set[str] = set()
-        for leaf in imported:
-            matched.update(leaf_to_capabilities.get(leaf, set()))
+        for kind, qualified, leaf in references:
+            candidates = leaf_to_capabilities.get(leaf, set())
+            if not candidates:
+                continue
+            if kind == "from_name":
+                for cid in candidates:
+                    prefix = package_prefixes[cid]
+                    if qualified == prefix or qualified.startswith(f"{prefix}."):
+                        matched.add(cid)
+                continue
+            if len(candidates) == 1:
+                matched.update(candidates)
+                continue
+            for cid in candidates:
+                prefix = package_prefixes[cid]
+                if qualified == prefix or qualified.startswith(f"{prefix}."):
+                    matched.add(cid)
 
         if _is_test_path(relative):
             for cid, module_dir in module_dirs.items():
