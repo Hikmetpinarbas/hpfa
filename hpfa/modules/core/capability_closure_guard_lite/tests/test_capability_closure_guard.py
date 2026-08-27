@@ -186,6 +186,116 @@ def test_package_importfrom_consumer_matches_only_its_capability(tmp_path, monke
     assert records["other_lite"]["evidence"]["non_test_consumer"] is False
 
 
+def test_unique_import_leaf_requires_qualified_product_package(tmp_path, monkeypatch):
+    _minimal_governance(tmp_path)
+    _write(
+        tmp_path / "docs/contracts/sample_lite_v1.md",
+        "## Product Node\nsample_lite\n",
+    )
+    _write(
+        tmp_path / "hpfa/modules/core/sample_lite/src/client.py",
+        "VALUE = 1\n",
+    )
+    _write(
+        tmp_path / "hpfa/modules/core/sample_lite/tests/test_surface.py",
+        "import client\n",
+    )
+    _write(tmp_path / "unrelated_consumer.py", "import third_party.client\n")
+    monkeypatch.setattr(guard, "current_product_tree_sha", lambda _root: "5" * 40)
+
+    false_report = guard.build_report(tmp_path)
+    false_record = next(
+        row for row in false_report["capabilities"]
+        if row["capability_id"] == "sample_lite"
+    )
+    assert false_record["evidence"]["non_test_consumer"] is False
+    assert false_record["decision"] == "TEST_ONLY_SURFACE"
+
+    _write(
+        tmp_path / "product_consumer.py",
+        "import hpfa.modules.core.sample_lite.src.client\n",
+    )
+    true_report = guard.build_report(tmp_path)
+    true_record = next(
+        row for row in true_report["capabilities"]
+        if row["capability_id"] == "sample_lite"
+    )
+    assert true_record["evidence"]["non_test_consumer"] is True
+    assert true_record["evidence_paths"]["non_test_consumer"] == [
+        "product_consumer.py"
+    ]
+
+
+def test_planning_prefix_product_node_reconciles_to_canonical_id(tmp_path, monkeypatch):
+    _minimal_governance(tmp_path)
+    cases = {
+        "active_match_analyst_report_lite": "P1 ACTIVE_MATCH Analyst Report Lite V1",
+        "canonical_event_lite": "P2 Canonical Event Lite V1",
+    }
+    for capability_id, display_label in cases.items():
+        _write(
+            tmp_path / f"docs/contracts/{capability_id}_v1.md",
+            f"## Product Node\n{display_label}\n",
+        )
+        _write(
+            tmp_path / f"hpfa/modules/core/{capability_id}/src/{capability_id}.py",
+            "VALUE = 1\n",
+        )
+    monkeypatch.setattr(guard, "current_product_tree_sha", lambda _root: "6" * 40)
+
+    report = guard.build_report(tmp_path)
+    records = {row["capability_id"]: row for row in report["capabilities"]}
+
+    assert set(records) == set(cases)
+    assert all(records[cid]["evidence"]["contract"] for cid in cases)
+    assert "p1_active_match_analyst_report_lite" not in records
+    assert "p2_canonical_event_lite" not in records
+    assert guard.normalize_capability_id("p2h_event_time_space_lite") == "p2h_event_time_space_lite"
+    assert guard.normalize_capability_id("p1_internal_surface") == "p1_internal_surface"
+
+
+def test_docs_python_is_not_consumer_but_product_python_is(tmp_path, monkeypatch):
+    _minimal_governance(tmp_path)
+    _write(
+        tmp_path / "docs/contracts/sample_lite_v1.md",
+        "## Product Node\nsample_lite\n",
+    )
+    _write(
+        tmp_path / "hpfa/modules/core/sample_lite/src/sample_impl.py",
+        "VALUE = 1\n",
+    )
+    _write(
+        tmp_path / "hpfa/modules/core/sample_lite/tests/test_surface.py",
+        "import sample_impl\n",
+    )
+    _write(
+        tmp_path / "docs/example.py",
+        "import hpfa.modules.core.sample_lite.src.sample_impl\n",
+    )
+    monkeypatch.setattr(guard, "current_product_tree_sha", lambda _root: "7" * 40)
+
+    docs_only = guard.build_report(tmp_path)
+    docs_record = next(
+        row for row in docs_only["capabilities"]
+        if row["capability_id"] == "sample_lite"
+    )
+    assert docs_record["evidence"]["non_test_consumer"] is False
+
+    _write(
+        tmp_path / "product_consumer.py",
+        "import hpfa.modules.core.sample_lite.src.sample_impl\n",
+    )
+    product_report = guard.build_report(tmp_path)
+    product_record = next(
+        row for row in product_report["capabilities"]
+        if row["capability_id"] == "sample_lite"
+    )
+    assert product_record["evidence"]["non_test_consumer"] is True
+    assert product_record["evidence_paths"]["non_test_consumer"] == [
+        "product_consumer.py"
+    ]
+
+
 def test_markdown_fence_declaration_does_not_create_text_capability(tmp_path, monkeypatch):
     _minimal_governance(tmp_path)
     _write(
