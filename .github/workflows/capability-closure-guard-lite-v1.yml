@@ -3,15 +3,11 @@ name: Capability Closure Guard Lite V1
 on:
   pull_request:
     paths:
-      - capability_closure_guard_lite.py
-      - hpfa/modules/core/capability_closure_guard_lite/**
-      - docs/contracts/capability_closure_guard_lite_v1.md
+      - '**/*.py'
       - docs/contracts/**
       - docs/governance/runtime_pack_v1/module_governance_matrix.tsv
       - docs/governance/runtime_pack_v1/source_role_registry.json
       - docs/governance/runtime_pack_v1/release_status_normalizer.json
-      - hpfa/modules/core/active_match_spine_runner/**
-      - active_match_spine_runner.py
       - .github/workflows/capability-closure-guard-lite-v1.yml
   workflow_dispatch:
 
