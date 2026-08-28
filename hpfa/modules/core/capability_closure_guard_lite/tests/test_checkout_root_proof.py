@@ -140,3 +140,25 @@ def test_symlink_escape_cannot_become_current_product_binding(tmp_path):
         tmp_path,
         source_path=source_path,
     ) is False
+
+
+def test_reassigned_trusted_src_to_foreign_path_invalidates_binding(tmp_path):
+    _current_src(tmp_path)
+    foreign_root = tmp_path.parent / "vendor_reassigned"
+    foreign_src = foreign_root / MODULE_DIR / "src"
+    foreign_src.mkdir(parents=True, exist_ok=True)
+    source_path = tmp_path / "consumer.py"
+    text = (
+        "ROOT = Path(__file__).resolve().parent\n"
+        "src = ROOT / 'hpfa/modules/core/sample_lite/src'\n"
+        f"src = Path({str(foreign_src)!r})\n"
+        "ensure_module_path(src)\n"
+        "import client\n"
+    )
+
+    assert guard._has_explicit_product_src_binding(
+        text,
+        MODULE_DIR,
+        tmp_path,
+        source_path=source_path,
+    ) is False
