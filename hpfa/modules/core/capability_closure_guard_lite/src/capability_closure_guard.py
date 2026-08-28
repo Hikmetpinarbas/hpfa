@@ -396,19 +396,17 @@ def _scope_path_bindings(
     initial_paths: dict[str, Path] | None = None,
 ) -> dict[str, Path]:
     known = dict(initial_paths or {})
-    changed = True
-    while changed:
-        changed = False
-        for node in statements:
-            target_name, value = _assignment_target_value(node)
-            if target_name is None or value is None or target_name in known:
-                continue
-            candidate = _static_path_value(
-                value, trusted_root, source_path, known, helper_paths
-            )
-            if candidate is not None:
-                known[target_name] = candidate
-                changed = True
+    for node in statements:
+        target_name, value = _assignment_target_value(node)
+        if target_name is None or value is None:
+            continue
+        candidate = _static_path_value(
+            value, trusted_root, source_path, known, helper_paths
+        )
+        if candidate is None:
+            known.pop(target_name, None)
+        else:
+            known[target_name] = candidate
     return known
 
 
