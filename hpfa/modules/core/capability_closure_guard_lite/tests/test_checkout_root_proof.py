@@ -162,3 +162,71 @@ def test_reassigned_trusted_src_to_foreign_path_invalidates_binding(tmp_path):
         tmp_path,
         source_path=source_path,
     ) is False
+
+
+def test_foreign_call_then_current_reassignment_stays_false(tmp_path):
+    current_src = _current_src(tmp_path)
+    foreign_src = tmp_path.parent / "foreign_before_call" / MODULE_DIR / "src"
+    foreign_src.mkdir(parents=True, exist_ok=True)
+    source_path = tmp_path / "consumer.py"
+    text = (
+        f"src = Path({str(foreign_src)!r})\n"
+        "ensure_module_path(src)\n"
+        f"src = Path({str(current_src)!r})\n"
+        "import client\n"
+    )
+
+    assert guard._has_explicit_product_src_binding(
+        text, MODULE_DIR, tmp_path, source_path=source_path
+    ) is False
+
+
+def test_current_call_then_foreign_reassignment_stays_true(tmp_path):
+    current_src = _current_src(tmp_path)
+    foreign_src = tmp_path.parent / "foreign_after_call" / MODULE_DIR / "src"
+    foreign_src.mkdir(parents=True, exist_ok=True)
+    source_path = tmp_path / "consumer.py"
+    text = (
+        f"src = Path({str(current_src)!r})\n"
+        "ensure_module_path(src)\n"
+        f"src = Path({str(foreign_src)!r})\n"
+        "import client\n"
+    )
+
+    assert guard._has_explicit_product_src_binding(
+        text, MODULE_DIR, tmp_path, source_path=source_path
+    ) is True
+
+
+def test_current_then_foreign_before_call_is_false(tmp_path):
+    current_src = _current_src(tmp_path)
+    foreign_src = tmp_path.parent / "foreign_before_binding" / MODULE_DIR / "src"
+    foreign_src.mkdir(parents=True, exist_ok=True)
+    source_path = tmp_path / "consumer.py"
+    text = (
+        f"src = Path({str(current_src)!r})\n"
+        f"src = Path({str(foreign_src)!r})\n"
+        "_ensure_module_path(src)\n"
+        "import client\n"
+    )
+
+    assert guard._has_explicit_product_src_binding(
+        text, MODULE_DIR, tmp_path, source_path=source_path
+    ) is False
+
+
+def test_foreign_then_current_before_call_is_true_for_sys_path(tmp_path):
+    current_src = _current_src(tmp_path)
+    foreign_src = tmp_path.parent / "foreign_then_current" / MODULE_DIR / "src"
+    foreign_src.mkdir(parents=True, exist_ok=True)
+    source_path = tmp_path / "consumer.py"
+    text = (
+        f"src = Path({str(foreign_src)!r})\n"
+        f"src = Path({str(current_src)!r})\n"
+        "sys.path.insert(0, str(src))\n"
+        "import client\n"
+    )
+
+    assert guard._has_explicit_product_src_binding(
+        text, MODULE_DIR, tmp_path, source_path=source_path
+    ) is True

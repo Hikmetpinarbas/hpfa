@@ -388,6 +388,25 @@ def _assignment_target_value(node: ast.AST) -> tuple[str | None, ast.AST | None]
     return None, None
 
 
+def _update_path_binding(
+    node: ast.AST,
+    trusted_root: Path,
+    source_path: Path | None,
+    helper_paths: dict[str, Path],
+    known: dict[str, Path],
+) -> None:
+    target_name, value = _assignment_target_value(node)
+    if target_name is None or value is None:
+        return
+    candidate = _static_path_value(
+        value, trusted_root, source_path, known, helper_paths
+    )
+    if candidate is None:
+        known.pop(target_name, None)
+    else:
+        known[target_name] = candidate
+
+
 def _scope_path_bindings(
     statements: list[ast.stmt],
     trusted_root: Path,
@@ -397,16 +416,7 @@ def _scope_path_bindings(
 ) -> dict[str, Path]:
     known = dict(initial_paths or {})
     for node in statements:
-        target_name, value = _assignment_target_value(node)
-        if target_name is None or value is None:
-            continue
-        candidate = _static_path_value(
-            value, trusted_root, source_path, known, helper_paths
-        )
-        if candidate is None:
-            known.pop(target_name, None)
-        else:
-            known[target_name] = candidate
+        _update_path_binding(node, trusted_root, source_path, helper_paths, known)
     return known
 
 
@@ -495,13 +505,7 @@ def _propagate_trusted_function_roots(
             initial = dict(module_paths)
             for parameter in trusted.get(function_name, set()):
                 initial[parameter] = trusted_root
-            known = _scope_path_bindings(
-                function.body,
-                trusted_root,
-                source_path,
-                helper_paths,
-                initial,
-            )
+            known = dict(initial)
             for statement in function.body:
                 for call in [item for item in ast.walk(statement) if isinstance(item, ast.Call)]:
                     if not isinstance(call.func, ast.Name) or call.func.id not in functions:
@@ -520,6 +524,9 @@ def _propagate_trusted_function_roots(
                         trusted.setdefault(callee.name, set()).update(proven)
                     if len(trusted.get(callee.name, set())) != before:
                         changed = True
+                _update_path_binding(
+                    statement, trusted_root, source_path, helper_paths, known
+                )
     return trusted, helper_paths
 
 
@@ -553,19 +560,13 @@ def _scope_has_exact_src_binding(
     helper_paths: dict[str, Path],
     initial_paths: dict[str, Path] | None = None,
 ) -> bool:
-    known = _scope_path_bindings(
-        statements,
-        trusted_root,
-        source_path,
-        helper_paths,
-        initial_paths,
-    )
-    bound_names = {
-        name
-        for name, candidate in known.items()
-        if _safe_resolve(candidate) == expected
-    }
+    known = dict(initial_paths or {})
     for statement in statements:
+        bound_names = {
+            name
+            for name, candidate in known.items()
+            if _safe_resolve(candidate) == expected
+        }
         for node in ast.walk(statement):
             if not isinstance(node, ast.Call) or not _is_module_path_binding_call(node):
                 continue
@@ -581,6 +582,9 @@ def _scope_has_exact_src_binding(
                 )
                 if _safe_resolve(candidate) == expected if candidate is not None else False:
                     return True
+        _update_path_binding(
+            statement, trusted_root, source_path, helper_paths, known
+        )
     return False
 
 
@@ -624,7 +628,6 @@ def _has_explicit_product_src_binding(
         trusted_root,
         source_path,
         helper_paths,
-        module_paths,
     ):
         return True
     for node in tree.body:
@@ -666,9 +669,6 @@ def _trusted_entrypoint_root_seeds(
         except SyntaxError:
             continue
         helper_paths = _local_path_helpers(tree, trusted_root, wrapper)
-        module_paths = _scope_path_bindings(
-            tree.body, trusted_root, wrapper, helper_paths
-        )
         imported_functions: dict[str, str] = {}
         for node in tree.body:
             if not isinstance(node, ast.ImportFrom) or not node.module:
@@ -678,6 +678,7 @@ def _trusted_entrypoint_root_seeds(
                 if alias.name == "*":
                     continue
                 imported_functions[alias.asname or alias.name] = module_leaf
+        known: dict[str, Path] = {}
         for statement in tree.body:
             for call in [item for item in ast.walk(statement) if isinstance(item, ast.Call)]:
                 if not isinstance(call.func, ast.Name) or call.func.id not in imported_functions:
@@ -689,7 +690,7 @@ def _trusted_entrypoint_root_seeds(
                     root_keywords[0].value,
                     trusted_root,
                     wrapper,
-                    module_paths,
+                    known,
                     helper_paths,
                 )
                 if not _is_exact_trusted_root(candidate, trusted_root):
@@ -707,6 +708,9 @@ def _trusted_entrypoint_root_seeds(
                     seeds.setdefault(implementation_file.resolve(), {}).setdefault(
                         call.func.id, set()
                     ).add("root")
+            _update_path_binding(
+                statement, trusted_root, wrapper, helper_paths, known
+            )
     return seeds
 
 
