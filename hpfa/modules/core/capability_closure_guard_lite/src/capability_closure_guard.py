@@ -15,6 +15,10 @@ CLAIM_SAFETY = "PRODUCT_CLOSURE_EVIDENCE_ONLY"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 PRODUCTION_RELEASE = False
+PHASE_TRUTH = False
+POSSESSION_TRUTH = False
+SEQUENCE_TRUTH = False
+TACTICAL_TRUTH = False
 
 DECISIONS = {
     "ACTIVE_CONTRACT",
@@ -50,6 +54,7 @@ IGNORED_PARTS = {
 CONTRACT_SECTION_HEADINGS = {"product node", "reused producers"}
 PASS_STATUSES = {"PASS", "ACTIVE_MATCH_EVIDENCE_PASS"}
 MODULE_PATH_HELPERS = {"ensure_module_path", "_ensure_module_path"}
+LEXICAL_SCOPE_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
 
 
 class ClosureGuardError(ValueError):
@@ -58,7 +63,12 @@ class ClosureGuardError(ValueError):
 
 def normalize_capability_id(value: str) -> str:
     text = str(value or "").strip().casefold()
-    text = re.sub(r"^p\d+(?:\s+|\s*[:/\-—–]\s*)", "", text, count=1)
+    text = re.sub(
+        r"^p\d+[a-z]*(?:-g\d+)?(?:\s+|\s*[:/\-—–]\s*)",
+        "",
+        text,
+        count=1,
+    )
     text = re.sub(r"\bv(?:ersion)?\s*\d+\b", " ", text)
     text = re.sub(r"[^a-z0-9]+", "_", text)
     return re.sub(r"_+", "_", text).strip("_")
@@ -454,6 +464,47 @@ def _function_parameter_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> l
     return [arg.arg for arg in (*node.args.posonlyargs, *node.args.args)]
 
 
+def _all_callable_parameter_names(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) -> set[str]:
+    names = {
+        arg.arg
+        for arg in (*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs)
+    }
+    if node.args.vararg is not None:
+        names.add(node.args.vararg.arg)
+    if node.args.kwarg is not None:
+        names.add(node.args.kwarg.arg)
+    return names
+
+
+def _walk_current_lexical_scope(node: ast.AST) -> Iterable[ast.AST]:
+    stack = [node]
+    first = True
+    while stack:
+        current = stack.pop()
+        is_root = first
+        first = False
+        yield current
+        if isinstance(current, LEXICAL_SCOPE_NODES):
+            if not is_root or isinstance(node, LEXICAL_SCOPE_NODES):
+                continue
+        children = list(ast.iter_child_nodes(current))
+        stack.extend(reversed(children))
+
+
+def _direct_nested_lexical_scopes(statement: ast.AST) -> list[ast.AST]:
+    if isinstance(statement, LEXICAL_SCOPE_NODES):
+        return [statement]
+    found: list[ast.AST] = []
+    stack = list(ast.iter_child_nodes(statement))
+    while stack:
+        current = stack.pop()
+        if isinstance(current, LEXICAL_SCOPE_NODES):
+            found.append(current)
+            continue
+        stack.extend(ast.iter_child_nodes(current))
+    return found
+
+
 def _exact_root_call_arguments(
     call: ast.Call,
     parameter_names: list[str],
@@ -507,7 +558,11 @@ def _propagate_trusted_function_roots(
                 initial[parameter] = trusted_root
             known = dict(initial)
             for statement in function.body:
-                for call in [item for item in ast.walk(statement) if isinstance(item, ast.Call)]:
+                for call in [
+                    item
+                    for item in _walk_current_lexical_scope(statement)
+                    if isinstance(item, ast.Call)
+                ]:
                     if not isinstance(call.func, ast.Name) or call.func.id not in functions:
                         continue
                     callee = functions[call.func.id]
@@ -552,6 +607,37 @@ def _is_module_path_binding_call(call: ast.Call) -> bool:
     )
 
 
+def _expression_has_exact_src_binding(
+    expression: ast.AST,
+    expected: Path,
+    trusted_root: Path,
+    source_path: Path | None,
+    helper_paths: dict[str, Path],
+    known: dict[str, Path],
+) -> bool:
+    bound_names = {
+        name
+        for name, candidate in known.items()
+        if _safe_resolve(candidate) == expected
+    }
+    for node in _walk_current_lexical_scope(expression):
+        if not isinstance(node, ast.Call) or not _is_module_path_binding_call(node):
+            continue
+        if _call_uses_name(node, bound_names):
+            return True
+        for arg in node.args:
+            candidate = _static_path_value(
+                arg,
+                trusted_root,
+                source_path,
+                known,
+                helper_paths,
+            )
+            if _safe_resolve(candidate) == expected if candidate is not None else False:
+                return True
+    return False
+
+
 def _scope_has_exact_src_binding(
     statements: list[ast.stmt],
     expected: Path,
@@ -559,15 +645,19 @@ def _scope_has_exact_src_binding(
     source_path: Path | None,
     helper_paths: dict[str, Path],
     initial_paths: dict[str, Path] | None = None,
+    trusted_function_params: dict[str, set[str]] | None = None,
 ) -> bool:
     known = dict(initial_paths or {})
+    trusted_function_params = trusted_function_params or {}
     for statement in statements:
         bound_names = {
             name
             for name, candidate in known.items()
             if _safe_resolve(candidate) == expected
         }
-        for node in ast.walk(statement):
+        for node in _walk_current_lexical_scope(statement):
+            if isinstance(node, LEXICAL_SCOPE_NODES) and node is not statement:
+                continue
             if not isinstance(node, ast.Call) or not _is_module_path_binding_call(node):
                 continue
             if _call_uses_name(node, bound_names):
@@ -582,6 +672,47 @@ def _scope_has_exact_src_binding(
                 )
                 if _safe_resolve(candidate) == expected if candidate is not None else False:
                     return True
+
+        for nested in _direct_nested_lexical_scopes(statement):
+            nested_initial = dict(known)
+            if isinstance(nested, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                for parameter in _all_callable_parameter_names(nested):
+                    nested_initial.pop(parameter, None)
+            if isinstance(nested, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for parameter in trusted_function_params.get(nested.name, set()):
+                    nested_initial[parameter] = trusted_root
+                if _scope_has_exact_src_binding(
+                    nested.body,
+                    expected,
+                    trusted_root,
+                    source_path,
+                    helper_paths,
+                    nested_initial,
+                    trusted_function_params,
+                ):
+                    return True
+            elif isinstance(nested, ast.ClassDef):
+                if _scope_has_exact_src_binding(
+                    nested.body,
+                    expected,
+                    trusted_root,
+                    source_path,
+                    helper_paths,
+                    nested_initial,
+                    trusted_function_params,
+                ):
+                    return True
+            elif isinstance(nested, ast.Lambda):
+                if _expression_has_exact_src_binding(
+                    nested.body,
+                    expected,
+                    trusted_root,
+                    source_path,
+                    helper_paths,
+                    nested_initial,
+                ):
+                    return True
+
         _update_path_binding(
             statement, trusted_root, source_path, helper_paths, known
         )
@@ -628,12 +759,15 @@ def _has_explicit_product_src_binding(
         trusted_root,
         source_path,
         helper_paths,
+        trusted_function_params=trusted_params,
     ):
         return True
     for node in tree.body:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         initial = dict(module_paths)
+        for parameter in _all_callable_parameter_names(node):
+            initial.pop(parameter, None)
         for parameter in trusted_params.get(node.name, set()):
             initial[parameter] = trusted_root
         if _scope_has_exact_src_binding(
@@ -643,6 +777,7 @@ def _has_explicit_product_src_binding(
             source_path,
             helper_paths,
             initial,
+            trusted_params,
         ):
             return True
     return False
@@ -680,7 +815,11 @@ def _trusted_entrypoint_root_seeds(
                 imported_functions[alias.asname or alias.name] = module_leaf
         known: dict[str, Path] = {}
         for statement in tree.body:
-            for call in [item for item in ast.walk(statement) if isinstance(item, ast.Call)]:
+            for call in [
+                item
+                for item in _walk_current_lexical_scope(statement)
+                if isinstance(item, ast.Call)
+            ]:
                 if not isinstance(call.func, ast.Name) or call.func.id not in imported_functions:
                     continue
                 root_keywords = [kw for kw in call.keywords if kw.arg == "root"]
@@ -899,6 +1038,9 @@ def load_active_match_evidence(
         raise ClosureGuardError("active_match_evidence_true_action_count_promoted")
     if evidence.get("production_release") is not False:
         raise ClosureGuardError("active_match_evidence_production_release_promoted")
+    for field in ("phase_truth", "possession_truth", "sequence_truth", "tactical_truth"):
+        if evidence.get(field) not in (None, False):
+            raise ClosureGuardError(f"active_match_evidence_{field}_promoted")
 
     admitted: dict[str, bool] = {}
     explicit = evidence.get("capabilities")
@@ -1090,6 +1232,10 @@ def build_report(
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": PRODUCTION_RELEASE,
+        "phase_truth": PHASE_TRUTH,
+        "possession_truth": POSSESSION_TRUTH,
+        "sequence_truth": SEQUENCE_TRUTH,
+        "tactical_truth": TACTICAL_TRUTH,
     }
 
 
@@ -1103,6 +1249,10 @@ def render_summary(report: dict[str, Any]) -> str:
         f"canonical_event_count={report.get('canonical_event_count')}",
         f"true_action_count={report.get('true_action_count')}",
         f"production_release={str(report.get('production_release')).lower()}",
+        f"phase_truth={str(report.get('phase_truth')).lower()}",
+        f"possession_truth={str(report.get('possession_truth')).lower()}",
+        f"sequence_truth={str(report.get('sequence_truth')).lower()}",
+        f"tactical_truth={str(report.get('tactical_truth')).lower()}",
         "",
     ]
     for record in report.get("capabilities", []):
@@ -1167,6 +1317,10 @@ def main() -> int:
                 "canonical_event_count": report["canonical_event_count"],
                 "true_action_count": report["true_action_count"],
                 "production_release": report["production_release"],
+                "phase_truth": report["phase_truth"],
+                "possession_truth": report["possession_truth"],
+                "sequence_truth": report["sequence_truth"],
+                "tactical_truth": report["tactical_truth"],
             },
             sort_keys=True,
         )
