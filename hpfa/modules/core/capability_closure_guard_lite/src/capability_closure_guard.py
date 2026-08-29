@@ -813,43 +813,57 @@ def _trusted_entrypoint_root_seeds(
                 if alias.name == "*":
                     continue
                 imported_functions[alias.asname or alias.name] = module_leaf
-        known: dict[str, Path] = {}
-        for statement in tree.body:
-            for call in [
-                item
-                for item in _walk_current_lexical_scope(statement)
-                if isinstance(item, ast.Call)
-            ]:
-                if not isinstance(call.func, ast.Name) or call.func.id not in imported_functions:
-                    continue
-                root_keywords = [kw for kw in call.keywords if kw.arg == "root"]
-                if len(root_keywords) != 1:
-                    continue
-                candidate = _static_path_value(
-                    root_keywords[0].value,
-                    trusted_root,
-                    wrapper,
-                    known,
-                    helper_paths,
-                )
-                if not _is_exact_trusted_root(candidate, trusted_root):
-                    continue
-                module_leaf = imported_functions[call.func.id]
-                for cid, implementation_file in leaf_candidates.get(module_leaf, []):
-                    module_dir = Path(str(implementations[cid]["module_dir"]))
-                    if not _has_explicit_product_src_binding(
-                        text,
-                        module_dir,
-                        trusted_root,
-                        source_path=wrapper,
-                    ):
+
+        def inspect_scope(statements: list[ast.stmt], initial: dict[str, Path]) -> None:
+            known = dict(initial)
+            for statement in statements:
+                for call in [
+                    item
+                    for item in _walk_current_lexical_scope(statement)
+                    if isinstance(item, ast.Call)
+                ]:
+                    if not isinstance(call.func, ast.Name) or call.func.id not in imported_functions:
                         continue
-                    seeds.setdefault(implementation_file.resolve(), {}).setdefault(
-                        call.func.id, set()
-                    ).add("root")
-            _update_path_binding(
-                statement, trusted_root, wrapper, helper_paths, known
-            )
+                    root_keywords = [kw for kw in call.keywords if kw.arg == "root"]
+                    if len(root_keywords) != 1:
+                        continue
+                    candidate = _static_path_value(
+                        root_keywords[0].value,
+                        trusted_root,
+                        wrapper,
+                        known,
+                        helper_paths,
+                    )
+                    if not _is_exact_trusted_root(candidate, trusted_root):
+                        continue
+                    module_leaf = imported_functions[call.func.id]
+                    for cid, implementation_file in leaf_candidates.get(module_leaf, []):
+                        module_dir = Path(str(implementations[cid]["module_dir"]))
+                        if not _has_explicit_product_src_binding(
+                            text,
+                            module_dir,
+                            trusted_root,
+                            source_path=wrapper,
+                        ):
+                            continue
+                        seeds.setdefault(implementation_file.resolve(), {}).setdefault(
+                            call.func.id, set()
+                        ).add("root")
+                _update_path_binding(
+                    statement, trusted_root, wrapper, helper_paths, known
+                )
+
+        inspect_scope(tree.body, {})
+        module_paths = _scope_path_bindings(
+            tree.body, trusted_root, wrapper, helper_paths
+        )
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            initial = dict(module_paths)
+            for parameter in _all_callable_parameter_names(node):
+                initial.pop(parameter, None)
+            inspect_scope(node.body, initial)
     return seeds
 
 
