@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 import visible_action_sequence_candidates_current_v1 as current_sequence
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src import composite_evidence_packet_builder as packet_builder
@@ -42,6 +43,27 @@ def _surface_snapshot(input_dir: str | Path) -> dict:
     }
 
 
+def _collect_output_paths(*payloads: dict[str, Any]) -> list[str]:
+    values: list[str] = []
+    seen: set[str] = set()
+    for payload in payloads:
+        inherited = payload.get("current_invocation_artifacts")
+        if isinstance(inherited, list):
+            for value in inherited:
+                text = str(value or "").strip()
+                if text and text not in seen:
+                    seen.add(text)
+                    values.append(text)
+        outputs = payload.get("outputs")
+        if isinstance(outputs, dict):
+            for value in outputs.values():
+                text = str(value or "").strip()
+                if text and text not in seen:
+                    seen.add(text)
+                    values.append(text)
+    return values
+
+
 def _write_bridge_report(report: dict, output: Path) -> None:
     json_path = output / OUTPUT_JSON
     txt_path = output / OUTPUT_TXT
@@ -50,6 +72,12 @@ def _write_bridge_report(report: dict, output: Path) -> None:
         "bridge_json": str(json_path),
         "bridge_txt": str(txt_path),
     }
+    declared = list(report.get("current_invocation_artifacts") or [])
+    for path in (json_path, txt_path):
+        text = str(path)
+        if text not in declared:
+            declared.append(text)
+    report["current_invocation_artifacts"] = declared
     json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     lines = [
         "HPFA RECONSTRUCTION -> INTELLIGENCE PACKET BRIDGE CURRENT V1",
@@ -66,6 +94,7 @@ def _write_bridge_report(report: dict, output: Path) -> None:
         f"blocked_composite_packet_count={report.get('blocked_composite_packet_count')}",
         f"review_required_packet_input_candidate_count={report.get('review_required_packet_input_candidate_count')}",
         f"packet_input_assignment_complete={report.get('packet_input_assignment_complete')}",
+        f"current_invocation_artifact_count={len(report.get('current_invocation_artifacts') or [])}",
         f"hard_block_hits={report.get('hard_block_hits') or []}",
         f"review_hits={report.get('review_hits') or []}",
         "independent_support_vote_allowed=false",
@@ -147,6 +176,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         "packet_input_assignment_complete": adapter_report.get("packet_input_assignment_complete"),
         "composite_packet_count": packet_report.get("packet_count"),
         "blocked_composite_packet_count": packet_report.get("blocked_packet_count"),
+        "current_invocation_artifacts": _collect_output_paths(sequence_payload, adapter_report, packet_report),
         "hard_block_hits": sorted(set(str(item) for item in hard_blocks)),
         "review_hits": list(adapter_report.get("review_hits") or []),
         "packet_input_ref_count_is_independent_source_count": False,
@@ -187,6 +217,7 @@ def main() -> int:
         "composite_packet_count": report.get("composite_packet_count"),
         "blocked_composite_packet_count": report.get("blocked_composite_packet_count"),
         "packet_input_assignment_complete": report.get("packet_input_assignment_complete"),
+        "current_invocation_artifact_count": len(report.get("current_invocation_artifacts") or []),
         "hard_block_hits": report.get("hard_block_hits") or [],
         "review_hits": report.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",
