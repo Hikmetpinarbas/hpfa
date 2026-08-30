@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import active_match_full_run as current_episode
 from hpfa.modules.core.temporal_episode_signature_lite.src.temporal_episode_signature import (
@@ -40,6 +39,27 @@ def _first_failed_step(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
     return None
 
 
+def _run_until_failure(
+    steps: list[dict[str, Any]],
+    producers: list[Callable[[], dict[str, Any]]],
+) -> None:
+    for producer in producers:
+        step = producer()
+        steps.append(step)
+        if step.get("passed") is False:
+            break
+
+
+def _stage_executed(steps: list[dict[str, Any]], script_name: str) -> bool:
+    for step in steps:
+        command = step.get("command") or []
+        if not isinstance(command, list):
+            continue
+        if any(Path(str(token)).name == script_name for token in command):
+            return True
+    return False
+
+
 def run_current_episode_lane(
     active_match_dir: str | Path,
     out_dir: str | Path,
@@ -53,7 +73,8 @@ def run_current_episode_lane(
 
     hard_blocks: list[str] = []
     review_hits: list[str] = []
-    if not row_nucleus_path.is_file():
+    shared_foundation_reused = row_nucleus_path.is_file()
+    if not shared_foundation_reused:
         hard_blocks.append("shared_row_nucleus_output_missing")
 
     surfaces = current_episode.readable_surface_files(active_match)
@@ -61,74 +82,97 @@ def run_current_episode_lane(
         "match_dir": str(active_match),
         "surface_file_count": len(surfaces),
         "input_surface_ready": len(surfaces) > 0,
-        "shared_foundation_reused": True,
+        "shared_foundation_reused": shared_foundation_reused,
     }
     if not input_status["input_surface_ready"]:
         hard_blocks.append("active_match_surface_missing")
 
     steps: list[dict[str, Any]] = []
     if not hard_blocks:
-        steps = [
-            current_episode.run_provider_time_context_step(product_root, active_match, output, row_nucleus_path),
-            current_episode.run_step(product_root, [
+        producers: list[Callable[[], dict[str, Any]]] = [
+            lambda: current_episode.run_provider_time_context_step(product_root, active_match, output, row_nucleus_path),
+            lambda: current_episode.run_step(product_root, [
                 sys.executable,
                 "context_action_semantics_rebind.py",
                 "--input-dir", str(output),
                 "--out-dir", str(output),
             ]),
-            current_episode.run_step(product_root, [
+            lambda: current_episode.run_step(product_root, [
                 sys.executable,
                 "analyst_episode_locator.py",
                 "--input-dir", str(output),
                 "--out-dir", str(output),
             ]),
-            current_episode.run_step(product_root, [
+            lambda: current_episode.run_step(product_root, [
                 sys.executable,
                 "episode_feature_vector.py",
                 "--input-dir", str(output),
                 "--out-dir", str(output),
             ]),
-            current_episode.run_step(product_root, [
+            lambda: current_episode.run_step(product_root, [
                 sys.executable,
                 "event_window_builder.py",
                 "--input-dir", str(output),
                 "--raw-input-dir", str(active_match),
                 "--out-dir", str(output),
             ]),
-            current_episode.run_step(product_root, [
+            lambda: current_episode.run_step(product_root, [
                 sys.executable,
                 "time_scale_router.py",
                 "--input-dir", str(output),
                 "--out-dir", str(output),
             ]),
-            current_episode.run_step(product_root, [
+            lambda: current_episode.run_step(product_root, [
                 sys.executable,
                 "axis_integrity_tagger.py",
                 "--input-dir", str(output),
                 "--out-dir", str(output),
             ]),
         ]
+        _run_until_failure(steps, producers)
 
     current_report: dict[str, Any] = {}
     first_failed_episode_step: dict[str, Any] | None = None
-    if not hard_blocks:
+    if steps:
         current_report = current_episode.write_summary(output, steps, input_status)
-        if current_report.get("status") == "FAIL_CLOSED":
-            first_failed_episode_step = _first_failed_step(steps)
-            if first_failed_episode_step:
-                hard_blocks.append(
-                    "episode_step_failed:"
-                    f"{first_failed_episode_step['stage']}:"
-                    f"returncode_{first_failed_episode_step['returncode']}"
-                )
-            else:
-                hard_blocks.append("current_episode_lane_fail_closed")
+        first_failed_episode_step = _first_failed_step(steps)
+        if first_failed_episode_step:
+            hard_blocks.append(
+                "episode_step_failed:"
+                f"{first_failed_episode_step['stage']}:"
+                f"returncode_{first_failed_episode_step['returncode']}"
+            )
+        elif current_report.get("status") == "FAIL_CLOSED":
+            hard_blocks.append("current_episode_lane_fail_closed")
         elif current_report.get("status") == "REVIEW_REQUIRED":
             review_hits.append("current_episode_lane_review_required")
 
+    feature_lane_executed = all(
+        _stage_executed(steps, script)
+        for script in (
+            "context_action_semantics_rebind.py",
+            "analyst_episode_locator.py",
+            "episode_feature_vector.py",
+        )
+    )
+    feature_lane_completed = feature_lane_executed and not any(
+        step.get("passed") is False
+        for step in steps
+        if any(
+            Path(str(token)).name in {
+                "context_action_semantics_rebind.py",
+                "analyst_episode_locator.py",
+                "episode_feature_vector.py",
+            }
+            for token in (step.get("command") or [])
+        )
+    )
+
     temporal_report: dict[str, Any] = {}
     first_failed_temporal_reason: str | None = None
+    temporal_executed = False
     if not hard_blocks:
+        temporal_executed = True
         try:
             temporal_report = write_temporal_episode_signature(output, output)
         except (OSError, ValueError, TypeError) as exc:
@@ -187,7 +231,10 @@ def run_current_episode_lane(
         ],
         "episode_output": str(output / CURRENT_EPISODE_RUNNER_OUTPUT),
         "temporal_output": str(output / TEMPORAL_OUTPUT),
-        "shared_foundation_reused": True,
+        "shared_foundation_reused": shared_foundation_reused,
+        "context_episode_feature_lane_executed": feature_lane_executed,
+        "context_episode_feature_lane_completed": feature_lane_completed,
+        "temporal_episode_signature_executed": temporal_executed,
         "row_nucleus_recomputed_by_episode_lane": False,
         "episode_lane_adds_action_volume": False,
         "temporal_signature_is_rhythm_truth": False,
