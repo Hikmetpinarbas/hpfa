@@ -43,6 +43,23 @@ def _status(value: Any) -> str:
     return str(value or "UNKNOWN").strip().upper()
 
 
+def _stage_failure(stage: str, exc: Exception) -> dict[str, Any]:
+    return {
+        "module_id": f"full_spine_{stage}_failure_v1",
+        "status": "FAIL_CLOSED",
+        "decision": "BLOCK_FULL_SPINE",
+        "hard_block_hits": [f"c4_stage_exception:{stage}:{type(exc).__name__}"],
+        "review_hits": [],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "phase_truth": False,
+        "possession_truth": False,
+        "sequence_truth": False,
+        "tactical_truth": False,
+        "production_release": False,
+    }
+
+
 def _chain_has_fail(chain: dict[str, dict[str, Any]]) -> bool:
     blocking_tokens = {"FAIL", "FAILED", "FAIL_CLOSED", "BLOCKED", "BLOCK_FUSION", "BLOCK_ARGUMENT"}
     for record in chain.values():
@@ -64,32 +81,58 @@ def _chain_has_review(chain: dict[str, dict[str, Any]]) -> bool:
     return False
 
 
-def run_intelligence_chain(packet: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    fusion = fuse_packet(packet)
-    argument = build_argument_candidate(fusion)
-    routed = route_argument(argument)
-    graph = build_evidence_graph(routed)
-    lens = build_lens_matrix(graph)
-    safe_sentence = route_safe_sentence(graph)
-    report_block = compose_report_block(safe_sentence)
-    output_contract = evaluate_report_block(report_block)
-    assembly = evaluate_assembly_item(output_contract)
-    return {
-        "packet": packet,
-        "fusion": fusion,
-        "argument": argument,
-        "route": routed,
-        "graph": graph,
-        "lens": lens,
-        "safe_sentence": safe_sentence,
-        "report_block": report_block,
-        "output_contract": output_contract,
-        "assembly": assembly,
-    }
+def run_intelligence_chain(
+    packet: dict[str, Any],
+    stage_overrides: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Run the existing C4 producers with an orchestration-safe boundary.
+
+    Producer exceptions are contracted into a FAIL_CLOSED stage record so the
+    enclosing ACTIVE_MATCH run can still disclose the first failure and write
+    its audit artifact. No alternate reasoning behavior is introduced.
+    """
+    overrides = stage_overrides or {}
+    chain: dict[str, dict[str, Any]] = {"packet": packet}
+    stages: tuple[tuple[str, Callable[[dict[str, Any]], dict[str, Any]]], ...] = (
+        ("fusion", overrides.get("fusion", fuse_packet)),
+        ("argument", overrides.get("argument", build_argument_candidate)),
+        ("route", overrides.get("route", route_argument)),
+        ("graph", overrides.get("graph", build_evidence_graph)),
+        ("lens", overrides.get("lens", build_lens_matrix)),
+        ("safe_sentence", overrides.get("safe_sentence", route_safe_sentence)),
+        ("report_block", overrides.get("report_block", compose_report_block)),
+        ("output_contract", overrides.get("output_contract", evaluate_report_block)),
+        ("assembly", overrides.get("assembly", evaluate_assembly_item)),
+    )
+    current = packet
+    for stage_name, producer in stages:
+        try:
+            output = producer(current)
+            if not isinstance(output, dict):
+                raise TypeError("stage_output_must_be_dict")
+        except Exception as exc:
+            chain[stage_name] = _stage_failure(stage_name, exc)
+            break
+        chain[stage_name] = output
+        current = output
+        if _chain_has_fail({stage_name: output}):
+            break
+    return chain
 
 
 def _first_failure(chains: list[dict[str, dict[str, Any]]]) -> tuple[str | None, str | None]:
-    ordered = ("packet", "fusion", "argument", "route", "graph", "safe_sentence", "report_block", "output_contract", "assembly")
+    ordered = (
+        "packet",
+        "fusion",
+        "argument",
+        "route",
+        "graph",
+        "lens",
+        "safe_sentence",
+        "report_block",
+        "output_contract",
+        "assembly",
+    )
     for chain in chains:
         for stage in ordered:
             record = chain.get(stage) or {}
@@ -121,9 +164,19 @@ def run_full_spine(
     first_failed_node: str | None = None
     first_failed_reason_code: str | None = None
 
-    # Shared foundation and reconstruction are produced once by the existing current bridge.
     bridge = bridge_runner or reconstruction_bridge.runtime_write_outputs
-    bridge_report = bridge(active_match_path, output_root)
+    try:
+        bridge_report = bridge(active_match_path, output_root)
+        if not isinstance(bridge_report, dict):
+            raise TypeError("bridge_output_must_be_dict")
+    except Exception as exc:
+        bridge_report = {
+            "status": "FAIL_CLOSED",
+            "hard_block_hits": [f"reconstruction_bridge_exception:{type(exc).__name__}"],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
     bridge_status = _status(bridge_report.get("status"))
     if bridge_status == "FAIL_CLOSED":
         hard_blocks.append("reconstruction_intelligence_bridge_fail_closed")
@@ -133,7 +186,6 @@ def run_full_spine(
     elif bridge_status == "REVIEW_REQUIRED":
         review_hits.append("reconstruction_intelligence_bridge_review_required")
 
-    # The episode lane reuses the Row Nucleus emitted above; it must not rebuild Foundation.
     episode_report: dict[str, Any] = {
         "status": "NOT_EVALUATED",
         "canonical_event_count": "UNKNOWN",
@@ -142,7 +194,18 @@ def run_full_spine(
     }
     if not hard_blocks:
         episode_lane = episode_runner or run_current_episode_lane
-        episode_report = episode_lane(active_match_path, output_root, execution_root_path)
+        try:
+            episode_report = episode_lane(active_match_path, output_root, execution_root_path)
+            if not isinstance(episode_report, dict):
+                raise TypeError("episode_output_must_be_dict")
+        except Exception as exc:
+            episode_report = {
+                "status": "FAIL_CLOSED",
+                "hard_block_hits": [f"episode_lane_exception:{type(exc).__name__}"],
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            }
         episode_status = _status(episode_report.get("status"))
         if episode_status == "FAIL_CLOSED":
             hard_blocks.append("current_episode_lane_fail_closed")
@@ -154,7 +217,6 @@ def run_full_spine(
         elif episode_status == "REVIEW_REQUIRED":
             review_hits.append("current_episode_lane_review_required")
 
-    # Full-spine report reasoning only opens when both upstream lanes avoid hard failure.
     if not hard_blocks:
         packet_report_path = output_root / PACKET_REPORT_JSON
         try:
@@ -244,6 +306,7 @@ def run_full_spine(
             "current_temporal_episode_signature_reused": True,
             "current_reconstruction_bridge_reused": True,
             "current_c4_producers_reused": True,
+            "c4_stage_exception_containment_enabled": True,
             "parallel_reasoning_engine_created": False,
             "first_failure_disclosure_enabled": True,
             "duplicate_foundation_execution_currently_possible": False,
