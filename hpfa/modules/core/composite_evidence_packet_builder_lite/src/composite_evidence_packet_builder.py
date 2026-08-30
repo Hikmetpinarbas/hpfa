@@ -120,6 +120,16 @@ def _preserve_signal_records(candidate: dict[str, Any], key: str) -> list[dict[s
     return records
 
 
+def _preserve_evidence_records(candidate: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for idx, item in enumerate(_as_list(candidate.get(key))):
+        ref_id = _ref_from_item(item, key, idx)
+        record = dict(item) if isinstance(item, dict) else {}
+        record["ref_id"] = ref_id
+        records.append(record)
+    return records
+
+
 def collect_input_refs(candidate: dict[str, Any]) -> dict[str, list[str]]:
     groups = {
         "input_features": _as_list(candidate.get("input_features")),
@@ -225,10 +235,26 @@ def _dependency_record(item: Any, group_name: str, idx: int) -> dict[str, Any]:
 def _dependency_ledger(candidate: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
     records: list[dict[str, Any]] = []
     invalid_claims: list[str] = []
+    identity_signatures: dict[tuple[str, str], tuple[Any, ...]] = {}
     for group_name in EVIDENCE_GROUP_KEYS:
         for idx, item in enumerate(_as_list(candidate.get(group_name))):
             record = _dependency_record(item, group_name, idx)
             records.append(record)
+            identity = (str(record["group_name"]), str(record["ref_id"]))
+            signature = (
+                record.get("provenance_root"),
+                record.get("dependency_group"),
+                record.get("independence_group"),
+                bool(record.get("independent_support_vote")),
+                record.get("dependency_state"),
+            )
+            previous = identity_signatures.get(identity)
+            if previous is not None and previous != signature:
+                invalid_claims.append(
+                    f"conflicting_lineage_for_evidence_identity:{identity[0]}:{identity[1]}"
+                )
+            else:
+                identity_signatures[identity] = signature
             if record["independent_support_vote"] is True and record["dependency_state"] != "INDEPENDENT_SUPPORT_ADMITTED":
                 invalid_claims.append(f"independent_support_metadata_incomplete:{group_name}:{record['ref_id']}")
     return records, sorted(set(invalid_claims))
@@ -266,10 +292,16 @@ def _independent_component_count(records: list[dict[str, Any]]) -> int:
         if left_root != right_root:
             parent[right_root] = left_root
 
+    identity_owner: dict[tuple[str, str], int] = {}
     root_owner: dict[str, int] = {}
     dependency_owner: dict[str, int] = {}
     independence_owner: dict[str, int] = {}
     for idx, record in enumerate(admitted):
+        identity = (str(record["group_name"]), str(record["ref_id"]))
+        if identity in identity_owner:
+            union(idx, identity_owner[identity])
+        else:
+            identity_owner[identity] = idx
         provenance_root = str(record["provenance_root"])
         dependency_group = str(record["dependency_group"])
         independence_group = str(record["independence_group"])
@@ -342,6 +374,10 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         packet_family = "weak_signal"
 
     refs = collect_input_refs(candidate)
+    input_feature_records = _preserve_evidence_records(candidate, "input_features")
+    input_window_records = _preserve_evidence_records(candidate, "input_windows")
+    input_sequence_records = _preserve_evidence_records(candidate, "input_sequences")
+    input_metric_records = _preserve_evidence_records(candidate, "input_metrics")
     supporting_signal_records = _preserve_signal_records(candidate, "supporting_signals")
     contradicting_signal_records = _preserve_signal_records(candidate, "contradicting_signals")
     dependency_ledger, invalid_independence_claims = _dependency_ledger(candidate)
@@ -380,6 +416,10 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         "input_metrics": refs["input_metrics"],
         "supporting_signals": refs["supporting_signals"],
         "contradicting_signals": refs["contradicting_signals"],
+        "input_feature_records": input_feature_records,
+        "input_window_records": input_window_records,
+        "input_sequence_records": input_sequence_records,
+        "input_metric_records": input_metric_records,
         "supporting_signal_records": supporting_signal_records,
         "contradicting_signal_records": contradicting_signal_records,
         "dependency_ledger": dependency_ledger,

@@ -66,6 +66,14 @@ ALLOWED_DEPENDENCY_STATES = {
     "INDEPENDENCE_UNKNOWN",
 }
 ADMITTED_INDEPENDENCE_STATES = {"INDEPENDENCE_ADMITTED", "PARTIAL_INDEPENDENCE_ADMITTED"}
+EVIDENCE_RECORD_KEYS = {
+    "input_features": "input_feature_records",
+    "input_windows": "input_window_records",
+    "input_sequences": "input_sequence_records",
+    "input_metrics": "input_metric_records",
+    "supporting_signals": "supporting_signal_records",
+    "contradicting_signals": "contradicting_signal_records",
+}
 SIGNAL_RECORD_KEYS = {
     "supporting_signals": "supporting_signal_records",
     "contradicting_signals": "contradicting_signal_records",
@@ -117,7 +125,7 @@ def _signal_ref_counter(items: list[Any], key: str) -> Counter[str]:
 
 def _validate_preserved_signal_bindings(packet: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    for group_name, record_key in SIGNAL_RECORD_KEYS.items():
+    for group_name, record_key in EVIDENCE_RECORD_KEYS.items():
         preserved = _items(packet, record_key)
         if not preserved:
             continue
@@ -127,9 +135,9 @@ def _validate_preserved_signal_bindings(packet: dict[str, Any]) -> list[str]:
     return sorted(set(errors))
 
 
-def _signal_items(packet: dict[str, Any], key: str) -> list[Any]:
+def _evidence_items(packet: dict[str, Any], key: str) -> list[Any]:
     canonical = _items(packet, key)
-    record_key = SIGNAL_RECORD_KEYS.get(key)
+    record_key = EVIDENCE_RECORD_KEYS.get(key)
     if not record_key:
         return canonical
     preserved = _items(packet, record_key)
@@ -138,6 +146,10 @@ def _signal_items(packet: dict[str, Any], key: str) -> list[Any]:
     if _signal_ref_counter(canonical, key) != _signal_ref_counter(preserved, key):
         return canonical
     return preserved
+
+
+def _signal_items(packet: dict[str, Any], key: str) -> list[Any]:
+    return _evidence_items(packet, key)
 
 
 def _refs(packet: dict[str, Any], key: str) -> list[str]:
@@ -298,6 +310,7 @@ def _normalize_dependency_ledger(value: Any) -> tuple[list[dict[str, Any]], list
 
     records: list[dict[str, Any]] = []
     errors: list[str] = []
+    identity_signatures: dict[tuple[str, str], tuple[Any, ...]] = {}
     for idx, item in enumerate(value):
         if not isinstance(item, dict):
             errors.append(f"upstream_dependency_record_invalid:{idx}")
@@ -329,17 +342,26 @@ def _normalize_dependency_ledger(value: Any) -> tuple[list[dict[str, Any]], list
         if dependency_state == "DEPENDENT_OR_PARTIAL_LINEAGE" and not lineage_present:
             errors.append(f"upstream_dependency_state_lineage_missing:{idx}")
 
-        records.append(
-            {
-                "ref_id": ref_id,
-                "group_name": group_name,
-                "provenance_root": provenance_root,
-                "dependency_group": dependency_group,
-                "independence_group": independence_group,
-                "independent_support_vote": vote,
-                "dependency_state": dependency_state,
-            }
-        )
+        normalized = {
+            "ref_id": ref_id,
+            "group_name": group_name,
+            "provenance_root": provenance_root,
+            "dependency_group": dependency_group,
+            "independence_group": independence_group,
+            "independent_support_vote": vote,
+            "dependency_state": dependency_state,
+        }
+        records.append(normalized)
+        if ref_id and group_name in EVIDENCE_GROUP_KEYS:
+            identity = (str(group_name), str(ref_id))
+            signature = (provenance_root, dependency_group, independence_group, vote, dependency_state)
+            previous = identity_signatures.get(identity)
+            if previous is not None and previous != signature:
+                errors.append(
+                    f"upstream_dependency_identity_lineage_conflict:{identity[0]}:{identity[1]}"
+                )
+            else:
+                identity_signatures[identity] = signature
 
     return records, sorted(set(errors))
 
@@ -347,7 +369,7 @@ def _normalize_dependency_ledger(value: Any) -> tuple[list[dict[str, Any]], list
 def _packet_evidence_bindings(packet: dict[str, Any]) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for group_name in EVIDENCE_GROUP_KEYS:
-        items = _signal_items(packet, group_name) if group_name in SIGNAL_RECORD_KEYS else _items(packet, group_name)
+        items = _evidence_items(packet, group_name)
         for idx, item in enumerate(items):
             record = {
                 "ref_id": _ref_from_item(item, group_name, idx),
@@ -394,12 +416,23 @@ def _validate_dependency_binding(packet: dict[str, Any], ledger: list[dict[str, 
         ledger_by_key.setdefault(key, []).append(row)
 
     for key, actual_rows in actual_by_key.items():
-        if not any(any(_binding_signature(row)[:3]) or row.get("independent_support_vote") is True for row in actual_rows):
+        ledger_rows = ledger_by_key.get(key, [])
+        actual_has_lineage = any(
+            any(_binding_signature(row)[:3]) or row.get("independent_support_vote") is True
+            for row in actual_rows
+        )
+        ledger_has_lineage = any(
+            any(_binding_signature(row)[:3]) or row.get("independent_support_vote") is True
+            for row in ledger_rows
+        )
+        if ledger_has_lineage and not actual_has_lineage:
+            errors.append(f"upstream_dependency_ledger_lineage_unbound:{key[0]}:{key[1]}")
             continue
-        actual_signatures = sorted(repr(_binding_signature(row)) for row in actual_rows)
-        ledger_signatures = sorted(repr(_binding_signature(row)) for row in ledger_by_key.get(key, []))
-        if actual_signatures != ledger_signatures:
-            errors.append(f"upstream_dependency_ledger_lineage_binding_mismatch:{key[0]}:{key[1]}")
+        if actual_has_lineage:
+            actual_signatures = sorted(repr(_binding_signature(row)) for row in actual_rows)
+            ledger_signatures = sorted(repr(_binding_signature(row)) for row in ledger_rows)
+            if actual_signatures != ledger_signatures:
+                errors.append(f"upstream_dependency_ledger_lineage_binding_mismatch:{key[0]}:{key[1]}")
     return sorted(set(errors))
 
 
@@ -435,10 +468,16 @@ def _independent_component_count(records: list[dict[str, Any]]) -> int:
         if left_root != right_root:
             parent[right_root] = left_root
 
+    identity_owner: dict[tuple[str, str], int] = {}
     root_owner: dict[str, int] = {}
     dependency_owner: dict[str, int] = {}
     independence_owner: dict[str, int] = {}
     for idx, record in enumerate(admitted):
+        identity = (str(record["group_name"]), str(record["ref_id"]))
+        if identity in identity_owner:
+            union(idx, identity_owner[identity])
+        else:
+            identity_owner[identity] = idx
         provenance_root = str(record["provenance_root"])
         dependency_group = str(record["dependency_group"])
         independence_group = str(record["independence_group"])
