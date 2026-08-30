@@ -39,6 +39,7 @@ jobs:
         run: |
           python -m compileall -q \
             hpfa/tests/integration/test_intelligence_chain_contract_v1.py \
+            hpfa/tests/integration/test_evidence_dependency_independence_v1.py \
             hpfa/modules/core/composite_evidence_packet_builder_lite \
             hpfa/modules/core/multi_signal_evidence_fusion_lite \
             hpfa/modules/core/composite_argument_builder_lite \
@@ -74,17 +75,25 @@ jobs:
       - name: Run canonical producer-consumer integration fixture
         run: python -m pytest -q hpfa/tests/integration/test_intelligence_chain_contract_v1.py
 
+      - name: Run evidence dependency independence integration fixture
+        run: python -m pytest -q hpfa/tests/integration/test_evidence_dependency_independence_v1.py
+
       - name: Intelligence claim-boundary guard
         shell: bash
         run: |
           set -euo pipefail
           TEST=hpfa/tests/integration/test_intelligence_chain_contract_v1.py
+          DEP_TEST=hpfa/tests/integration/test_evidence_dependency_independence_v1.py
           grep -F 'test_intelligence_chain_explicit_counterevidence_remains_review_bounded' "$TEST"
           grep -F 'test_intelligence_chain_upstream_failure_propagates' "$TEST"
           grep -F 'test_intelligence_chain_nested_forbidden_field_fails_closed' "$TEST"
           grep -F 'test_intelligence_chain_canonical_event_count_stays_unknown' "$TEST"
           grep -F 'test_intelligence_chain_lens_review_is_explicit_sidecar_evidence' "$TEST"
           grep -F 'test_intelligence_chain_no_sample_match_identity_leak' "$TEST"
+          grep -F 'test_nominal_volume_does_not_become_independent_support_downstream' "$DEP_TEST"
+          grep -F 'test_same_provenance_root_collapses_before_fusion' "$DEP_TEST"
+          grep -F 'test_incomplete_independence_claim_fails_closed_before_argument_chain' "$DEP_TEST"
+          grep -F 'test_fusion_rejects_nominal_ref_promotion_even_if_packet_is_forged' "$DEP_TEST"
           grep -R -q 'canonical_event_count' \
             hpfa/modules/core/composite_evidence_packet_builder_lite \
             hpfa/modules/core/multi_signal_evidence_fusion_lite \
