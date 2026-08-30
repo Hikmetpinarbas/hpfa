@@ -32,7 +32,7 @@ def _sha256(path: Path) -> str:
 
 
 def snapshot_output_state(output_root: str | Path) -> dict[str, dict[str, Any]]:
-    """Compatibility snapshot only. Bundle admission is ledger-based."""
+    """Compatibility snapshot only. Bundle admission is producer-ledger based."""
     root = Path(output_root).expanduser().resolve(strict=False)
     if not root.is_dir():
         return {}
@@ -41,10 +41,7 @@ def snapshot_output_state(output_root: str | Path) -> dict[str, dict[str, Any]]:
         if not path.is_file() or path.name in {BUNDLE_ZIP, BUNDLE_MANIFEST}:
             continue
         try:
-            state[path.name] = {
-                "size_bytes": path.stat().st_size,
-                "sha256": _sha256(path),
-            }
+            state[path.name] = {"size_bytes": path.stat().st_size, "sha256": _sha256(path)}
         except OSError:
             state[path.name] = {"unreadable": True}
     return state
@@ -119,11 +116,64 @@ def _c4_surface_current(full_spine: dict[str, Any]) -> bool:
     return isinstance(engineering, dict) and engineering.get("current_c4_producers_reused") is True
 
 
+def _rich_surface_current(full_spine: dict[str, Any]) -> bool:
+    engineering = full_spine.get("engineering_evidence")
+    rich = full_spine.get("rich_multiformat_analysis_lattice")
+    return (
+        isinstance(engineering, dict)
+        and engineering.get("rich_multiformat_lane_executed") is True
+        and isinstance(rich, dict)
+        and str(rich.get("status") or "").upper() != "FAIL_CLOSED"
+    )
+
+
+def _phase_label_counts(rich: dict[str, Any]) -> dict[str, int]:
+    counter: Counter[str] = Counter()
+    for item in rich.get("phase_state_candidates") or []:
+        if not isinstance(item, dict):
+            continue
+        for label in item.get("labels") or []:
+            counter[str(label)] += 1
+    return dict(counter.most_common())
+
+
+def _entity_summary(rich: dict[str, Any]) -> dict[str, int]:
+    entity = rich.get("entity_views") or {}
+    return {
+        "player": len(entity.get("player_view_candidates") or []),
+        "team": len(entity.get("team_view_candidates") or []),
+        "goalkeeper": len(entity.get("goalkeeper_view_candidates") or []),
+        "observed_metric_cells": int(entity.get("observed_metric_cell_count") or 0),
+    }
+
+
+def _representative_entities(rich: dict[str, Any], limit: int = 8) -> list[str]:
+    entity = rich.get("entity_views") or {}
+    rows = [
+        *(entity.get("player_view_candidates") or []),
+        *(entity.get("goalkeeper_view_candidates") or []),
+        *(entity.get("team_view_candidates") or []),
+    ]
+    result: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = row.get("player_raw_candidate") or row.get("team_raw_candidate") or "UNRESOLVED_ENTITY"
+        metrics = row.get("metric_values") or {}
+        result.append(f"{name}: observed_metric_cells={len(metrics)} source_role={row.get('source_role')}")
+        if len(result) >= limit:
+            break
+    return result
+
+
 def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) -> str:
     root = Path(output_root)
     feature_current = _feature_surface_current(full_spine)
     c4_current = _c4_surface_current(full_spine)
+    rich_current = _rich_surface_current(full_spine)
     features = _load_json(root / EPISODE_FEATURE_JSON) if feature_current else {}
+    rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
+    rich = rich if isinstance(rich, dict) else {}
     cards = features.get("episode_feature_vectors")
     cards = [item for item in cards if isinstance(item, dict)] if isinstance(cards, list) else []
 
@@ -156,6 +206,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         f"intelligence_chain_count={full_spine.get('intelligence_chain_count')}",
         f"hard_block_hits={full_spine.get('hard_block_hits') or []}",
         f"feature_surface_current_invocation={str(feature_current).lower()}",
+        f"rich_multiformat_surface_current_invocation={str(rich_current).lower()}",
         f"c4_surface_current_invocation={str(c4_current).lower()}",
         "",
         "[1] WHAT_VISIBLE — GORUNUR MAC YUZEYI",
@@ -194,8 +245,48 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 f"recoveries={int(card.get('recovery_candidate_count') or 0)}"
             )
 
+    lines.extend(["", "[3] MULTIFORMAT FUSION / XLSX AGGREGATE YUZEYI"])
+    if not rich_current:
+        lines.append("- Current invocation rich multiformat lane mevcut degil; onceki XLSX/fusion artifact'i kullanilmadi.")
+    else:
+        entity_summary = _entity_summary(rich)
+        lines.extend([
+            f"multiformat_inventory_status={rich.get('inventory_status')}",
+            f"xlsx_surface_audit_status={rich.get('xlsx_audit_status')}",
+            f"xlsx_entity_metric_projection_status={rich.get('xlsx_projection_status')}",
+            f"xlsx_projected_row_count={rich.get('xlsx_projected_row_count')}",
+            f"observed_xlsx_metric_cell_count={entity_summary['observed_metric_cells']}",
+            f"player_view_candidate_count={entity_summary['player']}",
+            f"team_view_candidate_count={entity_summary['team']}",
+            f"goalkeeper_view_candidate_count={entity_summary['goalkeeper']}",
+            "format_fusion_is_independent_evidence_vote=false",
+            "representative_entity_surfaces:",
+        ])
+        lines.extend(f"- {item}" for item in _representative_entities(rich))
+
+    lines.extend(["", "[4] METRIC / CONSTRUCT / OYUN-KATMANI"])
+    if rich_current:
+        c01 = (rich.get("constructs") or {}).get("C01") or {}
+        lines.extend([
+            f"primitive_metric_count={len(rich.get('primitive_metrics') or [])}",
+            f"phase_state_candidate_count={len(rich.get('phase_state_candidates') or [])}",
+            f"phase_state_candidate_distribution={json.dumps(_phase_label_counts(rich), ensure_ascii=False, sort_keys=True)}",
+            f"micro_layer_bound={bool((rich.get('analysis_lattice') or {}).get('MICRO'))}",
+            f"mezzo_layer_bound={bool((rich.get('analysis_lattice') or {}).get('MEZZO'))}",
+            f"macro_layer_bound={bool((rich.get('analysis_lattice') or {}).get('MACRO'))}",
+            f"C01_construct_status={c01.get('status')}",
+            f"C01_progression_aggregate_ref_count={c01.get('progression_aggregate_ref_count')}",
+            f"C01_terminal_aggregate_ref_count={c01.get('terminal_aggregate_ref_count')}",
+            f"C01_visible_shot_candidate_count={c01.get('visible_shot_candidate_count')}",
+            f"C01_review_reason={c01.get('review_reason')}",
+            "phase_state_candidates_are_phase_truth=false",
+            "construct_candidate_is_metric_truth=false",
+        ])
+    else:
+        lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
+
     safe = _safe_sentences(full_spine) if c4_current else []
-    lines.extend(["", "[3] SAFE_ARGUMENT_CANDIDATES — MEVCUT C4 BLOKLARI"])
+    lines.extend(["", "[5] SAFE_ARGUMENT_CANDIDATES — MEVCUT C4 BLOKLARI"])
     if safe:
         lines.extend(f"- {text}" for text in safe)
     elif c4_current:
@@ -205,33 +296,37 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
 
     lines.extend([
         "",
-        "[4] COUNTEREVIDENCE / UNCERTAINTY",
+        "[6] COUNTEREVIDENCE / UNCERTAINTY",
         f"review_hits={full_spine.get('review_hits') or []}",
         f"review_debt_feature_vector_count={features.get('review_debt_feature_vector_count') if feature_current else 'UNAVAILABLE_CURRENT_INVOCATION'}",
         f"total_unresolved_semantics_context_count={features.get('total_unresolved_semantics_context_count') if feature_current else 'UNAVAILABLE_CURRENT_INVOCATION'}",
+        f"rich_lane_review_hits={(rich.get('review_hits') or []) if rich_current else 'UNAVAILABLE_CURRENT_INVOCATION'}",
         "absence_of_evidence_is_counterevidence=false",
         "",
-        "[5] SAFE_MEANING",
+        "[7] SAFE_MEANING",
     ])
-    if feature_current and c4_current:
-        lines.append("Bu rapor current invocation icinde uretilen admitted event-only aday aksiyon, episode, mekansal dagilim ve mevcut C4 guvenli arguman yuzeylerini bir araya getirir.")
+    if feature_current and rich_current and c4_current:
+        lines.append("Bu rapor current invocation icinde uretilen event-only occurrence/episode yuzeyi, XLSX aggregate row projection, primitive/construct adaylari ve mevcut C4 defeasible argument yuzeyini ayni evidence zincirinde birlestirir.")
+    elif feature_current and rich_current:
+        lines.append("Current invocation occurrence/episode ve multiformat aggregate yuzeyi mevcut; C4 tamamlanmadigi icin argument sonucu current evidence olarak yayinlanmadi.")
     elif feature_current:
-        lines.append("Current invocation Episode Feature yuzeyi mevcut; C4 arguman yuzeyi tamamlanmadigi icin rapor yalniz gorunur episode/feature adaylarini sunar.")
+        lines.append("Current invocation Episode Feature yuzeyi mevcut; multiformat/construct veya C4 yuzeyi tamamlanmadigi icin rapor daha dar claim ceiling'de kalir.")
     else:
-        lines.append("Current invocation Episode Feature yuzeyi tamamlanmadi; event/episode/mekansal ozet ve C4 argumanlari bu raporda current evidence olarak sunulmaz.")
+        lines.append("Current invocation Episode Feature yuzeyi tamamlanmadi; eski artifact current evidence olarak kullanilmaz.")
     lines.extend([
-        "Takim/oyuncu aday dagilimlari yalniz current invocation icinde mevcut attribution yuzeyini anlatir; possession, dominance veya control degildir.",
+        "Takim/oyuncu aday dagilimlari yalniz current invocation attribution ve aggregate candidate yuzeyini anlatir; possession, dominance veya control degildir.",
         "",
-        "[6] FORBIDDEN_INFERENCE",
+        "[8] FORBIDDEN_INFERENCE",
         "Tracking/video olmadan team shape, defensive line height, compactness, off-ball structure/run, passing options, body orientation, scanning, fatigue/load/speed, true pressure geometry, coach intention, tactical plan, dominance ve causality kanitlanmis sayilmaz.",
         "",
-        "[7] PRODUCT GAPS VISIBLE IN THIS REPORT",
-        "CSV/XML/XLSX object-level fusion henuz tamamlanmadi.",
-        "XLSX row-aligned metric cells henuz current runtime intelligence packet'larina tam bagli degil.",
-        "Primitive -> relational -> construct/composite metric katmani henuz tam urunlesmedi.",
-        "Phase/state candidate, MICRO->MEZZO->MACRO ve player/GK/team bidirectional argument bloklari siradaki product katmanidir.",
+        "[9] CURRENT PRODUCT CEILING",
+        "CSV/XML event-like occurrence ve XLSX aggregate surface artik ayni run'da birlikte tasinir; ayni provider yuzeyleri independent vote degildir.",
+        "C01 ilk construct vertical slice'tir; occurrence-level progression semantics tam admission gecmeden progression truth uretilmez.",
+        "Phase/state etiketleri activity candidate'dir; phase truth degildir.",
+        "MICRO/MEZZO/MACRO bir evidence-routing lattice'tir; macro claim mikro/mezo evidence'dan kopamaz.",
+        "Player/GK/team gorunumleri candidate identity ve aggregate cell yuzeyidir; validated identity/quality truth degildir.",
         "",
-        "[8] CLAIM LOCKS",
+        "[10] CLAIM LOCKS",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "phase_truth=false",
@@ -281,13 +376,8 @@ def write_standard_user_outputs(
 
     report_path.write_text(build_analyst_report(root, full_spine), encoding="utf-8")
     candidates = _declared_current_artifacts(root, full_spine)
-
     entries = [
-        {
-            "name": path.name,
-            "size_bytes": path.stat().st_size,
-            "sha256": _sha256(path),
-        }
+        {"name": path.name, "size_bytes": path.stat().st_size, "sha256": _sha256(path)}
         for path in candidates
     ]
     manifest = {
@@ -297,6 +387,7 @@ def write_standard_user_outputs(
         "runtime_status": full_spine.get("status"),
         "active_match_authority": full_spine.get("active_match_authority"),
         "feature_surface_current_invocation": _feature_surface_current(full_spine),
+        "rich_multiformat_surface_current_invocation": _rich_surface_current(full_spine),
         "c4_surface_current_invocation": _c4_surface_current(full_spine),
         "file_count_before_manifest": len(entries),
         "files": entries,
