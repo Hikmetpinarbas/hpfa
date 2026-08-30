@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -14,6 +15,7 @@ if str(SRC) not in sys.path:
 
 from spine_runner import run_spine_check
 from full_spine_runner import run_full_spine
+from user_output_bundle import write_standard_user_outputs
 
 
 def main() -> int:
@@ -39,6 +41,8 @@ def main() -> int:
     args = parser.parse_args()
 
     execution_root = Path(args.execution_root).expanduser().resolve(strict=False) if args.execution_root else ROOT
+    run_started_ns = time.time_ns()
+    user_outputs = None
 
     if args.full_spine:
         if args.composite_registry:
@@ -47,6 +51,11 @@ def main() -> int:
             active_match_dir=args.active_match_dir,
             out_dir=args.out_dir,
             execution_root=execution_root,
+        )
+        user_outputs = write_standard_user_outputs(
+            args.out_dir,
+            result,
+            run_started_ns=run_started_ns,
         )
         out_json = str(Path(args.out_dir) / "active_match_full_spine_v1.json")
         out_txt = str(Path(args.out_dir) / "active_match_full_spine_v1.txt")
@@ -68,6 +77,9 @@ def main() -> int:
         "full_spine": bool(args.full_spine),
         "out_json": out_json,
         "out_txt": out_txt,
+        "analyst_report": user_outputs.get("analyst_report") if user_outputs else None,
+        "bundle_zip": user_outputs.get("bundle_zip") if user_outputs else None,
+        "bundle_manifest": user_outputs.get("bundle_manifest") if user_outputs else None,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
