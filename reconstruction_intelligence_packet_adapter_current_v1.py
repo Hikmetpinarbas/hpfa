@@ -12,7 +12,6 @@ from hpfa.modules.core.reconstruction_intelligence_packet_adapter_lite.src impor
 MODULE_ID = "reconstruction_intelligence_packet_bridge_current_v1"
 OUTPUT_JSON = "reconstruction_intelligence_packet_bridge_current_v1.json"
 OUTPUT_TXT = "reconstruction_intelligence_packet_bridge_current_v1.txt"
-SURFACE_SUFFIXES = {".csv", ".xml", ".xlsx"}
 
 
 def _hash_file(path: Path) -> str:
@@ -27,11 +26,11 @@ def _surface_snapshot(input_dir: str | Path) -> dict:
     root = Path(input_dir).expanduser().resolve(strict=False)
     records: list[dict] = []
     if root.is_dir():
-        for path in sorted(root.iterdir(), key=lambda item: item.name):
-            if not path.is_file() or path.suffix.lower() not in SURFACE_SUFFIXES:
+        for path in sorted(root.rglob("*"), key=lambda item: item.as_posix().casefold()):
+            if not path.is_file():
                 continue
             records.append({
-                "name": path.name,
+                "relative_path": path.relative_to(root).as_posix(),
                 "size_bytes": path.stat().st_size,
                 "sha256": _hash_file(path),
             })
