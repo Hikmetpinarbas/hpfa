@@ -20,12 +20,31 @@ jobs:
           fetch-depth: 0
       - name: Install focused test dependency
         run: python -m pip install -q pytest
-      - name: Apply exact review fixes
+      - name: Apply reviewed fix patch
         shell: bash
         run: |
           set -euo pipefail
-          echo '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' | base64 -d | gzip -d > /tmp/pr311_patch.py
+          git show HEAD^:.github/workflows/_temporary_pr311_review_fix.yml > /tmp/previous.yml
+          python - <<'PY'
+          import base64, gzip, re
+          from pathlib import Path
+          text = Path('/tmp/previous.yml').read_text(encoding='utf-8')
+          match = re.search(r"echo '([A-Za-z0-9+/=]+)' \| base64 -d \| gzip -d > /tmp/pr311_patch.py", text)
+          if not match:
+              raise SystemExit('previous_patch_payload_missing')
+          Path('/tmp/pr311_patch.py').write_bytes(gzip.decompress(base64.b64decode(match.group(1))))
+          PY
           python /tmp/pr311_patch.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('hpfa/tests/integration/test_evidence_dependency_independence_review_fix_v2.py')
+          text = path.read_text(encoding='utf-8')
+          old = '        "claim_ceiling": "composite_candidate_only",\n        "supporting_signals": [row, dict(row)],\n'
+          new = '        "claim_ceiling": "composite_candidate_only",\n        "input_windows": ["w1"],\n        "supporting_signals": [row, dict(row)],\n'
+          if old not in text:
+              raise SystemExit('same_lineage_fixture_pattern_missing')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
       - name: Validate focused suite
         run: |
           python -m compileall -q hpfa/modules/core/composite_evidence_packet_builder_lite hpfa/modules/core/multi_signal_evidence_fusion_lite
