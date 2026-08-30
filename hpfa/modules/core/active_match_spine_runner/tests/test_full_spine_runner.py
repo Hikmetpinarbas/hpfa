@@ -7,7 +7,8 @@ SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from full_spine_runner import run_full_spine, run_intelligence_chain
+import episode_lane_runner
+from full_spine_runner import _first_failure, run_full_spine, run_intelligence_chain
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 
 
@@ -50,6 +51,39 @@ def test_full_spine_reuses_current_c4_chain_without_truth_promotion():
     assert chain["assembly"]["contract_item_id"] == chain["output_contract"]["contract_item_id"]
     for record in chain.values():
         assert record.get("canonical_event_count") == "UNKNOWN"
+
+
+def test_c4_stage_exception_is_contracted_into_fail_closed_record():
+    def explode(_artifact):
+        raise RuntimeError("synthetic")
+
+    chain = run_intelligence_chain(_packet(), stage_overrides={"graph": explode})
+    assert chain["graph"]["status"] == "FAIL_CLOSED"
+    assert chain["graph"]["hard_block_hits"] == ["c4_stage_exception:graph:RuntimeError"]
+    assert "lens" not in chain
+    node, reason = _first_failure([chain])
+    assert node == "graph"
+    assert reason == "c4_stage_exception:graph:RuntimeError"
+
+
+def test_lens_failure_is_in_first_failure_order():
+    def blocked_lens(_artifact):
+        return {
+            "module_id": "lens_failure_fixture",
+            "status": "FAIL_CLOSED",
+            "decision": "BLOCK_LENS",
+            "hard_block_hits": ["lens_specific_failure"],
+            "review_hits": [],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+
+    chain = run_intelligence_chain(_packet(), stage_overrides={"lens": blocked_lens})
+    node, reason = _first_failure([chain])
+    assert node == "lens"
+    assert reason == "lens_specific_failure"
+    assert "safe_sentence" not in chain
 
 
 def test_full_spine_uses_single_active_match_authority_and_flat_outputs(tmp_path):
@@ -100,6 +134,7 @@ def test_full_spine_uses_single_active_match_authority_and_flat_outputs(tmp_path
     assert report["engineering_evidence"]["single_active_match_authority_validated"] is True
     assert report["engineering_evidence"]["shared_foundation_reused"] is True
     assert report["engineering_evidence"]["row_nucleus_recomputed_by_episode_lane"] is False
+    assert report["engineering_evidence"]["c4_stage_exception_containment_enabled"] is True
     assert report["engineering_evidence"]["parallel_reasoning_engine_created"] is False
     assert report["canonical_event_count"] == "UNKNOWN"
     assert report["true_action_count"] == "UNKNOWN"
@@ -165,6 +200,12 @@ def test_full_spine_does_not_run_episode_after_foundation_failure(tmp_path):
     assert report["status"] == "FAIL_CLOSED"
     assert report["first_failed_node"] == "reconstruction_intelligence_bridge"
     assert report["first_failed_reason_code"] == "foundation_failure"
+
+
+def test_episode_lane_code_root_is_product_checkout_not_selected_execution_root():
+    product_root = episode_lane_runner._product_root()
+    assert product_root == ROOT
+    assert (product_root / "active_match_full_run.py").is_file()
 
 
 def test_no_sample_match_identity_leak():
