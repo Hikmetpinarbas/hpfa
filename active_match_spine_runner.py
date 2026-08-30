@@ -12,19 +12,82 @@ SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+import full_spine_runner as full_spine_module
 import rich_multiformat_analysis_lane as rich_lane_module
 from shared_surface_snapshot_contract import surface_snapshot_id
 from spine_runner import run_spine_check
-from full_spine_runner import run_full_spine
 from user_output_bundle import snapshot_output_state, write_standard_user_outputs
 
 
 def _bind_shared_snapshot_contract() -> None:
     # Reconstruction/Episode already use the canonical recursive path+size+SHA256
-    # contract. The rich lane historically used a different serialization for the
-    # same files, creating false mismatch failures. Bind it to the same contract
-    # at the product entrypoint until all producers import the shared helper.
+    # contract. Bind the rich lane to that same contract so one ACTIVE_MATCH
+    # invocation cannot fail because two producers serialized the same files
+    # differently.
     rich_lane_module._snapshot = surface_snapshot_id
+
+
+def _apply_construct_admission_gate(report: dict) -> dict:
+    """Keep review-only constructs visible without promoting them into C4.
+
+    A construct candidate is analyst evidence before it is C4 evidence. It may
+    enter the existing C4 chain only after an explicit construct admission state
+    says it is admitted. Missing/REVIEW_REQUIRED admission therefore contracts
+    the claim surface; it must not invent a supporting signal just to satisfy C4.
+    """
+    if not isinstance(report, dict):
+        return report
+    constructs = report.get("constructs")
+    c01 = constructs.get("C01") if isinstance(constructs, dict) else None
+    if not isinstance(c01, dict):
+        return report
+
+    explicit_admission = str(c01.get("c4_admission_status") or "").upper()
+    construct_status = str(c01.get("status") or "").upper()
+    admitted = explicit_admission == "ADMITTED" and construct_status in {"PASS", "SMOKE_PASS"}
+    if admitted:
+        return report
+
+    withheld = len(report.get("c4_packet_candidates") or [])
+    report["c4_packet_candidates"] = []
+    report["construct_c4_promotion_withheld_count"] = withheld
+    report["construct_c4_promotion_state"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
+    c01["c4_admission_status"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
+    c01["c4_admission_reason"] = (
+        c01.get("review_reason")
+        or "explicit_construct_admission_not_available"
+    )
+    c01["construct_truth"] = False
+
+    outputs = report.get("outputs") or {}
+    lattice_json = Path(str(outputs.get("lattice_json") or ""))
+    lattice_txt = Path(str(outputs.get("lattice_txt") or ""))
+    if lattice_json.is_file():
+        lattice_json.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    if lattice_txt.is_file():
+        text = lattice_txt.read_text(encoding="utf-8")
+        marker = "C01_c4_admission_status=WITHHELD_PENDING_CONSTRUCT_ADMISSION"
+        if marker not in text:
+            lattice_txt.write_text(
+                text.rstrip() + "\n" + marker + "\n",
+                encoding="utf-8",
+            )
+    return report
+
+
+def _bind_construct_admission_gate() -> None:
+    if getattr(full_spine_module, "_hpfa_construct_admission_gate_bound", False):
+        return
+    original = full_spine_module.run_rich_lane
+
+    def gated_run_rich_lane(*args, **kwargs):
+        return _apply_construct_admission_gate(original(*args, **kwargs))
+
+    full_spine_module.run_rich_lane = gated_run_rich_lane
+    full_spine_module._hpfa_construct_admission_gate_bound = True
 
 
 def _normalize_current_surface_evidence(result: dict) -> None:
@@ -69,8 +132,9 @@ def main() -> int:
         if args.composite_registry:
             parser.error("--composite-registry is not accepted with --full-spine")
         _bind_shared_snapshot_contract()
+        _bind_construct_admission_gate()
         before_state = snapshot_output_state(args.out_dir)
-        result = run_full_spine(
+        result = full_spine_module.run_full_spine(
             active_match_dir=args.active_match_dir,
             out_dir=args.out_dir,
             execution_root=execution_root,
