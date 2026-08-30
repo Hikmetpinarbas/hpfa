@@ -84,6 +84,14 @@ def _clear_episode_owned_outputs(output: Path) -> list[str]:
     return cleared
 
 
+def _current_episode_artifacts(output: Path) -> list[str]:
+    return [
+        str(output / name)
+        for name in sorted(EPISODE_OWNED_OUTPUTS)
+        if (output / name).is_file()
+    ]
+
+
 def _dedupe_preserve_order(values: list[str]) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
@@ -348,6 +356,7 @@ def run_current_episode_lane(
         decision = "EPISODE_LANE_COMPLETED"
 
     episode_evidence = current_report.get("analyst_evidence") or {}
+    current_invocation_artifacts = _current_episode_artifacts(output)
     return {
         "module_id": MODULE_ID,
         "status": status,
@@ -380,6 +389,7 @@ def run_current_episode_lane(
         ],
         "episode_output": str(output / CURRENT_EPISODE_RUNNER_OUTPUT),
         "temporal_output": str(output / TEMPORAL_OUTPUT),
+        "current_invocation_artifacts": current_invocation_artifacts,
         "shared_foundation_reused": shared_foundation_reused,
         "cleared_stale_episode_output_count": len(cleared_episode_outputs),
         "cleared_stale_episode_outputs": cleared_episode_outputs,
