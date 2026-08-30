@@ -54,6 +54,21 @@ ALLOWED_PACKET_FAMILIES = {
     "weak_signal",
 }
 
+EVIDENCE_GROUP_KEYS = (
+    "input_features",
+    "input_windows",
+    "input_sequences",
+    "input_metrics",
+    "supporting_signals",
+    "contradicting_signals",
+)
+SUPPORT_BEARING_GROUP_KEYS = (
+    "input_features",
+    "input_sequences",
+    "input_metrics",
+    "supporting_signals",
+)
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[5]
@@ -105,6 +120,16 @@ def _preserve_signal_records(candidate: dict[str, Any], key: str) -> list[dict[s
     return records
 
 
+def _preserve_evidence_records(candidate: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for idx, item in enumerate(_as_list(candidate.get(key))):
+        ref_id = _ref_from_item(item, key, idx)
+        record = dict(item) if isinstance(item, dict) else {}
+        record["ref_id"] = ref_id
+        records.append(record)
+    return records
+
+
 def collect_input_refs(candidate: dict[str, Any]) -> dict[str, list[str]]:
     groups = {
         "input_features": _as_list(candidate.get("input_features")),
@@ -129,7 +154,7 @@ def _all_refs(refs: dict[str, list[str]]) -> list[str]:
 
 def _source_surface_count(candidate: dict[str, Any]) -> int:
     surfaces = set()
-    for group_name in ["input_features", "input_windows", "input_sequences", "input_metrics", "supporting_signals", "contradicting_signals"]:
+    for group_name in EVIDENCE_GROUP_KEYS:
         for item in _as_list(candidate.get(group_name)):
             if isinstance(item, dict):
                 surface = item.get("source_surface") or item.get("source") or item.get("surface")
@@ -171,12 +196,174 @@ def _claim_ceiling(candidate: dict[str, Any]) -> str:
     return str(candidate.get("claim_ceiling") or "")
 
 
-def _evidence_strength(signal_count: int, contradiction_count: int, surface_count: int) -> str:
-    if signal_count < DEFAULT_MINIMUM_SIGNAL_COUNT:
+def _dependency_record(item: Any, group_name: str, idx: int) -> dict[str, Any]:
+    ref_id = _ref_from_item(item, group_name, idx)
+    if not isinstance(item, dict):
+        return {
+            "ref_id": ref_id,
+            "group_name": group_name,
+            "provenance_root": None,
+            "dependency_group": None,
+            "independence_group": None,
+            "independent_support_vote": False,
+            "dependency_state": "INDEPENDENCE_UNKNOWN",
+        }
+
+    provenance_root = str(item.get("provenance_root") or "").strip() or None
+    dependency_group = str(item.get("dependency_group") or "").strip() or None
+    independence_group = str(item.get("independence_group") or "").strip() or None
+    vote = item.get("independent_support_vote") is True
+
+    if vote and provenance_root and dependency_group and independence_group:
+        dependency_state = "INDEPENDENT_SUPPORT_ADMITTED"
+    elif provenance_root or dependency_group or independence_group:
+        dependency_state = "DEPENDENT_OR_PARTIAL_LINEAGE"
+    else:
+        dependency_state = "INDEPENDENCE_UNKNOWN"
+
+    return {
+        "ref_id": ref_id,
+        "group_name": group_name,
+        "provenance_root": provenance_root,
+        "dependency_group": dependency_group,
+        "independence_group": independence_group,
+        "independent_support_vote": vote,
+        "dependency_state": dependency_state,
+    }
+
+
+def _dependency_ledger(candidate: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
+    records: list[dict[str, Any]] = []
+    invalid_claims: list[str] = []
+    identity_signatures: dict[tuple[str, str], tuple[Any, ...]] = {}
+    for group_name in EVIDENCE_GROUP_KEYS:
+        for idx, item in enumerate(_as_list(candidate.get(group_name))):
+            record = _dependency_record(item, group_name, idx)
+            records.append(record)
+            identity = (str(record["group_name"]), str(record["ref_id"]))
+            signature = (
+                record.get("provenance_root"),
+                record.get("dependency_group"),
+                record.get("independence_group"),
+                bool(record.get("independent_support_vote")),
+                record.get("dependency_state"),
+            )
+            previous = identity_signatures.get(identity)
+            if previous is not None and previous != signature:
+                invalid_claims.append(
+                    f"conflicting_lineage_for_evidence_identity:{identity[0]}:{identity[1]}"
+                )
+            else:
+                identity_signatures[identity] = signature
+            if record["independent_support_vote"] is True and record["dependency_state"] != "INDEPENDENT_SUPPORT_ADMITTED":
+                invalid_claims.append(f"independent_support_metadata_incomplete:{group_name}:{record['ref_id']}")
+    return records, sorted(set(invalid_claims))
+
+
+def _admitted_support_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        record
+        for record in records
+        if record.get("group_name") in SUPPORT_BEARING_GROUP_KEYS
+        and record.get("dependency_state") == "INDEPENDENT_SUPPORT_ADMITTED"
+        and record.get("independent_support_vote") is True
+        and record.get("provenance_root")
+        and record.get("dependency_group")
+        and record.get("independence_group")
+    ]
+
+
+def _independent_component_count(records: list[dict[str, Any]]) -> int:
+    admitted = _admitted_support_records(records)
+    if not admitted:
+        return 0
+
+    parent = list(range(len(admitted)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parent[right_root] = left_root
+
+    identity_owner: dict[tuple[str, str], int] = {}
+    root_owner: dict[str, int] = {}
+    dependency_owner: dict[str, int] = {}
+    independence_owner: dict[str, int] = {}
+    for idx, record in enumerate(admitted):
+        identity = (str(record["group_name"]), str(record["ref_id"]))
+        if identity in identity_owner:
+            union(idx, identity_owner[identity])
+        else:
+            identity_owner[identity] = idx
+        provenance_root = str(record["provenance_root"])
+        dependency_group = str(record["dependency_group"])
+        independence_group = str(record["independence_group"])
+        if provenance_root in root_owner:
+            union(idx, root_owner[provenance_root])
+        else:
+            root_owner[provenance_root] = idx
+        if dependency_group in dependency_owner:
+            union(idx, dependency_owner[dependency_group])
+        else:
+            dependency_owner[dependency_group] = idx
+        if independence_group in independence_owner:
+            union(idx, independence_owner[independence_group])
+        else:
+            independence_owner[independence_group] = idx
+
+    return len({find(idx) for idx in range(len(admitted))})
+
+
+def _independence_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
+    support_records = [record for record in records if record.get("group_name") in SUPPORT_BEARING_GROUP_KEYS]
+    admitted = _admitted_support_records(records)
+
+    independent_roots = sorted({str(record["provenance_root"]) for record in admitted})
+    independent_dependency_groups = sorted({str(record["dependency_group"]) for record in admitted})
+    dependency_groups = sorted({str(record["dependency_group"]) for record in support_records if record.get("dependency_group")})
+    independence_groups = sorted({str(record["independence_group"]) for record in admitted})
+    provenance_roots = sorted({str(record["provenance_root"]) for record in support_records if record.get("provenance_root")})
+    independent_support_count = _independent_component_count(records)
+
+    correlated_or_unknown = [record for record in support_records if record not in admitted]
+    if not support_records:
+        state = "NO_SUPPORT_BEARING_REFS"
+    elif independent_support_count and not correlated_or_unknown:
+        state = "INDEPENDENCE_ADMITTED"
+    elif independent_support_count:
+        state = "PARTIAL_INDEPENDENCE_ADMITTED"
+    else:
+        state = "INDEPENDENCE_NOT_ADMITTED"
+
+    return {
+        "independence_state": state,
+        "nominal_support_bearing_ref_count": len(support_records),
+        "independent_support_count": independent_support_count,
+        "correlated_or_unknown_support_count": len(correlated_or_unknown),
+        "provenance_root_count": len(provenance_roots),
+        "dependency_group_count": len(dependency_groups),
+        "independence_group_count": len(independence_groups),
+        "independent_support_provenance_roots": independent_roots,
+        "independent_support_dependency_groups": independent_dependency_groups,
+        "independent_support_count_basis": "connected_components_shared_provenance_root_or_dependency_group_or_independence_group",
+        "nominal_ref_count_is_independent_support_count": False,
+        "duplicate_or_derived_refs_must_not_multiply_support": True,
+    }
+
+
+def _evidence_strength(contradiction_count: int, independent_support_count: int) -> str:
+    if independent_support_count <= 0:
         return "weak"
     if contradiction_count:
         return "medium"
-    if signal_count >= 4 and surface_count >= 2:
+    if independent_support_count >= 2:
         return "strong"
     return "medium"
 
@@ -187,8 +374,14 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         packet_family = "weak_signal"
 
     refs = collect_input_refs(candidate)
+    input_feature_records = _preserve_evidence_records(candidate, "input_features")
+    input_window_records = _preserve_evidence_records(candidate, "input_windows")
+    input_sequence_records = _preserve_evidence_records(candidate, "input_sequences")
+    input_metric_records = _preserve_evidence_records(candidate, "input_metrics")
     supporting_signal_records = _preserve_signal_records(candidate, "supporting_signals")
     contradicting_signal_records = _preserve_signal_records(candidate, "contradicting_signals")
+    dependency_ledger, invalid_independence_claims = _dependency_ledger(candidate)
+    independence = _independence_summary(dependency_ledger)
     all_refs = _all_refs(refs)
     unique_ref_count = len(set(all_refs))
     supporting_count = len(refs["supporting_signals"])
@@ -207,6 +400,8 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         hard_block_hits.append("non_candidate_claim_ceiling_rejected")
     if forbidden_hits:
         hard_block_hits.append("forbidden_output_attempted")
+    if invalid_independence_claims:
+        hard_block_hits.append("independent_support_claim_not_proven")
 
     status = "FAIL_CLOSED" if hard_block_hits else "SMOKE_PASS"
     decision = "BLOCK_PACKET" if hard_block_hits else "READY_FOR_FUSION_CONSUMER"
@@ -221,19 +416,31 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         "input_metrics": refs["input_metrics"],
         "supporting_signals": refs["supporting_signals"],
         "contradicting_signals": refs["contradicting_signals"],
+        "input_feature_records": input_feature_records,
+        "input_window_records": input_window_records,
+        "input_sequence_records": input_sequence_records,
+        "input_metric_records": input_metric_records,
         "supporting_signal_records": supporting_signal_records,
         "contradicting_signal_records": contradicting_signal_records,
+        "dependency_ledger": dependency_ledger,
         "input_ref_count": unique_ref_count,
+        "nominal_ref_count": unique_ref_count,
         "supporting_signal_count": supporting_count,
         "contradicting_signal_count": contradicting_count,
         "source_surface_count": source_surface_count,
-        "evidence_strength": _evidence_strength(unique_ref_count, contradicting_count, source_surface_count),
+        "evidence_strength": _evidence_strength(
+            contradicting_count,
+            int(independence["independent_support_count"]),
+        ),
+        "evidence_strength_is_probability": False,
+        "evidence_strength_independence_capped": True,
         "minimum_signal_count": DEFAULT_MINIMUM_SIGNAL_COUNT,
         "claim_ceiling": claim_ceiling or DEFAULT_CLAIM_CEILING,
         "report_consumers": list(candidate.get("report_consumers") or DEFAULT_REPORT_CONSUMERS),
         "blocked_language_families": _normalized_blocked_language_families(candidate),
         "hard_block_hits": hard_block_hits,
         "forbidden_output_hits": forbidden_hits,
+        "invalid_independence_claims": invalid_independence_claims,
         "decision": decision,
         "status": status,
         "claim_output_allowed": False,
@@ -245,6 +452,7 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         "off_ball_truth": False,
         "pitch_control_truth": False,
         "canonical_event_count": "UNKNOWN",
+        **independence,
     }
     return packet
 
@@ -254,6 +462,13 @@ def build_report(candidates: list[dict[str, Any]]) -> dict[str, Any]:
     family_counts = Counter(packet["packet_family"] for packet in packets)
     hard_block_count = sum(1 for packet in packets if packet["hard_block_hits"])
     status = "FAIL_CLOSED" if hard_block_count else "SMOKE_PASS"
+    admitted_report_ledger = [
+        record
+        for packet in packets
+        if not packet["hard_block_hits"]
+        for record in packet["dependency_ledger"]
+    ]
+    report_independence = _independence_summary(admitted_report_ledger)
     return {
         "module_id": MODULE_ID,
         "status": status,
@@ -261,6 +476,15 @@ def build_report(candidates: list[dict[str, Any]]) -> dict[str, Any]:
         "blocked_packet_count": hard_block_count,
         "family_counts": dict(sorted(family_counts.items())),
         "packets": packets,
+        "independent_support_count_total": report_independence["independent_support_count"],
+        "independent_support_provenance_roots_total": report_independence["independent_support_provenance_roots"],
+        "independent_support_dependency_groups_total": report_independence["independent_support_dependency_groups"],
+        "independent_support_count_total_is_deduplicated": True,
+        "independent_support_count_basis": report_independence["independent_support_count_basis"],
+        "packets_with_independence_admitted": sum(
+            1 for packet in packets if packet["independence_state"] in {"INDEPENDENCE_ADMITTED", "PARTIAL_INDEPENDENCE_ADMITTED"}
+        ),
+        "nominal_ref_count_is_independent_support_count": False,
         "claim_output_allowed": False,
         "report_language_allowed": False,
         "canonical_event_count": "UNKNOWN",
@@ -279,6 +503,7 @@ def write_outputs(candidates: list[dict[str, Any]], out_dir: str | Path) -> dict
         f"status={report['status']}",
         f"packet_count={report['packet_count']}",
         f"blocked_packet_count={report['blocked_packet_count']}",
+        f"independent_support_count_total={report['independent_support_count_total']}",
         f"canonical_event_count={report['canonical_event_count']}",
         "",
         "[packets]",
@@ -286,6 +511,7 @@ def write_outputs(candidates: list[dict[str, Any]], out_dir: str | Path) -> dict
     for packet in report["packets"][:50]:
         lines.append(
             f"- {packet['packet_id']} family={packet['packet_family']} refs={packet['input_ref_count']} "
+            f"independent_support={packet['independent_support_count']} independence={packet['independence_state']} "
             f"strength={packet['evidence_strength']} decision={packet['decision']}"
         )
     (out / OUTPUT_TXT).write_text("\n".join(lines) + "\n", encoding="utf-8")

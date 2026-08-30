@@ -133,6 +133,88 @@ def test_nested_signal_truth_blocks_packet_with_path():
     assert "supporting_signals[0].payload.tactical_truth" in packet["forbidden_output_hits"]
 
 
+def test_nominal_refs_do_not_become_independent_support_by_default():
+    packet = build_composite_packet(base_candidate())
+    assert packet["status"] == "SMOKE_PASS"
+    assert packet["nominal_ref_count"] >= 2
+    assert packet["independent_support_count"] == 0
+    assert packet["independence_state"] == "INDEPENDENCE_NOT_ADMITTED"
+    assert packet["nominal_ref_count_is_independent_support_count"] is False
+    assert packet["evidence_strength"] == "weak"
+
+
+def test_same_provenance_root_does_not_multiply_independent_support():
+    candidate = base_candidate()
+    candidate["supporting_signals"] = [
+        {
+            "signal_id": "support_a",
+            "source_surface": "surface_a",
+            "provenance_root": "root_same_fact",
+            "dependency_group": "dep_same_fact",
+            "independence_group": "ind_a",
+            "independent_support_vote": True,
+        },
+        {
+            "signal_id": "support_b",
+            "source_surface": "surface_b",
+            "provenance_root": "root_same_fact",
+            "dependency_group": "dep_same_fact",
+            "independence_group": "ind_b",
+            "independent_support_vote": True,
+        },
+    ]
+    packet = build_composite_packet(candidate)
+    assert packet["status"] == "SMOKE_PASS"
+    assert packet["independent_support_count"] == 1
+    assert packet["independent_support_provenance_roots"] == ["root_same_fact"]
+
+
+def test_independent_support_claim_requires_complete_lineage_metadata():
+    candidate = base_candidate()
+    candidate["supporting_signals"] = [
+        {
+            "signal_id": "unsupported_independence_claim",
+            "source_surface": "surface_a",
+            "independent_support_vote": True,
+            "provenance_root": "root_a",
+        }
+    ]
+    packet = build_composite_packet(candidate)
+    assert packet["status"] == "FAIL_CLOSED"
+    assert "independent_support_claim_not_proven" in packet["hard_block_hits"]
+    assert packet["invalid_independence_claims"] == [
+        "independent_support_metadata_incomplete:supporting_signals:unsupported_independence_claim"
+    ]
+
+
+def test_distinct_provenance_roots_can_be_counted_without_becoming_truth_probability():
+    candidate = base_candidate()
+    candidate["supporting_signals"] = [
+        {
+            "signal_id": "support_a",
+            "source_surface": "surface_a",
+            "provenance_root": "root_a",
+            "dependency_group": "dep_a",
+            "independence_group": "ind_a",
+            "independent_support_vote": True,
+        },
+        {
+            "signal_id": "support_b",
+            "source_surface": "surface_b",
+            "provenance_root": "root_b",
+            "dependency_group": "dep_b",
+            "independence_group": "ind_b",
+            "independent_support_vote": True,
+        },
+    ]
+    packet = build_composite_packet(candidate)
+    assert packet["status"] == "SMOKE_PASS"
+    assert packet["independent_support_count"] == 2
+    assert packet["evidence_strength"] in {"medium", "strong"}
+    assert packet["evidence_strength_is_probability"] is False
+    assert packet["claim_output_allowed"] is False
+
+
 def test_write_outputs_rejects_nested_phone_output():
     try:
         write_outputs([base_candidate()], "/sdcard/Download/HPFA/composite_evidence_packet_builder_lite")
@@ -146,6 +228,7 @@ def test_build_report_and_write_outputs(tmp_path):
     report = write_outputs([base_candidate()], tmp_path)
     assert report["module_id"] == "composite_evidence_packet_builder_lite_v1"
     assert report["status"] == "SMOKE_PASS"
+    assert report["independent_support_count_total"] == 0
     assert (tmp_path / "composite_evidence_packet_builder_lite_v1.json").exists()
     assert (tmp_path / "composite_evidence_packet_builder_lite_v1.txt").exists()
     loaded = json.loads((tmp_path / "composite_evidence_packet_builder_lite_v1.json").read_text(encoding="utf-8"))
