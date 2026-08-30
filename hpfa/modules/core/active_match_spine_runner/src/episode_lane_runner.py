@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 from pathlib import Path
 from typing import Any, Callable
@@ -12,11 +14,40 @@ from hpfa.modules.core.temporal_episode_signature_lite.src.temporal_episode_sign
 MODULE_ID = "active_match_episode_lane_adapter_v1"
 CURRENT_EPISODE_RUNNER_OUTPUT = "active_match_full_run_lite_v1.json"
 ROW_NUCLEUS_OUTPUT = "row_nucleus_inventory_lite_v1.json"
+BRIDGE_OUTPUT = "reconstruction_intelligence_packet_bridge_current_v1.json"
 TEMPORAL_OUTPUT = "temporal_episode_signature_lite_v1.json"
+SURFACE_SUFFIXES = {".csv", ".xml", ".xlsx"}
 
 
 def _product_root() -> Path:
     return Path(__file__).resolve().parents[5]
+
+
+def _hash_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _surface_snapshot(match_dir: str | Path) -> dict[str, Any]:
+    root = Path(match_dir).expanduser().resolve(strict=False)
+    records: list[dict[str, Any]] = []
+    if root.is_dir():
+        for path in sorted(root.iterdir(), key=lambda item: item.name):
+            if not path.is_file() or path.suffix.lower() not in SURFACE_SUFFIXES:
+                continue
+            records.append({
+                "name": path.name,
+                "size_bytes": path.stat().st_size,
+                "sha256": _hash_file(path),
+            })
+    stable_payload = json.dumps(records, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return {
+        "snapshot_id": hashlib.sha256(stable_payload.encode("utf-8")).hexdigest(),
+        "surface_file_count": len(records),
+    }
 
 
 def _first_failed_step(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -60,6 +91,35 @@ def _stage_executed(steps: list[dict[str, Any]], script_name: str) -> bool:
     return False
 
 
+def _snapshot_bound_raw_step(
+    active_match: Path,
+    expected_snapshot_id: str,
+    command_hint: list[str],
+    producer: Callable[[], dict[str, Any]],
+) -> dict[str, Any]:
+    before = _surface_snapshot(active_match)
+    if before.get("snapshot_id") != expected_snapshot_id:
+        return {
+            "command": command_hint,
+            "returncode": 18,
+            "stdout": "",
+            "stderr": "active_match_surface_snapshot_mismatch_before_raw_read",
+            "passed": False,
+        }
+
+    step = producer()
+    after = _surface_snapshot(active_match)
+    if after.get("snapshot_id") != expected_snapshot_id:
+        return {
+            **dict(step),
+            "command": step.get("command") or command_hint,
+            "returncode": 19,
+            "stderr": "active_match_surface_snapshot_changed_during_raw_read",
+            "passed": False,
+        }
+    return step
+
+
 def run_current_episode_lane(
     active_match_dir: str | Path,
     out_dir: str | Path,
@@ -70,27 +130,59 @@ def run_current_episode_lane(
     selected_execution_root = Path(execution_root).expanduser().resolve(strict=False)
     product_root = _product_root()
     row_nucleus_path = output / ROW_NUCLEUS_OUTPUT
+    bridge_path = output / BRIDGE_OUTPUT
 
     hard_blocks: list[str] = []
     review_hits: list[str] = []
-    shared_foundation_reused = row_nucleus_path.is_file()
-    if not shared_foundation_reused:
+
+    row_nucleus_available = row_nucleus_path.is_file()
+    if not row_nucleus_available:
         hard_blocks.append("shared_row_nucleus_output_missing")
+
+    bridge_report = current_episode.read_json(bridge_path)
+    expected_snapshot_id = str(bridge_report.get("input_surface_snapshot_id") or "")
+    if not expected_snapshot_id:
+        hard_blocks.append("shared_input_surface_snapshot_id_missing")
+
+    observed_snapshot = _surface_snapshot(active_match)
+    surface_snapshot_bound = bool(expected_snapshot_id) and observed_snapshot.get("snapshot_id") == expected_snapshot_id
+    if expected_snapshot_id and not surface_snapshot_bound:
+        hard_blocks.append("active_match_surface_snapshot_mismatch_before_episode")
 
     surfaces = current_episode.readable_surface_files(active_match)
     input_status = {
         "match_dir": str(active_match),
         "surface_file_count": len(surfaces),
         "input_surface_ready": len(surfaces) > 0,
-        "shared_foundation_reused": shared_foundation_reused,
+        "expected_surface_snapshot_id": expected_snapshot_id or None,
+        "observed_surface_snapshot_id": observed_snapshot.get("snapshot_id"),
+        "surface_snapshot_bound": surface_snapshot_bound,
+        "shared_foundation_reused": row_nucleus_available and surface_snapshot_bound,
     }
     if not input_status["input_surface_ready"]:
         hard_blocks.append("active_match_surface_missing")
 
+    shared_foundation_reused = row_nucleus_available and surface_snapshot_bound
+
     steps: list[dict[str, Any]] = []
     if not hard_blocks:
+        provider_command = ["internal:provider_time_semantic_admission_lite_v1"]
+        event_window_command = [
+            sys.executable,
+            "event_window_builder.py",
+            "--input-dir", str(output),
+            "--raw-input-dir", str(active_match),
+            "--out-dir", str(output),
+        ]
         producers: list[Callable[[], dict[str, Any]]] = [
-            lambda: current_episode.run_provider_time_context_step(product_root, active_match, output, row_nucleus_path),
+            lambda: _snapshot_bound_raw_step(
+                active_match,
+                expected_snapshot_id,
+                provider_command,
+                lambda: current_episode.run_provider_time_context_step(
+                    product_root, active_match, output, row_nucleus_path
+                ),
+            ),
             lambda: current_episode.run_step(product_root, [
                 sys.executable,
                 "context_action_semantics_rebind.py",
@@ -109,13 +201,12 @@ def run_current_episode_lane(
                 "--input-dir", str(output),
                 "--out-dir", str(output),
             ]),
-            lambda: current_episode.run_step(product_root, [
-                sys.executable,
-                "event_window_builder.py",
-                "--input-dir", str(output),
-                "--raw-input-dir", str(active_match),
-                "--out-dir", str(output),
-            ]),
+            lambda: _snapshot_bound_raw_step(
+                active_match,
+                expected_snapshot_id,
+                event_window_command,
+                lambda: current_episode.run_step(product_root, event_window_command),
+            ),
             lambda: current_episode.run_step(product_root, [
                 sys.executable,
                 "time_scale_router.py",
@@ -172,22 +263,26 @@ def run_current_episode_lane(
     first_failed_temporal_reason: str | None = None
     temporal_executed = False
     if not hard_blocks:
-        temporal_executed = True
-        try:
-            temporal_report = write_temporal_episode_signature(output, output)
-        except (OSError, ValueError, TypeError) as exc:
-            first_failed_temporal_reason = f"temporal_episode_signature_execution_failed:{type(exc).__name__}"
-            hard_blocks.append(first_failed_temporal_reason)
-        if temporal_report.get("status") == "FAIL_CLOSED":
-            temporal_blocks = temporal_report.get("hard_block_hits") or []
-            if isinstance(temporal_blocks, list) and temporal_blocks:
-                first_failed_temporal_reason = str(temporal_blocks[0])
+        final_snapshot = _surface_snapshot(active_match)
+        if final_snapshot.get("snapshot_id") != expected_snapshot_id:
+            hard_blocks.append("active_match_surface_snapshot_mismatch_before_temporal")
+        else:
+            temporal_executed = True
+            try:
+                temporal_report = write_temporal_episode_signature(output, output)
+            except (OSError, ValueError, TypeError) as exc:
+                first_failed_temporal_reason = f"temporal_episode_signature_execution_failed:{type(exc).__name__}"
                 hard_blocks.append(first_failed_temporal_reason)
-            else:
-                first_failed_temporal_reason = "temporal_episode_signature_fail_closed"
-                hard_blocks.append(first_failed_temporal_reason)
-        elif temporal_report.get("status") == "REVIEW_REQUIRED":
-            review_hits.append("temporal_episode_signature_review_required")
+            if temporal_report.get("status") == "FAIL_CLOSED":
+                temporal_blocks = temporal_report.get("hard_block_hits") or []
+                if isinstance(temporal_blocks, list) and temporal_blocks:
+                    first_failed_temporal_reason = str(temporal_blocks[0])
+                    hard_blocks.append(first_failed_temporal_reason)
+                else:
+                    first_failed_temporal_reason = "temporal_episode_signature_fail_closed"
+                    hard_blocks.append(first_failed_temporal_reason)
+            elif temporal_report.get("status") == "REVIEW_REQUIRED":
+                review_hits.append("temporal_episode_signature_review_required")
 
     hard_blocks = sorted(set(hard_blocks))
     review_hits = sorted(set(review_hits))
@@ -202,6 +297,7 @@ def run_current_episode_lane(
         decision = "EPISODE_LANE_COMPLETED"
 
     episode_evidence = current_report.get("analyst_evidence") or {}
+    final_observed_snapshot = _surface_snapshot(active_match)
     return {
         "module_id": MODULE_ID,
         "status": status,
@@ -209,6 +305,10 @@ def run_current_episode_lane(
         "product_code_root": str(product_root),
         "selected_execution_root": str(selected_execution_root),
         "code_root_is_execution_root": product_root == selected_execution_root,
+        "expected_surface_snapshot_id": expected_snapshot_id or None,
+        "observed_surface_snapshot_id": final_observed_snapshot.get("snapshot_id"),
+        "surface_snapshot_bound": bool(expected_snapshot_id)
+        and final_observed_snapshot.get("snapshot_id") == expected_snapshot_id,
         "current_episode_runner_status": current_report.get("status"),
         "temporal_episode_signature_status": temporal_report.get("status"),
         "episode_candidate_count": episode_evidence.get("episode_candidate_count"),
