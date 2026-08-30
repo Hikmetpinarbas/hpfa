@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+import active_match_full_run as current_episode
 from hpfa.modules.core.temporal_episode_signature_lite.src.temporal_episode_signature import (
     write_outputs as write_temporal_episode_signature,
 )
@@ -13,15 +13,8 @@ from hpfa.modules.core.temporal_episode_signature_lite.src.temporal_episode_sign
 
 MODULE_ID = "active_match_episode_lane_adapter_v1"
 CURRENT_EPISODE_RUNNER_OUTPUT = "active_match_full_run_lite_v1.json"
+ROW_NUCLEUS_OUTPUT = "row_nucleus_inventory_lite_v1.json"
 TEMPORAL_OUTPUT = "temporal_episode_signature_lite_v1.json"
-
-
-def _load(path: Path) -> dict[str, Any]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
 
 
 def run_current_episode_lane(
@@ -32,43 +25,73 @@ def run_current_episode_lane(
     active_match = Path(active_match_dir).expanduser().resolve(strict=False)
     output = Path(out_dir).expanduser().resolve(strict=False)
     root = Path(execution_root).expanduser().resolve(strict=False)
-    current_runner = root / "active_match_full_run.py"
+    row_nucleus_path = output / ROW_NUCLEUS_OUTPUT
 
-    if not current_runner.is_file():
-        return {
-            "module_id": MODULE_ID,
-            "status": "FAIL_CLOSED",
-            "decision": "BLOCK_EPISODE_LANE",
-            "hard_block_hits": ["current_episode_runner_missing"],
-            "review_hits": [],
-            "canonical_event_count": "UNKNOWN",
-            "true_action_count": "UNKNOWN",
-            "production_release": False,
-        }
-
-    completed = subprocess.run(
-        [
-            sys.executable,
-            str(current_runner),
-            "--match-dir",
-            str(active_match),
-            "--out-dir",
-            str(output),
-        ],
-        cwd=root,
-        text=True,
-        capture_output=True,
-    )
-    current_report = _load(output / CURRENT_EPISODE_RUNNER_OUTPUT)
     hard_blocks: list[str] = []
     review_hits: list[str] = []
+    if not row_nucleus_path.is_file():
+        hard_blocks.append("shared_row_nucleus_output_missing")
 
-    if completed.returncode != 0:
-        hard_blocks.append("current_episode_runner_failed")
-    if not current_report:
-        hard_blocks.append("current_episode_runner_output_missing_or_invalid")
-    elif current_report.get("status") == "FAIL_CLOSED":
-        hard_blocks.append("current_episode_runner_fail_closed")
+    surfaces = current_episode.readable_surface_files(active_match)
+    input_status = {
+        "match_dir": str(active_match),
+        "surface_file_count": len(surfaces),
+        "input_surface_ready": len(surfaces) > 0,
+        "shared_foundation_reused": True,
+    }
+    if not input_status["input_surface_ready"]:
+        hard_blocks.append("active_match_surface_missing")
+
+    steps: list[dict[str, Any]] = []
+    if not hard_blocks:
+        steps = [
+            current_episode.run_provider_time_context_step(root, active_match, output, row_nucleus_path),
+            current_episode.run_step(root, [
+                sys.executable,
+                "context_action_semantics_rebind.py",
+                "--input-dir", str(output),
+                "--out-dir", str(output),
+            ]),
+            current_episode.run_step(root, [
+                sys.executable,
+                "analyst_episode_locator.py",
+                "--input-dir", str(output),
+                "--out-dir", str(output),
+            ]),
+            current_episode.run_step(root, [
+                sys.executable,
+                "episode_feature_vector.py",
+                "--input-dir", str(output),
+                "--out-dir", str(output),
+            ]),
+            current_episode.run_step(root, [
+                sys.executable,
+                "event_window_builder.py",
+                "--input-dir", str(output),
+                "--raw-input-dir", str(active_match),
+                "--out-dir", str(output),
+            ]),
+            current_episode.run_step(root, [
+                sys.executable,
+                "time_scale_router.py",
+                "--input-dir", str(output),
+                "--out-dir", str(output),
+            ]),
+            current_episode.run_step(root, [
+                sys.executable,
+                "axis_integrity_tagger.py",
+                "--input-dir", str(output),
+                "--out-dir", str(output),
+            ]),
+        ]
+
+    current_report: dict[str, Any] = {}
+    if not hard_blocks:
+        current_report = current_episode.write_summary(output, steps, input_status)
+        if current_report.get("status") == "FAIL_CLOSED":
+            hard_blocks.append("current_episode_lane_fail_closed")
+        elif current_report.get("status") == "REVIEW_REQUIRED":
+            review_hits.append("current_episode_lane_review_required")
 
     temporal_report: dict[str, Any] = {}
     if not hard_blocks:
@@ -80,9 +103,6 @@ def run_current_episode_lane(
             hard_blocks.append("temporal_episode_signature_fail_closed")
         elif temporal_report.get("status") == "REVIEW_REQUIRED":
             review_hits.append("temporal_episode_signature_review_required")
-
-    if current_report.get("status") == "REVIEW_REQUIRED":
-        review_hits.append("current_episode_lane_review_required")
 
     hard_blocks = sorted(set(hard_blocks))
     review_hits = sorted(set(review_hits))
@@ -102,7 +122,6 @@ def run_current_episode_lane(
         "status": status,
         "decision": decision,
         "current_episode_runner_status": current_report.get("status"),
-        "current_episode_runner_returncode": completed.returncode,
         "temporal_episode_signature_status": temporal_report.get("status"),
         "episode_candidate_count": episode_evidence.get("episode_candidate_count"),
         "episode_feature_vector_count": episode_evidence.get("episode_feature_vector_count"),
@@ -112,10 +131,18 @@ def run_current_episode_lane(
         "same_start_order_indeterminate_count": temporal_report.get("same_start_order_indeterminate_count"),
         "hard_block_hits": hard_blocks,
         "review_hits": review_hits,
-        "current_episode_runner_stdout": completed.stdout[-4000:],
-        "current_episode_runner_stderr": completed.stderr[-4000:],
+        "step_statuses": [
+            {
+                "command": step.get("command"),
+                "returncode": step.get("returncode"),
+                "passed": step.get("passed"),
+            }
+            for step in steps
+        ],
         "episode_output": str(output / CURRENT_EPISODE_RUNNER_OUTPUT),
         "temporal_output": str(output / TEMPORAL_OUTPUT),
+        "shared_foundation_reused": True,
+        "row_nucleus_recomputed_by_episode_lane": False,
         "episode_lane_adds_action_volume": False,
         "temporal_signature_is_rhythm_truth": False,
         "source_row_order_is_temporal_truth": False,
