@@ -61,10 +61,10 @@ def _stage_failure(stage: str, exc: Exception) -> dict[str, Any]:
 
 
 def _chain_has_fail(chain: dict[str, dict[str, Any]]) -> bool:
-    blocking_tokens = {"FAIL", "FAILED", "FAIL_CLOSED", "BLOCKED", "BLOCK_FUSION", "BLOCK_ARGUMENT"}
+    blocking = {"FAIL", "FAILED", "FAIL_CLOSED", "BLOCKED", "BLOCK_FUSION", "BLOCK_ARGUMENT"}
     for record in chain.values():
         values = {_status(record.get("status")), _status(record.get("decision"))}
-        if values & blocking_tokens or any(value.startswith("BLOCK") for value in values):
+        if values & blocking or any(value.startswith("BLOCK") for value in values):
             return True
     return False
 
@@ -85,14 +85,13 @@ def run_intelligence_chain(
     packet: dict[str, Any],
     stage_overrides: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Run the existing C4 producers with an orchestration-safe boundary.
+    """Reuse the current C4 producer chain with exception containment only.
 
-    Producer exceptions are contracted into a FAIL_CLOSED stage record so the
-    enclosing ACTIVE_MATCH run can still disclose the first failure and write
-    its audit artifact. No alternate reasoning behavior is introduced.
+    Explicit producer FAIL/REVIEW artifacts are still passed downstream because
+    current C4 consumers are responsible for preserving and contracting those
+    states. Only an actual Python exception stops execution at the boundary.
     """
     overrides = stage_overrides or {}
-    chain: dict[str, dict[str, Any]] = {"packet": packet}
     stages: tuple[tuple[str, Callable[[dict[str, Any]], dict[str, Any]]], ...] = (
         ("fusion", overrides.get("fusion", fuse_packet)),
         ("argument", overrides.get("argument", build_argument_candidate)),
@@ -104,6 +103,7 @@ def run_intelligence_chain(
         ("output_contract", overrides.get("output_contract", evaluate_report_block)),
         ("assembly", overrides.get("assembly", evaluate_assembly_item)),
     )
+    chain: dict[str, dict[str, Any]] = {"packet": packet}
     current = packet
     for stage_name, producer in stages:
         try:
@@ -115,13 +115,11 @@ def run_intelligence_chain(
             break
         chain[stage_name] = output
         current = output
-        if _chain_has_fail({stage_name: output}):
-            break
     return chain
 
 
 def _first_failure(chains: list[dict[str, dict[str, Any]]]) -> tuple[str | None, str | None]:
-    ordered = (
+    order = (
         "packet",
         "fusion",
         "argument",
@@ -134,7 +132,7 @@ def _first_failure(chains: list[dict[str, dict[str, Any]]]) -> tuple[str | None,
         "assembly",
     )
     for chain in chains:
-        for stage in ordered:
+        for stage in order:
             record = chain.get(stage) or {}
             status = _status(record.get("status"))
             decision = _status(record.get("decision"))
@@ -143,6 +141,26 @@ def _first_failure(chains: list[dict[str, dict[str, Any]]]) -> tuple[str | None,
                 reason = str(reasons[0]) if isinstance(reasons, list) and reasons else (decision or status)
                 return stage, reason
     return None, None
+
+
+def _safe_external_call(
+    runner: Callable[..., dict[str, Any]],
+    args: tuple[Any, ...],
+    stage: str,
+) -> dict[str, Any]:
+    try:
+        result = runner(*args)
+        if not isinstance(result, dict):
+            raise TypeError("stage_output_must_be_dict")
+        return result
+    except Exception as exc:
+        return {
+            "status": "FAIL_CLOSED",
+            "hard_block_hits": [f"{stage}_exception:{type(exc).__name__}"],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
 
 
 def run_full_spine(
@@ -165,18 +183,11 @@ def run_full_spine(
     first_failed_reason_code: str | None = None
 
     bridge = bridge_runner or reconstruction_bridge.runtime_write_outputs
-    try:
-        bridge_report = bridge(active_match_path, output_root)
-        if not isinstance(bridge_report, dict):
-            raise TypeError("bridge_output_must_be_dict")
-    except Exception as exc:
-        bridge_report = {
-            "status": "FAIL_CLOSED",
-            "hard_block_hits": [f"reconstruction_bridge_exception:{type(exc).__name__}"],
-            "canonical_event_count": "UNKNOWN",
-            "true_action_count": "UNKNOWN",
-            "production_release": False,
-        }
+    bridge_report = _safe_external_call(
+        bridge,
+        (active_match_path, output_root),
+        "reconstruction_bridge",
+    )
     bridge_status = _status(bridge_report.get("status"))
     if bridge_status == "FAIL_CLOSED":
         hard_blocks.append("reconstruction_intelligence_bridge_fail_closed")
@@ -194,18 +205,11 @@ def run_full_spine(
     }
     if not hard_blocks:
         episode_lane = episode_runner or run_current_episode_lane
-        try:
-            episode_report = episode_lane(active_match_path, output_root, execution_root_path)
-            if not isinstance(episode_report, dict):
-                raise TypeError("episode_output_must_be_dict")
-        except Exception as exc:
-            episode_report = {
-                "status": "FAIL_CLOSED",
-                "hard_block_hits": [f"episode_lane_exception:{type(exc).__name__}"],
-                "canonical_event_count": "UNKNOWN",
-                "true_action_count": "UNKNOWN",
-                "production_release": False,
-            }
+        episode_report = _safe_external_call(
+            episode_lane,
+            (active_match_path, output_root, execution_root_path),
+            "episode_lane",
+        )
         episode_status = _status(episode_report.get("status"))
         if episode_status == "FAIL_CLOSED":
             hard_blocks.append("current_episode_lane_fail_closed")
@@ -218,9 +222,8 @@ def run_full_spine(
             review_hits.append("current_episode_lane_review_required")
 
     if not hard_blocks:
-        packet_report_path = output_root / PACKET_REPORT_JSON
         try:
-            packet_report = _load_json(packet_report_path)
+            packet_report = _load_json(output_root / PACKET_REPORT_JSON)
         except FullSpineContractError as exc:
             packet_report = {}
             hard_blocks.append(str(exc))
@@ -251,10 +254,9 @@ def run_full_spine(
 
     failed_chain_count = sum(_chain_has_fail(chain) for chain in chains)
     review_chain_count = sum(_chain_has_review(chain) for chain in chains)
-    chain_failed_node, chain_failed_reason = _first_failure(chains)
-    if first_failed_node is None and chain_failed_node is not None:
-        first_failed_node = chain_failed_node
-        first_failed_reason_code = chain_failed_reason
+    chain_node, chain_reason = _first_failure(chains)
+    if first_failed_node is None and chain_node is not None:
+        first_failed_node, first_failed_reason_code = chain_node, chain_reason
     if failed_chain_count:
         hard_blocks.append("intelligence_chain_fail_closed")
     if review_chain_count:
@@ -263,14 +265,11 @@ def run_full_spine(
     hard_blocks = sorted(set(hard_blocks))
     review_hits = sorted(set(review_hits))
     if hard_blocks:
-        status = "FAIL_CLOSED"
-        decision = "BLOCK_FULL_SPINE"
+        status, decision = "FAIL_CLOSED", "BLOCK_FULL_SPINE"
     elif review_hits:
-        status = "REVIEW_REQUIRED"
-        decision = "FULL_SPINE_COMPLETED_REVIEW_REQUIRED"
+        status, decision = "REVIEW_REQUIRED", "FULL_SPINE_COMPLETED_REVIEW_REQUIRED"
     else:
-        status = "SMOKE_PASS"
-        decision = "FULL_SPINE_EXECUTION_COMPLETED"
+        status, decision = "SMOKE_PASS", "FULL_SPINE_EXECUTION_COMPLETED"
 
     report = {
         "module_id": MODULE_ID,
@@ -330,35 +329,40 @@ def run_full_spine(
         "production_release": False,
     }
 
-    (output_root / OUTPUT_JSON).write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    lines = [
-        "HPFA ACTIVE_MATCH FULL SPINE V1",
-        "===============================",
-        f"status={status}",
-        f"decision={decision}",
-        f"episode_lane_status={episode_report.get('status')}",
-        f"episode_candidate_count={episode_report.get('episode_candidate_count')}",
-        f"episode_feature_vector_count={episode_report.get('episode_feature_vector_count')}",
-        f"temporal_episode_signature_count={episode_report.get('temporal_episode_signature_count')}",
-        f"bridge_status={bridge_report.get('status')}",
-        f"intelligence_chain_count={len(chains)}",
-        f"failed_intelligence_chain_count={failed_chain_count}",
-        f"review_required_intelligence_chain_count={review_chain_count}",
-        f"first_failed_node={first_failed_node}",
-        f"first_failed_reason_code={first_failed_reason_code}",
-        f"hard_block_hits={hard_blocks}",
-        f"review_hits={review_hits}",
-        "shared_foundation_reused=true",
-        "row_nucleus_recomputed_by_episode_lane=false",
-        "canonical_event_count=UNKNOWN",
-        "true_action_count=UNKNOWN",
-        "phase_truth=false",
-        "possession_truth=false",
-        "sequence_truth=false",
-        "rhythm_truth=false",
-        "tactical_truth=false",
-        "production_release=false",
-        "",
-    ]
-    (output_root / OUTPUT_TXT).write_text("\n".join(lines), encoding="utf-8")
+    (output_root / OUTPUT_JSON).write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (output_root / OUTPUT_TXT).write_text(
+        "\n".join(
+            [
+                "HPFA ACTIVE_MATCH FULL SPINE V1",
+                "===============================",
+                f"status={status}",
+                f"decision={decision}",
+                f"episode_lane_status={episode_report.get('status')}",
+                f"episode_candidate_count={episode_report.get('episode_candidate_count')}",
+                f"episode_feature_vector_count={episode_report.get('episode_feature_vector_count')}",
+                f"temporal_episode_signature_count={episode_report.get('temporal_episode_signature_count')}",
+                f"bridge_status={bridge_report.get('status')}",
+                f"intelligence_chain_count={len(chains)}",
+                f"first_failed_node={first_failed_node}",
+                f"first_failed_reason_code={first_failed_reason_code}",
+                f"hard_block_hits={hard_blocks}",
+                f"review_hits={review_hits}",
+                "shared_foundation_reused=true",
+                "row_nucleus_recomputed_by_episode_lane=false",
+                "canonical_event_count=UNKNOWN",
+                "true_action_count=UNKNOWN",
+                "phase_truth=false",
+                "possession_truth=false",
+                "sequence_truth=false",
+                "rhythm_truth=false",
+                "tactical_truth=false",
+                "production_release=false",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
     return report
