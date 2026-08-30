@@ -206,8 +206,9 @@ def build_projection(
             hard_blocks.append(f"inventory_audit_binding_mismatch:{file_id}")
             continue
         path = root / relative
-        if not path.is_file() or xlsx.xlsx.sha256_file(path) if False else False:
-            pass
+        if not path.is_file():
+            hard_blocks.append(f"xlsx_source_missing:{file_id}")
+            continue
         try:
             actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
         except OSError:
