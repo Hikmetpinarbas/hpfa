@@ -10,11 +10,14 @@ from hpfa.modules.core.temporal_episode_signature_lite.src.temporal_episode_sign
     write_outputs as write_temporal_episode_signature,
 )
 
-
 MODULE_ID = "active_match_episode_lane_adapter_v1"
 CURRENT_EPISODE_RUNNER_OUTPUT = "active_match_full_run_lite_v1.json"
 ROW_NUCLEUS_OUTPUT = "row_nucleus_inventory_lite_v1.json"
 TEMPORAL_OUTPUT = "temporal_episode_signature_lite_v1.json"
+
+
+def _product_root() -> Path:
+    return Path(__file__).resolve().parents[5]
 
 
 def run_current_episode_lane(
@@ -24,7 +27,8 @@ def run_current_episode_lane(
 ) -> dict[str, Any]:
     active_match = Path(active_match_dir).expanduser().resolve(strict=False)
     output = Path(out_dir).expanduser().resolve(strict=False)
-    root = Path(execution_root).expanduser().resolve(strict=False)
+    selected_execution_root = Path(execution_root).expanduser().resolve(strict=False)
+    product_root = _product_root()
     row_nucleus_path = output / ROW_NUCLEUS_OUTPUT
 
     hard_blocks: list[str] = []
@@ -45,39 +49,39 @@ def run_current_episode_lane(
     steps: list[dict[str, Any]] = []
     if not hard_blocks:
         steps = [
-            current_episode.run_provider_time_context_step(root, active_match, output, row_nucleus_path),
-            current_episode.run_step(root, [
+            current_episode.run_provider_time_context_step(product_root, active_match, output, row_nucleus_path),
+            current_episode.run_step(product_root, [
                 sys.executable,
                 "context_action_semantics_rebind.py",
                 "--input-dir", str(output),
                 "--out-dir", str(output),
             ]),
-            current_episode.run_step(root, [
+            current_episode.run_step(product_root, [
                 sys.executable,
                 "analyst_episode_locator.py",
                 "--input-dir", str(output),
                 "--out-dir", str(output),
             ]),
-            current_episode.run_step(root, [
+            current_episode.run_step(product_root, [
                 sys.executable,
                 "episode_feature_vector.py",
                 "--input-dir", str(output),
                 "--out-dir", str(output),
             ]),
-            current_episode.run_step(root, [
+            current_episode.run_step(product_root, [
                 sys.executable,
                 "event_window_builder.py",
                 "--input-dir", str(output),
                 "--raw-input-dir", str(active_match),
                 "--out-dir", str(output),
             ]),
-            current_episode.run_step(root, [
+            current_episode.run_step(product_root, [
                 sys.executable,
                 "time_scale_router.py",
                 "--input-dir", str(output),
                 "--out-dir", str(output),
             ]),
-            current_episode.run_step(root, [
+            current_episode.run_step(product_root, [
                 sys.executable,
                 "axis_integrity_tagger.py",
                 "--input-dir", str(output),
@@ -121,6 +125,9 @@ def run_current_episode_lane(
         "module_id": MODULE_ID,
         "status": status,
         "decision": decision,
+        "product_code_root": str(product_root),
+        "selected_execution_root": str(selected_execution_root),
+        "code_root_is_execution_root": product_root == selected_execution_root,
         "current_episode_runner_status": current_report.get("status"),
         "temporal_episode_signature_status": temporal_report.get("status"),
         "episode_candidate_count": episode_evidence.get("episode_candidate_count"),
