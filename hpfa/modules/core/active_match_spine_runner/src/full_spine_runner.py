@@ -106,7 +106,9 @@ def run_intelligence_chain(
                 raise TypeError("stage_output_must_be_dict")
         except Exception as exc:
             chain[stage_name] = _stage_failure(stage_name, exc)
-            break
+            if stage_name != "lens":
+                break
+            continue
         chain[stage_name] = output
     return chain
 
