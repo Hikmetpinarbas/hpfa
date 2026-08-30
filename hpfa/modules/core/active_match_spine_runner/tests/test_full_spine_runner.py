@@ -210,6 +210,58 @@ def test_episode_lane_code_root_is_product_checkout_not_selected_execution_root(
     assert (product_root / "active_match_full_run.py").is_file()
 
 
+def test_episode_lane_preserves_first_failed_subprocess_stage(tmp_path, monkeypatch):
+    active_match = tmp_path / "runtime" / "active_single_match" / "current"
+    active_match.mkdir(parents=True)
+    output = tmp_path / "out"
+    output.mkdir()
+    (output / episode_lane_runner.ROW_NUCLEUS_OUTPUT).write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(
+        episode_lane_runner.current_episode,
+        "readable_surface_files",
+        lambda _match_dir: [active_match / "surface.csv"],
+    )
+    monkeypatch.setattr(
+        episode_lane_runner.current_episode,
+        "run_provider_time_context_step",
+        lambda *_args, **_kwargs: {
+            "command": ["internal:provider_time_semantic_admission_lite_v1"],
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "",
+            "passed": True,
+        },
+    )
+    monkeypatch.setattr(
+        episode_lane_runner.current_episode,
+        "run_step",
+        lambda _root, command: {
+            "command": command,
+            "returncode": 17,
+            "stdout": "",
+            "stderr": "synthetic failure",
+            "passed": False,
+        },
+    )
+    monkeypatch.setattr(
+        episode_lane_runner.current_episode,
+        "write_summary",
+        lambda *_args, **_kwargs: {"status": "FAIL_CLOSED", "analyst_evidence": {}},
+    )
+
+    report = episode_lane_runner.run_current_episode_lane(active_match, output, tmp_path)
+    assert report["status"] == "FAIL_CLOSED"
+    assert report["first_failed_episode_step"] == {
+        "stage": "context_action_semantics_rebind.py",
+        "returncode": 17,
+        "stderr": "synthetic failure",
+    }
+    assert report["hard_block_hits"] == [
+        "episode_step_failed:context_action_semantics_rebind.py:returncode_17"
+    ]
+
+
 def test_no_sample_match_identity_leak():
     files = [SRC / "full_spine_runner.py", SRC / "episode_lane_runner.py"]
     for source_path in files:
