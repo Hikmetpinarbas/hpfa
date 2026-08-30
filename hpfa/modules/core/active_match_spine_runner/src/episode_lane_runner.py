@@ -197,9 +197,7 @@ def run_current_episode_lane(
         hard_blocks.append("active_match_surface_missing")
 
     shared_foundation_reused = row_nucleus_available and surface_snapshot_bound
-    cleared_episode_outputs: list[str] = []
-    if not hard_blocks:
-        cleared_episode_outputs = _clear_episode_owned_outputs(output)
+    cleared_episode_outputs = _clear_episode_owned_outputs(output)
 
     steps: list[dict[str, Any]] = []
     if not hard_blocks:
@@ -321,6 +319,11 @@ def run_current_episode_lane(
             elif temporal_report.get("status") == "REVIEW_REQUIRED":
                 review_hits.append("temporal_episode_signature_review_required")
 
+    final_observed_snapshot = _surface_snapshot(active_match)
+    final_snapshot_bound = bool(expected_snapshot_id) and final_observed_snapshot.get("snapshot_id") == expected_snapshot_id
+    if expected_snapshot_id and not final_snapshot_bound:
+        hard_blocks.append("active_match_surface_snapshot_mismatch_after_temporal")
+
     hard_blocks = sorted(set(hard_blocks))
     review_hits = sorted(set(review_hits))
     if hard_blocks:
@@ -334,7 +337,6 @@ def run_current_episode_lane(
         decision = "EPISODE_LANE_COMPLETED"
 
     episode_evidence = current_report.get("analyst_evidence") or {}
-    final_observed_snapshot = _surface_snapshot(active_match)
     return {
         "module_id": MODULE_ID,
         "status": status,
@@ -344,8 +346,7 @@ def run_current_episode_lane(
         "code_root_is_execution_root": product_root == selected_execution_root,
         "expected_surface_snapshot_id": expected_snapshot_id or None,
         "observed_surface_snapshot_id": final_observed_snapshot.get("snapshot_id"),
-        "surface_snapshot_bound": bool(expected_snapshot_id)
-        and final_observed_snapshot.get("snapshot_id") == expected_snapshot_id,
+        "surface_snapshot_bound": final_snapshot_bound,
         "current_episode_runner_status": current_report.get("status"),
         "temporal_episode_signature_status": temporal_report.get("status"),
         "episode_candidate_count": episode_evidence.get("episode_candidate_count"),
