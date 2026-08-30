@@ -34,6 +34,20 @@ def _packet():
     )
 
 
+def _episode_pass(_input_dir, _output_dir, _execution_root):
+    return {
+        "module_id": "active_match_episode_lane_adapter_v1",
+        "status": "SMOKE_PASS",
+        "episode_candidate_count": 2,
+        "episode_feature_vector_count": 2,
+        "temporal_episode_signature_status": "SMOKE_PASS",
+        "temporal_episode_signature_count": 2,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
 def test_full_spine_reuses_current_c4_chain_without_truth_promotion():
     chain = run_intelligence_chain(_packet())
     assert chain["fusion"]["packet_id"] == chain["packet"]["packet_id"]
@@ -86,10 +100,14 @@ def test_full_spine_uses_single_active_match_authority_and_flat_outputs(tmp_path
         out_dir=out_dir,
         execution_root=execution_root,
         bridge_runner=fake_bridge,
+        episode_runner=_episode_pass,
     )
 
     assert report["active_match_authority"] == str(active_match.resolve())
+    assert report["episode_candidate_count"] == 2
+    assert report["temporal_episode_signature_count"] == 2
     assert report["engineering_evidence"]["single_active_match_authority_validated"] is True
+    assert report["engineering_evidence"]["current_context_episode_feature_lane_reused"] is True
     assert report["engineering_evidence"]["parallel_reasoning_engine_created"] is False
     assert report["canonical_event_count"] == "UNKNOWN"
     assert report["true_action_count"] == "UNKNOWN"
@@ -118,22 +136,61 @@ def test_full_spine_fails_closed_when_bridge_fails(tmp_path):
         out_dir=tmp_path / "out",
         execution_root=execution_root,
         bridge_runner=failed_bridge,
+        episode_runner=_episode_pass,
     )
     assert report["status"] == "FAIL_CLOSED"
     assert "reconstruction_intelligence_bridge_fail_closed" in report["hard_block_hits"]
     assert report["intelligence_chain_count"] == 0
 
 
+def test_full_spine_preserves_first_episode_failure(tmp_path):
+    execution_root = tmp_path / "checkout"
+    active_match = execution_root / "runtime" / "active_single_match" / "current"
+    active_match.mkdir(parents=True)
+
+    def failed_episode(_input_dir, _output_dir, _execution_root):
+        return {
+            "module_id": "active_match_episode_lane_adapter_v1",
+            "status": "FAIL_CLOSED",
+            "hard_block_hits": ["episode_input_rejected"],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+
+    def failed_bridge(_input_dir, _output_dir):
+        return {
+            "status": "FAIL_CLOSED",
+            "hard_block_hits": ["later_bridge_failure"],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+
+    report = run_full_spine(
+        active_match_dir=active_match,
+        out_dir=tmp_path / "out",
+        execution_root=execution_root,
+        bridge_runner=failed_bridge,
+        episode_runner=failed_episode,
+    )
+    assert report["status"] == "FAIL_CLOSED"
+    assert report["first_failed_node"] == "episode_lane"
+    assert report["first_failed_reason_code"] == "episode_input_rejected"
+
+
 def test_no_sample_match_identity_leak():
-    source = (SRC / "full_spine_runner.py").read_text(encoding="utf-8")
-    for token in [
-        "Genclerbirligi",
-        "Fenerbahce",
-        "Sturm Graz",
-        "Heart of Midlothian",
-        "Turkey",
-        "Australia",
-        "15.08.2026",
-        "22.08.2026",
-    ]:
-        assert token not in source
+    files = [SRC / "full_spine_runner.py", SRC / "episode_lane_runner.py"]
+    for source_path in files:
+        source = source_path.read_text(encoding="utf-8")
+        for token in [
+            "Genclerbirligi",
+            "Fenerbahce",
+            "Sturm Graz",
+            "Heart of Midlothian",
+            "Turkey",
+            "Australia",
+            "15.08.2026",
+            "22.08.2026",
+        ]:
+            assert token not in source
