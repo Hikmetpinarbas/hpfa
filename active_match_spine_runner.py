@@ -18,23 +18,35 @@ from shared_surface_snapshot_contract import surface_snapshot_id
 from spine_runner import run_spine_check
 from user_output_bundle import snapshot_output_state, write_standard_user_outputs
 
+RICH_OWNED_OUTPUTS = {
+    "rich_multiformat_analysis_lattice_v1.json",
+    "rich_multiformat_analysis_lattice_v1.txt",
+    "xlsx_surface_audit_lite_v1.json",
+    "xlsx_surface_audit_lite_v1.txt",
+    "xlsx_surface_analyst_audit_lite_v1.txt",
+    "xlsx_entity_metric_row_projection_lite_v1.json",
+    "xlsx_entity_metric_row_projection_lite_v1.txt",
+}
+
 
 def _bind_shared_snapshot_contract() -> None:
-    # Reconstruction/Episode already use the canonical recursive path+size+SHA256
-    # contract. Bind the rich lane to that same contract so one ACTIVE_MATCH
-    # invocation cannot fail because two producers serialized the same files
-    # differently.
     rich_lane_module._snapshot = surface_snapshot_id
 
 
-def _apply_construct_admission_gate(report: dict) -> dict:
-    """Keep review-only constructs visible without promoting them into C4.
+def _clear_rich_owned_outputs(out_dir: str | Path) -> list[str]:
+    output = Path(out_dir).expanduser().resolve(strict=False)
+    cleared: list[str] = []
+    for name in sorted(RICH_OWNED_OUTPUTS):
+        path = output / name
+        if not path.is_file():
+            continue
+        path.unlink()
+        cleared.append(name)
+    return cleared
 
-    A construct candidate is analyst evidence before it is C4 evidence. It may
-    enter the existing C4 chain only after an explicit construct admission state
-    says it is admitted. Missing/REVIEW_REQUIRED admission therefore contracts
-    the claim surface; it must not invent a supporting signal just to satisfy C4.
-    """
+
+def _apply_construct_admission_gate(report: dict) -> dict:
+    """Keep review-only constructs visible without promoting them into C4."""
     if not isinstance(report, dict):
         return report
     constructs = report.get("constructs")
@@ -53,10 +65,7 @@ def _apply_construct_admission_gate(report: dict) -> dict:
     report["construct_c4_promotion_withheld_count"] = withheld
     report["construct_c4_promotion_state"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
     c01["c4_admission_status"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
-    c01["c4_admission_reason"] = (
-        c01.get("review_reason")
-        or "explicit_construct_admission_not_available"
-    )
+    c01["c4_admission_reason"] = c01.get("review_reason") or "explicit_construct_admission_not_available"
     c01["construct_truth"] = False
 
     outputs = report.get("outputs") or {}
@@ -71,10 +80,7 @@ def _apply_construct_admission_gate(report: dict) -> dict:
         text = lattice_txt.read_text(encoding="utf-8")
         marker = "C01_c4_admission_status=WITHHELD_PENDING_CONSTRUCT_ADMISSION"
         if marker not in text:
-            lattice_txt.write_text(
-                text.rstrip() + "\n" + marker + "\n",
-                encoding="utf-8",
-            )
+            lattice_txt.write_text(text.rstrip() + "\n" + marker + "\n", encoding="utf-8")
     return report
 
 
@@ -84,16 +90,55 @@ def _bind_construct_admission_gate() -> None:
     original = full_spine_module.run_rich_lane
 
     def gated_run_rich_lane(*args, **kwargs):
-        return _apply_construct_admission_gate(original(*args, **kwargs))
+        out_dir = kwargs.get("out_dir")
+        if out_dir is None and len(args) >= 2:
+            out_dir = args[1]
+        cleared = _clear_rich_owned_outputs(out_dir) if out_dir is not None else []
+        report = _apply_construct_admission_gate(original(*args, **kwargs))
+        report["cleared_stale_rich_owned_outputs"] = cleared
+        return report
 
     full_spine_module.run_rich_lane = gated_run_rich_lane
     full_spine_module._hpfa_construct_admission_gate_bound = True
 
 
+def _bind_metric_governance_construct_gate() -> None:
+    """A metric-governance FAIL_CLOSED may not be converted into C4 construct support."""
+    if getattr(full_spine_module, "_hpfa_metric_governance_gate_bound", False):
+        return
+    original_sidecars = full_spine_module.run_sidecars
+    original_packet_builder = full_spine_module.build_composite_packet
+    state = {"construct_blocked": False, "reason": None}
+
+    def gated_sidecars(*args, **kwargs):
+        report = original_sidecars(*args, **kwargs)
+        governance = report.get("metric_governance_bridge") if isinstance(report, dict) else None
+        governance = governance if isinstance(governance, dict) else {}
+        if str(governance.get("status") or "").upper() == "FAIL_CLOSED":
+            state["construct_blocked"] = True
+            reasons = governance.get("hard_block_hits") or []
+            state["reason"] = str(reasons[0]) if reasons else "metric_governance_fail_closed"
+            report["construct_path_blocked"] = True
+            report["construct_path_block_reason"] = state["reason"]
+        return report
+
+    def gated_packet_builder(candidate):
+        if state["construct_blocked"]:
+            return {
+                "status": "FAIL_CLOSED",
+                "hard_block_hits": [f"metric_governance_blocks_construct_promotion:{state['reason']}"],
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            }
+        return original_packet_builder(candidate)
+
+    full_spine_module.run_sidecars = gated_sidecars
+    full_spine_module.build_composite_packet = gated_packet_builder
+    full_spine_module._hpfa_metric_governance_gate_bound = True
+
+
 def _normalize_current_surface_evidence(result: dict) -> None:
-    # Preserve one explicit semantic for the user report: completed current
-    # Episode Feature production. Older full-spine records expose the same fact
-    # as `..._reused`; do not make the report hide a successfully completed lane.
     engineering = result.get("engineering_evidence")
     if not isinstance(engineering, dict):
         return
@@ -133,6 +178,7 @@ def main() -> int:
             parser.error("--composite-registry is not accepted with --full-spine")
         _bind_shared_snapshot_contract()
         _bind_construct_admission_gate()
+        _bind_metric_governance_construct_gate()
         before_state = snapshot_output_state(args.out_dir)
         result = full_spine_module.run_full_spine(
             active_match_dir=args.active_match_dir,
