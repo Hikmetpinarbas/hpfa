@@ -43,6 +43,37 @@ def _status(value: Any) -> str:
     return str(value or "UNKNOWN").strip().upper()
 
 
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def _collect_current_artifacts(*payloads: dict[str, Any], extra: list[str] | None = None) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for payload in payloads:
+        values = payload.get("current_invocation_artifacts")
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            text = str(value or "").strip()
+            if text and text not in seen:
+                seen.add(text)
+                result.append(text)
+    for value in extra or []:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            result.append(text)
+    return result
+
+
 def _stage_failure(stage: str, exc: Exception) -> dict[str, Any]:
     return {
         "module_id": f"full_spine_{stage}_failure_v1",
@@ -77,6 +108,11 @@ def _chain_has_review(chain: dict[str, dict[str, Any]]) -> bool:
         if any("REVIEW" in value or value == "WEAKENED" for value in values):
             return True
     return False
+
+
+def _chain_completed(chain: dict[str, dict[str, Any]]) -> bool:
+    required = ("fusion", "argument", "route", "graph", "safe_sentence", "report_block", "output_contract", "assembly")
+    return all(isinstance(chain.get(stage), dict) for stage in required) and not _chain_has_fail(chain)
 
 
 def run_intelligence_chain(packet: dict[str, Any], stage_overrides: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] | None = None) -> dict[str, dict[str, Any]]:
@@ -194,6 +230,7 @@ def run_full_spine(*, active_match_dir: str | Path, out_dir: str | Path, executi
 
     failed_chain_count = sum(_chain_has_fail(chain) for chain in chains)
     review_chain_count = sum(_chain_has_review(chain) for chain in chains)
+    completed_chain_count = sum(_chain_completed(chain) for chain in chains)
     chain_node, chain_reason = _first_failure(chains)
     if first_failed_node is None and chain_node is not None:
         first_failed_node, first_failed_reason_code = chain_node, chain_reason
@@ -201,7 +238,8 @@ def run_full_spine(*, active_match_dir: str | Path, out_dir: str | Path, executi
         hard_blocks.append("intelligence_chain_fail_closed")
     if review_chain_count:
         review_hits.append("intelligence_chain_review_required")
-    hard_blocks, review_hits = sorted(set(hard_blocks)), sorted(set(review_hits))
+    hard_blocks = _dedupe_preserve_order(hard_blocks)
+    review_hits = _dedupe_preserve_order(review_hits)
     if hard_blocks:
         status, decision = "FAIL_CLOSED", "BLOCK_FULL_SPINE"
     elif review_hits:
@@ -216,6 +254,12 @@ def run_full_spine(*, active_match_dir: str | Path, out_dir: str | Path, executi
     row_nucleus_recomputed = episode_report.get("row_nucleus_recomputed_by_episode_lane")
     temporal_lane_executed = episode_report.get("temporal_episode_signature_executed") is True
     c4_chain_executed = bool(chains)
+    c4_surface_current = bool(chains) and failed_chain_count == 0 and completed_chain_count == len(chains)
+    current_invocation_artifacts = _collect_current_artifacts(
+        bridge_report,
+        episode_report,
+        extra=[str(output_root / OUTPUT_JSON), str(output_root / OUTPUT_TXT)],
+    )
 
     report = {
         "module_id": MODULE_ID, "status": status, "module_status": status, "decision": decision,
@@ -227,9 +271,11 @@ def run_full_spine(*, active_match_dir: str | Path, out_dir: str | Path, executi
         "temporal_episode_signature_count": episode_report.get("temporal_episode_signature_count"),
         "reconstruction_intelligence_bridge_status": bridge_report.get("status"), "match_surface_binding_id": bridge_report.get("match_surface_binding_id"),
         "composite_packet_count": len(chains), "intelligence_chain_count": len(chains), "failed_intelligence_chain_count": failed_chain_count,
+        "completed_intelligence_chain_count": completed_chain_count,
         "review_required_intelligence_chain_count": review_chain_count, "first_failed_node": first_failed_node,
         "first_failed_reason_code": first_failed_reason_code, "hard_block_hits": hard_blocks, "review_hits": review_hits,
         "episode_lane": episode_report, "intelligence_chains": chains,
+        "current_invocation_artifacts": current_invocation_artifacts,
         "engineering_evidence": {
             "single_active_match_authority_validated": True, "reconstruction_bridge_executed": True,
             "episode_lane_executed": episode_lane_invoked, "shared_foundation_reused": shared_foundation_reused,
@@ -237,7 +283,9 @@ def run_full_spine(*, active_match_dir: str | Path, out_dir: str | Path, executi
             "current_context_episode_feature_lane_reused": feature_lane_completed,
             "current_context_episode_feature_lane_executed": feature_lane_executed,
             "current_temporal_episode_signature_reused": temporal_lane_executed,
-            "current_reconstruction_bridge_reused": True, "current_c4_producers_reused": c4_chain_executed,
+            "current_reconstruction_bridge_reused": True,
+            "current_c4_producers_executed": c4_chain_executed,
+            "current_c4_producers_reused": c4_surface_current,
             "c4_stage_exception_containment_enabled": True, "c4_sidecar_dependency_preserved": True,
             "parallel_reasoning_engine_created": False, "first_failure_disclosure_enabled": True,
             "duplicate_foundation_execution_currently_possible": False,
@@ -247,8 +295,8 @@ def run_full_spine(*, active_match_dir: str | Path, out_dir: str | Path, executi
             "episode_feature_vector_count": episode_report.get("episode_feature_vector_count"),
             "temporal_episode_signature_count": episode_report.get("temporal_episode_signature_count"),
             "packet_level_report_candidates_generated": len(chains),
-            "counterevidence_preserved_by_current_c4_chain": c4_chain_executed,
-            "absence_is_counterevidence": False, "safe_report_language_only": c4_chain_executed,
+            "counterevidence_preserved_by_current_c4_chain": c4_surface_current,
+            "absence_is_counterevidence": False, "safe_report_language_only": c4_surface_current,
         },
         "canonical_event_count": CANONICAL_EVENT_COUNT, "true_action_count": TRUE_ACTION_COUNT,
         "phase_truth": False, "possession_truth": False, "sequence_truth": False, "rhythm_truth": False,
@@ -260,7 +308,8 @@ def run_full_spine(*, active_match_dir: str | Path, out_dir: str | Path, executi
         f"episode_lane_status={episode_report.get('status')}", f"episode_candidate_count={episode_report.get('episode_candidate_count')}",
         f"episode_feature_vector_count={episode_report.get('episode_feature_vector_count')}",
         f"temporal_episode_signature_count={episode_report.get('temporal_episode_signature_count')}", f"bridge_status={bridge_report.get('status')}",
-        f"intelligence_chain_count={len(chains)}", f"first_failed_node={first_failed_node}", f"first_failed_reason_code={first_failed_reason_code}",
+        f"intelligence_chain_count={len(chains)}", f"completed_intelligence_chain_count={completed_chain_count}",
+        f"first_failed_node={first_failed_node}", f"first_failed_reason_code={first_failed_reason_code}",
         f"hard_block_hits={hard_blocks}", f"review_hits={review_hits}", f"shared_foundation_reused={str(shared_foundation_reused).lower()}",
         f"row_nucleus_recomputed_by_episode_lane={row_nucleus_recomputed}", "canonical_event_count=UNKNOWN", "true_action_count=UNKNOWN",
         "phase_truth=false", "possession_truth=false", "sequence_truth=false", "rhythm_truth=false", "tactical_truth=false", "production_release=false", "",
