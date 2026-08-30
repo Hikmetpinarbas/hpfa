@@ -1,0 +1,1422 @@
+from __future__ import annotations
+
+import argparse
+import ast
+import csv
+import hashlib
+import json
+import re
+import subprocess
+from pathlib import Path
+from typing import Any, Iterable
+
+MODULE_ID = "capability_closure_guard_lite_v1"
+CLAIM_SAFETY = "PRODUCT_CLOSURE_EVIDENCE_ONLY"
+CANONICAL_EVENT_COUNT = "UNKNOWN"
+TRUE_ACTION_COUNT = "UNKNOWN"
+PRODUCTION_RELEASE = False
+PHASE_TRUTH = False
+POSSESSION_TRUTH = False
+SEQUENCE_TRUTH = False
+TACTICAL_TRUTH = False
+
+DECISIONS = {
+    "ACTIVE_CONTRACT",
+    "ORPHAN_CONTRACT",
+    "UNBOUND_IMPLEMENTATION",
+    "TEST_ONLY_SURFACE",
+    "SUPERSEDED_CONTRACT",
+}
+
+GOVERNANCE_MATRIX = Path("docs/governance/runtime_pack_v1/module_governance_matrix.tsv")
+SOURCE_ROLE_REGISTRY = Path("docs/governance/runtime_pack_v1/source_role_registry.json")
+RELEASE_STATUS_NORMALIZER = Path("docs/governance/runtime_pack_v1/release_status_normalizer.json")
+CONTRACT_ROOT = Path("docs/contracts")
+MODULE_ROOT = Path("hpfa/modules")
+SPINE_RUNNER = Path("hpfa/modules/core/active_match_spine_runner/src/spine_runner.py")
+ROOT_SPINE_ENTRYPOINT = Path("active_match_spine_runner.py")
+
+IGNORED_PARTS = {
+    ".git",
+    "__pycache__",
+    "archive",
+    "archives",
+    "docs",
+    "documentation",
+    "donor",
+    "donors",
+    "examples",
+    "fixtures",
+    "reference",
+    "references",
+    "reference_only",
+}
+CONTRACT_SECTION_HEADINGS = {"product node", "reused producers"}
+PASS_STATUSES = {"PASS", "ACTIVE_MATCH_EVIDENCE_PASS"}
+MODULE_PATH_HELPERS = {"ensure_module_path", "_ensure_module_path"}
+LEXICAL_SCOPE_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+
+
+class ClosureGuardError(ValueError):
+    pass
+
+
+def normalize_capability_id(value: str) -> str:
+    text = str(value or "").strip().casefold()
+    text = re.sub(
+        r"^p\d+[a-z]*(?:-g\d+)?(?:\s+|\s*[:/\-—–]\s*)",
+        "",
+        text,
+        count=1,
+    )
+    text = re.sub(r"\bv(?:ersion)?\s*\d+\b", " ", text)
+    text = re.sub(r"[^a-z0-9]+", "_", text)
+    return re.sub(r"_+", "_", text).strip("_")
+
+
+def _read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def _json(path: Path) -> dict[str, Any]:
+    raw = json.loads(_read_text(path))
+    if not isinstance(raw, dict):
+        raise ClosureGuardError(f"json_object_required:{path.as_posix()}")
+    return raw
+
+
+def validate_governance_inputs(root: Path) -> dict[str, Any]:
+    matrix_path = root / GOVERNANCE_MATRIX
+    source_role_path = root / SOURCE_ROLE_REGISTRY
+    release_path = root / RELEASE_STATUS_NORMALIZER
+    for path in (matrix_path, source_role_path, release_path):
+        if not path.is_file():
+            raise ClosureGuardError(
+                f"required_governance_input_missing:{path.relative_to(root).as_posix()}"
+            )
+
+    source_roles = _json(source_role_path)
+    role_names = {
+        str(item.get("role") or "")
+        for item in source_roles.get("source_roles", [])
+        if isinstance(item, dict)
+    }
+    if "ACTIVE_MATCH_RUNTIME_AUTHORITY" not in role_names or "GITHUB_PRODUCT_REPO" not in role_names:
+        raise ClosureGuardError("source_role_registry_required_roles_missing")
+
+    release = _json(release_path)
+    statuses = {
+        str(item.get("status") or "")
+        for item in release.get("statuses", [])
+        if isinstance(item, dict)
+    }
+    required_statuses = {
+        "SMOKE_PASS",
+        "ACTIVE_MATCH_EVIDENCE_PASS",
+        "PRODUCTION_RELEASE",
+        "RELEASE_CANDIDATE_NOT_PRODUCTION_BOUND",
+    }
+    if not required_statuses.issubset(statuses):
+        raise ClosureGuardError("release_status_normalizer_required_statuses_missing")
+
+    return {
+        "module_governance_matrix": GOVERNANCE_MATRIX.as_posix(),
+        "source_role_registry": SOURCE_ROLE_REGISTRY.as_posix(),
+        "release_status_normalizer": RELEASE_STATUS_NORMALIZER.as_posix(),
+        "matrix_is_discovery_seed_only": True,
+    }
+
+
+def load_governance_seed(root: Path) -> dict[str, dict[str, Any]]:
+    rows: dict[str, dict[str, Any]] = {}
+    with (root / GOVERNANCE_MATRIX).open(encoding="utf-8", newline="") as handle:
+        for row in csv.DictReader(handle, delimiter="\t"):
+            raw_id = str(row.get("module_id") or "").strip()
+            if not raw_id:
+                continue
+            cid = normalize_capability_id(raw_id)
+            rows[cid] = {
+                "display_name": raw_id,
+                "current_status_hint": str(row.get("current_status") or "").strip(),
+                "runtime_dependency_hint": str(row.get("runtime_dependency") or "").strip(),
+                "release_evidence_required_hint": str(
+                    row.get("release_evidence_required") or ""
+                ).strip(),
+            }
+    return rows
+
+
+def _contract_direct_id(path: Path) -> str:
+    stem = re.sub(r"_v\d+$", "", path.stem, flags=re.IGNORECASE)
+    return normalize_capability_id(stem)
+
+
+def _is_markdown_fence_declaration(line: str) -> bool:
+    return bool(re.fullmatch(r"(?:`{3,}|~{3,})[A-Za-z0-9_+.-]*", line.strip()))
+
+
+def _explicit_contract_section_tokens(text: str) -> set[str]:
+    tokens: set[str] = set()
+    active = False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            heading = line[3:].strip().casefold()
+            active = heading in CONTRACT_SECTION_HEADINGS
+            continue
+        if not active:
+            continue
+        raw = line.strip()
+        if not raw or raw.startswith("#") or _is_markdown_fence_declaration(raw):
+            continue
+        stripped = raw.strip("`").strip()
+        candidate = normalize_capability_id(stripped.split("/")[-1])
+        if candidate:
+            tokens.add(candidate)
+    return tokens
+
+
+def discover_contracts(
+    root: Path,
+    known_capabilities: set[str],
+) -> dict[str, list[str]]:
+    result: dict[str, list[str]] = {}
+    contract_root = root / CONTRACT_ROOT
+    if not contract_root.is_dir():
+        return result
+    for path in sorted(contract_root.glob("*.md")):
+        relative = path.relative_to(root).as_posix()
+        text = _read_text(path)
+        direct = _contract_direct_id(path)
+        has_product_node = bool(re.search(r"(?mi)^##\s+Product Node\s*$", text))
+        if direct in known_capabilities or has_product_node:
+            result.setdefault(direct, []).append(relative)
+        for token in _explicit_contract_section_tokens(text):
+            if token in known_capabilities or has_product_node:
+                result.setdefault(token, []).append(relative)
+    return {key: sorted(set(value)) for key, value in sorted(result.items())}
+
+
+def discover_implementations(root: Path) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    module_root = root / MODULE_ROOT
+    if not module_root.is_dir():
+        return result
+    for module_dir in sorted(path for path in module_root.glob("*/*") if path.is_dir()):
+        src = module_dir / "src"
+        if not src.is_dir():
+            continue
+        py_files = sorted(path for path in src.rglob("*.py") if path.is_file())
+        if not py_files:
+            continue
+        cid = normalize_capability_id(module_dir.name)
+        hashes: dict[str, list[str]] = {}
+        leaves: set[str] = set()
+        for path in py_files:
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            hashes.setdefault(digest, []).append(path.relative_to(root).as_posix())
+            if path.stem != "__init__":
+                leaves.add(path.stem)
+        result[cid] = {
+            "module_dir": module_dir.relative_to(root).as_posix(),
+            "implementation_paths": [
+                sorted(paths)[0]
+                for _, paths in sorted(hashes.items(), key=lambda item: item[0])
+            ],
+            "reflection_groups": [
+                sorted(paths) for paths in hashes.values() if len(paths) > 1
+            ],
+            "import_leaves": sorted(leaves),
+        }
+    return result
+
+
+def _iter_python_files(root: Path) -> Iterable[Path]:
+    for path in root.rglob("*.py"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(root)
+        lowered = {part.casefold() for part in relative.parts}
+        if lowered & IGNORED_PARTS:
+            continue
+        yield path
+
+
+def _is_test_path(relative: Path) -> bool:
+    return (
+        "tests" in {part.casefold() for part in relative.parts}
+        or relative.name.startswith("test_")
+    )
+
+
+def _import_references(text: str) -> set[tuple[str, str, str]]:
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return set()
+    references: set[tuple[str, str, str]] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                qualified = alias.name
+                leaf = qualified.split(".")[-1]
+                if leaf:
+                    references.add(("module", qualified, leaf))
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            module_leaf = module.split(".")[-1] if module else ""
+            if module_leaf:
+                references.add(("module", module, module_leaf))
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                leaf = alias.name.split(".")[-1]
+                if leaf:
+                    references.add(("from_name", module, leaf))
+    return references
+
+
+def _imported_leaves(text: str) -> set[str]:
+    return {leaf for _kind, _qualified, leaf in _import_references(text)}
+
+
+def _imports_leaf(text: str, leaves: Iterable[str]) -> bool:
+    return bool(_imported_leaves(text) & set(leaves))
+
+
+def _safe_resolve(path: Path) -> Path | None:
+    try:
+        return path.expanduser().resolve()
+    except (OSError, RuntimeError):
+        return None
+
+
+def _is_exact_trusted_root(path: Path | None, trusted_root: Path) -> bool:
+    resolved = _safe_resolve(path) if path is not None else None
+    root_resolved = _safe_resolve(trusted_root)
+    return resolved is not None and root_resolved is not None and resolved == root_resolved
+
+
+def _static_path_value(
+    node: ast.AST,
+    trusted_root: Path,
+    source_path: Path | None,
+    known_paths: dict[str, Path],
+    helper_paths: dict[str, Path],
+) -> Path | None:
+    if isinstance(node, ast.Name):
+        if node.id == "__file__" and source_path is not None:
+            return source_path
+        return known_paths.get(node.id)
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        value = Path(node.value)
+        return value if value.is_absolute() else None
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id == "Path" and len(node.args) == 1:
+            return _static_path_value(
+                node.args[0], trusted_root, source_path, known_paths, helper_paths
+            )
+        if node.func.id in helper_paths and not node.args and not node.keywords:
+            return helper_paths[node.func.id]
+        if node.func.id == "validate_runtime_surface" and len(node.args) >= 2:
+            declared_root = _static_path_value(
+                node.args[0], trusted_root, source_path, known_paths, helper_paths
+            )
+            if not _is_exact_trusted_root(declared_root, trusted_root):
+                return None
+            candidate = _static_path_value(
+                node.args[1], trusted_root, source_path, known_paths, helper_paths
+            )
+            resolved = _safe_resolve(candidate) if candidate is not None else None
+            root_resolved = _safe_resolve(trusted_root)
+            if resolved is None or root_resolved is None:
+                return None
+            try:
+                resolved.relative_to(root_resolved)
+            except ValueError:
+                return None
+            return resolved
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "resolve"
+        and not node.args
+    ):
+        candidate = _static_path_value(
+            node.func.value, trusted_root, source_path, known_paths, helper_paths
+        )
+        return _safe_resolve(candidate) if candidate is not None else None
+    if isinstance(node, ast.Attribute) and node.attr == "parent":
+        candidate = _static_path_value(
+            node.value, trusted_root, source_path, known_paths, helper_paths
+        )
+        return candidate.parent if candidate is not None else None
+    if (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Attribute)
+        and node.value.attr == "parents"
+        and isinstance(node.slice, ast.Constant)
+        and isinstance(node.slice.value, int)
+    ):
+        candidate = _static_path_value(
+            node.value.value, trusted_root, source_path, known_paths, helper_paths
+        )
+        if candidate is None or node.slice.value < 0:
+            return None
+        try:
+            return candidate.parents[node.slice.value]
+        except IndexError:
+            return None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        left = _static_path_value(
+            node.left, trusted_root, source_path, known_paths, helper_paths
+        )
+        if left is None:
+            return None
+        if isinstance(node.right, ast.Constant) and isinstance(node.right.value, str):
+            return left / node.right.value
+        return None
+    if isinstance(node, ast.IfExp):
+        body = _static_path_value(
+            node.body, trusted_root, source_path, known_paths, helper_paths
+        )
+        other = _static_path_value(
+            node.orelse, trusted_root, source_path, known_paths, helper_paths
+        )
+        body_resolved = _safe_resolve(body) if body is not None else None
+        other_resolved = _safe_resolve(other) if other is not None else None
+        if body_resolved is not None and body_resolved == other_resolved:
+            return body_resolved
+        return None
+    return None
+
+
+def _assignment_target_value(node: ast.AST) -> tuple[str | None, ast.AST | None]:
+    if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+        return node.targets[0].id, node.value
+    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+        return node.target.id, node.value
+    return None, None
+
+
+def _update_path_binding(
+    node: ast.AST,
+    trusted_root: Path,
+    source_path: Path | None,
+    helper_paths: dict[str, Path],
+    known: dict[str, Path],
+) -> None:
+    target_name, value = _assignment_target_value(node)
+    if target_name is None or value is None:
+        return
+    candidate = _static_path_value(
+        value, trusted_root, source_path, known, helper_paths
+    )
+    if candidate is None:
+        known.pop(target_name, None)
+    else:
+        known[target_name] = candidate
+
+
+def _compound_statement_bodies(statement: ast.stmt) -> list[list[ast.stmt]]:
+    if isinstance(statement, (ast.If, ast.For, ast.AsyncFor, ast.While)):
+        return [statement.body, statement.orelse]
+    if isinstance(statement, (ast.With, ast.AsyncWith)):
+        return [statement.body]
+    if isinstance(statement, ast.Try):
+        return [
+            statement.body,
+            *(handler.body for handler in statement.handlers),
+            statement.orelse,
+            statement.finalbody,
+        ]
+    try_star = getattr(ast, "TryStar", None)
+    if try_star is not None and isinstance(statement, try_star):
+        return [
+            statement.body,
+            *(handler.body for handler in statement.handlers),
+            statement.orelse,
+            statement.finalbody,
+        ]
+    if isinstance(statement, ast.Match):
+        return [case.body for case in statement.cases]
+    return []
+
+
+def _compound_assigned_names(statement: ast.stmt) -> set[str]:
+    names: set[str] = set()
+
+    def visit(node: ast.AST) -> None:
+        if isinstance(node, LEXICAL_SCOPE_NODES):
+            return
+        target_name, _value = _assignment_target_value(node)
+        if target_name:
+            names.add(target_name)
+        for child in ast.iter_child_nodes(node):
+            visit(child)
+
+    for body in _compound_statement_bodies(statement):
+        for child in body:
+            visit(child)
+    return names
+
+
+def _scope_path_bindings(
+    statements: list[ast.stmt],
+    trusted_root: Path,
+    source_path: Path | None,
+    helper_paths: dict[str, Path],
+    initial_paths: dict[str, Path] | None = None,
+) -> dict[str, Path]:
+    known = dict(initial_paths or {})
+    for node in statements:
+        if _compound_statement_bodies(node):
+            for name in _compound_assigned_names(node):
+                known.pop(name, None)
+            continue
+        _update_path_binding(node, trusted_root, source_path, helper_paths, known)
+    return known
+
+
+def _local_path_helpers(
+    tree: ast.Module,
+    trusted_root: Path,
+    source_path: Path | None,
+) -> dict[str, Path]:
+    helpers: dict[str, Path] = {}
+    changed = True
+    while changed:
+        changed = False
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.args.args or node.args.posonlyargs or node.args.kwonlyargs:
+                continue
+            returns = [stmt for stmt in node.body if isinstance(stmt, ast.Return)]
+            if len(returns) != 1 or returns[0].value is None:
+                continue
+            candidate = _static_path_value(
+                returns[0].value,
+                trusted_root,
+                source_path,
+                {},
+                helpers,
+            )
+            if candidate is not None and helpers.get(node.name) != candidate:
+                helpers[node.name] = candidate
+                changed = True
+    return helpers
+
+
+def _function_parameter_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+    return [arg.arg for arg in (*node.args.posonlyargs, *node.args.args)]
+
+
+def _all_callable_parameter_names(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) -> set[str]:
+    names = {
+        arg.arg
+        for arg in (*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs)
+    }
+    if node.args.vararg is not None:
+        names.add(node.args.vararg.arg)
+    if node.args.kwarg is not None:
+        names.add(node.args.kwarg.arg)
+    return names
+
+
+def _walk_current_lexical_scope(node: ast.AST) -> Iterable[ast.AST]:
+    stack = [node]
+    first = True
+    while stack:
+        current = stack.pop()
+        is_root = first
+        first = False
+        yield current
+        if isinstance(current, LEXICAL_SCOPE_NODES):
+            if not is_root or isinstance(node, LEXICAL_SCOPE_NODES):
+                continue
+        children = list(ast.iter_child_nodes(current))
+        stack.extend(reversed(children))
+
+
+def _direct_nested_lexical_scopes(statement: ast.AST) -> list[ast.AST]:
+    if isinstance(statement, LEXICAL_SCOPE_NODES):
+        return [statement]
+    found: list[ast.AST] = []
+    stack = list(ast.iter_child_nodes(statement))
+    while stack:
+        current = stack.pop()
+        if isinstance(current, LEXICAL_SCOPE_NODES):
+            found.append(current)
+            continue
+        stack.extend(ast.iter_child_nodes(current))
+    return found
+
+
+def _exact_root_call_arguments(
+    call: ast.Call,
+    parameter_names: list[str],
+    trusted_root: Path,
+    source_path: Path | None,
+    known_paths: dict[str, Path],
+    helper_paths: dict[str, Path],
+) -> set[str]:
+    proven: set[str] = set()
+    for index, arg in enumerate(call.args):
+        if index >= len(parameter_names):
+            break
+        candidate = _static_path_value(
+            arg, trusted_root, source_path, known_paths, helper_paths
+        )
+        if _is_exact_trusted_root(candidate, trusted_root):
+            proven.add(parameter_names[index])
+    for keyword in call.keywords:
+        if keyword.arg is None or keyword.arg not in parameter_names:
+            continue
+        candidate = _static_path_value(
+            keyword.value, trusted_root, source_path, known_paths, helper_paths
+        )
+        if _is_exact_trusted_root(candidate, trusted_root):
+            proven.add(keyword.arg)
+    return proven
+
+
+def _propagate_trusted_function_roots(
+    tree: ast.Module,
+    trusted_root: Path,
+    source_path: Path | None,
+    seed_params: dict[str, set[str]] | None = None,
+) -> tuple[dict[str, set[str]], dict[str, Path]]:
+    helper_paths = _local_path_helpers(tree, trusted_root, source_path)
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    trusted = {name: set(values) for name, values in (seed_params or {}).items()}
+    module_paths = _scope_path_bindings(
+        tree.body, trusted_root, source_path, helper_paths
+    )
+    changed = True
+    while changed:
+        changed = False
+        for function_name, function in functions.items():
+            initial = dict(module_paths)
+            for parameter in trusted.get(function_name, set()):
+                initial[parameter] = trusted_root
+            known = dict(initial)
+            for statement in function.body:
+                for call in [
+                    item
+                    for item in _walk_current_lexical_scope(statement)
+                    if isinstance(item, ast.Call)
+                ]:
+                    if not isinstance(call.func, ast.Name) or call.func.id not in functions:
+                        continue
+                    callee = functions[call.func.id]
+                    proven = _exact_root_call_arguments(
+                        call,
+                        _function_parameter_names(callee),
+                        trusted_root,
+                        source_path,
+                        known,
+                        helper_paths,
+                    )
+                    before = len(trusted.get(callee.name, set()))
+                    if proven:
+                        trusted.setdefault(callee.name, set()).update(proven)
+                    if len(trusted.get(callee.name, set())) != before:
+                        changed = True
+                _update_path_binding(
+                    statement, trusted_root, source_path, helper_paths, known
+                )
+    return trusted, helper_paths
+
+
+def _call_uses_name(call: ast.Call, names: set[str]) -> bool:
+    return any(
+        isinstance(child, ast.Name) and child.id in names
+        for arg in call.args
+        for child in ast.walk(arg)
+    )
+
+
+def _is_module_path_binding_call(call: ast.Call) -> bool:
+    if isinstance(call.func, ast.Name) and call.func.id in MODULE_PATH_HELPERS:
+        return True
+    if not isinstance(call.func, ast.Attribute) or call.func.attr not in {"insert", "append"}:
+        return False
+    owner = call.func.value
+    return (
+        isinstance(owner, ast.Attribute)
+        and owner.attr == "path"
+        and isinstance(owner.value, ast.Name)
+        and owner.value.id == "sys"
+    )
+
+
+def _expression_has_exact_src_binding(
+    expression: ast.AST,
+    expected: Path,
+    trusted_root: Path,
+    source_path: Path | None,
+    helper_paths: dict[str, Path],
+    known: dict[str, Path],
+) -> bool:
+    bound_names = {
+        name
+        for name, candidate in known.items()
+        if _safe_resolve(candidate) == expected
+    }
+    for node in _walk_current_lexical_scope(expression):
+        if not isinstance(node, ast.Call) or not _is_module_path_binding_call(node):
+            continue
+        if _call_uses_name(node, bound_names):
+            return True
+        for arg in node.args:
+            candidate = _static_path_value(
+                arg,
+                trusted_root,
+                source_path,
+                known,
+                helper_paths,
+            )
+            if _safe_resolve(candidate) == expected if candidate is not None else False:
+                return True
+    return False
+
+
+def _scope_has_exact_src_binding(
+    statements: list[ast.stmt],
+    expected: Path,
+    trusted_root: Path,
+    source_path: Path | None,
+    helper_paths: dict[str, Path],
+    initial_paths: dict[str, Path] | None = None,
+    trusted_function_params: dict[str, set[str]] | None = None,
+) -> bool:
+    known = dict(initial_paths or {})
+    trusted_function_params = trusted_function_params or {}
+    for statement in statements:
+        compound_bodies = _compound_statement_bodies(statement)
+        if compound_bodies:
+            for body in compound_bodies:
+                if _scope_has_exact_src_binding(
+                    body,
+                    expected,
+                    trusted_root,
+                    source_path,
+                    helper_paths,
+                    dict(known),
+                    trusted_function_params,
+                ):
+                    return True
+            for name in _compound_assigned_names(statement):
+                known.pop(name, None)
+            continue
+
+        bound_names = {
+            name
+            for name, candidate in known.items()
+            if _safe_resolve(candidate) == expected
+        }
+        for node in _walk_current_lexical_scope(statement):
+            if isinstance(node, LEXICAL_SCOPE_NODES) and node is not statement:
+                continue
+            if not isinstance(node, ast.Call) or not _is_module_path_binding_call(node):
+                continue
+            if _call_uses_name(node, bound_names):
+                return True
+            for arg in node.args:
+                candidate = _static_path_value(
+                    arg,
+                    trusted_root,
+                    source_path,
+                    known,
+                    helper_paths,
+                )
+                if _safe_resolve(candidate) == expected if candidate is not None else False:
+                    return True
+
+        for nested in _direct_nested_lexical_scopes(statement):
+            nested_initial = dict(known)
+            if isinstance(nested, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                for parameter in _all_callable_parameter_names(nested):
+                    nested_initial.pop(parameter, None)
+            if isinstance(nested, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for parameter in trusted_function_params.get(nested.name, set()):
+                    nested_initial[parameter] = trusted_root
+                if _scope_has_exact_src_binding(
+                    nested.body,
+                    expected,
+                    trusted_root,
+                    source_path,
+                    helper_paths,
+                    nested_initial,
+                    trusted_function_params,
+                ):
+                    return True
+            elif isinstance(nested, ast.ClassDef):
+                if _scope_has_exact_src_binding(
+                    nested.body,
+                    expected,
+                    trusted_root,
+                    source_path,
+                    helper_paths,
+                    nested_initial,
+                    trusted_function_params,
+                ):
+                    return True
+            elif isinstance(nested, ast.Lambda):
+                if _expression_has_exact_src_binding(
+                    nested.body,
+                    expected,
+                    trusted_root,
+                    source_path,
+                    helper_paths,
+                    nested_initial,
+                ):
+                    return True
+
+        _update_path_binding(
+            statement, trusted_root, source_path, helper_paths, known
+        )
+    return False
+
+
+def _has_explicit_product_src_binding(
+    text: str,
+    module_dir: Path,
+    root: Path,
+    source_path: Path | None = None,
+    trusted_function_params: dict[str, set[str]] | None = None,
+) -> bool:
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return False
+    trusted_root = root.expanduser().resolve()
+    expected = (trusted_root / module_dir / "src").resolve()
+    try:
+        expected.relative_to(trusted_root)
+    except ValueError:
+        return False
+    if source_path is not None:
+        resolved_source = _safe_resolve(source_path)
+        if resolved_source is None:
+            return False
+        try:
+            resolved_source.relative_to(trusted_root)
+        except ValueError:
+            return False
+    trusted_params, helper_paths = _propagate_trusted_function_roots(
+        tree,
+        trusted_root,
+        source_path,
+        trusted_function_params,
+    )
+    module_paths = _scope_path_bindings(
+        tree.body, trusted_root, source_path, helper_paths
+    )
+    if _scope_has_exact_src_binding(
+        tree.body,
+        expected,
+        trusted_root,
+        source_path,
+        helper_paths,
+        trusted_function_params=trusted_params,
+    ):
+        return True
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        initial = dict(module_paths)
+        for parameter in _all_callable_parameter_names(node):
+            initial.pop(parameter, None)
+        for parameter in trusted_params.get(node.name, set()):
+            initial[parameter] = trusted_root
+        if _scope_has_exact_src_binding(
+            node.body,
+            expected,
+            trusted_root,
+            source_path,
+            helper_paths,
+            initial,
+            trusted_params,
+        ):
+            return True
+    return False
+
+
+def _trusted_entrypoint_root_seeds(
+    root: Path,
+    implementations: dict[str, dict[str, Any]],
+) -> dict[Path, dict[str, set[str]]]:
+    trusted_root = root.expanduser().resolve()
+    seeds: dict[Path, dict[str, set[str]]] = {}
+    leaf_candidates: dict[str, list[tuple[str, Path]]] = {}
+    for cid, info in implementations.items():
+        module_dir = Path(str(info["module_dir"]))
+        for leaf in info.get("import_leaves") or []:
+            implementation_file = trusted_root / module_dir / "src" / f"{leaf}.py"
+            if implementation_file.is_file():
+                leaf_candidates.setdefault(str(leaf), []).append((cid, implementation_file))
+
+    for wrapper in sorted(path for path in trusted_root.glob("*.py") if path.is_file()):
+        text = _read_text(wrapper)
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        helper_paths = _local_path_helpers(tree, trusted_root, wrapper)
+        imported_functions: dict[str, tuple[str, str]] = {}
+        for node in tree.body:
+            if not isinstance(node, ast.ImportFrom) or not node.module:
+                continue
+            qualified_module = node.module
+            module_leaf = qualified_module.split(".")[-1]
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                imported_functions[alias.asname or alias.name] = (
+                    qualified_module,
+                    module_leaf,
+                )
+
+        def inspect_scope(statements: list[ast.stmt], initial: dict[str, Path]) -> None:
+            known = dict(initial)
+            for statement in statements:
+                for call in [
+                    item
+                    for item in _walk_current_lexical_scope(statement)
+                    if isinstance(item, ast.Call)
+                ]:
+                    if not isinstance(call.func, ast.Name) or call.func.id not in imported_functions:
+                        continue
+                    root_keywords = [kw for kw in call.keywords if kw.arg == "root"]
+                    if len(root_keywords) != 1:
+                        continue
+                    candidate = _static_path_value(
+                        root_keywords[0].value,
+                        trusted_root,
+                        wrapper,
+                        known,
+                        helper_paths,
+                    )
+                    if not _is_exact_trusted_root(candidate, trusted_root):
+                        continue
+                    qualified_module, module_leaf = imported_functions[call.func.id]
+                    for cid, implementation_file in leaf_candidates.get(module_leaf, []):
+                        module_dir = Path(str(implementations[cid]["module_dir"]))
+                        expected_qualified = (
+                            f"{str(module_dir).replace('/', '.')}.src.{module_leaf}"
+                        )
+                        explicit_current_binding = _has_explicit_product_src_binding(
+                            text,
+                            module_dir,
+                            trusted_root,
+                            source_path=wrapper,
+                        )
+                        qualified_current_import = qualified_module == expected_qualified
+                        proven_bare_current_import = (
+                            qualified_module == module_leaf and explicit_current_binding
+                        )
+                        if not (qualified_current_import or proven_bare_current_import):
+                            continue
+                        seeds.setdefault(implementation_file.resolve(), {}).setdefault(
+                            call.func.id, set()
+                        ).add("root")
+                _update_path_binding(
+                    statement, trusted_root, wrapper, helper_paths, known
+                )
+
+        inspect_scope(tree.body, {})
+        module_paths = _scope_path_bindings(
+            tree.body, trusted_root, wrapper, helper_paths
+        )
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            initial = dict(module_paths)
+            for parameter in _all_callable_parameter_names(node):
+                initial.pop(parameter, None)
+            inspect_scope(node.body, initial)
+    return seeds
+
+
+def discover_consumers_and_tests(
+    root: Path,
+    implementations: dict[str, dict[str, Any]],
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    consumers: dict[str, list[str]] = {cid: [] for cid in implementations}
+    tests: dict[str, list[str]] = {cid: [] for cid in implementations}
+    leaf_to_capabilities: dict[str, set[str]] = {}
+    module_dirs = {
+        cid: Path(str(info["module_dir"]))
+        for cid, info in implementations.items()
+    }
+    package_prefixes = {
+        cid: str(info["module_dir"]).replace("/", ".")
+        for cid, info in implementations.items()
+    }
+    for cid, info in implementations.items():
+        for leaf in info.get("import_leaves") or []:
+            leaf_to_capabilities.setdefault(str(leaf), set()).add(cid)
+
+    trusted_entrypoint_seeds = _trusted_entrypoint_root_seeds(root, implementations)
+    for path in _iter_python_files(root):
+        relative = path.relative_to(root)
+        text = _read_text(path)
+        references = _import_references(text)
+        matched: set[str] = set()
+        explicit_binding_cache: dict[str, bool] = {}
+        source_seed = trusted_entrypoint_seeds.get(path.resolve(), {})
+        for kind, qualified, leaf in references:
+            candidates = leaf_to_capabilities.get(leaf, set())
+            if not candidates:
+                continue
+            for cid in candidates:
+                prefix = package_prefixes[cid]
+                if qualified == prefix or qualified.startswith(f"{prefix}."):
+                    matched.add(cid)
+                    continue
+                if kind == "module" and qualified == leaf:
+                    if cid not in explicit_binding_cache:
+                        explicit_binding_cache[cid] = _has_explicit_product_src_binding(
+                            text,
+                            module_dirs[cid],
+                            root,
+                            source_path=path,
+                            trusted_function_params=source_seed,
+                        )
+                    if explicit_binding_cache[cid]:
+                        matched.add(cid)
+
+        if _is_test_path(relative):
+            for cid, module_dir in module_dirs.items():
+                if module_dir in relative.parents:
+                    matched.add(cid)
+            for cid in matched:
+                tests[cid].append(relative.as_posix())
+            continue
+
+        for cid in matched:
+            if module_dirs[cid] not in relative.parents:
+                consumers[cid].append(relative.as_posix())
+
+    return (
+        {key: sorted(set(value)) for key, value in consumers.items()},
+        {key: sorted(set(value)) for key, value in tests.items()},
+    )
+
+
+def _path_literals_from_assignments(text: str, names: set[str]) -> set[str]:
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return set()
+    found: set[str] = set()
+    for node in tree.body:
+        target_name: str | None = None
+        value: ast.AST | None = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            target_name = node.targets[0].id
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            target_name = node.target.id
+            value = node.value
+        if target_name not in names or value is None:
+            continue
+        for child in ast.walk(value):
+            if (
+                isinstance(child, ast.Call)
+                and isinstance(child.func, ast.Name)
+                and child.func.id == "Path"
+                and child.args
+                and isinstance(child.args[0], ast.Constant)
+                and isinstance(child.args[0].value, str)
+            ):
+                found.add(child.args[0].value)
+    return found
+
+
+def discover_runtime_bindings(
+    root: Path,
+    implementations: dict[str, dict[str, Any]],
+) -> dict[str, list[str]]:
+    bindings: dict[str, list[str]] = {cid: [] for cid in implementations}
+    spine_path = root / SPINE_RUNNER
+    spine_text = _read_text(spine_path) if spine_path.is_file() else ""
+    allowed = _path_literals_from_assignments(
+        spine_text,
+        {"ROLE_RESOLVER_DEPENDENCY_SURFACES", "ALLOWED_RUNTIME_SURFACES"},
+    )
+    for cid, info in implementations.items():
+        module_dir = str(info.get("module_dir") or "")
+        if module_dir in allowed:
+            bindings[cid].append(
+                f"{SPINE_RUNNER.as_posix()}:ALLOWED_RUNTIME_SURFACES"
+            )
+
+    spine_id = "active_match_spine_runner"
+    root_entry = root / ROOT_SPINE_ENTRYPOINT
+    if spine_id in implementations and root_entry.is_file():
+        text = _read_text(root_entry)
+        if _imports_leaf(text, {"spine_runner"}) and "run_spine_check" in text:
+            bindings[spine_id].append(
+                f"{ROOT_SPINE_ENTRYPOINT.as_posix()}:run_spine_check"
+            )
+    return {key: sorted(set(value)) for key, value in bindings.items()}
+
+
+def current_product_tree_sha(root: Path) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD^{tree}"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ClosureGuardError("current_product_tree_sha_unavailable") from exc
+    value = completed.stdout.strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", value):
+        raise ClosureGuardError("current_product_tree_sha_invalid")
+    return value
+
+
+def _derive_spine_capabilities(artifact: dict[str, Any]) -> dict[str, bool]:
+    if (
+        artifact.get("status") != "PASS"
+        or artifact.get("active_match_authority_validated") is not True
+    ):
+        return {}
+    result = {"active_match_spine_runner": True}
+    policy = artifact.get("runtime_surface_policy") or {}
+    executed = set(policy.get("executed_runtime_surfaces") or [])
+    resolver_path = "hpfa/modules/core/content_source_role_resolver_lite"
+    manifest_path = "hpfa/modules/core/canonical_ingest_surface_manifest"
+    role = artifact.get("source_role_resolution") or {}
+    manifest = artifact.get("surface_manifest") or {}
+    if resolver_path in executed and role.get("status") == "PASS":
+        result["content_source_role_resolver_lite"] = True
+    if manifest_path in executed and manifest.get("status") == "PASS":
+        result["canonical_ingest_surface_manifest"] = True
+    return result
+
+
+def load_active_match_evidence(
+    evidence_path: Path | None,
+    current_tree_sha: str,
+) -> tuple[dict[str, bool], dict[str, Any]]:
+    if evidence_path is None:
+        return {}, {
+            "status": "NOT_SUPPLIED",
+            "path": None,
+            "current_product_tree_sha": current_tree_sha,
+        }
+    evidence = _json(evidence_path)
+    if evidence.get("evidence_kind") != "ACTIVE_MATCH_RUNTIME_EVIDENCE":
+        raise ClosureGuardError("active_match_evidence_kind_invalid")
+    if evidence.get("input_authority") != "ACTIVE_MATCH_RUNTIME_AUTHORITY":
+        raise ClosureGuardError("active_match_evidence_authority_invalid")
+    if str(evidence.get("product_tree_sha") or "") != current_tree_sha:
+        raise ClosureGuardError("active_match_evidence_product_tree_mismatch")
+    if evidence.get("canonical_event_count") != "UNKNOWN":
+        raise ClosureGuardError("active_match_evidence_canonical_event_count_promoted")
+    if evidence.get("true_action_count") != "UNKNOWN":
+        raise ClosureGuardError("active_match_evidence_true_action_count_promoted")
+    if evidence.get("production_release") is not False:
+        raise ClosureGuardError("active_match_evidence_production_release_promoted")
+    for field in ("phase_truth", "possession_truth", "sequence_truth", "tactical_truth"):
+        if evidence.get(field) not in (None, False):
+            raise ClosureGuardError(f"active_match_evidence_{field}_promoted")
+
+    admitted: dict[str, bool] = {}
+    explicit = evidence.get("capabilities")
+    if isinstance(explicit, dict):
+        for raw_id, record in sorted(explicit.items()):
+            if not isinstance(record, dict):
+                continue
+            cid = normalize_capability_id(str(raw_id))
+            admitted[cid] = bool(
+                record.get("executed") is True
+                and record.get("runtime_binding_validated") is True
+                and str(record.get("status") or "").upper() in PASS_STATUSES
+            )
+
+    spine_artifact = evidence.get("active_match_spine_check")
+    if isinstance(spine_artifact, dict):
+        admitted.update(_derive_spine_capabilities(spine_artifact))
+
+    return admitted, {
+        "status": "ADMITTED",
+        "path": evidence_path.as_posix(),
+        "product_tree_sha": current_tree_sha,
+    }
+
+
+def _successor_from_hint(status_hint: str) -> str | None:
+    match = re.fullmatch(r"SUPERSEDED_BY_(.+)", status_hint.strip().upper())
+    return normalize_capability_id(match.group(1)) if match else None
+
+
+def classify(
+    *,
+    contract: bool,
+    implementation: bool,
+    non_test_consumer: bool,
+    test: bool,
+    runtime_binding: bool,
+    active_match_evidence: bool,
+    superseded: bool,
+) -> tuple[str, list[str]]:
+    if superseded:
+        return "SUPERSEDED_CONTRACT", ["current_successor_implementation_confirmed"]
+    if contract and not implementation:
+        return "ORPHAN_CONTRACT", ["contract_without_current_implementation"]
+    if implementation and test and not non_test_consumer and not runtime_binding:
+        return "TEST_ONLY_SURFACE", [
+            "implementation_reachable_only_from_test_or_ci_surface"
+        ]
+    if all(
+        (
+            contract,
+            implementation,
+            non_test_consumer,
+            test,
+            runtime_binding,
+            active_match_evidence,
+        )
+    ):
+        return "ACTIVE_CONTRACT", ["six_link_closure_confirmed"]
+    if implementation:
+        missing = [
+            name
+            for name, present in (
+                ("contract", contract),
+                ("non_test_consumer", non_test_consumer),
+                ("test", test),
+                ("runtime_binding", runtime_binding),
+                ("active_match_evidence", active_match_evidence),
+            )
+            if not present
+        ]
+        return "UNBOUND_IMPLEMENTATION", [f"missing:{name}" for name in missing]
+    raise ClosureGuardError("unclassifiable_candidate_without_contract_or_implementation")
+
+
+def build_report(
+    root: str | Path,
+    *,
+    active_match_evidence_path: str | Path | None = None,
+) -> dict[str, Any]:
+    repo_root = Path(root).expanduser().resolve()
+    if not repo_root.is_dir():
+        raise ClosureGuardError(f"repo_root_missing:{repo_root}")
+
+    governance = validate_governance_inputs(repo_root)
+    seed = load_governance_seed(repo_root)
+    implementations = discover_implementations(repo_root)
+    known_capabilities = set(seed) | set(implementations)
+    contracts = discover_contracts(repo_root, known_capabilities)
+    consumers, tests = discover_consumers_and_tests(repo_root, implementations)
+    runtime_bindings = discover_runtime_bindings(repo_root, implementations)
+    tree_sha = current_product_tree_sha(repo_root)
+    active_evidence, active_meta = load_active_match_evidence(
+        Path(active_match_evidence_path).expanduser().resolve()
+        if active_match_evidence_path is not None
+        else None,
+        tree_sha,
+    )
+
+    candidates = sorted(set(seed) | set(contracts) | set(implementations))
+    records: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for cid in candidates:
+        contract_paths = contracts.get(cid, [])
+        implementation_info = implementations.get(cid)
+        status_hint = str(seed.get(cid, {}).get("current_status_hint") or "")
+        successor = _successor_from_hint(status_hint)
+        successor_impl = implementations.get(successor or "") if successor else None
+        superseded = bool(successor and successor_impl and contract_paths)
+
+        contract = bool(contract_paths)
+        implementation = implementation_info is not None
+        non_test_consumer_paths = consumers.get(cid, [])
+        test_paths = tests.get(cid, [])
+        runtime_binding_paths = runtime_bindings.get(cid, [])
+        active = bool(active_evidence.get(cid, False))
+
+        if not contract and not implementation and not superseded:
+            skipped.append(
+                {
+                    "capability_id": cid,
+                    "reason": "seed_only_without_contract_or_implementation",
+                }
+            )
+            continue
+
+        decision, reason_codes = classify(
+            contract=contract,
+            implementation=implementation,
+            non_test_consumer=bool(non_test_consumer_paths),
+            test=bool(test_paths),
+            runtime_binding=bool(runtime_binding_paths),
+            active_match_evidence=active,
+            superseded=superseded,
+        )
+        if decision not in DECISIONS:
+            raise ClosureGuardError(f"unknown_decision:{decision}")
+
+        records.append(
+            {
+                "capability_id": cid,
+                "display_name": seed.get(cid, {}).get("display_name") or cid,
+                "evidence": {
+                    "contract": contract,
+                    "implementation": implementation,
+                    "non_test_consumer": bool(non_test_consumer_paths),
+                    "test": bool(test_paths),
+                    "runtime_binding": bool(runtime_binding_paths),
+                    "active_match_evidence": active,
+                },
+                "evidence_paths": {
+                    "contract": contract_paths,
+                    "implementation": (implementation_info or {}).get(
+                        "implementation_paths", []
+                    ),
+                    "non_test_consumer": non_test_consumer_paths,
+                    "test": test_paths,
+                    "runtime_binding": runtime_binding_paths,
+                },
+                "reflection_groups": (implementation_info or {}).get(
+                    "reflection_groups", []
+                ),
+                "superseded_by": successor if superseded else None,
+                "decision": decision,
+                "reason_codes": reason_codes,
+                "governance_status_hint": status_hint or None,
+                "governance_status_used_as_truth": False,
+            }
+        )
+
+    return {
+        "guard_id": MODULE_ID,
+        "status": "PASS",
+        "claim_safety": CLAIM_SAFETY,
+        "repo_root": str(repo_root),
+        "product_tree_sha": tree_sha,
+        "governance_inputs": governance,
+        "active_match_evidence_input": active_meta,
+        "classification_order": [
+            "SUPERSEDED_CONTRACT",
+            "ORPHAN_CONTRACT",
+            "TEST_ONLY_SURFACE",
+            "ACTIVE_CONTRACT",
+            "UNBOUND_IMPLEMENTATION",
+        ],
+        "capability_count": len(records),
+        "capabilities": records,
+        "unclassified_seed_candidates": skipped,
+        "canonical_event_count": CANONICAL_EVENT_COUNT,
+        "true_action_count": TRUE_ACTION_COUNT,
+        "production_release": PRODUCTION_RELEASE,
+        "phase_truth": PHASE_TRUTH,
+        "possession_truth": POSSESSION_TRUTH,
+        "sequence_truth": SEQUENCE_TRUTH,
+        "tactical_truth": TACTICAL_TRUTH,
+    }
+
+
+def render_summary(report: dict[str, Any]) -> str:
+    lines = [
+        "HPFA CAPABILITY CLOSURE GUARD LITE V1",
+        "=====================================",
+        f"status={report.get('status')}",
+        f"product_tree_sha={report.get('product_tree_sha')}",
+        f"capability_count={report.get('capability_count')}",
+        f"canonical_event_count={report.get('canonical_event_count')}",
+        f"true_action_count={report.get('true_action_count')}",
+        f"production_release={str(report.get('production_release')).lower()}",
+        f"phase_truth={str(report.get('phase_truth')).lower()}",
+        f"possession_truth={str(report.get('possession_truth')).lower()}",
+        f"sequence_truth={str(report.get('sequence_truth')).lower()}",
+        f"tactical_truth={str(report.get('tactical_truth')).lower()}",
+        "",
+    ]
+    for record in report.get("capabilities", []):
+        evidence = record.get("evidence") or {}
+        bits = ",".join(
+            f"{key}={str(bool(evidence.get(key))).lower()}"
+            for key in (
+                "contract",
+                "implementation",
+                "non_test_consumer",
+                "test",
+                "runtime_binding",
+                "active_match_evidence",
+            )
+        )
+        lines.append(
+            f"{record.get('capability_id')} | {record.get('decision')} | {bits}"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def write_report(
+    root: str | Path,
+    out_dir: str | Path,
+    *,
+    active_match_evidence_path: str | Path | None = None,
+) -> dict[str, Any]:
+    report = build_report(
+        root,
+        active_match_evidence_path=active_match_evidence_path,
+    )
+    output_root = Path(out_dir).expanduser().resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+    json_path = output_root / "capability_closure_guard_lite_v1.json"
+    txt_path = output_root / "capability_closure_guard_lite_v1.txt"
+    json_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    txt_path.write_text(render_summary(report), encoding="utf-8")
+    return report
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Audit HPFA capability closure without executing ACTIVE_MATCH."
+    )
+    parser.add_argument("--root", default=str(Path(__file__).resolve().parents[5]))
+    parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--active-match-evidence")
+    args = parser.parse_args()
+    report = write_report(
+        args.root,
+        args.out_dir,
+        active_match_evidence_path=args.active_match_evidence,
+    )
+    print(
+        json.dumps(
+            {
+                "status": report["status"],
+                "capability_count": report["capability_count"],
+                "canonical_event_count": report["canonical_event_count"],
+                "true_action_count": report["true_action_count"],
+                "production_release": report["production_release"],
+                "phase_truth": report["phase_truth"],
+                "possession_truth": report["possession_truth"],
+                "sequence_truth": report["sequence_truth"],
+                "tactical_truth": report["tactical_truth"],
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
