@@ -260,6 +260,12 @@ def run_full_spine(
     else:
         status, decision = "SMOKE_PASS", "FULL_SPINE_EXECUTION_COMPLETED"
 
+    episode_lane_executed = _status(episode_report.get("status")) != "NOT_EVALUATED"
+    shared_foundation_reused = episode_report.get("shared_foundation_reused") is True
+    row_nucleus_recomputed = episode_report.get("row_nucleus_recomputed_by_episode_lane")
+    temporal_lane_executed = episode_report.get("temporal_episode_signature_status") not in (None, "NOT_EVALUATED")
+    c4_chain_executed = bool(chains)
+
     report = {
         "module_id": MODULE_ID,
         "status": status,
@@ -288,12 +294,14 @@ def run_full_spine(
         "intelligence_chains": chains,
         "engineering_evidence": {
             "single_active_match_authority_validated": True,
-            "shared_foundation_reused": True,
-            "row_nucleus_recomputed_by_episode_lane": False,
-            "current_context_episode_feature_lane_reused": True,
-            "current_temporal_episode_signature_reused": True,
+            "reconstruction_bridge_executed": True,
+            "episode_lane_executed": episode_lane_executed,
+            "shared_foundation_reused": shared_foundation_reused,
+            "row_nucleus_recomputed_by_episode_lane": row_nucleus_recomputed,
+            "current_context_episode_feature_lane_reused": episode_lane_executed,
+            "current_temporal_episode_signature_reused": temporal_lane_executed,
             "current_reconstruction_bridge_reused": True,
-            "current_c4_producers_reused": True,
+            "current_c4_producers_reused": c4_chain_executed,
             "c4_stage_exception_containment_enabled": True,
             "c4_sidecar_dependency_preserved": True,
             "parallel_reasoning_engine_created": False,
@@ -305,9 +313,9 @@ def run_full_spine(
             "episode_feature_vector_count": episode_report.get("episode_feature_vector_count"),
             "temporal_episode_signature_count": episode_report.get("temporal_episode_signature_count"),
             "packet_level_report_candidates_generated": len(chains),
-            "counterevidence_preserved_by_current_c4_chain": True,
+            "counterevidence_preserved_by_current_c4_chain": c4_chain_executed,
             "absence_is_counterevidence": False,
-            "safe_report_language_only": True,
+            "safe_report_language_only": c4_chain_executed,
         },
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
@@ -340,8 +348,8 @@ def run_full_spine(
                 f"first_failed_reason_code={first_failed_reason_code}",
                 f"hard_block_hits={hard_blocks}",
                 f"review_hits={review_hits}",
-                "shared_foundation_reused=true",
-                "row_nucleus_recomputed_by_episode_lane=false",
+                f"shared_foundation_reused={str(shared_foundation_reused).lower()}",
+                f"row_nucleus_recomputed_by_episode_lane={row_nucleus_recomputed}",
                 "canonical_event_count=UNKNOWN",
                 "true_action_count=UNKNOWN",
                 "phase_truth=false",
