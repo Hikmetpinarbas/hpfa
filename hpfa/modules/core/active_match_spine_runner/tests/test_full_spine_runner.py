@@ -89,6 +89,23 @@ def test_lens_failure_is_in_first_failure_order_without_rewiring_main_sentence_p
     assert chain["safe_sentence"].get("graph_id") == chain["graph"].get("graph_id")
 
 
+def test_lens_exception_preserves_independent_safe_sentence_branch():
+    def explode_lens(_artifact):
+        raise RuntimeError("synthetic lens exception")
+
+    chain = run_intelligence_chain(_packet(), stage_overrides={"lens": explode_lens})
+    assert chain["lens"]["status"] == "FAIL_CLOSED"
+    assert chain["lens"]["hard_block_hits"] == ["c4_stage_exception:lens:RuntimeError"]
+    assert "safe_sentence" in chain
+    assert "report_block" in chain
+    assert "output_contract" in chain
+    assert "assembly" in chain
+    assert chain["safe_sentence"].get("graph_id") == chain["graph"].get("graph_id")
+    node, reason = _first_failure([chain])
+    assert node == "lens"
+    assert reason == "c4_stage_exception:lens:RuntimeError"
+
+
 def test_full_spine_uses_single_active_match_authority_and_flat_outputs(tmp_path):
     execution_root = tmp_path / "checkout"
     active_match = execution_root / "runtime" / "active_single_match" / "current"
@@ -274,6 +291,62 @@ def test_episode_lane_preserves_first_failed_subprocess_stage(tmp_path, monkeypa
     assert report["hard_block_hits"] == [
         "episode_step_failed:context_action_semantics_rebind.py:returncode_17"
     ]
+
+
+def test_episode_lane_preserves_temporal_hard_block_reason(tmp_path, monkeypatch):
+    active_match = tmp_path / "runtime" / "active_single_match" / "current"
+    active_match.mkdir(parents=True)
+    output = tmp_path / "out"
+    output.mkdir()
+    (output / episode_lane_runner.ROW_NUCLEUS_OUTPUT).write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(
+        episode_lane_runner.current_episode,
+        "readable_surface_files",
+        lambda _match_dir: [active_match / "surface.csv"],
+    )
+    monkeypatch.setattr(
+        episode_lane_runner.current_episode,
+        "run_provider_time_context_step",
+        lambda *_args, **_kwargs: {
+            "command": ["internal:provider_time_semantic_admission_lite_v1"],
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "",
+            "passed": True,
+        },
+    )
+    monkeypatch.setattr(
+        episode_lane_runner.current_episode,
+        "run_step",
+        lambda _root, command: {
+            "command": command,
+            "returncode": 0,
+            "stdout": "",
+            "stderr": "",
+            "passed": True,
+        },
+    )
+    monkeypatch.setattr(
+        episode_lane_runner.current_episode,
+        "write_summary",
+        lambda *_args, **_kwargs: {"status": "SMOKE_PASS", "analyst_evidence": {}},
+    )
+    monkeypatch.setattr(
+        episode_lane_runner,
+        "write_temporal_episode_signature",
+        lambda *_args, **_kwargs: {
+            "status": "FAIL_CLOSED",
+            "hard_block_hits": ["temporal_specific_contract_failure"],
+            "canonical_event_count": "UNKNOWN",
+            "production_release": False,
+        },
+    )
+
+    report = episode_lane_runner.run_current_episode_lane(active_match, output, tmp_path)
+    assert report["status"] == "FAIL_CLOSED"
+    assert report["first_failed_temporal_reason"] == "temporal_specific_contract_failure"
+    assert report["hard_block_hits"] == ["temporal_specific_contract_failure"]
 
 
 def test_no_sample_match_identity_leak():
