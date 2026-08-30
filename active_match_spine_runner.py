@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -15,7 +14,7 @@ if str(SRC) not in sys.path:
 
 from spine_runner import run_spine_check
 from full_spine_runner import run_full_spine
-from user_output_bundle import write_standard_user_outputs
+from user_output_bundle import snapshot_output_state, write_standard_user_outputs
 
 
 def main() -> int:
@@ -41,12 +40,12 @@ def main() -> int:
     args = parser.parse_args()
 
     execution_root = Path(args.execution_root).expanduser().resolve(strict=False) if args.execution_root else ROOT
-    run_started_ns = time.time_ns()
     user_outputs = None
 
     if args.full_spine:
         if args.composite_registry:
             parser.error("--composite-registry is not accepted with --full-spine")
+        before_state = snapshot_output_state(args.out_dir)
         result = run_full_spine(
             active_match_dir=args.active_match_dir,
             out_dir=args.out_dir,
@@ -55,7 +54,7 @@ def main() -> int:
         user_outputs = write_standard_user_outputs(
             args.out_dir,
             result,
-            run_started_ns=run_started_ns,
+            before_state=before_state,
         )
         out_json = str(Path(args.out_dir) / "active_match_full_spine_v1.json")
         out_txt = str(Path(args.out_dir) / "active_match_full_spine_v1.txt")
