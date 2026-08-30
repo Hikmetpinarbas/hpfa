@@ -12,9 +12,32 @@ SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+import rich_multiformat_analysis_lane as rich_lane_module
+from shared_surface_snapshot_contract import surface_snapshot_id
 from spine_runner import run_spine_check
 from full_spine_runner import run_full_spine
 from user_output_bundle import snapshot_output_state, write_standard_user_outputs
+
+
+def _bind_shared_snapshot_contract() -> None:
+    # Reconstruction/Episode already use the canonical recursive path+size+SHA256
+    # contract. The rich lane historically used a different serialization for the
+    # same files, creating false mismatch failures. Bind it to the same contract
+    # at the product entrypoint until all producers import the shared helper.
+    rich_lane_module._snapshot = surface_snapshot_id
+
+
+def _normalize_current_surface_evidence(result: dict) -> None:
+    # Preserve one explicit semantic for the user report: completed current
+    # Episode Feature production. Older full-spine records expose the same fact
+    # as `..._reused`; do not make the report hide a successfully completed lane.
+    engineering = result.get("engineering_evidence")
+    if not isinstance(engineering, dict):
+        return
+    if "current_context_episode_feature_lane_completed" not in engineering:
+        engineering["current_context_episode_feature_lane_completed"] = (
+            engineering.get("current_context_episode_feature_lane_reused") is True
+        )
 
 
 def main() -> int:
@@ -45,12 +68,14 @@ def main() -> int:
     if args.full_spine:
         if args.composite_registry:
             parser.error("--composite-registry is not accepted with --full-spine")
+        _bind_shared_snapshot_contract()
         before_state = snapshot_output_state(args.out_dir)
         result = run_full_spine(
             active_match_dir=args.active_match_dir,
             out_dir=args.out_dir,
             execution_root=execution_root,
         )
+        _normalize_current_surface_evidence(result)
         user_outputs = write_standard_user_outputs(
             args.out_dir,
             result,
