@@ -1,0 +1,70 @@
+name: ACTIVE_MATCH Full Spine V1
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-spine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact source head
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$actual_head"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused dependencies
+        run: python -m pip install --disable-pip-version-check pytest openpyxl
+
+      - name: Compile unified full-spine surface
+        run: |
+          python -m compileall -q \
+            active_match_spine_runner.py \
+            hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py \
+            hpfa/modules/core/active_match_spine_runner/tests/test_full_spine_runner.py
+
+      - name: Run unified full-spine regressions
+        run: python -m pytest -q hpfa/modules/core/active_match_spine_runner/tests
+
+      - name: Run current reconstruction bridge regressions
+        run: |
+          python -m pytest -q hpfa/modules/core/trackable_action_trace_candidates_lite/tests
+          python -m pytest -q hpfa/modules/core/trackable_action_consequence_candidates_lite/tests
+          python -m pytest -q hpfa/modules/core/visible_action_sequence_candidates_lite/tests
+          python -m pytest -q hpfa/modules/core/reconstruction_intelligence_packet_adapter_lite/tests
+
+      - name: Run current C4 intelligence integration
+        run: |
+          python -m pytest -q hpfa/tests/integration/test_intelligence_chain_contract_v1.py
+          python -m pytest -q hpfa/tests/integration/test_evidence_dependency_independence_v1.py
+
+      - name: Claim and authority guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'runtime/active_single_match/current' hpfa/modules/core/active_match_spine_runner/src/spine_runner.py
+          grep -F 'parallel_reasoning_engine_created' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
+          grep -F 'canonical_event_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
+          grep -F 'true_action_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
+          grep -F 'production_release' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
+          ! grep -RInE 'Genclerbirligi|Fenerbahce|Sturm Graz|Heart of Midlothian|Turkey|Australia|15\.08\.2026|22\.08\.2026' \
+            hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
