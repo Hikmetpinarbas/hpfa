@@ -39,11 +39,21 @@ jobs:
         run: |
           python -m compileall -q \
             active_match_spine_runner.py \
+            active_match_full_run.py \
             hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py \
+            hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py \
             hpfa/modules/core/active_match_spine_runner/tests/test_full_spine_runner.py
 
       - name: Run unified full-spine regressions
         run: python -m pytest -q hpfa/modules/core/active_match_spine_runner/tests
+
+      - name: Run current context episode temporal regressions
+        run: |
+          python -m pytest -q hpfa/modules/core/minimum_viable_context_lite/tests
+          python -m pytest -q hpfa/modules/core/context_action_semantics_rebind_lite/tests
+          python -m pytest -q hpfa/modules/core/analyst_episode_locator_lite/tests
+          python -m pytest -q hpfa/modules/core/episode_feature_vector_lite/tests
+          python -m pytest -q hpfa/modules/core/temporal_episode_signature_lite/tests
 
       - name: Run current reconstruction bridge regressions
         run: |
@@ -63,8 +73,11 @@ jobs:
           set -euo pipefail
           grep -F 'runtime/active_single_match/current' hpfa/modules/core/active_match_spine_runner/src/spine_runner.py
           grep -F 'parallel_reasoning_engine_created' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
+          grep -F 'current_context_episode_feature_lane_reused' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
+          grep -F 'temporal_signature_is_rhythm_truth' hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py
           grep -F 'canonical_event_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'true_action_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'production_release' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           ! grep -RInE 'Genclerbirligi|Fenerbahce|Sturm Graz|Heart of Midlothian|Turkey|Australia|15\.08\.2026|22\.08\.2026' \
-            hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
+            hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py \
+            hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py
