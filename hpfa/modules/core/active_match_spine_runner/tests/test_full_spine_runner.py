@@ -66,7 +66,7 @@ def test_c4_stage_exception_is_contracted_into_fail_closed_record():
     assert reason == "c4_stage_exception:graph:RuntimeError"
 
 
-def test_lens_failure_is_in_first_failure_order():
+def test_lens_failure_is_in_first_failure_order_without_rewiring_main_sentence_path():
     def blocked_lens(_artifact):
         return {
             "module_id": "lens_failure_fixture",
@@ -83,7 +83,8 @@ def test_lens_failure_is_in_first_failure_order():
     node, reason = _first_failure([chain])
     assert node == "lens"
     assert reason == "lens_specific_failure"
-    assert "safe_sentence" not in chain
+    assert "safe_sentence" in chain
+    assert chain["safe_sentence"].get("graph_id") == chain["graph"].get("graph_id")
 
 
 def test_full_spine_uses_single_active_match_authority_and_flat_outputs(tmp_path):
@@ -135,6 +136,7 @@ def test_full_spine_uses_single_active_match_authority_and_flat_outputs(tmp_path
     assert report["engineering_evidence"]["shared_foundation_reused"] is True
     assert report["engineering_evidence"]["row_nucleus_recomputed_by_episode_lane"] is False
     assert report["engineering_evidence"]["c4_stage_exception_containment_enabled"] is True
+    assert report["engineering_evidence"]["c4_sidecar_dependency_preserved"] is True
     assert report["engineering_evidence"]["parallel_reasoning_engine_created"] is False
     assert report["canonical_event_count"] == "UNKNOWN"
     assert report["true_action_count"] == "UNKNOWN"
