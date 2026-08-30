@@ -16,7 +16,30 @@ CURRENT_EPISODE_RUNNER_OUTPUT = "active_match_full_run_lite_v1.json"
 ROW_NUCLEUS_OUTPUT = "row_nucleus_inventory_lite_v1.json"
 BRIDGE_OUTPUT = "reconstruction_intelligence_packet_bridge_current_v1.json"
 TEMPORAL_OUTPUT = "temporal_episode_signature_lite_v1.json"
-SURFACE_SUFFIXES = {".csv", ".xml", ".xlsx"}
+EPISODE_OWNED_OUTPUTS = {
+    "minimum_viable_context_lite_v1.json",
+    "minimum_viable_context_lite_v1.txt",
+    "context_action_semantics_rebind_lite_v1.json",
+    "context_action_semantics_rebind_lite_v1.txt",
+    "context_action_semantics_rebind_analyst_audit_v1.txt",
+    "analyst_episode_locator_lite_v1.json",
+    "analyst_episode_locator_lite_v1.txt",
+    "analyst_episode_locator_analyst_audit_v1.txt",
+    "episode_feature_vector_lite_v1.json",
+    "episode_feature_vector_lite_v1.txt",
+    "episode_feature_vector_analyst_audit_v1.txt",
+    "event_window_builder_lite_v1.json",
+    "event_window_builder_lite_v1.txt",
+    "time_scale_router_lite_v1.json",
+    "time_scale_router_lite_v1.txt",
+    "axis_integrity_tagger_lite_v1.json",
+    "axis_integrity_tagger_lite_v1.txt",
+    "temporal_episode_signature_lite_v1.json",
+    "temporal_episode_signature_lite_v1.txt",
+    "temporal_episode_signature_analyst_audit_v1.txt",
+    "active_match_full_run_lite_v1.json",
+    "active_match_full_run_lite_v1.txt",
+}
 
 
 def _product_root() -> Path:
@@ -35,11 +58,11 @@ def _surface_snapshot(match_dir: str | Path) -> dict[str, Any]:
     root = Path(match_dir).expanduser().resolve(strict=False)
     records: list[dict[str, Any]] = []
     if root.is_dir():
-        for path in sorted(root.iterdir(), key=lambda item: item.name):
-            if not path.is_file() or path.suffix.lower() not in SURFACE_SUFFIXES:
+        for path in sorted(root.rglob("*"), key=lambda item: item.as_posix().casefold()):
+            if not path.is_file():
                 continue
             records.append({
-                "name": path.name,
+                "relative_path": path.relative_to(root).as_posix(),
                 "size_bytes": path.stat().st_size,
                 "sha256": _hash_file(path),
             })
@@ -48,6 +71,17 @@ def _surface_snapshot(match_dir: str | Path) -> dict[str, Any]:
         "snapshot_id": hashlib.sha256(stable_payload.encode("utf-8")).hexdigest(),
         "surface_file_count": len(records),
     }
+
+
+def _clear_episode_owned_outputs(output: Path) -> list[str]:
+    cleared: list[str] = []
+    for name in sorted(EPISODE_OWNED_OUTPUTS):
+        path = output / name
+        if not path.is_file():
+            continue
+        path.unlink()
+        cleared.append(name)
+    return cleared
 
 
 def _first_failed_step(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -163,6 +197,9 @@ def run_current_episode_lane(
         hard_blocks.append("active_match_surface_missing")
 
     shared_foundation_reused = row_nucleus_available and surface_snapshot_bound
+    cleared_episode_outputs: list[str] = []
+    if not hard_blocks:
+        cleared_episode_outputs = _clear_episode_owned_outputs(output)
 
     steps: list[dict[str, Any]] = []
     if not hard_blocks:
@@ -332,6 +369,8 @@ def run_current_episode_lane(
         "episode_output": str(output / CURRENT_EPISODE_RUNNER_OUTPUT),
         "temporal_output": str(output / TEMPORAL_OUTPUT),
         "shared_foundation_reused": shared_foundation_reused,
+        "cleared_stale_episode_output_count": len(cleared_episode_outputs),
+        "cleared_stale_episode_outputs": cleared_episode_outputs,
         "context_episode_feature_lane_executed": feature_lane_executed,
         "context_episode_feature_lane_completed": feature_lane_completed,
         "temporal_episode_signature_executed": temporal_executed,
