@@ -84,6 +84,17 @@ def _clear_episode_owned_outputs(output: Path) -> list[str]:
     return cleared
 
 
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
 def _first_failed_step(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
     for step in steps:
         if step.get("passed") is not False:
@@ -161,6 +172,7 @@ def run_current_episode_lane(
 ) -> dict[str, Any]:
     active_match = Path(active_match_dir).expanduser().resolve(strict=False)
     output = Path(out_dir).expanduser().resolve(strict=False)
+    cleared_episode_outputs = _clear_episode_owned_outputs(output)
     selected_execution_root = Path(execution_root).expanduser().resolve(strict=False)
     product_root = _product_root()
     row_nucleus_path = output / ROW_NUCLEUS_OUTPUT
@@ -197,7 +209,6 @@ def run_current_episode_lane(
         hard_blocks.append("active_match_surface_missing")
 
     shared_foundation_reused = row_nucleus_available and surface_snapshot_bound
-    cleared_episode_outputs = _clear_episode_owned_outputs(output)
 
     steps: list[dict[str, Any]] = []
     if not hard_blocks:
@@ -324,8 +335,8 @@ def run_current_episode_lane(
     if expected_snapshot_id and not final_snapshot_bound:
         hard_blocks.append("active_match_surface_snapshot_mismatch_after_temporal")
 
-    hard_blocks = sorted(set(hard_blocks))
-    review_hits = sorted(set(review_hits))
+    hard_blocks = _dedupe_preserve_order(hard_blocks)
+    review_hits = _dedupe_preserve_order(review_hits)
     if hard_blocks:
         status = "FAIL_CLOSED"
         decision = "BLOCK_EPISODE_LANE"
