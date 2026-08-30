@@ -417,6 +417,49 @@ def _update_path_binding(
         known[target_name] = candidate
 
 
+def _compound_statement_bodies(statement: ast.stmt) -> list[list[ast.stmt]]:
+    if isinstance(statement, (ast.If, ast.For, ast.AsyncFor, ast.While)):
+        return [statement.body, statement.orelse]
+    if isinstance(statement, (ast.With, ast.AsyncWith)):
+        return [statement.body]
+    if isinstance(statement, ast.Try):
+        return [
+            statement.body,
+            *(handler.body for handler in statement.handlers),
+            statement.orelse,
+            statement.finalbody,
+        ]
+    try_star = getattr(ast, "TryStar", None)
+    if try_star is not None and isinstance(statement, try_star):
+        return [
+            statement.body,
+            *(handler.body for handler in statement.handlers),
+            statement.orelse,
+            statement.finalbody,
+        ]
+    if isinstance(statement, ast.Match):
+        return [case.body for case in statement.cases]
+    return []
+
+
+def _compound_assigned_names(statement: ast.stmt) -> set[str]:
+    names: set[str] = set()
+
+    def visit(node: ast.AST) -> None:
+        if isinstance(node, LEXICAL_SCOPE_NODES):
+            return
+        target_name, _value = _assignment_target_value(node)
+        if target_name:
+            names.add(target_name)
+        for child in ast.iter_child_nodes(node):
+            visit(child)
+
+    for body in _compound_statement_bodies(statement):
+        for child in body:
+            visit(child)
+    return names
+
+
 def _scope_path_bindings(
     statements: list[ast.stmt],
     trusted_root: Path,
@@ -426,6 +469,10 @@ def _scope_path_bindings(
 ) -> dict[str, Path]:
     known = dict(initial_paths or {})
     for node in statements:
+        if _compound_statement_bodies(node):
+            for name in _compound_assigned_names(node):
+                known.pop(name, None)
+            continue
         _update_path_binding(node, trusted_root, source_path, helper_paths, known)
     return known
 
@@ -650,6 +697,23 @@ def _scope_has_exact_src_binding(
     known = dict(initial_paths or {})
     trusted_function_params = trusted_function_params or {}
     for statement in statements:
+        compound_bodies = _compound_statement_bodies(statement)
+        if compound_bodies:
+            for body in compound_bodies:
+                if _scope_has_exact_src_binding(
+                    body,
+                    expected,
+                    trusted_root,
+                    source_path,
+                    helper_paths,
+                    dict(known),
+                    trusted_function_params,
+                ):
+                    return True
+            for name in _compound_assigned_names(statement):
+                known.pop(name, None)
+            continue
+
         bound_names = {
             name
             for name, candidate in known.items()
@@ -804,15 +868,19 @@ def _trusted_entrypoint_root_seeds(
         except SyntaxError:
             continue
         helper_paths = _local_path_helpers(tree, trusted_root, wrapper)
-        imported_functions: dict[str, str] = {}
+        imported_functions: dict[str, tuple[str, str]] = {}
         for node in tree.body:
             if not isinstance(node, ast.ImportFrom) or not node.module:
                 continue
-            module_leaf = node.module.split(".")[-1]
+            qualified_module = node.module
+            module_leaf = qualified_module.split(".")[-1]
             for alias in node.names:
                 if alias.name == "*":
                     continue
-                imported_functions[alias.asname or alias.name] = module_leaf
+                imported_functions[alias.asname or alias.name] = (
+                    qualified_module,
+                    module_leaf,
+                )
 
         def inspect_scope(statements: list[ast.stmt], initial: dict[str, Path]) -> None:
             known = dict(initial)
@@ -836,15 +904,23 @@ def _trusted_entrypoint_root_seeds(
                     )
                     if not _is_exact_trusted_root(candidate, trusted_root):
                         continue
-                    module_leaf = imported_functions[call.func.id]
+                    qualified_module, module_leaf = imported_functions[call.func.id]
                     for cid, implementation_file in leaf_candidates.get(module_leaf, []):
                         module_dir = Path(str(implementations[cid]["module_dir"]))
-                        if not _has_explicit_product_src_binding(
+                        expected_qualified = (
+                            f"{str(module_dir).replace('/', '.')}.src.{module_leaf}"
+                        )
+                        explicit_current_binding = _has_explicit_product_src_binding(
                             text,
                             module_dir,
                             trusted_root,
                             source_path=wrapper,
-                        ):
+                        )
+                        qualified_current_import = qualified_module == expected_qualified
+                        proven_bare_current_import = (
+                            qualified_module == module_leaf and explicit_current_binding
+                        )
+                        if not (qualified_current_import or proven_bare_current_import):
                             continue
                         seeds.setdefault(implementation_file.resolve(), {}).setdefault(
                             call.func.id, set()

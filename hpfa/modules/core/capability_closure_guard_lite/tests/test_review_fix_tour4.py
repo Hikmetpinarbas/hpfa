@@ -126,3 +126,59 @@ def test_no_sample_match_identity_leak():
     source = (SRC / "capability_closure_guard.py").read_text(encoding="utf-8")
     for token in ["Turkey", "Australia", "Türkiye", "Avustralya", "World Cup", "13.06.2026"]:
         assert token not in source
+
+
+def test_compound_statement_rebinds_are_evaluated_before_helper_calls(tmp_path):
+    current_src = _current_src(tmp_path)
+    foreign_src = tmp_path.parent / "compound_foreign" / MODULE_DIR / "src"
+    foreign_src.mkdir(parents=True, exist_ok=True)
+    source_path = tmp_path / "consumer.py"
+    bodies = [
+        "if True:\n    src = Path({foreign!r})\n    ensure_module_path(src)\n",
+        "for _ in [1]:\n    src = Path({foreign!r})\n    ensure_module_path(src)\n",
+        "try:\n    src = Path({foreign!r})\n    ensure_module_path(src)\nexcept Exception:\n    pass\n",
+        "with open(__file__):\n    src = Path({foreign!r})\n    ensure_module_path(src)\n",
+    ]
+    for body in bodies:
+        text = (
+            f"src = Path({str(current_src)!r})\n"
+            + body.format(foreign=str(foreign_src))
+            + "import client\n"
+        )
+        assert guard._has_explicit_product_src_binding(
+            text, MODULE_DIR, tmp_path, source_path=source_path
+        ) is False
+
+
+def test_foreign_qualified_entrypoint_import_cannot_seed_current_module(tmp_path):
+    current_src = _current_src(tmp_path)
+    (current_src / "client.py").write_text("def run(root):\n    return root\n", encoding="utf-8")
+    wrapper = tmp_path / "wrapper.py"
+    wrapper.write_text(
+        "from pathlib import Path\n"
+        "ROOT = Path(__file__).resolve().parent\n"
+        f"src = Path({str(current_src)!r})\n"
+        "ensure_module_path(src)\n"
+        "from vendor.client import run\n"
+        "run(root=ROOT)\n",
+        encoding="utf-8",
+    )
+    implementations = guard.discover_implementations(tmp_path)
+    seeds = guard._trusted_entrypoint_root_seeds(tmp_path, implementations)
+    assert (current_src / "client.py").resolve() not in seeds
+
+
+def test_exact_current_qualified_entrypoint_import_can_seed_current_module(tmp_path):
+    current_src = _current_src(tmp_path)
+    (current_src / "client.py").write_text("def run(root):\n    return root\n", encoding="utf-8")
+    wrapper = tmp_path / "wrapper.py"
+    wrapper.write_text(
+        "from pathlib import Path\n"
+        "ROOT = Path(__file__).resolve().parent\n"
+        "from hpfa.modules.core.sample_lite.src.client import run\n"
+        "run(root=ROOT)\n",
+        encoding="utf-8",
+    )
+    implementations = guard.discover_implementations(tmp_path)
+    seeds = guard._trusted_entrypoint_root_seeds(tmp_path, implementations)
+    assert seeds[(current_src / "client.py").resolve()]["run"] == {"root"}
