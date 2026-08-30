@@ -35,6 +35,8 @@ def _episode_pass(_input_dir, _output_dir, _execution_root):
         "episode_feature_vector_count": 2,
         "temporal_episode_signature_status": "SMOKE_PASS",
         "temporal_episode_signature_count": 2,
+        "shared_foundation_reused": True,
+        "row_nucleus_recomputed_by_episode_lane": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -133,8 +135,12 @@ def test_full_spine_uses_single_active_match_authority_and_flat_outputs(tmp_path
     assert report["episode_candidate_count"] == 2
     assert report["temporal_episode_signature_count"] == 2
     assert report["engineering_evidence"]["single_active_match_authority_validated"] is True
+    assert report["engineering_evidence"]["reconstruction_bridge_executed"] is True
+    assert report["engineering_evidence"]["episode_lane_executed"] is True
     assert report["engineering_evidence"]["shared_foundation_reused"] is True
     assert report["engineering_evidence"]["row_nucleus_recomputed_by_episode_lane"] is False
+    assert report["engineering_evidence"]["current_temporal_episode_signature_reused"] is True
+    assert report["engineering_evidence"]["current_c4_producers_reused"] is True
     assert report["engineering_evidence"]["c4_stage_exception_containment_enabled"] is True
     assert report["engineering_evidence"]["c4_sidecar_dependency_preserved"] is True
     assert report["engineering_evidence"]["parallel_reasoning_engine_created"] is False
@@ -173,6 +179,14 @@ def test_full_spine_fails_closed_when_bridge_fails(tmp_path):
     assert report["first_failed_reason_code"] == "synthetic_upstream_failure"
     assert report["episode_lane_status"] == "NOT_EVALUATED"
     assert report["intelligence_chain_count"] == 0
+    assert report["engineering_evidence"]["reconstruction_bridge_executed"] is True
+    assert report["engineering_evidence"]["episode_lane_executed"] is False
+    assert report["engineering_evidence"]["shared_foundation_reused"] is False
+    assert report["engineering_evidence"]["row_nucleus_recomputed_by_episode_lane"] is None
+    assert report["engineering_evidence"]["current_temporal_episode_signature_reused"] is False
+    assert report["engineering_evidence"]["current_c4_producers_reused"] is False
+    assert report["analyst_evidence"]["counterevidence_preserved_by_current_c4_chain"] is False
+    assert report["analyst_evidence"]["safe_report_language_only"] is False
 
 
 def test_full_spine_does_not_run_episode_after_foundation_failure(tmp_path):
