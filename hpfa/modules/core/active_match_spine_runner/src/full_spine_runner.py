@@ -6,36 +6,16 @@ from typing import Any, Callable
 
 import reconstruction_intelligence_packet_adapter_current_v1 as reconstruction_bridge
 from episode_lane_runner import run_current_episode_lane
-from hpfa.modules.core.analyst_report_block_composer_lite.src.analyst_report_block_composer import (
-    compose_report_block,
-)
-from hpfa.modules.core.composite_argument_builder_lite.src.composite_argument_builder import (
-    build_argument_candidate,
-)
-from hpfa.modules.core.defeasible_argument_router_lite.src.defeasible_argument_router import (
-    route_argument,
-)
-from hpfa.modules.core.evidence_graph_engine_lite.src.evidence_graph_engine import (
-    build_evidence_graph,
-)
-from hpfa.modules.core.evidence_lens_matrix_lite.src.evidence_lens_matrix import (
-    build_lens_matrix,
-)
-from hpfa.modules.core.final_report_assembly_gate_lite.src.final_report_assembly_gate import (
-    evaluate_assembly_item,
-)
-from hpfa.modules.core.multi_signal_evidence_fusion_lite.src.multi_signal_evidence_fusion import (
-    fuse_packet,
-)
-from hpfa.modules.core.report_output_contract_lite.src.report_output_contract import (
-    evaluate_report_block,
-)
-from hpfa.modules.core.safe_argument_router_tr_lite.src.safe_argument_router_tr import (
-    route_safe_sentence,
-)
-
+from hpfa.modules.core.analyst_report_block_composer_lite.src.analyst_report_block_composer import compose_report_block
+from hpfa.modules.core.composite_argument_builder_lite.src.composite_argument_builder import build_argument_candidate
+from hpfa.modules.core.defeasible_argument_router_lite.src.defeasible_argument_router import route_argument
+from hpfa.modules.core.evidence_graph_engine_lite.src.evidence_graph_engine import build_evidence_graph
+from hpfa.modules.core.evidence_lens_matrix_lite.src.evidence_lens_matrix import build_lens_matrix
+from hpfa.modules.core.final_report_assembly_gate_lite.src.final_report_assembly_gate import evaluate_assembly_item
+from hpfa.modules.core.multi_signal_evidence_fusion_lite.src.multi_signal_evidence_fusion import fuse_packet
+from hpfa.modules.core.report_output_contract_lite.src.report_output_contract import evaluate_report_block
+from hpfa.modules.core.safe_argument_router_tr_lite.src.safe_argument_router_tr import route_safe_sentence
 from spine_runner import validate_active_match_authority, validate_output_root
-
 
 MODULE_ID = "active_match_full_spine_runner_v1"
 OUTPUT_JSON = "active_match_full_spine_v1.json"
@@ -67,9 +47,7 @@ def _chain_has_fail(chain: dict[str, dict[str, Any]]) -> bool:
     blocking_tokens = {"FAIL", "FAILED", "FAIL_CLOSED", "BLOCKED", "BLOCK_FUSION", "BLOCK_ARGUMENT"}
     for record in chain.values():
         values = {_status(record.get("status")), _status(record.get("decision"))}
-        if values & blocking_tokens:
-            return True
-        if any(value.startswith("BLOCK") for value in values):
+        if values & blocking_tokens or any(value.startswith("BLOCK") for value in values):
             return True
     return False
 
@@ -111,17 +89,7 @@ def run_intelligence_chain(packet: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def _first_failure(chains: list[dict[str, dict[str, Any]]]) -> tuple[str | None, str | None]:
-    ordered = (
-        "packet",
-        "fusion",
-        "argument",
-        "route",
-        "graph",
-        "safe_sentence",
-        "report_block",
-        "output_contract",
-        "assembly",
-    )
+    ordered = ("packet", "fusion", "argument", "route", "graph", "safe_sentence", "report_block", "output_contract", "assembly")
     for chain in chains:
         for stage in ordered:
             record = chain.get(stage) or {}
@@ -147,68 +115,77 @@ def run_full_spine(
     output_root = validate_output_root(out_dir)
     output_root.mkdir(parents=True, exist_ok=True)
 
-    episode_lane = episode_runner or run_current_episode_lane
-    episode_report = episode_lane(active_match_path, output_root, execution_root_path)
-    episode_status = _status(episode_report.get("status"))
-
-    bridge = bridge_runner or reconstruction_bridge.runtime_write_outputs
-    bridge_report = bridge(active_match_path, output_root)
-    bridge_status = _status(bridge_report.get("status"))
-
     hard_blocks: list[str] = []
     review_hits: list[str] = []
     chains: list[dict[str, dict[str, Any]]] = []
     first_failed_node: str | None = None
     first_failed_reason_code: str | None = None
 
-    if episode_status == "FAIL_CLOSED":
-        hard_blocks.append("current_episode_lane_fail_closed")
-        first_failed_node = "episode_lane"
-        reasons = episode_report.get("hard_block_hits") or []
-        first_failed_reason_code = str(reasons[0]) if isinstance(reasons, list) and reasons else "episode_lane_fail_closed"
-    elif episode_status == "REVIEW_REQUIRED":
-        review_hits.append("current_episode_lane_review_required")
-
+    # Shared foundation and reconstruction are produced once by the existing current bridge.
+    bridge = bridge_runner or reconstruction_bridge.runtime_write_outputs
+    bridge_report = bridge(active_match_path, output_root)
+    bridge_status = _status(bridge_report.get("status"))
     if bridge_status == "FAIL_CLOSED":
         hard_blocks.append("reconstruction_intelligence_bridge_fail_closed")
-        if first_failed_node is None:
-            first_failed_node = "reconstruction_intelligence_bridge"
-            reasons = bridge_report.get("hard_block_hits") or []
-            first_failed_reason_code = str(reasons[0]) if isinstance(reasons, list) and reasons else "reconstruction_intelligence_bridge_fail_closed"
-    else:
+        first_failed_node = "reconstruction_intelligence_bridge"
+        reasons = bridge_report.get("hard_block_hits") or []
+        first_failed_reason_code = str(reasons[0]) if isinstance(reasons, list) and reasons else "reconstruction_intelligence_bridge_fail_closed"
+    elif bridge_status == "REVIEW_REQUIRED":
+        review_hits.append("reconstruction_intelligence_bridge_review_required")
+
+    # The episode lane reuses the Row Nucleus emitted above; it must not rebuild Foundation.
+    episode_report: dict[str, Any] = {
+        "status": "NOT_EVALUATED",
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+    if not hard_blocks:
+        episode_lane = episode_runner or run_current_episode_lane
+        episode_report = episode_lane(active_match_path, output_root, execution_root_path)
+        episode_status = _status(episode_report.get("status"))
+        if episode_status == "FAIL_CLOSED":
+            hard_blocks.append("current_episode_lane_fail_closed")
+            first_failed_node = first_failed_node or "episode_lane"
+            reasons = episode_report.get("hard_block_hits") or []
+            first_failed_reason_code = first_failed_reason_code or (
+                str(reasons[0]) if isinstance(reasons, list) and reasons else "episode_lane_fail_closed"
+            )
+        elif episode_status == "REVIEW_REQUIRED":
+            review_hits.append("current_episode_lane_review_required")
+
+    # Full-spine report reasoning only opens when both upstream lanes avoid hard failure.
+    if not hard_blocks:
         packet_report_path = output_root / PACKET_REPORT_JSON
         try:
             packet_report = _load_json(packet_report_path)
         except FullSpineContractError as exc:
             packet_report = {}
             hard_blocks.append(str(exc))
-            if first_failed_node is None:
-                first_failed_node = "composite_packet_inventory"
-                first_failed_reason_code = str(exc)
+            first_failed_node = first_failed_node or "composite_packet_inventory"
+            first_failed_reason_code = first_failed_reason_code or str(exc)
 
         packets = packet_report.get("packets") if isinstance(packet_report, dict) else []
         if not isinstance(packets, list) or not packets:
             hard_blocks.append("composite_packet_inventory_empty_or_invalid")
-            if first_failed_node is None:
-                first_failed_node = "composite_packet_inventory"
-                first_failed_reason_code = "composite_packet_inventory_empty_or_invalid"
+            first_failed_node = first_failed_node or "composite_packet_inventory"
+            first_failed_reason_code = first_failed_reason_code or "composite_packet_inventory_empty_or_invalid"
             packets = []
 
         declared_packet_count = packet_report.get("packet_count") if isinstance(packet_report, dict) else None
         if isinstance(declared_packet_count, int) and declared_packet_count != len(packets):
             hard_blocks.append("composite_packet_count_mismatch")
-            if first_failed_node is None:
-                first_failed_node = "composite_packet_inventory"
-                first_failed_reason_code = "composite_packet_count_mismatch"
+            first_failed_node = first_failed_node or "composite_packet_inventory"
+            first_failed_reason_code = first_failed_reason_code or "composite_packet_count_mismatch"
 
-        for packet in packets:
-            if not isinstance(packet, dict):
-                hard_blocks.append("composite_packet_record_invalid")
-                if first_failed_node is None:
-                    first_failed_node = "composite_packet_inventory"
-                    first_failed_reason_code = "composite_packet_record_invalid"
-                continue
-            chains.append(run_intelligence_chain(packet))
+        if not hard_blocks:
+            for packet in packets:
+                if not isinstance(packet, dict):
+                    hard_blocks.append("composite_packet_record_invalid")
+                    first_failed_node = first_failed_node or "composite_packet_inventory"
+                    first_failed_reason_code = first_failed_reason_code or "composite_packet_record_invalid"
+                    continue
+                chains.append(run_intelligence_chain(packet))
 
     failed_chain_count = sum(_chain_has_fail(chain) for chain in chains)
     review_chain_count = sum(_chain_has_review(chain) for chain in chains)
@@ -216,11 +193,8 @@ def run_full_spine(
     if first_failed_node is None and chain_failed_node is not None:
         first_failed_node = chain_failed_node
         first_failed_reason_code = chain_failed_reason
-
     if failed_chain_count:
         hard_blocks.append("intelligence_chain_fail_closed")
-    if bridge_status == "REVIEW_REQUIRED":
-        review_hits.append("reconstruction_intelligence_bridge_review_required")
     if review_chain_count:
         review_hits.append("intelligence_chain_review_required")
 
@@ -264,13 +238,15 @@ def run_full_spine(
         "intelligence_chains": chains,
         "engineering_evidence": {
             "single_active_match_authority_validated": True,
+            "shared_foundation_reused": True,
+            "row_nucleus_recomputed_by_episode_lane": False,
             "current_context_episode_feature_lane_reused": True,
             "current_temporal_episode_signature_reused": True,
             "current_reconstruction_bridge_reused": True,
             "current_c4_producers_reused": True,
             "parallel_reasoning_engine_created": False,
             "first_failure_disclosure_enabled": True,
-            "duplicate_foundation_execution_currently_possible": True,
+            "duplicate_foundation_execution_currently_possible": False,
         },
         "analyst_evidence": {
             "episode_candidate_count": episode_report.get("episode_candidate_count"),
@@ -291,10 +267,7 @@ def run_full_spine(
         "production_release": False,
     }
 
-    (output_root / OUTPUT_JSON).write_text(
-        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    (output_root / OUTPUT_JSON).write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     lines = [
         "HPFA ACTIVE_MATCH FULL SPINE V1",
         "===============================",
@@ -312,6 +285,8 @@ def run_full_spine(
         f"first_failed_reason_code={first_failed_reason_code}",
         f"hard_block_hits={hard_blocks}",
         f"review_hits={review_hits}",
+        "shared_foundation_reused=true",
+        "row_nucleus_recomputed_by_episode_lane=false",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "phase_truth=false",
