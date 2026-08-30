@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -11,6 +12,35 @@ from hpfa.modules.core.reconstruction_intelligence_packet_adapter_lite.src impor
 MODULE_ID = "reconstruction_intelligence_packet_bridge_current_v1"
 OUTPUT_JSON = "reconstruction_intelligence_packet_bridge_current_v1.json"
 OUTPUT_TXT = "reconstruction_intelligence_packet_bridge_current_v1.txt"
+SURFACE_SUFFIXES = {".csv", ".xml", ".xlsx"}
+
+
+def _hash_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _surface_snapshot(input_dir: str | Path) -> dict:
+    root = Path(input_dir).expanduser().resolve(strict=False)
+    records: list[dict] = []
+    if root.is_dir():
+        for path in sorted(root.iterdir(), key=lambda item: item.name):
+            if not path.is_file() or path.suffix.lower() not in SURFACE_SUFFIXES:
+                continue
+            records.append({
+                "name": path.name,
+                "size_bytes": path.stat().st_size,
+                "sha256": _hash_file(path),
+            })
+    stable_payload = json.dumps(records, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return {
+        "snapshot_id": hashlib.sha256(stable_payload.encode("utf-8")).hexdigest(),
+        "surface_file_count": len(records),
+        "records": records,
+    }
 
 
 def _write_bridge_report(report: dict, output: Path) -> None:
@@ -28,6 +58,9 @@ def _write_bridge_report(report: dict, output: Path) -> None:
         f"status={report.get('status')}",
         f"current_sequence_status={report.get('current_sequence_status')}",
         f"adapter_status={report.get('adapter_status')}",
+        f"input_surface_snapshot_id={report.get('input_surface_snapshot_id')}",
+        f"input_surface_snapshot_file_count={report.get('input_surface_snapshot_file_count')}",
+        f"input_surface_snapshot_stable={report.get('input_surface_snapshot_stable')}",
         f"source_visible_action_sequence_candidate_count={report.get('source_visible_action_sequence_candidate_count')}",
         f"packet_input_candidate_count={report.get('packet_input_candidate_count')}",
         f"composite_packet_count={report.get('composite_packet_count')}",
@@ -53,17 +86,34 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = adapter.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
 
+    snapshot_before = _surface_snapshot(input_dir)
     sequence_payload = current_sequence.runtime_write_outputs(input_dir, output)
-    adapter_report = adapter.write_outputs(sequence_payload, output)
+    snapshot_after = _surface_snapshot(input_dir)
+    snapshot_stable = (
+        snapshot_before.get("snapshot_id") == snapshot_after.get("snapshot_id")
+        and snapshot_before.get("surface_file_count") == snapshot_after.get("surface_file_count")
+    )
 
-    hard_blocks = list(adapter_report.get("hard_block_hits") or [])
+    hard_blocks: list[str] = []
+    adapter_report: dict = {
+        "status": "NOT_EVALUATED",
+        "composite_packet_input_candidates": [],
+        "hard_block_hits": [],
+        "review_hits": [],
+    }
+    if not snapshot_stable:
+        hard_blocks.append("active_match_surface_snapshot_changed_during_reconstruction")
+    else:
+        adapter_report = adapter.write_outputs(sequence_payload, output)
+        hard_blocks.extend(adapter_report.get("hard_block_hits") or [])
+
     packet_report: dict = {
         "status": "NOT_EVALUATED",
         "packet_count": 0,
         "blocked_packet_count": 0,
         "packets": [],
     }
-    if adapter_report.get("status") != "FAIL_CLOSED":
+    if not hard_blocks and adapter_report.get("status") != "FAIL_CLOSED":
         packet_report = packet_builder.write_outputs(
             list(adapter_report.get("composite_packet_input_candidates") or []),
             output,
@@ -87,6 +137,10 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         "current_sequence_status": sequence_payload.get("status"),
         "adapter_status": adapter_report.get("status"),
         "composite_packet_builder_status": packet_report.get("status"),
+        "input_surface_snapshot_id": snapshot_before.get("snapshot_id"),
+        "input_surface_snapshot_file_count": snapshot_before.get("surface_file_count"),
+        "input_surface_snapshot_stable": snapshot_stable,
+        "input_surface_snapshot_changed": not snapshot_stable,
         "match_surface_binding_id": adapter_report.get("match_surface_binding_id"),
         "source_visible_action_sequence_candidate_count": adapter_report.get("source_visible_action_sequence_candidate_count"),
         "packet_input_candidate_count": adapter_report.get("packet_input_candidate_count"),
@@ -127,6 +181,8 @@ def main() -> int:
         "status": report.get("status"),
         "current_sequence_status": report.get("current_sequence_status"),
         "adapter_status": report.get("adapter_status"),
+        "input_surface_snapshot_id": report.get("input_surface_snapshot_id"),
+        "input_surface_snapshot_stable": report.get("input_surface_snapshot_stable"),
         "source_visible_action_sequence_candidate_count": report.get("source_visible_action_sequence_candidate_count"),
         "packet_input_candidate_count": report.get("packet_input_candidate_count"),
         "composite_packet_count": report.get("composite_packet_count"),
