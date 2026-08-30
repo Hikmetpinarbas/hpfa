@@ -32,7 +32,7 @@ def _sha256(path: Path) -> str:
 
 
 def snapshot_output_state(output_root: str | Path) -> dict[str, dict[str, Any]]:
-    """Capture pre-run names + content fingerprints without using timestamps."""
+    """Compatibility snapshot only. Bundle admission is ledger-based."""
     root = Path(output_root).expanduser().resolve(strict=False)
     if not root.is_dir():
         return {}
@@ -245,29 +245,21 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     return "\n".join(lines)
 
 
-def _current_invocation_candidates(
-    root: Path,
-    full_spine: dict[str, Any],
-    before_state: dict[str, dict[str, Any]],
-) -> list[Path]:
-    explicit_current = {FULL_SPINE_JSON, FULL_SPINE_TXT, ANALYST_REPORT}
-    if _feature_surface_current(full_spine):
-        explicit_current.add(EPISODE_FEATURE_JSON)
+def _declared_current_artifacts(root: Path, full_spine: dict[str, Any]) -> list[Path]:
+    declared = full_spine.get("current_invocation_artifacts")
+    values = declared if isinstance(declared, list) else []
+    values = [*values, str(root / FULL_SPINE_JSON), str(root / FULL_SPINE_TXT), str(root / ANALYST_REPORT)]
+    seen: set[str] = set()
     candidates: list[Path] = []
-    for path in sorted(root.iterdir(), key=lambda item: item.name.casefold()):
-        if not path.is_file() or path.name in {BUNDLE_ZIP, BUNDLE_MANIFEST}:
+    for raw in values:
+        path = Path(str(raw)).expanduser().resolve(strict=False)
+        if path.parent != root or not path.is_file():
             continue
-        if path.name in explicit_current:
-            candidates.append(path)
+        if path.name in {BUNDLE_ZIP, BUNDLE_MANIFEST} or path.name in seen:
             continue
-        try:
-            after = {"size_bytes": path.stat().st_size, "sha256": _sha256(path)}
-        except OSError:
-            continue
-        before = before_state.get(path.name)
-        if before is None or before != after:
-            candidates.append(path)
-    return candidates
+        seen.add(path.name)
+        candidates.append(path)
+    return sorted(candidates, key=lambda item: item.name.casefold())
 
 
 def write_standard_user_outputs(
@@ -278,7 +270,7 @@ def write_standard_user_outputs(
 ) -> dict[str, Any]:
     root = Path(output_root).expanduser().resolve(strict=False)
     root.mkdir(parents=True, exist_ok=True)
-    pre_run = before_state or {}
+    _ = before_state
 
     report_path = root / ANALYST_REPORT
     manifest_path = root / BUNDLE_MANIFEST
@@ -288,7 +280,7 @@ def write_standard_user_outputs(
         temp_zip_path.unlink()
 
     report_path.write_text(build_analyst_report(root, full_spine), encoding="utf-8")
-    candidates = _current_invocation_candidates(root, full_spine, pre_run)
+    candidates = _declared_current_artifacts(root, full_spine)
 
     entries = [
         {
@@ -300,8 +292,8 @@ def write_standard_user_outputs(
     ]
     manifest = {
         "module_id": "active_match_standard_user_bundle_v1",
-        "bundle_scope": "CURRENT_INVOCATION_CORE_PLUS_NEW_OR_CONTENT_CHANGED_ARTIFACTS",
-        "selection_basis": "PRE_RUN_NAME_AND_SHA256_SNAPSHOT_PLUS_EXPLICIT_CURRENT_CORE_OUTPUTS",
+        "bundle_scope": "PRODUCER_DECLARED_CURRENT_INVOCATION_ARTIFACTS_PLUS_STANDARD_DELIVERABLES",
+        "selection_basis": "PRODUCER_WRITE_LEDGER_NOT_MTIME_OR_CONTENT_CHANGE_HEURISTIC",
         "runtime_status": full_spine.get("status"),
         "active_match_authority": full_spine.get("active_match_authority"),
         "feature_surface_current_invocation": _feature_surface_current(full_spine),
