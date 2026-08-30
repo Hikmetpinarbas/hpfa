@@ -4,10 +4,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 import episode_lane_runner
+import reconstruction_intelligence_packet_adapter_current_v1 as current_bridge
 from full_spine_runner import _first_failure, run_full_spine, run_intelligence_chain
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 
@@ -141,18 +144,29 @@ def test_episode_lane_code_root_is_product_checkout_not_selected_execution_root(
     assert (product_root / "active_match_full_run.py").is_file()
 
 
+def _write_bridge_snapshot(active_match: Path, output: Path) -> dict:
+    snapshot = episode_lane_runner._surface_snapshot(active_match)
+    (output / episode_lane_runner.BRIDGE_OUTPUT).write_text(
+        json.dumps({"input_surface_snapshot_id": snapshot["snapshot_id"]}),
+        encoding="utf-8",
+    )
+    return snapshot
+
+
 def _prepare_episode_fixture(tmp_path, monkeypatch, *, fail_run_step=False):
     active_match = tmp_path / "runtime" / "active_single_match" / "current"; active_match.mkdir(parents=True)
+    surface = active_match / "surface.csv"
+    surface.write_text("id,start\n1,0\n", encoding="utf-8")
     output = tmp_path / "out"; output.mkdir()
     (output / episode_lane_runner.ROW_NUCLEUS_OUTPUT).write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(episode_lane_runner.current_episode, "readable_surface_files", lambda _d: [active_match / "surface.csv"])
+    _write_bridge_snapshot(active_match, output)
     monkeypatch.setattr(episode_lane_runner.current_episode, "run_provider_time_context_step", lambda *_a, **_k: {"command": ["internal:provider_time_semantic_admission_lite_v1"], "returncode": 0, "stdout": "", "stderr": "", "passed": True})
     monkeypatch.setattr(episode_lane_runner.current_episode, "run_step", lambda _r, command: {"command": command, "returncode": 17 if fail_run_step else 0, "stdout": "", "stderr": "synthetic failure" if fail_run_step else "", "passed": not fail_run_step})
-    return active_match, output
+    return active_match, output, surface
 
 
 def test_episode_lane_preserves_first_failed_subprocess_stage_and_stops_dependents(tmp_path, monkeypatch):
-    active_match, output = _prepare_episode_fixture(tmp_path, monkeypatch, fail_run_step=True)
+    active_match, output, _surface = _prepare_episode_fixture(tmp_path, monkeypatch, fail_run_step=True)
     monkeypatch.setattr(episode_lane_runner.current_episode, "write_summary", lambda *_a, **_k: {"status": "FAIL_CLOSED", "analyst_evidence": {}})
     report = episode_lane_runner.run_current_episode_lane(active_match, output, tmp_path)
     assert report["status"] == "FAIL_CLOSED"
@@ -163,10 +177,11 @@ def test_episode_lane_preserves_first_failed_subprocess_stage_and_stops_dependen
     assert report["temporal_episode_signature_executed"] is False
 
 
-def test_episode_lane_missing_shared_foundation_does_not_claim_reuse(tmp_path, monkeypatch):
+def test_episode_lane_missing_shared_foundation_does_not_claim_reuse(tmp_path):
     active_match = tmp_path / "runtime" / "active_single_match" / "current"; active_match.mkdir(parents=True)
+    (active_match / "surface.csv").write_text("id,start\n1,0\n", encoding="utf-8")
     output = tmp_path / "out"; output.mkdir()
-    monkeypatch.setattr(episode_lane_runner.current_episode, "readable_surface_files", lambda _d: [active_match / "surface.csv"])
+    _write_bridge_snapshot(active_match, output)
     report = episode_lane_runner.run_current_episode_lane(active_match, output, tmp_path)
     assert report["status"] == "FAIL_CLOSED"
     assert "shared_row_nucleus_output_missing" in report["hard_block_hits"]
@@ -175,8 +190,44 @@ def test_episode_lane_missing_shared_foundation_does_not_claim_reuse(tmp_path, m
     assert report["temporal_episode_signature_executed"] is False
 
 
+def test_episode_lane_rejects_snapshot_mismatch_before_provider_time(tmp_path, monkeypatch):
+    active_match = tmp_path / "runtime" / "active_single_match" / "current"; active_match.mkdir(parents=True)
+    (active_match / "surface.csv").write_text("id,start\n1,0\n", encoding="utf-8")
+    output = tmp_path / "out"; output.mkdir()
+    (output / episode_lane_runner.ROW_NUCLEUS_OUTPUT).write_text("{}", encoding="utf-8")
+    (output / episode_lane_runner.BRIDGE_OUTPUT).write_text(
+        json.dumps({"input_surface_snapshot_id": "not-the-current-snapshot"}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        episode_lane_runner.current_episode,
+        "run_provider_time_context_step",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("provider-time must not run")),
+    )
+    report = episode_lane_runner.run_current_episode_lane(active_match, output, tmp_path)
+    assert report["status"] == "FAIL_CLOSED"
+    assert "active_match_surface_snapshot_mismatch_before_episode" in report["hard_block_hits"]
+    assert report["shared_foundation_reused"] is False
+    assert report["step_statuses"] == []
+
+
+def test_episode_lane_stops_if_surface_changes_during_provider_time(tmp_path, monkeypatch):
+    active_match, output, surface = _prepare_episode_fixture(tmp_path, monkeypatch)
+    def mutating_provider(*_args, **_kwargs):
+        surface.write_text("id,start\n1,99\n", encoding="utf-8")
+        return {"command": ["internal:provider_time_semantic_admission_lite_v1"], "returncode": 0, "stdout": "", "stderr": "", "passed": True}
+    monkeypatch.setattr(episode_lane_runner.current_episode, "run_provider_time_context_step", mutating_provider)
+    monkeypatch.setattr(episode_lane_runner.current_episode, "write_summary", lambda *_a, **_k: {"status": "FAIL_CLOSED", "analyst_evidence": {}})
+    report = episode_lane_runner.run_current_episode_lane(active_match, output, tmp_path)
+    assert report["status"] == "FAIL_CLOSED"
+    assert report["first_failed_episode_step"]["stage"] == "internal:provider_time_semantic_admission_lite_v1"
+    assert report["first_failed_episode_step"]["returncode"] == 19
+    assert len(report["step_statuses"]) == 1
+    assert report["context_episode_feature_lane_executed"] is False
+    assert report["surface_snapshot_bound"] is False
+
+
 def test_episode_lane_preserves_temporal_hard_block_reason(tmp_path, monkeypatch):
-    active_match, output = _prepare_episode_fixture(tmp_path, monkeypatch)
+    active_match, output, _surface = _prepare_episode_fixture(tmp_path, monkeypatch)
     monkeypatch.setattr(episode_lane_runner.current_episode, "write_summary", lambda *_a, **_k: {"status": "SMOKE_PASS", "analyst_evidence": {}})
     monkeypatch.setattr(episode_lane_runner, "write_temporal_episode_signature", lambda *_a, **_k: {"status": "FAIL_CLOSED", "hard_block_hits": ["temporal_specific_contract_failure"], "canonical_event_count": "UNKNOWN", "production_release": False})
     report = episode_lane_runner.run_current_episode_lane(active_match, output, tmp_path)
@@ -184,6 +235,31 @@ def test_episode_lane_preserves_temporal_hard_block_reason(tmp_path, monkeypatch
     assert report["hard_block_hits"] == ["temporal_specific_contract_failure"]
     assert report["context_episode_feature_lane_completed"] is True
     assert report["temporal_episode_signature_executed"] is True
+    assert report["surface_snapshot_bound"] is True
+
+
+def test_reconstruction_bridge_fails_closed_if_surface_changes_during_reconstruction(tmp_path, monkeypatch):
+    active_match = tmp_path / "runtime" / "active_single_match" / "current"; active_match.mkdir(parents=True)
+    surface = active_match / "surface.csv"
+    surface.write_text("id,start\n1,0\n", encoding="utf-8")
+    output = tmp_path / "out"
+    monkeypatch.setattr(current_bridge.adapter, "validate_out", lambda value: Path(value))
+    def mutating_sequence(_input_dir, out_dir):
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        surface.write_text("id,start\n1,42\n", encoding="utf-8")
+        return {"status": "SMOKE_PASS"}
+    monkeypatch.setattr(current_bridge.current_sequence, "runtime_write_outputs", mutating_sequence)
+    monkeypatch.setattr(
+        current_bridge.adapter,
+        "write_outputs",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("adapter must not run on unstable snapshot")),
+    )
+    report = current_bridge.runtime_write_outputs(active_match, output)
+    assert report["status"] == "FAIL_CLOSED"
+    assert report["input_surface_snapshot_stable"] is False
+    assert report["adapter_status"] == "NOT_EVALUATED"
+    assert report["hard_block_hits"] == ["active_match_surface_snapshot_changed_during_reconstruction"]
+    assert (output / current_bridge.OUTPUT_JSON).is_file()
 
 
 def test_no_sample_match_identity_leak():
