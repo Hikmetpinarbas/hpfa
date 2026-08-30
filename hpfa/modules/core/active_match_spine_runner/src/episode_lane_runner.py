@@ -20,6 +20,26 @@ def _product_root() -> Path:
     return Path(__file__).resolve().parents[5]
 
 
+def _first_failed_step(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for step in steps:
+        if step.get("passed") is not False:
+            continue
+        command = step.get("command") or []
+        if isinstance(command, list) and command:
+            if len(command) > 1 and str(command[0]).endswith(("python", "python3", "python.exe")):
+                stage = Path(str(command[1])).name
+            else:
+                stage = Path(str(command[0])).name
+        else:
+            stage = "unknown_episode_step"
+        return {
+            "stage": stage,
+            "returncode": step.get("returncode"),
+            "stderr": str(step.get("stderr") or "")[-2000:],
+        }
+    return None
+
+
 def run_current_episode_lane(
     active_match_dir: str | Path,
     out_dir: str | Path,
@@ -90,10 +110,19 @@ def run_current_episode_lane(
         ]
 
     current_report: dict[str, Any] = {}
+    first_failed_episode_step: dict[str, Any] | None = None
     if not hard_blocks:
         current_report = current_episode.write_summary(output, steps, input_status)
         if current_report.get("status") == "FAIL_CLOSED":
-            hard_blocks.append("current_episode_lane_fail_closed")
+            first_failed_episode_step = _first_failed_step(steps)
+            if first_failed_episode_step:
+                hard_blocks.append(
+                    "episode_step_failed:"
+                    f"{first_failed_episode_step['stage']}:"
+                    f"returncode_{first_failed_episode_step['returncode']}"
+                )
+            else:
+                hard_blocks.append("current_episode_lane_fail_closed")
         elif current_report.get("status") == "REVIEW_REQUIRED":
             review_hits.append("current_episode_lane_review_required")
 
@@ -136,6 +165,7 @@ def run_current_episode_lane(
         "temporal_episode_signature_count": temporal_report.get("temporal_episode_signature_count"),
         "comparison_available_count": temporal_report.get("comparison_available_count"),
         "same_start_order_indeterminate_count": temporal_report.get("same_start_order_indeterminate_count"),
+        "first_failed_episode_step": first_failed_episode_step,
         "hard_block_hits": hard_blocks,
         "review_hits": review_hits,
         "step_statuses": [
