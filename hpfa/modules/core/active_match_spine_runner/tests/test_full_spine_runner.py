@@ -8,26 +8,18 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_full_spine, run_intelligence_chain
-from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import (
-    build_composite_packet,
-)
+from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 
 
 def _packet():
     return build_composite_packet(
         {
             "packet_family": "sequence",
-            "input_features": [
-                {"feature_id": "feature_generic_001", "source_surface": "feature_surface"}
-            ],
-            "input_windows": [
-                {"window_id": "window_generic_001", "source_surface": "window_surface"}
-            ],
+            "input_features": [{"feature_id": "feature_generic_001", "source_surface": "feature_surface"}],
+            "input_windows": [{"window_id": "window_generic_001", "source_surface": "window_surface"}],
             "input_sequences": [],
             "input_metrics": [],
-            "supporting_signals": [
-                {"signal_id": "signal_generic_001", "source_surface": "signal_surface"}
-            ],
+            "supporting_signals": [{"signal_id": "signal_generic_001", "source_surface": "signal_surface"}],
             "contradicting_signals": [],
             "claim_ceiling": "composite_candidate_only",
         }
@@ -65,7 +57,6 @@ def test_full_spine_uses_single_active_match_authority_and_flat_outputs(tmp_path
     active_match = execution_root / "runtime" / "active_single_match" / "current"
     active_match.mkdir(parents=True)
     out_dir = tmp_path / "out"
-
     packet = _packet()
 
     def fake_bridge(input_dir, output_dir):
@@ -107,7 +98,8 @@ def test_full_spine_uses_single_active_match_authority_and_flat_outputs(tmp_path
     assert report["episode_candidate_count"] == 2
     assert report["temporal_episode_signature_count"] == 2
     assert report["engineering_evidence"]["single_active_match_authority_validated"] is True
-    assert report["engineering_evidence"]["current_context_episode_feature_lane_reused"] is True
+    assert report["engineering_evidence"]["shared_foundation_reused"] is True
+    assert report["engineering_evidence"]["row_nucleus_recomputed_by_episode_lane"] is False
     assert report["engineering_evidence"]["parallel_reasoning_engine_created"] is False
     assert report["canonical_event_count"] == "UNKNOWN"
     assert report["true_action_count"] == "UNKNOWN"
@@ -140,43 +132,39 @@ def test_full_spine_fails_closed_when_bridge_fails(tmp_path):
     )
     assert report["status"] == "FAIL_CLOSED"
     assert "reconstruction_intelligence_bridge_fail_closed" in report["hard_block_hits"]
+    assert report["first_failed_node"] == "reconstruction_intelligence_bridge"
+    assert report["first_failed_reason_code"] == "synthetic_upstream_failure"
+    assert report["episode_lane_status"] == "NOT_EVALUATED"
     assert report["intelligence_chain_count"] == 0
 
 
-def test_full_spine_preserves_first_episode_failure(tmp_path):
+def test_full_spine_does_not_run_episode_after_foundation_failure(tmp_path):
     execution_root = tmp_path / "checkout"
     active_match = execution_root / "runtime" / "active_single_match" / "current"
     active_match.mkdir(parents=True)
 
-    def failed_episode(_input_dir, _output_dir, _execution_root):
+    def failed_bridge(_input_dir, _output_dir):
         return {
-            "module_id": "active_match_episode_lane_adapter_v1",
             "status": "FAIL_CLOSED",
-            "hard_block_hits": ["episode_input_rejected"],
+            "hard_block_hits": ["foundation_failure"],
             "canonical_event_count": "UNKNOWN",
             "true_action_count": "UNKNOWN",
             "production_release": False,
         }
 
-    def failed_bridge(_input_dir, _output_dir):
-        return {
-            "status": "FAIL_CLOSED",
-            "hard_block_hits": ["later_bridge_failure"],
-            "canonical_event_count": "UNKNOWN",
-            "true_action_count": "UNKNOWN",
-            "production_release": False,
-        }
+    def should_not_run_episode(_input_dir, _output_dir, _execution_root):
+        raise AssertionError("episode lane must not run after shared foundation failure")
 
     report = run_full_spine(
         active_match_dir=active_match,
         out_dir=tmp_path / "out",
         execution_root=execution_root,
         bridge_runner=failed_bridge,
-        episode_runner=failed_episode,
+        episode_runner=should_not_run_episode,
     )
     assert report["status"] == "FAIL_CLOSED"
-    assert report["first_failed_node"] == "episode_lane"
-    assert report["first_failed_reason_code"] == "episode_input_rejected"
+    assert report["first_failed_node"] == "reconstruction_intelligence_bridge"
+    assert report["first_failed_reason_code"] == "foundation_failure"
 
 
 def test_no_sample_match_identity_leak():
