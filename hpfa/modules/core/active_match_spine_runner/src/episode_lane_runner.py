@@ -127,13 +127,21 @@ def run_current_episode_lane(
             review_hits.append("current_episode_lane_review_required")
 
     temporal_report: dict[str, Any] = {}
+    first_failed_temporal_reason: str | None = None
     if not hard_blocks:
         try:
             temporal_report = write_temporal_episode_signature(output, output)
         except (OSError, ValueError, TypeError) as exc:
-            hard_blocks.append(f"temporal_episode_signature_execution_failed:{type(exc).__name__}")
+            first_failed_temporal_reason = f"temporal_episode_signature_execution_failed:{type(exc).__name__}"
+            hard_blocks.append(first_failed_temporal_reason)
         if temporal_report.get("status") == "FAIL_CLOSED":
-            hard_blocks.append("temporal_episode_signature_fail_closed")
+            temporal_blocks = temporal_report.get("hard_block_hits") or []
+            if isinstance(temporal_blocks, list) and temporal_blocks:
+                first_failed_temporal_reason = str(temporal_blocks[0])
+                hard_blocks.append(first_failed_temporal_reason)
+            else:
+                first_failed_temporal_reason = "temporal_episode_signature_fail_closed"
+                hard_blocks.append(first_failed_temporal_reason)
         elif temporal_report.get("status") == "REVIEW_REQUIRED":
             review_hits.append("temporal_episode_signature_review_required")
 
@@ -166,6 +174,7 @@ def run_current_episode_lane(
         "comparison_available_count": temporal_report.get("comparison_available_count"),
         "same_start_order_indeterminate_count": temporal_report.get("same_start_order_indeterminate_count"),
         "first_failed_episode_step": first_failed_episode_step,
+        "first_failed_temporal_reason": first_failed_temporal_reason,
         "hard_block_hits": hard_blocks,
         "review_hits": review_hits,
         "step_statuses": [
