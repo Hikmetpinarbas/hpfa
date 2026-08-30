@@ -10,11 +10,26 @@ from hpfa.modules.core.active_match_spine_runner.src.metric_governance_bridge im
 MODULE_ID = "active_match_orphan_capability_sidecars_v1"
 
 
+def _dedupe(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
+
+
 def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root: str | Path) -> dict[str, Any]:
     output = Path(out_dir).expanduser().resolve(strict=False)
     output.mkdir(parents=True, exist_ok=True)
     artifacts: list[str] = []
     review_hits: list[str] = []
+    hard_blocks: list[str] = []
+    construct_path_blocked = False
+    construct_path_block_reason: str | None = None
 
     try:
         baseline = report_lite.write_report(active_match_dir, output, root=product_root)
@@ -57,7 +72,13 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         for value in metric_governance.get("current_invocation_artifacts") or []:
             if value and Path(str(value)).is_file():
                 artifacts.append(str(value))
-        if metric_governance_status != "SMOKE_PASS":
+        normalized_governance_status = str(metric_governance_status or "").upper()
+        if normalized_governance_status == "FAIL_CLOSED":
+            reasons = metric_governance.get("hard_block_hits") or []
+            construct_path_block_reason = str(reasons[0]) if reasons else "metric_governance_fail_closed"
+            hard_blocks.append(f"metric_governance_construct_path_blocked:{construct_path_block_reason}")
+            construct_path_blocked = True
+        elif normalized_governance_status != "SMOKE_PASS":
             review_hits.append(f"metric_governance_bridge_{str(metric_governance_status).casefold()}")
     except Exception as exc:
         metric_governance = {"status": "REVIEW_REQUIRED", "error_type": type(exc).__name__}
@@ -66,7 +87,11 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
 
     return {
         "module_id": MODULE_ID,
-        "status": "REVIEW_REQUIRED" if review_hits else "SMOKE_PASS",
+        # A governance hard block is scoped to the metric/construct path. The
+        # unrelated baseline/triplex sidecars remain reviewable, so the sidecar
+        # container itself stays REVIEW_REQUIRED rather than promoting that
+        # scoped block to the whole ACTIVE_MATCH spine.
+        "status": "REVIEW_REQUIRED" if hard_blocks or review_hits else "SMOKE_PASS",
         "active_match_analyst_report_lite_status": baseline_status,
         "triplex_source_alignment_status": triplex_status,
         "triplex_source_alignment_prerequisite_present": mapping_present,
@@ -74,7 +99,10 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "active_match_analyst_report_lite": baseline,
         "triplex_source_alignment": triplex_report,
         "metric_governance_bridge": metric_governance,
-        "review_hits": list(dict.fromkeys(review_hits)),
+        "construct_path_blocked": construct_path_blocked,
+        "construct_path_block_reason": construct_path_block_reason,
+        "hard_block_hits": _dedupe(hard_blocks),
+        "review_hits": _dedupe(review_hits),
         "current_invocation_artifacts": sorted(set(artifacts)),
         "sidecar_outputs_are_primary_truth": False,
         "metric_value_output_allowed": False,
