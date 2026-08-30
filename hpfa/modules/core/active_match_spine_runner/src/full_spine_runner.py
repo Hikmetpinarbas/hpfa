@@ -85,36 +85,29 @@ def run_intelligence_chain(
     packet: dict[str, Any],
     stage_overrides: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Reuse the current C4 producer chain with exception containment only.
-
-    Explicit producer FAIL/REVIEW artifacts are still passed downstream because
-    current C4 consumers are responsible for preserving and contracting those
-    states. Only an actual Python exception stops execution at the boundary.
-    """
+    """Reuse current C4 producer dependencies and contain only real exceptions."""
     overrides = stage_overrides or {}
-    stages: tuple[tuple[str, Callable[[dict[str, Any]], dict[str, Any]]], ...] = (
-        ("fusion", overrides.get("fusion", fuse_packet)),
-        ("argument", overrides.get("argument", build_argument_candidate)),
-        ("route", overrides.get("route", route_argument)),
-        ("graph", overrides.get("graph", build_evidence_graph)),
-        ("lens", overrides.get("lens", build_lens_matrix)),
-        ("safe_sentence", overrides.get("safe_sentence", route_safe_sentence)),
-        ("report_block", overrides.get("report_block", compose_report_block)),
-        ("output_contract", overrides.get("output_contract", evaluate_report_block)),
-        ("assembly", overrides.get("assembly", evaluate_assembly_item)),
-    )
     chain: dict[str, dict[str, Any]] = {"packet": packet}
-    current = packet
-    for stage_name, producer in stages:
+    stages: tuple[tuple[str, str, Callable[[dict[str, Any]], dict[str, Any]]], ...] = (
+        ("fusion", "packet", overrides.get("fusion", fuse_packet)),
+        ("argument", "fusion", overrides.get("argument", build_argument_candidate)),
+        ("route", "argument", overrides.get("route", route_argument)),
+        ("graph", "route", overrides.get("graph", build_evidence_graph)),
+        ("lens", "graph", overrides.get("lens", build_lens_matrix)),
+        ("safe_sentence", "graph", overrides.get("safe_sentence", route_safe_sentence)),
+        ("report_block", "safe_sentence", overrides.get("report_block", compose_report_block)),
+        ("output_contract", "report_block", overrides.get("output_contract", evaluate_report_block)),
+        ("assembly", "output_contract", overrides.get("assembly", evaluate_assembly_item)),
+    )
+    for stage_name, input_stage, producer in stages:
         try:
-            output = producer(current)
+            output = producer(chain[input_stage])
             if not isinstance(output, dict):
                 raise TypeError("stage_output_must_be_dict")
         except Exception as exc:
             chain[stage_name] = _stage_failure(stage_name, exc)
             break
         chain[stage_name] = output
-        current = output
     return chain
 
 
@@ -183,11 +176,7 @@ def run_full_spine(
     first_failed_reason_code: str | None = None
 
     bridge = bridge_runner or reconstruction_bridge.runtime_write_outputs
-    bridge_report = _safe_external_call(
-        bridge,
-        (active_match_path, output_root),
-        "reconstruction_bridge",
-    )
+    bridge_report = _safe_external_call(bridge, (active_match_path, output_root), "reconstruction_bridge")
     bridge_status = _status(bridge_report.get("status"))
     if bridge_status == "FAIL_CLOSED":
         hard_blocks.append("reconstruction_intelligence_bridge_fail_closed")
@@ -306,6 +295,7 @@ def run_full_spine(
             "current_reconstruction_bridge_reused": True,
             "current_c4_producers_reused": True,
             "c4_stage_exception_containment_enabled": True,
+            "c4_sidecar_dependency_preserved": True,
             "parallel_reasoning_engine_created": False,
             "first_failure_disclosure_enabled": True,
             "duplicate_foundation_execution_currently_possible": False,
