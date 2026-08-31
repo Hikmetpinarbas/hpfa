@@ -31,6 +31,8 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "pitch_length": ("pitch_length", "field_length", "coordinate_max_x"),
     "pitch_width": ("pitch_width", "field_width", "coordinate_max_y"),
     "attacking_direction": ("attacking_direction", "attack_direction", "playing_direction", "coordinate_direction"),
+    "coordinate_system_admission_status": ("coordinate_system_admission_status", "coordinate_admission_status", "coordinate_gate_status"),
+    "attacking_direction_admission_status": ("attacking_direction_admission_status", "direction_admission_status", "attacking_direction_gate_status"),
 }
 
 SUCCESS_VALUES = {"1", "true", "yes", "success", "successful", "complete", "completed", "accurate", "won"}
@@ -153,7 +155,11 @@ def _outcome_candidate(value: Any) -> str:
     return "UNKNOWN_OUTCOME"
 
 
-def _coordinate_context(resolved: dict[str, Any]) -> dict[str, Any]:
+def _is_admitted_status(value: Any) -> bool:
+    return _norm_key(value) in {"admitted", "validated", "pass", "approved"}
+
+
+def _coordinate_context(resolved: dict[str, Any], source_namespace: Any) -> dict[str, Any]:
     label = _norm_key(resolved.get("coordinate_system"))
     length = _num(resolved.get("pitch_length"))
     width = _num(resolved.get("pitch_width"))
@@ -170,10 +176,20 @@ def _coordinate_context(resolved: dict[str, Any]) -> dict[str, Any]:
             if length > 0 and width > 0:
                 basis = "EXPLICIT_DIMENSION_LABEL"
 
-    admitted = bool(basis and length is not None and width is not None)
+    admission_status_ok = _is_admitted_status(resolved.get("coordinate_system_admission_status"))
+    source_scope_ok = _norm_text(source_namespace) is not None
+    admitted = bool(admission_status_ok and source_scope_ok and basis and length is not None and width is not None)
+    if admitted:
+        admission_basis = f"{basis}:EXPLICIT_SOURCE_SCOPED_ADMISSION"
+    elif not admission_status_ok:
+        admission_basis = "WITHHELD_NO_EXPLICIT_COORDINATE_ADMISSION"
+    elif not source_scope_ok:
+        admission_basis = "WITHHELD_NO_SOURCE_NAMESPACE"
+    else:
+        admission_basis = "WITHHELD_NO_EXPLICIT_COORDINATE_SYSTEM"
     return {
         "coordinate_system_admitted": admitted,
-        "coordinate_system_basis": basis or "WITHHELD_NO_EXPLICIT_COORDINATE_SYSTEM",
+        "coordinate_system_basis": admission_basis,
         "pitch_length": length if admitted else None,
         "pitch_width": width if admitted else None,
     }
@@ -349,6 +365,7 @@ def build_primitives(projection_report: dict[str, Any]) -> dict[str, Any]:
         action = _norm_text(resolved.get("action"))
         player = _norm_text(resolved.get("player"))
         team = _norm_text(resolved.get("team"))
+        period = _norm_text(resolved.get("period"))
         receiver = _norm_text(resolved.get("receiver"))
         sx = _num(resolved.get("start_x"))
         sy = _num(resolved.get("start_y"))
@@ -357,10 +374,16 @@ def build_primitives(projection_report: dict[str, Any]) -> dict[str, Any]:
         outcome = _outcome_candidate(resolved.get("outcome"))
         outcome_counts[outcome] += 1
 
-        coord = _coordinate_context(resolved)
+        coord = _coordinate_context(resolved, item.get("source_namespace"))
         length = coord.get("pitch_length")
         width = coord.get("pitch_width")
-        attack_sign = _attack_sign(resolved.get("attacking_direction"))
+        direction_scope_admitted = bool(
+            _is_admitted_status(resolved.get("attacking_direction_admission_status"))
+            and team
+            and period
+            and _norm_text(item.get("source_namespace"))
+        )
+        attack_sign = _attack_sign(resolved.get("attacking_direction")) if direction_scope_admitted else None
         coordinate_admitted = bool(coord.get("coordinate_system_admitted"))
 
         raw_dx = ex - sx if sx is not None and ex is not None else None
@@ -386,6 +409,7 @@ def build_primitives(projection_report: dict[str, Any]) -> dict[str, Any]:
                 "source_namespace": item.get("source_namespace"),
                 "action_candidate": action,
                 "team_candidate": team,
+                "period_candidate": period,
                 "player_candidate": player,
                 "receiver_candidate": receiver,
                 "start_x": sx,
@@ -400,7 +424,7 @@ def build_primitives(projection_report: dict[str, Any]) -> dict[str, Any]:
                 "pitch_width": width,
                 "coordinate_range_valid": full_range_valid,
                 "attacking_direction_admitted": attack_sign is not None,
-                "attacking_direction_basis": "EXPLICIT_ROW_FIELD" if attack_sign is not None else "WITHHELD_NO_EXPLICIT_ATTACKING_DIRECTION",
+                "attacking_direction_basis": "EXPLICIT_TEAM_PERIOD_SOURCE_ADMISSION" if attack_sign is not None else "WITHHELD_NO_TEAM_PERIOD_SOURCE_DIRECTION_ADMISSION",
                 "euclidean_displacement": euclidean,
                 "forward_gain": forward_gain,
                 "lateral_displacement_abs": abs(raw_dy) if full_range_valid and raw_dy is not None else None,
