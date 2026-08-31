@@ -111,6 +111,10 @@ def _bind_metric_governance_construct_gate() -> None:
     state = {"construct_blocked": False, "reason": None}
 
     def gated_sidecars(*args, **kwargs):
+        # Per-invocation state: one failed run may not poison a later healthy run
+        # in the same Python process.
+        state["construct_blocked"] = False
+        state["reason"] = None
         report = original_sidecars(*args, **kwargs)
         governance = report.get("metric_governance_bridge") if isinstance(report, dict) else None
         governance = governance if isinstance(governance, dict) else {}
