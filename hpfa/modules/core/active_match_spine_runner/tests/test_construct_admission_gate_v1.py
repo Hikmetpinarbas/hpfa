@@ -70,3 +70,43 @@ def test_only_explicitly_admitted_nonreview_construct_may_reach_c4() -> None:
     gated = entrypoint._apply_construct_admission_gate(report)
     assert gated["c4_packet_candidates"] == [packet]
     assert "construct_c4_promotion_withheld_count" not in gated
+
+
+def test_metric_governance_construct_gate_resets_state_for_each_run(monkeypatch) -> None:
+    entrypoint = _load_entrypoint()
+    full_spine = entrypoint.full_spine_module
+    reports = iter([
+        {
+            "metric_governance_bridge": {
+                "status": "FAIL_CLOSED",
+                "hard_block_hits": ["synthetic_governance_block"],
+            }
+        },
+        {
+            "metric_governance_bridge": {
+                "status": "REVIEW_REQUIRED",
+                "hard_block_hits": [],
+            }
+        },
+    ])
+
+    monkeypatch.setattr(full_spine, "_hpfa_metric_governance_gate_bound", False, raising=False)
+    monkeypatch.setattr(full_spine, "run_sidecars", lambda *args, **kwargs: next(reports))
+    monkeypatch.setattr(
+        full_spine,
+        "build_composite_packet",
+        lambda candidate: {"status": "PASS", "candidate": candidate},
+    )
+
+    entrypoint._bind_metric_governance_construct_gate()
+
+    first = full_spine.run_sidecars()
+    assert first["construct_path_blocked"] is True
+    assert full_spine.build_composite_packet({"id": "first"})["status"] == "FAIL_CLOSED"
+
+    second = full_spine.run_sidecars()
+    assert "construct_path_blocked" not in second
+    assert full_spine.build_composite_packet({"id": "second"}) == {
+        "status": "PASS",
+        "candidate": {"id": "second"},
+    }
