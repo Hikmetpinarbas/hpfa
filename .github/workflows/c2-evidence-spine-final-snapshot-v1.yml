@@ -45,6 +45,7 @@ jobs:
             cross_role_relation_candidate_resolver_current_v1.py \
             action_occurrence_admission_current_v1.py \
             trackable_action_trace_candidates_current_v1.py \
+            occurrence_active_match_evidence_package_current_v1.py \
             hpfa/modules/core/evidence_atom_inventory_lite \
             hpfa/modules/core/match_local_identity_candidates_lite \
             hpfa/modules/core/semantic_role_action_bundle_candidates_lite \
@@ -97,6 +98,9 @@ jobs:
           grep -R -q 'count_value_output_allowed' hpfa/modules/core/action_occurrence_admission_lite
           grep -R -q 'production_release' hpfa/modules/core/action_occurrence_admission_lite
           grep -F -q 'action_occurrence_admission_current_v1 as current_occurrence' trackable_action_trace_candidates_current_v1.py
+          grep -F -q 'TemporaryDirectory' occurrence_active_match_evidence_package_current_v1.py
+          grep -F -q 'HPFA_OCCURRENCE_ACTIVE_MATCH_EVIDENCE_V1.zip' occurrence_active_match_evidence_package_current_v1.py
+          grep -F -q 'production_release": False' occurrence_active_match_evidence_package_current_v1.py
 
       - name: No sample match identity leak in product code
         shell: bash
@@ -110,6 +114,7 @@ jobs:
             cross_role_relation_candidate_resolver_current_v1.py \
             action_occurrence_admission_current_v1.py \
             trackable_action_trace_candidates_current_v1.py \
+            occurrence_active_match_evidence_package_current_v1.py \
             hpfa/modules/core/evidence_atom_inventory_lite/src \
             hpfa/modules/core/match_local_identity_candidates_lite/src \
             hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src \
