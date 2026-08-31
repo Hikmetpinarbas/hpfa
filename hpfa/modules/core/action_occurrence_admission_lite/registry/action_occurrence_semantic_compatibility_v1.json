@@ -1,6 +1,6 @@
 {
   "registry_id": "action_occurrence_semantic_compatibility_v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "REVIEWED_CANDIDATE_RULES_ONLY",
   "purpose": "Precision-first compatibility rules for candidate occurrence reconstruction from already admitted Action Bundle surfaces. Rules create candidate relations only; they never establish canonical events.",
   "interaction_rules": [
@@ -26,6 +26,18 @@
       "exact_anchor_required": true,
       "coordinate_semantic_role": "ANNOTATION_ANCHOR_LOCATION_CANDIDATE",
       "internal_order": "UNKNOWN",
+      "conditional_review_passthrough": {
+        "allowed_taxonomy_classifications": [
+          "COMPOUND_ACTION_CO_OCCURRENCE_REVIEW_REQUIRED"
+        ],
+        "allowed_family_sets": [
+          ["DRIBBLE", "DUEL"]
+        ],
+        "required_primary_support_labels": ["Challenges won"],
+        "forbidden_taxonomy_classifications": [
+          "MULTI_FAMILY_COMPLEX_REVIEW_REQUIRED"
+        ]
+      },
       "allowed_claim": "The admitted annotations support a candidate dribble/challenge interaction involving the listed actors.",
       "forbidden_claims": [
         "canonical event truth",
@@ -37,6 +49,7 @@
     }
   ],
   "global_claim_boundary": {
+    "conditional_review_passthrough_changes_upstream_taxonomy_truth": false,
     "canonical_event_count": "UNKNOWN",
     "true_action_count": "UNKNOWN",
     "validated_event_identity": false,
