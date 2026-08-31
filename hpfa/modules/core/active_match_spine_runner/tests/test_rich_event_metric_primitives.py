@@ -90,23 +90,31 @@ def test_receiver_edge_requires_explicit_receiver(tmp_path: Path) -> None:
     assert primitives["pass_network_edge_count"] == 0
 
 
-def test_cross_surface_semantic_conflict_withholds_conflicted_geometry_field(tmp_path: Path) -> None:
+def test_cross_surface_semantic_conflict_withholds_only_dependent_geometry(tmp_path: Path) -> None:
     _write_surfaces(tmp_path, xml_end_x="75")
     result = run(tmp_path)
     item = result["projection"]["projections"][0]
     assert "end_x" in item["semantic_conflict_fields"]
     assert item["resolved_semantic_fields"]["end_x"] is None
-    assert result["primitives"]["geometry_action_candidate_count"] == 0
+    row = result["primitives"]["geometry_action_candidates"][0]
+    assert row["raw_x_displacement"] is None
+    assert row["raw_y_displacement"] == 5.0
+    assert row["forward_gain"] is None
+    assert row["euclidean_displacement"] is None
+    assert row["direction_angle_degrees"] is None
+    assert row["origin_zone_candidate"] is None
+    assert row["destination_zone_candidate"] is None
 
 
 def test_provider_ids_are_scoped_to_source_namespace_not_unknown_role(tmp_path: Path) -> None:
-    _write_surfaces(tmp_path, stem="Base Export")
-    _write_surfaces(tmp_path, stem="Base Export (1)")
+    _write_surfaces(tmp_path, stem="Base Export", receiver="Player B")
+    _write_surfaces(tmp_path, stem="Base Export (1)", receiver="Player C")
     result = run(tmp_path)
     assert result["projection"]["projection_count"] == 2
     namespaces = {item["source_namespace"] for item in result["projection"]["projections"]}
     assert namespaces == {"base_export", "base_export_(1)"}
-    assert result["primitives"]["pass_network_edges"][0]["explicit_edge_count"] == 2
+    edges = {(row["passer_candidate"], row["receiver_candidate"], row["explicit_edge_count"]) for row in result["primitives"]["pass_network_edges"]}
+    assert edges == {("Player A", "Player B", 1), ("Player A", "Player C", 1)}
 
 
 def test_missing_provider_id_withholds_cross_format_aggregate_primitives(tmp_path: Path) -> None:
