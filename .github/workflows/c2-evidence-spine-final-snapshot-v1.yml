@@ -43,11 +43,15 @@ jobs:
             semantic_role_action_bundle_candidates_lite.py \
             action_bundle_multi_family_review_taxonomy_current_v1.py \
             cross_role_relation_candidate_resolver_current_v1.py \
+            action_occurrence_admission_current_v1.py \
+            trackable_action_trace_candidates_current_v1.py \
             hpfa/modules/core/evidence_atom_inventory_lite \
             hpfa/modules/core/match_local_identity_candidates_lite \
             hpfa/modules/core/semantic_role_action_bundle_candidates_lite \
             hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite \
-            hpfa/modules/core/cross_role_relation_candidate_resolver_lite
+            hpfa/modules/core/cross_role_relation_candidate_resolver_lite \
+            hpfa/modules/core/action_occurrence_admission_lite \
+            hpfa/modules/core/trackable_action_trace_candidates_lite
 
       - name: Run C2 test suites independently
         shell: bash
@@ -59,6 +63,8 @@ jobs:
             hpfa/modules/core/semantic_role_action_bundle_candidates_lite/tests
             hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite/tests
             hpfa/modules/core/cross_role_relation_candidate_resolver_lite/tests
+            hpfa/modules/core/action_occurrence_admission_lite/tests
+            hpfa/modules/core/trackable_action_trace_candidates_lite/tests
           )
           for suite in "${suites[@]}"; do
             echo "===== C2 SUITE: $suite ====="
@@ -86,22 +92,29 @@ jobs:
           grep -R -q 'action_bundle_is_canonical_event' hpfa/modules/core/semantic_role_action_bundle_candidates_lite
           grep -R -q 'classification_is_event_truth' hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite
           grep -R -q 'relation_candidate_is_event_truth' hpfa/modules/core/cross_role_relation_candidate_resolver_lite
-          grep -R -q 'count_value_output_allowed' hpfa/modules/core/cross_role_relation_candidate_resolver_lite
-          grep -R -q 'production_release' hpfa/modules/core/cross_role_relation_candidate_resolver_lite
+          grep -R -q 'action_occurrence_candidate_is_event_truth' hpfa/modules/core/action_occurrence_admission_lite
+          grep -R -q 'probability_output_allowed' hpfa/modules/core/action_occurrence_admission_lite
+          grep -R -q 'count_value_output_allowed' hpfa/modules/core/action_occurrence_admission_lite
+          grep -R -q 'production_release' hpfa/modules/core/action_occurrence_admission_lite
+          grep -F -q 'action_occurrence_admission_current_v1 as current_occurrence' trackable_action_trace_candidates_current_v1.py
 
       - name: No sample match identity leak in product code
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -RInE 'Genclerbirligi|Fenerbahce|Sturm Graz|Heart of Midlothian|15\.08\.2026|22\.08\.2026|World Cup' \
+          ! grep -RInE 'Genclerbirligi|Fenerbahce|Sturm Graz|Heart of Midlothian|15\.08\.2026|22\.08\.2026|World Cup|Berhalter|Baris' \
             evidence_atom_inventory_lite.py \
             match_local_identity_candidates_lite.py \
             semantic_role_action_bundle_candidates_lite.py \
             action_bundle_multi_family_review_taxonomy_current_v1.py \
             cross_role_relation_candidate_resolver_current_v1.py \
+            action_occurrence_admission_current_v1.py \
+            trackable_action_trace_candidates_current_v1.py \
             hpfa/modules/core/evidence_atom_inventory_lite/src \
             hpfa/modules/core/match_local_identity_candidates_lite/src \
             hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src \
             hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite/src \
             hpfa/modules/core/cross_role_relation_candidate_resolver_lite/src \
+            hpfa/modules/core/action_occurrence_admission_lite/src \
+            hpfa/modules/core/trackable_action_trace_candidates_lite/src \
             tools/bootstrap_termux_c2_evidence_spine_current_v1.sh
