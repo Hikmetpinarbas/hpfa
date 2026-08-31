@@ -1,0 +1,55 @@
+{
+  "module_id": "action_occurrence_admission_lite_v1",
+  "version": "1.0.0",
+  "purpose": "Admit precision-first multi-annotation ACTION_OCCURRENCE_CANDIDATE and RELATION_BUNDLE_CANDIDATE objects from current Action Bundle and taxonomy surfaces without promoting canonical event truth.",
+  "input_modules": [
+    "semantic_role_action_bundle_candidates_lite_v1",
+    "action_bundle_multi_family_review_taxonomy_lite_v1",
+    "cross_role_relation_candidate_resolver_lite_v1"
+  ],
+  "admission_classes": [
+    "EXACT_COMPATIBLE",
+    "NEAR_COMPATIBLE_REVIEW",
+    "CONFLICT_REJECTED",
+    "INSUFFICIENT_SUPPORT"
+  ],
+  "mvp_policy": {
+    "precision_first": true,
+    "probability_output_allowed": false,
+    "exact_reviewed_core_rules_only": true,
+    "near_time_or_space_calibration_deferred": true,
+    "action_bundle_and_taxonomy_reuse_required": true,
+    "parallel_reader_or_reconstruction_engine_allowed": false
+  },
+  "required_guards": {
+    "same_match_surface_binding": true,
+    "same_period_for_exact_interaction": true,
+    "source_row_order_is_temporal_truth": false,
+    "same_timestamp_total_order_allowed": false,
+    "coordinate_is_physical_player_position": false,
+    "csv_xml_independent_votes_allowed": false,
+    "xlsx_creates_occurrence": false,
+    "label_is_action_truth": false
+  },
+  "claim_boundary": {
+    "claim_ceiling": "ACTION_OCCURRENCE_CANDIDATE_ONLY",
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "validated_event_identity": false,
+    "physical_action_identity_truth": false,
+    "event_instance_count": 0,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "production_release": false
+  },
+  "mandatory_tests": [
+    "test_exact_dribble_challenge_interaction_candidate",
+    "test_same_interval_without_semantic_rule_not_admitted",
+    "test_same_team_player_pair_not_admitted",
+    "test_source_row_order_not_chronology",
+    "test_candidate_is_not_canonical_event",
+    "test_no_sample_match_identity_leak"
+  ]
+}
