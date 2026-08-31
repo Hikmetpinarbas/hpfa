@@ -63,6 +63,27 @@
       "denominator_nucleus_count": null,
       "comparison_allowed": false,
       "review_reason": "Per-90 remains blocked until ExposureAuthority validates the playing-time construct for the declared scope."
+    },
+    {
+      "denominator_policy_id": "event_descriptor_not_applicable_v1",
+      "metric_family": "event_geometry_descriptor",
+      "allowed_denominator_types": ["not_applicable"],
+      "required_scope_keys": ["observation_window", "entity_scope", "source_provenance"],
+      "zero_denominator_behavior": "not_applicable",
+      "missing_denominator_behavior": "not_applicable",
+      "cross_provider_compatibility": "requires_explicit_coordinate_system_alignment",
+      "period_compatibility": "exact_scope_only",
+      "team_scope_compatibility": "exact_candidate_scope_only",
+      "player_scope_compatibility": "exact_candidate_scope_only",
+      "denominator_set_id": "NOT_APPLICABLE",
+      "numerator_subset_status": "NOT_APPLICABLE",
+      "component_relation": "NOT_APPLICABLE",
+      "mutual_exclusivity_status": "NOT_APPLICABLE",
+      "collective_exhaustiveness_status": "NOT_APPLICABLE",
+      "uncovered_opportunity_status": "NOT_APPLICABLE",
+      "denominator_nucleus_count": null,
+      "comparison_allowed": false,
+      "review_reason": "Action-level geometry descriptors require admitted start/end coordinate semantics and coordinate-system integrity; they are not physical speed, pitch control or tactical truth."
     }
   ]
 }
