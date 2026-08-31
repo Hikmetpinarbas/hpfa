@@ -1,0 +1,49 @@
+{
+  "registry_id": "action_occurrence_semantic_compatibility_v1",
+  "version": "1.0.0",
+  "status": "REVIEWED_CANDIDATE_RULES_ONLY",
+  "purpose": "Precision-first compatibility rules for candidate occurrence reconstruction from already admitted Action Bundle surfaces. Rules create candidate relations only; they never establish canonical events.",
+  "interaction_rules": [
+    {
+      "rule_id": "dribble_challenge_interaction_exact_v1",
+      "interaction_type": "DRIBBLE_CHALLENGE_INTERACTION_CANDIDATE",
+      "source_roles": ["PLAYER_SURFACE_CANDIDATE", "PLAYER_SURFACE_CANDIDATE"],
+      "primary_required_families": ["DRIBBLE"],
+      "primary_required_any_labels": [
+        "Dribbles successful",
+        "Dribbling in the final third successful"
+      ],
+      "primary_support_any_labels": ["Challenges won"],
+      "counterpart_required_any_families": ["DUEL", "TACKLE"],
+      "counterpart_required_any_labels": [
+        "Challenges unsuccessful",
+        "Tackles unsuccessful"
+      ],
+      "teams_must_differ": true,
+      "actors_must_differ": true,
+      "exact_period_required": true,
+      "exact_start_end_required": true,
+      "exact_anchor_required": true,
+      "coordinate_semantic_role": "ANNOTATION_ANCHOR_LOCATION_CANDIDATE",
+      "internal_order": "UNKNOWN",
+      "allowed_claim": "The admitted annotations support a candidate dribble/challenge interaction involving the listed actors.",
+      "forbidden_claims": [
+        "canonical event truth",
+        "exact physical chronology",
+        "physical player co-location",
+        "tactical intention",
+        "causality"
+      ]
+    }
+  ],
+  "global_claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "validated_event_identity": false,
+    "physical_action_identity_truth": false,
+    "same_time_total_order_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "independent_csv_xml_vote_allowed": false,
+    "production_release": false
+  }
+}
