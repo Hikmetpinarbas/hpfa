@@ -16,22 +16,27 @@ def _write_surfaces(
     pitch_length: str = "105",
     pitch_width: str = "68",
     attacking_direction: str = "LEFT_TO_RIGHT",
+    period: str = "1",
+    coordinate_system_admission_status: str = "ADMITTED",
+    attacking_direction_admission_status: str = "ADMITTED",
     start_y: str = "30",
     end_y: str = "35",
 ) -> None:
     (root / f"{stem}.csv").write_text(
-        "ID,start,end,action,team,player,receiver,outcome,start_x,start_y,end_x,end_y,coordinate_system,pitch_length,pitch_width,attacking_direction,provider_qualifier\n"
-        f"{provider_id},10,11,Pass,Team A,Player A,{receiver},successful,30,{start_y},80,{end_y},{coordinate_system},{pitch_length},{pitch_width},{attacking_direction},through\n",
+        "ID,start,end,action,team,player,receiver,outcome,period,start_x,start_y,end_x,end_y,coordinate_system,pitch_length,pitch_width,attacking_direction,coordinate_system_admission_status,attacking_direction_admission_status,provider_qualifier\n"
+        f"{provider_id},10,11,Pass,Team A,Player A,{receiver},successful,{period},30,{start_y},80,{end_y},{coordinate_system},{pitch_length},{pitch_width},{attacking_direction},{coordinate_system_admission_status},{attacking_direction_admission_status},through\n",
         encoding="utf-8",
     )
     receiver_label = f"<label><group>receiver</group><text>{receiver}</text></label>" if receiver else ""
     id_xml = f"<ID>{provider_id}</ID>" if provider_id else ""
     labels = [
         ("action", "Pass"), ("team", "Team A"), ("player", "Player A"),
-        ("outcome", "successful"), ("start_x", "30"), ("start_y", start_y),
+        ("outcome", "successful"), ("period", period), ("start_x", "30"), ("start_y", start_y),
         ("end_x", xml_end_x), ("end_y", end_y),
         ("coordinate_system", coordinate_system), ("pitch_length", pitch_length),
         ("pitch_width", pitch_width), ("attacking_direction", attacking_direction),
+        ("coordinate_system_admission_status", coordinate_system_admission_status),
+        ("attacking_direction_admission_status", attacking_direction_admission_status),
         ("provider_qualifier", "through"),
     ]
     label_xml = "".join(
@@ -139,6 +144,36 @@ def test_coordinate_semantics_are_withheld_without_explicit_coordinate_system(tm
     assert row["destination_zone_candidate"] is None
 
 
+def test_raw_coordinate_fields_do_not_self_admit_coordinate_semantics(tmp_path: Path) -> None:
+    _write_surfaces(tmp_path, coordinate_system_admission_status="")
+    row = run(tmp_path)["primitives"]["geometry_action_candidates"][0]
+    assert row["raw_x_displacement"] == 50.0
+    assert row["coordinate_system_admitted"] is False
+    assert row["euclidean_displacement"] is None
+    assert row["forward_gain"] is None
+    assert row["origin_zone_candidate"] is None
+
+
+def test_direction_requires_explicit_admission_status(tmp_path: Path) -> None:
+    _write_surfaces(tmp_path, attacking_direction_admission_status="")
+    row = run(tmp_path)["primitives"]["geometry_action_candidates"][0]
+    assert row["coordinate_system_admitted"] is True
+    assert row["attacking_direction_admitted"] is False
+    assert row["euclidean_displacement"] is not None
+    assert row["forward_gain"] is None
+    assert row["direction_candidate"] is None
+    assert row["origin_zone_candidate"] is None
+
+
+def test_direction_requires_team_period_source_scope(tmp_path: Path) -> None:
+    _write_surfaces(tmp_path, period="")
+    row = run(tmp_path)["primitives"]["geometry_action_candidates"][0]
+    assert row["period_candidate"] is None
+    assert row["attacking_direction_admitted"] is False
+    assert row["forward_gain"] is None
+    assert row["origin_zone_candidate"] is None
+
+
 def test_attacking_direction_normalization_prevents_raw_plus_x_forward_claim(tmp_path: Path) -> None:
     _write_surfaces(tmp_path, attacking_direction="RIGHT_TO_LEFT")
     row = run(tmp_path)["primitives"]["geometry_action_candidates"][0]
@@ -168,8 +203,8 @@ def test_declared_normalized_coordinate_system_scales_zone_boundaries(tmp_path: 
 
 def test_x_only_primitive_is_not_suppressed_by_missing_y_coordinates(tmp_path: Path) -> None:
     (tmp_path / "X Only.csv").write_text(
-        "ID,action,team,player,start_x,end_x,coordinate_system,pitch_length,pitch_width,attacking_direction\n"
-        "7,Pass,Team A,Player A,20,60,105x68,105,68,LEFT_TO_RIGHT\n",
+        "ID,action,team,player,period,start_x,end_x,coordinate_system,pitch_length,pitch_width,attacking_direction,coordinate_system_admission_status,attacking_direction_admission_status\n"
+        "7,Pass,Team A,Player A,1,20,60,105x68,105,68,LEFT_TO_RIGHT,ADMITTED,ADMITTED\n",
         encoding="utf-8",
     )
     row = run(tmp_path)["primitives"]["geometry_action_candidates"][0]
