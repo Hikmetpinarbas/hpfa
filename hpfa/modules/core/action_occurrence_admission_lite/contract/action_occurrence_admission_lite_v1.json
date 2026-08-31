@@ -1,6 +1,6 @@
 {
   "module_id": "action_occurrence_admission_lite_v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "purpose": "Admit precision-first multi-annotation ACTION_OCCURRENCE_CANDIDATE and RELATION_BUNDLE_CANDIDATE objects from current Action Bundle and taxonomy surfaces without promoting canonical event truth.",
   "input_modules": [
     "semantic_role_action_bundle_candidates_lite_v1",
@@ -19,7 +19,10 @@
     "exact_reviewed_core_rules_only": true,
     "near_time_or_space_calibration_deferred": true,
     "action_bundle_and_taxonomy_reuse_required": true,
-    "parallel_reader_or_reconstruction_engine_allowed": false
+    "parallel_reader_or_reconstruction_engine_allowed": false,
+    "conditional_review_passthrough_scope": "OCCURRENCE_ADMISSION_LOCAL_COPY_ONLY",
+    "conditional_review_passthrough_changes_upstream_taxonomy_truth": false,
+    "multi_family_complex_review_passthrough_allowed": false
   },
   "required_guards": {
     "same_match_surface_binding": true,
@@ -29,7 +32,13 @@
     "coordinate_is_physical_player_position": false,
     "csv_xml_independent_votes_allowed": false,
     "xlsx_creates_occurrence": false,
-    "label_is_action_truth": false
+    "label_is_action_truth": false,
+    "conditional_review_requires_registry_allowlist": true,
+    "conditional_review_requires_exact_family_set": true,
+    "conditional_review_requires_primary_support_label": true,
+    "conditional_review_requires_exact_counterpart_before_candidate": true,
+    "upstream_review_provenance_preserved": true,
+    "input_payload_mutation_allowed": false
   },
   "claim_boundary": {
     "claim_ceiling": "ACTION_OCCURRENCE_CANDIDATE_ONLY",
@@ -50,6 +59,12 @@
     "test_same_team_player_pair_not_admitted",
     "test_source_row_order_not_chronology",
     "test_candidate_is_not_canonical_event",
+    "test_compound_dribble_duel_review_can_be_admitted_with_exact_counterpart",
+    "test_compound_review_without_challenges_won_is_not_admitted",
+    "test_multi_family_complex_review_remains_withheld",
+    "test_no_counterpart_means_no_occurrence_candidate",
+    "test_passthrough_does_not_mutate_upstream_payloads",
+    "test_claim_boundaries_remain_closed",
     "test_no_sample_match_identity_leak"
   ]
 }
