@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-import cross_role_relation_candidate_resolver_current_v1 as current_relation
+import action_occurrence_admission_current_v1 as current_occurrence
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src import (
     trackable_action_trace_candidates as trackable,
 )
@@ -22,13 +22,15 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = trackable.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
 
-    relation_payload = current_relation.runtime_write_outputs(input_dir, output)
+    occurrence_payload = current_occurrence.runtime_write_outputs(input_dir, output)
+    relation_path = output / "cross_role_relation_candidate_resolver_lite_v1.json"
     action_path = output / "semantic_role_action_bundle_candidates_lite_v1.json"
     taxonomy_path = output / "action_bundle_multi_family_review_taxonomy_lite_v1.json"
     evidence_path = output / "evidence_atom_inventory_lite_v1.json"
 
     if (
-        relation_payload.get("status") == "FAIL_CLOSED"
+        occurrence_payload.get("status") == "FAIL_CLOSED"
+        or not relation_path.is_file()
         or not action_path.is_file()
         or not taxonomy_path.is_file()
         or not evidence_path.is_file()
@@ -55,7 +57,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "relation_supported_trace_candidate_count": 0,
             "standalone_primary_trace_candidate_count": 0,
             "same_surface_multi_family_trace_candidate_count": 0,
-            "hard_block_hits": ["current_cross_role_or_required_upstream_output_missing"],
+            "hard_block_hits": ["current_occurrence_or_required_upstream_output_missing"],
             "review_hits": [],
             "trackable_action_candidate_is_event_truth": False,
             "physical_action_identity_truth": False,
@@ -77,9 +79,10 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "canonical_event_count": "UNKNOWN",
             "true_action_count": "UNKNOWN",
             "production_release": False,
-            "current_relation_status": relation_payload.get("status"),
+            "current_occurrence_status": occurrence_payload.get("status"),
         }
 
+    relation_payload = _load(relation_path)
     action_payload = _load(action_path)
     taxonomy_payload = _load(taxonomy_path)
     evidence_payload = _load(evidence_path)
@@ -89,12 +92,13 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         relation_payload,
         evidence_payload,
     )
-    payload["current_relation_status"] = relation_payload.get("status")
-    payload["current_taxonomy_status"] = relation_payload.get("current_taxonomy_status")
-    payload["current_semantic_status"] = relation_payload.get("current_semantic_status")
-    payload["current_content_source_role_bridge_status"] = relation_payload.get(
-        "current_content_source_role_bridge_status"
+    payload["current_occurrence_status"] = occurrence_payload.get("status")
+    payload["current_occurrence_candidate_count"] = occurrence_payload.get(
+        "action_occurrence_candidate_count", 0
     )
+    payload["current_relation_status"] = occurrence_payload.get("current_relation_status")
+    payload["current_taxonomy_status"] = occurrence_payload.get("current_taxonomy_status")
+    payload["current_semantic_status"] = occurrence_payload.get("current_semantic_status")
     payload["active_match_evidence_pass"] = False
     paths = trackable.write_outputs(payload, output)
     payload["outputs"] = {key: str(path) for key, path in paths.items()}
@@ -103,7 +107,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="HPFA current relation+taxonomy+action+evidence to Trackable Action trace candidates"
+        description="HPFA current occurrence-gated relation+taxonomy+action+evidence to Trackable Action trace candidates"
     )
     parser.add_argument("--input-dir", required=True)
     parser.add_argument("--out-dir", required=True)
@@ -113,6 +117,8 @@ def main() -> int:
         json.dumps(
             {
                 "status": payload.get("status"),
+                "current_occurrence_status": payload.get("current_occurrence_status"),
+                "current_occurrence_candidate_count": payload.get("current_occurrence_candidate_count", 0),
                 "current_relation_status": payload.get("current_relation_status"),
                 "source_action_bundle_candidate_count": payload.get("source_action_bundle_candidate_count"),
                 "selected_primary_surface_candidate_count": payload.get("selected_primary_surface_candidate_count"),
