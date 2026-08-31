@@ -4,6 +4,7 @@ import csv
 import hashlib
 import json
 import math
+import re
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -26,6 +27,10 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "start_y": ("start_y", "y", "pos_y", "y1"),
     "end_x": ("end_x", "x_end", "end_pos_x", "x2", "target_x"),
     "end_y": ("end_y", "y_end", "end_pos_y", "y2", "target_y"),
+    "coordinate_system": ("coordinate_system", "coordinate_schema", "pitch_coordinate_system", "coordinate_scale"),
+    "pitch_length": ("pitch_length", "field_length", "coordinate_max_x"),
+    "pitch_width": ("pitch_width", "field_width", "coordinate_max_y"),
+    "attacking_direction": ("attacking_direction", "attack_direction", "playing_direction", "coordinate_direction"),
 }
 
 SUCCESS_VALUES = {"1", "true", "yes", "success", "successful", "complete", "completed", "accurate", "won"}
@@ -59,6 +64,11 @@ def _source_role(path: Path) -> str:
     if "team" in name:
         return "TEAM"
     return "UNKNOWN"
+
+
+def _source_namespace(path: Path) -> str:
+    """Cross-format namespace only; preserves export suffixes such as (1)/(2)."""
+    return _norm_key(path.stem)
 
 
 def _file_sha(path: Path) -> str:
@@ -143,31 +153,91 @@ def _outcome_candidate(value: Any) -> str:
     return "UNKNOWN_OUTCOME"
 
 
-def _zone(x: float | None, y: float | None) -> str | None:
-    if x is None or y is None:
+def _coordinate_context(resolved: dict[str, Any]) -> dict[str, Any]:
+    label = _norm_key(resolved.get("coordinate_system"))
+    length = _num(resolved.get("pitch_length"))
+    width = _num(resolved.get("pitch_width"))
+    basis = None
+
+    if length is not None and width is not None and length > 0 and width > 0:
+        basis = "EXPLICIT_DIMENSIONS"
+    elif label in {"0_100", "0to100", "normalized_0_100", "normalized100", "percentage", "percent"}:
+        length, width, basis = 100.0, 100.0, "EXPLICIT_NORMALIZED_0_100_LABEL"
+    elif label:
+        match = re.fullmatch(r"(?:meters?_?)?(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)", label)
+        if match:
+            length, width = float(match.group(1)), float(match.group(2))
+            if length > 0 and width > 0:
+                basis = "EXPLICIT_DIMENSION_LABEL"
+
+    admitted = bool(basis and length is not None and width is not None)
+    return {
+        "coordinate_system_admitted": admitted,
+        "coordinate_system_basis": basis or "WITHHELD_NO_EXPLICIT_COORDINATE_SYSTEM",
+        "pitch_length": length if admitted else None,
+        "pitch_width": width if admitted else None,
+    }
+
+
+def _attack_sign(value: Any) -> int | None:
+    text = _norm_key(value)
+    if text in {"left_to_right", "ltr", "increasing_x", "positive_x", "plus_x", "+x", "1"}:
+        return 1
+    if text in {"right_to_left", "rtl", "decreasing_x", "negative_x", "minus_x", "_x", "-1"}:
+        return -1
+    return None
+
+
+def _coord_in_range(value: float | None, maximum: float | None) -> bool:
+    return value is not None and maximum is not None and 0.0 <= value <= maximum
+
+
+def _normalized_xy(x: float, y: float, length: float, width: float, attack_sign: int) -> tuple[float, float]:
+    if attack_sign == 1:
+        return x, y
+    return length - x, width - y
+
+
+def _pitch_zone(x: float | None, y: float | None, length: float | None, width: float | None) -> str | None:
+    if x is None or y is None or length is None or width is None:
         return None
-    third = "DEFENSIVE_THIRD" if x < 35 else "MIDDLE_THIRD" if x < 70 else "FINAL_THIRD"
-    channel = "LEFT" if y < 22.67 else "CENTRAL" if y < 45.34 else "RIGHT"
+    if not (_coord_in_range(x, length) and _coord_in_range(y, width)):
+        return None
+    x_idx = min(2, int((x / length) * 3)) if x < length else 2
+    y_idx = min(2, int((y / width) * 3)) if y < width else 2
+    return f"PITCH_X_THIRD_{x_idx + 1}:WIDTH_BAND_{y_idx + 1}"
+
+
+def _attacking_zone(x: float | None, y: float | None, length: float | None, width: float | None, attack_sign: int | None) -> str | None:
+    if x is None or y is None or length is None or width is None or attack_sign is None:
+        return None
+    if not (_coord_in_range(x, length) and _coord_in_range(y, width)):
+        return None
+    nx, ny = _normalized_xy(x, y, length, width, attack_sign)
+    third = "DEFENSIVE_THIRD" if nx < length / 3 else "MIDDLE_THIRD" if nx < 2 * length / 3 else "FINAL_THIRD"
+    channel = "LEFT" if ny < width / 3 else "CENTRAL" if ny < 2 * width / 3 else "RIGHT"
     return f"{third}:{channel}"
 
 
-def _direction(dx: float | None, dy: float | None) -> str | None:
-    if dx is None or dy is None:
+def _direction(normalized_dx: float | None, pitch_length: float | None) -> str | None:
+    if normalized_dx is None or pitch_length is None:
         return None
-    if abs(dx) < 1.0:
+    threshold = pitch_length * 0.01
+    if abs(normalized_dx) < threshold:
         return "LATERAL_CANDIDATE"
-    return "FORWARD_CANDIDATE" if dx > 0 else "BACKWARD_CANDIDATE"
+    return "FORWARD_CANDIDATE" if normalized_dx > 0 else "BACKWARD_CANDIDATE"
 
 
-def _third_index(x: float | None) -> int | None:
-    if x is None:
+def _attacking_third_index(x: float | None, length: float | None, attack_sign: int | None) -> int | None:
+    if x is None or length is None or attack_sign is None or not _coord_in_range(x, length):
         return None
-    return 0 if x < 35 else 1 if x < 70 else 2
+    nx = x if attack_sign == 1 else length - x
+    return 0 if nx < length / 3 else 1 if nx < 2 * length / 3 else 2
 
 
-def _geometric_third_skip(start_x: float | None, end_x: float | None) -> int | None:
-    a = _third_index(start_x)
-    b = _third_index(end_x)
+def _geometric_third_skip(start_x: float | None, end_x: float | None, length: float | None, attack_sign: int | None) -> int | None:
+    a = _attacking_third_index(start_x, length, attack_sign)
+    b = _attacking_third_index(end_x, length, attack_sign)
     if a is None or b is None:
         return None
     return max(0, abs(b - a) - 1)
@@ -176,38 +246,43 @@ def _geometric_third_skip(start_x: float | None, end_x: float | None) -> int | N
 def build_projection(active_match_dir: str | Path) -> dict[str, Any]:
     root = Path(active_match_dir).expanduser().resolve(strict=False)
     files = [p for p in sorted(root.iterdir() if root.exists() else []) if p.is_file() and p.suffix.casefold() in {".csv", ".tsv", ".xml"}]
-    seen_sha: dict[tuple[str, str], Path] = {}
+    seen_sha: dict[str, Path] = {}
     rows_by_key: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     raw_field_counts: Counter[str] = Counter()
     duplicate_file_reflections: list[dict[str, Any]] = []
 
     for path in files:
         digest = _file_sha(path)
-        key_sha = (path.suffix.casefold(), digest)
-        if key_sha in seen_sha:
-            duplicate_file_reflections.append({"source_file": path.name, "reflected_from_file": seen_sha[key_sha].name, "sha256": digest})
+        if digest in seen_sha:
+            duplicate_file_reflections.append({"source_file": path.name, "reflected_from_file": seen_sha[digest].name, "sha256": digest})
             continue
-        seen_sha[key_sha] = path
+        seen_sha[digest] = path
         role = _source_role(path)
+        namespace = _source_namespace(path)
         for idx, raw in enumerate(_read_raw(path)):
             lowered = _lower_row(raw)
             raw_field_counts.update(lowered.keys())
             sem = _semantic_values(raw)
             provider_id = _norm_text(sem.get("provider_row_id"))
-            if not provider_id:
-                provider_id = "__MISSING__:" + hashlib.sha256(f"{role}|{path.name}|{idx}".encode()).hexdigest()[:20]
-            rows_by_key[(role, provider_id)].append({
+            provider_id_present = provider_id is not None
+            if provider_id_present:
+                identity_key = str(provider_id)
+            else:
+                identity_key = "__MISSING__:" + hashlib.sha256(f"{namespace}|{path.suffix.casefold()}|{idx}".encode()).hexdigest()[:20]
+            rows_by_key[(namespace, identity_key)].append({
                 "source_file": path.name,
+                "source_namespace": namespace,
                 "source_format": path.suffix.casefold().lstrip("."),
                 "source_role": role,
                 "source_row_index": idx,
                 "source_sha256": digest,
+                "provider_row_id_present": provider_id_present,
                 "raw_fields": {str(k): v for k, v in raw.items()},
                 "semantic_candidates": sem,
             })
 
     projections: list[dict[str, Any]] = []
-    for (role, provider_id), surfaces in sorted(rows_by_key.items()):
+    for (namespace, identity_key), surfaces in sorted(rows_by_key.items()):
         field_candidates: dict[str, list[str]] = {}
         resolved: dict[str, Any] = {}
         conflicts: list[str] = []
@@ -220,11 +295,18 @@ def build_projection(active_match_dir: str | Path) -> dict[str, Any]:
                 resolved[semantic_name] = None
                 if len(values) > 1:
                     conflicts.append(semantic_name)
+        provider_id_present = all(bool(item.get("provider_row_id_present")) for item in surfaces)
+        aggregation_eligible = provider_id_present
+        provider_id = _norm_text(resolved.get("provider_row_id")) if provider_id_present else None
         projections.append({
-            "rich_field_projection_id": hashlib.sha256(f"{role}|{provider_id}".encode()).hexdigest(),
-            "source_role": role,
+            "rich_field_projection_id": hashlib.sha256(f"{namespace}|{identity_key}".encode()).hexdigest(),
+            "source_namespace": namespace,
+            "source_roles": sorted({str(item.get("source_role")) for item in surfaces}),
             "provider_row_id_candidate": provider_id,
             "provider_row_id_is_action_identity_truth": False,
+            "identity_reconciliation_status": "PROVIDER_ID_NAMESPACE_SCOPED_CANDIDATE" if provider_id_present else "WITHHELD_PROVIDER_ID_MISSING",
+            "aggregate_primitives_eligible": aggregation_eligible,
+            "aggregate_primitives_withheld_reason": None if aggregation_eligible else "provider_id_missing_cross_format_identity_unreconciled",
             "semantic_field_candidates": field_candidates,
             "resolved_semantic_fields": resolved,
             "semantic_conflict_fields": conflicts,
@@ -256,8 +338,13 @@ def build_primitives(projection_report: dict[str, Any]) -> dict[str, Any]:
     team_directions: dict[str, Counter[str]] = defaultdict(Counter)
     zone_transitions: Counter[tuple[str, str]] = Counter()
     outcome_counts: Counter[str] = Counter()
+    withheld_counts: Counter[str] = Counter()
 
     for item in projection_report.get("projections", []) or []:
+        if not item.get("aggregate_primitives_eligible", False):
+            withheld_counts["identity_unreconciled"] += 1
+            continue
+
         resolved = item.get("resolved_semantic_fields") or {}
         action = _norm_text(resolved.get("action"))
         player = _norm_text(resolved.get("player"))
@@ -270,18 +357,33 @@ def build_primitives(projection_report: dict[str, Any]) -> dict[str, Any]:
         outcome = _outcome_candidate(resolved.get("outcome"))
         outcome_counts[outcome] += 1
 
-        if None not in (sx, sy, ex, ey):
-            dx = ex - sx  # type: ignore[operator]
-            dy = ey - sy  # type: ignore[operator]
-            distance = math.hypot(dx, dy)
-            angle = math.degrees(math.atan2(dy, dx))
-            origin = _zone(sx, sy)
-            destination = _zone(ex, ey)
-            direction = _direction(dx, dy)
+        coord = _coordinate_context(resolved)
+        length = coord.get("pitch_length")
+        width = coord.get("pitch_width")
+        attack_sign = _attack_sign(resolved.get("attacking_direction"))
+        coordinate_admitted = bool(coord.get("coordinate_system_admitted"))
+
+        raw_dx = ex - sx if sx is not None and ex is not None else None
+        raw_dy = ey - sy if sy is not None and ey is not None else None
+        x_range_valid = bool(coordinate_admitted and _coord_in_range(sx, length) and _coord_in_range(ex, length))
+        y_range_valid = bool(coordinate_admitted and _coord_in_range(sy, width) and _coord_in_range(ey, width))
+        full_range_valid = x_range_valid and y_range_valid
+
+        euclidean = math.hypot(raw_dx, raw_dy) if full_range_valid and raw_dx is not None and raw_dy is not None else None
+        angle = math.degrees(math.atan2(raw_dy, raw_dx)) if full_range_valid and raw_dx is not None and raw_dy is not None else None
+        forward_gain = attack_sign * raw_dx if x_range_valid and attack_sign is not None and raw_dx is not None else None
+        direction = _direction(forward_gain, length) if forward_gain is not None else None
+        origin_pitch = _pitch_zone(sx, sy, length, width) if full_range_valid else None
+        destination_pitch = _pitch_zone(ex, ey, length, width) if full_range_valid else None
+        origin_attacking = _attacking_zone(sx, sy, length, width, attack_sign) if full_range_valid else None
+        destination_attacking = _attacking_zone(ex, ey, length, width, attack_sign) if full_range_valid else None
+        third_skip = _geometric_third_skip(sx, ex, length, attack_sign) if x_range_valid else None
+
+        if raw_dx is not None or raw_dy is not None:
             geometry_rows.append({
                 "rich_field_projection_id": item.get("rich_field_projection_id"),
                 "provider_row_id_candidate": item.get("provider_row_id_candidate"),
-                "source_role": item.get("source_role"),
+                "source_namespace": item.get("source_namespace"),
                 "action_candidate": action,
                 "team_candidate": team,
                 "player_candidate": player,
@@ -290,35 +392,54 @@ def build_primitives(projection_report: dict[str, Any]) -> dict[str, Any]:
                 "start_y": sy,
                 "end_x": ex,
                 "end_y": ey,
-                "euclidean_displacement": distance,
-                "forward_gain": dx,
-                "lateral_displacement_abs": abs(dy),
+                "raw_x_displacement": raw_dx,
+                "raw_y_displacement": raw_dy,
+                "coordinate_system_admitted": coordinate_admitted,
+                "coordinate_system_basis": coord.get("coordinate_system_basis"),
+                "pitch_length": length,
+                "pitch_width": width,
+                "coordinate_range_valid": full_range_valid,
+                "attacking_direction_admitted": attack_sign is not None,
+                "attacking_direction_basis": "EXPLICIT_ROW_FIELD" if attack_sign is not None else "WITHHELD_NO_EXPLICIT_ATTACKING_DIRECTION",
+                "euclidean_displacement": euclidean,
+                "forward_gain": forward_gain,
+                "lateral_displacement_abs": abs(raw_dy) if full_range_valid and raw_dy is not None else None,
                 "direction_angle_degrees": angle,
                 "direction_candidate": direction,
-                "origin_zone_candidate": origin,
-                "destination_zone_candidate": destination,
-                "geometric_third_skip_count": _geometric_third_skip(sx, ex),
+                "origin_pitch_zone_candidate": origin_pitch,
+                "destination_pitch_zone_candidate": destination_pitch,
+                "origin_zone_candidate": origin_attacking,
+                "destination_zone_candidate": destination_attacking,
+                "geometric_third_skip_count": third_skip,
                 "outcome_candidate": outcome,
                 "physical_speed_truth": False,
                 "defensive_line_bypass_truth": False,
                 "claim_ceiling": "EVENT_GEOMETRY_CANDIDATE_ONLY",
             })
-            if origin and destination:
-                zone_transitions[(origin, destination)] += 1
-            if player and direction:
-                player_directions[player][direction] += 1
-            if team and direction:
-                team_directions[team][direction] += 1
+
+        if origin_attacking and destination_attacking:
+            zone_transitions[(origin_attacking, destination_attacking)] += 1
+        if player and direction:
+            player_directions[player][direction] += 1
+        if team and direction:
+            team_directions[team][direction] += 1
 
         if action and "pass" in action.casefold() and player and receiver:
             pass_edges[(team or "UNKNOWN_TEAM", player, receiver)] += 1
+
+        if not coordinate_admitted:
+            withheld_counts["coordinate_system_not_admitted"] += 1
+        elif not x_range_valid:
+            withheld_counts["coordinate_x_range_invalid_or_missing"] += 1
+        if attack_sign is None:
+            withheld_counts["attacking_direction_not_admitted"] += 1
 
     pass_edge_rows = [
         {"team_candidate": team, "passer_candidate": passer, "receiver_candidate": receiver, "explicit_edge_count": count, "receiver_edge_basis": "EXPLICIT_RECEIVER_FIELD_ONLY", "formation_truth": False}
         for (team, passer, receiver), count in pass_edges.most_common()
     ]
     zone_rows = [
-        {"origin_zone_candidate": origin, "destination_zone_candidate": destination, "transition_candidate_count": count, "pitch_control_truth": False}
+        {"origin_zone_candidate": origin, "destination_zone_candidate": destination, "transition_candidate_count": count, "zone_basis": "ATTACKING_DIRECTION_NORMALIZED_DECLARED_COORDINATE_SYSTEM", "pitch_control_truth": False}
         for (origin, destination), count in zone_transitions.most_common()
     ]
     return {
@@ -332,12 +453,14 @@ def build_primitives(projection_report: dict[str, Any]) -> dict[str, Any]:
         "team_direction_profiles": {key: dict(value) for key, value in sorted(team_directions.items())},
         "zone_transition_matrix_candidates": zone_rows,
         "outcome_candidate_counts": dict(outcome_counts),
+        "withheld_primitive_counts": dict(withheld_counts),
         "metric_contracts": [
-            {"metric_id": "event_euclidean_displacement", "formula": "sqrt((x_end-x_start)^2+(y_end-y_start)^2)", "unit": "provider_coordinate_unit", "claim_ceiling": "EVENT_GEOMETRY_CANDIDATE_ONLY"},
-            {"metric_id": "event_forward_gain", "formula": "x_end-x_start", "unit": "provider_coordinate_unit", "claim_ceiling": "EVENT_GEOMETRY_CANDIDATE_ONLY"},
-            {"metric_id": "event_direction_angle", "formula": "atan2(y_end-y_start,x_end-x_start)", "unit": "degrees", "claim_ceiling": "EVENT_GEOMETRY_CANDIDATE_ONLY"},
-            {"metric_id": "zone_transition_candidate", "formula": "count(origin_zone,destination_zone)", "unit": "candidate_count", "claim_ceiling": "ZONE_TRANSITION_CANDIDATE_ONLY"},
-            {"metric_id": "explicit_passer_receiver_edge", "formula": "count(explicit passer, explicit receiver)", "unit": "candidate_count", "claim_ceiling": "PASS_RELATION_CANDIDATE_ONLY"},
+            {"metric_id": "raw_x_displacement_observation", "formula": "x_end-x_start", "unit": "provider_coordinate_unit", "claim_ceiling": "RAW_COORDINATE_DIFFERENCE_ONLY"},
+            {"metric_id": "event_euclidean_displacement", "formula": "sqrt((x_end-x_start)^2+(y_end-y_start)^2)", "unit": "provider_coordinate_unit", "requires": ["start_x", "start_y", "end_x", "end_y", "coordinate_system"], "claim_ceiling": "EVENT_GEOMETRY_CANDIDATE_ONLY"},
+            {"metric_id": "event_forward_gain", "formula": "attack_sign*(x_end-x_start)", "unit": "provider_coordinate_unit", "requires": ["start_x", "end_x", "coordinate_system", "attacking_direction_normalization"], "claim_ceiling": "EVENT_GEOMETRY_CANDIDATE_ONLY"},
+            {"metric_id": "event_direction_angle", "formula": "atan2(y_end-y_start,x_end-x_start)", "unit": "degrees", "requires": ["start_x", "start_y", "end_x", "end_y", "coordinate_system"], "claim_ceiling": "EVENT_GEOMETRY_CANDIDATE_ONLY"},
+            {"metric_id": "zone_transition_candidate", "formula": "count(origin_zone,destination_zone)", "unit": "candidate_count", "requires": ["coordinate_system", "attacking_direction_normalization", "reflection_identity"], "claim_ceiling": "ZONE_TRANSITION_CANDIDATE_ONLY"},
+            {"metric_id": "explicit_passer_receiver_edge", "formula": "count(explicit passer, explicit receiver)", "unit": "candidate_count", "requires": ["explicit_receiver", "reflection_identity"], "claim_ceiling": "PASS_RELATION_CANDIDATE_ONLY"},
         ],
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
