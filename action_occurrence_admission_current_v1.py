@@ -6,6 +6,9 @@ from pathlib import Path
 
 import cross_role_relation_candidate_resolver_current_v1 as current_relation
 from hpfa.modules.core.action_occurrence_admission_lite.src import action_occurrence_admission as occurrence
+from hpfa.modules.core.action_occurrence_admission_lite.src.conditional_review_passthrough import (
+    build_action_occurrence_admission_with_conditional_review,
+)
 
 
 def _load(path: Path) -> dict:
@@ -40,6 +43,8 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "action_occurrence_candidate_count": 0,
             "admission_class_counts": {},
             "interaction_type_counts": {},
+            "conditional_review_passthrough_record_count": 0,
+            "conditional_review_passthrough_candidate_count": 0,
             "hard_block_hits": ["current_relation_or_required_action_outputs_missing"],
             "review_hits": [],
             "precision_first_exact_rule_policy": True,
@@ -66,7 +71,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
     action_payload = _load(action_path)
     taxonomy_payload = _load(taxonomy_path)
-    payload = occurrence.build_action_occurrence_admission(
+    payload = build_action_occurrence_admission_with_conditional_review(
         action_payload,
         taxonomy_payload,
         relation_payload,
@@ -94,6 +99,9 @@ def main() -> int:
                 "status": payload.get("status"),
                 "current_relation_status": payload.get("current_relation_status"),
                 "action_occurrence_candidate_count": payload.get("action_occurrence_candidate_count"),
+                "conditional_review_passthrough_record_count": payload.get("conditional_review_passthrough_record_count", 0),
+                "conditional_review_passthrough_candidate_count": payload.get("conditional_review_passthrough_candidate_count", 0),
+                "candidate_rejected_missing_primary_support_count": payload.get("candidate_rejected_missing_primary_support_count", 0),
                 "admission_class_counts": payload.get("admission_class_counts") or {},
                 "interaction_type_counts": payload.get("interaction_type_counts") or {},
                 "hard_block_hits": payload.get("hard_block_hits") or [],
