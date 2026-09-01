@@ -1,12 +1,15 @@
 {
   "module_id": "action_occurrence_admission_lite_v1",
-  "version": "1.1.0",
-  "purpose": "Admit precision-first multi-annotation ACTION_OCCURRENCE_CANDIDATE and RELATION_BUNDLE_CANDIDATE objects from current Action Bundle and taxonomy surfaces without promoting canonical event truth.",
+  "version": "1.2.0",
+  "purpose": "Admit precision-first multi-annotation ACTION_OCCURRENCE_CANDIDATE and RELATION_BUNDLE_CANDIDATE objects from the current evidence spine without promoting canonical event truth.",
   "input_modules": [
+    "evidence_atom_inventory_lite_v1",
     "semantic_role_action_bundle_candidates_lite_v1",
     "action_bundle_multi_family_review_taxonomy_lite_v1",
     "cross_role_relation_candidate_resolver_lite_v1"
   ],
+  "public_authority_entrypoint": "build_action_occurrence_admission_with_conditional_review",
+  "internal_matcher": "build_action_occurrence_admission",
   "admission_classes": [
     "EXACT_COMPATIBLE",
     "NEAR_COMPATIBLE_REVIEW",
@@ -22,22 +25,28 @@
     "parallel_reader_or_reconstruction_engine_allowed": false,
     "conditional_review_passthrough_scope": "OCCURRENCE_ADMISSION_LOCAL_COPY_ONLY",
     "conditional_review_passthrough_changes_upstream_taxonomy_truth": false,
-    "multi_family_complex_review_passthrough_allowed": false
+    "multi_family_complex_review_passthrough_allowed": false,
+    "provider_semantics_binding_required": true,
+    "provider_semantics_binding_source": "EVIDENCE_ATOM_SEMANTIC_RULE_ID"
   },
   "required_guards": {
     "same_match_surface_binding": true,
     "same_period_for_exact_interaction": true,
+    "unsafe_source_row_order_truth_input_fails_closed": true,
+    "unsafe_same_time_order_truth_input_fails_closed": true,
     "source_row_order_is_temporal_truth": false,
     "same_timestamp_total_order_allowed": false,
     "coordinate_is_physical_player_position": false,
     "csv_xml_independent_votes_allowed": false,
     "xlsx_creates_occurrence": false,
     "label_is_action_truth": false,
+    "exact_provider_label_requires_reviewed_semantic_rule_binding": true,
     "conditional_review_requires_registry_allowlist": true,
     "conditional_review_requires_exact_family_set": true,
     "conditional_review_requires_primary_support_label": true,
     "conditional_review_requires_exact_counterpart_before_candidate": true,
     "upstream_review_provenance_preserved": true,
+    "content_source_role_bridge_status_propagated": true,
     "input_payload_mutation_allowed": false
   },
   "claim_boundary": {
@@ -64,6 +73,10 @@
     "test_multi_family_complex_review_remains_withheld",
     "test_no_counterpart_means_no_occurrence_candidate",
     "test_passthrough_does_not_mutate_upstream_payloads",
+    "test_wrong_provider_semantic_rule_is_not_admitted",
+    "test_missing_evidence_payload_fails_closed",
+    "test_source_row_order_truth_input_fails_closed",
+    "test_same_time_order_truth_input_fails_closed",
     "test_claim_boundaries_remain_closed",
     "test_no_sample_match_identity_leak"
   ]
