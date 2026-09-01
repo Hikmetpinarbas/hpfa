@@ -18,6 +18,16 @@ def _load(path: Path) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _record_has_visible_consequence(record: dict) -> bool:
+    if record.get("visible_follow_up_trace_ids"):
+        return True
+    if record.get("terminal_outcome_support_visible") is True:
+        return True
+    if record.get("derived_consequence_support_visible") is True:
+        return True
+    return False
+
+
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = consequence.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
@@ -90,12 +100,15 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
                 if str(value).strip()
             }
         )
+        visible = _record_has_visible_consequence(record)
         record["supporting_action_occurrence_candidate_ids"] = occurrence_ids
         record["occurrence_bound_consequence_candidate"] = bool(occurrence_ids)
+        record["occurrence_visible_consequence_support"] = visible
         record["occurrence_binding_is_event_truth"] = False
         record["consequence_candidate_is_causal_truth"] = False
         if occurrence_ids:
             occurrence_bound_consequence_count += 1
+        if occurrence_ids and visible:
             consequence_occurrence_ids.update(occurrence_ids)
 
     actor_visible = 0
