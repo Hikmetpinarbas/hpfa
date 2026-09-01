@@ -75,6 +75,12 @@ def build_package(input_dir: str | Path, out_dir: str | Path) -> dict:
             "runtime_status": runtime_payload.get("status"),
             "current_occurrence_status": runtime_payload.get("current_occurrence_status"),
             "current_occurrence_candidate_count": runtime_payload.get("current_occurrence_candidate_count", 0),
+            "current_content_source_role_bridge_status": runtime_payload.get(
+                "current_content_source_role_bridge_status"
+            ),
+            "current_provider_semantics_binding_status": runtime_payload.get(
+                "current_provider_semantics_binding_status"
+            ),
             "canonical_event_count": "UNKNOWN",
             "true_action_count": "UNKNOWN",
             "production_release": False,
@@ -98,6 +104,12 @@ def build_package(input_dir: str | Path, out_dir: str | Path) -> dict:
         "artifact_count": manifest["artifact_count"],
         "current_occurrence_status": manifest["current_occurrence_status"],
         "current_occurrence_candidate_count": manifest["current_occurrence_candidate_count"],
+        "current_content_source_role_bridge_status": manifest[
+            "current_content_source_role_bridge_status"
+        ],
+        "current_provider_semantics_binding_status": manifest[
+            "current_provider_semantics_binding_status"
+        ],
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
