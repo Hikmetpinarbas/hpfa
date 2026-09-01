@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import defaultdict
 from pathlib import Path
 
 import trackable_action_trace_candidates_current_v1 as current_trace
@@ -41,6 +40,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "review_required_consequence_candidate_count": 0,
             "support_visible_trace_count": 0,
             "occurrence_bound_consequence_candidate_count": 0,
+            "occurrence_with_any_consequence_visible_count": 0,
             "occurrence_with_actor_consequence_visible_count": 0,
             "occurrence_with_opponent_consequence_visible_count": 0,
             "occurrence_with_both_participant_consequences_visible_count": 0,
@@ -77,8 +77,8 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         for row in trace_payload.get("trackable_action_trace_candidates") or []
         if isinstance(row, dict) and row.get("trackable_action_trace_candidate_id")
     }
-    occurrence_roles: dict[str, set[str]] = defaultdict(set)
     occurrence_bound_consequence_count = 0
+    consequence_occurrence_ids: set[str] = set()
     for record in payload.get("trackable_action_consequence_candidates") or []:
         if not isinstance(record, dict):
             continue
@@ -96,29 +96,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         record["consequence_candidate_is_causal_truth"] = False
         if occurrence_ids:
             occurrence_bound_consequence_count += 1
-        trace_actor = str(trace.get("actor_identity_candidate_id") or "")
-        trace_team = str(trace.get("team_identity_candidate_id") or "")
-        for occurrence_id in occurrence_ids:
-            # The trace binding records already established actor/opponent visibility without event truth.
-            for binding in trace_payload.get("occurrence_trace_binding_records") or []:
-                if not isinstance(binding, dict) or str(binding.get("action_occurrence_candidate_id")) != occurrence_id:
-                    continue
-            # Role is derived from occurrence-aware trace annotations, not chronology.
-            for occurrence_candidate in []:
-                pass
-            occurrence_roles[occurrence_id].add(f"{trace_team}|{trace_actor}")
+            consequence_occurrence_ids.update(occurrence_ids)
 
-    # Count consequence coverage against trace-level actor/opponent coverage conservatively.
     actor_visible = 0
     opponent_visible = 0
     both_visible = 0
-    consequence_occurrence_ids = {
-        str(value)
-        for record in payload.get("trackable_action_consequence_candidates") or []
-        if isinstance(record, dict)
-        for value in record.get("supporting_action_occurrence_candidate_ids") or []
-        if str(value).strip()
-    }
     for binding in trace_payload.get("occurrence_trace_binding_records") or []:
         if not isinstance(binding, dict):
             continue
