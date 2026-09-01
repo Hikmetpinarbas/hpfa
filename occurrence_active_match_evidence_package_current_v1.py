@@ -9,7 +9,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-import trackable_action_trace_candidates_current_v1 as current_trace
+import trackable_action_consequence_candidates_current_v1 as current_consequence
 from hpfa.modules.core.action_occurrence_admission_lite.src import action_occurrence_admission as occurrence
 
 PACKAGE_NAME = "HPFA_OCCURRENCE_ACTIVE_MATCH_EVIDENCE_V1.zip"
@@ -46,7 +46,7 @@ def build_package(input_dir: str | Path, out_dir: str | Path) -> dict:
 
     with tempfile.TemporaryDirectory(prefix="hpfa_occurrence_evidence_") as temp_name:
         temp_root = Path(temp_name)
-        runtime_payload = current_trace.runtime_write_outputs(input_root, temp_root)
+        runtime_payload = current_consequence.runtime_write_outputs(input_root, temp_root)
         generated_files = sorted(path for path in temp_root.rglob("*") if path.is_file())
         input_files = sorted(path for path in input_root.iterdir() if path.is_file())
 
@@ -75,6 +75,15 @@ def build_package(input_dir: str | Path, out_dir: str | Path) -> dict:
             "runtime_status": runtime_payload.get("status"),
             "current_occurrence_status": runtime_payload.get("current_occurrence_status"),
             "current_occurrence_candidate_count": runtime_payload.get("current_occurrence_candidate_count", 0),
+            "occurrence_bound_consequence_candidate_count": runtime_payload.get(
+                "occurrence_bound_consequence_candidate_count", 0
+            ),
+            "occurrence_with_any_consequence_visible_count": runtime_payload.get(
+                "occurrence_with_any_consequence_visible_count", 0
+            ),
+            "occurrence_with_both_participant_consequences_visible_count": runtime_payload.get(
+                "occurrence_with_both_participant_consequences_visible_count", 0
+            ),
             "current_content_source_role_bridge_status": runtime_payload.get(
                 "current_content_source_role_bridge_status"
             ),
@@ -104,6 +113,15 @@ def build_package(input_dir: str | Path, out_dir: str | Path) -> dict:
         "artifact_count": manifest["artifact_count"],
         "current_occurrence_status": manifest["current_occurrence_status"],
         "current_occurrence_candidate_count": manifest["current_occurrence_candidate_count"],
+        "occurrence_bound_consequence_candidate_count": manifest[
+            "occurrence_bound_consequence_candidate_count"
+        ],
+        "occurrence_with_any_consequence_visible_count": manifest[
+            "occurrence_with_any_consequence_visible_count"
+        ],
+        "occurrence_with_both_participant_consequences_visible_count": manifest[
+            "occurrence_with_both_participant_consequences_visible_count"
+        ],
         "current_content_source_role_bridge_status": manifest[
             "current_content_source_role_bridge_status"
         ],
@@ -118,7 +136,7 @@ def build_package(input_dir: str | Path, out_dir: str | Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run the current occurrence-gated ACTIVE_MATCH spine and emit one compressed evidence package."
+        description="Run the current occurrence→trace→consequence ACTIVE_MATCH spine and emit one compressed evidence package."
     )
     parser.add_argument("--input-dir", required=True)
     parser.add_argument("--out-dir", required=True)

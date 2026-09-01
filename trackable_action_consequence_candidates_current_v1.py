@@ -18,6 +18,16 @@ def _load(path: Path) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _record_has_visible_consequence(record: dict) -> bool:
+    if record.get("visible_follow_up_trace_ids"):
+        return True
+    if record.get("terminal_outcome_support_visible") is True:
+        return True
+    if record.get("derived_consequence_support_visible") is True:
+        return True
+    return False
+
+
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = consequence.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
@@ -39,6 +49,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "classified_consequence_candidate_count": 0,
             "review_required_consequence_candidate_count": 0,
             "support_visible_trace_count": 0,
+            "occurrence_bound_consequence_candidate_count": 0,
+            "occurrence_with_any_consequence_visible_count": 0,
+            "occurrence_with_actor_consequence_visible_count": 0,
+            "occurrence_with_opponent_consequence_visible_count": 0,
+            "occurrence_with_both_participant_consequences_visible_count": 0,
             "primary_consequence_candidate_counts": {},
             "window_coverage_counts": {},
             "hard_block_hits": ["current_trackable_action_trace_fail_closed_or_evidence_output_missing"],
@@ -52,6 +67,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "window_is_sequence_truth": False,
             "team_response_is_tactical_truth": False,
             "sequence_link_allowed": False,
+            "occurrence_binding_is_event_truth": False,
             "event_instance_count": 0,
             "claim_allowed": False,
             "canonical_event_count": "UNKNOWN",
@@ -65,12 +81,72 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         trace_payload,
         evidence_payload,
     )
+
+    trace_by_id = {
+        str(row.get("trackable_action_trace_candidate_id")): row
+        for row in trace_payload.get("trackable_action_trace_candidates") or []
+        if isinstance(row, dict) and row.get("trackable_action_trace_candidate_id")
+    }
+    occurrence_bound_consequence_count = 0
+    consequence_occurrence_ids: set[str] = set()
+    for record in payload.get("trackable_action_consequence_candidates") or []:
+        if not isinstance(record, dict):
+            continue
+        trace = trace_by_id.get(str(record.get("anchor_trackable_action_trace_candidate_id"))) or {}
+        occurrence_ids = sorted(
+            {
+                str(value)
+                for value in trace.get("supporting_action_occurrence_candidate_ids") or []
+                if str(value).strip()
+            }
+        )
+        visible = _record_has_visible_consequence(record)
+        record["supporting_action_occurrence_candidate_ids"] = occurrence_ids
+        record["occurrence_bound_consequence_candidate"] = bool(occurrence_ids)
+        record["occurrence_visible_consequence_support"] = visible
+        record["occurrence_binding_is_event_truth"] = False
+        record["consequence_candidate_is_causal_truth"] = False
+        if occurrence_ids:
+            occurrence_bound_consequence_count += 1
+        if occurrence_ids and visible:
+            consequence_occurrence_ids.update(occurrence_ids)
+
+    actor_visible = 0
+    opponent_visible = 0
+    both_visible = 0
+    for binding in trace_payload.get("occurrence_trace_binding_records") or []:
+        if not isinstance(binding, dict):
+            continue
+        occurrence_id = str(binding.get("action_occurrence_candidate_id") or "")
+        if occurrence_id not in consequence_occurrence_ids:
+            continue
+        actor_count = int(binding.get("actor_trace_candidate_count") or 0)
+        opponent_count = int(binding.get("opponent_trace_candidate_count") or 0)
+        if actor_count:
+            actor_visible += 1
+        if opponent_count:
+            opponent_visible += 1
+        if actor_count and opponent_count:
+            both_visible += 1
+
+    payload["occurrence_bound_consequence_candidate_count"] = occurrence_bound_consequence_count
+    payload["occurrence_with_any_consequence_visible_count"] = len(consequence_occurrence_ids)
+    payload["occurrence_with_actor_consequence_visible_count"] = actor_visible
+    payload["occurrence_with_opponent_consequence_visible_count"] = opponent_visible
+    payload["occurrence_with_both_participant_consequences_visible_count"] = both_visible
+    payload["occurrence_binding_is_event_truth"] = False
+    payload["occurrence_consequence_binding_is_causal_truth"] = False
     payload["current_trace_status"] = trace_payload.get("status")
     payload["current_relation_status"] = trace_payload.get("current_relation_status")
     payload["current_taxonomy_status"] = trace_payload.get("current_taxonomy_status")
     payload["current_semantic_status"] = trace_payload.get("current_semantic_status")
+    payload["current_occurrence_status"] = trace_payload.get("current_occurrence_status")
+    payload["current_occurrence_candidate_count"] = trace_payload.get("current_occurrence_candidate_count", 0)
     payload["current_content_source_role_bridge_status"] = trace_payload.get(
         "current_content_source_role_bridge_status"
+    )
+    payload["current_provider_semantics_binding_status"] = trace_payload.get(
+        "current_provider_semantics_binding_status"
     )
     payload["active_match_evidence_pass"] = False
     paths = consequence.write_outputs(payload, output)
@@ -80,7 +156,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="HPFA current Trackable Action trace to visible consequence candidates"
+        description="HPFA current occurrence-aware Trackable Action trace to visible consequence candidates"
     )
     parser.add_argument("--input-dir", required=True)
     parser.add_argument("--out-dir", required=True)
@@ -89,13 +165,18 @@ def main() -> int:
     print(json.dumps({
         "status": payload.get("status"),
         "current_trace_status": payload.get("current_trace_status"),
+        "current_occurrence_status": payload.get("current_occurrence_status"),
+        "current_occurrence_candidate_count": payload.get("current_occurrence_candidate_count", 0),
         "source_trackable_action_trace_candidate_count": payload.get("source_trackable_action_trace_candidate_count"),
         "trackable_action_consequence_candidate_count": payload.get("trackable_action_consequence_candidate_count"),
+        "occurrence_bound_consequence_candidate_count": payload.get("occurrence_bound_consequence_candidate_count", 0),
+        "occurrence_with_any_consequence_visible_count": payload.get("occurrence_with_any_consequence_visible_count", 0),
+        "occurrence_with_actor_consequence_visible_count": payload.get("occurrence_with_actor_consequence_visible_count", 0),
+        "occurrence_with_opponent_consequence_visible_count": payload.get("occurrence_with_opponent_consequence_visible_count", 0),
+        "occurrence_with_both_participant_consequences_visible_count": payload.get("occurrence_with_both_participant_consequences_visible_count", 0),
         "classified_consequence_candidate_count": payload.get("classified_consequence_candidate_count"),
         "review_required_consequence_candidate_count": payload.get("review_required_consequence_candidate_count"),
-        "support_visible_trace_count": payload.get("support_visible_trace_count"),
         "primary_consequence_candidate_counts": payload.get("primary_consequence_candidate_counts") or {},
-        "window_coverage_counts": payload.get("window_coverage_counts") or {},
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",

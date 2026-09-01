@@ -1,7 +1,7 @@
 {
   "module_id": "trackable_action_trace_candidates_lite_v1",
-  "version": "1.1.0-occurrence-gated-current-migration",
-  "purpose": "Select actor-bearing PLAYER/GOALKEEPER action surfaces into match-local trackable action trace candidates while preserving TEAM reflection context, quarantining unresolved surfaces, and requiring the current occurrence-admission gate to execute without FAIL_CLOSED before trace construction.",
+  "version": "1.2.0-occurrence-aware-current-migration",
+  "purpose": "Select actor-bearing PLAYER/GOALKEEPER action surfaces into match-local trackable action trace candidates while preserving TEAM reflection context, quarantining unresolved surfaces, and allowing only already-admitted occurrence review provenance to re-enter trace selection on a local copy.",
   "inputs": {
     "semantic_action_bundle_module_id": "semantic_role_action_bundle_candidates_lite_v1",
     "multi_family_taxonomy_module_id": "action_bundle_multi_family_review_taxonomy_lite_v1",
@@ -13,10 +13,9 @@
     "occurrence_admission_runtime_gate_required": true,
     "occurrence_fail_closed_blocks_trace_runtime": true,
     "occurrence_review_required_does_not_promote_event_truth": true,
-    "primary_source_roles": [
-      "PLAYER_SURFACE_CANDIDATE",
-      "GOALKEEPER_SURFACE_CANDIDATE"
-    ],
+    "occurrence_local_taxonomy_rebind_only_for_admitted_occurrence_provenance": true,
+    "occurrence_local_taxonomy_rebind_changes_upstream_truth": false,
+    "primary_source_roles": ["PLAYER_SURFACE_CANDIDATE", "GOALKEEPER_SURFACE_CANDIDATE"],
     "team_surface_can_be_primary_trace": false,
     "primary_actor_candidate_required": true,
     "clear_cross_role_primary_selected": true,
@@ -45,7 +44,9 @@
     "reflection_lineage_preserved_separately": true,
     "provider_row_ids_preserved_as_candidates": true,
     "occurrence_candidate_count_is_diagnostic_only": true,
-    "occurrence_candidate_is_not_trace_count_truth": true
+    "occurrence_candidate_is_not_trace_count_truth": true,
+    "occurrence_bound_trace_candidate_is_event_truth": false,
+    "occurrence_actor_and_opponent_trace_visibility_is_candidate_only": true
   },
   "ordering_rules": {
     "same_timestamp_creates_order_truth": false,
@@ -63,6 +64,7 @@
   "claim_boundary": {
     "trackable_action_candidate_is_event_truth": false,
     "action_occurrence_candidate_is_event_truth": false,
+    "occurrence_binding_is_event_truth": false,
     "physical_action_identity_truth": false,
     "validated_event_identity": false,
     "event_instance_count": 0,
@@ -76,14 +78,14 @@
     "production_release": false
   },
   "phone_output_policy": {
-    "allowed_roots": [
-      "/sdcard/Download/HPFA",
-      "/storage/emulated/0/Download/HPFA"
-    ],
+    "allowed_roots": ["/sdcard/Download/HPFA", "/storage/emulated/0/Download/HPFA"],
     "nested_output_error": "nested_phone_output_directory_rejected"
   },
   "mandatory_tests": [
     "test_no_sample_match_identity_leak",
-    "test_current_trace_wrapper_is_occurrence_gated"
+    "test_current_trace_wrapper_is_occurrence_gated",
+    "test_occurrence_admitted_review_bundles_become_local_trace_candidates",
+    "test_occurrence_trace_binding_does_not_mutate_upstream_taxonomy",
+    "test_unadmitted_review_record_is_not_rebound"
   ]
 }

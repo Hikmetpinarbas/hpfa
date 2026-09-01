@@ -8,6 +8,9 @@ import action_occurrence_admission_current_v1 as current_occurrence
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src import (
     trackable_action_trace_candidates as trackable,
 )
+from hpfa.modules.core.trackable_action_trace_candidates_lite.src.occurrence_trace_binding import (
+    build_occurrence_aware_trace_payload,
+)
 
 
 def _load(path: Path) -> dict:
@@ -57,6 +60,12 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "relation_supported_trace_candidate_count": 0,
             "standalone_primary_trace_candidate_count": 0,
             "same_surface_multi_family_trace_candidate_count": 0,
+            "occurrence_trace_binding_records": [],
+            "occurrence_trace_binding_record_count": 0,
+            "occurrence_bound_trace_candidate_count": 0,
+            "occurrence_both_participants_trace_visible_count": 0,
+            "occurrence_partial_participant_trace_visible_count": 0,
+            "occurrence_no_participant_trace_visible_count": 0,
             "hard_block_hits": ["current_occurrence_or_required_upstream_output_missing"],
             "review_hits": [],
             "trackable_action_candidate_is_event_truth": False,
@@ -70,6 +79,8 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "same_time_order_truth_admitted": False,
             "source_row_order_is_temporal_truth": False,
             "cross_role_fusion_allowed": False,
+            "occurrence_binding_is_event_truth": False,
+            "occurrence_binding_changes_upstream_taxonomy_truth": False,
             "event_instance_count": 0,
             "claim_allowed": False,
             "sequence_truth": False,
@@ -89,11 +100,13 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     action_payload = _load(action_path)
     taxonomy_payload = _load(taxonomy_path)
     evidence_payload = _load(evidence_path)
-    payload = trackable.build_trackable_action_trace_candidates(
+    payload = build_occurrence_aware_trace_payload(
         action_payload,
         taxonomy_payload,
         relation_payload,
         evidence_payload,
+        occurrence_payload,
+        trackable.build_trackable_action_trace_candidates,
     )
     payload["current_occurrence_status"] = occurrence_payload.get("status")
     payload["current_occurrence_candidate_count"] = occurrence_payload.get(
@@ -115,6 +128,13 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         payload["status"] = "FAIL_CLOSED"
         payload["module_status"] = "FAIL_CLOSED"
         payload["runtime_evidence_status"] = "NOT_EVALUATED"
+    if payload["current_provider_semantics_binding_status"] != "PASS":
+        hard_blocks = list(payload.get("hard_block_hits") or [])
+        hard_blocks.append("current_provider_semantics_binding_not_pass")
+        payload["hard_block_hits"] = sorted(set(hard_blocks))
+        payload["status"] = "FAIL_CLOSED"
+        payload["module_status"] = "FAIL_CLOSED"
+        payload["runtime_evidence_status"] = "NOT_EVALUATED"
     payload["active_match_evidence_pass"] = False
     paths = trackable.write_outputs(payload, output)
     payload["outputs"] = {key: str(path) for key, path in paths.items()}
@@ -123,7 +143,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="HPFA current occurrence-gated relation+taxonomy+action+evidence to Trackable Action trace candidates"
+        description="HPFA current occurrence-aware relation+taxonomy+action+evidence to Trackable Action trace candidates"
     )
     parser.add_argument("--input-dir", required=True)
     parser.add_argument("--out-dir", required=True)
@@ -147,9 +167,10 @@ def main() -> int:
                 "reflection_context_surface_candidate_count": payload.get("reflection_context_surface_candidate_count"),
                 "quarantined_surface_candidate_count": payload.get("quarantined_surface_candidate_count"),
                 "trackable_action_trace_candidate_count": payload.get("trackable_action_trace_candidate_count"),
-                "relation_supported_trace_candidate_count": payload.get("relation_supported_trace_candidate_count"),
-                "standalone_primary_trace_candidate_count": payload.get("standalone_primary_trace_candidate_count"),
-                "same_surface_multi_family_trace_candidate_count": payload.get("same_surface_multi_family_trace_candidate_count"),
+                "occurrence_bound_trace_candidate_count": payload.get("occurrence_bound_trace_candidate_count", 0),
+                "occurrence_both_participants_trace_visible_count": payload.get("occurrence_both_participants_trace_visible_count", 0),
+                "occurrence_partial_participant_trace_visible_count": payload.get("occurrence_partial_participant_trace_visible_count", 0),
+                "occurrence_no_participant_trace_visible_count": payload.get("occurrence_no_participant_trace_visible_count", 0),
                 "hard_block_hits": payload.get("hard_block_hits") or [],
                 "review_hits": payload.get("review_hits") or [],
                 "canonical_event_count": "UNKNOWN",
