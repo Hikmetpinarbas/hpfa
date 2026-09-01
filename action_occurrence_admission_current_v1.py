@@ -26,11 +26,13 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     relation_payload = current_relation.runtime_write_outputs(input_dir, output)
     action_path = output / "semantic_role_action_bundle_candidates_lite_v1.json"
     taxonomy_path = output / "action_bundle_multi_family_review_taxonomy_lite_v1.json"
+    evidence_path = output / "evidence_atom_inventory_lite_v1.json"
 
     if (
         relation_payload.get("status") == "FAIL_CLOSED"
         or not action_path.is_file()
         or not taxonomy_path.is_file()
+        or not evidence_path.is_file()
     ):
         return {
             "module_id": occurrence.MODULE_ID,
@@ -45,6 +47,9 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "interaction_type_counts": {},
             "conditional_review_passthrough_record_count": 0,
             "conditional_review_passthrough_candidate_count": 0,
+            "candidate_rejected_provider_semantics_binding_count": 0,
+            "provider_semantics_binding_required": True,
+            "provider_semantics_binding_status": "FAIL_CLOSED",
             "hard_block_hits": ["current_relation_or_required_action_outputs_missing"],
             "review_hits": [],
             "precision_first_exact_rule_policy": True,
@@ -67,18 +72,33 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "true_action_count": "UNKNOWN",
             "production_release": False,
             "current_relation_status": relation_payload.get("status"),
+            "current_content_source_role_bridge_status": relation_payload.get(
+                "current_content_source_role_bridge_status"
+            ),
         }
 
     action_payload = _load(action_path)
     taxonomy_payload = _load(taxonomy_path)
+    evidence_payload = _load(evidence_path)
     payload = build_action_occurrence_admission_with_conditional_review(
         action_payload,
         taxonomy_payload,
         relation_payload,
+        evidence_payload,
     )
     payload["current_relation_status"] = relation_payload.get("status")
     payload["current_taxonomy_status"] = relation_payload.get("current_taxonomy_status")
     payload["current_semantic_status"] = relation_payload.get("current_semantic_status")
+    payload["current_content_source_role_bridge_status"] = relation_payload.get(
+        "current_content_source_role_bridge_status"
+    )
+    if payload["current_content_source_role_bridge_status"] != "PASS":
+        hard_blocks = list(payload.get("hard_block_hits") or [])
+        hard_blocks.append("current_content_source_role_bridge_not_pass")
+        payload["hard_block_hits"] = sorted(set(hard_blocks))
+        payload["status"] = "FAIL_CLOSED"
+        payload["module_status"] = "FAIL_CLOSED"
+        payload["runtime_evidence_status"] = "NOT_EVALUATED"
     payload["active_match_evidence_pass"] = False
     paths = occurrence.write_outputs(payload, output)
     payload["outputs"] = {key: str(path) for key, path in paths.items()}
@@ -98,10 +118,15 @@ def main() -> int:
             {
                 "status": payload.get("status"),
                 "current_relation_status": payload.get("current_relation_status"),
+                "current_content_source_role_bridge_status": payload.get(
+                    "current_content_source_role_bridge_status"
+                ),
+                "provider_semantics_binding_status": payload.get("provider_semantics_binding_status"),
                 "action_occurrence_candidate_count": payload.get("action_occurrence_candidate_count"),
                 "conditional_review_passthrough_record_count": payload.get("conditional_review_passthrough_record_count", 0),
                 "conditional_review_passthrough_candidate_count": payload.get("conditional_review_passthrough_candidate_count", 0),
                 "candidate_rejected_missing_primary_support_count": payload.get("candidate_rejected_missing_primary_support_count", 0),
+                "candidate_rejected_provider_semantics_binding_count": payload.get("candidate_rejected_provider_semantics_binding_count", 0),
                 "admission_class_counts": payload.get("admission_class_counts") or {},
                 "interaction_type_counts": payload.get("interaction_type_counts") or {},
                 "hard_block_hits": payload.get("hard_block_hits") or [],
