@@ -1,0 +1,84 @@
+{
+  "registry_id": "action_occurrence_semantic_compatibility_v1",
+  "version": "1.2.0",
+  "status": "REVIEWED_CANDIDATE_RULES_ONLY",
+  "purpose": "Precision-first compatibility rules for candidate occurrence reconstruction from already admitted Action Bundle surfaces. Rules create candidate relations only; they never establish canonical events.",
+  "upstream_semantics_binding": {
+    "registry_id": "sportsbase_label_semantics_reviewed_v2",
+    "binding_mode": "EVIDENCE_ATOM_SEMANTIC_RULE_ID_REQUIRED",
+    "semantic_mapping_status_required": "EXACT_REVIEWED_CANDIDATE"
+  },
+  "interaction_rules": [
+    {
+      "rule_id": "dribble_challenge_interaction_exact_v1",
+      "interaction_type": "DRIBBLE_CHALLENGE_INTERACTION_CANDIDATE",
+      "source_roles": ["PLAYER_SURFACE_CANDIDATE", "PLAYER_SURFACE_CANDIDATE"],
+      "primary_required_families": ["DRIBBLE"],
+      "primary_required_any_labels": [
+        "Dribbles successful",
+        "Dribbling in the final third successful"
+      ],
+      "primary_support_any_labels": ["Challenges won"],
+      "counterpart_required_any_families": ["DUEL", "TACKLE"],
+      "counterpart_required_any_labels": [
+        "Challenges unsuccessful",
+        "Tackles unsuccessful"
+      ],
+      "semantic_rule_bindings": {
+        "Dribbles successful": "plvs_v2_dribbles_successful",
+        "Dribbling in the final third successful": "plvs_v2_dribbling_in_the_final_third_successful",
+        "Challenges won": "plvs_v2_challenges_won",
+        "Challenges unsuccessful": "plvs_v2_challenges_unsuccessful",
+        "Tackles unsuccessful": "plvs_v2_tackles_unsuccessful"
+      },
+      "primary_semantic_rule_ids_any": [
+        "plvs_v2_dribbles_successful",
+        "plvs_v2_dribbling_in_the_final_third_successful"
+      ],
+      "primary_support_semantic_rule_ids_any": ["plvs_v2_challenges_won"],
+      "counterpart_semantic_rule_ids_any": [
+        "plvs_v2_challenges_unsuccessful",
+        "plvs_v2_tackles_unsuccessful"
+      ],
+      "teams_must_differ": true,
+      "actors_must_differ": true,
+      "exact_period_required": true,
+      "exact_start_end_required": true,
+      "exact_anchor_required": true,
+      "coordinate_semantic_role": "ANNOTATION_ANCHOR_LOCATION_CANDIDATE",
+      "internal_order": "UNKNOWN",
+      "conditional_review_passthrough": {
+        "allowed_taxonomy_classifications": [
+          "COMPOUND_ACTION_CO_OCCURRENCE_REVIEW_REQUIRED"
+        ],
+        "allowed_family_sets": [
+          ["DRIBBLE", "DUEL"]
+        ],
+        "required_primary_support_labels": ["Challenges won"],
+        "forbidden_taxonomy_classifications": [
+          "MULTI_FAMILY_COMPLEX_REVIEW_REQUIRED"
+        ]
+      },
+      "allowed_claim": "The admitted annotations support a candidate dribble/challenge interaction involving the listed actors.",
+      "forbidden_claims": [
+        "canonical event truth",
+        "exact physical chronology",
+        "physical player co-location",
+        "tactical intention",
+        "causality"
+      ]
+    }
+  ],
+  "global_claim_boundary": {
+    "conditional_review_passthrough_changes_upstream_taxonomy_truth": false,
+    "provider_semantics_binding_required": true,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "validated_event_identity": false,
+    "physical_action_identity_truth": false,
+    "same_time_total_order_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "independent_csv_xml_vote_allowed": false,
+    "production_release": false
+  }
+}
