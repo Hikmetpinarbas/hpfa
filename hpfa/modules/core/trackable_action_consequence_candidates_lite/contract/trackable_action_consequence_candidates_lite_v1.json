@@ -1,11 +1,12 @@
 {
   "module_id": "trackable_action_consequence_candidates_lite_v1",
-  "version": "1.0.0-current-migration",
+  "version": "1.1.0-occurrence-aware-current-migration",
   "input_modules": {
     "trackable_action_trace": "trackable_action_trace_candidates_lite_v1",
-    "evidence_atoms": "evidence_atom_inventory_lite_v1"
+    "evidence_atoms": "evidence_atom_inventory_lite_v1",
+    "upstream_occurrence_context": "action_occurrence_admission_lite_v1 via occurrence-aware trace binding"
   },
-  "purpose": "Attach claim-safe visible consequence candidates to current Trackable Action trace candidates without opening event, possession, sequence, causal or tactical truth.",
+  "purpose": "Attach claim-safe visible consequence candidates to current occurrence-aware Trackable Action trace candidates without opening event, possession, sequence, causal or tactical truth.",
   "timeline_rules": {
     "same_period_only": true,
     "positive_time_delta_only": true,
@@ -35,7 +36,16 @@
     "team_identity_candidate_required": true,
     "actor_identity_candidate_required": true,
     "one_consequence_candidate_per_trace_candidate": true,
-    "trace_count_is_physical_action_count": false
+    "trace_count_is_physical_action_count": false,
+    "occurrence_bound_trace_may_anchor_consequence_candidate": true,
+    "occurrence_binding_is_event_truth": false
+  },
+  "occurrence_binding_rules": {
+    "supporting_occurrence_ids_copied_from_anchor_trace_only": true,
+    "occurrence_binding_creates_causal_truth": false,
+    "occurrence_binding_creates_sequence_truth": false,
+    "both_participant_consequence_visibility_is_candidate_only": true,
+    "canonical_event_count_remains_unknown": true
   },
   "review_rules": {
     "mixed_team_same_time_first_follow_up_layer": "REVIEW_REQUIRED",
@@ -43,6 +53,8 @@
   },
   "claim_boundary": {
     "consequence_candidate_is_causal_truth": false,
+    "occurrence_consequence_binding_is_causal_truth": false,
+    "occurrence_binding_is_event_truth": false,
     "continuation_candidate_is_possession_truth": false,
     "window_is_sequence_truth": false,
     "team_response_is_tactical_truth": false,
