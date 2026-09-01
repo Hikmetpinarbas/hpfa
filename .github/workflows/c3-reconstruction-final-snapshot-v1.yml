@@ -100,7 +100,10 @@ jobs:
           set -euo pipefail
           grep -R -q 'trackable_action_candidate_is_event_truth' hpfa/modules/core/trackable_action_trace_candidates_lite
           grep -R -q 'trace_count_is_physical_action_count' hpfa/modules/core/trackable_action_trace_candidates_lite
+          grep -R -q 'occurrence_binding_is_event_truth' hpfa/modules/core/trackable_action_trace_candidates_lite
+          grep -R -q 'occurrence_local_taxonomy_rebind_changes_upstream_truth' hpfa/modules/core/trackable_action_trace_candidates_lite
           grep -R -q 'consequence_candidate_is_causal_truth' hpfa/modules/core/trackable_action_consequence_candidates_lite
+          grep -R -q 'occurrence_consequence_binding_is_causal_truth' hpfa/modules/core/trackable_action_consequence_candidates_lite
           grep -R -q 'window_is_sequence_truth' hpfa/modules/core/trackable_action_consequence_candidates_lite
           grep -R -q 'visible_sequence_candidate_is_sequence_truth' hpfa/modules/core/visible_action_sequence_candidates_lite
           grep -R -q 'visible_sequence_candidate_is_possession_truth' hpfa/modules/core/visible_action_sequence_candidates_lite
@@ -108,6 +111,8 @@ jobs:
           grep -R -q 'source_row_order_is_temporal_truth' hpfa/modules/core/visible_action_sequence_candidates_lite
           grep -R -q 'canonical_event_count' hpfa/modules/core/visible_action_sequence_candidates_lite
           grep -R -q 'production_release' hpfa/modules/core/visible_action_sequence_candidates_lite
+          grep -F -q 'build_occurrence_aware_trace_payload' trackable_action_trace_candidates_current_v1.py
+          grep -F -q 'supporting_action_occurrence_candidate_ids' trackable_action_consequence_candidates_current_v1.py
 
       - name: No sample match identity leak in product code
         shell: bash
