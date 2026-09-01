@@ -20,9 +20,22 @@ def _builder(action, taxonomy, relation, evidence):
         if bundle.get("bundle_status") == "PASS" or bid in pass_ids:
             traces.append({
                 "trackable_action_trace_candidate_id": "tat_" + bid,
+                "match_surface_binding_id": "binding_1",
+                "source_role": "PLAYER_SURFACE_CANDIDATE",
                 "team_identity_candidate_id": bundle["team_identity_candidate_id"],
                 "actor_identity_candidate_id": bundle["actor_identity_candidate_id"],
+                "period_candidate": "1",
+                "start_candidate": 10.0,
+                "end_candidate": 11.0,
+                "pos_x_candidate": 50.0,
+                "pos_y_candidate": 30.0,
+                "action_family_candidates": [bundle.get("action_family_candidate") or "DUEL"],
                 "selected_action_bundle_candidate_ids": [bid],
+                "supporting_evidence_atom_ids": [],
+                "trackable_action_candidate_is_event_truth": False,
+                "physical_action_identity_truth": False,
+                "sequence_link_allowed": False,
+                "canonical_event_count": "UNKNOWN",
             })
     return {
         "status": "PASS",
@@ -37,25 +50,45 @@ def _builder(action, taxonomy, relation, evidence):
 
 
 def _fixture():
+    common = {
+        "match_surface_binding_id": "binding_1",
+        "source_role": "PLAYER_SURFACE_CANDIDATE",
+        "period_candidate": "1",
+        "start_candidate": 10.0,
+        "end_candidate": 11.0,
+        "pos_x_candidate": 50.0,
+        "pos_y_candidate": 30.0,
+        "coordinate_evidence_status": "PASS",
+        "supporting_evidence_atom_ids": [],
+        "provider_row_id_candidates": [],
+        "raw_labels": [],
+        "normalized_labels": [],
+    }
     action = {
         "action_bundle_candidates": [
             {
+                **common,
                 "action_bundle_candidate_id": "a_dribble",
                 "team_identity_candidate_id": "team_a",
                 "actor_identity_candidate_id": "actor_a",
                 "bundle_status": "REVIEW_REQUIRED",
+                "action_family_candidate": "DRIBBLE",
             },
             {
+                **common,
                 "action_bundle_candidate_id": "a_duel",
                 "team_identity_candidate_id": "team_a",
                 "actor_identity_candidate_id": "actor_a",
                 "bundle_status": "REVIEW_REQUIRED",
+                "action_family_candidate": "DUEL",
             },
             {
+                **common,
                 "action_bundle_candidate_id": "b_duel",
                 "team_identity_candidate_id": "team_b",
                 "actor_identity_candidate_id": "actor_b",
                 "bundle_status": "REVIEW_REQUIRED",
+                "action_family_candidate": "DUEL",
             },
         ]
     }
@@ -83,7 +116,10 @@ def _fixture():
                 "opponent_identity_candidate_id": "actor_b",
                 "supporting_action_bundle_candidate_ids": ["a_dribble", "a_duel", "b_duel"],
                 "conditional_review_passthrough_provenance": [
-                    {"multi_family_review_record_id": "tax_a"}
+                    {
+                        "multi_family_review_record_id": "tax_a",
+                        "supporting_action_bundle_candidate_ids": ["a_dribble", "a_duel"],
+                    }
                 ],
             }
         ]
@@ -91,7 +127,7 @@ def _fixture():
     return action, taxonomy, {}, {}, occurrence
 
 
-def test_occurrence_admitted_review_bundles_become_local_trace_candidates() -> None:
+def test_occurrence_admitted_review_bundles_bind_without_taxonomy_promotion() -> None:
     action, taxonomy, relation, evidence, occurrence = _fixture()
     result = build_occurrence_aware_trace_payload(
         action, taxonomy, relation, evidence, occurrence, _builder
@@ -99,28 +135,51 @@ def test_occurrence_admitted_review_bundles_become_local_trace_candidates() -> N
     assert result["occurrence_both_participants_trace_visible_count"] == 1
     assert result["occurrence_partial_participant_trace_visible_count"] == 0
     assert result["occurrence_no_participant_trace_visible_count"] == 0
-    assert result["occurrence_local_taxonomy_rebind_record_ids"] == ["tax_a"]
+    assert result["occurrence_local_taxonomy_rebind_record_count"] == 0
+    assert result["occurrence_explicit_review_bundle_trace_candidate_count"] == 1
     bound = [row for row in result["trackable_action_trace_candidates"] if row["occurrence_backed_trace_candidate"]]
-    assert len(bound) == 3
+    assert len(bound) == 2
     assert all(row["occurrence_binding_is_event_truth"] is False for row in bound)
+    explicit = [row for row in bound if row.get("occurrence_binding_scope") == "EXPLICIT_ADMITTED_BUNDLE_ONLY"]
+    assert len(explicit) == 1
+    assert explicit[0]["occurrence_binding_preserves_taxonomy_review_state"] is True
+    assert sorted(explicit[0]["selected_action_bundle_candidate_ids"]) == ["a_dribble", "a_duel"]
 
 
-def test_occurrence_trace_binding_does_not_mutate_upstream_taxonomy() -> None:
+def test_occurrence_trace_binding_does_not_mutate_or_promote_upstream_taxonomy() -> None:
     action, taxonomy, relation, evidence, occurrence = _fixture()
     before = copy.deepcopy(taxonomy)
-    build_occurrence_aware_trace_payload(action, taxonomy, relation, evidence, occurrence, _builder)
+    result = build_occurrence_aware_trace_payload(action, taxonomy, relation, evidence, occurrence, _builder)
     assert taxonomy == before
     assert taxonomy["multi_family_review_records"][0]["record_status"] == "REVIEW_REQUIRED"
+    assert result["occurrence_local_taxonomy_rebind_record_ids"] == []
 
 
-def test_unadmitted_review_record_is_not_rebound() -> None:
+def test_unadmitted_review_record_is_not_bound() -> None:
     action, taxonomy, relation, evidence, occurrence = _fixture()
     occurrence["action_occurrence_candidates"] = []
     result = build_occurrence_aware_trace_payload(
         action, taxonomy, relation, evidence, occurrence, _builder
     )
-    assert result["occurrence_local_taxonomy_rebind_record_count"] == 0
+    assert result["occurrence_explicit_review_bundle_trace_candidate_count"] == 0
     assert result["trackable_action_trace_candidate_count"] == 1
+
+
+def test_unrelated_review_bundle_in_same_taxonomy_record_is_not_bound() -> None:
+    action, taxonomy, relation, evidence, occurrence = _fixture()
+    action["action_bundle_candidates"].append({
+        **action["action_bundle_candidates"][0],
+        "action_bundle_candidate_id": "a_unrelated",
+        "action_family_candidate": "PASS",
+    })
+    taxonomy["multi_family_review_records"][0]["supporting_action_bundle_candidate_ids"].append("a_unrelated")
+    result = build_occurrence_aware_trace_payload(action, taxonomy, relation, evidence, occurrence, _builder)
+    selected = {
+        bundle_id
+        for trace in result["trackable_action_trace_candidates"]
+        for bundle_id in trace.get("selected_action_bundle_candidate_ids") or []
+    }
+    assert "a_unrelated" not in selected
 
 
 def test_no_sample_match_identity_leak_in_occurrence_trace_binding() -> None:
