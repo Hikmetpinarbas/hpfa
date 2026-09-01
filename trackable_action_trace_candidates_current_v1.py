@@ -80,6 +80,9 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "true_action_count": "UNKNOWN",
             "production_release": False,
             "current_occurrence_status": occurrence_payload.get("status"),
+            "current_content_source_role_bridge_status": occurrence_payload.get(
+                "current_content_source_role_bridge_status"
+            ),
         }
 
     relation_payload = _load(relation_path)
@@ -99,6 +102,19 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     payload["current_relation_status"] = occurrence_payload.get("current_relation_status")
     payload["current_taxonomy_status"] = occurrence_payload.get("current_taxonomy_status")
     payload["current_semantic_status"] = occurrence_payload.get("current_semantic_status")
+    payload["current_content_source_role_bridge_status"] = occurrence_payload.get(
+        "current_content_source_role_bridge_status"
+    )
+    payload["current_provider_semantics_binding_status"] = occurrence_payload.get(
+        "provider_semantics_binding_status"
+    )
+    if payload["current_content_source_role_bridge_status"] != "PASS":
+        hard_blocks = list(payload.get("hard_block_hits") or [])
+        hard_blocks.append("current_content_source_role_bridge_not_pass")
+        payload["hard_block_hits"] = sorted(set(hard_blocks))
+        payload["status"] = "FAIL_CLOSED"
+        payload["module_status"] = "FAIL_CLOSED"
+        payload["runtime_evidence_status"] = "NOT_EVALUATED"
     payload["active_match_evidence_pass"] = False
     paths = trackable.write_outputs(payload, output)
     payload["outputs"] = {key: str(path) for key, path in paths.items()}
@@ -120,6 +136,12 @@ def main() -> int:
                 "current_occurrence_status": payload.get("current_occurrence_status"),
                 "current_occurrence_candidate_count": payload.get("current_occurrence_candidate_count", 0),
                 "current_relation_status": payload.get("current_relation_status"),
+                "current_content_source_role_bridge_status": payload.get(
+                    "current_content_source_role_bridge_status"
+                ),
+                "current_provider_semantics_binding_status": payload.get(
+                    "current_provider_semantics_binding_status"
+                ),
                 "source_action_bundle_candidate_count": payload.get("source_action_bundle_candidate_count"),
                 "selected_primary_surface_candidate_count": payload.get("selected_primary_surface_candidate_count"),
                 "reflection_context_surface_candidate_count": payload.get("reflection_context_surface_candidate_count"),
