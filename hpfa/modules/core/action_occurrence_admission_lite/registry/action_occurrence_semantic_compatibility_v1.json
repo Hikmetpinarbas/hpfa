@@ -1,8 +1,13 @@
 {
   "registry_id": "action_occurrence_semantic_compatibility_v1",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "status": "REVIEWED_CANDIDATE_RULES_ONLY",
   "purpose": "Precision-first compatibility rules for candidate occurrence reconstruction from already admitted Action Bundle surfaces. Rules create candidate relations only; they never establish canonical events.",
+  "upstream_semantics_binding": {
+    "registry_id": "sportsbase_label_semantics_reviewed_v2",
+    "binding_mode": "EVIDENCE_ATOM_SEMANTIC_RULE_ID_REQUIRED",
+    "semantic_mapping_status_required": "EXACT_REVIEWED_CANDIDATE"
+  },
   "interaction_rules": [
     {
       "rule_id": "dribble_challenge_interaction_exact_v1",
@@ -18,6 +23,22 @@
       "counterpart_required_any_labels": [
         "Challenges unsuccessful",
         "Tackles unsuccessful"
+      ],
+      "semantic_rule_bindings": {
+        "Dribbles successful": "plvs_v2_dribbles_successful",
+        "Dribbling in the final third successful": "plvs_v2_dribbling_in_the_final_third_successful",
+        "Challenges won": "plvs_v2_challenges_won",
+        "Challenges unsuccessful": "plvs_v2_challenges_unsuccessful",
+        "Tackles unsuccessful": "plvs_v2_tackles_unsuccessful"
+      },
+      "primary_semantic_rule_ids_any": [
+        "plvs_v2_dribbles_successful",
+        "plvs_v2_dribbling_in_the_final_third_successful"
+      ],
+      "primary_support_semantic_rule_ids_any": ["plvs_v2_challenges_won"],
+      "counterpart_semantic_rule_ids_any": [
+        "plvs_v2_challenges_unsuccessful",
+        "plvs_v2_tackles_unsuccessful"
       ],
       "teams_must_differ": true,
       "actors_must_differ": true,
@@ -50,6 +71,7 @@
   ],
   "global_claim_boundary": {
     "conditional_review_passthrough_changes_upstream_taxonomy_truth": false,
+    "provider_semantics_binding_required": true,
     "canonical_event_count": "UNKNOWN",
     "true_action_count": "UNKNOWN",
     "validated_event_identity": false,
