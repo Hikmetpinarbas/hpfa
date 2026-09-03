@@ -7,6 +7,7 @@ from typing import Any
 OUTPUT_JSON = "reciprocal_process_variant_profile_lite_v1.json"
 OUTPUT_TXT = "reciprocal_process_variant_profile_lite_v1.txt"
 ANALYST_TXT = "reciprocal_process_variant_profile_analyst_audit_v1.txt"
+OWNED_OUTPUT_NAMES = (OUTPUT_JSON, OUTPUT_TXT, ANALYST_TXT)
 
 
 def _validate_out(path: str | Path) -> Path:
@@ -16,10 +17,29 @@ def _validate_out(path: str | Path) -> Path:
     return output
 
 
+def clear_outputs(out_dir: str | Path) -> list[Path]:
+    """Remove only artifacts owned by this producer before a new invocation.
+
+    This prevents a previous successful run from leaving apparently-current variant
+    outputs behind when an upstream sequence/episode stage fails before this producer
+    can write fresh artifacts.
+    """
+    output = _validate_out(out_dir)
+    removed: list[Path] = []
+    for name in OWNED_OUTPUT_NAMES:
+        path = output / name
+        if path.is_file():
+            path.unlink()
+            removed.append(path)
+    return removed
+
+
 def _summary(payload: dict[str, Any]) -> str:
     return "\n".join([
         "HPFA RECIPROCAL PROCESS VARIANT PROFILE LITE V1",
+        f"module_id={payload.get('module_id')}",
         f"status={payload.get('process_variant_profile_status')}",
+        f"upstream_reciprocal_status={payload.get('upstream_reciprocal_status')}",
         f"process_variant_profile_count={payload.get('process_variant_profile_count', 0)}",
         f"repeated_process_variant_profile_count={payload.get('repeated_process_variant_profile_count', 0)}",
         f"multi_episode_process_variant_profile_count={payload.get('multi_episode_process_variant_profile_count', 0)}",
@@ -39,6 +59,9 @@ def _summary(payload: dict[str, Any]) -> str:
 def _analyst(payload: dict[str, Any]) -> str:
     lines = [
         "HPFA ANALYST AUDIT — MATCH-LOCAL VISIBLE PROCESS VARIANTS",
+        f"Module: {payload.get('module_id')}",
+        f"Status: {payload.get('process_variant_profile_status')}",
+        f"Upstream reciprocal status: {payload.get('upstream_reciprocal_status')}",
         f"Visible process-family profiles: {payload.get('process_variant_profile_count', 0)}",
         f"Repeated profiles: {payload.get('repeated_process_variant_profile_count', 0)}",
         f"Repeated across multiple admitted episode scopes: {payload.get('multi_episode_process_variant_profile_count', 0)}",
