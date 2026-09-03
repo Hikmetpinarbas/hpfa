@@ -1,4 +1,5 @@
-from hpfa.modules.core.active_match_spine_runner.src.full_spine_runner import run_intelligence_chain
+import active_match_spine_runner as active_entrypoint
+from hpfa.modules.core.active_match_spine_runner.src import full_spine_runner as full_spine_module
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.reciprocal_process_chain_lite.src.outcome_contrast import (
     build_c4_packet_candidates,
@@ -41,14 +42,19 @@ def test_reciprocal_counterevidence_can_traverse_existing_match_tomography_chain
     candidates = build_c4_packet_candidates(finding_inputs)["reciprocal_c4_packet_candidates"]
     assert candidates
 
-    packet = build_composite_packet(candidates[0])
+    candidate = candidates[0]
+    packet = build_composite_packet(candidate)
     assert packet["status"] == "SMOKE_PASS"
     assert packet["independent_support_count"] == 0
 
-    chain = run_intelligence_chain(packet)
-    for stage in ("fusion", "argument", "route", "graph", "safe_sentence", "report_block", "output_contract", "assembly"):
+    metadata = candidate["claim_safety_metadata"]
+    packet["claim_safety_metadata"] = metadata
+    active_entrypoint._bind_claim_safety_stage_passthrough()
+    chain = full_spine_module.run_intelligence_chain(packet)
+    for stage in ("packet", "fusion", "argument", "route", "graph", "lens", "safe_sentence", "report_block", "output_contract", "assembly"):
         assert stage in chain
         assert chain[stage].get("status") not in {"FAIL", "FAILED", "FAIL_CLOSED", "BLOCKED"}
+        assert chain[stage].get("claim_safety_metadata") == metadata
 
     fusion = chain["fusion"]
     assert any(
@@ -75,6 +81,8 @@ def test_match_tomography_bridge_does_not_create_parallel_reasoning_engine_or_tr
     assert candidate["report_language_allowed"] is False
     assert candidate["dependent_support_only"] is True
     assert candidate["counterevidence_is_dependent_projection"] is True
+    assert candidate["claim_safety_metadata"]["counter_search_complete_for_final_finding"] is False
+    assert candidate["claim_safety_metadata"]["alternative_explanation_required"] is True
     assert candidate["canonical_event_count"] == "UNKNOWN"
     assert candidate["true_action_count"] == "UNKNOWN"
     assert candidate["production_release"] is False

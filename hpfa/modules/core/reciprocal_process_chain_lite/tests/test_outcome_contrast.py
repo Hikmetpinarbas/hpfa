@@ -84,6 +84,14 @@ def test_finding_input_preserves_support_and_counterevidence_without_emitting_fi
     assert row["dependent_support_chain_ids"] == ["rpc_b"]
     assert row["counterevidence_chain_ids"] == ["rpc_c"]
     assert row["evidence_balance_state_candidate"] == "SUPPORT_AND_COUNTEREVIDENCE_VISIBLE_CANDIDATE"
+    assert row["counter_search_scope"] == "SAME_ADMITTED_PROCESS_FAMILY_SIGNATURE_ONLY"
+    assert row["counter_search_scope_state"] == "PARTIAL_SCOPE_EVALUATED"
+    assert row["counter_search_complete_for_final_finding"] is False
+    assert row["alternative_explanation_search_state"] == "NOT_EVALUATED"
+    assert row["alternative_explanation_required"] is True
+    assert row["falsifier_coverage_state"] == "PARTIAL"
+    assert "DIRECT_VISIBLE_OUTCOME_CONTRAST" in row["counter_search_evaluated_families"]
+    assert "OPPONENT_SYMMETRY" in row["counter_search_pending_families"]
     assert row["finding_emitted"] is False
     assert row["support_links_are_independent_votes"] is False
     assert row["counterevidence_links_are_independent_votes"] is False
@@ -98,7 +106,42 @@ def test_no_visible_counterexample_is_not_confirmation() -> None:
     row = next(item for item in result["defeasible_process_finding_inputs"] if item["reciprocal_process_chain_candidate_id"] == "rpc_a")
     assert row["counterevidence_chain_ids"] == []
     assert row["no_visible_counterexample_is_confirmation"] is False
+    assert row["counter_search_complete_for_final_finding"] is False
     assert row["evidence_balance_state_candidate"] == "DEPENDENT_SUPPORT_VISIBLE_NO_COUNTEREXAMPLE_CANDIDATE"
+
+
+def test_isolated_process_marks_counter_search_scope_as_partial_and_incomplete() -> None:
+    contrast = build_outcome_contrast_candidates(_payload([
+        _chain("rpc_a", "SHOT_CANDIDATE", True),
+    ]))
+    result = build_defeasible_process_finding_inputs(contrast)
+    row = result["defeasible_process_finding_inputs"][0]
+    assert row["counter_search_peer_count"] == 0
+    assert row["counter_search_scope_state"] == "PARTIAL_SCOPE_EVALUATED_NO_ANALOGUE"
+    assert row["counter_search_complete_for_final_finding"] is False
+    assert row["alternative_explanation_search_state"] == "NOT_EVALUATED"
+    assert row["falsifier_coverage_state"] == "PARTIAL"
+
+
+def test_c4_adapter_packages_complete_claim_safety_metadata() -> None:
+    contrast = build_outcome_contrast_candidates(_payload([
+        _chain("rpc_a", "SHOT_CANDIDATE", True),
+        _chain("rpc_b", "TURNOVER_CANDIDATE", False),
+    ]))
+    finding = build_defeasible_process_finding_inputs(contrast)
+    candidate = build_c4_packet_candidates(finding)["reciprocal_c4_packet_candidates"][0]
+    metadata = candidate["claim_safety_metadata"]
+    assert metadata["counter_search_scope"] == "SAME_ADMITTED_PROCESS_FAMILY_SIGNATURE_ONLY"
+    assert metadata["counter_search_complete_for_final_finding"] is False
+    assert metadata["alternative_explanation_search_state"] == "NOT_EVALUATED"
+    assert metadata["alternative_explanation_required"] is True
+    assert metadata["falsifier_coverage_state"] == "PARTIAL"
+    assert metadata["no_visible_counterexample_is_confirmation"] is False
+    assert metadata["support_links_are_independent_votes"] is False
+    assert metadata["counterevidence_links_are_independent_votes"] is False
+    assert "CONTEXT_DEPENDENCE" in metadata["counter_search_pending_families"]
+    assert "ALTERNATIVE_EXPLANATION" in metadata["falsifier_families_pending"]
+    assert metadata["finding_emitted"] is False
 
 
 def test_c4_adapter_emits_existing_composite_contract_shape_only_for_analogues() -> None:
@@ -116,6 +159,9 @@ def test_c4_adapter_emits_existing_composite_contract_shape_only_for_analogues()
     assert candidate["finding_emitted"] is False
     assert candidate["dependent_support_only"] is True
     assert candidate["counterevidence_is_dependent_projection"] is True
+    assert candidate["counter_search_complete_for_final_finding"] is False
+    assert candidate["alternative_explanation_search_state"] == "NOT_EVALUATED"
+    assert candidate["falsifier_coverage_state"] == "PARTIAL"
     assert candidate["canonical_event_count"] == "UNKNOWN"
     assert candidate["true_action_count"] == "UNKNOWN"
     assert candidate["production_release"] is False
@@ -176,6 +222,8 @@ def test_attachment_preserves_claim_locks_and_no_independent_vote() -> None:
     assert result["outcome_contrast_is_independent_evidence"] is False
     assert result["finding_input_is_final_finding"] is False
     assert result["finding_input_is_independent_evidence"] is False
+    assert result["counter_search_complete_for_final_finding"] is False
+    assert result["alternative_explanation_search_required"] is True
     assert result["reciprocal_c4_adapter_creates_new_engine"] is False
     assert result["reciprocal_c4_adapter_creates_independent_evidence"] is False
     assert result["reciprocal_c4_adapter_emits_final_finding"] is False
