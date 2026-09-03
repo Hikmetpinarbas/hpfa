@@ -1,0 +1,57 @@
+{
+  "module_id": "reciprocal_segment_scope_falsifier_lite_v1",
+  "status": "SPEC_ACCEPTED_CANDIDATE",
+  "source_role": "CURRENT_PRODUCT_EXTENSION",
+  "purpose": "Evaluate whether repeated same-signature reciprocal visible-process candidates are confined to one admitted episode scope or visible across multiple admitted episode scopes, without mutating the strict downstream #330 claim-safety envelope in this first slice.",
+  "inputs": [
+    "DEFEASIBLE_PROCESS_FINDING_INPUT_CANDIDATE",
+    "MATCH_LOCAL_VISIBLE_PROCESS_VARIANT_PROFILE_CANDIDATE"
+  ],
+  "output_object": "SEGMENT_ONLY_EPISODE_SCOPE_EVALUATION_CANDIDATE",
+  "states": [
+    "SEGMENT_SCOPE_NOT_EVALUATED_NO_PROFILE",
+    "SEGMENT_SCOPE_NOT_EVALUATED_NO_REPEAT_ANALOGUE",
+    "SEGMENT_SCOPE_NOT_EVALUATED_INCOMPLETE_EPISODE_BINDING",
+    "SINGLE_EPISODE_SCOPE_ONLY_CANDIDATE",
+    "MULTI_EPISODE_SCOPE_VISIBLE_CANDIDATE"
+  ],
+  "admission": {
+    "same_process_signature_basis": "EXACT_ADMITTED_ANCHOR_RESPONSE_ACTION_FAMILY_SIGNATURE_CANDIDATE",
+    "repeat_required_for_evaluation": true,
+    "complete_episode_binding_required": true,
+    "single_episode_repeat": "SEGMENT_ONLY_RISK_CANDIDATE",
+    "multi_episode_repeat": "SEGMENT_ONLY_FALSIFIER_NOT_OBSERVED_IN_CURRENT_EPISODE_SCOPE_COMPARISON",
+    "missing_or_incomplete_binding": "NOT_EVALUATED_REMAINS_PENDING"
+  },
+  "safety_envelope": {
+    "mutates_counter_search_evaluated_families": false,
+    "mutates_counter_search_pending_families": false,
+    "mutates_falsifier_evaluated_families": false,
+    "mutates_falsifier_pending_families": false,
+    "segment_only_safety_envelope_propagated": false,
+    "follow_up_requirement": "Validator and claim-safety propagation must evolve atomically before SEGMENT_ONLY can be removed from downstream pending lists."
+  },
+  "hard_invariants": {
+    "single_episode_repeat_is_recurrence_truth": false,
+    "multi_episode_spread_is_recurrence_truth": false,
+    "multi_episode_spread_is_stable_tendency_truth": false,
+    "segment_only_is_tactical_truth": false,
+    "segment_only_is_coach_intention_truth": false,
+    "absence_confirms_recurrence": false,
+    "creates_occurrence": false,
+    "creates_episode": false,
+    "creates_independent_evidence": false,
+    "creates_final_finding": false,
+    "counter_search_complete_for_final_finding": false,
+    "falsifier_coverage_state": "PARTIAL",
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "required_outputs": [
+    "reciprocal_segment_scope_falsifier_lite_v1.json",
+    "reciprocal_segment_scope_falsifier_lite_v1.txt",
+    "reciprocal_segment_scope_falsifier_analyst_audit_v1.txt"
+  ],
+  "release_state": "REVIEW_REQUIRED / SAFETY_ENVELOPE_PROPAGATION_PENDING / ACTIVE_MATCH_REQUIRED / NOT_PRODUCTION"
+}
