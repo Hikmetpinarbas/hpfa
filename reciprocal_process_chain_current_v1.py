@@ -7,10 +7,7 @@ from pathlib import Path
 import visible_action_sequence_candidates_current_v1 as current_sequence
 from hpfa.modules.core.active_match_spine_runner.src.episode_lane_runner import run_current_episode_lane
 from hpfa.modules.core.reciprocal_process_chain_lite.src import reciprocal_process_chain as reciprocal
-from hpfa.modules.core.reciprocal_process_chain_lite.src.outcome_contrast import (
-    attach_outcome_contrast,
-    build_c4_packet_candidates,
-)
+from hpfa.modules.core.reciprocal_process_chain_lite.src.outcome_contrast import attach_outcome_contrast
 from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile import (
     build_process_variant_profiles,
 )
@@ -73,11 +70,13 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "process_variant_profile_is_recurrence_truth": False,
         "process_variant_profile_is_tactical_truth": False,
         "process_variant_profile_creates_independent_evidence": False,
+        "segment_only_evaluations": [],
         "segment_only_falsifier_status": "FAIL_CLOSED",
         "segment_only_falsifier_evaluated_count": 0,
         "segment_only_risk_candidate_count": 0,
         "segment_only_multi_episode_not_observed_count": 0,
         "segment_only_pending_count": 0,
+        "segment_only_safety_envelope_propagated": False,
         "hard_block_hits": [reason],
         "review_hits": [],
         "same_timestamp_internal_ordering_allowed": False,
@@ -126,12 +125,8 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
     temporal_payload = _load(temporal_path)
     payload = reciprocal.build_reciprocal_process_chains(sequence_payload, temporal_payload)
-    # Outcome contrast and initial finding-input envelopes are dependent projections
-    # over already-built reciprocal candidates. They create no new football events.
     payload = attach_outcome_contrast(payload)
 
-    # Donor-derived process-mining ideas are adapted as a thin downstream profile
-    # over current reciprocal candidates. Visible repetition is not recurrence truth.
     variant_payload = build_process_variant_profiles(payload)
     payload.update(variant_payload)
     variant_paths = write_process_variant_profile_outputs(variant_payload, output)
@@ -139,11 +134,12 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         key: str(path) for key, path in variant_paths.items()
     }
 
-    # Rehabilitate the existing #330 SEGMENT_ONLY pending falsifier. Episode spread
-    # can evaluate only this one falsifier family; all other counter-search debt
-    # remains pending and no final finding becomes admissible.
-    payload = evaluate_segment_only_falsifier(payload, variant_payload)
-    payload.update(build_c4_packet_candidates(payload))
+    # First SEGMENT_ONLY slice is intentionally read-only with respect to the
+    # strict #330 C4 safety envelope. It reports which finding inputs are
+    # episode-scope evaluable, while leaving downstream pending/evaluated-family
+    # lists untouched until validator+propagation evolve atomically.
+    segment_payload = evaluate_segment_only_falsifier(payload, variant_payload)
+    payload.update(segment_payload)
 
     payload["current_sequence_status"] = sequence_payload.get("status")
     payload["current_episode_lane_status"] = episode_lane.get("status")
@@ -187,6 +183,7 @@ def main() -> int:
         "segment_only_risk_candidate_count": payload.get("segment_only_risk_candidate_count"),
         "segment_only_multi_episode_not_observed_count": payload.get("segment_only_multi_episode_not_observed_count"),
         "segment_only_pending_count": payload.get("segment_only_pending_count"),
+        "segment_only_safety_envelope_propagated": payload.get("segment_only_safety_envelope_propagated"),
         "same_time_response_candidate_block_count": payload.get("same_time_response_candidate_block_count"),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
