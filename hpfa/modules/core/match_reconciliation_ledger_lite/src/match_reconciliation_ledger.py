@@ -116,7 +116,11 @@ def build_match_reconciliation_ledger(reciprocal_payload: dict[str, Any]) -> dic
                 "claim_ceiling": CLAIM_CEILING,
             })
 
-    cross_side_consistency_pass = not blocks and all(row.get("shared_edge_identity") is True for row in edges)
+    if not blocks and not edges:
+        reviews.append("no_reciprocal_edges_to_reconcile")
+    cross_side_consistency_pass = bool(edges) and not blocks and all(
+        row.get("shared_edge_identity") is True for row in edges
+    )
     if reciprocal_payload.get("status") == "REVIEW_REQUIRED":
         reviews.append("reciprocal_upstream_review_required")
 
@@ -151,6 +155,7 @@ def build_match_reconciliation_ledger(reciprocal_payload: dict[str, Any]) -> dic
             "episode_count_uses_unique_union": True,
             "player_membership_sum_must_not_be_equated_to_team_episode_count": True,
             "reciprocal_forward_reverse_views_share_one_edge_id": True,
+            "empty_reconciliation_never_passes_consistency": True,
         },
         "hard_block_hits": sorted(set(blocks)),
         "review_hits": sorted(set(reviews)),
