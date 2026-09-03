@@ -24,14 +24,21 @@ def _build_tomography_coverage(reciprocal: dict[str, Any], chains: list[dict[str
     rows = reciprocal.get("defeasible_process_finding_inputs") or []
     rows = rows if isinstance(rows, list) else []
     states: Counter[str] = Counter()
+    search_scope_states: Counter[str] = Counter()
     with_counterevidence = 0
     with_dependent_support = 0
     isolated = 0
+    counter_search_complete = 0
+    counter_search_incomplete = 0
+    alternative_not_evaluated = 0
+    partial_falsifier_coverage = 0
     for row in rows:
         if not isinstance(row, dict):
             continue
         state = str(row.get("evidence_balance_state_candidate") or "UNKNOWN")
         states[state] += 1
+        search_scope_state = str(row.get("counter_search_scope_state") or "UNKNOWN")
+        search_scope_states[search_scope_state] += 1
         counter_ids = row.get("counterevidence_chain_ids") or []
         support_ids = row.get("dependent_support_chain_ids") or []
         if isinstance(counter_ids, list) and counter_ids:
@@ -40,6 +47,14 @@ def _build_tomography_coverage(reciprocal: dict[str, Any], chains: list[dict[str
             with_dependent_support += 1
         if not counter_ids and not support_ids:
             isolated += 1
+        if row.get("counter_search_complete_for_final_finding") is True:
+            counter_search_complete += 1
+        else:
+            counter_search_incomplete += 1
+        if str(row.get("alternative_explanation_search_state") or "UNKNOWN") != "EVALUATED":
+            alternative_not_evaluated += 1
+        if str(row.get("falsifier_coverage_state") or "UNKNOWN") == "PARTIAL":
+            partial_falsifier_coverage += 1
 
     return {
         "surface_id": "reciprocal_match_tomography_coverage_v1",
@@ -49,8 +64,15 @@ def _build_tomography_coverage(reciprocal: dict[str, Any], chains: list[dict[str
         "finding_inputs_with_dependent_support_count": with_dependent_support,
         "isolated_finding_input_count": isolated,
         "evidence_balance_state_candidate_counts": dict(sorted(states.items())),
+        "counter_search_scope_state_counts": dict(sorted(search_scope_states.items())),
+        "counter_search_complete_for_final_finding_count": counter_search_complete,
+        "counter_search_incomplete_for_final_finding_count": counter_search_incomplete,
+        "alternative_explanation_not_evaluated_count": alternative_not_evaluated,
+        "partial_falsifier_coverage_count": partial_falsifier_coverage,
         "existing_intelligence_chain_projection_count": len(chains),
         "absence_of_counterevidence_is_confirmation": False,
+        "counter_search_incomplete_never_confirms": True,
+        "alternative_explanation_absence_is_not_evidence": True,
         "dependent_support_is_independent_vote": False,
         "coverage_is_team_tendency_truth": False,
         "coverage_is_tactical_truth": False,
@@ -167,6 +189,9 @@ def bridge_reciprocal_packets(
         f"tomography_with_counterevidence_count={tomography_coverage.get('finding_inputs_with_counterevidence_count', 0)}",
         f"tomography_with_dependent_support_count={tomography_coverage.get('finding_inputs_with_dependent_support_count', 0)}",
         f"tomography_isolated_count={tomography_coverage.get('isolated_finding_input_count', 0)}",
+        f"tomography_counter_search_incomplete_count={tomography_coverage.get('counter_search_incomplete_for_final_finding_count', 0)}",
+        f"tomography_alternative_explanation_not_evaluated_count={tomography_coverage.get('alternative_explanation_not_evaluated_count', 0)}",
+        f"tomography_partial_falsifier_coverage_count={tomography_coverage.get('partial_falsifier_coverage_count', 0)}",
         "tomography_claim_output_allowed=false",
         "creates_parallel_engine=false",
         "active_match_evidence_pass=false",
