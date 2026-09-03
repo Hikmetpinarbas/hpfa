@@ -73,7 +73,7 @@ def test_counter_response_episode_is_included_in_team_union_and_membership() -> 
     assert edge["counter_response_episode_candidate_id"] == "epA2"
 
 
-def test_visible_counter_response_with_incomplete_binding_requires_review() -> None:
+def test_visible_counter_response_with_incomplete_binding_requires_review_but_counts_membership() -> None:
     row = _chain("a1", "b1", "TEAM_A", "TEAM_B", "epA", "epB")
     row.update({
         "counter_response_visible": True,
@@ -84,6 +84,9 @@ def test_visible_counter_response_with_incomplete_binding_requires_review() -> N
     report = build_match_reconciliation_ledger(_payload([row]))
     assert report["status"] == "REVIEW_REQUIRED"
     assert any(hit.startswith("counter_response_episode_binding_incomplete") for hit in report["review_hits"])
+    team_a = next(item for item in report["team_episode_union_rows"] if item["team_identity_candidate_id"] == "TEAM_A")
+    assert team_a["reciprocal_process_membership_count"] == 2
+    assert team_a["unique_episode_candidate_ids"] == ["epA"]
 
 
 def test_same_team_edge_fails_closed() -> None:
