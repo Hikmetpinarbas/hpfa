@@ -123,6 +123,27 @@ def test_isolated_process_marks_counter_search_scope_as_partial_and_incomplete()
     assert row["falsifier_coverage_state"] == "PARTIAL"
 
 
+def test_c4_adapter_packages_complete_claim_safety_metadata() -> None:
+    contrast = build_outcome_contrast_candidates(_payload([
+        _chain("rpc_a", "SHOT_CANDIDATE", True),
+        _chain("rpc_b", "TURNOVER_CANDIDATE", False),
+    ]))
+    finding = build_defeasible_process_finding_inputs(contrast)
+    candidate = build_c4_packet_candidates(finding)["reciprocal_c4_packet_candidates"][0]
+    metadata = candidate["claim_safety_metadata"]
+    assert metadata["counter_search_scope"] == "SAME_ADMITTED_PROCESS_FAMILY_SIGNATURE_ONLY"
+    assert metadata["counter_search_complete_for_final_finding"] is False
+    assert metadata["alternative_explanation_search_state"] == "NOT_EVALUATED"
+    assert metadata["alternative_explanation_required"] is True
+    assert metadata["falsifier_coverage_state"] == "PARTIAL"
+    assert metadata["no_visible_counterexample_is_confirmation"] is False
+    assert metadata["support_links_are_independent_votes"] is False
+    assert metadata["counterevidence_links_are_independent_votes"] is False
+    assert "CONTEXT_DEPENDENCE" in metadata["counter_search_pending_families"]
+    assert "ALTERNATIVE_EXPLANATION" in metadata["falsifier_families_pending"]
+    assert metadata["finding_emitted"] is False
+
+
 def test_c4_adapter_emits_existing_composite_contract_shape_only_for_analogues() -> None:
     contrast = build_outcome_contrast_candidates(_payload([
         _chain("rpc_a", "SHOT_CANDIDATE", True),
