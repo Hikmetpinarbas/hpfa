@@ -66,6 +66,14 @@ def test_missing_episode_binding_stays_review_required() -> None:
     assert report["reciprocal_consistency_edge_count"] == 1
 
 
+def test_empty_ledger_never_claims_cross_side_consistency_pass() -> None:
+    report = build_match_reconciliation_ledger(_payload([]))
+    assert report["status"] == "REVIEW_REQUIRED"
+    assert report["reciprocal_consistency_edge_count"] == 0
+    assert report["cross_side_consistency_pass"] is False
+    assert "no_reciprocal_edges_to_reconcile" in report["review_hits"]
+
+
 def test_claim_locks_and_unavailable_reconciliations_are_explicit() -> None:
     report = build_match_reconciliation_ledger(_payload([]))
     assert report["canonical_event_count"] == "UNKNOWN"
