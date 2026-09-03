@@ -17,6 +17,9 @@ from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile
 from hpfa.modules.core.reciprocal_process_chain_lite.src.segment_scope_falsifier import (
     evaluate_segment_only_falsifier,
 )
+from hpfa.modules.core.reciprocal_process_chain_lite.src.segment_scope_falsifier_outputs import (
+    write_outputs as write_segment_scope_falsifier_outputs,
+)
 
 TEMPORAL_JSON = "temporal_episode_signature_lite_v1.json"
 
@@ -140,6 +143,10 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     # lists untouched until validator+propagation evolve atomically.
     segment_payload = evaluate_segment_only_falsifier(payload, variant_payload)
     payload.update(segment_payload)
+    segment_paths = write_segment_scope_falsifier_outputs(segment_payload, output)
+    payload["segment_scope_falsifier_outputs"] = {
+        key: str(path) for key, path in segment_paths.items()
+    }
 
     payload["current_sequence_status"] = sequence_payload.get("status")
     payload["current_episode_lane_status"] = episode_lane.get("status")
@@ -149,6 +156,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     payload["outputs"] = {
         **{key: str(path) for key, path in paths.items()},
         **{f"process_variant_{key}": str(path) for key, path in variant_paths.items()},
+        **{f"segment_scope_{key}": str(path) for key, path in segment_paths.items()},
     }
     return payload
 
