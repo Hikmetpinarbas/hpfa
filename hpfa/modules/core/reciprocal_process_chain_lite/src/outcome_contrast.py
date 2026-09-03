@@ -22,6 +22,8 @@ COUNTER_SEARCH_PENDING_FAMILIES = [
     "DUPLICATE_REFLECTION_RISK",
     "ALTERNATIVE_EXPLANATION",
 ]
+SEGMENT_FALSIFIER_FAMILY = "SEGMENT_ONLY"
+SEGMENT_FALSIFIER_METHOD = "EPISODE_SCOPE_SPREAD_CANDIDATE"
 
 
 def _clean(value: Any) -> str:
@@ -45,22 +47,97 @@ def _outcome_signature(row: dict[str, Any]) -> tuple[tuple[str, ...], tuple[str,
     return response, counter, bool(row.get("counter_response_visible"))
 
 
-def _counter_search_metadata(support_ids: list[str], counter_ids: list[str]) -> dict[str, Any]:
+def _episode_scope_signature(row: dict[str, Any]) -> tuple[str, str] | None:
+    anchor_episode = _clean(row.get("anchor_episode_candidate_id"))
+    response_episode = _clean(row.get("response_episode_candidate_id"))
+    if not anchor_episode or not response_episode:
+        return None
+    return anchor_episode, response_episode
+
+
+def _contrast_episode_scope(row: dict[str, Any]) -> tuple[str, str] | None:
+    scope = row.get("process_episode_scope_signature_candidate")
+    if not isinstance(scope, dict):
+        return None
+    anchor_episode = _clean(scope.get("anchor_episode_candidate_id"))
+    response_episode = _clean(scope.get("response_episode_candidate_id"))
+    if not anchor_episode or not response_episode:
+        return None
+    return anchor_episode, response_episode
+
+
+def _segment_scope_metadata(
+    chain_id: str,
+    analogue_ids: list[str],
+    scope_by_chain_id: dict[str, tuple[str, str] | None],
+) -> dict[str, Any]:
+    anchor_scope = scope_by_chain_id.get(chain_id)
+    peer_scopes = {peer_id: scope_by_chain_id.get(peer_id) for peer_id in analogue_ids}
+    missing_scope_ids = sorted(
+        [ref_id for ref_id, scope in [(chain_id, anchor_scope), *peer_scopes.items()] if scope is None]
+    )
+
+    if not analogue_ids:
+        state = "SEGMENT_SCOPE_NOT_EVALUATED_NO_ANALOGUE"
+        falsifier_state = "NOT_EVALUATED"
+        evaluated = False
+        unique_scopes: set[tuple[str, str]] = set()
+    elif missing_scope_ids:
+        state = "SEGMENT_SCOPE_NOT_EVALUATED_INCOMPLETE_EPISODE_BINDING"
+        falsifier_state = "NOT_EVALUATED"
+        evaluated = False
+        unique_scopes = set()
+    else:
+        unique_scopes = {anchor_scope} if anchor_scope is not None else set()
+        unique_scopes.update(scope for scope in peer_scopes.values() if scope is not None)
+        evaluated = True
+        if len(unique_scopes) > 1:
+            state = "MULTI_EPISODE_SCOPE_VISIBLE_CANDIDATE"
+            falsifier_state = "SEGMENT_ONLY_FALSIFIER_NOT_OBSERVED_IN_CURRENT_EPISODE_SCOPE_COMPARISON"
+        else:
+            state = "SINGLE_EPISODE_SCOPE_ONLY_CANDIDATE"
+            falsifier_state = "SEGMENT_ONLY_RISK_CANDIDATE"
+
+    return {
+        "segment_falsifier_method": SEGMENT_FALSIFIER_METHOD,
+        "segment_scope_state": state,
+        "segment_falsifier_state": falsifier_state,
+        "segment_scope_evaluated": evaluated,
+        "segment_scope_observed_episode_scope_count": len(unique_scopes),
+        "segment_scope_episode_pair_labels": sorted(f"{left} -> {right}" for left, right in unique_scopes),
+        "segment_scope_missing_binding_chain_ids": missing_scope_ids,
+        "segment_scope_is_recurrence_truth": False,
+        "segment_scope_is_pattern_robustness_truth": False,
+        "multi_episode_scope_is_stable_tendency_truth": False,
+    }
+
+
+def _counter_search_metadata(
+    support_ids: list[str],
+    counter_ids: list[str],
+    *,
+    segment_scope_evaluated: bool,
+) -> dict[str, Any]:
     peer_count = len(set(support_ids) | set(counter_ids))
+    evaluated_families = list(COUNTER_SEARCH_EVALUATED_FAMILIES)
+    pending_families = list(COUNTER_SEARCH_PENDING_FAMILIES)
+    if segment_scope_evaluated:
+        evaluated_families.append(SEGMENT_FALSIFIER_FAMILY)
+        pending_families = [family for family in pending_families if family != SEGMENT_FALSIFIER_FAMILY]
     return {
         "counter_search_scope": COUNTER_SEARCH_SCOPE,
         "counter_search_scope_state": (
             "PARTIAL_SCOPE_EVALUATED" if peer_count else "PARTIAL_SCOPE_EVALUATED_NO_ANALOGUE"
         ),
         "counter_search_peer_count": peer_count,
-        "counter_search_evaluated_families": list(COUNTER_SEARCH_EVALUATED_FAMILIES),
-        "counter_search_pending_families": list(COUNTER_SEARCH_PENDING_FAMILIES),
+        "counter_search_evaluated_families": evaluated_families,
+        "counter_search_pending_families": pending_families,
         "counter_search_complete_for_final_finding": False,
         "alternative_explanation_search_state": "NOT_EVALUATED",
         "alternative_explanation_required": True,
         "falsifier_coverage_state": "PARTIAL",
-        "falsifier_families_evaluated": list(COUNTER_SEARCH_EVALUATED_FAMILIES),
-        "falsifier_families_pending": list(COUNTER_SEARCH_PENDING_FAMILIES),
+        "falsifier_families_evaluated": list(evaluated_families),
+        "falsifier_families_pending": list(pending_families),
     }
 
 
@@ -77,6 +154,16 @@ def _claim_safety_metadata(row: dict[str, Any]) -> dict[str, Any]:
         "falsifier_coverage_state": row.get("falsifier_coverage_state"),
         "falsifier_families_evaluated": list(row.get("falsifier_families_evaluated") or []),
         "falsifier_families_pending": list(row.get("falsifier_families_pending") or []),
+        "segment_falsifier_method": row.get("segment_falsifier_method"),
+        "segment_scope_state": row.get("segment_scope_state"),
+        "segment_falsifier_state": row.get("segment_falsifier_state"),
+        "segment_scope_evaluated": row.get("segment_scope_evaluated") is True,
+        "segment_scope_observed_episode_scope_count": row.get("segment_scope_observed_episode_scope_count"),
+        "segment_scope_episode_pair_labels": list(row.get("segment_scope_episode_pair_labels") or []),
+        "segment_scope_missing_binding_chain_ids": list(row.get("segment_scope_missing_binding_chain_ids") or []),
+        "segment_scope_is_recurrence_truth": False,
+        "segment_scope_is_pattern_robustness_truth": False,
+        "multi_episode_scope_is_stable_tendency_truth": False,
         "no_visible_counterexample_is_confirmation": False,
         "support_links_are_independent_votes": False,
         "counterevidence_links_are_independent_votes": False,
@@ -123,6 +210,7 @@ def build_outcome_contrast_candidates(reciprocal_payload: dict[str, Any]) -> dic
         for anchor in group:
             anchor_id = _clean(anchor.get("reciprocal_process_chain_candidate_id"))
             anchor_outcome = _outcome_signature(anchor)
+            anchor_episode_scope = _episode_scope_signature(anchor)
             different: list[str] = []
             same: list[str] = []
             for peer in group:
@@ -145,6 +233,15 @@ def build_outcome_contrast_candidates(reciprocal_payload: dict[str, Any]) -> dic
                     "anchor_action_families": list(family_signature[0]),
                     "response_action_families": list(family_signature[1]),
                 },
+                "process_episode_scope_signature_candidate": (
+                    {
+                        "anchor_episode_candidate_id": anchor_episode_scope[0],
+                        "response_episode_candidate_id": anchor_episode_scope[1],
+                    }
+                    if anchor_episode_scope is not None
+                    else None
+                ),
+                "episode_scope_binding_complete": anchor_episode_scope is not None,
                 "visible_outcome_signature_candidate": {
                     "response_consequence_families": list(anchor_outcome[0]),
                     "counter_response_consequence_families": list(anchor_outcome[1]),
@@ -204,6 +301,12 @@ def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) ->
             "production_release": False,
         }
 
+    scope_by_chain_id = {
+        _clean(row.get("reciprocal_process_chain_candidate_id")): _contrast_episode_scope(row)
+        for row in contrasts
+        if isinstance(row, dict) and _clean(row.get("reciprocal_process_chain_candidate_id"))
+    }
+
     inputs: list[dict[str, Any]] = []
     for contrast in contrasts:
         if not isinstance(contrast, dict):
@@ -223,16 +326,26 @@ def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) ->
         else:
             evidence_state = "ISOLATED_VISIBLE_PROCESS_NO_ANALOGUE_CANDIDATE"
 
+        analogue_ids = sorted(set(support_ids) | set(counter_ids))
+        segment_metadata = _segment_scope_metadata(chain_id, analogue_ids, scope_by_chain_id)
+        counter_metadata = _counter_search_metadata(
+            support_ids,
+            counter_ids,
+            segment_scope_evaluated=segment_metadata["segment_scope_evaluated"] is True,
+        )
+
         inputs.append({
             "defeasible_process_finding_input_id": "dfi_" + _digest(contrast_id, chain_id, support_ids, counter_ids)[:24],
             "outcome_contrast_candidate_id": contrast_id,
             "reciprocal_process_chain_candidate_id": chain_id,
             "process_family_signature_candidate": contrast.get("process_family_signature_candidate") or {},
+            "process_episode_scope_signature_candidate": contrast.get("process_episode_scope_signature_candidate"),
             "visible_outcome_signature_candidate": contrast.get("visible_outcome_signature_candidate") or {},
             "dependent_support_chain_ids": support_ids,
             "counterevidence_chain_ids": counter_ids,
             "evidence_balance_state_candidate": evidence_state,
-            **_counter_search_metadata(support_ids, counter_ids),
+            **segment_metadata,
+            **counter_metadata,
             "no_visible_counterexample_is_confirmation": False,
             "support_links_are_independent_votes": False,
             "counterevidence_links_are_independent_votes": False,
@@ -247,6 +360,8 @@ def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) ->
                 "coach intention",
                 "adaptation truth",
                 "dominance",
+                "recurrence truth",
+                "pattern robustness truth",
             ],
             "withdrawal_condition": "Withdraw or downgrade if the source reciprocal chain, contrast grouping, support/counterevidence linkage, temporal relation, or episode binding is invalidated.",
             "canonical_event_count": CANONICAL_EVENT_COUNT,
@@ -263,6 +378,9 @@ def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) ->
         "finding_input_is_independent_evidence": False,
         "counter_search_complete_for_final_finding": False,
         "alternative_explanation_search_required": True,
+        "segment_falsifier_method": SEGMENT_FALSIFIER_METHOD,
+        "segment_scope_is_recurrence_truth": False,
+        "segment_scope_is_pattern_robustness_truth": False,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": False,
@@ -357,11 +475,14 @@ def build_c4_packet_candidates(finding_payload: dict[str, Any]) -> dict[str, Any
             "source_finding_input_id": finding_id,
             "source_outcome_contrast_candidate_id": row.get("outcome_contrast_candidate_id"),
             "process_family_signature_candidate": row.get("process_family_signature_candidate") or {},
+            "process_episode_scope_signature_candidate": row.get("process_episode_scope_signature_candidate"),
             "visible_outcome_signature_candidate": row.get("visible_outcome_signature_candidate") or {},
             "counter_search_scope_state": row.get("counter_search_scope_state"),
             "counter_search_complete_for_final_finding": False,
             "alternative_explanation_search_state": row.get("alternative_explanation_search_state"),
             "falsifier_coverage_state": row.get("falsifier_coverage_state"),
+            "segment_scope_state": row.get("segment_scope_state"),
+            "segment_falsifier_state": row.get("segment_falsifier_state"),
             "claim_safety_metadata": safety_metadata,
             "dependent_support_only": True,
             "counterevidence_is_dependent_projection": True,
