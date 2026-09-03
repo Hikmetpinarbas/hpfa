@@ -44,6 +44,12 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "finding_input_status": "FAIL_CLOSED",
         "finding_input_is_final_finding": False,
         "finding_input_is_independent_evidence": False,
+        "reciprocal_c4_packet_candidates": [],
+        "reciprocal_c4_packet_candidate_count": 0,
+        "reciprocal_c4_adapter_status": "FAIL_CLOSED",
+        "reciprocal_c4_adapter_creates_new_engine": False,
+        "reciprocal_c4_adapter_creates_independent_evidence": False,
+        "reciprocal_c4_adapter_emits_final_finding": False,
         "hard_block_hits": [reason],
         "review_hits": [],
         "same_timestamp_internal_ordering_allowed": False,
@@ -92,10 +98,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
     temporal_payload = _load(temporal_path)
     payload = reciprocal.build_reciprocal_process_chains(sequence_payload, temporal_payload)
-    # Outcome contrast and defeasible finding-input envelopes are dependent
-    # projections over already-built reciprocal candidates. They do not create
-    # occurrences/episodes, independent votes, causal truth, tactical truth or a
-    # final finding. Different-outcome analogues remain explicit counterevidence.
+    # Outcome contrast, finding-input envelopes and C4 packet candidates are
+    # dependent projections over already-built reciprocal candidates. The C4
+    # adapter targets the existing composite packet contract; it is not a new
+    # reasoning engine and it does not create occurrences, episodes, independent
+    # votes, causal/tactical truth or final findings.
     payload = attach_outcome_contrast(payload)
     payload["current_sequence_status"] = sequence_payload.get("status")
     payload["current_episode_lane_status"] = episode_lane.get("status")
@@ -124,6 +131,8 @@ def main() -> int:
         "different_outcome_analogue_link_count": payload.get("different_outcome_analogue_link_count"),
         "defeasible_process_finding_input_count": payload.get("defeasible_process_finding_input_count"),
         "finding_input_status": payload.get("finding_input_status"),
+        "reciprocal_c4_packet_candidate_count": payload.get("reciprocal_c4_packet_candidate_count"),
+        "reciprocal_c4_adapter_status": payload.get("reciprocal_c4_adapter_status"),
         "same_time_response_candidate_block_count": payload.get("same_time_response_candidate_block_count"),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
