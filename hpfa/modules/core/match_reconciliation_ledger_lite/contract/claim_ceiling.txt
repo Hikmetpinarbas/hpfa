@@ -1,0 +1,4 @@
+BIDIRECTIONAL_EVIDENCE_CONSISTENCY_CANDIDATE_ONLY
+canonical_event_count=UNKNOWN
+true_action_count=UNKNOWN
+production_release=false
