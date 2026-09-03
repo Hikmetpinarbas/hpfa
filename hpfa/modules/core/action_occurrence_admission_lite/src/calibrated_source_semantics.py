@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+import math
 from typing import Any
 
 
@@ -47,6 +48,16 @@ def _norm(value: Any) -> str:
     return str(value or "").strip().upper()
 
 
+def _finite_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
 def admit_time_semantics(
     *,
     semantic_family: str,
@@ -62,12 +73,8 @@ def admit_time_semantics(
     """
     family = _norm(semantic_family)
     chronology_relation = "SAME_TIME_UNORDERED" if same_timestamp_peer else "ORDER_INDETERMINATE"
-
-    try:
-        start_f = float(start) if start is not None else None
-        end_f = float(end) if end is not None else None
-    except (TypeError, ValueError):
-        start_f = end_f = None
+    start_f = _finite_float(start)
+    end_f = _finite_float(end)
 
     if family in LONG_INTERVAL_FAMILIES:
         return TimeSemanticResult(
@@ -105,13 +112,9 @@ def admit_time_semantics(
 def admit_spatial_semantics(*, semantic_family: str, pos_x: Any, pos_y: Any) -> dict[str, Any]:
     family = _norm(semantic_family)
     role = SPATIAL_ROLE_BY_FAMILY.get(family, "SPATIAL_ANCHOR_REVIEW_REQUIRED")
-    try:
-        x = float(pos_x)
-        y = float(pos_y)
-        numeric = True
-    except (TypeError, ValueError):
-        x = y = None
-        numeric = False
+    x = _finite_float(pos_x)
+    y = _finite_float(pos_y)
+    numeric = x is not None and y is not None
 
     return {
         "semantic_family": family,
@@ -141,7 +144,8 @@ def map_team_pass_length_candidate(
     """
     surface = _norm(surface_role)
     family = _norm(action_family)
-    candidate = PASS_LENGTH_MAP.get(raw_label) if surface == "TEAM" and family == "PASS" else None
+    team_surface = surface == "TEAM" or surface.startswith("TEAM_SURFACE")
+    candidate = PASS_LENGTH_MAP.get(raw_label) if team_surface and family == "PASS" else None
     return {
         "raw_provider_label": raw_label,
         "semantic_candidate": candidate,
@@ -149,6 +153,86 @@ def map_team_pass_length_candidate(
         "literal_goal_kick": False if candidate else None,
         "goalkeeper_surface_remapped": False,
     }
+
+
+def apply_calibrated_semantics_to_admission_payload(
+    *,
+    action_payload: dict[str, Any],
+    admission_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Attach calibrated, claim-safe semantics to the current occurrence output.
+
+    This is a sidecar enrichment of already-produced candidate objects. It does not
+    create occurrences, does not change occurrence counts, and does not establish
+    chronology, possession, phase, tracking, tactical or causal truth.
+    """
+    bundles = [
+        row for row in action_payload.get("action_bundle_candidates") or []
+        if isinstance(row, dict)
+    ]
+    semantics_by_bundle: dict[str, dict[str, Any]] = {}
+    for bundle in bundles:
+        bundle_id = str(bundle.get("action_bundle_candidate_id") or "").strip()
+        if not bundle_id:
+            continue
+        family = _norm(bundle.get("action_family_candidate"))
+        family_admitted = family in SHORT_ACTION_FAMILIES or family in LONG_INTERVAL_FAMILIES
+        time_semantics = admit_time_semantics(
+            semantic_family=family,
+            start=bundle.get("start_candidate"),
+            end=bundle.get("end_candidate"),
+            family_admitted=family_admitted,
+            same_timestamp_peer=bool(bundle.get("same_time_order_truth_admitted")),
+        )
+        spatial_semantics = admit_spatial_semantics(
+            semantic_family=family,
+            pos_x=bundle.get("pos_x_candidate"),
+            pos_y=bundle.get("pos_y_candidate"),
+        )
+        pass_length_candidates = []
+        for raw_label in bundle.get("raw_labels") or []:
+            mapped = map_team_pass_length_candidate(
+                raw_label=str(raw_label),
+                surface_role=str(bundle.get("source_role") or ""),
+                action_family=family,
+            )
+            if mapped.get("semantic_candidate"):
+                pass_length_candidates.append(mapped)
+        semantics_by_bundle[bundle_id] = {
+            "action_bundle_candidate_id": bundle_id,
+            "semantic_family": family,
+            "time_semantics": asdict(time_semantics),
+            "spatial_semantics": spatial_semantics,
+            "pass_length_candidates": pass_length_candidates,
+            "raw_labels_preserved": list(bundle.get("raw_labels") or []),
+            "source_role": bundle.get("source_role"),
+            "claim_locks": calibrated_claim_locks(),
+        }
+
+    enriched_occurrences = []
+    for candidate in admission_payload.get("action_occurrence_candidates") or []:
+        if not isinstance(candidate, dict):
+            continue
+        candidate_copy = dict(candidate)
+        refs = []
+        for raw_id in candidate.get("supporting_action_bundle_candidate_ids") or []:
+            bundle_id = str(raw_id or "").strip()
+            if bundle_id in semantics_by_bundle:
+                refs.append(bundle_id)
+        candidate_copy["supporting_calibrated_semantics_bundle_ids"] = refs
+        candidate_copy["calibrated_source_semantics_attached"] = bool(refs)
+        enriched_occurrences.append(candidate_copy)
+
+    output = dict(admission_payload)
+    output["action_occurrence_candidates"] = enriched_occurrences
+    output["calibrated_source_semantics_registry_status"] = "ATTACHED_CANDIDATE"
+    output["calibrated_source_semantics_by_bundle"] = semantics_by_bundle
+    output["calibrated_source_semantics_bundle_count"] = len(semantics_by_bundle)
+    output["calibrated_source_semantics_occurrence_attachment_count"] = sum(
+        bool(row.get("calibrated_source_semantics_attached")) for row in enriched_occurrences
+    )
+    output.update(calibrated_claim_locks())
+    return output
 
 
 def calibrated_claim_locks() -> dict[str, Any]:
