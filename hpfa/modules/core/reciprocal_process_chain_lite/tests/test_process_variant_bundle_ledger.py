@@ -2,9 +2,30 @@ from pathlib import Path
 import zipfile
 
 import active_match_spine_runner as active_runner
+import reciprocal_process_chain_current_v1 as current_runner
 from hpfa.modules.core.reciprocal_process_chain_lite.src.full_spine_packet_bridge import (
     bridge_reciprocal_packets,
 )
+
+
+def test_variant_projection_preserves_parent_and_child_module_identity():
+    parent = {
+        "module_id": "reciprocal_process_chain_lite_v1",
+        "status": "REVIEW_REQUIRED",
+    }
+    variant = {
+        "module_id": "reciprocal_process_variant_profile_lite_v1",
+        "process_variant_profile_status": "REVIEW_REQUIRED",
+        "process_variant_profile_count": 2,
+    }
+
+    result = current_runner._attach_variant_projection(parent, variant)
+
+    assert result["module_id"] == "reciprocal_process_chain_lite_v1"
+    assert result["process_variant_profile_module_id"] == "reciprocal_process_variant_profile_lite_v1"
+    assert result["process_variant_profile_status"] == "REVIEW_REQUIRED"
+    assert result["process_variant_profile_count"] == 2
+    assert variant["module_id"] == "reciprocal_process_variant_profile_lite_v1"
 
 
 def test_process_variant_outputs_are_carried_into_full_spine_current_artifact_ledger(tmp_path: Path):
