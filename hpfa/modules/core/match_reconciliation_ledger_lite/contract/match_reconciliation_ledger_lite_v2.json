@@ -1,0 +1,40 @@
+{
+  "module_id": "match_reconciliation_ledger_lite_v2",
+  "version": "2.0.0-candidate",
+  "purpose": "Audit bidirectional team-player process consistency on one shared evidence graph.",
+  "inputs": [
+    "reciprocal_process_chain_lite_v1",
+    "visible_action_sequence_candidates_lite_v1",
+    "trackable_action_trace_candidates_lite_v1",
+    "match_local_identity_candidates_lite_v1"
+  ],
+  "accounting_invariants": {
+    "team_episode_count_uses_unique_episode_union": true,
+    "player_episode_union_compares_sets_not_membership_sums": true,
+    "one_player_many_traces_does_not_create_many_processes": true,
+    "anchor_response_counter_response_roles_remain_distinct": true,
+    "membership_share_is_not_quality_truth": true
+  },
+  "current_scope": {
+    "reciprocal_edge_consistency": true,
+    "team_episode_union_accounting": true,
+    "player_process_membership": true,
+    "player_episode_membership": true,
+    "player_to_team_episode_union_reconciliation": true,
+    "loss_recovery_reconciliation": false,
+    "shot_gk_reconciliation": false,
+    "phase_reconciliation": false,
+    "final_professional_finding": false
+  },
+  "claim_boundary": {
+    "claim_ceiling": "BIDIRECTIONAL_PLAYER_TEAM_PROCESS_RECONCILIATION_CANDIDATE_ONLY",
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "sequence_truth": false,
+    "tactical_truth": false,
+    "causal_truth": false
+  }
+}
