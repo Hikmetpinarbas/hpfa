@@ -1,5 +1,12 @@
+from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import (
+    build_composite_packet,
+)
+from hpfa.modules.core.multi_signal_evidence_fusion_lite.src.multi_signal_evidence_fusion import (
+    fuse_packet,
+)
 from hpfa.modules.core.reciprocal_process_chain_lite.src.outcome_contrast import (
     attach_outcome_contrast,
+    build_c4_packet_candidates,
     build_defeasible_process_finding_inputs,
     build_outcome_contrast_candidates,
 )
@@ -94,7 +101,59 @@ def test_no_visible_counterexample_is_not_confirmation() -> None:
     assert row["evidence_balance_state_candidate"] == "DEPENDENT_SUPPORT_VISIBLE_NO_COUNTEREXAMPLE_CANDIDATE"
 
 
-def test_fail_closed_upstream_does_not_emit_contrasts_or_finding_inputs() -> None:
+def test_c4_adapter_emits_existing_composite_contract_shape_only_for_analogues() -> None:
+    contrast = build_outcome_contrast_candidates(_payload([
+        _chain("rpc_a", "SHOT_CANDIDATE", True),
+        _chain("rpc_b", "TURNOVER_CANDIDATE", False),
+    ]))
+    finding = build_defeasible_process_finding_inputs(contrast)
+    adapted = build_c4_packet_candidates(finding)
+    assert adapted["reciprocal_c4_adapter_status"] == "PASS"
+    assert adapted["reciprocal_c4_packet_candidate_count"] == 2
+    candidate = adapted["reciprocal_c4_packet_candidates"][0]
+    assert candidate["packet_family"] == "sequence"
+    assert candidate["claim_ceiling"] == "composite_candidate_only"
+    assert candidate["finding_emitted"] is False
+    assert candidate["dependent_support_only"] is True
+    assert candidate["counterevidence_is_dependent_projection"] is True
+    assert candidate["canonical_event_count"] == "UNKNOWN"
+    assert candidate["true_action_count"] == "UNKNOWN"
+    assert candidate["production_release"] is False
+
+
+def test_c4_adapter_passes_existing_packet_and_fusion_contract_without_independent_vote() -> None:
+    contrast = build_outcome_contrast_candidates(_payload([
+        _chain("rpc_a", "SHOT_CANDIDATE", True),
+        _chain("rpc_b", "TURNOVER_CANDIDATE", False),
+    ]))
+    finding = build_defeasible_process_finding_inputs(contrast)
+    candidate = build_c4_packet_candidates(finding)["reciprocal_c4_packet_candidates"][0]
+    packet = build_composite_packet(candidate)
+    assert packet["status"] == "SMOKE_PASS"
+    assert packet["hard_block_hits"] == []
+    assert packet["independent_support_count"] == 0
+    assert packet["nominal_ref_count_is_independent_support_count"] is False
+    fusion = fuse_packet(packet)
+    assert fusion["status"] == "SMOKE_PASS"
+    assert fusion["canonical_event_count"] == "UNKNOWN"
+    assert fusion["claim_output_allowed"] is False
+    assert any(
+        relation.get("relation_type") == "CONTRADICTS"
+        for relation in fusion.get("relation_records") or []
+    )
+
+
+def test_isolated_process_does_not_bypass_two_ref_composite_gate() -> None:
+    contrast = build_outcome_contrast_candidates(_payload([
+        _chain("rpc_a", "SHOT_CANDIDATE", True),
+    ]))
+    finding = build_defeasible_process_finding_inputs(contrast)
+    adapted = build_c4_packet_candidates(finding)
+    assert adapted["reciprocal_c4_packet_candidate_count"] == 0
+    assert adapted["reciprocal_c4_adapter_status"] == "NO_ELIGIBLE_ANALOGUE_PACKET_CANDIDATES"
+
+
+def test_fail_closed_upstream_does_not_emit_contrasts_or_finding_inputs_or_c4_packets() -> None:
     contrast = build_outcome_contrast_candidates({
         "status": "FAIL_CLOSED",
         "reciprocal_process_chain_candidates": [_chain("rpc_a", "SHOT_CANDIDATE", True)],
@@ -104,6 +163,9 @@ def test_fail_closed_upstream_does_not_emit_contrasts_or_finding_inputs() -> Non
     finding = build_defeasible_process_finding_inputs(contrast)
     assert finding["finding_input_status"] == "FAIL_CLOSED"
     assert finding["defeasible_process_finding_input_count"] == 0
+    adapted = build_c4_packet_candidates(finding)
+    assert adapted["reciprocal_c4_adapter_status"] == "FAIL_CLOSED"
+    assert adapted["reciprocal_c4_packet_candidate_count"] == 0
 
 
 def test_attachment_preserves_claim_locks_and_no_independent_vote() -> None:
@@ -114,6 +176,9 @@ def test_attachment_preserves_claim_locks_and_no_independent_vote() -> None:
     assert result["outcome_contrast_is_independent_evidence"] is False
     assert result["finding_input_is_final_finding"] is False
     assert result["finding_input_is_independent_evidence"] is False
+    assert result["reciprocal_c4_adapter_creates_new_engine"] is False
+    assert result["reciprocal_c4_adapter_creates_independent_evidence"] is False
+    assert result["reciprocal_c4_adapter_emits_final_finding"] is False
 
 
 def test_no_sample_match_identity_leak() -> None:
