@@ -103,11 +103,14 @@ def build_match_reconciliation_ledger(reciprocal_payload: dict[str, Any]) -> dic
             team_process_membership_counts[anchor_team] += 1
             team_process_membership_counts[response_team] += 1
             if counter_visible:
-                if counter_team and counter_episode:
-                    team_episode_sets[counter_team].add(counter_episode)
+                if counter_team:
                     team_process_membership_counts[counter_team] += 1
+                    if counter_episode:
+                        team_episode_sets[counter_team].add(counter_episode)
+                    else:
+                        reviews.append(f"counter_response_episode_binding_incomplete:{edge_id}")
                 else:
-                    reviews.append(f"counter_response_episode_binding_incomplete:{edge_id}")
+                    reviews.append(f"counter_response_team_identity_missing:{edge_id}")
 
             for trace_id in chain.get("supporting_trackable_action_trace_candidate_ids") or []:
                 cleaned = _clean(trace_id)
