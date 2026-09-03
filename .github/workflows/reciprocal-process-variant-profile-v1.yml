@@ -20,13 +20,17 @@ jobs:
           python-version: '3.12'
       - name: Install test dependency
         run: python -m pip install pytest
-      - name: Run process variant profile regressions
-        run: python -m pytest -q hpfa/modules/core/reciprocal_process_chain_lite/tests/test_process_variant_profile.py
+      - name: Run process variant profile and bundle-ledger regressions
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/reciprocal_process_chain_lite/tests/test_process_variant_profile.py \
+            hpfa/modules/core/reciprocal_process_chain_lite/tests/test_process_variant_bundle_ledger.py
       - name: Compile runtime binding
         run: |
           python -m py_compile reciprocal_process_chain_current_v1.py
           python -m py_compile hpfa/modules/core/reciprocal_process_chain_lite/src/process_variant_profile.py
           python -m py_compile hpfa/modules/core/reciprocal_process_chain_lite/src/process_variant_profile_outputs.py
+          python -m py_compile hpfa/modules/core/reciprocal_process_chain_lite/src/full_spine_packet_bridge.py
       - name: Claim lock audit
         run: |
           grep -F 'repeat_candidate_is_recurrence_truth' hpfa/modules/core/reciprocal_process_chain_lite/src/process_variant_profile.py
@@ -35,3 +39,4 @@ jobs:
           grep -F 'canonical_event_count=UNKNOWN' hpfa/modules/core/reciprocal_process_chain_lite/src/process_variant_profile_outputs.py
           grep -F 'true_action_count=UNKNOWN' hpfa/modules/core/reciprocal_process_chain_lite/src/process_variant_profile_outputs.py
           grep -F 'production_release=false' hpfa/modules/core/reciprocal_process_chain_lite/src/process_variant_profile_outputs.py
+          grep -F 'reciprocal_producer_declared_artifact_count' hpfa/modules/core/reciprocal_process_chain_lite/src/full_spine_packet_bridge.py
