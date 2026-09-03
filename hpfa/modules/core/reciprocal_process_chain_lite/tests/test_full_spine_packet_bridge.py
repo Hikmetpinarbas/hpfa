@@ -107,18 +107,24 @@ def _packet_builder(candidate):
 
 
 def _intelligence_runner(packet):
-    assert packet["claim_safety_metadata"]["counter_search_complete_for_final_finding"] is False
-    assert "ALTERNATIVE_EXPLANATION" in packet["claim_safety_metadata"]["counter_search_pending_families"]
+    metadata = packet["claim_safety_metadata"]
+    assert metadata["counter_search_complete_for_final_finding"] is False
+    assert "ALTERNATIVE_EXPLANATION" in metadata["counter_search_pending_families"]
+
+    def stage(status="REVIEW_REQUIRED", **extra):
+        return {"status": status, "claim_safety_metadata": metadata, **extra}
+
     return {
         "packet": packet,
-        "fusion": {"status": "SMOKE_PASS"},
-        "argument": {"status": "REVIEW_REQUIRED"},
-        "route": {"status": "REVIEW_REQUIRED"},
-        "graph": {"status": "REVIEW_REQUIRED"},
-        "safe_sentence": {"status": "REVIEW_REQUIRED"},
-        "report_block": {"status": "REVIEW_REQUIRED"},
-        "output_contract": {"status": "REVIEW_REQUIRED", "claim_output_allowed": False},
-        "assembly": {"status": "REVIEW_REQUIRED"},
+        "fusion": stage("SMOKE_PASS"),
+        "argument": stage(),
+        "route": stage(),
+        "graph": stage(),
+        "lens": stage(),
+        "safe_sentence": stage(),
+        "report_block": stage(),
+        "output_contract": stage(claim_output_allowed=False),
+        "assembly": stage(),
     }
 
 
@@ -151,8 +157,7 @@ def test_bridge_reuses_existing_chain_without_opening_claims(tmp_path: Path):
     expected_metadata = _safety_metadata()
     assert chain_row["claim_safety_metadata"] == expected_metadata
     assert chain_row["packet"]["claim_safety_metadata"] == expected_metadata
-    assert chain_row["chain"]["claim_safety_metadata"] == expected_metadata
-    for stage in ("fusion", "argument", "route", "graph", "safe_sentence", "report_block", "output_contract", "assembly"):
+    for stage in ("packet", "fusion", "argument", "route", "graph", "lens", "safe_sentence", "report_block", "output_contract", "assembly"):
         assert chain_row["chain"][stage]["claim_safety_metadata"] == expected_metadata
 
     coverage = report["match_tomography_coverage"]
@@ -219,6 +224,55 @@ def test_bridge_fails_closed_if_partial_search_is_promoted_to_complete(tmp_path:
     )
     assert report["status"] == "FAIL_CLOSED"
     assert "reciprocal_counter_search_completeness_lock_breached" in report["hard_block_hits"]
+
+
+def test_bridge_fails_closed_if_other_safety_constraints_are_promoted(tmp_path: Path):
+    mutations = [
+        ("alternative_explanation_required", False, "reciprocal_alternative_explanation_requirement_removed"),
+        ("alternative_explanation_search_state", "EVALUATED", "reciprocal_alternative_explanation_state_promoted"),
+        ("falsifier_coverage_state", "COMPLETE", "reciprocal_falsifier_coverage_promoted"),
+        ("counter_search_pending_families", [], "reciprocal_counter_search_pending_families_promoted_or_invalid"),
+        ("falsifier_families_pending", [], "reciprocal_falsifier_pending_families_promoted_or_invalid"),
+        ("withdrawal_condition", "", "reciprocal_withdrawal_condition_missing"),
+        ("claim_safety_metadata_is_truth_claim", True, "reciprocal_claim_safety_metadata_promoted_to_truth"),
+    ]
+    for index, (field, value, expected_error) in enumerate(mutations):
+        def promoted(_active_match_dir, _out_dir, field=field, value=value):
+            payload = _reciprocal(_active_match_dir, _out_dir)
+            metadata = _safety_metadata()
+            metadata[field] = value
+            payload["reciprocal_c4_packet_candidates"] = [{
+                "candidate_id": f"rpc4_promoted_{field}",
+                "claim_safety_metadata": metadata,
+            }]
+            return payload
+
+        report = bridge_reciprocal_packets(
+            active_match_dir=tmp_path / "match",
+            out_dir=tmp_path / f"out_promoted_{index}",
+            reciprocal_runner=promoted,
+            packet_builder=_packet_builder,
+            intelligence_runner=_intelligence_runner,
+        )
+        assert report["status"] == "FAIL_CLOSED"
+        assert expected_error in report["hard_block_hits"]
+
+
+def test_bridge_fails_closed_if_lens_drops_safety_metadata(tmp_path: Path):
+    def broken_runner(packet):
+        chain = _intelligence_runner(packet)
+        chain["lens"].pop("claim_safety_metadata")
+        return chain
+
+    report = bridge_reciprocal_packets(
+        active_match_dir=tmp_path / "match",
+        out_dir=tmp_path / "out_lens_missing",
+        reciprocal_runner=_reciprocal,
+        packet_builder=_packet_builder,
+        intelligence_runner=broken_runner,
+    )
+    assert report["status"] == "FAIL_CLOSED"
+    assert "claim_safety_metadata_not_preserved:lens" in report["hard_block_hits"]
 
 
 def test_bridge_fails_closed_with_reciprocal_failure(tmp_path: Path):
