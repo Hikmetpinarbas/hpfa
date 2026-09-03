@@ -1,0 +1,11 @@
+{
+  "source_pr": 328,
+  "source_head": "2d06d0f6e227aacf198a444e0c0f69f6d285e970",
+  "synced_base": "c74835866ba2cff1185fc0f5e8b14ab4a90e1e5c",
+  "source_role": "HISTORICAL_LINEAGE_FOR_REBIND",
+  "product_truth": false,
+  "active_match_truth": false,
+  "canonical_event_count": "UNKNOWN",
+  "true_action_count": "UNKNOWN",
+  "production_release": false
+}
