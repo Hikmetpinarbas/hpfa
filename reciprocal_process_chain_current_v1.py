@@ -22,10 +22,26 @@ from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile
     clear_outputs as clear_process_variant_profile_outputs,
     write_outputs as write_process_variant_profile_outputs,
 )
+from hpfa.modules.core.team_episode_activity_lens_lite.src.team_episode_activity_lens import (
+    ANALYST_TXT as ACTIVITY_ANALYST_TXT,
+    OUTPUT_JSON as ACTIVITY_JSON,
+    OUTPUT_TXT as ACTIVITY_TXT,
+    build_team_episode_activity_lens,
+    write_outputs as write_team_episode_activity_outputs,
+)
+from hpfa.modules.core.visible_geometry_lens_lite.src.visible_geometry_lens import (
+    ANALYST_TXT as GEOMETRY_ANALYST_TXT,
+    OUTPUT_JSON as GEOMETRY_JSON,
+    OUTPUT_TXT as GEOMETRY_TXT,
+    build_visible_geometry_lens,
+    write_outputs as write_visible_geometry_outputs,
+)
 
 TEMPORAL_JSON = "temporal_episode_signature_lite_v1.json"
 TRACE_JSON = "trackable_action_trace_candidates_lite_v1.json"
 IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
+CONTEXT_JSON = "minimum_viable_context_lite_v1.json"
+EPISODE_JSON = "analyst_episode_locator_lite_v1.json"
 
 
 def _load(path: Path) -> dict:
@@ -36,9 +52,9 @@ def _load(path: Path) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
-def _clear_reconciliation_outputs(output: Path) -> list[str]:
+def _clear_owned_outputs(output: Path, names: tuple[str, ...]) -> list[str]:
     cleared: list[str] = []
-    for name in (RECONCILIATION_JSON, RECONCILIATION_TXT, RECONCILIATION_ANALYST_TXT):
+    for name in names:
         path = output / name
         if path.is_file():
             path.unlink()
@@ -47,7 +63,6 @@ def _clear_reconciliation_outputs(output: Path) -> list[str]:
 
 
 def _attach_variant_projection(parent_payload: dict, variant_payload: dict) -> dict:
-    """Attach dependent variant fields without overwriting parent producer identity."""
     parent_module_id = parent_payload.get("module_id")
     for key, value in variant_payload.items():
         if key == "module_id":
@@ -59,24 +74,36 @@ def _attach_variant_projection(parent_payload: dict, variant_payload: dict) -> d
 
 
 def _attach_reconciliation_projection(parent_payload: dict, reconciliation: dict) -> dict:
-    """Attach reconciliation accounting without replacing reciprocal producer truth."""
     parent_payload["match_reconciliation_module_id"] = reconciliation.get("module_id")
     parent_payload["match_reconciliation_status"] = reconciliation.get("status")
-    parent_payload["reciprocal_consistency_edge_count"] = reconciliation.get(
-        "reciprocal_consistency_edge_count", 0
-    )
-    parent_payload["player_process_membership_row_count"] = reconciliation.get(
-        "player_process_membership_row_count", 0
-    )
-    parent_payload["player_team_episode_reconciliation_state"] = reconciliation.get(
-        "player_team_episode_reconciliation_state"
-    )
-    parent_payload["player_team_episode_union_consistent_team_count"] = reconciliation.get(
-        "player_team_episode_union_consistent_team_count", 0
-    )
+    parent_payload["reciprocal_consistency_edge_count"] = reconciliation.get("reciprocal_consistency_edge_count", 0)
+    parent_payload["player_process_membership_row_count"] = reconciliation.get("player_process_membership_row_count", 0)
+    parent_payload["player_team_episode_reconciliation_state"] = reconciliation.get("player_team_episode_reconciliation_state")
+    parent_payload["player_team_episode_union_consistent_team_count"] = reconciliation.get("player_team_episode_union_consistent_team_count", 0)
     parent_payload["match_reconciliation_claim_ceiling"] = reconciliation.get("claim_ceiling")
     parent_payload["match_reconciliation_is_player_quality_truth"] = False
     parent_payload["match_reconciliation_is_tactical_truth"] = False
+    return parent_payload
+
+
+def _attach_activity_projection(parent_payload: dict, activity: dict) -> dict:
+    parent_payload["team_episode_activity_module_id"] = activity.get("module_id")
+    parent_payload["team_episode_activity_status"] = activity.get("status")
+    parent_payload["team_episode_activity_row_count"] = activity.get("team_episode_activity_row_count", 0)
+    parent_payload["known_team_eligible_action_candidate_count"] = activity.get("known_team_eligible_action_candidate_count", 0)
+    parent_payload["unknown_team_eligible_action_candidate_count"] = activity.get("unknown_team_eligible_action_candidate_count", 0)
+    parent_payload["known_team_attribution_coverage_candidate"] = activity.get("known_team_attribution_coverage_candidate")
+    parent_payload["team_episode_activity_is_phase_truth"] = False
+    return parent_payload
+
+
+def _attach_geometry_projection(parent_payload: dict, geometry: dict) -> dict:
+    parent_payload["visible_geometry_module_id"] = geometry.get("module_id")
+    parent_payload["visible_geometry_status"] = geometry.get("status")
+    parent_payload["team_period_geometry_row_count"] = geometry.get("team_period_geometry_row_count", 0)
+    parent_payload["player_period_geometry_row_count"] = geometry.get("player_period_geometry_row_count", 0)
+    parent_payload["visible_geometry_direction_normalized"] = False
+    parent_payload["visible_geometry_is_team_shape_truth"] = False
     return parent_payload
 
 
@@ -124,6 +151,8 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "match_reconciliation_status": "FAIL_CLOSED",
         "player_process_membership_row_count": 0,
         "player_team_episode_reconciliation_state": "NOT_EVALUATED_UPSTREAM_FAIL_CLOSED",
+        "team_episode_activity_status": "FAIL_CLOSED",
+        "visible_geometry_status": "FAIL_CLOSED",
         "hard_block_hits": [reason],
         "review_hits": [],
         "same_timestamp_internal_ordering_allowed": False,
@@ -147,7 +176,15 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output.mkdir(parents=True, exist_ok=True)
 
     clear_process_variant_profile_outputs(output)
-    cleared_reconciliation_outputs = _clear_reconciliation_outputs(output)
+    cleared_reconciliation_outputs = _clear_owned_outputs(
+        output, (RECONCILIATION_JSON, RECONCILIATION_TXT, RECONCILIATION_ANALYST_TXT)
+    )
+    cleared_activity_outputs = _clear_owned_outputs(
+        output, (ACTIVITY_JSON, ACTIVITY_TXT, ACTIVITY_ANALYST_TXT)
+    )
+    cleared_geometry_outputs = _clear_owned_outputs(
+        output, (GEOMETRY_JSON, GEOMETRY_TXT, GEOMETRY_ANALYST_TXT)
+    )
 
     sequence_payload = current_sequence.runtime_write_outputs(input_dir, output)
     if sequence_payload.get("status") == "FAIL_CLOSED":
@@ -180,26 +217,42 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     variant_payload = build_process_variant_profiles(payload)
     payload = _attach_variant_projection(payload, variant_payload)
     variant_paths = write_process_variant_profile_outputs(variant_payload, output)
-    payload["process_variant_profile_outputs"] = {
-        key: str(path) for key, path in variant_paths.items()
-    }
+    payload["process_variant_profile_outputs"] = {key: str(path) for key, path in variant_paths.items()}
 
     trace_payload = _load(output / TRACE_JSON)
     identity_payload = _load(output / IDENTITY_JSON)
+    context_payload = _load(output / CONTEXT_JSON)
+    analyst_episode_payload = _load(output / EPISODE_JSON)
+
     reconciliation_payload = build_match_reconciliation_ledger(
-        payload,
-        sequence_payload,
-        trace_payload,
-        identity_payload,
+        payload, sequence_payload, trace_payload, identity_payload
     )
     reconciliation_paths = write_match_reconciliation_outputs(reconciliation_payload, output)
     payload = _attach_reconciliation_projection(payload, reconciliation_payload)
-    payload["match_reconciliation_outputs"] = {
-        key: str(path) for key, path in reconciliation_paths.items()
-    }
+    payload["match_reconciliation_outputs"] = {key: str(path) for key, path in reconciliation_paths.items()}
+
+    activity_payload = build_team_episode_activity_lens(
+        context_payload, analyst_episode_payload, identity_payload
+    )
+    activity_paths = write_team_episode_activity_outputs(activity_payload, output)
+    payload = _attach_activity_projection(payload, activity_payload)
+    payload["team_episode_activity_outputs"] = {key: str(path) for key, path in activity_paths.items()}
+
+    geometry_payload = build_visible_geometry_lens(trace_payload, identity_payload)
+    geometry_paths = write_visible_geometry_outputs(geometry_payload, output)
+    payload = _attach_geometry_projection(payload, geometry_payload)
+    payload["visible_geometry_outputs"] = {key: str(path) for key, path in geometry_paths.items()}
+
     payload["cleared_stale_match_reconciliation_outputs"] = cleared_reconciliation_outputs
-    if reconciliation_payload.get("status") == "FAIL_CLOSED":
-        payload.setdefault("review_hits", []).append("match_reconciliation_fail_closed_dependent_surface")
+    payload["cleared_stale_team_episode_activity_outputs"] = cleared_activity_outputs
+    payload["cleared_stale_visible_geometry_outputs"] = cleared_geometry_outputs
+    for label, dependent in (
+        ("match_reconciliation", reconciliation_payload),
+        ("team_episode_activity", activity_payload),
+        ("visible_geometry", geometry_payload),
+    ):
+        if dependent.get("status") == "FAIL_CLOSED":
+            payload.setdefault("review_hits", []).append(f"{label}_fail_closed_dependent_surface")
 
     payload["current_sequence_status"] = sequence_payload.get("status")
     payload["current_episode_lane_status"] = episode_lane.get("status")
@@ -210,6 +263,8 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         **{key: str(path) for key, path in paths.items()},
         **{f"process_variant_{key}": str(path) for key, path in variant_paths.items()},
         **{f"match_reconciliation_{key}": str(path) for key, path in reconciliation_paths.items()},
+        **{f"team_episode_activity_{key}": str(path) for key, path in activity_paths.items()},
+        **{f"visible_geometry_{key}": str(path) for key, path in geometry_paths.items()},
     }
     return payload
 
@@ -242,7 +297,11 @@ def main() -> int:
         "match_reconciliation_status": payload.get("match_reconciliation_status"),
         "player_process_membership_row_count": payload.get("player_process_membership_row_count"),
         "player_team_episode_reconciliation_state": payload.get("player_team_episode_reconciliation_state"),
-        "player_team_episode_union_consistent_team_count": payload.get("player_team_episode_union_consistent_team_count"),
+        "team_episode_activity_status": payload.get("team_episode_activity_status"),
+        "team_episode_activity_row_count": payload.get("team_episode_activity_row_count"),
+        "visible_geometry_status": payload.get("visible_geometry_status"),
+        "team_period_geometry_row_count": payload.get("team_period_geometry_row_count"),
+        "player_period_geometry_row_count": payload.get("player_period_geometry_row_count"),
         "same_time_response_candidate_block_count": payload.get("same_time_response_candidate_block_count"),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
