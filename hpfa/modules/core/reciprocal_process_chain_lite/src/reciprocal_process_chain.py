@@ -27,12 +27,12 @@ def _clean(value: Any) -> str:
 
 def _number(value: Any) -> float | None:
     try:
-        value = float(_clean(value))
+        number = float(_clean(value))
     except (TypeError, ValueError):
         return None
-    if value != value or value in {float("inf"), float("-inf")}:
+    if number != number or number in {float("inf"), float("-inf")}:
         return None
-    return value
+    return number
 
 
 def _digest(*values: Any) -> str:
@@ -82,9 +82,10 @@ def _validate_input(sequence_payload: dict[str, Any], temporal_payload: dict[str
             blocks.append(f"{name}_production_release_claimed")
         if payload.get("hard_block_hits"):
             blocks.append(f"{name}_hard_blocks_present")
-        if payload.get("status") == "FAIL_CLOSED" or payload.get("module_status") == "FAIL_CLOSED":
+        status = payload.get("status") or payload.get("module_status")
+        if status == "FAIL_CLOSED":
             blocks.append(f"{name}_upstream_fail_closed")
-        elif payload.get("status") == "REVIEW_REQUIRED" or payload.get("module_status") == "REVIEW_REQUIRED":
+        elif status == "REVIEW_REQUIRED":
             reviews.append(f"{name}_upstream_review_required")
     if sequence_payload.get("same_timestamp_internal_ordering_allowed") is not False:
         blocks.append("sequence_same_time_policy_breached")
@@ -114,46 +115,53 @@ def _episode_index(temporal_payload: dict[str, Any]) -> dict[str, list[dict[str,
 
 
 def _bind_episode(sequence: dict[str, Any], index: dict[str, list[dict[str, Any]]]) -> tuple[str | None, str]:
+    """Bind only when the complete visible-sequence interval fits one episode.
+
+    Start-only containment is unsafe: an independently constructed visible sequence
+    may begin inside one episode and end after its boundary. Such a record must be
+    review-required rather than silently attached to the first episode.
+    """
     start = _number(sequence.get("start_time_candidate"))
+    end = _number(sequence.get("end_time_candidate"))
     period = _clean(sequence.get("period_candidate"))
-    if start is None:
+    if start is None or end is None or end < start:
         return None, "SEQUENCE_TIME_INVALID"
-    matches = [row for row in index.get(period, []) if row["start"] <= start <= row["end"]]
-    if len(matches) == 1:
-        return matches[0]["episode_candidate_id"], "UNIQUE_TIME_CONTAINMENT_CANDIDATE"
-    if not matches:
-        return None, "NO_EPISODE_TIME_CONTAINMENT"
-    return None, "MULTIPLE_EPISODE_TIME_CONTAINMENT_REVIEW_REQUIRED"
+
+    period_rows = index.get(period, [])
+    full_matches = [row for row in period_rows if row["start"] <= start and end <= row["end"]]
+    if len(full_matches) == 1:
+        return full_matches[0]["episode_candidate_id"], "UNIQUE_TIME_CONTAINMENT_CANDIDATE"
+    if len(full_matches) > 1:
+        return None, "MULTIPLE_EPISODE_TIME_CONTAINMENT_REVIEW_REQUIRED"
+
+    start_matches = [row for row in period_rows if row["start"] <= start <= row["end"]]
+    end_matches = [row for row in period_rows if row["start"] <= end <= row["end"]]
+    if start_matches or end_matches:
+        return None, "SEQUENCE_CROSSES_EPISODE_BOUNDARY_REVIEW_REQUIRED"
+    return None, "NO_EPISODE_TIME_CONTAINMENT"
+
+
+def _positive_counts(row: dict[str, Any], field: str) -> dict[str, int]:
+    raw = row.get(field) or {}
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, int] = {}
+    for key, value in raw.items():
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            continue
+        if count > 0:
+            out[_clean(key)] = count
+    return dict(sorted(out.items()))
 
 
 def _family_counts(row: dict[str, Any]) -> dict[str, int]:
-    raw = row.get("action_family_counts") or {}
-    if not isinstance(raw, dict):
-        return {}
-    out: dict[str, int] = {}
-    for key, value in raw.items():
-        try:
-            count = int(value)
-        except (TypeError, ValueError):
-            continue
-        if count > 0:
-            out[_clean(key)] = count
-    return dict(sorted(out.items()))
+    return _positive_counts(row, "action_family_counts")
 
 
 def _consequence_counts(row: dict[str, Any]) -> dict[str, int]:
-    raw = row.get("consequence_candidate_counts") or {}
-    if not isinstance(raw, dict):
-        return {}
-    out: dict[str, int] = {}
-    for key, value in raw.items():
-        try:
-            count = int(value)
-        except (TypeError, ValueError):
-            continue
-        if count > 0:
-            out[_clean(key)] = count
-    return dict(sorted(out.items()))
+    return _positive_counts(row, "consequence_candidate_counts")
 
 
 def build_reciprocal_process_chains(sequence_payload: dict[str, Any], temporal_payload: dict[str, Any]) -> dict[str, Any]:
@@ -198,6 +206,7 @@ def build_reciprocal_process_chains(sequence_payload: dict[str, Any], temporal_p
         anchor_period = _clean(anchor.get("period_candidate"))
         if anchor_end is None:
             continue
+
         response: dict[str, Any] | None = None
         response_idx: int | None = None
         for j in range(idx + 1, len(valid)):
@@ -228,9 +237,7 @@ def build_reciprocal_process_chains(sequence_payload: dict[str, Any], temporal_p
                 if _clean(candidate.get("period_candidate")) != anchor_period:
                     break
                 candidate_start = _number(candidate.get("start_time_candidate"))
-                if candidate_start is None:
-                    continue
-                if candidate_start <= response_end:
+                if candidate_start is None or candidate_start <= response_end:
                     continue
                 if _clean(candidate.get("team_identity_candidate_id")) == anchor_team:
                     counter = candidate
@@ -248,10 +255,10 @@ def build_reciprocal_process_chains(sequence_payload: dict[str, Any], temporal_p
         response_start = _number(response.get("start_time_candidate"))
         delta = None if response_start is None else round(response_start - anchor_end, 6)
 
-        record_reviews = []
-        for status in (anchor_bind, response_bind, counter_bind):
-            if status.endswith("REVIEW_REQUIRED") or status in {"NO_EPISODE_TIME_CONTAINMENT", "SEQUENCE_TIME_INVALID"}:
-                record_reviews.append(status)
+        record_reviews: list[str] = []
+        for bind_status in (anchor_bind, response_bind, counter_bind):
+            if bind_status.endswith("REVIEW_REQUIRED") or bind_status in {"NO_EPISODE_TIME_CONTAINMENT", "SEQUENCE_TIME_INVALID"}:
+                record_reviews.append(bind_status)
         if counter is None:
             record_reviews.append("NO_VISIBLE_COUNTER_RESPONSE_CANDIDATE")
 
@@ -285,15 +292,8 @@ def build_reciprocal_process_chains(sequence_payload: dict[str, Any], temporal_p
             )),
             "review_hits": sorted(set(record_reviews)),
             "allowed_claim": "Observed visible process candidate from one team was followed later in the same period by a visible process candidate from the opponent; a later return process by the anchor team is reported only when positive-time ordering is visible.",
-            "forbidden_inference": [
-                "causality",
-                "possession_truth",
-                "tactical_response_truth",
-                "coach_intention",
-                "adaptation_truth",
-                "dominance",
-            ],
-            "withdrawal_condition": "Withdraw if team identity, positive-time relation, period consistency, or upstream sequence eligibility is invalidated.",
+            "forbidden_inference": ["causality", "possession_truth", "tactical_response_truth", "coach_intention", "adaptation_truth", "dominance"],
+            "withdrawal_condition": "Withdraw if team identity, positive-time relation, period consistency, episode containment, or upstream sequence eligibility is invalidated.",
             "response_relation_is_causal_truth": False,
             "response_relation_is_tactical_truth": False,
             "counter_response_is_adaptation_truth": False,
@@ -314,9 +314,9 @@ def build_reciprocal_process_chains(sequence_payload: dict[str, Any], temporal_p
 
     family_pair_counts = Counter()
     for row in records:
-        a = "+".join(row.get("anchor_action_family_counts") or {}) or "UNKNOWN"
-        b = "+".join(row.get("response_action_family_counts") or {}) or "UNKNOWN"
-        family_pair_counts[f"{a} -> {b}"] += 1
+        anchor_family = "+".join(row.get("anchor_action_family_counts") or {}) or "UNKNOWN"
+        response_family = "+".join(row.get("response_action_family_counts") or {}) or "UNKNOWN"
+        family_pair_counts[f"{anchor_family} -> {response_family}"] += 1
 
     return {
         "module_id": MODULE_ID,
