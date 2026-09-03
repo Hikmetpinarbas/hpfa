@@ -1,0 +1,46 @@
+{
+  "module_id": "reciprocal_process_chain_lite_v1",
+  "status": "SPEC_ACCEPTED_CANDIDATE",
+  "source_role": "CURRENT_PRODUCT_EXTENSION",
+  "purpose": "Build claim-safe reciprocal visible process candidates from current visible-action sequence and temporal-episode signature outputs without promoting possession, tactics, adaptation, causality, physical actions, or canonical events.",
+  "input_modules": [
+    "visible_action_sequence_candidates_lite_v1",
+    "temporal_episode_signature_lite_v1"
+  ],
+  "output_object": "RECIPROCAL_PROCESS_CHAIN_CANDIDATE",
+  "required_relations": [
+    "NEXT_DIFFERENT_TEAM_VISIBLE_SEQUENCE_AFTER_CONFIRMED",
+    "POSITIVE_TIME_ONLY",
+    "SAME_PERIOD_ONLY"
+  ],
+  "episode_binding": {
+    "method": "UNIQUE_TIME_CONTAINMENT_CANDIDATE",
+    "multiple_matches": "REVIEW_REQUIRED",
+    "no_match": "REVIEW_REQUIRED",
+    "episode_binding_is_canonical_membership_truth": false
+  },
+  "hard_invariants": {
+    "same_timestamp_internal_ordering_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "response_relation_is_causal_truth": false,
+    "response_relation_is_tactical_truth": false,
+    "counter_response_is_adaptation_truth": false,
+    "possession_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "forbidden_inference": [
+    "coach intention",
+    "adaptation truth",
+    "causality",
+    "dominance",
+    "possession truth",
+    "team shape",
+    "pressure geometry"
+  ],
+  "release_state": "REVIEW_REQUIRED / ACTIVE_MATCH_REQUIRED / NOT_PRODUCTION"
+}
