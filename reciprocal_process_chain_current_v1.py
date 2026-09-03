@@ -27,6 +27,18 @@ def _load(path: Path) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _attach_variant_projection(parent_payload: dict, variant_payload: dict) -> dict:
+    """Attach dependent variant fields without overwriting parent producer identity."""
+    parent_module_id = parent_payload.get("module_id")
+    for key, value in variant_payload.items():
+        if key == "module_id":
+            continue
+        parent_payload[key] = value
+    parent_payload["process_variant_profile_module_id"] = variant_payload.get("module_id")
+    parent_payload["module_id"] = parent_module_id
+    return parent_payload
+
+
 def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str | None = None) -> dict:
     return {
         "module_id": reciprocal.MODULE_ID,
@@ -132,7 +144,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     # profile over current reciprocal candidates. This does not create a second
     # sequence engine or promote visible repetition into recurrence truth.
     variant_payload = build_process_variant_profiles(payload)
-    payload.update(variant_payload)
+    payload = _attach_variant_projection(payload, variant_payload)
     variant_paths = write_process_variant_profile_outputs(variant_payload, output)
     payload["process_variant_profile_outputs"] = {
         key: str(path) for key, path in variant_paths.items()
