@@ -1,0 +1,1 @@
+Regression scope: shared forward/reverse edge identity, episode union accounting, same-team edge fail-closed, missing episode binding review-required, claim locks, direct-root output guard, no sample-match identity leak.
