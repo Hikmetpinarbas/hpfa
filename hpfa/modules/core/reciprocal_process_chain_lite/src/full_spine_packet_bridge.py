@@ -8,6 +8,22 @@ from typing import Any, Callable
 MODULE_ID = "reciprocal_full_spine_packet_bridge_v1"
 OUTPUT_JSON = "reciprocal_full_spine_packet_bridge_v1.json"
 OUTPUT_TXT = "reciprocal_full_spine_packet_bridge_v1.txt"
+EXPECTED_COUNTER_SEARCH_SCOPE = "SAME_ADMITTED_PROCESS_FAMILY_SIGNATURE_ONLY"
+EXPECTED_COUNTER_SEARCH_EVALUATED_FAMILIES = ["DIRECT_VISIBLE_OUTCOME_CONTRAST"]
+EXPECTED_COUNTER_SEARCH_PENDING_FAMILIES = [
+    "CONTEXT_DEPENDENCE",
+    "SEGMENT_ONLY",
+    "PLAYER_OUTLIER",
+    "THRESHOLD_SENSITIVITY",
+    "OPPONENT_SYMMETRY",
+    "FAILED_TRACE_SUPPORT",
+    "DUPLICATE_REFLECTION_RISK",
+    "ALTERNATIVE_EXPLANATION",
+]
+ALLOWED_COUNTER_SEARCH_SCOPE_STATES = {
+    "PARTIAL_SCOPE_EVALUATED",
+    "PARTIAL_SCOPE_EVALUATED_NO_ANALOGUE",
+}
 CLAIM_SAFETY_REQUIRED_KEYS = {
     "counter_search_scope",
     "counter_search_scope_state",
@@ -25,12 +41,14 @@ CLAIM_SAFETY_REQUIRED_KEYS = {
     "counterevidence_links_are_independent_votes",
     "withdrawal_condition",
     "finding_emitted",
+    "claim_safety_metadata_is_truth_claim",
 }
 CLAIM_SAFETY_STAGE_NAMES = (
     "fusion",
     "argument",
     "route",
     "graph",
+    "lens",
     "safe_sentence",
     "report_block",
     "output_contract",
@@ -42,45 +60,95 @@ def _status(value: Any) -> str:
     return str(value or "UNKNOWN").strip().upper()
 
 
+def _same_members(value: Any, expected: list[str]) -> bool:
+    if not isinstance(value, list) or len(value) != len(expected):
+        return False
+    cleaned = [str(item) for item in value]
+    return len(set(cleaned)) == len(cleaned) and sorted(cleaned) == sorted(expected)
+
+
 def _claim_safety_metadata(candidate: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
     raw = candidate.get("claim_safety_metadata")
     if not isinstance(raw, dict):
         return None, ["reciprocal_claim_safety_metadata_missing_or_invalid"]
     missing = sorted(key for key in CLAIM_SAFETY_REQUIRED_KEYS if key not in raw)
     errors = [f"reciprocal_claim_safety_metadata_missing:{key}" for key in missing]
+
+    scope = str(raw.get("counter_search_scope") or "")
+    scope_state = str(raw.get("counter_search_scope_state") or "")
+    peer_count = raw.get("counter_search_peer_count")
+    if scope != EXPECTED_COUNTER_SEARCH_SCOPE:
+        errors.append("reciprocal_counter_search_scope_promoted_or_invalid")
+    if scope_state not in ALLOWED_COUNTER_SEARCH_SCOPE_STATES:
+        errors.append("reciprocal_counter_search_scope_state_promoted_or_invalid")
+    if isinstance(peer_count, bool) or not isinstance(peer_count, int) or peer_count < 0:
+        errors.append("reciprocal_counter_search_peer_count_invalid")
+    elif scope_state == "PARTIAL_SCOPE_EVALUATED_NO_ANALOGUE" and peer_count != 0:
+        errors.append("reciprocal_counter_search_no_analogue_peer_count_mismatch")
+    elif scope_state == "PARTIAL_SCOPE_EVALUATED" and peer_count <= 0:
+        errors.append("reciprocal_counter_search_evaluated_peer_count_missing")
+
+    if not _same_members(
+        raw.get("counter_search_evaluated_families"),
+        EXPECTED_COUNTER_SEARCH_EVALUATED_FAMILIES,
+    ):
+        errors.append("reciprocal_counter_search_evaluated_families_promoted_or_invalid")
+    if not _same_members(
+        raw.get("counter_search_pending_families"),
+        EXPECTED_COUNTER_SEARCH_PENDING_FAMILIES,
+    ):
+        errors.append("reciprocal_counter_search_pending_families_promoted_or_invalid")
     if raw.get("counter_search_complete_for_final_finding") is not False:
         errors.append("reciprocal_counter_search_completeness_lock_breached")
+    if str(raw.get("alternative_explanation_search_state") or "") != "NOT_EVALUATED":
+        errors.append("reciprocal_alternative_explanation_state_promoted")
+    if raw.get("alternative_explanation_required") is not True:
+        errors.append("reciprocal_alternative_explanation_requirement_removed")
+    if str(raw.get("falsifier_coverage_state") or "") != "PARTIAL":
+        errors.append("reciprocal_falsifier_coverage_promoted")
+    if not _same_members(
+        raw.get("falsifier_families_evaluated"),
+        EXPECTED_COUNTER_SEARCH_EVALUATED_FAMILIES,
+    ):
+        errors.append("reciprocal_falsifier_evaluated_families_promoted_or_invalid")
+    if not _same_members(
+        raw.get("falsifier_families_pending"),
+        EXPECTED_COUNTER_SEARCH_PENDING_FAMILIES,
+    ):
+        errors.append("reciprocal_falsifier_pending_families_promoted_or_invalid")
     if raw.get("no_visible_counterexample_is_confirmation") is not False:
         errors.append("reciprocal_no_counterexample_confirmation_lock_breached")
     if raw.get("support_links_are_independent_votes") is not False:
         errors.append("reciprocal_dependent_support_independence_lock_breached")
     if raw.get("counterevidence_links_are_independent_votes") is not False:
         errors.append("reciprocal_counterevidence_independence_lock_breached")
+    if not str(raw.get("withdrawal_condition") or "").strip():
+        errors.append("reciprocal_withdrawal_condition_missing")
     if raw.get("finding_emitted") is not False:
         errors.append("reciprocal_final_finding_lock_breached")
-    for key in (
-        "counter_search_evaluated_families",
-        "counter_search_pending_families",
-        "falsifier_families_evaluated",
-        "falsifier_families_pending",
-    ):
-        if key in raw and not isinstance(raw.get(key), list):
-            errors.append(f"reciprocal_claim_safety_metadata_list_invalid:{key}")
+    if raw.get("claim_safety_metadata_is_truth_claim") is not False:
+        errors.append("reciprocal_claim_safety_metadata_promoted_to_truth")
+
     if errors:
         return None, sorted(set(errors))
     return json.loads(json.dumps(raw, ensure_ascii=False, sort_keys=True)), []
 
 
-def _propagate_claim_safety_metadata(chain: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
-    reviews: list[str] = []
-    chain["claim_safety_metadata"] = json.loads(json.dumps(metadata, ensure_ascii=False, sort_keys=True))
+def _audit_claim_safety_metadata(chain: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    packet = chain.get("packet")
+    if not isinstance(packet, dict):
+        errors.append("claim_safety_stage_missing_or_invalid:packet")
+    elif packet.get("claim_safety_metadata") != metadata:
+        errors.append("claim_safety_metadata_not_preserved:packet")
     for stage_name in CLAIM_SAFETY_STAGE_NAMES:
         stage = chain.get(stage_name)
         if not isinstance(stage, dict):
-            reviews.append(f"claim_safety_stage_missing_or_invalid:{stage_name}")
+            errors.append(f"claim_safety_stage_missing_or_invalid:{stage_name}")
             continue
-        stage["claim_safety_metadata"] = json.loads(json.dumps(metadata, ensure_ascii=False, sort_keys=True))
-    return reviews
+        if stage.get("claim_safety_metadata") != metadata:
+            errors.append(f"claim_safety_metadata_not_preserved:{stage_name}")
+    return sorted(set(errors))
 
 
 def _build_tomography_coverage(reciprocal: dict[str, Any], chains: list[dict[str, Any]]) -> dict[str, Any]:
@@ -202,9 +270,6 @@ def bridge_reciprocal_packets(
                 review_hits.append("reciprocal_packet_not_admitted_by_existing_packet_builder")
                 continue
 
-            # The generic packet builder intentionally rebuilds from its canonical fields.
-            # Rebind the validated claim-safety envelope here before the existing C4 chain
-            # so current reciprocal consumers cannot mistake a partial search for complete.
             packet["claim_safety_metadata"] = json.loads(
                 json.dumps(safety_metadata, ensure_ascii=False, sort_keys=True)
             )
@@ -212,7 +277,10 @@ def bridge_reciprocal_packets(
             if not isinstance(chain, dict):
                 hard_blocks.append("existing_intelligence_runner_returned_non_object")
                 break
-            review_hits.extend(_propagate_claim_safety_metadata(chain, safety_metadata))
+            safety_stage_errors = _audit_claim_safety_metadata(chain, safety_metadata)
+            if safety_stage_errors:
+                hard_blocks.extend(safety_stage_errors)
+                break
             chains.append({
                 "candidate_id": candidate.get("candidate_id") or candidate.get("finding_input_id"),
                 "claim_safety_metadata": safety_metadata,
