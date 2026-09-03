@@ -3,9 +3,14 @@ from pathlib import Path
 import pytest
 
 from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile import (
+    MODULE_ID,
     build_process_variant_profiles,
 )
 from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile_outputs import (
+    ANALYST_TXT,
+    OUTPUT_JSON,
+    OUTPUT_TXT,
+    clear_outputs,
     write_outputs,
 )
 
@@ -35,9 +40,9 @@ def _chain(
     }
 
 
-def _payload(*rows: dict) -> dict:
+def _payload(*rows: dict, status: str = "PASS") -> dict:
     return {
-        "status": "PASS",
+        "status": status,
         "reciprocal_process_chain_candidates": list(rows),
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
@@ -58,6 +63,7 @@ def test_same_process_multi_episode_and_outcome_variation_are_visible_candidates
         )
     )
 
+    assert result["module_id"] == MODULE_ID
     assert result["process_variant_profile_status"] == "PASS"
     assert result["process_variant_profile_count"] == 1
     assert result["repeated_process_variant_profile_count"] == 1
@@ -107,6 +113,7 @@ def test_missing_episode_binding_does_not_get_promoted_to_multi_episode_repeat()
     assert profile["segment_only_risk_candidate"] is False
     assert profile["multi_episode_spread_visible_candidate"] is False
     assert result["incomplete_episode_binding_profile_count"] == 1
+    assert result["process_variant_profile_status"] == "REVIEW_REQUIRED"
 
 
 def test_counter_response_requires_episode_binding_when_visible():
@@ -133,6 +140,20 @@ def test_counter_response_requires_episode_binding_when_visible():
     profile = result["process_variant_profiles"][0]
     assert profile["incomplete_episode_binding_count"] == 1
     assert "INCOMPLETE_EPISODE_BINDING" in profile["repeat_scope_state_candidate"]
+    assert result["process_variant_profile_status"] == "REVIEW_REQUIRED"
+
+
+def test_upstream_review_required_cannot_be_promoted_to_pass():
+    result = build_process_variant_profiles(
+        _payload(
+            _chain("r1", anchor_episode="e1", response_episode="e2"),
+            _chain("r2", anchor_episode="e3", response_episode="e4"),
+            status="REVIEW_REQUIRED",
+        )
+    )
+    assert result["module_id"] == MODULE_ID
+    assert result["upstream_reciprocal_status"] == "REVIEW_REQUIRED"
+    assert result["process_variant_profile_status"] == "REVIEW_REQUIRED"
 
 
 def test_single_instance_is_not_recurrence():
@@ -145,14 +166,16 @@ def test_single_instance_is_not_recurrence():
     assert profile["repeat_candidate_is_recurrence_truth"] is False
 
 
-def test_profile_fail_closes_with_upstream_fail_closed():
+def test_profile_fail_closes_with_upstream_fail_closed_and_keeps_module_identity():
     result = build_process_variant_profiles(
         {
             "status": "FAIL_CLOSED",
             "reciprocal_process_chain_candidates": [],
         }
     )
+    assert result["module_id"] == MODULE_ID
     assert result["process_variant_profile_status"] == "FAIL_CLOSED"
+    assert result["upstream_reciprocal_status"] == "FAIL_CLOSED"
     assert result["process_variant_profiles"] == []
     assert result["production_release"] is False
 
@@ -166,6 +189,7 @@ def test_output_writer_keeps_claim_locks_and_direct_root(tmp_path: Path):
     assert paths["summary"].is_file()
     assert paths["analyst"].is_file()
     text = paths["summary"].read_text(encoding="utf-8")
+    assert f"module_id={MODULE_ID}" in text
     assert "recurrence_truth=false" in text
     assert "tactical_truth=false" in text
     assert "canonical_event_count=UNKNOWN" in text
@@ -173,9 +197,25 @@ def test_output_writer_keeps_claim_locks_and_direct_root(tmp_path: Path):
     assert "production_release=false" in text
 
 
+def test_clear_outputs_removes_only_owned_stale_variant_artifacts(tmp_path: Path):
+    owned = [tmp_path / OUTPUT_JSON, tmp_path / OUTPUT_TXT, tmp_path / ANALYST_TXT]
+    unrelated = tmp_path / "unrelated_current_artifact.json"
+    for path in owned:
+        path.write_text("stale", encoding="utf-8")
+    unrelated.write_text("keep", encoding="utf-8")
+
+    removed = clear_outputs(tmp_path)
+
+    assert {path.name for path in removed} == {OUTPUT_JSON, OUTPUT_TXT, ANALYST_TXT}
+    assert all(not path.exists() for path in owned)
+    assert unrelated.read_text(encoding="utf-8") == "keep"
+
+
 def test_nested_phone_output_directory_rejected():
     with pytest.raises(ValueError, match="nested_phone_output_directory_rejected"):
         write_outputs({}, Path("/sdcard/Download/HPFA/nested"))
+    with pytest.raises(ValueError, match="nested_phone_output_directory_rejected"):
+        clear_outputs(Path("/sdcard/Download/HPFA/nested"))
 
 
 def test_no_sample_match_identity_leak():
