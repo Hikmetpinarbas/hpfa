@@ -60,6 +60,24 @@ def _status(value: Any) -> str:
     return str(value or "UNKNOWN").strip().upper()
 
 
+def _producer_declared_artifacts(
+    reciprocal: dict[str, Any],
+    output_root: Path,
+) -> list[str]:
+    """Carry only producer-declared, direct-root files into the parent run ledger."""
+    raw = reciprocal.get("outputs")
+    raw = raw if isinstance(raw, dict) else {}
+    artifacts: list[str] = []
+    seen: set[str] = set()
+    for value in raw.values():
+        path = Path(str(value)).expanduser().resolve(strict=False)
+        if path.parent != output_root or not path.is_file() or path.name in seen:
+            continue
+        seen.add(path.name)
+        artifacts.append(str(path))
+    return sorted(artifacts, key=lambda value: Path(value).name.casefold())
+
+
 def _same_members(value: Any, expected: list[str]) -> bool:
     if not isinstance(value, list) or len(value) != len(expected):
         return False
@@ -241,6 +259,7 @@ def bridge_reciprocal_packets(
 
     reciprocal = reciprocal_runner(active_match_dir, output_root)
     reciprocal_status = _status(reciprocal.get("status"))
+    reciprocal_artifacts = _producer_declared_artifacts(reciprocal, output_root)
     candidates = reciprocal.get("reciprocal_c4_packet_candidates") or []
     if not isinstance(candidates, list):
         candidates = []
@@ -312,6 +331,14 @@ def bridge_reciprocal_packets(
         "outcome_contrast_candidate_count": reciprocal.get("outcome_contrast_candidate_count"),
         "different_outcome_analogue_link_count": reciprocal.get("different_outcome_analogue_link_count"),
         "defeasible_process_finding_input_count": reciprocal.get("defeasible_process_finding_input_count"),
+        "process_variant_profile_status": reciprocal.get("process_variant_profile_status"),
+        "process_variant_profile_count": reciprocal.get("process_variant_profile_count", 0),
+        "repeated_process_variant_profile_count": reciprocal.get("repeated_process_variant_profile_count", 0),
+        "multi_episode_process_variant_profile_count": reciprocal.get("multi_episode_process_variant_profile_count", 0),
+        "single_episode_repeat_risk_profile_count": reciprocal.get("single_episode_repeat_risk_profile_count", 0),
+        "outcome_variation_profile_count": reciprocal.get("outcome_variation_profile_count", 0),
+        "incomplete_episode_binding_profile_count": reciprocal.get("incomplete_episode_binding_profile_count", 0),
+        "reciprocal_producer_declared_artifact_count": len(reciprocal_artifacts),
         "reciprocal_c4_packet_candidate_count": len(candidates),
         "existing_packet_builder_admitted_count": packet_count,
         "existing_intelligence_chain_completed_candidate_count": completed_chain_count,
@@ -334,6 +361,11 @@ def bridge_reciprocal_packets(
     }
     json_path = output_root / OUTPUT_JSON
     txt_path = output_root / OUTPUT_TXT
+    report["current_invocation_artifacts"] = [
+        *reciprocal_artifacts,
+        str(json_path),
+        str(txt_path),
+    ]
     json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     txt_path.write_text("\n".join([
         "HPFA RECIPROCAL FULL-SPINE PACKET BRIDGE V1",
@@ -343,6 +375,13 @@ def bridge_reciprocal_packets(
         f"existing_intelligence_chain_completed_candidate_count={completed_chain_count}",
         f"claim_safety_metadata_preserved_candidate_count={safety_metadata_preserved_count}",
         f"claim_output_allowed_count={claim_output_allowed_count}",
+        f"process_variant_profile_count={reciprocal.get('process_variant_profile_count', 0)}",
+        f"repeated_process_variant_profile_count={reciprocal.get('repeated_process_variant_profile_count', 0)}",
+        f"multi_episode_process_variant_profile_count={reciprocal.get('multi_episode_process_variant_profile_count', 0)}",
+        f"single_episode_repeat_risk_profile_count={reciprocal.get('single_episode_repeat_risk_profile_count', 0)}",
+        f"outcome_variation_profile_count={reciprocal.get('outcome_variation_profile_count', 0)}",
+        f"incomplete_episode_binding_profile_count={reciprocal.get('incomplete_episode_binding_profile_count', 0)}",
+        f"reciprocal_producer_declared_artifact_count={len(reciprocal_artifacts)}",
         f"tomography_finding_input_count={tomography_coverage.get('finding_input_count', 0)}",
         f"tomography_with_counterevidence_count={tomography_coverage.get('finding_inputs_with_counterevidence_count', 0)}",
         f"tomography_with_dependent_support_count={tomography_coverage.get('finding_inputs_with_dependent_support_count', 0)}",
@@ -358,5 +397,4 @@ def bridge_reciprocal_packets(
         "production_release=false",
         "",
     ]), encoding="utf-8")
-    report["current_invocation_artifacts"] = [str(json_path), str(txt_path)]
     return report
