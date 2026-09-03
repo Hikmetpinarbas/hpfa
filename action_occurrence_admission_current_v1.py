@@ -55,6 +55,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "provider_semantics_binding_status": "FAIL_CLOSED",
             "calibrated_source_semantics_registry_status": "NOT_ATTACHED",
             "calibrated_source_semantics_bundle_count": 0,
+            "calibrated_non_action_semantics_count": 0,
             "calibrated_source_semantics_occurrence_attachment_count": 0,
             "hard_block_hits": ["current_relation_or_required_action_outputs_missing"],
             "review_hits": [],
@@ -95,6 +96,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     payload = apply_calibrated_semantics_to_admission_payload(
         action_payload=action_payload,
         admission_payload=payload,
+        evidence_payload=evidence_payload,
     )
     payload["current_relation_status"] = relation_payload.get("status")
     payload["current_taxonomy_status"] = relation_payload.get("current_taxonomy_status")
@@ -134,6 +136,7 @@ def main() -> int:
                 "provider_semantics_binding_status": payload.get("provider_semantics_binding_status"),
                 "calibrated_source_semantics_registry_status": payload.get("calibrated_source_semantics_registry_status"),
                 "calibrated_source_semantics_bundle_count": payload.get("calibrated_source_semantics_bundle_count", 0),
+                "calibrated_non_action_semantics_count": payload.get("calibrated_non_action_semantics_count", 0),
                 "calibrated_source_semantics_occurrence_attachment_count": payload.get("calibrated_source_semantics_occurrence_attachment_count", 0),
                 "action_occurrence_candidate_count": payload.get("action_occurrence_candidate_count"),
                 "conditional_review_passthrough_record_count": payload.get("conditional_review_passthrough_record_count", 0),
