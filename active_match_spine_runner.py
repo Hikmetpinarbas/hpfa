@@ -142,6 +142,49 @@ def _bind_metric_governance_construct_gate() -> None:
     full_spine_module._hpfa_metric_governance_gate_bound = True
 
 
+def _bind_claim_safety_stage_passthrough() -> None:
+    """Carry an existing claim-safety envelope into every current C4 producer input/output.
+
+    This does not create or reinterpret evidence. It prevents downstream stages from
+    forgetting upstream uncertainty, pending falsifiers, or withdrawal conditions.
+    """
+    if getattr(full_spine_module, "_hpfa_claim_safety_stage_passthrough_bound", False):
+        return
+
+    stage_producer_names = (
+        "fuse_packet",
+        "build_argument_candidate",
+        "route_argument",
+        "build_evidence_graph",
+        "build_lens_matrix",
+        "route_safe_sentence",
+        "compose_report_block",
+        "evaluate_report_block",
+        "evaluate_assembly_item",
+    )
+
+    def wrap(producer):
+        def preserving(payload):
+            result = producer(payload)
+            if not isinstance(result, dict) or not isinstance(payload, dict):
+                return result
+            metadata = payload.get("claim_safety_metadata")
+            if isinstance(metadata, dict):
+                result["claim_safety_metadata"] = json.loads(
+                    json.dumps(metadata, ensure_ascii=False, sort_keys=True)
+                )
+            return result
+
+        return preserving
+
+    for producer_name in stage_producer_names:
+        producer = getattr(full_spine_module, producer_name, None)
+        if callable(producer):
+            setattr(full_spine_module, producer_name, wrap(producer))
+
+    full_spine_module._hpfa_claim_safety_stage_passthrough_bound = True
+
+
 def _normalize_current_surface_evidence(result: dict) -> None:
     engineering = result.get("engineering_evidence")
     if not isinstance(engineering, dict):
@@ -262,6 +305,7 @@ def main() -> int:
         _bind_shared_snapshot_contract()
         _bind_construct_admission_gate()
         _bind_metric_governance_construct_gate()
+        _bind_claim_safety_stage_passthrough()
         before_state = snapshot_output_state(args.out_dir)
         result = full_spine_module.run_full_spine(
             active_match_dir=args.active_match_dir,
