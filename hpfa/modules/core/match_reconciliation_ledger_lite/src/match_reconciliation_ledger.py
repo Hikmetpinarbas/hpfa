@@ -86,6 +86,13 @@ def build_match_reconciliation_ledger(reciprocal_payload: dict[str, Any]) -> dic
 
             anchor_episode = _clean(chain.get("anchor_episode_candidate_id"))
             response_episode = _clean(chain.get("response_episode_candidate_id"))
+            counter_id = _clean(chain.get("counter_response_visible_action_sequence_candidate_id"))
+            counter_team = _clean(chain.get("counter_response_team_identity_candidate_id"))
+            counter_episode = _clean(chain.get("counter_response_episode_candidate_id"))
+            counter_visible = bool(chain.get("counter_response_visible")) or bool(
+                counter_id or counter_team or counter_episode
+            )
+
             if anchor_episode:
                 team_episode_sets[anchor_team].add(anchor_episode)
             if response_episode:
@@ -93,13 +100,20 @@ def build_match_reconciliation_ledger(reciprocal_payload: dict[str, Any]) -> dic
             if not anchor_episode or not response_episode:
                 reviews.append(f"edge_episode_binding_incomplete:{edge_id}")
 
+            team_process_membership_counts[anchor_team] += 1
+            team_process_membership_counts[response_team] += 1
+            if counter_visible:
+                if counter_team and counter_episode:
+                    team_episode_sets[counter_team].add(counter_episode)
+                    team_process_membership_counts[counter_team] += 1
+                else:
+                    reviews.append(f"counter_response_episode_binding_incomplete:{edge_id}")
+
             for trace_id in chain.get("supporting_trackable_action_trace_candidate_ids") or []:
                 cleaned = _clean(trace_id)
                 if cleaned:
                     trace_ids.add(cleaned)
 
-            team_process_membership_counts[anchor_team] += 1
-            team_process_membership_counts[response_team] += 1
             edges.append({
                 "reciprocal_consistency_edge_id": edge_id,
                 "anchor_team_identity_candidate_id": anchor_team,
@@ -108,6 +122,9 @@ def build_match_reconciliation_ledger(reciprocal_payload: dict[str, Any]) -> dic
                 "response_team_identity_candidate_id": response_team,
                 "response_sequence_candidate_id": response_id,
                 "response_episode_candidate_id": response_episode or None,
+                "counter_response_sequence_candidate_id": counter_id or None,
+                "counter_response_team_identity_candidate_id": counter_team or None,
+                "counter_response_episode_candidate_id": counter_episode or None,
                 "forward_projection": f"{anchor_team}:{anchor_id} -> {response_team}:{response_id}",
                 "reverse_projection": f"{response_team}:{response_id} <- {anchor_team}:{anchor_id}",
                 "shared_edge_identity": True,
@@ -170,6 +187,40 @@ def build_match_reconciliation_ledger(reciprocal_payload: dict[str, Any]) -> dic
     }
 
 
+def _analyst_audit_text(payload: dict[str, Any]) -> str:
+    status = _clean(payload.get("status")).upper() or "UNKNOWN"
+    edge_count = payload.get("reciprocal_consistency_edge_count")
+    try:
+        edge_count_int = int(edge_count)
+    except (TypeError, ValueError):
+        edge_count_int = 0
+    if (
+        status == "PASS"
+        and edge_count_int > 0
+        and payload.get("cross_side_consistency_pass") is True
+    ):
+        finding = (
+            "Observed reciprocal candidate views passed the V1 shared-edge consistency audit; "
+            "team episode accounting used unique episode-ID union across visible anchor, response, "
+            "and bound counter-response process memberships."
+        )
+    elif status == "FAIL_CLOSED":
+        finding = (
+            "Reconciliation failed closed. No affirmative bidirectional consistency or episode-union "
+            "finding is emitted from the rejected input."
+        )
+    else:
+        finding = (
+            "Reconciliation remains review-required or unevaluated. Candidate edges, if present, do "
+            "not authorize an affirmative bidirectional consistency finding."
+        )
+    return (
+        "HPFA ANALYST AUDIT — BIDIRECTIONAL EVIDENCE CONSISTENCY\n"
+        + finding
+        + "\nPlayer/team, loss/recovery, shot/GK and phase reconciliation remain explicitly unevaluated until upstream relation surfaces are bound.\n"
+    )
+
+
 def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Path]:
     output = validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
@@ -187,10 +238,5 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
         "production_release=false",
         "",
     ]), encoding="utf-8")
-    analyst_path.write_text(
-        "HPFA ANALYST AUDIT — BIDIRECTIONAL EVIDENCE CONSISTENCY\n"
-        "Forward and reverse reciprocal views share one evidence edge; team episode accounting uses unique episode-ID union.\n"
-        "Player/team, loss/recovery, shot/GK and phase reconciliation remain explicitly unevaluated until upstream relation surfaces are bound.\n",
-        encoding="utf-8",
-    )
+    analyst_path.write_text(_analyst_audit_text(payload), encoding="utf-8")
     return {"json": json_path, "summary": txt_path, "analyst": analyst_path}
