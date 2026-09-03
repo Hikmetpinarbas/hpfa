@@ -2,7 +2,7 @@
   "module_id": "reciprocal_process_chain_lite_v1",
   "status": "SPEC_ACCEPTED_CANDIDATE",
   "source_role": "CURRENT_PRODUCT_EXTENSION",
-  "purpose": "Build claim-safe reciprocal visible process candidates, same-signature visible outcome contrasts, and defeasible finding-input envelopes from current visible-action sequence and temporal-episode signature outputs without promoting possession, tactics, adaptation, causality, physical actions, or canonical events.",
+  "purpose": "Build claim-safe reciprocal visible process candidates, same-signature visible outcome contrasts, defeasible finding-input envelopes, and existing-C4-compatible packet candidates from current visible-action sequence and temporal-episode signature outputs without promoting possession, tactics, adaptation, causality, physical actions, or canonical events.",
   "input_modules": [
     "visible_action_sequence_candidates_lite_v1",
     "temporal_episode_signature_lite_v1"
@@ -10,6 +10,7 @@
   "output_object": "RECIPROCAL_PROCESS_CHAIN_CANDIDATE",
   "secondary_output_object": "RECIPROCAL_OUTCOME_CONTRAST_CANDIDATE",
   "tertiary_output_object": "DEFEASIBLE_PROCESS_FINDING_INPUT_CANDIDATE",
+  "quaternary_output_object": "EXISTING_C4_COMPOSITE_PACKET_CANDIDATE",
   "required_relations": [
     "NEXT_DIFFERENT_TEAM_VISIBLE_SEQUENCE_AFTER_CONFIRMED",
     "POSITIVE_TIME_ONLY",
@@ -46,6 +47,18 @@
     "expected_outcome_probability_allowed": false,
     "creates_occurrence": false,
     "creates_episode": false
+  },
+  "c4_adapter": {
+    "target_contract": "composite_evidence_packet_builder_lite_v1",
+    "target_packet_family": "sequence",
+    "opens_parallel_engine": false,
+    "requires_analogue_ref": true,
+    "isolated_process_bypasses_minimum_two_ref_gate": false,
+    "same_outcome_links": "DEPENDENT_SUPPORT_ONLY",
+    "different_outcome_links": "EXPLICIT_DEPENDENT_CONTRADICTION_CANDIDATE",
+    "creates_independent_support_vote": false,
+    "emits_final_finding": false,
+    "claim_ceiling": "composite_candidate_only"
   },
   "hard_invariants": {
     "same_timestamp_internal_ordering_allowed": false,
