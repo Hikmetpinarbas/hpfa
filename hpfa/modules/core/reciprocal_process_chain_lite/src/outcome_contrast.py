@@ -6,6 +6,7 @@ from collections import defaultdict
 from typing import Any
 
 CLAIM_CEILING = "RECIPROCAL_OUTCOME_CONTRAST_CANDIDATE_ONLY"
+FINDING_INPUT_CLAIM_CEILING = "DEFEASIBLE_PROCESS_FINDING_INPUT_CANDIDATE_ONLY"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 
@@ -135,9 +136,87 @@ def build_outcome_contrast_candidates(reciprocal_payload: dict[str, Any]) -> dic
     }
 
 
+def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) -> dict[str, Any]:
+    """Package contrasts as downstream finding inputs without emitting findings."""
+    contrasts = contrast_payload.get("outcome_contrast_candidates") or []
+    if contrast_payload.get("outcome_contrast_status") == "FAIL_CLOSED" or not isinstance(contrasts, list):
+        return {
+            "defeasible_process_finding_inputs": [],
+            "defeasible_process_finding_input_count": 0,
+            "finding_input_status": "FAIL_CLOSED",
+            "finding_input_claim_ceiling": FINDING_INPUT_CLAIM_CEILING,
+            "canonical_event_count": CANONICAL_EVENT_COUNT,
+            "true_action_count": TRUE_ACTION_COUNT,
+            "production_release": False,
+        }
+
+    inputs: list[dict[str, Any]] = []
+    for contrast in contrasts:
+        if not isinstance(contrast, dict):
+            continue
+        chain_id = _clean(contrast.get("reciprocal_process_chain_candidate_id"))
+        contrast_id = _clean(contrast.get("outcome_contrast_candidate_id"))
+        if not chain_id or not contrast_id:
+            continue
+        support_ids = sorted(set(_clean(item) for item in (contrast.get("same_visible_outcome_support_chain_ids") or []) if _clean(item)))
+        counter_ids = sorted(set(_clean(item) for item in (contrast.get("different_visible_outcome_analogue_chain_ids") or []) if _clean(item)))
+        if support_ids and counter_ids:
+            evidence_state = "SUPPORT_AND_COUNTEREVIDENCE_VISIBLE_CANDIDATE"
+        elif counter_ids:
+            evidence_state = "COUNTEREVIDENCE_VISIBLE_CANDIDATE"
+        elif support_ids:
+            evidence_state = "DEPENDENT_SUPPORT_VISIBLE_NO_COUNTEREXAMPLE_CANDIDATE"
+        else:
+            evidence_state = "ISOLATED_VISIBLE_PROCESS_NO_ANALOGUE_CANDIDATE"
+
+        inputs.append({
+            "defeasible_process_finding_input_id": "dfi_" + _digest(contrast_id, chain_id, support_ids, counter_ids)[:24],
+            "outcome_contrast_candidate_id": contrast_id,
+            "reciprocal_process_chain_candidate_id": chain_id,
+            "process_family_signature_candidate": contrast.get("process_family_signature_candidate") or {},
+            "visible_outcome_signature_candidate": contrast.get("visible_outcome_signature_candidate") or {},
+            "dependent_support_chain_ids": support_ids,
+            "counterevidence_chain_ids": counter_ids,
+            "evidence_balance_state_candidate": evidence_state,
+            "no_visible_counterexample_is_confirmation": False,
+            "support_links_are_independent_votes": False,
+            "counterevidence_links_are_independent_votes": False,
+            "finding_emitted": False,
+            "allowed_claim": "This object packages one visible reciprocal process candidate with same-signature dependent support and different-outcome counterevidence for downstream defeasible finding composition.",
+            "forbidden_inference": [
+                "causality",
+                "tactical truth",
+                "expected outcome probability",
+                "effect size",
+                "stable team tendency",
+                "coach intention",
+                "adaptation truth",
+                "dominance",
+            ],
+            "withdrawal_condition": "Withdraw or downgrade if the source reciprocal chain, contrast grouping, support/counterevidence linkage, temporal relation, or episode binding is invalidated.",
+            "canonical_event_count": CANONICAL_EVENT_COUNT,
+            "true_action_count": TRUE_ACTION_COUNT,
+            "claim_ceiling": FINDING_INPUT_CLAIM_CEILING,
+        })
+
+    return {
+        "defeasible_process_finding_inputs": inputs,
+        "defeasible_process_finding_input_count": len(inputs),
+        "finding_input_status": "PASS" if inputs else "NO_ELIGIBLE_FINDING_INPUTS",
+        "finding_input_claim_ceiling": FINDING_INPUT_CLAIM_CEILING,
+        "finding_input_is_final_finding": False,
+        "finding_input_is_independent_evidence": False,
+        "canonical_event_count": CANONICAL_EVENT_COUNT,
+        "true_action_count": TRUE_ACTION_COUNT,
+        "production_release": False,
+    }
+
+
 def attach_outcome_contrast(reciprocal_payload: dict[str, Any]) -> dict[str, Any]:
     output = dict(reciprocal_payload)
-    output.update(build_outcome_contrast_candidates(reciprocal_payload))
+    contrast_payload = build_outcome_contrast_candidates(reciprocal_payload)
+    output.update(contrast_payload)
+    output.update(build_defeasible_process_finding_inputs(contrast_payload))
     output["outcome_contrast_is_independent_evidence"] = False
     output["production_release"] = False
     output["canonical_event_count"] = CANONICAL_EVENT_COUNT
