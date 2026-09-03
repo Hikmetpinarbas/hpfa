@@ -1,0 +1,80 @@
+{
+  "module_id": "reciprocal_process_variant_profile_lite_v1",
+  "status": "SPEC_ACCEPTED_CANDIDATE",
+  "source_role": "CURRENT_PRODUCT_EXTENSION_WITH_DONOR_METHOD_SUPPORT",
+  "purpose": "Profile repeated match-local reciprocal process-family signatures across admitted episode scopes and visible outcome signatures without creating a new sequence engine or promoting repetition to recurrence, tactics, causality, probability, or stable team tendency truth.",
+  "upstream_module": "reciprocal_process_chain_lite_v1",
+  "reuse_rule": "REHABILITATE_EXISTING_RECIPROCAL_PROCESS_SPINE",
+  "donor_method_support": [
+    "B05 trace_variant_frequency",
+    "B05 sequence counter scenarios",
+    "B05 trace outcome comparison",
+    "Drive event-only metric-to-construct registry"
+  ],
+  "output_object": "MATCH_LOCAL_VISIBLE_PROCESS_VARIANT_PROFILE_CANDIDATE",
+  "grouping_basis": "EXACT_ADMITTED_ANCHOR_AND_RESPONSE_ACTION_FAMILY_SIGNATURE_CANDIDATE",
+  "episode_scope": {
+    "requires_anchor_episode_binding": true,
+    "requires_response_episode_binding": true,
+    "requires_counter_episode_binding_when_counter_visible": true,
+    "incomplete_binding_state": "REPEATED_VISIBLE_PROCESS_INCOMPLETE_EPISODE_BINDING_REVIEW_REQUIRED",
+    "single_scope_repeat_state": "SINGLE_EPISODE_SCOPE_REPEAT_CANDIDATE",
+    "multi_scope_repeat_state": "MULTI_EPISODE_SCOPE_REPEAT_CANDIDATE",
+    "single_instance_state": "SINGLE_INSTANCE_NOT_RECURRENCE"
+  },
+  "visible_outcome_profile": {
+    "basis": "RESPONSE_CONSEQUENCE_FAMILIES_PLUS_COUNTER_RESPONSE_CONSEQUENCE_FAMILIES_PLUS_COUNTER_VISIBILITY",
+    "same_outcome_state": "SAME_VISIBLE_OUTCOME_SIGNATURE_ONLY_CANDIDATE",
+    "variation_state": "MULTIPLE_VISIBLE_OUTCOME_SIGNATURES_CANDIDATE",
+    "outcome_variation_is_tactical_flexibility_truth": false,
+    "outcome_share_is_expected_probability": false
+  },
+  "candidate_metrics": [
+    "visible_repeat_count_candidate",
+    "trace_variant_frequency_candidate",
+    "unique_episode_scope_count_candidate",
+    "distinct_visible_outcome_signature_count_candidate",
+    "within_variant_share_candidate"
+  ],
+  "counterevidence_and_withdrawal": [
+    "segment-only concentration",
+    "incomplete episode binding",
+    "family taxonomy sensitivity",
+    "reflection/lineage invalidation",
+    "temporal order invalidation",
+    "consequence signature invalidation",
+    "context dependence",
+    "player dependence",
+    "opponent symmetry",
+    "failed/neutral trace support"
+  ],
+  "hard_invariants": {
+    "creates_new_sequence_engine": false,
+    "creates_occurrence": false,
+    "creates_episode": false,
+    "creates_independent_evidence": false,
+    "repeat_candidate_is_recurrence_truth": false,
+    "multi_episode_spread_is_stable_tendency_truth": false,
+    "outcome_variation_is_tactical_flexibility_truth": false,
+    "trace_variant_frequency_is_probability_truth": false,
+    "phase_truth": false,
+    "possession_truth": false,
+    "sequence_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "analyst_gain": "Allows a real-match report to distinguish a one-off visible process from a repeated match-local process signature, show whether repeats are confined to one admitted episode scope or spread across several, and show whether the same signature has one or several visible outcome signatures.",
+  "required_regressions": [
+    "multi-episode repeated signature",
+    "single-episode repeat risk",
+    "incomplete episode binding",
+    "visible outcome variation",
+    "single instance not recurrence",
+    "upstream fail closed",
+    "nested phone output rejected",
+    "test_no_sample_match_identity_leak"
+  ],
+  "release_state": "IMPLEMENTATION_IN_PR / REVIEW_REQUIRED / ACTIVE_MATCH_REQUIRED / NOT_PRODUCTION"
+}

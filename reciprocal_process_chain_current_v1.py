@@ -8,6 +8,13 @@ import visible_action_sequence_candidates_current_v1 as current_sequence
 from hpfa.modules.core.active_match_spine_runner.src.episode_lane_runner import run_current_episode_lane
 from hpfa.modules.core.reciprocal_process_chain_lite.src import reciprocal_process_chain as reciprocal
 from hpfa.modules.core.reciprocal_process_chain_lite.src.outcome_contrast import attach_outcome_contrast
+from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile import (
+    build_process_variant_profiles,
+)
+from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile_outputs import (
+    clear_outputs as clear_process_variant_profile_outputs,
+    write_outputs as write_process_variant_profile_outputs,
+)
 
 TEMPORAL_JSON = "temporal_episode_signature_lite_v1.json"
 
@@ -18,6 +25,18 @@ def _load(path: Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _attach_variant_projection(parent_payload: dict, variant_payload: dict) -> dict:
+    """Attach dependent variant fields without overwriting parent producer identity."""
+    parent_module_id = parent_payload.get("module_id")
+    for key, value in variant_payload.items():
+        if key == "module_id":
+            continue
+        parent_payload[key] = value
+    parent_payload["process_variant_profile_module_id"] = variant_payload.get("module_id")
+    parent_payload["module_id"] = parent_module_id
+    return parent_payload
 
 
 def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str | None = None) -> dict:
@@ -50,6 +69,17 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "reciprocal_c4_adapter_creates_new_engine": False,
         "reciprocal_c4_adapter_creates_independent_evidence": False,
         "reciprocal_c4_adapter_emits_final_finding": False,
+        "process_variant_profiles": [],
+        "process_variant_profile_count": 0,
+        "repeated_process_variant_profile_count": 0,
+        "multi_episode_process_variant_profile_count": 0,
+        "single_episode_repeat_risk_profile_count": 0,
+        "outcome_variation_profile_count": 0,
+        "incomplete_episode_binding_profile_count": 0,
+        "process_variant_profile_status": "FAIL_CLOSED",
+        "process_variant_profile_is_recurrence_truth": False,
+        "process_variant_profile_is_tactical_truth": False,
+        "process_variant_profile_creates_independent_evidence": False,
         "hard_block_hits": [reason],
         "review_hits": [],
         "same_timestamp_internal_ordering_allowed": False,
@@ -71,6 +101,11 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = reciprocal.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
+
+    # This producer owns exactly three variant artifacts. Remove only those at the
+    # beginning of every invocation so an upstream early failure cannot leave stale
+    # process-variant outputs from a previous successful match/run.
+    clear_process_variant_profile_outputs(output)
 
     sequence_payload = current_sequence.runtime_write_outputs(input_dir, output)
     if sequence_payload.get("status") == "FAIL_CLOSED":
@@ -104,12 +139,26 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     # reasoning engine and it does not create occurrences, episodes, independent
     # votes, causal/tactical truth or final findings.
     payload = attach_outcome_contrast(payload)
+
+    # Donor-derived process-mining ideas are adapted here as a thin downstream
+    # profile over current reciprocal candidates. This does not create a second
+    # sequence engine or promote visible repetition into recurrence truth.
+    variant_payload = build_process_variant_profiles(payload)
+    payload = _attach_variant_projection(payload, variant_payload)
+    variant_paths = write_process_variant_profile_outputs(variant_payload, output)
+    payload["process_variant_profile_outputs"] = {
+        key: str(path) for key, path in variant_paths.items()
+    }
+
     payload["current_sequence_status"] = sequence_payload.get("status")
     payload["current_episode_lane_status"] = episode_lane.get("status")
     payload["current_temporal_generated"] = current_temporal_generated
     payload["active_match_evidence_pass"] = False
     paths = reciprocal.write_outputs(payload, output)
-    payload["outputs"] = {key: str(path) for key, path in paths.items()}
+    payload["outputs"] = {
+        **{key: str(path) for key, path in paths.items()},
+        **{f"process_variant_{key}": str(path) for key, path in variant_paths.items()},
+    }
     return payload
 
 
@@ -133,6 +182,11 @@ def main() -> int:
         "finding_input_status": payload.get("finding_input_status"),
         "reciprocal_c4_packet_candidate_count": payload.get("reciprocal_c4_packet_candidate_count"),
         "reciprocal_c4_adapter_status": payload.get("reciprocal_c4_adapter_status"),
+        "process_variant_profile_count": payload.get("process_variant_profile_count"),
+        "repeated_process_variant_profile_count": payload.get("repeated_process_variant_profile_count"),
+        "multi_episode_process_variant_profile_count": payload.get("multi_episode_process_variant_profile_count"),
+        "single_episode_repeat_risk_profile_count": payload.get("single_episode_repeat_risk_profile_count"),
+        "outcome_variation_profile_count": payload.get("outcome_variation_profile_count"),
         "same_time_response_candidate_block_count": payload.get("same_time_response_candidate_block_count"),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
