@@ -15,6 +15,10 @@ def _clean(value: Any) -> str:
     return " ".join(("" if value is None else str(value)).split()).strip()
 
 
+def _status(value: Any) -> str:
+    return _clean(value).upper() or "UNKNOWN"
+
+
 def _digest(*values: Any) -> str:
     raw = json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -83,12 +87,15 @@ def build_process_variant_profiles(reciprocal_payload: dict[str, Any]) -> dict[s
     process candidates. It does not create actions, episodes, sequence truth,
     recurrence truth, tactical patterns, probabilities, or independent evidence.
     """
+    upstream_status = _status(reciprocal_payload.get("status"))
     records = reciprocal_payload.get("reciprocal_process_chain_candidates") or []
-    if reciprocal_payload.get("status") == "FAIL_CLOSED" or not isinstance(records, list):
+    if upstream_status == "FAIL_CLOSED" or not isinstance(records, list):
         return {
+            "module_id": MODULE_ID,
             "process_variant_profiles": [],
             "process_variant_profile_count": 0,
             "process_variant_profile_status": "FAIL_CLOSED",
+            "upstream_reciprocal_status": upstream_status,
             "process_variant_profile_claim_ceiling": CLAIM_CEILING,
             "canonical_event_count": CANONICAL_EVENT_COUNT,
             "true_action_count": TRUE_ACTION_COUNT,
@@ -217,7 +224,17 @@ def build_process_variant_profiles(reciprocal_payload: dict[str, Any]) -> dict[s
     )
     incomplete = sum(profile["incomplete_episode_binding_count"] > 0 for profile in profiles)
 
+    if upstream_status not in {"PASS", "OK", "SUCCESS"}:
+        profile_status = "REVIEW_REQUIRED"
+    elif incomplete:
+        profile_status = "REVIEW_REQUIRED"
+    elif profiles:
+        profile_status = "PASS"
+    else:
+        profile_status = "NO_ELIGIBLE_PROCESS_VARIANT_PROFILES"
+
     return {
+        "module_id": MODULE_ID,
         "process_variant_profiles": profiles,
         "process_variant_profile_count": len(profiles),
         "repeated_process_variant_profile_count": repeated,
@@ -226,7 +243,8 @@ def build_process_variant_profiles(reciprocal_payload: dict[str, Any]) -> dict[s
         "outcome_variation_profile_count": outcome_variation,
         "incomplete_episode_binding_profile_count": incomplete,
         "eligible_reciprocal_population_count": eligible_population,
-        "process_variant_profile_status": "PASS" if profiles else "NO_ELIGIBLE_PROCESS_VARIANT_PROFILES",
+        "process_variant_profile_status": profile_status,
+        "upstream_reciprocal_status": upstream_status,
         "process_variant_profile_claim_ceiling": CLAIM_CEILING,
         "process_variant_profile_is_recurrence_truth": False,
         "process_variant_profile_is_tactical_truth": False,
