@@ -1,5 +1,6 @@
 from hpfa.modules.core.reciprocal_process_chain_lite.src.outcome_contrast import (
     attach_outcome_contrast,
+    build_defeasible_process_finding_inputs,
     build_outcome_contrast_candidates,
 )
 
@@ -65,13 +66,44 @@ def test_same_outcome_is_support_not_counterevidence() -> None:
     assert first["counterevidence_candidate_present"] is False
 
 
-def test_fail_closed_upstream_does_not_emit_contrasts() -> None:
-    result = build_outcome_contrast_candidates({
+def test_finding_input_preserves_support_and_counterevidence_without_emitting_finding() -> None:
+    contrast = build_outcome_contrast_candidates(_payload([
+        _chain("rpc_a", "SHOT_CANDIDATE", True),
+        _chain("rpc_b", "SHOT_CANDIDATE", True),
+        _chain("rpc_c", "TURNOVER_CANDIDATE", False),
+    ]))
+    result = build_defeasible_process_finding_inputs(contrast)
+    row = next(item for item in result["defeasible_process_finding_inputs"] if item["reciprocal_process_chain_candidate_id"] == "rpc_a")
+    assert row["dependent_support_chain_ids"] == ["rpc_b"]
+    assert row["counterevidence_chain_ids"] == ["rpc_c"]
+    assert row["evidence_balance_state_candidate"] == "SUPPORT_AND_COUNTEREVIDENCE_VISIBLE_CANDIDATE"
+    assert row["finding_emitted"] is False
+    assert row["support_links_are_independent_votes"] is False
+    assert row["counterevidence_links_are_independent_votes"] is False
+
+
+def test_no_visible_counterexample_is_not_confirmation() -> None:
+    contrast = build_outcome_contrast_candidates(_payload([
+        _chain("rpc_a", "SHOT_CANDIDATE", True),
+        _chain("rpc_b", "SHOT_CANDIDATE", True),
+    ]))
+    result = build_defeasible_process_finding_inputs(contrast)
+    row = next(item for item in result["defeasible_process_finding_inputs"] if item["reciprocal_process_chain_candidate_id"] == "rpc_a")
+    assert row["counterevidence_chain_ids"] == []
+    assert row["no_visible_counterexample_is_confirmation"] is False
+    assert row["evidence_balance_state_candidate"] == "DEPENDENT_SUPPORT_VISIBLE_NO_COUNTEREXAMPLE_CANDIDATE"
+
+
+def test_fail_closed_upstream_does_not_emit_contrasts_or_finding_inputs() -> None:
+    contrast = build_outcome_contrast_candidates({
         "status": "FAIL_CLOSED",
         "reciprocal_process_chain_candidates": [_chain("rpc_a", "SHOT_CANDIDATE", True)],
     })
-    assert result["outcome_contrast_status"] == "FAIL_CLOSED"
-    assert result["outcome_contrast_candidate_count"] == 0
+    assert contrast["outcome_contrast_status"] == "FAIL_CLOSED"
+    assert contrast["outcome_contrast_candidate_count"] == 0
+    finding = build_defeasible_process_finding_inputs(contrast)
+    assert finding["finding_input_status"] == "FAIL_CLOSED"
+    assert finding["defeasible_process_finding_input_count"] == 0
 
 
 def test_attachment_preserves_claim_locks_and_no_independent_vote() -> None:
@@ -80,6 +112,8 @@ def test_attachment_preserves_claim_locks_and_no_independent_vote() -> None:
     assert result["true_action_count"] == "UNKNOWN"
     assert result["production_release"] is False
     assert result["outcome_contrast_is_independent_evidence"] is False
+    assert result["finding_input_is_final_finding"] is False
+    assert result["finding_input_is_independent_evidence"] is False
 
 
 def test_no_sample_match_identity_leak() -> None:
