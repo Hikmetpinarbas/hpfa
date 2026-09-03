@@ -6,6 +6,13 @@ from pathlib import Path
 
 import visible_action_sequence_candidates_current_v1 as current_sequence
 from hpfa.modules.core.active_match_spine_runner.src.episode_lane_runner import run_current_episode_lane
+from hpfa.modules.core.match_reconciliation_ledger_lite.src.match_reconciliation_ledger import (
+    ANALYST_TXT as RECONCILIATION_ANALYST_TXT,
+    OUTPUT_JSON as RECONCILIATION_JSON,
+    OUTPUT_TXT as RECONCILIATION_TXT,
+    build_match_reconciliation_ledger,
+    write_outputs as write_match_reconciliation_outputs,
+)
 from hpfa.modules.core.reciprocal_process_chain_lite.src import reciprocal_process_chain as reciprocal
 from hpfa.modules.core.reciprocal_process_chain_lite.src.outcome_contrast import attach_outcome_contrast
 from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile import (
@@ -17,6 +24,8 @@ from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile
 )
 
 TEMPORAL_JSON = "temporal_episode_signature_lite_v1.json"
+TRACE_JSON = "trackable_action_trace_candidates_lite_v1.json"
+IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 
 
 def _load(path: Path) -> dict:
@@ -25,6 +34,16 @@ def _load(path: Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _clear_reconciliation_outputs(output: Path) -> list[str]:
+    cleared: list[str] = []
+    for name in (RECONCILIATION_JSON, RECONCILIATION_TXT, RECONCILIATION_ANALYST_TXT):
+        path = output / name
+        if path.is_file():
+            path.unlink()
+            cleared.append(name)
+    return cleared
 
 
 def _attach_variant_projection(parent_payload: dict, variant_payload: dict) -> dict:
@@ -36,6 +55,28 @@ def _attach_variant_projection(parent_payload: dict, variant_payload: dict) -> d
         parent_payload[key] = value
     parent_payload["process_variant_profile_module_id"] = variant_payload.get("module_id")
     parent_payload["module_id"] = parent_module_id
+    return parent_payload
+
+
+def _attach_reconciliation_projection(parent_payload: dict, reconciliation: dict) -> dict:
+    """Attach reconciliation accounting without replacing reciprocal producer truth."""
+    parent_payload["match_reconciliation_module_id"] = reconciliation.get("module_id")
+    parent_payload["match_reconciliation_status"] = reconciliation.get("status")
+    parent_payload["reciprocal_consistency_edge_count"] = reconciliation.get(
+        "reciprocal_consistency_edge_count", 0
+    )
+    parent_payload["player_process_membership_row_count"] = reconciliation.get(
+        "player_process_membership_row_count", 0
+    )
+    parent_payload["player_team_episode_reconciliation_state"] = reconciliation.get(
+        "player_team_episode_reconciliation_state"
+    )
+    parent_payload["player_team_episode_union_consistent_team_count"] = reconciliation.get(
+        "player_team_episode_union_consistent_team_count", 0
+    )
+    parent_payload["match_reconciliation_claim_ceiling"] = reconciliation.get("claim_ceiling")
+    parent_payload["match_reconciliation_is_player_quality_truth"] = False
+    parent_payload["match_reconciliation_is_tactical_truth"] = False
     return parent_payload
 
 
@@ -80,6 +121,9 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "process_variant_profile_is_recurrence_truth": False,
         "process_variant_profile_is_tactical_truth": False,
         "process_variant_profile_creates_independent_evidence": False,
+        "match_reconciliation_status": "FAIL_CLOSED",
+        "player_process_membership_row_count": 0,
+        "player_team_episode_reconciliation_state": "NOT_EVALUATED_UPSTREAM_FAIL_CLOSED",
         "hard_block_hits": [reason],
         "review_hits": [],
         "same_timestamp_internal_ordering_allowed": False,
@@ -102,10 +146,8 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = reciprocal.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
 
-    # This producer owns exactly three variant artifacts. Remove only those at the
-    # beginning of every invocation so an upstream early failure cannot leave stale
-    # process-variant outputs from a previous successful match/run.
     clear_process_variant_profile_outputs(output)
+    cleared_reconciliation_outputs = _clear_reconciliation_outputs(output)
 
     sequence_payload = current_sequence.runtime_write_outputs(input_dir, output)
     if sequence_payload.get("status") == "FAIL_CLOSED":
@@ -133,22 +175,31 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
     temporal_payload = _load(temporal_path)
     payload = reciprocal.build_reciprocal_process_chains(sequence_payload, temporal_payload)
-    # Outcome contrast, finding-input envelopes and C4 packet candidates are
-    # dependent projections over already-built reciprocal candidates. The C4
-    # adapter targets the existing composite packet contract; it is not a new
-    # reasoning engine and it does not create occurrences, episodes, independent
-    # votes, causal/tactical truth or final findings.
     payload = attach_outcome_contrast(payload)
 
-    # Donor-derived process-mining ideas are adapted here as a thin downstream
-    # profile over current reciprocal candidates. This does not create a second
-    # sequence engine or promote visible repetition into recurrence truth.
     variant_payload = build_process_variant_profiles(payload)
     payload = _attach_variant_projection(payload, variant_payload)
     variant_paths = write_process_variant_profile_outputs(variant_payload, output)
     payload["process_variant_profile_outputs"] = {
         key: str(path) for key, path in variant_paths.items()
     }
+
+    trace_payload = _load(output / TRACE_JSON)
+    identity_payload = _load(output / IDENTITY_JSON)
+    reconciliation_payload = build_match_reconciliation_ledger(
+        payload,
+        sequence_payload,
+        trace_payload,
+        identity_payload,
+    )
+    reconciliation_paths = write_match_reconciliation_outputs(reconciliation_payload, output)
+    payload = _attach_reconciliation_projection(payload, reconciliation_payload)
+    payload["match_reconciliation_outputs"] = {
+        key: str(path) for key, path in reconciliation_paths.items()
+    }
+    payload["cleared_stale_match_reconciliation_outputs"] = cleared_reconciliation_outputs
+    if reconciliation_payload.get("status") == "FAIL_CLOSED":
+        payload.setdefault("review_hits", []).append("match_reconciliation_fail_closed_dependent_surface")
 
     payload["current_sequence_status"] = sequence_payload.get("status")
     payload["current_episode_lane_status"] = episode_lane.get("status")
@@ -158,6 +209,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     payload["outputs"] = {
         **{key: str(path) for key, path in paths.items()},
         **{f"process_variant_{key}": str(path) for key, path in variant_paths.items()},
+        **{f"match_reconciliation_{key}": str(path) for key, path in reconciliation_paths.items()},
     }
     return payload
 
@@ -187,6 +239,10 @@ def main() -> int:
         "multi_episode_process_variant_profile_count": payload.get("multi_episode_process_variant_profile_count"),
         "single_episode_repeat_risk_profile_count": payload.get("single_episode_repeat_risk_profile_count"),
         "outcome_variation_profile_count": payload.get("outcome_variation_profile_count"),
+        "match_reconciliation_status": payload.get("match_reconciliation_status"),
+        "player_process_membership_row_count": payload.get("player_process_membership_row_count"),
+        "player_team_episode_reconciliation_state": payload.get("player_team_episode_reconciliation_state"),
+        "player_team_episode_union_consistent_team_count": payload.get("player_team_episode_union_consistent_team_count"),
         "same_time_response_candidate_block_count": payload.get("same_time_response_candidate_block_count"),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
