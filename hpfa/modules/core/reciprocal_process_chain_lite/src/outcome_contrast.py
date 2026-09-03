@@ -10,6 +10,18 @@ FINDING_INPUT_CLAIM_CEILING = "DEFEASIBLE_PROCESS_FINDING_INPUT_CANDIDATE_ONLY"
 C4_PACKET_CLAIM_CEILING = "composite_candidate_only"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
+COUNTER_SEARCH_SCOPE = "SAME_ADMITTED_PROCESS_FAMILY_SIGNATURE_ONLY"
+COUNTER_SEARCH_EVALUATED_FAMILIES = ["DIRECT_VISIBLE_OUTCOME_CONTRAST"]
+COUNTER_SEARCH_PENDING_FAMILIES = [
+    "CONTEXT_DEPENDENCE",
+    "SEGMENT_ONLY",
+    "PLAYER_OUTLIER",
+    "THRESHOLD_SENSITIVITY",
+    "OPPONENT_SYMMETRY",
+    "FAILED_TRACE_SUPPORT",
+    "DUPLICATE_REFLECTION_RISK",
+    "ALTERNATIVE_EXPLANATION",
+]
 
 
 def _clean(value: Any) -> str:
@@ -31,6 +43,25 @@ def _outcome_signature(row: dict[str, Any]) -> tuple[tuple[str, ...], tuple[str,
     response = tuple(sorted(_clean(key) for key in (row.get("response_consequence_candidate_counts") or {}) if _clean(key)))
     counter = tuple(sorted(_clean(key) for key in (row.get("counter_response_consequence_candidate_counts") or {}) if _clean(key)))
     return response, counter, bool(row.get("counter_response_visible"))
+
+
+def _counter_search_metadata(support_ids: list[str], counter_ids: list[str]) -> dict[str, Any]:
+    peer_count = len(set(support_ids) | set(counter_ids))
+    return {
+        "counter_search_scope": COUNTER_SEARCH_SCOPE,
+        "counter_search_scope_state": (
+            "PARTIAL_SCOPE_EVALUATED" if peer_count else "PARTIAL_SCOPE_EVALUATED_NO_ANALOGUE"
+        ),
+        "counter_search_peer_count": peer_count,
+        "counter_search_evaluated_families": list(COUNTER_SEARCH_EVALUATED_FAMILIES),
+        "counter_search_pending_families": list(COUNTER_SEARCH_PENDING_FAMILIES),
+        "counter_search_complete_for_final_finding": False,
+        "alternative_explanation_search_state": "NOT_EVALUATED",
+        "alternative_explanation_required": True,
+        "falsifier_coverage_state": "PARTIAL",
+        "falsifier_families_evaluated": list(COUNTER_SEARCH_EVALUATED_FAMILIES),
+        "falsifier_families_pending": list(COUNTER_SEARCH_PENDING_FAMILIES),
+    }
 
 
 def build_outcome_contrast_candidates(reciprocal_payload: dict[str, Any]) -> dict[str, Any]:
@@ -179,6 +210,7 @@ def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) ->
             "dependent_support_chain_ids": support_ids,
             "counterevidence_chain_ids": counter_ids,
             "evidence_balance_state_candidate": evidence_state,
+            **_counter_search_metadata(support_ids, counter_ids),
             "no_visible_counterexample_is_confirmation": False,
             "support_links_are_independent_votes": False,
             "counterevidence_links_are_independent_votes": False,
@@ -207,6 +239,8 @@ def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) ->
         "finding_input_claim_ceiling": FINDING_INPUT_CLAIM_CEILING,
         "finding_input_is_final_finding": False,
         "finding_input_is_independent_evidence": False,
+        "counter_search_complete_for_final_finding": False,
+        "alternative_explanation_search_required": True,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": False,
@@ -301,6 +335,10 @@ def build_c4_packet_candidates(finding_payload: dict[str, Any]) -> dict[str, Any
             "source_outcome_contrast_candidate_id": row.get("outcome_contrast_candidate_id"),
             "process_family_signature_candidate": row.get("process_family_signature_candidate") or {},
             "visible_outcome_signature_candidate": row.get("visible_outcome_signature_candidate") or {},
+            "counter_search_scope_state": row.get("counter_search_scope_state"),
+            "counter_search_complete_for_final_finding": False,
+            "alternative_explanation_search_state": row.get("alternative_explanation_search_state"),
+            "falsifier_coverage_state": row.get("falsifier_coverage_state"),
             "dependent_support_only": True,
             "counterevidence_is_dependent_projection": True,
             "finding_emitted": False,
