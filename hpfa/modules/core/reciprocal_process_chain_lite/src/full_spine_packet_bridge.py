@@ -20,6 +20,16 @@ CLAIM_SAFETY_REQUIRED_KEYS = {
     "falsifier_coverage_state",
     "falsifier_families_evaluated",
     "falsifier_families_pending",
+    "segment_falsifier_method",
+    "segment_scope_state",
+    "segment_falsifier_state",
+    "segment_scope_evaluated",
+    "segment_scope_observed_episode_scope_count",
+    "segment_scope_episode_pair_labels",
+    "segment_scope_missing_binding_chain_ids",
+    "segment_scope_is_recurrence_truth",
+    "segment_scope_is_pattern_robustness_truth",
+    "multi_episode_scope_is_stable_tendency_truth",
     "no_visible_counterexample_is_confirmation",
     "support_links_are_independent_votes",
     "counterevidence_links_are_independent_votes",
@@ -56,6 +66,12 @@ def _claim_safety_metadata(candidate: dict[str, Any]) -> tuple[dict[str, Any] | 
         errors.append("reciprocal_dependent_support_independence_lock_breached")
     if raw.get("counterevidence_links_are_independent_votes") is not False:
         errors.append("reciprocal_counterevidence_independence_lock_breached")
+    if raw.get("segment_scope_is_recurrence_truth") is not False:
+        errors.append("reciprocal_segment_scope_recurrence_truth_lock_breached")
+    if raw.get("segment_scope_is_pattern_robustness_truth") is not False:
+        errors.append("reciprocal_segment_scope_pattern_robustness_lock_breached")
+    if raw.get("multi_episode_scope_is_stable_tendency_truth") is not False:
+        errors.append("reciprocal_multi_episode_stable_tendency_lock_breached")
     if raw.get("finding_emitted") is not False:
         errors.append("reciprocal_final_finding_lock_breached")
     for key in (
@@ -63,9 +79,17 @@ def _claim_safety_metadata(candidate: dict[str, Any]) -> tuple[dict[str, Any] | 
         "counter_search_pending_families",
         "falsifier_families_evaluated",
         "falsifier_families_pending",
+        "segment_scope_episode_pair_labels",
+        "segment_scope_missing_binding_chain_ids",
     ):
         if key in raw and not isinstance(raw.get(key), list):
             errors.append(f"reciprocal_claim_safety_metadata_list_invalid:{key}")
+    if "segment_scope_evaluated" in raw and not isinstance(raw.get("segment_scope_evaluated"), bool):
+        errors.append("reciprocal_segment_scope_evaluated_invalid")
+    if "segment_scope_observed_episode_scope_count" in raw:
+        value = raw.get("segment_scope_observed_episode_scope_count")
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            errors.append("reciprocal_segment_scope_count_invalid")
     if errors:
         return None, sorted(set(errors))
     return json.loads(json.dumps(raw, ensure_ascii=False, sort_keys=True)), []
@@ -84,16 +108,13 @@ def _propagate_claim_safety_metadata(chain: dict[str, Any], metadata: dict[str, 
 
 
 def _build_tomography_coverage(reciprocal: dict[str, Any], chains: list[dict[str, Any]]) -> dict[str, Any]:
-    """Summarize defeasible reciprocal coverage without producing a finding.
-
-    This is an accounting surface over already-produced finding inputs. It does not
-    interpret absence as support, does not count dependent analogues as independent
-    votes and does not promote any C4/report claim.
-    """
+    """Summarize defeasible reciprocal coverage without producing a finding."""
     rows = reciprocal.get("defeasible_process_finding_inputs") or []
     rows = rows if isinstance(rows, list) else []
     states: Counter[str] = Counter()
     search_scope_states: Counter[str] = Counter()
+    segment_scope_states: Counter[str] = Counter()
+    segment_falsifier_states: Counter[str] = Counter()
     with_counterevidence = 0
     with_dependent_support = 0
     isolated = 0
@@ -101,6 +122,10 @@ def _build_tomography_coverage(reciprocal: dict[str, Any], chains: list[dict[str
     counter_search_incomplete = 0
     alternative_not_evaluated = 0
     partial_falsifier_coverage = 0
+    segment_scope_evaluated = 0
+    segment_scope_not_evaluated = 0
+    single_episode_scope_only = 0
+    multi_episode_scope_visible = 0
     for row in rows:
         if not isinstance(row, dict):
             continue
@@ -108,6 +133,10 @@ def _build_tomography_coverage(reciprocal: dict[str, Any], chains: list[dict[str
         states[state] += 1
         search_scope_state = str(row.get("counter_search_scope_state") or "UNKNOWN")
         search_scope_states[search_scope_state] += 1
+        segment_state = str(row.get("segment_scope_state") or "UNKNOWN")
+        segment_scope_states[segment_state] += 1
+        segment_falsifier_state = str(row.get("segment_falsifier_state") or "UNKNOWN")
+        segment_falsifier_states[segment_falsifier_state] += 1
         counter_ids = row.get("counterevidence_chain_ids") or []
         support_ids = row.get("dependent_support_chain_ids") or []
         if isinstance(counter_ids, list) and counter_ids:
@@ -124,6 +153,14 @@ def _build_tomography_coverage(reciprocal: dict[str, Any], chains: list[dict[str
             alternative_not_evaluated += 1
         if str(row.get("falsifier_coverage_state") or "UNKNOWN") == "PARTIAL":
             partial_falsifier_coverage += 1
+        if row.get("segment_scope_evaluated") is True:
+            segment_scope_evaluated += 1
+        else:
+            segment_scope_not_evaluated += 1
+        if segment_state == "SINGLE_EPISODE_SCOPE_ONLY_CANDIDATE":
+            single_episode_scope_only += 1
+        elif segment_state == "MULTI_EPISODE_SCOPE_VISIBLE_CANDIDATE":
+            multi_episode_scope_visible += 1
 
     return {
         "surface_id": "reciprocal_match_tomography_coverage_v1",
@@ -138,11 +175,20 @@ def _build_tomography_coverage(reciprocal: dict[str, Any], chains: list[dict[str
         "counter_search_incomplete_for_final_finding_count": counter_search_incomplete,
         "alternative_explanation_not_evaluated_count": alternative_not_evaluated,
         "partial_falsifier_coverage_count": partial_falsifier_coverage,
+        "segment_scope_state_counts": dict(sorted(segment_scope_states.items())),
+        "segment_falsifier_state_counts": dict(sorted(segment_falsifier_states.items())),
+        "segment_scope_evaluated_count": segment_scope_evaluated,
+        "segment_scope_not_evaluated_count": segment_scope_not_evaluated,
+        "single_episode_scope_only_count": single_episode_scope_only,
+        "multi_episode_scope_visible_count": multi_episode_scope_visible,
         "existing_intelligence_chain_projection_count": len(chains),
         "absence_of_counterevidence_is_confirmation": False,
         "counter_search_incomplete_never_confirms": True,
         "alternative_explanation_absence_is_not_evidence": True,
         "dependent_support_is_independent_vote": False,
+        "multi_episode_scope_is_recurrence_truth": False,
+        "multi_episode_scope_is_pattern_robustness_truth": False,
+        "multi_episode_scope_is_stable_team_tendency_truth": False,
         "coverage_is_team_tendency_truth": False,
         "coverage_is_tactical_truth": False,
         "coverage_is_causal_truth": False,
@@ -162,12 +208,7 @@ def bridge_reciprocal_packets(
     packet_builder: Callable[[dict[str, Any]], dict[str, Any]],
     intelligence_runner: Callable[[dict[str, Any]], dict[str, dict[str, Any]]],
 ) -> dict[str, Any]:
-    """Project current reciprocal C4 candidates through the existing intelligence chain.
-
-    This bridge creates no occurrences, episodes, evidence votes or reasoning engine.
-    It only invokes already-existing producers and records whether their candidate
-    packets can traverse the current C4 chain without opening claim ceilings.
-    """
+    """Project current reciprocal C4 candidates through the existing intelligence chain."""
     output_root = Path(out_dir).expanduser().resolve(strict=False)
     output_root.mkdir(parents=True, exist_ok=True)
 
@@ -202,9 +243,6 @@ def bridge_reciprocal_packets(
                 review_hits.append("reciprocal_packet_not_admitted_by_existing_packet_builder")
                 continue
 
-            # The generic packet builder intentionally rebuilds from its canonical fields.
-            # Rebind the validated claim-safety envelope here before the existing C4 chain
-            # so current reciprocal consumers cannot mistake a partial search for complete.
             packet["claim_safety_metadata"] = json.loads(
                 json.dumps(safety_metadata, ensure_ascii=False, sort_keys=True)
             )
@@ -282,6 +320,9 @@ def bridge_reciprocal_packets(
         f"tomography_counter_search_incomplete_count={tomography_coverage.get('counter_search_incomplete_for_final_finding_count', 0)}",
         f"tomography_alternative_explanation_not_evaluated_count={tomography_coverage.get('alternative_explanation_not_evaluated_count', 0)}",
         f"tomography_partial_falsifier_coverage_count={tomography_coverage.get('partial_falsifier_coverage_count', 0)}",
+        f"tomography_segment_scope_evaluated_count={tomography_coverage.get('segment_scope_evaluated_count', 0)}",
+        f"tomography_single_episode_scope_only_count={tomography_coverage.get('single_episode_scope_only_count', 0)}",
+        f"tomography_multi_episode_scope_visible_count={tomography_coverage.get('multi_episode_scope_visible_count', 0)}",
         "tomography_claim_output_allowed=false",
         "creates_parallel_engine=false",
         "active_match_evidence_pass=false",
