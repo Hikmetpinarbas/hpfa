@@ -8,10 +8,79 @@ from typing import Any, Callable
 MODULE_ID = "reciprocal_full_spine_packet_bridge_v1"
 OUTPUT_JSON = "reciprocal_full_spine_packet_bridge_v1.json"
 OUTPUT_TXT = "reciprocal_full_spine_packet_bridge_v1.txt"
+CLAIM_SAFETY_REQUIRED_KEYS = {
+    "counter_search_scope",
+    "counter_search_scope_state",
+    "counter_search_peer_count",
+    "counter_search_evaluated_families",
+    "counter_search_pending_families",
+    "counter_search_complete_for_final_finding",
+    "alternative_explanation_search_state",
+    "alternative_explanation_required",
+    "falsifier_coverage_state",
+    "falsifier_families_evaluated",
+    "falsifier_families_pending",
+    "no_visible_counterexample_is_confirmation",
+    "support_links_are_independent_votes",
+    "counterevidence_links_are_independent_votes",
+    "withdrawal_condition",
+    "finding_emitted",
+}
+CLAIM_SAFETY_STAGE_NAMES = (
+    "fusion",
+    "argument",
+    "route",
+    "graph",
+    "safe_sentence",
+    "report_block",
+    "output_contract",
+    "assembly",
+)
 
 
 def _status(value: Any) -> str:
     return str(value or "UNKNOWN").strip().upper()
+
+
+def _claim_safety_metadata(candidate: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
+    raw = candidate.get("claim_safety_metadata")
+    if not isinstance(raw, dict):
+        return None, ["reciprocal_claim_safety_metadata_missing_or_invalid"]
+    missing = sorted(key for key in CLAIM_SAFETY_REQUIRED_KEYS if key not in raw)
+    errors = [f"reciprocal_claim_safety_metadata_missing:{key}" for key in missing]
+    if raw.get("counter_search_complete_for_final_finding") is not False:
+        errors.append("reciprocal_counter_search_completeness_lock_breached")
+    if raw.get("no_visible_counterexample_is_confirmation") is not False:
+        errors.append("reciprocal_no_counterexample_confirmation_lock_breached")
+    if raw.get("support_links_are_independent_votes") is not False:
+        errors.append("reciprocal_dependent_support_independence_lock_breached")
+    if raw.get("counterevidence_links_are_independent_votes") is not False:
+        errors.append("reciprocal_counterevidence_independence_lock_breached")
+    if raw.get("finding_emitted") is not False:
+        errors.append("reciprocal_final_finding_lock_breached")
+    for key in (
+        "counter_search_evaluated_families",
+        "counter_search_pending_families",
+        "falsifier_families_evaluated",
+        "falsifier_families_pending",
+    ):
+        if key in raw and not isinstance(raw.get(key), list):
+            errors.append(f"reciprocal_claim_safety_metadata_list_invalid:{key}")
+    if errors:
+        return None, sorted(set(errors))
+    return json.loads(json.dumps(raw, ensure_ascii=False, sort_keys=True)), []
+
+
+def _propagate_claim_safety_metadata(chain: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
+    reviews: list[str] = []
+    chain["claim_safety_metadata"] = json.loads(json.dumps(metadata, ensure_ascii=False, sort_keys=True))
+    for stage_name in CLAIM_SAFETY_STAGE_NAMES:
+        stage = chain.get(stage_name)
+        if not isinstance(stage, dict):
+            reviews.append(f"claim_safety_stage_missing_or_invalid:{stage_name}")
+            continue
+        stage["claim_safety_metadata"] = json.loads(json.dumps(metadata, ensure_ascii=False, sort_keys=True))
+    return reviews
 
 
 def _build_tomography_coverage(reciprocal: dict[str, Any], chains: list[dict[str, Any]]) -> dict[str, Any]:
@@ -112,6 +181,7 @@ def bridge_reciprocal_packets(
     review_hits: list[str] = []
     chains: list[dict[str, Any]] = []
     packet_count = 0
+    safety_metadata_preserved_count = 0
 
     if reciprocal_status == "FAIL_CLOSED":
         hard_blocks.append("reciprocal_process_chain_fail_closed")
@@ -120,6 +190,10 @@ def bridge_reciprocal_packets(
             if not isinstance(candidate, dict):
                 review_hits.append("non_object_reciprocal_c4_candidate_ignored")
                 continue
+            safety_metadata, safety_errors = _claim_safety_metadata(candidate)
+            if safety_errors or safety_metadata is None:
+                hard_blocks.extend(safety_errors or ["reciprocal_claim_safety_metadata_missing_or_invalid"])
+                break
             packet = packet_builder(candidate)
             if not isinstance(packet, dict):
                 hard_blocks.append("existing_packet_builder_returned_non_object")
@@ -127,13 +201,26 @@ def bridge_reciprocal_packets(
             if packet.get("hard_block_hits"):
                 review_hits.append("reciprocal_packet_not_admitted_by_existing_packet_builder")
                 continue
+
+            # The generic packet builder intentionally rebuilds from its canonical fields.
+            # Rebind the validated claim-safety envelope here before the existing C4 chain
+            # so current reciprocal consumers cannot mistake a partial search for complete.
+            packet["claim_safety_metadata"] = json.loads(
+                json.dumps(safety_metadata, ensure_ascii=False, sort_keys=True)
+            )
             chain = intelligence_runner(packet)
+            if not isinstance(chain, dict):
+                hard_blocks.append("existing_intelligence_runner_returned_non_object")
+                break
+            review_hits.extend(_propagate_claim_safety_metadata(chain, safety_metadata))
             chains.append({
                 "candidate_id": candidate.get("candidate_id") or candidate.get("finding_input_id"),
+                "claim_safety_metadata": safety_metadata,
                 "packet": packet,
                 "chain": chain,
             })
             packet_count += 1
+            safety_metadata_preserved_count += 1
 
     claim_output_allowed_count = 0
     completed_chain_count = 0
@@ -160,11 +247,13 @@ def bridge_reciprocal_packets(
         "reciprocal_c4_packet_candidate_count": len(candidates),
         "existing_packet_builder_admitted_count": packet_count,
         "existing_intelligence_chain_completed_candidate_count": completed_chain_count,
+        "claim_safety_metadata_preserved_candidate_count": safety_metadata_preserved_count,
+        "claim_safety_metadata_required_for_reciprocal_c4": True,
         "claim_output_allowed_count": claim_output_allowed_count,
         "match_tomography_coverage": tomography_coverage,
         "chains": chains,
-        "hard_block_hits": hard_blocks,
-        "review_hits": review_hits,
+        "hard_block_hits": sorted(set(hard_blocks)),
+        "review_hits": sorted(set(review_hits)),
         "creates_parallel_engine": False,
         "creates_occurrence": False,
         "creates_episode": False,
@@ -184,6 +273,7 @@ def bridge_reciprocal_packets(
         f"reciprocal_c4_packet_candidate_count={len(candidates)}",
         f"existing_packet_builder_admitted_count={packet_count}",
         f"existing_intelligence_chain_completed_candidate_count={completed_chain_count}",
+        f"claim_safety_metadata_preserved_candidate_count={safety_metadata_preserved_count}",
         f"claim_output_allowed_count={claim_output_allowed_count}",
         f"tomography_finding_input_count={tomography_coverage.get('finding_input_count', 0)}",
         f"tomography_with_counterevidence_count={tomography_coverage.get('finding_inputs_with_counterevidence_count', 0)}",
