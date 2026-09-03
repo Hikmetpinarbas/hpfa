@@ -14,6 +14,8 @@ if str(SRC) not in sys.path:
 
 import full_spine_runner as full_spine_module
 import rich_multiformat_analysis_lane as rich_lane_module
+import reciprocal_process_chain_current_v1 as reciprocal_current
+from hpfa.modules.core.reciprocal_process_chain_lite.src.full_spine_packet_bridge import bridge_reciprocal_packets
 from shared_surface_snapshot_contract import surface_snapshot_id
 from spine_runner import run_spine_check
 from user_output_bundle import snapshot_output_state, write_standard_user_outputs
@@ -111,8 +113,6 @@ def _bind_metric_governance_construct_gate() -> None:
     state = {"construct_blocked": False, "reason": None}
 
     def gated_sidecars(*args, **kwargs):
-        # Per-invocation state: one failed run may not poison a later healthy run
-        # in the same Python process.
         state["construct_blocked"] = False
         state["reason"] = None
         report = original_sidecars(*args, **kwargs)
@@ -150,6 +150,46 @@ def _normalize_current_surface_evidence(result: dict) -> None:
         engineering["current_context_episode_feature_lane_completed"] = (
             engineering.get("current_context_episode_feature_lane_reused") is True
         )
+
+
+def _attach_reciprocal_match_tomography_bridge(
+    result: dict,
+    *,
+    active_match_dir: str | Path,
+    out_dir: str | Path,
+) -> dict:
+    """Project reciprocal packet candidates through the existing C4 chain.
+
+    The bridge is deliberately review-only. It does not alter the base full-spine
+    status, does not create a parallel engine, and never converts CI/runtime
+    execution into ACTIVE_MATCH evidence truth or production release.
+    """
+    try:
+        bridge = bridge_reciprocal_packets(
+            active_match_dir=active_match_dir,
+            out_dir=out_dir,
+            reciprocal_runner=reciprocal_current.runtime_write_outputs,
+            packet_builder=full_spine_module.build_composite_packet,
+            intelligence_runner=full_spine_module.run_intelligence_chain,
+        )
+    except Exception as exc:
+        bridge = {
+            "module_id": "reciprocal_full_spine_packet_bridge_v1",
+            "status": "FAIL_CLOSED",
+            "decision": "BLOCK_MATCH_TOMOGRAPHY_BRIDGE",
+            "hard_block_hits": [f"reciprocal_full_spine_bridge_exception:{type(exc).__name__}"],
+            "active_match_evidence_pass": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+    result["reciprocal_match_tomography_bridge"] = bridge
+    result["reciprocal_match_tomography_bridge_status"] = bridge.get("status")
+    result["reciprocal_match_tomography_claim_output_allowed_count"] = bridge.get("claim_output_allowed_count", 0)
+    result["canonical_event_count"] = "UNKNOWN"
+    result["true_action_count"] = "UNKNOWN"
+    result["production_release"] = False
+    return result
 
 
 def main() -> int:
@@ -190,6 +230,11 @@ def main() -> int:
             execution_root=execution_root,
         )
         _normalize_current_surface_evidence(result)
+        result = _attach_reciprocal_match_tomography_bridge(
+            result,
+            active_match_dir=args.active_match_dir,
+            out_dir=args.out_dir,
+        )
         user_outputs = write_standard_user_outputs(
             args.out_dir,
             result,
@@ -218,6 +263,8 @@ def main() -> int:
         "analyst_report": user_outputs.get("analyst_report") if user_outputs else None,
         "bundle_zip": user_outputs.get("bundle_zip") if user_outputs else None,
         "bundle_manifest": user_outputs.get("bundle_manifest") if user_outputs else None,
+        "reciprocal_match_tomography_bridge_status": result.get("reciprocal_match_tomography_bridge_status"),
+        "reciprocal_match_tomography_claim_output_allowed_count": result.get("reciprocal_match_tomography_claim_output_allowed_count"),
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
