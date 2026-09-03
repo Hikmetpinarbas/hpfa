@@ -107,6 +107,28 @@ def test_unknown_team_not_forced_into_reciprocal_alternation() -> None:
     assert report["reciprocal_process_chain_candidate_count"] >= 1
 
 
+def test_sequence_crossing_episode_boundary_is_not_uniquely_bound() -> None:
+    rows = [
+        _seq("a", "TEAM_A", 8.0, 12.0, "DRIBBLE"),
+        _seq("b", "TEAM_B", 14.0, 16.0, "TACKLE"),
+    ]
+    report = build_reciprocal_process_chains(_payload(rows), _temporal())
+    assert report["reciprocal_process_chain_candidate_count"] == 1
+    chain = report["reciprocal_process_chain_candidates"][0]
+    assert chain["anchor_episode_candidate_id"] is None
+    assert chain["anchor_episode_binding_status"] == "SEQUENCE_CROSSES_EPISODE_BOUNDARY_REVIEW_REQUIRED"
+    assert "SEQUENCE_CROSSES_EPISODE_BOUNDARY_REVIEW_REQUIRED" in chain["review_hits"]
+    assert report["status"] == "REVIEW_REQUIRED"
+
+
+def test_current_runner_requires_current_temporal_generation() -> None:
+    source = Path("reciprocal_process_chain_current_v1.py").read_text(encoding="utf-8")
+    assert "run_current_episode_lane" in source
+    assert "current_temporal_generated" in source
+    assert "current_invocation_artifacts" in source
+    assert "current_episode_lane_fail_closed_or_current_temporal_output_missing" in source
+
+
 def test_no_sample_match_identity_leak() -> None:
     paths = [
         Path("hpfa/modules/core/reciprocal_process_chain_lite/src/reciprocal_process_chain.py"),
