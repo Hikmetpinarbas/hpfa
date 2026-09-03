@@ -195,6 +195,45 @@ def _normalize_current_surface_evidence(result: dict) -> None:
         )
 
 
+def _merge_current_invocation_artifacts(
+    result: dict,
+    bridge: dict,
+    out_dir: str | Path,
+) -> None:
+    """Lift producer-declared bridge artifacts into the canonical full-spine ledger.
+
+    The standard bundle reads only the top-level current_invocation_artifacts ledger.
+    A nested bridge ledger therefore must be explicitly projected upward or valid
+    current-run outputs can be silently omitted from the official bundle.
+    """
+    output_root = Path(out_dir).expanduser().resolve(strict=False)
+    existing = result.get("current_invocation_artifacts")
+    bridge_values = bridge.get("current_invocation_artifacts") if isinstance(bridge, dict) else None
+    values = [
+        *(existing if isinstance(existing, list) else []),
+        *(bridge_values if isinstance(bridge_values, list) else []),
+    ]
+
+    merged: list[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        path = Path(str(raw)).expanduser().resolve(strict=False)
+        if path.parent != output_root or not path.is_file():
+            continue
+        text = str(path)
+        if text in seen:
+            continue
+        seen.add(text)
+        merged.append(text)
+
+    result["current_invocation_artifacts"] = merged
+    result["reciprocal_bridge_artifacts_promoted_to_full_spine_ledger_count"] = sum(
+        1
+        for raw in (bridge_values if isinstance(bridge_values, list) else [])
+        if str(Path(str(raw)).expanduser().resolve(strict=False)) in seen
+    )
+
+
 def _attach_reciprocal_match_tomography_bridge(
     result: dict,
     *,
@@ -229,6 +268,7 @@ def _attach_reciprocal_match_tomography_bridge(
     result["reciprocal_match_tomography_bridge"] = bridge
     result["reciprocal_match_tomography_bridge_status"] = bridge.get("status")
     result["reciprocal_match_tomography_claim_output_allowed_count"] = bridge.get("claim_output_allowed_count", 0)
+    _merge_current_invocation_artifacts(result, bridge, out_dir)
     result["canonical_event_count"] = "UNKNOWN"
     result["true_action_count"] = "UNKNOWN"
     result["production_release"] = False
@@ -260,6 +300,7 @@ def _persist_augmented_full_spine_artifacts(result: dict, out_dir: str | Path) -
         markers = [
             f"reciprocal_match_tomography_bridge_status={result.get('reciprocal_match_tomography_bridge_status')}",
             f"reciprocal_match_tomography_claim_output_allowed_count={result.get('reciprocal_match_tomography_claim_output_allowed_count', 0)}",
+            f"reciprocal_bridge_artifacts_promoted_to_full_spine_ledger_count={result.get('reciprocal_bridge_artifacts_promoted_to_full_spine_ledger_count', 0)}",
             "reciprocal_match_tomography_active_match_evidence_pass=false",
             "canonical_event_count=UNKNOWN",
             "true_action_count=UNKNOWN",
@@ -349,6 +390,7 @@ def main() -> int:
         "bundle_manifest": user_outputs.get("bundle_manifest") if user_outputs else None,
         "reciprocal_match_tomography_bridge_status": result.get("reciprocal_match_tomography_bridge_status"),
         "reciprocal_match_tomography_claim_output_allowed_count": result.get("reciprocal_match_tomography_claim_output_allowed_count"),
+        "reciprocal_bridge_artifacts_promoted_to_full_spine_ledger_count": result.get("reciprocal_bridge_artifacts_promoted_to_full_spine_ledger_count"),
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
