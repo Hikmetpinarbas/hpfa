@@ -39,6 +39,11 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "same_outcome_support_link_count": 0,
         "outcome_contrast_status": "FAIL_CLOSED",
         "outcome_contrast_is_independent_evidence": False,
+        "defeasible_process_finding_inputs": [],
+        "defeasible_process_finding_input_count": 0,
+        "finding_input_status": "FAIL_CLOSED",
+        "finding_input_is_final_finding": False,
+        "finding_input_is_independent_evidence": False,
         "hard_block_hits": [reason],
         "review_hits": [],
         "same_timestamp_internal_ordering_allowed": False,
@@ -61,19 +66,12 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = reciprocal.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
 
-    # First build the current visible-sequence surface. This reuses the existing
-    # reconstruction spine and emits the shared row-nucleus/bridge artifacts
-    # required by the episode lane.
     sequence_payload = current_sequence.runtime_write_outputs(input_dir, output)
     if sequence_payload.get("status") == "FAIL_CLOSED":
         payload = _fail_payload(sequence_payload, "current_sequence_fail_closed")
         reciprocal.write_outputs(payload, output)
         return payload
 
-    # IMPORTANT: never load a temporal artifact merely because it already exists
-    # in out_dir. The episode lane clears its owned artifacts, validates the current
-    # input-surface snapshot, and regenerates temporal_episode_signature for this
-    # invocation. This prevents stale cross-match episode binding.
     execution_root = Path(__file__).resolve().parent
     episode_lane = run_current_episode_lane(input_dir, output, execution_root)
     temporal_path = output / TEMPORAL_JSON
@@ -94,10 +92,10 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
     temporal_payload = _load(temporal_path)
     payload = reciprocal.build_reciprocal_process_chains(sequence_payload, temporal_payload)
-    # Outcome contrast is a projection over already-built reciprocal candidates.
-    # It never creates occurrences, episodes, sequence truth, causal truth, or an
-    # independent support vote. Same-signature/different-visible-outcome analogues
-    # are preserved explicitly as counterevidence candidates.
+    # Outcome contrast and defeasible finding-input envelopes are dependent
+    # projections over already-built reciprocal candidates. They do not create
+    # occurrences/episodes, independent votes, causal truth, tactical truth or a
+    # final finding. Different-outcome analogues remain explicit counterevidence.
     payload = attach_outcome_contrast(payload)
     payload["current_sequence_status"] = sequence_payload.get("status")
     payload["current_episode_lane_status"] = episode_lane.get("status")
@@ -124,6 +122,8 @@ def main() -> int:
         "episode_bound_chain_count": payload.get("episode_bound_chain_count"),
         "outcome_contrast_candidate_count": payload.get("outcome_contrast_candidate_count"),
         "different_outcome_analogue_link_count": payload.get("different_outcome_analogue_link_count"),
+        "defeasible_process_finding_input_count": payload.get("defeasible_process_finding_input_count"),
+        "finding_input_status": payload.get("finding_input_status"),
         "same_time_response_candidate_block_count": payload.get("same_time_response_candidate_block_count"),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
