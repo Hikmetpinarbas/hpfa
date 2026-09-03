@@ -64,6 +64,28 @@ def _counter_search_metadata(support_ids: list[str], counter_ids: list[str]) -> 
     }
 
 
+def _claim_safety_metadata(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "counter_search_scope": row.get("counter_search_scope"),
+        "counter_search_scope_state": row.get("counter_search_scope_state"),
+        "counter_search_peer_count": row.get("counter_search_peer_count"),
+        "counter_search_evaluated_families": list(row.get("counter_search_evaluated_families") or []),
+        "counter_search_pending_families": list(row.get("counter_search_pending_families") or []),
+        "counter_search_complete_for_final_finding": False,
+        "alternative_explanation_search_state": row.get("alternative_explanation_search_state"),
+        "alternative_explanation_required": row.get("alternative_explanation_required") is True,
+        "falsifier_coverage_state": row.get("falsifier_coverage_state"),
+        "falsifier_families_evaluated": list(row.get("falsifier_families_evaluated") or []),
+        "falsifier_families_pending": list(row.get("falsifier_families_pending") or []),
+        "no_visible_counterexample_is_confirmation": False,
+        "support_links_are_independent_votes": False,
+        "counterevidence_links_are_independent_votes": False,
+        "withdrawal_condition": row.get("withdrawal_condition"),
+        "finding_emitted": False,
+        "claim_safety_metadata_is_truth_claim": False,
+    }
+
+
 def build_outcome_contrast_candidates(reciprocal_payload: dict[str, Any]) -> dict[str, Any]:
     """Build same-process/different-visible-outcome contrast candidates.
 
@@ -300,6 +322,7 @@ def build_c4_packet_candidates(finding_payload: dict[str, Any]) -> dict[str, Any
         if not finding_id or not chain_id or not (support_ids or counter_ids):
             continue
 
+        safety_metadata = _claim_safety_metadata(row)
         candidates.append({
             "packet_id": "cep_reciprocal_" + _digest(finding_id, chain_id, support_ids, counter_ids)[:20],
             "packet_family": "sequence",
@@ -339,6 +362,7 @@ def build_c4_packet_candidates(finding_payload: dict[str, Any]) -> dict[str, Any
             "counter_search_complete_for_final_finding": False,
             "alternative_explanation_search_state": row.get("alternative_explanation_search_state"),
             "falsifier_coverage_state": row.get("falsifier_coverage_state"),
+            "claim_safety_metadata": safety_metadata,
             "dependent_support_only": True,
             "counterevidence_is_dependent_projection": True,
             "finding_emitted": False,
