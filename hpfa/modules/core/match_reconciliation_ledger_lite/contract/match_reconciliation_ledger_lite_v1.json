@@ -1,0 +1,33 @@
+{
+  "module_id": "match_reconciliation_ledger_lite_v1",
+  "version": "1.0.0-candidate",
+  "purpose": "Audit bidirectional unit-whole consistency on one shared evidence graph without creating new football truth.",
+  "input_module": "reciprocal_process_chain_lite_v1",
+  "accounting_invariants": {
+    "one_occurrence_may_have_many_annotations": true,
+    "many_annotations_do_not_imply_many_occurrences": true,
+    "team_episode_count_uses_unique_episode_union": true,
+    "player_membership_sum_is_not_team_episode_count": true,
+    "reciprocal_forward_reverse_views_share_one_edge_id": true
+  },
+  "current_v1_scope": {
+    "cross_side_reciprocal_edge_consistency": true,
+    "team_episode_union_accounting": true,
+    "supporting_trace_union_accounting": true,
+    "player_team_episode_membership_reconciliation": false,
+    "loss_recovery_reconciliation": false,
+    "shot_gk_reconciliation": false,
+    "phase_reconciliation": false
+  },
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "sequence_truth": false,
+    "tactical_truth": false,
+    "causal_truth": false,
+    "claim_ceiling": "BIDIRECTIONAL_EVIDENCE_CONSISTENCY_CANDIDATE_ONLY"
+  }
+}

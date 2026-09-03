@@ -1,0 +1,1 @@
+V1 contract: one reciprocal relation candidate must have one shared edge identity across forward/reverse projections. Episode accounting uses unique-ID union. Membership sums are not episode counts. Unavailable reconciliation dimensions remain explicitly NOT_EVALUATED rather than inferred.
