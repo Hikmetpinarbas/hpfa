@@ -2,13 +2,14 @@
   "module_id": "reciprocal_process_chain_lite_v1",
   "status": "SPEC_ACCEPTED_CANDIDATE",
   "source_role": "CURRENT_PRODUCT_EXTENSION",
-  "purpose": "Build claim-safe reciprocal visible process candidates and same-signature visible outcome contrasts from current visible-action sequence and temporal-episode signature outputs without promoting possession, tactics, adaptation, causality, physical actions, or canonical events.",
+  "purpose": "Build claim-safe reciprocal visible process candidates, same-signature visible outcome contrasts, and defeasible finding-input envelopes from current visible-action sequence and temporal-episode signature outputs without promoting possession, tactics, adaptation, causality, physical actions, or canonical events.",
   "input_modules": [
     "visible_action_sequence_candidates_lite_v1",
     "temporal_episode_signature_lite_v1"
   ],
   "output_object": "RECIPROCAL_PROCESS_CHAIN_CANDIDATE",
   "secondary_output_object": "RECIPROCAL_OUTCOME_CONTRAST_CANDIDATE",
+  "tertiary_output_object": "DEFEASIBLE_PROCESS_FINDING_INPUT_CANDIDATE",
   "required_relations": [
     "NEXT_DIFFERENT_TEAM_VISIBLE_SEQUENCE_AFTER_CONFIRMED",
     "POSITIVE_TIME_ONLY",
@@ -34,6 +35,18 @@
     "outcome_contrast_is_tactical_success_truth": false,
     "expected_outcome_probability_allowed": false
   },
+  "defeasible_finding_input": {
+    "purpose": "Package one reciprocal process candidate with same-signature dependent support and different-outcome counterevidence for downstream finding composition.",
+    "emits_final_finding": false,
+    "support_links_are_independent_votes": false,
+    "counterevidence_links_are_independent_votes": false,
+    "absence_of_visible_counterexample_is_confirmation": false,
+    "effect_size_allowed": false,
+    "stable_team_tendency_allowed": false,
+    "expected_outcome_probability_allowed": false,
+    "creates_occurrence": false,
+    "creates_episode": false
+  },
   "hard_invariants": {
     "same_timestamp_internal_ordering_allowed": false,
     "source_row_order_is_temporal_truth": false,
@@ -53,8 +66,10 @@
     "adaptation truth",
     "causality",
     "dominance",
+    "effect size",
     "expected outcome probability",
     "possession truth",
+    "stable team tendency",
     "team shape",
     "pressure geometry",
     "tactical success truth"
