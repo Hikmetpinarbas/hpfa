@@ -7,6 +7,7 @@ from typing import Any
 
 CLAIM_CEILING = "RECIPROCAL_OUTCOME_CONTRAST_CANDIDATE_ONLY"
 FINDING_INPUT_CLAIM_CEILING = "DEFEASIBLE_PROCESS_FINDING_INPUT_CANDIDATE_ONLY"
+C4_PACKET_CLAIM_CEILING = "composite_candidate_only"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 
@@ -212,11 +213,125 @@ def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) ->
     }
 
 
+def _dependent_sequence_ref(ref_id: str, role: str) -> dict[str, Any]:
+    return {
+        "ref_id": ref_id,
+        "source_surface": "RECIPROCAL_PROCESS_CHAIN_CANDIDATE",
+        "evidence_role": role,
+        "dependency_group": "same_upstream_reciprocal_process_population",
+        "independent_support_vote": False,
+    }
+
+
+def _counter_signal_ref(ref_id: str) -> dict[str, Any]:
+    return {
+        "signal_ref": ref_id,
+        "source_surface": "RECIPROCAL_OUTCOME_CONTRAST_CANDIDATE",
+        "relation_type": "CONTRADICTS",
+        "explicit_contradiction": True,
+        "contradiction_basis": "same admitted process-family signature with different visible outcome signature candidate",
+        "dependency_group": "same_upstream_reciprocal_process_population",
+        "independent_support_vote": False,
+    }
+
+
+def build_c4_packet_candidates(finding_payload: dict[str, Any]) -> dict[str, Any]:
+    """Adapt reciprocal finding inputs to the existing C4 composite packet contract.
+
+    This is an adapter, not a new reasoning engine. Only finding inputs with at
+    least one admitted analogue are emitted because the existing composite packet
+    contract requires at least two distinct evidence refs. All refs remain
+    dependent projections of the same upstream reciprocal process population.
+    """
+    inputs = finding_payload.get("defeasible_process_finding_inputs") or []
+    if finding_payload.get("finding_input_status") == "FAIL_CLOSED" or not isinstance(inputs, list):
+        return {
+            "reciprocal_c4_packet_candidates": [],
+            "reciprocal_c4_packet_candidate_count": 0,
+            "reciprocal_c4_adapter_status": "FAIL_CLOSED",
+            "reciprocal_c4_adapter_claim_ceiling": C4_PACKET_CLAIM_CEILING,
+            "canonical_event_count": CANONICAL_EVENT_COUNT,
+            "true_action_count": TRUE_ACTION_COUNT,
+            "production_release": False,
+        }
+
+    candidates: list[dict[str, Any]] = []
+    for row in inputs:
+        if not isinstance(row, dict):
+            continue
+        finding_id = _clean(row.get("defeasible_process_finding_input_id"))
+        chain_id = _clean(row.get("reciprocal_process_chain_candidate_id"))
+        support_ids = sorted(set(_clean(item) for item in (row.get("dependent_support_chain_ids") or []) if _clean(item)))
+        counter_ids = sorted(set(_clean(item) for item in (row.get("counterevidence_chain_ids") or []) if _clean(item)))
+        if not finding_id or not chain_id or not (support_ids or counter_ids):
+            continue
+
+        candidates.append({
+            "packet_id": "cep_reciprocal_" + _digest(finding_id, chain_id, support_ids, counter_ids)[:20],
+            "packet_family": "sequence",
+            "input_features": [],
+            "input_windows": [],
+            "input_sequences": [
+                _dependent_sequence_ref(chain_id, "anchor_reciprocal_process_candidate"),
+                *[_dependent_sequence_ref(ref_id, "same_outcome_dependent_support_candidate") for ref_id in support_ids],
+            ],
+            "input_metrics": [],
+            "supporting_signals": [],
+            "contradicting_signals": [_counter_signal_ref(ref_id) for ref_id in counter_ids],
+            "claim_ceiling": C4_PACKET_CLAIM_CEILING,
+            "report_consumers": [
+                "multi_signal_evidence_fusion_lite",
+                "composite_argument_builder_lite",
+                "defeasible_argument_router_lite",
+                "evidence_graph_engine_lite",
+                "active_match_analyst_report_lite",
+            ],
+            "blocked_language_families": [
+                "tactical_truth",
+                "dominance_truth",
+                "control_truth",
+                "coach_intention",
+                "off_ball_truth",
+                "pitch_control_truth",
+                "causal_truth",
+                "quality_truth",
+                "sequence_truth",
+            ],
+            "source_finding_input_id": finding_id,
+            "source_outcome_contrast_candidate_id": row.get("outcome_contrast_candidate_id"),
+            "process_family_signature_candidate": row.get("process_family_signature_candidate") or {},
+            "visible_outcome_signature_candidate": row.get("visible_outcome_signature_candidate") or {},
+            "dependent_support_only": True,
+            "counterevidence_is_dependent_projection": True,
+            "finding_emitted": False,
+            "claim_output_allowed": False,
+            "report_language_allowed": False,
+            "canonical_event_count": CANONICAL_EVENT_COUNT,
+            "true_action_count": TRUE_ACTION_COUNT,
+            "production_release": False,
+        })
+
+    return {
+        "reciprocal_c4_packet_candidates": candidates,
+        "reciprocal_c4_packet_candidate_count": len(candidates),
+        "reciprocal_c4_adapter_status": "PASS" if candidates else "NO_ELIGIBLE_ANALOGUE_PACKET_CANDIDATES",
+        "reciprocal_c4_adapter_claim_ceiling": C4_PACKET_CLAIM_CEILING,
+        "reciprocal_c4_adapter_creates_new_engine": False,
+        "reciprocal_c4_adapter_creates_independent_evidence": False,
+        "reciprocal_c4_adapter_emits_final_finding": False,
+        "canonical_event_count": CANONICAL_EVENT_COUNT,
+        "true_action_count": TRUE_ACTION_COUNT,
+        "production_release": False,
+    }
+
+
 def attach_outcome_contrast(reciprocal_payload: dict[str, Any]) -> dict[str, Any]:
     output = dict(reciprocal_payload)
     contrast_payload = build_outcome_contrast_candidates(reciprocal_payload)
     output.update(contrast_payload)
-    output.update(build_defeasible_process_finding_inputs(contrast_payload))
+    finding_payload = build_defeasible_process_finding_inputs(contrast_payload)
+    output.update(finding_payload)
+    output.update(build_c4_packet_candidates(finding_payload))
     output["outcome_contrast_is_independent_evidence"] = False
     output["production_release"] = False
     output["canonical_event_count"] = CANONICAL_EVENT_COUNT
