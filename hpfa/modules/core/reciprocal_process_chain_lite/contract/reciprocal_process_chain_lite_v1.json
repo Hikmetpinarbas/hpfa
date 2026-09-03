@@ -1,0 +1,91 @@
+{
+  "module_id": "reciprocal_process_chain_lite_v1",
+  "status": "SPEC_ACCEPTED_CANDIDATE",
+  "source_role": "CURRENT_PRODUCT_EXTENSION",
+  "purpose": "Build claim-safe reciprocal visible process candidates, same-signature visible outcome contrasts, defeasible finding-input envelopes, and existing-C4-compatible packet candidates from current visible-action sequence and temporal-episode signature outputs without promoting possession, tactics, adaptation, causality, physical actions, or canonical events.",
+  "input_modules": [
+    "visible_action_sequence_candidates_lite_v1",
+    "temporal_episode_signature_lite_v1"
+  ],
+  "output_object": "RECIPROCAL_PROCESS_CHAIN_CANDIDATE",
+  "secondary_output_object": "RECIPROCAL_OUTCOME_CONTRAST_CANDIDATE",
+  "tertiary_output_object": "DEFEASIBLE_PROCESS_FINDING_INPUT_CANDIDATE",
+  "quaternary_output_object": "EXISTING_C4_COMPOSITE_PACKET_CANDIDATE",
+  "required_relations": [
+    "NEXT_DIFFERENT_TEAM_VISIBLE_SEQUENCE_AFTER_CONFIRMED",
+    "POSITIVE_TIME_ONLY",
+    "SAME_PERIOD_ONLY"
+  ],
+  "episode_binding": {
+    "method": "UNIQUE_FULL_INTERVAL_TIME_CONTAINMENT_CANDIDATE",
+    "multiple_matches": "REVIEW_REQUIRED",
+    "cross_boundary": "REVIEW_REQUIRED",
+    "no_match": "REVIEW_REQUIRED",
+    "episode_binding_is_canonical_membership_truth": false
+  },
+  "outcome_contrast": {
+    "comparison_basis": "SAME_ANCHOR_AND_RESPONSE_ACTION_FAMILY_SIGNATURE_CANDIDATE",
+    "outcome_basis": "VISIBLE_RESPONSE_CONSEQUENCE_PLUS_COUNTER_RESPONSE_SIGNATURE_CANDIDATE",
+    "different_visible_outcome": "COUNTEREVIDENCE_CANDIDATE",
+    "same_visible_outcome": "DEPENDENT_SUPPORT_CANDIDATE",
+    "creates_occurrence": false,
+    "creates_episode": false,
+    "creates_independent_support_vote": false,
+    "same_signature_implies_same_process_truth": false,
+    "outcome_contrast_is_causal_truth": false,
+    "outcome_contrast_is_tactical_success_truth": false,
+    "expected_outcome_probability_allowed": false
+  },
+  "defeasible_finding_input": {
+    "purpose": "Package one reciprocal process candidate with same-signature dependent support and different-outcome counterevidence for downstream finding composition.",
+    "emits_final_finding": false,
+    "support_links_are_independent_votes": false,
+    "counterevidence_links_are_independent_votes": false,
+    "absence_of_visible_counterexample_is_confirmation": false,
+    "effect_size_allowed": false,
+    "stable_team_tendency_allowed": false,
+    "expected_outcome_probability_allowed": false,
+    "creates_occurrence": false,
+    "creates_episode": false
+  },
+  "c4_adapter": {
+    "target_contract": "composite_evidence_packet_builder_lite_v1",
+    "target_packet_family": "sequence",
+    "opens_parallel_engine": false,
+    "requires_analogue_ref": true,
+    "isolated_process_bypasses_minimum_two_ref_gate": false,
+    "same_outcome_links": "DEPENDENT_SUPPORT_ONLY",
+    "different_outcome_links": "EXPLICIT_DEPENDENT_CONTRADICTION_CANDIDATE",
+    "creates_independent_support_vote": false,
+    "emits_final_finding": false,
+    "claim_ceiling": "composite_candidate_only"
+  },
+  "hard_invariants": {
+    "same_timestamp_internal_ordering_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "response_relation_is_causal_truth": false,
+    "response_relation_is_tactical_truth": false,
+    "counter_response_is_adaptation_truth": false,
+    "possession_truth": false,
+    "sequence_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "forbidden_inference": [
+    "coach intention",
+    "adaptation truth",
+    "causality",
+    "dominance",
+    "effect size",
+    "expected outcome probability",
+    "possession truth",
+    "stable team tendency",
+    "team shape",
+    "pressure geometry",
+    "tactical success truth"
+  ],
+  "release_state": "REVIEW_REQUIRED / ACTIVE_MATCH_REQUIRED / NOT_PRODUCTION"
+}
