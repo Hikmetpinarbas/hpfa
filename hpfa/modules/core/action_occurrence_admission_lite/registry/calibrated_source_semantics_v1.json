@@ -1,0 +1,84 @@
+{
+  "registry_id": "calibrated_source_semantics_v1",
+  "status": "REVIEWED_CANDIDATE_RULES_ONLY",
+  "source_role": "CURRENT_PRODUCT_EXTENSION",
+  "scope": "event_plus_aggregate_only_runtime",
+  "runtime_dependencies": {
+    "video": false,
+    "tracking": false,
+    "xlsx_creates_occurrence": false,
+    "csv_xml_reflections_are_independent": false
+  },
+  "claim_locks": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "time_semantics": {
+    "short_action_window_seconds_candidate": 12.0,
+    "short_action_families": [
+      "PASS", "DRIBBLE", "DUEL", "TACKLE", "RECOVERY", "TURNOVER",
+      "SHOT", "CARRY", "CROSS", "CLEARANCE", "INTERCEPTION", "FOUL",
+      "GOALKEEPER_ACTION", "RESTART"
+    ],
+    "short_action_anchor_role": "EVENT_ANCHOR_CANDIDATE",
+    "short_action_anchor_method": "WINDOW_MIDPOINT_CANDIDATE",
+    "long_interval_families": [
+      "POSITIONAL_ATTACK", "INVOLVEMENT_IN_POSITIONAL_ATTACK",
+      "COUNTERATTACK", "ATTACK_EPISODE", "TEAM_ATTACK"
+    ],
+    "long_interval_role": "EPISODE_ANNOTATION_INTERVAL_CANDIDATE",
+    "same_time_relation": "SAME_TIME_UNORDERED",
+    "row_order_relation": "ORDER_INDETERMINATE"
+  },
+  "spatial_semantics": {
+    "coordinate_frame_status": "STRONGLY_SUPPORTED_CANDIDATE",
+    "coordinate_frame_candidate": "105x68_ATTACKING_DIRECTION_NORMALIZED_CANDIDATE",
+    "physical_player_coordinate": false,
+    "endpoint_geometry_available": false,
+    "family_roles": {
+      "SHOT": "SHOT_LOCATION_ANCHOR_CANDIDATE",
+      "DRIBBLE": "ACTION_LOCATION_ANCHOR_CANDIDATE",
+      "DUEL": "ACTION_LOCATION_ANCHOR_CANDIDATE",
+      "TACKLE": "ACTION_LOCATION_ANCHOR_CANDIDATE",
+      "RECOVERY": "ACTION_LOCATION_ANCHOR_CANDIDATE",
+      "TURNOVER": "ACTION_LOCATION_ANCHOR_CANDIDATE",
+      "PASS": "ACTION_LOCATION_ANCHOR_CANDIDATE",
+      "CARRY": "ACTION_LOCATION_ANCHOR_CANDIDATE",
+      "CROSS": "ACTION_LOCATION_ANCHOR_CANDIDATE",
+      "TEAM_ATTACK": "EPISODE_SPATIAL_ANCHOR_CANDIDATE",
+      "POSITIONAL_ATTACK": "EPISODE_SPATIAL_ANCHOR_CANDIDATE",
+      "INVOLVEMENT_IN_POSITIONAL_ATTACK": "INHERITED_EPISODE_ANCHOR_CANDIDATE"
+    }
+  },
+  "annotation_roles": {
+    "allowed_roles": [
+      "PRIMARY_OCCURRENCE_CANDIDATE", "ATTRIBUTE_CANDIDATE",
+      "ACTOR_OPPONENT_RELATION_CANDIDATE", "CONSEQUENCE_CANDIDATE",
+      "EPISODE_MEMBERSHIP_CANDIDATE", "AGGREGATE_SUPPORT_ONLY",
+      "RAW_LABEL_ONLY_REVIEW_REQUIRED"
+    ],
+    "raw_provider_label_must_be_preserved": true,
+    "source_lineage_must_be_preserved": true
+  },
+  "pass_length_semantics": {
+    "surface_scope": "TEAM_PASS_ANNOTATION_ONLY",
+    "mappings": {
+      "Goal kicks short (0-15 m)": "PASS_LENGTH_SHORT_CANDIDATE",
+      "Goal kicks medium (15-40 m)": "PASS_LENGTH_MEDIUM_CANDIDATE",
+      "Goal kicks long (40+ m)": "PASS_LENGTH_LONG_CANDIDATE"
+    },
+    "literal_goal_kick": false,
+    "goalkeeper_surface_excluded": true
+  },
+  "hard_blocks": [
+    "ROW_ORDER_TO_CHRONOLOGY",
+    "SAME_TIMESTAMP_TO_TOTAL_ORDER",
+    "LONG_INTERVAL_TO_INSTANT_EVENT",
+    "POS_XY_TO_PHYSICAL_PLAYER_TRACKING",
+    "POS_XY_TO_START_END_VECTOR",
+    "TEAM_PASS_LENGTH_LABEL_TO_LITERAL_GOAL_KICK",
+    "XLSX_TO_OCCURRENCE",
+    "CSV_XML_REFLECTION_TO_INDEPENDENT_VOTE"
+  ]
+}

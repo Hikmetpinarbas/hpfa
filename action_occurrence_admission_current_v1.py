@@ -6,6 +6,9 @@ from pathlib import Path
 
 import cross_role_relation_candidate_resolver_current_v1 as current_relation
 from hpfa.modules.core.action_occurrence_admission_lite.src import action_occurrence_admission as occurrence
+from hpfa.modules.core.action_occurrence_admission_lite.src.calibrated_source_semantics import (
+    apply_calibrated_semantics_to_admission_payload,
+)
 from hpfa.modules.core.action_occurrence_admission_lite.src.conditional_review_passthrough import (
     build_action_occurrence_admission_with_conditional_review,
 )
@@ -50,6 +53,10 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "candidate_rejected_provider_semantics_binding_count": 0,
             "provider_semantics_binding_required": True,
             "provider_semantics_binding_status": "FAIL_CLOSED",
+            "calibrated_source_semantics_registry_status": "NOT_ATTACHED",
+            "calibrated_source_semantics_bundle_count": 0,
+            "calibrated_non_action_semantics_count": 0,
+            "calibrated_source_semantics_occurrence_attachment_count": 0,
             "hard_block_hits": ["current_relation_or_required_action_outputs_missing"],
             "review_hits": [],
             "precision_first_exact_rule_policy": True,
@@ -85,6 +92,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         taxonomy_payload,
         relation_payload,
         evidence_payload,
+    )
+    payload = apply_calibrated_semantics_to_admission_payload(
+        action_payload=action_payload,
+        admission_payload=payload,
+        evidence_payload=evidence_payload,
     )
     payload["current_relation_status"] = relation_payload.get("status")
     payload["current_taxonomy_status"] = relation_payload.get("current_taxonomy_status")
@@ -122,6 +134,10 @@ def main() -> int:
                     "current_content_source_role_bridge_status"
                 ),
                 "provider_semantics_binding_status": payload.get("provider_semantics_binding_status"),
+                "calibrated_source_semantics_registry_status": payload.get("calibrated_source_semantics_registry_status"),
+                "calibrated_source_semantics_bundle_count": payload.get("calibrated_source_semantics_bundle_count", 0),
+                "calibrated_non_action_semantics_count": payload.get("calibrated_non_action_semantics_count", 0),
+                "calibrated_source_semantics_occurrence_attachment_count": payload.get("calibrated_source_semantics_occurrence_attachment_count", 0),
                 "action_occurrence_candidate_count": payload.get("action_occurrence_candidate_count"),
                 "conditional_review_passthrough_record_count": payload.get("conditional_review_passthrough_record_count", 0),
                 "conditional_review_passthrough_candidate_count": payload.get("conditional_review_passthrough_candidate_count", 0),
