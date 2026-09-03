@@ -12,6 +12,7 @@ from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile
     build_process_variant_profiles,
 )
 from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile_outputs import (
+    clear_outputs as clear_process_variant_profile_outputs,
     write_outputs as write_process_variant_profile_outputs,
 )
 
@@ -88,6 +89,11 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = reciprocal.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
+
+    # This producer owns exactly three variant artifacts. Remove only those at the
+    # beginning of every invocation so an upstream early failure cannot leave stale
+    # process-variant outputs from a previous successful match/run.
+    clear_process_variant_profile_outputs(output)
 
     sequence_payload = current_sequence.runtime_write_outputs(input_dir, output)
     if sequence_payload.get("status") == "FAIL_CLOSED":
