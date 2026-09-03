@@ -48,6 +48,26 @@
     "creates_occurrence": false,
     "creates_episode": false
   },
+  "counter_search_completeness": {
+    "evaluated_scope": "SAME_ADMITTED_PROCESS_FAMILY_SIGNATURE_ONLY",
+    "evaluated_families": [
+      "DIRECT_VISIBLE_OUTCOME_CONTRAST"
+    ],
+    "pending_families": [
+      "CONTEXT_DEPENDENCE",
+      "SEGMENT_ONLY",
+      "PLAYER_OUTLIER",
+      "THRESHOLD_SENSITIVITY",
+      "OPPONENT_SYMMETRY",
+      "FAILED_TRACE_SUPPORT",
+      "DUPLICATE_REFLECTION_RISK",
+      "ALTERNATIVE_EXPLANATION"
+    ],
+    "complete_for_final_finding": false,
+    "alternative_explanation_search_state": "NOT_EVALUATED",
+    "falsifier_coverage_state": "PARTIAL",
+    "no_counterexample_in_partial_scope_is_confirmation": false
+  },
   "c4_adapter": {
     "target_contract": "composite_evidence_packet_builder_lite_v1",
     "target_packet_family": "sequence",
