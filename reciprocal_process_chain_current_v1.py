@@ -7,6 +7,7 @@ from pathlib import Path
 import visible_action_sequence_candidates_current_v1 as current_sequence
 from hpfa.modules.core.active_match_spine_runner.src.episode_lane_runner import run_current_episode_lane
 from hpfa.modules.core.reciprocal_process_chain_lite.src import reciprocal_process_chain as reciprocal
+from hpfa.modules.core.reciprocal_process_chain_lite.src.outcome_contrast import attach_outcome_contrast
 
 TEMPORAL_JSON = "temporal_episode_signature_lite_v1.json"
 
@@ -32,6 +33,12 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "unknown_episode_binding_count": 0,
         "same_time_response_candidate_block_count": 0,
         "response_family_pair_counts": {},
+        "outcome_contrast_candidates": [],
+        "outcome_contrast_candidate_count": 0,
+        "different_outcome_analogue_link_count": 0,
+        "same_outcome_support_link_count": 0,
+        "outcome_contrast_status": "FAIL_CLOSED",
+        "outcome_contrast_is_independent_evidence": False,
         "hard_block_hits": [reason],
         "review_hits": [],
         "same_timestamp_internal_ordering_allowed": False,
@@ -87,6 +94,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
     temporal_payload = _load(temporal_path)
     payload = reciprocal.build_reciprocal_process_chains(sequence_payload, temporal_payload)
+    # Outcome contrast is a projection over already-built reciprocal candidates.
+    # It never creates occurrences, episodes, sequence truth, causal truth, or an
+    # independent support vote. Same-signature/different-visible-outcome analogues
+    # are preserved explicitly as counterevidence candidates.
+    payload = attach_outcome_contrast(payload)
     payload["current_sequence_status"] = sequence_payload.get("status")
     payload["current_episode_lane_status"] = episode_lane.get("status")
     payload["current_temporal_generated"] = current_temporal_generated
@@ -110,6 +122,8 @@ def main() -> int:
         "reciprocal_process_chain_candidate_count": payload.get("reciprocal_process_chain_candidate_count"),
         "counter_response_visible_count": payload.get("counter_response_visible_count"),
         "episode_bound_chain_count": payload.get("episode_bound_chain_count"),
+        "outcome_contrast_candidate_count": payload.get("outcome_contrast_candidate_count"),
+        "different_outcome_analogue_link_count": payload.get("different_outcome_analogue_link_count"),
         "same_time_response_candidate_block_count": payload.get("same_time_response_candidate_block_count"),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
