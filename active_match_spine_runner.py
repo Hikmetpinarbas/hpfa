@@ -192,6 +192,45 @@ def _attach_reciprocal_match_tomography_bridge(
     return result
 
 
+def _persist_augmented_full_spine_artifacts(result: dict, out_dir: str | Path) -> dict:
+    """Persist post-run bridge augmentation into the canonical full-spine artifacts.
+
+    `run_full_spine` writes its canonical JSON/TXT before this wrapper attaches the
+    reciprocal Match Tomography bridge. Re-write those already-authoritative files
+    after augmentation so bundle/report consumers cannot observe a stale pre-bridge
+    snapshot. This is persistence only; it opens no claim or evidence state.
+    """
+    output_root = Path(out_dir).expanduser().resolve(strict=False)
+    json_path = output_root / full_spine_module.OUTPUT_JSON
+    txt_path = output_root / full_spine_module.OUTPUT_TXT
+    if not json_path.is_file():
+        result["reciprocal_match_tomography_artifact_persistence_status"] = "REVIEW_REQUIRED_CANONICAL_JSON_MISSING"
+        result.setdefault("review_hits", []).append("canonical_full_spine_json_missing_after_bridge_augmentation")
+        return result
+
+    json_path.write_text(
+        json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    if txt_path.is_file():
+        text = txt_path.read_text(encoding="utf-8").rstrip()
+        markers = [
+            f"reciprocal_match_tomography_bridge_status={result.get('reciprocal_match_tomography_bridge_status')}",
+            f"reciprocal_match_tomography_claim_output_allowed_count={result.get('reciprocal_match_tomography_claim_output_allowed_count', 0)}",
+            "reciprocal_match_tomography_active_match_evidence_pass=false",
+            "canonical_event_count=UNKNOWN",
+            "true_action_count=UNKNOWN",
+            "production_release=false",
+        ]
+        for marker in markers:
+            if marker not in text:
+                text += "\n" + marker
+        txt_path.write_text(text + "\n", encoding="utf-8")
+
+    result["reciprocal_match_tomography_artifact_persistence_status"] = "PERSISTED_IN_CANONICAL_FULL_SPINE_ARTIFACTS"
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run HPFA ACTIVE_MATCH spine v1.")
     parser.add_argument("active_match_dir")
@@ -235,6 +274,7 @@ def main() -> int:
             active_match_dir=args.active_match_dir,
             out_dir=args.out_dir,
         )
+        result = _persist_augmented_full_spine_artifacts(result, args.out_dir)
         user_outputs = write_standard_user_outputs(
             args.out_dir,
             result,
