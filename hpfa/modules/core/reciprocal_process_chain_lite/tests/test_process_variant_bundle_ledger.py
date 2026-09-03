@@ -1,5 +1,7 @@
 from pathlib import Path
+import zipfile
 
+import active_match_spine_runner as active_runner
 from hpfa.modules.core.reciprocal_process_chain_lite.src.full_spine_packet_bridge import (
     bridge_reciprocal_packets,
 )
@@ -69,6 +71,52 @@ def test_process_variant_outputs_are_carried_into_full_spine_current_artifact_le
     assert report["canonical_event_count"] == "UNKNOWN"
     assert report["true_action_count"] == "UNKNOWN"
     assert report["production_release"] is False
+
+
+def test_bridge_artifacts_reach_official_standard_bundle(tmp_path: Path):
+    profile_names = [
+        "reciprocal_process_variant_profile_lite_v1.json",
+        "reciprocal_process_variant_profile_lite_v1.txt",
+        "reciprocal_process_variant_profile_analyst_audit_v1.txt",
+    ]
+    bridge_paths = []
+    for name in profile_names:
+        path = tmp_path / name
+        path.write_text("current-run-profile\n", encoding="utf-8")
+        bridge_paths.append(str(path))
+
+    full_spine_json = tmp_path / "active_match_full_spine_v1.json"
+    full_spine_txt = tmp_path / "active_match_full_spine_v1.txt"
+    full_spine_json.write_text("{}\n", encoding="utf-8")
+    full_spine_txt.write_text("status=REVIEW_REQUIRED\n", encoding="utf-8")
+
+    result = {
+        "status": "REVIEW_REQUIRED",
+        "decision": "TEST",
+        "active_match_authority": "runtime/active_single_match/current",
+        "current_invocation_artifacts": [str(full_spine_json), str(full_spine_txt)],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+    bridge = {
+        "status": "REVIEW_REQUIRED",
+        "current_invocation_artifacts": bridge_paths,
+        "claim_output_allowed_count": 0,
+    }
+
+    active_runner._merge_current_invocation_artifacts(result, bridge, tmp_path)
+    outputs = active_runner.write_standard_user_outputs(tmp_path, result)
+
+    with zipfile.ZipFile(outputs["bundle_zip"]) as archive:
+        bundled = set(archive.namelist())
+
+    for name in profile_names:
+        assert name in bundled
+    assert result["reciprocal_bridge_artifacts_promoted_to_full_spine_ledger_count"] == len(profile_names)
+    assert result["canonical_event_count"] == "UNKNOWN"
+    assert result["true_action_count"] == "UNKNOWN"
+    assert result["production_release"] is False
 
 
 def test_non_declared_or_nested_artifacts_are_not_admitted(tmp_path: Path):
