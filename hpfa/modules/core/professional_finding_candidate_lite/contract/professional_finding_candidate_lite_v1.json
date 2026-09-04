@@ -1,6 +1,6 @@
 {
   "module_id": "professional_finding_candidate_lite_v1",
-  "version": "1.0.0-candidate",
+  "version": "1.1.0-candidate",
   "purpose": "Assemble evidence-bearing match-local analyst argument candidates from visible process recurrence surfaces without releasing a final tactical or causal finding.",
   "required_inputs": [
     "reciprocal_process_chain_lite_v1",
@@ -12,6 +12,7 @@
     "safe_analyst_sentence_candidate",
     "support",
     "counterevidence",
+    "finding_challenge_packet",
     "alternative_explanations",
     "uncertainty",
     "withdrawal_condition",
@@ -24,6 +25,23 @@
     "single_episode_repeat": "FRAGILE_LOCAL_REPEAT_ONLY",
     "multi_episode_repeat": "QUALIFIED_CANDIDATE_ONLY",
     "final_claim_gate": "CLOSED_V1"
+  },
+  "finding_challenge_policy": {
+    "challenge_state": "PARTIAL_MATCH_LOCAL_CHALLENGE_EVALUATED",
+    "same_signature_outcome_analogue": "REUSE_EXISTING_RECIPROCAL_OUTCOME_CONTRAST",
+    "segment_only": "EVALUATED_FROM_PROCESS_ROBUSTNESS",
+    "player_outlier": "EVALUATED_VISIBLE_MEMBERSHIP_ONLY",
+    "opponent_symmetry": "EVALUATED_VISIBLE_ANCHOR_SIDE_ONLY",
+    "trace_dependency": "MEASURED_NOT_INDEPENDENCE_TRUTH",
+    "leave_one_episode_scope_out": "EVALUATED_WHEN_ADMISSIBLE",
+    "leave_top_anchor_actor_out": "EVALUATED_WHEN_ADMISSIBLE",
+    "context_dependence": "PENDING",
+    "threshold_sensitivity": "PENDING",
+    "failed_trace_support": "PENDING",
+    "duplicate_reflection_risk": "PENDING",
+    "alternative_explanation_search": "PENDING",
+    "counter_search_complete_for_final_finding": false,
+    "no_visible_counterexample_is_confirmation": false
   },
   "counterevidence_policy": {
     "direct_visible_outcome_contrast": "EVALUATED_WHEN_AVAILABLE",
@@ -45,6 +63,7 @@
   "claim_locks": {
     "professional_finding_emitted": false,
     "claim_output_allowed": false,
+    "finding_challenge_packet_is_final_finding": false,
     "stable_tactical_pattern_truth": false,
     "coach_intention_truth": false,
     "causal_effectiveness_truth": false,
