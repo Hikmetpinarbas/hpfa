@@ -23,6 +23,16 @@ def _is_unknown(value: Any) -> bool:
     return _clean(value).casefold() in UNKNOWN_TEAM_VALUES
 
 
+def _identity_team_candidate(binding: dict[str, Any] | None) -> str:
+    if not isinstance(binding, dict):
+        return ""
+    subject = _clean(binding.get("team_subject_raw_candidate"))
+    if not _is_unknown(subject):
+        return subject
+    name = _clean(binding.get("team_name_raw_candidate"))
+    return "" if _is_unknown(name) else name
+
+
 def _index_unique(rows: Any, key: str, label: str, blocks: list[str]) -> dict[str, dict[str, Any]]:
     if not isinstance(rows, list):
         blocks.append(f"{label}_collection_invalid")
@@ -151,6 +161,7 @@ def project_team_attribution(
         nucleus_id = _clean(raw_row.get("row_nucleus_candidate_id"))
         atom = atom_by_nucleus.get(nucleus_id)
         binding = binding_by_atom.get(_clean(atom.get("evidence_atom_id")) if atom else "")
+        identity_team = _identity_team_candidate(binding)
 
         can_recover = (
             raw_row.get("source_role") == "TEAM"
@@ -160,13 +171,12 @@ def project_team_attribution(
             and binding.get("source_role") == "TEAM_SURFACE_CANDIDATE"
             and binding.get("decision_state") == "TEAM_IDENTITY_CANDIDATE_BOUND"
             and bool(_clean(binding.get("team_identity_candidate_id")))
-            and not _is_unknown(binding.get("team_name_raw_candidate"))
+            and not _is_unknown(identity_team)
             and binding.get("validated_team_identity") is False
         )
 
         if can_recover:
-            recovered_team = _clean(binding.get("team_name_raw_candidate"))
-            row["context_team_candidate"] = recovered_team
+            row["context_team_candidate"] = identity_team
             row["team_identity_candidate_id"] = _clean(binding.get("team_identity_candidate_id"))
             row["team_attribution_state_candidate"] = "RECOVERED_FROM_MATCH_LOCAL_IDENTITY_CANDIDATE"
             row["team_attribution_basis"] = "EXISTING_MATCH_LOCAL_IDENTITY_BINDING"
