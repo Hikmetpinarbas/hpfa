@@ -22,43 +22,31 @@ def _inputs(*, incomplete=False):
             "visible_outcome_normalized_entropy_candidate": 0.9,
             "recurrence_surface_robustness_composite_candidate": 0.683333,
         }],
-        "canonical_event_count": "UNKNOWN",
-        "true_action_count": "UNKNOWN",
-        "production_release": False,
-        "hard_block_hits": [],
+        "canonical_event_count": "UNKNOWN", "true_action_count": "UNKNOWN", "production_release": False, "hard_block_hits": [],
     }
     activity = {
         "module_id": "team_episode_activity_lens_lite_v1",
         "status": "PASS",
+        "activity_signal_family_source": "REVIEWED_PROVIDER_SEMANTICS",
         "team_episode_activity_rows": [
             {
-                "team_identity_candidate_id": "ta",
-                "team_normalized_key_candidate": "alpha",
+                "team_identity_candidate_id": "ta", "team_normalized_key_candidate": "alpha",
                 "known_team_eligible_action_candidate_count": 10,
-                "action_family_candidate_counts": {"PASS": 6, "SHOT": 2, "RESTART": 1, "CARRY_DRIBBLE": 1},
+                "action_family_candidate_counts": {"PASS": 6, "SHOT": 2, "RESTART": 1, "CARRY": 1},
                 "zone_candidate_counts": {"FINAL_THIRD": 5, "MIDDLE_THIRD": 5},
             },
             {
-                "team_identity_candidate_id": "ta",
-                "team_normalized_key_candidate": "alpha",
+                "team_identity_candidate_id": "ta", "team_normalized_key_candidate": "alpha",
                 "known_team_eligible_action_candidate_count": 10,
-                "action_family_candidate_counts": {"PASS": 4, "SHOT": 1, "DUEL_PRESSURE": 3, "RESTART": 2},
+                "action_family_candidate_counts": {"PASS": 4, "SHOT": 1, "DUEL": 2, "TACKLE": 1, "DRIBBLE": 1, "TURNOVER": 1, "RECOVERY": 1, "INTERCEPTION": 1, "RESTART": 1},
                 "zone_candidate_counts": {"FINAL_THIRD": 3, "MIDDLE_THIRD": 7},
             },
         ],
-        "canonical_event_count": "UNKNOWN",
-        "true_action_count": "UNKNOWN",
-        "production_release": False,
-        "hard_block_hits": [],
+        "canonical_event_count": "UNKNOWN", "true_action_count": "UNKNOWN", "production_release": False, "hard_block_hits": [],
     }
     reciprocal = {
-        "module_id": "reciprocal_process_chain_lite_v1",
-        "status": "PASS",
-        "eligible_reciprocal_population_count": 20,
-        "canonical_event_count": "UNKNOWN",
-        "true_action_count": "UNKNOWN",
-        "production_release": False,
-        "hard_block_hits": [],
+        "module_id": "reciprocal_process_chain_lite_v1", "status": "PASS", "eligible_reciprocal_population_count": 20,
+        "canonical_event_count": "UNKNOWN", "true_action_count": "UNKNOWN", "production_release": False, "hard_block_hits": [],
     }
     return robustness, activity, reciprocal
 
@@ -74,18 +62,34 @@ def test_process_metrics_preserve_match_local_units():
     assert row["statistical_significance_tested"] is False
 
 
-def test_team_visible_funnel_ratios_use_same_known_team_surface():
+def test_team_visible_funnel_and_family_ratios_use_same_reviewed_surface():
     result = build_process_metric_profile(*_inputs())
     row = result["team_visible_activity_metric_rows"][0]
     assert row["known_team_eligible_action_candidate_count"] == 20
     assert row["visible_pass_family_candidate_count"] == 10
     assert row["visible_shot_family_candidate_count"] == 3
+    assert row["visible_carry_dribble_family_candidate_count"] == 2
+    assert row["visible_duel_tackle_family_candidate_count"] == 3
+    assert row["visible_loss_family_candidate_count"] == 1
+    assert row["visible_recovery_interception_family_candidate_count"] == 2
+    assert row["visible_restart_family_candidate_count"] == 2
     assert row["visible_final_third_zone_candidate_count"] == 8
     assert row["M_TEAM_VISIBLE_FINAL_THIRD_ACTION_SHARE_CANDIDATE"] == 0.4
     assert row["M_TEAM_VISIBLE_SHOT_ACTION_SHARE_CANDIDATE"] == 0.15
     assert row["M_TEAM_VISIBLE_SHOT_PER_FINAL_THIRD_ACTION_CANDIDATE"] == 0.375
     assert row["M_TEAM_VISIBLE_TERMINAL_TO_PASS_RATIO_CANDIDATE"] == 0.3
+    assert row["M_TEAM_VISIBLE_CARRY_DRIBBLE_ACTION_SHARE_CANDIDATE"] == 0.1
+    assert row["M_TEAM_VISIBLE_DUEL_TACKLE_ACTION_SHARE_CANDIDATE"] == 0.15
+    assert row["team_metric_family_source"] == "REVIEWED_PROVIDER_SEMANTICS"
     assert row["terminal_ratio_is_finishing_quality_or_conversion_probability"] is False
+
+
+def test_non_reviewed_activity_family_source_fails_closed():
+    robustness, activity, reciprocal = _inputs()
+    activity["activity_signal_family_source"] = "PRELIMINARY"
+    result = build_process_metric_profile(robustness, activity, reciprocal)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "activity_family_source_not_reviewed_provider_semantics" in result["hard_block_hits"]
 
 
 def test_incomplete_episode_binding_marks_process_metric_review_eligibility():
@@ -105,6 +109,7 @@ def test_output_locks(tmp_path: Path):
     result = build_process_metric_profile(*_inputs())
     paths = write_outputs(result, tmp_path)
     text = paths["summary"].read_text(encoding="utf-8")
+    assert "team_metric_family_source=REVIEWED_PROVIDER_SEMANTICS" in text
     assert "composite_metrics_are_calibrated=false" in text
     assert "statistical_significance_tested=false" in text
     assert "canonical_event_count=UNKNOWN" in text
