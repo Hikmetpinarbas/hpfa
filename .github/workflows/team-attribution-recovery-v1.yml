@@ -113,7 +113,6 @@ jobs:
               Path('context_action_semantics_rebind.py'),
               Path('evidence_atom_inventory_lite.py'),
               Path('match_local_identity_candidates_lite.py'),
-              Path('tests/test_team_attribution_primary_runtime_wiring.py'),
               Path('hpfa/modules/core/context_action_semantics_rebind_lite/src/team_attribution_projection.py'),
           ]
           text = '\n'.join(path.read_text(encoding='utf-8').casefold() for path in paths)
