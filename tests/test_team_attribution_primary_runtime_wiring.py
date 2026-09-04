@@ -98,7 +98,8 @@ def test_no_sample_match_identity_leak() -> None:
     paths = [
         Path(full_run.__file__),
         Path(semantics_wrapper.__file__),
-        Path(__file__),
+        Path("evidence_atom_inventory_lite.py"),
+        Path("match_local_identity_candidates_lite.py"),
     ]
     text = "\n".join(path.read_text(encoding="utf-8").casefold() for path in paths)
     forbidden = ["fenerbah", "genclerbir", "15.08.2026", "27041", "29575"]
