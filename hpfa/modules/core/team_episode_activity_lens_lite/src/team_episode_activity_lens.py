@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-import re
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
 MODULE_ID = "team_episode_activity_lens_lite_v1"
 CONTEXT_MODULE_ID = "minimum_viable_context_lite_v1"
+SEMANTIC_MODULE_ID = "context_action_semantics_rebind_lite_v1"
 EPISODE_MODULE_ID = "analyst_episode_locator_lite_v1"
 IDENTITY_MODULE_ID = "match_local_identity_candidates_lite_v1"
 CLAIM_CEILING = "TEAM_CONDITIONED_EPISODE_ACTIVITY_CANDIDATE_ONLY"
@@ -23,7 +23,7 @@ ACTIVITY_SIGNAL_FIELDS = {
     "DUEL_PRESSURE_ACTIVITY_CANDIDATE": ("family", "DUEL_PRESSURE"),
     "ADVANCED_ACCESS_ACTIVITY_CANDIDATE": ("zone", "FINAL_THIRD"),
     "TERMINAL_ACTIVITY_CANDIDATE": ("family", "SHOT"),
-    "RESTART_RESET_ACTIVITY_CANDIDATE": ("family", "DEAD_BALL"),
+    "RESTART_RESET_ACTIVITY_CANDIDATE": ("family", "RESTART"),
 }
 
 
@@ -39,7 +39,7 @@ def _alias_key(value: Any) -> str:
     return _clean(value).casefold()
 
 
-def _validate_input(payload: dict[str, Any], expected: str, label: str, blocks: list[str]) -> None:
+def _validate(payload: dict[str, Any], expected: str, label: str, blocks: list[str]) -> None:
     if payload.get("module_id") != expected:
         blocks.append(f"{label}_module_id_mismatch")
     if payload.get("canonical_event_count") != CANONICAL_EVENT_COUNT:
@@ -54,30 +54,55 @@ def _validate_input(payload: dict[str, Any], expected: str, label: str, blocks: 
         blocks.append(f"{label}_input_hard_blocked")
 
 
+def _index(rows: Any, key: str, label: str, blocks: list[str]) -> dict[str, dict[str, Any]]:
+    if not isinstance(rows, list):
+        blocks.append(f"{label}_collection_invalid")
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for idx, row in enumerate(rows):
+        if not isinstance(row, dict):
+            blocks.append(f"{label}_record_invalid:{idx}")
+            continue
+        value = _clean(row.get(key))
+        if not value or value in out:
+            blocks.append(f"{label}_identity_invalid_or_duplicate:{idx}")
+            continue
+        out[value] = row
+    return out
+
+
 def build_team_episode_activity_lens(
     context_payload: dict[str, Any],
+    semantic_payload: dict[str, Any],
     episode_payload: dict[str, Any],
     identity_payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build descriptive team-conditioned activity signals inside admitted episode scopes.
+    """Describe reviewed visible action activity by team inside admitted episode scopes.
 
-    This lens uses only action-occurrence-eligible context refs already assigned to
-    analyst episode candidates. Signals are multi-label descriptive candidates;
-    they are not mutually exclusive football phases, possession states, tactical
-    regimes, pressure geometry or causal transition truth.
+    Eligible context membership comes from the episode layer, while football action
+    family comes from reviewed provider semantics. This prevents preliminary
+    minimum-context labels from overriding a reviewed action family. Signals remain
+    multi-label descriptive candidates, never possession or tactical phase truth.
     """
     blocks: list[str] = []
     reviews: list[str] = []
-    _validate_input(context_payload, CONTEXT_MODULE_ID, "context", blocks)
-    _validate_input(episode_payload, EPISODE_MODULE_ID, "episode", blocks)
-    _validate_input(identity_payload, IDENTITY_MODULE_ID, "identity", blocks)
+    for label, payload, expected in (
+        ("context", context_payload, CONTEXT_MODULE_ID),
+        ("semantic", semantic_payload, SEMANTIC_MODULE_ID),
+        ("episode", episode_payload, EPISODE_MODULE_ID),
+        ("identity", identity_payload, IDENTITY_MODULE_ID),
+    ):
+        _validate(payload, expected, label, blocks)
 
-    contexts = context_payload.get("context_candidates") or []
+    contexts = _index(context_payload.get("context_candidates") or [], "context_id", "context", blocks)
+    semantics = _index(
+        semantic_payload.get("context_action_semantic_records") or [],
+        "context_id",
+        "semantic",
+        blocks,
+    )
     episodes = episode_payload.get("episode_candidates") or []
     teams = identity_payload.get("team_identity_candidates") or []
-    if not isinstance(contexts, list):
-        blocks.append("context_collection_invalid")
-        contexts = []
     if not isinstance(episodes, list):
         blocks.append("episode_collection_invalid")
         episodes = []
@@ -85,30 +110,19 @@ def build_team_episode_activity_lens(
         blocks.append("team_identity_collection_invalid")
         teams = []
 
-    context_by_id: dict[str, dict[str, Any]] = {}
-    for index, row in enumerate(contexts):
-        if not isinstance(row, dict):
-            blocks.append(f"context_record_invalid:{index}")
-            continue
-        context_id = _clean(row.get("context_id"))
-        if not context_id or context_id in context_by_id:
-            blocks.append(f"context_identity_invalid_or_duplicate:{index}")
-            continue
-        context_by_id[context_id] = row
-
     alias_to_team: dict[str, str] = {}
     team_name_by_id: dict[str, str] = {}
-    for index, team in enumerate(teams):
+    for idx, team in enumerate(teams):
         if not isinstance(team, dict):
-            blocks.append(f"team_identity_record_invalid:{index}")
+            blocks.append(f"team_identity_record_invalid:{idx}")
             continue
         team_id = _clean(team.get("team_identity_candidate_id"))
         if not team_id:
-            blocks.append(f"team_identity_id_missing:{index}")
+            blocks.append(f"team_identity_id_missing:{idx}")
             continue
-        team_name_by_id[team_id] = _clean(team.get("team_normalized_key")) or team_id
-        aliases = list(team.get("team_aliases_raw") or [])
         normalized = _clean(team.get("team_normalized_key"))
+        team_name_by_id[team_id] = normalized or team_id
+        aliases = list(team.get("team_aliases_raw") or [])
         if normalized:
             aliases.extend([normalized, normalized.replace("_", " ")])
         for alias in aliases:
@@ -119,64 +133,64 @@ def build_team_episode_activity_lens(
     rows: list[dict[str, Any]] = []
     team_signal_episode_counts: dict[str, Counter[str]] = defaultdict(Counter)
     team_signal_volume_counts: dict[str, Counter[str]] = defaultdict(Counter)
-    team_known_action_counts: Counter[str] = Counter()
-    total_eligible = 0
-    total_known_team = 0
-    total_unknown_team = 0
+    team_known_counts: Counter[str] = Counter()
+    total_eligible = total_known = total_unknown_team = total_missing_semantics = 0
 
     if not blocks:
         for episode in episodes:
             if not isinstance(episode, dict):
                 continue
             episode_id = _clean(episode.get("episode_candidate_id"))
-            eligible_refs = episode.get("action_occurrence_eligible_context_refs") or []
-            if not episode_id or not isinstance(eligible_refs, list):
+            refs = episode.get("action_occurrence_eligible_context_refs") or []
+            if not episode_id or not isinstance(refs, list):
                 reviews.append("episode_missing_identity_or_eligible_context_refs")
                 continue
-            total_eligible += len(eligible_refs)
+            total_eligible += len(refs)
             state: dict[str, dict[str, Any]] = defaultdict(
-                lambda: {
-                    "family": Counter(),
-                    "zone": Counter(),
-                    "channel": Counter(),
-                    "context_ids": [],
-                }
+                lambda: {"family": Counter(), "zone": Counter(), "channel": Counter(), "context_ids": []}
             )
-            unknown_count = 0
-            for context_id_raw in eligible_refs:
-                context_id = _clean(context_id_raw)
-                context = context_by_id.get(context_id)
+            episode_unknown = 0
+            for raw_id in refs:
+                context_id = _clean(raw_id)
+                context = contexts.get(context_id)
+                semantic = semantics.get(context_id)
                 if context is None:
                     blocks.append(f"eligible_context_not_found:{episode_id}:{context_id}")
                     continue
-                team_label = _alias_key(context.get("team_label"))
+                if semantic is None or semantic.get("action_occurrence_eligible") is not True:
+                    total_missing_semantics += 1
+                    reviews.append(f"eligible_context_reviewed_semantics_missing:{context_id}")
+                    continue
+                team_label = _alias_key(semantic.get("context_team_candidate") or context.get("team_label"))
                 team_id = alias_to_team.get(team_label)
                 if not team_id:
-                    unknown_count += 1
+                    episode_unknown += 1
                     continue
+                family = _clean(semantic.get("provider_action_family_candidate")) or "UNKNOWN_OR_OTHER"
+                zone = _clean(semantic.get("context_zone_candidate") or context.get("zone_candidate")) or "UNKNOWN_ZONE"
+                channel = _clean(semantic.get("context_channel_candidate") or context.get("channel_candidate")) or "UNKNOWN_CHANNEL"
                 item = state[team_id]
-                item["family"][_clean(context.get("action_family")) or "UNKNOWN_OR_OTHER"] += 1
-                item["zone"][_clean(context.get("zone_candidate")) or "UNKNOWN_ZONE"] += 1
-                item["channel"][_clean(context.get("channel_candidate")) or "UNKNOWN_CHANNEL"] += 1
+                item["family"][family] += 1
+                item["zone"][zone] += 1
+                item["channel"][channel] += 1
                 item["context_ids"].append(context_id)
 
-            total_unknown_team += unknown_count
+            total_unknown_team += episode_unknown
             for team_id, item in sorted(state.items()):
-                known_count = len(item["context_ids"])
-                total_known_team += known_count
-                team_known_action_counts[team_id] += known_count
+                known = len(item["context_ids"])
+                total_known += known
+                team_known_counts[team_id] += known
                 signal_counts: dict[str, int] = {}
                 signal_shares: dict[str, float] = {}
-                present_signals: list[str] = []
+                present: list[str] = []
                 for signal, (source, key) in ACTIVITY_SIGNAL_FIELDS.items():
                     count = int(item[source].get(key, 0))
                     signal_counts[signal] = count
-                    signal_shares[signal] = round(count / known_count, 6) if known_count else 0.0
-                    if count > 0:
-                        present_signals.append(signal)
+                    signal_shares[signal] = round(count / known, 6) if known else 0.0
+                    if count:
+                        present.append(signal)
                         team_signal_episode_counts[team_id][signal] += 1
                         team_signal_volume_counts[team_id][signal] += count
-
                 rows.append({
                     "episode_candidate_id": episode_id,
                     "period_candidate": episode.get("period_candidate"),
@@ -184,15 +198,16 @@ def build_team_episode_activity_lens(
                     "end_second_candidate": episode.get("end_second_candidate"),
                     "team_identity_candidate_id": team_id,
                     "team_normalized_key_candidate": team_name_by_id.get(team_id),
-                    "known_team_eligible_action_candidate_count": known_count,
-                    "episode_unknown_team_eligible_action_candidate_count": unknown_count,
+                    "known_team_eligible_action_candidate_count": known,
+                    "episode_unknown_team_eligible_action_candidate_count": episode_unknown,
                     "action_family_candidate_counts": dict(sorted(item["family"].items())),
                     "zone_candidate_counts": dict(sorted(item["zone"].items())),
                     "channel_candidate_counts": dict(sorted(item["channel"].items())),
                     "visible_activity_signal_counts": signal_counts,
                     "visible_activity_signal_shares_candidate": signal_shares,
-                    "visible_activity_signals_present": present_signals,
+                    "visible_activity_signals_present": present,
                     "source_context_ids": sorted(item["context_ids"]),
+                    "action_family_source": "REVIEWED_PROVIDER_SEMANTICS",
                     "activity_signals_are_mutually_exclusive_phases": False,
                     "activity_signal_is_possession_truth": False,
                     "activity_signal_is_tactical_phase_truth": False,
@@ -201,20 +216,24 @@ def build_team_episode_activity_lens(
                     "claim_ceiling": CLAIM_CEILING,
                 })
 
-    summaries = []
-    for team_id in sorted(set(team_known_action_counts) | set(team_signal_episode_counts)):
-        summaries.append({
+    summaries = [
+        {
             "team_identity_candidate_id": team_id,
             "team_normalized_key_candidate": team_name_by_id.get(team_id),
-            "known_team_eligible_action_candidate_count": int(team_known_action_counts.get(team_id, 0)),
-            "episode_count_with_known_team_action": sum(
-                1 for row in rows if row["team_identity_candidate_id"] == team_id
-            ),
+            "known_team_eligible_action_candidate_count": int(team_known_counts.get(team_id, 0)),
+            "episode_count_with_known_team_action": sum(row["team_identity_candidate_id"] == team_id for row in rows),
             "activity_signal_episode_counts": dict(sorted(team_signal_episode_counts[team_id].items())),
             "activity_signal_volume_counts": dict(sorted(team_signal_volume_counts[team_id].items())),
-        })
+        }
+        for team_id in sorted(set(team_known_counts) | set(team_signal_episode_counts))
+    ]
 
-    for label, payload in (("context", context_payload), ("episode", episode_payload), ("identity", identity_payload)):
+    for label, payload in (
+        ("context", context_payload),
+        ("semantic", semantic_payload),
+        ("episode", episode_payload),
+        ("identity", identity_payload),
+    ):
         if _status(payload.get("status") or payload.get("module_status")) == "REVIEW_REQUIRED":
             reviews.append(f"{label}_upstream_review_required")
 
@@ -229,11 +248,11 @@ def build_team_episode_activity_lens(
         "team_activity_summaries": summaries if not blocks else [],
         "input_episode_candidate_count": len(episodes),
         "total_eligible_action_candidate_count": total_eligible if not blocks else 0,
-        "known_team_eligible_action_candidate_count": total_known_team if not blocks else 0,
+        "known_team_eligible_action_candidate_count": total_known if not blocks else 0,
         "unknown_team_eligible_action_candidate_count": total_unknown_team if not blocks else 0,
-        "known_team_attribution_coverage_candidate": (
-            round(total_known_team / total_eligible, 6) if total_eligible and not blocks else None
-        ),
+        "reviewed_semantics_missing_for_eligible_context_count": total_missing_semantics if not blocks else 0,
+        "known_team_attribution_coverage_candidate": round(total_known / total_eligible, 6) if total_eligible and not blocks else None,
+        "activity_signal_family_source": "REVIEWED_PROVIDER_SEMANTICS",
         "activity_signals_are_multi_label_descriptive_candidates": True,
         "activity_signals_are_true_phases": False,
         "possession_truth": False,
@@ -270,6 +289,7 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
         f"known_team_eligible_action_candidate_count={payload.get('known_team_eligible_action_candidate_count', 0)}",
         f"unknown_team_eligible_action_candidate_count={payload.get('unknown_team_eligible_action_candidate_count', 0)}",
         f"known_team_attribution_coverage_candidate={payload.get('known_team_attribution_coverage_candidate')}",
+        "action_family_source=REVIEWED_PROVIDER_SEMANTICS",
         "true_phase_truth=false",
         "possession_truth=false",
         "tactical_truth=false",
@@ -280,7 +300,7 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
     ]), encoding="utf-8")
     lines = [
         "HPFA ANALYST AUDIT — TEAM-CONDITIONED EPISODE ACTIVITY",
-        "These are visible multi-label activity signals inside admitted analyst episode scopes, not mutually exclusive tactical phases.",
+        "Action-family counts use reviewed provider semantics; signals are visible multi-label activity candidates, not tactical phases.",
     ]
     for row in payload.get("team_activity_summaries") or []:
         lines.append(
