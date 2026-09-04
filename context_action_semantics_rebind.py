@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -15,6 +16,16 @@ def _load_optional_json(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def _load_module_from_path(module_name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load module {module_name} from {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _append_projection_audit(report: dict[str, Any]) -> None:
@@ -45,14 +56,33 @@ def _append_projection_audit(report: dict[str, Any]) -> None:
                 handle.write(text)
 
 
+def _inherit_projection_status(report: dict[str, Any], projected: dict[str, Any]) -> None:
+    status = projected.get("status")
+    if status == "FAIL_CLOSED":
+        report["status"] = "FAIL_CLOSED"
+        report["decision"] = "CONTEXT_ACTION_SEMANTICS_TEAM_ATTRIBUTION_PROJECTION_REJECTED"
+        report["hard_block_hits"] = sorted(set(
+            list(report.get("hard_block_hits") or [])
+            + [f"team_attribution:{item}" for item in (projected.get("hard_block_hits") or [])]
+        ))
+        return
+    if status == "REVIEW_REQUIRED":
+        if report.get("status") != "FAIL_CLOSED":
+            report["status"] = "REVIEW_REQUIRED"
+        review_hits = list(report.get("review_hits") or [])
+        projection_hits = list(projected.get("review_hits") or [])
+        if not projection_hits:
+            projection_hits = ["team_attribution_projection_review_required"]
+        report["review_hits"] = sorted(set(review_hits + [f"team_attribution:{item}" for item in projection_hits]))
+
+
 def write_outputs(input_dir: str | Path, out_dir: str | Path, *, repo_root: str | Path | None = None) -> dict[str, Any]:
     root = Path(repo_root).resolve() if repo_root is not None else Path(__file__).resolve().parent
     src = root / "hpfa" / "modules" / "core" / "context_action_semantics_rebind_lite" / "src"
-    if str(src) not in sys.path:
-        sys.path.insert(0, str(src))
-
-    import context_action_semantics_rebind as core  # type: ignore
-    import team_attribution_projection as projection  # type: ignore
+    core_path = src / "context_action_semantics_rebind.py"
+    projection_path = src / "team_attribution_projection.py"
+    core = _load_module_from_path("hpfa_context_action_semantics_rebind_core_v1", core_path)
+    projection = _load_module_from_path("hpfa_team_attribution_projection_core_v1", projection_path)
 
     report = core.write_outputs(input_dir, out_dir, repo_root=root)
     source = Path(input_dir).expanduser().resolve(strict=False)
@@ -82,14 +112,8 @@ def write_outputs(input_dir: str | Path, out_dir: str | Path, *, repo_root: str 
         report["effective_known_team_coverage_candidate"] = projected.get("effective_known_team_coverage_candidate")
         report["team_attribution_is_validated_truth"] = False
 
-        if projected.get("status") == "FAIL_CLOSED":
-            report["status"] = "FAIL_CLOSED"
-            report["decision"] = "CONTEXT_ACTION_SEMANTICS_TEAM_ATTRIBUTION_PROJECTION_REJECTED"
-            report["hard_block_hits"] = sorted(set(
-                list(report.get("hard_block_hits") or [])
-                + [f"team_attribution:{item}" for item in (projected.get("hard_block_hits") or [])]
-            ))
-        else:
+        _inherit_projection_status(report, projected)
+        if report.get("status") != "FAIL_CLOSED":
             projected_rows = projected.get("context_action_semantic_records")
             if isinstance(projected_rows, list) and len(projected_rows) == len(report.get("context_action_semantic_records") or []):
                 report["context_action_semantic_records"] = projected_rows
