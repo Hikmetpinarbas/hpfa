@@ -1,0 +1,106 @@
+name: Team Attribution Recovery V1
+
+on:
+  pull_request:
+    paths:
+      - 'context_action_semantics_rebind.py'
+      - 'hpfa/modules/core/context_action_semantics_rebind_lite/**'
+      - 'hpfa/modules/core/evidence_atom_inventory_lite/**'
+      - 'hpfa/modules/core/match_local_identity_candidates_lite/**'
+      - 'hpfa/modules/core/episode_feature_vector_lite/**'
+      - 'hpfa/modules/core/team_episode_activity_lens_lite/**'
+      - '.github/workflows/team-attribution-recovery-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  team-attribution-recovery:
+    runs-on: ubuntu-24.04
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          echo "exact_head_sha=$EXPECTED_HEAD"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused dependencies
+        run: python -m pip install --disable-pip-version-check pytest openpyxl
+
+      - name: Compile recovery chain
+        run: |
+          python -m compileall -q \
+            hpfa/modules/core/context_action_semantics_rebind_lite \
+            hpfa/modules/core/evidence_atom_inventory_lite \
+            hpfa/modules/core/match_local_identity_candidates_lite \
+            hpfa/modules/core/episode_feature_vector_lite \
+            hpfa/modules/core/team_episode_activity_lens_lite \
+            context_action_semantics_rebind.py
+
+      - name: Run recovery regressions
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/context_action_semantics_rebind_lite/tests/test_team_attribution_projection.py
+
+      - name: Preserve existing match-local identity bridge
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/match_local_identity_candidates_lite/tests/test_current_team_surface_identity_bridge.py
+
+      - name: Preserve reviewed semantics regressions
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/context_action_semantics_rebind_lite/tests/test_context_action_semantics_rebind.py
+
+      - name: Recovery policy guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=hpfa/modules/core/context_action_semantics_rebind_lite/src/team_attribution_projection.py
+          grep -F 'EXACT_SUFFIX_ONLY_WHEN_TEAM_FIELD_ABSENT' "$P"
+          grep -F 'EXISTING_MATCH_LOCAL_IDENTITY_BINDING' "$P"
+          grep -F 'action_occurrence_count_changed_by_projection": False' "$P"
+          grep -F 'new_team_identity_created": False' "$P"
+          grep -F 'fuzzy_team_matching_used": False' "$P"
+          grep -F 'opponent_guessing_used": False' "$P"
+          grep -F 'filename_team_inference_used": False' "$P"
+          grep -F 'episode_majority_vote_used": False' "$P"
+
+      - name: Claim locks
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=hpfa/modules/core/context_action_semantics_rebind_lite/src/team_attribution_projection.py
+          grep -F '"canonical_event_count": "UNKNOWN"' "$P"
+          grep -F '"true_action_count": "UNKNOWN"' "$P"
+          grep -F '"possession_truth": False' "$P"
+          grep -F '"phase_truth": False' "$P"
+          grep -F '"tactical_truth": False' "$P"
+          grep -F '"production_release": False' "$P"
+
+      - name: No sample identity leak
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path('hpfa/modules/core/context_action_semantics_rebind_lite/src/team_attribution_projection.py'),
+              Path('context_action_semantics_rebind.py'),
+          ]
+          text = '\n'.join(path.read_text(encoding='utf-8').casefold() for path in paths)
+          forbidden = ['fenerbah', 'genclerbir', '15.08.2026', '27041', '29575']
+          assert not any(token in text for token in forbidden)
+          PY
