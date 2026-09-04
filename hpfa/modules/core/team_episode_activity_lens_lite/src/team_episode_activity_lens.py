@@ -18,12 +18,15 @@ OUTPUT_TXT = "team_episode_activity_lens_lite_v1.txt"
 ANALYST_TXT = "team_episode_activity_lens_analyst_audit_v1.txt"
 
 ACTIVITY_SIGNAL_FIELDS = {
-    "CIRCULATION_ACTIVITY_CANDIDATE": ("family", "PASS"),
-    "CARRY_DRIBBLE_ACTIVITY_CANDIDATE": ("family", "CARRY_DRIBBLE"),
-    "DUEL_PRESSURE_ACTIVITY_CANDIDATE": ("family", "DUEL_PRESSURE"),
-    "ADVANCED_ACCESS_ACTIVITY_CANDIDATE": ("zone", "FINAL_THIRD"),
-    "TERMINAL_ACTIVITY_CANDIDATE": ("family", "SHOT"),
-    "RESTART_RESET_ACTIVITY_CANDIDATE": ("family", "RESTART"),
+    "CIRCULATION_ACTIVITY_CANDIDATE": ("family", ("PASS",)),
+    "CARRY_DRIBBLE_ACTIVITY_CANDIDATE": ("family", ("CARRY", "DRIBBLE")),
+    "DUEL_TACKLE_ACTIVITY_CANDIDATE": ("family", ("DUEL", "TACKLE")),
+    "LOSS_ACTIVITY_CANDIDATE": ("family", ("TURNOVER",)),
+    "RECOVERY_INTERCEPTION_ACTIVITY_CANDIDATE": ("family", ("RECOVERY", "INTERCEPTION")),
+    "CLEARANCE_ACTIVITY_CANDIDATE": ("family", ("CLEARANCE",)),
+    "ADVANCED_ACCESS_ACTIVITY_CANDIDATE": ("zone", ("FINAL_THIRD",)),
+    "TERMINAL_ACTIVITY_CANDIDATE": ("family", ("SHOT",)),
+    "RESTART_RESET_ACTIVITY_CANDIDATE": ("family", ("RESTART",)),
 }
 
 
@@ -71,19 +74,17 @@ def _index(rows: Any, key: str, label: str, blocks: list[str]) -> dict[str, dict
     return out
 
 
+def _signal_count(item: dict[str, Counter[str]], source: str, keys: tuple[str, ...]) -> int:
+    return sum(int(item[source].get(key, 0)) for key in keys)
+
+
 def build_team_episode_activity_lens(
     context_payload: dict[str, Any],
     semantic_payload: dict[str, Any],
     episode_payload: dict[str, Any],
     identity_payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Describe reviewed visible action activity by team inside admitted episode scopes.
-
-    Eligible context membership comes from the episode layer, while football action
-    family comes from reviewed provider semantics. This prevents preliminary
-    minimum-context labels from overriding a reviewed action family. Signals remain
-    multi-label descriptive candidates, never possession or tactical phase truth.
-    """
+    """Describe reviewed visible action activity by team inside admitted episode scopes."""
     blocks: list[str] = []
     reviews: list[str] = []
     for label, payload, expected in (
@@ -95,12 +96,7 @@ def build_team_episode_activity_lens(
         _validate(payload, expected, label, blocks)
 
     contexts = _index(context_payload.get("context_candidates") or [], "context_id", "context", blocks)
-    semantics = _index(
-        semantic_payload.get("context_action_semantic_records") or [],
-        "context_id",
-        "semantic",
-        blocks,
-    )
+    semantics = _index(semantic_payload.get("context_action_semantic_records") or [], "context_id", "semantic", blocks)
     episodes = episode_payload.get("episode_candidates") or []
     teams = identity_payload.get("team_identity_candidates") or []
     if not isinstance(episodes, list):
@@ -183,8 +179,8 @@ def build_team_episode_activity_lens(
                 signal_counts: dict[str, int] = {}
                 signal_shares: dict[str, float] = {}
                 present: list[str] = []
-                for signal, (source, key) in ACTIVITY_SIGNAL_FIELDS.items():
-                    count = int(item[source].get(key, 0))
+                for signal, (source, keys) in ACTIVITY_SIGNAL_FIELDS.items():
+                    count = _signal_count(item, source, keys)
                     signal_counts[signal] = count
                     signal_shares[signal] = round(count / known, 6) if known else 0.0
                     if count:
@@ -212,7 +208,7 @@ def build_team_episode_activity_lens(
                     "activity_signal_is_possession_truth": False,
                     "activity_signal_is_tactical_phase_truth": False,
                     "advanced_access_is_territorial_control_truth": False,
-                    "duel_pressure_is_true_pressure_geometry": False,
+                    "duel_tackle_is_true_pressure_geometry": False,
                     "claim_ceiling": CLAIM_CEILING,
                 })
 
@@ -229,10 +225,7 @@ def build_team_episode_activity_lens(
     ]
 
     for label, payload in (
-        ("context", context_payload),
-        ("semantic", semantic_payload),
-        ("episode", episode_payload),
-        ("identity", identity_payload),
+        ("context", context_payload), ("semantic", semantic_payload), ("episode", episode_payload), ("identity", identity_payload)
     ):
         if _status(payload.get("status") or payload.get("module_status")) == "REVIEW_REQUIRED":
             reviews.append(f"{label}_upstream_review_required")
