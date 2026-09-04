@@ -15,6 +15,10 @@ def _clean(value: Any) -> str:
     return " ".join(("" if value is None else str(value)).split()).strip()
 
 
+def _status(value: Any) -> str:
+    return _clean(value).upper() or "UNKNOWN"
+
+
 def _is_unknown(value: Any) -> bool:
     return _clean(value).casefold() in UNKNOWN_TEAM_VALUES
 
@@ -73,6 +77,11 @@ def project_team_attribution(
             blocks.append(f"{label}_true_action_count_claimed")
         if payload.get("production_release") is True:
             blocks.append(f"{label}_production_release_claimed")
+        upstream_status = _status(payload.get("status") or payload.get("module_status"))
+        if upstream_status == "FAIL_CLOSED":
+            blocks.append(f"{label}_upstream_fail_closed")
+        elif upstream_status == "REVIEW_REQUIRED":
+            reviews.append(f"{label}_upstream_review_required")
 
     semantic_rows = semantic_payload.get("context_action_semantic_records") or []
     atom_by_nucleus = _index_unique(
