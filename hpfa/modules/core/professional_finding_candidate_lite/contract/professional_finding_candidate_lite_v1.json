@@ -1,0 +1,58 @@
+{
+  "module_id": "professional_finding_candidate_lite_v1",
+  "version": "1.0.0-candidate",
+  "purpose": "Assemble evidence-bearing match-local analyst argument candidates from visible process recurrence surfaces without releasing a final tactical or causal finding.",
+  "required_inputs": [
+    "reciprocal_process_chain_lite_v1",
+    "process_robustness_lens_lite_v1",
+    "process_metric_profile_lite_v1",
+    "match_reconciliation_ledger_lite_v2"
+  ],
+  "required_argument_fields": [
+    "safe_analyst_sentence_candidate",
+    "support",
+    "counterevidence",
+    "alternative_explanations",
+    "uncertainty",
+    "withdrawal_condition",
+    "forbidden_inference",
+    "claim_ceiling"
+  ],
+  "admission": {
+    "repeat_count_minimum_for_candidate": 2,
+    "incomplete_episode_binding": "BLOCKED_INCOMPLETE_EPISODE_BINDING",
+    "single_episode_repeat": "FRAGILE_LOCAL_REPEAT_ONLY",
+    "multi_episode_repeat": "QUALIFIED_CANDIDATE_ONLY",
+    "final_claim_gate": "CLOSED_V1"
+  },
+  "counterevidence_policy": {
+    "direct_visible_outcome_contrast": "EVALUATED_WHEN_AVAILABLE",
+    "segment_only": "EVALUATED_FROM_EPISODE_SCOPE",
+    "player_outlier": "EVALUATED_VISIBLE_MEMBERSHIP_ONLY",
+    "opponent_symmetry": "EVALUATED_VISIBLE_ANCHOR_SIDE_ONLY",
+    "trace_dependency": "MEASURED_NOT_INDEPENDENCE_TRUTH",
+    "context_dependence": "NOT_EVALUATED_V1",
+    "threshold_sensitivity": "NOT_EVALUATED_V1",
+    "alternative_explanation_search": "INCOMPLETE_V1"
+  },
+  "uncertainty_policy": {
+    "composite_metric_calibration": "NOT_CALIBRATED",
+    "statistical_significance": "NOT_TESTED",
+    "cross_match_reference_corpus": "NOT_AVAILABLE",
+    "off_ball_tactical_explanation": "REQUIRES_VIDEO_OR_TRACKING"
+  },
+  "claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_PROFESSIONAL_FINDING_CANDIDATE_ONLY",
+  "claim_locks": {
+    "professional_finding_emitted": false,
+    "claim_output_allowed": false,
+    "stable_tactical_pattern_truth": false,
+    "coach_intention_truth": false,
+    "causal_effectiveness_truth": false,
+    "expected_outcome_probability_truth": false,
+    "possession_dominance_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "release_state": "REVIEW_REQUIRED_CANDIDATE_ONLY"
+}
