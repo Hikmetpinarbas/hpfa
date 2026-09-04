@@ -111,11 +111,42 @@ def test_multi_episode_outcome_variation_builds_qualified_but_unreleased_argumen
     assert row["withdrawal_condition"]
 
 
+def test_finding_challenge_packet_rehabilitates_analogue_and_robustness_surfaces():
+    result = build_professional_finding_candidates(*_inputs())
+    row = result["professional_finding_candidates"][0]
+    challenge = row["finding_challenge_packet"]
+    assert challenge["challenge_state_candidate"] == "PARTIAL_MATCH_LOCAL_CHALLENGE_EVALUATED"
+    assert challenge["different_visible_outcome_analogue_present"] is True
+    assert challenge["different_visible_outcome_analogue_chain_ids"]
+    assert "DIRECT_VISIBLE_OUTCOME_CONTRAST" in challenge["evaluated_falsifier_families"]
+    assert "SEGMENT_ONLY" in challenge["evaluated_falsifier_families"]
+    assert "PLAYER_OUTLIER" in challenge["evaluated_falsifier_families"]
+    assert "OPPONENT_SYMMETRY" in challenge["evaluated_falsifier_families"]
+    assert "CONTEXT_DEPENDENCE" in challenge["pending_falsifier_families"]
+    assert challenge["leave_one_episode_scope_out"]["repeat_survives_candidate"] is True
+    assert challenge["player_concentration"]["leave_top_anchor_actor_out_repeat_survives_candidate"] is True
+    assert challenge["counter_search_complete_for_final_finding"] is False
+    assert challenge["alternative_explanation_search_complete"] is False
+    assert challenge["challenge_packet_is_final_finding"] is False
+    assert result["finding_challenge_packet_count"] == 1
+    assert result["findings_with_direct_outcome_counterevidence_count"] == 1
+    assert result["finding_challenge_complete_for_final_finding_count"] == 0
+
+
+def test_no_visible_different_outcome_analogue_is_not_confirmation():
+    result = build_professional_finding_candidates(*_inputs(outcomes=1))
+    challenge = result["professional_finding_candidates"][0]["finding_challenge_packet"]
+    assert challenge["different_visible_outcome_analogue_present"] is False
+    assert challenge["no_visible_counterexample_is_confirmation"] is False
+    assert challenge["counter_search_complete_for_final_finding"] is False
+
+
 def test_single_episode_repeat_is_fragile_local_repeat():
     result = build_professional_finding_candidates(*_inputs(scopes=1, outcomes=1, segment_state="SEGMENT_ONLY_RISK_PRESENT"))
     row = result["professional_finding_candidates"][0]
     assert row["finding_state_candidate"] == "FRAGILE_LOCAL_REPEAT_ONLY"
     assert "local repeat" in row["safe_analyst_sentence_candidate"]
+    assert row["finding_challenge_packet"]["segment_only"]["state"] == "SEGMENT_ONLY_RISK_PRESENT"
 
 
 def test_incomplete_episode_binding_blocks_generalization():
@@ -152,6 +183,8 @@ def test_output_locks(tmp_path: Path):
     result = build_professional_finding_candidates(*_inputs())
     paths = write_outputs(result, tmp_path)
     text = paths["summary"].read_text(encoding="utf-8")
+    assert "finding_challenge_packet_count=1" in text
+    assert "finding_challenge_complete_for_final_finding_count=0" in text
     assert "claim_output_allowed_count=0" in text
     assert "professional_finding_emitted_count=0" in text
     assert "production_release=false" in text
