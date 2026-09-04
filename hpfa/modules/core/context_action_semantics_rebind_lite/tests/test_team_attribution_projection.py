@@ -10,9 +10,10 @@ if str(SRC) not in sys.path:
 from team_attribution_projection import project_team_attribution  # noqa: E402
 
 
-def _semantic(rows):
+def _semantic(rows, *, status="PASS"):
     return {
         "module_id": "context_action_semantics_rebind_lite_v1",
+        "status": status,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -20,9 +21,10 @@ def _semantic(rows):
     }
 
 
-def _evidence(atoms):
+def _evidence(atoms, *, status="PASS"):
     return {
         "module_id": "evidence_atom_inventory_lite_v1",
+        "status": status,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -30,9 +32,10 @@ def _evidence(atoms):
     }
 
 
-def _identity(bindings):
+def _identity(bindings, *, status="PASS"):
     return {
         "module_id": "match_local_identity_candidates_lite_v1",
+        "status": status,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -60,13 +63,21 @@ def _atom(atom_id, nucleus_id, *, role="TEAM"):
     }
 
 
-def _binding(atom_id, team_name=None, team_id=None, *, role="TEAM_SURFACE_CANDIDATE"):
+def _binding(
+    atom_id,
+    team_name=None,
+    team_id=None,
+    *,
+    team_subject=None,
+    role="TEAM_SURFACE_CANDIDATE",
+):
     return {
         "evidence_atom_id": atom_id,
         "source_role": role,
         "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND" if team_id else "REVIEW_REQUIRED",
         "team_identity_candidate_id": team_id,
         "team_name_raw_candidate": team_name,
+        "team_subject_raw_candidate": team_subject,
         "validated_team_identity": False,
     }
 
@@ -75,7 +86,7 @@ def test_direct_visible_team_is_never_overwritten():
     result = project_team_attribution(
         _semantic([_row("ctx1", "rn1", "alpha")]),
         _evidence([_atom("ea1", "rn1")]),
-        _identity([_binding("ea1", "beta", "team_beta")]),
+        _identity([_binding("ea1", "beta", "team_beta", team_subject="beta (202)")]),
     )
     row = result["context_action_semantic_records"][0]
     assert row["context_team_candidate"] == "alpha"
@@ -97,6 +108,30 @@ def test_unknown_team_is_recovered_only_from_existing_match_local_identity_bindi
     assert row["team_attribution_basis"] == "EXISTING_MATCH_LOCAL_IDENTITY_BINDING"
     assert row["team_attribution_recovered"] is True
     assert row["team_attribution_is_validated_truth"] is False
+
+
+def test_provider_subject_is_preferred_so_direct_and_recovered_labels_do_not_split():
+    direct_label = "alpha (101)"
+    result = project_team_attribution(
+        _semantic([
+            _row("ctx1", "rn1", direct_label),
+            _row("ctx2", "rn2", "unknown"),
+        ]),
+        _evidence([
+            _atom("ea1", "rn1"),
+            _atom("ea2", "rn2"),
+        ]),
+        _identity([
+            _binding("ea1", "alpha", "team_alpha", team_subject=direct_label),
+            _binding("ea2", "alpha", "team_alpha", team_subject=direct_label),
+        ]),
+    )
+    labels = [row["context_team_candidate"] for row in result["context_action_semantic_records"]]
+    assert labels == [direct_label, direct_label]
+    assert result["direct_known_team_eligible_count"] == 1
+    assert result["recovered_team_eligible_count"] == 1
+    assert result["unresolved_team_eligible_count"] == 0
+    assert result["effective_known_team_coverage_candidate"] == 1.0
 
 
 def test_missing_or_non_team_identity_binding_stays_unknown():
@@ -151,6 +186,21 @@ def test_projection_preserves_action_eligibility_and_accounts_same_units():
     assert result["effective_known_team_coverage_candidate"] == 0.666667
     assert result["action_occurrence_count_changed_by_projection"] is False
     assert [r["action_occurrence_eligible"] for r in result["context_action_semantic_records"]] == [True, True, True, False]
+
+
+def test_review_required_upstream_cannot_be_promoted_to_pass():
+    result = project_team_attribution(
+        _semantic([_row("ctx1", "rn1", "unknown")], status="REVIEW_REQUIRED"),
+        _evidence([_atom("ea1", "rn1")], status="REVIEW_REQUIRED"),
+        _identity([_binding("ea1", "alpha", "team_alpha")], status="REVIEW_REQUIRED"),
+    )
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["recovered_team_eligible_count"] == 1
+    assert set(result["review_hits"]) == {
+        "semantic_upstream_review_required",
+        "evidence_upstream_review_required",
+        "identity_upstream_review_required",
+    }
 
 
 def test_identity_bridge_mode_mismatch_fails_closed():
