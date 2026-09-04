@@ -3,7 +3,11 @@ name: Team Attribution Recovery V1
 on:
   pull_request:
     paths:
+      - 'active_match_full_run.py'
       - 'context_action_semantics_rebind.py'
+      - 'evidence_atom_inventory_lite.py'
+      - 'match_local_identity_candidates_lite.py'
+      - 'tests/test_team_attribution_primary_runtime_wiring.py'
       - 'hpfa/modules/core/context_action_semantics_rebind_lite/**'
       - 'hpfa/modules/core/evidence_atom_inventory_lite/**'
       - 'hpfa/modules/core/match_local_identity_candidates_lite/**'
@@ -49,12 +53,20 @@ jobs:
             hpfa/modules/core/match_local_identity_candidates_lite \
             hpfa/modules/core/episode_feature_vector_lite \
             hpfa/modules/core/team_episode_activity_lens_lite \
-            context_action_semantics_rebind.py
+            active_match_full_run.py \
+            context_action_semantics_rebind.py \
+            evidence_atom_inventory_lite.py \
+            match_local_identity_candidates_lite.py \
+            tests/test_team_attribution_primary_runtime_wiring.py
 
       - name: Run recovery regressions
         run: |
           python -m pytest -q \
             hpfa/modules/core/context_action_semantics_rebind_lite/tests/test_team_attribution_projection.py
+
+      - name: Run primary runtime wiring regressions
+        run: |
+          python -m pytest -q tests/test_team_attribution_primary_runtime_wiring.py
 
       - name: Preserve existing match-local identity bridge
         run: |
@@ -97,8 +109,12 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           paths = [
-              Path('hpfa/modules/core/context_action_semantics_rebind_lite/src/team_attribution_projection.py'),
+              Path('active_match_full_run.py'),
               Path('context_action_semantics_rebind.py'),
+              Path('evidence_atom_inventory_lite.py'),
+              Path('match_local_identity_candidates_lite.py'),
+              Path('tests/test_team_attribution_primary_runtime_wiring.py'),
+              Path('hpfa/modules/core/context_action_semantics_rebind_lite/src/team_attribution_projection.py'),
           ]
           text = '\n'.join(path.read_text(encoding='utf-8').casefold() for path in paths)
           forbidden = ['fenerbah', 'genclerbir', '15.08.2026', '27041', '29575']
