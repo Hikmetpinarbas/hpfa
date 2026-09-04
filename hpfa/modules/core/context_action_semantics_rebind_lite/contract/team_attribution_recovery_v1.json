@@ -1,0 +1,67 @@
+{
+  "contract_id": "team_attribution_recovery_v1",
+  "parent_module_id": "context_action_semantics_rebind_lite_v1",
+  "purpose": "Recover match-local TEAM-surface attribution only when an otherwise unknown team candidate has a visible code prefix that exactly matches one already-visible direct match-local team candidate.",
+  "rehabilitation_policy": "REHABILITATE_EXISTING_SEMANTICS_PRODUCER_NOT_PARALLEL_ENGINE",
+  "eligible_source_role": "TEAM",
+  "direct_team_authority": "existing_non_unknown_context_team_candidate_within_same_match_local_semantics_population",
+  "recovery_rule": {
+    "input_team_state": "UNKNOWN_ONLY",
+    "visible_field": "row_nucleus.resolved_visible_fields.code",
+    "prefix_delimiter": " - ",
+    "normalization": "trim_and_casefold_only",
+    "admission": "EXACT_UNIQUE_MATCH_TO_EXISTING_DIRECT_MATCH_LOCAL_TEAM_CANDIDATE",
+    "no_fuzzy_match": true,
+    "no_filename_inference": true,
+    "no_sample_team_hardcode": true,
+    "no_opponent_guessing": true,
+    "no_episode_majority_vote": true
+  },
+  "output_fields": [
+    "context_team_candidate_raw",
+    "context_team_candidate",
+    "team_attribution_state_candidate",
+    "team_attribution_basis",
+    "team_attribution_recovered"
+  ],
+  "states": [
+    "DIRECT_VISIBLE_TEAM_CANDIDATE",
+    "RECOVERED_EXACT_CODE_PREFIX_MATCH_LOCAL_TEAM_CANDIDATE",
+    "UNRESOLVED_TEAM_CANDIDATE"
+  ],
+  "invariants": [
+    "direct visible team attribution is never overwritten",
+    "recovery requires source_role TEAM",
+    "recovery requires unknown raw context team",
+    "recovery requires exactly one match-local exact-prefix match",
+    "ambiguous or unmatched prefix remains unresolved",
+    "recovered team candidate does not create canonical event or true action truth",
+    "recovered team candidate does not create possession, phase, dominance, tactical or causal truth",
+    "test_no_sample_match_identity_leak"
+  ],
+  "downstream_requirement": "episode_feature_vector_lite and team_episode_activity_lens_lite must consume the reviewed semantics context_team_candidate after this recovery pass without re-inferring team identity independently.",
+  "active_match_prototype_evidence": {
+    "source": "uploaded exact-head Genclerbirligi Ankara 2-1 Fenerbahce ACTIVE_MATCH bundle",
+    "engineering_only": true,
+    "eligible_action_candidate_count": 5278,
+    "direct_known_team_candidate_count": 2597,
+    "unknown_team_candidate_count_before_recovery": 2681,
+    "unknown_team_source_role_distribution": {"TEAM": 2681},
+    "exact_code_prefix_recoverable_count": 2681,
+    "unmatched_or_ambiguous_count_in_prototype": 0,
+    "candidate_coverage_before": 0.492042,
+    "candidate_coverage_after_if_runtime_admitted": 1.0,
+    "prototype_is_product_truth": false
+  },
+  "claim_locks": {
+    "team_attribution_is_validated_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "dominance_truth": false,
+    "production_release": false
+  },
+  "release_state": "SPEC_ONLY / IMPLEMENTATION_REQUIRED / ACTIVE_MATCH_RERUN_REQUIRED / NOT_PRODUCTION"
+}
