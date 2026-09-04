@@ -13,6 +13,14 @@ from hpfa.modules.core.match_reconciliation_ledger_lite.src.match_reconciliation
     build_match_reconciliation_ledger,
     write_outputs as write_match_reconciliation_outputs,
 )
+from hpfa.modules.core.player_aggregate_process_reconciliation_lite.src.player_aggregate_process_reconciliation import (
+    ANALYST_TXT as PLAYER_AGGREGATE_ANALYST_TXT,
+    OUTPUT_JSON as PLAYER_AGGREGATE_JSON,
+    OUTPUT_TXT as PLAYER_AGGREGATE_TXT,
+    XLSX_MODULE_ID,
+    build_player_aggregate_process_reconciliation,
+    write_outputs as write_player_aggregate_outputs,
+)
 from hpfa.modules.core.process_metric_profile_lite.src.process_metric_profile import (
     ANALYST_TXT as METRIC_ANALYST_TXT,
     OUTPUT_JSON as METRIC_JSON,
@@ -62,6 +70,7 @@ IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 CONTEXT_JSON = "minimum_viable_context_lite_v1.json"
 SEMANTIC_JSON = "context_action_semantics_rebind_lite_v1.json"
 EPISODE_JSON = "analyst_episode_locator_lite_v1.json"
+XLSX_JSON = "xlsx_entity_metric_row_projection_lite_v1.json"
 
 
 def _load(path: Path) -> dict:
@@ -122,6 +131,18 @@ def _attach_geometry_projection(parent: dict, child: dict) -> dict:
     parent["player_period_geometry_row_count"] = child.get("player_period_geometry_row_count", 0)
     parent["visible_geometry_direction_normalized"] = False
     parent["visible_geometry_is_team_shape_truth"] = False
+    return parent
+
+
+def _attach_player_aggregate_projection(parent: dict, child: dict) -> dict:
+    parent["player_aggregate_process_reconciliation_module_id"] = child.get("module_id")
+    parent["player_aggregate_process_reconciliation_status"] = child.get("status")
+    parent["player_aggregate_dossier_count"] = child.get("player_dossier_count", 0)
+    parent["xlsx_player_row_count"] = child.get("xlsx_player_row_count", 0)
+    parent["xlsx_player_row_bound_count"] = child.get("xlsx_player_row_bound_count", 0)
+    parent["players_with_visible_process_membership_count"] = child.get("players_with_visible_process_membership_count", 0)
+    parent["player_aggregate_validated_player_identity"] = False
+    parent["player_aggregate_metric_truth"] = False
     return parent
 
 
@@ -188,6 +209,7 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "match_reconciliation_status": "FAIL_CLOSED",
         "team_episode_activity_status": "FAIL_CLOSED",
         "visible_geometry_status": "FAIL_CLOSED",
+        "player_aggregate_process_reconciliation_status": "NOT_EVALUATED_UPSTREAM_FAIL_CLOSED",
         "process_robustness_status": "FAIL_CLOSED",
         "process_metric_profile_status": "FAIL_CLOSED",
         "professional_finding_candidate_status": "FAIL_CLOSED",
@@ -220,6 +242,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         "match_reconciliation": (RECONCILIATION_JSON, RECONCILIATION_TXT, RECONCILIATION_ANALYST_TXT),
         "team_episode_activity": (ACTIVITY_JSON, ACTIVITY_TXT, ACTIVITY_ANALYST_TXT),
         "visible_geometry": (GEOMETRY_JSON, GEOMETRY_TXT, GEOMETRY_ANALYST_TXT),
+        "player_aggregate_process_reconciliation": (PLAYER_AGGREGATE_JSON, PLAYER_AGGREGATE_TXT, PLAYER_AGGREGATE_ANALYST_TXT),
         "process_robustness": (ROBUSTNESS_JSON, ROBUSTNESS_TXT, ROBUSTNESS_ANALYST_TXT),
         "process_metric_profile": (METRIC_JSON, METRIC_TXT, METRIC_ANALYST_TXT),
         "professional_finding_candidate": (FINDING_JSON, FINDING_TXT, FINDING_ANALYST_TXT),
@@ -281,6 +304,26 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     geometry_paths = write_visible_geometry_outputs(geometry_payload, output)
     payload = _attach_geometry_projection(payload, geometry_payload)
 
+    player_aggregate_payload: dict | None = None
+    player_aggregate_paths: dict[str, Path] = {}
+    xlsx_payload = _load(output / XLSX_JSON)
+    if xlsx_payload:
+        player_aggregate_payload = build_player_aggregate_process_reconciliation(
+            xlsx_payload,
+            identity_payload,
+            reconciliation_payload,
+            geometry_payload,
+        )
+        player_aggregate_paths = write_player_aggregate_outputs(player_aggregate_payload, output)
+        payload = _attach_player_aggregate_projection(payload, player_aggregate_payload)
+    else:
+        payload["player_aggregate_process_reconciliation_status"] = "NOT_EVALUATED_XLSX_SURFACE_NOT_AVAILABLE"
+        payload["player_aggregate_dossier_count"] = 0
+        payload["xlsx_player_row_count"] = 0
+        payload["xlsx_player_row_bound_count"] = 0
+        payload["player_aggregate_validated_player_identity"] = False
+        payload["player_aggregate_metric_truth"] = False
+
     robustness_payload = build_process_robustness_lens(payload, reconciliation_payload)
     robustness_paths = write_process_robustness_outputs(robustness_payload, output)
     payload = _attach_robustness_projection(payload, robustness_payload)
@@ -299,14 +342,17 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     payload = _attach_finding_projection(payload, finding_payload)
 
     payload["cleared_stale_dependent_outputs"] = cleared
-    for label, dependent in (
+    dependent_rows = [
         ("match_reconciliation", reconciliation_payload),
         ("team_episode_activity", activity_payload),
         ("visible_geometry", geometry_payload),
         ("process_robustness", robustness_payload),
         ("process_metric_profile", metric_payload),
         ("professional_finding_candidate", finding_payload),
-    ):
+    ]
+    if player_aggregate_payload is not None:
+        dependent_rows.append(("player_aggregate_process_reconciliation", player_aggregate_payload))
+    for label, dependent in dependent_rows:
         if dependent.get("status") == "FAIL_CLOSED":
             payload.setdefault("review_hits", []).append(f"{label}_fail_closed_dependent_surface")
 
@@ -322,6 +368,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         **{f"match_reconciliation_{key}": str(path) for key, path in reconciliation_paths.items()},
         **{f"team_episode_activity_{key}": str(path) for key, path in activity_paths.items()},
         **{f"visible_geometry_{key}": str(path) for key, path in geometry_paths.items()},
+        **{f"player_aggregate_{key}": str(path) for key, path in player_aggregate_paths.items()},
         **{f"process_robustness_{key}": str(path) for key, path in robustness_paths.items()},
         **{f"process_metric_{key}": str(path) for key, path in metric_paths.items()},
         **{f"professional_finding_{key}": str(path) for key, path in finding_paths.items()},
@@ -349,6 +396,10 @@ def main() -> int:
         "visible_geometry_status": payload.get("visible_geometry_status"),
         "team_period_geometry_row_count": payload.get("team_period_geometry_row_count"),
         "player_period_geometry_row_count": payload.get("player_period_geometry_row_count"),
+        "player_aggregate_process_reconciliation_status": payload.get("player_aggregate_process_reconciliation_status"),
+        "player_aggregate_dossier_count": payload.get("player_aggregate_dossier_count"),
+        "xlsx_player_row_count": payload.get("xlsx_player_row_count"),
+        "xlsx_player_row_bound_count": payload.get("xlsx_player_row_bound_count"),
         "process_robustness_status": payload.get("process_robustness_status"),
         "repeated_process_robustness_row_count": payload.get("repeated_process_robustness_row_count"),
         "segment_only_risk_profile_count": payload.get("segment_only_risk_profile_count"),
