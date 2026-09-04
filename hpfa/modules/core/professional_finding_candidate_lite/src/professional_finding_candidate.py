@@ -16,6 +16,22 @@ TRUE_ACTION_COUNT = "UNKNOWN"
 OUTPUT_JSON = "professional_finding_candidate_lite_v1.json"
 OUTPUT_TXT = "professional_finding_candidate_lite_v1.txt"
 ANALYST_TXT = "professional_finding_candidate_analyst_audit_v1.txt"
+CHALLENGE_EVALUATED_FAMILIES = [
+    "DIRECT_VISIBLE_OUTCOME_CONTRAST",
+    "SEGMENT_ONLY",
+    "PLAYER_OUTLIER",
+    "OPPONENT_SYMMETRY",
+    "TRACE_DEPENDENCY",
+    "LEAVE_ONE_EPISODE_SCOPE_OUT",
+    "LEAVE_TOP_ANCHOR_ACTOR_OUT",
+]
+CHALLENGE_PENDING_FAMILIES = [
+    "CONTEXT_DEPENDENCE",
+    "THRESHOLD_SENSITIVITY",
+    "FAILED_TRACE_SUPPORT",
+    "DUPLICATE_REFLECTION_RISK",
+    "ALTERNATIVE_EXPLANATION",
+]
 
 
 def _clean(value: Any) -> str:
@@ -37,6 +53,29 @@ def _signature_text(signature: dict[str, Any]) -> str:
     return f"{anchor} -> {response}"
 
 
+def _challenge_summary(
+    *,
+    direct_counter_count: int,
+    robustness: dict[str, Any],
+) -> str:
+    parts: list[str] = []
+    parts.append(
+        "different-outcome analogue visible"
+        if direct_counter_count
+        else "no different-outcome analogue visible in the current same-signature scope"
+    )
+    if robustness.get("leave_one_episode_scope_out_repeat_survives_candidate") is True:
+        parts.append("repeat survives leave-one-episode-scope-out")
+    else:
+        parts.append("repeat does not pass leave-one-episode-scope-out or is not evaluable")
+    if robustness.get("leave_top_anchor_actor_out_repeat_survives_candidate") is True:
+        parts.append("repeat survives leave-top-anchor-actor-out")
+    else:
+        parts.append("repeat does not pass leave-top-anchor-actor-out or is not evaluable")
+    parts.append("context/threshold/reflection/alternative-explanation debts remain open")
+    return "; ".join(parts) + "."
+
+
 def build_professional_finding_candidates(
     reciprocal_payload: dict[str, Any],
     robustness_payload: dict[str, Any],
@@ -46,9 +85,9 @@ def build_professional_finding_candidates(
     """Build auditable analyst argument candidates, not released final findings.
 
     Every sentence carries explicit supporting chain/episode/player/metric references,
-    counterevidence, unresolved alternative explanations and withdrawal conditions.
-    Final claim output stays closed while counter-search/statistical/calibration debts
-    remain open.
+    counterevidence, a finding-challenge packet, unresolved alternative explanations
+    and withdrawal conditions. Final claim output stays closed while counter-search,
+    statistical, calibration and alternative-explanation debts remain open.
     """
     blocks: list[str] = []
     reviews: list[str] = []
@@ -212,6 +251,41 @@ def build_professional_finding_candidates(
                 key: value for key, value in metric.items()
                 if key.startswith("M_PROCESS_")
             }
+            challenge_packet = {
+                "challenge_state_candidate": "PARTIAL_MATCH_LOCAL_CHALLENGE_EVALUATED",
+                "same_signature_support_chain_ids": sorted(dependent_support_ids),
+                "different_visible_outcome_analogue_chain_ids": sorted(direct_counter_ids),
+                "different_visible_outcome_analogue_present": bool(direct_counter_ids),
+                "evaluated_falsifier_families": list(CHALLENGE_EVALUATED_FAMILIES),
+                "pending_falsifier_families": list(CHALLENGE_PENDING_FAMILIES),
+                "segment_only": {
+                    "state": segment_state,
+                    "segment_concentration_share_candidate": robustness.get("segment_concentration_share_candidate"),
+                },
+                "player_concentration": {
+                    "state": robustness.get("player_outlier_search_state_candidate"),
+                    "max_anchor_actor_chain_presence_share_candidate": robustness.get("max_anchor_actor_chain_presence_share_candidate"),
+                    "leave_top_anchor_actor_out_repeat_survives_candidate": robustness.get("leave_top_anchor_actor_out_repeat_survives_candidate"),
+                },
+                "opponent_symmetry": {
+                    "state": robustness.get("opponent_symmetry_falsifier_state_candidate"),
+                },
+                "trace_dependency": {
+                    "state": "MEASURED_NOT_INDEPENDENCE_TRUTH",
+                    "trace_membership_uniqueness_ratio_candidate": robustness.get("trace_membership_uniqueness_ratio_candidate"),
+                },
+                "leave_one_episode_scope_out": {
+                    "repeat_survives_candidate": robustness.get("leave_one_episode_scope_out_repeat_survives_candidate"),
+                },
+                "analyst_challenge_summary_candidate": _challenge_summary(
+                    direct_counter_count=len(direct_counter_ids),
+                    robustness=robustness,
+                ),
+                "counter_search_complete_for_final_finding": False,
+                "alternative_explanation_search_complete": False,
+                "no_visible_counterexample_is_confirmation": False,
+                "challenge_packet_is_final_finding": False,
+            }
             rows.append({
                 "professional_finding_candidate_id": "pfc_" + _digest(profile_id)[:24],
                 "finding_state_candidate": state,
@@ -239,6 +313,7 @@ def build_professional_finding_candidates(
                     "leave_one_episode_scope_out_repeat_survives_candidate": robustness.get("leave_one_episode_scope_out_repeat_survives_candidate"),
                     "leave_top_anchor_actor_out_repeat_survives_candidate": robustness.get("leave_top_anchor_actor_out_repeat_survives_candidate"),
                 },
+                "finding_challenge_packet": challenge_packet,
                 "alternative_explanations": alternative_explanations,
                 "uncertainty": {
                     "episode_binding_incomplete_count": incomplete,
@@ -265,6 +340,10 @@ def build_professional_finding_candidates(
             })
 
     status = "FAIL_CLOSED" if blocks else "REVIEW_REQUIRED"
+    direct_counter_rows = [
+        row for row in rows
+        if (row.get("finding_challenge_packet") or {}).get("different_visible_outcome_analogue_present") is True
+    ]
     return {
         "module_id": MODULE_ID,
         "status": status,
@@ -272,6 +351,10 @@ def build_professional_finding_candidates(
         "claim_ceiling": CLAIM_CEILING,
         "professional_finding_candidates": rows if not blocks else [],
         "professional_finding_candidate_count": len(rows) if not blocks else 0,
+        "finding_challenge_packet_count": len(rows) if not blocks else 0,
+        "finding_challenge_partial_count": len(rows) if not blocks else 0,
+        "findings_with_direct_outcome_counterevidence_count": len(direct_counter_rows) if not blocks else 0,
+        "finding_challenge_complete_for_final_finding_count": 0,
         "blocked_incomplete_episode_binding_candidate_count": sum(
             row.get("finding_state_candidate") == "BLOCKED_INCOMPLETE_EPISODE_BINDING" for row in rows
         ) if not blocks else 0,
@@ -312,9 +395,12 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
         "HPFA PROFESSIONAL FINDING CANDIDATE LITE V1",
         f"status={payload.get('status')}",
         f"professional_finding_candidate_count={payload.get('professional_finding_candidate_count', 0)}",
+        f"finding_challenge_packet_count={payload.get('finding_challenge_packet_count', 0)}",
+        f"findings_with_direct_outcome_counterevidence_count={payload.get('findings_with_direct_outcome_counterevidence_count', 0)}",
         f"qualified_multi_episode_candidate_count={payload.get('qualified_multi_episode_candidate_count', 0)}",
         f"fragile_local_repeat_candidate_count={payload.get('fragile_local_repeat_candidate_count', 0)}",
         f"blocked_incomplete_episode_binding_candidate_count={payload.get('blocked_incomplete_episode_binding_candidate_count', 0)}",
+        "finding_challenge_complete_for_final_finding_count=0",
         "claim_output_allowed_count=0",
         "professional_finding_emitted_count=0",
         "production_release=false",
@@ -327,10 +413,12 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
     )
     lines = [
         "HPFA ANALYST AUDIT — PROFESSIONAL FINDING CANDIDATES",
-        "Safe sentences below are evidence-bearing analyst candidates. Final finding release remains closed while alternative-explanation/statistical/calibration debts remain open.",
+        "Safe sentences below are evidence-bearing analyst candidates. Each candidate carries a match-local challenge packet. Final finding release remains closed while context/threshold/reflection/alternative-explanation/statistical/calibration debts remain open.",
     ]
     for row in ranked[:25]:
+        challenge = row.get("finding_challenge_packet") or {}
         lines.append(f"- [{row.get('finding_state_candidate')}] {row.get('safe_analyst_sentence_candidate')}")
+        lines.append(f"  challenge={challenge.get('analyst_challenge_summary_candidate')}")
     lines.extend([
         "No candidate is released as stable tactical pattern, causality, expected outcome probability, coach intention or production truth.",
         "",
