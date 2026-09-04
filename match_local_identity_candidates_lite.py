@@ -75,70 +75,86 @@ def _build_identity_payload(evidence: dict) -> dict:
     )
 
 
+def _failure_from_evidence(evidence: dict) -> dict:
+    return {
+        "module_id": identity.MODULE_ID,
+        "status": "FAIL_CLOSED",
+        "module_status": "FAIL_CLOSED",
+        "runtime_evidence_status": "NOT_EVALUATED",
+        "release_status": "NOT_PRODUCTION",
+        "match_surface_binding_id": evidence.get("match_surface_binding_id"),
+        "evidence_atom_count": evidence.get("evidence_atom_count", 0),
+        "identity_binding_record_count": 0,
+        "team_identity_candidate_count": 0,
+        "actor_identity_candidate_count": 0,
+        "identity_candidate_bound_atom_count": 0,
+        "identity_not_applicable_atom_count": 0,
+        "identity_review_required_atom_count": 0,
+        "decision_state_counts": {},
+        "team_identity_candidates": [],
+        "actor_identity_candidates": [],
+        "identity_bindings": [],
+        "hard_block_hits": ["current_evidence_atom_fail_closed"],
+        "review_hits": [],
+        "active_match_evidence_pass": False,
+        "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+        "identity_truth_admitted": False,
+        "global_roster_identity_admitted": False,
+        "cross_match_identity_admitted": False,
+        "validated_team_identity": False,
+        "validated_player_identity": False,
+        "validated_event_identity": False,
+        "physical_action_identity_truth": False,
+        "event_instance_allowed": False,
+        "cross_role_fusion_allowed": False,
+        "independent_source_vote_allowed": False,
+        "sequence_truth": False,
+        "possession_truth": False,
+        "phase_truth": False,
+        "tactical_truth": False,
+        "comparison_allowed": False,
+        "claim_allowed": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+        "claim_ceiling": identity.CLAIM_CEILING,
+        "current_evidence_atom_status": evidence.get("status"),
+        "team_subject_code_prefix_bridge_mode": "EXACT_SUFFIX_ONLY_WHEN_TEAM_FIELD_ABSENT",
+        "team_subject_code_prefix_bridge_applied_count": 0,
+        "team_subject_code_prefix_bridge_review_count": 0,
+    }
+
+
+def build_from_existing_evidence(evidence: dict) -> dict:
+    """Build match-local identity candidates from the current Evidence Atom payload.
+
+    This is an orchestration adapter over the existing identity producer. It
+    preserves candidate-only semantics and avoids recomputing upstream evidence.
+    """
+    if evidence.get("status") == "FAIL_CLOSED":
+        return _failure_from_evidence(evidence)
+    return _build_identity_payload(evidence)
+
+
 def runtime_build_report(input_dir: str | Path) -> dict:
     evidence = current_atoms.runtime_build_report(input_dir)
-    if evidence.get("status") == "FAIL_CLOSED":
-        return {
-            "module_id": identity.MODULE_ID,
-            "status": "FAIL_CLOSED",
-            "module_status": "FAIL_CLOSED",
-            "runtime_evidence_status": "NOT_EVALUATED",
-            "release_status": "NOT_PRODUCTION",
-            "match_surface_binding_id": evidence.get("match_surface_binding_id"),
-            "evidence_atom_count": evidence.get("evidence_atom_count", 0),
-            "identity_binding_record_count": 0,
-            "team_identity_candidate_count": 0,
-            "actor_identity_candidate_count": 0,
-            "identity_candidate_bound_atom_count": 0,
-            "identity_not_applicable_atom_count": 0,
-            "identity_review_required_atom_count": 0,
-            "decision_state_counts": {},
-            "team_identity_candidates": [],
-            "actor_identity_candidates": [],
-            "identity_bindings": [],
-            "hard_block_hits": ["current_evidence_atom_fail_closed"],
-            "review_hits": [],
-            "active_match_evidence_pass": False,
-            "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
-            "identity_truth_admitted": False,
-            "global_roster_identity_admitted": False,
-            "cross_match_identity_admitted": False,
-            "validated_team_identity": False,
-            "validated_player_identity": False,
-            "validated_event_identity": False,
-            "physical_action_identity_truth": False,
-            "event_instance_allowed": False,
-            "cross_role_fusion_allowed": False,
-            "independent_source_vote_allowed": False,
-            "sequence_truth": False,
-            "possession_truth": False,
-            "phase_truth": False,
-            "tactical_truth": False,
-            "comparison_allowed": False,
-            "claim_allowed": False,
-            "canonical_event_count": "UNKNOWN",
-            "true_action_count": "UNKNOWN",
-            "production_release": False,
-            "claim_ceiling": identity.CLAIM_CEILING,
-            "current_evidence_atom_status": evidence.get("status"),
-            "team_subject_code_prefix_bridge_mode": "EXACT_SUFFIX_ONLY_WHEN_TEAM_FIELD_ABSENT",
-            "team_subject_code_prefix_bridge_applied_count": 0,
-            "team_subject_code_prefix_bridge_review_count": 0,
-        }
-    return _build_identity_payload(evidence)
+    return build_from_existing_evidence(evidence)
+
+
+def write_outputs_from_existing_evidence(evidence: dict, out_dir: str | Path) -> dict:
+    output = identity.validate_output_root(out_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    payload = build_from_existing_evidence(evidence)
+    paths = identity.write_outputs(payload, output)
+    payload["outputs"] = {key: str(path) for key, path in paths.items()}
+    return payload
 
 
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = identity.validate_output_root(out_dir)
     output.mkdir(parents=True, exist_ok=True)
     evidence = current_atoms.runtime_write_outputs(input_dir, output)
-    if evidence.get("status") == "FAIL_CLOSED":
-        payload = runtime_build_report(input_dir)
-    else:
-        payload = _build_identity_payload(evidence)
-    paths = identity.write_outputs(payload, output)
-    payload["outputs"] = {key: str(path) for key, path in paths.items()}
-    return payload
+    return write_outputs_from_existing_evidence(evidence, output)
 
 
 def main() -> int:
