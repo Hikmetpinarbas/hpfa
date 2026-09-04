@@ -1,0 +1,42 @@
+{
+  "module_id": "football_episode_boundary_candidate_v1",
+  "producer_owner": "analyst_episode_locator_lite_v1 extension",
+  "purpose": "Split existing macro analyst episodes into finer football-process boundary candidates using only visible admitted evidence without creating possession, tactical phase, causal or canonical-event truth.",
+  "input_authority": [
+    "analyst_episode_locator_lite_v1.json"
+  ],
+  "boundary_evidence_candidates": [
+    "VISIBLE_RESTART",
+    "TERMINAL_SHOT_VISIBLE",
+    "ADMITTED_VISIBLE_TIME_GAP",
+    "LOSS_RECOVERY_VISIBLE_SAME_TIME_UNORDERED"
+  ],
+  "invariants": {
+    "macro_episode_preserved": true,
+    "every_fine_episode_refs_one_macro_episode": true,
+    "every_macro_time_layer_assigned_once": true,
+    "boundary_requires_visible_evidence": true,
+    "same_timestamp_internal_ordering_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "duplicate_reflection_may_increase_recurrence": false,
+    "gap_threshold_is_calibrated_truth": false,
+    "episode_is_possession_truth": false,
+    "episode_is_sequence_truth": false,
+    "episode_is_phase_truth": false,
+    "episode_is_tactical_truth": false,
+    "episode_is_causal_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "analyst_fields": [
+    "start_evidence_candidate",
+    "development_candidate",
+    "break_or_end_evidence_candidate",
+    "visible_outcome_candidate",
+    "team_scope_candidate",
+    "action_family_distribution"
+  ],
+  "claim_ceiling": "FOOTBALL_EPISODE_BOUNDARY_CANDIDATE_ONLY",
+  "release_state": "IMPLEMENTATION_SLICE / REVIEW_REQUIRED / ACTIVE_MATCH_REQUIRED / NOT_PRODUCTION"
+}
