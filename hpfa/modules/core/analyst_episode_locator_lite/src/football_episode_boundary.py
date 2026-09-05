@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import defaultdict
 from typing import Any
 
 MODULE_ID = "football_episode_boundary_candidate_v1"
@@ -26,6 +27,8 @@ def _fail(reason: str) -> dict[str, Any]:
         "decision": "FOOTBALL_EPISODE_INPUT_REJECTED",
         "football_episode_candidates": [],
         "football_episode_candidate_count": 0,
+        "episode_recurrence_change_candidates": [],
+        "episode_recurrence_change_candidate_count": 0,
         "hard_block_hits": [reason],
         "review_hits": [],
         "claim_ceiling": CLAIM_CEILING,
@@ -36,10 +39,48 @@ def _fail(reason: str) -> dict[str, Any]:
         "episode_is_phase_truth": False,
         "episode_is_tactical_truth": False,
         "episode_is_causal_truth": False,
+        "recurrence_candidate_is_stable_pattern_truth": False,
+        "outcome_variation_candidate_is_tactical_change_truth": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
     }
+
+
+def _recurrence_change_surface(fine: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group only exact visible episode composition candidates.
+
+    The signature deliberately excludes visible outcome so the same admitted visible
+    composition can preserve outcome variation as counterevidence/change surface.
+    It is a match-local descriptive grouping, not recurrence, tactic or causality truth.
+    """
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in fine:
+        signature = _clean(row.get("visible_process_composition_signature_candidate"))
+        if signature:
+            grouped[signature].append(row)
+
+    surface: list[dict[str, Any]] = []
+    for signature, rows in sorted(grouped.items()):
+        if len(rows) < 2:
+            continue
+        outcome_distribution: dict[str, int] = {}
+        for row in rows:
+            outcome = _clean(row.get("visible_outcome_candidate")) or "UNKNOWN_VISIBLE_OUTCOME"
+            outcome_distribution[outcome] = outcome_distribution.get(outcome, 0) + 1
+        surface.append({
+            "visible_process_composition_signature_candidate": signature,
+            "football_episode_candidate_ids": [row["football_episode_candidate_id"] for row in rows],
+            "visible_episode_repeat_count_candidate": len(rows),
+            "visible_outcome_distribution": dict(sorted(outcome_distribution.items())),
+            "different_visible_outcome_candidate": len(outcome_distribution) > 1,
+            "dependent_episode_projection_only": True,
+            "independent_evidence_vote_count": 0,
+            "recurrence_candidate_is_stable_pattern_truth": False,
+            "outcome_variation_candidate_is_tactical_change_truth": False,
+            "claim_output_allowed": False,
+        })
+    return surface
 
 
 def build_football_episode_boundaries(
@@ -120,6 +161,7 @@ def build_football_episode_boundaries(
                 for family, count in (row.get("eligible_action_family_counts") or {}).items():
                     action_families[str(family)] = action_families.get(str(family), 0) + int(count)
             teams = sorted({team for row in segment for team in (row.get("team_candidates") or []) if _clean(team)})
+            team_scope = teams[0] if len(teams) == 1 else ("MULTI_TEAM_VISIBLE" if teams else "UNKNOWN_TEAM")
             terminal_visible = any(row.get("terminal_action_visible") is True for row in segment)
             restart_visible = any(row.get("restart_visible") is True for row in segment)
             loss_visible = any(row.get("ball_loss_visible") is True for row in segment)
@@ -152,6 +194,11 @@ def build_football_episode_boundaries(
             development = "MULTI_ACTION_FAMILY_VISIBLE" if len(action_families) > 1 else (
                 next(iter(action_families), "NO_ELIGIBLE_ACTION_FAMILY_VISIBLE")
             )
+            composition_basis = {
+                "team_scope_candidate": team_scope,
+                "action_family_distribution": dict(sorted(action_families.items())),
+            }
+            composition_signature = "fpc_" + _digest(composition_basis)[:24]
             candidate_id = "fep_" + _digest(macro_id, segment_refs, segment_start_reason, end_reason)[:24]
             fine.append({
                 "football_episode_candidate_id": candidate_id,
@@ -164,11 +211,13 @@ def build_football_episode_boundaries(
                 "development_candidate": development,
                 "break_or_end_evidence_candidate": end_reason,
                 "visible_outcome_candidate": outcome,
+                "visible_process_composition_signature_candidate": composition_signature,
+                "visible_process_composition_signature_basis": composition_basis,
                 "time_layer_refs": segment_refs,
                 "context_refs": context_refs,
                 "action_family_distribution": dict(sorted(action_families.items())),
                 "team_candidates": teams,
-                "team_scope_candidate": teams[0] if len(teams) == 1 else ("MULTI_TEAM_VISIBLE" if teams else "UNKNOWN_TEAM"),
+                "team_scope_candidate": team_scope,
                 "restart_visible": restart_visible,
                 "terminal_action_visible": terminal_visible,
                 "ball_loss_visible": loss_visible,
@@ -182,6 +231,8 @@ def build_football_episode_boundaries(
                 "episode_is_phase_truth": False,
                 "episode_is_tactical_truth": False,
                 "episode_is_causal_truth": False,
+                "recurrence_candidate_is_stable_pattern_truth": False,
+                "outcome_variation_candidate_is_tactical_change_truth": False,
                 "claim_ceiling": CLAIM_CEILING,
             })
             assigned_layer_refs.update(segment_refs)
@@ -221,6 +272,7 @@ def build_football_episode_boundaries(
     if assigned_layer_refs != expected_refs:
         return _fail("fine_episode_layer_assignment_coverage_mismatch")
 
+    recurrence_change = _recurrence_change_surface(fine)
     status = "REVIEW_REQUIRED" if reviews or episode_payload.get("status") == "REVIEW_REQUIRED" else "PASS"
     return {
         "module_id": MODULE_ID,
@@ -229,6 +281,11 @@ def build_football_episode_boundaries(
         "upstream_macro_episode_count": len(macros),
         "football_episode_candidates": fine,
         "football_episode_candidate_count": len(fine),
+        "episode_recurrence_change_candidates": recurrence_change,
+        "episode_recurrence_change_candidate_count": len(recurrence_change),
+        "different_visible_outcome_recurrence_candidate_count": sum(
+            row.get("different_visible_outcome_candidate") is True for row in recurrence_change
+        ),
         "all_macro_time_layers_assigned_once": True,
         "boundary_gap_seconds_candidate": float(gap_seconds),
         "boundary_gap_is_calibrated_truth": False,
@@ -242,6 +299,9 @@ def build_football_episode_boundaries(
         "episode_is_phase_truth": False,
         "episode_is_tactical_truth": False,
         "episode_is_causal_truth": False,
+        "recurrence_candidate_is_stable_pattern_truth": False,
+        "outcome_variation_candidate_is_tactical_change_truth": False,
+        "claim_output_allowed": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
