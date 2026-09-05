@@ -39,6 +39,7 @@ jobs:
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_visible_episode_context_contrast.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_threshold_sensitivity.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_failed_trace_support.py \
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_alternative_explanation.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_context_period_deconfound.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_professional_finding_bundle_ledger.py
       - name: Compile current runtime and bridge modules
@@ -53,6 +54,7 @@ jobs:
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/threshold_sensitivity.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/failed_trace_support.py
+          python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/alternative_explanation.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
       - name: Claim and accounting lock audit
         run: |
@@ -69,6 +71,9 @@ jobs:
           grep -F 'thresholds_are_calibrated' hpfa/modules/core/professional_finding_candidate_lite/src/threshold_sensitivity.py
           grep -F 'missing_trace_is_failed_football_action' hpfa/modules/core/professional_finding_candidate_lite/src/failed_trace_support.py
           grep -F 'missing_trace_is_counterevidence' hpfa/modules/core/professional_finding_candidate_lite/src/failed_trace_support.py
+          grep -F 'alternative_explanation_is_causal_truth' hpfa/modules/core/professional_finding_candidate_lite/src/alternative_explanation.py
+          grep -F 'absence_of_visible_alternative_proves_primary_explanation' hpfa/modules/core/professional_finding_candidate_lite/src/alternative_explanation.py
+          grep -F 'alternative_explanation_search_complete_for_final_finding' hpfa/modules/core/professional_finding_candidate_lite/src/alternative_explanation.py
           grep -F 'period_reported_but_not_used_as_activity_fingerprint' hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
           grep -F 'context_difference_is_causal_explanation' hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
           grep -F 'absence_of_visible_context_difference_disproves_context_dependence' hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
