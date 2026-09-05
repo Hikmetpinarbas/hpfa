@@ -115,6 +115,41 @@ def test_boundary_requires_visible_evidence_no_arbitrary_split():
     assert out["football_episode_candidates"][0]["boundary_requires_visible_evidence"] is True
 
 
+def test_same_visible_composition_can_preserve_different_outcome_candidate():
+    payload = _payload([
+        _layer("a", 10.0, families={"PASS": 1}),
+        _layer("b", 12.0, shot=True, families={"SHOT": 1}),
+        _layer("c", 20.0, families={"PASS": 1}),
+        _layer("d", 22.0, loss=True, families={"SHOT": 1}),
+    ])
+    out = build_football_episode_boundaries(payload)
+    assert out["episode_recurrence_change_candidate_count"] == 1
+    row = out["episode_recurrence_change_candidates"][0]
+    assert row["visible_episode_repeat_count_candidate"] == 2
+    assert row["different_visible_outcome_candidate"] is True
+    assert row["independent_evidence_vote_count"] == 0
+    assert row["claim_output_allowed"] is False
+    assert out["recurrence_candidate_is_stable_pattern_truth"] is False
+    assert out["outcome_variation_candidate_is_tactical_change_truth"] is False
+
+
+def test_visible_composition_signature_excludes_outcome_but_preserves_team_and_action_mix():
+    payload = _payload([
+        _layer("a", 10.0, families={"PASS": 1}),
+        _layer("b", 12.0, shot=True, families={"SHOT": 1}),
+        _layer("c", 20.0, families={"PASS": 1}),
+        _layer("d", 22.0, loss=True, families={"SHOT": 1}),
+    ])
+    out = build_football_episode_boundaries(payload)
+    first, second = out["football_episode_candidates"]
+    assert first["visible_process_composition_signature_candidate"] == second["visible_process_composition_signature_candidate"]
+    assert first["visible_outcome_candidate"] != second["visible_outcome_candidate"]
+    assert first["visible_process_composition_signature_basis"] == {
+        "team_scope_candidate": "TEAM_A",
+        "action_family_distribution": {"PASS": 1, "SHOT": 1},
+    }
+
+
 def test_duplicate_macro_layer_reference_fails_closed():
     payload = _payload([_layer("a", 10.0)])
     payload["episode_candidates"][0]["time_layer_refs"] = ["a", "a"]
