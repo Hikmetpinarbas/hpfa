@@ -168,6 +168,7 @@ def test_visible_composition_signature_excludes_outcome_but_preserves_team_and_a
     assert first["visible_process_composition_signature_basis"] == {
         "team_scope_candidate": "TEAM_A",
         "action_family_distribution": {"PASS": 1, "SHOT": 1},
+        "visible_action_family_time_layer_sequence_candidate": [{"PASS": 1}, {"SHOT": 1}],
     }
 
 
