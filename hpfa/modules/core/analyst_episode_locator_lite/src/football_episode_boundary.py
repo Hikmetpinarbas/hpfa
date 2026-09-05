@@ -235,17 +235,27 @@ def build_football_episode_boundaries(
             restart_visible = any(row.get("restart_visible") is True for row in segment)
             loss_visible = any(row.get("ball_loss_visible") is True for row in segment)
             recovery_visible = any(row.get("recovery_visible") is True for row in segment)
+
+            transition_flags_by_second: dict[float, set[str]] = defaultdict(set)
+            for row in segment:
+                second = float(row.get("second_candidate"))
+                if row.get("ball_loss_visible") is True:
+                    transition_flags_by_second[second].add("LOSS")
+                if row.get("recovery_visible") is True:
+                    transition_flags_by_second[second].add("RECOVERY")
             same_time_loss_recovery = any(
-                row.get("ball_loss_visible") is True and row.get("recovery_visible") is True
-                for row in segment
+                {"LOSS", "RECOVERY"}.issubset(flags)
+                for flags in transition_flags_by_second.values()
             )
             same_time_unordered = any(row.get("same_time_unordered") is True for row in segment) or same_time_loss_recovery
             ordered_transitions: list[str] = []
-            for row in segment:
-                if row.get("ball_loss_visible") is True:
-                    ordered_transitions.append("LOSS")
-                if row.get("recovery_visible") is True:
-                    ordered_transitions.append("RECOVERY")
+            if not same_time_loss_recovery:
+                for second in sorted(transition_flags_by_second):
+                    flags = transition_flags_by_second[second]
+                    if "LOSS" in flags:
+                        ordered_transitions.append("LOSS")
+                    elif "RECOVERY" in flags:
+                        ordered_transitions.append("RECOVERY")
             collapsed_transitions: list[str] = []
             for transition in ordered_transitions:
                 if not collapsed_transitions or collapsed_transitions[-1] != transition:
