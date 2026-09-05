@@ -50,6 +50,38 @@ def _fail(reason: str) -> dict[str, Any]:
     }
 
 
+def _visible_time_layer_family_sequence(segment: list[dict[str, Any]]) -> list[dict[str, int]]:
+    """Preserve only positive-time ordering between distinct visible time layers.
+
+    Rows sharing the same timestamp are folded into one unordered family-count bucket.
+    Absolute timestamps and source-row order are deliberately excluded so recurrence
+    grouping uses visible process order without inventing same-time chronology.
+    """
+    sequence: list[dict[str, int]] = []
+    current_second: float | None = None
+    current_counts: dict[str, int] = {}
+
+    def flush() -> None:
+        nonlocal current_counts
+        if current_second is not None:
+            sequence.append(dict(sorted(current_counts.items())))
+        current_counts = {}
+
+    for row in segment:
+        second = float(row.get("second_candidate"))
+        if current_second is None:
+            current_second = second
+        elif second != current_second:
+            flush()
+            current_second = second
+        for family, count in (row.get("eligible_action_family_counts") or {}).items():
+            family_key = str(family)
+            current_counts[family_key] = current_counts.get(family_key, 0) + int(count)
+
+    flush()
+    return sequence
+
+
 def _recurrence_change_surface(fine: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Group only exact visible episode composition candidates.
 
@@ -196,6 +228,7 @@ def build_football_episode_boundaries(
             for row in segment:
                 for family, count in (row.get("eligible_action_family_counts") or {}).items():
                     action_families[str(family)] = action_families.get(str(family), 0) + int(count)
+            visible_time_layer_family_sequence = _visible_time_layer_family_sequence(segment)
             teams = sorted({team for row in segment for team in (row.get("team_candidates") or []) if _clean(team)})
             team_scope = teams[0] if len(teams) == 1 else ("MULTI_TEAM_VISIBLE" if teams else "UNKNOWN_TEAM")
             terminal_visible = any(row.get("terminal_action_visible") is True for row in segment)
@@ -243,6 +276,7 @@ def build_football_episode_boundaries(
             composition_basis = {
                 "team_scope_candidate": team_scope,
                 "action_family_distribution": dict(sorted(action_families.items())),
+                "visible_action_family_time_layer_sequence_candidate": visible_time_layer_family_sequence,
             }
             composition_signature = "fpc_" + _digest(composition_basis)[:24]
             candidate_id = "fep_" + _digest(macro_id, segment_refs, segment_start_reason, end_reason)[:24]
@@ -259,6 +293,7 @@ def build_football_episode_boundaries(
                 "visible_outcome_candidate": outcome,
                 "visible_process_composition_signature_candidate": composition_signature,
                 "visible_process_composition_signature_basis": composition_basis,
+                "visible_action_family_time_layer_sequence_candidate": visible_time_layer_family_sequence,
                 "time_layer_refs": segment_refs,
                 "context_refs": context_refs,
                 "action_family_distribution": dict(sorted(action_families.items())),
