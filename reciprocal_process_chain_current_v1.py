@@ -35,6 +35,9 @@ from hpfa.modules.core.process_robustness_lens_lite.src.process_robustness_lens 
     build_process_robustness_lens,
     write_outputs as write_process_robustness_outputs,
 )
+from hpfa.modules.core.professional_finding_candidate_lite.src.duplicate_reflection_risk import (
+    attach_duplicate_reflection_risk,
+)
 from hpfa.modules.core.professional_finding_candidate_lite.src.professional_finding_candidate import (
     ANALYST_TXT as FINDING_ANALYST_TXT,
     OUTPUT_JSON as FINDING_JSON,
@@ -69,6 +72,7 @@ from hpfa.modules.core.visible_geometry_lens_lite.src.visible_geometry_lens impo
 
 TEMPORAL_JSON = "temporal_episode_signature_lite_v1.json"
 TRACE_JSON = "trackable_action_trace_candidates_lite_v1.json"
+EVIDENCE_JSON = "evidence_atom_inventory_lite_v1.json"
 IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 CONTEXT_JSON = "minimum_viable_context_lite_v1.json"
 SEMANTIC_JSON = "context_action_semantics_rebind_lite_v1.json"
@@ -184,6 +188,11 @@ def _attach_finding_projection(parent: dict, child: dict) -> dict:
     parent["professional_finding_context_contrast_status"] = child.get("context_contrast_status")
     parent["professional_finding_context_contrast_evaluated_candidate_count"] = child.get("context_contrast_evaluated_candidate_count", 0)
     parent["professional_finding_context_variation_candidate_count"] = child.get("findings_with_visible_context_variation_candidate_count", 0)
+    parent["professional_finding_alternative_explanation_status"] = child.get("alternative_explanation_status")
+    parent["professional_finding_alternative_explanation_evaluated_candidate_count"] = child.get("alternative_explanation_evaluated_candidate_count", 0)
+    parent["professional_finding_duplicate_reflection_risk_status"] = child.get("duplicate_reflection_risk_status")
+    parent["professional_finding_duplicate_reflection_risk_evaluated_candidate_count"] = child.get("duplicate_reflection_risk_evaluated_candidate_count", 0)
+    parent["professional_finding_dependent_or_reused_reflection_support_count"] = child.get("findings_with_dependent_or_reused_reflection_support_count", 0)
     return parent
 
 
@@ -220,6 +229,8 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "process_metric_profile_status": "FAIL_CLOSED",
         "professional_finding_candidate_status": "FAIL_CLOSED",
         "professional_finding_context_contrast_status": "FAIL_CLOSED",
+        "professional_finding_alternative_explanation_status": "FAIL_CLOSED",
+        "professional_finding_duplicate_reflection_risk_status": "FAIL_CLOSED",
         "player_process_membership_row_count": 0,
         "professional_finding_claim_output_allowed_count": 0,
         "hard_block_hits": [reason],
@@ -289,6 +300,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     variant_paths = write_process_variant_profile_outputs(variant_payload, output)
 
     trace_payload = _load(output / TRACE_JSON)
+    evidence_payload = _load(output / EVIDENCE_JSON)
     identity_payload = _load(output / IDENTITY_JSON)
     context_payload = _load(output / CONTEXT_JSON)
     semantic_payload = _load(output / SEMANTIC_JSON)
@@ -349,6 +361,12 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         finding_payload,
         payload,
         activity_payload,
+    )
+    finding_payload = attach_duplicate_reflection_risk(
+        finding_payload,
+        payload,
+        trace_payload,
+        evidence_payload,
     )
     finding_paths = write_professional_finding_outputs(finding_payload, output)
     payload = _attach_finding_projection(payload, finding_payload)
@@ -423,6 +441,10 @@ def main() -> int:
         "professional_finding_context_contrast_status": payload.get("professional_finding_context_contrast_status"),
         "professional_finding_context_contrast_evaluated_candidate_count": payload.get("professional_finding_context_contrast_evaluated_candidate_count"),
         "professional_finding_context_variation_candidate_count": payload.get("professional_finding_context_variation_candidate_count"),
+        "professional_finding_alternative_explanation_status": payload.get("professional_finding_alternative_explanation_status"),
+        "professional_finding_duplicate_reflection_risk_status": payload.get("professional_finding_duplicate_reflection_risk_status"),
+        "professional_finding_duplicate_reflection_risk_evaluated_candidate_count": payload.get("professional_finding_duplicate_reflection_risk_evaluated_candidate_count"),
+        "professional_finding_dependent_or_reused_reflection_support_count": payload.get("professional_finding_dependent_or_reused_reflection_support_count"),
         "professional_finding_claim_output_allowed_count": payload.get("professional_finding_claim_output_allowed_count"),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
