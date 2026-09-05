@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 import active_match_full_run as current_episode
+from hpfa.modules.core.analyst_episode_locator_lite.src.football_episode_boundary import (
+    build_football_episode_boundaries,
+)
 from hpfa.modules.core.temporal_episode_signature_lite.src.temporal_episode_signature import (
     write_outputs as write_temporal_episode_signature,
 )
@@ -15,6 +18,9 @@ MODULE_ID = "active_match_episode_lane_adapter_v1"
 CURRENT_EPISODE_RUNNER_OUTPUT = "active_match_full_run_lite_v1.json"
 ROW_NUCLEUS_OUTPUT = "row_nucleus_inventory_lite_v1.json"
 BRIDGE_OUTPUT = "reconstruction_intelligence_packet_bridge_current_v1.json"
+ANALYST_EPISODE_OUTPUT = "analyst_episode_locator_lite_v1.json"
+FOOTBALL_EPISODE_OUTPUT = "football_episode_boundary_candidate_v1.json"
+FOOTBALL_EPISODE_TXT = "football_episode_boundary_candidate_v1.txt"
 TEMPORAL_OUTPUT = "temporal_episode_signature_lite_v1.json"
 EPISODE_OWNED_OUTPUTS = {
     "minimum_viable_context_lite_v1.json",
@@ -25,6 +31,8 @@ EPISODE_OWNED_OUTPUTS = {
     "analyst_episode_locator_lite_v1.json",
     "analyst_episode_locator_lite_v1.txt",
     "analyst_episode_locator_analyst_audit_v1.txt",
+    "football_episode_boundary_candidate_v1.json",
+    "football_episode_boundary_candidate_v1.txt",
     "episode_feature_vector_lite_v1.json",
     "episode_feature_vector_lite_v1.txt",
     "episode_feature_vector_analyst_audit_v1.txt",
@@ -173,6 +181,35 @@ def _snapshot_bound_raw_step(
     return step
 
 
+def _write_football_episode_boundary_outputs(output: Path) -> dict[str, Any]:
+    upstream = current_episode.read_json(output / ANALYST_EPISODE_OUTPUT)
+    report = build_football_episode_boundaries(upstream)
+    json_path = output / FOOTBALL_EPISODE_OUTPUT
+    txt_path = output / FOOTBALL_EPISODE_TXT
+    json_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    txt_path.write_text(
+        "\n".join([
+            "HPFA FOOTBALL EPISODE BOUNDARY CANDIDATE V1",
+            f"status={report.get('status')}",
+            f"football_episode_candidate_count={report.get('football_episode_candidate_count', 0)}",
+            f"claim_ceiling={report.get('claim_ceiling')}",
+            "episode_is_possession_truth=false",
+            "episode_is_phase_truth=false",
+            "episode_is_tactical_truth=false",
+            "episode_is_causal_truth=false",
+            "canonical_event_count=UNKNOWN",
+            "true_action_count=UNKNOWN",
+            "production_release=false",
+            "",
+        ]),
+        encoding="utf-8",
+    )
+    return report
+
+
 def run_current_episode_lane(
     active_match_dir: str | Path,
     out_dir: str | Path,
@@ -292,6 +329,36 @@ def run_current_episode_lane(
         elif current_report.get("status") == "REVIEW_REQUIRED":
             review_hits.append("current_episode_lane_review_required")
 
+    football_episode_report: dict[str, Any] = {
+        "status": "NOT_EVALUATED_PREREQUISITE_MISSING",
+        "football_episode_candidate_count": 0,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+    football_episode_executed = False
+    if not hard_blocks:
+        football_episode_executed = True
+        try:
+            football_episode_report = _write_football_episode_boundary_outputs(output)
+        except (OSError, ValueError, TypeError) as exc:
+            football_episode_report = {
+                "status": "FAIL_CLOSED",
+                "hard_block_hits": [f"football_episode_boundary_execution_failed:{type(exc).__name__}"],
+                "football_episode_candidate_count": 0,
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            }
+        football_episode_status = str(football_episode_report.get("status") or "UNKNOWN").upper()
+        if football_episode_status == "FAIL_CLOSED":
+            reasons = football_episode_report.get("hard_block_hits") or []
+            hard_blocks.append(
+                str(reasons[0]) if isinstance(reasons, list) and reasons else "football_episode_boundary_fail_closed"
+            )
+        elif football_episode_status == "REVIEW_REQUIRED":
+            review_hits.append("football_episode_boundary_review_required")
+
     feature_lane_executed = all(
         _stage_executed(steps, script)
         for script in (
@@ -368,6 +435,8 @@ def run_current_episode_lane(
         "observed_surface_snapshot_id": final_observed_snapshot.get("snapshot_id"),
         "surface_snapshot_bound": final_snapshot_bound,
         "current_episode_runner_status": current_report.get("status"),
+        "football_episode_boundary_status": football_episode_report.get("status"),
+        "football_episode_candidate_count": football_episode_report.get("football_episode_candidate_count", 0),
         "temporal_episode_signature_status": temporal_report.get("status"),
         "episode_candidate_count": episode_evidence.get("episode_candidate_count"),
         "episode_feature_vector_count": episode_evidence.get("episode_feature_vector_count"),
@@ -388,6 +457,7 @@ def run_current_episode_lane(
             for step in steps
         ],
         "episode_output": str(output / CURRENT_EPISODE_RUNNER_OUTPUT),
+        "football_episode_output": str(output / FOOTBALL_EPISODE_OUTPUT),
         "temporal_output": str(output / TEMPORAL_OUTPUT),
         "current_invocation_artifacts": current_invocation_artifacts,
         "shared_foundation_reused": shared_foundation_reused,
@@ -395,9 +465,11 @@ def run_current_episode_lane(
         "cleared_stale_episode_outputs": cleared_episode_outputs,
         "context_episode_feature_lane_executed": feature_lane_executed,
         "context_episode_feature_lane_completed": feature_lane_completed,
+        "football_episode_boundary_executed": football_episode_executed,
         "temporal_episode_signature_executed": temporal_executed,
         "row_nucleus_recomputed_by_episode_lane": False,
         "episode_lane_adds_action_volume": False,
+        "football_episode_boundary_adds_action_volume": False,
         "temporal_signature_is_rhythm_truth": False,
         "source_row_order_is_temporal_truth": False,
         "same_timestamp_internal_ordering_allowed": False,
