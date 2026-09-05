@@ -1,7 +1,7 @@
 {
   "module_id": "football_episode_boundary_candidate_v1",
   "producer_owner": "analyst_episode_locator_lite_v1 extension",
-  "purpose": "Split existing macro analyst episodes into finer football-process boundary candidates using only visible admitted evidence without creating possession, tactical phase, causal or canonical-event truth.",
+  "purpose": "Split existing macro analyst episodes into finer football-process boundary candidates using only visible admitted evidence, then expose match-local exact-composition recurrence/change candidates without creating possession, tactical phase, causal, stable-pattern or canonical-event truth.",
   "input_authority": [
     "analyst_episode_locator_lite_v1.json"
   ],
@@ -20,6 +20,11 @@
     "source_row_order_is_temporal_truth": false,
     "duplicate_reflection_may_increase_recurrence": false,
     "gap_threshold_is_calibrated_truth": false,
+    "composition_signature_excludes_visible_outcome": true,
+    "recurrence_candidate_is_stable_pattern_truth": false,
+    "outcome_variation_candidate_is_tactical_change_truth": false,
+    "dependent_episode_projection_is_independent_evidence": false,
+    "claim_output_allowed": false,
     "episode_is_possession_truth": false,
     "episode_is_sequence_truth": false,
     "episode_is_phase_truth": false,
@@ -35,7 +40,9 @@
     "break_or_end_evidence_candidate",
     "visible_outcome_candidate",
     "team_scope_candidate",
-    "action_family_distribution"
+    "action_family_distribution",
+    "visible_process_composition_signature_candidate",
+    "episode_recurrence_change_candidates"
   ],
   "claim_ceiling": "FOOTBALL_EPISODE_BOUNDARY_CANDIDATE_ONLY",
   "release_state": "IMPLEMENTATION_SLICE / REVIEW_REQUIRED / ACTIVE_MATCH_REQUIRED / NOT_PRODUCTION"
