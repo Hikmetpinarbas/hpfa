@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from hpfa.modules.core.professional_finding_candidate_lite.src.failed_trace_support import (
+    attach_failed_trace_support,
+)
 from hpfa.modules.core.professional_finding_candidate_lite.src.threshold_sensitivity import (
     attach_threshold_sensitivity,
 )
@@ -54,10 +57,10 @@ def _outcome_object(signature: tuple[tuple[str, ...], tuple[str, ...], bool]) ->
 
 
 def _activity_signature(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Coarse visible activity signature; period is intentionally not part of the fingerprint."""
     if not isinstance(row, dict):
         return None
     return {
-        "period_candidate": row.get("period_candidate"),
         "visible_activity_signals_present": sorted(
             {_clean(value) for value in (row.get("visible_activity_signals_present") or []) if _clean(value)}
         ),
@@ -83,12 +86,11 @@ def attach_visible_episode_context_contrast(
     reciprocal_payload: dict[str, Any],
     activity_payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Attach current visible episode-activity context to existing finding candidates.
+    """Attach visible episode context, then threshold and failed-trace challenge slices.
 
-    This is a dependent projection over already-admitted episode/team activity and
-    reciprocal process candidates. It compares co-occurring visible context across
-    different visible outcome variants. It does not classify success/failure, infer
-    causality, create a tactical phase, or open final finding output.
+    Context comparison uses already-admitted team-episode activity only. Period is reported
+    as context metadata but no longer creates a context difference by itself. This remains
+    descriptive and cannot establish tactical phase, causality, possession or off-ball truth.
     """
     blocks: list[str] = []
     reviews: list[str] = []
@@ -114,7 +116,6 @@ def attach_visible_episode_context_contrast(
     result["professional_finding_candidates"] = [
         dict(row) for row in (finding_payload.get("professional_finding_candidates") or []) if isinstance(row, dict)
     ]
-
     if blocks:
         result["status"] = "FAIL_CLOSED"
         result["context_contrast_status"] = "FAIL_CLOSED"
@@ -139,10 +140,7 @@ def attach_visible_episode_context_contrast(
         and _clean(row.get("team_identity_candidate_id"))
     }
 
-    fully_covered = 0
-    variation_visible = 0
-    partial_coverage = 0
-
+    fully_covered = variation_visible = partial_coverage = 0
     for row in result["professional_finding_candidates"]:
         support = row.get("support") if isinstance(row.get("support"), dict) else {}
         chain_ids = [
@@ -183,10 +181,14 @@ def attach_visible_episode_context_contrast(
             if complete:
                 covered_chain_count += 1
 
-            context = {
+            fingerprint_context = {
                 "anchor_episode_activity": anchor_sig,
                 "response_episode_activity": response_sig,
                 "counter_response_episode_activity": counter_sig,
+            }
+            example_context = {
+                "period_candidate": chain.get("period_candidate") or (anchor or {}).get("period_candidate"),
+                **fingerprint_context,
             }
             outcome = _outcome_signature(chain)
             outcome_key = json.dumps(_outcome_object(outcome), sort_keys=True, separators=(",", ":"))
@@ -194,14 +196,17 @@ def attach_visible_episode_context_contrast(
                 "visible_outcome_signature_candidate": _outcome_object(outcome),
                 "chain_ids": [],
                 "context_fingerprints": set(),
+                "period_candidates": set(),
                 "context_examples": [],
             })
             bucket["chain_ids"].append(chain_id)
+            period = _clean(example_context.get("period_candidate"))
+            if period:
+                bucket["period_candidates"].add(period)
             if complete:
-                fp = _fingerprint(context)
-                bucket["context_fingerprints"].add(fp)
+                bucket["context_fingerprints"].add(_fingerprint(fingerprint_context))
                 if len(bucket["context_examples"]) < 3:
-                    bucket["context_examples"].append(context)
+                    bucket["context_examples"].append(example_context)
 
         outcome_groups = list(grouped.values())
         if len(outcome_groups) <= 1:
@@ -218,14 +223,13 @@ def attach_visible_episode_context_contrast(
                 variation_visible += 1
             fully_covered += 1
 
-        serializable_groups = []
-        for group in outcome_groups:
-            serializable_groups.append({
-                "visible_outcome_signature_candidate": group["visible_outcome_signature_candidate"],
-                "chain_ids": sorted(group["chain_ids"]),
-                "distinct_visible_episode_context_count_candidate": len(group["context_fingerprints"]),
-                "visible_episode_context_examples": group["context_examples"],
-            })
+        serializable_groups = [{
+            "visible_outcome_signature_candidate": group["visible_outcome_signature_candidate"],
+            "chain_ids": sorted(group["chain_ids"]),
+            "period_candidates": sorted(group["period_candidates"]),
+            "distinct_visible_episode_context_count_candidate": len(group["context_fingerprints"]),
+            "visible_episode_context_examples": group["context_examples"],
+        } for group in outcome_groups]
 
         contrast = {
             "state_candidate": context_state,
@@ -234,6 +238,7 @@ def attach_visible_episode_context_contrast(
             "visible_outcome_group_count": len(outcome_groups),
             "outcome_context_groups": serializable_groups,
             "scope": "ADMITTED_TEAM_EPISODE_VISIBLE_ACTIVITY_ONLY",
+            "period_reported_but_not_used_as_activity_fingerprint": True,
             "uses_presence_not_uncalibrated_threshold": True,
             "context_difference_is_causal_explanation": False,
             "context_difference_is_tactical_truth": False,
@@ -267,6 +272,7 @@ def attach_visible_episode_context_contrast(
         uncertainty["visible_episode_context_coverage_complete_for_current_scope"] = (
             covered_chain_count == len(chain_ids) and bool(chain_ids)
         )
+        uncertainty["period_alone_does_not_create_context_variation"] = True
         uncertainty["context_dependence_search_complete_for_final_finding"] = False
         row["uncertainty"] = uncertainty
         row["claim_output_allowed"] = False
@@ -285,4 +291,6 @@ def attach_visible_episode_context_contrast(
     result["canonical_event_count"] = CANONICAL_EVENT_COUNT
     result["true_action_count"] = TRUE_ACTION_COUNT
     result["production_release"] = False
-    return attach_threshold_sensitivity(result)
+
+    result = attach_threshold_sensitivity(result)
+    return attach_failed_trace_support(result, reciprocal_payload)
