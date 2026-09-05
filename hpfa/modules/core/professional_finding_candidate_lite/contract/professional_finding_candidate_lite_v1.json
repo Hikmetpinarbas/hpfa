@@ -1,12 +1,13 @@
 {
   "module_id": "professional_finding_candidate_lite_v1",
-  "version": "1.1.0-candidate",
-  "purpose": "Assemble evidence-bearing match-local analyst argument candidates from visible process recurrence surfaces without releasing a final tactical or causal finding.",
+  "version": "1.2.0-visible-episode-context-contrast-candidate",
+  "purpose": "Assemble evidence-bearing match-local analyst argument candidates from visible process recurrence surfaces and compare already-admitted visible episode activity across outcome variants without releasing a final tactical or causal finding.",
   "required_inputs": [
     "reciprocal_process_chain_lite_v1",
     "process_robustness_lens_lite_v1",
     "process_metric_profile_lite_v1",
-    "match_reconciliation_ledger_lite_v2"
+    "match_reconciliation_ledger_lite_v2",
+    "team_episode_activity_lens_lite_v1"
   ],
   "required_argument_fields": [
     "safe_analyst_sentence_candidate",
@@ -35,7 +36,8 @@
     "trace_dependency": "MEASURED_NOT_INDEPENDENCE_TRUTH",
     "leave_one_episode_scope_out": "EVALUATED_WHEN_ADMISSIBLE",
     "leave_top_anchor_actor_out": "EVALUATED_WHEN_ADMISSIBLE",
-    "context_dependence": "PENDING",
+    "visible_episode_context_contrast": "EVALUATED_FROM_ALREADY_ADMITTED_TEAM_EPISODE_ACTIVITY",
+    "context_dependence": "PARTIALLY_EVALUATED_VISIBLE_EPISODE_ACTIVITY_SCOPE_ONLY",
     "threshold_sensitivity": "PENDING",
     "failed_trace_support": "PENDING",
     "duplicate_reflection_risk": "PENDING",
@@ -43,13 +45,24 @@
     "counter_search_complete_for_final_finding": false,
     "no_visible_counterexample_is_confirmation": false
   },
+  "context_contrast_policy": {
+    "scope": "ADMITTED_TEAM_EPISODE_VISIBLE_ACTIVITY_ONLY",
+    "comparison_unit": "SAME_PROCESS_SIGNATURE_DIFFERENT_VISIBLE_OUTCOME_VARIANTS",
+    "uses_activity_presence_not_uncalibrated_threshold": true,
+    "context_difference_is_causal_explanation": false,
+    "context_difference_is_tactical_truth": false,
+    "absence_of_visible_context_difference_disproves_context_dependence": false,
+    "off_ball_context_requires_video_or_tracking": true,
+    "broader_context_search_complete_for_final_finding": false
+  },
   "counterevidence_policy": {
     "direct_visible_outcome_contrast": "EVALUATED_WHEN_AVAILABLE",
     "segment_only": "EVALUATED_FROM_EPISODE_SCOPE",
     "player_outlier": "EVALUATED_VISIBLE_MEMBERSHIP_ONLY",
     "opponent_symmetry": "EVALUATED_VISIBLE_ANCHOR_SIDE_ONLY",
     "trace_dependency": "MEASURED_NOT_INDEPENDENCE_TRUTH",
-    "context_dependence": "NOT_EVALUATED_V1",
+    "visible_episode_context_contrast": "EVALUATED_AT_CURRENT_VISIBLE_RESOLUTION",
+    "context_dependence": "PARTIAL_ONLY",
     "threshold_sensitivity": "NOT_EVALUATED_V1",
     "alternative_explanation_search": "INCOMPLETE_V1"
   },
