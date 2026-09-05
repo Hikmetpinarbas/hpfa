@@ -3,6 +3,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from hpfa.modules.core.professional_finding_candidate_lite.src.threshold_sensitivity import (
+    attach_threshold_sensitivity,
+)
+
 FINDING_MODULE_ID = "professional_finding_candidate_lite_v1"
 RECIPROCAL_MODULE_ID = "reciprocal_process_chain_lite_v1"
 ACTIVITY_MODULE_ID = "team_episode_activity_lens_lite_v1"
@@ -281,4 +285,4 @@ def attach_visible_episode_context_contrast(
     result["canonical_event_count"] = CANONICAL_EVENT_COUNT
     result["true_action_count"] = TRUE_ACTION_COUNT
     result["production_release"] = False
-    return result
+    return attach_threshold_sensitivity(result)
