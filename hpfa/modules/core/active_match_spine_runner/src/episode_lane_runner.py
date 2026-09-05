@@ -182,7 +182,21 @@ def _snapshot_bound_raw_step(
 
 
 def _write_football_episode_boundary_outputs(output: Path) -> dict[str, Any]:
-    upstream = current_episode.read_json(output / ANALYST_EPISODE_OUTPUT)
+    upstream_path = output / ANALYST_EPISODE_OUTPUT
+    if not upstream_path.is_file():
+        return {
+            "module_id": "football_episode_boundary_candidate_v1",
+            "status": "NOT_EVALUATED_PREREQUISITE_MISSING",
+            "decision": "FOOTBALL_EPISODE_UPSTREAM_ARTIFACT_MISSING",
+            "football_episode_candidates": [],
+            "football_episode_candidate_count": 0,
+            "hard_block_hits": [],
+            "review_hits": ["analyst_episode_locator_artifact_missing"],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+    upstream = current_episode.read_json(upstream_path)
     report = build_football_episode_boundaries(upstream)
     json_path = output / FOOTBALL_EPISODE_OUTPUT
     txt_path = output / FOOTBALL_EPISODE_TXT
