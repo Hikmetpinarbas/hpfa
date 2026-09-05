@@ -108,6 +108,27 @@ def test_cross_layer_recovery_then_loss_preserves_visible_time_order():
     assert ep["same_time_unordered_visible"] is False
 
 
+def test_interleaved_loss_recovery_preserves_mixed_visible_order():
+    payload = _payload([
+        _layer("a", 10.0, loss=True, families={"TURNOVER": 1}),
+        _layer("b", 12.0, recovery=True, families={"RECOVERY": 1}),
+        _layer("c", 14.0, loss=True, families={"TURNOVER": 1}),
+    ])
+    out = build_football_episode_boundaries(payload)
+    ep = out["football_episode_candidates"][0]
+    assert ep["visible_outcome_candidate"] == "LOSS_RECOVERY_INTERLEAVED_VISIBLE"
+    assert ep["same_time_unordered_visible"] is False
+
+
+def test_orphan_time_layer_fails_closed_before_complete_coverage_claim():
+    payload = _payload([_layer("a", 10.0), _layer("b", 12.0)])
+    payload["episode_candidates"][0]["time_layer_refs"] = ["a"]
+    out = build_football_episode_boundaries(payload)
+    assert out["status"] == "FAIL_CLOSED"
+    assert out["football_episode_candidate_count"] == 0
+    assert out["hard_block_hits"] == ["fine_episode_layer_assignment_coverage_mismatch"]
+
+
 def test_boundary_requires_visible_evidence_no_arbitrary_split():
     payload = _payload([_layer("a", 10.0), _layer("b", 12.0), _layer("c", 14.0)])
     out = build_football_episode_boundaries(payload)
