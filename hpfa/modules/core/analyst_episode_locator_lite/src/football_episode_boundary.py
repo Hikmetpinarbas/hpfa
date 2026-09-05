@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import defaultdict
+from collections.abc import Mapping
 from typing import Any
 
 MODULE_ID = "football_episode_boundary_candidate_v1"
@@ -149,6 +150,9 @@ def build_football_episode_boundaries(
         layer_id = _clean(layer.get("episode_time_layer_candidate_id"))
         if not layer_id or layer_id in layer_by_id:
             return _fail(f"time_layer_id_invalid_or_duplicate:{index}")
+        action_family_counts = layer.get("eligible_action_family_counts")
+        if action_family_counts is not None and not isinstance(action_family_counts, Mapping):
+            return _fail(f"time_layer_action_family_counts_invalid:{layer_id}")
         layer_by_id[layer_id] = layer
 
     fine: list[dict[str, Any]] = []
