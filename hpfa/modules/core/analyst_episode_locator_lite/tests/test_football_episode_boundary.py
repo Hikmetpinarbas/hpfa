@@ -86,6 +86,28 @@ def test_same_layer_loss_recovery_does_not_create_internal_order():
     assert out["status"] == "REVIEW_REQUIRED"
 
 
+def test_cross_layer_loss_then_recovery_preserves_visible_time_order():
+    payload = _payload([
+        _layer("a", 10.0, loss=True, families={"TURNOVER": 1}),
+        _layer("b", 12.0, recovery=True, families={"RECOVERY": 1}),
+    ])
+    out = build_football_episode_boundaries(payload)
+    ep = out["football_episode_candidates"][0]
+    assert ep["visible_outcome_candidate"] == "BALL_LOSS_THEN_RECOVERY_VISIBLE"
+    assert ep["same_time_unordered_visible"] is False
+
+
+def test_cross_layer_recovery_then_loss_preserves_visible_time_order():
+    payload = _payload([
+        _layer("a", 10.0, recovery=True, families={"RECOVERY": 1}),
+        _layer("b", 12.0, loss=True, families={"TURNOVER": 1}),
+    ])
+    out = build_football_episode_boundaries(payload)
+    ep = out["football_episode_candidates"][0]
+    assert ep["visible_outcome_candidate"] == "RECOVERY_THEN_BALL_LOSS_VISIBLE"
+    assert ep["same_time_unordered_visible"] is False
+
+
 def test_boundary_requires_visible_evidence_no_arbitrary_split():
     payload = _payload([_layer("a", 10.0), _layer("b", 12.0), _layer("c", 14.0)])
     out = build_football_episode_boundaries(payload)
@@ -99,6 +121,18 @@ def test_duplicate_macro_layer_reference_fails_closed():
     out = build_football_episode_boundaries(payload)
     assert out["status"] == "FAIL_CLOSED"
     assert out["football_episode_candidate_count"] == 0
+
+
+def test_cross_macro_layer_reuse_fails_closed_without_exception():
+    payload = _payload([_layer("a", 10.0), _layer("b", 12.0)])
+    payload["episode_candidates"] = [
+        {"episode_candidate_id": "macro_1", "period_candidate": "1", "time_layer_refs": ["a"]},
+        {"episode_candidate_id": "macro_2", "period_candidate": "1", "time_layer_refs": ["a", "b"]},
+    ]
+    out = build_football_episode_boundaries(payload)
+    assert out["status"] == "FAIL_CLOSED"
+    assert out["football_episode_candidate_count"] == 0
+    assert out["hard_block_hits"] == ["macro_episode_cross_macro_layer_reuse:macro_2:a"]
 
 
 def test_upstream_fail_closed_contracts_downstream_permission():
