@@ -42,6 +42,9 @@ from hpfa.modules.core.professional_finding_candidate_lite.src.professional_find
     build_professional_finding_candidates,
     write_outputs as write_professional_finding_outputs,
 )
+from hpfa.modules.core.professional_finding_candidate_lite.src.visible_episode_context_contrast import (
+    attach_visible_episode_context_contrast,
+)
 from hpfa.modules.core.reciprocal_process_chain_lite.src import reciprocal_process_chain as reciprocal
 from hpfa.modules.core.reciprocal_process_chain_lite.src.outcome_contrast import attach_outcome_contrast
 from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile import build_process_variant_profiles
@@ -178,6 +181,9 @@ def _attach_finding_projection(parent: dict, child: dict) -> dict:
     parent["blocked_incomplete_episode_binding_candidate_count"] = child.get("blocked_incomplete_episode_binding_candidate_count", 0)
     parent["professional_finding_claim_output_allowed_count"] = child.get("claim_output_allowed_count", 0)
     parent["professional_finding_emitted_count"] = child.get("professional_finding_emitted_count", 0)
+    parent["professional_finding_context_contrast_status"] = child.get("context_contrast_status")
+    parent["professional_finding_context_contrast_evaluated_candidate_count"] = child.get("context_contrast_evaluated_candidate_count", 0)
+    parent["professional_finding_context_variation_candidate_count"] = child.get("findings_with_visible_context_variation_candidate_count", 0)
     return parent
 
 
@@ -213,6 +219,7 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "process_robustness_status": "FAIL_CLOSED",
         "process_metric_profile_status": "FAIL_CLOSED",
         "professional_finding_candidate_status": "FAIL_CLOSED",
+        "professional_finding_context_contrast_status": "FAIL_CLOSED",
         "player_process_membership_row_count": 0,
         "professional_finding_claim_output_allowed_count": 0,
         "hard_block_hits": [reason],
@@ -338,6 +345,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         metric_payload,
         reconciliation_payload,
     )
+    finding_payload = attach_visible_episode_context_contrast(
+        finding_payload,
+        payload,
+        activity_payload,
+    )
     finding_paths = write_professional_finding_outputs(finding_payload, output)
     payload = _attach_finding_projection(payload, finding_payload)
 
@@ -408,6 +420,9 @@ def main() -> int:
         "professional_finding_candidate_status": payload.get("professional_finding_candidate_status"),
         "professional_finding_candidate_count": payload.get("professional_finding_candidate_count"),
         "qualified_multi_episode_candidate_count": payload.get("qualified_multi_episode_candidate_count"),
+        "professional_finding_context_contrast_status": payload.get("professional_finding_context_contrast_status"),
+        "professional_finding_context_contrast_evaluated_candidate_count": payload.get("professional_finding_context_contrast_evaluated_candidate_count"),
+        "professional_finding_context_variation_candidate_count": payload.get("professional_finding_context_variation_candidate_count"),
         "professional_finding_claim_output_allowed_count": payload.get("professional_finding_claim_output_allowed_count"),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
