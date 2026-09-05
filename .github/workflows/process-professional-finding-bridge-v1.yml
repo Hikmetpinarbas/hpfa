@@ -36,6 +36,7 @@ jobs:
             hpfa/modules/core/process_robustness_lens_lite/tests/test_process_robustness_lens.py \
             hpfa/modules/core/process_metric_profile_lite/tests/test_process_metric_profile.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_professional_finding_candidate.py \
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_visible_episode_context_contrast.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_professional_finding_bundle_ledger.py
       - name: Compile current runtime and bridge modules
         run: |
@@ -47,6 +48,7 @@ jobs:
           python -m py_compile hpfa/modules/core/process_robustness_lens_lite/src/process_robustness_lens.py
           python -m py_compile hpfa/modules/core/process_metric_profile_lite/src/process_metric_profile.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
+          python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
       - name: Claim and accounting lock audit
         run: |
           grep -F 'process_membership_share_uses_matching_unique_process_units' hpfa/modules/core/match_reconciliation_ledger_lite/src/match_reconciliation_ledger.py
@@ -59,4 +61,6 @@ jobs:
           grep -F 'composite_metrics_are_calibrated' hpfa/modules/core/process_metric_profile_lite/src/process_metric_profile.py
           grep -F 'claim_output_allowed' hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
           grep -F 'professional_finding_emitted' hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
+          grep -F 'context_difference_is_causal_explanation' hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
+          grep -F 'absence_of_visible_context_difference_disproves_context_dependence' hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
           grep -F 'production_release=false' hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
