@@ -171,17 +171,27 @@ def build_football_episode_boundaries(
                 for row in segment
             )
             same_time_unordered = any(row.get("same_time_unordered") is True for row in segment) or same_time_loss_recovery
-            loss_seconds = [float(row.get("second_candidate")) for row in segment if row.get("ball_loss_visible") is True]
-            recovery_seconds = [float(row.get("second_candidate")) for row in segment if row.get("recovery_visible") is True]
+            ordered_transitions: list[str] = []
+            for row in segment:
+                if row.get("ball_loss_visible") is True:
+                    ordered_transitions.append("LOSS")
+                if row.get("recovery_visible") is True:
+                    ordered_transitions.append("RECOVERY")
+            collapsed_transitions: list[str] = []
+            for transition in ordered_transitions:
+                if not collapsed_transitions or collapsed_transitions[-1] != transition:
+                    collapsed_transitions.append(transition)
 
             if terminal_visible:
                 outcome = "TERMINAL_SHOT_VISIBLE"
             elif same_time_loss_recovery:
                 outcome = "LOSS_AND_RECOVERY_VISIBLE_ORDER_INDETERMINATE"
-            elif loss_visible and recovery_visible and min(loss_seconds) < min(recovery_seconds):
+            elif loss_visible and recovery_visible and collapsed_transitions == ["LOSS", "RECOVERY"]:
                 outcome = "BALL_LOSS_THEN_RECOVERY_VISIBLE"
-            elif loss_visible and recovery_visible and min(recovery_seconds) < min(loss_seconds):
+            elif loss_visible and recovery_visible and collapsed_transitions == ["RECOVERY", "LOSS"]:
                 outcome = "RECOVERY_THEN_BALL_LOSS_VISIBLE"
+            elif loss_visible and recovery_visible and len(collapsed_transitions) > 2:
+                outcome = "LOSS_RECOVERY_INTERLEAVED_VISIBLE"
             elif loss_visible and recovery_visible:
                 outcome = "LOSS_AND_RECOVERY_VISIBLE_ORDER_INDETERMINATE"
             elif loss_visible:
@@ -268,8 +278,8 @@ def build_football_episode_boundaries(
 
         close_segment("MACRO_EPISODE_END")
 
-    expected_refs = {ref for macro in macros for ref in (macro.get("time_layer_refs") or [])}
-    if assigned_layer_refs != expected_refs:
+    complete_layer_refs = set(layer_by_id)
+    if assigned_layer_refs != complete_layer_refs:
         return _fail("fine_episode_layer_assignment_coverage_mismatch")
 
     recurrence_change = _recurrence_change_surface(fine)
