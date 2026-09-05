@@ -29,6 +29,7 @@ def _fail(reason: str) -> dict[str, Any]:
         "football_episode_candidate_count": 0,
         "episode_recurrence_change_candidates": [],
         "episode_recurrence_change_candidate_count": 0,
+        "visible_outcome_counterevidence_pair_count": 0,
         "hard_block_hits": [reason],
         "review_hits": [],
         "claim_ceiling": CLAIM_CEILING,
@@ -41,6 +42,7 @@ def _fail(reason: str) -> dict[str, Any]:
         "episode_is_causal_truth": False,
         "recurrence_candidate_is_stable_pattern_truth": False,
         "outcome_variation_candidate_is_tactical_change_truth": False,
+        "counterevidence_candidate_is_causal_falsification_truth": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -51,8 +53,9 @@ def _recurrence_change_surface(fine: list[dict[str, Any]]) -> list[dict[str, Any
     """Group only exact visible episode composition candidates.
 
     The signature deliberately excludes visible outcome so the same admitted visible
-    composition can preserve outcome variation as counterevidence/change surface.
-    It is a match-local descriptive grouping, not recurrence, tactic or causality truth.
+    composition can preserve outcome variation as a counterevidence/change surface.
+    Pairwise contrasts are dependent same-match projections only; they are not
+    independent evidence votes, causal falsification or tactical truth.
     """
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in fine:
@@ -68,16 +71,45 @@ def _recurrence_change_surface(fine: list[dict[str, Any]]) -> list[dict[str, Any
         for row in rows:
             outcome = _clean(row.get("visible_outcome_candidate")) or "UNKNOWN_VISIBLE_OUTCOME"
             outcome_distribution[outcome] = outcome_distribution.get(outcome, 0) + 1
+
+        contrast_pairs: list[dict[str, Any]] = []
+        for left_index, left in enumerate(rows):
+            left_outcome = _clean(left.get("visible_outcome_candidate")) or "UNKNOWN_VISIBLE_OUTCOME"
+            for right in rows[left_index + 1 :]:
+                right_outcome = _clean(right.get("visible_outcome_candidate")) or "UNKNOWN_VISIBLE_OUTCOME"
+                if left_outcome == right_outcome:
+                    continue
+                left_id = _clean(left.get("football_episode_candidate_id"))
+                right_id = _clean(right.get("football_episode_candidate_id"))
+                pair_id = "foc_" + _digest(signature, left_id, right_id, left_outcome, right_outcome)[:24]
+                contrast_pairs.append({
+                    "visible_outcome_contrast_pair_id": pair_id,
+                    "football_episode_candidate_id_a": left_id,
+                    "football_episode_candidate_id_b": right_id,
+                    "visible_outcome_candidate_a": left_outcome,
+                    "visible_outcome_candidate_b": right_outcome,
+                    "counterevidence_candidate": True,
+                    "counterevidence_scope": "SAME_MATCH_SAME_VISIBLE_COMPOSITION_DIFFERENT_VISIBLE_OUTCOME_ONLY",
+                    "dependent_episode_projection_only": True,
+                    "independent_evidence_vote_count": 0,
+                    "causal_falsification_truth": False,
+                    "tactical_change_truth": False,
+                    "claim_output_allowed": False,
+                })
+
         surface.append({
             "visible_process_composition_signature_candidate": signature,
             "football_episode_candidate_ids": [row["football_episode_candidate_id"] for row in rows],
             "visible_episode_repeat_count_candidate": len(rows),
             "visible_outcome_distribution": dict(sorted(outcome_distribution.items())),
             "different_visible_outcome_candidate": len(outcome_distribution) > 1,
+            "visible_outcome_contrast_pairs": contrast_pairs,
+            "visible_outcome_contrast_pair_count": len(contrast_pairs),
             "dependent_episode_projection_only": True,
             "independent_evidence_vote_count": 0,
             "recurrence_candidate_is_stable_pattern_truth": False,
             "outcome_variation_candidate_is_tactical_change_truth": False,
+            "counterevidence_candidate_is_causal_falsification_truth": False,
             "claim_output_allowed": False,
         })
     return surface
@@ -243,6 +275,7 @@ def build_football_episode_boundaries(
                 "episode_is_causal_truth": False,
                 "recurrence_candidate_is_stable_pattern_truth": False,
                 "outcome_variation_candidate_is_tactical_change_truth": False,
+                "counterevidence_candidate_is_causal_falsification_truth": False,
                 "claim_ceiling": CLAIM_CEILING,
             })
             assigned_layer_refs.update(segment_refs)
@@ -296,6 +329,9 @@ def build_football_episode_boundaries(
         "different_visible_outcome_recurrence_candidate_count": sum(
             row.get("different_visible_outcome_candidate") is True for row in recurrence_change
         ),
+        "visible_outcome_counterevidence_pair_count": sum(
+            int(row.get("visible_outcome_contrast_pair_count") or 0) for row in recurrence_change
+        ),
         "all_macro_time_layers_assigned_once": True,
         "boundary_gap_seconds_candidate": float(gap_seconds),
         "boundary_gap_is_calibrated_truth": False,
@@ -311,6 +347,7 @@ def build_football_episode_boundaries(
         "episode_is_causal_truth": False,
         "recurrence_candidate_is_stable_pattern_truth": False,
         "outcome_variation_candidate_is_tactical_change_truth": False,
+        "counterevidence_candidate_is_causal_falsification_truth": False,
         "claim_output_allowed": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
