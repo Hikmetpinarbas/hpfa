@@ -91,6 +91,9 @@ def build_football_episode_boundaries(
             return _fail(f"macro_episode_refs_invalid:{macro_index}")
         if len(refs) != len(set(refs)):
             return _fail(f"macro_episode_duplicate_layer_ref:{macro_id}")
+        reused_refs = sorted(set(refs) & assigned_layer_refs)
+        if reused_refs:
+            return _fail(f"macro_episode_cross_macro_layer_reuse:{macro_id}:{reused_refs[0]}")
         try:
             macro_layers = [layer_by_id[ref] for ref in refs]
         except KeyError as exc:
@@ -121,10 +124,22 @@ def build_football_episode_boundaries(
             restart_visible = any(row.get("restart_visible") is True for row in segment)
             loss_visible = any(row.get("ball_loss_visible") is True for row in segment)
             recovery_visible = any(row.get("recovery_visible") is True for row in segment)
-            same_time_unordered = any(row.get("same_time_unordered") is True for row in segment)
+            same_time_loss_recovery = any(
+                row.get("ball_loss_visible") is True and row.get("recovery_visible") is True
+                for row in segment
+            )
+            same_time_unordered = any(row.get("same_time_unordered") is True for row in segment) or same_time_loss_recovery
+            loss_seconds = [float(row.get("second_candidate")) for row in segment if row.get("ball_loss_visible") is True]
+            recovery_seconds = [float(row.get("second_candidate")) for row in segment if row.get("recovery_visible") is True]
 
             if terminal_visible:
                 outcome = "TERMINAL_SHOT_VISIBLE"
+            elif same_time_loss_recovery:
+                outcome = "LOSS_AND_RECOVERY_VISIBLE_ORDER_INDETERMINATE"
+            elif loss_visible and recovery_visible and min(loss_seconds) < min(recovery_seconds):
+                outcome = "BALL_LOSS_THEN_RECOVERY_VISIBLE"
+            elif loss_visible and recovery_visible and min(recovery_seconds) < min(loss_seconds):
+                outcome = "RECOVERY_THEN_BALL_LOSS_VISIBLE"
             elif loss_visible and recovery_visible:
                 outcome = "LOSS_AND_RECOVERY_VISIBLE_ORDER_INDETERMINATE"
             elif loss_visible:
@@ -169,10 +184,7 @@ def build_football_episode_boundaries(
                 "episode_is_causal_truth": False,
                 "claim_ceiling": CLAIM_CEILING,
             })
-            for ref in segment_refs:
-                if ref in assigned_layer_refs:
-                    raise ValueError(f"layer_assigned_twice:{ref}")
-                assigned_layer_refs.add(ref)
+            assigned_layer_refs.update(segment_refs)
             segment = []
             segment_start_reason = "CONTINUATION_AFTER_VISIBLE_BOUNDARY"
 
