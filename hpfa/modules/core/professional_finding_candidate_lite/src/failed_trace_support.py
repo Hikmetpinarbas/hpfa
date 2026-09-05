@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from hpfa.modules.core.professional_finding_candidate_lite.src.alternative_explanation import (
+    attach_alternative_explanation_evaluation,
+)
+
 FINDING_MODULE_ID = "professional_finding_candidate_lite_v1"
 RECIPROCAL_MODULE_ID = "reciprocal_process_chain_lite_v1"
 TRACE_MODULE_ID = "trackable_action_trace_candidates_lite_v1"
@@ -43,6 +47,7 @@ def attach_failed_trace_support(
 
     With a trace payload, the evaluator inspects occurrence-binding coverage. Without it,
     it performs the weaker but still useful current reciprocal-chain trace-linkage audit.
+    The resulting challenge packet is then passed to the alternative-explanation evaluator.
     """
     blocks = _validate("finding", finding_payload, FINDING_MODULE_ID)
     blocks += _validate("reciprocal", reciprocal_payload, RECIPROCAL_MODULE_ID)
@@ -210,4 +215,4 @@ def attach_failed_trace_support(
     result["canonical_event_count"] = CANONICAL_EVENT_COUNT
     result["true_action_count"] = TRUE_ACTION_COUNT
     result["production_release"] = False
-    return result
+    return attach_alternative_explanation_evaluation(result)
