@@ -331,9 +331,17 @@ def build_football_episode_boundaries(
             segment = []
             segment_start_reason = "CONTINUATION_AFTER_VISIBLE_BOUNDARY"
 
-        previous_second: float | None = None
+        layers_by_second: dict[float, list[dict[str, Any]]] = defaultdict(list)
         for layer in macro_layers:
             second = float(layer.get("second_candidate"))
+            layers_by_second[second].append(layer)
+
+        previous_second: float | None = None
+        for second in sorted(layers_by_second):
+            bucket = sorted(
+                layers_by_second[second],
+                key=lambda row: _clean(row.get("episode_time_layer_candidate_id")),
+            )
             if previous_second is not None:
                 gap = second - previous_second
                 if gap < 0:
@@ -342,17 +350,22 @@ def build_football_episode_boundaries(
                     close_segment("ADMITTED_VISIBLE_TIME_GAP")
                     segment_start_reason = "AFTER_ADMITTED_VISIBLE_TIME_GAP"
 
-            if layer.get("restart_visible") is True and segment:
+            bucket_restart_visible = any(row.get("restart_visible") is True for row in bucket)
+            if bucket_restart_visible and segment:
                 close_segment("VISIBLE_RESTART_BEFORE_NEXT_PROCESS")
                 segment_start_reason = "VISIBLE_RESTART"
 
-            segment.append(layer)
+            segment.extend(bucket)
 
-            if layer.get("terminal_action_visible") is True:
+            bucket_terminal_visible = any(row.get("terminal_action_visible") is True for row in bucket)
+            bucket_loss_visible = any(row.get("ball_loss_visible") is True for row in bucket)
+            bucket_recovery_visible = any(row.get("recovery_visible") is True for row in bucket)
+
+            if bucket_terminal_visible:
                 close_segment("TERMINAL_SHOT_VISIBLE")
                 segment_start_reason = "AFTER_TERMINAL_SHOT_VISIBLE"
-            elif layer.get("ball_loss_visible") is True and layer.get("recovery_visible") is True:
-                reviews.append("same_layer_loss_recovery_order_indeterminate")
+            elif bucket_loss_visible and bucket_recovery_visible:
+                reviews.append("same_timestamp_loss_recovery_order_indeterminate")
                 close_segment("LOSS_RECOVERY_VISIBLE_SAME_TIME_UNORDERED")
                 segment_start_reason = "AFTER_LOSS_RECOVERY_VISIBLE_SAME_TIME_UNORDERED"
 
