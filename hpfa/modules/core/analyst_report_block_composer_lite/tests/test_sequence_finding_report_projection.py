@@ -54,6 +54,7 @@ def test_exact_trace_cohort_and_epistemic_payload_survive_projection():
     assert row["dependency_summary"]["independence_proven"] is False
     assert row["uncertainty"]["recurrence_is_tactical_intention_truth"] is False
     assert row["robustness_summary"]["robustness_state"] == "ROBUST_WITHIN_TESTED_RANGE"
+    assert row["withdrawal_condition"] == "Downgrade if evidence changes."
 
 
 def test_missing_or_mismatched_trace_cohort_fails_closed_in_projection():
@@ -68,6 +69,22 @@ def test_missing_or_mismatched_trace_cohort_fails_closed_in_projection():
     result = compose_sequence_finding_report(mismatch)
     assert result["status"] == "FAIL_CLOSED"
     assert "sequence_finding_trace_cohort_support_mismatch:family_a" in result["hard_block_hits"]
+
+
+def test_missing_epistemic_lineage_fails_closed_in_projection():
+    cases = (
+        ("dependency_summary", "sequence_finding_missing_dependency_summary:family_a"),
+        ("robustness_summary", "sequence_finding_missing_robustness_summary:family_a"),
+        ("uncertainty", "sequence_finding_missing_uncertainty:family_a"),
+        ("withdrawal_condition", "sequence_finding_missing_withdrawal_condition:family_a"),
+    )
+    for field, expected_hit in cases:
+        payload = _payload()
+        payload["analyst_report_blocks"][0][field] = {} if field != "withdrawal_condition" else ""
+        result = compose_sequence_finding_report(payload)
+        assert result["status"] == "FAIL_CLOSED"
+        assert result["report_block_count"] == 0
+        assert expected_hit in result["hard_block_hits"]
 
 
 def test_counterevidence_changes_public_interpretation_not_support_count():
