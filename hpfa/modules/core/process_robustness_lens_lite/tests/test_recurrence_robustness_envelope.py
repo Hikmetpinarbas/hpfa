@@ -24,6 +24,31 @@ def test_nominal_recurrence_not_only_output_and_threshold_sensitivity_reported()
     assert len(row["threshold_sensitivity"])==3
 
 
+def test_threshold_sweep_expansion_is_still_sensitive_when_counts_vary():
+    variants=[_variant("a"),_variant("b"),_variant("c")]
+    row=build_recurrence_robustness_envelopes(
+        _payload(variants),
+        _contrast(["a","b"],{"b":0.95,"c":0.75}),
+        tested_similarity_thresholds=(0.7,0.8,0.9),
+    )["recurrence_robustness_envelopes"][0]
+    assert row["nominal_recurrence"]==2
+    assert row["min_supported_recurrence"]==2
+    assert row["max_supported_recurrence"]==3
+    assert row["threshold_supported_recurrence_varies"] is True
+    assert row["robustness_state"]=="THRESHOLD_SENSITIVE"
+
+
+def test_lower_threshold_only_refs_are_reported_as_fragile():
+    variants=[_variant("a"),_variant("b"),_variant("c")]
+    row=build_recurrence_robustness_envelopes(
+        _payload(variants),
+        _contrast(["a","b"],{"b":0.95,"c":0.75}),
+        tested_similarity_thresholds=(0.7,0.8,0.9),
+    )["recurrence_robustness_envelopes"][0]
+    assert row["stable_core_trace_refs"]==["a","b"]
+    assert row["fragile_trace_refs"]==["c"]
+
+
 def test_order_uncertainty_can_reduce_recurrence():
     variants=[_variant("a"),_variant("b",chronology="PARTIAL_EXPLICIT_TIME_EVIDENCE")]
     row=build_recurrence_robustness_envelopes(_payload(variants),_contrast(["a","b"],{"b":0.95}),tested_similarity_thresholds=(0.8,0.9))["recurrence_robustness_envelopes"][0]
