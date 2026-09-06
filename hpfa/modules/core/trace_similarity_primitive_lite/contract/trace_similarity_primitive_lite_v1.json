@@ -1,0 +1,53 @@
+{
+  "module_id": "trace_similarity_primitive_lite_v1",
+  "version": "1.0.0",
+  "input_module_id": "partial_order_trace_variant_lite_v1",
+  "purpose": "Compare admitted partial-order visible trace variants with explicit component-level similarity without promoting similarity to tactical, causal or intention truth.",
+  "method_version": "TRACE_SIMILARITY_PRIMITIVE_V1.0.0",
+  "method_rules": {
+    "pair_method_symmetric": true,
+    "action_similarity": "MULTISET_JACCARD_ON_ADMITTED_ACTION_FAMILY_COUNTS",
+    "outcome_similarity": "MULTISET_JACCARD_ON_ADMITTED_OUTCOME_COUNTS",
+    "order_similarity": "MULTISET_JACCARD_ON_EXPLICIT_PARTIAL_ORDER_RELATION_STATES_ONLY",
+    "unknown_order_policy": "ORDER_COMPONENT_INDETERMINATE_NOT_INVENTED",
+    "context_similarity": "EXACT_AGREEMENT_OVER_MUTUALLY_PRESENT_ADMITTED_CONTEXT_FIELDS",
+    "spatial_similarity_v1": "NOT_ELIGIBLE_WITHOUT_ADMITTED_COMPARABLE_COMPONENT",
+    "timing_similarity_v1": "NOT_ELIGIBLE_WITHOUT_ADMITTED_COMPARABLE_COMPONENT",
+    "missing_component_policy": "MISSING_OR_INELIGIBLE_IS_NULL_NEVER_ZERO"
+  },
+  "composite_rules": {
+    "composite_requires_explicit_weights": true,
+    "default_universal_weights": false,
+    "non_negative_weights_only": true,
+    "normalize_over_available_weighted_components": true,
+    "weight_sensitivity_available": true
+  },
+  "input_guards": {
+    "upstream_fail_closed_rejected": true,
+    "upstream_review_required_propagated": true,
+    "same_timestamp_internal_ordering_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "tracking_video_default": {
+    "tracking_feature_used": false,
+    "video_feature_used": false,
+    "team_shape": false,
+    "compactness": false,
+    "true_pressure_geometry": false,
+    "off_ball_truth": false
+  },
+  "claim_boundary": {
+    "claim_ceiling": "TRACE_SIMILARITY_CANDIDATE_ONLY",
+    "similarity_is_tactical_identity_truth": false,
+    "similarity_is_coach_intention_truth": false,
+    "similarity_is_causal_truth": false,
+    "similarity_is_statistical_significance_truth": false,
+    "weights_are_universal_football_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}
