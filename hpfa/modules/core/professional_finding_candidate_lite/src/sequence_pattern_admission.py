@@ -107,7 +107,6 @@ def build_sequence_pattern_admissions(
     contrast_payload: dict[str, Any],
     robustness_payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Admit recurrent visible-trace evidence without promoting tactical-pattern truth."""
     blocks: list[str] = []
     reviews: list[str] = []
     for name, payload, expected in (
@@ -204,11 +203,7 @@ def build_sequence_pattern_admissions(
         elif robustness_state in {"THRESHOLD_SENSITIVE", "ORDER_SENSITIVE", "CONTEXT_SENSITIVE"}:
             admission_state = "PROXY_CANDIDATE"
         elif robustness_state == "ROBUST_WITHIN_TESTED_RANGE":
-            admission_state = (
-                "ROBUST_RECURRENT_VISIBLE_TRACE"
-                if isinstance(independent_support_count, int) and independent_support_count >= 2
-                else "RECURRENT_VISIBLE_TRACE"
-            )
+            admission_state = "ROBUST_RECURRENT_VISIBLE_TRACE" if isinstance(independent_support_count, int) and independent_support_count >= 2 else "RECURRENT_VISIBLE_TRACE"
         else:
             admission_state = "REVIEW_REQUIRED"
 
@@ -232,6 +227,7 @@ def build_sequence_pattern_admissions(
             "pattern_id": "spa_" + _digest(family_ref, eligible_refs, robustness_state, admission_state)[:24],
             "trace_family_ref": family_ref,
             "eligible_trace_count": len(eligible_refs),
+            "eligible_trace_refs": eligible_refs,
             "observed_support": observed_support,
             "independent_support_count": independent_support_count,
             "context_scope": contexts,
@@ -255,14 +251,7 @@ def build_sequence_pattern_admissions(
             "claim_ceiling": CLAIM_CEILING,
             "admission_state": admission_state,
             "safe_meaning": "A recurrent visible trace candidate may be described only within the admitted evidence and tested robustness scope.",
-            "forbidden_inference": [
-                "TACTICAL_PATTERN_TRUTH",
-                "COACH_INTENTION",
-                "TEAM_STYLE_TRUTH",
-                "CAUSALITY",
-                "POSSESSION_TRUTH",
-                "PHASE_TRUTH",
-            ],
+            "forbidden_inference": ["TACTICAL_PATTERN_TRUTH", "COACH_INTENTION", "TEAM_STYLE_TRUTH", "CAUSALITY", "POSSESSION_TRUTH", "PHASE_TRUTH"],
             "withdrawal_condition": "Withdraw or downgrade if occurrence identity, dependency accounting, order admission, similarity eligibility, consequence classification, or robustness evidence changes materially.",
             "source_anchor_context": anchor.get("context_signature") or {},
             "canonical_event_count": CANONICAL_EVENT_COUNT,
