@@ -1,12 +1,17 @@
 from hpfa.modules.core.professional_finding_candidate_lite.src.context_conditioned_trace_deviation import build_context_conditioned_trace_deviations
 
 
-def _variant(vid, period, outcome, *, deps=None, start="CONTINUATION", end="PERIOD_END"):
+def _variant(vid, period, outcome, *, deps=None, start="CONTINUATION", end="PERIOD_END", team="TEAM_A"):
     return {
         "trace_variant_id":vid,
         "action_family_signature":[{"action_family_candidate":"PASS","count":1}],
         "ordering_completeness":"LAYER_ORDER_CONFIRMED_INTERNAL_SINGLETONS",
-        "context_signature":{"period_candidate":period,"start_reason_candidate":start,"end_reason_candidate":end},
+        "context_signature":{
+            "period_candidate":period,
+            "start_reason_candidate":start,
+            "end_reason_candidate":end,
+            "team_identity_candidate_id":team,
+        },
         "outcome_signature":[{"outcome_candidate":outcome,"count":1}],
         "dependency_group_refs":deps or [],
     }
@@ -45,6 +50,31 @@ def test_context_difference_not_causality_or_adaptation():
     assert row["context_difference_is_causality_truth"] is False
     assert row["context_difference_is_tactical_adaptation_truth"] is False
     assert row["context_difference_is_coach_intention_truth"] is False
+
+
+def test_team_identity_scopes_trace_family_and_prevents_cross_team_context_mix():
+    rows=[
+        _variant("a1","1","X",team="TEAM_A"),
+        _variant("a2","1","X",team="TEAM_A"),
+        _variant("b1","2","Y",team="TEAM_B"),
+        _variant("b2","2","Y",team="TEAM_B"),
+    ]
+    result=build_context_conditioned_trace_deviations(_payload(rows),context_dimension="period_candidate",baseline_context_value="1",comparison_context_value="2")
+    assert result["context_conditioned_trace_deviation_count"]==0
+    assert "no_trace_family_with_both_context_cohorts" in result["review_hits"]
+
+
+def test_conditioned_end_reason_not_reused_as_sequence_difference():
+    rows=[
+        _variant("a1","1","X",start="CONTINUATION",end="LOSS_BOUNDARY"),
+        _variant("a2","1","X",start="CONTINUATION",end="LOSS_BOUNDARY"),
+        _variant("b1","1","X",start="CONTINUATION",end="PERIOD_END"),
+        _variant("b2","1","X",start="CONTINUATION",end="PERIOD_END"),
+    ]
+    row=build_context_conditioned_trace_deviations(_payload(rows),context_dimension="end_reason_candidate",baseline_context_value="LOSS_BOUNDARY",comparison_context_value="PERIOD_END")["context_conditioned_trace_deviations"][0]
+    assert row["sequence_difference"] is False
+    assert row["sequence_distribution_excludes_conditioned_dimension"] is True
+    assert row["effect_descriptor"]=="NO_VISIBLE_DISTRIBUTION_DIFFERENCE_CURRENT_RESOLUTION"
 
 
 def test_unsupported_context_dimension_fails_closed():
