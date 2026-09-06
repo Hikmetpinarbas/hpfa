@@ -14,7 +14,7 @@ def _variant(variant_id: str, *, order="LAYER_ORDER_CONFIRMED_INTERNAL_SINGLETON
     }
 
 
-def _payloads(*, robustness="ROBUST_WITHIN_TESTED_RANGE", independent="UNKNOWN", independence_groups=None, packet_state="CONTRAST_AVAILABLE", eligible=None):
+def _payloads(*, robustness="ROBUST_WITHIN_TESTED_RANGE", independent="UNKNOWN", independence_groups=None, independence_map=None, packet_state="CONTRAST_AVAILABLE", eligible=None):
     eligible = eligible or ["v1", "v2"]
     variants = [_variant("v1"), _variant("v2")]
     variant_payload = {
@@ -40,6 +40,7 @@ def _payloads(*, robustness="ROBUST_WITHIN_TESTED_RANGE", independent="UNKNOWN",
             "counterevidence_refs": ["v2"],
             "dependency_groups": ["occurrence:a", "occurrence:b"],
             "independence_groups": independence_groups or [],
+            "independence_group_by_trace_ref": independence_map or {},
             "independent_support_count": independent,
             "packet_state": packet_state,
         }],
@@ -56,6 +57,9 @@ def _payloads(*, robustness="ROBUST_WITHIN_TESTED_RANGE", independent="UNKNOWN",
         "recurrence_robustness_envelopes": [{
             "pattern_family_ref": "v1",
             "nominal_recurrence": len(eligible),
+            "threshold_sensitivity": [{"similarity_threshold": 0.8, "supported_recurrence": len(eligible), "trace_refs": eligible}],
+            "stable_core_trace_refs": eligible,
+            "fragile_trace_refs": [],
             "robustness_state": robustness,
         }],
         "hard_block_hits": [],
@@ -76,11 +80,40 @@ def test_robust_nominal_recurrence_without_independence_stops_at_recurrent_visib
 
 
 def test_robust_recurrent_state_requires_explicit_independence_admission():
-    result = build_sequence_pattern_admissions(*_payloads(independent=2, independence_groups=["i1", "i2"]))
+    result = build_sequence_pattern_admissions(*_payloads(
+        independent=2,
+        independence_groups=["i1", "i2"],
+        independence_map={"v1": "i1", "v2": "i2"},
+    ))
     row = result["sequence_pattern_admissions"][0]
     assert row["admission_state"] == "ROBUST_RECURRENT_VISIBLE_TRACE"
     assert row["independent_support_count"] == 2
     assert row["dependency_summary"]["independence_proven"] is True
+
+
+def test_declared_independent_support_is_recomputed_from_trace_bound_groups():
+    result = build_sequence_pattern_admissions(*_payloads(
+        independent=99,
+        independence_groups=["i1"],
+        independence_map={"v1": "i1", "v2": "i1"},
+    ))
+    row = result["sequence_pattern_admissions"][0]
+    assert row["admission_state"] == "RECURRENT_VISIBLE_TRACE"
+    assert row["independent_support_count"] == "UNKNOWN"
+    assert row["dependency_summary"]["independence_proven"] is False
+    assert any("declared_independent_support_mismatch" in hit for hit in result["review_hits"])
+
+
+def test_robustness_envelope_must_match_current_eligible_trace_cohort():
+    variant, contrast, robustness = _payloads()
+    robustness["recurrence_robustness_envelopes"][0]["nominal_recurrence"] = 2
+    robustness["recurrence_robustness_envelopes"][0]["threshold_sensitivity"][0]["trace_refs"] = ["v1"]
+    robustness["recurrence_robustness_envelopes"][0]["stable_core_trace_refs"] = ["v1"]
+    result = build_sequence_pattern_admissions(variant, contrast, robustness)
+    row = result["sequence_pattern_admissions"][0]
+    assert row["admission_state"] == "REVIEW_REQUIRED"
+    assert row["uncertainty"]["robustness_cohort_exact_match"] is False
+    assert "robustness_cohort_mismatch:v1" in result["review_hits"]
 
 
 def test_threshold_sensitive_candidate_is_not_robust_pattern():
