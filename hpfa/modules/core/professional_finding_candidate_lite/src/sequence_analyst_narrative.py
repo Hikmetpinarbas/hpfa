@@ -84,6 +84,7 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
         support = int(recurrence.get("observed_support") or 0)
         trace_refs = sorted({_clean(x) for x in (row.get("trace_variant_refs") or []) if _clean(x)})
         family_refs = sorted({_clean(x) for x in (row.get("trace_family_refs") or []) if _clean(x)})
+        upstream_claim_ceiling = _clean(row.get("claim_ceiling"))
         if not trace_refs:
             return _fail("upstream_trace_variant_refs_missing")
         if len(trace_refs) != support:
@@ -94,6 +95,12 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
             return _fail("upstream_dependency_summary_missing")
         if not isinstance(row.get("robustness_summary"), dict):
             return _fail("upstream_robustness_summary_missing")
+        if not isinstance(row.get("uncertainty"), dict):
+            return _fail("upstream_uncertainty_missing")
+        if not _clean(row.get("withdrawal_condition")):
+            return _fail("upstream_withdrawal_condition_missing")
+        if not upstream_claim_ceiling:
+            return _fail("upstream_claim_ceiling_missing")
         eligible.append(row)
 
     eligible.sort(key=_strength_rank, reverse=True)
@@ -105,11 +112,12 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
         failure = int(row.get("failure_support") or 0)
         divergence = int(row.get("divergence_support") or 0)
         no_followup = int(row.get("no_visible_followup_support") or 0)
-        counter_refs = list((row.get("counterevidence") or {}).get("refs") or [])
+        counter_refs = sorted({_clean(x) for x in ((row.get("counterevidence") or {}).get("refs") or []) if _clean(x)})
         context_scope = row.get("context_scope") or []
         state = _clean(recurrence.get("admission_state"))
         trace_refs = sorted({_clean(x) for x in (row.get("trace_variant_refs") or []) if _clean(x)})
         family_refs = sorted({_clean(x) for x in (row.get("trace_family_refs") or []) if _clean(x)})
+        upstream_claim_ceiling = _clean(row.get("claim_ceiling"))
 
         if failure or divergence or counter_refs:
             balance = "Aynı başlangıcın bozulduğu veya farklı sonuca gittiği örnekler de bulunduğu için bu tekrar koşulsuz çalışan bir üstünlük olarak okunmamalı."
@@ -151,6 +159,7 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
             "failure_support": failure,
             "divergence_support": divergence,
             "no_visible_followup_support": no_followup,
+            "counterevidence_refs": counter_refs,
             "counterevidence_ref_count": len(counter_refs),
             "admission_state": state,
             "dependency_summary": dict(row.get("dependency_summary") or {}),
@@ -158,6 +167,7 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
             "forbidden_inference": row.get("FORBIDDEN_INFERENCE") or [],
             "uncertainty": dict(row.get("uncertainty") or {}),
             "withdrawal_condition": row.get("withdrawal_condition"),
+            "upstream_claim_ceiling": upstream_claim_ceiling,
             "claim_ceiling": CLAIM_CEILING,
             "claim_output_allowed": False,
             "canonical_event_count": "UNKNOWN",
