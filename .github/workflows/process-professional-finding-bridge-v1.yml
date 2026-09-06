@@ -48,6 +48,7 @@ jobs:
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_professional_finding_bundle_ledger.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_pattern_admission.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_safe_finding_binding.py \
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_analyst_narrative.py \
             hpfa/modules/core/analyst_report_block_composer_lite/tests/test_sequence_finding_report_projection.py
       - name: Compile current runtime and bridge modules
         run: |
@@ -66,6 +67,7 @@ jobs:
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/sequence_safe_finding_binding.py
+          python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/sequence_analyst_narrative.py
           python -m py_compile hpfa/modules/core/analyst_report_block_composer_lite/src/sequence_finding_report_projection.py
       - name: Claim and accounting lock audit
         run: |
@@ -94,5 +96,6 @@ jobs:
           grep -F 'independent_support_inferred_from_nominal_count' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
           grep -F 'tactical_pattern_state_allowed' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
           grep -F 'professional_finding_emitted_count' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_safe_finding_binding.py
+          grep -F 'chronological_story_claimed' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_analyst_narrative.py
           grep -F 'production_report_allowed' hpfa/modules/core/analyst_report_block_composer_lite/src/sequence_finding_report_projection.py
           grep -F 'production_release=false' hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
