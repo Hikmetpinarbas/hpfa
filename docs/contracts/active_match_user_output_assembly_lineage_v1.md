@@ -29,18 +29,33 @@ This contract rehabilitates the current user-output producer. It does not add a 
    - `withdrawal_condition`
    - `upstream_claim_ceiling`
    - `origin_claim_ceiling` for narrative sequence blocks.
-5. Exact trace cohort cardinality must equal `observed_support`, and the anchor family ref must remain inside the supporting trace cohort.
-6. Claim-ceiling vocabulary and hop order are revalidated at the user-output boundary rather than trusted by presence alone:
+5. When present upstream, audited null/context evidence is part of that same lineage package and must be preserved to user output:
+   - `null_contrast_summary`
+   - `context_variations`.
+6. Exact trace cohort cardinality must equal `observed_support`, and the anchor family ref must remain inside the supporting trace cohort.
+7. Claim-ceiling vocabulary and hop order are revalidated at the user-output boundary rather than trusted by presence alone:
    - `sequence_safe_finding_analyst_reading_candidate` requires `upstream_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY` and no `origin_claim_ceiling`;
    - `sequence_narrative_analyst_reading_candidate` requires `upstream_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY` and `origin_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY`;
    - every sequence-derived assembly item requires `claim_ceiling=final_report_assembly_candidate_only`.
-7. Unknown, tactical, causal, production, wrong-hop, or otherwise escalated sequence claim ceilings are suppressed and cannot become user-facing prose.
-8. Missing or inconsistent sequence lineage is not converted into readable prose; the candidate is suppressed at this presentation boundary.
-9. Presentation may preserve or lower evidence strength. It may never increase it.
+8. Null contrast is revalidated at the publication boundary. If `null_contrast_summary` is present:
+   - it must be an object;
+   - `claim_strengthened=false` is mandatory;
+   - when `state != NOT_EVALUATED`, both `significance_claim_allowed=false` and `tactical_pattern_truth_allowed=false` are mandatory.
+9. Context variation is revalidated at the publication boundary. If `context_variations` is present:
+   - it must be a list of objects;
+   - `chronology_direction_claimed=false`;
+   - `causality_claimed=false`;
+   - `tactical_adaptation_claimed=false`;
+   - `coach_intention_claimed=false`;
+   - every baseline/comparison trace ref must remain inside the exact supporting trace cohort.
+10. Unknown, tactical, causal, production, wrong-hop, null-significance, null-tactical, context-causality, context-adaptation or otherwise escalated sequence claims are suppressed and cannot become user-facing prose.
+11. Missing or inconsistent sequence lineage is not converted into readable prose; the candidate is suppressed at this presentation boundary.
+12. Presentation may preserve or lower evidence strength. It may never increase it.
 
 ## Claim boundary
 
 - recurrence is not tactical-pattern truth;
+- null-tail probability is not multiple-testing-corrected significance unless a separate admitted statistical contract establishes that fact;
 - context difference is not causality or coaching adaptation;
 - dependent projections are not independent support;
 - `NO_VISIBLE_FOLLOWUP` is not failure;
@@ -67,5 +82,9 @@ CI success is engineering evidence only and is not physical ACTIVE_MATCH accepta
 - wrong narrative origin hop must suppress the sequence candidate;
 - unexpected origin claim on a safe-finding block must suppress the sequence candidate;
 - wrong final assembly claim ceiling must suppress the sequence candidate;
+- audited null/context lineage must be serialized into the analyst report when present;
+- null claim-strengthening or significance/tactical-truth escalation must suppress the sequence candidate;
+- context causality/adaptation/intention/chronology escalation must suppress the sequence candidate;
+- context trace refs outside the exact support cohort must suppress the sequence candidate;
 - claim locks must remain present in the user-facing report and bundle manifest;
 - no sample match/team/player identity may be introduced into production code.
