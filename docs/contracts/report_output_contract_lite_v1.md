@@ -6,19 +6,17 @@ Module id: `report_output_contract_lite_v1`
 
 Report Output Contract Lite V1 reads analyst report block candidates and decides whether each block may be included as an output candidate, routed to review, or rejected.
 
-It is the seventh productive intelligence node in the Composite Football Intelligence line.
-
-It does not create final report text, production report output or claim truth.
+It does not create final report truth, production report output or new football evidence.
 
 ## Football value
 
-The analyst can see which candidate blocks are safe to carry forward, which require review, and which must be rejected before any final report assembly.
+The analyst can carry a readable sequence finding toward report output without losing which exact traces support it, which counterexamples challenge it, whether support is dependent, how robust it is, what remains uncertain, and which evidence change would require withdrawal.
 
 ## Runtime authority
 
 Only HPFA-generated ACTIVE_MATCH artifacts may become runtime input.
 
-Google Drive, Dropbox, Sider Scholar and donor repos are reference-only and may guide contracts, naming and tests. They do not become runtime truth.
+Google Drive, Dropbox, academic sources and donor repos are reference-only. They do not become runtime truth.
 
 ## Required upstream
 
@@ -32,6 +30,32 @@ analyst_report_block_composer_lite_v1
 report_block_candidate_tr
 ```
 
+## Sequence report lineage
+
+For block families:
+
+```text
+sequence_safe_finding_analyst_reading_candidate
+sequence_narrative_analyst_reading_candidate
+```
+
+the output contract must preserve and validate:
+
+```text
+trace_family_refs
+trace_variant_refs
+counterevidence_refs
+dependency_summary
+robustness_summary
+uncertainty
+withdrawal_condition
+observed_support
+upstream_claim_ceiling
+origin_claim_ceiling  # required on narrative path
+```
+
+The exact supporting trace cohort must remain count-consistent with `observed_support`. A readable report block is not allowed to detach from its evidence lineage.
+
 ## Allowed outputs
 
 ```text
@@ -41,6 +65,7 @@ review block decision
 reject block decision
 output text candidate TR
 contract counters
+sequence evidence lineage
 ```
 
 ## Blocked outputs
@@ -60,6 +85,8 @@ quality truth
 sequence truth
 organism truth
 canonical event count claim
+true action count claim
+production release claim
 ```
 
 ## Decision states
@@ -81,41 +108,47 @@ upstream_report_block_production_output_allowed
 upstream_report_block_final_output_allowed
 report_block_forbidden_language_detected
 canonical_event_count_claim_rejected
+true_action_count_claim_rejected
+production_release_claim_rejected
+sequence_lineage_trace_family_refs_missing
+sequence_lineage_trace_variant_refs_missing
+sequence_lineage_observed_support_invalid
+sequence_lineage_trace_cohort_support_mismatch
+sequence_lineage_anchor_not_in_trace_cohort
+sequence_lineage_dependency_summary_missing
+sequence_lineage_robustness_summary_missing
+sequence_lineage_uncertainty_missing
+sequence_lineage_withdrawal_condition_missing
+sequence_lineage_upstream_claim_ceiling_missing
+sequence_lineage_origin_claim_ceiling_missing
 ```
 
 ## Review route
 
 ```text
 block_family_requires_review
+upstream_report_block_requires_review
 ```
+
+Upstream `REVIEW_REQUIRED` may not silently become PASS.
 
 ## Upstream failure rule
 
 If the upstream report block carries hard blocks, `decision=BLOCK_REPORT_BLOCK`, or `status=FAIL_CLOSED`, the contract must reject it.
 
-## Test requirements
+## Claim locks
 
 ```text
-test_contract_requires_report_block_id
-test_contract_requires_report_block_candidate_text
-test_contract_requires_upstream_claim_ceiling
-test_contract_includes_valid_block_candidate
-test_review_required_block_family_routes_to_review
-test_failed_upstream_block_is_rejected
-test_forbidden_upstream_claim_text_rejected
-test_final_or_production_output_flags_rejected
-test_canonical_event_count_claim_rejected
-test_contract_does_not_emit_final_report_or_claim_text
-test_contract_blocks_truth_language_families
-test_build_contract_counts_include_review_reject
-test_write_outputs_rejects_nested_phone_output
-test_no_sample_match_identity_leak
+canonical_event_count=UNKNOWN
+true_action_count=UNKNOWN
+production_release=false
 ```
 
 ## Release status
 
 SMOKE_PASS target only.
-Not ACTIVE_MATCH_EVIDENCE_PASS.
+Not physical ACTIVE_MATCH acceptance.
 Not PRODUCTION_RELEASE.
 
+CI SUCCESS != physical device acceptance.
 PASS != RELEASE.
