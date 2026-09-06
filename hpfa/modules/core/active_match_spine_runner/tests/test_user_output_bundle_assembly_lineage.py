@@ -57,6 +57,32 @@ def _finding_lineage():
     return lineage
 
 
+def _audited_null_summary():
+    return {
+        "state": "EVALUATED",
+        "observed_recurrence": 2,
+        "null_median": 1.0,
+        "uncorrected_upper_tail_probability": 0.2,
+        "claim_strengthened": False,
+        "significance_claim_allowed": False,
+        "tactical_pattern_truth_allowed": False,
+    }
+
+
+def _context_variations():
+    return [
+        {
+            "context_dimension": "period_candidate",
+            "baseline_trace_refs": ["TRACE_A"],
+            "comparison_trace_refs": ["TRACE_B"],
+            "chronology_direction_claimed": False,
+            "causality_claimed": False,
+            "tactical_adaptation_claimed": False,
+            "coach_intention_claimed": False,
+        }
+    ]
+
+
 def _assembly(block_family, lineage, text="ASSEMBLY_ADMITTED_VISIBLE_SEQUENCE_CANDIDATE"):
     return {
         "status": "SMOKE_PASS",
@@ -200,3 +226,64 @@ def test_sequence_wrong_assembly_claim_ceiling_is_suppressed(tmp_path):
     assembly["claim_ceiling"] = "production_report_truth"
     text = build_analyst_report(tmp_path, _base_spine({"assembly": assembly}))
     assert "WRONG_ASSEMBLY_CEILING_MUST_NOT_SHIP" not in text
+
+
+def test_sequence_null_and_context_lineage_are_preserved_in_user_report(tmp_path):
+    lineage = _narrative_lineage()
+    lineage["null_contrast_summary"] = _audited_null_summary()
+    lineage["context_variations"] = _context_variations()
+    text = build_analyst_report(
+        tmp_path,
+        _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "NULL_CONTEXT_LINEAGE_SHIPS")}),
+    )
+    assert "NULL_CONTEXT_LINEAGE_SHIPS" in text
+    assert "null_contrast_summary=" in text
+    assert '"significance_claim_allowed": false' in text
+    assert '"tactical_pattern_truth_allowed": false' in text
+    assert "context_variations=" in text
+    assert '"causality_claimed": false' in text
+    assert '"tactical_adaptation_claimed": false' in text
+
+
+def test_sequence_null_significance_escalation_is_suppressed(tmp_path):
+    lineage = _narrative_lineage()
+    lineage["null_contrast_summary"] = _audited_null_summary()
+    lineage["null_contrast_summary"]["significance_claim_allowed"] = True
+    text = build_analyst_report(
+        tmp_path,
+        _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "NULL_SIGNIFICANCE_ESCALATION_MUST_NOT_SHIP")}),
+    )
+    assert "NULL_SIGNIFICANCE_ESCALATION_MUST_NOT_SHIP" not in text
+
+
+def test_sequence_null_claim_strengthening_is_suppressed(tmp_path):
+    lineage = _narrative_lineage()
+    lineage["null_contrast_summary"] = _audited_null_summary()
+    lineage["null_contrast_summary"]["claim_strengthened"] = True
+    text = build_analyst_report(
+        tmp_path,
+        _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "NULL_STRENGTHENING_MUST_NOT_SHIP")}),
+    )
+    assert "NULL_STRENGTHENING_MUST_NOT_SHIP" not in text
+
+
+def test_sequence_context_causality_escalation_is_suppressed(tmp_path):
+    lineage = _narrative_lineage()
+    lineage["context_variations"] = _context_variations()
+    lineage["context_variations"][0]["causality_claimed"] = True
+    text = build_analyst_report(
+        tmp_path,
+        _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "CONTEXT_CAUSALITY_MUST_NOT_SHIP")}),
+    )
+    assert "CONTEXT_CAUSALITY_MUST_NOT_SHIP" not in text
+
+
+def test_sequence_context_trace_outside_support_cohort_is_suppressed(tmp_path):
+    lineage = _narrative_lineage()
+    lineage["context_variations"] = _context_variations()
+    lineage["context_variations"][0]["comparison_trace_refs"] = ["TRACE_OUTSIDE_COHORT"]
+    text = build_analyst_report(
+        tmp_path,
+        _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "CONTEXT_COHORT_ESCAPE_MUST_NOT_SHIP")}),
+    )
+    assert "CONTEXT_COHORT_ESCAPE_MUST_NOT_SHIP" not in text
