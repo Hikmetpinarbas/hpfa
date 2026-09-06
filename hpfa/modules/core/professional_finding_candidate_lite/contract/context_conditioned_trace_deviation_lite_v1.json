@@ -1,0 +1,37 @@
+{
+  "module_id": "context_conditioned_trace_deviation_lite_v1",
+  "input_module_id": "partial_order_trace_variant_lite_v1",
+  "allowed_context_dimensions": [
+    "period_candidate",
+    "start_reason_candidate",
+    "end_reason_candidate"
+  ],
+  "admission_rules": {
+    "context_must_be_admitted_on_trace_variant": true,
+    "missing_context_is_zero": false,
+    "unsupported_context_dimension": "FAIL_CLOSED",
+    "team_identity_is_entity_scope_not_tactical_context": true,
+    "score_state_requires_explicit_upstream_admission": true,
+    "phase_truth_inference_allowed": false
+  },
+  "cohort_rules": {
+    "baseline_and_comparison_values_must_differ": true,
+    "small_cohort_threshold": 2,
+    "small_cohort_state": "REVIEW_REQUIRED",
+    "cohort_count_is_independence_truth": false,
+    "dependency_refs_preserved": true
+  },
+  "claim_boundary": {
+    "context_difference_is_causality_truth": false,
+    "context_difference_is_tactical_adaptation_truth": false,
+    "context_difference_is_coach_intention_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "team_shape_truth": false,
+    "pressure_geometry_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "claim_ceiling": "CONTEXT_CONDITIONED_VISIBLE_TRACE_DEVIATION_CANDIDATE_ONLY"
+}
