@@ -46,6 +46,43 @@ def _payload(rows):
     }
 
 
+def _deviation(*, effect="VISIBLE_OUTCOME_DISTRIBUTION_DIFFERENCE_CANDIDATE", baseline=None, comparison=None):
+    baseline = baseline or ["v1", "v2"]
+    comparison = comparison or ["v3", "v4", "v5"]
+    return {
+        "module_id": "context_conditioned_trace_deviation_lite_v1",
+        "status": "PASS",
+        "context_conditioned_trace_deviations": [{
+            "context_conditioned_trace_deviation_id": "ctd_a",
+            "trace_family_ref": "ctf_a",
+            "entity_scope": {"team_identity_candidate_id": "team_a"},
+            "context_dimension": "period_candidate",
+            "baseline_cohort_ref": "period_candidate:1",
+            "comparison_cohort_ref": "period_candidate:2",
+            "baseline_trace_refs": baseline,
+            "comparison_trace_refs": comparison,
+            "effect_descriptor": effect,
+            "outcome_difference": effect != "NO_VISIBLE_DISTRIBUTION_DIFFERENCE_CURRENT_RESOLUTION",
+            "sequence_difference": False,
+            "support_difference": len(comparison) - len(baseline),
+            "dependency_summary": {"shared_dependency_group_refs": [], "independence_proven": False},
+            "uncertainty": {"cohort_counts_are_independence_truth": False},
+            "alternative_explanations": ["SAMPLE_COMPOSITION", "DEPENDENT_EVIDENCE"],
+            "sample_warning": None,
+            "context_difference_is_causality_truth": False,
+            "context_difference_is_tactical_adaptation_truth": False,
+            "context_difference_is_coach_intention_truth": False,
+        }],
+        "hard_block_hits": [],
+        "context_difference_is_causality_truth": False,
+        "context_difference_is_tactical_adaptation_truth": False,
+        "context_difference_is_coach_intention_truth": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
 def test_narrative_explains_repeat_success_failure_divergence_in_plain_turkish():
     result = compose_sequence_analyst_narrative(_payload([_row()]))
     story = result["narrative_blocks"][0]["story_tr"]
@@ -54,6 +91,58 @@ def test_narrative_explains_repeat_success_failure_divergence_in_plain_turkish()
     assert "1 başarısız sonlanma" in story
     assert "1 farklılaşan devam" in story
     assert "başarısızlık sayılmadı" in story
+
+
+def test_context_conditioned_variation_becomes_match_story_without_causal_escalation():
+    result = compose_sequence_analyst_narrative(_payload([_row()]), _deviation())
+    block = result["narrative_blocks"][0]
+    assert "period_candidate:1" in block["change_tr"]
+    assert "period_candidate:2" in block["change_tr"]
+    assert "farklı görünür sonuç/sequence dağılımı" in block["change_tr"]
+    assert "adaptasyonu veya taktik değişim kanıtı değildir" in block["change_tr"]
+    assert block["context_variations"][0]["baseline_trace_refs"] == ["v1", "v2"]
+    assert block["context_variations"][0]["comparison_trace_refs"] == ["v3", "v4", "v5"]
+    assert block["chronology_direction_claimed"] is False
+    assert block["context_change_causality_claimed"] is False
+    assert block["tactical_adaptation_claimed"] is False
+
+
+def test_no_visible_context_difference_is_not_converted_to_no_change_truth():
+    result = compose_sequence_analyst_narrative(
+        _payload([_row()]),
+        _deviation(effect="NO_VISIBLE_DISTRIBUTION_DIFFERENCE_CURRENT_RESOLUTION"),
+    )
+    text = result["narrative_blocks"][0]["change_tr"]
+    assert "görünür dağılım farkı saptanmadı" in text
+    assert "değişmediğini" in text
+    assert "kanıtlamaz" in text
+
+
+def test_context_variation_requires_exact_same_trace_cohort_before_binding():
+    result = compose_sequence_analyst_narrative(
+        _payload([_row()]),
+        _deviation(baseline=["v1"], comparison=["v2", "v3"]),
+    )
+    block = result["narrative_blocks"][0]
+    assert block["context_variations"] == []
+    assert block["change_tr"] == ""
+
+
+def test_overlapping_context_cohorts_fail_closed_when_exact_cohort_otherwise_matches():
+    result = compose_sequence_analyst_narrative(
+        _payload([_row()]),
+        _deviation(baseline=["v1", "v2", "v3"], comparison=["v3", "v4", "v5"]),
+    )
+    assert result["status"] == "FAIL_CLOSED"
+    assert "context_deviation_overlapping_cohorts" in result["hard_block_hits"]
+
+
+def test_context_deviation_claim_lock_breach_fails_closed():
+    deviation = _deviation()
+    deviation["context_difference_is_causality_truth"] = True
+    result = compose_sequence_analyst_narrative(_payload([_row()]), deviation)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "context_deviation_causality_lock_missing" in result["hard_block_hits"]
 
 
 def test_counterexample_prevents_unconditional_superiority_language():
