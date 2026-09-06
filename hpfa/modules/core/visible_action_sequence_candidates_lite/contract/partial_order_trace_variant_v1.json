@@ -1,0 +1,61 @@
+{
+  "module_id": "partial_order_trace_variant_v1",
+  "purpose": "Project admitted occurrence-aware visible sequence evidence into recurrence-ready partial-order trace variants without fabricating total chronology.",
+  "input_modules": {
+    "visible_sequence": "visible_action_sequence_candidates_lite_v1",
+    "trace": "trackable_action_trace_candidates_lite_v1",
+    "consequence": "trackable_action_consequence_candidates_lite_v1"
+  },
+  "required_fields": [
+    "trace_variant_id",
+    "sequence_ref",
+    "node_refs",
+    "edge_relations",
+    "action_family_signature",
+    "context_signature",
+    "outcome_signature",
+    "ordering_completeness",
+    "chronology_confidence",
+    "dependency_group_refs",
+    "provenance_refs",
+    "claim_ceiling"
+  ],
+  "order_relation_vocabulary": [
+    "BEFORE_CONFIRMED",
+    "AFTER_CONFIRMED",
+    "SAME_TIME_UNORDERED",
+    "ORDER_INDETERMINATE",
+    "PROVENANCE_ORDER_ONLY"
+  ],
+  "invariants": {
+    "same_timestamp_total_order_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "provenance_order_only_is_football_chronology": false,
+    "trace_variant_requires_admitted_occurrence": true,
+    "reflection_duplicates_create_independent_nodes": false,
+    "unknown_order_may_satisfy_total_order_prerequisite": false,
+    "row_nucleus_is_action_occurrence": false,
+    "action_bundle_is_canonical_event": false,
+    "sample_match_identity_hardcoding_allowed": false
+  },
+  "claim_boundary": {
+    "partial_order_variant_is_tactical_pattern_truth": false,
+    "partial_order_variant_is_coach_intention_truth": false,
+    "partial_order_variant_is_possession_truth": false,
+    "partial_order_variant_is_causal_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "research_support": [
+    "Krockel_and_Bodendorf_2020_process_mining",
+    "Hassani_van_Zelst_van_der_Aalst_2019_sequential_pattern_mining",
+    "Camerino_et_al_2011_T_patterns"
+  ],
+  "research_only_not_implemented": [
+    "marked_spatio_temporal_point_process_prediction",
+    "LSTM_or_Transformer_sequence_prediction",
+    "tracking_dependent_trace_features",
+    "video_dependent_tactical_intention"
+  ]
+}
