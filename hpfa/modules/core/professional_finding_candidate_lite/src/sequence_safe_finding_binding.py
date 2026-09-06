@@ -6,6 +6,7 @@ from typing import Any
 
 MODULE_ID = "sequence_safe_finding_binding_lite_v1"
 ADMISSION_MODULE_ID = "sequence_pattern_admission_lite_v1"
+NULL_CONTRAST_ID = "recurrence_null_contrast_v1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
@@ -45,11 +46,50 @@ def _fail(*blocks: str) -> dict[str, Any]:
     }
 
 
-def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any]) -> dict[str, Any]:
+def _index_null_contrast(null_payload: dict[str, Any] | None) -> tuple[dict[str, dict[str, Any]], list[str], list[str]]:
+    if null_payload is None:
+        return {}, [], []
+    blocks: list[str] = []
+    reviews: list[str] = []
+    if null_payload.get("contrast_id") != NULL_CONTRAST_ID:
+        blocks.append("null_contrast_id_mismatch")
+    if null_payload.get("canonical_event_count") != CANONICAL_EVENT_COUNT:
+        blocks.append("null_contrast_canonical_event_count_claimed")
+    if null_payload.get("true_action_count") != TRUE_ACTION_COUNT:
+        blocks.append("null_contrast_true_action_count_claimed")
+    if null_payload.get("production_release") is True:
+        blocks.append("null_contrast_production_release_claimed")
+    if null_payload.get("hard_block_hits"):
+        blocks.append("null_contrast_hard_blocks_present")
+    status = _clean(null_payload.get("status")).upper()
+    if status == "FAIL_CLOSED":
+        blocks.append("null_contrast_input_fail_closed")
+    elif status == "REVIEW_REQUIRED":
+        reviews.append("null_contrast_upstream_review_required")
+    elif status != "PASS":
+        reviews.append(f"null_contrast_status_review:{status or 'UNKNOWN'}")
+    rows = [row for row in (null_payload.get("rows") or []) if isinstance(row, dict)]
+    indexed: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        family_ref = _clean(row.get("trace_family_ref"))
+        if not family_ref:
+            blocks.append("null_contrast_family_ref_missing")
+            continue
+        if family_ref in indexed:
+            blocks.append(f"null_contrast_family_duplicate:{family_ref}")
+            continue
+        indexed[family_ref] = row
+    return indexed, blocks, reviews
+
+
+def build_sequence_safe_finding_blocks(
+    admission_payload: dict[str, Any],
+    null_contrast_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Project admitted sequence evidence into readable, defeasible analyst blocks.
 
-    This is a presentation/binding layer over admitted evidence. It does not discover
-    patterns, infer causality, manufacture independence, or release production truth.
+    Optional audited recurrence-null contrast may strengthen *context* for a finding but
+    never upgrades its admission state, independence state, tactical meaning or release.
     """
     blocks: list[str] = []
     reviews: list[str] = []
@@ -76,11 +116,14 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any]) -> dic
         reviews.append("admission_upstream_review_required")
     elif status != "PASS":
         reviews.append(f"admission_status_review:{status or 'UNKNOWN'}")
+
+    null_by_family, null_blocks, null_reviews = _index_null_contrast(null_contrast_payload)
+    blocks.extend(null_blocks)
+    reviews.extend(null_reviews)
     if blocks:
         return _fail(*blocks)
 
     admissions = [row for row in (admission_payload.get("sequence_pattern_admissions") or []) if isinstance(row, dict)]
-
     for row in admissions:
         state = _clean(row.get("admission_state"))
         if state not in SAFE_EMITTING_ADMISSION_STATES | NON_EMITTING_ADMISSION_STATES:
@@ -119,9 +162,52 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any]) -> dic
         dependency = dict(row.get("dependency_summary") or {})
         withdrawal = _clean(row.get("withdrawal_condition"))
 
+        null_summary: dict[str, Any] = {"state": "NOT_EVALUATED", "claim_strengthened": False}
+        null_row = null_by_family.get(family_ref)
+        if null_row is not None:
+            null_refs = sorted({_clean(x) for x in (null_row.get("eligible_trace_refs") or []) if _clean(x)})
+            if null_refs != eligible_refs:
+                return _fail(f"null_contrast_trace_cohort_mismatch:{family_ref}")
+            observed_null = null_row.get("observed_independent_recurrence")
+            if isinstance(independent, int):
+                if observed_null != independent:
+                    return _fail(f"null_contrast_independent_support_mismatch:{family_ref}")
+            elif observed_null != "UNKNOWN":
+                return _fail(f"null_contrast_unknown_independence_escalated:{family_ref}")
+            if null_row.get("significance_claim_allowed") is not False:
+                return _fail(f"null_contrast_significance_lock_breach:{family_ref}")
+            if null_row.get("tactical_pattern_truth_allowed") is not False:
+                return _fail(f"null_contrast_tactical_truth_lock_breach:{family_ref}")
+            null_summary = {
+                "state": _clean(null_row.get("state")) or "UNKNOWN",
+                "observed_independent_recurrence": observed_null,
+                "simulation_count": null_row.get("simulation_count"),
+                "null_mean": null_row.get("null_mean"),
+                "null_median": null_row.get("null_median"),
+                "null_q95": null_row.get("null_q95"),
+                "empirical_upper_tail_probability_uncorrected": null_row.get("empirical_upper_tail_probability_uncorrected"),
+                "observed_percentile_in_null_draws": null_row.get("observed_percentile_in_null_draws"),
+                "null_model_id": null_row.get("null_model_id"),
+                "null_model_version": null_row.get("null_model_version"),
+                "null_mechanism": null_row.get("null_mechanism"),
+                "preserved_constraints": list(null_row.get("preserved_constraints") or []),
+                "exchangeability_assumption": null_row.get("exchangeability_assumption"),
+                "multiple_testing_corrected": False,
+                "significance_claim_allowed": False,
+                "tactical_pattern_truth_allowed": False,
+                "claim_strengthened": False,
+                "withdrawal_condition": null_row.get("withdrawal_condition"),
+                "claim_ceiling": null_row.get("claim_ceiling"),
+            }
+
         what_visible = f"A comparable admitted visible trace family was observed {support} times in the current evidence scope."
         where_when = "The statement is restricted to the admitted match-local context and ordering evidence attached to the trace family."
         support_text = f"Observed support={support}; independent support={independent}; admission={state}; robustness={robustness}."
+        if null_row is not None and isinstance(independent, int):
+            support_text += (
+                f" Defined-null contrast={null_summary['state']}; null median={null_summary['null_median']}; "
+                f"uncorrected upper-tail probability={null_summary['empirical_upper_tail_probability_uncorrected']}."
+            )
         counter_text = (
             f"Visible failure variants={failures}; divergence variants={divergences}; counterevidence refs={len(counter_refs)}. "
             f"No-visible-followup={no_followup} is reported separately and is not failure."
@@ -143,6 +229,11 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any]) -> dic
             safe_meaning = "A visible process candidate exists, but sensitivity evidence makes the recurrence interpretation conditional and fragile."
         else:
             safe_meaning = "A discovery-level visible process candidate exists and requires stronger recurrence/robustness evidence before promotion."
+        if null_row is not None and isinstance(independent, int):
+            safe_meaning += (
+                " Its admitted independent recurrence can also be described relative to the supplied audited null distribution, "
+                "without treating the uncorrected tail probability as significance or tactical truth."
+            )
 
         forbidden = sorted(set([
             "coach intention",
@@ -153,12 +244,12 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any]) -> dic
             "team shape",
             "true pressure geometry",
             "no-visible-followup as failure",
+            "statistical significance from uncorrected null tail",
         ] + [_clean(x) for x in (row.get("forbidden_inference") or []) if _clean(x)]))
-        analyst_action = "Review the recurrent trace examples together with failed/divergent twins, context-sensitive cases and dependency-linked views before using the finding in match analysis."
-        proposition = safe_meaning
+        analyst_action = "Review recurrent examples with failed/divergent twins, context-sensitive cases, dependency-linked views and any available defined-null contrast before using the finding in match analysis."
         report_blocks.append({
             "analyst_report_block_id": "sfb_" + _digest(family_ref, eligible_refs, state, support, robustness)[:24],
-            "proposition": proposition,
+            "proposition": safe_meaning,
             "entity_scope": (row.get("source_anchor_context") or {}).get("team_identity_candidate_id") or "MATCH_LOCAL_ENTITY_SCOPE_CANDIDATE",
             "context_scope": row.get("context_scope") or [],
             "trace_family_refs": [family_ref],
@@ -169,6 +260,7 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any]) -> dic
             "no_visible_followup_support": no_followup,
             "recurrence_summary": {"observed_support": support, "eligible_trace_count": len(eligible_refs), "independent_support_count": independent, "admission_state": state},
             "robustness_summary": {"robustness_state": robustness},
+            "null_contrast_summary": null_summary,
             "context_deviation_summary": "BOUND_TO_ADMITTED_CONTEXT_SCOPE_ONLY",
             "counterevidence": {"refs": counter_refs, "summary": counter_text},
             "alternative_explanations": alternatives,
@@ -200,6 +292,7 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any]) -> dic
         "hard_block_hits": [],
         "review_hits": sorted(set(reviews)),
         "complexity_inside_clarity_outside": True,
+        "null_contrast_consumed": null_contrast_payload is not None,
         "professional_finding_emitted_count": 0,
         "claim_output_allowed_count": 0,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
