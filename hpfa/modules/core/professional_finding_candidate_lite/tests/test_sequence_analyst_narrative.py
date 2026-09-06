@@ -52,9 +52,10 @@ def _null_summary():
         "multiple_testing_corrected": False,
         "significance_claim_allowed": False,
         "tactical_pattern_truth_allowed": False,
+        "causality_allowed": False,
         "claim_strengthened": False,
         "withdrawal_condition": "Withdraw null comparison if the audited null specification changes.",
-        "claim_ceiling": "AUDITED_NULL_CONTEXT_ONLY",
+        "claim_ceiling": "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY",
     }
 
 
@@ -126,7 +127,9 @@ def test_audited_null_contrast_survives_narrative_without_significance_escalatio
     assert "null medyan=1.0" in block["null_contrast_tr"]
     assert "istatistiksel anlamlılık" in block["null_contrast_tr"]
     assert block["null_contrast_significance_claimed"] is False
+    assert block["null_contrast_causality_claimed"] is False
     assert result["statistical_significance_claimed"] is False
+    assert result["causality_claimed"] is False
     assert block["canonical_event_count"] == "UNKNOWN"
     assert block["true_action_count"] == "UNKNOWN"
     assert block["production_release"] is False
@@ -139,6 +142,42 @@ def test_null_contrast_claim_strengthening_fails_closed():
     result = compose_sequence_analyst_narrative(_payload([row]))
     assert result["status"] == "FAIL_CLOSED"
     assert "upstream_null_contrast_claim_strengthened" in result["hard_block_hits"]
+
+
+def test_null_contrast_causality_escalation_fails_closed():
+    row = _row()
+    row["null_contrast_summary"] = _null_summary()
+    row["null_contrast_summary"]["causality_allowed"] = True
+    result = compose_sequence_analyst_narrative(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_null_contrast_causality_lock_breach" in result["hard_block_hits"]
+
+
+def test_null_contrast_wrong_claim_ceiling_fails_closed():
+    row = _row()
+    row["null_contrast_summary"] = _null_summary()
+    row["null_contrast_summary"]["claim_ceiling"] = "TACTICAL_PATTERN_TRUTH"
+    result = compose_sequence_analyst_narrative(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_null_contrast_claim_ceiling_mismatch" in result["hard_block_hits"]
+
+
+def test_null_contrast_multiple_testing_escalation_fails_closed():
+    row = _row()
+    row["null_contrast_summary"] = _null_summary()
+    row["null_contrast_summary"]["multiple_testing_corrected"] = True
+    result = compose_sequence_analyst_narrative(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_null_contrast_multiple_testing_lock_breach" in result["hard_block_hits"]
+
+
+def test_null_contrast_missing_withdrawal_fails_closed():
+    row = _row()
+    row["null_contrast_summary"] = _null_summary()
+    row["null_contrast_summary"]["withdrawal_condition"] = ""
+    result = compose_sequence_analyst_narrative(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_null_contrast_withdrawal_condition_missing" in result["hard_block_hits"]
 
 
 def test_context_conditioned_variation_becomes_match_story_without_causal_escalation():
