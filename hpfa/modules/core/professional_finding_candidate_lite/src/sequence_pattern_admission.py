@@ -75,16 +75,39 @@ def _fail(blocks: list[str], reviews: list[str]) -> dict[str, Any]:
     }
 
 
+def _envelope_trace_refs(envelope: dict[str, Any]) -> set[str]:
+    refs: set[str] = set()
+    for row in envelope.get("threshold_sensitivity") or []:
+        if isinstance(row, dict):
+            refs.update(_clean(ref) for ref in (row.get("trace_refs") or []) if _clean(ref))
+    refs.update(_clean(ref) for ref in (envelope.get("stable_core_trace_refs") or []) if _clean(ref))
+    refs.update(_clean(ref) for ref in (envelope.get("fragile_trace_refs") or []) if _clean(ref))
+    return refs
+
+
+def _validated_independent_support(packet: dict[str, Any], eligible_refs: list[str]) -> tuple[int | str, str | None]:
+    declared = packet.get("independent_support_count")
+    mapping = packet.get("independence_group_by_trace_ref")
+    if not isinstance(mapping, dict):
+        return "UNKNOWN", None
+    normalized = {_clean(ref): _clean(group) for ref, group in mapping.items() if _clean(ref) and _clean(group)}
+    if set(normalized) != set(eligible_refs):
+        return "UNKNOWN", "independence_mapping_does_not_cover_eligible_traces"
+    recomputed = len(set(normalized.values()))
+    declared_groups = sorted({_clean(value) for value in (packet.get("independence_groups") or []) if _clean(value)})
+    if set(declared_groups) != set(normalized.values()):
+        return "UNKNOWN", "independence_group_set_mismatch"
+    if not isinstance(declared, int) or declared != recomputed:
+        return "UNKNOWN", "declared_independent_support_mismatch"
+    return recomputed, None
+
+
 def build_sequence_pattern_admissions(
     variant_payload: dict[str, Any],
     contrast_payload: dict[str, Any],
     robustness_payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Admit recurrent visible-trace evidence without promoting tactical-pattern truth.
-
-    This is a thin gate over current variant/contrast/robustness products. It does not
-    discover a new sequence, infer independence, or generate analyst prose.
-    """
+    """Admit recurrent visible-trace evidence without promoting tactical-pattern truth."""
     blocks: list[str] = []
     reviews: list[str] = []
     for name, payload, expected in (
@@ -134,6 +157,15 @@ def build_sequence_pattern_admissions(
             continue
 
         observed_support = len(eligible_refs)
+        envelope_refs = _envelope_trace_refs(envelope)
+        try:
+            envelope_nominal = int(envelope.get("nominal_recurrence"))
+        except (TypeError, ValueError):
+            envelope_nominal = -1
+        cohort_match = envelope_nominal == observed_support and envelope_refs == set(eligible_refs)
+        if not cohort_match:
+            reviews.append(f"robustness_cohort_mismatch:{family_ref}")
+
         variant_count = observed_support
         failure_count = int(packet.get("failure_count") or 0)
         divergence_count = int(packet.get("divergence_count") or 0)
@@ -143,11 +175,10 @@ def build_sequence_pattern_admissions(
         contexts = [by_variant[ref].get("context_signature") or {} for ref in eligible_refs]
 
         dependency_groups = sorted({_clean(value) for value in (packet.get("dependency_groups") or []) if _clean(value)})
-        declared_independence = packet.get("independent_support_count")
         independence_groups = sorted({_clean(value) for value in (packet.get("independence_groups") or []) if _clean(value)})
-        independent_support_count: int | str = "UNKNOWN"
-        if isinstance(declared_independence, int) and declared_independence >= 0 and independence_groups:
-            independent_support_count = declared_independence
+        independent_support_count, independence_issue = _validated_independent_support(packet, eligible_refs)
+        if independence_issue:
+            reviews.append(f"{independence_issue}:{family_ref}")
 
         counterevidence_refs = sorted({_clean(value) for value in (packet.get("counterevidence_refs") or []) if _clean(value)})
         alternative_explanations: list[dict[str, Any]] = []
@@ -157,11 +188,15 @@ def build_sequence_pattern_admissions(
             alternative_explanations.append({"type": "ORDERING_UNCERTAINTY", "causal_truth": False})
         if robustness_state == "CONTEXT_SENSITIVE":
             alternative_explanations.append({"type": "CONTEXT_DEPENDENCE", "causal_truth": False})
+        if not cohort_match:
+            alternative_explanations.append({"type": "ROBUSTNESS_COHORT_MISMATCH", "causal_truth": False})
         if counterevidence_refs:
             alternative_explanations.append({"type": "DIFFERENT_VISIBLE_OUTCOME_OR_FAILURE", "causal_truth": False})
 
         if observed_support < 2 or robustness_state == "INSUFFICIENT_EVIDENCE":
             admission_state = "REJECTED_INSUFFICIENT_EVIDENCE"
+        elif not cohort_match:
+            admission_state = "REVIEW_REQUIRED"
         elif packet.get("packet_state") != "CONTRAST_AVAILABLE":
             admission_state = "REVIEW_REQUIRED"
         elif robustness_state == "FRAGILE":
@@ -169,7 +204,6 @@ def build_sequence_pattern_admissions(
         elif robustness_state in {"THRESHOLD_SENSITIVE", "ORDER_SENSITIVE", "CONTEXT_SENSITIVE"}:
             admission_state = "PROXY_CANDIDATE"
         elif robustness_state == "ROBUST_WITHIN_TESTED_RANGE":
-            # Robust visible recurrence is allowed only when independence is explicitly admitted.
             admission_state = (
                 "ROBUST_RECURRENT_VISIBLE_TRACE"
                 if isinstance(independent_support_count, int) and independent_support_count >= 2
@@ -189,6 +223,7 @@ def build_sequence_pattern_admissions(
             "no_visible_followup_is_failure": False,
             "absence_of_evidence_is_counterevidence": False,
             "robustness_is_tactical_pattern_truth": False,
+            "robustness_cohort_exact_match": cohort_match,
         }
         if independent_support_count == "UNKNOWN":
             reviews.append(f"independent_support_unproven:{family_ref}")
@@ -212,6 +247,7 @@ def build_sequence_pattern_admissions(
             "dependency_summary": {
                 "dependency_groups": dependency_groups,
                 "independence_groups": independence_groups,
+                "independence_group_by_trace_ref": packet.get("independence_group_by_trace_ref") or {},
                 "independence_proven": isinstance(independent_support_count, int),
                 "object_views_or_reflections_may_not_create_independent_support": True,
             },
