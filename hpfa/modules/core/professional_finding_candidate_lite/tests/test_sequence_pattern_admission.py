@@ -79,6 +79,12 @@ def test_robust_nominal_recurrence_without_independence_stops_at_recurrent_visib
     assert result["status"] == "REVIEW_REQUIRED"
 
 
+def test_exact_eligible_trace_cohort_survives_admission_boundary():
+    row = build_sequence_pattern_admissions(*_payloads())["sequence_pattern_admissions"][0]
+    assert row["eligible_trace_refs"] == ["v1", "v2"]
+    assert row["eligible_trace_count"] == row["observed_support"] == len(row["eligible_trace_refs"])
+
+
 def test_robust_recurrent_state_requires_explicit_independence_admission():
     result = build_sequence_pattern_admissions(*_payloads(
         independent=2,
