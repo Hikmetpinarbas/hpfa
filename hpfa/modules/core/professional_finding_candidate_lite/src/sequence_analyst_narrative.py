@@ -148,15 +148,39 @@ def _context_variations_for_row(row: dict[str, Any], deviations: list[dict[str, 
     return variations, hard, reviews
 
 
+def _null_contrast_for_row(row: dict[str, Any]) -> tuple[dict[str, Any], str, list[str]]:
+    raw = row.get("null_contrast_summary")
+    if raw is None:
+        return {}, "", []
+    if not isinstance(raw, dict):
+        return {}, "", ["upstream_null_contrast_summary_invalid"]
+    summary = dict(raw)
+    if summary.get("claim_strengthened") is not False:
+        return {}, "", ["upstream_null_contrast_claim_strengthened"]
+    state = _clean(summary.get("state")) or "NOT_EVALUATED"
+    if state == "NOT_EVALUATED":
+        return summary, "", []
+    if summary.get("significance_claim_allowed") is not False:
+        return {}, "", ["upstream_null_contrast_significance_lock_breach"]
+    if summary.get("tactical_pattern_truth_allowed") is not False:
+        return {}, "", ["upstream_null_contrast_tactical_truth_lock_breach"]
+    sentence = (
+        f"Tanımlı null karşılaştırması {state}; gözlenen bağımsız tekrar={summary.get('observed_independent_recurrence')}, "
+        f"null medyan={summary.get('null_median')}, düzeltilmemiş üst-kuyruk olasılığı={summary.get('empirical_upper_tail_probability_uncorrected')}. "
+        "Bu karşılaştırma istatistiksel anlamlılık, nedensellik veya taktik patern gerçeği değildir."
+    )
+    return summary, sentence, []
+
+
 def compose_sequence_analyst_narrative(
     binding_payload: dict[str, Any],
     context_deviation_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compose readable match-local story blocks from already admitted safe findings.
 
-    Optional context-conditioned deviation evidence adds descriptive change/variation
-    intelligence only when it binds to the exact same trace cohort. No chronology,
-    causality, tactical adaptation or coach-intention truth is created here.
+    Optional audited null contrast and context-conditioned deviation evidence remain
+    descriptive and bind only to the already-admitted finding. No chronology,
+    causality, tactical adaptation, significance or coach-intention truth is created.
     """
     hard: list[str] = []
     reviews: list[str] = []
@@ -218,6 +242,9 @@ def compose_sequence_analyst_narrative(
             return _fail("upstream_withdrawal_condition_missing")
         if not upstream_claim_ceiling:
             return _fail("upstream_claim_ceiling_missing")
+        _, _, null_hard = _null_contrast_for_row(row)
+        if null_hard:
+            return _fail(*null_hard)
         eligible.append(row)
 
     eligible.sort(key=_strength_rank, reverse=True)
@@ -235,6 +262,9 @@ def compose_sequence_analyst_narrative(
         trace_refs = sorted({_clean(x) for x in (row.get("trace_variant_refs") or []) if _clean(x)})
         family_refs = sorted({_clean(x) for x in (row.get("trace_family_refs") or []) if _clean(x)})
         upstream_claim_ceiling = _clean(row.get("claim_ceiling"))
+        null_summary, null_text, null_hard = _null_contrast_for_row(row)
+        if null_hard:
+            return _fail(*null_hard)
 
         if failure or divergence or counter_refs:
             balance = "Aynı başlangıcın bozulduğu veya farklı sonuca gittiği örnekler de bulunduğu için bu tekrar koşulsuz çalışan bir üstünlük olarak okunmamalı."
@@ -256,6 +286,8 @@ def compose_sequence_analyst_narrative(
         )
         if no_followup:
             evidence += f" {no_followup} örnekte görünür takip yok; bunlar başarısızlık sayılmadı."
+        if null_text:
+            evidence += " " + null_text
 
         context_variations, variation_hard, variation_reviews = _context_variations_for_row(row, deviations)
         if variation_hard:
@@ -277,6 +309,8 @@ def compose_sequence_analyst_narrative(
             "headline_tr": opening,
             "evidence_tr": evidence,
             "counterweight_tr": balance,
+            "null_contrast_tr": null_text,
+            "null_contrast_summary": null_summary,
             "change_tr": change_text,
             "context_variations": context_variations,
             "safe_meaning_tr": _clean(row.get("SAFE_MEANING")),
@@ -301,6 +335,7 @@ def compose_sequence_analyst_narrative(
             "chronology_direction_claimed": False,
             "context_change_causality_claimed": False,
             "tactical_adaptation_claimed": False,
+            "null_contrast_significance_claimed": False,
             "canonical_event_count": "UNKNOWN",
             "true_action_count": "UNKNOWN",
             "production_release": False,
@@ -318,6 +353,8 @@ def compose_sequence_analyst_narrative(
         "chronological_story_claimed": False,
         "context_variation_descriptive_only": True,
         "context_change_causality_claimed": False,
+        "null_contrast_descriptive_only": True,
+        "statistical_significance_claimed": False,
         "coach_intention_claimed": False,
         "causality_claimed": False,
         "tactical_plan_truth_claimed": False,
