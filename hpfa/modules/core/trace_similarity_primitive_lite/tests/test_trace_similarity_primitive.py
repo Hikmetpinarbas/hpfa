@@ -90,6 +90,25 @@ def test_weight_sensitivity_available():
     assert weighted["weights_are_universal_football_truth"] is False
 
 
+def test_equal_weight_perfect_components_do_not_lose_precision_before_composite():
+    pair = _pair(build_trace_similarity_primitive(
+        _payload(),
+        weights={"action": 1, "order": 1, "context": 1},
+    ))
+    assert pair["action_similarity"] == 1.0
+    assert pair["order_similarity"] == 1.0
+    assert pair["context_similarity"] == 1.0
+    assert pair["weights"] == {"action": 0.333333, "context": 0.333333, "order": 0.333333}
+    assert pair["composite_similarity"] == 1.0
+
+
+def test_non_finite_weights_fail_closed():
+    for value in ("nan", "inf", "-inf", "1e309"):
+        result = build_trace_similarity_primitive(_payload(), weights={"action": value})
+        assert result["status"] == "FAIL_CLOSED"
+        assert "non_finite_similarity_weight:action" in result["hard_block_hits"]
+
+
 def test_no_tracking_feature_in_event_only_default():
     result = build_trace_similarity_primitive(_payload())
     pair = _pair(result)
