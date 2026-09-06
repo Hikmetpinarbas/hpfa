@@ -164,7 +164,10 @@ def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
     upstream_claim_ceiling = str(block.get("upstream_claim_ceiling") or "").strip()
     origin_claim_ceiling = str(block.get("origin_claim_ceiling") or "").strip()
     support = block.get("observed_support")
+    raw_null_summary = block.get("null_contrast_summary")
+    raw_context_variations = block.get("context_variations")
     hits: list[str] = []
+
     if not family_refs:
         hits.append("sequence_lineage_trace_family_refs_missing")
     if not trace_refs:
@@ -196,6 +199,47 @@ def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
             hits.append("sequence_lineage_origin_claim_ceiling_mismatch")
     elif origin_claim_ceiling:
         hits.append("sequence_lineage_unexpected_origin_claim_ceiling")
+
+    null_summary: dict[str, Any] = {}
+    if raw_null_summary is not None:
+        if not isinstance(raw_null_summary, dict):
+            hits.append("sequence_lineage_null_contrast_summary_invalid")
+        else:
+            null_summary = dict(raw_null_summary)
+            if null_summary.get("claim_strengthened") is not False:
+                hits.append("sequence_lineage_null_contrast_claim_strengthened")
+            null_state = str(null_summary.get("state") or "NOT_EVALUATED").strip()
+            if null_state != "NOT_EVALUATED":
+                if null_summary.get("significance_claim_allowed") is not False:
+                    hits.append("sequence_lineage_null_contrast_significance_lock_breach")
+                if null_summary.get("tactical_pattern_truth_allowed") is not False:
+                    hits.append("sequence_lineage_null_contrast_tactical_truth_lock_breach")
+
+    context_variations: list[dict[str, Any]] = []
+    if raw_context_variations is not None:
+        if not isinstance(raw_context_variations, list):
+            hits.append("sequence_lineage_context_variations_invalid")
+        else:
+            trace_ref_set = set(trace_refs)
+            for raw_variation in raw_context_variations:
+                if not isinstance(raw_variation, dict):
+                    hits.append("sequence_lineage_context_variation_invalid")
+                    continue
+                variation = dict(raw_variation)
+                for flag in (
+                    "chronology_direction_claimed",
+                    "causality_claimed",
+                    "tactical_adaptation_claimed",
+                    "coach_intention_claimed",
+                ):
+                    if variation.get(flag) is not False:
+                        hits.append(f"sequence_lineage_context_variation_claim_lock_breach:{flag}")
+                baseline_refs = set(_string_list(variation.get("baseline_trace_refs")))
+                comparison_refs = set(_string_list(variation.get("comparison_trace_refs")))
+                if not baseline_refs.issubset(trace_ref_set) or not comparison_refs.issubset(trace_ref_set):
+                    hits.append("sequence_lineage_context_variation_trace_lineage_mismatch")
+                context_variations.append(variation)
+
     return {
         "trace_family_refs": family_refs,
         "trace_variant_refs": trace_refs,
@@ -207,6 +251,8 @@ def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
         "observed_support": support,
         "upstream_claim_ceiling": upstream_claim_ceiling,
         "origin_claim_ceiling": origin_claim_ceiling,
+        "null_contrast_summary": null_summary,
+        "context_variations": context_variations,
     }, hits
 
 
