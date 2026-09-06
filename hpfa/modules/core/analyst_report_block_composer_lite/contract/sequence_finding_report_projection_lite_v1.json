@@ -13,15 +13,26 @@
     "uncertainty": "PRESENT",
     "withdrawal_condition": "NON_EMPTY",
     "upstream_claim_ceiling": "NON_EMPTY",
-    "origin_claim_ceiling": "NON_EMPTY_ON_NARRATIVE_PATH"
+    "origin_claim_ceiling": "NON_EMPTY_ON_NARRATIVE_PATH",
+    "null_contrast_summary": "PRESERVE_EXACT_WHEN_PRESENT",
+    "context_variations": "PRESERVE_EXACT_WHEN_PRESENT"
   },
   "invariants": {
     "trace_variant_ref_count_equals_observed_support": true,
     "anchor_trace_is_member_of_support_cohort": true,
     "counterevidence_ref_count_matches_exact_refs": true,
     "missing_required_lineage": "FAIL_CLOSED",
+    "null_contrast_claim_strengthened_must_remain_false": true,
+    "evaluated_null_significance_claim_allowed_must_remain_false": true,
+    "evaluated_null_tactical_pattern_truth_allowed_must_remain_false": true,
+    "context_variation_trace_refs_must_remain_inside_exact_support_cohort": true,
+    "context_variation_chronology_direction_claimed_must_remain_false": true,
+    "context_variation_causality_claimed_must_remain_false": true,
+    "context_variation_tactical_adaptation_claimed_must_remain_false": true,
+    "context_variation_coach_intention_claimed_must_remain_false": true,
     "no_visible_followup_is_failure": false,
     "projection_recomputes_evidence_strength": false,
+    "projection_infers_statistical_significance": false,
     "projection_infers_tactical_pattern_truth": false,
     "projection_infers_causality": false,
     "upstream_review_required_can_become_pass": false
