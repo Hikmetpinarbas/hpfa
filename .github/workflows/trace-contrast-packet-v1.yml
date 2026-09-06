@@ -1,0 +1,38 @@
+name: Trace Contrast Packet V1
+
+on:
+  push:
+    branches:
+      - feature/trace-contrast-packet-v1
+  pull_request:
+    paths:
+      - 'hpfa/modules/core/trace_contrast_packet_lite/**'
+      - 'hpfa/modules/core/trace_similarity_primitive_lite/**'
+      - '.github/workflows/trace-contrast-packet-v1.yml'
+
+jobs:
+  trace-contrast-packet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependency
+        run: python -m pip install pytest
+      - name: Run contrast regressions
+        run: |
+          python -m pytest -q hpfa/modules/core/trace_similarity_primitive_lite/tests/test_trace_similarity_primitive.py
+          python -m pytest -q hpfa/modules/core/trace_contrast_packet_lite/tests/test_trace_contrast_packet.py
+      - name: Compile contrast modules
+        run: |
+          python -m py_compile hpfa/modules/core/trace_similarity_primitive_lite/src/trace_similarity_primitive.py
+          python -m py_compile hpfa/modules/core/trace_contrast_packet_lite/src/trace_contrast_packet.py
+      - name: Claim lock audit
+        run: |
+          grep -R -q 'NO_VISIBLE_FOLLOWUP' hpfa/modules/core/trace_contrast_packet_lite
+          grep -R -q 'absence_of_evidence_is_counterevidence' hpfa/modules/core/trace_contrast_packet_lite
+          grep -R -q 'success_failure_share_eligibility_contract' hpfa/modules/core/trace_contrast_packet_lite
+          grep -R -q 'canonical_event_count' hpfa/modules/core/trace_contrast_packet_lite
+          grep -R -q 'production_release' hpfa/modules/core/trace_contrast_packet_lite
+          ! grep -R -E 'Genclerbirligi|Fenerbahce|15\.08\.2026' hpfa/modules/core/trace_contrast_packet_lite/src

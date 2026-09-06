@@ -1,0 +1,41 @@
+{
+  "module_id": "trace_contrast_packet_lite_v1",
+  "capability": "TRACE_CONTRAST_PACKET_V1",
+  "inputs": {
+    "variant_module_id": "partial_order_trace_variant_lite_v1",
+    "similarity_module_id": "trace_similarity_primitive_lite_v1"
+  },
+  "eligibility": {
+    "same_rule_for_success_failure_divergence_and_no_visible_followup": true,
+    "allowed_similarity_components": ["action", "order", "context"],
+    "outcome_similarity_used_for_eligibility": false,
+    "explicit_threshold_required": true,
+    "explicit_weights_required": true,
+    "threshold_is_objective_football_truth": false,
+    "missing_similarity_pair": "FAIL_CLOSED"
+  },
+  "outcome_states": {
+    "SUCCESS": "TERMINAL_SUCCESS_CANDIDATE",
+    "FAILURE": "LOSS_TERMINATION",
+    "DIVERGENCE": "VISIBLE_DIVERGENCE",
+    "NO_VISIBLE_FOLLOWUP": "NO_VISIBLE_FOLLOWUP"
+  },
+  "failure_rules": {
+    "failure_requires_explicit_visible_outcome": true,
+    "no_visible_followup_is_failure": false,
+    "absence_of_evidence_is_counterevidence": false
+  },
+  "dependency_rules": {
+    "dependency_groups_preserved": true,
+    "reflections_may_create_independent_support": false,
+    "independent_support_count_without_explicit_independence_admission": "UNKNOWN"
+  },
+  "claim_boundary": {
+    "trace_contrast_does_not_claim_causality": true,
+    "trace_contrast_does_not_claim_tactical_solution": true,
+    "trace_contrast_does_not_claim_coach_intention": true,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}
