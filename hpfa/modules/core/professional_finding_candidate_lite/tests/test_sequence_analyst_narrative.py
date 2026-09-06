@@ -34,6 +34,30 @@ def _row(state="RECURRENT_VISIBLE_TRACE", support=5, success=2, failure=1, diver
     }
 
 
+def _null_summary():
+    return {
+        "state": "OBSERVED_ABOVE_DEFINED_NULL_MEDIAN",
+        "observed_independent_recurrence": 3,
+        "simulation_count": 1000,
+        "null_mean": 1.4,
+        "null_median": 1.0,
+        "null_q95": 4.0,
+        "empirical_upper_tail_probability_uncorrected": 0.08,
+        "observed_percentile_in_null_draws": 0.92,
+        "null_model_id": "defined_recurrence_null",
+        "null_model_version": "v1",
+        "null_mechanism": "constraint_preserving_resample",
+        "preserved_constraints": ["eligible_trace_count"],
+        "exchangeability_assumption": "AUDITED_ASSUMPTION_ONLY",
+        "multiple_testing_corrected": False,
+        "significance_claim_allowed": False,
+        "tactical_pattern_truth_allowed": False,
+        "claim_strengthened": False,
+        "withdrawal_condition": "Withdraw null comparison if the audited null specification changes.",
+        "claim_ceiling": "AUDITED_NULL_CONTEXT_ONLY",
+    }
+
+
 def _payload(rows):
     return {
         "module_id": "sequence_safe_finding_binding_lite_v1",
@@ -91,6 +115,30 @@ def test_narrative_explains_repeat_success_failure_divergence_in_plain_turkish()
     assert "1 başarısız sonlanma" in story
     assert "1 farklılaşan devam" in story
     assert "başarısızlık sayılmadı" in story
+
+
+def test_audited_null_contrast_survives_narrative_without_significance_escalation():
+    row = _row()
+    row["null_contrast_summary"] = _null_summary()
+    result = compose_sequence_analyst_narrative(_payload([row]))
+    block = result["narrative_blocks"][0]
+    assert block["null_contrast_summary"] == row["null_contrast_summary"]
+    assert "null medyan=1.0" in block["null_contrast_tr"]
+    assert "istatistiksel anlamlılık" in block["null_contrast_tr"]
+    assert block["null_contrast_significance_claimed"] is False
+    assert result["statistical_significance_claimed"] is False
+    assert block["canonical_event_count"] == "UNKNOWN"
+    assert block["true_action_count"] == "UNKNOWN"
+    assert block["production_release"] is False
+
+
+def test_null_contrast_claim_strengthening_fails_closed():
+    row = _row()
+    row["null_contrast_summary"] = _null_summary()
+    row["null_contrast_summary"]["claim_strengthened"] = True
+    result = compose_sequence_analyst_narrative(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_null_contrast_claim_strengthened" in result["hard_block_hits"]
 
 
 def test_context_conditioned_variation_becomes_match_story_without_causal_escalation():
