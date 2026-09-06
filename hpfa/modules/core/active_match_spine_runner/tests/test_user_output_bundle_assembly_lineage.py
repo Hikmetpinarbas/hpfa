@@ -9,6 +9,11 @@ if str(SRC) not in sys.path:
 from user_output_bundle import build_analyst_report
 
 
+FINDING_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+NARRATIVE_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
+ASSEMBLY_CEILING = "final_report_assembly_candidate_only"
+
+
 def _base_spine(chain):
     return {
         "status": "SMOKE_PASS",
@@ -31,7 +36,7 @@ def _base_spine(chain):
     }
 
 
-def _lineage():
+def _narrative_lineage():
     return {
         "trace_family_refs": ["TRACE_A"],
         "trace_variant_refs": ["TRACE_A", "TRACE_B"],
@@ -40,8 +45,27 @@ def _lineage():
         "robustness_summary": {"state": "ROBUST_WITHIN_TESTED_RANGE"},
         "uncertainty": {"ordering": "ORDER_INDETERMINATE"},
         "withdrawal_condition": "withdraw_if_trace_cohort_or_dependency_changes",
-        "upstream_claim_ceiling": "report_output_contract_candidate_only",
-        "origin_claim_ceiling": "VISIBLE_RECURRENT_TRACE_CANDIDATE_ONLY",
+        "upstream_claim_ceiling": NARRATIVE_CEILING,
+        "origin_claim_ceiling": FINDING_CEILING,
+    }
+
+
+def _finding_lineage():
+    lineage = _narrative_lineage()
+    lineage["upstream_claim_ceiling"] = FINDING_CEILING
+    lineage.pop("origin_claim_ceiling")
+    return lineage
+
+
+def _assembly(block_family, lineage, text="ASSEMBLY_ADMITTED_VISIBLE_SEQUENCE_CANDIDATE"):
+    return {
+        "status": "SMOKE_PASS",
+        "assembly_decision": "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE",
+        "assembly_item_candidate_tr": text,
+        "draft_report_candidate_allowed": True,
+        "block_family": block_family,
+        "sequence_evidence_lineage": lineage,
+        "claim_ceiling": ASSEMBLY_CEILING,
     }
 
 
@@ -62,19 +86,11 @@ def test_user_report_never_bypasses_blocked_final_assembly(tmp_path):
     assert "final assembly gate tarafindan admitted analyst-text candidate gorunmedi" in text
 
 
-def test_sequence_assembly_candidate_preserves_exact_lineage_in_user_report(tmp_path):
-    lineage = _lineage()
+def test_sequence_narrative_candidate_preserves_exact_lineage_and_claim_hop(tmp_path):
+    lineage = _narrative_lineage()
     chain = {
         "safe_sentence": {"safe_sentence_candidate_tr": "EARLY_SENTENCE_NOT_AUTHORITY"},
-        "assembly": {
-            "status": "SMOKE_PASS",
-            "assembly_decision": "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE",
-            "assembly_item_candidate_tr": "ASSEMBLY_ADMITTED_VISIBLE_SEQUENCE_CANDIDATE",
-            "draft_report_candidate_allowed": True,
-            "block_family": "sequence_narrative_analyst_reading_candidate",
-            "sequence_evidence_lineage": lineage,
-            "claim_ceiling": "final_report_assembly_candidate_only",
-        },
+        "assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage),
     }
     text = build_analyst_report(tmp_path, _base_spine(chain))
     assert "ASSEMBLY_ADMITTED_VISIBLE_SEQUENCE_CANDIDATE" in text
@@ -84,44 +100,103 @@ def test_sequence_assembly_candidate_preserves_exact_lineage_in_user_report(tmp_
     assert "independent_support_count" in text
     assert "ORDER_INDETERMINATE" in text
     assert "withdraw_if_trace_cohort_or_dependency_changes" in text
-    assert "VISIBLE_RECURRENT_TRACE_CANDIDATE_ONLY" in text
-    assert "assembly_claim_ceiling=final_report_assembly_candidate_only" in text
+    assert f"upstream_claim_ceiling={NARRATIVE_CEILING}" in text
+    assert f"origin_claim_ceiling={FINDING_CEILING}" in text
+    assert f"assembly_claim_ceiling={ASSEMBLY_CEILING}" in text
     assert "canonical_event_count=UNKNOWN" in text
     assert "true_action_count=UNKNOWN" in text
     assert "production_release=false" in text
 
 
+def test_sequence_safe_finding_candidate_accepts_only_finding_ceiling_without_origin(tmp_path):
+    chain = {
+        "assembly": _assembly(
+            "sequence_safe_finding_analyst_reading_candidate",
+            _finding_lineage(),
+            "SAFE_FINDING_EXACT_CLAIM_HOP",
+        )
+    }
+    text = build_analyst_report(tmp_path, _base_spine(chain))
+    assert "SAFE_FINDING_EXACT_CLAIM_HOP" in text
+    assert f"upstream_claim_ceiling={FINDING_CEILING}" in text
+
+
 def test_sequence_candidate_with_cohort_support_mismatch_is_suppressed(tmp_path):
-    lineage = _lineage()
+    lineage = _narrative_lineage()
     lineage["observed_support"] = 3
     chain = {
-        "assembly": {
-            "status": "SMOKE_PASS",
-            "assembly_decision": "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE",
-            "assembly_item_candidate_tr": "MALFORMED_SEQUENCE_CANDIDATE_MUST_NOT_SHIP",
-            "draft_report_candidate_allowed": True,
-            "block_family": "sequence_narrative_analyst_reading_candidate",
-            "sequence_evidence_lineage": lineage,
-            "claim_ceiling": "final_report_assembly_candidate_only",
-        }
+        "assembly": _assembly(
+            "sequence_narrative_analyst_reading_candidate",
+            lineage,
+            "MALFORMED_SEQUENCE_CANDIDATE_MUST_NOT_SHIP",
+        )
     }
     text = build_analyst_report(tmp_path, _base_spine(chain))
     assert "MALFORMED_SEQUENCE_CANDIDATE_MUST_NOT_SHIP" not in text
 
 
 def test_sequence_candidate_missing_withdrawal_condition_is_suppressed(tmp_path):
-    lineage = _lineage()
+    lineage = _finding_lineage()
     lineage.pop("withdrawal_condition")
     chain = {
-        "assembly": {
-            "status": "SMOKE_PASS",
-            "assembly_decision": "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE",
-            "assembly_item_candidate_tr": "LINEAGE_INCOMPLETE_CANDIDATE_MUST_NOT_SHIP",
-            "draft_report_candidate_allowed": True,
-            "block_family": "sequence_safe_finding_analyst_reading_candidate",
-            "sequence_evidence_lineage": lineage,
-            "claim_ceiling": "final_report_assembly_candidate_only",
-        }
+        "assembly": _assembly(
+            "sequence_safe_finding_analyst_reading_candidate",
+            lineage,
+            "LINEAGE_INCOMPLETE_CANDIDATE_MUST_NOT_SHIP",
+        )
     }
     text = build_analyst_report(tmp_path, _base_spine(chain))
     assert "LINEAGE_INCOMPLETE_CANDIDATE_MUST_NOT_SHIP" not in text
+
+
+def test_sequence_narrative_tactical_claim_escalation_is_suppressed(tmp_path):
+    lineage = _narrative_lineage()
+    lineage["upstream_claim_ceiling"] = "TACTICAL_PATTERN_TRUTH"
+    chain = {
+        "assembly": _assembly(
+            "sequence_narrative_analyst_reading_candidate",
+            lineage,
+            "TACTICAL_ESCALATION_MUST_NOT_SHIP",
+        )
+    }
+    text = build_analyst_report(tmp_path, _base_spine(chain))
+    assert "TACTICAL_ESCALATION_MUST_NOT_SHIP" not in text
+
+
+def test_sequence_narrative_wrong_origin_claim_hop_is_suppressed(tmp_path):
+    lineage = _narrative_lineage()
+    lineage["origin_claim_ceiling"] = NARRATIVE_CEILING
+    chain = {
+        "assembly": _assembly(
+            "sequence_narrative_analyst_reading_candidate",
+            lineage,
+            "WRONG_ORIGIN_HOP_MUST_NOT_SHIP",
+        )
+    }
+    text = build_analyst_report(tmp_path, _base_spine(chain))
+    assert "WRONG_ORIGIN_HOP_MUST_NOT_SHIP" not in text
+
+
+def test_safe_finding_unexpected_origin_claim_is_suppressed(tmp_path):
+    lineage = _finding_lineage()
+    lineage["origin_claim_ceiling"] = FINDING_CEILING
+    chain = {
+        "assembly": _assembly(
+            "sequence_safe_finding_analyst_reading_candidate",
+            lineage,
+            "UNEXPECTED_ORIGIN_HOP_MUST_NOT_SHIP",
+        )
+    }
+    text = build_analyst_report(tmp_path, _base_spine(chain))
+    assert "UNEXPECTED_ORIGIN_HOP_MUST_NOT_SHIP" not in text
+
+
+def test_sequence_wrong_assembly_claim_ceiling_is_suppressed(tmp_path):
+    assembly = _assembly(
+        "sequence_narrative_analyst_reading_candidate",
+        _narrative_lineage(),
+        "WRONG_ASSEMBLY_CEILING_MUST_NOT_SHIP",
+    )
+    assembly["claim_ceiling"] = "production_report_truth"
+    text = build_analyst_report(tmp_path, _base_spine({"assembly": assembly}))
+    assert "WRONG_ASSEMBLY_CEILING_MUST_NOT_SHIP" not in text
