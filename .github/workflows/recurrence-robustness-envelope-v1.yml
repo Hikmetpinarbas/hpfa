@@ -1,0 +1,28 @@
+name: Recurrence Robustness Envelope V1
+
+on:
+  push:
+    branches: [feature/recurrence-robustness-envelope-v1]
+  pull_request:
+    paths:
+      - 'hpfa/modules/core/process_robustness_lens_lite/**'
+      - '.github/workflows/recurrence-robustness-envelope-v1.yml'
+
+jobs:
+  recurrence-robustness-envelope:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pytest
+      - name: Run envelope regressions
+        run: python -m pytest -q hpfa/modules/core/process_robustness_lens_lite/tests/test_recurrence_robustness_envelope.py
+      - name: Compile envelope producer
+        run: python -m py_compile hpfa/modules/core/process_robustness_lens_lite/src/recurrence_robustness_envelope.py
+      - name: Claim locks
+        run: |
+          grep -q 'canonical_event_count' hpfa/modules/core/process_robustness_lens_lite/contract/recurrence_robustness_envelope_lite_v1.json
+          grep -q 'production_release' hpfa/modules/core/process_robustness_lens_lite/contract/recurrence_robustness_envelope_lite_v1.json
+          ! grep -R -E 'Genclerbirligi|Fenerbahce|15\.08\.2026' hpfa/modules/core/process_robustness_lens_lite/src/recurrence_robustness_envelope.py
