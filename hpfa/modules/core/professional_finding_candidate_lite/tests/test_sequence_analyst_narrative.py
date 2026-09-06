@@ -25,6 +25,7 @@ def _row(state="RECURRENT_VISIBLE_TRACE", support=5, success=2, failure=1, diver
         "dependency_summary": {"independence_proven": False, "dependency_group_refs": ["dep_a"]},
         "uncertainty": {"independence": "UNKNOWN"},
         "withdrawal_condition": "Downgrade if evidence changes.",
+        "claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY",
         "professional_finding_emitted": False,
         "claim_output_allowed": False,
         "canonical_event_count": "UNKNOWN",
@@ -99,10 +100,13 @@ def test_narrative_preserves_exact_evidence_lineage():
     block = compose_sequence_analyst_narrative(_payload([row]))["narrative_blocks"][0]
     assert block["trace_family_refs"] == row["trace_family_refs"]
     assert block["trace_variant_refs"] == row["trace_variant_refs"]
+    assert block["counterevidence_refs"] == row["counterevidence"]["refs"]
+    assert block["counterevidence_ref_count"] == len(row["counterevidence"]["refs"])
     assert block["dependency_summary"] == row["dependency_summary"]
     assert block["robustness_summary"] == row["robustness_summary"]
     assert block["uncertainty"] == row["uncertainty"]
     assert block["withdrawal_condition"] == row["withdrawal_condition"]
+    assert block["upstream_claim_ceiling"] == row["claim_ceiling"]
     assert block["canonical_event_count"] == "UNKNOWN"
     assert block["true_action_count"] == "UNKNOWN"
     assert block["production_release"] is False
@@ -124,18 +128,20 @@ def test_trace_cohort_support_mismatch_fails_closed():
     assert "upstream_trace_cohort_support_mismatch" in result["hard_block_hits"]
 
 
-def test_missing_dependency_or_robustness_lineage_fails_closed():
-    row = _row()
-    row.pop("dependency_summary")
-    result = compose_sequence_analyst_narrative(_payload([row]))
-    assert result["status"] == "FAIL_CLOSED"
-    assert "upstream_dependency_summary_missing" in result["hard_block_hits"]
-
-    row = _row()
-    row.pop("robustness_summary")
-    result = compose_sequence_analyst_narrative(_payload([row]))
-    assert result["status"] == "FAIL_CLOSED"
-    assert "upstream_robustness_summary_missing" in result["hard_block_hits"]
+def test_missing_epistemic_lineage_fails_closed():
+    cases = (
+        ("dependency_summary", "upstream_dependency_summary_missing"),
+        ("robustness_summary", "upstream_robustness_summary_missing"),
+        ("uncertainty", "upstream_uncertainty_missing"),
+        ("withdrawal_condition", "upstream_withdrawal_condition_missing"),
+        ("claim_ceiling", "upstream_claim_ceiling_missing"),
+    )
+    for field, expected in cases:
+        row = _row()
+        row.pop(field)
+        result = compose_sequence_analyst_narrative(_payload([row]))
+        assert result["status"] == "FAIL_CLOSED"
+        assert expected in result["hard_block_hits"]
 
 
 def test_no_sample_match_identity_leak():
