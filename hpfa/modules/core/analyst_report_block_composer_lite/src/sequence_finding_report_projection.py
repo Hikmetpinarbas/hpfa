@@ -10,6 +10,7 @@ NARRATIVE_SOURCE_MODULE_ID = "sequence_analyst_narrative_lite_v1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 CLAIM_CEILING = "analyst_report_block_candidate_only"
+NULL_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
 
 
 def _clean(value: Any) -> str:
@@ -273,10 +274,20 @@ def compose_sequence_narrative_report(source_payload: dict[str, Any]) -> dict[st
                 return _fail(f"narrative_null_contrast_claim_strengthened:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
             null_state = _clean(null_summary.get("state")) or "NOT_EVALUATED"
             if null_state != "NOT_EVALUATED":
+                if null_summary.get("claim_ceiling") != NULL_CLAIM_CEILING:
+                    return _fail(f"narrative_null_contrast_claim_ceiling_mismatch:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+                if null_summary.get("multiple_testing_corrected") is not False:
+                    return _fail(f"narrative_null_contrast_multiple_testing_lock_breach:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
                 if null_summary.get("significance_claim_allowed") is not False:
                     return _fail(f"narrative_null_contrast_significance_lock_breach:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
                 if null_summary.get("tactical_pattern_truth_allowed") is not False:
                     return _fail(f"narrative_null_contrast_tactical_truth_lock_breach:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+                if null_summary.get("causality_allowed") is not False:
+                    return _fail(f"narrative_null_contrast_causality_lock_breach:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+                if not _clean(null_summary.get("withdrawal_condition")):
+                    return _fail(f"narrative_null_contrast_withdrawal_condition_missing:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+                if item.get("null_contrast_causality_claimed") is not False:
+                    return _fail(f"narrative_null_contrast_causality_claimed:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
 
         trace_ref_set = set(trace_refs)
         for raw_variation in raw_context_variations or []:
