@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+import math
 from collections import Counter
 from typing import Any
 
@@ -89,6 +90,9 @@ def _validate_weights(weights: dict[str, Any] | None) -> tuple[dict[str, float],
         except (TypeError, ValueError):
             blocks.append(f"invalid_similarity_weight:{key}")
             continue
+        if not math.isfinite(number):
+            blocks.append(f"non_finite_similarity_weight:{key}")
+            continue
         if number < 0:
             blocks.append(f"negative_similarity_weight:{key}")
             continue
@@ -109,9 +113,10 @@ def _composite(component_values: dict[str, float | None], weights: dict[str, flo
     total = sum(eligible.values())
     if total <= 0:
         return None, {}, "NOT_COMPUTED_NO_WEIGHTED_ELIGIBLE_COMPONENT"
-    normalized = {key: round(weight / total, 6) for key, weight in sorted(eligible.items())}
-    value = sum((component_values[key] or 0.0) * normalized[key] for key in normalized)
-    return round(value, 6), normalized, "AVAILABLE_EXPLICIT_WEIGHTS"
+    normalized_raw = {key: weight / total for key, weight in sorted(eligible.items())}
+    value = sum((component_values[key] or 0.0) * normalized_raw[key] for key in normalized_raw)
+    normalized_reported = {key: round(weight, 6) for key, weight in normalized_raw.items()}
+    return round(value, 6), normalized_reported, "AVAILABLE_EXPLICIT_WEIGHTS"
 
 
 def build_trace_similarity_primitive(
