@@ -60,10 +60,15 @@ def _null(independent=3):
             "multiple_testing_corrected": False,
             "significance_claim_allowed": False,
             "tactical_pattern_truth_allowed": False,
+            "causality_allowed": False,
             "withdrawal_condition": "Recompute if null assumptions change.",
             "claim_ceiling": "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY",
         }],
         "hard_block_hits": [],
+        "multiple_testing_corrected": False,
+        "significance_claim_allowed": False,
+        "tactical_pattern_truth_allowed": False,
+        "claim_ceiling": "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY",
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -78,6 +83,7 @@ def test_defined_null_contrast_reaches_safe_finding_without_upgrading_claim():
     assert row["null_contrast_summary"]["state"] == "OBSERVED_ABOVE_NULL_MEDIAN"
     assert row["null_contrast_summary"]["empirical_upper_tail_probability_uncorrected"] == 0.01
     assert row["null_contrast_summary"]["claim_strengthened"] is False
+    assert row["null_contrast_summary"]["causality_allowed"] is False
     assert row["claim_output_allowed"] is False
     assert row["production_release"] is False
     assert "uncorrected upper-tail probability" in row["SUPPORT"]
@@ -106,7 +112,7 @@ def test_null_contrast_cannot_fabricate_independence():
     assert "null_contrast_unknown_independence_escalated:TRACE_A" in result["hard_block_hits"]
 
 
-def test_null_significance_or_tactical_truth_lock_breach_fails_closed():
+def test_null_significance_tactical_or_causal_lock_breach_fails_closed():
     null = _null()
     null["rows"][0]["significance_claim_allowed"] = True
     result = build_sequence_safe_finding_blocks(_admission(), null)
@@ -118,6 +124,32 @@ def test_null_significance_or_tactical_truth_lock_breach_fails_closed():
     result = build_sequence_safe_finding_blocks(_admission(), null)
     assert result["status"] == "FAIL_CLOSED"
     assert "null_contrast_tactical_truth_lock_breach:TRACE_A" in result["hard_block_hits"]
+
+    null = _null()
+    null["rows"][0]["causality_allowed"] = True
+    result = build_sequence_safe_finding_blocks(_admission(), null)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "null_contrast_causality_lock_breach:TRACE_A" in result["hard_block_hits"]
+
+
+def test_null_contract_ceiling_and_withdrawal_are_required():
+    null = _null()
+    null["claim_ceiling"] = "TACTICAL_PATTERN_TRUTH"
+    result = build_sequence_safe_finding_blocks(_admission(), null)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "null_contrast_claim_ceiling_mismatch" in result["hard_block_hits"]
+
+    null = _null()
+    null["rows"][0]["claim_ceiling"] = "CAUSAL_SEQUENCE_TRUTH"
+    result = build_sequence_safe_finding_blocks(_admission(), null)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "null_contrast_row_claim_ceiling_mismatch:TRACE_A" in result["hard_block_hits"]
+
+    null = _null()
+    null["rows"][0]["withdrawal_condition"] = ""
+    result = build_sequence_safe_finding_blocks(_admission(), null)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "null_contrast_withdrawal_condition_missing:TRACE_A" in result["hard_block_hits"]
 
 
 def test_claim_locks_and_sample_identity_remain_safe():
