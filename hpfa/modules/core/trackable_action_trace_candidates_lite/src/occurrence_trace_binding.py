@@ -11,6 +11,16 @@ def _clean(value: Any) -> str:
     return " ".join(("" if value is None else str(value)).split()).strip()
 
 
+def _number_key(value: Any) -> str:
+    text = _clean(value)
+    if not text:
+        return ""
+    try:
+        return f"{float(text):.6f}"
+    except (TypeError, ValueError):
+        return text
+
+
 def _digest(*values: Any) -> str:
     raw = json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -28,6 +38,45 @@ def _core_key(bundle: dict[str, Any]) -> tuple[str, ...]:
         _clean(bundle.get("pos_x_candidate")),
         _clean(bundle.get("pos_y_candidate")),
     )
+
+
+def _interaction_core(bundle: dict[str, Any]) -> tuple[str, ...]:
+    """Provider-annotation core only; never physical-position or event-identity truth."""
+    return (
+        _clean(bundle.get("match_surface_binding_id")),
+        _clean(bundle.get("period_candidate")),
+        _number_key(bundle.get("start_candidate")),
+        _number_key(bundle.get("end_candidate")),
+        _number_key(bundle.get("pos_x_candidate")),
+        _number_key(bundle.get("pos_y_candidate")),
+    )
+
+
+def _goalkeeper_context_bundle_eligible(bundle: dict[str, Any]) -> bool:
+    """Admit only an already-PASS goalkeeper surface as contextual object view.
+
+    This never makes the goalkeeper a participant in occurrence admission and never
+    creates an independent support vote or event instance.
+    """
+    if _clean(bundle.get("source_role")) != "GOALKEEPER_SURFACE_CANDIDATE":
+        return False
+    if _clean(bundle.get("bundle_status")) != "PASS":
+        return False
+    if not _clean(bundle.get("team_identity_candidate_id")) or not _clean(bundle.get("actor_identity_candidate_id")):
+        return False
+    if not _clean(bundle.get("period_candidate")):
+        return False
+    if any(_number_key(bundle.get(field)) == "" for field in ("start_candidate", "end_candidate", "pos_x_candidate", "pos_y_candidate")):
+        return False
+    if _clean(bundle.get("coordinate_evidence_status")) != "COORDINATE_PRESENT":
+        return False
+    if bundle.get("cross_role_fusion_allowed") is True:
+        return False
+    if bundle.get("validated_event_identity") is True or bundle.get("event_instance_allowed") is True:
+        return False
+    if bundle.get("canonical_event_count") not in {None, "UNKNOWN"}:
+        return False
+    return True
 
 
 def _explicit_occurrence_trace(
@@ -142,11 +191,11 @@ def build_occurrence_aware_trace_payload(
     occurrence_payload: dict[str, Any],
     trace_builder,
 ) -> dict[str, Any]:
-    """Bind only bundles explicitly referenced by admitted occurrence candidates.
+    """Bind existing traces to admitted occurrences without creating event truth.
 
-    The existing trace producer runs against unchanged deep-copied upstream payloads. Review taxonomy
-    remains REVIEW_REQUIRED. Missing participant traces are added only for action-bundle IDs explicitly
-    preserved by an admitted occurrence candidate; no whole taxonomy record is promoted.
+    Participant identity remains owned by occurrence admission. A PASS goalkeeper
+    surface may be attached only as an exact-core, same-side contextual object view;
+    it cannot create or complete an occurrence and cannot add independent support.
     """
     action_copy = copy.deepcopy(action_payload)
     taxonomy_copy = copy.deepcopy(taxonomy_payload)
@@ -196,6 +245,35 @@ def build_occurrence_aware_trace_payload(
         if isinstance(bundle, dict) and _clean(bundle.get("action_bundle_candidate_id"))
     }
 
+    occurrence_goalkeeper_context_bundle_refs: dict[str, set[str]] = defaultdict(set)
+    for occurrence_id, candidate in occurrence_meta.items():
+        participant_bundles = [
+            action_by_id[bundle_id]
+            for bundle_id in (_clean(value) for value in (candidate.get("supporting_action_bundle_candidate_ids") or []))
+            if bundle_id in action_by_id
+        ]
+        participant_cores = {_interaction_core(bundle) for bundle in participant_bundles}
+        if len(participant_cores) != 1:
+            continue
+        interaction_core = next(iter(participant_cores))
+        admitted_teams = {
+            value
+            for value in (
+                _clean(candidate.get("team_identity_candidate_id")),
+                _clean(candidate.get("opponent_team_identity_candidate_id")),
+            )
+            if value
+        }
+        for bundle_id, bundle in action_by_id.items():
+            if not _goalkeeper_context_bundle_eligible(bundle):
+                continue
+            if _clean(bundle.get("team_identity_candidate_id")) not in admitted_teams:
+                continue
+            if _interaction_core(bundle) != interaction_core:
+                continue
+            occurrence_by_bundle[bundle_id].add(occurrence_id)
+            occurrence_goalkeeper_context_bundle_refs[occurrence_id].add(bundle_id)
+
     missing_groups: dict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
     for bundle_id in sorted(explicitly_admitted_review_bundle_ids):
         if bundle_id in existing_bundle_ids:
@@ -222,22 +300,41 @@ def build_occurrence_aware_trace_payload(
             continue
         if "supporting_action_occurrence_candidate_ids" not in trace:
             supporting_occurrence_ids: set[str] = set()
-            for raw_bundle_id in trace.get("selected_action_bundle_candidate_ids") or []:
-                supporting_occurrence_ids.update(occurrence_by_bundle.get(_clean(raw_bundle_id), set()))
+            selected_bundle_ids = {
+                _clean(raw_bundle_id)
+                for raw_bundle_id in trace.get("selected_action_bundle_candidate_ids") or []
+                if _clean(raw_bundle_id)
+            }
+            for bundle_id in selected_bundle_ids:
+                supporting_occurrence_ids.update(occurrence_by_bundle.get(bundle_id, set()))
             trace["supporting_action_occurrence_candidate_ids"] = sorted(supporting_occurrence_ids)
             trace["occurrence_backed_trace_candidate"] = bool(supporting_occurrence_ids)
+            goalkeeper_context = any(
+                bundle_id in occurrence_goalkeeper_context_bundle_refs.get(occurrence_id, set())
+                for bundle_id in selected_bundle_ids
+                for occurrence_id in supporting_occurrence_ids
+            )
             trace["occurrence_binding_scope"] = (
-                "EXISTING_TRACE_OCCURRENCE_ANNOTATION" if supporting_occurrence_ids else "NO_OCCURRENCE_BINDING"
+                "EXACT_CORE_TEAM_GOALKEEPER_CONTEXT_ONLY"
+                if goalkeeper_context
+                else ("EXISTING_TRACE_OCCURRENCE_ANNOTATION" if supporting_occurrence_ids else "NO_OCCURRENCE_BINDING")
             )
             trace["occurrence_binding_preserves_taxonomy_review_state"] = True
             trace["occurrence_binding_is_event_truth"] = False
             trace["occurrence_binding_changes_upstream_taxonomy_truth"] = False
+            trace["goalkeeper_context_binding_is_occurrence_participant_truth"] = False
 
     payload["trackable_action_trace_candidate_count"] = len(traces)
 
     occurrence_trace_counts: dict[str, int] = defaultdict(int)
     occurrence_actor_trace_counts: dict[str, int] = defaultdict(int)
     occurrence_opponent_trace_counts: dict[str, int] = defaultdict(int)
+    occurrence_trace_refs: dict[str, set[str]] = defaultdict(set)
+    occurrence_player_refs: dict[str, set[str]] = defaultdict(set)
+    occurrence_goalkeeper_refs: dict[str, set[str]] = defaultdict(set)
+    occurrence_team_refs: dict[str, set[str]] = defaultdict(set)
+    occurrence_relation_types: dict[str, set[str]] = defaultdict(set)
+    occurrence_reflection_bundle_refs: dict[str, set[str]] = defaultdict(set)
     occurrence_bound_trace_count = 0
     for trace in traces:
         if not isinstance(trace, dict):
@@ -249,15 +346,38 @@ def build_occurrence_aware_trace_payload(
         ]
         if ids:
             occurrence_bound_trace_count += 1
+        trace_id = _clean(trace.get("trackable_action_trace_candidate_id"))
         team = _clean(trace.get("team_identity_candidate_id"))
         actor = _clean(trace.get("actor_identity_candidate_id"))
+        source_role = _clean(trace.get("source_role"))
+        reflections = {
+            _clean(value)
+            for value in (trace.get("reflection_context_action_bundle_candidate_ids") or [])
+            if _clean(value)
+        }
         for occurrence_id in ids:
             occurrence_trace_counts[occurrence_id] += 1
+            if trace_id:
+                occurrence_trace_refs[occurrence_id].add(trace_id)
+            if team:
+                occurrence_team_refs[occurrence_id].add(team)
+                occurrence_relation_types[occurrence_id].update({"OCCURRENCE_HAS_TEAM", "TEAM_PARTICIPATES_IN_TRACE"})
+            if actor:
+                if source_role == "GOALKEEPER_SURFACE_CANDIDATE":
+                    occurrence_goalkeeper_refs[occurrence_id].add(actor)
+                    occurrence_relation_types[occurrence_id].update({"OCCURRENCE_HAS_GOALKEEPER", "GOALKEEPER_PARTICIPATES_IN_TRACE"})
+                else:
+                    occurrence_player_refs[occurrence_id].add(actor)
+                    occurrence_relation_types[occurrence_id].update({"OCCURRENCE_HAS_PLAYER", "PLAYER_PARTICIPATES_IN_TRACE"})
+            if reflections:
+                occurrence_reflection_bundle_refs[occurrence_id].update(reflections)
+                occurrence_relation_types[occurrence_id].add("SAME_UNDERLYING_OCCURRENCE_REFLECTION")
             candidate = occurrence_meta.get(occurrence_id) or {}
-            if team == _clean(candidate.get("team_identity_candidate_id")) and actor == _clean(candidate.get("actor_identity_candidate_id")):
-                occurrence_actor_trace_counts[occurrence_id] += 1
-            if team == _clean(candidate.get("opponent_team_identity_candidate_id")) and actor == _clean(candidate.get("opponent_identity_candidate_id")):
-                occurrence_opponent_trace_counts[occurrence_id] += 1
+            if source_role != "GOALKEEPER_SURFACE_CANDIDATE":
+                if team == _clean(candidate.get("team_identity_candidate_id")) and actor == _clean(candidate.get("actor_identity_candidate_id")):
+                    occurrence_actor_trace_counts[occurrence_id] += 1
+                if team == _clean(candidate.get("opponent_team_identity_candidate_id")) and actor == _clean(candidate.get("opponent_identity_candidate_id")):
+                    occurrence_opponent_trace_counts[occurrence_id] += 1
 
     complete = 0
     partial = 0
@@ -277,7 +397,56 @@ def build_occurrence_aware_trace_payload(
         else:
             state = "NO_PARTICIPANT_TRACE_VISIBLE_REVIEW_REQUIRED"
             missing += 1
+
+        opponent_refs = sorted({
+            value
+            for value in (
+                _clean(candidate.get("opponent_identity_candidate_id")),
+                _clean(candidate.get("opponent_team_identity_candidate_id")),
+            )
+            if value
+        })
+        team_refs = set(occurrence_team_refs.get(occurrence_id, set()))
+        for value in (
+            _clean(candidate.get("team_identity_candidate_id")),
+            _clean(candidate.get("opponent_team_identity_candidate_id")),
+        ):
+            if value:
+                team_refs.add(value)
+        relation_types = set(occurrence_relation_types.get(occurrence_id, set()))
+        if opponent_refs:
+            relation_types.add("OCCURRENCE_HAS_OPPONENT_CONTEXT")
+        trace_refs = sorted(occurrence_trace_refs.get(occurrence_id, set()))
+        if len(trace_refs) > 1:
+            relation_types.add("DERIVED_FROM_SAME_OCCURRENCE")
+        derivation_parents = {
+            _clean(value)
+            for value in (candidate.get("supporting_action_bundle_candidate_ids") or [])
+            if _clean(value)
+        }
+        derivation_parents.update(occurrence_goalkeeper_context_bundle_refs.get(occurrence_id, set()))
+        reflection_refs = sorted(occurrence_reflection_bundle_refs.get(occurrence_id, set()))
+
         binding_records.append({
+            "object_binding_id": "ocb_" + _digest(occurrence_id, trace_refs)[:24],
+            "occurrence_ref": occurrence_id,
+            "trace_refs": trace_refs,
+            "player_refs": sorted(occurrence_player_refs.get(occurrence_id, set())),
+            "team_refs": sorted(team_refs),
+            "goalkeeper_refs": sorted(occurrence_goalkeeper_refs.get(occurrence_id, set())),
+            "goalkeeper_context_bundle_refs": sorted(occurrence_goalkeeper_context_bundle_refs.get(occurrence_id, set())),
+            "goalkeeper_context_is_occurrence_participant_truth": False,
+            "opponent_refs": opponent_refs,
+            "relation_types": sorted(relation_types),
+            "dependency_group": f"occurrence:{occurrence_id}" if occurrence_id else None,
+            "independence_group": None,
+            "independence_proven": False,
+            "provenance_root": occurrence_id,
+            "derivation_parents": sorted(derivation_parents),
+            "reflection_context_refs": reflection_refs,
+            "underlying_occurrence_root_count_contribution": 1 if occurrence_id else 0,
+            "object_view_count_is_independent_support_count": False,
+            "object_view_creates_event": False,
             "action_occurrence_candidate_id": occurrence_id,
             "binding_state": state,
             "actor_trace_candidate_count": actor_count,
@@ -289,11 +458,16 @@ def build_occurrence_aware_trace_payload(
 
     payload["occurrence_trace_binding_records"] = binding_records
     payload["occurrence_trace_binding_record_count"] = len(binding_records)
+    payload["object_centric_trace_binding_record_count"] = len(binding_records)
+    payload["object_views_create_independent_support"] = False
     payload["occurrence_bound_trace_candidate_count"] = occurrence_bound_trace_count
     payload["occurrence_both_participants_trace_visible_count"] = complete
     payload["occurrence_partial_participant_trace_visible_count"] = partial
     payload["occurrence_no_participant_trace_visible_count"] = missing
     payload["occurrence_explicit_review_bundle_trace_candidate_count"] = appended_trace_count
+    payload["occurrence_goalkeeper_context_bundle_binding_count"] = sum(len(values) for values in occurrence_goalkeeper_context_bundle_refs.values())
+    payload["goalkeeper_context_binding_creates_occurrence"] = False
+    payload["goalkeeper_context_binding_creates_independent_support"] = False
     payload["occurrence_local_taxonomy_rebind_record_ids"] = []
     payload["occurrence_local_taxonomy_rebind_record_count"] = 0
     payload["occurrence_binding_preserves_taxonomy_review_state"] = True
@@ -307,6 +481,8 @@ def build_occurrence_aware_trace_payload(
         reviews.append("occurrence_without_trace_binding_present")
     if appended_trace_count:
         reviews.append("occurrence_explicit_review_bundle_trace_binding_used")
+    if payload["occurrence_goalkeeper_context_bundle_binding_count"]:
+        reviews.append("occurrence_goalkeeper_context_binding_used")
     payload["review_hits"] = sorted(set(reviews))
     if payload.get("status") != "FAIL_CLOSED" and payload["review_hits"]:
         payload["status"] = "REVIEW_REQUIRED"

@@ -1,7 +1,7 @@
 {
   "module_id": "trackable_action_trace_candidates_lite_v1",
-  "version": "1.2.0-occurrence-aware-current-migration",
-  "purpose": "Select actor-bearing PLAYER/GOALKEEPER action surfaces into match-local trackable action trace candidates while preserving TEAM reflection context, quarantining unresolved surfaces, and allowing only already-admitted occurrence review provenance to re-enter trace selection on a local copy.",
+  "version": "1.4.0-object-centric-occurrence-binding",
+  "purpose": "Select actor-bearing PLAYER/GOALKEEPER action surfaces into match-local trackable action trace candidates while preserving TEAM reflection context, quarantining unresolved surfaces, allowing only already-admitted occurrence review provenance to re-enter trace selection on a local copy, and exposing dependent object views of one admitted occurrence without support inflation.",
   "inputs": {
     "semantic_action_bundle_module_id": "semantic_role_action_bundle_candidates_lite_v1",
     "multi_family_taxonomy_module_id": "action_bundle_multi_family_review_taxonomy_lite_v1",
@@ -48,6 +48,42 @@
     "occurrence_bound_trace_candidate_is_event_truth": false,
     "occurrence_actor_and_opponent_trace_visibility_is_candidate_only": true
   },
+  "object_centric_occurrence_binding": {
+    "producer": "existing_occurrence_trace_binding",
+    "parallel_object_engine_allowed": false,
+    "relation_types": [
+      "OCCURRENCE_HAS_PLAYER",
+      "OCCURRENCE_HAS_TEAM",
+      "OCCURRENCE_HAS_GOALKEEPER",
+      "OCCURRENCE_HAS_OPPONENT_CONTEXT",
+      "PLAYER_PARTICIPATES_IN_TRACE",
+      "TEAM_PARTICIPATES_IN_TRACE",
+      "GOALKEEPER_PARTICIPATES_IN_TRACE",
+      "SAME_UNDERLYING_OCCURRENCE_REFLECTION",
+      "DERIVED_FROM_SAME_OCCURRENCE"
+    ],
+    "same_underlying_occurrence_root_count_contribution": 1,
+    "player_team_goalkeeper_views_are_independent_support": false,
+    "reflection_view_is_independent_support": false,
+    "entity_view_requires_admitted_occurrence_binding": true,
+    "independence_proven_by_object_binding": false,
+    "provenance_root_is_occurrence_candidate": true,
+    "derivation_parents_preserve_action_bundle_lineage": true,
+    "object_view_creates_event": false,
+    "goalkeeper_context_binding": {
+      "participant_occurrence_admission_changed": false,
+      "requires_existing_admitted_occurrence": true,
+      "requires_goalkeeper_bundle_status": "PASS",
+      "requires_exact_provider_annotation_core": true,
+      "requires_team_in_existing_occurrence_sides": true,
+      "creates_occurrence": false,
+      "completes_participant_visibility": false,
+      "creates_independent_support": false,
+      "is_physical_goalkeeper_position_truth": false,
+      "binding_state": "EXACT_CORE_TEAM_GOALKEEPER_CONTEXT_ONLY",
+      "usage_state": "REVIEW_REQUIRED"
+    }
+  },
   "ordering_rules": {
     "same_timestamp_creates_order_truth": false,
     "source_row_order_is_temporal_truth": false,
@@ -59,7 +95,8 @@
     "occurrence_candidate_count_is_physical_action_count": false,
     "reflection_context_is_event_equivalence_truth": false,
     "final_double_count_suppression_admitted": false,
-    "count_value_output_allowed": false
+    "count_value_output_allowed": false,
+    "object_view_count_is_independent_support_count": false
   },
   "claim_boundary": {
     "trackable_action_candidate_is_event_truth": false,
@@ -86,6 +123,12 @@
     "test_current_trace_wrapper_is_occurrence_gated",
     "test_occurrence_admitted_review_bundles_become_local_trace_candidates",
     "test_occurrence_trace_binding_does_not_mutate_upstream_taxonomy",
-    "test_unadmitted_review_record_is_not_rebound"
+    "test_unadmitted_review_record_is_not_rebound",
+    "test_player_team_views_do_not_double_count_underlying_occurrence",
+    "test_goalkeeper_team_view_dependency_preserved",
+    "test_production_occurrence_can_bind_exact_core_goalkeeper_context_without_new_participant",
+    "test_explicit_reflection_stays_same_occurrence_dependency_not_new_support",
+    "test_entity_view_requires_occurrence_binding",
+    "test_object_binding_never_creates_event_truth"
   ]
 }
