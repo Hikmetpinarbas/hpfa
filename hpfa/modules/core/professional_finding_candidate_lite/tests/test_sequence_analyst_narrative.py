@@ -6,11 +6,15 @@ from hpfa.modules.core.professional_finding_candidate_lite.src.sequence_analyst_
 
 
 def _row(state="RECURRENT_VISIBLE_TRACE", support=5, success=2, failure=1, divergence=1, no_followup=1):
+    refs = [f"v{i}" for i in range(1, support + 1)]
     return {
         "analyst_report_block_id": "sfb_a",
         "entity_scope": "team_a",
         "context_scope": [{"period_candidate": "1"}],
-        "recurrence_summary": {"observed_support": support, "independent_support_count": "UNKNOWN", "admission_state": state},
+        "trace_family_refs": ["v1"],
+        "trace_variant_refs": refs,
+        "recurrence_summary": {"observed_support": support, "eligible_trace_count": support, "independent_support_count": "UNKNOWN", "admission_state": state},
+        "robustness_summary": {"robustness_state": "CONDITIONAL"},
         "success_support": success,
         "failure_support": failure,
         "divergence_support": divergence,
@@ -18,6 +22,7 @@ def _row(state="RECURRENT_VISIBLE_TRACE", support=5, success=2, failure=1, diver
         "counterevidence": {"refs": ["v2"] if failure or divergence else []},
         "SAFE_MEANING": "A recurrent visible process candidate exists in the observed scope.",
         "FORBIDDEN_INFERENCE": ["coach intention", "causality"],
+        "dependency_summary": {"independence_proven": False, "dependency_group_refs": ["dep_a"]},
         "uncertainty": {"independence": "UNKNOWN"},
         "withdrawal_condition": "Downgrade if evidence changes.",
         "professional_finding_emitted": False,
@@ -87,6 +92,50 @@ def test_claim_lock_breach_fails_closed():
     result = compose_sequence_analyst_narrative(_payload([row]))
     assert result["status"] == "FAIL_CLOSED"
     assert result["narrative_block_count"] == 0
+
+
+def test_narrative_preserves_exact_evidence_lineage():
+    row = _row()
+    block = compose_sequence_analyst_narrative(_payload([row]))["narrative_blocks"][0]
+    assert block["trace_family_refs"] == row["trace_family_refs"]
+    assert block["trace_variant_refs"] == row["trace_variant_refs"]
+    assert block["dependency_summary"] == row["dependency_summary"]
+    assert block["robustness_summary"] == row["robustness_summary"]
+    assert block["uncertainty"] == row["uncertainty"]
+    assert block["withdrawal_condition"] == row["withdrawal_condition"]
+    assert block["canonical_event_count"] == "UNKNOWN"
+    assert block["true_action_count"] == "UNKNOWN"
+    assert block["production_release"] is False
+
+
+def test_missing_exact_trace_cohort_fails_closed():
+    row = _row()
+    row["trace_variant_refs"] = []
+    result = compose_sequence_analyst_narrative(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_trace_variant_refs_missing" in result["hard_block_hits"]
+
+
+def test_trace_cohort_support_mismatch_fails_closed():
+    row = _row()
+    row["trace_variant_refs"] = row["trace_variant_refs"][:-1]
+    result = compose_sequence_analyst_narrative(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_trace_cohort_support_mismatch" in result["hard_block_hits"]
+
+
+def test_missing_dependency_or_robustness_lineage_fails_closed():
+    row = _row()
+    row.pop("dependency_summary")
+    result = compose_sequence_analyst_narrative(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_dependency_summary_missing" in result["hard_block_hits"]
+
+    row = _row()
+    row.pop("robustness_summary")
+    result = compose_sequence_analyst_narrative(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_robustness_summary_missing" in result["hard_block_hits"]
 
 
 def test_no_sample_match_identity_leak():
