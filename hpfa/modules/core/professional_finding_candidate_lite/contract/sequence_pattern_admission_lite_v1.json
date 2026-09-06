@@ -1,0 +1,87 @@
+{
+  "module_id": "sequence_pattern_admission_lite_v1",
+  "version": "1.0.0",
+  "owner_path": "professional_finding_candidate_lite",
+  "purpose": "Gate recurrent visible trace evidence into analyst-safe pattern candidates without promoting frequency, similarity or robustness into tactical-pattern, team-style, coach-intention or causal truth.",
+  "reused_inputs": [
+    "partial_order_trace_variant_lite_v1",
+    "trace_contrast_packet_lite_v1",
+    "recurrence_robustness_envelope_lite_v1"
+  ],
+  "parallel_pattern_engine_allowed": false,
+  "required_fields": [
+    "pattern_id",
+    "trace_family_ref",
+    "eligible_trace_count",
+    "observed_support",
+    "independent_support_count",
+    "context_scope",
+    "ordering_completeness",
+    "variant_count",
+    "failure_variant_count",
+    "divergence_count",
+    "robustness_state",
+    "counterevidence_state",
+    "alternative_explanations",
+    "dependency_summary",
+    "uncertainty",
+    "claim_ceiling",
+    "admission_state"
+  ],
+  "admission_states": [
+    "DISCOVERY_ONLY",
+    "PROXY_CANDIDATE",
+    "RECURRENT_VISIBLE_TRACE",
+    "ROBUST_RECURRENT_VISIBLE_TRACE",
+    "REVIEW_REQUIRED",
+    "REJECTED_INSUFFICIENT_EVIDENCE"
+  ],
+  "forbidden_states": [
+    "TACTICAL_PATTERN",
+    "COACH_INTENTION",
+    "TEAM_STYLE_TRUTH"
+  ],
+  "independence_rules": {
+    "nominal_recurrence_implies_independent_support": false,
+    "player_team_goalkeeper_views_are_independent_support": false,
+    "csv_xml_reflections_are_independent_support": false,
+    "robust_recurrent_visible_trace_requires_explicit_independence_admission": true,
+    "unknown_independent_support_value": "UNKNOWN"
+  },
+  "counterevidence_rules": {
+    "no_visible_followup_is_failure": false,
+    "absence_of_evidence_is_counterevidence": false,
+    "different_visible_outcome_is_causality": false,
+    "counterevidence_is_disproof_by_default": false
+  },
+  "ordering_rules": {
+    "same_timestamp_creates_total_order": false,
+    "source_row_order_is_temporal_truth": false,
+    "order_indeterminate_may_be_invented": false
+  },
+  "claim_boundary": {
+    "recurrence_is_tactical_pattern_truth": false,
+    "robustness_is_tactical_pattern_truth": false,
+    "context_difference_is_tactical_adaptation_truth": false,
+    "success_association_is_causality": false,
+    "coach_intention_truth": false,
+    "team_style_truth": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "required_tests": [
+    "test_robust_nominal_recurrence_without_independence_stops_at_recurrent_visible_trace",
+    "test_robust_recurrent_state_requires_explicit_independence_admission",
+    "test_threshold_sensitive_candidate_is_not_robust_pattern",
+    "test_single_visible_trace_is_rejected_insufficient_evidence",
+    "test_no_visible_followup_cannot_be_reclassified_as_failure_by_gate",
+    "test_row_order_or_same_time_policy_breach_fails_closed",
+    "test_dependent_object_views_never_infer_independent_support_from_nominal_count",
+    "test_counterevidence_is_preserved_and_not_treated_as_disproof_or_causality",
+    "test_claim_and_release_locks_remain_closed",
+    "test_no_sample_match_identity_leak"
+  ]
+}
