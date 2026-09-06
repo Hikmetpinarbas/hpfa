@@ -1,8 +1,8 @@
 {
   "module_id": "sequence_pattern_admission_lite_v1",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "owner_path": "professional_finding_candidate_lite",
-  "purpose": "Gate recurrent visible trace evidence into analyst-safe pattern candidates without promoting frequency, similarity or robustness into tactical-pattern, team-style, coach-intention or causal truth.",
+  "purpose": "Gate recurrent visible trace evidence into analyst-safe pattern candidates and allow an optional exact-cohort null contrast without promoting frequency, similarity, robustness or empirical-tail evidence into tactical-pattern, team-style, coach-intention, causal or significance truth.",
   "reused_inputs": [
     "partial_order_trace_variant_lite_v1",
     "trace_contrast_packet_lite_v1",
@@ -62,6 +62,27 @@
     "envelope_trace_refs_must_equal_current_eligible_trace_refs": true,
     "cohort_mismatch_state": "REVIEW_REQUIRED"
   },
+  "null_contrast_rules": {
+    "producer": "recurrence_null_contrast_v1",
+    "null_distribution_is_caller_supplied_and_audited": true,
+    "null_generation_engine_added": false,
+    "exact_admitted_trace_cohort_required": true,
+    "independent_support_required_for_evaluated_state": true,
+    "unknown_independent_support_state": "NOT_EVALUATED_INDEPENDENT_SUPPORT_UNKNOWN",
+    "null_model_id_required": true,
+    "null_model_version_required": true,
+    "null_mechanism_required": true,
+    "preserved_constraints_required": true,
+    "exchangeability_assumption_required": true,
+    "simulation_count_must_equal_draw_count": true,
+    "null_draw_may_exceed_eligible_cohort": false,
+    "empirical_tail_is_uncorrected": true,
+    "multiple_testing_corrected": false,
+    "significance_claim_allowed": false,
+    "tactical_pattern_truth_allowed": false,
+    "causality_allowed": false,
+    "claim_ceiling": "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
+  },
   "counterevidence_rules": {
     "no_visible_followup_is_failure": false,
     "absence_of_evidence_is_counterevidence": false,
@@ -76,6 +97,8 @@
   "claim_boundary": {
     "recurrence_is_tactical_pattern_truth": false,
     "robustness_is_tactical_pattern_truth": false,
+    "null_contrast_is_significance_truth": false,
+    "null_contrast_is_tactical_pattern_truth": false,
     "context_difference_is_tactical_adaptation_truth": false,
     "success_association_is_causality": false,
     "coach_intention_truth": false,
@@ -98,6 +121,12 @@
     "test_row_order_or_same_time_policy_breach_fails_closed",
     "test_dependent_object_views_never_infer_independent_support_from_nominal_count",
     "test_counterevidence_is_preserved_and_not_treated_as_disproof_or_causality",
+    "test_observed_independent_recurrence_is_compared_to_explicit_null_distribution",
+    "test_null_contrast_does_not_emit_significance_or_tactical_truth",
+    "test_exact_admitted_trace_cohort_is_required",
+    "test_unknown_independent_support_is_not_converted_into_null_evidence",
+    "test_null_draws_cannot_exceed_current_eligible_cohort",
+    "test_null_method_must_declare_constraints_and_exchangeability",
     "test_claim_and_release_locks_remain_closed",
     "test_no_sample_match_identity_leak"
   ]

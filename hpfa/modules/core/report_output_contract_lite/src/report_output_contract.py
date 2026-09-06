@@ -12,6 +12,8 @@ OUTPUT_TXT = "report_output_contract_lite_v1.txt"
 UPSTREAM_CLAIM_CEILING = "analyst_report_block_candidate_only"
 OUTPUT_CONTRACT_CLAIM_CEILING = "report_output_contract_candidate_only"
 MISSING_REPORT_BLOCK_ID = "MISSING_REPORT_BLOCK_ID"
+SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
 
 FORBIDDEN_UPSTREAM_FIELDS = {
     "claim_text",
@@ -64,6 +66,12 @@ ALLOWED_BLOCK_FAMILIES = {
     "technical_limit_candidate",
     "evidence_note_candidate",
     "review_required_candidate",
+    "sequence_safe_finding_analyst_reading_candidate",
+    "sequence_narrative_analyst_reading_candidate",
+}
+SEQUENCE_BLOCK_FAMILIES = {
+    "sequence_safe_finding_analyst_reading_candidate",
+    "sequence_narrative_analyst_reading_candidate",
 }
 
 
@@ -144,6 +152,110 @@ def _forbidden_text_hits(text: str) -> list[str]:
     return [fragment for fragment in FORBIDDEN_BLOCK_FRAGMENTS if fragment in lower]
 
 
+def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    block_family = str(block.get("block_family") or "")
+    family_refs = sorted(set(_string_list(block.get("trace_family_refs"))))
+    trace_refs = sorted(set(_string_list(block.get("trace_variant_refs"))))
+    counter_refs = sorted(set(_string_list(block.get("counterevidence_refs"))))
+    dependency = block.get("dependency_summary") if isinstance(block.get("dependency_summary"), dict) else None
+    robustness = block.get("robustness_summary") if isinstance(block.get("robustness_summary"), dict) else None
+    uncertainty = block.get("uncertainty") if isinstance(block.get("uncertainty"), dict) else None
+    withdrawal = str(block.get("withdrawal_condition") or "").strip()
+    upstream_claim_ceiling = str(block.get("upstream_claim_ceiling") or "").strip()
+    origin_claim_ceiling = str(block.get("origin_claim_ceiling") or "").strip()
+    support = block.get("observed_support")
+    raw_null_summary = block.get("null_contrast_summary")
+    raw_context_variations = block.get("context_variations")
+    hits: list[str] = []
+
+    if not family_refs:
+        hits.append("sequence_lineage_trace_family_refs_missing")
+    if not trace_refs:
+        hits.append("sequence_lineage_trace_variant_refs_missing")
+    if not isinstance(support, int) or support < 0:
+        hits.append("sequence_lineage_observed_support_invalid")
+    elif len(trace_refs) != support:
+        hits.append("sequence_lineage_trace_cohort_support_mismatch")
+    if family_refs and trace_refs and family_refs[0] not in trace_refs:
+        hits.append("sequence_lineage_anchor_not_in_trace_cohort")
+    if dependency is None:
+        hits.append("sequence_lineage_dependency_summary_missing")
+    if robustness is None:
+        hits.append("sequence_lineage_robustness_summary_missing")
+    if uncertainty is None:
+        hits.append("sequence_lineage_uncertainty_missing")
+    if not withdrawal:
+        hits.append("sequence_lineage_withdrawal_condition_missing")
+    if not upstream_claim_ceiling:
+        hits.append("sequence_lineage_upstream_claim_ceiling_missing")
+    elif block_family == "sequence_safe_finding_analyst_reading_candidate" and upstream_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING:
+        hits.append("sequence_lineage_upstream_claim_ceiling_mismatch")
+    elif block_family == "sequence_narrative_analyst_reading_candidate" and upstream_claim_ceiling != SEQUENCE_NARRATIVE_CLAIM_CEILING:
+        hits.append("sequence_lineage_upstream_claim_ceiling_mismatch")
+    if block_family == "sequence_narrative_analyst_reading_candidate":
+        if not origin_claim_ceiling:
+            hits.append("sequence_lineage_origin_claim_ceiling_missing")
+        elif origin_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING:
+            hits.append("sequence_lineage_origin_claim_ceiling_mismatch")
+    elif origin_claim_ceiling:
+        hits.append("sequence_lineage_unexpected_origin_claim_ceiling")
+
+    null_summary: dict[str, Any] = {}
+    if raw_null_summary is not None:
+        if not isinstance(raw_null_summary, dict):
+            hits.append("sequence_lineage_null_contrast_summary_invalid")
+        else:
+            null_summary = dict(raw_null_summary)
+            if null_summary.get("claim_strengthened") is not False:
+                hits.append("sequence_lineage_null_contrast_claim_strengthened")
+            null_state = str(null_summary.get("state") or "NOT_EVALUATED").strip()
+            if null_state != "NOT_EVALUATED":
+                if null_summary.get("significance_claim_allowed") is not False:
+                    hits.append("sequence_lineage_null_contrast_significance_lock_breach")
+                if null_summary.get("tactical_pattern_truth_allowed") is not False:
+                    hits.append("sequence_lineage_null_contrast_tactical_truth_lock_breach")
+
+    context_variations: list[dict[str, Any]] = []
+    if raw_context_variations is not None:
+        if not isinstance(raw_context_variations, list):
+            hits.append("sequence_lineage_context_variations_invalid")
+        else:
+            trace_ref_set = set(trace_refs)
+            for raw_variation in raw_context_variations:
+                if not isinstance(raw_variation, dict):
+                    hits.append("sequence_lineage_context_variation_invalid")
+                    continue
+                variation = dict(raw_variation)
+                for flag in (
+                    "chronology_direction_claimed",
+                    "causality_claimed",
+                    "tactical_adaptation_claimed",
+                    "coach_intention_claimed",
+                ):
+                    if variation.get(flag) is not False:
+                        hits.append(f"sequence_lineage_context_variation_claim_lock_breach:{flag}")
+                baseline_refs = set(_string_list(variation.get("baseline_trace_refs")))
+                comparison_refs = set(_string_list(variation.get("comparison_trace_refs")))
+                if not baseline_refs.issubset(trace_ref_set) or not comparison_refs.issubset(trace_ref_set):
+                    hits.append("sequence_lineage_context_variation_trace_lineage_mismatch")
+                context_variations.append(variation)
+
+    return {
+        "trace_family_refs": family_refs,
+        "trace_variant_refs": trace_refs,
+        "counterevidence_refs": counter_refs,
+        "dependency_summary": dict(dependency or {}),
+        "robustness_summary": dict(robustness or {}),
+        "uncertainty": dict(uncertainty or {}),
+        "withdrawal_condition": withdrawal,
+        "observed_support": support,
+        "upstream_claim_ceiling": upstream_claim_ceiling,
+        "origin_claim_ceiling": origin_claim_ceiling,
+        "null_contrast_summary": null_summary,
+        "context_variations": context_variations,
+    }, hits
+
+
 def evaluate_report_block(block: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     normalized = dict(block)
     block_id = _report_block_id(normalized)
@@ -193,6 +305,15 @@ def evaluate_report_block(block: dict[str, Any], idx: int = 0) -> dict[str, Any]
 
     if normalized.get("canonical_event_count") not in [None, "UNKNOWN"]:
         hard_block_hits.append("canonical_event_count_claim_rejected")
+    if normalized.get("true_action_count") not in [None, "UNKNOWN"]:
+        hard_block_hits.append("true_action_count_claim_rejected")
+    if normalized.get("production_release") is True:
+        hard_block_hits.append("production_release_claim_rejected")
+
+    sequence_lineage: dict[str, Any] = {}
+    if block_family in SEQUENCE_BLOCK_FAMILIES:
+        sequence_lineage, lineage_hits = _sequence_lineage(normalized)
+        hard_block_hits.extend(lineage_hits)
 
     if hard_block_hits:
         inclusion_decision = "REJECT_BLOCK"
@@ -223,11 +344,12 @@ def evaluate_report_block(block: dict[str, Any], idx: int = 0) -> dict[str, Any]
         "upstream_status": normalized.get("status"),
         "upstream_decision": normalized.get("decision"),
         "status": status,
-        "hard_block_hits": hard_block_hits,
+        "hard_block_hits": sorted(set(hard_block_hits)),
         "review_hits": review_hits,
         "missing_fields": missing_fields,
         "forbidden_upstream_hits": forbidden_upstream_hits,
         "forbidden_block_hits": forbidden_block_hits,
+        "sequence_evidence_lineage": sequence_lineage,
         "claim_output_allowed": False,
         "final_report_allowed": False,
         "production_report_allowed": False,
@@ -243,6 +365,8 @@ def evaluate_report_block(block: dict[str, Any], idx: int = 0) -> dict[str, Any]
         "organism_truth": False,
         "blocked_language_families": list(BLOCKED_LANGUAGE_FAMILIES),
         "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
     }
 
 
@@ -265,6 +389,8 @@ def build_output_contract(blocks: list[dict[str, Any]]) -> dict[str, Any]:
         "production_report_allowed": False,
         "claim_ceiling": OUTPUT_CONTRACT_CLAIM_CEILING,
         "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
         "claim_boundary": "report_output_contract_candidate_only_not_final_report",
     }
 
@@ -283,6 +409,8 @@ def write_outputs(blocks: list[dict[str, Any]], out_dir: str | Path) -> dict[str
         f"review_count={report['review_count']}",
         f"rejected_count={report['rejected_count']}",
         f"canonical_event_count={report['canonical_event_count']}",
+        f"true_action_count={report['true_action_count']}",
+        "production_release=false",
         "",
         "[contract_items]",
     ]

@@ -26,6 +26,36 @@ def base_report_block():
         "production_report_allowed": False,
         "final_report_allowed": False,
         "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
+def sequence_narrative_report_block():
+    return {
+        "report_block_id": "sequence_narrative_report_001",
+        "block_family": "sequence_narrative_analyst_reading_candidate",
+        "block_language": "tr",
+        "report_block_candidate_tr": "Aynı görünür süreç maç içinde tekrarlandı; karşı örnekler nedeniyle koşulsuz üstünlük olarak okunmamalı.",
+        "status": "SMOKE_PASS",
+        "decision": "NARRATIVE_ANALYST_READING_CANDIDATE_COMPOSED",
+        "claim_ceiling": "analyst_report_block_candidate_only",
+        "claim_output_allowed": False,
+        "production_report_allowed": False,
+        "final_report_allowed": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+        "trace_family_refs": ["TRACE_A"],
+        "trace_variant_refs": ["TRACE_A", "TRACE_B", "TRACE_C"],
+        "counterevidence_refs": ["TRACE_B"],
+        "observed_support": 3,
+        "dependency_summary": {"independence_proven": False, "dependency_groups": ["DEP_A"]},
+        "robustness_summary": {"robustness_state": "CONDITIONAL"},
+        "uncertainty": {"independence": "UNKNOWN"},
+        "withdrawal_condition": "Downgrade if evidence changes.",
+        "upstream_claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY",
+        "origin_claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY",
     }
 
 
@@ -61,6 +91,49 @@ def test_contract_includes_valid_block_candidate():
     assert item["inclusion_decision"] == "INCLUDE_BLOCK_CANDIDATE"
     assert item["output_text_candidate_tr"].startswith("Analist okuması:")
     assert item["claim_ceiling"] == "report_output_contract_candidate_only"
+
+
+def test_sequence_narrative_block_is_accepted_and_lineage_is_preserved():
+    item = evaluate_report_block(sequence_narrative_report_block())
+    assert item["status"] == "SMOKE_PASS"
+    assert item["inclusion_decision"] == "INCLUDE_BLOCK_CANDIDATE"
+    lineage = item["sequence_evidence_lineage"]
+    assert lineage["trace_family_refs"] == ["TRACE_A"]
+    assert lineage["trace_variant_refs"] == ["TRACE_A", "TRACE_B", "TRACE_C"]
+    assert lineage["counterevidence_refs"] == ["TRACE_B"]
+    assert lineage["dependency_summary"]["dependency_groups"] == ["DEP_A"]
+    assert lineage["robustness_summary"]["robustness_state"] == "CONDITIONAL"
+    assert lineage["uncertainty"]["independence"] == "UNKNOWN"
+    assert lineage["withdrawal_condition"] == "Downgrade if evidence changes."
+    assert lineage["upstream_claim_ceiling"] == "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
+    assert lineage["origin_claim_ceiling"] == "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+
+
+def test_sequence_lineage_loss_fails_closed():
+    cases = (
+        ("trace_variant_refs", [], "sequence_lineage_trace_variant_refs_missing"),
+        ("dependency_summary", None, "sequence_lineage_dependency_summary_missing"),
+        ("robustness_summary", None, "sequence_lineage_robustness_summary_missing"),
+        ("uncertainty", None, "sequence_lineage_uncertainty_missing"),
+        ("withdrawal_condition", "", "sequence_lineage_withdrawal_condition_missing"),
+        ("upstream_claim_ceiling", "", "sequence_lineage_upstream_claim_ceiling_missing"),
+        ("origin_claim_ceiling", "", "sequence_lineage_origin_claim_ceiling_missing"),
+    )
+    for field, value, expected in cases:
+        block = sequence_narrative_report_block()
+        block[field] = value
+        item = evaluate_report_block(block)
+        assert item["status"] == "FAIL_CLOSED"
+        assert item["inclusion_decision"] == "REJECT_BLOCK"
+        assert expected in item["hard_block_hits"]
+
+
+def test_sequence_trace_support_mismatch_fails_closed():
+    block = sequence_narrative_report_block()
+    block["observed_support"] = 99
+    item = evaluate_report_block(block)
+    assert item["status"] == "FAIL_CLOSED"
+    assert "sequence_lineage_trace_cohort_support_mismatch" in item["hard_block_hits"]
 
 
 def test_review_required_block_family_routes_to_review():
@@ -140,12 +213,21 @@ def test_final_or_production_output_flags_rejected():
     assert "upstream_report_block_production_output_allowed" in item["hard_block_hits"]
 
 
-def test_canonical_event_count_claim_rejected():
+def test_count_and_release_claims_rejected():
     block = base_report_block()
     block["canonical_event_count"] = 123
     item = evaluate_report_block(block)
-    assert item["inclusion_decision"] == "REJECT_BLOCK"
     assert "canonical_event_count_claim_rejected" in item["hard_block_hits"]
+
+    block = base_report_block()
+    block["true_action_count"] = 123
+    item = evaluate_report_block(block)
+    assert "true_action_count_claim_rejected" in item["hard_block_hits"]
+
+    block = base_report_block()
+    block["production_release"] = True
+    item = evaluate_report_block(block)
+    assert "production_release_claim_rejected" in item["hard_block_hits"]
 
 
 def test_contract_does_not_emit_final_report_or_claim_text():
@@ -206,9 +288,12 @@ def test_build_report_and_write_outputs(tmp_path):
     assert (tmp_path / "report_output_contract_lite_v1.txt").exists()
     loaded = json.loads((tmp_path / "report_output_contract_lite_v1.json").read_text(encoding="utf-8"))
     assert loaded["include_count"] == 1
+    assert loaded["canonical_event_count"] == "UNKNOWN"
+    assert loaded["true_action_count"] == "UNKNOWN"
+    assert loaded["production_release"] is False
 
 
 def test_no_sample_match_identity_leak():
     src = (SRC / "report_output_contract.py").read_text(encoding="utf-8")
-    for token in ["Turkey", "Australia", "Türkiye", "Avustralya", "World Cup", "13.06.2026"]:
+    for token in ["Genclerbirligi", "Fenerbahce", "15.08.2026", "TEAM_A", "TRACE_A"]:
         assert token not in src
