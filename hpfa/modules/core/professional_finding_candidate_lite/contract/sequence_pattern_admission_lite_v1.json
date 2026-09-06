@@ -1,6 +1,6 @@
 {
   "module_id": "sequence_pattern_admission_lite_v1",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "owner_path": "professional_finding_candidate_lite",
   "purpose": "Gate recurrent visible trace evidence into analyst-safe pattern candidates without promoting frequency, similarity or robustness into tactical-pattern, team-style, coach-intention or causal truth.",
   "reused_inputs": [
@@ -13,6 +13,7 @@
     "pattern_id",
     "trace_family_ref",
     "eligible_trace_count",
+    "eligible_trace_refs",
     "observed_support",
     "independent_support_count",
     "context_scope",
@@ -36,11 +37,15 @@
     "REVIEW_REQUIRED",
     "REJECTED_INSUFFICIENT_EVIDENCE"
   ],
-  "forbidden_states": [
-    "TACTICAL_PATTERN",
-    "COACH_INTENTION",
-    "TEAM_STYLE_TRUTH"
-  ],
+  "forbidden_states": ["TACTICAL_PATTERN", "COACH_INTENTION", "TEAM_STYLE_TRUTH"],
+  "provenance_handoff_rules": {
+    "eligible_trace_refs_must_survive_admission_boundary": true,
+    "eligible_trace_refs_must_survive_safe_finding_binding": true,
+    "eligible_trace_refs_must_survive_analyst_report_projection": true,
+    "observed_support_must_equal_exact_eligible_trace_ref_count": true,
+    "trace_family_anchor_must_be_member_of_exact_eligible_trace_cohort": true,
+    "missing_or_mismatched_trace_cohort_may_emit_analyst_prose": false
+  },
   "independence_rules": {
     "nominal_recurrence_implies_independent_support": false,
     "player_team_goalkeeper_views_are_independent_support": false,
@@ -83,6 +88,7 @@
   },
   "required_tests": [
     "test_robust_nominal_recurrence_without_independence_stops_at_recurrent_visible_trace",
+    "test_exact_eligible_trace_cohort_survives_admission_boundary",
     "test_robust_recurrent_state_requires_explicit_independence_admission",
     "test_declared_independent_support_is_recomputed_from_trace_bound_groups",
     "test_robustness_envelope_must_match_current_eligible_trace_cohort",
