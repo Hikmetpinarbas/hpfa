@@ -43,6 +43,7 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
     """Compose readable match-local story blocks from already admitted safe findings.
 
     This layer ranks and connects findings; it does not discover new football facts.
+    Exact upstream evidence lineage is preserved so readable prose stays auditable.
     """
     hard: list[str] = []
     reviews: list[str] = []
@@ -78,6 +79,21 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
         if not _clean(row.get("SAFE_MEANING")):
             reviews.append("safe_meaning_missing")
             continue
+
+        recurrence = row.get("recurrence_summary") if isinstance(row.get("recurrence_summary"), dict) else {}
+        support = int(recurrence.get("observed_support") or 0)
+        trace_refs = sorted({_clean(x) for x in (row.get("trace_variant_refs") or []) if _clean(x)})
+        family_refs = sorted({_clean(x) for x in (row.get("trace_family_refs") or []) if _clean(x)})
+        if not trace_refs:
+            return _fail("upstream_trace_variant_refs_missing")
+        if len(trace_refs) != support:
+            return _fail("upstream_trace_cohort_support_mismatch")
+        if family_refs and family_refs[0] not in trace_refs:
+            return _fail("upstream_trace_family_anchor_not_in_cohort")
+        if not isinstance(row.get("dependency_summary"), dict):
+            return _fail("upstream_dependency_summary_missing")
+        if not isinstance(row.get("robustness_summary"), dict):
+            return _fail("upstream_robustness_summary_missing")
         eligible.append(row)
 
     eligible.sort(key=_strength_rank, reverse=True)
@@ -92,6 +108,8 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
         counter_refs = list((row.get("counterevidence") or {}).get("refs") or [])
         context_scope = row.get("context_scope") or []
         state = _clean(recurrence.get("admission_state"))
+        trace_refs = sorted({_clean(x) for x in (row.get("trace_variant_refs") or []) if _clean(x)})
+        family_refs = sorted({_clean(x) for x in (row.get("trace_family_refs") or []) if _clean(x)})
 
         if failure or divergence or counter_refs:
             balance = "Aynı başlangıcın bozulduğu veya farklı sonuca gittiği örnekler de bulunduğu için bu tekrar koşulsuz çalışan bir üstünlük olarak okunmamalı."
@@ -120,6 +138,8 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
             "source_report_block_id": row.get("analyst_report_block_id"),
             "entity_scope": row.get("entity_scope"),
             "context_scope": context_scope,
+            "trace_family_refs": family_refs,
+            "trace_variant_refs": trace_refs,
             "headline_tr": opening,
             "evidence_tr": evidence,
             "counterweight_tr": balance,
@@ -133,11 +153,15 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
             "no_visible_followup_support": no_followup,
             "counterevidence_ref_count": len(counter_refs),
             "admission_state": state,
+            "dependency_summary": dict(row.get("dependency_summary") or {}),
+            "robustness_summary": dict(row.get("robustness_summary") or {}),
             "forbidden_inference": row.get("FORBIDDEN_INFERENCE") or [],
-            "uncertainty": row.get("uncertainty") or {},
+            "uncertainty": dict(row.get("uncertainty") or {}),
             "withdrawal_condition": row.get("withdrawal_condition"),
             "claim_ceiling": CLAIM_CEILING,
             "claim_output_allowed": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
             "production_release": False,
         })
 
@@ -154,6 +178,7 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
         "coach_intention_claimed": False,
         "causality_claimed": False,
         "tactical_plan_truth_claimed": False,
+        "lineage_preservation_required": True,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
