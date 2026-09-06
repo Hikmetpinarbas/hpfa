@@ -102,7 +102,8 @@ def test_analyst_report_uses_current_episode_surface(tmp_path):
     assert "05:00-06:00 shots=3" in text
     assert '"Team A": 12' in text
     assert '"Team B": 10' in text
-    assert "SAFE_ARGUMENT_CANDIDATES" in text
+    assert "ASSEMBLY_ADMITTED_ARGUMENT_CANDIDATES" in text
+    assert "Gorunur kanit grafigi aday okumayi destekler." not in text
     assert "feature_surface_current_invocation=true" in text
     assert "canonical_event_count=UNKNOWN" in text
     assert "production_release=false" in text
@@ -165,6 +166,8 @@ def test_bundle_uses_producer_write_ledger_even_when_content_unchanged(tmp_path)
     assert manifest["bundle_scope"] == "PRODUCER_DECLARED_CURRENT_INVOCATION_ARTIFACTS_PLUS_STANDARD_DELIVERABLES"
     assert manifest["selection_basis"] == "PRODUCER_WRITE_LEDGER_NOT_MTIME_OR_CONTENT_CHANGE_HEURISTIC"
     assert manifest["feature_surface_current_invocation"] is True
+    assert manifest["analyst_text_requires_final_assembly_admission"] is True
+    assert manifest["sequence_lineage_preserved_in_analyst_report"] is True
     assert manifest["canonical_event_count"] == "UNKNOWN"
     assert manifest["production_release"] is False
 
