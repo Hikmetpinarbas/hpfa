@@ -7,6 +7,7 @@ from typing import Any
 MODULE_ID = "sequence_safe_finding_binding_lite_v1"
 ADMISSION_MODULE_ID = "sequence_pattern_admission_lite_v1"
 NULL_CONTRAST_ID = "recurrence_null_contrast_v1"
+NULL_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
@@ -53,6 +54,14 @@ def _index_null_contrast(null_payload: dict[str, Any] | None) -> tuple[dict[str,
     reviews: list[str] = []
     if null_payload.get("contrast_id") != NULL_CONTRAST_ID:
         blocks.append("null_contrast_id_mismatch")
+    if null_payload.get("claim_ceiling") != NULL_CLAIM_CEILING:
+        blocks.append("null_contrast_claim_ceiling_mismatch")
+    if null_payload.get("multiple_testing_corrected") is not False:
+        blocks.append("null_contrast_multiple_testing_lock_breach")
+    if null_payload.get("significance_claim_allowed") is not False:
+        blocks.append("null_contrast_significance_lock_breach")
+    if null_payload.get("tactical_pattern_truth_allowed") is not False:
+        blocks.append("null_contrast_tactical_truth_lock_breach")
     if null_payload.get("canonical_event_count") != CANONICAL_EVENT_COUNT:
         blocks.append("null_contrast_canonical_event_count_claimed")
     if null_payload.get("true_action_count") != TRUE_ACTION_COUNT:
@@ -174,10 +183,19 @@ def build_sequence_safe_finding_blocks(
                     return _fail(f"null_contrast_independent_support_mismatch:{family_ref}")
             elif observed_null != "UNKNOWN":
                 return _fail(f"null_contrast_unknown_independence_escalated:{family_ref}")
+            if null_row.get("claim_ceiling") != NULL_CLAIM_CEILING:
+                return _fail(f"null_contrast_row_claim_ceiling_mismatch:{family_ref}")
+            if null_row.get("multiple_testing_corrected") is not False:
+                return _fail(f"null_contrast_multiple_testing_lock_breach:{family_ref}")
             if null_row.get("significance_claim_allowed") is not False:
                 return _fail(f"null_contrast_significance_lock_breach:{family_ref}")
             if null_row.get("tactical_pattern_truth_allowed") is not False:
                 return _fail(f"null_contrast_tactical_truth_lock_breach:{family_ref}")
+            if null_row.get("causality_allowed") is not False:
+                return _fail(f"null_contrast_causality_lock_breach:{family_ref}")
+            null_withdrawal = _clean(null_row.get("withdrawal_condition"))
+            if not null_withdrawal:
+                return _fail(f"null_contrast_withdrawal_condition_missing:{family_ref}")
             null_summary = {
                 "state": _clean(null_row.get("state")) or "UNKNOWN",
                 "observed_independent_recurrence": observed_null,
@@ -195,9 +213,10 @@ def build_sequence_safe_finding_blocks(
                 "multiple_testing_corrected": False,
                 "significance_claim_allowed": False,
                 "tactical_pattern_truth_allowed": False,
+                "causality_allowed": False,
                 "claim_strengthened": False,
-                "withdrawal_condition": null_row.get("withdrawal_condition"),
-                "claim_ceiling": null_row.get("claim_ceiling"),
+                "withdrawal_condition": null_withdrawal,
+                "claim_ceiling": NULL_CLAIM_CEILING,
             }
 
         what_visible = f"A comparable admitted visible trace family was observed {support} times in the current evidence scope."
@@ -232,7 +251,7 @@ def build_sequence_safe_finding_blocks(
         if null_row is not None and isinstance(independent, int):
             safe_meaning += (
                 " Its admitted independent recurrence can also be described relative to the supplied audited null distribution, "
-                "without treating the uncorrected tail probability as significance or tactical truth."
+                "without treating the uncorrected tail probability as significance, tactical truth or causality."
             )
 
         forbidden = sorted(set([
