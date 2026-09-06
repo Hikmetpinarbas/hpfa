@@ -21,7 +21,7 @@ def _builder(action, taxonomy, relation, evidence):
             traces.append({
                 "trackable_action_trace_candidate_id": "tat_" + bid,
                 "match_surface_binding_id": "binding_1",
-                "source_role": "PLAYER_SURFACE_CANDIDATE",
+                "source_role": bundle.get("source_role") or "PLAYER_SURFACE_CANDIDATE",
                 "team_identity_candidate_id": bundle["team_identity_candidate_id"],
                 "actor_identity_candidate_id": bundle["actor_identity_candidate_id"],
                 "period_candidate": "1",
@@ -32,6 +32,7 @@ def _builder(action, taxonomy, relation, evidence):
                 "action_family_candidates": [bundle.get("action_family_candidate") or "DUEL"],
                 "selected_action_bundle_candidate_ids": [bid],
                 "supporting_evidence_atom_ids": [],
+                "reflection_context_action_bundle_candidate_ids": list(bundle.get("reflection_context_action_bundle_candidate_ids") or []),
                 "trackable_action_candidate_is_event_truth": False,
                 "physical_action_identity_truth": False,
                 "sequence_link_allowed": False,
@@ -146,6 +147,57 @@ def test_occurrence_admitted_review_bundles_bind_without_taxonomy_promotion() ->
     assert sorted(explicit[0]["selected_action_bundle_candidate_ids"]) == ["a_dribble", "a_duel"]
 
 
+def test_player_team_views_do_not_double_count_underlying_occurrence() -> None:
+    action, taxonomy, relation, evidence, occurrence = _fixture()
+    result = build_occurrence_aware_trace_payload(action, taxonomy, relation, evidence, occurrence, _builder)
+    binding = result["occurrence_trace_binding_records"][0]
+    assert len(binding["trace_refs"]) == 2
+    assert binding["underlying_occurrence_root_count_contribution"] == 1
+    assert binding["object_view_count_is_independent_support_count"] is False
+    assert binding["independence_proven"] is False
+    assert binding["dependency_group"] == "occurrence:aoc_1"
+    assert binding["player_refs"] == ["actor_a", "actor_b"]
+    assert binding["team_refs"] == ["team_a", "team_b"]
+    assert "DERIVED_FROM_SAME_OCCURRENCE" in binding["relation_types"]
+    assert "OCCURRENCE_HAS_PLAYER" in binding["relation_types"]
+    assert "OCCURRENCE_HAS_TEAM" in binding["relation_types"]
+
+
+def test_goalkeeper_team_view_dependency_preserved() -> None:
+    action, taxonomy, relation, evidence, occurrence = _fixture()
+    for bundle in action["action_bundle_candidates"]:
+        if bundle["action_bundle_candidate_id"] == "b_duel":
+            bundle["source_role"] = "GOALKEEPER_SURFACE_CANDIDATE"
+    result = build_occurrence_aware_trace_payload(action, taxonomy, relation, evidence, occurrence, _builder)
+    binding = result["occurrence_trace_binding_records"][0]
+    assert binding["goalkeeper_refs"] == ["actor_b"]
+    assert "OCCURRENCE_HAS_GOALKEEPER" in binding["relation_types"]
+    assert "GOALKEEPER_PARTICIPATES_IN_TRACE" in binding["relation_types"]
+    assert binding["dependency_group"] == "occurrence:aoc_1"
+    assert binding["independence_group"] is None
+
+
+def test_explicit_reflection_stays_same_occurrence_dependency_not_new_support() -> None:
+    action, taxonomy, relation, evidence, occurrence = _fixture()
+    for bundle in action["action_bundle_candidates"]:
+        if bundle["action_bundle_candidate_id"] == "b_duel":
+            bundle["reflection_context_action_bundle_candidate_ids"] = ["xml_ref_b_duel"]
+    result = build_occurrence_aware_trace_payload(action, taxonomy, relation, evidence, occurrence, _builder)
+    binding = result["occurrence_trace_binding_records"][0]
+    assert binding["reflection_context_refs"] == ["xml_ref_b_duel"]
+    assert "SAME_UNDERLYING_OCCURRENCE_REFLECTION" in binding["relation_types"]
+    assert binding["underlying_occurrence_root_count_contribution"] == 1
+    assert result["object_views_create_independent_support"] is False
+
+
+def test_entity_view_requires_occurrence_binding() -> None:
+    action, taxonomy, relation, evidence, occurrence = _fixture()
+    occurrence["action_occurrence_candidates"] = []
+    result = build_occurrence_aware_trace_payload(action, taxonomy, relation, evidence, occurrence, _builder)
+    assert result["occurrence_trace_binding_record_count"] == 0
+    assert result["object_centric_trace_binding_record_count"] == 0
+
+
 def test_occurrence_trace_binding_does_not_mutate_or_promote_upstream_taxonomy() -> None:
     action, taxonomy, relation, evidence, occurrence = _fixture()
     before = copy.deepcopy(taxonomy)
@@ -180,6 +232,17 @@ def test_unrelated_review_bundle_in_same_taxonomy_record_is_not_bound() -> None:
         for bundle_id in trace.get("selected_action_bundle_candidate_ids") or []
     }
     assert "a_unrelated" not in selected
+
+
+def test_object_binding_never_creates_event_truth() -> None:
+    action, taxonomy, relation, evidence, occurrence = _fixture()
+    result = build_occurrence_aware_trace_payload(action, taxonomy, relation, evidence, occurrence, _builder)
+    binding = result["occurrence_trace_binding_records"][0]
+    assert binding["object_view_creates_event"] is False
+    assert binding["binding_is_event_truth"] is False
+    assert binding["canonical_event_count"] == "UNKNOWN"
+    assert result["occurrence_binding_is_event_truth"] is False
+    assert result["production_release"] is False
 
 
 def test_no_sample_match_identity_leak_in_occurrence_trace_binding() -> None:
