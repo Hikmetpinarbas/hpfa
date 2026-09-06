@@ -10,7 +10,7 @@ It does not create final report truth, production report output or new football 
 
 ## Football value
 
-The analyst can carry a readable sequence finding toward report output without losing which exact traces support it, which counterexamples challenge it, whether support is dependent, how robust it is, what remains uncertain, and which evidence change would require withdrawal.
+The analyst can carry a readable sequence finding toward report output without losing which exact traces support it, which counterexamples challenge it, whether support is dependent, how robust it is, what remains uncertain, which audited null/context checks qualify the interpretation, and which evidence change would require withdrawal.
 
 ## Runtime authority
 
@@ -52,9 +52,15 @@ withdrawal_condition
 observed_support
 upstream_claim_ceiling
 origin_claim_ceiling  # required on narrative path
+null_contrast_summary # preserve and revalidate when present
+context_variations    # preserve and revalidate when present
 ```
 
 The exact supporting trace cohort must remain count-consistent with `observed_support`. A readable report block is not allowed to detach from its evidence lineage.
+
+When `null_contrast_summary` is present, the contract must preserve it exactly as audited evidence and require `claim_strengthened=false`. Any evaluated null contrast must also preserve `significance_claim_allowed=false` and `tactical_pattern_truth_allowed=false`. An uncorrected upper-tail probability is not a significance claim.
+
+When `context_variations` are present, each baseline/comparison trace reference must remain inside the exact supporting trace cohort. `chronology_direction_claimed`, `causality_claimed`, `tactical_adaptation_claimed`, and `coach_intention_claimed` must remain false. Observed cohort variation does not establish causal or tactical adaptation truth.
 
 Claim-ceiling lineage is vocabulary-bound, not merely non-empty:
 
@@ -101,6 +107,10 @@ organism truth
 canonical event count claim
 true action count claim
 production release claim
+null-derived significance claim
+null-derived tactical-pattern truth
+context-derived causality claim
+context-derived tactical adaptation claim
 ```
 
 ## Decision states
@@ -138,6 +148,14 @@ sequence_lineage_upstream_claim_ceiling_mismatch
 sequence_lineage_origin_claim_ceiling_missing
 sequence_lineage_origin_claim_ceiling_mismatch
 sequence_lineage_unexpected_origin_claim_ceiling
+sequence_lineage_null_contrast_summary_invalid
+sequence_lineage_null_contrast_claim_strengthened
+sequence_lineage_null_contrast_significance_lock_breach
+sequence_lineage_null_contrast_tactical_truth_lock_breach
+sequence_lineage_context_variations_invalid
+sequence_lineage_context_variation_invalid
+sequence_lineage_context_variation_claim_lock_breach:<flag>
+sequence_lineage_context_variation_trace_lineage_mismatch
 ```
 
 ## Review route
