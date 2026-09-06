@@ -15,6 +15,7 @@ on:
   push:
     branches:
       - 'feature/process-professional-finding-bridge-v1'
+      - 'feature/sequence-pattern-admission-v1'
 
 jobs:
   professional-finding-bridge:
@@ -42,7 +43,8 @@ jobs:
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_alternative_explanation.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_duplicate_reflection_risk.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_context_period_deconfound.py \
-            hpfa/modules/core/professional_finding_candidate_lite/tests/test_professional_finding_bundle_ledger.py
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_professional_finding_bundle_ledger.py \
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_pattern_admission.py
       - name: Compile current runtime and bridge modules
         run: |
           python -m py_compile reciprocal_process_chain_current_v1.py
@@ -58,6 +60,7 @@ jobs:
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/alternative_explanation.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/duplicate_reflection_risk.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
+          python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
       - name: Claim and accounting lock audit
         run: |
           grep -F 'process_membership_share_uses_matching_unique_process_units' hpfa/modules/core/match_reconciliation_ledger_lite/src/match_reconciliation_ledger.py
@@ -82,4 +85,6 @@ jobs:
           grep -F 'period_reported_but_not_used_as_activity_fingerprint' hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
           grep -F 'context_difference_is_causal_explanation' hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
           grep -F 'absence_of_visible_context_difference_disproves_context_dependence' hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
+          grep -F 'independent_support_inferred_from_nominal_count' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
+          grep -F 'tactical_pattern_state_allowed' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
           grep -F 'production_release=false' hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
