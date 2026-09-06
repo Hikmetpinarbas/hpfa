@@ -1,0 +1,60 @@
+{
+  "module_id": "partial_order_trace_variant_lite_v1",
+  "version": "1.0.0-partial-order-candidate",
+  "purpose": "Build recurrence-ready visible trace variants from current occurrence-aware trace, consequence and visible sequence evidence while preserving partial ordering and chronology uncertainty.",
+  "inputs": [
+    "visible_action_sequence_candidates_lite_v1",
+    "trackable_action_trace_candidates_lite_v1",
+    "trackable_action_consequence_candidates_lite_v1"
+  ],
+  "order_relation_vocabulary": [
+    "BEFORE_CONFIRMED",
+    "AFTER_CONFIRMED",
+    "SAME_TIME_UNORDERED",
+    "ORDER_INDETERMINATE",
+    "PROVENANCE_ORDER_ONLY"
+  ],
+  "required_trace_variant_fields": [
+    "trace_variant_id",
+    "sequence_ref",
+    "episode_ref",
+    "node_refs",
+    "edge_relations",
+    "action_family_signature",
+    "context_signature",
+    "outcome_signature",
+    "ordering_completeness",
+    "chronology_confidence",
+    "dependency_group_refs",
+    "provenance_refs",
+    "claim_ceiling"
+  ],
+  "invariants": {
+    "same_timestamp_creates_total_order": false,
+    "source_row_order_is_temporal_truth": false,
+    "provenance_order_is_football_chronology": false,
+    "reflection_duplicate_creates_independent_node": false,
+    "trace_variant_requires_occurrence_bound_trace": true,
+    "unknown_ordering_must_remain_explicit": true,
+    "row_nucleus_is_action_occurrence": false,
+    "action_bundle_is_canonical_event": false,
+    "sample_match_hardcoding_allowed": false
+  },
+  "claim_boundary": {
+    "trace_variant_is_sequence_truth": false,
+    "trace_variant_is_tactical_pattern_truth": false,
+    "trace_variant_is_coach_intention_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "analyst_safe_meaning": "Comparable visible action-chain variants can be represented under explicit partial-order evidence without fabricating total chronology.",
+  "forbidden_inference": [
+    "team tactical plan",
+    "coach intention",
+    "possession truth",
+    "causality",
+    "stable tactical pattern truth"
+  ],
+  "release_state": "IMPLEMENTATION_IN_PR / REVIEW_REQUIRED / CI_REQUIRED / ACTIVE_MATCH_REQUIRED / NOT_PRODUCTION"
+}
