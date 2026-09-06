@@ -4,6 +4,7 @@ from typing import Any
 
 MODULE_ID = "sequence_analyst_narrative_lite_v1"
 UPSTREAM_MODULE_ID = "sequence_safe_finding_binding_lite_v1"
+CONTEXT_DEVIATION_MODULE_ID = "context_conditioned_trace_deviation_lite_v1"
 CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
 
 
@@ -39,11 +40,123 @@ def _strength_rank(row: dict[str, Any]) -> tuple[int, int, int]:
     return rank, support, -challenge
 
 
-def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[str, Any]:
+def _validate_context_deviation(payload: dict[str, Any] | None) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    if payload is None:
+        return [], [], []
+    hard: list[str] = []
+    reviews: list[str] = []
+    if payload.get("module_id") != CONTEXT_DEVIATION_MODULE_ID:
+        hard.append("context_deviation_module_id_mismatch")
+    if payload.get("canonical_event_count") != "UNKNOWN":
+        hard.append("context_deviation_canonical_event_count_claimed")
+    if payload.get("true_action_count") not in {None, "UNKNOWN"}:
+        hard.append("context_deviation_true_action_count_claimed")
+    if payload.get("production_release") is True:
+        hard.append("context_deviation_production_release_claimed")
+    if payload.get("hard_block_hits"):
+        hard.append("context_deviation_hard_blocks_present")
+    if payload.get("context_difference_is_causality_truth") is not False:
+        hard.append("context_deviation_causality_lock_missing")
+    if payload.get("context_difference_is_tactical_adaptation_truth") is not False:
+        hard.append("context_deviation_adaptation_lock_missing")
+    if payload.get("context_difference_is_coach_intention_truth") is not False:
+        hard.append("context_deviation_intention_lock_missing")
+    status = _clean(payload.get("status")).upper()
+    if status == "FAIL_CLOSED":
+        hard.append("context_deviation_input_fail_closed")
+    elif status == "REVIEW_REQUIRED":
+        reviews.append("context_deviation_upstream_review_required")
+    elif status != "PASS":
+        reviews.append(f"context_deviation_status_review:{status or 'UNKNOWN'}")
+    rows = [row for row in (payload.get("context_conditioned_trace_deviations") or []) if isinstance(row, dict)]
+    return rows, hard, reviews
+
+
+def _context_variations_for_row(row: dict[str, Any], deviations: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    trace_refs = sorted({_clean(x) for x in (row.get("trace_variant_refs") or []) if _clean(x)})
+    entity_scope = _clean(row.get("entity_scope"))
+    variations: list[dict[str, Any]] = []
+    hard: list[str] = []
+    reviews: list[str] = []
+
+    for dev in deviations:
+        baseline_refs = sorted({_clean(x) for x in (dev.get("baseline_trace_refs") or []) if _clean(x)})
+        comparison_refs = sorted({_clean(x) for x in (dev.get("comparison_trace_refs") or []) if _clean(x)})
+        cohort_refs = sorted(set(baseline_refs) | set(comparison_refs))
+        if cohort_refs != trace_refs:
+            continue
+        dev_entity = _clean((dev.get("entity_scope") or {}).get("team_identity_candidate_id"))
+        if entity_scope and dev_entity and entity_scope.lower() != dev_entity.lower():
+            continue
+        if not baseline_refs or not comparison_refs:
+            hard.append("context_deviation_empty_comparison_cohort")
+            continue
+        if set(baseline_refs) & set(comparison_refs):
+            hard.append("context_deviation_overlapping_cohorts")
+            continue
+        if dev.get("context_difference_is_causality_truth") is not False:
+            hard.append("context_deviation_row_causality_lock_missing")
+            continue
+        if dev.get("context_difference_is_tactical_adaptation_truth") is not False:
+            hard.append("context_deviation_row_adaptation_lock_missing")
+            continue
+        if dev.get("context_difference_is_coach_intention_truth") is not False:
+            hard.append("context_deviation_row_intention_lock_missing")
+            continue
+        dimension = _clean(dev.get("context_dimension"))
+        baseline_label = _clean(dev.get("baseline_cohort_ref"))
+        comparison_label = _clean(dev.get("comparison_cohort_ref"))
+        effect = _clean(dev.get("effect_descriptor"))
+        if not dimension or not baseline_label or not comparison_label or not effect:
+            hard.append("context_deviation_required_metadata_missing")
+            continue
+
+        if effect == "NO_VISIBLE_DISTRIBUTION_DIFFERENCE_CURRENT_RESOLUTION":
+            sentence = (
+                f"{dimension} için {baseline_label} ile {comparison_label} kohortlarında mevcut çözünürlükte görünür dağılım farkı saptanmadı; "
+                "bu, sürecin değişmediğini veya iki bağlamın futbol açısından eşit olduğunu kanıtlamaz."
+            )
+        else:
+            sentence = (
+                f"{dimension} için {baseline_label} ile {comparison_label} kohortlarında aynı exact trace cohort farklı görünür sonuç/sequence dağılımı gösterdi. "
+                "Bu fark yalnız bağlama bağlı görünür varyasyondur; neden, teknik direktör adaptasyonu veya taktik değişim kanıtı değildir."
+            )
+        if dev.get("sample_warning"):
+            reviews.append(f"context_variation_sample_review:{dimension}:{baseline_label}:{comparison_label}")
+
+        variations.append({
+            "context_conditioned_trace_deviation_id": dev.get("context_conditioned_trace_deviation_id"),
+            "context_dimension": dimension,
+            "baseline_cohort_ref": baseline_label,
+            "comparison_cohort_ref": comparison_label,
+            "baseline_trace_refs": baseline_refs,
+            "comparison_trace_refs": comparison_refs,
+            "effect_descriptor": effect,
+            "outcome_difference": bool(dev.get("outcome_difference")),
+            "sequence_difference": bool(dev.get("sequence_difference")),
+            "support_difference": dev.get("support_difference"),
+            "dependency_summary": dict(dev.get("dependency_summary") or {}),
+            "uncertainty": dict(dev.get("uncertainty") or {}),
+            "alternative_explanations": list(dev.get("alternative_explanations") or []),
+            "sample_warning": dev.get("sample_warning"),
+            "safe_change_tr": sentence,
+            "chronology_direction_claimed": False,
+            "causality_claimed": False,
+            "tactical_adaptation_claimed": False,
+            "coach_intention_claimed": False,
+        })
+    return variations, hard, reviews
+
+
+def compose_sequence_analyst_narrative(
+    binding_payload: dict[str, Any],
+    context_deviation_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Compose readable match-local story blocks from already admitted safe findings.
 
-    This layer ranks and connects findings; it does not discover new football facts.
-    Exact upstream evidence lineage is preserved so readable prose stays auditable.
+    Optional context-conditioned deviation evidence adds descriptive change/variation
+    intelligence only when it binds to the exact same trace cohort. No chronology,
+    causality, tactical adaptation or coach-intention truth is created here.
     """
     hard: list[str] = []
     reviews: list[str] = []
@@ -64,6 +177,10 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
         reviews.append("binding_upstream_review_required")
     elif upstream_status != "PASS":
         reviews.append(f"binding_status_review:{upstream_status or 'UNKNOWN'}")
+
+    deviations, deviation_hard, deviation_reviews = _validate_context_deviation(context_deviation_payload)
+    hard.extend(deviation_hard)
+    reviews.extend(deviation_reviews)
     if hard:
         return _fail(*hard)
 
@@ -140,6 +257,15 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
         if no_followup:
             evidence += f" {no_followup} örnekte görünür takip yok; bunlar başarısızlık sayılmadı."
 
+        context_variations, variation_hard, variation_reviews = _context_variations_for_row(row, deviations)
+        if variation_hard:
+            return _fail(*variation_hard)
+        reviews.extend(variation_reviews)
+        change_text = " ".join(item["safe_change_tr"] for item in context_variations)
+        story = f"{opening} {evidence} {balance}"
+        if change_text:
+            story += " " + change_text
+
         narratives.append({
             "narrative_id": f"sequence_story_{idx + 1:03d}",
             "priority_rank": idx + 1,
@@ -151,9 +277,11 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
             "headline_tr": opening,
             "evidence_tr": evidence,
             "counterweight_tr": balance,
+            "change_tr": change_text,
+            "context_variations": context_variations,
             "safe_meaning_tr": _clean(row.get("SAFE_MEANING")),
-            "analyst_action_tr": "Başarılı, bozulan ve farklılaşan örnekleri aynı video/veri inceleme grubunda karşılaştır.",
-            "story_tr": f"{opening} {evidence} {balance}",
+            "analyst_action_tr": "Başarılı, bozulan, farklılaşan ve bağlama göre ayrışan örnekleri aynı video/veri inceleme grubunda karşılaştır.",
+            "story_tr": story,
             "support": support,
             "success_support": success,
             "failure_support": failure,
@@ -170,6 +298,9 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
             "upstream_claim_ceiling": upstream_claim_ceiling,
             "claim_ceiling": CLAIM_CEILING,
             "claim_output_allowed": False,
+            "chronology_direction_claimed": False,
+            "context_change_causality_claimed": False,
+            "tactical_adaptation_claimed": False,
             "canonical_event_count": "UNKNOWN",
             "true_action_count": "UNKNOWN",
             "production_release": False,
@@ -185,6 +316,8 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any]) -> dict[
         "hard_block_hits": [],
         "story_order_basis": "EVIDENCE_STRENGTH_THEN_SUPPORT_NOT_FOOTBALL_CHRONOLOGY",
         "chronological_story_claimed": False,
+        "context_variation_descriptive_only": True,
+        "context_change_causality_claimed": False,
         "coach_intention_claimed": False,
         "causality_claimed": False,
         "tactical_plan_truth_claimed": False,
