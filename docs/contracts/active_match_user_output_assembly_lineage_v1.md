@@ -8,7 +8,7 @@ This contract rehabilitates the current user-output producer. It does not add a 
 
 ## Purpose
 
-`HPFA_ANALYST_REPORT.txt` is a user-facing projection. Human readability must not bypass the final report assembly gate or weaken evidence lineage.
+`HPFA_ANALYST_REPORT.txt` is a user-facing projection. Human readability must not bypass the final report assembly gate, weaken evidence lineage, or resurrect a stronger claim vocabulary than the final assembly admitted.
 
 ## Admission invariants
 
@@ -30,8 +30,13 @@ This contract rehabilitates the current user-output producer. It does not add a 
    - `upstream_claim_ceiling`
    - `origin_claim_ceiling` for narrative sequence blocks.
 5. Exact trace cohort cardinality must equal `observed_support`, and the anchor family ref must remain inside the supporting trace cohort.
-6. Missing or inconsistent sequence lineage is not converted into readable prose; the candidate is suppressed at this presentation boundary.
-7. Presentation may preserve or lower evidence strength. It may never increase it.
+6. Claim-ceiling vocabulary and hop order are revalidated at the user-output boundary rather than trusted by presence alone:
+   - `sequence_safe_finding_analyst_reading_candidate` requires `upstream_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY` and no `origin_claim_ceiling`;
+   - `sequence_narrative_analyst_reading_candidate` requires `upstream_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY` and `origin_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY`;
+   - every sequence-derived assembly item requires `claim_ceiling=final_report_assembly_candidate_only`.
+7. Unknown, tactical, causal, production, wrong-hop, or otherwise escalated sequence claim ceilings are suppressed and cannot become user-facing prose.
+8. Missing or inconsistent sequence lineage is not converted into readable prose; the candidate is suppressed at this presentation boundary.
+9. Presentation may preserve or lower evidence strength. It may never increase it.
 
 ## Claim boundary
 
@@ -54,8 +59,13 @@ CI success is engineering evidence only and is not physical ACTIVE_MATCH accepta
 ## Regression obligations
 
 - blocked final assembly must suppress an earlier safe sentence;
-- admitted sequence assembly text must preserve exact trace/dependency/robustness/uncertainty/withdrawal lineage in the analyst report;
+- admitted narrative sequence assembly text must preserve exact trace/dependency/robustness/uncertainty/withdrawal lineage and the exact finding→narrative→assembly claim hop in the analyst report;
+- admitted safe-finding sequence text must carry only the finding ceiling and no origin hop;
 - support/cohort mismatch must suppress the sequence candidate;
 - missing withdrawal condition must suppress the sequence candidate;
+- tactical/causal/unknown upstream claim escalation must suppress the sequence candidate;
+- wrong narrative origin hop must suppress the sequence candidate;
+- unexpected origin claim on a safe-finding block must suppress the sequence candidate;
+- wrong final assembly claim ceiling must suppress the sequence candidate;
 - claim locks must remain present in the user-facing report and bundle manifest;
 - no sample match/team/player identity may be introduced into production code.
