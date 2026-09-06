@@ -1,0 +1,20 @@
+{
+  "module_id": "recurrence_robustness_envelope_lite_v1",
+  "purpose": "Dependent recurrence sensitivity envelope over existing trace variant + contrast evidence; no parallel recurrence engine.",
+  "inputs": ["partial_order_trace_variant_lite_v1", "trace_contrast_packet_lite_v1"],
+  "robustness_states": ["ROBUST_WITHIN_TESTED_RANGE", "CONTEXT_SENSITIVE", "THRESHOLD_SENSITIVE", "ORDER_SENSITIVE", "SAMPLE_SENSITIVE", "FRAGILE", "INSUFFICIENT_EVIDENCE"],
+  "required_outputs": ["nominal_recurrence", "similarity_threshold_range", "threshold_sensitivity", "window_sensitivity", "episode_boundary_sensitivity", "context_sensitivity", "player_removal_sensitivity", "segment_sensitivity", "reflection_sensitivity", "ordering_uncertainty_sensitivity", "min_supported_recurrence", "max_supported_recurrence", "stable_core_trace_refs", "fragile_trace_refs", "robustness_state"],
+  "invariants": {
+    "nominal_recurrence_is_not_only_output": true,
+    "missing_sensitivity_dimension_must_not_be_fabricated": true,
+    "ordering_uncertainty_can_reduce_supported_recurrence": true,
+    "dependency_ref_does_not_prove_removable_reflection_duplicate": true,
+    "missing_actor_binding_does_not_allow_player_removal_inference": true,
+    "robustness_is_tactical_pattern_truth": false,
+    "robustness_is_coach_intention_truth": false,
+    "threshold_is_objective_football_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}
