@@ -1,0 +1,90 @@
+{
+  "module_id": "professional_finding_candidate_lite_v1",
+  "version": "1.2.0-visible-episode-context-contrast-candidate",
+  "purpose": "Assemble evidence-bearing match-local analyst argument candidates from visible process recurrence surfaces and compare already-admitted visible episode activity across outcome variants without releasing a final tactical or causal finding.",
+  "required_inputs": [
+    "reciprocal_process_chain_lite_v1",
+    "process_robustness_lens_lite_v1",
+    "process_metric_profile_lite_v1",
+    "match_reconciliation_ledger_lite_v2",
+    "team_episode_activity_lens_lite_v1"
+  ],
+  "required_argument_fields": [
+    "safe_analyst_sentence_candidate",
+    "support",
+    "counterevidence",
+    "finding_challenge_packet",
+    "alternative_explanations",
+    "uncertainty",
+    "withdrawal_condition",
+    "forbidden_inference",
+    "claim_ceiling"
+  ],
+  "admission": {
+    "repeat_count_minimum_for_candidate": 2,
+    "incomplete_episode_binding": "BLOCKED_INCOMPLETE_EPISODE_BINDING",
+    "single_episode_repeat": "FRAGILE_LOCAL_REPEAT_ONLY",
+    "multi_episode_repeat": "QUALIFIED_CANDIDATE_ONLY",
+    "final_claim_gate": "CLOSED_V1"
+  },
+  "finding_challenge_policy": {
+    "challenge_state": "PARTIAL_MATCH_LOCAL_CHALLENGE_EVALUATED",
+    "same_signature_outcome_analogue": "REUSE_EXISTING_RECIPROCAL_OUTCOME_CONTRAST",
+    "segment_only": "EVALUATED_FROM_PROCESS_ROBUSTNESS",
+    "player_outlier": "EVALUATED_VISIBLE_MEMBERSHIP_ONLY",
+    "opponent_symmetry": "EVALUATED_VISIBLE_ANCHOR_SIDE_ONLY",
+    "trace_dependency": "MEASURED_NOT_INDEPENDENCE_TRUTH",
+    "leave_one_episode_scope_out": "EVALUATED_WHEN_ADMISSIBLE",
+    "leave_top_anchor_actor_out": "EVALUATED_WHEN_ADMISSIBLE",
+    "visible_episode_context_contrast": "EVALUATED_FROM_ALREADY_ADMITTED_TEAM_EPISODE_ACTIVITY",
+    "context_dependence": "PARTIALLY_EVALUATED_VISIBLE_EPISODE_ACTIVITY_SCOPE_ONLY",
+    "threshold_sensitivity": "PENDING",
+    "failed_trace_support": "PENDING",
+    "duplicate_reflection_risk": "PENDING",
+    "alternative_explanation_search": "PENDING",
+    "counter_search_complete_for_final_finding": false,
+    "no_visible_counterexample_is_confirmation": false
+  },
+  "context_contrast_policy": {
+    "scope": "ADMITTED_TEAM_EPISODE_VISIBLE_ACTIVITY_ONLY",
+    "comparison_unit": "SAME_PROCESS_SIGNATURE_DIFFERENT_VISIBLE_OUTCOME_VARIANTS",
+    "uses_activity_presence_not_uncalibrated_threshold": true,
+    "context_difference_is_causal_explanation": false,
+    "context_difference_is_tactical_truth": false,
+    "absence_of_visible_context_difference_disproves_context_dependence": false,
+    "off_ball_context_requires_video_or_tracking": true,
+    "broader_context_search_complete_for_final_finding": false
+  },
+  "counterevidence_policy": {
+    "direct_visible_outcome_contrast": "EVALUATED_WHEN_AVAILABLE",
+    "segment_only": "EVALUATED_FROM_EPISODE_SCOPE",
+    "player_outlier": "EVALUATED_VISIBLE_MEMBERSHIP_ONLY",
+    "opponent_symmetry": "EVALUATED_VISIBLE_ANCHOR_SIDE_ONLY",
+    "trace_dependency": "MEASURED_NOT_INDEPENDENCE_TRUTH",
+    "visible_episode_context_contrast": "EVALUATED_AT_CURRENT_VISIBLE_RESOLUTION",
+    "context_dependence": "PARTIAL_ONLY",
+    "threshold_sensitivity": "NOT_EVALUATED_V1",
+    "alternative_explanation_search": "INCOMPLETE_V1"
+  },
+  "uncertainty_policy": {
+    "composite_metric_calibration": "NOT_CALIBRATED",
+    "statistical_significance": "NOT_TESTED",
+    "cross_match_reference_corpus": "NOT_AVAILABLE",
+    "off_ball_tactical_explanation": "REQUIRES_VIDEO_OR_TRACKING"
+  },
+  "claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_PROFESSIONAL_FINDING_CANDIDATE_ONLY",
+  "claim_locks": {
+    "professional_finding_emitted": false,
+    "claim_output_allowed": false,
+    "finding_challenge_packet_is_final_finding": false,
+    "stable_tactical_pattern_truth": false,
+    "coach_intention_truth": false,
+    "causal_effectiveness_truth": false,
+    "expected_outcome_probability_truth": false,
+    "possession_dominance_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "release_state": "REVIEW_REQUIRED_CANDIDATE_ONLY"
+}

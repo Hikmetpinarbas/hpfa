@@ -1,0 +1,26 @@
+{
+  "module_id": "visible_geometry_lens_lite_v1",
+  "version": "1.0.0-candidate",
+  "purpose": "Summarize raw provider-coordinate point distributions by team/player/period without direction normalization or tracking claims.",
+  "inputs": ["trackable_action_trace_candidates_lite_v1", "match_local_identity_candidates_lite_v1"],
+  "outputs": [
+    "centroid_candidate",
+    "median_candidate",
+    "x_y_span_candidate",
+    "x_y_std_candidate",
+    "rms_radial_dispersion_candidate",
+    "central_80_rectangle_candidate"
+  ],
+  "claim_boundary": {
+    "direction_normalized": false,
+    "formation_truth": false,
+    "team_shape_truth": false,
+    "compactness_truth": false,
+    "pitch_control_truth": false,
+    "territorial_control_truth": false,
+    "off_ball_movement_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}

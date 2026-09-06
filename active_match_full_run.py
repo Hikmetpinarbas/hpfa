@@ -11,6 +11,8 @@ RUN_JSON = "active_match_full_run_lite_v1.json"
 RUN_TXT = "active_match_full_run_lite_v1.txt"
 SURFACE_SUFFIXES = {".csv", ".xml", ".xlsx"}
 ROW_NUCLEUS_JSON = "row_nucleus_inventory_lite_v1.json"
+EVIDENCE_ATOM_JSON = "evidence_atom_inventory_lite_v1.json"
+IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 SEMANTIC_JSON = "context_action_semantics_rebind_lite_v1.json"
 EPISODE_JSON = "analyst_episode_locator_lite_v1.json"
 FEATURE_JSON = "episode_feature_vector_lite_v1.json"
@@ -115,6 +117,61 @@ def run_provider_time_context_step(
     }
 
 
+def run_identity_inputs_step(
+    repo_root: Path,
+    match_dir: Path,
+    out_dir: Path,
+    row_nucleus_path: Path,
+) -> dict[str, Any]:
+    """Project current Row Nucleus into Evidence Atom and Match-local Identity once.
+
+    The already-produced Row Nucleus payload is reused directly, preserving the
+    shared-foundation single-execution invariant. No new identity engine or
+    football truth is introduced.
+    """
+    try:
+        ensure_module_path(repo_root)
+        import evidence_atom_inventory_lite as atoms_current  # type: ignore
+        import match_local_identity_candidates_lite as identity_current  # type: ignore
+
+        row_payload = read_json(row_nucleus_path)
+        if not row_payload:
+            raise ValueError("row_nucleus_current_output_missing")
+        evidence = atoms_current.write_outputs_from_existing_row_payload(
+            row_payload,
+            match_dir,
+            out_dir,
+        )
+        identity = identity_current.write_outputs_from_existing_evidence(evidence, out_dir)
+        fail_closed = evidence.get("status") == "FAIL_CLOSED" or identity.get("status") == "FAIL_CLOSED"
+        return {
+            "command": ["internal:existing_evidence_atom_to_match_local_identity_v1"],
+            "returncode": 1 if fail_closed else 0,
+            "stdout": json.dumps({
+                "evidence_atom_status": evidence.get("status"),
+                "evidence_atom_count": evidence.get("evidence_atom_count"),
+                "identity_status": identity.get("status"),
+                "identity_candidate_bound_atom_count": identity.get("identity_candidate_bound_atom_count"),
+                "team_subject_code_prefix_bridge_applied_count": identity.get(
+                    "team_subject_code_prefix_bridge_applied_count"
+                ),
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            }, ensure_ascii=False, sort_keys=True),
+            "stderr": "" if not fail_closed else "identity_input_projection_fail_closed",
+            "passed": not fail_closed,
+        }
+    except Exception as exc:
+        return {
+            "command": ["internal:existing_evidence_atom_to_match_local_identity_v1"],
+            "returncode": 1,
+            "stdout": "",
+            "stderr": f"{type(exc).__name__}:{exc}",
+            "passed": False,
+        }
+
+
 def _episode_sample(episode: dict[str, Any]) -> list[dict[str, Any]]:
     rows = list(episode.get("episode_candidates") or [])
     priority_rank = {
@@ -176,6 +233,8 @@ def write_summary(
     input_status: dict[str, Any],
 ) -> dict[str, Any]:
     row_nucleus = read_json(out_dir / ROW_NUCLEUS_JSON)
+    evidence_atom = read_json(out_dir / EVIDENCE_ATOM_JSON)
+    identity = read_json(out_dir / IDENTITY_JSON)
     minimum_context = read_json(out_dir / "minimum_viable_context_lite_v1.json")
     semantics = read_json(out_dir / SEMANTIC_JSON)
     episode = read_json(out_dir / EPISODE_JSON)
@@ -193,6 +252,16 @@ def write_summary(
         and context_binding.get("enabled") is True
         and context_binding.get("reflection_inflation_prevented") is True
         and safe_int(context_binding.get("row_nucleus_candidate_count")) == safe_int(minimum_context.get("context_candidate_count"))
+    )
+    identity_inputs_ready = (
+        bool(evidence_atom)
+        and bool(identity)
+        and evidence_atom.get("status") != "FAIL_CLOSED"
+        and identity.get("status") != "FAIL_CLOSED"
+        and evidence_atom.get("canonical_event_count") == "UNKNOWN"
+        and identity.get("canonical_event_count") == "UNKNOWN"
+        and evidence_atom.get("production_release") is False
+        and identity.get("production_release") is False
     )
     semantic_ready = (
         bool(semantics)
@@ -236,6 +305,7 @@ def write_summary(
         and all_steps_passed
         and evidence_nonzero
         and row_nucleus_bound
+        and identity_inputs_ready
         and semantic_ready
         and episode_ready
         and feature_ready
@@ -257,6 +327,11 @@ def write_summary(
             "row_nucleus_candidate_count": row_nucleus.get("row_nucleus_candidate_count"),
             "row_nucleus_context_binding": row_nucleus_bound,
             "reflection_inflation_prevented": context_binding.get("reflection_inflation_prevented"),
+            "evidence_atom_output_exists": bool(evidence_atom),
+            "evidence_atom_status": evidence_atom.get("status"),
+            "match_local_identity_output_exists": bool(identity),
+            "match_local_identity_status": identity.get("status"),
+            "identity_inputs_ready": identity_inputs_ready,
             "minimum_context_output_exists": bool(minimum_context),
             "context_input_scope": minimum_context.get("context_input_scope"),
             "provider_time_admission_status": provider_time.get("status"),
@@ -282,6 +357,9 @@ def write_summary(
         "analyst_evidence": {
             "row_nucleus_candidate_count": row_nucleus.get("row_nucleus_candidate_count"),
             "row_nucleus_review_required_count": row_nucleus.get("row_nucleus_review_required_count"),
+            "evidence_atom_count": evidence_atom.get("evidence_atom_count"),
+            "identity_candidate_bound_atom_count": identity.get("identity_candidate_bound_atom_count"),
+            "team_subject_code_prefix_bridge_applied_count": identity.get("team_subject_code_prefix_bridge_applied_count"),
             "context_candidate_count": minimum_context.get("context_candidate_count"),
             "context_occurrence_basis": minimum_context.get("context_occurrence_basis"),
             "reviewed_provider_semantics_bound_count": semantics.get("reviewed_provider_semantics_bound_count"),
@@ -417,6 +495,7 @@ def main() -> int:
             "--out-dir", str(out_dir),
         ]),
         run_provider_time_context_step(repo_root, match_dir, out_dir, row_nucleus_path),
+        run_identity_inputs_step(repo_root, match_dir, out_dir, row_nucleus_path),
         run_step(repo_root, [
             sys.executable,
             "context_action_semantics_rebind.py",

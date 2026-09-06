@@ -1,0 +1,24 @@
+{
+  "module_id": "process_robustness_lens_lite_v1",
+  "version": "1.0.0-candidate",
+  "purpose": "Measure match-local episode, actor, trace-dependency, opponent-side and visible-outcome robustness of process-variant candidates without promoting them to stable pattern truth.",
+  "evaluated_falsifier_families": ["SEGMENT_ONLY", "PLAYER_OUTLIER", "OPPONENT_SYMMETRY"],
+  "pending_falsifier_families": ["CONTEXT_DEPENDENCE", "THRESHOLD_SENSITIVITY", "FAILED_TRACE_SUPPORT", "DUPLICATE_REFLECTION_RISK", "ALTERNATIVE_EXPLANATION"],
+  "composite": {
+    "id": "recurrence_surface_robustness_composite_candidate",
+    "formula": "mean(episode_scope_dispersion_ratio_candidate, anchor_actor_independence_candidate, trace_membership_uniqueness_ratio_candidate)",
+    "weighting": "EQUAL_WEIGHT_UNCALIBRATED",
+    "calibrated": false
+  },
+  "claim_boundary": {
+    "recurrence_truth": false,
+    "stable_pattern_truth": false,
+    "statistical_significance_tested": false,
+    "success_probability_truth": false,
+    "tactical_truth": false,
+    "causal_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}

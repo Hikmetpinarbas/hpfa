@@ -357,6 +357,27 @@ def _declared_current_artifacts(root: Path, full_spine: dict[str, Any]) -> list[
     return sorted(candidates, key=lambda item: item.name.casefold())
 
 
+def _verify_final_bundle(zip_path: Path) -> dict[str, Any]:
+    if not zip_path.is_file():
+        raise ValueError("bundle_zip_final_missing")
+    size_bytes = zip_path.stat().st_size
+    if size_bytes <= 0:
+        raise ValueError("bundle_zip_final_zero_bytes")
+    with zipfile.ZipFile(zip_path, "r") as check:
+        bad_member = check.testzip()
+        if bad_member is not None:
+            raise ValueError(f"bundle_zip_final_crc_failed:{bad_member}")
+        names = set(check.namelist())
+    if BUNDLE_MANIFEST not in names:
+        raise ValueError("bundle_zip_final_manifest_missing")
+    return {
+        "bundle_physical_verified": True,
+        "bundle_size_bytes": size_bytes,
+        "bundle_sha256": _sha256(zip_path),
+        "bundle_member_count": len(names),
+    }
+
+
 def write_standard_user_outputs(
     output_root: str | Path,
     full_spine: dict[str, Any],
@@ -407,6 +428,7 @@ def write_standard_user_outputs(
             if bad_member is not None:
                 raise ValueError(f"bundle_zip_crc_failed:{bad_member}")
         temp_zip_path.replace(zip_path)
+        bundle_verification = _verify_final_bundle(zip_path)
     except Exception:
         if temp_zip_path.is_file():
             temp_zip_path.unlink()
@@ -417,6 +439,7 @@ def write_standard_user_outputs(
         "bundle_manifest": str(manifest_path),
         "bundle_zip": str(zip_path),
         "bundle_file_count": len(candidates) + 1,
+        **bundle_verification,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,

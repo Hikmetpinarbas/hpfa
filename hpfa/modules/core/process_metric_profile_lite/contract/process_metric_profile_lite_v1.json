@@ -1,0 +1,160 @@
+{
+  "module_id": "process_metric_profile_lite_v1",
+  "version": "1.0.0-candidate",
+  "purpose": "Govern match-local process and known-team visible activity metrics without promoting descriptive ratios into possession, tactical, probability or performance truth.",
+  "observation_surfaces": {
+    "process": "admitted reciprocal process-family profile + episode binding + player/team reconciliation + visible outcome profile",
+    "team": "reviewed provider action-family semantics inside admitted analyst episode scopes with known-team attribution"
+  },
+  "metric_governance_requirements": {
+    "construct_defined": true,
+    "inputs_and_units_defined": true,
+    "eligibility_defined": true,
+    "prerequisites_defined": true,
+    "reference_corpus_state_explicit": true,
+    "leakage_policy_explicit": true,
+    "calibration_state_explicit": true,
+    "validation_state_explicit": true,
+    "null_model_state_explicit": true,
+    "sensitivity_state_explicit": true,
+    "uncertainty_state_explicit": true,
+    "provenance_dependency_explicit": true,
+    "interpretation_and_claim_ceiling_explicit": true,
+    "release_state_explicit": true
+  },
+  "shared_states": {
+    "reference_corpus": "NOT_AVAILABLE_MATCH_LOCAL_ONLY",
+    "cross_match_calibration": "NOT_AVAILABLE",
+    "statistical_validation": "NOT_PERFORMED",
+    "null_model": "NOT_EVALUATED_V1",
+    "threshold_sensitivity": "NOT_EVALUATED_V1",
+    "uncertainty": "DEPENDENT_ON_UPSTREAM_SEMANTICS_EPISODE_IDENTITY_AND_REFLECTION_CONTROL",
+    "leakage_policy": "NO_FUTURE_MATCH_OR_RESULT_LABELS; SAME_MATCH_DEPENDENT_SURFACES_NOT_INDEPENDENT_VOTES",
+    "release_state": "REVIEW_REQUIRED_CANDIDATE_ONLY",
+    "claim_ceiling": "MATCH_LOCAL_PROCESS_AND_VISIBLE_ACTIVITY_METRIC_CANDIDATE_ONLY"
+  },
+  "metrics": [
+    {
+      "metric_id": "M_PROCESS_REPEAT_POPULATION_SHARE_CANDIDATE",
+      "construct": "same-signature visible process frequency within eligible reciprocal population",
+      "formula": "visible_repeat_count_candidate / eligible_reciprocal_population_count",
+      "inputs_units": "count / count",
+      "eligibility": "reciprocal process family admitted; denominator > 0",
+      "prerequisites": ["reciprocal process eligibility", "reflection control"],
+      "dependency_group": "RECIPROCAL_PROCESS_SIGNATURE_DEPENDENT",
+      "interpretation": "match-local descriptive share; not recurrence probability"
+    },
+    {
+      "metric_id": "M_PROCESS_EPISODE_DISPERSION_CANDIDATE",
+      "construct": "spread of repeated process instances across admitted episode scopes",
+      "formula": "unique_episode_scope_count_candidate / visible_repeat_count_candidate",
+      "inputs_units": "unique scope count / repeat count",
+      "eligibility": "complete episode binding",
+      "prerequisites": ["admitted episode identity", "complete process-to-episode binding"],
+      "dependency_group": "EPISODE_BINDING_DEPENDENT",
+      "interpretation": "descriptive spread; not stability or recurrence truth"
+    },
+    {
+      "metric_id": "M_PROCESS_SEGMENT_CONCENTRATION_CANDIDATE",
+      "construct": "largest single admitted episode-scope concentration",
+      "formula": "max_chain_count_in_one_episode_scope / visible_repeat_count_candidate",
+      "inputs_units": "count / count",
+      "eligibility": "complete episode binding",
+      "prerequisites": ["admitted episode identity"],
+      "dependency_group": "EPISODE_BINDING_DEPENDENT",
+      "interpretation": "segment-locality falsifier surface"
+    },
+    {
+      "metric_id": "M_PROCESS_ANCHOR_ACTOR_CONCENTRATION_CANDIDATE",
+      "construct": "maximum visible anchor-actor process-family presence",
+      "formula": "max_anchor_actor_chain_presence_count / visible_repeat_count_candidate",
+      "inputs_units": "chain presence count / repeat count",
+      "eligibility": "actor membership bound to trace and team",
+      "prerequisites": ["match-local identity", "trace-to-actor binding", "team reconciliation"],
+      "dependency_group": "PLAYER_PROCESS_MEMBERSHIP_DEPENDENT",
+      "interpretation": "participation concentration; not player quality or causal importance"
+    },
+    {
+      "metric_id": "M_PROCESS_TRACE_MEMBERSHIP_UNIQUENESS_CANDIDATE",
+      "construct": "unique supporting trace IDs relative to trace memberships",
+      "formula": "unique_supporting_trace_count / supporting_trace_membership_count",
+      "inputs_units": "unique trace count / trace-membership count",
+      "eligibility": "trace IDs available",
+      "prerequisites": ["trace identity", "reflection control"],
+      "dependency_group": "TRACE_DEPENDENCY_GROUP",
+      "interpretation": "trace-reuse descriptor; never evidence-independence truth"
+    },
+    {
+      "metric_id": "M_PROCESS_VISIBLE_OUTCOME_ENTROPY_CANDIDATE",
+      "construct": "dispersion of visible outcome signatures inside one process family",
+      "formula": "Shannon_entropy(outcome_counts) / log(distinct_outcome_count)",
+      "inputs_units": "dimensionless [0,1] candidate",
+      "eligibility": "at least one visible outcome signature",
+      "prerequisites": ["visible outcome signature construction"],
+      "dependency_group": "VISIBLE_OUTCOME_SIGNATURE_DEPENDENT",
+      "interpretation": "outcome diversity; not success probability or tactical flexibility"
+    },
+    {
+      "metric_id": "M_PROCESS_RECURRENCE_SURFACE_ROBUSTNESS_COMPOSITE_CANDIDATE",
+      "construct": "analyst ranking over episode spread, actor independence and trace uniqueness",
+      "formula": "mean(episode_dispersion, 1-anchor_actor_concentration, trace_membership_uniqueness)",
+      "inputs_units": "three dependent dimensionless candidate components",
+      "eligibility": "all available components measured; incomplete episode binding remains review-required",
+      "prerequisites": ["episode dispersion", "actor concentration", "trace uniqueness"],
+      "dependency_group": "COMPOSITE_DEPENDENT_SAME_PROCESS_EVIDENCE",
+      "calibration": "EQUAL_WEIGHT_UNCALIBRATED",
+      "validation": "NO_REFERENCE_CORPUS_OR_NULL_MODEL_V1",
+      "interpretation": "ranking candidate only; not effect size, significance or stable pattern truth"
+    },
+    {
+      "metric_id": "M_TEAM_VISIBLE_FINAL_THIRD_ACTION_SHARE_CANDIDATE",
+      "construct": "reviewed final-third visible eligible action density",
+      "formula": "FINAL_THIRD_count / known_team_eligible_action_count",
+      "inputs_units": "reviewed visible action-candidate count / same-surface count",
+      "eligibility": "known-team attribution + reviewed semantics",
+      "prerequisites": ["reviewed provider semantics", "known-team attribution"],
+      "dependency_group": "KNOWN_TEAM_CONTEXT_SURFACE",
+      "interpretation": "visible final-third density; not territorial control"
+    },
+    {
+      "metric_id": "M_TEAM_VISIBLE_SHOT_ACTION_SHARE_CANDIDATE",
+      "construct": "reviewed shot-family visible eligible action density",
+      "formula": "SHOT_count / known_team_eligible_action_count",
+      "inputs_units": "reviewed visible shot-family candidate count / same-surface count",
+      "eligibility": "known-team attribution + reviewed semantics",
+      "prerequisites": ["reviewed provider semantics"],
+      "dependency_group": "KNOWN_TEAM_CONTEXT_SURFACE",
+      "interpretation": "terminal-signal density; not canonical shot count or finishing quality"
+    },
+    {
+      "metric_id": "M_TEAM_VISIBLE_SHOT_PER_FINAL_THIRD_ACTION_CANDIDATE",
+      "construct": "terminal signal density within reviewed final-third visible action surface",
+      "formula": "SHOT_count / FINAL_THIRD_count",
+      "inputs_units": "reviewed visible shot-family count / reviewed final-third candidate count",
+      "eligibility": "FINAL_THIRD_count > 0",
+      "prerequisites": ["reviewed semantics", "zone candidate"],
+      "dependency_group": "KNOWN_TEAM_CONTEXT_SURFACE",
+      "interpretation": "terminalization descriptor; not conversion probability"
+    },
+    {
+      "metric_id": "M_TEAM_VISIBLE_TERMINAL_TO_PASS_RATIO_CANDIDATE",
+      "construct": "reviewed terminal signal relative to reviewed pass-family visible actions",
+      "formula": "SHOT_count / PASS_count",
+      "inputs_units": "reviewed visible candidate count / reviewed visible candidate count",
+      "eligibility": "PASS_count > 0",
+      "prerequisites": ["reviewed provider semantics"],
+      "dependency_group": "KNOWN_TEAM_CONTEXT_SURFACE",
+      "interpretation": "circulation-to-terminal descriptor; not attacking efficiency truth"
+    }
+  ],
+  "claim_locks": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "causal_truth": false,
+    "probability_truth": false,
+    "production_release": false
+  }
+}

@@ -6,17 +6,78 @@ from pathlib import Path
 
 import visible_action_sequence_candidates_current_v1 as current_sequence
 from hpfa.modules.core.active_match_spine_runner.src.episode_lane_runner import run_current_episode_lane
+from hpfa.modules.core.match_reconciliation_ledger_lite.src.match_reconciliation_ledger import (
+    ANALYST_TXT as RECONCILIATION_ANALYST_TXT,
+    OUTPUT_JSON as RECONCILIATION_JSON,
+    OUTPUT_TXT as RECONCILIATION_TXT,
+    build_match_reconciliation_ledger,
+    write_outputs as write_match_reconciliation_outputs,
+)
+from hpfa.modules.core.player_aggregate_process_reconciliation_lite.src.player_aggregate_process_reconciliation import (
+    ANALYST_TXT as PLAYER_AGGREGATE_ANALYST_TXT,
+    OUTPUT_JSON as PLAYER_AGGREGATE_JSON,
+    OUTPUT_TXT as PLAYER_AGGREGATE_TXT,
+    XLSX_MODULE_ID,
+    build_player_aggregate_process_reconciliation,
+    write_outputs as write_player_aggregate_outputs,
+)
+from hpfa.modules.core.process_metric_profile_lite.src.process_metric_profile import (
+    ANALYST_TXT as METRIC_ANALYST_TXT,
+    OUTPUT_JSON as METRIC_JSON,
+    OUTPUT_TXT as METRIC_TXT,
+    build_process_metric_profile,
+    write_outputs as write_process_metric_outputs,
+)
+from hpfa.modules.core.process_robustness_lens_lite.src.process_robustness_lens import (
+    ANALYST_TXT as ROBUSTNESS_ANALYST_TXT,
+    OUTPUT_JSON as ROBUSTNESS_JSON,
+    OUTPUT_TXT as ROBUSTNESS_TXT,
+    build_process_robustness_lens,
+    write_outputs as write_process_robustness_outputs,
+)
+from hpfa.modules.core.professional_finding_candidate_lite.src.duplicate_reflection_risk import (
+    attach_duplicate_reflection_risk,
+)
+from hpfa.modules.core.professional_finding_candidate_lite.src.professional_finding_candidate import (
+    ANALYST_TXT as FINDING_ANALYST_TXT,
+    OUTPUT_JSON as FINDING_JSON,
+    OUTPUT_TXT as FINDING_TXT,
+    build_professional_finding_candidates,
+    write_outputs as write_professional_finding_outputs,
+)
+from hpfa.modules.core.professional_finding_candidate_lite.src.visible_episode_context_contrast import (
+    attach_visible_episode_context_contrast,
+)
 from hpfa.modules.core.reciprocal_process_chain_lite.src import reciprocal_process_chain as reciprocal
 from hpfa.modules.core.reciprocal_process_chain_lite.src.outcome_contrast import attach_outcome_contrast
-from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile import (
-    build_process_variant_profiles,
-)
+from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile import build_process_variant_profiles
 from hpfa.modules.core.reciprocal_process_chain_lite.src.process_variant_profile_outputs import (
     clear_outputs as clear_process_variant_profile_outputs,
     write_outputs as write_process_variant_profile_outputs,
 )
+from hpfa.modules.core.team_episode_activity_lens_lite.src.team_episode_activity_lens import (
+    ANALYST_TXT as ACTIVITY_ANALYST_TXT,
+    OUTPUT_JSON as ACTIVITY_JSON,
+    OUTPUT_TXT as ACTIVITY_TXT,
+    build_team_episode_activity_lens,
+    write_outputs as write_team_episode_activity_outputs,
+)
+from hpfa.modules.core.visible_geometry_lens_lite.src.visible_geometry_lens import (
+    ANALYST_TXT as GEOMETRY_ANALYST_TXT,
+    OUTPUT_JSON as GEOMETRY_JSON,
+    OUTPUT_TXT as GEOMETRY_TXT,
+    build_visible_geometry_lens,
+    write_outputs as write_visible_geometry_outputs,
+)
 
 TEMPORAL_JSON = "temporal_episode_signature_lite_v1.json"
+TRACE_JSON = "trackable_action_trace_candidates_lite_v1.json"
+EVIDENCE_JSON = "evidence_atom_inventory_lite_v1.json"
+IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
+CONTEXT_JSON = "minimum_viable_context_lite_v1.json"
+SEMANTIC_JSON = "context_action_semantics_rebind_lite_v1.json"
+EPISODE_JSON = "analyst_episode_locator_lite_v1.json"
+XLSX_JSON = "xlsx_entity_metric_row_projection_lite_v1.json"
 
 
 def _load(path: Path) -> dict:
@@ -27,16 +88,112 @@ def _load(path: Path) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
-def _attach_variant_projection(parent_payload: dict, variant_payload: dict) -> dict:
-    """Attach dependent variant fields without overwriting parent producer identity."""
-    parent_module_id = parent_payload.get("module_id")
-    for key, value in variant_payload.items():
-        if key == "module_id":
-            continue
-        parent_payload[key] = value
-    parent_payload["process_variant_profile_module_id"] = variant_payload.get("module_id")
-    parent_payload["module_id"] = parent_module_id
-    return parent_payload
+def _clear_owned_outputs(output: Path, names: tuple[str, ...]) -> list[str]:
+    cleared: list[str] = []
+    for name in names:
+        path = output / name
+        if path.is_file():
+            path.unlink()
+            cleared.append(name)
+    return cleared
+
+
+def _attach_variant_projection(parent: dict, child: dict) -> dict:
+    parent_module_id = parent.get("module_id")
+    for key, value in child.items():
+        if key != "module_id":
+            parent[key] = value
+    parent["process_variant_profile_module_id"] = child.get("module_id")
+    parent["module_id"] = parent_module_id
+    return parent
+
+
+def _attach_reconciliation_projection(parent: dict, child: dict) -> dict:
+    parent["match_reconciliation_module_id"] = child.get("module_id")
+    parent["match_reconciliation_status"] = child.get("status")
+    parent["reciprocal_consistency_edge_count"] = child.get("reciprocal_consistency_edge_count", 0)
+    parent["player_process_membership_row_count"] = child.get("player_process_membership_row_count", 0)
+    parent["player_team_episode_reconciliation_state"] = child.get("player_team_episode_reconciliation_state")
+    parent["player_team_episode_union_consistent_team_count"] = child.get("player_team_episode_union_consistent_team_count", 0)
+    parent["match_reconciliation_is_player_quality_truth"] = False
+    parent["match_reconciliation_is_tactical_truth"] = False
+    return parent
+
+
+def _attach_activity_projection(parent: dict, child: dict) -> dict:
+    parent["team_episode_activity_module_id"] = child.get("module_id")
+    parent["team_episode_activity_status"] = child.get("status")
+    parent["team_episode_activity_row_count"] = child.get("team_episode_activity_row_count", 0)
+    parent["known_team_eligible_action_candidate_count"] = child.get("known_team_eligible_action_candidate_count", 0)
+    parent["unknown_team_eligible_action_candidate_count"] = child.get("unknown_team_eligible_action_candidate_count", 0)
+    parent["known_team_attribution_coverage_candidate"] = child.get("known_team_attribution_coverage_candidate")
+    parent["team_episode_activity_is_phase_truth"] = False
+    return parent
+
+
+def _attach_geometry_projection(parent: dict, child: dict) -> dict:
+    parent["visible_geometry_module_id"] = child.get("module_id")
+    parent["visible_geometry_status"] = child.get("status")
+    parent["team_period_geometry_row_count"] = child.get("team_period_geometry_row_count", 0)
+    parent["player_period_geometry_row_count"] = child.get("player_period_geometry_row_count", 0)
+    parent["visible_geometry_direction_normalized"] = False
+    parent["visible_geometry_is_team_shape_truth"] = False
+    return parent
+
+
+def _attach_player_aggregate_projection(parent: dict, child: dict) -> dict:
+    parent["player_aggregate_process_reconciliation_module_id"] = child.get("module_id")
+    parent["player_aggregate_process_reconciliation_status"] = child.get("status")
+    parent["player_aggregate_dossier_count"] = child.get("player_dossier_count", 0)
+    parent["xlsx_player_row_count"] = child.get("xlsx_player_row_count", 0)
+    parent["xlsx_player_row_bound_count"] = child.get("xlsx_player_row_bound_count", 0)
+    parent["players_with_visible_process_membership_count"] = child.get("players_with_visible_process_membership_count", 0)
+    parent["player_aggregate_validated_player_identity"] = False
+    parent["player_aggregate_metric_truth"] = False
+    return parent
+
+
+def _attach_robustness_projection(parent: dict, child: dict) -> dict:
+    parent["process_robustness_module_id"] = child.get("module_id")
+    parent["process_robustness_status"] = child.get("status")
+    parent["process_robustness_row_count"] = child.get("process_robustness_row_count", 0)
+    parent["repeated_process_robustness_row_count"] = child.get("repeated_process_robustness_row_count", 0)
+    parent["segment_only_risk_profile_count"] = child.get("segment_only_risk_profile_count", 0)
+    parent["leave_one_episode_scope_out_survives_profile_count"] = child.get("leave_one_episode_scope_out_survives_profile_count", 0)
+    parent["leave_top_anchor_actor_out_survives_profile_count"] = child.get("leave_top_anchor_actor_out_survives_profile_count", 0)
+    parent["process_robustness_is_stable_pattern_truth"] = False
+    return parent
+
+
+def _attach_metric_projection(parent: dict, child: dict) -> dict:
+    parent["process_metric_profile_module_id"] = child.get("module_id")
+    parent["process_metric_profile_status"] = child.get("status")
+    parent["metric_definition_count"] = child.get("metric_definition_count", 0)
+    parent["process_metric_row_count"] = child.get("process_metric_row_count", 0)
+    parent["team_visible_activity_metric_row_count"] = child.get("team_visible_activity_metric_row_count", 0)
+    parent["composite_metrics_are_calibrated"] = False
+    parent["statistical_significance_tested"] = False
+    return parent
+
+
+def _attach_finding_projection(parent: dict, child: dict) -> dict:
+    parent["professional_finding_candidate_module_id"] = child.get("module_id")
+    parent["professional_finding_candidate_status"] = child.get("status")
+    parent["professional_finding_candidate_count"] = child.get("professional_finding_candidate_count", 0)
+    parent["qualified_multi_episode_candidate_count"] = child.get("qualified_multi_episode_candidate_count", 0)
+    parent["fragile_local_repeat_candidate_count"] = child.get("fragile_local_repeat_candidate_count", 0)
+    parent["blocked_incomplete_episode_binding_candidate_count"] = child.get("blocked_incomplete_episode_binding_candidate_count", 0)
+    parent["professional_finding_claim_output_allowed_count"] = child.get("claim_output_allowed_count", 0)
+    parent["professional_finding_emitted_count"] = child.get("professional_finding_emitted_count", 0)
+    parent["professional_finding_context_contrast_status"] = child.get("context_contrast_status")
+    parent["professional_finding_context_contrast_evaluated_candidate_count"] = child.get("context_contrast_evaluated_candidate_count", 0)
+    parent["professional_finding_context_variation_candidate_count"] = child.get("findings_with_visible_context_variation_candidate_count", 0)
+    parent["professional_finding_alternative_explanation_status"] = child.get("alternative_explanation_status")
+    parent["professional_finding_alternative_explanation_evaluated_candidate_count"] = child.get("alternative_explanation_evaluated_candidate_count", 0)
+    parent["professional_finding_duplicate_reflection_risk_status"] = child.get("duplicate_reflection_risk_status")
+    parent["professional_finding_duplicate_reflection_risk_evaluated_candidate_count"] = child.get("duplicate_reflection_risk_evaluated_candidate_count", 0)
+    parent["professional_finding_dependent_or_reused_reflection_support_count"] = child.get("findings_with_dependent_or_reused_reflection_support_count", 0)
+    return parent
 
 
 def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str | None = None) -> dict:
@@ -50,25 +207,12 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "counter_response_visible_count": 0,
         "episode_bound_chain_count": 0,
         "unknown_episode_binding_count": 0,
-        "same_time_response_candidate_block_count": 0,
-        "response_family_pair_counts": {},
         "outcome_contrast_candidates": [],
         "outcome_contrast_candidate_count": 0,
-        "different_outcome_analogue_link_count": 0,
-        "same_outcome_support_link_count": 0,
-        "outcome_contrast_status": "FAIL_CLOSED",
-        "outcome_contrast_is_independent_evidence": False,
         "defeasible_process_finding_inputs": [],
         "defeasible_process_finding_input_count": 0,
-        "finding_input_status": "FAIL_CLOSED",
-        "finding_input_is_final_finding": False,
-        "finding_input_is_independent_evidence": False,
         "reciprocal_c4_packet_candidates": [],
         "reciprocal_c4_packet_candidate_count": 0,
-        "reciprocal_c4_adapter_status": "FAIL_CLOSED",
-        "reciprocal_c4_adapter_creates_new_engine": False,
-        "reciprocal_c4_adapter_creates_independent_evidence": False,
-        "reciprocal_c4_adapter_emits_final_finding": False,
         "process_variant_profiles": [],
         "process_variant_profile_count": 0,
         "repeated_process_variant_profile_count": 0,
@@ -77,9 +221,18 @@ def _fail_payload(sequence_payload: dict, reason: str, episode_lane_status: str 
         "outcome_variation_profile_count": 0,
         "incomplete_episode_binding_profile_count": 0,
         "process_variant_profile_status": "FAIL_CLOSED",
-        "process_variant_profile_is_recurrence_truth": False,
-        "process_variant_profile_is_tactical_truth": False,
-        "process_variant_profile_creates_independent_evidence": False,
+        "match_reconciliation_status": "FAIL_CLOSED",
+        "team_episode_activity_status": "FAIL_CLOSED",
+        "visible_geometry_status": "FAIL_CLOSED",
+        "player_aggregate_process_reconciliation_status": "NOT_EVALUATED_UPSTREAM_FAIL_CLOSED",
+        "process_robustness_status": "FAIL_CLOSED",
+        "process_metric_profile_status": "FAIL_CLOSED",
+        "professional_finding_candidate_status": "FAIL_CLOSED",
+        "professional_finding_context_contrast_status": "FAIL_CLOSED",
+        "professional_finding_alternative_explanation_status": "FAIL_CLOSED",
+        "professional_finding_duplicate_reflection_risk_status": "FAIL_CLOSED",
+        "player_process_membership_row_count": 0,
+        "professional_finding_claim_output_allowed_count": 0,
         "hard_block_hits": [reason],
         "review_hits": [],
         "same_timestamp_internal_ordering_allowed": False,
@@ -102,10 +255,17 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = reciprocal.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
 
-    # This producer owns exactly three variant artifacts. Remove only those at the
-    # beginning of every invocation so an upstream early failure cannot leave stale
-    # process-variant outputs from a previous successful match/run.
     clear_process_variant_profile_outputs(output)
+    owned_groups = {
+        "match_reconciliation": (RECONCILIATION_JSON, RECONCILIATION_TXT, RECONCILIATION_ANALYST_TXT),
+        "team_episode_activity": (ACTIVITY_JSON, ACTIVITY_TXT, ACTIVITY_ANALYST_TXT),
+        "visible_geometry": (GEOMETRY_JSON, GEOMETRY_TXT, GEOMETRY_ANALYST_TXT),
+        "player_aggregate_process_reconciliation": (PLAYER_AGGREGATE_JSON, PLAYER_AGGREGATE_TXT, PLAYER_AGGREGATE_ANALYST_TXT),
+        "process_robustness": (ROBUSTNESS_JSON, ROBUSTNESS_TXT, ROBUSTNESS_ANALYST_TXT),
+        "process_metric_profile": (METRIC_JSON, METRIC_TXT, METRIC_ANALYST_TXT),
+        "professional_finding_candidate": (FINDING_JSON, FINDING_TXT, FINDING_ANALYST_TXT),
+    }
+    cleared = {label: _clear_owned_outputs(output, names) for label, names in owned_groups.items()}
 
     sequence_payload = current_sequence.runtime_write_outputs(input_dir, output)
     if sequence_payload.get("status") == "FAIL_CLOSED":
@@ -133,31 +293,115 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
     temporal_payload = _load(temporal_path)
     payload = reciprocal.build_reciprocal_process_chains(sequence_payload, temporal_payload)
-    # Outcome contrast, finding-input envelopes and C4 packet candidates are
-    # dependent projections over already-built reciprocal candidates. The C4
-    # adapter targets the existing composite packet contract; it is not a new
-    # reasoning engine and it does not create occurrences, episodes, independent
-    # votes, causal/tactical truth or final findings.
     payload = attach_outcome_contrast(payload)
 
-    # Donor-derived process-mining ideas are adapted here as a thin downstream
-    # profile over current reciprocal candidates. This does not create a second
-    # sequence engine or promote visible repetition into recurrence truth.
     variant_payload = build_process_variant_profiles(payload)
     payload = _attach_variant_projection(payload, variant_payload)
     variant_paths = write_process_variant_profile_outputs(variant_payload, output)
-    payload["process_variant_profile_outputs"] = {
-        key: str(path) for key, path in variant_paths.items()
-    }
+
+    trace_payload = _load(output / TRACE_JSON)
+    evidence_payload = _load(output / EVIDENCE_JSON)
+    identity_payload = _load(output / IDENTITY_JSON)
+    context_payload = _load(output / CONTEXT_JSON)
+    semantic_payload = _load(output / SEMANTIC_JSON)
+    analyst_episode_payload = _load(output / EPISODE_JSON)
+
+    reconciliation_payload = build_match_reconciliation_ledger(payload, sequence_payload, trace_payload, identity_payload)
+    reconciliation_paths = write_match_reconciliation_outputs(reconciliation_payload, output)
+    payload = _attach_reconciliation_projection(payload, reconciliation_payload)
+
+    activity_payload = build_team_episode_activity_lens(
+        context_payload,
+        semantic_payload,
+        analyst_episode_payload,
+        identity_payload,
+    )
+    activity_paths = write_team_episode_activity_outputs(activity_payload, output)
+    payload = _attach_activity_projection(payload, activity_payload)
+
+    geometry_payload = build_visible_geometry_lens(trace_payload, identity_payload)
+    geometry_paths = write_visible_geometry_outputs(geometry_payload, output)
+    payload = _attach_geometry_projection(payload, geometry_payload)
+
+    player_aggregate_payload: dict | None = None
+    player_aggregate_paths: dict[str, Path] = {}
+    xlsx_payload = _load(output / XLSX_JSON)
+    if xlsx_payload:
+        player_aggregate_payload = build_player_aggregate_process_reconciliation(
+            xlsx_payload,
+            identity_payload,
+            reconciliation_payload,
+            geometry_payload,
+        )
+        player_aggregate_paths = write_player_aggregate_outputs(player_aggregate_payload, output)
+        payload = _attach_player_aggregate_projection(payload, player_aggregate_payload)
+    else:
+        payload["player_aggregate_process_reconciliation_status"] = "NOT_EVALUATED_XLSX_SURFACE_NOT_AVAILABLE"
+        payload["player_aggregate_dossier_count"] = 0
+        payload["xlsx_player_row_count"] = 0
+        payload["xlsx_player_row_bound_count"] = 0
+        payload["player_aggregate_validated_player_identity"] = False
+        payload["player_aggregate_metric_truth"] = False
+
+    robustness_payload = build_process_robustness_lens(payload, reconciliation_payload)
+    robustness_paths = write_process_robustness_outputs(robustness_payload, output)
+    payload = _attach_robustness_projection(payload, robustness_payload)
+
+    metric_payload = build_process_metric_profile(robustness_payload, activity_payload, payload)
+    metric_paths = write_process_metric_outputs(metric_payload, output)
+    payload = _attach_metric_projection(payload, metric_payload)
+
+    finding_payload = build_professional_finding_candidates(
+        payload,
+        robustness_payload,
+        metric_payload,
+        reconciliation_payload,
+    )
+    finding_payload = attach_visible_episode_context_contrast(
+        finding_payload,
+        payload,
+        activity_payload,
+    )
+    finding_payload = attach_duplicate_reflection_risk(
+        finding_payload,
+        payload,
+        trace_payload,
+        evidence_payload,
+    )
+    finding_paths = write_professional_finding_outputs(finding_payload, output)
+    payload = _attach_finding_projection(payload, finding_payload)
+
+    payload["cleared_stale_dependent_outputs"] = cleared
+    dependent_rows = [
+        ("match_reconciliation", reconciliation_payload),
+        ("team_episode_activity", activity_payload),
+        ("visible_geometry", geometry_payload),
+        ("process_robustness", robustness_payload),
+        ("process_metric_profile", metric_payload),
+        ("professional_finding_candidate", finding_payload),
+    ]
+    if player_aggregate_payload is not None:
+        dependent_rows.append(("player_aggregate_process_reconciliation", player_aggregate_payload))
+    for label, dependent in dependent_rows:
+        if dependent.get("status") == "FAIL_CLOSED":
+            payload.setdefault("review_hits", []).append(f"{label}_fail_closed_dependent_surface")
 
     payload["current_sequence_status"] = sequence_payload.get("status")
     payload["current_episode_lane_status"] = episode_lane.get("status")
     payload["current_temporal_generated"] = current_temporal_generated
     payload["active_match_evidence_pass"] = False
-    paths = reciprocal.write_outputs(payload, output)
+
+    parent_paths = reciprocal.write_outputs(payload, output)
     payload["outputs"] = {
-        **{key: str(path) for key, path in paths.items()},
+        **{key: str(path) for key, path in parent_paths.items()},
         **{f"process_variant_{key}": str(path) for key, path in variant_paths.items()},
+        **{f"match_reconciliation_{key}": str(path) for key, path in reconciliation_paths.items()},
+        **{f"team_episode_activity_{key}": str(path) for key, path in activity_paths.items()},
+        **{f"visible_geometry_{key}": str(path) for key, path in geometry_paths.items()},
+        **{f"player_aggregate_{key}": str(path) for key, path in player_aggregate_paths.items()},
+        **{f"process_robustness_{key}": str(path) for key, path in robustness_paths.items()},
+        **{f"process_metric_{key}": str(path) for key, path in metric_paths.items()},
+        **{f"professional_finding_{key}": str(path) for key, path in finding_paths.items()},
     }
     return payload
 
@@ -172,22 +416,36 @@ def main() -> int:
         "status": payload.get("status"),
         "current_sequence_status": payload.get("current_sequence_status"),
         "current_episode_lane_status": payload.get("current_episode_lane_status"),
-        "current_temporal_generated": payload.get("current_temporal_generated"),
         "reciprocal_process_chain_candidate_count": payload.get("reciprocal_process_chain_candidate_count"),
-        "counter_response_visible_count": payload.get("counter_response_visible_count"),
-        "episode_bound_chain_count": payload.get("episode_bound_chain_count"),
-        "outcome_contrast_candidate_count": payload.get("outcome_contrast_candidate_count"),
-        "different_outcome_analogue_link_count": payload.get("different_outcome_analogue_link_count"),
-        "defeasible_process_finding_input_count": payload.get("defeasible_process_finding_input_count"),
-        "finding_input_status": payload.get("finding_input_status"),
-        "reciprocal_c4_packet_candidate_count": payload.get("reciprocal_c4_packet_candidate_count"),
-        "reciprocal_c4_adapter_status": payload.get("reciprocal_c4_adapter_status"),
         "process_variant_profile_count": payload.get("process_variant_profile_count"),
-        "repeated_process_variant_profile_count": payload.get("repeated_process_variant_profile_count"),
-        "multi_episode_process_variant_profile_count": payload.get("multi_episode_process_variant_profile_count"),
-        "single_episode_repeat_risk_profile_count": payload.get("single_episode_repeat_risk_profile_count"),
-        "outcome_variation_profile_count": payload.get("outcome_variation_profile_count"),
-        "same_time_response_candidate_block_count": payload.get("same_time_response_candidate_block_count"),
+        "match_reconciliation_status": payload.get("match_reconciliation_status"),
+        "player_process_membership_row_count": payload.get("player_process_membership_row_count"),
+        "player_team_episode_reconciliation_state": payload.get("player_team_episode_reconciliation_state"),
+        "team_episode_activity_status": payload.get("team_episode_activity_status"),
+        "team_episode_activity_row_count": payload.get("team_episode_activity_row_count"),
+        "visible_geometry_status": payload.get("visible_geometry_status"),
+        "team_period_geometry_row_count": payload.get("team_period_geometry_row_count"),
+        "player_period_geometry_row_count": payload.get("player_period_geometry_row_count"),
+        "player_aggregate_process_reconciliation_status": payload.get("player_aggregate_process_reconciliation_status"),
+        "player_aggregate_dossier_count": payload.get("player_aggregate_dossier_count"),
+        "xlsx_player_row_count": payload.get("xlsx_player_row_count"),
+        "xlsx_player_row_bound_count": payload.get("xlsx_player_row_bound_count"),
+        "process_robustness_status": payload.get("process_robustness_status"),
+        "repeated_process_robustness_row_count": payload.get("repeated_process_robustness_row_count"),
+        "segment_only_risk_profile_count": payload.get("segment_only_risk_profile_count"),
+        "process_metric_profile_status": payload.get("process_metric_profile_status"),
+        "metric_definition_count": payload.get("metric_definition_count"),
+        "professional_finding_candidate_status": payload.get("professional_finding_candidate_status"),
+        "professional_finding_candidate_count": payload.get("professional_finding_candidate_count"),
+        "qualified_multi_episode_candidate_count": payload.get("qualified_multi_episode_candidate_count"),
+        "professional_finding_context_contrast_status": payload.get("professional_finding_context_contrast_status"),
+        "professional_finding_context_contrast_evaluated_candidate_count": payload.get("professional_finding_context_contrast_evaluated_candidate_count"),
+        "professional_finding_context_variation_candidate_count": payload.get("professional_finding_context_variation_candidate_count"),
+        "professional_finding_alternative_explanation_status": payload.get("professional_finding_alternative_explanation_status"),
+        "professional_finding_duplicate_reflection_risk_status": payload.get("professional_finding_duplicate_reflection_risk_status"),
+        "professional_finding_duplicate_reflection_risk_evaluated_candidate_count": payload.get("professional_finding_duplicate_reflection_risk_evaluated_candidate_count"),
+        "professional_finding_dependent_or_reused_reflection_support_count": payload.get("professional_finding_dependent_or_reused_reflection_support_count"),
+        "professional_finding_claim_output_allowed_count": payload.get("professional_finding_claim_output_allowed_count"),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",

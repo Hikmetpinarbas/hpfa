@@ -1,0 +1,39 @@
+{
+  "module_id": "team_episode_activity_lens_lite_v1",
+  "version": "1.0.0-candidate",
+  "purpose": "Describe team-conditioned visible activity inside admitted analyst episode scopes using reviewed provider action semantics without promoting activity into possession or tactical phase truth.",
+  "inputs": [
+    "minimum_viable_context_lite_v1",
+    "context_action_semantics_rebind_lite_v1",
+    "analyst_episode_locator_lite_v1",
+    "match_local_identity_candidates_lite_v1"
+  ],
+  "action_family_source": "REVIEWED_PROVIDER_SEMANTICS",
+  "signals": {
+    "CIRCULATION_ACTIVITY_CANDIDATE": ["PASS"],
+    "CARRY_DRIBBLE_ACTIVITY_CANDIDATE": ["CARRY", "DRIBBLE"],
+    "DUEL_TACKLE_ACTIVITY_CANDIDATE": ["DUEL", "TACKLE"],
+    "LOSS_ACTIVITY_CANDIDATE": ["TURNOVER"],
+    "RECOVERY_INTERCEPTION_ACTIVITY_CANDIDATE": ["RECOVERY", "INTERCEPTION"],
+    "CLEARANCE_ACTIVITY_CANDIDATE": ["CLEARANCE"],
+    "ADVANCED_ACCESS_ACTIVITY_CANDIDATE": ["FINAL_THIRD_ZONE"],
+    "TERMINAL_ACTIVITY_CANDIDATE": ["SHOT"],
+    "RESTART_RESET_ACTIVITY_CANDIDATE": ["RESTART"]
+  },
+  "football_groupings": {
+    "on_ball_attacking_visibility": ["CIRCULATION_ACTIVITY_CANDIDATE", "CARRY_DRIBBLE_ACTIVITY_CANDIDATE", "ADVANCED_ACCESS_ACTIVITY_CANDIDATE", "TERMINAL_ACTIVITY_CANDIDATE"],
+    "loss_and_defensive_action_visibility": ["LOSS_ACTIVITY_CANDIDATE", "RECOVERY_INTERCEPTION_ACTIVITY_CANDIDATE", "DUEL_TACKLE_ACTIVITY_CANDIDATE", "CLEARANCE_ACTIVITY_CANDIDATE"],
+    "restart_visibility": ["RESTART_RESET_ACTIVITY_CANDIDATE"]
+  },
+  "claim_boundary": {
+    "signals_are_mutually_exclusive_phases": false,
+    "possession_truth": false,
+    "phase_truth": false,
+    "tactical_truth": false,
+    "dominance_truth": false,
+    "pressure_geometry_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}
