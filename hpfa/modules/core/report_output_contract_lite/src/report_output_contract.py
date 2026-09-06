@@ -12,6 +12,8 @@ OUTPUT_TXT = "report_output_contract_lite_v1.txt"
 UPSTREAM_CLAIM_CEILING = "analyst_report_block_candidate_only"
 OUTPUT_CONTRACT_CLAIM_CEILING = "report_output_contract_candidate_only"
 MISSING_REPORT_BLOCK_ID = "MISSING_REPORT_BLOCK_ID"
+SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
 
 FORBIDDEN_UPSTREAM_FIELDS = {
     "claim_text",
@@ -151,6 +153,7 @@ def _forbidden_text_hits(text: str) -> list[str]:
 
 
 def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    block_family = str(block.get("block_family") or "")
     family_refs = sorted(set(_string_list(block.get("trace_family_refs"))))
     trace_refs = sorted(set(_string_list(block.get("trace_variant_refs"))))
     counter_refs = sorted(set(_string_list(block.get("counterevidence_refs"))))
@@ -182,8 +185,17 @@ def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
         hits.append("sequence_lineage_withdrawal_condition_missing")
     if not upstream_claim_ceiling:
         hits.append("sequence_lineage_upstream_claim_ceiling_missing")
-    if str(block.get("block_family") or "") == "sequence_narrative_analyst_reading_candidate" and not origin_claim_ceiling:
-        hits.append("sequence_lineage_origin_claim_ceiling_missing")
+    elif block_family == "sequence_safe_finding_analyst_reading_candidate" and upstream_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING:
+        hits.append("sequence_lineage_upstream_claim_ceiling_mismatch")
+    elif block_family == "sequence_narrative_analyst_reading_candidate" and upstream_claim_ceiling != SEQUENCE_NARRATIVE_CLAIM_CEILING:
+        hits.append("sequence_lineage_upstream_claim_ceiling_mismatch")
+    if block_family == "sequence_narrative_analyst_reading_candidate":
+        if not origin_claim_ceiling:
+            hits.append("sequence_lineage_origin_claim_ceiling_missing")
+        elif origin_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING:
+            hits.append("sequence_lineage_origin_claim_ceiling_mismatch")
+    elif origin_claim_ceiling:
+        hits.append("sequence_lineage_unexpected_origin_claim_ceiling")
     return {
         "trace_family_refs": family_refs,
         "trace_variant_refs": trace_refs,
