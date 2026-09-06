@@ -1,6 +1,6 @@
 {
   "module_id": "sequence_pattern_admission_lite_v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "owner_path": "professional_finding_candidate_lite",
   "purpose": "Gate recurrent visible trace evidence into analyst-safe pattern candidates without promoting frequency, similarity or robustness into tactical-pattern, team-style, coach-intention or causal truth.",
   "reused_inputs": [
@@ -46,7 +46,16 @@
     "player_team_goalkeeper_views_are_independent_support": false,
     "csv_xml_reflections_are_independent_support": false,
     "robust_recurrent_visible_trace_requires_explicit_independence_admission": true,
+    "independence_group_by_trace_ref_must_cover_exact_eligible_trace_set": true,
+    "declared_independent_support_must_equal_recomputed_distinct_group_count": true,
+    "declared_independence_groups_must_equal_trace_bound_group_set": true,
     "unknown_independent_support_value": "UNKNOWN"
+  },
+  "robustness_binding_rules": {
+    "robustness_envelope_must_match_current_eligible_trace_cohort": true,
+    "nominal_recurrence_must_equal_current_observed_support": true,
+    "envelope_trace_refs_must_equal_current_eligible_trace_refs": true,
+    "cohort_mismatch_state": "REVIEW_REQUIRED"
   },
   "counterevidence_rules": {
     "no_visible_followup_is_failure": false,
@@ -75,6 +84,8 @@
   "required_tests": [
     "test_robust_nominal_recurrence_without_independence_stops_at_recurrent_visible_trace",
     "test_robust_recurrent_state_requires_explicit_independence_admission",
+    "test_declared_independent_support_is_recomputed_from_trace_bound_groups",
+    "test_robustness_envelope_must_match_current_eligible_trace_cohort",
     "test_threshold_sensitive_candidate_is_not_robust_pattern",
     "test_single_visible_trace_is_rejected_insufficient_evidence",
     "test_no_visible_followup_cannot_be_reclassified_as_failure_by_gate",
