@@ -84,6 +84,34 @@ def test_sequence_support_and_anchor_consistency_are_revalidated():
     assert "assembly_sequence_anchor_not_in_trace_cohort" in result["hard_block_hits"]
 
 
+def test_sequence_claim_ceiling_vocabulary_and_hop_are_revalidated():
+    item = sequence_contract_item()
+    item["sequence_evidence_lineage"]["upstream_claim_ceiling"] = "TACTICAL_PATTERN_TRUTH"
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_sequence_upstream_claim_ceiling_mismatch" in result["hard_block_hits"]
+
+    item = sequence_contract_item()
+    item["sequence_evidence_lineage"]["origin_claim_ceiling"] = "CAUSAL_TRUTH"
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_sequence_origin_claim_ceiling_mismatch" in result["hard_block_hits"]
+
+    item = sequence_contract_item()
+    item["block_family"] = "sequence_safe_finding_analyst_reading_candidate"
+    item["sequence_evidence_lineage"]["upstream_claim_ceiling"] = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_sequence_unexpected_origin_claim_ceiling" in result["hard_block_hits"]
+
+    item = sequence_contract_item()
+    item["block_family"] = "sequence_safe_finding_analyst_reading_candidate"
+    item["sequence_evidence_lineage"]["upstream_claim_ceiling"] = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+    item["sequence_evidence_lineage"]["origin_claim_ceiling"] = ""
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "SMOKE_PASS"
+
+
 def test_claim_locks_cannot_be_promoted_at_assembly_boundary():
     item = sequence_contract_item()
     item["true_action_count"] = 2
