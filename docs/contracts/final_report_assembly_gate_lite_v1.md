@@ -10,7 +10,7 @@ It does not create final report text, claim text, production report output or fo
 
 ## Football value
 
-The analyst can move a report-output candidate toward draft assembly only while its evidence limits remain attached. Sequence-derived prose cannot detach from the exact supporting trace cohort, dependency state, robustness, uncertainty, withdrawal condition or admitted claim ceiling that made the prose admissible.
+The analyst can move a report-output candidate toward draft assembly only while its evidence limits remain attached. Sequence-derived prose cannot detach from the exact supporting trace cohort, dependency state, robustness, uncertainty, withdrawal condition, audited null/context qualification or admitted claim ceiling that made the prose admissible.
 
 ## Runtime authority
 
@@ -55,6 +55,8 @@ withdrawal_condition
 observed_support
 upstream_claim_ceiling
 origin_claim_ceiling on the narrative path
+null_contrast_summary when present
+context_variations when present
 ```
 
 Claim-ceiling vocabulary is structural evidence, not free text. The assembly gate revalidates the exact hop already admitted by Report Output Contract Lite:
@@ -71,6 +73,10 @@ sequence_narrative_analyst_reading_candidate
 
 Unknown, tactical, causal or otherwise escalated values fail closed even if trace provenance is otherwise complete.
 
+When `null_contrast_summary` is present, assembly preserves it without recomputing the null model and revalidates `claim_strengthened=false`. Any evaluated null contrast must keep `significance_claim_allowed=false` and `tactical_pattern_truth_allowed=false`. An uncorrected upper-tail probability is descriptive audited evidence, not a significance claim.
+
+When `context_variations` are present, assembly preserves them and revalidates that baseline/comparison trace refs remain within the exact supporting trace cohort. `chronology_direction_claimed`, `causality_claimed`, `tactical_adaptation_claimed`, and `coach_intention_claimed` must remain false.
+
 Invariants:
 
 ```text
@@ -80,7 +86,10 @@ missing sequence lineage => FAIL_CLOSED
 missing required lineage field => FAIL_CLOSED
 claim-ceiling vocabulary mismatch => FAIL_CLOSED
 claim-ceiling hop mismatch => FAIL_CLOSED
-lineage survives assembly unchanged
+null/context lineage survives assembly unchanged when present
+null evidence cannot become significance or tactical-pattern truth
+context variation cannot become causality, tactical adaptation or coach intention
+context trace refs remain inside exact supporting cohort
 canonical_event_count=UNKNOWN
 true_action_count=UNKNOWN
 production_release=false
@@ -116,6 +125,10 @@ causal truth
 quality truth
 sequence truth
 organism truth
+null-derived significance claim
+null-derived tactical-pattern truth
+context-derived causality claim
+context-derived tactical-adaptation claim
 canonical event count claim
 true action count claim
 production release claim
@@ -159,6 +172,14 @@ assembly_sequence_upstream_claim_ceiling_mismatch
 assembly_sequence_origin_claim_ceiling_missing
 assembly_sequence_origin_claim_ceiling_mismatch
 assembly_sequence_unexpected_origin_claim_ceiling
+assembly_sequence_null_contrast_summary_invalid
+assembly_sequence_null_contrast_claim_strengthened
+assembly_sequence_null_contrast_significance_lock_breach
+assembly_sequence_null_contrast_tactical_truth_lock_breach
+assembly_sequence_context_variations_invalid
+assembly_sequence_context_variation_invalid
+assembly_sequence_context_variation_claim_lock_breach:<flag>
+assembly_sequence_context_variation_trace_lineage_mismatch
 ```
 
 ## Review route
@@ -175,7 +196,7 @@ If the upstream contract item carries `inclusion_decision=REVIEW_BLOCK`, the ass
 
 ## Regression requirements
 
-C4 must continue running the full `final_report_assembly_gate_lite/tests` suite. Sequence regressions cover exact lineage preservation, missing-lineage fail-closed behavior, cohort/support and anchor consistency, exact claim-ceiling vocabulary/hop revalidation, claim locks and production-code sample-identity leakage.
+C4 must continue running the full `final_report_assembly_gate_lite/tests` suite. Sequence regressions cover exact lineage preservation, missing-lineage fail-closed behavior, cohort/support and anchor consistency, exact claim-ceiling vocabulary/hop revalidation, null/context preservation and claim-lock revalidation, global claim locks and production-code sample-identity leakage.
 
 ## Release status
 
