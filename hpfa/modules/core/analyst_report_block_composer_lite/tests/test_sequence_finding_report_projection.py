@@ -2,6 +2,7 @@ from pathlib import Path
 
 from hpfa.modules.core.analyst_report_block_composer_lite.src.sequence_finding_report_projection import (
     compose_sequence_finding_report,
+    compose_sequence_narrative_report,
 )
 
 
@@ -31,6 +32,50 @@ def _payload(*, state="RECURRENT_VISIBLE_TRACE", independent="UNKNOWN", source_s
             "FORBIDDEN_INFERENCE": ["TACTICAL_PATTERN_TRUTH", "CAUSALITY"],
             "ANALYST_ACTION": "Review the twins.",
             "withdrawal_condition": "Downgrade if evidence changes.",
+            "claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY",
+        }],
+        "hard_block_hits": [],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
+def _narrative_payload(source_status="PASS"):
+    return {
+        "module_id": "sequence_analyst_narrative_lite_v1",
+        "status": source_status,
+        "narrative_blocks": [{
+            "narrative_id": "sequence_story_001",
+            "entity_scope": "team_a",
+            "context_scope": [{"period_candidate": "1"}],
+            "trace_family_refs": ["trace_a"],
+            "trace_variant_refs": ["trace_a", "trace_b", "trace_c"],
+            "headline_tr": "Aynı görünür süreç tekrarlandı.",
+            "evidence_tr": "Görünür destek 3 örnek.",
+            "counterweight_tr": "Karşı örnek mevcut.",
+            "safe_meaning_tr": "Maç içi görünür tekrar adayıdır.",
+            "analyst_action_tr": "Örnekleri birlikte incele.",
+            "story_tr": "Aynı görünür süreç tekrarlandı. Görünür destek 3 örnek. Karşı örnek mevcut.",
+            "support": 3,
+            "success_support": 1,
+            "failure_support": 1,
+            "divergence_support": 1,
+            "no_visible_followup_support": 0,
+            "counterevidence_refs": ["trace_b"],
+            "counterevidence_ref_count": 1,
+            "admission_state": "RECURRENT_VISIBLE_TRACE",
+            "dependency_summary": {"independence_proven": False, "dependency_groups": ["dep_a"]},
+            "robustness_summary": {"robustness_state": "CONDITIONAL"},
+            "uncertainty": {"independence": "UNKNOWN"},
+            "withdrawal_condition": "Downgrade if evidence changes.",
+            "upstream_claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY",
+            "claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY",
+            "forbidden_inference": ["causality"],
+            "claim_output_allowed": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
         }],
         "hard_block_hits": [],
         "canonical_event_count": "UNKNOWN",
@@ -55,6 +100,7 @@ def test_exact_trace_cohort_and_epistemic_payload_survive_projection():
     assert row["uncertainty"]["recurrence_is_tactical_intention_truth"] is False
     assert row["robustness_summary"]["robustness_state"] == "ROBUST_WITHIN_TESTED_RANGE"
     assert row["withdrawal_condition"] == "Downgrade if evidence changes."
+    assert row["upstream_claim_ceiling"] == "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
 
 
 def test_missing_or_mismatched_trace_cohort_fails_closed_in_projection():
@@ -77,10 +123,11 @@ def test_missing_epistemic_lineage_fails_closed_in_projection():
         ("robustness_summary", "sequence_finding_missing_robustness_summary:family_a"),
         ("uncertainty", "sequence_finding_missing_uncertainty:family_a"),
         ("withdrawal_condition", "sequence_finding_missing_withdrawal_condition:family_a"),
+        ("claim_ceiling", "sequence_finding_missing_claim_ceiling:family_a"),
     )
     for field, expected_hit in cases:
         payload = _payload()
-        payload["analyst_report_blocks"][0][field] = {} if field != "withdrawal_condition" else ""
+        payload["analyst_report_blocks"][0][field] = {} if field not in {"withdrawal_condition", "claim_ceiling"} else ""
         result = compose_sequence_finding_report(payload)
         assert result["status"] == "FAIL_CLOSED"
         assert result["report_block_count"] == 0
@@ -123,8 +170,42 @@ def test_outcome_partition_cannot_exceed_observed_support():
     assert result["report_block_count"] == 0
 
 
+def test_narrative_report_preserves_full_evidence_lineage():
+    row = compose_sequence_narrative_report(_narrative_payload())["report_blocks"][0]
+    assert row["trace_variant_refs"] == ["trace_a", "trace_b", "trace_c"]
+    assert row["counterevidence_refs"] == ["trace_b"]
+    assert row["dependency_summary"]["dependency_groups"] == ["dep_a"]
+    assert row["robustness_summary"]["robustness_state"] == "CONDITIONAL"
+    assert row["uncertainty"]["independence"] == "UNKNOWN"
+    assert row["withdrawal_condition"] == "Downgrade if evidence changes."
+    assert row["upstream_claim_ceiling"] == "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
+    assert row["origin_claim_ceiling"] == "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+
+
+def test_narrative_report_fails_closed_when_counterevidence_lineage_is_lost():
+    payload = _narrative_payload()
+    payload["narrative_blocks"][0]["counterevidence_refs"] = []
+    result = compose_sequence_narrative_report(payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "narrative_counterevidence_lineage_mismatch:sequence_story_001" in result["hard_block_hits"]
+
+
+def test_narrative_report_fails_closed_when_claim_ceiling_lineage_is_missing():
+    payload = _narrative_payload()
+    payload["narrative_blocks"][0]["upstream_claim_ceiling"] = ""
+    result = compose_sequence_narrative_report(payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "narrative_missing_claim_ceiling_lineage:sequence_story_001" in result["hard_block_hits"]
+
+
+def test_narrative_review_state_cannot_silently_become_pass():
+    result = compose_sequence_narrative_report(_narrative_payload("REVIEW_REQUIRED"))
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["report_blocks"][0]["status"] == "REVIEW_REQUIRED"
+
+
 def test_claim_locks_remain_closed():
-    result = compose_sequence_finding_report(_payload())
+    result = compose_sequence_narrative_report(_narrative_payload())
     row = result["report_blocks"][0]
     assert row["claim_output_allowed"] is False
     assert row["production_report_allowed"] is False
