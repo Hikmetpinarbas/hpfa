@@ -154,6 +154,8 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
     upstream_claim_ceiling = str(lineage.get("upstream_claim_ceiling") or "").strip()
     origin_claim_ceiling = str(lineage.get("origin_claim_ceiling") or "").strip()
     support = lineage.get("observed_support")
+    raw_null_summary = lineage.get("null_contrast_summary")
+    raw_context_variations = lineage.get("context_variations")
     hits: list[str] = []
 
     if not family_refs:
@@ -187,6 +189,41 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
             hits.append("assembly_sequence_origin_claim_ceiling_mismatch")
     elif origin_claim_ceiling:
         hits.append("assembly_sequence_unexpected_origin_claim_ceiling")
+
+    if raw_null_summary is not None:
+        if not isinstance(raw_null_summary, dict):
+            hits.append("assembly_sequence_null_contrast_summary_invalid")
+        else:
+            if raw_null_summary.get("claim_strengthened") is not False:
+                hits.append("assembly_sequence_null_contrast_claim_strengthened")
+            null_state = str(raw_null_summary.get("state") or "NOT_EVALUATED").strip()
+            if null_state != "NOT_EVALUATED":
+                if raw_null_summary.get("significance_claim_allowed") is not False:
+                    hits.append("assembly_sequence_null_contrast_significance_lock_breach")
+                if raw_null_summary.get("tactical_pattern_truth_allowed") is not False:
+                    hits.append("assembly_sequence_null_contrast_tactical_truth_lock_breach")
+
+    if raw_context_variations is not None:
+        if not isinstance(raw_context_variations, list):
+            hits.append("assembly_sequence_context_variations_invalid")
+        else:
+            trace_ref_set = set(trace_refs)
+            for raw_variation in raw_context_variations:
+                if not isinstance(raw_variation, dict):
+                    hits.append("assembly_sequence_context_variation_invalid")
+                    continue
+                for flag in (
+                    "chronology_direction_claimed",
+                    "causality_claimed",
+                    "tactical_adaptation_claimed",
+                    "coach_intention_claimed",
+                ):
+                    if raw_variation.get(flag) is not False:
+                        hits.append(f"assembly_sequence_context_variation_claim_lock_breach:{flag}")
+                baseline_refs = set(_string_list(raw_variation.get("baseline_trace_refs")))
+                comparison_refs = set(_string_list(raw_variation.get("comparison_trace_refs")))
+                if not baseline_refs.issubset(trace_ref_set) or not comparison_refs.issubset(trace_ref_set):
+                    hits.append("assembly_sequence_context_variation_trace_lineage_mismatch")
 
     return lineage, hits
 
