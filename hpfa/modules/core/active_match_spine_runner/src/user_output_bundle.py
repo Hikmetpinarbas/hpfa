@@ -14,6 +14,9 @@ EPISODE_FEATURE_JSON = "episode_feature_vector_lite_v1.json"
 FULL_SPINE_JSON = "active_match_full_spine_v1.json"
 FULL_SPINE_TXT = "active_match_full_spine_v1.txt"
 READY_ASSEMBLY_DECISION = "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
+ASSEMBLY_CLAIM_CEILING = "final_report_assembly_candidate_only"
+SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
 SEQUENCE_BLOCK_FAMILIES = {
     "sequence_safe_finding_analyst_reading_candidate",
     "sequence_narrative_analyst_reading_candidate",
@@ -114,10 +117,15 @@ def _sequence_lineage_complete(block_family: str, lineage: Any) -> bool:
         return False
     if not str(lineage.get("withdrawal_condition") or "").strip():
         return False
-    if not str(lineage.get("upstream_claim_ceiling") or "").strip():
-        return False
-    if block_family == "sequence_narrative_analyst_reading_candidate":
-        if not str(lineage.get("origin_claim_ceiling") or "").strip():
+    upstream_claim_ceiling = str(lineage.get("upstream_claim_ceiling") or "").strip()
+    origin_claim_ceiling = str(lineage.get("origin_claim_ceiling") or "").strip()
+    if block_family == "sequence_safe_finding_analyst_reading_candidate":
+        if upstream_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING or origin_claim_ceiling:
+            return False
+    elif block_family == "sequence_narrative_analyst_reading_candidate":
+        if upstream_claim_ceiling != SEQUENCE_NARRATIVE_CLAIM_CEILING:
+            return False
+        if origin_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING:
             return False
     return True
 
@@ -144,6 +152,8 @@ def _assembly_report_entries(full_spine: dict[str, Any], limit: int = 12) -> lis
         if not text or text in seen:
             continue
         block_family = str(assembly.get("block_family") or "")
+        if block_family in SEQUENCE_BLOCK_FAMILIES and str(assembly.get("claim_ceiling") or "").strip() != ASSEMBLY_CLAIM_CEILING:
+            continue
         lineage = assembly.get("sequence_evidence_lineage")
         if not _sequence_lineage_complete(block_family, lineage):
             continue
@@ -394,7 +404,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         "Phase/state etiketleri activity candidate'dir; phase truth degildir.",
         "MICRO/MEZZO/MACRO bir evidence-routing lattice'tir; macro claim mikro/mezo evidence'dan kopamaz.",
         "Player/GK/team gorunumleri candidate identity ve aggregate cell yuzeyidir; validated identity/quality truth degildir.",
-        "User-facing analyst text final assembly admission olmadan yayinlanmaz; sequence-derived text exact lineage paketini korur.",
+        "User-facing analyst text final assembly admission olmadan yayinlanmaz; sequence-derived text exact lineage ve claim-ceiling hop paketini korur.",
         "",
         "[10] CLAIM LOCKS",
         "canonical_event_count=UNKNOWN",
@@ -482,6 +492,7 @@ def write_standard_user_outputs(
         "c4_surface_current_invocation": _c4_surface_current(full_spine),
         "analyst_text_requires_final_assembly_admission": True,
         "sequence_lineage_preserved_in_analyst_report": True,
+        "sequence_claim_ceiling_revalidated_in_analyst_report": True,
         "file_count_before_manifest": len(entries),
         "files": entries,
         "canonical_event_count": "UNKNOWN",
