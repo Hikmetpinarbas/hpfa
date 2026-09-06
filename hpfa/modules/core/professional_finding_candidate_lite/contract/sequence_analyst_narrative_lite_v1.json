@@ -1,0 +1,37 @@
+{
+  "module_id": "sequence_analyst_narrative_lite_v1",
+  "input_module_id": "sequence_safe_finding_binding_lite_v1",
+  "purpose": "Readable match-local narrative projection over already-admitted safe findings without evidence-strength escalation.",
+  "lineage_invariants": {
+    "trace_variant_refs_required": true,
+    "trace_variant_refs_preserved_exactly": true,
+    "trace_cohort_count_must_equal_observed_support": true,
+    "trace_family_anchor_must_remain_in_cohort_when_present": true,
+    "dependency_summary_required_and_preserved": true,
+    "robustness_summary_required_and_preserved": true,
+    "uncertainty_preserved": true,
+    "withdrawal_condition_preserved": true
+  },
+  "narrative_invariants": {
+    "ranking_is_football_chronology": false,
+    "narrative_discovers_new_football_facts": false,
+    "recurrence_is_tactical_pattern_truth": false,
+    "coach_intention_inference_allowed": false,
+    "causality_inference_allowed": false,
+    "tactical_plan_truth_allowed": false
+  },
+  "failure_policy": {
+    "missing_exact_trace_cohort": "FAIL_CLOSED",
+    "trace_cohort_support_mismatch": "FAIL_CLOSED",
+    "missing_dependency_summary": "FAIL_CLOSED",
+    "missing_robustness_summary": "FAIL_CLOSED",
+    "upstream_claim_lock_breach": "FAIL_CLOSED"
+  },
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false,
+    "claim_output_allowed": false
+  },
+  "claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
+}
