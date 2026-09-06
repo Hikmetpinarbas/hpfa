@@ -1,0 +1,38 @@
+name: Trace Similarity Primitive V1
+
+on:
+  push:
+    branches:
+      - feature/trace-similarity-primitive-v1
+  pull_request:
+    paths:
+      - 'hpfa/modules/core/trace_similarity_primitive_lite/**'
+      - 'hpfa/modules/core/partial_order_trace_variant_lite/**'
+      - '.github/workflows/trace-similarity-primitive-v1.yml'
+
+jobs:
+  trace-similarity-primitive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependency
+        run: python -m pip install pytest
+      - name: Run P1 similarity regressions
+        run: python -m pytest -q hpfa/modules/core/trace_similarity_primitive_lite/tests
+      - name: Run P0 dependency regressions
+        run: python -m pytest -q hpfa/modules/core/partial_order_trace_variant_lite/tests
+      - name: Compile P0/P1 modules
+        run: |
+          python -m py_compile hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
+          python -m py_compile hpfa/modules/core/trace_similarity_primitive_lite/src/trace_similarity_primitive.py
+      - name: Claim and feature lock audit
+        run: |
+          grep -R -q 'MISSING_OR_INELIGIBLE_IS_NULL_NEVER_ZERO' hpfa/modules/core/trace_similarity_primitive_lite
+          grep -R -q 'ORDER_COMPONENT_INDETERMINATE_NOT_INVENTED' hpfa/modules/core/trace_similarity_primitive_lite
+          grep -R -q 'composite_requires_explicit_weights' hpfa/modules/core/trace_similarity_primitive_lite
+          grep -R -q 'tracking_feature_used' hpfa/modules/core/trace_similarity_primitive_lite
+          grep -R -q 'canonical_event_count' hpfa/modules/core/trace_similarity_primitive_lite
+          grep -R -q 'production_release' hpfa/modules/core/trace_similarity_primitive_lite
