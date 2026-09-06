@@ -215,7 +215,8 @@ def compose_sequence_narrative_report(source_payload: dict[str, Any]) -> dict[st
     """Authoritative report projection from evidence-strength-preserving narratives.
 
     Narrative prose cannot shed its exact support cohort, counterevidence, dependency,
-    robustness, uncertainty, withdrawal semantics or upstream claim ceiling.
+    robustness, uncertainty, withdrawal semantics, audited null/context evidence or
+    upstream claim ceiling.
     """
     blocks, reviews = _validate_source_envelope(source_payload, NARRATIVE_SOURCE_MODULE_ID)
     if blocks:
@@ -237,6 +238,14 @@ def compose_sequence_narrative_report(source_payload: dict[str, Any]) -> dict[st
         withdrawal = _clean(item.get("withdrawal_condition"))
         upstream_claim_ceiling = _clean(item.get("claim_ceiling"))
         prior_claim_ceiling = _clean(item.get("upstream_claim_ceiling"))
+        raw_null_summary = item.get("null_contrast_summary")
+        if raw_null_summary is not None and not isinstance(raw_null_summary, dict):
+            return _fail(f"narrative_null_contrast_summary_invalid:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+        null_summary = dict(raw_null_summary or {})
+        raw_context_variations = item.get("context_variations")
+        if raw_context_variations is not None and not isinstance(raw_context_variations, list):
+            return _fail(f"narrative_context_variations_invalid:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+        context_variations: list[dict[str, Any]] = []
 
         if not family_refs:
             return _fail(f"narrative_missing_trace_family_refs:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
@@ -259,6 +268,35 @@ def compose_sequence_narrative_report(source_payload: dict[str, Any]) -> dict[st
         if int(item.get("counterevidence_ref_count") or 0) != len(counter_refs):
             return _fail(f"narrative_counterevidence_lineage_mismatch:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
 
+        if null_summary:
+            if null_summary.get("claim_strengthened") is not False:
+                return _fail(f"narrative_null_contrast_claim_strengthened:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+            null_state = _clean(null_summary.get("state")) or "NOT_EVALUATED"
+            if null_state != "NOT_EVALUATED":
+                if null_summary.get("significance_claim_allowed") is not False:
+                    return _fail(f"narrative_null_contrast_significance_lock_breach:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+                if null_summary.get("tactical_pattern_truth_allowed") is not False:
+                    return _fail(f"narrative_null_contrast_tactical_truth_lock_breach:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+
+        trace_ref_set = set(trace_refs)
+        for raw_variation in raw_context_variations or []:
+            if not isinstance(raw_variation, dict):
+                return _fail(f"narrative_context_variation_invalid:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+            variation = dict(raw_variation)
+            for flag in (
+                "chronology_direction_claimed",
+                "causality_claimed",
+                "tactical_adaptation_claimed",
+                "coach_intention_claimed",
+            ):
+                if variation.get(flag) is not False:
+                    return _fail(f"narrative_context_variation_claim_lock_breach:{narrative_id}:{flag}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+            baseline_refs = {_clean(x) for x in (variation.get("baseline_trace_refs") or []) if _clean(x)}
+            comparison_refs = {_clean(x) for x in (variation.get("comparison_trace_refs") or []) if _clean(x)}
+            if not baseline_refs.issubset(trace_ref_set) or not comparison_refs.issubset(trace_ref_set):
+                return _fail(f"narrative_context_variation_trace_lineage_mismatch:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+            context_variations.append(variation)
+
         report_blocks.append({
             "report_block_id": "sequence_narrative_report_" + _digest(narrative_id, trace_refs, counter_refs)[:24],
             "block_family": "sequence_narrative_analyst_reading_candidate",
@@ -267,6 +305,10 @@ def compose_sequence_narrative_report(source_payload: dict[str, Any]) -> dict[st
             "headline_tr": _clean(item.get("headline_tr")),
             "evidence_tr": _clean(item.get("evidence_tr")),
             "counterweight_tr": _clean(item.get("counterweight_tr")),
+            "null_contrast_tr": _clean(item.get("null_contrast_tr")),
+            "null_contrast_summary": null_summary,
+            "change_tr": _clean(item.get("change_tr")),
+            "context_variations": context_variations,
             "safe_meaning_tr": _clean(item.get("safe_meaning_tr")),
             "analyst_action": _clean(item.get("analyst_action_tr")),
             "source_narrative_id": narrative_id,
@@ -308,6 +350,8 @@ def compose_sequence_narrative_report(source_payload: dict[str, Any]) -> dict[st
         "hard_block_hits": [],
         "review_hits": sorted(set(reviews)),
         "lineage_preservation_required": True,
+        "null_contrast_lineage_preserved": True,
+        "context_variation_lineage_preserved": True,
         "claim_output_allowed": False,
         "production_report_allowed": False,
         "final_report_allowed": False,
