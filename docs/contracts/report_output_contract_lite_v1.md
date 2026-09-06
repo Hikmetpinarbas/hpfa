@@ -56,6 +56,20 @@ origin_claim_ceiling  # required on narrative path
 
 The exact supporting trace cohort must remain count-consistent with `observed_support`. A readable report block is not allowed to detach from its evidence lineage.
 
+Claim-ceiling lineage is vocabulary-bound, not merely non-empty:
+
+```text
+sequence_safe_finding_analyst_reading_candidate:
+  upstream_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY
+  origin_claim_ceiling=<absent>
+
+sequence_narrative_analyst_reading_candidate:
+  upstream_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY
+  origin_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY
+```
+
+Any stronger, unknown, version-skewed, or unexpected claim-ceiling value fails closed. In particular an exact trace cohort may not legitimize a tactical-pattern, causal, coach-intention, sequence-truth, or production-truth escalation.
+
 ## Allowed outputs
 
 ```text
@@ -120,7 +134,10 @@ sequence_lineage_robustness_summary_missing
 sequence_lineage_uncertainty_missing
 sequence_lineage_withdrawal_condition_missing
 sequence_lineage_upstream_claim_ceiling_missing
+sequence_lineage_upstream_claim_ceiling_mismatch
 sequence_lineage_origin_claim_ceiling_missing
+sequence_lineage_origin_claim_ceiling_mismatch
+sequence_lineage_unexpected_origin_claim_ceiling
 ```
 
 ## Review route
