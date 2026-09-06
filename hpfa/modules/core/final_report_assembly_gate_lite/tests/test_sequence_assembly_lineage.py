@@ -20,6 +20,26 @@ def sequence_contract_item():
         "observed_support": 2,
         "upstream_claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY",
         "origin_claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY",
+        "null_contrast_summary": {
+            "state": "EVALUATED",
+            "observed_recurrence": 2,
+            "null_median": 1,
+            "upper_tail_probability_uncorrected": 0.2,
+            "claim_strengthened": False,
+            "significance_claim_allowed": False,
+            "tactical_pattern_truth_allowed": False,
+        },
+        "context_variations": [
+            {
+                "context_dimension": "period_candidate",
+                "baseline_trace_refs": ["TRACE_A"],
+                "comparison_trace_refs": ["TRACE_B"],
+                "chronology_direction_claimed": False,
+                "causality_claimed": False,
+                "tactical_adaptation_claimed": False,
+                "coach_intention_claimed": False,
+            }
+        ],
     }
     return {
         "contract_item_id": "contract_sequence_GENERIC",
@@ -110,6 +130,48 @@ def test_sequence_claim_ceiling_vocabulary_and_hop_are_revalidated():
     item["sequence_evidence_lineage"]["origin_claim_ceiling"] = ""
     result = evaluate_assembly_item(item)
     assert result["status"] == "SMOKE_PASS"
+
+
+def test_null_contrast_claim_locks_are_revalidated_at_assembly_boundary():
+    item = sequence_contract_item()
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "SMOKE_PASS"
+    assert result["sequence_evidence_lineage"]["null_contrast_summary"] == item["sequence_evidence_lineage"]["null_contrast_summary"]
+
+    item = sequence_contract_item()
+    item["sequence_evidence_lineage"]["null_contrast_summary"]["claim_strengthened"] = True
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_sequence_null_contrast_claim_strengthened" in result["hard_block_hits"]
+
+    item = sequence_contract_item()
+    item["sequence_evidence_lineage"]["null_contrast_summary"]["significance_claim_allowed"] = True
+    result = evaluate_assembly_item(item)
+    assert "assembly_sequence_null_contrast_significance_lock_breach" in result["hard_block_hits"]
+
+    item = sequence_contract_item()
+    item["sequence_evidence_lineage"]["null_contrast_summary"]["tactical_pattern_truth_allowed"] = True
+    result = evaluate_assembly_item(item)
+    assert "assembly_sequence_null_contrast_tactical_truth_lock_breach" in result["hard_block_hits"]
+
+
+def test_context_variation_claim_and_trace_lineage_are_revalidated_at_assembly_boundary():
+    item = sequence_contract_item()
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "SMOKE_PASS"
+    assert result["sequence_evidence_lineage"]["context_variations"] == item["sequence_evidence_lineage"]["context_variations"]
+
+    item = sequence_contract_item()
+    item["sequence_evidence_lineage"]["context_variations"][0]["causality_claimed"] = True
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_sequence_context_variation_claim_lock_breach:causality_claimed" in result["hard_block_hits"]
+
+    item = sequence_contract_item()
+    item["sequence_evidence_lineage"]["context_variations"][0]["comparison_trace_refs"] = ["TRACE_C"]
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_sequence_context_variation_trace_lineage_mismatch" in result["hard_block_hits"]
 
 
 def test_claim_locks_cannot_be_promoted_at_assembly_boundary():
