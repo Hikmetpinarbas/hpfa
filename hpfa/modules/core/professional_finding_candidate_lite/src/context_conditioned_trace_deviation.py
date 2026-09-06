@@ -84,6 +84,7 @@ def build_context_conditioned_trace_deviations(
 
     missing_context_refs: list[str] = []
     by_family: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    family_entity_scope: dict[str, str] = {}
     for row in variants:
         ref = _clean(row.get("trace_variant_id"))
         context = row.get("context_signature") if isinstance(row.get("context_signature"), dict) else {}
@@ -95,11 +96,18 @@ def build_context_conditioned_trace_deviations(
             continue
         if value not in {baseline_value, comparison_value}:
             continue
+        team_identity = _clean(context.get("team_identity_candidate_id"))
+        if not team_identity:
+            if ref:
+                reviews.append(f"team_entity_scope_missing:{ref}")
+            continue
         family_signature = {
+            "team_identity_candidate_id": team_identity,
             "action_family_signature": row.get("action_family_signature") or [],
             "ordering_completeness": row.get("ordering_completeness"),
         }
         family_ref = "ctf_" + _digest(family_signature)[:24]
+        family_entity_scope[family_ref] = team_identity
         by_family.setdefault(family_ref, {baseline_value: [], comparison_value: []})[value].append(row)
 
     out: list[dict[str, Any]] = []
@@ -120,7 +128,13 @@ def build_context_conditioned_trace_deviations(
                 })] += 1
                 outcome_counts[_signature(item.get("outcome_signature") or [])] += 1
                 ctx = item.get("context_signature") if isinstance(item.get("context_signature"), dict) else {}
-                sequence_counts[_clean(ctx.get("end_reason_candidate")) or "UNKNOWN_END_REASON"] += 1
+                sequence_signature = {
+                    key: _clean(ctx.get(key))
+                    for key in ("start_reason_candidate", "end_reason_candidate")
+                    if key != dimension and _clean(ctx.get(key))
+                }
+                if sequence_signature:
+                    sequence_counts[_signature(sequence_signature)] += 1
             return dict(sorted(variant_counts.items())), dict(sorted(outcome_counts.items())), dict(sorted(sequence_counts.items()))
 
         base_variant, base_outcome, base_sequence = distributions(baseline)
@@ -147,6 +161,7 @@ def build_context_conditioned_trace_deviations(
         out.append({
             "context_conditioned_trace_deviation_id": "ctd_" + _digest(family_ref, dimension, baseline_value, comparison_value)[:24],
             "trace_family_ref": family_ref,
+            "entity_scope": {"team_identity_candidate_id": family_entity_scope[family_ref]},
             "context_dimension": dimension,
             "context_value": comparison_value,
             "baseline_cohort_ref": f"{dimension}:{baseline_value}",
@@ -162,6 +177,7 @@ def build_context_conditioned_trace_deviations(
             "support_difference": len(comparison) - len(baseline),
             "outcome_difference": outcome_diff,
             "sequence_difference": sequence_diff,
+            "sequence_distribution_excludes_conditioned_dimension": True,
             "effect_descriptor": effect,
             "uncertainty": {
                 "cohort_counts_are_independence_truth": False,
