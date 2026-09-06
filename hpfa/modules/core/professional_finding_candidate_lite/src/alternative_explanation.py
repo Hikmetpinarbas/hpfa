@@ -25,18 +25,15 @@ def _number(value: Any) -> float | None:
     return number
 
 
-def _signal_state(state: Any, positive_tokens: tuple[str, ...]) -> bool:
-    text = _status(state)
-    return any(token in text for token in positive_tokens)
+def _state_matches_any(state: Any, exact_states: set[str]) -> bool:
+    return _status(state) in exact_states
 
 
 def attach_alternative_explanation_evaluation(finding_payload: dict[str, Any]) -> dict[str, Any]:
     """Turn existing challenge results into explicit alternative-explanation candidates.
 
-    This is a dependent projection over already-produced event-only challenge evidence.
-    It does not discover a causal mechanism and never treats absence of an alternative
-    signal as confirmation of the primary explanation. Video/tracking alternatives and
-    unresolved dependency/reflection questions remain outside the current scope.
+    Dependent projection only. It does not discover causal mechanisms and absence of a
+    visible alternative signal never confirms the primary explanation.
     """
     result = dict(finding_payload)
     rows = [
@@ -80,7 +77,14 @@ def attach_alternative_explanation_evaluation(finding_payload: dict[str, Any]) -
 
         player = challenge.get("player_concentration")
         if isinstance(player, dict) and _clean(player.get("state")):
-            if _signal_state(player.get("state"), ("RISK", "OUTLIER", "CONCENTRATION_PRESENT")):
+            if _state_matches_any(
+                player.get("state"),
+                {
+                    "PLAYER_OUTLIER_RISK_PRESENT",
+                    "PLAYER_CONCENTRATION_RISK_PRESENT",
+                    "SINGLE_PLAYER_CONCENTRATION_RISK_PRESENT",
+                },
+            ):
                 visible_alternatives.append({
                     "type": "PLAYER_CONCENTRATION",
                     "evidence_state_candidate": player.get("state"),
@@ -91,7 +95,10 @@ def attach_alternative_explanation_evaluation(finding_payload: dict[str, Any]) -
 
         segment = challenge.get("segment_only")
         if isinstance(segment, dict) and _clean(segment.get("state")):
-            if _signal_state(segment.get("state"), ("RISK_PRESENT", "SEGMENT_ONLY")):
+            if _state_matches_any(
+                segment.get("state"),
+                {"SEGMENT_ONLY_RISK_PRESENT", "SINGLE_SEGMENT_CONCENTRATION_RISK_PRESENT"},
+            ):
                 visible_alternatives.append({
                     "type": "SEGMENT_CONCENTRATION",
                     "evidence_state_candidate": segment.get("state"),
@@ -102,8 +109,9 @@ def attach_alternative_explanation_evaluation(finding_payload: dict[str, Any]) -
 
         opponent = challenge.get("opponent_symmetry")
         if isinstance(opponent, dict) and _clean(opponent.get("state")):
-            if _signal_state(opponent.get("state"), ("SYMMETRY", "MIRROR", "PRESENT")) and not _signal_state(
-                opponent.get("state"), ("NO_", "ABSENT", "NOT_PRESENT")
+            if _state_matches_any(
+                opponent.get("state"),
+                {"OPPONENT_SYMMETRY_VISIBLE", "MIRROR_PROCESS_PRESENT", "SYMMETRY_RISK_PRESENT"},
             ):
                 visible_alternatives.append({
                     "type": "OPPONENT_SYMMETRY",
