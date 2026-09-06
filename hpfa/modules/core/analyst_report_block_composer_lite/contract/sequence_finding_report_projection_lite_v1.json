@@ -1,24 +1,30 @@
 {
   "module_id": "analyst_report_block_composer_lite_v1",
   "projection_id": "sequence_finding_report_projection_lite_v1",
-  "source_module_id": "sequence_safe_finding_binding_lite_v1",
+  "authoritative_source_module_id": "sequence_analyst_narrative_lite_v1",
+  "compatibility_source_module_id": "sequence_safe_finding_binding_lite_v1",
   "projection_rule": "presentation_must_not_weaken_or_strengthen_evidence",
   "required_lineage": {
     "trace_family_refs": "NON_EMPTY",
     "trace_variant_refs": "NON_EMPTY_EXACT_SUPPORT_COHORT",
-    "dependency_summary": "NON_EMPTY",
-    "robustness_summary": "NON_EMPTY",
-    "uncertainty": "NON_EMPTY",
-    "withdrawal_condition": "NON_EMPTY"
+    "counterevidence_refs": "PRESERVE_EXACT_WHEN_PRESENT",
+    "dependency_summary": "PRESENT",
+    "robustness_summary": "PRESENT",
+    "uncertainty": "PRESENT",
+    "withdrawal_condition": "NON_EMPTY",
+    "upstream_claim_ceiling": "NON_EMPTY",
+    "origin_claim_ceiling": "NON_EMPTY_ON_NARRATIVE_PATH"
   },
   "invariants": {
     "trace_variant_ref_count_equals_observed_support": true,
     "anchor_trace_is_member_of_support_cohort": true,
+    "counterevidence_ref_count_matches_exact_refs": true,
     "missing_required_lineage": "FAIL_CLOSED",
     "no_visible_followup_is_failure": false,
     "projection_recomputes_evidence_strength": false,
     "projection_infers_tactical_pattern_truth": false,
-    "projection_infers_causality": false
+    "projection_infers_causality": false,
+    "upstream_review_required_can_become_pass": false
   },
   "claim_boundary": {
     "claim_output_allowed": false,
