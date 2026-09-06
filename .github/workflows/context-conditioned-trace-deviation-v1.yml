@@ -1,0 +1,35 @@
+name: Context Conditioned Trace Deviation V1
+
+on:
+  push:
+    paths:
+      - 'hpfa/modules/core/professional_finding_candidate_lite/src/context_conditioned_trace_deviation.py'
+      - 'hpfa/modules/core/professional_finding_candidate_lite/tests/test_context_conditioned_trace_deviation.py'
+      - 'hpfa/modules/core/professional_finding_candidate_lite/contract/context_conditioned_trace_deviation_lite_v1.json'
+      - '.github/workflows/context-conditioned-trace-deviation-v1.yml'
+  pull_request:
+    paths:
+      - 'hpfa/modules/core/professional_finding_candidate_lite/src/context_conditioned_trace_deviation.py'
+      - 'hpfa/modules/core/professional_finding_candidate_lite/tests/test_context_conditioned_trace_deviation.py'
+      - 'hpfa/modules/core/professional_finding_candidate_lite/contract/context_conditioned_trace_deviation_lite_v1.json'
+      - '.github/workflows/context-conditioned-trace-deviation-v1.yml'
+
+jobs:
+  context-conditioned-trace-deviation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pytest
+      - name: Run context deviation regressions
+        run: python -m pytest -q hpfa/modules/core/professional_finding_candidate_lite/tests/test_context_conditioned_trace_deviation.py
+      - name: Compile producer
+        run: python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/context_conditioned_trace_deviation.py
+      - name: Claim lock audit
+        run: |
+          grep -q 'context_difference_is_causality_truth' hpfa/modules/core/professional_finding_candidate_lite/src/context_conditioned_trace_deviation.py
+          grep -q 'context_difference_is_tactical_adaptation_truth' hpfa/modules/core/professional_finding_candidate_lite/src/context_conditioned_trace_deviation.py
+          grep -q 'canonical_event_count' hpfa/modules/core/professional_finding_candidate_lite/src/context_conditioned_trace_deviation.py
+          grep -q 'production_release' hpfa/modules/core/professional_finding_candidate_lite/src/context_conditioned_trace_deviation.py
