@@ -87,14 +87,19 @@ def _narrative_payload(source_status="PASS"):
 def _add_null_and_context(payload):
     row = payload["narrative_blocks"][0]
     row["null_contrast_tr"] = "Null karşılaştırması descriptivedir."
+    row["null_contrast_causality_claimed"] = False
     row["null_contrast_summary"] = {
         "state": "AUDITED_NULL_AVAILABLE",
         "observed_independent_recurrence": 2,
         "null_median": 1.0,
         "empirical_upper_tail_probability_uncorrected": 0.2,
         "claim_strengthened": False,
+        "claim_ceiling": "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY",
+        "multiple_testing_corrected": False,
         "significance_claim_allowed": False,
         "tactical_pattern_truth_allowed": False,
+        "causality_allowed": False,
+        "withdrawal_condition": "Withdraw null contrast if audited null assumptions or admitted independent recurrence change.",
     }
     row["change_tr"] = "Bağlama göre görünür dağılım farkı var."
     row["context_variations"] = [{
@@ -219,7 +224,11 @@ def test_narrative_report_preserves_null_and_context_lineage():
     assert result["null_contrast_lineage_preserved"] is True
     assert result["context_variation_lineage_preserved"] is True
     assert row["null_contrast_summary"]["empirical_upper_tail_probability_uncorrected"] == 0.2
+    assert row["null_contrast_summary"]["claim_ceiling"] == "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
+    assert row["null_contrast_summary"]["multiple_testing_corrected"] is False
     assert row["null_contrast_summary"]["significance_claim_allowed"] is False
+    assert row["null_contrast_summary"]["causality_allowed"] is False
+    assert row["null_contrast_summary"]["withdrawal_condition"]
     assert row["context_variations"][0]["baseline_trace_refs"] == ["trace_a"]
     assert row["context_variations"][0]["causality_claimed"] is False
     assert row["change_tr"] == "Bağlama göre görünür dağılım farkı var."
@@ -231,6 +240,29 @@ def test_narrative_report_rejects_null_claim_strengthening():
     result = compose_sequence_narrative_report(payload)
     assert result["status"] == "FAIL_CLOSED"
     assert "narrative_null_contrast_claim_strengthened:sequence_story_001" in result["hard_block_hits"]
+
+
+def test_narrative_report_rejects_null_epistemic_lock_breaches():
+    cases = (
+        ("claim_ceiling", "TACTICAL_PATTERN_TRUTH", "narrative_null_contrast_claim_ceiling_mismatch:sequence_story_001"),
+        ("multiple_testing_corrected", True, "narrative_null_contrast_multiple_testing_lock_breach:sequence_story_001"),
+        ("causality_allowed", True, "narrative_null_contrast_causality_lock_breach:sequence_story_001"),
+        ("withdrawal_condition", "", "narrative_null_contrast_withdrawal_condition_missing:sequence_story_001"),
+    )
+    for field, value, expected_hit in cases:
+        payload = _add_null_and_context(_narrative_payload())
+        payload["narrative_blocks"][0]["null_contrast_summary"][field] = value
+        result = compose_sequence_narrative_report(payload)
+        assert result["status"] == "FAIL_CLOSED"
+        assert expected_hit in result["hard_block_hits"]
+
+
+def test_narrative_report_rejects_explicit_null_causality_claim():
+    payload = _add_null_and_context(_narrative_payload())
+    payload["narrative_blocks"][0]["null_contrast_causality_claimed"] = True
+    result = compose_sequence_narrative_report(payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "narrative_null_contrast_causality_claimed:sequence_story_001" in result["hard_block_hits"]
 
 
 def test_narrative_report_rejects_context_claim_escalation():
