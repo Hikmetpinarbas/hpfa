@@ -38,12 +38,23 @@ def _digest(*values: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _lineage_ref(value: Any) -> str:
+    if isinstance(value, dict):
+        for field in ("source_sha256", "path", "source_path", "source_file", "source_ref"):
+            cleaned = _clean(value.get(field))
+            if cleaned:
+                return cleaned
+        return _clean(json.dumps(value, ensure_ascii=False, sort_keys=True))
+    return _clean(value)
+
+
 def _validate_inputs(
     sequence_payload: dict[str, Any],
     trace_payload: dict[str, Any],
     consequence_payload: dict[str, Any],
-) -> list[str]:
+) -> tuple[list[str], list[str]]:
     blocks: list[str] = []
+    reviews: list[str] = []
     if sequence_payload.get("module_id") != SEQUENCE_MODULE_ID:
         blocks.append("sequence_module_id_mismatch")
     if trace_payload.get("module_id") != TRACE_MODULE_ID:
@@ -51,21 +62,24 @@ def _validate_inputs(
     if consequence_payload.get("module_id") != CONSEQUENCE_MODULE_ID:
         blocks.append("consequence_module_id_mismatch")
     for name, payload in (("sequence", sequence_payload), ("trace", trace_payload), ("consequence", consequence_payload)):
+        status = _clean(payload.get("status") or payload.get("module_status")).upper()
         if payload.get("canonical_event_count") != CANONICAL_EVENT_COUNT:
             blocks.append(f"{name}_canonical_event_count_claimed")
         if payload.get("true_action_count") not in {None, TRUE_ACTION_COUNT}:
             blocks.append(f"{name}_true_action_count_claimed")
         if payload.get("production_release") is True:
             blocks.append(f"{name}_production_release_claimed")
-        if payload.get("status") == "FAIL_CLOSED" or payload.get("module_status") == "FAIL_CLOSED":
+        if status == "FAIL_CLOSED":
             blocks.append(f"{name}_input_fail_closed")
+        elif status == "REVIEW_REQUIRED":
+            reviews.append(f"{name}_upstream_review_required")
         if payload.get("hard_block_hits"):
             blocks.append(f"{name}_hard_blocks_present")
     if sequence_payload.get("same_timestamp_internal_ordering_allowed") is not False:
         blocks.append("sequence_same_timestamp_policy_breached")
     if sequence_payload.get("source_row_order_is_temporal_truth") is not False:
         blocks.append("sequence_source_row_order_policy_breached")
-    return sorted(set(blocks))
+    return sorted(set(blocks)), sorted(set(reviews))
 
 
 def build_partial_order_trace_variants(
@@ -73,7 +87,7 @@ def build_partial_order_trace_variants(
     trace_payload: dict[str, Any],
     consequence_payload: dict[str, Any],
 ) -> dict[str, Any]:
-    blocks = _validate_inputs(sequence_payload, trace_payload, consequence_payload)
+    blocks, reviews = _validate_inputs(sequence_payload, trace_payload, consequence_payload)
     if blocks:
         return {
             "module_id": MODULE_ID,
@@ -82,7 +96,7 @@ def build_partial_order_trace_variants(
             "partial_order_trace_variants": [],
             "partial_order_trace_variant_count": 0,
             "hard_block_hits": blocks,
-            "review_hits": [],
+            "review_hits": reviews,
             "same_timestamp_internal_ordering_allowed": False,
             "source_row_order_is_temporal_truth": False,
             "provenance_order_is_football_chronology": False,
@@ -102,7 +116,6 @@ def build_partial_order_trace_variants(
     layer_by_id = {_clean(row.get("visible_action_time_layer_candidate_id")): row for row in layers}
 
     variants: list[dict[str, Any]] = []
-    reviews: list[str] = []
 
     for sequence in sequences:
         sequence_id = _clean(sequence.get("visible_action_sequence_candidate_id"))
@@ -134,8 +147,11 @@ def build_partial_order_trace_variants(
             for trace_id in trace_ids:
                 trace = trace_by_id.get(trace_id)
                 consequence = consequence_by_trace.get(trace_id)
-                if not trace or not consequence:
-                    blocks.append(f"variant_trace_or_consequence_missing:{sequence_id}:{trace_id}")
+                if not trace:
+                    blocks.append(f"variant_trace_missing:{sequence_id}:{trace_id}")
+                    continue
+                if not consequence:
+                    blocks.append(f"variant_consequence_missing:{sequence_id}:{trace_id}")
                     continue
                 occurrence_refs = [
                     _clean(value)
@@ -147,14 +163,30 @@ def build_partial_order_trace_variants(
                 families = sorted({_clean(value) for value in (trace.get("action_family_candidates") or []) if _clean(value)})
                 for family in families:
                     family_counter[family] += 1
-                outcome = _clean(consequence.get("primary_consequence_candidate")) or "UNKNOWN_VISIBLE_OUTCOME"
+                outcome = _clean(consequence.get("primary_consequence_candidate"))
+                if not outcome:
+                    blocks.append(f"variant_consequence_outcome_missing:{sequence_id}:{trace_id}")
+                    continue
                 outcome_counter[outcome] += 1
-                dependency_group = _clean(trace.get("dependency_group"))
-                if dependency_group:
-                    dependency_group_refs.add(dependency_group)
-                provenance_root = _clean(trace.get("provenance_root"))
-                if provenance_root:
-                    provenance_refs.add(provenance_root)
+
+                for value in trace.get("supporting_evidence_atom_ids") or []:
+                    cleaned = _clean(value)
+                    if cleaned:
+                        dependency_group_refs.add(f"evidence_atom:{cleaned}")
+                for value in trace.get("supporting_relation_candidate_ids") or []:
+                    cleaned = _clean(value)
+                    if cleaned:
+                        dependency_group_refs.add(f"relation:{cleaned}")
+                for value in trace.get("reflection_context_action_bundle_candidate_ids") or []:
+                    cleaned = _clean(value)
+                    if cleaned:
+                        dependency_group_refs.add(f"reflection_bundle:{cleaned}")
+                for field in ("primary_source_lineage_records", "reflection_source_lineage_records"):
+                    for value in trace.get(field) or []:
+                        cleaned = _lineage_ref(value)
+                        if cleaned:
+                            provenance_refs.add(cleaned)
+
                 node_refs.append(trace_id)
                 node_records.append({
                     "trace_ref": trace_id,
