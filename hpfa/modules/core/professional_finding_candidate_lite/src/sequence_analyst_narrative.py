@@ -5,6 +5,7 @@ from typing import Any
 MODULE_ID = "sequence_analyst_narrative_lite_v1"
 UPSTREAM_MODULE_ID = "sequence_safe_finding_binding_lite_v1"
 CONTEXT_DEVIATION_MODULE_ID = "context_conditioned_trace_deviation_lite_v1"
+NULL_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
 CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
 
 
@@ -160,10 +161,18 @@ def _null_contrast_for_row(row: dict[str, Any]) -> tuple[dict[str, Any], str, li
     state = _clean(summary.get("state")) or "NOT_EVALUATED"
     if state == "NOT_EVALUATED":
         return summary, "", []
+    if summary.get("claim_ceiling") != NULL_CLAIM_CEILING:
+        return {}, "", ["upstream_null_contrast_claim_ceiling_mismatch"]
+    if summary.get("multiple_testing_corrected") is not False:
+        return {}, "", ["upstream_null_contrast_multiple_testing_lock_breach"]
     if summary.get("significance_claim_allowed") is not False:
         return {}, "", ["upstream_null_contrast_significance_lock_breach"]
     if summary.get("tactical_pattern_truth_allowed") is not False:
         return {}, "", ["upstream_null_contrast_tactical_truth_lock_breach"]
+    if summary.get("causality_allowed") is not False:
+        return {}, "", ["upstream_null_contrast_causality_lock_breach"]
+    if not _clean(summary.get("withdrawal_condition")):
+        return {}, "", ["upstream_null_contrast_withdrawal_condition_missing"]
     sentence = (
         f"Tanımlı null karşılaştırması {state}; gözlenen bağımsız tekrar={summary.get('observed_independent_recurrence')}, "
         f"null medyan={summary.get('null_median')}, düzeltilmemiş üst-kuyruk olasılığı={summary.get('empirical_upper_tail_probability_uncorrected')}. "
@@ -336,6 +345,7 @@ def compose_sequence_analyst_narrative(
             "context_change_causality_claimed": False,
             "tactical_adaptation_claimed": False,
             "null_contrast_significance_claimed": False,
+            "null_contrast_causality_claimed": False,
             "canonical_event_count": "UNKNOWN",
             "true_action_count": "UNKNOWN",
             "production_release": False,
