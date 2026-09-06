@@ -127,6 +127,40 @@ def _sequence_lineage_complete(block_family: str, lineage: Any) -> bool:
             return False
         if origin_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING:
             return False
+
+    raw_null_summary = lineage.get("null_contrast_summary")
+    if raw_null_summary is not None:
+        if not isinstance(raw_null_summary, dict):
+            return False
+        if raw_null_summary.get("claim_strengthened") is not False:
+            return False
+        null_state = str(raw_null_summary.get("state") or "NOT_EVALUATED").strip()
+        if null_state != "NOT_EVALUATED":
+            if raw_null_summary.get("significance_claim_allowed") is not False:
+                return False
+            if raw_null_summary.get("tactical_pattern_truth_allowed") is not False:
+                return False
+
+    raw_context_variations = lineage.get("context_variations")
+    if raw_context_variations is not None:
+        if not isinstance(raw_context_variations, list):
+            return False
+        trace_ref_set = set(trace_refs)
+        for raw_variation in raw_context_variations:
+            if not isinstance(raw_variation, dict):
+                return False
+            for flag in (
+                "chronology_direction_claimed",
+                "causality_claimed",
+                "tactical_adaptation_claimed",
+                "coach_intention_claimed",
+            ):
+                if raw_variation.get(flag) is not False:
+                    return False
+            baseline_refs = set(_string_list(raw_variation.get("baseline_trace_refs")))
+            comparison_refs = set(_string_list(raw_variation.get("comparison_trace_refs")))
+            if not baseline_refs.issubset(trace_ref_set) or not comparison_refs.issubset(trace_ref_set):
+                return False
     return True
 
 
@@ -364,6 +398,10 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 lines.append(f"  robustness_summary={json.dumps(lineage.get('robustness_summary') or {}, ensure_ascii=False, sort_keys=True)}")
                 lines.append(f"  uncertainty={json.dumps(lineage.get('uncertainty') or {}, ensure_ascii=False, sort_keys=True)}")
                 lines.append(f"  withdrawal_condition={lineage.get('withdrawal_condition')}")
+                if lineage.get("null_contrast_summary") is not None:
+                    lines.append(f"  null_contrast_summary={json.dumps(lineage.get('null_contrast_summary'), ensure_ascii=False, sort_keys=True)}")
+                if lineage.get("context_variations") is not None:
+                    lines.append(f"  context_variations={json.dumps(lineage.get('context_variations'), ensure_ascii=False, sort_keys=True)}")
                 lines.append(f"  upstream_claim_ceiling={lineage.get('upstream_claim_ceiling')}")
                 if lineage.get("origin_claim_ceiling"):
                     lines.append(f"  origin_claim_ceiling={lineage.get('origin_claim_ceiling')}")
@@ -404,7 +442,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         "Phase/state etiketleri activity candidate'dir; phase truth degildir.",
         "MICRO/MEZZO/MACRO bir evidence-routing lattice'tir; macro claim mikro/mezo evidence'dan kopamaz.",
         "Player/GK/team gorunumleri candidate identity ve aggregate cell yuzeyidir; validated identity/quality truth degildir.",
-        "User-facing analyst text final assembly admission olmadan yayinlanmaz; sequence-derived text exact lineage ve claim-ceiling hop paketini korur.",
+        "User-facing analyst text final assembly admission olmadan yayinlanmaz; sequence-derived text exact lineage, null/context safety locks ve claim-ceiling hop paketini korur.",
         "",
         "[10] CLAIM LOCKS",
         "canonical_event_count=UNKNOWN",
@@ -493,6 +531,7 @@ def write_standard_user_outputs(
         "analyst_text_requires_final_assembly_admission": True,
         "sequence_lineage_preserved_in_analyst_report": True,
         "sequence_claim_ceiling_revalidated_in_analyst_report": True,
+        "sequence_null_context_locks_revalidated_in_analyst_report": True,
         "file_count_before_manifest": len(entries),
         "files": entries,
         "canonical_event_count": "UNKNOWN",
