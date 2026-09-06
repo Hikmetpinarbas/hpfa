@@ -75,7 +75,8 @@ def build_recurrence_robustness_envelopes(
         min_supported = min(row["supported_recurrence"] for row in threshold_counts)
         max_supported = max(row["supported_recurrence"] for row in threshold_counts)
         stable_core = sorted(set.intersection(*threshold_ref_sets)) if threshold_ref_sets else []
-        fragile = sorted(set(eligible) - set(stable_core))
+        tested_union = set().union(*threshold_ref_sets) if threshold_ref_sets else set()
+        fragile = sorted(tested_union - set(stable_core))
 
         order_confirmed = []
         order_uncertain = []
@@ -87,11 +88,12 @@ def build_recurrence_robustness_envelopes(
             ctx = variant.get("context_signature") if isinstance(variant.get("context_signature"), dict) else {}
             contexts.add(tuple(sorted((str(k), str(v)) for k, v in ctx.items())))
 
+        threshold_varies = min_supported != max_supported
         if nominal < 2:
             state = "INSUFFICIENT_EVIDENCE"
         elif min_supported < 2:
             state = "FRAGILE"
-        elif min_supported < nominal:
+        elif threshold_varies:
             state = "THRESHOLD_SENSITIVE"
         elif len(order_confirmed) < nominal:
             state = "ORDER_SENSITIVE"
@@ -105,6 +107,7 @@ def build_recurrence_robustness_envelopes(
             "nominal_recurrence": nominal,
             "similarity_threshold_range": [thresholds[0], thresholds[-1]],
             "threshold_sensitivity": threshold_counts,
+            "threshold_supported_recurrence_varies": threshold_varies,
             "window_sensitivity": "NOT_EVALUATED_NO_ALTERNATE_WINDOW_CONTRACT",
             "episode_boundary_sensitivity": "NOT_EVALUATED_NO_ALTERNATE_BOUNDARY_CONTRACT",
             "context_sensitivity": {"distinct_context_signature_count": len(contexts), "state": "VARIATION_VISIBLE" if len(contexts) > 1 else "NO_VARIATION_VISIBLE_CURRENT_SCOPE"},
