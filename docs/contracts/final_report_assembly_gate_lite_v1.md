@@ -10,7 +10,7 @@ It does not create final report text, claim text, production report output or fo
 
 ## Football value
 
-The analyst can move a report-output candidate toward draft assembly only while its evidence limits remain attached. Sequence-derived prose cannot detach from the exact supporting trace cohort, dependency state, robustness, uncertainty or withdrawal condition that made the prose admissible.
+The analyst can move a report-output candidate toward draft assembly only while its evidence limits remain attached. Sequence-derived prose cannot detach from the exact supporting trace cohort, dependency state, robustness, uncertainty, withdrawal condition or admitted claim ceiling that made the prose admissible.
 
 ## Runtime authority
 
@@ -57,6 +57,20 @@ upstream_claim_ceiling
 origin_claim_ceiling on the narrative path
 ```
 
+Claim-ceiling vocabulary is structural evidence, not free text. The assembly gate revalidates the exact hop already admitted by Report Output Contract Lite:
+
+```text
+sequence_safe_finding_analyst_reading_candidate
+  upstream_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY
+  origin_claim_ceiling must be empty
+
+sequence_narrative_analyst_reading_candidate
+  upstream_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY
+  origin_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY
+```
+
+Unknown, tactical, causal or otherwise escalated values fail closed even if trace provenance is otherwise complete.
+
 Invariants:
 
 ```text
@@ -64,6 +78,8 @@ len(trace_variant_refs) == observed_support
 anchor trace is a member of trace_variant_refs
 missing sequence lineage => FAIL_CLOSED
 missing required lineage field => FAIL_CLOSED
+claim-ceiling vocabulary mismatch => FAIL_CLOSED
+claim-ceiling hop mismatch => FAIL_CLOSED
 lineage survives assembly unchanged
 canonical_event_count=UNKNOWN
 true_action_count=UNKNOWN
@@ -129,7 +145,20 @@ canonical_event_count_claim_rejected
 true_action_count_claim_rejected
 production_release_claim_rejected
 sequence_evidence_lineage_missing
-assembly_sequence_*
+assembly_sequence_trace_family_refs_missing
+assembly_sequence_trace_variant_refs_missing
+assembly_sequence_observed_support_invalid
+assembly_sequence_trace_cohort_support_mismatch
+assembly_sequence_anchor_not_in_trace_cohort
+assembly_sequence_dependency_summary_missing
+assembly_sequence_robustness_summary_missing
+assembly_sequence_uncertainty_missing
+assembly_sequence_withdrawal_condition_missing
+assembly_sequence_upstream_claim_ceiling_missing
+assembly_sequence_upstream_claim_ceiling_mismatch
+assembly_sequence_origin_claim_ceiling_missing
+assembly_sequence_origin_claim_ceiling_mismatch
+assembly_sequence_unexpected_origin_claim_ceiling
 ```
 
 ## Review route
@@ -146,7 +175,7 @@ If the upstream contract item carries `inclusion_decision=REVIEW_BLOCK`, the ass
 
 ## Regression requirements
 
-C4 must continue running the full `final_report_assembly_gate_lite/tests` suite. Sequence regressions cover exact lineage preservation, missing-lineage fail-closed behavior, cohort/support and anchor consistency, claim locks and production-code sample-identity leakage.
+C4 must continue running the full `final_report_assembly_gate_lite/tests` suite. Sequence regressions cover exact lineage preservation, missing-lineage fail-closed behavior, cohort/support and anchor consistency, exact claim-ceiling vocabulary/hop revalidation, claim locks and production-code sample-identity leakage.
 
 ## Release status
 
