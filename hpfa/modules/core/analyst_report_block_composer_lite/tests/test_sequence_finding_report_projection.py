@@ -84,6 +84,37 @@ def _narrative_payload(source_status="PASS"):
     }
 
 
+def _add_null_and_context(payload):
+    row = payload["narrative_blocks"][0]
+    row["null_contrast_tr"] = "Null karşılaştırması descriptivedir."
+    row["null_contrast_summary"] = {
+        "state": "AUDITED_NULL_AVAILABLE",
+        "observed_independent_recurrence": 2,
+        "null_median": 1.0,
+        "empirical_upper_tail_probability_uncorrected": 0.2,
+        "claim_strengthened": False,
+        "significance_claim_allowed": False,
+        "tactical_pattern_truth_allowed": False,
+    }
+    row["change_tr"] = "Bağlama göre görünür dağılım farkı var."
+    row["context_variations"] = [{
+        "context_conditioned_trace_deviation_id": "ctx_001",
+        "context_dimension": "period_candidate",
+        "baseline_cohort_ref": "1",
+        "comparison_cohort_ref": "2",
+        "baseline_trace_refs": ["trace_a"],
+        "comparison_trace_refs": ["trace_b"],
+        "effect_descriptor": "VISIBLE_DISTRIBUTION_DIFFERENCE",
+        "dependency_summary": {"independence_proven": False},
+        "uncertainty": {"small_sample": True},
+        "chronology_direction_claimed": False,
+        "causality_claimed": False,
+        "tactical_adaptation_claimed": False,
+        "coach_intention_claimed": False,
+    }]
+    return payload
+
+
 def test_projection_makes_sequence_evidence_readable_in_turkish():
     result = compose_sequence_finding_report(_payload())
     row = result["report_blocks"][0]
@@ -180,6 +211,42 @@ def test_narrative_report_preserves_full_evidence_lineage():
     assert row["withdrawal_condition"] == "Downgrade if evidence changes."
     assert row["upstream_claim_ceiling"] == "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
     assert row["origin_claim_ceiling"] == "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+
+
+def test_narrative_report_preserves_null_and_context_lineage():
+    result = compose_sequence_narrative_report(_add_null_and_context(_narrative_payload()))
+    row = result["report_blocks"][0]
+    assert result["null_contrast_lineage_preserved"] is True
+    assert result["context_variation_lineage_preserved"] is True
+    assert row["null_contrast_summary"]["empirical_upper_tail_probability_uncorrected"] == 0.2
+    assert row["null_contrast_summary"]["significance_claim_allowed"] is False
+    assert row["context_variations"][0]["baseline_trace_refs"] == ["trace_a"]
+    assert row["context_variations"][0]["causality_claimed"] is False
+    assert row["change_tr"] == "Bağlama göre görünür dağılım farkı var."
+
+
+def test_narrative_report_rejects_null_claim_strengthening():
+    payload = _add_null_and_context(_narrative_payload())
+    payload["narrative_blocks"][0]["null_contrast_summary"]["claim_strengthened"] = True
+    result = compose_sequence_narrative_report(payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "narrative_null_contrast_claim_strengthened:sequence_story_001" in result["hard_block_hits"]
+
+
+def test_narrative_report_rejects_context_claim_escalation():
+    payload = _add_null_and_context(_narrative_payload())
+    payload["narrative_blocks"][0]["context_variations"][0]["causality_claimed"] = True
+    result = compose_sequence_narrative_report(payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "narrative_context_variation_claim_lock_breach:sequence_story_001:causality_claimed" in result["hard_block_hits"]
+
+
+def test_narrative_report_rejects_context_trace_lineage_escape():
+    payload = _add_null_and_context(_narrative_payload())
+    payload["narrative_blocks"][0]["context_variations"][0]["comparison_trace_refs"] = ["trace_outside_cohort"]
+    result = compose_sequence_narrative_report(payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "narrative_context_variation_trace_lineage_mismatch:sequence_story_001" in result["hard_block_hits"]
 
 
 def test_narrative_report_fails_closed_when_counterevidence_lineage_is_lost():
