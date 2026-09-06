@@ -13,6 +13,11 @@ BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
 EPISODE_FEATURE_JSON = "episode_feature_vector_lite_v1.json"
 FULL_SPINE_JSON = "active_match_full_spine_v1.json"
 FULL_SPINE_TXT = "active_match_full_spine_v1.txt"
+READY_ASSEMBLY_DECISION = "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
+SEQUENCE_BLOCK_FAMILIES = {
+    "sequence_safe_finding_analyst_reading_candidate",
+    "sequence_narrative_analyst_reading_candidate",
+}
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -84,23 +89,73 @@ def _counter_sum(cards: list[dict[str, Any]], field: str) -> dict[str, int]:
     return dict(sorted(counter.items()))
 
 
-def _safe_sentences(full_spine: dict[str, Any], limit: int = 12) -> list[str]:
+def _string_list(value: Any) -> list[str]:
+    values = value if isinstance(value, list) else []
+    return [str(item).strip() for item in values if str(item or "").strip()]
+
+
+def _sequence_lineage_complete(block_family: str, lineage: Any) -> bool:
+    if block_family not in SEQUENCE_BLOCK_FAMILIES:
+        return True
+    if not isinstance(lineage, dict) or not lineage:
+        return False
+    family_refs = sorted(set(_string_list(lineage.get("trace_family_refs"))))
+    trace_refs = sorted(set(_string_list(lineage.get("trace_variant_refs"))))
+    support = lineage.get("observed_support")
+    if not family_refs or not trace_refs or not isinstance(support, int) or support < 0:
+        return False
+    if len(trace_refs) != support or family_refs[0] not in trace_refs:
+        return False
+    if not isinstance(lineage.get("dependency_summary"), dict):
+        return False
+    if not isinstance(lineage.get("robustness_summary"), dict):
+        return False
+    if not isinstance(lineage.get("uncertainty"), dict):
+        return False
+    if not str(lineage.get("withdrawal_condition") or "").strip():
+        return False
+    if not str(lineage.get("upstream_claim_ceiling") or "").strip():
+        return False
+    if block_family == "sequence_narrative_analyst_reading_candidate":
+        if not str(lineage.get("origin_claim_ceiling") or "").strip():
+            return False
+    return True
+
+
+def _assembly_report_entries(full_spine: dict[str, Any], limit: int = 12) -> list[dict[str, Any]]:
     seen: set[str] = set()
-    result: list[str] = []
+    result: list[dict[str, Any]] = []
     chains = full_spine.get("intelligence_chains")
     if not isinstance(chains, list):
         return result
     for chain in chains:
         if not isinstance(chain, dict):
             continue
-        safe = chain.get("safe_sentence")
-        if not isinstance(safe, dict):
+        assembly = chain.get("assembly")
+        if not isinstance(assembly, dict):
             continue
-        text = str(safe.get("safe_sentence_candidate_tr") or "").strip()
+        if str(assembly.get("status") or "").upper() != "SMOKE_PASS":
+            continue
+        if str(assembly.get("assembly_decision") or "") != READY_ASSEMBLY_DECISION:
+            continue
+        if assembly.get("draft_report_candidate_allowed") is not True:
+            continue
+        text = str(assembly.get("assembly_item_candidate_tr") or "").strip()
         if not text or text in seen:
             continue
+        block_family = str(assembly.get("block_family") or "")
+        lineage = assembly.get("sequence_evidence_lineage")
+        if not _sequence_lineage_complete(block_family, lineage):
+            continue
         seen.add(text)
-        result.append(text)
+        result.append(
+            {
+                "text": text,
+                "block_family": block_family,
+                "claim_ceiling": str(assembly.get("claim_ceiling") or ""),
+                "sequence_evidence_lineage": dict(lineage) if isinstance(lineage, dict) else {},
+            }
+        )
         if len(result) >= limit:
             break
     return result
@@ -285,12 +340,26 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
 
-    safe = _safe_sentences(full_spine) if c4_current else []
-    lines.extend(["", "[5] SAFE_ARGUMENT_CANDIDATES — MEVCUT C4 BLOKLARI"])
-    if safe:
-        lines.extend(f"- {text}" for text in safe)
+    admitted = _assembly_report_entries(full_spine) if c4_current else []
+    lines.extend(["", "[5] ASSEMBLY_ADMITTED_ARGUMENT_CANDIDATES — MEVCUT C4 BLOKLARI"])
+    if admitted:
+        for entry in admitted:
+            lines.append(f"- {entry['text']}")
+            lineage = entry.get("sequence_evidence_lineage") or {}
+            if lineage:
+                lines.append(f"  trace_family_refs={json.dumps(lineage.get('trace_family_refs') or [], ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  trace_variant_refs={json.dumps(lineage.get('trace_variant_refs') or [], ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  observed_support={lineage.get('observed_support')}")
+                lines.append(f"  dependency_summary={json.dumps(lineage.get('dependency_summary') or {}, ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  robustness_summary={json.dumps(lineage.get('robustness_summary') or {}, ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  uncertainty={json.dumps(lineage.get('uncertainty') or {}, ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  withdrawal_condition={lineage.get('withdrawal_condition')}")
+                lines.append(f"  upstream_claim_ceiling={lineage.get('upstream_claim_ceiling')}")
+                if lineage.get("origin_claim_ceiling"):
+                    lines.append(f"  origin_claim_ceiling={lineage.get('origin_claim_ceiling')}")
+                lines.append(f"  assembly_claim_ceiling={entry.get('claim_ceiling')}")
     elif c4_current:
-        lines.append("- Bu run'da yayinlanabilir safe-sentence candidate gorunmedi.")
+        lines.append("- Bu run'da final assembly gate tarafindan admitted analyst-text candidate gorunmedi.")
     else:
         lines.append("- Current invocation C4 producer zinciri tamamlanmadi; onceki run argumani kullanilmadi.")
 
@@ -306,7 +375,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         "[7] SAFE_MEANING",
     ])
     if feature_current and rich_current and c4_current:
-        lines.append("Bu rapor current invocation icinde uretilen event-only occurrence/episode yuzeyi, XLSX aggregate row projection, primitive/construct adaylari ve mevcut C4 defeasible argument yuzeyini ayni evidence zincirinde birlestirir.")
+        lines.append("Bu rapor current invocation icinde uretilen event-only occurrence/episode yuzeyi, XLSX aggregate row projection, primitive/construct adaylari ve final assembly gate tarafindan admitted C4 candidate yuzeyini ayni evidence zincirinde birlestirir.")
     elif feature_current and rich_current:
         lines.append("Current invocation occurrence/episode ve multiformat aggregate yuzeyi mevcut; C4 tamamlanmadigi icin argument sonucu current evidence olarak yayinlanmadi.")
     elif feature_current:
@@ -325,6 +394,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         "Phase/state etiketleri activity candidate'dir; phase truth degildir.",
         "MICRO/MEZZO/MACRO bir evidence-routing lattice'tir; macro claim mikro/mezo evidence'dan kopamaz.",
         "Player/GK/team gorunumleri candidate identity ve aggregate cell yuzeyidir; validated identity/quality truth degildir.",
+        "User-facing analyst text final assembly admission olmadan yayinlanmaz; sequence-derived text exact lineage paketini korur.",
         "",
         "[10] CLAIM LOCKS",
         "canonical_event_count=UNKNOWN",
@@ -410,6 +480,8 @@ def write_standard_user_outputs(
         "feature_surface_current_invocation": _feature_surface_current(full_spine),
         "rich_multiformat_surface_current_invocation": _rich_surface_current(full_spine),
         "c4_surface_current_invocation": _c4_surface_current(full_spine),
+        "analyst_text_requires_final_assembly_admission": True,
+        "sequence_lineage_preserved_in_analyst_report": True,
         "file_count_before_manifest": len(entries),
         "files": entries,
         "canonical_event_count": "UNKNOWN",
