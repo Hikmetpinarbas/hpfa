@@ -105,6 +105,19 @@ def compose_sequence_finding_report(source_payload: dict[str, Any]) -> dict[str,
         if family_refs[0] not in trace_variant_refs:
             return _fail(f"sequence_finding_anchor_not_in_trace_cohort:{family_refs[0]}")
 
+        dependency_summary = dict(item.get("dependency_summary") or {})
+        robustness_summary = dict(item.get("robustness_summary") or {})
+        uncertainty = dict(item.get("uncertainty") or {})
+        withdrawal = _clean(item.get("withdrawal_condition"))
+        if not dependency_summary:
+            return _fail(f"sequence_finding_missing_dependency_summary:{family_refs[0]}")
+        if not robustness_summary:
+            return _fail(f"sequence_finding_missing_robustness_summary:{family_refs[0]}")
+        if not uncertainty:
+            return _fail(f"sequence_finding_missing_uncertainty:{family_refs[0]}")
+        if not withdrawal:
+            return _fail(f"sequence_finding_missing_withdrawal_condition:{family_refs[0]}")
+
         success = int(item.get("success_support") or 0)
         failure = int(item.get("failure_support") or 0)
         divergence = int(item.get("divergence_support") or 0)
@@ -131,7 +144,6 @@ def compose_sequence_finding_report(source_payload: dict[str, Any]) -> dict[str,
         public_text = lead + outcome + meaning
         forbidden = {_clean(x).lower() for x in (item.get("FORBIDDEN_INFERENCE") or []) if _clean(x)}
         analyst_action = _clean(item.get("ANALYST_ACTION"))
-        withdrawal = _clean(item.get("withdrawal_condition"))
         report_blocks.append({
             "report_block_id": "sequence_report_" + _digest(family_refs, trace_variant_refs, state, support)[:24],
             "block_family": "sequence_safe_finding_analyst_reading_candidate",
@@ -153,9 +165,9 @@ def compose_sequence_finding_report(source_payload: dict[str, Any]) -> dict[str,
             "divergence_support": divergence,
             "no_visible_followup_support": no_followup,
             "counterevidence_refs": counter_refs,
-            "dependency_summary": dict(item.get("dependency_summary") or {}),
-            "uncertainty": dict(item.get("uncertainty") or {}),
-            "robustness_summary": dict(item.get("robustness_summary") or {}),
+            "dependency_summary": dependency_summary,
+            "uncertainty": uncertainty,
+            "robustness_summary": robustness_summary,
             "forbidden_inference": sorted(forbidden),
             "status": "REVIEW_REQUIRED" if status == "REVIEW_REQUIRED" else "SMOKE_PASS",
             "decision": "ANALYST_READING_CANDIDATE_COMPOSED",
