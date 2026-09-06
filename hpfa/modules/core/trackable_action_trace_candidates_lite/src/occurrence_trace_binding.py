@@ -238,6 +238,12 @@ def build_occurrence_aware_trace_payload(
     occurrence_trace_counts: dict[str, int] = defaultdict(int)
     occurrence_actor_trace_counts: dict[str, int] = defaultdict(int)
     occurrence_opponent_trace_counts: dict[str, int] = defaultdict(int)
+    occurrence_trace_refs: dict[str, set[str]] = defaultdict(set)
+    occurrence_player_refs: dict[str, set[str]] = defaultdict(set)
+    occurrence_goalkeeper_refs: dict[str, set[str]] = defaultdict(set)
+    occurrence_team_refs: dict[str, set[str]] = defaultdict(set)
+    occurrence_relation_types: dict[str, set[str]] = defaultdict(set)
+    occurrence_reflection_bundle_refs: dict[str, set[str]] = defaultdict(set)
     occurrence_bound_trace_count = 0
     for trace in traces:
         if not isinstance(trace, dict):
@@ -249,10 +255,32 @@ def build_occurrence_aware_trace_payload(
         ]
         if ids:
             occurrence_bound_trace_count += 1
+        trace_id = _clean(trace.get("trackable_action_trace_candidate_id"))
         team = _clean(trace.get("team_identity_candidate_id"))
         actor = _clean(trace.get("actor_identity_candidate_id"))
+        source_role = _clean(trace.get("source_role"))
+        reflections = {
+            _clean(value)
+            for value in (trace.get("reflection_context_action_bundle_candidate_ids") or [])
+            if _clean(value)
+        }
         for occurrence_id in ids:
             occurrence_trace_counts[occurrence_id] += 1
+            if trace_id:
+                occurrence_trace_refs[occurrence_id].add(trace_id)
+            if team:
+                occurrence_team_refs[occurrence_id].add(team)
+                occurrence_relation_types[occurrence_id].update({"OCCURRENCE_HAS_TEAM", "TEAM_PARTICIPATES_IN_TRACE"})
+            if actor:
+                if source_role == "GOALKEEPER_SURFACE_CANDIDATE":
+                    occurrence_goalkeeper_refs[occurrence_id].add(actor)
+                    occurrence_relation_types[occurrence_id].update({"OCCURRENCE_HAS_GOALKEEPER", "GOALKEEPER_PARTICIPATES_IN_TRACE"})
+                else:
+                    occurrence_player_refs[occurrence_id].add(actor)
+                    occurrence_relation_types[occurrence_id].update({"OCCURRENCE_HAS_PLAYER", "PLAYER_PARTICIPATES_IN_TRACE"})
+            if reflections:
+                occurrence_reflection_bundle_refs[occurrence_id].update(reflections)
+                occurrence_relation_types[occurrence_id].add("SAME_UNDERLYING_OCCURRENCE_REFLECTION")
             candidate = occurrence_meta.get(occurrence_id) or {}
             if team == _clean(candidate.get("team_identity_candidate_id")) and actor == _clean(candidate.get("actor_identity_candidate_id")):
                 occurrence_actor_trace_counts[occurrence_id] += 1
@@ -277,7 +305,53 @@ def build_occurrence_aware_trace_payload(
         else:
             state = "NO_PARTICIPANT_TRACE_VISIBLE_REVIEW_REQUIRED"
             missing += 1
+
+        opponent_refs = sorted({
+            value
+            for value in (
+                _clean(candidate.get("opponent_identity_candidate_id")),
+                _clean(candidate.get("opponent_team_identity_candidate_id")),
+            )
+            if value
+        })
+        team_refs = set(occurrence_team_refs.get(occurrence_id, set()))
+        for value in (
+            _clean(candidate.get("team_identity_candidate_id")),
+            _clean(candidate.get("opponent_team_identity_candidate_id")),
+        ):
+            if value:
+                team_refs.add(value)
+        relation_types = set(occurrence_relation_types.get(occurrence_id, set()))
+        if opponent_refs:
+            relation_types.add("OCCURRENCE_HAS_OPPONENT_CONTEXT")
+        trace_refs = sorted(occurrence_trace_refs.get(occurrence_id, set()))
+        if len(trace_refs) > 1:
+            relation_types.add("DERIVED_FROM_SAME_OCCURRENCE")
+        derivation_parents = sorted({
+            _clean(value)
+            for value in (candidate.get("supporting_action_bundle_candidate_ids") or [])
+            if _clean(value)
+        })
+        reflection_refs = sorted(occurrence_reflection_bundle_refs.get(occurrence_id, set()))
+
         binding_records.append({
+            "object_binding_id": "ocb_" + _digest(occurrence_id, trace_refs)[:24],
+            "occurrence_ref": occurrence_id,
+            "trace_refs": trace_refs,
+            "player_refs": sorted(occurrence_player_refs.get(occurrence_id, set())),
+            "team_refs": sorted(team_refs),
+            "goalkeeper_refs": sorted(occurrence_goalkeeper_refs.get(occurrence_id, set())),
+            "opponent_refs": opponent_refs,
+            "relation_types": sorted(relation_types),
+            "dependency_group": f"occurrence:{occurrence_id}" if occurrence_id else None,
+            "independence_group": None,
+            "independence_proven": False,
+            "provenance_root": occurrence_id,
+            "derivation_parents": derivation_parents,
+            "reflection_context_refs": reflection_refs,
+            "underlying_occurrence_root_count_contribution": 1 if occurrence_id else 0,
+            "object_view_count_is_independent_support_count": False,
+            "object_view_creates_event": False,
             "action_occurrence_candidate_id": occurrence_id,
             "binding_state": state,
             "actor_trace_candidate_count": actor_count,
@@ -289,6 +363,8 @@ def build_occurrence_aware_trace_payload(
 
     payload["occurrence_trace_binding_records"] = binding_records
     payload["occurrence_trace_binding_record_count"] = len(binding_records)
+    payload["object_centric_trace_binding_record_count"] = len(binding_records)
+    payload["object_views_create_independent_support"] = False
     payload["occurrence_bound_trace_candidate_count"] = occurrence_bound_trace_count
     payload["occurrence_both_participants_trace_visible_count"] = complete
     payload["occurrence_partial_participant_trace_visible_count"] = partial
