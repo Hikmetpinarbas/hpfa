@@ -12,6 +12,8 @@ OUTPUT_TXT = "final_report_assembly_gate_lite_v1.txt"
 UPSTREAM_CLAIM_CEILING = "report_output_contract_candidate_only"
 ASSEMBLY_CLAIM_CEILING = "final_report_assembly_candidate_only"
 MISSING_CONTRACT_ITEM_ID = "MISSING_CONTRACT_ITEM_ID"
+SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
 
 ALLOWED_DECISIONS = {"INCLUDE_BLOCK_CANDIDATE"}
 REVIEW_DECISIONS = {"REVIEW_BLOCK"}
@@ -174,8 +176,17 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
         hits.append("assembly_sequence_withdrawal_condition_missing")
     if not upstream_claim_ceiling:
         hits.append("assembly_sequence_upstream_claim_ceiling_missing")
-    if block_family == "sequence_narrative_analyst_reading_candidate" and not origin_claim_ceiling:
-        hits.append("assembly_sequence_origin_claim_ceiling_missing")
+    elif block_family == "sequence_safe_finding_analyst_reading_candidate" and upstream_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING:
+        hits.append("assembly_sequence_upstream_claim_ceiling_mismatch")
+    elif block_family == "sequence_narrative_analyst_reading_candidate" and upstream_claim_ceiling != SEQUENCE_NARRATIVE_CLAIM_CEILING:
+        hits.append("assembly_sequence_upstream_claim_ceiling_mismatch")
+    if block_family == "sequence_narrative_analyst_reading_candidate":
+        if not origin_claim_ceiling:
+            hits.append("assembly_sequence_origin_claim_ceiling_missing")
+        elif origin_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING:
+            hits.append("assembly_sequence_origin_claim_ceiling_mismatch")
+    elif origin_claim_ceiling:
+        hits.append("assembly_sequence_unexpected_origin_claim_ceiling")
 
     return lineage, hits
 
