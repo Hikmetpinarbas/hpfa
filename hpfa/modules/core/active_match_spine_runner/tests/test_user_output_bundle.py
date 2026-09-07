@@ -100,8 +100,8 @@ def test_analyst_report_uses_current_episode_surface(tmp_path):
     text = build_analyst_report(tmp_path, _full_spine())
     assert "eligible_action_candidate_total=30" in text
     assert "05:00-06:00 shots=3" in text
-    assert '"Team A": 12' in text
-    assert '"Team B": 10' in text
+    assert '\"Team A\": 12' in text
+    assert '\"Team B\": 10' in text
     assert "ASSEMBLY_ADMITTED_ARGUMENT_CANDIDATES" in text
     assert "Gorunur kanit grafigi aday okumayi destekler." not in text
     assert "feature_surface_current_invocation=true" in text
@@ -131,7 +131,6 @@ def test_bundle_uses_producer_write_ledger_even_when_content_unchanged(tmp_path)
     rewritten.write_text("same", encoding="utf-8")
     before = snapshot_output_state(tmp_path)
 
-    # Simulate deterministic producer rewrite with identical bytes.
     rewritten.write_text("same", encoding="utf-8")
     feature = tmp_path / "episode_feature_vector_lite_v1.json"
     feature.write_text(json.dumps(_feature_payload()), encoding="utf-8")
@@ -169,6 +168,36 @@ def test_bundle_uses_producer_write_ledger_even_when_content_unchanged(tmp_path)
     assert manifest["analyst_text_requires_final_assembly_admission"] is True
     assert manifest["sequence_lineage_preserved_in_analyst_report"] is True
     assert manifest["canonical_event_count"] == "UNKNOWN"
+    assert manifest["production_release"] is False
+
+
+def test_bundle_manifest_keeps_mixed_artifact_inventory_non_authoritative(tmp_path):
+    diagnostic = tmp_path / "active_match_process_story_sidecar_v1.json"
+    publication = tmp_path / "active_match_process_story_sidecar_v1.txt"
+    full_json = tmp_path / "active_match_full_spine_v1.json"
+    full_txt = tmp_path / "active_match_full_spine_v1.txt"
+    diagnostic.write_text('{"story":"TRACE_A"}', encoding="utf-8")
+    publication.write_text("assembly_admitted_story=TRACE_B", encoding="utf-8")
+    full_json.write_text("{}", encoding="utf-8")
+    full_txt.write_text("status=REVIEW_REQUIRED", encoding="utf-8")
+
+    write_standard_user_outputs(
+        tmp_path,
+        _full_spine(current_artifacts=[str(diagnostic), str(publication), str(full_json), str(full_txt)]),
+    )
+    manifest = json.loads((tmp_path / BUNDLE_MANIFEST).read_text(encoding="utf-8"))
+    shipped = {item["name"] for item in manifest["files"]}
+
+    assert manifest["current_invocation_artifacts_are_publication_authority"] is False
+    assert manifest["bundle_file_inventory_is_publication_authority"] is False
+    assert manifest["process_story_diagnostic_artifact"] == diagnostic.name
+    assert manifest["process_story_publication_authority_artifact"] == publication.name
+    assert manifest["process_story_diagnostic_artifact_present"] is True
+    assert manifest["process_story_publication_authority_artifact_present"] is True
+    assert diagnostic.name in shipped
+    assert publication.name in shipped
+    assert manifest["canonical_event_count"] == "UNKNOWN"
+    assert manifest["true_action_count"] == "UNKNOWN"
     assert manifest["production_release"] is False
 
 
