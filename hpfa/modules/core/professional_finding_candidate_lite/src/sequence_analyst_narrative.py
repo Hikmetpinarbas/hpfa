@@ -171,11 +171,21 @@ def _null_contrast_for_row(row: dict[str, Any]) -> tuple[dict[str, Any], str, li
         return {}, "", ["upstream_null_contrast_tactical_truth_lock_breach"]
     if summary.get("causality_allowed") is not False:
         return {}, "", ["upstream_null_contrast_causality_lock_breach"]
+    simulation_count = summary.get("simulation_count")
+    if not isinstance(simulation_count, int) or simulation_count < 1:
+        return {}, "", ["upstream_null_contrast_simulation_count_invalid"]
+    tail_resolution = summary.get("empirical_upper_tail_resolution")
+    expected_resolution = 1 / (simulation_count + 1)
+    if not isinstance(tail_resolution, (int, float)) or abs(float(tail_resolution) - expected_resolution) > 1e-12:
+        return {}, "", ["upstream_null_contrast_tail_resolution_mismatch"]
+    if summary.get("finite_simulation_resolution_only") is not True:
+        return {}, "", ["upstream_null_contrast_finite_resolution_lock_breach"]
     if not _clean(summary.get("withdrawal_condition")):
         return {}, "", ["upstream_null_contrast_withdrawal_condition_missing"]
     sentence = (
         f"Tanımlı null karşılaştırması {state}; gözlenen bağımsız tekrar={summary.get('observed_independent_recurrence')}, "
-        f"null medyan={summary.get('null_median')}, düzeltilmemiş üst-kuyruk olasılığı={summary.get('empirical_upper_tail_probability_uncorrected')}. "
+        f"null medyan={summary.get('null_median')}, düzeltilmemiş üst-kuyruk olasılığı={summary.get('empirical_upper_tail_probability_uncorrected')}, "
+        f"simülasyon={simulation_count}, finite-simulation kuyruk çözünürlüğü={float(tail_resolution)}. "
         "Bu karşılaştırma istatistiksel anlamlılık, nedensellik veya taktik patern gerçeği değildir."
     )
     return summary, sentence, []
