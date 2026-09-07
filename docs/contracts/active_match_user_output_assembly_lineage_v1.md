@@ -41,6 +41,9 @@ This contract rehabilitates the current user-output producer. It does not add a 
    - it must be an object;
    - `claim_strengthened=false` is mandatory;
    - when `state != NOT_EVALUATED`, `claim_ceiling=UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY` is mandatory;
+   - `simulation_count` must be a positive non-boolean integer;
+   - `empirical_upper_tail_resolution` must equal exactly `1/(simulation_count+1)` within floating-point tolerance `1e-12`;
+   - `finite_simulation_resolution_only=true` is mandatory;
    - `multiple_testing_corrected=false` is mandatory;
    - `significance_claim_allowed=false` is mandatory;
    - `tactical_pattern_truth_allowed=false` is mandatory;
@@ -53,13 +56,14 @@ This contract rehabilitates the current user-output producer. It does not add a 
    - `tactical_adaptation_claimed=false`;
    - `coach_intention_claimed=false`;
    - every baseline/comparison trace ref must remain inside the exact supporting trace cohort.
-10. Unknown, tactical, causal, production, wrong-hop, null-significance, null-tactical, null-causality, fake multiple-testing correction, wrong null ceiling, context-causality, context-adaptation or otherwise escalated sequence claims are suppressed and cannot become user-facing prose.
-11. Missing or inconsistent sequence lineage, including a missing null-specific withdrawal condition on evaluated null evidence, is not converted into readable prose; the candidate is suppressed at this presentation boundary.
+10. Unknown, tactical, causal, production, wrong-hop, null-significance, null-tactical, null-causality, fake multiple-testing correction, wrong null ceiling, invalid simulation count, false tail resolution, finite-resolution lock breach, context-causality, context-adaptation or otherwise escalated sequence claims are suppressed and cannot become user-facing prose.
+11. Missing or inconsistent sequence lineage, including a missing null-specific withdrawal condition or inconsistent finite-simulation resolution on evaluated null evidence, is not converted into readable prose; the candidate is suppressed at this presentation boundary.
 12. Presentation may preserve or lower evidence strength. It may never increase it.
 
 ## Claim boundary
 
 - recurrence is not tactical-pattern truth;
+- null-tail probability is a finite-simulation diagnostic whose numerical granularity is bounded by `1/(simulation_count+1)`;
 - null-tail probability is not multiple-testing-corrected significance unless a separate admitted statistical contract establishes that fact;
 - null contrast is not causal evidence;
 - context difference is not causality or coaching adaptation;
@@ -89,7 +93,8 @@ CI success is engineering evidence only and is not physical ACTIVE_MATCH accepta
 - unexpected origin claim on a safe-finding block must suppress the sequence candidate;
 - wrong final assembly claim ceiling must suppress the sequence candidate;
 - audited null/context lineage must be serialized into the analyst report when present;
-- null claim-strengthening, wrong null ceiling, fake multiple-testing correction, significance/tactical-truth/causality escalation, or missing null-specific withdrawal condition must suppress the sequence candidate;
+- evaluated null evidence must preserve positive `simulation_count`, exact `empirical_upper_tail_resolution=1/(simulation_count+1)`, and `finite_simulation_resolution_only=true`;
+- invalid simulation count, tail-resolution mismatch, finite-resolution lock breach, null claim-strengthening, wrong null ceiling, fake multiple-testing correction, significance/tactical-truth/causality escalation, or missing null-specific withdrawal condition must suppress the sequence candidate;
 - context causality/adaptation/intention/chronology escalation must suppress the sequence candidate;
 - context trace refs outside the exact support cohort must suppress the sequence candidate;
 - claim locks must remain present in the user-facing report and bundle manifest;
