@@ -42,7 +42,8 @@ jobs:
             active_match_full_run.py \
             hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py \
             hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py \
-            hpfa/modules/core/active_match_spine_runner/tests/test_full_spine_runner.py
+            hpfa/modules/core/active_match_spine_runner/tests/test_full_spine_runner.py \
+            hpfa/modules/core/active_match_spine_runner/tests/test_full_spine_artifact_authority.py
 
       - name: Run unified full-spine regressions
         run: python -m pytest -q hpfa/modules/core/active_match_spine_runner/tests
@@ -74,6 +75,8 @@ jobs:
           grep -F 'runtime/active_single_match/current' hpfa/modules/core/active_match_spine_runner/src/spine_runner.py
           grep -F 'parallel_reasoning_engine_created' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'current_context_episode_feature_lane_reused' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
+          grep -F 'current_invocation_artifacts_are_publication_authority' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
+          grep -F 'process_story_publication_authority_artifact' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'temporal_signature_is_rhythm_truth' hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py
           grep -F 'canonical_event_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'true_action_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
