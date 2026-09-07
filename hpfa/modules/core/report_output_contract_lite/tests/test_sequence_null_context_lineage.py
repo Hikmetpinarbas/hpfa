@@ -38,6 +38,9 @@ def narrative_block():
             "observed_support": 3,
             "null_median_support": 1.5,
             "upper_tail_probability_uncorrected": 0.12,
+            "simulation_count": 99,
+            "empirical_upper_tail_resolution": 0.01,
+            "finite_simulation_resolution_only": True,
             "claim_strengthened": False,
             "claim_ceiling": "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY",
             "multiple_testing_corrected": False,
@@ -111,6 +114,30 @@ def test_output_contract_rejects_null_causality_escalation():
     item = evaluate_report_block(block)
     assert item["status"] == "FAIL_CLOSED"
     assert "sequence_lineage_null_contrast_causality_lock_breach" in item["hard_block_hits"]
+
+
+def test_output_contract_rejects_invalid_null_simulation_count():
+    block = narrative_block()
+    block["null_contrast_summary"]["simulation_count"] = 0
+    item = evaluate_report_block(block)
+    assert item["status"] == "FAIL_CLOSED"
+    assert "sequence_lineage_null_contrast_simulation_count_invalid" in item["hard_block_hits"]
+
+
+def test_output_contract_rejects_null_tail_resolution_mismatch():
+    block = narrative_block()
+    block["null_contrast_summary"]["empirical_upper_tail_resolution"] = 0.02
+    item = evaluate_report_block(block)
+    assert item["status"] == "FAIL_CLOSED"
+    assert "sequence_lineage_null_contrast_tail_resolution_mismatch" in item["hard_block_hits"]
+
+
+def test_output_contract_rejects_null_finite_resolution_lock_breach():
+    block = narrative_block()
+    block["null_contrast_summary"]["finite_simulation_resolution_only"] = False
+    item = evaluate_report_block(block)
+    assert item["status"] == "FAIL_CLOSED"
+    assert "sequence_lineage_null_contrast_finite_resolution_lock_breach" in item["hard_block_hits"]
 
 
 def test_output_contract_rejects_missing_null_withdrawal_condition():
