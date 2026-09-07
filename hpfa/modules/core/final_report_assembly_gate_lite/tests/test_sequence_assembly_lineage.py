@@ -25,6 +25,9 @@ def sequence_contract_item():
             "observed_recurrence": 2,
             "null_median": 1,
             "upper_tail_probability_uncorrected": 0.2,
+            "simulation_count": 9,
+            "empirical_upper_tail_resolution": 0.1,
+            "finite_simulation_resolution_only": True,
             "claim_ceiling": "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY",
             "multiple_testing_corrected": False,
             "claim_strengthened": False,
@@ -165,6 +168,29 @@ def test_extended_null_contract_locks_fail_closed_at_assembly_boundary():
         ("multiple_testing_corrected", True, "assembly_sequence_null_contrast_multiple_testing_lock_breach"),
         ("causality_allowed", True, "assembly_sequence_null_contrast_causality_lock_breach"),
         ("withdrawal_condition", "", "assembly_sequence_null_contrast_withdrawal_condition_missing"),
+    )
+    for field, value, expected in cases:
+        item = sequence_contract_item()
+        item["sequence_evidence_lineage"]["null_contrast_summary"][field] = value
+        result = evaluate_assembly_item(item)
+        assert result["status"] == "FAIL_CLOSED"
+        assert expected in result["hard_block_hits"]
+        assert result["assembly_item_candidate_tr"] == ""
+
+
+def test_finite_simulation_resolution_is_revalidated_at_assembly_boundary():
+    item = sequence_contract_item()
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "SMOKE_PASS"
+    null_summary = result["sequence_evidence_lineage"]["null_contrast_summary"]
+    assert null_summary["simulation_count"] == 9
+    assert null_summary["empirical_upper_tail_resolution"] == 0.1
+    assert null_summary["finite_simulation_resolution_only"] is True
+
+    cases = (
+        ("simulation_count", 0, "assembly_sequence_null_contrast_simulation_count_invalid"),
+        ("empirical_upper_tail_resolution", 0.01, "assembly_sequence_null_contrast_tail_resolution_mismatch"),
+        ("finite_simulation_resolution_only", False, "assembly_sequence_null_contrast_finite_resolution_lock_breach"),
     )
     for field, value, expected in cases:
         item = sequence_contract_item()
