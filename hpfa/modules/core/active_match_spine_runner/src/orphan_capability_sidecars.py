@@ -9,6 +9,8 @@ from hpfa.modules.core.active_match_spine_runner.src.metric_governance_bridge im
 from hpfa.modules.core.active_match_spine_runner.src.process_story_sidecar import write_process_story_sidecar
 
 MODULE_ID = "active_match_orphan_capability_sidecars_v1"
+PROCESS_STORY_DIAGNOSTIC_ARTIFACT = "active_match_process_story_sidecar_v1.json"
+PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT = "active_match_process_story_sidecar_v1.txt"
 
 
 def _dedupe(values: list[str]) -> list[str]:
@@ -24,19 +26,35 @@ def _dedupe(values: list[str]) -> list[str]:
 
 
 def _process_story_diagnostic_projection(process_story: dict[str, Any]) -> dict[str, Any]:
-    """Expose process-story sidecar counters only as diagnostic metadata.
+    """Expose process-story metadata without upgrading diagnostics to publication authority.
 
-    The JSON sidecar retains raw/intermediate evidence for audit. Parent sidecar output
-    must not strip that semantic qualifier and accidentally make diagnostic counters
-    look like publication-admitted football output.
+    The parent contract owns the authority identity. Upstream diagnostic payloads may
+    report their declaration for audit, but they cannot redirect publication authority
+    or turn the mixed artifact inventory into user-facing evidence.
     """
+    artifact_names = {
+        Path(str(value)).name
+        for value in process_story.get("current_invocation_artifacts") or []
+        if str(value or "").strip()
+    }
     return {
         "process_story_diagnostic_artifact_semantics": process_story.get("artifact_semantics", "UNKNOWN"),
         "process_story_diagnostic_user_facing_publication_authority": False,
-        "process_story_publication_authority_artifact": process_story.get("publication_authority_artifact"),
+        "process_story_publication_authority_artifact": PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT,
+        "process_story_upstream_publication_authority_declaration_matches_contract": (
+            process_story.get("publication_authority_artifact") == PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT
+        ),
         "process_story_entity_story_count_diagnostic": process_story.get("entity_story_count", 0),
         "process_story_ready_assembly_item_count_diagnostic": process_story.get("ready_assembly_item_count", 0),
         "process_story_diagnostic_counts_are_publication_admission": False,
+        "process_story_current_invocation_artifacts_are_publication_authority": False,
+        "process_story_diagnostic_artifact": PROCESS_STORY_DIAGNOSTIC_ARTIFACT,
+        "process_story_diagnostic_artifact_present_in_current_invocation": (
+            PROCESS_STORY_DIAGNOSTIC_ARTIFACT in artifact_names
+        ),
+        "process_story_publication_authority_artifact_present_in_current_invocation": (
+            PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT in artifact_names
+        ),
     }
 
 
@@ -148,6 +166,7 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "hard_block_hits": _dedupe(hard_blocks),
         "review_hits": _dedupe(review_hits),
         "current_invocation_artifacts": sorted(set(artifacts)),
+        "current_invocation_artifacts_are_publication_authority": False,
         "sidecar_outputs_are_primary_truth": False,
         "metric_value_output_allowed": False,
         "construct_truth": False,
