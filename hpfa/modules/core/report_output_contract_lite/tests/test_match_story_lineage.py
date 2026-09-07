@@ -12,6 +12,12 @@ def _block(shared=None):
         "block_language": "tr",
         "report_block_candidate_tr": "Takımın admitted görünür süreçleri tekrar, bozulma ve bağlamsal varyasyon bakımından birlikte değerlendirildi.",
         "source_narrative_ids": ["n1", "n2"],
+        "process_narrative_count": 2,
+        "recurrent_process_count": 2,
+        "robust_recurrent_process_count": 1,
+        "counterevidence_bearing_process_count": 1,
+        "context_sensitive_process_count": 1,
+        "null_evaluated_process_count": 1,
         "story_state": "RECURRENT_PROCESS_SET_WITH_VISIBLE_COUNTEREVIDENCE",
         "entity_scope": "team_a",
         "nominal_support_sum": 6,
@@ -40,6 +46,12 @@ def test_match_story_block_is_admitted_with_exact_story_lineage():
     assert result["inclusion_decision"] == "INCLUDE_BLOCK_CANDIDATE"
     lineage = result["match_story_evidence_lineage"]
     assert lineage["source_narrative_ids"] == ["n1", "n2"]
+    assert lineage["process_narrative_count"] == 2
+    assert lineage["recurrent_process_count"] == 2
+    assert lineage["robust_recurrent_process_count"] == 1
+    assert lineage["counterevidence_bearing_process_count"] == 1
+    assert lineage["context_sensitive_process_count"] == 1
+    assert lineage["null_evaluated_process_count"] == 1
     assert lineage["unique_trace_ref_count"] == 6
     assert lineage["unique_trace_refs"] == ["v1", "v2", "v3", "v4", "v5", "v6"]
     assert lineage["nominal_support_sum"] == 6
@@ -63,6 +75,47 @@ def test_unique_trace_count_mismatch_fails_closed():
     result = evaluate_report_block(block)
     assert result["status"] == "FAIL_CLOSED"
     assert "match_story_lineage_unique_trace_ref_count_mismatch" in result["hard_block_hits"]
+
+
+def test_process_narrative_count_must_match_exact_source_narrative_cohort():
+    block = _block()
+    block["process_narrative_count"] = 3
+    result = evaluate_report_block(block)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "match_story_lineage_process_narrative_count_mismatch" in result["hard_block_hits"]
+
+
+def test_subprocess_count_may_not_exceed_process_count():
+    block = _block()
+    block["context_sensitive_process_count"] = 3
+    result = evaluate_report_block(block)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "match_story_lineage_context_sensitive_process_count_exceeds_process_count" in result["hard_block_hits"]
+
+
+def test_robust_recurrent_count_may_not_exceed_recurrent_count():
+    block = _block()
+    block["recurrent_process_count"] = 1
+    block["robust_recurrent_process_count"] = 2
+    result = evaluate_report_block(block)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "match_story_lineage_robust_recurrent_process_count_exceeds_recurrent" in result["hard_block_hits"]
+
+
+def test_boolean_process_accounting_is_not_integer_evidence():
+    block = _block()
+    block["null_evaluated_process_count"] = True
+    result = evaluate_report_block(block)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "match_story_lineage_null_evaluated_process_count_invalid" in result["hard_block_hits"]
+
+
+def test_boolean_nominal_support_is_not_integer_evidence():
+    block = _block()
+    block["nominal_support_sum"] = True
+    result = evaluate_report_block(block)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "match_story_lineage_nominal_support_invalid" in result["hard_block_hits"]
 
 
 def test_wrong_story_claim_ceiling_fails_closed():
