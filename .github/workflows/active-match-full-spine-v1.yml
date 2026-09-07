@@ -77,10 +77,14 @@ jobs:
           grep -F 'current_context_episode_feature_lane_reused' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'current_invocation_artifacts_are_publication_authority' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'process_story_publication_authority_artifact' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
+          grep -F 'aggregate_support_lineage_complete' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
+          grep -F 'aggregate_support_attachment_is_timeline_identity' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
+          grep -F 'aggregate_support_attachment_is_independent_vote' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
           grep -F 'temporal_signature_is_rhythm_truth' hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py
           grep -F 'canonical_event_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'true_action_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'production_release' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           ! grep -RInE 'Genclerbirligi|Fenerbahce|Sturm Graz|Heart of Midlothian|Turkey|Australia|15\.08\.2026|22\.08\.2026' \
             hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py \
-            hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py
+            hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py \
+            hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
