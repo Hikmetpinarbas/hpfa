@@ -193,17 +193,28 @@ def build_sequence_safe_finding_blocks(
                 return _fail(f"null_contrast_tactical_truth_lock_breach:{family_ref}")
             if null_row.get("causality_allowed") is not False:
                 return _fail(f"null_contrast_causality_lock_breach:{family_ref}")
+            simulation_count = null_row.get("simulation_count")
+            tail_resolution = null_row.get("empirical_upper_tail_resolution")
+            if not isinstance(simulation_count, int) or simulation_count < 1:
+                return _fail(f"null_contrast_simulation_count_invalid:{family_ref}")
+            expected_resolution = 1 / (simulation_count + 1)
+            if not isinstance(tail_resolution, (int, float)) or abs(float(tail_resolution) - expected_resolution) > 1e-12:
+                return _fail(f"null_contrast_tail_resolution_mismatch:{family_ref}")
+            if null_row.get("finite_simulation_resolution_only") is not True:
+                return _fail(f"null_contrast_finite_resolution_lock_breach:{family_ref}")
             null_withdrawal = _clean(null_row.get("withdrawal_condition"))
             if not null_withdrawal:
                 return _fail(f"null_contrast_withdrawal_condition_missing:{family_ref}")
             null_summary = {
                 "state": _clean(null_row.get("state")) or "UNKNOWN",
                 "observed_independent_recurrence": observed_null,
-                "simulation_count": null_row.get("simulation_count"),
+                "simulation_count": simulation_count,
                 "null_mean": null_row.get("null_mean"),
                 "null_median": null_row.get("null_median"),
                 "null_q95": null_row.get("null_q95"),
                 "empirical_upper_tail_probability_uncorrected": null_row.get("empirical_upper_tail_probability_uncorrected"),
+                "empirical_upper_tail_resolution": float(tail_resolution),
+                "finite_simulation_resolution_only": True,
                 "observed_percentile_in_null_draws": null_row.get("observed_percentile_in_null_draws"),
                 "null_model_id": null_row.get("null_model_id"),
                 "null_model_version": null_row.get("null_model_version"),
@@ -225,7 +236,8 @@ def build_sequence_safe_finding_blocks(
         if null_row is not None and isinstance(independent, int):
             support_text += (
                 f" Defined-null contrast={null_summary['state']}; null median={null_summary['null_median']}; "
-                f"uncorrected upper-tail probability={null_summary['empirical_upper_tail_probability_uncorrected']}."
+                f"uncorrected upper-tail probability={null_summary['empirical_upper_tail_probability_uncorrected']}; "
+                f"finite-simulation tail resolution={null_summary['empirical_upper_tail_resolution']}."
             )
         counter_text = (
             f"Visible failure variants={failures}; divergence variants={divergences}; counterevidence refs={len(counter_refs)}. "
@@ -250,7 +262,7 @@ def build_sequence_safe_finding_blocks(
             safe_meaning = "A discovery-level visible process candidate exists and requires stronger recurrence/robustness evidence before promotion."
         if null_row is not None and isinstance(independent, int):
             safe_meaning += (
-                " Its admitted independent recurrence can also be described relative to the supplied audited null distribution, "
+                " Its admitted independent recurrence can also be described relative to the supplied audited null distribution at the explicit finite-simulation tail resolution, "
                 "without treating the uncorrected tail probability as significance, tactical truth or causality."
             )
 
