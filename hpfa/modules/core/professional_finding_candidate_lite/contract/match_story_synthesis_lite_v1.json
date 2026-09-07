@@ -1,0 +1,64 @@
+{
+  "module_id": "match_story_synthesis_lite_v1",
+  "input_module_id": "sequence_analyst_narrative_lite_v1",
+  "purpose": "Synthesize already-admitted entity-level sequence narratives into a match-local process story without inventing chronology, independence, causality, tactical plan truth or coach intention.",
+  "inputs": {
+    "narrative_blocks_required": true,
+    "narrative_block_count_must_match_rows": true,
+    "exact_trace_refs_required_per_narrative": true,
+    "support_must_match_exact_trace_ref_count": true
+  },
+  "synthesis_outputs": {
+    "entity_story": true,
+    "process_state_distribution": true,
+    "success_failure_divergence_balance": true,
+    "counterevidence_bearing_process_count": true,
+    "context_sensitive_process_count": true,
+    "null_evaluated_process_count": true,
+    "unique_trace_ref_count": true,
+    "nominal_support_sum": true,
+    "plain_turkish_story": true
+  },
+  "invariants": {
+    "narrative_priority_is_football_chronology": false,
+    "nominal_support_is_independent_evidence_count": false,
+    "cross_process_support_independence_is_assumed": false,
+    "shared_trace_refs_are_double_counted_as_independent_support": false,
+    "context_variation_is_causality": false,
+    "context_variation_is_tactical_adaptation": false,
+    "null_above_median_is_statistical_significance": false,
+    "absence_of_counterevidence_is_confirmation": false,
+    "recurrence_is_tactical_plan_truth": false,
+    "coach_intention_inference_allowed": false,
+    "causality_inference_allowed": false
+  },
+  "failure_policy": {
+    "upstream_hard_block": "FAIL_CLOSED",
+    "upstream_claim_lock_breach": "FAIL_CLOSED",
+    "duplicate_narrative_id": "FAIL_CLOSED",
+    "missing_trace_refs": "FAIL_CLOSED",
+    "support_trace_mismatch": "FAIL_CLOSED",
+    "chronology_lock_breach": "FAIL_CLOSED",
+    "context_causality_lock_breach": "FAIL_CLOSED",
+    "tactical_adaptation_lock_breach": "FAIL_CLOSED",
+    "significance_lock_breach": "FAIL_CLOSED",
+    "shared_trace_refs_across_processes": "REVIEW_REQUIRED"
+  },
+  "analyst_gain": {
+    "can_answer_what_repeated": true,
+    "can_answer_where_processes_broke_or_diverged": true,
+    "can_answer_which_processes_are_context_sensitive": true,
+    "can_surface_counterevidence_balance": true,
+    "can_summarize_multiple_processes_into_one_entity_story": true,
+    "can_claim_chronological_match_flow_without_time_admission": false,
+    "can_claim_tactical_plan_truth": false,
+    "can_claim_coach_intention": false,
+    "can_claim_causality": false
+  },
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_PROCESS_STORY_ONLY"
+}
