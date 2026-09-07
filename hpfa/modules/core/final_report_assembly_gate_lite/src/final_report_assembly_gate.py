@@ -262,6 +262,14 @@ def _match_story_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[
     shared_refs = sorted(set(_string_list(lineage.get("shared_trace_refs_across_processes"))))
     unique_count = lineage.get("unique_trace_ref_count")
     nominal_support = lineage.get("nominal_support_sum")
+    process_count = lineage.get("process_narrative_count")
+    subprocess_fields = (
+        "recurrent_process_count",
+        "robust_recurrent_process_count",
+        "counterevidence_bearing_process_count",
+        "context_sensitive_process_count",
+        "null_evaluated_process_count",
+    )
     withdrawal = str(lineage.get("withdrawal_condition") or "").strip()
     upstream_claim_ceiling = str(lineage.get("upstream_claim_ceiling") or "").strip()
     hits: list[str] = []
@@ -270,10 +278,31 @@ def _match_story_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[
         hits.append("assembly_match_story_source_narrative_ids_missing")
     if not trace_refs:
         hits.append("assembly_match_story_unique_trace_refs_missing")
-    if not isinstance(unique_count, int) or unique_count != len(trace_refs):
+    if not isinstance(unique_count, int) or isinstance(unique_count, bool) or unique_count != len(trace_refs):
         hits.append("assembly_match_story_unique_trace_ref_count_mismatch")
-    if not isinstance(nominal_support, int) or nominal_support < len(trace_refs):
+    if not isinstance(nominal_support, int) or isinstance(nominal_support, bool) or nominal_support < len(trace_refs):
         hits.append("assembly_match_story_nominal_support_invalid")
+    if not isinstance(process_count, int) or isinstance(process_count, bool) or process_count < 0:
+        hits.append("assembly_match_story_process_narrative_count_invalid")
+    elif process_count != len(source_ids):
+        hits.append("assembly_match_story_process_narrative_count_mismatch")
+    else:
+        for field in subprocess_fields:
+            value = lineage.get(field)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                hits.append(f"assembly_match_story_{field}_invalid")
+            elif value > process_count:
+                hits.append(f"assembly_match_story_{field}_exceeds_process_count")
+        recurrent = lineage.get("recurrent_process_count")
+        robust = lineage.get("robust_recurrent_process_count")
+        if (
+            isinstance(recurrent, int)
+            and not isinstance(recurrent, bool)
+            and isinstance(robust, int)
+            and not isinstance(robust, bool)
+            and robust > recurrent
+        ):
+            hits.append("assembly_match_story_robust_recurrent_exceeds_recurrent")
     if not set(shared_refs).issubset(set(trace_refs)):
         hits.append("assembly_match_story_shared_trace_refs_not_subset")
     if lineage.get("nominal_support_is_independent_evidence_count") is not False:
