@@ -221,6 +221,16 @@ def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
                     hits.append("sequence_lineage_null_contrast_tactical_truth_lock_breach")
                 if null_summary.get("causality_allowed") is not False:
                     hits.append("sequence_lineage_null_contrast_causality_lock_breach")
+                simulation_count = null_summary.get("simulation_count")
+                if not isinstance(simulation_count, int) or simulation_count < 1:
+                    hits.append("sequence_lineage_null_contrast_simulation_count_invalid")
+                else:
+                    tail_resolution = null_summary.get("empirical_upper_tail_resolution")
+                    expected_resolution = 1 / (simulation_count + 1)
+                    if not isinstance(tail_resolution, (int, float)) or abs(float(tail_resolution) - expected_resolution) > 1e-12:
+                        hits.append("sequence_lineage_null_contrast_tail_resolution_mismatch")
+                if null_summary.get("finite_simulation_resolution_only") is not True:
+                    hits.append("sequence_lineage_null_contrast_finite_resolution_lock_breach")
                 if not str(null_summary.get("withdrawal_condition") or "").strip():
                     hits.append("sequence_lineage_null_contrast_withdrawal_condition_missing")
 
