@@ -2,13 +2,15 @@
 
 ## Owner
 
-Existing producer: `hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py`.
+Existing producers:
+- `hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py`
+- `hpfa/modules/core/active_match_spine_runner/src/process_story_sidecar.py`
 
-This contract rehabilitates the current user-output producer. It does not add a parallel report, narration, evidence, sequence or export engine.
+This contract rehabilitates current user-output producers. It does not add a parallel report, narration, evidence, sequence or export engine.
 
 ## Purpose
 
-`HPFA_ANALYST_REPORT.txt` is a user-facing projection. Human readability must not bypass the final report assembly gate, weaken evidence lineage, or resurrect a stronger claim vocabulary than the final assembly admitted.
+`HPFA_ANALYST_REPORT.txt` and `active_match_process_story_sidecar_v1.txt` are user-facing projections. Human readability must not bypass the final report assembly gate, weaken evidence lineage, or resurrect a stronger claim vocabulary than the final assembly admitted.
 
 ## Admission invariants
 
@@ -17,7 +19,7 @@ This contract rehabilitates the current user-output producer. It does not add a 
    - `assembly_decision=READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE`
    - `draft_report_candidate_allowed=true`
    - a non-empty `assembly_item_candidate_tr`.
-2. `safe_sentence`, `report_block`, or `output_contract` text is not independent authority for publication in the user bundle. A downstream assembly rejection must suppress earlier text.
+2. `safe_sentence`, raw `entity_story`, `report_block`, or `output_contract` text is not independent authority for publication in the user bundle/sidecar. A downstream assembly rejection must suppress earlier text.
 3. Sequence-derived block families must retain a complete `sequence_evidence_lineage` package before they can enter `HPFA_ANALYST_REPORT.txt`.
 4. Sequence lineage must preserve at minimum:
    - `trace_family_refs`
@@ -56,9 +58,17 @@ This contract rehabilitates the current user-output producer. It does not add a 
    - `tactical_adaptation_claimed=false`;
    - `coach_intention_claimed=false`;
    - every baseline/comparison trace ref must remain inside the exact supporting trace cohort.
-10. Unknown, tactical, causal, production, wrong-hop, null-significance, null-tactical, null-causality, fake multiple-testing correction, wrong null ceiling, invalid simulation count, false tail resolution, finite-resolution lock breach, context-causality, context-adaptation or otherwise escalated sequence claims are suppressed and cannot become user-facing prose.
-11. Missing or inconsistent sequence lineage, including a missing null-specific withdrawal condition or inconsistent finite-simulation resolution on evaluated null evidence, is not converted into readable prose; the candidate is suppressed at this presentation boundary.
-12. Presentation may preserve or lower evidence strength. It may never increase it.
+10. Match-story TXT publication may use only `match_story_analyst_reading_candidate` assembly items that remain `SMOKE_PASS`, `READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE`, and `draft_report_candidate_allowed=true`. Raw synthesis `entity_stories` must never be serialized as analyst-facing story text.
+11. At the match-story publication boundary, `match_story_evidence_lineage` must revalidate numeric conservation rather than trusting upstream presence:
+   - `source_narrative_ids` must be a non-empty unique string cohort;
+   - `process_narrative_count` must be a positive non-boolean integer exactly equal to that cohort cardinality;
+   - `recurrent_process_count`, `robust_recurrent_process_count`, `counterevidence_bearing_process_count`, `context_sensitive_process_count`, and `null_evaluated_process_count` must be non-boolean integers in `0..process_narrative_count`;
+   - `robust_recurrent_process_count <= recurrent_process_count`;
+   - `nominal_support_is_independent_evidence_count=false`;
+   - `cross_process_support_independence_proven=false`.
+12. Unknown, tactical, causal, production, wrong-hop, null-significance, null-tactical, null-causality, fake multiple-testing correction, wrong null ceiling, invalid simulation count, false tail resolution, finite-resolution lock breach, context-causality, context-adaptation or otherwise escalated sequence claims are suppressed and cannot become user-facing prose.
+13. Missing or inconsistent sequence or match-story lineage is not converted into readable prose; the candidate is suppressed at this presentation boundary.
+14. Presentation may preserve or lower evidence strength. It may never increase it.
 
 ## Claim boundary
 
@@ -68,6 +78,7 @@ This contract rehabilitates the current user-output producer. It does not add a 
 - null contrast is not causal evidence;
 - context difference is not causality or coaching adaptation;
 - dependent projections are not independent support;
+- process/subprocess accounting is cohort bookkeeping, not independent physical-action evidence;
 - `NO_VISIBLE_FOLLOWUP` is not failure;
 - tracking/video-dependent shape, pressure, intent, physical-load or off-ball claims remain unavailable without their evidence class.
 
@@ -97,5 +108,7 @@ CI success is engineering evidence only and is not physical ACTIVE_MATCH accepta
 - invalid simulation count, tail-resolution mismatch, finite-resolution lock breach, null claim-strengthening, wrong null ceiling, fake multiple-testing correction, significance/tactical-truth/causality escalation, or missing null-specific withdrawal condition must suppress the sequence candidate;
 - context causality/adaptation/intention/chronology escalation must suppress the sequence candidate;
 - context trace refs outside the exact support cohort must suppress the sequence candidate;
+- process-story TXT must publish admitted assembly text and must not publish raw synthesis story text;
+- boolean accounting, process/source cohort mismatch, subprocess overflow, or `robust_recurrent > recurrent` must suppress process-story TXT publication;
 - claim locks must remain present in the user-facing report and bundle manifest;
 - no sample match/team/player identity may be introduced into production code.
