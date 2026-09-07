@@ -73,7 +73,18 @@ sequence_narrative_analyst_reading_candidate
 
 Unknown, tactical, causal or otherwise escalated values fail closed even if trace provenance is otherwise complete.
 
-When `null_contrast_summary` is present, assembly preserves it without recomputing the null model and revalidates `claim_strengthened=false`. Any evaluated null contrast must keep `significance_claim_allowed=false` and `tactical_pattern_truth_allowed=false`. An uncorrected upper-tail probability is descriptive audited evidence, not a significance claim.
+When `null_contrast_summary` is present, assembly preserves it without recomputing the null model and revalidates `claim_strengthened=false`. Any evaluated null contrast must additionally retain the exact null contract:
+
+```text
+claim_ceiling=UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY
+multiple_testing_corrected=false
+significance_claim_allowed=false
+tactical_pattern_truth_allowed=false
+causality_allowed=false
+withdrawal_condition=<non-empty>
+```
+
+An uncorrected upper-tail probability is descriptive audited evidence only. It is not a multiple-testing-corrected result, significance claim, tactical-pattern truth or causal explanation. Loss or escalation of any of these null locks fails closed before draft assembly.
 
 When `context_variations` are present, assembly preserves them and revalidates that baseline/comparison trace refs remain within the exact supporting trace cohort. `chronology_direction_claimed`, `causality_claimed`, `tactical_adaptation_claimed`, and `coach_intention_claimed` must remain false.
 
@@ -87,7 +98,10 @@ missing required lineage field => FAIL_CLOSED
 claim-ceiling vocabulary mismatch => FAIL_CLOSED
 claim-ceiling hop mismatch => FAIL_CLOSED
 null/context lineage survives assembly unchanged when present
-null evidence cannot become significance or tactical-pattern truth
+null evidence keeps exact UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY ceiling
+null evidence remains multiple_testing_corrected=false
+null evidence cannot become significance, tactical-pattern truth or causality
+null withdrawal condition remains explicit and non-empty
 context variation cannot become causality, tactical adaptation or coach intention
 context trace refs remain inside exact supporting cohort
 canonical_event_count=UNKNOWN
@@ -127,6 +141,8 @@ sequence truth
 organism truth
 null-derived significance claim
 null-derived tactical-pattern truth
+null-derived causal claim
+multiple-testing-corrected null claim without corrected evidence
 context-derived causality claim
 context-derived tactical-adaptation claim
 canonical event count claim
@@ -174,8 +190,12 @@ assembly_sequence_origin_claim_ceiling_mismatch
 assembly_sequence_unexpected_origin_claim_ceiling
 assembly_sequence_null_contrast_summary_invalid
 assembly_sequence_null_contrast_claim_strengthened
+assembly_sequence_null_contrast_claim_ceiling_mismatch
+assembly_sequence_null_contrast_multiple_testing_lock_breach
 assembly_sequence_null_contrast_significance_lock_breach
 assembly_sequence_null_contrast_tactical_truth_lock_breach
+assembly_sequence_null_contrast_causality_lock_breach
+assembly_sequence_null_contrast_withdrawal_condition_missing
 assembly_sequence_context_variations_invalid
 assembly_sequence_context_variation_invalid
 assembly_sequence_context_variation_claim_lock_breach:<flag>
@@ -196,7 +216,7 @@ If the upstream contract item carries `inclusion_decision=REVIEW_BLOCK`, the ass
 
 ## Regression requirements
 
-C4 must continue running the full `final_report_assembly_gate_lite/tests` suite. Sequence regressions cover exact lineage preservation, missing-lineage fail-closed behavior, cohort/support and anchor consistency, exact claim-ceiling vocabulary/hop revalidation, null/context preservation and claim-lock revalidation, global claim locks and production-code sample-identity leakage.
+C4 must continue running the full `final_report_assembly_gate_lite/tests` suite. Sequence regressions cover exact lineage preservation, missing-lineage fail-closed behavior, cohort/support and anchor consistency, exact claim-ceiling vocabulary/hop revalidation, exact null ceiling/multiple-testing/causality/withdrawal lock revalidation, null/context preservation, global claim locks and production-code sample-identity leakage.
 
 ## Release status
 
