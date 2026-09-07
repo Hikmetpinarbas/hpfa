@@ -44,6 +44,8 @@ CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 MATCH_STORY_BLOCK_FAMILY = "match_story_analyst_reading_candidate"
 READY_ASSEMBLY_DECISION = "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
+JSON_ARTIFACT_SEMANTICS = "DIAGNOSTIC_INTERNAL_EVIDENCE_TRACE"
+TXT_ARTIFACT_SEMANTICS = "USER_FACING_ASSEMBLY_ADMITTED_PROJECTION"
 
 # Explicit exploratory parameters. They are required by the current similarity /
 # contrast contracts and are never represented as calibrated football truth.
@@ -77,6 +79,16 @@ def _stage_record(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _artifact_authority_metadata() -> dict[str, Any]:
+    return {
+        "artifact_semantics": JSON_ARTIFACT_SEMANTICS,
+        "user_facing_publication_authority": False,
+        "publication_authority_artifact": OUTPUT_TXT,
+        "raw_entity_stories_are_publication_authority": False,
+        "assembly_admission_required_for_user_facing_story": True,
+    }
+
+
 def _not_evaluated(reason: str) -> dict[str, Any]:
     return {
         "module_id": MODULE_ID,
@@ -94,6 +106,7 @@ def _not_evaluated(reason: str) -> dict[str, Any]:
         "hard_block_hits": [],
         "review_hits": [reason],
         "current_invocation_artifacts": [],
+        **_artifact_authority_metadata(),
         "exploratory_similarity_parameters": {
             "minimum_similarity": MINIMUM_SIMILARITY,
             "weights": dict(SIMILARITY_WEIGHTS),
@@ -217,6 +230,7 @@ def build_process_story_from_current_reconstruction(output_root: str | Path) -> 
         "stage_statuses": {name: _stage_record(payload) for name, payload in stages.items()},
         "hard_block_hits": sorted(set(hard_blocks)),
         "review_hits": sorted(set(review_hits)),
+        **_artifact_authority_metadata(),
         "exploratory_similarity_parameters": {
             "minimum_similarity": MINIMUM_SIMILARITY,
             "weights": dict(SIMILARITY_WEIGHTS),
@@ -302,6 +316,9 @@ def write_process_story_sidecar(output_root: str | Path) -> dict[str, Any]:
     lines = [
         "HPFA ACTIVE_MATCH PROCESS STORY SIDECAR V1",
         "==========================================",
+        f"artifact_semantics={TXT_ARTIFACT_SEMANTICS}",
+        "user_facing_publication_authority=true",
+        f"diagnostic_json_artifact={OUTPUT_JSON}",
         f"status={report.get('status')}",
         f"decision={report.get('decision')}",
         f"story_path_blocked={str(bool(report.get('story_path_blocked'))).lower()}",
