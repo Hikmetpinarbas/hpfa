@@ -14,6 +14,7 @@ ASSEMBLY_CLAIM_CEILING = "final_report_assembly_candidate_only"
 MISSING_CONTRACT_ITEM_ID = "MISSING_CONTRACT_ITEM_ID"
 SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
 SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
+MATCH_STORY_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_PROCESS_STORY_ONLY"
 NULL_CONTRAST_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
 
 ALLOWED_DECISIONS = {"INCLUDE_BLOCK_CANDIDATE"}
@@ -23,6 +24,7 @@ SEQUENCE_BLOCK_FAMILIES = {
     "sequence_safe_finding_analyst_reading_candidate",
     "sequence_narrative_analyst_reading_candidate",
 }
+MATCH_STORY_BLOCK_FAMILIES = {"match_story_analyst_reading_candidate"}
 
 FORBIDDEN_UPSTREAM_FIELDS = {
     "claim_text",
@@ -247,6 +249,45 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
     return lineage, hits
 
 
+def _match_story_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str, Any], list[str]]:
+    if block_family not in MATCH_STORY_BLOCK_FAMILIES:
+        return {}, []
+    raw = item.get("match_story_evidence_lineage")
+    if not isinstance(raw, dict) or not raw:
+        return {}, ["match_story_evidence_lineage_missing"]
+
+    lineage = dict(raw)
+    source_ids = sorted(set(_string_list(lineage.get("source_narrative_ids"))))
+    trace_refs = sorted(set(_string_list(lineage.get("unique_trace_refs"))))
+    shared_refs = sorted(set(_string_list(lineage.get("shared_trace_refs_across_processes"))))
+    unique_count = lineage.get("unique_trace_ref_count")
+    nominal_support = lineage.get("nominal_support_sum")
+    withdrawal = str(lineage.get("withdrawal_condition") or "").strip()
+    upstream_claim_ceiling = str(lineage.get("upstream_claim_ceiling") or "").strip()
+    hits: list[str] = []
+
+    if not source_ids:
+        hits.append("assembly_match_story_source_narrative_ids_missing")
+    if not trace_refs:
+        hits.append("assembly_match_story_unique_trace_refs_missing")
+    if not isinstance(unique_count, int) or unique_count != len(trace_refs):
+        hits.append("assembly_match_story_unique_trace_ref_count_mismatch")
+    if not isinstance(nominal_support, int) or nominal_support < len(trace_refs):
+        hits.append("assembly_match_story_nominal_support_invalid")
+    if not set(shared_refs).issubset(set(trace_refs)):
+        hits.append("assembly_match_story_shared_trace_refs_not_subset")
+    if lineage.get("nominal_support_is_independent_evidence_count") is not False:
+        hits.append("assembly_match_story_nominal_support_independence_lock_breach")
+    if lineage.get("cross_process_support_independence_proven") is not False:
+        hits.append("assembly_match_story_cross_process_independence_lock_breach")
+    if not withdrawal:
+        hits.append("assembly_match_story_withdrawal_condition_missing")
+    if upstream_claim_ceiling != MATCH_STORY_CLAIM_CEILING:
+        hits.append("assembly_match_story_upstream_claim_ceiling_mismatch")
+
+    return lineage, hits
+
+
 def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     normalized = dict(item)
     contract_item_id = _contract_item_id(normalized)
@@ -298,6 +339,8 @@ def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]
 
     sequence_lineage, lineage_hits = _sequence_lineage(normalized, block_family)
     hard_block_hits.extend(lineage_hits)
+    match_story_lineage, story_hits = _match_story_lineage(normalized, block_family)
+    hard_block_hits.extend(story_hits)
     hard_block_hits = sorted(set(hard_block_hits))
 
     if hard_block_hits:
@@ -324,6 +367,7 @@ def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]
         "assembly_decision": assembly_decision,
         "assembly_item_candidate_tr": assembly_item_candidate_tr,
         "sequence_evidence_lineage": sequence_lineage,
+        "match_story_evidence_lineage": match_story_lineage,
         "claim_ceiling": ASSEMBLY_CLAIM_CEILING,
         "upstream_claim_ceiling": normalized.get("claim_ceiling"),
         "status": status,
