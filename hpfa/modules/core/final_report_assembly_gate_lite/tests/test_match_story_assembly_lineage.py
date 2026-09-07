@@ -23,6 +23,12 @@ def _item():
             "unique_trace_ref_count": 6,
             "shared_trace_refs_across_processes": [],
             "nominal_support_sum": 6,
+            "process_narrative_count": 2,
+            "recurrent_process_count": 1,
+            "robust_recurrent_process_count": 1,
+            "counterevidence_bearing_process_count": 1,
+            "context_sensitive_process_count": 1,
+            "null_evaluated_process_count": 1,
             "nominal_support_is_independent_evidence_count": False,
             "cross_process_support_independence_proven": False,
             "story_state": "RECURRENT_PROCESS_SET_WITH_VISIBLE_COUNTEREVIDENCE",
@@ -45,6 +51,8 @@ def test_match_story_lineage_reaches_ready_assembly_candidate():
     assert result["assembly_decision"] == "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
     assert result["match_story_evidence_lineage"]["source_narrative_ids"] == ["n1", "n2"]
     assert result["match_story_evidence_lineage"]["unique_trace_ref_count"] == 6
+    assert result["match_story_evidence_lineage"]["process_narrative_count"] == 2
+    assert result["match_story_evidence_lineage"]["robust_recurrent_process_count"] == 1
     assert result["match_story_evidence_lineage"]["nominal_support_is_independent_evidence_count"] is False
     assert result["sequence_evidence_lineage"] == {}
     assert result["canonical_event_count"] == "UNKNOWN"
@@ -82,6 +90,38 @@ def test_shared_refs_must_be_subset_of_unique_trace_refs():
     result = evaluate_assembly_item(item)
     assert result["status"] == "FAIL_CLOSED"
     assert "assembly_match_story_shared_trace_refs_not_subset" in result["hard_block_hits"]
+
+
+def test_process_narrative_count_must_equal_exact_source_cohort():
+    item = _item()
+    item["match_story_evidence_lineage"]["process_narrative_count"] = 3
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_match_story_process_narrative_count_mismatch" in result["hard_block_hits"]
+
+
+def test_boolean_process_accounting_is_not_integer_evidence():
+    item = _item()
+    item["match_story_evidence_lineage"]["null_evaluated_process_count"] = True
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_match_story_null_evaluated_process_count_invalid" in result["hard_block_hits"]
+
+
+def test_subprocess_count_cannot_exceed_process_cohort():
+    item = _item()
+    item["match_story_evidence_lineage"]["context_sensitive_process_count"] = 3
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_match_story_context_sensitive_process_count_exceeds_process_count" in result["hard_block_hits"]
+
+
+def test_robust_recurrent_count_cannot_exceed_recurrent_count():
+    item = _item()
+    item["match_story_evidence_lineage"]["recurrent_process_count"] = 0
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_match_story_robust_recurrent_exceeds_recurrent" in result["hard_block_hits"]
 
 
 def test_no_sample_match_identity_leak():
