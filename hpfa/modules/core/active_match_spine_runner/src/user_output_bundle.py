@@ -17,6 +17,7 @@ READY_ASSEMBLY_DECISION = "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
 ASSEMBLY_CLAIM_CEILING = "final_report_assembly_candidate_only"
 SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
 SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
+NULL_CONTRAST_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
 SEQUENCE_BLOCK_FAMILIES = {
     "sequence_safe_finding_analyst_reading_candidate",
     "sequence_narrative_analyst_reading_candidate",
@@ -136,9 +137,17 @@ def _sequence_lineage_complete(block_family: str, lineage: Any) -> bool:
             return False
         null_state = str(raw_null_summary.get("state") or "NOT_EVALUATED").strip()
         if null_state != "NOT_EVALUATED":
+            if str(raw_null_summary.get("claim_ceiling") or "").strip() != NULL_CONTRAST_CLAIM_CEILING:
+                return False
+            if raw_null_summary.get("multiple_testing_corrected") is not False:
+                return False
             if raw_null_summary.get("significance_claim_allowed") is not False:
                 return False
             if raw_null_summary.get("tactical_pattern_truth_allowed") is not False:
+                return False
+            if raw_null_summary.get("causality_allowed") is not False:
+                return False
+            if not str(raw_null_summary.get("withdrawal_condition") or "").strip():
                 return False
 
     raw_context_variations = lineage.get("context_variations")
