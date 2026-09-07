@@ -25,9 +25,13 @@ def sequence_contract_item():
             "observed_recurrence": 2,
             "null_median": 1,
             "upper_tail_probability_uncorrected": 0.2,
+            "claim_ceiling": "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY",
+            "multiple_testing_corrected": False,
             "claim_strengthened": False,
             "significance_claim_allowed": False,
             "tactical_pattern_truth_allowed": False,
+            "causality_allowed": False,
+            "withdrawal_condition": "null assumptions, support cohort, or recurrence count changes",
         },
         "context_variations": [
             {
@@ -153,6 +157,22 @@ def test_null_contrast_claim_locks_are_revalidated_at_assembly_boundary():
     item["sequence_evidence_lineage"]["null_contrast_summary"]["tactical_pattern_truth_allowed"] = True
     result = evaluate_assembly_item(item)
     assert "assembly_sequence_null_contrast_tactical_truth_lock_breach" in result["hard_block_hits"]
+
+
+def test_extended_null_contract_locks_fail_closed_at_assembly_boundary():
+    cases = (
+        ("claim_ceiling", "CAUSAL_TRUTH", "assembly_sequence_null_contrast_claim_ceiling_mismatch"),
+        ("multiple_testing_corrected", True, "assembly_sequence_null_contrast_multiple_testing_lock_breach"),
+        ("causality_allowed", True, "assembly_sequence_null_contrast_causality_lock_breach"),
+        ("withdrawal_condition", "", "assembly_sequence_null_contrast_withdrawal_condition_missing"),
+    )
+    for field, value, expected in cases:
+        item = sequence_contract_item()
+        item["sequence_evidence_lineage"]["null_contrast_summary"][field] = value
+        result = evaluate_assembly_item(item)
+        assert result["status"] == "FAIL_CLOSED"
+        assert expected in result["hard_block_hits"]
+        assert result["assembly_item_candidate_tr"] == ""
 
 
 def test_context_variation_claim_and_trace_lineage_are_revalidated_at_assembly_boundary():
