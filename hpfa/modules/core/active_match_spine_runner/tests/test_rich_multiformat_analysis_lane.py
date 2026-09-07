@@ -8,7 +8,7 @@ if str(ROOT) not in sys.path:
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from rich_multiformat_analysis_lane import _construct_c01, _phase_state_candidates
+from rich_multiformat_analysis_lane import _construct_c01, _entity_views, _phase_state_candidates
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -93,6 +93,67 @@ def test_xlsx_row_projection_formula_without_cache_is_review_required():
     metric = result["rows"][0]["metric_values"]["progressive_passes"]
     assert metric["raw_value"] is None
     assert metric["value_status"] == "NOT_ADMITTED_FORMULA_CACHE_MISSING"
+
+
+def test_entity_view_preserves_xlsx_aggregate_support_lineage_without_truth_upgrade():
+    rows = [{
+        "row_projection_id": "xrp_generic",
+        "file_id": "file_generic",
+        "relative_path": "players.xlsx",
+        "source_sha256": "sha_generic",
+        "source_role": "PLAYER_SURFACE_CANDIDATE",
+        "sheet_name": "Players",
+        "source_row_number": 2,
+        "match_surface_binding_id": "msb_generic",
+        "identity_candidates": {
+            "player_raw_candidate": "P1",
+            "team_raw_candidate": "T1",
+            "position_raw_candidate": "MF",
+            "minutes_raw_candidate": 90,
+        },
+        "metric_values": {
+            "shots": {"raw_metric_label": "Shots", "raw_value": 3, "value_status": "OBSERVED"},
+        },
+    }]
+    result = _entity_views(rows)
+    view = result["player_view_candidates"][0]
+    assert view["aggregate_support_lineage"] == {
+        "row_projection_id": "xrp_generic",
+        "file_id": "file_generic",
+        "relative_path": "players.xlsx",
+        "source_sha256": "sha_generic",
+        "source_role": "PLAYER_SURFACE_CANDIDATE",
+        "sheet_name": "Players",
+        "source_row_number": 2,
+        "match_surface_binding_id": "msb_generic",
+    }
+    assert view["aggregate_support_lineage_complete"] is True
+    assert view["aggregate_support_is_timeline_identity"] is False
+    assert view["aggregate_support_is_event_truth"] is False
+    assert view["aggregate_support_is_independent_vote"] is False
+    assert result["aggregate_support_lineage_incomplete_candidate_count"] == 0
+
+
+def test_entity_view_marks_incomplete_aggregate_support_lineage_for_review():
+    rows = [{
+        "row_projection_id": "xrp_generic",
+        "file_id": "file_generic",
+        "relative_path": "players.xlsx",
+        "source_sha256": "sha_generic",
+        "source_role": "PLAYER_SURFACE_CANDIDATE",
+        "sheet_name": "Players",
+        "source_row_number": 2,
+        "match_surface_binding_id": None,
+        "identity_candidates": {"player_raw_candidate": "P1", "team_raw_candidate": "T1"},
+        "metric_values": {
+            "shots": {"raw_metric_label": "Shots", "raw_value": 3, "value_status": "OBSERVED"},
+        },
+    }]
+    result = _entity_views(rows)
+    view = result["player_view_candidates"][0]
+    assert view["aggregate_support_lineage_complete"] is False
+    assert view["aggregate_support_attachment_state"] == "PROVENANCE_INCOMPLETE_REVIEW_REQUIRED"
+    assert result["aggregate_support_lineage_incomplete_candidate_count"] == 1
 
 
 def test_phase_state_candidates_are_explicitly_candidates_not_truth():
