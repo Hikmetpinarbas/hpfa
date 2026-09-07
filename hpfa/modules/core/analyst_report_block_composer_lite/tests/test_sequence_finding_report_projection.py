@@ -93,6 +93,9 @@ def _add_null_and_context(payload):
         "observed_independent_recurrence": 2,
         "null_median": 1.0,
         "empirical_upper_tail_probability_uncorrected": 0.2,
+        "simulation_count": 9,
+        "empirical_upper_tail_resolution": 0.1,
+        "finite_simulation_resolution_only": True,
         "claim_strengthened": False,
         "claim_ceiling": "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY",
         "multiple_testing_corrected": False,
@@ -224,6 +227,9 @@ def test_narrative_report_preserves_null_and_context_lineage():
     assert result["null_contrast_lineage_preserved"] is True
     assert result["context_variation_lineage_preserved"] is True
     assert row["null_contrast_summary"]["empirical_upper_tail_probability_uncorrected"] == 0.2
+    assert row["null_contrast_summary"]["simulation_count"] == 9
+    assert row["null_contrast_summary"]["empirical_upper_tail_resolution"] == 0.1
+    assert row["null_contrast_summary"]["finite_simulation_resolution_only"] is True
     assert row["null_contrast_summary"]["claim_ceiling"] == "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
     assert row["null_contrast_summary"]["multiple_testing_corrected"] is False
     assert row["null_contrast_summary"]["significance_claim_allowed"] is False
@@ -247,6 +253,9 @@ def test_narrative_report_rejects_null_epistemic_lock_breaches():
         ("claim_ceiling", "TACTICAL_PATTERN_TRUTH", "narrative_null_contrast_claim_ceiling_mismatch:sequence_story_001"),
         ("multiple_testing_corrected", True, "narrative_null_contrast_multiple_testing_lock_breach:sequence_story_001"),
         ("causality_allowed", True, "narrative_null_contrast_causality_lock_breach:sequence_story_001"),
+        ("simulation_count", 0, "narrative_null_contrast_simulation_count_invalid:sequence_story_001"),
+        ("empirical_upper_tail_resolution", 0.01, "narrative_null_contrast_tail_resolution_mismatch:sequence_story_001"),
+        ("finite_simulation_resolution_only", False, "narrative_null_contrast_finite_resolution_lock_breach:sequence_story_001"),
         ("withdrawal_condition", "", "narrative_null_contrast_withdrawal_condition_missing:sequence_story_001"),
     )
     for field, value, expected_hit in cases:
