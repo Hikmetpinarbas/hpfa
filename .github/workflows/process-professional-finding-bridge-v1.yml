@@ -51,6 +51,7 @@ jobs:
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_safe_finding_binding.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_safe_finding_null_contrast.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_analyst_narrative.py \
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_match_story_synthesis.py \
             hpfa/modules/core/analyst_report_block_composer_lite/tests/test_sequence_finding_report_projection.py
       - name: Compile current runtime and bridge modules
         run: |
@@ -71,6 +72,7 @@ jobs:
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/recurrence_null_contrast.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/sequence_safe_finding_binding.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/sequence_analyst_narrative.py
+          python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/match_story_synthesis.py
           python -m py_compile hpfa/modules/core/analyst_report_block_composer_lite/src/sequence_finding_report_projection.py
       - name: Claim and accounting lock audit
         run: |
@@ -103,5 +105,6 @@ jobs:
           grep -F 'null_contrast_consumed' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_safe_finding_binding.py
           grep -F 'professional_finding_emitted_count' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_safe_finding_binding.py
           grep -F 'chronological_story_claimed' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_analyst_narrative.py
+          grep -F 'nominal_support_is_independent_evidence_count' hpfa/modules/core/professional_finding_candidate_lite/src/match_story_synthesis.py
           grep -F 'production_report_allowed' hpfa/modules/core/analyst_report_block_composer_lite/src/sequence_finding_report_projection.py
           grep -F 'production_release=false' hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
