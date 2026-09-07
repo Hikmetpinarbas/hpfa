@@ -5,6 +5,7 @@
 Existing producers:
 - `hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py`
 - `hpfa/modules/core/active_match_spine_runner/src/process_story_sidecar.py`
+- `hpfa/modules/core/active_match_spine_runner/src/orphan_capability_sidecars.py`
 
 This contract rehabilitates current user-output producers. It does not add a parallel report, narration, evidence, sequence or export engine.
 
@@ -73,9 +74,10 @@ This contract rehabilitates current user-output producers. It does not add a par
    - `raw_entity_stories_are_publication_authority=false`;
    - `assembly_admission_required_for_user_facing_story=true`.
    The TXT sidecar must declare `artifact_semantics=USER_FACING_ASSEMBLY_ADMITTED_PROJECTION` and `user_facing_publication_authority=true`. Diagnostic JSON may retain raw intermediate evidence for audit, but no downstream consumer may treat those raw fields as analyst-facing authority.
-13. Unknown, tactical, causal, production, wrong-hop, null-significance, null-tactical, null-causality, fake multiple-testing correction, wrong null ceiling, invalid simulation count, false tail resolution, finite-resolution lock breach, context-causality, context-adaptation or otherwise escalated sequence claims are suppressed and cannot become user-facing prose.
-14. Missing or inconsistent sequence or match-story lineage is not converted into readable prose; the candidate is suppressed at this presentation boundary.
-15. Presentation may preserve or lower evidence strength. It may never increase it.
+13. Any parent/aggregator surface that reprojects process-story JSON metadata must preserve the diagnostic qualifier. In particular, raw `entity_story_count` and `ready_assembly_item_count` may only be exposed with explicit `_diagnostic` naming, the parent must state `process_story_diagnostic_counts_are_publication_admission=false`, and it must not mirror an upstream `user_facing_publication_authority=true` value into diagnostic metadata. Unqualified process-story counters are forbidden on that parent surface.
+14. Unknown, tactical, causal, production, wrong-hop, null-significance, null-tactical, null-causality, fake multiple-testing correction, wrong null ceiling, invalid simulation count, false tail resolution, finite-resolution lock breach, context-causality, context-adaptation or otherwise escalated sequence claims are suppressed and cannot become user-facing prose.
+15. Missing or inconsistent sequence or match-story lineage is not converted into readable prose; the candidate is suppressed at this presentation boundary.
+16. Presentation may preserve or lower evidence strength. It may never increase it.
 
 ## Claim boundary
 
@@ -87,6 +89,7 @@ This contract rehabilitates current user-output producers. It does not add a par
 - dependent projections are not independent support;
 - process/subprocess accounting is cohort bookkeeping, not independent physical-action evidence;
 - diagnostic artifact retention is not publication admission;
+- diagnostic counter propagation is not publication admission;
 - `NO_VISIBLE_FOLLOWUP` is not failure;
 - tracking/video-dependent shape, pressure, intent, physical-load or off-ball claims remain unavailable without their evidence class.
 
@@ -120,5 +123,7 @@ CI success is engineering evidence only and is not physical ACTIVE_MATCH accepta
 - boolean accounting, process/source cohort mismatch, subprocess overflow, or `robust_recurrent > recurrent` must suppress process-story TXT publication;
 - process-story JSON must remain diagnostic-only and explicitly identify the TXT artifact as publication authority;
 - raw diagnostic `entity_stories` may remain auditable in JSON but must never appear in TXT without final assembly admission;
+- parent sidecar aggregation must expose process-story raw counts only with explicit `_diagnostic` naming and must mark those counts as non-publication-admission metadata;
+- parent sidecar aggregation must not emit the legacy unqualified `process_story_entity_story_count` or `process_story_ready_assembly_item_count` fields;
 - claim locks must remain present in the user-facing report and bundle manifest;
 - no sample match/team/player identity may be introduced into production code.
