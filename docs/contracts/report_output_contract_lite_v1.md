@@ -58,7 +58,18 @@ context_variations    # preserve and revalidate when present
 
 The exact supporting trace cohort must remain count-consistent with `observed_support`. A readable report block is not allowed to detach from its evidence lineage.
 
-When `null_contrast_summary` is present, the contract must preserve it exactly as audited evidence and require `claim_strengthened=false`. Any evaluated null contrast must also preserve `significance_claim_allowed=false` and `tactical_pattern_truth_allowed=false`. An uncorrected upper-tail probability is not a significance claim.
+When `null_contrast_summary` is present, the contract must preserve it exactly as audited evidence and require `claim_strengthened=false`. Any evaluated null contrast must also preserve all of the following exact locks:
+
+```text
+claim_ceiling=UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY
+multiple_testing_corrected=false
+significance_claim_allowed=false
+tactical_pattern_truth_allowed=false
+causality_allowed=false
+withdrawal_condition=<non-empty audited null withdrawal condition>
+```
+
+An uncorrected upper-tail probability is not a significance claim, does not establish tactical-pattern truth, and does not establish causality. A version-skewed or stronger null claim ceiling fails closed rather than being normalized upward.
 
 When `context_variations` are present, each baseline/comparison trace reference must remain inside the exact supporting trace cohort. `chronology_direction_claimed`, `causality_claimed`, `tactical_adaptation_claimed`, and `coach_intention_claimed` must remain false. Observed cohort variation does not establish causal or tactical adaptation truth.
 
@@ -109,6 +120,9 @@ true action count claim
 production release claim
 null-derived significance claim
 null-derived tactical-pattern truth
+null-derived causality claim
+null multiple-testing-correction promotion
+null claim-ceiling escalation
 context-derived causality claim
 context-derived tactical adaptation claim
 ```
@@ -150,8 +164,12 @@ sequence_lineage_origin_claim_ceiling_mismatch
 sequence_lineage_unexpected_origin_claim_ceiling
 sequence_lineage_null_contrast_summary_invalid
 sequence_lineage_null_contrast_claim_strengthened
+sequence_lineage_null_contrast_claim_ceiling_mismatch
+sequence_lineage_null_contrast_multiple_testing_lock_breach
 sequence_lineage_null_contrast_significance_lock_breach
 sequence_lineage_null_contrast_tactical_truth_lock_breach
+sequence_lineage_null_contrast_causality_lock_breach
+sequence_lineage_null_contrast_withdrawal_condition_missing
 sequence_lineage_context_variations_invalid
 sequence_lineage_context_variation_invalid
 sequence_lineage_context_variation_claim_lock_breach:<flag>
