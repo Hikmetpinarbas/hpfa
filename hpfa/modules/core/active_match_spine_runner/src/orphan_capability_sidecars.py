@@ -23,6 +23,23 @@ def _dedupe(values: list[str]) -> list[str]:
     return result
 
 
+def _process_story_diagnostic_projection(process_story: dict[str, Any]) -> dict[str, Any]:
+    """Expose process-story sidecar counters only as diagnostic metadata.
+
+    The JSON sidecar retains raw/intermediate evidence for audit. Parent sidecar output
+    must not strip that semantic qualifier and accidentally make diagnostic counters
+    look like publication-admitted football output.
+    """
+    return {
+        "process_story_diagnostic_artifact_semantics": process_story.get("artifact_semantics", "UNKNOWN"),
+        "process_story_diagnostic_user_facing_publication_authority": False,
+        "process_story_publication_authority_artifact": process_story.get("publication_authority_artifact"),
+        "process_story_entity_story_count_diagnostic": process_story.get("entity_story_count", 0),
+        "process_story_ready_assembly_item_count_diagnostic": process_story.get("ready_assembly_item_count", 0),
+        "process_story_diagnostic_counts_are_publication_admission": False,
+    }
+
+
 def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root: str | Path) -> dict[str, Any]:
     output = Path(out_dir).expanduser().resolve(strict=False)
     output.mkdir(parents=True, exist_ok=True)
@@ -125,8 +142,7 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "metric_governance_bridge": metric_governance,
         "process_story_sidecar": process_story,
         "process_story_runtime_bound": process_story.get("story_path_blocked") is False,
-        "process_story_entity_story_count": process_story.get("entity_story_count", 0),
-        "process_story_ready_assembly_item_count": process_story.get("ready_assembly_item_count", 0),
+        **_process_story_diagnostic_projection(process_story),
         "construct_path_blocked": construct_path_blocked,
         "construct_path_block_reason": construct_path_block_reason,
         "hard_block_hits": _dedupe(hard_blocks),
