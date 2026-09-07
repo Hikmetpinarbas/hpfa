@@ -64,6 +64,9 @@ def _audited_null_summary():
         "observed_recurrence": 2,
         "null_median": 1.0,
         "uncorrected_upper_tail_probability": 0.2,
+        "simulation_count": 9,
+        "empirical_upper_tail_resolution": 0.1,
+        "finite_simulation_resolution_only": True,
         "claim_strengthened": False,
         "claim_ceiling": NULL_CEILING,
         "multiple_testing_corrected": False,
@@ -203,6 +206,9 @@ def test_sequence_null_and_context_lineage_are_preserved_in_user_report(tmp_path
     assert "NULL_CONTEXT_LINEAGE_SHIPS" in text
     assert "null_contrast_summary=" in text
     assert f'"claim_ceiling": "{NULL_CEILING}"' in text
+    assert '"simulation_count": 9' in text
+    assert '"empirical_upper_tail_resolution": 0.1' in text
+    assert '"finite_simulation_resolution_only": true' in text
     assert '"multiple_testing_corrected": false' in text
     assert '"significance_claim_allowed": false' in text
     assert '"tactical_pattern_truth_allowed": false' in text
