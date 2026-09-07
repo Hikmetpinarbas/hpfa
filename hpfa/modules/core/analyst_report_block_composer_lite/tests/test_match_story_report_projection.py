@@ -65,6 +65,9 @@ def test_match_story_becomes_analyst_report_candidate_without_claim_strengthenin
     assert block["block_family"] == "match_story_analyst_reading_candidate"
     assert block["entity_scope"] == "team_a"
     assert block["source_narrative_ids"] == ["n1", "n2"]
+    assert block["process_narrative_count"] == 2
+    assert block["recurrent_process_count"] == 2
+    assert block["robust_recurrent_process_count"] == 1
     assert block["nominal_support_sum"] == 6
     assert block["unique_trace_ref_count"] == 6
     assert block["nominal_support_is_independent_evidence_count"] is False
@@ -116,6 +119,47 @@ def test_unique_trace_count_mismatch_fails_closed():
     result = compose_match_story_report(_payload([story]))
     assert result["status"] == "FAIL_CLOSED"
     assert "unique_trace_count_mismatch:team_a" in result["hard_block_hits"]
+
+
+def test_boolean_process_accounting_cannot_be_coerced_to_integer():
+    story = _story()
+    story["recurrent_process_count"] = True
+    result = compose_match_story_report(_payload([story]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "story_recurrent_process_count_invalid:team_a" in result["hard_block_hits"]
+
+
+def test_process_count_must_match_exact_source_narrative_cohort():
+    story = _story()
+    story["process_narrative_count"] = 3
+    result = compose_match_story_report(_payload([story]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "story_process_narrative_count_mismatch:team_a" in result["hard_block_hits"]
+
+
+def test_subprocess_count_cannot_exceed_process_cohort():
+    story = _story()
+    story["context_sensitive_process_count"] = 3
+    result = compose_match_story_report(_payload([story]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "story_context_sensitive_process_count_exceeds_process_count:team_a" in result["hard_block_hits"]
+
+
+def test_robust_recurrence_cannot_exceed_recurrence():
+    story = _story()
+    story["recurrent_process_count"] = 1
+    story["robust_recurrent_process_count"] = 2
+    result = compose_match_story_report(_payload([story]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "story_robust_recurrent_process_count_exceeds_recurrent:team_a" in result["hard_block_hits"]
+
+
+def test_boolean_nominal_support_cannot_be_integer_evidence():
+    story = _story()
+    story["nominal_support_sum"] = True
+    result = compose_match_story_report(_payload([story]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "nominal_support_invalid:team_a" in result["hard_block_hits"]
 
 
 def test_story_claim_lock_breach_fails_closed():
