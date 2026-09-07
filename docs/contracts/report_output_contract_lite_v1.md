@@ -58,7 +58,7 @@ context_variations    # preserve and revalidate when present
 
 The exact supporting trace cohort must remain count-consistent with `observed_support`. A readable report block is not allowed to detach from its evidence lineage.
 
-When `null_contrast_summary` is present, the contract must preserve it exactly as audited evidence and require `claim_strengthened=false`. Any evaluated null contrast must also preserve all of the following exact locks:
+When `null_contrast_summary` is present, the contract must preserve it exactly as audited evidence and require `claim_strengthened=false`. Any evaluated null contrast must also preserve all of the following exact locks and finite-simulation provenance:
 
 ```text
 claim_ceiling=UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY
@@ -66,10 +66,13 @@ multiple_testing_corrected=false
 significance_claim_allowed=false
 tactical_pattern_truth_allowed=false
 causality_allowed=false
+simulation_count=<positive integer>
+empirical_upper_tail_resolution=1/(simulation_count+1)
+finite_simulation_resolution_only=true
 withdrawal_condition=<non-empty audited null withdrawal condition>
 ```
 
-An uncorrected upper-tail probability is not a significance claim, does not establish tactical-pattern truth, and does not establish causality. A version-skewed or stronger null claim ceiling fails closed rather than being normalized upward.
+An uncorrected upper-tail probability is not a significance claim, does not establish tactical-pattern truth, and does not establish causality. Its finite Monte Carlo resolution must remain explicit and mathematically consistent with the exact simulation count; the contract does not invent a minimum simulation threshold or upgrade resolution into evidence quality. A version-skewed or stronger null claim ceiling fails closed rather than being normalized upward.
 
 When `context_variations` are present, each baseline/comparison trace reference must remain inside the exact supporting trace cohort. `chronology_direction_claimed`, `causality_claimed`, `tactical_adaptation_claimed`, and `coach_intention_claimed` must remain false. Observed cohort variation does not establish causal or tactical adaptation truth.
 
@@ -123,6 +126,7 @@ null-derived tactical-pattern truth
 null-derived causality claim
 null multiple-testing-correction promotion
 null claim-ceiling escalation
+null finite-simulation resolution loss or inflation
 context-derived causality claim
 context-derived tactical adaptation claim
 ```
@@ -169,6 +173,9 @@ sequence_lineage_null_contrast_multiple_testing_lock_breach
 sequence_lineage_null_contrast_significance_lock_breach
 sequence_lineage_null_contrast_tactical_truth_lock_breach
 sequence_lineage_null_contrast_causality_lock_breach
+sequence_lineage_null_contrast_simulation_count_invalid
+sequence_lineage_null_contrast_tail_resolution_mismatch
+sequence_lineage_null_contrast_finite_resolution_lock_breach
 sequence_lineage_null_contrast_withdrawal_condition_missing
 sequence_lineage_context_variations_invalid
 sequence_lineage_context_variation_invalid
