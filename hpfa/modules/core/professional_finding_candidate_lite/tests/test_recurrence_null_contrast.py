@@ -85,6 +85,12 @@ def test_unknown_independent_support_is_not_converted_into_null_evidence():
     assert row["observed_independent_recurrence"] == "UNKNOWN"
 
 
+def test_observed_independent_recurrence_cannot_exceed_current_eligible_cohort():
+    result = evaluate_recurrence_null_contrast(_admission(independent=4), _null())
+    assert result["status"] == "FAIL_CLOSED"
+    assert "observed_independent_recurrence_exceeds_eligible_cohort:TRACE_A" in result["hard_block_hits"]
+
+
 def test_null_draws_cannot_exceed_current_eligible_cohort():
     result = evaluate_recurrence_null_contrast(_admission(), _null(draws=[0, 1, 4]))
     assert result["status"] == "FAIL_CLOSED"
