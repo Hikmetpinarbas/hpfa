@@ -14,6 +14,7 @@ OUTPUT_CONTRACT_CLAIM_CEILING = "report_output_contract_candidate_only"
 MISSING_REPORT_BLOCK_ID = "MISSING_REPORT_BLOCK_ID"
 SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
 SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
+NULL_CONTRAST_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
 
 FORBIDDEN_UPSTREAM_FIELDS = {
     "claim_text",
@@ -210,10 +211,18 @@ def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
                 hits.append("sequence_lineage_null_contrast_claim_strengthened")
             null_state = str(null_summary.get("state") or "NOT_EVALUATED").strip()
             if null_state != "NOT_EVALUATED":
+                if str(null_summary.get("claim_ceiling") or "").strip() != NULL_CONTRAST_CLAIM_CEILING:
+                    hits.append("sequence_lineage_null_contrast_claim_ceiling_mismatch")
+                if null_summary.get("multiple_testing_corrected") is not False:
+                    hits.append("sequence_lineage_null_contrast_multiple_testing_lock_breach")
                 if null_summary.get("significance_claim_allowed") is not False:
                     hits.append("sequence_lineage_null_contrast_significance_lock_breach")
                 if null_summary.get("tactical_pattern_truth_allowed") is not False:
                     hits.append("sequence_lineage_null_contrast_tactical_truth_lock_breach")
+                if null_summary.get("causality_allowed") is not False:
+                    hits.append("sequence_lineage_null_contrast_causality_lock_breach")
+                if not str(null_summary.get("withdrawal_condition") or "").strip():
+                    hits.append("sequence_lineage_null_contrast_withdrawal_condition_missing")
 
     context_variations: list[dict[str, Any]] = []
     if raw_context_variations is not None:
