@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from hpfa.modules.core.active_match_spine_runner.src import process_story_sidecar as sidecar
+from hpfa.modules.core.active_match_spine_runner.src import orphan_capability_sidecars as orphan_sidecars
 
 
 def _source(module_id):
@@ -301,7 +302,29 @@ def test_match_story_publication_accounting_invariants():
     assert sidecar._publishable_match_story_assembly(_assembly_item(recurrent_process_count=0, robust_recurrent_process_count=1)) is False
 
 
+def test_parent_sidecar_keeps_process_story_diagnostic_counts_explicitly_qualified():
+    projection = orphan_sidecars._process_story_diagnostic_projection(
+        {
+            "artifact_semantics": sidecar.JSON_ARTIFACT_SEMANTICS,
+            "publication_authority_artifact": sidecar.OUTPUT_TXT,
+            "entity_story_count": 2,
+            "ready_assembly_item_count": 1,
+            "user_facing_publication_authority": True,
+        }
+    )
+    assert projection["process_story_diagnostic_artifact_semantics"] == sidecar.JSON_ARTIFACT_SEMANTICS
+    assert projection["process_story_diagnostic_user_facing_publication_authority"] is False
+    assert projection["process_story_publication_authority_artifact"] == sidecar.OUTPUT_TXT
+    assert projection["process_story_entity_story_count_diagnostic"] == 2
+    assert projection["process_story_ready_assembly_item_count_diagnostic"] == 1
+    assert projection["process_story_diagnostic_counts_are_publication_admission"] is False
+    assert "process_story_entity_story_count" not in projection
+    assert "process_story_ready_assembly_item_count" not in projection
+
+
 def test_no_sample_match_identity_leak():
     source = Path("hpfa/modules/core/active_match_spine_runner/src/process_story_sidecar.py").read_text(encoding="utf-8")
+    parent_source = Path("hpfa/modules/core/active_match_spine_runner/src/orphan_capability_sidecars.py").read_text(encoding="utf-8")
     for token in ("Genclerbirligi", "Fenerbahce", "15.08.2026"):
         assert token not in source
+        assert token not in parent_source
