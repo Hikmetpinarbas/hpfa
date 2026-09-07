@@ -201,6 +201,16 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
             if null_state != "NOT_EVALUATED":
                 if str(raw_null_summary.get("claim_ceiling") or "").strip() != NULL_CONTRAST_CLAIM_CEILING:
                     hits.append("assembly_sequence_null_contrast_claim_ceiling_mismatch")
+                simulation_count = raw_null_summary.get("simulation_count")
+                if not isinstance(simulation_count, int) or isinstance(simulation_count, bool) or simulation_count < 1:
+                    hits.append("assembly_sequence_null_contrast_simulation_count_invalid")
+                else:
+                    expected_resolution = 1.0 / (simulation_count + 1)
+                    resolution = raw_null_summary.get("empirical_upper_tail_resolution")
+                    if not isinstance(resolution, (int, float)) or isinstance(resolution, bool) or abs(float(resolution) - expected_resolution) > 1e-12:
+                        hits.append("assembly_sequence_null_contrast_tail_resolution_mismatch")
+                if raw_null_summary.get("finite_simulation_resolution_only") is not True:
+                    hits.append("assembly_sequence_null_contrast_finite_resolution_lock_breach")
                 if raw_null_summary.get("multiple_testing_corrected") is not False:
                     hits.append("assembly_sequence_null_contrast_multiple_testing_lock_breach")
                 if raw_null_summary.get("significance_claim_allowed") is not False:
