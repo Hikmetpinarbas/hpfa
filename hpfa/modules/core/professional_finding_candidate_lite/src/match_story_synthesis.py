@@ -12,6 +12,10 @@ def _clean(value: Any) -> str:
     return " ".join(str(value or "").split()).strip()
 
 
+def _is_nonnegative_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
 def _fail(*hits: str) -> dict[str, Any]:
     return {
         "module_id": MODULE_ID,
@@ -85,7 +89,7 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
 
     rows = [row for row in (narrative_payload.get("narrative_blocks") or []) if isinstance(row, dict)]
     declared = narrative_payload.get("narrative_block_count")
-    if isinstance(declared, int) and declared != len(rows):
+    if not _is_nonnegative_int(declared) or declared != len(rows):
         return _fail("narrative_block_count_mismatch")
 
     seen_ids: set[str] = set()
@@ -120,8 +124,34 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
         if not trace_refs:
             return _fail(f"narrative_trace_refs_missing:{narrative_id}")
         support = row.get("support")
-        if not isinstance(support, int) or support != len(trace_refs):
+        if not _is_nonnegative_int(support) or support != len(trace_refs):
             return _fail(f"narrative_support_trace_mismatch:{narrative_id}")
+
+        priority_rank = row.get("priority_rank")
+        if not _is_nonnegative_int(priority_rank):
+            return _fail(f"narrative_priority_rank_invalid:{narrative_id}")
+
+        outcome_keys = (
+            "success_support",
+            "failure_support",
+            "divergence_support",
+            "no_visible_followup_support",
+        )
+        outcome_values: list[int] = []
+        for key in outcome_keys:
+            value = row.get(key)
+            if not _is_nonnegative_int(value):
+                return _fail(f"narrative_{key}_invalid:{narrative_id}")
+            if value > support:
+                return _fail(f"narrative_{key}_exceeds_support:{narrative_id}")
+            outcome_values.append(value)
+        if sum(outcome_values) > support:
+            return _fail(f"narrative_outcome_support_exceeds_trace_support:{narrative_id}")
+
+        counter_count = row.get("counterevidence_ref_count")
+        if not _is_nonnegative_int(counter_count) or counter_count > support:
+            return _fail(f"narrative_counterevidence_ref_count_invalid:{narrative_id}")
+
         for ref in trace_refs:
             all_trace_owners.setdefault(ref, set()).add(narrative_id)
         by_entity.setdefault(entity, []).append(row)
@@ -132,7 +162,7 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
 
     entity_stories: list[dict[str, Any]] = []
     for entity, entity_rows in sorted(by_entity.items()):
-        entity_rows = sorted(entity_rows, key=lambda r: int(r.get("priority_rank") or 10**9))
+        entity_rows = sorted(entity_rows, key=lambda r: r["priority_rank"])
         state_counts = Counter(_clean(row.get("admission_state")) or "UNKNOWN" for row in entity_rows)
         robust = state_counts.get("ROBUST_RECURRENT_VISIBLE_TRACE", 0)
         recurrent = robust + state_counts.get("RECURRENT_VISIBLE_TRACE", 0)
@@ -141,9 +171,9 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
 
         challenged_rows = [
             row for row in entity_rows
-            if int(row.get("failure_support") or 0) > 0
-            or int(row.get("divergence_support") or 0) > 0
-            or int(row.get("counterevidence_ref_count") or 0) > 0
+            if row["failure_support"] > 0
+            or row["divergence_support"] > 0
+            or row["counterevidence_ref_count"] > 0
         ]
         context_sensitive_rows = []
         no_visible_context_difference_rows = []
@@ -165,17 +195,17 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
                 if "ABOVE" in null_state and "MEDIAN" in null_state:
                     null_above_median_rows.append(row)
 
-        nominal_support = sum(int(row.get("support") or 0) for row in entity_rows)
+        nominal_support = sum(row["support"] for row in entity_rows)
         unique_trace_refs = sorted({
             ref
             for row in entity_rows
             for ref in (_clean(x) for x in (row.get("trace_variant_refs") or []))
             if ref
         })
-        success = sum(int(row.get("success_support") or 0) for row in entity_rows)
-        failure = sum(int(row.get("failure_support") or 0) for row in entity_rows)
-        divergence = sum(int(row.get("divergence_support") or 0) for row in entity_rows)
-        no_followup = sum(int(row.get("no_visible_followup_support") or 0) for row in entity_rows)
+        success = sum(row["success_support"] for row in entity_rows)
+        failure = sum(row["failure_support"] for row in entity_rows)
+        divergence = sum(row["divergence_support"] for row in entity_rows)
+        no_followup = sum(row["no_visible_followup_support"] for row in entity_rows)
 
         state = _story_state(
             recurrent=recurrent,
