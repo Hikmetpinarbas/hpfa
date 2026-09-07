@@ -117,6 +117,45 @@ production_release=false
 
 Readable prose alone is insufficient for sequence assembly eligibility.
 
+## Match-story assembly accounting invariant
+
+For `match_story_analyst_reading_candidate`, the assembly gate preserves the upstream `match_story_evidence_lineage` packet and revalidates its exact process-accounting cohort before draft assembly.
+
+Required accounting fields:
+
+```text
+source_narrative_ids
+unique_trace_refs
+unique_trace_ref_count
+nominal_support_sum
+process_narrative_count
+recurrent_process_count
+robust_recurrent_process_count
+counterevidence_bearing_process_count
+context_sensitive_process_count
+null_evaluated_process_count
+```
+
+Invariants:
+
+```text
+bool is not integer evidence
+unique_trace_ref_count == exact unique_trace_refs cohort
+process_narrative_count == exact unique source_narrative_ids cohort
+all process/subprocess counts are non-negative integers
+recurrent_process_count <= process_narrative_count
+robust_recurrent_process_count <= process_narrative_count
+counterevidence_bearing_process_count <= process_narrative_count
+context_sensitive_process_count <= process_narrative_count
+null_evaluated_process_count <= process_narrative_count
+robust_recurrent_process_count <= recurrent_process_count
+nominal_support_sum >= unique_trace_ref_count
+nominal_support_is_independent_evidence_count=false
+cross_process_support_independence_proven=false
+```
+
+These counts are descriptive accounting over admitted process narratives. They are not independent physical-action evidence and do not raise the match-story claim ceiling.
+
 ## Allowed outputs
 
 ```text
@@ -127,6 +166,7 @@ blocked assembly item decision
 draft report candidate allowed flag
 assembly counters
 sequence evidence lineage preservation
+match-story evidence lineage preservation
 ```
 
 ## Blocked outputs
@@ -209,6 +249,29 @@ assembly_sequence_context_variations_invalid
 assembly_sequence_context_variation_invalid
 assembly_sequence_context_variation_claim_lock_breach:<flag>
 assembly_sequence_context_variation_trace_lineage_mismatch
+match_story_evidence_lineage_missing
+assembly_match_story_source_narrative_ids_missing
+assembly_match_story_unique_trace_refs_missing
+assembly_match_story_unique_trace_ref_count_mismatch
+assembly_match_story_nominal_support_invalid
+assembly_match_story_process_narrative_count_invalid
+assembly_match_story_process_narrative_count_mismatch
+assembly_match_story_recurrent_process_count_invalid
+assembly_match_story_recurrent_process_count_exceeds_process_count
+assembly_match_story_robust_recurrent_process_count_invalid
+assembly_match_story_robust_recurrent_process_count_exceeds_process_count
+assembly_match_story_counterevidence_bearing_process_count_invalid
+assembly_match_story_counterevidence_bearing_process_count_exceeds_process_count
+assembly_match_story_context_sensitive_process_count_invalid
+assembly_match_story_context_sensitive_process_count_exceeds_process_count
+assembly_match_story_null_evaluated_process_count_invalid
+assembly_match_story_null_evaluated_process_count_exceeds_process_count
+assembly_match_story_robust_recurrent_exceeds_recurrent
+assembly_match_story_shared_trace_refs_not_subset
+assembly_match_story_nominal_support_independence_lock_breach
+assembly_match_story_cross_process_independence_lock_breach
+assembly_match_story_withdrawal_condition_missing
+assembly_match_story_upstream_claim_ceiling_mismatch
 ```
 
 ## Review route
@@ -225,7 +288,7 @@ If the upstream contract item carries `inclusion_decision=REVIEW_BLOCK`, the ass
 
 ## Regression requirements
 
-C4 must continue running the full `final_report_assembly_gate_lite/tests` suite. Sequence regressions cover exact lineage preservation, missing-lineage fail-closed behavior, cohort/support and anchor consistency, exact claim-ceiling vocabulary/hop revalidation, exact null ceiling/finite-simulation resolution/multiple-testing/causality/withdrawal lock revalidation, null/context preservation, global claim locks and production-code sample-identity leakage.
+C4 must continue running the full `final_report_assembly_gate_lite/tests` suite. Sequence regressions cover exact lineage preservation, missing-lineage fail-closed behavior, cohort/support and anchor consistency, exact claim-ceiling vocabulary/hop revalidation, exact null ceiling/finite-simulation resolution/multiple-testing/causality/withdrawal lock revalidation, null/context preservation, global claim locks and production-code sample-identity leakage. Match-story regressions additionally cover exact source-process cohort equality, boolean-as-integer rejection, subprocess bounds and `robust_recurrent <= recurrent` conservation.
 
 ## Release status
 
