@@ -42,6 +42,8 @@ TRACE_JSON = "trackable_action_trace_candidates_lite_v1.json"
 CONSEQUENCE_JSON = "trackable_action_consequence_candidates_lite_v1.json"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
+MATCH_STORY_BLOCK_FAMILY = "match_story_analyst_reading_candidate"
+READY_ASSEMBLY_DECISION = "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
 
 # Explicit exploratory parameters. They are required by the current similarity /
 # contrast contracts and are never represented as calibrated football truth.
@@ -193,7 +195,7 @@ def build_process_story_from_current_reconstruction(output_root: str | Path) -> 
     ready_assembly_count = sum(
         1
         for item in assembly_items
-        if item.get("assembly_decision") == "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
+        if item.get("assembly_decision") == READY_ASSEMBLY_DECISION
     )
     status = "REVIEW_REQUIRED" if hard_blocks or review_hits else "SMOKE_PASS"
 
@@ -235,6 +237,57 @@ def build_process_story_from_current_reconstruction(output_root: str | Path) -> 
     }
 
 
+def _publishable_match_story_assembly(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return False
+    if _status(item) != "SMOKE_PASS":
+        return False
+    if item.get("assembly_decision") != READY_ASSEMBLY_DECISION:
+        return False
+    if item.get("draft_report_candidate_allowed") is not True:
+        return False
+    if item.get("block_family") != MATCH_STORY_BLOCK_FAMILY:
+        return False
+    if not str(item.get("assembly_item_candidate_tr") or "").strip():
+        return False
+
+    lineage = item.get("match_story_evidence_lineage")
+    if not isinstance(lineage, dict) or not lineage:
+        return False
+    source_ids = lineage.get("source_narrative_ids")
+    process_count = lineage.get("process_narrative_count")
+    subprocess_fields = (
+        "recurrent_process_count",
+        "robust_recurrent_process_count",
+        "counterevidence_bearing_process_count",
+        "context_sensitive_process_count",
+        "null_evaluated_process_count",
+    )
+    if not isinstance(source_ids, list) or not source_ids:
+        return False
+    if any(not isinstance(source_id, str) or not source_id for source_id in source_ids):
+        return False
+    if len(set(source_ids)) != len(source_ids):
+        return False
+    if not isinstance(process_count, int) or isinstance(process_count, bool):
+        return False
+    if process_count < 1 or process_count != len(source_ids):
+        return False
+    for field in subprocess_fields:
+        value = lineage.get(field)
+        if not isinstance(value, int) or isinstance(value, bool):
+            return False
+        if value < 0 or value > process_count:
+            return False
+    if lineage["robust_recurrent_process_count"] > lineage["recurrent_process_count"]:
+        return False
+    if lineage.get("nominal_support_is_independent_evidence_count") is not False:
+        return False
+    if lineage.get("cross_process_support_independence_proven") is not False:
+        return False
+    return True
+
+
 def write_process_story_sidecar(output_root: str | Path) -> dict[str, Any]:
     root = Path(output_root).expanduser().resolve(strict=False)
     root.mkdir(parents=True, exist_ok=True)
@@ -242,6 +295,10 @@ def write_process_story_sidecar(output_root: str | Path) -> dict[str, Any]:
     json_path = root / OUTPUT_JSON
     txt_path = root / OUTPUT_TXT
     json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    admitted = [
+        item for item in report.get("assembly_items") or []
+        if _publishable_match_story_assembly(item)
+    ]
     lines = [
         "HPFA ACTIVE_MATCH PROCESS STORY SIDECAR V1",
         "==========================================",
@@ -252,6 +309,7 @@ def write_process_story_sidecar(output_root: str | Path) -> dict[str, Any]:
         f"report_block_count={report.get('report_block_count')}",
         f"assembly_item_count={report.get('assembly_item_count')}",
         f"ready_assembly_item_count={report.get('ready_assembly_item_count')}",
+        f"publication_admitted_match_story_count={len(admitted)}",
         f"review_hits={report.get('review_hits') or []}",
         f"hard_block_hits={report.get('hard_block_hits') or []}",
         "similarity_parameters_calibrated=false",
@@ -260,11 +318,17 @@ def write_process_story_sidecar(output_root: str | Path) -> dict[str, Any]:
         "true_action_count=UNKNOWN",
         "production_release=false",
         "",
-        "[entity_stories]",
+        "[assembly_admitted_match_story]",
     ]
-    for story in report.get("entity_stories") or []:
-        if isinstance(story, dict):
-            lines.append(f"- entity={story.get('entity_scope')} state={story.get('story_state')} text={story.get('story_tr')}")
+    for item in admitted:
+        lineage = item["match_story_evidence_lineage"]
+        lines.append(f"- text={item.get('assembly_item_candidate_tr')}")
+        lines.append(f"  process_narrative_count={lineage.get('process_narrative_count')}")
+        lines.append(f"  recurrent_process_count={lineage.get('recurrent_process_count')}")
+        lines.append(f"  robust_recurrent_process_count={lineage.get('robust_recurrent_process_count')}")
+        lines.append(f"  counterevidence_bearing_process_count={lineage.get('counterevidence_bearing_process_count')}")
+        lines.append(f"  context_sensitive_process_count={lineage.get('context_sensitive_process_count')}")
+        lines.append(f"  null_evaluated_process_count={lineage.get('null_evaluated_process_count')}")
     txt_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     report["current_invocation_artifacts"] = [str(json_path), str(txt_path)]
     return report
