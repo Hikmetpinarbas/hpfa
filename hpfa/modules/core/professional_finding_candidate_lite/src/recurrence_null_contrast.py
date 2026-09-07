@@ -124,6 +124,8 @@ def evaluate_recurrence_null_contrast(
                 "claim_ceiling": CLAIM_CEILING,
             })
             continue
+        if observed > len(admitted_refs):
+            return _fail(f"observed_independent_recurrence_exceeds_eligible_cohort:{family_ref}")
 
         draws = row.get("null_independent_recurrence_counts")
         if not isinstance(draws, list) or not draws:
