@@ -35,6 +35,29 @@ def _stage(module_id, status="PASS", **extra):
     return payload
 
 
+def _assembly_item(**lineage_updates):
+    lineage = {
+        "source_narrative_ids": ["NARRATIVE_A", "NARRATIVE_B"],
+        "process_narrative_count": 2,
+        "recurrent_process_count": 1,
+        "robust_recurrent_process_count": 1,
+        "counterevidence_bearing_process_count": 1,
+        "context_sensitive_process_count": 1,
+        "null_evaluated_process_count": 1,
+        "nominal_support_is_independent_evidence_count": False,
+        "cross_process_support_independence_proven": False,
+    }
+    lineage.update(lineage_updates)
+    return {
+        "status": "SMOKE_PASS",
+        "assembly_decision": sidecar.READY_ASSEMBLY_DECISION,
+        "draft_report_candidate_allowed": True,
+        "block_family": sidecar.MATCH_STORY_BLOCK_FAMILY,
+        "assembly_item_candidate_tr": "ASSEMBLY_ADMITTED_PROCESS_STORY",
+        "match_story_evidence_lineage": lineage,
+    }
+
+
 def test_current_reconstruction_story_sidecar_reuses_artifacts_and_reaches_assembly(monkeypatch, tmp_path):
     _write_prerequisites(tmp_path)
     calls = []
@@ -151,7 +174,6 @@ def test_inner_fail_closed_blocks_only_story_path(monkeypatch, tmp_path):
         "build_partial_order_trace_variants",
         lambda *args, **kwargs: _stage("partial_order_trace_variant_lite_v1", status="FAIL_CLOSED", hard_block_hits=["bad_variant"]),
     )
-    # Downstream functions return fail-closed-shaped payloads so no fabricated story can escape.
     for name in (
         "build_trace_similarity_primitive",
         "build_trace_contrast_packets",
@@ -184,6 +206,7 @@ def test_write_sidecar_persists_direct_current_invocation_artifacts(monkeypatch,
             entity_stories=[],
             entity_story_count=0,
             report_block_count=0,
+            assembly_items=[],
             assembly_item_count=0,
             ready_assembly_item_count=0,
             review_hits=["independence_unproven"],
@@ -197,6 +220,67 @@ def test_write_sidecar_persists_direct_current_invocation_artifacts(monkeypatch,
         str(tmp_path / sidecar.OUTPUT_JSON),
         str(tmp_path / sidecar.OUTPUT_TXT),
     }
+
+
+def test_sidecar_txt_publishes_only_assembly_admitted_story(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        sidecar,
+        "build_process_story_from_current_reconstruction",
+        lambda root: _stage(
+            sidecar.MODULE_ID,
+            status="SMOKE_PASS",
+            decision="PROCESS_STORY_RUNTIME_CANDIDATES_BUILT",
+            story_path_blocked=False,
+            entity_stories=[{"story_tr": "RAW_STORY_MUST_NOT_SHIP"}],
+            entity_story_count=1,
+            report_block_count=1,
+            assembly_items=[_assembly_item()],
+            assembly_item_count=1,
+            ready_assembly_item_count=1,
+            review_hits=[],
+            nominal_support_is_independent_evidence_count=False,
+        ),
+    )
+    sidecar.write_process_story_sidecar(tmp_path)
+    text = (tmp_path / sidecar.OUTPUT_TXT).read_text(encoding="utf-8")
+    assert "ASSEMBLY_ADMITTED_PROCESS_STORY" in text
+    assert "RAW_STORY_MUST_NOT_SHIP" not in text
+    assert "publication_admitted_match_story_count=1" in text
+    assert "process_narrative_count=2" in text
+
+
+def test_sidecar_txt_suppresses_malformed_process_accounting(monkeypatch, tmp_path):
+    malformed = _assembly_item(null_evaluated_process_count=True)
+    monkeypatch.setattr(
+        sidecar,
+        "build_process_story_from_current_reconstruction",
+        lambda root: _stage(
+            sidecar.MODULE_ID,
+            status="SMOKE_PASS",
+            decision="PROCESS_STORY_RUNTIME_CANDIDATES_BUILT",
+            story_path_blocked=False,
+            entity_stories=[{"story_tr": "RAW_STORY_MUST_NOT_SHIP"}],
+            entity_story_count=1,
+            report_block_count=1,
+            assembly_items=[malformed],
+            assembly_item_count=1,
+            ready_assembly_item_count=1,
+            review_hits=[],
+            nominal_support_is_independent_evidence_count=False,
+        ),
+    )
+    sidecar.write_process_story_sidecar(tmp_path)
+    text = (tmp_path / sidecar.OUTPUT_TXT).read_text(encoding="utf-8")
+    assert "ASSEMBLY_ADMITTED_PROCESS_STORY" not in text
+    assert "RAW_STORY_MUST_NOT_SHIP" not in text
+    assert "publication_admitted_match_story_count=0" in text
+
+
+def test_match_story_publication_accounting_invariants():
+    assert sidecar._publishable_match_story_assembly(_assembly_item()) is True
+    assert sidecar._publishable_match_story_assembly(_assembly_item(process_narrative_count=3)) is False
+    assert sidecar._publishable_match_story_assembly(_assembly_item(context_sensitive_process_count=3)) is False
+    assert sidecar._publishable_match_story_assembly(_assembly_item(recurrent_process_count=0, robust_recurrent_process_count=1)) is False
 
 
 def test_no_sample_match_identity_leak():
