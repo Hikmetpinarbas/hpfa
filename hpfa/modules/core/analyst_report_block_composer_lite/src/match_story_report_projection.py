@@ -21,6 +21,10 @@ def _digest(*values: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _is_nonnegative_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
 def _fail(*hits: str) -> dict[str, Any]:
     return {
         "module_id": MODULE_ID,
@@ -83,7 +87,7 @@ def compose_match_story_report(source_payload: dict[str, Any]) -> dict[str, Any]
 
     stories = [row for row in (source_payload.get("entity_stories") or []) if isinstance(row, dict)]
     declared = source_payload.get("entity_story_count")
-    if isinstance(declared, int) and declared != len(stories):
+    if not _is_nonnegative_int(declared) or declared != len(stories):
         return _fail("entity_story_count_mismatch")
 
     report_blocks: list[dict[str, Any]] = []
@@ -118,12 +122,38 @@ def compose_match_story_report(source_payload: dict[str, Any]) -> dict[str, Any]
         source_ids = sorted({_clean(x) for x in (story.get("source_narrative_ids") or []) if _clean(x)})
         trace_refs = sorted({_clean(x) for x in (story.get("unique_trace_refs") or []) if _clean(x)})
         if not source_ids:
-            return _fail(f"source_narrative_ids_missing:{entity}")
+            return _fail("source_narrative_ids_missing:" + entity)
+
+        process_count = story.get("process_narrative_count")
+        recurrent_count = story.get("recurrent_process_count")
+        robust_count = story.get("robust_recurrent_process_count")
+        counter_count = story.get("counterevidence_bearing_process_count")
+        context_count = story.get("context_sensitive_process_count")
+        null_count = story.get("null_evaluated_process_count")
+        accounting = {
+            "process_narrative_count": process_count,
+            "recurrent_process_count": recurrent_count,
+            "robust_recurrent_process_count": robust_count,
+            "counterevidence_bearing_process_count": counter_count,
+            "context_sensitive_process_count": context_count,
+            "null_evaluated_process_count": null_count,
+        }
+        for key, value in accounting.items():
+            if not _is_nonnegative_int(value):
+                return _fail(f"story_{key}_invalid:{entity}")
+        if process_count != len(source_ids):
+            return _fail(f"story_process_narrative_count_mismatch:{entity}")
+        for key, value in accounting.items():
+            if key != "process_narrative_count" and value > process_count:
+                return _fail(f"story_{key}_exceeds_process_count:{entity}")
+        if robust_count > recurrent_count:
+            return _fail(f"story_robust_recurrent_process_count_exceeds_recurrent:{entity}")
+
         unique_count = story.get("unique_trace_ref_count")
-        if not isinstance(unique_count, int) or unique_count != len(trace_refs):
+        if not _is_nonnegative_int(unique_count) or unique_count != len(trace_refs):
             return _fail(f"unique_trace_count_mismatch:{entity}")
         nominal_support = story.get("nominal_support_sum")
-        if not isinstance(nominal_support, int) or nominal_support < len(trace_refs):
+        if not _is_nonnegative_int(nominal_support) or nominal_support < len(trace_refs):
             return _fail(f"nominal_support_invalid:{entity}")
         withdrawal = _clean(story.get("withdrawal_condition"))
         text = _clean(story.get("story_tr"))
@@ -146,12 +176,12 @@ def compose_match_story_report(source_payload: dict[str, Any]) -> dict[str, Any]
             "story_state": _clean(story.get("story_state")),
             "entity_scope": entity,
             "source_narrative_ids": source_ids,
-            "process_narrative_count": int(story.get("process_narrative_count") or 0),
-            "recurrent_process_count": int(story.get("recurrent_process_count") or 0),
-            "robust_recurrent_process_count": int(story.get("robust_recurrent_process_count") or 0),
-            "counterevidence_bearing_process_count": int(story.get("counterevidence_bearing_process_count") or 0),
-            "context_sensitive_process_count": int(story.get("context_sensitive_process_count") or 0),
-            "null_evaluated_process_count": int(story.get("null_evaluated_process_count") or 0),
+            "process_narrative_count": process_count,
+            "recurrent_process_count": recurrent_count,
+            "robust_recurrent_process_count": robust_count,
+            "counterevidence_bearing_process_count": counter_count,
+            "context_sensitive_process_count": context_count,
+            "null_evaluated_process_count": null_count,
             "nominal_support_sum": nominal_support,
             "unique_trace_ref_count": unique_count,
             "unique_trace_refs": trace_refs,
