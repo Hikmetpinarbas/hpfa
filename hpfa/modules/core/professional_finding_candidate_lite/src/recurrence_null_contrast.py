@@ -114,6 +114,8 @@ def evaluate_recurrence_null_contrast(
             return _fail(f"null_trace_cohort_mismatch:{family_ref}")
 
         observed = admitted.get("independent_support_count")
+        if isinstance(observed, bool):
+            return _fail(f"observed_independent_recurrence_boolean:{family_ref}")
         if not isinstance(observed, int) or observed < 1:
             reviews.append(f"independent_support_not_admitted:{family_ref}")
             out.append({
@@ -130,10 +132,10 @@ def evaluate_recurrence_null_contrast(
         draws = row.get("null_independent_recurrence_counts")
         if not isinstance(draws, list) or not draws:
             return _fail(f"null_draws_missing:{family_ref}")
-        if any(not isinstance(x, int) or x < 0 for x in draws):
+        if any(isinstance(x, bool) or not isinstance(x, int) or x < 0 for x in draws):
             return _fail(f"null_draw_invalid:{family_ref}")
         declared_n = row.get("simulation_count")
-        if not isinstance(declared_n, int) or declared_n != len(draws):
+        if isinstance(declared_n, bool) or not isinstance(declared_n, int) or declared_n != len(draws):
             return _fail(f"null_simulation_count_mismatch:{family_ref}")
         if any(x > len(admitted_refs) for x in draws):
             return _fail(f"null_draw_exceeds_eligible_cohort:{family_ref}")
