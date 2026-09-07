@@ -139,7 +139,8 @@ def evaluate_recurrence_null_contrast(
             return _fail(f"null_draw_exceeds_eligible_cohort:{family_ref}")
 
         exceed_or_equal = sum(1 for x in draws if x >= observed)
-        tail = (exceed_or_equal + 1) / (len(draws) + 1)
+        tail_resolution = 1 / (len(draws) + 1)
+        tail = (exceed_or_equal + 1) * tail_resolution
         below = sum(1 for x in draws if x < observed)
         percentile = below / len(draws)
         state = "OBSERVED_ABOVE_NULL_MEDIAN" if observed > _quantile(draws, 0.5) else "OBSERVED_NOT_ABOVE_NULL_MEDIAN"
@@ -154,6 +155,8 @@ def evaluate_recurrence_null_contrast(
             "null_median": _quantile(draws, 0.5),
             "null_q95": _quantile(draws, 0.95),
             "empirical_upper_tail_probability_uncorrected": tail,
+            "empirical_upper_tail_resolution": tail_resolution,
+            "finite_simulation_resolution_only": True,
             "observed_percentile_in_null_draws": percentile,
             "null_model_id": _clean(method.get("null_model_id")),
             "null_model_version": _clean(method.get("null_model_version")),
@@ -164,8 +167,8 @@ def evaluate_recurrence_null_contrast(
             "significance_claim_allowed": False,
             "tactical_pattern_truth_allowed": False,
             "causality_allowed": False,
-            "safe_meaning": "Observed independent recurrence is described relative to the supplied audited null distribution only; this is not a tactical-pattern, intention, causal or significance claim.",
-            "withdrawal_condition": "Withdraw or recompute if the admitted trace cohort, independence mapping, null mechanism, preserved constraints, exchangeability assumption or null draws change.",
+            "safe_meaning": "Observed independent recurrence is described relative to the supplied audited null distribution at the explicit finite-simulation empirical-tail resolution only; this is not a tactical-pattern, intention, causal or significance claim.",
+            "withdrawal_condition": "Withdraw or recompute if the admitted trace cohort, independence mapping, null mechanism, preserved constraints, exchangeability assumption, simulation count or null draws change.",
             "claim_ceiling": CLAIM_CEILING,
         })
 
