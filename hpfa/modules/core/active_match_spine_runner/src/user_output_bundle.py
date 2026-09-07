@@ -139,6 +139,17 @@ def _sequence_lineage_complete(block_family: str, lineage: Any) -> bool:
         if null_state != "NOT_EVALUATED":
             if str(raw_null_summary.get("claim_ceiling") or "").strip() != NULL_CONTRAST_CLAIM_CEILING:
                 return False
+            simulation_count = raw_null_summary.get("simulation_count")
+            if not isinstance(simulation_count, int) or isinstance(simulation_count, bool) or simulation_count < 1:
+                return False
+            expected_resolution = 1.0 / (simulation_count + 1)
+            resolution = raw_null_summary.get("empirical_upper_tail_resolution")
+            if not isinstance(resolution, (int, float)) or isinstance(resolution, bool):
+                return False
+            if abs(float(resolution) - expected_resolution) > 1e-12:
+                return False
+            if raw_null_summary.get("finite_simulation_resolution_only") is not True:
+                return False
             if raw_null_summary.get("multiple_testing_corrected") is not False:
                 return False
             if raw_null_summary.get("significance_claim_allowed") is not False:
