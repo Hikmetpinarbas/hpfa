@@ -145,6 +145,11 @@ def test_current_reconstruction_story_sidecar_reuses_artifacts_and_reaches_assem
     assert result["parallel_sequence_engine_created"] is False
     assert result["exploratory_similarity_parameters"]["calibrated"] is False
     assert result["nominal_support_is_independent_evidence_count"] is False
+    assert result["artifact_semantics"] == sidecar.JSON_ARTIFACT_SEMANTICS
+    assert result["user_facing_publication_authority"] is False
+    assert result["publication_authority_artifact"] == sidecar.OUTPUT_TXT
+    assert result["raw_entity_stories_are_publication_authority"] is False
+    assert result["assembly_admission_required_for_user_facing_story"] is True
     assert calls[0] == "variant"
     similarity_call = next(item for item in calls if isinstance(item, tuple) and item[0] == "similarity")
     assert similarity_call[1]["weights"] == sidecar.SIMILARITY_WEIGHTS
@@ -165,6 +170,8 @@ def test_missing_current_reconstruction_artifact_does_not_rerun_ingest(tmp_path)
     assert result["entity_story_count"] == 0
     assert result["decision"] == "PROCESS_STORY_NOT_EVALUATED_PREREQUISITE_MISSING"
     assert "current_reconstruction_story_prerequisite_missing" in result["review_hits"][0]
+    assert result["artifact_semantics"] == sidecar.JSON_ARTIFACT_SEMANTICS
+    assert result["user_facing_publication_authority"] is False
 
 
 def test_inner_fail_closed_blocks_only_story_path(monkeypatch, tmp_path):
@@ -203,23 +210,34 @@ def test_write_sidecar_persists_direct_current_invocation_artifacts(monkeypatch,
             status="REVIEW_REQUIRED",
             decision="PROCESS_STORY_RUNTIME_CANDIDATES_BUILT",
             story_path_blocked=False,
-            entity_stories=[],
-            entity_story_count=0,
+            entity_stories=[{"story_tr": "RAW_DIAGNOSTIC_STORY"}],
+            entity_story_count=1,
             report_block_count=0,
             assembly_items=[],
             assembly_item_count=0,
             ready_assembly_item_count=0,
             review_hits=["independence_unproven"],
             nominal_support_is_independent_evidence_count=False,
+            **sidecar._artifact_authority_metadata(),
         ),
     )
     result = sidecar.write_process_story_sidecar(tmp_path)
-    assert (tmp_path / sidecar.OUTPUT_JSON).is_file()
-    assert (tmp_path / sidecar.OUTPUT_TXT).is_file()
-    assert set(result["current_invocation_artifacts"]) == {
-        str(tmp_path / sidecar.OUTPUT_JSON),
-        str(tmp_path / sidecar.OUTPUT_TXT),
-    }
+    json_path = tmp_path / sidecar.OUTPUT_JSON
+    txt_path = tmp_path / sidecar.OUTPUT_TXT
+    assert json_path.is_file()
+    assert txt_path.is_file()
+    assert set(result["current_invocation_artifacts"]) == {str(json_path), str(txt_path)}
+    diagnostic = json.loads(json_path.read_text(encoding="utf-8"))
+    assert diagnostic["artifact_semantics"] == sidecar.JSON_ARTIFACT_SEMANTICS
+    assert diagnostic["user_facing_publication_authority"] is False
+    assert diagnostic["publication_authority_artifact"] == sidecar.OUTPUT_TXT
+    assert diagnostic["raw_entity_stories_are_publication_authority"] is False
+    assert diagnostic["assembly_admission_required_for_user_facing_story"] is True
+    assert diagnostic["entity_stories"][0]["story_tr"] == "RAW_DIAGNOSTIC_STORY"
+    text = txt_path.read_text(encoding="utf-8")
+    assert f"artifact_semantics={sidecar.TXT_ARTIFACT_SEMANTICS}" in text
+    assert "user_facing_publication_authority=true" in text
+    assert "RAW_DIAGNOSTIC_STORY" not in text
 
 
 def test_sidecar_txt_publishes_only_assembly_admitted_story(monkeypatch, tmp_path):
