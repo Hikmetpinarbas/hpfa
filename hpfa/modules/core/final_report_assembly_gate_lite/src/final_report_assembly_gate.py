@@ -14,6 +14,7 @@ ASSEMBLY_CLAIM_CEILING = "final_report_assembly_candidate_only"
 MISSING_CONTRACT_ITEM_ID = "MISSING_CONTRACT_ITEM_ID"
 SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
 SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
+NULL_CONTRAST_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
 
 ALLOWED_DECISIONS = {"INCLUDE_BLOCK_CANDIDATE"}
 REVIEW_DECISIONS = {"REVIEW_BLOCK"}
@@ -198,10 +199,18 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
                 hits.append("assembly_sequence_null_contrast_claim_strengthened")
             null_state = str(raw_null_summary.get("state") or "NOT_EVALUATED").strip()
             if null_state != "NOT_EVALUATED":
+                if str(raw_null_summary.get("claim_ceiling") or "").strip() != NULL_CONTRAST_CLAIM_CEILING:
+                    hits.append("assembly_sequence_null_contrast_claim_ceiling_mismatch")
+                if raw_null_summary.get("multiple_testing_corrected") is not False:
+                    hits.append("assembly_sequence_null_contrast_multiple_testing_lock_breach")
                 if raw_null_summary.get("significance_claim_allowed") is not False:
                     hits.append("assembly_sequence_null_contrast_significance_lock_breach")
                 if raw_null_summary.get("tactical_pattern_truth_allowed") is not False:
                     hits.append("assembly_sequence_null_contrast_tactical_truth_lock_breach")
+                if raw_null_summary.get("causality_allowed") is not False:
+                    hits.append("assembly_sequence_null_contrast_causality_lock_breach")
+                if not str(raw_null_summary.get("withdrawal_condition") or "").strip():
+                    hits.append("assembly_sequence_null_contrast_withdrawal_condition_missing")
 
     if raw_context_variations is not None:
         if not isinstance(raw_context_variations, list):
