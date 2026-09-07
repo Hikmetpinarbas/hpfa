@@ -39,9 +39,12 @@ def narrative_block():
             "null_median_support": 1.5,
             "upper_tail_probability_uncorrected": 0.12,
             "claim_strengthened": False,
+            "claim_ceiling": "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY",
+            "multiple_testing_corrected": False,
             "significance_claim_allowed": False,
             "tactical_pattern_truth_allowed": False,
-            "multiple_testing_corrected": False,
+            "causality_allowed": False,
+            "withdrawal_condition": "Withdraw null contrast if audited null assumptions or admitted independent recurrence change.",
         },
         "context_variations": [
             {
@@ -84,6 +87,38 @@ def test_output_contract_rejects_uncorrected_tail_promoted_to_significance():
     item = evaluate_report_block(block)
     assert item["status"] == "FAIL_CLOSED"
     assert "sequence_lineage_null_contrast_significance_lock_breach" in item["hard_block_hits"]
+
+
+def test_output_contract_rejects_null_claim_ceiling_escalation():
+    block = narrative_block()
+    block["null_contrast_summary"]["claim_ceiling"] = "TACTICAL_PATTERN_TRUTH"
+    item = evaluate_report_block(block)
+    assert item["status"] == "FAIL_CLOSED"
+    assert "sequence_lineage_null_contrast_claim_ceiling_mismatch" in item["hard_block_hits"]
+
+
+def test_output_contract_rejects_fake_multiple_testing_correction():
+    block = narrative_block()
+    block["null_contrast_summary"]["multiple_testing_corrected"] = True
+    item = evaluate_report_block(block)
+    assert item["status"] == "FAIL_CLOSED"
+    assert "sequence_lineage_null_contrast_multiple_testing_lock_breach" in item["hard_block_hits"]
+
+
+def test_output_contract_rejects_null_causality_escalation():
+    block = narrative_block()
+    block["null_contrast_summary"]["causality_allowed"] = True
+    item = evaluate_report_block(block)
+    assert item["status"] == "FAIL_CLOSED"
+    assert "sequence_lineage_null_contrast_causality_lock_breach" in item["hard_block_hits"]
+
+
+def test_output_contract_rejects_missing_null_withdrawal_condition():
+    block = narrative_block()
+    block["null_contrast_summary"]["withdrawal_condition"] = ""
+    item = evaluate_report_block(block)
+    assert item["status"] == "FAIL_CLOSED"
+    assert "sequence_lineage_null_contrast_withdrawal_condition_missing" in item["hard_block_hits"]
 
 
 def test_output_contract_rejects_context_causal_or_adaptation_claims():
