@@ -105,6 +105,29 @@ def test_observed_independent_recurrence_cannot_exceed_current_eligible_cohort()
     assert "observed_independent_recurrence_exceeds_eligible_cohort:TRACE_A" in result["hard_block_hits"]
 
 
+def test_boolean_observed_recurrence_cannot_masquerade_as_integer_evidence():
+    result = evaluate_recurrence_null_contrast(_admission(independent=True), _null())
+    assert result["status"] == "FAIL_CLOSED"
+    assert "observed_independent_recurrence_boolean:TRACE_A" in result["hard_block_hits"]
+    assert result["rows"] == []
+
+
+def test_boolean_null_draw_cannot_masquerade_as_integer_recurrence():
+    result = evaluate_recurrence_null_contrast(_admission(), _null(draws=[0, True, 1]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "null_draw_invalid:TRACE_A" in result["hard_block_hits"]
+    assert result["rows"] == []
+
+
+def test_boolean_simulation_count_cannot_masquerade_as_integer_count():
+    payload = _null(draws=[0])
+    payload["null_rows"][0]["simulation_count"] = True
+    result = evaluate_recurrence_null_contrast(_admission(), payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "null_simulation_count_mismatch:TRACE_A" in result["hard_block_hits"]
+    assert result["rows"] == []
+
+
 def test_null_draws_cannot_exceed_current_eligible_cohort():
     result = evaluate_recurrence_null_contrast(_admission(), _null(draws=[0, 1, 4]))
     assert result["status"] == "FAIL_CLOSED"
