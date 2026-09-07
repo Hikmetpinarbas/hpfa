@@ -51,6 +51,8 @@ def _null(independent=3):
             "null_median": 1.0,
             "null_q95": 2.0,
             "empirical_upper_tail_probability_uncorrected": 0.01,
+            "empirical_upper_tail_resolution": 1 / 1001,
+            "finite_simulation_resolution_only": True,
             "observed_percentile_in_null_draws": 0.99,
             "null_model_id": "DECLARED_NULL_A",
             "null_model_version": "V1",
@@ -82,12 +84,14 @@ def test_defined_null_contrast_reaches_safe_finding_without_upgrading_claim():
     assert result["null_contrast_consumed"] is True
     assert row["null_contrast_summary"]["state"] == "OBSERVED_ABOVE_NULL_MEDIAN"
     assert row["null_contrast_summary"]["empirical_upper_tail_probability_uncorrected"] == 0.01
+    assert row["null_contrast_summary"]["empirical_upper_tail_resolution"] == 1 / 1001
+    assert row["null_contrast_summary"]["finite_simulation_resolution_only"] is True
     assert row["null_contrast_summary"]["claim_strengthened"] is False
     assert row["null_contrast_summary"]["causality_allowed"] is False
     assert row["claim_output_allowed"] is False
     assert row["production_release"] is False
-    assert "uncorrected upper-tail probability" in row["SUPPORT"]
-    assert "without treating the uncorrected tail probability as significance" in row["SAFE_MEANING"]
+    assert "finite-simulation tail resolution" in row["SUPPORT"]
+    assert "explicit finite-simulation tail resolution" in row["SAFE_MEANING"]
 
 
 def test_null_contrast_cannot_change_admission_state():
@@ -130,6 +134,20 @@ def test_null_significance_tactical_or_causal_lock_breach_fails_closed():
     result = build_sequence_safe_finding_blocks(_admission(), null)
     assert result["status"] == "FAIL_CLOSED"
     assert "null_contrast_causality_lock_breach:TRACE_A" in result["hard_block_hits"]
+
+
+def test_null_finite_tail_resolution_must_match_simulation_count():
+    null = _null()
+    null["rows"][0]["empirical_upper_tail_resolution"] = 0.01
+    result = build_sequence_safe_finding_blocks(_admission(), null)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "null_contrast_tail_resolution_mismatch:TRACE_A" in result["hard_block_hits"]
+
+    null = _null()
+    null["rows"][0]["finite_simulation_resolution_only"] = False
+    result = build_sequence_safe_finding_blocks(_admission(), null)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "null_contrast_finite_resolution_lock_breach:TRACE_A" in result["hard_block_hits"]
 
 
 def test_null_contract_ceiling_and_withdrawal_are_required():
