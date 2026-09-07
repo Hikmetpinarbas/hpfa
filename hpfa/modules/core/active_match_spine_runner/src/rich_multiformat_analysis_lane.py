@@ -61,6 +61,7 @@ def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
     goalkeepers: list[dict[str, Any]] = []
     metric_label_counts: Counter[str] = Counter()
     observed_metric_cell_count = 0
+    aggregate_support_lineage_incomplete_candidate_count = 0
     for row in rows:
         identity = row.get("identity_candidates") or {}
         observed_metrics = {
@@ -71,6 +72,35 @@ def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
         for key in observed_metrics:
             metric_label_counts[str(key)] += 1
         observed_metric_cell_count += len(observed_metrics)
+        aggregate_support_lineage = {
+            "row_projection_id": row.get("row_projection_id"),
+            "file_id": row.get("file_id"),
+            "relative_path": row.get("relative_path"),
+            "source_sha256": row.get("source_sha256"),
+            "source_role": row.get("source_role"),
+            "sheet_name": row.get("sheet_name"),
+            "source_row_number": row.get("source_row_number"),
+            "match_surface_binding_id": row.get("match_surface_binding_id"),
+        }
+        required_text = (
+            "row_projection_id",
+            "file_id",
+            "relative_path",
+            "source_sha256",
+            "source_role",
+            "sheet_name",
+            "match_surface_binding_id",
+        )
+        lineage_complete = all(str(aggregate_support_lineage.get(key) or "").strip() for key in required_text)
+        source_row_number = aggregate_support_lineage.get("source_row_number")
+        lineage_complete = bool(
+            lineage_complete
+            and isinstance(source_row_number, int)
+            and not isinstance(source_row_number, bool)
+            and source_row_number > 0
+        )
+        if not lineage_complete:
+            aggregate_support_lineage_incomplete_candidate_count += 1
         compact = {
             "row_projection_id": row.get("row_projection_id"),
             "source_role": row.get("source_role"),
@@ -79,6 +109,16 @@ def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "position_raw_candidate": identity.get("position_raw_candidate"),
             "minutes_raw_candidate": identity.get("minutes_raw_candidate"),
             "metric_values": observed_metrics,
+            "aggregate_support_lineage": aggregate_support_lineage,
+            "aggregate_support_lineage_complete": lineage_complete,
+            "aggregate_support_attachment_state": (
+                "XLSX_ROW_PROJECTION_CANDIDATE_ONLY"
+                if lineage_complete
+                else "PROVENANCE_INCOMPLETE_REVIEW_REQUIRED"
+            ),
+            "aggregate_support_is_timeline_identity": False,
+            "aggregate_support_is_event_truth": False,
+            "aggregate_support_is_independent_vote": False,
             "validated_identity": False,
             "metric_truth": False,
         }
@@ -95,6 +135,9 @@ def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "goalkeeper_view_candidates": goalkeepers,
         "observed_metric_cell_count": observed_metric_cell_count,
         "metric_label_observation_counts": dict(metric_label_counts.most_common()),
+        "aggregate_support_lineage_incomplete_candidate_count": aggregate_support_lineage_incomplete_candidate_count,
+        "aggregate_support_attachment_is_timeline_identity": False,
+        "aggregate_support_attachment_is_independent_vote": False,
         "player_identity_truth": False,
         "team_identity_truth": False,
     }
@@ -285,6 +328,7 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"player_view_candidate_count={len(entity.get('player_view_candidates') or [])}",
         f"team_view_candidate_count={len(entity.get('team_view_candidates') or [])}",
         f"goalkeeper_view_candidate_count={len(entity.get('goalkeeper_view_candidates') or [])}",
+        f"aggregate_support_lineage_incomplete_candidate_count={entity.get('aggregate_support_lineage_incomplete_candidate_count')}",
         f"C01_status={c01.get('status')}",
         f"C01_progression_aggregate_ref_count={c01.get('progression_aggregate_ref_count')}",
         f"C01_terminal_aggregate_ref_count={c01.get('terminal_aggregate_ref_count')}",
@@ -292,6 +336,8 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"C01_review_reason={c01.get('review_reason')}",
         f"hard_block_hits={payload.get('hard_block_hits') or []}",
         f"review_hits={payload.get('review_hits') or []}",
+        "aggregate_support_attachment_is_timeline_identity=false",
+        "aggregate_support_attachment_is_independent_vote=false",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "phase_truth=false",
@@ -352,6 +398,8 @@ def run_rich_lane(
     temporal = _load_json(output / "temporal_episode_signature_lite_v1.json")
     rows = _flatten_projection(projection)
     entity_views = _entity_views(rows)
+    if entity_views.get("aggregate_support_lineage_incomplete_candidate_count"):
+        review_hits.append("xlsx_entity_view_aggregate_support_lineage_incomplete")
     primitives = _primitive_metrics(features, entity_views)
     phase_states = _phase_state_candidates(features)
     c01 = _construct_c01(rows, features)
@@ -400,6 +448,8 @@ def run_rich_lane(
         "review_hits": list(dict.fromkeys(review_hits)),
         "format_fusion_is_independent_evidence_vote": False,
         "xlsx_row_projection_is_event_truth": False,
+        "aggregate_support_attachment_is_timeline_identity": False,
+        "aggregate_support_attachment_is_independent_vote": False,
         "construct_truth": False,
         "phase_truth": False,
         "possession_truth": False,
