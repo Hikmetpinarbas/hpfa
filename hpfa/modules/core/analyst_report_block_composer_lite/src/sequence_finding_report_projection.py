@@ -284,6 +284,15 @@ def compose_sequence_narrative_report(source_payload: dict[str, Any]) -> dict[st
                     return _fail(f"narrative_null_contrast_tactical_truth_lock_breach:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
                 if null_summary.get("causality_allowed") is not False:
                     return _fail(f"narrative_null_contrast_causality_lock_breach:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+                simulation_count = null_summary.get("simulation_count")
+                if not isinstance(simulation_count, int) or simulation_count < 1:
+                    return _fail(f"narrative_null_contrast_simulation_count_invalid:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+                tail_resolution = null_summary.get("empirical_upper_tail_resolution")
+                expected_resolution = 1 / (simulation_count + 1)
+                if not isinstance(tail_resolution, (int, float)) or abs(float(tail_resolution) - expected_resolution) > 1e-12:
+                    return _fail(f"narrative_null_contrast_tail_resolution_mismatch:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
+                if null_summary.get("finite_simulation_resolution_only") is not True:
+                    return _fail(f"narrative_null_contrast_finite_resolution_lock_breach:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
                 if not _clean(null_summary.get("withdrawal_condition")):
                     return _fail(f"narrative_null_contrast_withdrawal_condition_missing:{narrative_id}", source_module_id=NARRATIVE_SOURCE_MODULE_ID)
                 if item.get("null_contrast_causality_claimed") is not False:
