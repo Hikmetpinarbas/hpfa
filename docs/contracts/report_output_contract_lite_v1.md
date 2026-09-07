@@ -12,6 +12,8 @@ It does not create final report truth, production report output or new football 
 
 The analyst can carry a readable sequence finding toward report output without losing which exact traces support it, which counterexamples challenge it, whether support is dependent, how robust it is, what remains uncertain, which audited null/context checks qualify the interpretation, and which evidence change would require withdrawal.
 
+For match-story blocks, process accounting must also remain bounded by the exact admitted narrative cohort. Process counters are descriptive bookkeeping only; they are not independent evidence counts.
+
 ## Runtime authority
 
 Only HPFA-generated ACTIVE_MATCH artifacts may become runtime input.
@@ -90,6 +92,42 @@ sequence_narrative_analyst_reading_candidate:
 
 Any stronger, unknown, version-skewed, or unexpected claim-ceiling value fails closed. In particular an exact trace cohort may not legitimize a tactical-pattern, causal, coach-intention, sequence-truth, or production-truth escalation.
 
+## Match-story accounting lineage
+
+For `match_story_analyst_reading_candidate`, the output contract must preserve and revalidate:
+
+```text
+source_narrative_ids
+process_narrative_count
+recurrent_process_count
+robust_recurrent_process_count
+counterevidence_bearing_process_count
+context_sensitive_process_count
+null_evaluated_process_count
+unique_trace_refs
+unique_trace_ref_count
+shared_trace_refs_across_processes
+nominal_support_sum
+nominal_support_is_independent_evidence_count=false
+cross_process_support_independence_proven=false
+withdrawal_condition
+upstream_claim_ceiling=DEFEASIBLE_MATCH_LOCAL_PROCESS_STORY_ONLY
+```
+
+Accounting invariants:
+
+```text
+all process counters are non-negative integers and booleans are forbidden as integer evidence
+process_narrative_count == len(unique(source_narrative_ids))
+each subprocess counter <= process_narrative_count
+robust_recurrent_process_count <= recurrent_process_count
+unique_trace_ref_count == len(unique(unique_trace_refs))
+nominal_support_sum >= unique_trace_ref_count
+shared_trace_refs_across_processes subset-of unique_trace_refs
+```
+
+These counters describe admitted process-story bookkeeping only. They do not establish independent physical actions, tactical truth, chronology, causality, or production truth.
+
 ## Allowed outputs
 
 ```text
@@ -100,6 +138,7 @@ reject block decision
 output text candidate TR
 contract counters
 sequence evidence lineage
+match story evidence lineage
 ```
 
 ## Blocked outputs
@@ -129,6 +168,8 @@ null claim-ceiling escalation
 null finite-simulation resolution loss or inflation
 context-derived causality claim
 context-derived tactical adaptation claim
+match-story process accounting inflation
+boolean-as-integer match-story accounting
 ```
 
 ## Decision states
@@ -181,6 +222,20 @@ sequence_lineage_context_variations_invalid
 sequence_lineage_context_variation_invalid
 sequence_lineage_context_variation_claim_lock_breach:<flag>
 sequence_lineage_context_variation_trace_lineage_mismatch
+match_story_lineage_source_narrative_ids_missing
+match_story_lineage_unique_trace_refs_missing
+match_story_lineage_<process_counter>_invalid
+match_story_lineage_process_narrative_count_mismatch
+match_story_lineage_<subprocess_counter>_exceeds_process_count
+match_story_lineage_robust_recurrent_process_count_exceeds_recurrent
+match_story_lineage_unique_trace_ref_count_invalid
+match_story_lineage_unique_trace_ref_count_mismatch
+match_story_lineage_nominal_support_invalid
+match_story_lineage_shared_trace_refs_not_subset
+match_story_lineage_nominal_support_independence_lock_breach
+match_story_lineage_cross_process_independence_lock_breach
+match_story_lineage_withdrawal_condition_missing
+match_story_lineage_upstream_claim_ceiling_mismatch
 ```
 
 ## Review route
