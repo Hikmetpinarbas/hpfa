@@ -12,6 +12,7 @@ from user_output_bundle import build_analyst_report
 FINDING_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
 NARRATIVE_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
 ASSEMBLY_CEILING = "final_report_assembly_candidate_only"
+NULL_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
 
 
 def _base_spine(chain):
@@ -64,8 +65,12 @@ def _audited_null_summary():
         "null_median": 1.0,
         "uncorrected_upper_tail_probability": 0.2,
         "claim_strengthened": False,
+        "claim_ceiling": NULL_CEILING,
+        "multiple_testing_corrected": False,
         "significance_claim_allowed": False,
         "tactical_pattern_truth_allowed": False,
+        "causality_allowed": False,
+        "withdrawal_condition": "withdraw_if_null_model_or_trace_cohort_changes",
     }
 
 
@@ -93,6 +98,13 @@ def _assembly(block_family, lineage, text="ASSEMBLY_ADMITTED_VISIBLE_SEQUENCE_CA
         "sequence_evidence_lineage": lineage,
         "claim_ceiling": ASSEMBLY_CEILING,
     }
+
+
+def _render(lineage, text):
+    return build_analyst_report(
+        Path("."),
+        _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, text)}),
+    )
 
 
 def test_user_report_never_bypasses_blocked_final_assembly(tmp_path):
@@ -135,13 +147,7 @@ def test_sequence_narrative_candidate_preserves_exact_lineage_and_claim_hop(tmp_
 
 
 def test_sequence_safe_finding_candidate_accepts_only_finding_ceiling_without_origin(tmp_path):
-    chain = {
-        "assembly": _assembly(
-            "sequence_safe_finding_analyst_reading_candidate",
-            _finding_lineage(),
-            "SAFE_FINDING_EXACT_CLAIM_HOP",
-        )
-    }
+    chain = {"assembly": _assembly("sequence_safe_finding_analyst_reading_candidate", _finding_lineage(), "SAFE_FINDING_EXACT_CLAIM_HOP")}
     text = build_analyst_report(tmp_path, _base_spine(chain))
     assert "SAFE_FINDING_EXACT_CLAIM_HOP" in text
     assert f"upstream_claim_ceiling={FINDING_CEILING}" in text
@@ -150,79 +156,40 @@ def test_sequence_safe_finding_candidate_accepts_only_finding_ceiling_without_or
 def test_sequence_candidate_with_cohort_support_mismatch_is_suppressed(tmp_path):
     lineage = _narrative_lineage()
     lineage["observed_support"] = 3
-    chain = {
-        "assembly": _assembly(
-            "sequence_narrative_analyst_reading_candidate",
-            lineage,
-            "MALFORMED_SEQUENCE_CANDIDATE_MUST_NOT_SHIP",
-        )
-    }
-    text = build_analyst_report(tmp_path, _base_spine(chain))
+    text = build_analyst_report(tmp_path, _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "MALFORMED_SEQUENCE_CANDIDATE_MUST_NOT_SHIP")}))
     assert "MALFORMED_SEQUENCE_CANDIDATE_MUST_NOT_SHIP" not in text
 
 
 def test_sequence_candidate_missing_withdrawal_condition_is_suppressed(tmp_path):
     lineage = _finding_lineage()
     lineage.pop("withdrawal_condition")
-    chain = {
-        "assembly": _assembly(
-            "sequence_safe_finding_analyst_reading_candidate",
-            lineage,
-            "LINEAGE_INCOMPLETE_CANDIDATE_MUST_NOT_SHIP",
-        )
-    }
-    text = build_analyst_report(tmp_path, _base_spine(chain))
+    text = build_analyst_report(tmp_path, _base_spine({"assembly": _assembly("sequence_safe_finding_analyst_reading_candidate", lineage, "LINEAGE_INCOMPLETE_CANDIDATE_MUST_NOT_SHIP")}))
     assert "LINEAGE_INCOMPLETE_CANDIDATE_MUST_NOT_SHIP" not in text
 
 
 def test_sequence_narrative_tactical_claim_escalation_is_suppressed(tmp_path):
     lineage = _narrative_lineage()
     lineage["upstream_claim_ceiling"] = "TACTICAL_PATTERN_TRUTH"
-    chain = {
-        "assembly": _assembly(
-            "sequence_narrative_analyst_reading_candidate",
-            lineage,
-            "TACTICAL_ESCALATION_MUST_NOT_SHIP",
-        )
-    }
-    text = build_analyst_report(tmp_path, _base_spine(chain))
+    text = _render(lineage, "TACTICAL_ESCALATION_MUST_NOT_SHIP")
     assert "TACTICAL_ESCALATION_MUST_NOT_SHIP" not in text
 
 
 def test_sequence_narrative_wrong_origin_claim_hop_is_suppressed(tmp_path):
     lineage = _narrative_lineage()
     lineage["origin_claim_ceiling"] = NARRATIVE_CEILING
-    chain = {
-        "assembly": _assembly(
-            "sequence_narrative_analyst_reading_candidate",
-            lineage,
-            "WRONG_ORIGIN_HOP_MUST_NOT_SHIP",
-        )
-    }
-    text = build_analyst_report(tmp_path, _base_spine(chain))
+    text = _render(lineage, "WRONG_ORIGIN_HOP_MUST_NOT_SHIP")
     assert "WRONG_ORIGIN_HOP_MUST_NOT_SHIP" not in text
 
 
 def test_safe_finding_unexpected_origin_claim_is_suppressed(tmp_path):
     lineage = _finding_lineage()
     lineage["origin_claim_ceiling"] = FINDING_CEILING
-    chain = {
-        "assembly": _assembly(
-            "sequence_safe_finding_analyst_reading_candidate",
-            lineage,
-            "UNEXPECTED_ORIGIN_HOP_MUST_NOT_SHIP",
-        )
-    }
-    text = build_analyst_report(tmp_path, _base_spine(chain))
+    text = build_analyst_report(tmp_path, _base_spine({"assembly": _assembly("sequence_safe_finding_analyst_reading_candidate", lineage, "UNEXPECTED_ORIGIN_HOP_MUST_NOT_SHIP")}))
     assert "UNEXPECTED_ORIGIN_HOP_MUST_NOT_SHIP" not in text
 
 
 def test_sequence_wrong_assembly_claim_ceiling_is_suppressed(tmp_path):
-    assembly = _assembly(
-        "sequence_narrative_analyst_reading_candidate",
-        _narrative_lineage(),
-        "WRONG_ASSEMBLY_CEILING_MUST_NOT_SHIP",
-    )
+    assembly = _assembly("sequence_narrative_analyst_reading_candidate", _narrative_lineage(), "WRONG_ASSEMBLY_CEILING_MUST_NOT_SHIP")
     assembly["claim_ceiling"] = "production_report_truth"
     text = build_analyst_report(tmp_path, _base_spine({"assembly": assembly}))
     assert "WRONG_ASSEMBLY_CEILING_MUST_NOT_SHIP" not in text
@@ -232,58 +199,55 @@ def test_sequence_null_and_context_lineage_are_preserved_in_user_report(tmp_path
     lineage = _narrative_lineage()
     lineage["null_contrast_summary"] = _audited_null_summary()
     lineage["context_variations"] = _context_variations()
-    text = build_analyst_report(
-        tmp_path,
-        _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "NULL_CONTEXT_LINEAGE_SHIPS")}),
-    )
+    text = build_analyst_report(tmp_path, _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "NULL_CONTEXT_LINEAGE_SHIPS")}))
     assert "NULL_CONTEXT_LINEAGE_SHIPS" in text
     assert "null_contrast_summary=" in text
+    assert f'"claim_ceiling": "{NULL_CEILING}"' in text
+    assert '"multiple_testing_corrected": false' in text
     assert '"significance_claim_allowed": false' in text
     assert '"tactical_pattern_truth_allowed": false' in text
+    assert '"causality_allowed": false' in text
+    assert "withdraw_if_null_model_or_trace_cohort_changes" in text
     assert "context_variations=" in text
     assert '"causality_claimed": false' in text
     assert '"tactical_adaptation_claimed": false' in text
 
 
 def test_sequence_null_significance_escalation_is_suppressed(tmp_path):
-    lineage = _narrative_lineage()
-    lineage["null_contrast_summary"] = _audited_null_summary()
-    lineage["null_contrast_summary"]["significance_claim_allowed"] = True
-    text = build_analyst_report(
-        tmp_path,
-        _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "NULL_SIGNIFICANCE_ESCALATION_MUST_NOT_SHIP")}),
-    )
-    assert "NULL_SIGNIFICANCE_ESCALATION_MUST_NOT_SHIP" not in text
+    lineage = _narrative_lineage(); lineage["null_contrast_summary"] = _audited_null_summary(); lineage["null_contrast_summary"]["significance_claim_allowed"] = True
+    assert "NULL_SIGNIFICANCE_ESCALATION_MUST_NOT_SHIP" not in _render(lineage, "NULL_SIGNIFICANCE_ESCALATION_MUST_NOT_SHIP")
 
 
 def test_sequence_null_claim_strengthening_is_suppressed(tmp_path):
-    lineage = _narrative_lineage()
-    lineage["null_contrast_summary"] = _audited_null_summary()
-    lineage["null_contrast_summary"]["claim_strengthened"] = True
-    text = build_analyst_report(
-        tmp_path,
-        _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "NULL_STRENGTHENING_MUST_NOT_SHIP")}),
-    )
-    assert "NULL_STRENGTHENING_MUST_NOT_SHIP" not in text
+    lineage = _narrative_lineage(); lineage["null_contrast_summary"] = _audited_null_summary(); lineage["null_contrast_summary"]["claim_strengthened"] = True
+    assert "NULL_STRENGTHENING_MUST_NOT_SHIP" not in _render(lineage, "NULL_STRENGTHENING_MUST_NOT_SHIP")
+
+
+def test_sequence_null_wrong_claim_ceiling_is_suppressed(tmp_path):
+    lineage = _narrative_lineage(); lineage["null_contrast_summary"] = _audited_null_summary(); lineage["null_contrast_summary"]["claim_ceiling"] = "TACTICAL_PATTERN_TRUTH"
+    assert "NULL_CEILING_ESCALATION_MUST_NOT_SHIP" not in _render(lineage, "NULL_CEILING_ESCALATION_MUST_NOT_SHIP")
+
+
+def test_sequence_null_fake_multiple_testing_correction_is_suppressed(tmp_path):
+    lineage = _narrative_lineage(); lineage["null_contrast_summary"] = _audited_null_summary(); lineage["null_contrast_summary"]["multiple_testing_corrected"] = True
+    assert "NULL_MULTIPLE_TESTING_ESCALATION_MUST_NOT_SHIP" not in _render(lineage, "NULL_MULTIPLE_TESTING_ESCALATION_MUST_NOT_SHIP")
+
+
+def test_sequence_null_causality_escalation_is_suppressed(tmp_path):
+    lineage = _narrative_lineage(); lineage["null_contrast_summary"] = _audited_null_summary(); lineage["null_contrast_summary"]["causality_allowed"] = True
+    assert "NULL_CAUSALITY_ESCALATION_MUST_NOT_SHIP" not in _render(lineage, "NULL_CAUSALITY_ESCALATION_MUST_NOT_SHIP")
+
+
+def test_sequence_null_missing_withdrawal_condition_is_suppressed(tmp_path):
+    lineage = _narrative_lineage(); lineage["null_contrast_summary"] = _audited_null_summary(); lineage["null_contrast_summary"]["withdrawal_condition"] = ""
+    assert "NULL_WITHDRAWAL_LOSS_MUST_NOT_SHIP" not in _render(lineage, "NULL_WITHDRAWAL_LOSS_MUST_NOT_SHIP")
 
 
 def test_sequence_context_causality_escalation_is_suppressed(tmp_path):
-    lineage = _narrative_lineage()
-    lineage["context_variations"] = _context_variations()
-    lineage["context_variations"][0]["causality_claimed"] = True
-    text = build_analyst_report(
-        tmp_path,
-        _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "CONTEXT_CAUSALITY_MUST_NOT_SHIP")}),
-    )
-    assert "CONTEXT_CAUSALITY_MUST_NOT_SHIP" not in text
+    lineage = _narrative_lineage(); lineage["context_variations"] = _context_variations(); lineage["context_variations"][0]["causality_claimed"] = True
+    assert "CONTEXT_CAUSALITY_MUST_NOT_SHIP" not in _render(lineage, "CONTEXT_CAUSALITY_MUST_NOT_SHIP")
 
 
 def test_sequence_context_trace_outside_support_cohort_is_suppressed(tmp_path):
-    lineage = _narrative_lineage()
-    lineage["context_variations"] = _context_variations()
-    lineage["context_variations"][0]["comparison_trace_refs"] = ["TRACE_OUTSIDE_COHORT"]
-    text = build_analyst_report(
-        tmp_path,
-        _base_spine({"assembly": _assembly("sequence_narrative_analyst_reading_candidate", lineage, "CONTEXT_COHORT_ESCAPE_MUST_NOT_SHIP")}),
-    )
-    assert "CONTEXT_COHORT_ESCAPE_MUST_NOT_SHIP" not in text
+    lineage = _narrative_lineage(); lineage["context_variations"] = _context_variations(); lineage["context_variations"][0]["comparison_trace_refs"] = ["TRACE_OUTSIDE_COHORT"]
+    assert "CONTEXT_COHORT_ESCAPE_MUST_NOT_SHIP" not in _render(lineage, "CONTEXT_COHORT_ESCAPE_MUST_NOT_SHIP")
