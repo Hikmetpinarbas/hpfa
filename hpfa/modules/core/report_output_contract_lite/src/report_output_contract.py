@@ -18,59 +18,28 @@ MATCH_STORY_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_PROCESS_STORY_ONLY"
 NULL_CONTRAST_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
 
 FORBIDDEN_UPSTREAM_FIELDS = {
-    "claim_text",
-    "report_text",
-    "final_report_text",
-    "production_report",
-    "production_report_output",
-    "tactical_truth",
-    "dominance_truth",
-    "control_truth",
-    "coach_intention",
-    "coach_intention_truth",
-    "off_ball_truth",
-    "pitch_control_truth",
-    "causal_truth",
-    "quality_truth",
-    "sequence_truth",
-    "organism_truth",
+    "claim_text", "report_text", "final_report_text", "production_report",
+    "production_report_output", "tactical_truth", "dominance_truth", "control_truth",
+    "coach_intention", "coach_intention_truth", "off_ball_truth", "pitch_control_truth",
+    "causal_truth", "quality_truth", "sequence_truth", "organism_truth",
 }
 
 FORBIDDEN_BLOCK_FRAGMENTS = [
-    "domine etti",
-    "saha kontrolünü aldı",
-    "hoca planladı",
-    "bilinçli olarak",
-    "taktiksel gerçek",
-    "kesin",
-    "kanıtlıyor",
-    "nedeni budur",
-    "off-ball yapı",
-    "pitch control",
-    "oyun kontrolü",
+    "domine etti", "saha kontrolünü aldı", "hoca planladı", "bilinçli olarak",
+    "taktiksel gerçek", "kesin", "kanıtlıyor", "nedeni budur", "off-ball yapı",
+    "pitch control", "oyun kontrolü",
 ]
 
 BLOCKED_LANGUAGE_FAMILIES = [
-    "tactical_truth",
-    "dominance_truth",
-    "control_truth",
-    "coach_intention",
-    "off_ball_truth",
-    "pitch_control_truth",
-    "causal_truth",
-    "quality_truth",
-    "sequence_truth",
-    "organism_truth",
+    "tactical_truth", "dominance_truth", "control_truth", "coach_intention",
+    "off_ball_truth", "pitch_control_truth", "causal_truth", "quality_truth",
+    "sequence_truth", "organism_truth",
 ]
 
 ALLOWED_BLOCK_FAMILIES = {
-    "analyst_reading_candidate",
-    "technical_limit_candidate",
-    "evidence_note_candidate",
-    "review_required_candidate",
-    "sequence_safe_finding_analyst_reading_candidate",
-    "sequence_narrative_analyst_reading_candidate",
-    "match_story_analyst_reading_candidate",
+    "analyst_reading_candidate", "technical_limit_candidate", "evidence_note_candidate",
+    "review_required_candidate", "sequence_safe_finding_analyst_reading_candidate",
+    "sequence_narrative_analyst_reading_candidate", "match_story_analyst_reading_candidate",
 }
 SEQUENCE_BLOCK_FAMILIES = {
     "sequence_safe_finding_analyst_reading_candidate",
@@ -88,7 +57,6 @@ def _validate_output_root(out_dir: str | Path) -> Path:
     if str(spine_src) not in sys.path:
         sys.path.insert(0, str(spine_src))
     from spine_runner import validate_output_root  # type: ignore
-
     return validate_output_root(out_dir)
 
 
@@ -102,6 +70,10 @@ def _as_list(value: Any) -> list[Any]:
 
 def _string_list(value: Any) -> list[str]:
     return [str(item) for item in _as_list(value) if item not in [None, ""]]
+
+
+def _is_nonnegative_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 def _is_forbidden_value(value: Any) -> bool:
@@ -136,9 +108,7 @@ def _upstream_block_failed(block: dict[str, Any]) -> bool:
         return True
     if str(block.get("decision") or "").upper().startswith("BLOCK"):
         return True
-    if str(block.get("status") or "").upper() in {"FAIL_CLOSED", "BLOCKED"}:
-        return True
-    return False
+    return str(block.get("status") or "").upper() in {"FAIL_CLOSED", "BLOCKED"}
 
 
 def _upstream_review_required(block: dict[str, Any]) -> bool:
@@ -176,7 +146,7 @@ def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
         hits.append("sequence_lineage_trace_family_refs_missing")
     if not trace_refs:
         hits.append("sequence_lineage_trace_variant_refs_missing")
-    if not isinstance(support, int) or support < 0:
+    if not isinstance(support, int) or isinstance(support, bool) or support < 0:
         hits.append("sequence_lineage_observed_support_invalid")
     elif len(trace_refs) != support:
         hits.append("sequence_lineage_trace_cohort_support_mismatch")
@@ -225,12 +195,12 @@ def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
                 if null_summary.get("causality_allowed") is not False:
                     hits.append("sequence_lineage_null_contrast_causality_lock_breach")
                 simulation_count = null_summary.get("simulation_count")
-                if not isinstance(simulation_count, int) or simulation_count < 1:
+                if not isinstance(simulation_count, int) or isinstance(simulation_count, bool) or simulation_count < 1:
                     hits.append("sequence_lineage_null_contrast_simulation_count_invalid")
                 else:
                     tail_resolution = null_summary.get("empirical_upper_tail_resolution")
                     expected_resolution = 1 / (simulation_count + 1)
-                    if not isinstance(tail_resolution, (int, float)) or abs(float(tail_resolution) - expected_resolution) > 1e-12:
+                    if not isinstance(tail_resolution, (int, float)) or isinstance(tail_resolution, bool) or abs(float(tail_resolution) - expected_resolution) > 1e-12:
                         hits.append("sequence_lineage_null_contrast_tail_resolution_mismatch")
                 if null_summary.get("finite_simulation_resolution_only") is not True:
                     hits.append("sequence_lineage_null_contrast_finite_resolution_lock_breach")
@@ -248,12 +218,7 @@ def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
                     hits.append("sequence_lineage_context_variation_invalid")
                     continue
                 variation = dict(raw_variation)
-                for flag in (
-                    "chronology_direction_claimed",
-                    "causality_claimed",
-                    "tactical_adaptation_claimed",
-                    "coach_intention_claimed",
-                ):
+                for flag in ("chronology_direction_claimed", "causality_claimed", "tactical_adaptation_claimed", "coach_intention_claimed"):
                     if variation.get(flag) is not False:
                         hits.append(f"sequence_lineage_context_variation_claim_lock_breach:{flag}")
                 baseline_refs = set(_string_list(variation.get("baseline_trace_refs")))
@@ -263,18 +228,12 @@ def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
                 context_variations.append(variation)
 
     return {
-        "trace_family_refs": family_refs,
-        "trace_variant_refs": trace_refs,
-        "counterevidence_refs": counter_refs,
-        "dependency_summary": dict(dependency or {}),
-        "robustness_summary": dict(robustness or {}),
-        "uncertainty": dict(uncertainty or {}),
-        "withdrawal_condition": withdrawal,
-        "observed_support": support,
-        "upstream_claim_ceiling": upstream_claim_ceiling,
-        "origin_claim_ceiling": origin_claim_ceiling,
-        "null_contrast_summary": null_summary,
-        "context_variations": context_variations,
+        "trace_family_refs": family_refs, "trace_variant_refs": trace_refs,
+        "counterevidence_refs": counter_refs, "dependency_summary": dict(dependency or {}),
+        "robustness_summary": dict(robustness or {}), "uncertainty": dict(uncertainty or {}),
+        "withdrawal_condition": withdrawal, "observed_support": support,
+        "upstream_claim_ceiling": upstream_claim_ceiling, "origin_claim_ceiling": origin_claim_ceiling,
+        "null_contrast_summary": null_summary, "context_variations": context_variations,
     }, hits
 
 
@@ -284,6 +243,20 @@ def _match_story_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[st
     shared_refs = sorted(set(_string_list(block.get("shared_trace_refs_across_processes"))))
     unique_count = block.get("unique_trace_ref_count")
     nominal_support = block.get("nominal_support_sum")
+    process_count = block.get("process_narrative_count")
+    recurrent_count = block.get("recurrent_process_count")
+    robust_count = block.get("robust_recurrent_process_count")
+    counter_count = block.get("counterevidence_bearing_process_count")
+    context_count = block.get("context_sensitive_process_count")
+    null_count = block.get("null_evaluated_process_count")
+    accounting = {
+        "process_narrative_count": process_count,
+        "recurrent_process_count": recurrent_count,
+        "robust_recurrent_process_count": robust_count,
+        "counterevidence_bearing_process_count": counter_count,
+        "context_sensitive_process_count": context_count,
+        "null_evaluated_process_count": null_count,
+    }
     withdrawal = str(block.get("withdrawal_condition") or "").strip()
     upstream_claim_ceiling = str(block.get("upstream_claim_ceiling") or "").strip()
     hits: list[str] = []
@@ -292,11 +265,22 @@ def _match_story_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[st
         hits.append("match_story_lineage_source_narrative_ids_missing")
     if not trace_refs:
         hits.append("match_story_lineage_unique_trace_refs_missing")
-    if not isinstance(unique_count, int) or unique_count < 0:
+    for key, value in accounting.items():
+        if not _is_nonnegative_int(value):
+            hits.append(f"match_story_lineage_{key}_invalid")
+    if _is_nonnegative_int(process_count):
+        if process_count != len(source_ids):
+            hits.append("match_story_lineage_process_narrative_count_mismatch")
+        for key, value in accounting.items():
+            if key != "process_narrative_count" and _is_nonnegative_int(value) and value > process_count:
+                hits.append(f"match_story_lineage_{key}_exceeds_process_count")
+    if _is_nonnegative_int(robust_count) and _is_nonnegative_int(recurrent_count) and robust_count > recurrent_count:
+        hits.append("match_story_lineage_robust_recurrent_process_count_exceeds_recurrent")
+    if not _is_nonnegative_int(unique_count):
         hits.append("match_story_lineage_unique_trace_ref_count_invalid")
     elif unique_count != len(trace_refs):
         hits.append("match_story_lineage_unique_trace_ref_count_mismatch")
-    if not isinstance(nominal_support, int) or nominal_support < len(trace_refs):
+    if not _is_nonnegative_int(nominal_support) or nominal_support < len(trace_refs):
         hits.append("match_story_lineage_nominal_support_invalid")
     if not set(shared_refs).issubset(set(trace_refs)):
         hits.append("match_story_lineage_shared_trace_refs_not_subset")
@@ -311,6 +295,12 @@ def _match_story_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[st
 
     return {
         "source_narrative_ids": source_ids,
+        "process_narrative_count": process_count,
+        "recurrent_process_count": recurrent_count,
+        "robust_recurrent_process_count": robust_count,
+        "counterevidence_bearing_process_count": counter_count,
+        "context_sensitive_process_count": context_count,
+        "null_evaluated_process_count": null_count,
         "unique_trace_refs": trace_refs,
         "unique_trace_ref_count": unique_count,
         "shared_trace_refs_across_processes": shared_refs,
@@ -389,17 +379,11 @@ def evaluate_report_block(block: dict[str, Any], idx: int = 0) -> dict[str, Any]
         hard_block_hits.extend(lineage_hits)
 
     if hard_block_hits:
-        inclusion_decision = "REJECT_BLOCK"
-        status = "FAIL_CLOSED"
-        output_text = ""
+        inclusion_decision, status, output_text = "REJECT_BLOCK", "FAIL_CLOSED", ""
     elif review_hits:
-        inclusion_decision = "REVIEW_BLOCK"
-        status = "REVIEW_REQUIRED"
-        output_text = ""
+        inclusion_decision, status, output_text = "REVIEW_BLOCK", "REVIEW_REQUIRED", ""
     else:
-        inclusion_decision = "INCLUDE_BLOCK_CANDIDATE"
-        status = "SMOKE_PASS"
-        output_text = text
+        inclusion_decision, status, output_text = "INCLUDE_BLOCK_CANDIDATE", "SMOKE_PASS", text
 
     return {
         "module_id": MODULE_ID,
@@ -451,20 +435,11 @@ def build_output_contract(blocks: list[dict[str, Any]]) -> dict[str, Any]:
     include_count = sum(1 for item in items if item["inclusion_decision"] == "INCLUDE_BLOCK_CANDIDATE")
     status = "FAIL_CLOSED" if rejected_count else "REVIEW_REQUIRED" if review_count else "SMOKE_PASS"
     return {
-        "module_id": MODULE_ID,
-        "status": status,
-        "contract_item_count": len(items),
-        "include_count": include_count,
-        "review_count": review_count,
-        "rejected_count": rejected_count,
-        "contract_items": items,
-        "claim_output_allowed": False,
-        "final_report_allowed": False,
-        "production_report_allowed": False,
-        "claim_ceiling": OUTPUT_CONTRACT_CLAIM_CEILING,
-        "canonical_event_count": "UNKNOWN",
-        "true_action_count": "UNKNOWN",
-        "production_release": False,
+        "module_id": MODULE_ID, "status": status, "contract_item_count": len(items),
+        "include_count": include_count, "review_count": review_count, "rejected_count": rejected_count,
+        "contract_items": items, "claim_output_allowed": False, "final_report_allowed": False,
+        "production_report_allowed": False, "claim_ceiling": OUTPUT_CONTRACT_CLAIM_CEILING,
+        "canonical_event_count": "UNKNOWN", "true_action_count": "UNKNOWN", "production_release": False,
         "claim_boundary": "report_output_contract_candidate_only_not_final_report",
     }
 
@@ -475,18 +450,11 @@ def write_outputs(blocks: list[dict[str, Any]], out_dir: str | Path) -> dict[str
     report = build_output_contract(blocks)
     (out / OUTPUT_JSON).write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     lines = [
-        "HPFA REPORT OUTPUT CONTRACT LITE V1",
-        "====================================",
-        f"status={report['status']}",
-        f"contract_item_count={report['contract_item_count']}",
-        f"include_count={report['include_count']}",
-        f"review_count={report['review_count']}",
-        f"rejected_count={report['rejected_count']}",
-        f"canonical_event_count={report['canonical_event_count']}",
-        f"true_action_count={report['true_action_count']}",
-        "production_release=false",
-        "",
-        "[contract_items]",
+        "HPFA REPORT OUTPUT CONTRACT LITE V1", "====================================",
+        f"status={report['status']}", f"contract_item_count={report['contract_item_count']}",
+        f"include_count={report['include_count']}", f"review_count={report['review_count']}",
+        f"rejected_count={report['rejected_count']}", f"canonical_event_count={report['canonical_event_count']}",
+        f"true_action_count={report['true_action_count']}", "production_release=false", "", "[contract_items]",
     ]
     for item in report["contract_items"][:50]:
         lines.append(f"- {item['contract_item_id']} decision={item['inclusion_decision']} status={item['status']}")
