@@ -66,9 +66,16 @@ This contract rehabilitates current user-output producers. It does not add a par
    - `robust_recurrent_process_count <= recurrent_process_count`;
    - `nominal_support_is_independent_evidence_count=false`;
    - `cross_process_support_independence_proven=false`.
-12. Unknown, tactical, causal, production, wrong-hop, null-significance, null-tactical, null-causality, fake multiple-testing correction, wrong null ceiling, invalid simulation count, false tail resolution, finite-resolution lock breach, context-causality, context-adaptation or otherwise escalated sequence claims are suppressed and cannot become user-facing prose.
-13. Missing or inconsistent sequence or match-story lineage is not converted into readable prose; the candidate is suppressed at this presentation boundary.
-14. Presentation may preserve or lower evidence strength. It may never increase it.
+12. `active_match_process_story_sidecar_v1.json` is diagnostic lineage, not publication authority. It must declare:
+   - `artifact_semantics=DIAGNOSTIC_INTERNAL_EVIDENCE_TRACE`;
+   - `user_facing_publication_authority=false`;
+   - `publication_authority_artifact=active_match_process_story_sidecar_v1.txt`;
+   - `raw_entity_stories_are_publication_authority=false`;
+   - `assembly_admission_required_for_user_facing_story=true`.
+   The TXT sidecar must declare `artifact_semantics=USER_FACING_ASSEMBLY_ADMITTED_PROJECTION` and `user_facing_publication_authority=true`. Diagnostic JSON may retain raw intermediate evidence for audit, but no downstream consumer may treat those raw fields as analyst-facing authority.
+13. Unknown, tactical, causal, production, wrong-hop, null-significance, null-tactical, null-causality, fake multiple-testing correction, wrong null ceiling, invalid simulation count, false tail resolution, finite-resolution lock breach, context-causality, context-adaptation or otherwise escalated sequence claims are suppressed and cannot become user-facing prose.
+14. Missing or inconsistent sequence or match-story lineage is not converted into readable prose; the candidate is suppressed at this presentation boundary.
+15. Presentation may preserve or lower evidence strength. It may never increase it.
 
 ## Claim boundary
 
@@ -79,6 +86,7 @@ This contract rehabilitates current user-output producers. It does not add a par
 - context difference is not causality or coaching adaptation;
 - dependent projections are not independent support;
 - process/subprocess accounting is cohort bookkeeping, not independent physical-action evidence;
+- diagnostic artifact retention is not publication admission;
 - `NO_VISIBLE_FOLLOWUP` is not failure;
 - tracking/video-dependent shape, pressure, intent, physical-load or off-ball claims remain unavailable without their evidence class.
 
@@ -110,5 +118,7 @@ CI success is engineering evidence only and is not physical ACTIVE_MATCH accepta
 - context trace refs outside the exact support cohort must suppress the sequence candidate;
 - process-story TXT must publish admitted assembly text and must not publish raw synthesis story text;
 - boolean accounting, process/source cohort mismatch, subprocess overflow, or `robust_recurrent > recurrent` must suppress process-story TXT publication;
+- process-story JSON must remain diagnostic-only and explicitly identify the TXT artifact as publication authority;
+- raw diagnostic `entity_stories` may remain auditable in JSON but must never appear in TXT without final assembly admission;
 - claim locks must remain present in the user-facing report and bundle manifest;
 - no sample match/team/player identity may be introduced into production code.
