@@ -38,11 +38,13 @@ def _null_summary():
     return {
         "state": "OBSERVED_ABOVE_DEFINED_NULL_MEDIAN",
         "observed_independent_recurrence": 3,
-        "simulation_count": 1000,
+        "simulation_count": 999,
         "null_mean": 1.4,
         "null_median": 1.0,
         "null_q95": 4.0,
         "empirical_upper_tail_probability_uncorrected": 0.08,
+        "empirical_upper_tail_resolution": 0.001,
+        "finite_simulation_resolution_only": True,
         "observed_percentile_in_null_draws": 0.92,
         "null_model_id": "defined_recurrence_null",
         "null_model_version": "v1",
@@ -125,6 +127,7 @@ def test_audited_null_contrast_survives_narrative_without_significance_escalatio
     block = result["narrative_blocks"][0]
     assert block["null_contrast_summary"] == row["null_contrast_summary"]
     assert "null medyan=1.0" in block["null_contrast_tr"]
+    assert "finite-simulation kuyruk çözünürlüğü=0.001" in block["null_contrast_tr"]
     assert "istatistiksel anlamlılık" in block["null_contrast_tr"]
     assert block["null_contrast_significance_claimed"] is False
     assert block["null_contrast_causality_claimed"] is False
