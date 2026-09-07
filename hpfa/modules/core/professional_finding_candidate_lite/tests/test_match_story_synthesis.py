@@ -210,6 +210,41 @@ def test_claim_locks_remain_closed():
     assert story["tactical_plan_truth_claimed"] is False
 
 
+def test_boolean_or_negative_numeric_accounting_fails_closed():
+    row = _narrative("n1")
+    row["success_support"] = True
+    result = synthesize_match_story(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "narrative_success_support_invalid:n1" in result["hard_block_hits"]
+
+    row = _narrative("n1")
+    row["failure_support"] = -1
+    result = synthesize_match_story(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "narrative_failure_support_invalid:n1" in result["hard_block_hits"]
+
+
+def test_outcome_support_cannot_exceed_exact_trace_support():
+    row = _narrative("n1", success=2, failure=1, divergence=1)
+    result = synthesize_match_story(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "narrative_outcome_support_exceeds_trace_support:n1" in result["hard_block_hits"]
+
+
+def test_declared_count_and_priority_reject_boolean_integer_aliases():
+    payload = _payload([_narrative("n1")])
+    payload["narrative_block_count"] = True
+    result = synthesize_match_story(payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "narrative_block_count_mismatch" in result["hard_block_hits"]
+
+    row = _narrative("n1")
+    row["priority_rank"] = True
+    result = synthesize_match_story(_payload([row]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "narrative_priority_rank_invalid:n1" in result["hard_block_hits"]
+
+
 def test_no_sample_match_identity_leak():
     source = Path("hpfa/modules/core/professional_finding_candidate_lite/src/match_story_synthesis.py").read_text(encoding="utf-8")
     for token in ("Genclerbirligi", "Fenerbahce", "15.08.2026"):
