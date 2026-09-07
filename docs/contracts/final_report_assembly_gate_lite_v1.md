@@ -77,6 +77,9 @@ When `null_contrast_summary` is present, assembly preserves it without recomputi
 
 ```text
 claim_ceiling=UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY
+simulation_count=<positive integer>
+empirical_upper_tail_resolution=1/(simulation_count+1)
+finite_simulation_resolution_only=true
 multiple_testing_corrected=false
 significance_claim_allowed=false
 tactical_pattern_truth_allowed=false
@@ -84,7 +87,7 @@ causality_allowed=false
 withdrawal_condition=<non-empty>
 ```
 
-An uncorrected upper-tail probability is descriptive audited evidence only. It is not a multiple-testing-corrected result, significance claim, tactical-pattern truth or causal explanation. Loss or escalation of any of these null locks fails closed before draft assembly.
+An uncorrected upper-tail probability is descriptive audited evidence only. Its finite Monte Carlo resolution is provenance, not a significance grade. It is not a multiple-testing-corrected result, significance claim, tactical-pattern truth or causal explanation. Loss, mismatch or escalation of any of these null locks fails closed before draft assembly.
 
 When `context_variations` are present, assembly preserves them and revalidates that baseline/comparison trace refs remain within the exact supporting trace cohort. `chronology_direction_claimed`, `causality_claimed`, `tactical_adaptation_claimed`, and `coach_intention_claimed` must remain false.
 
@@ -99,6 +102,9 @@ claim-ceiling vocabulary mismatch => FAIL_CLOSED
 claim-ceiling hop mismatch => FAIL_CLOSED
 null/context lineage survives assembly unchanged when present
 null evidence keeps exact UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY ceiling
+null evidence keeps a positive integer simulation_count
+null empirical_upper_tail_resolution equals 1/(simulation_count+1)
+null evidence remains finite_simulation_resolution_only=true
 null evidence remains multiple_testing_corrected=false
 null evidence cannot become significance, tactical-pattern truth or causality
 null withdrawal condition remains explicit and non-empty
@@ -191,6 +197,9 @@ assembly_sequence_unexpected_origin_claim_ceiling
 assembly_sequence_null_contrast_summary_invalid
 assembly_sequence_null_contrast_claim_strengthened
 assembly_sequence_null_contrast_claim_ceiling_mismatch
+assembly_sequence_null_contrast_simulation_count_invalid
+assembly_sequence_null_contrast_tail_resolution_mismatch
+assembly_sequence_null_contrast_finite_resolution_lock_breach
 assembly_sequence_null_contrast_multiple_testing_lock_breach
 assembly_sequence_null_contrast_significance_lock_breach
 assembly_sequence_null_contrast_tactical_truth_lock_breach
@@ -216,7 +225,7 @@ If the upstream contract item carries `inclusion_decision=REVIEW_BLOCK`, the ass
 
 ## Regression requirements
 
-C4 must continue running the full `final_report_assembly_gate_lite/tests` suite. Sequence regressions cover exact lineage preservation, missing-lineage fail-closed behavior, cohort/support and anchor consistency, exact claim-ceiling vocabulary/hop revalidation, exact null ceiling/multiple-testing/causality/withdrawal lock revalidation, null/context preservation, global claim locks and production-code sample-identity leakage.
+C4 must continue running the full `final_report_assembly_gate_lite/tests` suite. Sequence regressions cover exact lineage preservation, missing-lineage fail-closed behavior, cohort/support and anchor consistency, exact claim-ceiling vocabulary/hop revalidation, exact null ceiling/finite-simulation resolution/multiple-testing/causality/withdrawal lock revalidation, null/context preservation, global claim locks and production-code sample-identity leakage.
 
 ## Release status
 
