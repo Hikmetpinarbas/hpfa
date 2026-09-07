@@ -58,6 +58,20 @@ def test_observed_independent_recurrence_is_compared_to_explicit_null_distributi
     assert row["observed_percentile_in_null_draws"] == 1.0
 
 
+def test_empirical_tail_exposes_exact_finite_simulation_resolution():
+    result = evaluate_recurrence_null_contrast(_admission(), _null())
+    row = result["rows"][0]
+    assert row["simulation_count"] == 10
+    assert row["empirical_upper_tail_resolution"] == 1 / 11
+    assert row["empirical_upper_tail_probability_uncorrected"] == 1 / 11
+    assert row["finite_simulation_resolution_only"] is True
+
+    higher_resolution = evaluate_recurrence_null_contrast(_admission(), _null(draws=[0] * 99))["rows"][0]
+    assert higher_resolution["simulation_count"] == 99
+    assert higher_resolution["empirical_upper_tail_resolution"] == 0.01
+    assert higher_resolution["empirical_upper_tail_probability_uncorrected"] == 0.01
+
+
 def test_null_contrast_does_not_emit_significance_or_tactical_truth():
     result = evaluate_recurrence_null_contrast(_admission(), _null())
     row = result["rows"][0]
