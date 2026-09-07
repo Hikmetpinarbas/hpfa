@@ -13,6 +13,8 @@ BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
 EPISODE_FEATURE_JSON = "episode_feature_vector_lite_v1.json"
 FULL_SPINE_JSON = "active_match_full_spine_v1.json"
 FULL_SPINE_TXT = "active_match_full_spine_v1.txt"
+PROCESS_STORY_DIAGNOSTIC_JSON = "active_match_process_story_sidecar_v1.json"
+PROCESS_STORY_PUBLICATION_TXT = "active_match_process_story_sidecar_v1.txt"
 READY_ASSEMBLY_DECISION = "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
 ASSEMBLY_CLAIM_CEILING = "final_report_assembly_candidate_only"
 SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
@@ -539,6 +541,7 @@ def write_standard_user_outputs(
         {"name": path.name, "size_bytes": path.stat().st_size, "sha256": _sha256(path)}
         for path in candidates
     ]
+    candidate_names = {path.name for path in candidates}
     manifest = {
         "module_id": "active_match_standard_user_bundle_v1",
         "bundle_scope": "PRODUCER_DECLARED_CURRENT_INVOCATION_ARTIFACTS_PLUS_STANDARD_DELIVERABLES",
@@ -552,6 +555,12 @@ def write_standard_user_outputs(
         "sequence_lineage_preserved_in_analyst_report": True,
         "sequence_claim_ceiling_revalidated_in_analyst_report": True,
         "sequence_null_context_locks_revalidated_in_analyst_report": True,
+        "current_invocation_artifacts_are_publication_authority": False,
+        "bundle_file_inventory_is_publication_authority": False,
+        "process_story_diagnostic_artifact": PROCESS_STORY_DIAGNOSTIC_JSON,
+        "process_story_publication_authority_artifact": PROCESS_STORY_PUBLICATION_TXT,
+        "process_story_diagnostic_artifact_present": PROCESS_STORY_DIAGNOSTIC_JSON in candidate_names,
+        "process_story_publication_authority_artifact_present": PROCESS_STORY_PUBLICATION_TXT in candidate_names,
         "file_count_before_manifest": len(entries),
         "files": entries,
         "canonical_event_count": "UNKNOWN",
