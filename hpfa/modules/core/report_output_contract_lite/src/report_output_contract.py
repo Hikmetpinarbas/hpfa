@@ -14,6 +14,7 @@ OUTPUT_CONTRACT_CLAIM_CEILING = "report_output_contract_candidate_only"
 MISSING_REPORT_BLOCK_ID = "MISSING_REPORT_BLOCK_ID"
 SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
 SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
+MATCH_STORY_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_PROCESS_STORY_ONLY"
 NULL_CONTRAST_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
 
 FORBIDDEN_UPSTREAM_FIELDS = {
@@ -69,11 +70,13 @@ ALLOWED_BLOCK_FAMILIES = {
     "review_required_candidate",
     "sequence_safe_finding_analyst_reading_candidate",
     "sequence_narrative_analyst_reading_candidate",
+    "match_story_analyst_reading_candidate",
 }
 SEQUENCE_BLOCK_FAMILIES = {
     "sequence_safe_finding_analyst_reading_candidate",
     "sequence_narrative_analyst_reading_candidate",
 }
+MATCH_STORY_BLOCK_FAMILIES = {"match_story_analyst_reading_candidate"}
 
 
 def _repo_root() -> Path:
@@ -275,6 +278,52 @@ def _sequence_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]
     }, hits
 
 
+def _match_story_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    source_ids = sorted(set(_string_list(block.get("source_narrative_ids"))))
+    trace_refs = sorted(set(_string_list(block.get("unique_trace_refs"))))
+    shared_refs = sorted(set(_string_list(block.get("shared_trace_refs_across_processes"))))
+    unique_count = block.get("unique_trace_ref_count")
+    nominal_support = block.get("nominal_support_sum")
+    withdrawal = str(block.get("withdrawal_condition") or "").strip()
+    upstream_claim_ceiling = str(block.get("upstream_claim_ceiling") or "").strip()
+    hits: list[str] = []
+
+    if not source_ids:
+        hits.append("match_story_lineage_source_narrative_ids_missing")
+    if not trace_refs:
+        hits.append("match_story_lineage_unique_trace_refs_missing")
+    if not isinstance(unique_count, int) or unique_count < 0:
+        hits.append("match_story_lineage_unique_trace_ref_count_invalid")
+    elif unique_count != len(trace_refs):
+        hits.append("match_story_lineage_unique_trace_ref_count_mismatch")
+    if not isinstance(nominal_support, int) or nominal_support < len(trace_refs):
+        hits.append("match_story_lineage_nominal_support_invalid")
+    if not set(shared_refs).issubset(set(trace_refs)):
+        hits.append("match_story_lineage_shared_trace_refs_not_subset")
+    if block.get("nominal_support_is_independent_evidence_count") is not False:
+        hits.append("match_story_lineage_nominal_support_independence_lock_breach")
+    if block.get("cross_process_support_independence_proven") is not False:
+        hits.append("match_story_lineage_cross_process_independence_lock_breach")
+    if not withdrawal:
+        hits.append("match_story_lineage_withdrawal_condition_missing")
+    if upstream_claim_ceiling != MATCH_STORY_CLAIM_CEILING:
+        hits.append("match_story_lineage_upstream_claim_ceiling_mismatch")
+
+    return {
+        "source_narrative_ids": source_ids,
+        "unique_trace_refs": trace_refs,
+        "unique_trace_ref_count": unique_count,
+        "shared_trace_refs_across_processes": shared_refs,
+        "nominal_support_sum": nominal_support,
+        "nominal_support_is_independent_evidence_count": False,
+        "cross_process_support_independence_proven": False,
+        "story_state": str(block.get("story_state") or ""),
+        "entity_scope": str(block.get("entity_scope") or ""),
+        "withdrawal_condition": withdrawal,
+        "upstream_claim_ceiling": upstream_claim_ceiling,
+    }, hits
+
+
 def evaluate_report_block(block: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     normalized = dict(block)
     block_id = _report_block_id(normalized)
@@ -334,6 +383,11 @@ def evaluate_report_block(block: dict[str, Any], idx: int = 0) -> dict[str, Any]
         sequence_lineage, lineage_hits = _sequence_lineage(normalized)
         hard_block_hits.extend(lineage_hits)
 
+    match_story_lineage: dict[str, Any] = {}
+    if block_family in MATCH_STORY_BLOCK_FAMILIES:
+        match_story_lineage, lineage_hits = _match_story_lineage(normalized)
+        hard_block_hits.extend(lineage_hits)
+
     if hard_block_hits:
         inclusion_decision = "REJECT_BLOCK"
         status = "FAIL_CLOSED"
@@ -369,6 +423,7 @@ def evaluate_report_block(block: dict[str, Any], idx: int = 0) -> dict[str, Any]
         "forbidden_upstream_hits": forbidden_upstream_hits,
         "forbidden_block_hits": forbidden_block_hits,
         "sequence_evidence_lineage": sequence_lineage,
+        "match_story_evidence_lineage": match_story_lineage,
         "claim_output_allowed": False,
         "final_report_allowed": False,
         "production_report_allowed": False,
