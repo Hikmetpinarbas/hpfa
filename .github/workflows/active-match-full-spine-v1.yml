@@ -85,6 +85,10 @@ jobs:
           grep -F 'aggregate_support_trace_relation_is_physical_action_truth' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
           grep -F 'aggregate_support_attachment_is_timeline_identity' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
           grep -F 'aggregate_support_attachment_is_independent_vote' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
+          grep -F 'trace_cohort_action_family_candidate_labels' hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py
+          grep -F 'trace_action_family_labels_are_cohort_navigation_only=true' hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py
+          grep -F 'trace_action_family_labels_are_individual_action_support=false' hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py
+          grep -F 'trace_action_family_labels_are_physical_action_truth=false' hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py
           grep -F 'temporal_signature_is_rhythm_truth' hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py
           grep -F 'canonical_event_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'true_action_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
@@ -92,4 +96,5 @@ jobs:
           ! grep -RInE 'Genclerbirligi|Fenerbahce|Sturm Graz|Heart of Midlothian|Turkey|Australia|15\.08\.2026|22\.08\.2026' \
             hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py \
             hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py \
-            hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
+            hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py \
+            hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py
