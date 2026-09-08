@@ -42,6 +42,9 @@ jobs:
             active_match_full_run.py \
             hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py \
             hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py \
+            hpfa/modules/core/active_match_spine_runner/src/orphan_capability_sidecars.py \
+            hpfa/modules/core/spatial_transition_candidate_lite/src/spatial_transition_candidate.py \
+            hpfa/modules/core/state_transition_dynamics_lite/src/state_transition_dynamics.py \
             hpfa/modules/core/active_match_spine_runner/tests/test_full_spine_runner.py
 
       - name: Run unified full-spine regressions
@@ -62,6 +65,11 @@ jobs:
           python -m pytest -q hpfa/modules/core/visible_action_sequence_candidates_lite/tests
           python -m pytest -q hpfa/modules/core/reconstruction_intelligence_packet_adapter_lite/tests
 
+      - name: Run ZFGV spatial transition regressions
+        run: |
+          python -m pytest -q hpfa/modules/core/spatial_transition_candidate_lite/tests
+          python -m pytest -q hpfa/modules/core/state_transition_dynamics_lite/tests
+
       - name: Run current C4 intelligence integration
         run: |
           python -m pytest -q hpfa/tests/integration/test_intelligence_chain_contract_v1.py
@@ -78,6 +86,9 @@ jobs:
           grep -F 'canonical_event_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'true_action_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'production_release' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
+          grep -F 'provider_semantic_progression_is_measured_displacement_truth' hpfa/modules/core/state_transition_dynamics_lite/src/state_transition_dynamics.py
           ! grep -RInE 'Genclerbirligi|Fenerbahce|Sturm Graz|Heart of Midlothian|Turkey|Australia|15\.08\.2026|22\.08\.2026' \
             hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py \
-            hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py
+            hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py \
+            hpfa/modules/core/spatial_transition_candidate_lite/src/spatial_transition_candidate.py \
+            hpfa/modules/core/state_transition_dynamics_lite/src/state_transition_dynamics.py
