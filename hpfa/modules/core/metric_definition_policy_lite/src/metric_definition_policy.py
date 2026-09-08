@@ -6,11 +6,19 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
+from hpfa.modules.core.observation_contract_lite.src.observation_contract import (
+    OBSERVATION_MODEL,
+    assess_observation_contract,
+)
+
 MODULE_ID = "metric_definition_policy_lite_v1"
 OUTPUT_JSON = "metric_definition_policy_lite_v1.json"
 POLICY_VERSION = "1.0.0"
-RESEARCH_HARDENING_VERSION = "R07_R17_R18_R19_R22_v2"
+RESEARCH_HARDENING_VERSION = "R07_R17_R18_R19_R22_R23_v1"
 
+# `event_only_compatible` remains a required legacy compatibility field during
+# migration, but it is no longer the product-wide capability ceiling. New and
+# migrated constructs are admitted by construct-specific observation layers.
 REQUIRED_METRIC_FIELDS = {
     "metric_id", "metric_name", "metric_family", "construct_target",
     "aggregation_class", "value_type", "unit", "numerator_definition",
@@ -45,9 +53,9 @@ R19_DENOMINATOR_SET_SENTINELS = {"UNKNOWN", "NOT_APPLICABLE", "UNRESOLVED", "NON
 FAIL_CLOSED = "FAIL_CLOSED"
 BLOCKED = "BLOCKED"
 
-# R07: every direct semantic field belongs to the fingerprint. Referenced policy
-# semantics are included separately so changing a policy without renaming its ID
-# still changes the fingerprint.
+# Keep the legacy fingerprint stable while observation semantics receive their
+# own fingerprint from observation_contract_lite. This prevents a migration from
+# invalidating every historical metric definition fingerprint at once.
 FINGERPRINT_FIELDS = (
     "metric_family", "construct_target", "aggregation_class", "value_type", "unit",
     "numerator_definition", "denominator_definition", "observation_window",
@@ -177,11 +185,6 @@ def _denominator_closure_status(policy: dict[str, Any]) -> str:
     exhaustiveness = str(policy.get("collective_exhaustiveness_status", "")).strip().upper()
     uncovered = str(policy.get("uncovered_opportunity_status", "")).strip().upper()
 
-    # R19 fail-closed rule: merely having a non-UNKNOWN token is not evidence of
-    # closure. Current Lite admits only an explicit partition whose components are
-    # affirmatively exclusive and exhaustive with explicitly no uncovered
-    # opportunities. Nested/overlapping relations remain non-admitted until a
-    # later aggregation algebra contract authorizes them.
     if exclusivity in R19_NEGATIVE_EXCLUSIVITY_STATES:
         return "VIOLATED"
     if exhaustiveness in R19_NEGATIVE_EXHAUSTIVENESS_STATES:
@@ -222,6 +225,12 @@ def _validate_metric(
 
     for field in sorted(field for field in REQUIRED_METRIC_FIELDS if not _non_empty(record.get(field))):
         gaps.append(_gap(metric_id, f"{field}_missing"))
+
+    observation = assess_observation_contract(record)
+    for detail in observation.get("hard_block_hits", []):
+        gaps.append(_gap(metric_id, "observation_contract_invalid", detail=detail))
+    for detail in observation.get("review_hits", []):
+        gaps.append(_gap(metric_id, "observation_contract_review", severity=BLOCKED, detail=detail))
 
     value_type = str(record.get("value_type", "")).strip().lower()
     aggregation_class = str(record.get("aggregation_class", "")).strip().upper()
@@ -305,6 +314,14 @@ def _validate_metric(
         "metric_value_output_allowed": False,
         "claim_output_allowed": False,
         "canonical_event_count": "UNKNOWN",
+        "observation_model": OBSERVATION_MODEL,
+        "observation_contract_status": observation["status"],
+        "required_observation_layers": observation["required_observation_layers"],
+        "required_surface_semantics": observation["required_surface_semantics"],
+        "tracking_video_required": observation["tracking_video_required"],
+        "legacy_event_only_shadow_compatible": observation["legacy_event_only_shadow_compatible"],
+        "event_only_is_product_ceiling": False,
+        "observation_semantic_fingerprint_sha256": observation["observation_semantic_fingerprint_sha256"],
     })
     return normalized, gaps
 
@@ -346,6 +363,8 @@ def build_metric_definition_policy(
         "status": status,
         "policy_version": POLICY_VERSION,
         "research_hardening_version": RESEARCH_HARDENING_VERSION,
+        "observation_model": OBSERVATION_MODEL,
+        "event_only_is_product_ceiling": False,
         "metric_definition_candidate_count": len(metrics),
         "definition_status_counts": dict(sorted(Counter(m["definition_status"] for m in metrics).items())),
         "policy_counts": {
@@ -362,6 +381,7 @@ def build_metric_definition_policy(
             "R19_full_denominator_set_closure_required_for_rate_calculation": True,
             "R22_per90_requires_validated_exposure_authority": True,
             "R22_minutes_played_is_physical_cost": False,
+            "R23_construct_specific_observation_layers_supersede_event_only_ceiling": True,
         },
         "metric_definition_candidate_only": True,
         "validated_metric_truth": False,
@@ -374,14 +394,16 @@ def build_metric_definition_policy(
         "claim_output_allowed": False,
         "canonical_event_count": "UNKNOWN",
         "production_release": False,
-        "claim_boundary": "definition_candidate_and_policy_admission_only_no_metric_value_no_construct_truth_no_quality_no_tactical_truth_no_canonical_event_claim",
+        "claim_boundary": "observation-layer-aware definition candidate and policy admission only; no metric value, construct truth, quality truth, tactical truth or canonical event claim",
     }
 
 
 def load_policy_pack(config_dir: str | Path) -> dict[str, Any]:
     root = Path(config_dir)
+
     def read(name: str) -> dict[str, Any]:
         return json.loads((root / name).read_text(encoding="utf-8"))
+
     return build_metric_definition_policy(
         read("metric_registry_v1.json"), read("metric_denominator_policy_v1.json"),
         read("metric_context_schema_v1.json"), read("metric_confidence_rules_v1.json"),
