@@ -17,9 +17,18 @@ WINDOW_SECONDS = (5.0, 8.0, 12.0)
 MAX_FOLLOW_UP_LAYERS = 3
 SUPPORT_ATOM_CLASSES = {"DERIVED_CONSEQUENCE_ATOM", "TERMINAL_OUTCOME_ATOM"}
 ALLOWED_TRACE_ROLES = {"PLAYER_SURFACE_CANDIDATE", "GOALKEEPER_SURFACE_CANDIDATE"}
+TEMPORAL_RELATION_STATES = {
+    "BEFORE_CONFIRMED",
+    "AFTER_CONFIRMED",
+    "SAME_TIME_UNORDERED",
+    "ORDER_INDETERMINATE",
+    "PROVENANCE_ORDER_ONLY",
+}
+DIRECTIONAL_AFTER_STATE = "AFTER_CONFIRMED"
 REVIEW_CLASSES = {
     "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE",
     "VISIBLE_FOLLOW_UP_UNCERTAIN_CANDIDATE",
+    "PROVENANCE_WINDOW_ONLY_REVIEW_REQUIRED_CANDIDATE",
 }
 OUTPUTS = {
     "json": "trackable_action_consequence_candidates_lite_v1.json",
@@ -125,6 +134,37 @@ def _timeline_key(trace: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
+def _temporal_relation_index(
+    trace_payload: dict[str, Any], trace_ids: set[str]
+) -> tuple[dict[tuple[str, str], str], list[str]]:
+    blocks: list[str] = []
+    index: dict[tuple[str, str], str] = {}
+    records = trace_payload.get("temporal_relation_admission_records")
+    if records is None:
+        return index, blocks
+    if not isinstance(records, list):
+        return index, ["temporal_relation_admission_records_invalid"]
+    for position, record in enumerate(records):
+        if not isinstance(record, dict):
+            blocks.append(f"temporal_relation_record_invalid:{position}")
+            continue
+        anchor_id = _clean(record.get("anchor_trackable_action_trace_candidate_id"))
+        candidate_id = _clean(record.get("candidate_trackable_action_trace_candidate_id"))
+        state = _clean(record.get("relation_state"))
+        if anchor_id not in trace_ids or candidate_id not in trace_ids or anchor_id == candidate_id:
+            blocks.append(f"temporal_relation_trace_reference_invalid:{position}")
+            continue
+        if state not in TEMPORAL_RELATION_STATES:
+            blocks.append(f"temporal_relation_state_invalid:{position}:{state}")
+            continue
+        key = (anchor_id, candidate_id)
+        if key in index:
+            blocks.append(f"duplicate_temporal_relation:{anchor_id}:{candidate_id}")
+            continue
+        index[key] = state
+    return index, blocks
+
+
 def _team_family_sets(anchor_team: str, future: list[dict[str, Any]]) -> tuple[set[str], set[str], bool]:
     same_team: set[str] = set()
     opponent: set[str] = set()
@@ -162,7 +202,8 @@ def _first_layer_team_state(anchor_team: str, future: list[dict[str, Any]]) -> s
 
 def _classify_consequence(
     anchor: dict[str, Any],
-    future: list[dict[str, Any]],
+    admitted_future: list[dict[str, Any]],
+    provenance_future: list[dict[str, Any]],
     terminal_support_visible: bool,
     derived_support_visible: bool,
 ) -> tuple[str, list[str]]:
@@ -173,16 +214,20 @@ def _classify_consequence(
         signals.add("TERMINAL_OUTCOME_SUPPORT_VISIBLE")
     if derived_support_visible:
         signals.add("DERIVED_CONSEQUENCE_SUPPORT_VISIBLE")
+    if provenance_future and not admitted_future:
+        signals.add("NUMERIC_PROVENANCE_WINDOW_VISIBLE_WITHOUT_AFTER_ADMISSION")
     if not team:
         signals.add("ANCHOR_TEAM_IDENTITY_MISSING")
         return "VISIBLE_FOLLOW_UP_UNCERTAIN_CANDIDATE", sorted(signals)
-    if not future:
+    if not admitted_future:
         if terminal_support_visible:
             return "TERMINAL_OUTCOME_SUPPORT_CANDIDATE", sorted(signals)
+        if provenance_future:
+            return "PROVENANCE_WINDOW_ONLY_REVIEW_REQUIRED_CANDIDATE", sorted(signals)
         return "NO_VISIBLE_FOLLOW_UP_CANDIDATE", sorted(signals)
 
-    same_team, opponent, missing_team = _team_family_sets(team, future)
-    first_state = _first_layer_team_state(team, future)
+    same_team, opponent, missing_team = _team_family_sets(team, admitted_future)
+    first_state = _first_layer_team_state(team, admitted_future)
     flags = {
         "SAME_TEAM_SHOT_FOLLOW_UP_VISIBLE": "SHOT" in same_team,
         "OPPONENT_SHOT_FOLLOW_UP_VISIBLE": "SHOT" in opponent,
@@ -190,8 +235,6 @@ def _classify_consequence(
         "OPPONENT_RESTART_FOLLOW_UP_VISIBLE": "RESTART" in opponent,
         "SAME_TEAM_RECOVERY_OR_INTERCEPTION_FOLLOW_UP_VISIBLE": bool({"RECOVERY", "INTERCEPTION"} & same_team),
         "OPPONENT_RECOVERY_OR_INTERCEPTION_FOLLOW_UP_VISIBLE": bool({"RECOVERY", "INTERCEPTION"} & opponent),
-        "SAME_TEAM_TURNOVER_OR_CONTROL_ERROR_FOLLOW_UP_VISIBLE": bool({"TURNOVER", "CONTROL_ERROR"} & same_team),
-        "OPPONENT_TURNOVER_OR_CONTROL_ERROR_FOLLOW_UP_VISIBLE": bool({"TURNOVER", "CONTROL_ERROR"} & opponent),
         "SAME_TEAM_FOLLOW_UP_VISIBLE": bool(same_team),
         "OPPONENT_FOLLOW_UP_VISIBLE": bool(opponent),
         "MIXED_TEAM_FIRST_LAYER_VISIBLE": first_state == "MIXED",
@@ -228,12 +271,10 @@ def _classify_consequence(
 
 
 def build_trackable_action_consequence_candidates(
-    trace_payload: dict[str, Any],
-    evidence_payload: dict[str, Any],
+    trace_payload: dict[str, Any], evidence_payload: dict[str, Any]
 ) -> dict[str, Any]:
     blocks: list[str] = []
     reviews: list[str] = []
-
     if trace_payload.get("module_id") != TRACE_MODULE_ID:
         blocks.append("trace_input_module_id_mismatch")
     if evidence_payload.get("module_id") != EVIDENCE_MODULE_ID:
@@ -275,6 +316,10 @@ def build_trackable_action_consequence_candidates(
             blocks.append(f"duplicate_trace_id:{trace_id}")
         trace_ids.add(trace_id)
 
+    temporal_index, temporal_blocks = _temporal_relation_index(trace_payload, trace_ids)
+    blocks.extend(temporal_blocks)
+    temporal_admission_present = "temporal_relation_admission_records" in trace_payload
+
     support_index: dict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
     for index, atom in enumerate(atoms):
         if not isinstance(atom, dict):
@@ -292,10 +337,10 @@ def build_trackable_action_consequence_candidates(
     if not blocks:
         for trace in traces:
             by_period[_clean(trace.get("period_candidate"))].append(trace)
-
         for period_traces in by_period.values():
             period_traces.sort(key=_timeline_key)
             for index, anchor in enumerate(period_traces):
+                anchor_id = _clean(anchor.get("trackable_action_trace_candidate_id"))
                 anchor_start = _number(anchor.get("start_candidate"))
                 layer_map: dict[float, list[dict[str, Any]]] = defaultdict(list)
                 if anchor_start is not None:
@@ -309,84 +354,95 @@ def build_trackable_action_consequence_candidates(
                         if delta > WINDOW_SECONDS[-1]:
                             break
                         layer_map[candidate_start].append(candidate)
-                layers = [
+                provenance_layers = [
                     sorted(layer_map[start], key=_timeline_key)
                     for start in sorted(layer_map)[:MAX_FOLLOW_UP_LAYERS]
                 ]
-                future = [trace for layer in layers for trace in layer]
+                provenance_future = [trace for layer in provenance_layers for trace in layer]
+                admitted_future: list[dict[str, Any]] = []
+                relation_states: dict[str, str] = {}
+                for candidate in provenance_future:
+                    candidate_id = _clean(candidate.get("trackable_action_trace_candidate_id"))
+                    state = temporal_index.get((anchor_id, candidate_id), "ORDER_INDETERMINATE")
+                    relation_states[candidate_id] = state
+                    if state == DIRECTIONAL_AFTER_STATE:
+                        admitted_future.append(candidate)
+                    elif state == "BEFORE_CONFIRMED":
+                        blocks.append(f"temporal_relation_numeric_conflict:{anchor_id}:{candidate_id}")
+                if blocks:
+                    break
+
                 support_atoms = support_index.get(_support_core(anchor), [])
                 class_counts = Counter(_clean(atom.get("atom_class")) for atom in support_atoms)
                 terminal_visible = class_counts.get("TERMINAL_OUTCOME_ATOM", 0) > 0
                 derived_visible = class_counts.get("DERIVED_CONSEQUENCE_ATOM", 0) > 0
                 primary, signals = _classify_consequence(
-                    anchor,
-                    future,
-                    terminal_visible,
-                    derived_visible,
+                    anchor, admitted_future, provenance_future, terminal_visible, derived_visible
                 )
                 first_delta = None
-                if future and anchor_start is not None:
-                    first_start = _number(future[0].get("start_candidate"))
+                if provenance_future and anchor_start is not None:
+                    first_start = _number(provenance_future[0].get("start_candidate"))
                     if first_start is not None:
                         first_delta = round(first_start - anchor_start, 6)
-                window_counts = {}
-                for seconds in WINDOW_SECONDS:
-                    window_counts[f"visible_follow_up_trace_count_{int(seconds)}s"] = sum(
-                        1
-                        for trace in future
+                window_counts = {
+                    f"visible_follow_up_trace_count_{int(seconds)}s": sum(
+                        1 for trace in provenance_future
                         if _number(trace.get("start_candidate")) is not None
                         and anchor_start is not None
                         and 0 < (_number(trace.get("start_candidate")) or anchor_start) - anchor_start <= seconds
                     )
+                    for seconds in WINDOW_SECONDS
+                }
                 record_status = "REVIEW_REQUIRED" if primary in REVIEW_CLASSES else "PASS_CANDIDATE_CLASSIFICATION"
-                records.append(
-                    {
-                        "trackable_action_consequence_candidate_id": "tacc_"
-                        + _digest(
-                            anchor.get("trackable_action_trace_candidate_id"),
-                            [trace.get("trackable_action_trace_candidate_id") for trace in future],
-                        )[:24],
-                        "anchor_trackable_action_trace_candidate_id": anchor.get("trackable_action_trace_candidate_id"),
-                        "match_surface_binding_id": trace_binding,
-                        "source_role": anchor.get("source_role"),
-                        "team_identity_candidate_id": anchor.get("team_identity_candidate_id"),
-                        "actor_identity_candidate_id": anchor.get("actor_identity_candidate_id"),
-                        "period_candidate": anchor.get("period_candidate"),
-                        "anchor_start_candidate": anchor.get("start_candidate"),
-                        "anchor_end_candidate": anchor.get("end_candidate"),
-                        "anchor_action_family_candidates": anchor.get("action_family_candidates") or [],
-                        "follow_up_layer_count": len(layers),
-                        "follow_up_trace_ids_by_layer": [
-                            [trace.get("trackable_action_trace_candidate_id") for trace in layer]
-                            for layer in layers
-                        ],
-                        "visible_follow_up_trace_ids": [
-                            trace.get("trackable_action_trace_candidate_id") for trace in future
-                        ],
-                        "first_visible_follow_up_delta_seconds": first_delta,
-                        **window_counts,
-                        "primary_consequence_candidate": primary,
-                        "consequence_signal_candidates": signals,
-                        "record_status": record_status,
-                        "supporting_consequence_evidence_atom_ids": sorted(
-                            _clean(atom.get("evidence_atom_id")) for atom in support_atoms
-                        ),
-                        "support_atom_class_counts": dict(sorted(class_counts.items())),
-                        "terminal_outcome_support_visible": terminal_visible,
-                        "derived_consequence_support_visible": derived_visible,
-                        "same_time_link_allowed": False,
-                        "negative_time_link_allowed": False,
-                        "cross_period_link_allowed": False,
-                        "window_is_sequence_truth": False,
-                        "continuation_is_possession_truth": False,
-                        "consequence_candidate_is_causal_truth": False,
-                        "team_response_is_tactical_truth": False,
-                        "event_instance_allowed": False,
-                        "validated_event_identity": False,
-                        "canonical_event_count": CANONICAL_EVENT_COUNT,
-                        "claim_ceiling": CLAIM_CEILING,
-                    }
-                )
+                records.append({
+                    "trackable_action_consequence_candidate_id": "tacc_" + _digest(
+                        anchor_id,
+                        [trace.get("trackable_action_trace_candidate_id") for trace in provenance_future],
+                        relation_states,
+                    )[:24],
+                    "anchor_trackable_action_trace_candidate_id": anchor_id,
+                    "match_surface_binding_id": trace_binding,
+                    "source_role": anchor.get("source_role"),
+                    "team_identity_candidate_id": anchor.get("team_identity_candidate_id"),
+                    "actor_identity_candidate_id": anchor.get("actor_identity_candidate_id"),
+                    "period_candidate": anchor.get("period_candidate"),
+                    "anchor_start_candidate": anchor.get("start_candidate"),
+                    "anchor_end_candidate": anchor.get("end_candidate"),
+                    "anchor_action_family_candidates": anchor.get("action_family_candidates") or [],
+                    "follow_up_layer_count": len(provenance_layers),
+                    "follow_up_trace_ids_by_layer": [
+                        [trace.get("trackable_action_trace_candidate_id") for trace in layer]
+                        for layer in provenance_layers
+                    ],
+                    "visible_follow_up_trace_ids": [trace.get("trackable_action_trace_candidate_id") for trace in provenance_future],
+                    "admitted_after_follow_up_trace_ids": [trace.get("trackable_action_trace_candidate_id") for trace in admitted_future],
+                    "temporal_relation_states_by_trace_id": relation_states,
+                    "temporal_relation_admission_present": temporal_admission_present,
+                    "first_visible_follow_up_delta_seconds": first_delta,
+                    "first_visible_follow_up_delta_is_chronology_truth": False,
+                    "numeric_window_is_provenance_candidate_only": True,
+                    **window_counts,
+                    "primary_consequence_candidate": primary,
+                    "consequence_signal_candidates": signals,
+                    "record_status": record_status,
+                    "supporting_consequence_evidence_atom_ids": sorted(_clean(atom.get("evidence_atom_id")) for atom in support_atoms),
+                    "support_atom_class_counts": dict(sorted(class_counts.items())),
+                    "terminal_outcome_support_visible": terminal_visible,
+                    "derived_consequence_support_visible": derived_visible,
+                    "same_time_link_allowed": False,
+                    "negative_time_link_allowed": False,
+                    "cross_period_link_allowed": False,
+                    "window_is_sequence_truth": False,
+                    "continuation_is_possession_truth": False,
+                    "consequence_candidate_is_causal_truth": False,
+                    "team_response_is_tactical_truth": False,
+                    "event_instance_allowed": False,
+                    "validated_event_identity": False,
+                    "canonical_event_count": CANONICAL_EVENT_COUNT,
+                    "claim_ceiling": CLAIM_CEILING,
+                })
+            if blocks:
+                break
 
     if len(records) != len(traces) and not blocks:
         blocks.append("consequence_trace_coverage_mismatch")
@@ -402,10 +458,8 @@ def build_trackable_action_consequence_candidates(
     support_visible_count = sum(bool(record.get("supporting_consequence_evidence_atom_ids")) for record in records)
     window_coverage = {
         f"visible_follow_up_within_{int(seconds)}s": sum(
-            int(record.get(f"visible_follow_up_trace_count_{int(seconds)}s") or 0) > 0
-            for record in records
-        )
-        for seconds in WINDOW_SECONDS
+            int(record.get(f"visible_follow_up_trace_count_{int(seconds)}s") or 0) > 0 for record in records
+        ) for seconds in WINDOW_SECONDS
     }
 
     for prefix, payload in (("trace", trace_payload), ("evidence", evidence_payload)):
@@ -418,11 +472,12 @@ def build_trackable_action_consequence_candidates(
             reviews.append(f"{prefix}_upstream_status_review:{status}")
     if review_required_count:
         reviews.append("review_required_visible_consequence_candidates_present")
+    if not temporal_admission_present and any(record.get("visible_follow_up_trace_ids") for record in records):
+        reviews.append("temporal_relation_admission_missing_numeric_windows_only")
 
     blocks = sorted(set(blocks))
     reviews = sorted(set(reviews))
     status = "FAIL_CLOSED" if blocks else ("REVIEW_REQUIRED" if reviews else "PASS")
-
     return {
         "module_id": MODULE_ID,
         "status": status,
@@ -442,6 +497,10 @@ def build_trackable_action_consequence_candidates(
         "review_hits": reviews,
         "window_seconds": list(WINDOW_SECONDS),
         "max_follow_up_time_layers": MAX_FOLLOW_UP_LAYERS,
+        "temporal_relation_states": sorted(TEMPORAL_RELATION_STATES),
+        "directional_after_requires": DIRECTIONAL_AFTER_STATE,
+        "numeric_time_parseability_is_chronology_truth": False,
+        "positive_numeric_delta_is_after_truth": False,
         "same_time_link_allowed": False,
         "negative_time_link_allowed": False,
         "cross_period_link_allowed": False,
@@ -467,10 +526,8 @@ def _summary(payload: dict[str, Any]) -> str:
         f"trackable_action_consequence_candidate_count={payload.get('trackable_action_consequence_candidate_count')}",
         f"classified_consequence_candidate_count={payload.get('classified_consequence_candidate_count')}",
         f"review_required_consequence_candidate_count={payload.get('review_required_consequence_candidate_count')}",
-        f"support_visible_trace_count={payload.get('support_visible_trace_count')}",
         f"primary_consequence_candidate_counts={payload.get('primary_consequence_candidate_counts')}",
-        f"window_coverage_counts={payload.get('window_coverage_counts')}",
-        f"hard_block_hits={payload.get('hard_block_hits')}",
+        f"review_hits={payload.get('review_hits')}",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "production_release=false",
@@ -480,20 +537,15 @@ def _summary(payload: dict[str, Any]) -> str:
 
 def _analyst(payload: dict[str, Any]) -> str:
     counts = payload.get("primary_consequence_candidate_counts") or {}
-    windows = payload.get("window_coverage_counts") or {}
     lines = [
         "HPFA ANALYST AUDIT — TRACKABLE ACTION CONSEQUENCE CANDIDATES",
         f"Visible trackable trace anchors: {payload.get('trackable_action_consequence_candidate_count', 0)}",
-        f"Same-team continuation candidates: {counts.get('SAME_TEAM_CONTINUATION_CANDIDATE', 0)}",
-        f"Opponent handover candidates: {counts.get('OPPONENT_HANDOVER_CANDIDATE', 0)}",
-        f"Shot follow-up candidates: {counts.get('SHOT_FOLLOW_UP_CANDIDATE', 0)}",
-        f"No visible follow-up candidates: {counts.get('NO_VISIBLE_FOLLOW_UP_CANDIDATE', 0)}",
-        f"Review-required mixed/uncertain candidates: {payload.get('review_required_consequence_candidate_count', 0)}",
-        f"Visible follow-up within 5s: {windows.get('visible_follow_up_within_5s', 0)}",
-        f"Visible follow-up within 8s: {windows.get('visible_follow_up_within_8s', 0)}",
-        f"Visible follow-up within 12s: {windows.get('visible_follow_up_within_12s', 0)}",
-        "Analyst-safe meaning: visible trace candidates were linked only to later positive-time traces in the same period, within a capped 12-second window and at most three distinct later time layers.",
-        "These are consequence candidates, not causal, possession, sequence, tactical, physical-action or canonical-event truth.",
+        f"Temporally admitted same-team continuation candidates: {counts.get('SAME_TEAM_CONTINUATION_CANDIDATE', 0)}",
+        f"Temporally admitted opponent handover candidates: {counts.get('OPPONENT_HANDOVER_CANDIDATE', 0)}",
+        f"Temporally admitted shot follow-up candidates: {counts.get('SHOT_FOLLOW_UP_CANDIDATE', 0)}",
+        f"Numeric-window-only review candidates: {counts.get('PROVENANCE_WINDOW_ONLY_REVIEW_REQUIRED_CANDIDATE', 0)}",
+        "Analyst-safe meaning: numeric time windows only generate provenance-window candidates unless an explicit AFTER_CONFIRMED temporal relation admits a directional consequence link.",
+        "Numeric parseability, positive delta and row order do not establish football chronology, causality, possession, sequence, tactical or physical-action truth.",
         "canonical_event_count=UNKNOWN",
         "production_release=false",
     ]
@@ -526,8 +578,8 @@ def main() -> int:
         "classified_consequence_candidate_count": payload.get("classified_consequence_candidate_count"),
         "review_required_consequence_candidate_count": payload.get("review_required_consequence_candidate_count"),
         "primary_consequence_candidate_counts": payload.get("primary_consequence_candidate_counts") or {},
-        "window_coverage_counts": payload.get("window_coverage_counts") or {},
         "hard_block_hits": payload.get("hard_block_hits") or [],
+        "review_hits": payload.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
