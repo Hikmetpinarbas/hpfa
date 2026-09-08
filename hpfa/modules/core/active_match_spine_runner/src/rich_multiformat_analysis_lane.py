@@ -6,6 +6,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+from hpfa.modules.core.match_local_identity_candidates_lite.src.match_local_identity_candidates import _normalize as normalize_match_local_identity_candidate
 from hpfa.modules.core.multiformat_file_inventory_lite.src import multiformat_file_inventory as inventory
 from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader import native_reader as xlsx
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import build_projection
@@ -18,6 +19,8 @@ XLSX_AUDIT_TXT = "xlsx_surface_audit_lite_v1.txt"
 XLSX_AUDIT_ANALYST = "xlsx_surface_analyst_audit_lite_v1.txt"
 XLSX_PROJECTION_JSON = "xlsx_entity_metric_row_projection_lite_v1.json"
 XLSX_PROJECTION_TXT = "xlsx_entity_metric_row_projection_lite_v1.txt"
+MATCH_LOCAL_IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
+MATCH_LOCAL_IDENTITY_MODULE_ID = "match_local_identity_candidates_lite_v1"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -55,13 +58,80 @@ def _flatten_projection(projection: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _identity_candidate_index(identity_payload: dict[str, Any], binding_id: str | None) -> dict[str, Any]:
+    empty = {
+        "input_state": "IDENTITY_CANDIDATE_INPUT_UNAVAILABLE",
+        "actor_by_key": {},
+        "team_by_key": {},
+    }
+    if not isinstance(identity_payload, dict) or not identity_payload:
+        return empty
+    if identity_payload.get("module_id") != MATCH_LOCAL_IDENTITY_MODULE_ID:
+        return {**empty, "input_state": "IDENTITY_CANDIDATE_MODULE_MISMATCH_REVIEW_REQUIRED"}
+    if str(identity_payload.get("status") or identity_payload.get("module_status") or "") == "FAIL_CLOSED":
+        return {**empty, "input_state": "IDENTITY_CANDIDATE_INPUT_FAIL_CLOSED"}
+    payload_binding_id = str(identity_payload.get("match_surface_binding_id") or "").strip()
+    expected_binding_id = str(binding_id or "").strip()
+    if not expected_binding_id or payload_binding_id != expected_binding_id:
+        return {**empty, "input_state": "IDENTITY_CANDIDATE_BINDING_MISMATCH_REVIEW_REQUIRED"}
+
+    actor_by_key: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for candidate in identity_payload.get("actor_identity_candidates") or []:
+        if not isinstance(candidate, dict) or candidate.get("decision_state") != "ACTOR_IDENTITY_CANDIDATE_BOUND":
+            continue
+        if candidate.get("match_surface_binding_id") != expected_binding_id:
+            continue
+        team_key = str(candidate.get("team_normalized_key") or "").strip()
+        actor_key = str(candidate.get("actor_normalized_key") or "").strip()
+        candidate_id = str(candidate.get("actor_identity_candidate_id") or "").strip()
+        team_candidate_id = str(candidate.get("team_identity_candidate_id") or "").strip()
+        if team_key and actor_key and candidate_id and team_candidate_id:
+            actor_by_key[(team_key, actor_key)].append({
+                "actor_identity_candidate_id": candidate_id,
+                "team_identity_candidate_id": team_candidate_id,
+                "team_normalized_key": team_key,
+                "actor_normalized_key": actor_key,
+            })
+
+    team_by_key: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for candidate in identity_payload.get("team_identity_candidates") or []:
+        if not isinstance(candidate, dict) or candidate.get("decision_state") != "TEAM_IDENTITY_CANDIDATE_BOUND":
+            continue
+        if candidate.get("match_surface_binding_id") != expected_binding_id:
+            continue
+        team_key = str(candidate.get("team_normalized_key") or "").strip()
+        candidate_id = str(candidate.get("team_identity_candidate_id") or "").strip()
+        if team_key and candidate_id:
+            team_by_key[team_key].append({
+                "team_identity_candidate_id": candidate_id,
+                "team_normalized_key": team_key,
+            })
+    return {
+        "input_state": "MATCH_LOCAL_IDENTITY_CANDIDATES_AVAILABLE",
+        "actor_by_key": dict(actor_by_key),
+        "team_by_key": dict(team_by_key),
+    }
+
+
+def _entity_views(rows: list[dict[str, Any]], identity_payload: dict[str, Any] | None = None) -> dict[str, Any]:
     players: list[dict[str, Any]] = []
     teams: list[dict[str, Any]] = []
     goalkeepers: list[dict[str, Any]] = []
     metric_label_counts: Counter[str] = Counter()
     observed_metric_cell_count = 0
     aggregate_support_lineage_incomplete_candidate_count = 0
+    aggregate_support_identity_candidate_link_count = 0
+    aggregate_support_identity_relation_review_required_count = 0
+    binding_ids = {
+        str(row.get("match_surface_binding_id") or "").strip()
+        for row in rows
+        if str(row.get("match_surface_binding_id") or "").strip()
+    }
+    common_binding_id = next(iter(binding_ids)) if len(binding_ids) == 1 else None
+    identity_index = _identity_candidate_index(identity_payload or {}, common_binding_id)
+    if identity_index["input_state"].endswith("REVIEW_REQUIRED"):
+        aggregate_support_identity_relation_review_required_count += 1
+
     for row in rows:
         identity = row.get("identity_candidates") or {}
         observed_metrics = {
@@ -101,6 +171,38 @@ def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
         )
         if not lineage_complete:
             aggregate_support_lineage_incomplete_candidate_count += 1
+
+        role = str(row.get("source_role") or "").upper()
+        team_key = normalize_match_local_identity_candidate(identity.get("team_raw_candidate")) or None
+        actor_key = normalize_match_local_identity_candidate(identity.get("player_raw_candidate")) or None
+        relation_ref: dict[str, Any] | None = None
+        relation_state = "XLSX_ROW_PROJECTION_CANDIDATE_ONLY"
+        relation_basis: list[str] = []
+        if lineage_complete and identity_index["input_state"] == "MATCH_LOCAL_IDENTITY_CANDIDATES_AVAILABLE":
+            candidates: list[dict[str, Any]] = []
+            if "GOALKEEPER" in role or identity.get("player_raw_candidate") not in (None, ""):
+                if team_key and actor_key:
+                    candidates = list(identity_index["actor_by_key"].get((team_key, actor_key), []))
+                    relation_basis = [
+                        "same_match_surface_binding_id",
+                        "bound_match_local_actor_identity_candidate",
+                        "normalized_team_and_actor_candidate_match",
+                    ]
+            elif team_key:
+                candidates = list(identity_index["team_by_key"].get(team_key, []))
+                relation_basis = [
+                    "same_match_surface_binding_id",
+                    "bound_match_local_team_identity_candidate",
+                    "normalized_team_candidate_match",
+                ]
+            if len(candidates) == 1:
+                relation_ref = candidates[0]
+                relation_state = "MATCH_LOCAL_IDENTITY_CANDIDATE_LINK_ONLY"
+                aggregate_support_identity_candidate_link_count += 1
+            elif len(candidates) > 1:
+                relation_state = "IDENTITY_CANDIDATE_AMBIGUOUS_REVIEW_REQUIRED"
+                aggregate_support_identity_relation_review_required_count += 1
+
         compact = {
             "row_projection_id": row.get("row_projection_id"),
             "source_role": row.get("source_role"),
@@ -112,17 +214,21 @@ def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "aggregate_support_lineage": aggregate_support_lineage,
             "aggregate_support_lineage_complete": lineage_complete,
             "aggregate_support_attachment_state": (
-                "XLSX_ROW_PROJECTION_CANDIDATE_ONLY"
-                if lineage_complete
-                else "PROVENANCE_INCOMPLETE_REVIEW_REQUIRED"
+                "PROVENANCE_INCOMPLETE_REVIEW_REQUIRED"
+                if not lineage_complete
+                else relation_state
             ),
+            "aggregate_support_match_local_identity_candidate_ref": relation_ref,
+            "aggregate_support_identity_relation_basis": relation_basis,
+            "aggregate_support_identity_relation_is_candidate_only": relation_ref is not None,
+            "aggregate_support_identity_relation_is_identity_truth": False,
+            "aggregate_support_identity_relation_is_action_trace_attachment": False,
             "aggregate_support_is_timeline_identity": False,
             "aggregate_support_is_event_truth": False,
             "aggregate_support_is_independent_vote": False,
             "validated_identity": False,
             "metric_truth": False,
         }
-        role = str(row.get("source_role") or "").upper()
         if "GOALKEEPER" in role:
             goalkeepers.append(compact)
         elif identity.get("player_raw_candidate") not in (None, ""):
@@ -136,6 +242,11 @@ def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "observed_metric_cell_count": observed_metric_cell_count,
         "metric_label_observation_counts": dict(metric_label_counts.most_common()),
         "aggregate_support_lineage_incomplete_candidate_count": aggregate_support_lineage_incomplete_candidate_count,
+        "aggregate_support_identity_candidate_link_count": aggregate_support_identity_candidate_link_count,
+        "aggregate_support_identity_relation_review_required_count": aggregate_support_identity_relation_review_required_count,
+        "aggregate_support_identity_relation_input_state": identity_index["input_state"],
+        "aggregate_support_attachment_is_match_local_identity_truth": False,
+        "aggregate_support_attachment_is_action_trace_identity": False,
         "aggregate_support_attachment_is_timeline_identity": False,
         "aggregate_support_attachment_is_independent_vote": False,
         "player_identity_truth": False,
@@ -329,6 +440,9 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"team_view_candidate_count={len(entity.get('team_view_candidates') or [])}",
         f"goalkeeper_view_candidate_count={len(entity.get('goalkeeper_view_candidates') or [])}",
         f"aggregate_support_lineage_incomplete_candidate_count={entity.get('aggregate_support_lineage_incomplete_candidate_count')}",
+        f"aggregate_support_identity_candidate_link_count={entity.get('aggregate_support_identity_candidate_link_count')}",
+        f"aggregate_support_identity_relation_review_required_count={entity.get('aggregate_support_identity_relation_review_required_count')}",
+        f"aggregate_support_identity_relation_input_state={entity.get('aggregate_support_identity_relation_input_state')}",
         f"C01_status={c01.get('status')}",
         f"C01_progression_aggregate_ref_count={c01.get('progression_aggregate_ref_count')}",
         f"C01_terminal_aggregate_ref_count={c01.get('terminal_aggregate_ref_count')}",
@@ -336,6 +450,8 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"C01_review_reason={c01.get('review_reason')}",
         f"hard_block_hits={payload.get('hard_block_hits') or []}",
         f"review_hits={payload.get('review_hits') or []}",
+        "aggregate_support_attachment_is_match_local_identity_truth=false",
+        "aggregate_support_attachment_is_action_trace_identity=false",
         "aggregate_support_attachment_is_timeline_identity=false",
         "aggregate_support_attachment_is_independent_vote=false",
         "canonical_event_count=UNKNOWN",
@@ -396,10 +512,13 @@ def run_rich_lane(
 
     features = _load_json(output / "episode_feature_vector_lite_v1.json")
     temporal = _load_json(output / "temporal_episode_signature_lite_v1.json")
+    match_local_identity = _load_json(output / MATCH_LOCAL_IDENTITY_JSON)
     rows = _flatten_projection(projection)
-    entity_views = _entity_views(rows)
+    entity_views = _entity_views(rows, match_local_identity)
     if entity_views.get("aggregate_support_lineage_incomplete_candidate_count"):
         review_hits.append("xlsx_entity_view_aggregate_support_lineage_incomplete")
+    if entity_views.get("aggregate_support_identity_relation_review_required_count"):
+        review_hits.append("xlsx_entity_view_match_local_identity_relation_review_required")
     primitives = _primitive_metrics(features, entity_views)
     phase_states = _phase_state_candidates(features)
     c01 = _construct_c01(rows, features)
@@ -448,6 +567,8 @@ def run_rich_lane(
         "review_hits": list(dict.fromkeys(review_hits)),
         "format_fusion_is_independent_evidence_vote": False,
         "xlsx_row_projection_is_event_truth": False,
+        "aggregate_support_attachment_is_match_local_identity_truth": False,
+        "aggregate_support_attachment_is_action_trace_identity": False,
         "aggregate_support_attachment_is_timeline_identity": False,
         "aggregate_support_attachment_is_independent_vote": False,
         "construct_truth": False,
