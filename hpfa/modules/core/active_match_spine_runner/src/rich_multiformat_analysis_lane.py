@@ -21,6 +21,8 @@ XLSX_PROJECTION_JSON = "xlsx_entity_metric_row_projection_lite_v1.json"
 XLSX_PROJECTION_TXT = "xlsx_entity_metric_row_projection_lite_v1.txt"
 MATCH_LOCAL_IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 MATCH_LOCAL_IDENTITY_MODULE_ID = "match_local_identity_candidates_lite_v1"
+TRACKABLE_TRACE_JSON = "trackable_action_trace_candidates_lite_v1.json"
+TRACKABLE_TRACE_MODULE_ID = "trackable_action_trace_candidates_lite_v1"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -113,7 +115,71 @@ def _identity_candidate_index(identity_payload: dict[str, Any], binding_id: str 
     }
 
 
-def _entity_views(rows: list[dict[str, Any]], identity_payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def _trace_candidate_index(trace_payload: dict[str, Any], binding_id: str | None) -> dict[str, Any]:
+    empty = {
+        "input_state": "TRACE_CANDIDATE_INPUT_UNAVAILABLE",
+        "actor_by_identity_candidate_ids": {},
+    }
+    if not isinstance(trace_payload, dict) or not trace_payload:
+        return empty
+    if trace_payload.get("module_id") != TRACKABLE_TRACE_MODULE_ID:
+        return {**empty, "input_state": "TRACE_CANDIDATE_MODULE_MISMATCH_REVIEW_REQUIRED"}
+    status = str(trace_payload.get("status") or trace_payload.get("module_status") or "")
+    if status != "PASS":
+        return {**empty, "input_state": "TRACE_CANDIDATE_INPUT_NOT_PASS_REVIEW_REQUIRED"}
+    expected_binding_id = str(binding_id or "").strip()
+    payload_binding_id = str(trace_payload.get("match_surface_binding_id") or "").strip()
+    if not expected_binding_id or payload_binding_id != expected_binding_id:
+        return {**empty, "input_state": "TRACE_CANDIDATE_BINDING_MISMATCH_REVIEW_REQUIRED"}
+    if (
+        trace_payload.get("canonical_event_count") != "UNKNOWN"
+        or trace_payload.get("true_action_count") != "UNKNOWN"
+        or trace_payload.get("production_release") is True
+        or trace_payload.get("trackable_action_candidate_is_event_truth") is True
+        or trace_payload.get("physical_action_identity_truth") is True
+        or trace_payload.get("trace_count_is_physical_action_count") is True
+        or trace_payload.get("claim_allowed") is True
+    ):
+        return {**empty, "input_state": "TRACE_CANDIDATE_CLAIM_BOUNDARY_MISMATCH_REVIEW_REQUIRED"}
+
+    actor_by_identity_candidate_ids: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in trace_payload.get("trackable_action_trace_candidates") or []:
+        if not isinstance(row, dict):
+            continue
+        if row.get("match_surface_binding_id") != expected_binding_id:
+            continue
+        trace_id = str(row.get("trackable_action_trace_candidate_id") or "").strip()
+        team_candidate_id = str(row.get("team_identity_candidate_id") or "").strip()
+        actor_candidate_id = str(row.get("actor_identity_candidate_id") or "").strip()
+        if not trace_id or not team_candidate_id or not actor_candidate_id:
+            continue
+        if (
+            row.get("trackable_action_candidate_is_event_truth") is True
+            or row.get("physical_action_identity_truth") is True
+            or row.get("event_instance_allowed") is True
+            or row.get("validated_event_identity") is True
+            or row.get("count_value_output_allowed") is True
+            or row.get("trace_count_is_physical_action_count") is True
+        ):
+            return {**empty, "input_state": "TRACE_CANDIDATE_ROW_CLAIM_BOUNDARY_MISMATCH_REVIEW_REQUIRED"}
+        actor_by_identity_candidate_ids[(team_candidate_id, actor_candidate_id)].append({
+            "trackable_action_trace_candidate_id": trace_id,
+            "team_identity_candidate_id": team_candidate_id,
+            "actor_identity_candidate_id": actor_candidate_id,
+            "source_role": row.get("source_role"),
+            "action_family_candidates": list(row.get("action_family_candidates") or []),
+        })
+    return {
+        "input_state": "TRACKABLE_ACTION_TRACE_CANDIDATES_AVAILABLE",
+        "actor_by_identity_candidate_ids": dict(actor_by_identity_candidate_ids),
+    }
+
+
+def _entity_views(
+    rows: list[dict[str, Any]],
+    identity_payload: dict[str, Any] | None = None,
+    trace_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     players: list[dict[str, Any]] = []
     teams: list[dict[str, Any]] = []
     goalkeepers: list[dict[str, Any]] = []
@@ -122,6 +188,9 @@ def _entity_views(rows: list[dict[str, Any]], identity_payload: dict[str, Any] |
     aggregate_support_lineage_incomplete_candidate_count = 0
     aggregate_support_identity_candidate_link_count = 0
     aggregate_support_identity_relation_review_required_count = 0
+    aggregate_support_trace_cohort_context_link_count = 0
+    aggregate_support_trace_candidate_ref_count = 0
+    aggregate_support_trace_relation_review_required_count = 0
     binding_ids = {
         str(row.get("match_surface_binding_id") or "").strip()
         for row in rows
@@ -129,8 +198,11 @@ def _entity_views(rows: list[dict[str, Any]], identity_payload: dict[str, Any] |
     }
     common_binding_id = next(iter(binding_ids)) if len(binding_ids) == 1 else None
     identity_index = _identity_candidate_index(identity_payload or {}, common_binding_id)
+    trace_index = _trace_candidate_index(trace_payload or {}, common_binding_id)
     if identity_index["input_state"].endswith("REVIEW_REQUIRED"):
         aggregate_support_identity_relation_review_required_count += 1
+    if trace_index["input_state"].endswith("REVIEW_REQUIRED"):
+        aggregate_support_trace_relation_review_required_count += 1
 
     for row in rows:
         identity = row.get("identity_candidates") or {}
@@ -203,6 +275,36 @@ def _entity_views(rows: list[dict[str, Any]], identity_payload: dict[str, Any] |
                 relation_state = "IDENTITY_CANDIDATE_AMBIGUOUS_REVIEW_REQUIRED"
                 aggregate_support_identity_relation_review_required_count += 1
 
+        trace_context_refs: list[dict[str, Any]] = []
+        trace_context_state = "TRACE_CANDIDATE_CONTEXT_UNAVAILABLE"
+        trace_context_basis: list[str] = []
+        if (
+            relation_ref is not None
+            and "actor_identity_candidate_id" in relation_ref
+            and trace_index["input_state"] == "TRACKABLE_ACTION_TRACE_CANDIDATES_AVAILABLE"
+        ):
+            trace_context_refs = list(
+                trace_index["actor_by_identity_candidate_ids"].get(
+                    (
+                        str(relation_ref.get("team_identity_candidate_id") or "").strip(),
+                        str(relation_ref.get("actor_identity_candidate_id") or "").strip(),
+                    ),
+                    [],
+                )
+            )
+            if trace_context_refs:
+                trace_context_state = "TRACE_CANDIDATE_COHORT_CONTEXT_ONLY"
+                trace_context_basis = [
+                    "same_match_surface_binding_id",
+                    "same_bound_team_identity_candidate_id",
+                    "same_bound_actor_identity_candidate_id",
+                    "trackable_trace_candidate_claim_boundary_preserved",
+                ]
+                aggregate_support_trace_cohort_context_link_count += 1
+                aggregate_support_trace_candidate_ref_count += len(trace_context_refs)
+            else:
+                trace_context_state = "NO_COMPATIBLE_TRACE_CANDIDATE_CONTEXT"
+
         compact = {
             "row_projection_id": row.get("row_projection_id"),
             "source_role": row.get("source_role"),
@@ -223,6 +325,13 @@ def _entity_views(rows: list[dict[str, Any]], identity_payload: dict[str, Any] |
             "aggregate_support_identity_relation_is_candidate_only": relation_ref is not None,
             "aggregate_support_identity_relation_is_identity_truth": False,
             "aggregate_support_identity_relation_is_action_trace_attachment": False,
+            "aggregate_support_trace_context_state": trace_context_state,
+            "aggregate_support_trackable_trace_candidate_refs": trace_context_refs,
+            "aggregate_support_trace_context_basis": trace_context_basis,
+            "aggregate_support_trace_relation_is_cohort_context_only": bool(trace_context_refs),
+            "aggregate_support_trace_relation_is_individual_action_support": False,
+            "aggregate_support_trace_relation_is_action_trace_identity": False,
+            "aggregate_support_trace_relation_is_physical_action_truth": False,
             "aggregate_support_is_timeline_identity": False,
             "aggregate_support_is_event_truth": False,
             "aggregate_support_is_independent_vote": False,
@@ -245,8 +354,14 @@ def _entity_views(rows: list[dict[str, Any]], identity_payload: dict[str, Any] |
         "aggregate_support_identity_candidate_link_count": aggregate_support_identity_candidate_link_count,
         "aggregate_support_identity_relation_review_required_count": aggregate_support_identity_relation_review_required_count,
         "aggregate_support_identity_relation_input_state": identity_index["input_state"],
+        "aggregate_support_trace_cohort_context_link_count": aggregate_support_trace_cohort_context_link_count,
+        "aggregate_support_trace_candidate_ref_count": aggregate_support_trace_candidate_ref_count,
+        "aggregate_support_trace_relation_review_required_count": aggregate_support_trace_relation_review_required_count,
+        "aggregate_support_trace_relation_input_state": trace_index["input_state"],
         "aggregate_support_attachment_is_match_local_identity_truth": False,
         "aggregate_support_attachment_is_action_trace_identity": False,
+        "aggregate_support_trace_relation_is_individual_action_support": False,
+        "aggregate_support_trace_relation_is_physical_action_truth": False,
         "aggregate_support_attachment_is_timeline_identity": False,
         "aggregate_support_attachment_is_independent_vote": False,
         "player_identity_truth": False,
@@ -443,6 +558,10 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"aggregate_support_identity_candidate_link_count={entity.get('aggregate_support_identity_candidate_link_count')}",
         f"aggregate_support_identity_relation_review_required_count={entity.get('aggregate_support_identity_relation_review_required_count')}",
         f"aggregate_support_identity_relation_input_state={entity.get('aggregate_support_identity_relation_input_state')}",
+        f"aggregate_support_trace_cohort_context_link_count={entity.get('aggregate_support_trace_cohort_context_link_count')}",
+        f"aggregate_support_trace_candidate_ref_count={entity.get('aggregate_support_trace_candidate_ref_count')}",
+        f"aggregate_support_trace_relation_review_required_count={entity.get('aggregate_support_trace_relation_review_required_count')}",
+        f"aggregate_support_trace_relation_input_state={entity.get('aggregate_support_trace_relation_input_state')}",
         f"C01_status={c01.get('status')}",
         f"C01_progression_aggregate_ref_count={c01.get('progression_aggregate_ref_count')}",
         f"C01_terminal_aggregate_ref_count={c01.get('terminal_aggregate_ref_count')}",
@@ -452,6 +571,8 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"review_hits={payload.get('review_hits') or []}",
         "aggregate_support_attachment_is_match_local_identity_truth=false",
         "aggregate_support_attachment_is_action_trace_identity=false",
+        "aggregate_support_trace_relation_is_individual_action_support=false",
+        "aggregate_support_trace_relation_is_physical_action_truth=false",
         "aggregate_support_attachment_is_timeline_identity=false",
         "aggregate_support_attachment_is_independent_vote=false",
         "canonical_event_count=UNKNOWN",
@@ -513,12 +634,15 @@ def run_rich_lane(
     features = _load_json(output / "episode_feature_vector_lite_v1.json")
     temporal = _load_json(output / "temporal_episode_signature_lite_v1.json")
     match_local_identity = _load_json(output / MATCH_LOCAL_IDENTITY_JSON)
+    trackable_traces = _load_json(output / TRACKABLE_TRACE_JSON)
     rows = _flatten_projection(projection)
-    entity_views = _entity_views(rows, match_local_identity)
+    entity_views = _entity_views(rows, match_local_identity, trackable_traces)
     if entity_views.get("aggregate_support_lineage_incomplete_candidate_count"):
         review_hits.append("xlsx_entity_view_aggregate_support_lineage_incomplete")
     if entity_views.get("aggregate_support_identity_relation_review_required_count"):
         review_hits.append("xlsx_entity_view_match_local_identity_relation_review_required")
+    if entity_views.get("aggregate_support_trace_relation_review_required_count"):
+        review_hits.append("xlsx_entity_view_trackable_trace_relation_review_required")
     primitives = _primitive_metrics(features, entity_views)
     phase_states = _phase_state_candidates(features)
     c01 = _construct_c01(rows, features)
@@ -569,6 +693,8 @@ def run_rich_lane(
         "xlsx_row_projection_is_event_truth": False,
         "aggregate_support_attachment_is_match_local_identity_truth": False,
         "aggregate_support_attachment_is_action_trace_identity": False,
+        "aggregate_support_trace_relation_is_individual_action_support": False,
+        "aggregate_support_trace_relation_is_physical_action_truth": False,
         "aggregate_support_attachment_is_timeline_identity": False,
         "aggregate_support_attachment_is_independent_vote": False,
         "construct_truth": False,
