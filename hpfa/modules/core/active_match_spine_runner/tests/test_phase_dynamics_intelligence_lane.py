@@ -17,7 +17,7 @@ def test_missing_inputs_fail_closed(tmp_path):
     assert payload["canonical_event_count"] == "UNKNOWN"
 
 
-def test_lane_writes_all_three_outputs(monkeypatch, tmp_path):
+def test_lane_writes_all_outputs(monkeypatch, tmp_path):
     import hpfa.modules.core.active_match_spine_runner.src.phase_dynamics_intelligence_lane as lane
 
     for filename in INPUTS.values():
@@ -43,6 +43,17 @@ def test_lane_writes_all_three_outputs(monkeypatch, tmp_path):
         "production_release": False,
         "hard_block_hits": [],
     }
+    episode_consequence = {
+        "module_id": "episode_consequence_projection_v1",
+        "status": "PASS",
+        "episode_consequence_candidate_count": 2,
+        "bound_episode_consequence_candidate_count": 2,
+        "episode_consequence_candidates": [],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+        "hard_block_hits": [],
+    }
     bridge = {
         "module_id": "phase_dynamics_interaction_bridge_v1",
         "status": "PASS",
@@ -55,16 +66,20 @@ def test_lane_writes_all_three_outputs(monkeypatch, tmp_path):
 
     monkeypatch.setattr(lane, "build_phase_conditioned_interactions", lambda *args: interaction)
     monkeypatch.setattr(lane, "build_observed_match_dynamics", lambda *args: dynamics)
+    monkeypatch.setattr(lane, "build_episode_consequence_projection", lambda *args: episode_consequence)
     monkeypatch.setattr(lane, "build_phase_dynamics_interaction_bridge", lambda *args: bridge)
 
     result = run_phase_dynamics_intelligence_lane(tmp_path)
     assert result["status"] == "SMOKE_PASS"
     assert result["phase_dynamics_interaction_candidate_count"] == 1
+    assert result["episode_consequence_candidate_count"] == 2
+    assert result["bound_episode_consequence_candidate_count"] == 2
     for path in result["outputs"].values():
         assert __import__("pathlib").Path(path).is_file()
     assert result["tempo_truth"] is False
     assert result["momentum_truth"] is False
     assert result["causal_truth"] is False
+    assert result["consequence_candidate_is_causal_truth"] is False
 
 
 def test_no_sample_match_identity_leak(tmp_path):
@@ -73,3 +88,5 @@ def test_no_sample_match_identity_leak(tmp_path):
     assert "Genclerbirligi" not in rendered
     assert "Fenerbahce" not in rendered
     assert "Galatasaray" not in rendered
+    assert "Roma" not in rendered
+    assert "Atalanta" not in rendered
