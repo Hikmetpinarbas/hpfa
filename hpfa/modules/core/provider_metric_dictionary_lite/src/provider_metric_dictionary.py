@@ -6,6 +6,10 @@ from typing import Any
 
 from . import _provider_metric_dictionary_impl_v7 as _impl
 from ._provider_metric_dictionary_impl_v7 import *  # noqa: F401,F403
+from .observation_layer_admission import (
+    OBSERVATION_MODEL,
+    normalize_dictionary_for_legacy_impl,
+)
 
 
 def _missing_required_derivation_denominator_policy_blocks(
@@ -68,6 +72,52 @@ def _missing_required_derivation_denominator_policy_blocks(
     return blocks
 
 
+def _merge_observation_assessments(
+    report: dict[str, Any], assessments: list[dict[str, Any]]
+) -> None:
+    report["observation_model"] = OBSERVATION_MODEL
+    report["event_only_is_product_ceiling"] = False
+    report["observation_contract_assessments"] = assessments
+
+    observation_hard = [
+        _impl._gap("observation_contract_invalid", hit)
+        for assessment in assessments
+        for hit in assessment.get("hard_block_hits", [])
+    ]
+    observation_review = [
+        _impl._gap("observation_contract_migration_review", hit, "REVIEW_REQUIRED")
+        for assessment in assessments
+        for hit in assessment.get("review_hits", [])
+    ]
+
+    if observation_hard:
+        existing = {
+            (str(gap.get("gap_type")), str(gap.get("detail")))
+            for gap in report.get("hard_block_hits", [])
+        }
+        report.setdefault("hard_block_hits", []).extend(
+            gap
+            for gap in observation_hard
+            if (str(gap.get("gap_type")), str(gap.get("detail"))) not in existing
+        )
+        report["status"] = "FAIL_CLOSED"
+        report["spec_contract_valid"] = False
+        report["downstream_provider_definition_gate_open"] = False
+
+    if observation_review:
+        existing_review = {
+            (str(gap.get("gap_type")), str(gap.get("detail")))
+            for gap in report.get("review_hits", [])
+        }
+        report.setdefault("review_hits", []).extend(
+            gap
+            for gap in observation_review
+            if (str(gap.get("gap_type")), str(gap.get("detail"))) not in existing_review
+        )
+        if report.get("status") == "PASS":
+            report["status"] = "REVIEW_REQUIRED"
+
+
 def build_dictionary_report(
     dictionary: dict[str, Any],
     aliases: dict[str, Any],
@@ -78,17 +128,23 @@ def build_dictionary_report(
     denominator_policy: dict[str, Any] | None = None,
     aggregate_registry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    normalized_dictionary, normalized_metric_policy, observation_assessments = (
+        normalize_dictionary_for_legacy_impl(dictionary, metric_policy)
+    )
+
     report = _impl.build_dictionary_report(
-        dictionary,
+        normalized_dictionary,
         aliases,
         derivations,
         conflicts,
-        metric_policy=metric_policy,
+        metric_policy=normalized_metric_policy,
         denominator_policy=denominator_policy,
         aggregate_registry=aggregate_registry,
     )
+    _merge_observation_assessments(report, observation_assessments)
+
     extra_blocks = _missing_required_derivation_denominator_policy_blocks(
-        dictionary, derivations, metric_policy
+        normalized_dictionary, derivations, normalized_metric_policy
     )
     if extra_blocks:
         existing = {
