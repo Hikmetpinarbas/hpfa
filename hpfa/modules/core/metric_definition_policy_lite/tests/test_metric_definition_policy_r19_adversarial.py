@@ -82,4 +82,6 @@ def test_generated_report_hardening_version_matches_schema_const():
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
 
     assert report["research_hardening_version"] == schema["properties"]["research_hardening_version"]["const"]
-    assert report["research_hardening_version"] == "R07_R17_R18_R19_R22_v2"
+    assert report["research_hardening_version"] == "R07_R17_R18_R19_R22_R23_v1"
+    assert report["observation_model"] == "ENRICHED_FOOTBALL_OBSERVATION_DATA_V1"
+    assert report["event_only_is_product_ceiling"] is False
