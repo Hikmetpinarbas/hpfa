@@ -48,6 +48,68 @@ def _audit():
     }
 
 
+def _xlsx_player_row(binding_id="msb_generic"):
+    return {
+        "row_projection_id": "xrp_generic",
+        "file_id": "file_generic",
+        "relative_path": "players.xlsx",
+        "source_sha256": "sha_generic",
+        "source_role": "PLAYER_SURFACE_CANDIDATE",
+        "sheet_name": "Players",
+        "source_row_number": 2,
+        "match_surface_binding_id": binding_id,
+        "identity_candidates": {
+            "player_raw_candidate": "Actor Alpha",
+            "team_raw_candidate": "Team One",
+            "position_raw_candidate": "MF",
+            "minutes_raw_candidate": 90,
+        },
+        "metric_values": {
+            "shots": {"raw_metric_label": "Shots", "raw_value": 3, "value_status": "OBSERVED"},
+        },
+    }
+
+
+def _identity_payload(binding_id="msb_generic", *, duplicate_actor=False):
+    actors = [{
+        "actor_identity_candidate_id": "actorc_generic_a",
+        "team_identity_candidate_id": "teamc_generic",
+        "match_surface_binding_id": binding_id,
+        "team_normalized_key": "team_one",
+        "actor_normalized_key": "actor_alpha",
+        "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+        "validated_player_identity": False,
+    }]
+    if duplicate_actor:
+        actors.append({
+            "actor_identity_candidate_id": "actorc_generic_b",
+            "team_identity_candidate_id": "teamc_generic",
+            "match_surface_binding_id": binding_id,
+            "team_normalized_key": "team_one",
+            "actor_normalized_key": "actor_alpha",
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            "validated_player_identity": False,
+        })
+    return {
+        "module_id": "match_local_identity_candidates_lite_v1",
+        "status": "PASS",
+        "match_surface_binding_id": binding_id,
+        "actor_identity_candidates": actors,
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "teamc_generic",
+            "match_surface_binding_id": binding_id,
+            "team_normalized_key": "team_one",
+            "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND",
+            "validated_team_identity": False,
+        }],
+        "validated_player_identity": False,
+        "validated_team_identity": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
 def test_xlsx_row_projection_preserves_identity_metric_alignment_and_zero():
     formula = Sheet([
         [Cell("Player", "s"), Cell("Team", "s"), Cell("Progressive passes", "s"), Cell("Shots", "s")],
@@ -96,25 +158,7 @@ def test_xlsx_row_projection_formula_without_cache_is_review_required():
 
 
 def test_entity_view_preserves_xlsx_aggregate_support_lineage_without_truth_upgrade():
-    rows = [{
-        "row_projection_id": "xrp_generic",
-        "file_id": "file_generic",
-        "relative_path": "players.xlsx",
-        "source_sha256": "sha_generic",
-        "source_role": "PLAYER_SURFACE_CANDIDATE",
-        "sheet_name": "Players",
-        "source_row_number": 2,
-        "match_surface_binding_id": "msb_generic",
-        "identity_candidates": {
-            "player_raw_candidate": "P1",
-            "team_raw_candidate": "T1",
-            "position_raw_candidate": "MF",
-            "minutes_raw_candidate": 90,
-        },
-        "metric_values": {
-            "shots": {"raw_metric_label": "Shots", "raw_value": 3, "value_status": "OBSERVED"},
-        },
-    }]
+    rows = [_xlsx_player_row()]
     result = _entity_views(rows)
     view = result["player_view_candidates"][0]
     assert view["aggregate_support_lineage"] == {
@@ -135,25 +179,57 @@ def test_entity_view_preserves_xlsx_aggregate_support_lineage_without_truth_upgr
 
 
 def test_entity_view_marks_incomplete_aggregate_support_lineage_for_review():
-    rows = [{
-        "row_projection_id": "xrp_generic",
-        "file_id": "file_generic",
-        "relative_path": "players.xlsx",
-        "source_sha256": "sha_generic",
-        "source_role": "PLAYER_SURFACE_CANDIDATE",
-        "sheet_name": "Players",
-        "source_row_number": 2,
-        "match_surface_binding_id": None,
-        "identity_candidates": {"player_raw_candidate": "P1", "team_raw_candidate": "T1"},
-        "metric_values": {
-            "shots": {"raw_metric_label": "Shots", "raw_value": 3, "value_status": "OBSERVED"},
-        },
-    }]
+    rows = [_xlsx_player_row(binding_id=None)]
     result = _entity_views(rows)
     view = result["player_view_candidates"][0]
     assert view["aggregate_support_lineage_complete"] is False
     assert view["aggregate_support_attachment_state"] == "PROVENANCE_INCOMPLETE_REVIEW_REQUIRED"
     assert result["aggregate_support_lineage_incomplete_candidate_count"] == 1
+
+
+def test_entity_view_links_unique_bound_match_local_identity_candidate_without_truth_upgrade():
+    result = _entity_views([_xlsx_player_row()], _identity_payload())
+    view = result["player_view_candidates"][0]
+    assert view["aggregate_support_attachment_state"] == "MATCH_LOCAL_IDENTITY_CANDIDATE_LINK_ONLY"
+    assert view["aggregate_support_match_local_identity_candidate_ref"] == {
+        "actor_identity_candidate_id": "actorc_generic_a",
+        "team_identity_candidate_id": "teamc_generic",
+        "team_normalized_key": "team_one",
+        "actor_normalized_key": "actor_alpha",
+    }
+    assert view["aggregate_support_identity_relation_basis"] == [
+        "same_match_surface_binding_id",
+        "bound_match_local_actor_identity_candidate",
+        "normalized_team_and_actor_candidate_match",
+    ]
+    assert view["aggregate_support_identity_relation_is_candidate_only"] is True
+    assert view["aggregate_support_identity_relation_is_identity_truth"] is False
+    assert view["aggregate_support_identity_relation_is_action_trace_attachment"] is False
+    assert result["aggregate_support_identity_candidate_link_count"] == 1
+    assert result["aggregate_support_identity_relation_review_required_count"] == 0
+    assert result["aggregate_support_attachment_is_match_local_identity_truth"] is False
+    assert result["aggregate_support_attachment_is_action_trace_identity"] is False
+
+
+def test_entity_view_does_not_link_across_match_surface_binding():
+    result = _entity_views([_xlsx_player_row()], _identity_payload(binding_id="msb_other"))
+    view = result["player_view_candidates"][0]
+    assert view["aggregate_support_match_local_identity_candidate_ref"] is None
+    assert view["aggregate_support_identity_relation_is_candidate_only"] is False
+    assert result["aggregate_support_identity_candidate_link_count"] == 0
+    assert result["aggregate_support_identity_relation_input_state"] == "IDENTITY_CANDIDATE_BINDING_MISMATCH_REVIEW_REQUIRED"
+    assert result["aggregate_support_identity_relation_review_required_count"] == 1
+
+
+def test_entity_view_ambiguous_identity_candidate_match_fails_to_review_not_attachment():
+    result = _entity_views([_xlsx_player_row()], _identity_payload(duplicate_actor=True))
+    view = result["player_view_candidates"][0]
+    assert view["aggregate_support_attachment_state"] == "IDENTITY_CANDIDATE_AMBIGUOUS_REVIEW_REQUIRED"
+    assert view["aggregate_support_match_local_identity_candidate_ref"] is None
+    assert view["aggregate_support_identity_relation_is_identity_truth"] is False
+    assert view["aggregate_support_identity_relation_is_action_trace_attachment"] is False
+    assert result["aggregate_support_identity_candidate_link_count"] == 0
+    assert result["aggregate_support_identity_relation_review_required_count"] == 1
 
 
 def test_phase_state_candidates_are_explicitly_candidates_not_truth():
