@@ -271,6 +271,26 @@ def _entity_summary(rich: dict[str, Any]) -> dict[str, int]:
     }
 
 
+def _trace_cohort_action_family_candidate_labels(row: dict[str, Any]) -> list[str]:
+    if str(row.get("aggregate_support_trace_context_state") or "") != "TRACE_CANDIDATE_COHORT_CONTEXT_ONLY":
+        return []
+    if row.get("aggregate_support_trace_relation_is_cohort_context_only") is not True:
+        return []
+    if row.get("aggregate_support_trace_relation_is_individual_action_support") is not False:
+        return []
+    if row.get("aggregate_support_trace_relation_is_physical_action_truth") is not False:
+        return []
+    labels: set[str] = set()
+    for trace_ref in row.get("aggregate_support_trackable_trace_candidate_refs") or []:
+        if not isinstance(trace_ref, dict):
+            continue
+        for label in trace_ref.get("action_family_candidates") or []:
+            normalized = str(label or "").strip()
+            if normalized:
+                labels.add(normalized)
+    return sorted(labels)
+
+
 def _representative_entities(rich: dict[str, Any], limit: int = 8) -> list[str]:
     entity = rich.get("entity_views") or {}
     rows = [
@@ -291,11 +311,16 @@ def _representative_entities(rich: dict[str, Any], limit: int = 8) -> list[str]:
             if isinstance(item, dict) and str(item.get("trackable_action_trace_candidate_id") or "").strip()
         ]
         trace_state = str(row.get("aggregate_support_trace_context_state") or "TRACE_CANDIDATE_CONTEXT_UNAVAILABLE")
+        action_family_candidate_labels = _trace_cohort_action_family_candidate_labels(row)
         result.append(
             f"{name}: observed_metric_cells={len(metrics)} source_role={row.get('source_role')} "
             f"trace_cohort_context_state={trace_state} "
             f"trace_candidate_refs={json.dumps(trace_ids, ensure_ascii=False)} "
+            f"trace_cohort_action_family_candidate_labels={json.dumps(action_family_candidate_labels, ensure_ascii=False)} "
             f"trace_relation_is_cohort_context_only={str(bool(trace_ids)).lower()} "
+            "trace_action_family_labels_are_cohort_navigation_only=true "
+            "trace_action_family_labels_are_individual_action_support=false "
+            "trace_action_family_labels_are_physical_action_truth=false "
             "trace_relation_is_individual_action_support=false "
             "trace_relation_is_physical_action_truth=false"
         )
@@ -403,6 +428,9 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             "aggregate_trace_relation_is_cohort_context_only=true",
             "aggregate_trace_relation_is_individual_action_support=false",
             "aggregate_trace_relation_is_physical_action_truth=false",
+            "aggregate_trace_action_family_labels_are_cohort_navigation_only=true",
+            "aggregate_trace_action_family_labels_are_individual_action_support=false",
+            "aggregate_trace_action_family_labels_are_physical_action_truth=false",
             "format_fusion_is_independent_evidence_vote=false",
             "representative_entity_surfaces:",
         ])
@@ -483,7 +511,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         "",
         "[9] CURRENT PRODUCT CEILING",
         "CSV/XML event-like occurrence ve XLSX aggregate surface artik ayni run'da birlikte tasinir; ayni provider yuzeyleri independent vote degildir.",
-        "XLSX aggregate entity context ayni match-local identity candidate altindaki trackable trace cohort'una analyst navigation olarak gosterilebilir; bu relation tekil trace support'u, event truth veya physical-action truth degildir.",
+        "XLSX aggregate entity context ayni match-local identity candidate altindaki trackable trace cohort'una analyst navigation olarak gosterilebilir; cohort action-family candidate etiketleri de yalniz navigation/context icindir, tekil trace support'u, event truth veya physical-action truth degildir.",
         "C01 ilk construct vertical slice'tir; occurrence-level progression semantics tam admission gecmeden progression truth uretilmez.",
         "Phase/state etiketleri activity candidate'dir; phase truth degildir.",
         "MICRO/MEZZO/MACRO bir evidence-routing lattice'tir; macro claim mikro/mezo evidence'dan kopamaz.",
