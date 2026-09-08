@@ -1,8 +1,8 @@
 {
   "module_id": "sequence_pattern_admission_lite_v1",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "owner_path": "professional_finding_candidate_lite",
-  "purpose": "Gate recurrent visible trace evidence into analyst-safe pattern candidates and allow an optional exact-cohort null contrast without promoting frequency, similarity, robustness or empirical-tail evidence into tactical-pattern, team-style, coach-intention, causal or significance truth.",
+  "purpose": "Gate recurrent visible trace evidence into analyst-safe pattern candidates, preserve admitted occurrence-object context as provenance-only lineage, and allow an optional exact-cohort null contrast without promoting context refs, frequency, similarity, robustness or empirical-tail evidence into pattern support, tactical-pattern, team-style, coach-intention, causal or significance truth.",
   "reused_inputs": [
     "partial_order_trace_variant_lite_v1",
     "trace_contrast_packet_lite_v1",
@@ -25,6 +25,12 @@
     "counterevidence_state",
     "alternative_explanations",
     "dependency_summary",
+    "sequence_occurrence_object_context_state",
+    "sequence_occurrence_team_context_refs",
+    "sequence_occurrence_goalkeeper_context_refs",
+    "sequence_occurrence_goalkeeper_context_bundle_refs",
+    "sequence_occurrence_reflection_context_refs",
+    "sequence_occurrence_relation_type_candidates",
     "uncertainty",
     "claim_ceiling",
     "admission_state"
@@ -45,6 +51,21 @@
     "observed_support_must_equal_exact_eligible_trace_ref_count": true,
     "trace_family_anchor_must_be_member_of_exact_eligible_trace_cohort": true,
     "missing_or_mismatched_trace_cohort_may_emit_analyst_prose": false
+  },
+  "occurrence_context_lineage_rules": {
+    "accepted_upstream_state": "VARIANT_SEQUENCE_OCCURRENCE_CONTEXT_LINEAGE_ONLY",
+    "emitted_state": "PATTERN_OCCURRENCE_CONTEXT_LINEAGE_ONLY",
+    "upstream_review_or_claim_upgrade_state": "REVIEW_REQUIRED",
+    "context_refs_are_pattern_support": false,
+    "context_refs_are_independent_support": false,
+    "goalkeeper_context_is_pattern_participant_truth": false,
+    "reflection_context_is_pattern_equivalence_truth": false,
+    "context_ref_count_is_pattern_count": false,
+    "context_ref_count_is_recurrence_count": false,
+    "context_refs_create_event": false,
+    "claim_upgraded_context_refs_may_survive_projection": false,
+    "context_lineage_may_change_observed_support": false,
+    "context_lineage_may_change_independent_support_count": false
   },
   "independence_rules": {
     "nominal_recurrence_implies_independent_support": false,
@@ -119,6 +140,8 @@
   "required_tests": [
     "test_robust_nominal_recurrence_without_independence_stops_at_recurrent_visible_trace",
     "test_exact_eligible_trace_cohort_survives_admission_boundary",
+    "test_occurrence_object_context_lineage_survives_pattern_admission_without_support_inflation",
+    "test_claim_upgraded_occurrence_context_fails_to_review_and_drops_context_refs",
     "test_robust_recurrent_state_requires_explicit_independence_admission",
     "test_declared_independent_support_is_recomputed_from_trace_bound_groups",
     "test_robustness_envelope_must_match_current_eligible_trace_cohort",
