@@ -110,6 +110,39 @@ def _identity_payload(binding_id="msb_generic", *, duplicate_actor=False):
     }
 
 
+def _trace_payload(binding_id="msb_generic", *, claimed_truth=False):
+    rows = []
+    for index, family in enumerate(("PASS", "SHOT"), start=1):
+        rows.append({
+            "trackable_action_trace_candidate_id": f"tat_generic_{index}",
+            "match_surface_binding_id": binding_id,
+            "source_role": "PLAYER_SURFACE_CANDIDATE",
+            "team_identity_candidate_id": "teamc_generic",
+            "actor_identity_candidate_id": "actorc_generic_a",
+            "action_family_candidates": [family],
+            "trackable_action_candidate_is_event_truth": claimed_truth,
+            "physical_action_identity_truth": False,
+            "event_instance_allowed": False,
+            "validated_event_identity": False,
+            "count_value_output_allowed": False,
+            "trace_count_is_physical_action_count": False,
+        })
+    return {
+        "module_id": "trackable_action_trace_candidates_lite_v1",
+        "status": "PASS",
+        "module_status": "PASS",
+        "match_surface_binding_id": binding_id,
+        "trackable_action_trace_candidates": rows,
+        "trackable_action_candidate_is_event_truth": False,
+        "physical_action_identity_truth": False,
+        "trace_count_is_physical_action_count": False,
+        "claim_allowed": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
 def test_xlsx_row_projection_preserves_identity_metric_alignment_and_zero():
     formula = Sheet([
         [Cell("Player", "s"), Cell("Team", "s"), Cell("Progressive passes", "s"), Cell("Shots", "s")],
@@ -230,6 +263,53 @@ def test_entity_view_ambiguous_identity_candidate_match_fails_to_review_not_atta
     assert view["aggregate_support_identity_relation_is_action_trace_attachment"] is False
     assert result["aggregate_support_identity_candidate_link_count"] == 0
     assert result["aggregate_support_identity_relation_review_required_count"] == 1
+
+
+def test_entity_view_links_xlsx_aggregate_to_same_identity_trace_cohort_context_only():
+    result = _entity_views([_xlsx_player_row()], _identity_payload(), _trace_payload())
+    view = result["player_view_candidates"][0]
+    assert view["aggregate_support_trace_context_state"] == "TRACE_CANDIDATE_COHORT_CONTEXT_ONLY"
+    assert [
+        row["trackable_action_trace_candidate_id"]
+        for row in view["aggregate_support_trackable_trace_candidate_refs"]
+    ] == ["tat_generic_1", "tat_generic_2"]
+    assert view["aggregate_support_trace_context_basis"] == [
+        "same_match_surface_binding_id",
+        "same_bound_team_identity_candidate_id",
+        "same_bound_actor_identity_candidate_id",
+        "trackable_trace_candidate_claim_boundary_preserved",
+    ]
+    assert view["aggregate_support_trace_relation_is_cohort_context_only"] is True
+    assert view["aggregate_support_trace_relation_is_individual_action_support"] is False
+    assert view["aggregate_support_trace_relation_is_action_trace_identity"] is False
+    assert view["aggregate_support_trace_relation_is_physical_action_truth"] is False
+    assert result["aggregate_support_trace_cohort_context_link_count"] == 1
+    assert result["aggregate_support_trace_candidate_ref_count"] == 2
+    assert result["aggregate_support_trace_relation_review_required_count"] == 0
+    assert result["aggregate_support_trace_relation_input_state"] == "TRACKABLE_ACTION_TRACE_CANDIDATES_AVAILABLE"
+
+
+def test_entity_view_rejects_cross_binding_trace_context_relation():
+    result = _entity_views(
+        [_xlsx_player_row()],
+        _identity_payload(),
+        _trace_payload(binding_id="msb_other"),
+    )
+    view = result["player_view_candidates"][0]
+    assert view["aggregate_support_trackable_trace_candidate_refs"] == []
+    assert view["aggregate_support_trace_relation_is_cohort_context_only"] is False
+    assert result["aggregate_support_trace_cohort_context_link_count"] == 0
+    assert result["aggregate_support_trace_relation_input_state"] == "TRACE_CANDIDATE_BINDING_MISMATCH_REVIEW_REQUIRED"
+    assert result["aggregate_support_trace_relation_review_required_count"] == 1
+
+
+def test_entity_view_rejects_trace_payload_that_claims_event_truth():
+    result = _entity_views([_xlsx_player_row()], _identity_payload(), _trace_payload(claimed_truth=True))
+    view = result["player_view_candidates"][0]
+    assert view["aggregate_support_trackable_trace_candidate_refs"] == []
+    assert view["aggregate_support_trace_relation_is_individual_action_support"] is False
+    assert result["aggregate_support_trace_relation_input_state"] == "TRACE_CANDIDATE_ROW_CLAIM_BOUNDARY_MISMATCH_REVIEW_REQUIRED"
+    assert result["aggregate_support_trace_relation_review_required_count"] == 1
 
 
 def test_phase_state_candidates_are_explicitly_candidates_not_truth():
