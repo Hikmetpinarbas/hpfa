@@ -27,6 +27,12 @@ def _clean(value: Any) -> str:
     return " ".join(str(value or "").split()).strip()
 
 
+def _clean_ref_set(value: Any) -> set[str]:
+    if not isinstance(value, list):
+        return set()
+    return {_clean(item) for item in value if _clean(item)}
+
+
 def _digest(*values: Any) -> str:
     raw = json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -68,6 +74,9 @@ def _fail(blocks: list[str], reviews: list[str]) -> dict[str, Any]:
         "sequence_pattern_admission_count": 0,
         "hard_block_hits": sorted(set(blocks)),
         "review_hits": sorted(set(reviews)),
+        "sequence_occurrence_context_is_pattern_support": False,
+        "sequence_occurrence_context_is_independent_support": False,
+        "sequence_occurrence_context_ref_count_is_recurrence_count": False,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": False,
@@ -100,6 +109,86 @@ def _validated_independent_support(packet: dict[str, Any], eligible_refs: list[s
     if not isinstance(declared, int) or declared != recomputed:
         return "UNKNOWN", "declared_independent_support_mismatch"
     return recomputed, None
+
+
+def _pattern_occurrence_context(
+    eligible_refs: list[str],
+    by_variant: dict[str, dict[str, Any]],
+    family_ref: str,
+) -> tuple[dict[str, Any], list[str]]:
+    reviews: list[str] = []
+    team_refs: set[str] = set()
+    goalkeeper_refs: set[str] = set()
+    goalkeeper_bundle_refs: set[str] = set()
+    reflection_refs: set[str] = set()
+    relation_types: set[str] = set()
+
+    for ref in eligible_refs:
+        variant = by_variant[ref]
+        state = _clean(variant.get("sequence_occurrence_object_context_state"))
+        row_team = _clean_ref_set(variant.get("sequence_occurrence_team_context_refs"))
+        row_goalkeeper = _clean_ref_set(variant.get("sequence_occurrence_goalkeeper_context_refs"))
+        row_goalkeeper_bundle = _clean_ref_set(variant.get("sequence_occurrence_goalkeeper_context_bundle_refs"))
+        row_reflection = _clean_ref_set(variant.get("sequence_occurrence_reflection_context_refs"))
+        row_relations = _clean_ref_set(variant.get("sequence_occurrence_relation_type_candidates"))
+        has_refs = any((row_team, row_goalkeeper, row_goalkeeper_bundle, row_reflection, row_relations))
+
+        if state == "REVIEW_REQUIRED":
+            reviews.append(f"pattern_sequence_occurrence_context_upstream_review:{family_ref}:{ref}")
+            continue
+        if state == "VARIANT_SEQUENCE_OCCURRENCE_CONTEXT_LINEAGE_ONLY":
+            if (
+                variant.get("sequence_occurrence_context_is_variant_support") is not False
+                or variant.get("sequence_occurrence_context_is_independent_support") is not False
+                or variant.get("goalkeeper_context_is_variant_participant_truth") is not False
+                or variant.get("reflection_context_is_variant_equivalence_truth") is not False
+                or variant.get("sequence_occurrence_context_ref_count_is_variant_count") is not False
+                or variant.get("sequence_occurrence_context_ref_count_is_recurrence_count") is not False
+                or variant.get("sequence_occurrence_context_creates_event") is not False
+                or variant.get("canonical_event_count") != CANONICAL_EVENT_COUNT
+            ):
+                reviews.append(f"pattern_sequence_occurrence_context_claim_boundary_mismatch:{family_ref}:{ref}")
+                continue
+        elif has_refs:
+            reviews.append(f"pattern_sequence_occurrence_context_state_missing_or_unexpected:{family_ref}:{ref}")
+            continue
+        elif state not in {"", "NO_CONTEXT_VISIBLE"}:
+            reviews.append(f"pattern_sequence_occurrence_context_state_unrecognized:{family_ref}:{ref}")
+            continue
+
+        team_refs.update(row_team)
+        goalkeeper_refs.update(row_goalkeeper)
+        goalkeeper_bundle_refs.update(row_goalkeeper_bundle)
+        reflection_refs.update(row_reflection)
+        relation_types.update(row_relations)
+
+    if reviews:
+        team_refs = set()
+        goalkeeper_refs = set()
+        goalkeeper_bundle_refs = set()
+        reflection_refs = set()
+        relation_types = set()
+        state = "REVIEW_REQUIRED"
+    elif any((team_refs, goalkeeper_refs, goalkeeper_bundle_refs, reflection_refs, relation_types)):
+        state = "PATTERN_OCCURRENCE_CONTEXT_LINEAGE_ONLY"
+    else:
+        state = "NO_CONTEXT_VISIBLE"
+
+    return {
+        "sequence_occurrence_object_context_state": state,
+        "sequence_occurrence_team_context_refs": sorted(team_refs),
+        "sequence_occurrence_goalkeeper_context_refs": sorted(goalkeeper_refs),
+        "sequence_occurrence_goalkeeper_context_bundle_refs": sorted(goalkeeper_bundle_refs),
+        "sequence_occurrence_reflection_context_refs": sorted(reflection_refs),
+        "sequence_occurrence_relation_type_candidates": sorted(relation_types),
+        "sequence_occurrence_context_is_pattern_support": False,
+        "sequence_occurrence_context_is_independent_support": False,
+        "goalkeeper_context_is_pattern_participant_truth": False,
+        "reflection_context_is_pattern_equivalence_truth": False,
+        "sequence_occurrence_context_ref_count_is_pattern_count": False,
+        "sequence_occurrence_context_ref_count_is_recurrence_count": False,
+        "sequence_occurrence_context_creates_event": False,
+    }, reviews
 
 
 def build_sequence_pattern_admissions(
@@ -155,6 +244,9 @@ def build_sequence_pattern_admissions(
             blocks.append(f"eligible_trace_ref_missing:{family_ref}")
             continue
 
+        occurrence_context, occurrence_context_reviews = _pattern_occurrence_context(eligible_refs, by_variant, family_ref)
+        reviews.extend(occurrence_context_reviews)
+
         observed_support = len(eligible_refs)
         envelope_refs = _envelope_trace_refs(envelope)
         try:
@@ -194,6 +286,8 @@ def build_sequence_pattern_admissions(
 
         if observed_support < 2 or robustness_state == "INSUFFICIENT_EVIDENCE":
             admission_state = "REJECTED_INSUFFICIENT_EVIDENCE"
+        elif occurrence_context["sequence_occurrence_object_context_state"] == "REVIEW_REQUIRED":
+            admission_state = "REVIEW_REQUIRED"
         elif not cohort_match:
             admission_state = "REVIEW_REQUIRED"
         elif packet.get("packet_state") != "CONTRAST_AVAILABLE":
@@ -219,11 +313,12 @@ def build_sequence_pattern_admissions(
             "absence_of_evidence_is_counterevidence": False,
             "robustness_is_tactical_pattern_truth": False,
             "robustness_cohort_exact_match": cohort_match,
+            "occurrence_object_context_is_support": False,
         }
         if independent_support_count == "UNKNOWN":
             reviews.append(f"independent_support_unproven:{family_ref}")
 
-        admissions.append({
+        row = {
             "pattern_id": "spa_" + _digest(family_ref, eligible_refs, robustness_state, admission_state)[:24],
             "trace_family_ref": family_ref,
             "eligible_trace_count": len(eligible_refs),
@@ -252,12 +347,14 @@ def build_sequence_pattern_admissions(
             "admission_state": admission_state,
             "safe_meaning": "A recurrent visible trace candidate may be described only within the admitted evidence and tested robustness scope.",
             "forbidden_inference": ["TACTICAL_PATTERN_TRUTH", "COACH_INTENTION", "TEAM_STYLE_TRUTH", "CAUSALITY", "POSSESSION_TRUTH", "PHASE_TRUTH"],
-            "withdrawal_condition": "Withdraw or downgrade if occurrence identity, dependency accounting, order admission, similarity eligibility, consequence classification, or robustness evidence changes materially.",
+            "withdrawal_condition": "Withdraw or downgrade if occurrence identity, dependency accounting, order admission, similarity eligibility, consequence classification, robustness evidence, or occurrence-object context authority changes materially.",
             "source_anchor_context": anchor.get("context_signature") or {},
             "canonical_event_count": CANONICAL_EVENT_COUNT,
             "true_action_count": TRUE_ACTION_COUNT,
             "production_release": False,
-        })
+        }
+        row.update(occurrence_context)
+        admissions.append(row)
 
     if blocks:
         return _fail(blocks, reviews)
@@ -279,6 +376,9 @@ def build_sequence_pattern_admissions(
         "coach_intention_state_allowed": False,
         "team_style_truth_state_allowed": False,
         "independent_support_inferred_from_nominal_count": False,
+        "sequence_occurrence_context_is_pattern_support": False,
+        "sequence_occurrence_context_is_independent_support": False,
+        "sequence_occurrence_context_ref_count_is_recurrence_count": False,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": False,
