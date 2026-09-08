@@ -9,10 +9,13 @@ from hpfa.modules.core.triplex_source_alignment_adapter_lite.src import triplex_
 from hpfa.modules.core.active_match_spine_runner.src.metric_governance_bridge import run_metric_governance_bridge
 from hpfa.modules.core.spatial_transition_candidate_lite.src import spatial_transition_candidate as spatial_transition
 from hpfa.modules.core.state_transition_dynamics_lite.src import state_transition_dynamics as state_transition
+from hpfa.modules.core.analyst_episode_locator_lite.src import process_participation_projection as process_participation
 
 MODULE_ID = "active_match_orphan_capability_sidecars_v1"
 TRACE_OUTPUT = "trackable_action_trace_candidates_lite_v1.json"
 EVIDENCE_OUTPUT = "evidence_atom_inventory_lite_v1.json"
+IDENTITY_OUTPUT = "match_local_identity_candidates_lite_v1.json"
+EPISODE_OUTPUT = "analyst_episode_locator_lite_v1.json"
 CONSEQUENCE_OUTPUT = "trackable_action_consequence_candidates_lite_v1.json"
 
 
@@ -81,6 +84,8 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
 
     trace_path = output / TRACE_OUTPUT
     evidence_path = output / EVIDENCE_OUTPUT
+    identity_path = output / IDENTITY_OUTPUT
+    episode_path = output / EPISODE_OUTPUT
     consequence_path = output / CONSEQUENCE_OUTPUT
     spatial_prerequisite_present = trace_path.is_file() and evidence_path.is_file()
     if spatial_prerequisite_present:
@@ -143,6 +148,40 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         }
         state_transition_status = state_transition_report["status"]
 
+    process_participation_prerequisite_present = (
+        evidence_path.is_file() and identity_path.is_file() and episode_path.is_file()
+    )
+    if process_participation_prerequisite_present:
+        try:
+            process_participation_report = process_participation.build_process_participation_projection(
+                _load_json(evidence_path),
+                _load_json(identity_path),
+                _load_json(episode_path),
+                repo_root=product_root,
+            )
+            process_paths = process_participation.write_outputs(process_participation_report, output)
+            for value in process_paths.values():
+                if value.is_file():
+                    artifacts.append(str(value))
+            process_participation_status = process_participation_report.get("status")
+            if process_participation_status == "FAIL_CLOSED":
+                reasons = process_participation_report.get("hard_block_hits") or []
+                reason = str(reasons[0]) if reasons else "process_participation_projection_fail_closed"
+                hard_blocks.append(f"process_participation_construct_path_blocked:{reason}")
+            elif process_participation_status != "PASS":
+                review_hits.append("process_participation_projection_review_required")
+        except Exception as exc:
+            process_participation_report = {"status": "REVIEW_REQUIRED", "error_type": type(exc).__name__}
+            process_participation_status = "REVIEW_REQUIRED"
+            review_hits.append(f"process_participation_sidecar_failed:{type(exc).__name__}")
+    else:
+        process_participation_report = {
+            "status": "NOT_APPLICABLE_PREREQUISITE_MISSING",
+            "reason": "evidence_identity_or_episode_output_missing",
+            "production_release": False,
+        }
+        process_participation_status = process_participation_report["status"]
+
     try:
         metric_governance = run_metric_governance_bridge(output, product_root)
         metric_governance_status = metric_governance.get("status")
@@ -172,11 +211,14 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "spatial_transition_candidate_prerequisite_present": spatial_prerequisite_present,
         "state_transition_dynamics_status": state_transition_status,
         "state_transition_dynamics_prerequisite_present": state_transition_prerequisite_present,
+        "process_participation_projection_status": process_participation_status,
+        "process_participation_projection_prerequisite_present": process_participation_prerequisite_present,
         "metric_governance_bridge_status": metric_governance_status,
         "active_match_analyst_report_lite": baseline,
         "triplex_source_alignment": triplex_report,
         "spatial_transition_candidate": spatial_report,
         "state_transition_dynamics": state_transition_report,
+        "process_participation_projection": process_participation_report,
         "metric_governance_bridge": metric_governance,
         "construct_path_blocked": construct_path_blocked,
         "construct_path_block_reason": construct_path_block_reason,
