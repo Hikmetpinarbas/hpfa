@@ -54,12 +54,92 @@ def test_nonphysical_rich_construct_can_exceed_legacy_event_only_flag():
     assert observed["event_only_is_product_ceiling"] is False
 
 
+def test_explicit_capability_manifest_admits_rich_progression_without_tracking():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["event_only_compatible"] = False
+    metric["required_observation_layers"] = [
+        "L1_ACTION_OBSERVATION",
+        "L2_TEMPORAL_OBSERVATION",
+        "L3_SPATIAL_OBSERVATION",
+    ]
+    metric["required_surface_semantics"] = [
+        "action_family_admitted",
+        "football_time_semantics_admitted",
+        "coordinate_semantics_admitted",
+    ]
+    metric["required_observation_capabilities"] = ["ACTION", "ACTOR", "TEMPORAL", "SPATIAL"]
+    metric["optional_observation_capabilities"] = ["OUTCOME", "CONTEXT"]
+    metric["forbidden_without"] = [
+        "TEMPORAL_SEMANTICS",
+        "COORDINATE_FRAME",
+        "IDENTITY_ADMISSION",
+        "REFLECTION_CONTROL",
+    ]
+    metric["tracking_video_required"] = False
+
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "SMOKE_PASS"
+    observed = report["metrics"][0]
+    assert observed["observation_contract_status"] == "PASS"
+    assert observed["event_only_is_product_ceiling"] is False
+
+
+def test_provider_label_alone_cannot_elevate_provider_derived_capability():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["required_observation_layers"] = ["L1_ACTION_OBSERVATION"]
+    metric["required_surface_semantics"] = ["raw_provider_label_present"]
+    metric["required_observation_capabilities"] = ["ACTION", "PROVIDER_DERIVED"]
+    metric["optional_observation_capabilities"] = []
+    metric["forbidden_without"] = []
+
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "FAIL_CLOSED"
+    assert any(
+        "provider_derived_capability_semantics_missing" in str(gap.get("detail", ""))
+        for gap in report["policy_gaps"]
+    )
+
+
+def test_relational_capability_requires_identity_and_reflection_control():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["required_observation_layers"] = [
+        "L1_ACTION_OBSERVATION",
+        "L4_RELATIONAL_COOCCURRENCE_OBSERVATION",
+    ]
+    metric["required_surface_semantics"] = ["relation_candidate_present"]
+    metric["required_observation_capabilities"] = ["ACTION", "ACTOR", "RELATIONAL"]
+    metric["optional_observation_capabilities"] = []
+    metric["forbidden_without"] = ["IDENTITY_ADMISSION"]
+
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "FAIL_CLOSED"
+    assert any(
+        "relational_capability_reflection_control_missing" in str(gap.get("detail", ""))
+        for gap in report["policy_gaps"]
+    )
+
+
 def test_unknown_observation_layer_fails_closed():
     docs = _docs()
     docs[0]["metrics"][0]["required_observation_layers"] = ["L9_MAGIC_TRUTH"]
     report = build_metric_definition_policy(*docs)
     assert report["status"] == "FAIL_CLOSED"
     assert any(gap["gap_type"] == "observation_contract_invalid" for gap in report["policy_gaps"])
+
+
+def test_unknown_observation_capability_fails_closed():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["required_observation_capabilities"] = ["ACTION", "MAGIC_TACTICAL_TRUTH"]
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "FAIL_CLOSED"
+    assert any(
+        "unknown_required_observation_capability" in str(gap.get("detail", ""))
+        for gap in report["policy_gaps"]
+    )
 
 
 def test_l8_physical_state_requires_tracking_or_video():
@@ -74,6 +154,28 @@ def test_l8_physical_state_requires_tracking_or_video():
         "tracking_video_requirement_missing_for_l8" in str(gap.get("detail", ""))
         for gap in report["policy_gaps"]
     )
+
+
+def test_explicit_l8_manifest_requires_physical_evidence_gate():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["required_observation_layers"] = ["L8_TRACKING_VIDEO_PHYSICAL_OFF_BALL_STATE"]
+    metric["required_surface_semantics"] = ["tracking_trajectory"]
+    metric["required_observation_capabilities"] = ["TRACKING_VIDEO_PHYSICAL"]
+    metric["optional_observation_capabilities"] = []
+    metric["forbidden_without"] = []
+    metric["tracking_video_required"] = True
+
+    blocked = build_metric_definition_policy(*docs)
+    assert blocked["status"] == "FAIL_CLOSED"
+    assert any(
+        "tracking_video_forbidden_without_gate_missing" in str(gap.get("detail", ""))
+        for gap in blocked["policy_gaps"]
+    )
+
+    metric["forbidden_without"] = ["TRACKING"]
+    admitted = build_metric_definition_policy(*docs)
+    assert admitted["status"] == "SMOKE_PASS"
 
 
 def test_observation_fingerprint_changes_without_invalidating_legacy_definition_fingerprint():
