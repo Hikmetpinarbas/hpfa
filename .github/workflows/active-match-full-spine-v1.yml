@@ -78,6 +78,8 @@ jobs:
           grep -F 'current_invocation_artifacts_are_publication_authority' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'process_story_publication_authority_artifact' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'aggregate_support_lineage_complete' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
+          grep -F 'aggregate_support_attachment_is_match_local_identity_truth' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
+          grep -F 'aggregate_support_attachment_is_action_trace_identity' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
           grep -F 'aggregate_support_attachment_is_timeline_identity' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
           grep -F 'aggregate_support_attachment_is_independent_vote' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
           grep -F 'temporal_signature_is_rhythm_truth' hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py
