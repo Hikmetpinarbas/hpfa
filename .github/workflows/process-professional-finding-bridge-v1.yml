@@ -11,6 +11,7 @@ on:
       - 'hpfa/modules/core/process_robustness_lens_lite/**'
       - 'hpfa/modules/core/process_metric_profile_lite/**'
       - 'hpfa/modules/core/trace_contrast_packet_lite/**'
+      - 'hpfa/modules/core/partial_order_trace_variant_lite/**'
       - 'hpfa/modules/core/professional_finding_candidate_lite/**'
       - 'hpfa/modules/core/analyst_report_block_composer_lite/**'
       - 'hpfa/modules/core/report_output_contract_lite/**'
@@ -45,6 +46,7 @@ jobs:
             hpfa/modules/core/process_robustness_lens_lite/tests/test_process_robustness_lens.py \
             hpfa/modules/core/process_metric_profile_lite/tests/test_process_metric_profile.py \
             hpfa/modules/core/trace_contrast_packet_lite/tests/test_trace_contrast_independence_accounting.py \
+            hpfa/modules/core/partial_order_trace_variant_lite/tests/test_partial_order_trace_variant.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_professional_finding_candidate.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_visible_episode_context_contrast.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_threshold_sensitivity.py \
@@ -74,6 +76,7 @@ jobs:
           python -m py_compile hpfa/modules/core/process_robustness_lens_lite/src/process_robustness_lens.py
           python -m py_compile hpfa/modules/core/process_metric_profile_lite/src/process_metric_profile.py
           python -m py_compile hpfa/modules/core/trace_contrast_packet_lite/src/trace_contrast_packet.py
+          python -m py_compile hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/threshold_sensitivity.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/failed_trace_support.py
@@ -103,6 +106,11 @@ jobs:
           grep -F 'composite_metrics_are_calibrated' hpfa/modules/core/process_metric_profile_lite/src/process_metric_profile.py
           grep -F 'independence_is_statistical_independence' hpfa/modules/core/trace_contrast_packet_lite/src/trace_contrast_packet.py
           grep -F 'MATCH_LOCAL_OCCURRENCE_AND_DEPENDENCY_COMPONENTS_ONLY' hpfa/modules/core/trace_contrast_packet_lite/src/trace_contrast_packet.py
+          grep -F 'sequence_occurrence_context_is_variant_support' hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
+          grep -F 'sequence_occurrence_context_is_independent_support' hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
+          grep -F 'goalkeeper_context_is_variant_participant_truth' hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
+          grep -F 'reflection_context_is_variant_equivalence_truth' hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
+          grep -F 'sequence_occurrence_context_ref_count_is_recurrence_count' hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
           grep -F 'claim_output_allowed' hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
           grep -F 'professional_finding_emitted' hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
           grep -F 'thresholds_are_calibrated' hpfa/modules/core/professional_finding_candidate_lite/src/threshold_sensitivity.py
