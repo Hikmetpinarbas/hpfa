@@ -1,7 +1,7 @@
 {
   "module_id": "partial_order_trace_variant_lite_v1",
-  "version": "1.0.0-partial-order-candidate",
-  "purpose": "Build recurrence-ready visible trace variants from current occurrence-aware trace, consequence and visible sequence evidence while preserving partial ordering and chronology uncertainty.",
+  "version": "1.1.0-sequence-occurrence-context-lineage",
+  "purpose": "Build recurrence-ready visible trace variants from current occurrence-aware trace, consequence and visible sequence evidence while preserving partial ordering, chronology uncertainty, and claim-safe sequence occurrence-object context lineage.",
   "inputs": [
     "visible_action_sequence_candidates_lite_v1",
     "trackable_action_trace_candidates_lite_v1",
@@ -27,8 +27,22 @@
     "chronology_confidence",
     "dependency_group_refs",
     "provenance_refs",
+    "sequence_occurrence_object_context_state",
+    "sequence_occurrence_team_context_refs",
+    "sequence_occurrence_goalkeeper_context_refs",
+    "sequence_occurrence_goalkeeper_context_bundle_refs",
+    "sequence_occurrence_reflection_context_refs",
+    "sequence_occurrence_relation_type_candidates",
     "claim_ceiling"
   ],
+  "sequence_occurrence_context_projection": {
+    "admitted_upstream_state": "SEQUENCE_OCCURRENCE_OBJECT_CONTEXT_ONLY",
+    "variant_state": "VARIANT_SEQUENCE_OCCURRENCE_CONTEXT_LINEAGE_ONLY",
+    "unsafe_or_claim_upgraded_context_default": "REVIEW_REQUIRED_NO_CONTEXT_PROJECTION",
+    "context_refs_change_variant_support": false,
+    "context_refs_change_recurrence_support": false,
+    "context_refs_change_action_or_event_count": false
+  },
   "invariants": {
     "same_timestamp_creates_total_order": false,
     "source_row_order_is_temporal_truth": false,
@@ -38,6 +52,13 @@
     "unknown_ordering_must_remain_explicit": true,
     "row_nucleus_is_action_occurrence": false,
     "action_bundle_is_canonical_event": false,
+    "sequence_occurrence_context_is_variant_support": false,
+    "sequence_occurrence_context_is_independent_support": false,
+    "goalkeeper_context_is_variant_participant_truth": false,
+    "reflection_context_is_variant_equivalence_truth": false,
+    "sequence_occurrence_context_ref_count_is_variant_count": false,
+    "sequence_occurrence_context_ref_count_is_recurrence_count": false,
+    "sequence_occurrence_context_creates_event": false,
     "sample_match_hardcoding_allowed": false
   },
   "claim_boundary": {
@@ -48,13 +69,16 @@
     "true_action_count": "UNKNOWN",
     "production_release": false
   },
-  "analyst_safe_meaning": "Comparable visible action-chain variants can be represented under explicit partial-order evidence without fabricating total chronology.",
+  "analyst_safe_meaning": "Comparable visible action-chain variants can preserve the admitted TEAM/GOALKEEPER/reflection occurrence-context references of their source sequence while remaining candidate-only and without turning those references into support, recurrence, participant, event, or action truth.",
   "forbidden_inference": [
     "team tactical plan",
     "coach intention",
     "possession truth",
     "causality",
-    "stable tactical pattern truth"
+    "stable tactical pattern truth",
+    "goalkeeper participation truth from context presence",
+    "reflection equivalence truth",
+    "recurrence support inflation from context reference count"
   ],
   "release_state": "IMPLEMENTATION_IN_PR / REVIEW_REQUIRED / CI_REQUIRED / ACTIVE_MATCH_REQUIRED / NOT_PRODUCTION"
 }
