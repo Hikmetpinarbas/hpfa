@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from hpfa.modules.core.analyst_episode_locator_lite.src.episode_consequence_projection import (
+    build_episode_consequence_projection,
+)
 from hpfa.modules.core.analyst_episode_locator_lite.src.phase_conditioned_interaction_projection import (
     build_phase_conditioned_interactions,
 )
@@ -15,7 +18,7 @@ from hpfa.modules.core.temporal_episode_signature_lite.src.observed_match_dynami
 )
 
 MODULE_ID = "phase_dynamics_intelligence_lane_v1"
-CLAIM_CEILING = "PHASE_DYNAMICS_INTERACTION_CANDIDATE_ONLY"
+CLAIM_CEILING = "PHASE_DYNAMICS_INTERACTION_CONSEQUENCE_CANDIDATE_ONLY"
 
 INPUTS = {
     "process": "analyst_episode_process_participation_projection_v1.json",
@@ -23,10 +26,13 @@ INPUTS = {
     "rich": "rich_multiformat_analysis_lattice_v1.json",
     "feature": "episode_feature_vector_lite_v1.json",
     "temporal": "temporal_episode_signature_lite_v1.json",
+    "trace": "trackable_action_trace_candidates_lite_v1.json",
+    "consequence": "trackable_action_consequence_candidates_lite_v1.json",
 }
 OUTPUTS = {
     "interaction": "phase_conditioned_interaction_projection_v1.json",
     "dynamics": "observed_match_dynamics_projection_v1.json",
+    "episode_consequence": "episode_consequence_projection_v1.json",
     "bridge": "phase_dynamics_interaction_bridge_v1.json",
 }
 
@@ -68,10 +74,12 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
             "review_hits": [],
             "phase_truth": False,
             "reciprocal_phase_truth": False,
+            "interaction_truth": False,
             "tempo_truth": False,
             "momentum_truth": False,
             "control_truth": False,
             "causal_truth": False,
+            "consequence_candidate_is_causal_truth": False,
             "canonical_event_count": "UNKNOWN",
             "true_action_count": "UNKNOWN",
             "production_release": False,
@@ -83,15 +91,24 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         payloads["process"], payloads["episode"], payloads["rich"]
     )
     dynamics = build_observed_match_dynamics(payloads["feature"], payloads["temporal"])
-    bridge = build_phase_dynamics_interaction_bridge(interaction, dynamics)
+    episode_consequence = build_episode_consequence_projection(
+        payloads["episode"], payloads["trace"], payloads["consequence"], interaction
+    )
+    bridge = build_phase_dynamics_interaction_bridge(interaction, dynamics, episode_consequence)
 
     _write(output / OUTPUTS["interaction"], interaction)
     _write(output / OUTPUTS["dynamics"], dynamics)
+    _write(output / OUTPUTS["episode_consequence"], episode_consequence)
     _write(output / OUTPUTS["bridge"], bridge)
 
     hard_blocks = []
     review_hits = []
-    for name, payload in (("interaction", interaction), ("dynamics", dynamics), ("bridge", bridge)):
+    for name, payload in (
+        ("interaction", interaction),
+        ("dynamics", dynamics),
+        ("episode_consequence", episode_consequence),
+        ("bridge", bridge),
+    ):
         if payload.get("status") == "FAIL_CLOSED":
             hard_blocks.append(f"{name}_fail_closed")
         if payload.get("status") == "REVIEW_REQUIRED":
@@ -113,6 +130,8 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "decision": decision,
         "interaction_episode_candidate_count": interaction.get("interaction_episode_candidate_count"),
         "observed_match_dynamics_candidate_count": dynamics.get("observed_match_dynamics_candidate_count"),
+        "episode_consequence_candidate_count": episode_consequence.get("episode_consequence_candidate_count"),
+        "bound_episode_consequence_candidate_count": episode_consequence.get("bound_episode_consequence_candidate_count"),
         "phase_dynamics_interaction_candidate_count": bridge.get("phase_dynamics_interaction_candidate_count"),
         "outputs": {key: str(output / filename) for key, filename in OUTPUTS.items()},
         "hard_block_hits": hard_blocks,
@@ -126,6 +145,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "rhythm_truth": False,
         "phase_rupture_truth": False,
         "causal_truth": False,
+        "consequence_candidate_is_causal_truth": False,
         "tactical_plan_truth": False,
         "same_provider_support_is_independent_vote": False,
         "canonical_event_count": "UNKNOWN",
