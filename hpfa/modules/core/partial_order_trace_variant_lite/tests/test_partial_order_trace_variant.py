@@ -44,7 +44,26 @@ def _payloads(same_time=False, missing_occurrence=False):
         layer_ids.append("l2")
     sequence_payload = {
         "module_id": "visible_action_sequence_candidates_lite_v1", "status": "PASS",
-        "visible_action_sequence_candidates": [{"visible_action_sequence_candidate_id": "s1", "team_identity_candidate_id": "team_a", "period_candidate": "1", "start_reason_candidate": "PERIOD_START", "end_reason_candidate": "PERIOD_END", "time_layer_candidate_ids": layer_ids}],
+        "visible_action_sequence_candidates": [{
+            "visible_action_sequence_candidate_id": "s1",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_reason_candidate": "PERIOD_START",
+            "end_reason_candidate": "PERIOD_END",
+            "time_layer_candidate_ids": layer_ids,
+            "sequence_occurrence_object_context_state": "SEQUENCE_OCCURRENCE_OBJECT_CONTEXT_ONLY",
+            "sequence_occurrence_team_context_refs": ["team_ctx_1", "team_ctx_1"],
+            "sequence_occurrence_goalkeeper_context_refs": ["gk_ctx_1"],
+            "sequence_occurrence_goalkeeper_context_bundle_refs": ["gk_bundle_1"],
+            "sequence_occurrence_reflection_context_refs": ["reflection_ctx_1"],
+            "sequence_occurrence_relation_type_candidates": ["TEAM_REFLECTION"],
+            "sequence_occurrence_context_is_independent_support": False,
+            "goalkeeper_context_is_sequence_participant_truth": False,
+            "reflection_context_is_sequence_equivalence_truth": False,
+            "sequence_occurrence_context_creates_event": False,
+            "sequence_occurrence_context_ref_count_is_action_count": False,
+            "canonical_event_count": "UNKNOWN",
+        }],
         "visible_action_time_layer_candidates": layers,
         "same_timestamp_internal_ordering_allowed": False, "source_row_order_is_temporal_truth": False,
         "hard_block_hits": [], "canonical_event_count": "UNKNOWN", "true_action_count": "UNKNOWN", "production_release": False,
@@ -88,6 +107,42 @@ def test_real_trace_dependency_and_provenance_fields_are_preserved():
     assert "reflection_bundle:rb:o1" in row["dependency_group_refs"]
     assert "sha:o1" in row["provenance_refs"]
     assert "reflection:o2" in row["provenance_refs"]
+
+
+def test_sequence_occurrence_object_context_lineage_is_preserved_without_support_upgrade():
+    result = build_partial_order_trace_variants(*_payloads())
+    row = result["partial_order_trace_variants"][0]
+    assert row["sequence_occurrence_object_context_state"] == "VARIANT_SEQUENCE_OCCURRENCE_CONTEXT_LINEAGE_ONLY"
+    assert row["sequence_occurrence_team_context_refs"] == ["team_ctx_1"]
+    assert row["sequence_occurrence_goalkeeper_context_refs"] == ["gk_ctx_1"]
+    assert row["sequence_occurrence_goalkeeper_context_bundle_refs"] == ["gk_bundle_1"]
+    assert row["sequence_occurrence_reflection_context_refs"] == ["reflection_ctx_1"]
+    assert row["sequence_occurrence_relation_type_candidates"] == ["TEAM_REFLECTION"]
+    assert row["sequence_occurrence_context_is_variant_support"] is False
+    assert row["sequence_occurrence_context_is_independent_support"] is False
+    assert row["goalkeeper_context_is_variant_participant_truth"] is False
+    assert row["reflection_context_is_variant_equivalence_truth"] is False
+    assert row["sequence_occurrence_context_ref_count_is_variant_count"] is False
+    assert row["sequence_occurrence_context_ref_count_is_recurrence_count"] is False
+    assert row["sequence_occurrence_context_creates_event"] is False
+    assert row["node_refs"] == ["t1", "t2"]
+    assert result["canonical_event_count"] == "UNKNOWN"
+    assert result["true_action_count"] == "UNKNOWN"
+
+
+def test_claim_upgraded_sequence_context_is_review_required_and_not_projected():
+    sequence, trace, consequence = _payloads()
+    sequence_row = sequence["visible_action_sequence_candidates"][0]
+    sequence_row["goalkeeper_context_is_sequence_participant_truth"] = True
+    result = build_partial_order_trace_variants(sequence, trace, consequence)
+    row = result["partial_order_trace_variants"][0]
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert "variant_sequence_occurrence_context_claim_boundary_mismatch:s1" in result["review_hits"]
+    assert row["sequence_occurrence_object_context_state"] == "REVIEW_REQUIRED"
+    assert row["sequence_occurrence_team_context_refs"] == []
+    assert row["sequence_occurrence_goalkeeper_context_refs"] == []
+    assert row["sequence_occurrence_reflection_context_refs"] == []
+    assert row["node_refs"] == ["t1", "t2"]
 
 
 def test_upstream_review_required_is_not_laundered_to_pass():
