@@ -12,6 +12,11 @@ EPISODE_MODULE_ID = "analyst_episode_locator_lite_v1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 CLAIM_CEILING = "PROVIDER_ANNOTATED_PROCESS_PARTICIPATION_CANDIDATE_ONLY"
+OUTPUTS = {
+    "json": "analyst_episode_process_participation_projection_v1.json",
+    "summary": "analyst_episode_process_participation_projection_v1.txt",
+    "analyst": "analyst_episode_process_participation_analyst_audit_v1.txt",
+}
 
 PROCESS_ROLES = {"PARTICIPATION_INTERVAL", "CONTEXT_INTERVAL"}
 BOUND_IDENTITY_STATES = {"ACTOR_IDENTITY_CANDIDATE_BOUND", "TEAM_IDENTITY_CANDIDATE_BOUND"}
@@ -104,13 +109,6 @@ def build_process_participation_projection(
         if payload.get("hard_block_hits"):
             blocks.append(f"{name}_hard_blocks_present")
 
-    bindings = {
-        _clean(payload.get("match_surface_binding_id"))
-        for payload, _ in expected.values()
-        if _clean(payload.get("match_surface_binding_id"))
-    }
-    # Episode locator may not serialize match_surface_binding_id in legacy outputs;
-    # evidence+identity remain the hard binding authority.
     evidence_binding = _clean(evidence_payload.get("match_surface_binding_id"))
     identity_binding = _clean(identity_payload.get("match_surface_binding_id"))
     if not evidence_binding or evidence_binding != identity_binding:
@@ -270,3 +268,47 @@ def build_process_participation_projection(
         "production_release": False,
         "claim_ceiling": CLAIM_CEILING,
     }
+
+
+def _summary(payload: dict[str, Any]) -> str:
+    lines = [
+        "HPFA ANALYST EPISODE PROCESS PARTICIPATION PROJECTION V1",
+        f"status={payload.get('status')}",
+        f"player_participation_annotation_count={payload.get('player_participation_annotation_count', 0)}",
+        f"team_process_annotation_count={payload.get('team_process_annotation_count', 0)}",
+        f"player_participation_family_annotation_counts={json.dumps(payload.get('player_participation_family_annotation_counts') or {}, sort_keys=True)}",
+        f"player_shot_present_process_family_annotation_counts={json.dumps(payload.get('player_shot_present_process_family_annotation_counts') or {}, sort_keys=True)}",
+        f"review_hits={payload.get('review_hits')}",
+        f"hard_block_hits={payload.get('hard_block_hits')}",
+        "canonical_event_count=UNKNOWN",
+        "true_action_count=UNKNOWN",
+        "production_release=false",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _analyst(payload: dict[str, Any]) -> str:
+    return "\n".join([
+        "HPFA ANALYST AUDIT — PROCESS PARTICIPATION",
+        "WHAT_VISIBLE: provider-reviewed process participation/context annotations are bound to match-local identity candidates and episode navigation candidates where available.",
+        "SUPPORT: evidence atom + reviewed provider semantic rule + match-local identity binding + episode row-nucleus membership.",
+        "COUNTEREVIDENCE: not generated from missing annotations; absence is not counterevidence.",
+        "SAFE_MEANING: a player is visibly annotated as participating in a provider-defined process family; shot-present annotations may distinguish shot-producing process annotations.",
+        "FORBIDDEN_INFERENCE: participation is not an action, off-ball role, spacing, team shape, tactical plan, coach intention, possession truth or causality.",
+        "ANALYST_ACTION: compare recurring participant/process annotations with admitted episode consequences before writing a finding.",
+        "canonical_event_count=UNKNOWN",
+        "true_action_count=UNKNOWN",
+        "production_release=false",
+    ]) + "\n"
+
+
+def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Path]:
+    output = Path(out_dir).expanduser().resolve(strict=False)
+    if "HPFA" in output.parts and output.name != "HPFA":
+        raise ValueError("nested_phone_output_directory_rejected")
+    output.mkdir(parents=True, exist_ok=True)
+    paths = {key: output / name for key, name in OUTPUTS.items()}
+    paths["json"].write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths["summary"].write_text(_summary(payload), encoding="utf-8")
+    paths["analyst"].write_text(_analyst(payload), encoding="utf-8")
+    return paths
