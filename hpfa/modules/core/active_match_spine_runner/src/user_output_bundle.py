@@ -265,6 +265,9 @@ def _entity_summary(rich: dict[str, Any]) -> dict[str, int]:
         "team": len(entity.get("team_view_candidates") or []),
         "goalkeeper": len(entity.get("goalkeeper_view_candidates") or []),
         "observed_metric_cells": int(entity.get("observed_metric_cell_count") or 0),
+        "trace_cohort_context_links": int(entity.get("aggregate_support_trace_cohort_context_link_count") or 0),
+        "trace_candidate_refs": int(entity.get("aggregate_support_trace_candidate_ref_count") or 0),
+        "trace_relation_review_required": int(entity.get("aggregate_support_trace_relation_review_required_count") or 0),
     }
 
 
@@ -281,7 +284,21 @@ def _representative_entities(rich: dict[str, Any], limit: int = 8) -> list[str]:
             continue
         name = row.get("player_raw_candidate") or row.get("team_raw_candidate") or "UNRESOLVED_ENTITY"
         metrics = row.get("metric_values") or {}
-        result.append(f"{name}: observed_metric_cells={len(metrics)} source_role={row.get('source_role')}")
+        trace_refs = row.get("aggregate_support_trackable_trace_candidate_refs") or []
+        trace_ids = [
+            str(item.get("trackable_action_trace_candidate_id") or "").strip()
+            for item in trace_refs
+            if isinstance(item, dict) and str(item.get("trackable_action_trace_candidate_id") or "").strip()
+        ]
+        trace_state = str(row.get("aggregate_support_trace_context_state") or "TRACE_CANDIDATE_CONTEXT_UNAVAILABLE")
+        result.append(
+            f"{name}: observed_metric_cells={len(metrics)} source_role={row.get('source_role')} "
+            f"trace_cohort_context_state={trace_state} "
+            f"trace_candidate_refs={json.dumps(trace_ids, ensure_ascii=False)} "
+            f"trace_relation_is_cohort_context_only={str(bool(trace_ids)).lower()} "
+            "trace_relation_is_individual_action_support=false "
+            "trace_relation_is_physical_action_truth=false"
+        )
         if len(result) >= limit:
             break
     return result
@@ -380,6 +397,12 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             f"player_view_candidate_count={entity_summary['player']}",
             f"team_view_candidate_count={entity_summary['team']}",
             f"goalkeeper_view_candidate_count={entity_summary['goalkeeper']}",
+            f"aggregate_trace_cohort_context_link_count={entity_summary['trace_cohort_context_links']}",
+            f"aggregate_trace_candidate_ref_count={entity_summary['trace_candidate_refs']}",
+            f"aggregate_trace_relation_review_required_count={entity_summary['trace_relation_review_required']}",
+            "aggregate_trace_relation_is_cohort_context_only=true",
+            "aggregate_trace_relation_is_individual_action_support=false",
+            "aggregate_trace_relation_is_physical_action_truth=false",
             "format_fusion_is_independent_evidence_vote=false",
             "representative_entity_surfaces:",
         ])
@@ -460,6 +483,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         "",
         "[9] CURRENT PRODUCT CEILING",
         "CSV/XML event-like occurrence ve XLSX aggregate surface artik ayni run'da birlikte tasinir; ayni provider yuzeyleri independent vote degildir.",
+        "XLSX aggregate entity context ayni match-local identity candidate altindaki trackable trace cohort'una analyst navigation olarak gosterilebilir; bu relation tekil trace support'u, event truth veya physical-action truth degildir.",
         "C01 ilk construct vertical slice'tir; occurrence-level progression semantics tam admission gecmeden progression truth uretilmez.",
         "Phase/state etiketleri activity candidate'dir; phase truth degildir.",
         "MICRO/MEZZO/MACRO bir evidence-routing lattice'tir; macro claim mikro/mezo evidence'dan kopamaz.",
