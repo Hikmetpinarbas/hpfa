@@ -79,6 +79,12 @@ jobs:
           grep -F '"relation_records_may_create_action_volume": false' "$CONTRACT"
           grep -F '"relation_records_may_create_possession_truth": false' "$CONTRACT"
           grep -F '"relation_records_may_create_sequence_truth": false' "$CONTRACT"
+          grep -F '"state": "SEQUENCE_OCCURRENCE_OBJECT_CONTEXT_ONLY"' "$CONTRACT"
+          grep -F '"sequence_occurrence_context_is_independent_support": false' "$CONTRACT"
+          grep -F '"goalkeeper_context_is_sequence_participant_truth": false' "$CONTRACT"
+          grep -F '"reflection_context_is_sequence_equivalence_truth": false' "$CONTRACT"
+          grep -F '"sequence_occurrence_context_creates_event": false' "$CONTRACT"
+          grep -F '"sequence_occurrence_context_ref_count_is_action_count": false' "$CONTRACT"
 
       - name: Runtime bootstrap syntax and authority guard
         shell: bash
@@ -117,6 +123,11 @@ jobs:
           grep -F -q 'goalkeeper_context_is_occurrence_participant_truth' trackable_action_consequence_candidates_current_v1.py
           grep -F -q 'reflection_context_is_event_equivalence_truth' trackable_action_consequence_candidates_current_v1.py
           grep -F -q 'occurrence_context_creates_event' trackable_action_consequence_candidates_current_v1.py
+          grep -F -q '_project_sequence_occurrence_context' visible_action_sequence_candidates_current_v1.py
+          grep -F -q 'sequence_occurrence_context_is_independent_support' visible_action_sequence_candidates_current_v1.py
+          grep -F -q 'goalkeeper_context_is_sequence_participant_truth' visible_action_sequence_candidates_current_v1.py
+          grep -F -q 'reflection_context_is_sequence_equivalence_truth' visible_action_sequence_candidates_current_v1.py
+          grep -F -q 'sequence_occurrence_context_ref_count_is_action_count' visible_action_sequence_candidates_current_v1.py
           grep -F -q '"unsafe_or_claim_upgraded_context_binding_default": "REVIEW_REQUIRED_NO_CONTEXT_PROJECTION"' hpfa/modules/core/trackable_action_consequence_candidates_lite/contract/trackable_action_consequence_candidates_lite_v1.json
 
       - name: No sample match identity leak in product code
