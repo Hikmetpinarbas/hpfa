@@ -39,6 +39,17 @@
     "split_on_terminal_outcome_support": true,
     "consequence_review_marks_context_review_not_order_truth": true
   },
+  "occurrence_object_context_projection": {
+    "state": "SEQUENCE_OCCURRENCE_OBJECT_CONTEXT_ONLY",
+    "source": "trackable_action_consequence_candidates_lite_v1",
+    "same_trace_anchor_coverage_required": true,
+    "unsafe_or_claim_upgraded_context_default": "REVIEW_REQUIRED_NO_CONTEXT_PROJECTION",
+    "sequence_occurrence_context_is_independent_support": false,
+    "goalkeeper_context_is_sequence_participant_truth": false,
+    "reflection_context_is_sequence_equivalence_truth": false,
+    "sequence_occurrence_context_creates_event": false,
+    "sequence_occurrence_context_ref_count_is_action_count": false
+  },
   "assignment_rules": {
     "every_trace_exactly_one_assignment": true,
     "assignment_types": ["PRIMARY_SEQUENCE_MEMBER", "REVIEW_LAYER_MEMBER"]
@@ -51,6 +62,11 @@
     "shot_chain_is_chance_quality_truth": false,
     "sequence_duration_is_physical_action_duration": false,
     "consequence_context_is_causal_truth": false,
+    "sequence_occurrence_context_is_independent_support": false,
+    "goalkeeper_context_is_sequence_participant_truth": false,
+    "reflection_context_is_sequence_equivalence_truth": false,
+    "sequence_occurrence_context_creates_event": false,
+    "sequence_occurrence_context_ref_count_is_action_count": false,
     "phase_truth": false,
     "possession_truth": false,
     "sequence_truth": false,
