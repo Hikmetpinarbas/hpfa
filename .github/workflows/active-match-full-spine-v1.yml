@@ -80,6 +80,9 @@ jobs:
           grep -F 'aggregate_support_lineage_complete' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
           grep -F 'aggregate_support_attachment_is_match_local_identity_truth' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
           grep -F 'aggregate_support_attachment_is_action_trace_identity' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
+          grep -F 'aggregate_support_trace_relation_is_cohort_context_only' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
+          grep -F 'aggregate_support_trace_relation_is_individual_action_support' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
+          grep -F 'aggregate_support_trace_relation_is_physical_action_truth' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
           grep -F 'aggregate_support_attachment_is_timeline_identity' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
           grep -F 'aggregate_support_attachment_is_independent_vote' hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py
           grep -F 'temporal_signature_is_rhythm_truth' hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py
