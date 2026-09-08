@@ -89,6 +89,9 @@ jobs:
           grep -F 'trace_action_family_labels_are_cohort_navigation_only=true' hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py
           grep -F 'trace_action_family_labels_are_individual_action_support=false' hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py
           grep -F 'trace_action_family_labels_are_physical_action_truth=false' hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py
+          grep -F 'UNRESOLVED_NO_ADMITTED_SEMANTIC_AUTHORITY' hpfa/modules/core/xlsx_entity_metric_row_projection_lite/src/xlsx_entity_metric_row_projection.py
+          grep -F 'action_family_relation_is_inferred_from_metric_label' hpfa/modules/core/xlsx_entity_metric_row_projection_lite/src/xlsx_entity_metric_row_projection.py
+          grep -F 'metric_is_action_trace_support' hpfa/modules/core/xlsx_entity_metric_row_projection_lite/src/xlsx_entity_metric_row_projection.py
           grep -F 'temporal_signature_is_rhythm_truth' hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py
           grep -F 'canonical_event_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
           grep -F 'true_action_count' hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py
@@ -97,4 +100,5 @@ jobs:
             hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py \
             hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py \
             hpfa/modules/core/active_match_spine_runner/src/rich_multiformat_analysis_lane.py \
-            hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py
+            hpfa/modules/core/active_match_spine_runner/src/user_output_bundle.py \
+            hpfa/modules/core/xlsx_entity_metric_row_projection_lite/src/xlsx_entity_metric_row_projection.py
