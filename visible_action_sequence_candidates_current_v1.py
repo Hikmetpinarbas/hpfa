@@ -18,6 +18,89 @@ def _load(path: Path) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _clean_ref_set(value) -> set[str]:
+    if not isinstance(value, list):
+        return set()
+    return {str(item).strip() for item in value if str(item or "").strip()}
+
+
+def _project_sequence_occurrence_context(payload: dict, consequence_payload: dict) -> dict:
+    """Preserve consequence-level occurrence object context at sequence level without claim upgrade."""
+    consequence_by_trace = {
+        str(row.get("anchor_trackable_action_trace_candidate_id") or "").strip(): row
+        for row in consequence_payload.get("trackable_action_consequence_candidates") or []
+        if isinstance(row, dict) and str(row.get("anchor_trackable_action_trace_candidate_id") or "").strip()
+    }
+    projection_review_hits: set[str] = set()
+    sequences = payload.get("visible_action_sequence_candidates") or []
+    for record in sequences:
+        if not isinstance(record, dict):
+            continue
+        team_refs: set[str] = set()
+        goalkeeper_refs: set[str] = set()
+        goalkeeper_bundle_refs: set[str] = set()
+        reflection_refs: set[str] = set()
+        relation_types: set[str] = set()
+        local_reviews: set[str] = set()
+        for trace_id in record.get("trackable_action_trace_candidate_ids") or []:
+            trace_key = str(trace_id or "").strip()
+            consequence = consequence_by_trace.get(trace_key)
+            if not consequence:
+                local_reviews.add(f"sequence_occurrence_context_missing_consequence:{trace_key}")
+                continue
+            if (
+                consequence.get("occurrence_context_is_independent_support") is not False
+                or consequence.get("goalkeeper_context_is_occurrence_participant_truth") is not False
+                or consequence.get("reflection_context_is_event_equivalence_truth") is not False
+                or consequence.get("occurrence_context_creates_event") is not False
+                or consequence.get("canonical_event_count") != "UNKNOWN"
+            ):
+                local_reviews.add(f"sequence_occurrence_context_claim_boundary_mismatch:{trace_key}")
+                continue
+            if consequence.get("occurrence_object_context_state") == "REVIEW_REQUIRED":
+                local_reviews.add(f"sequence_occurrence_context_upstream_review:{trace_key}")
+                continue
+            team_refs.update(_clean_ref_set(consequence.get("occurrence_team_context_refs")))
+            goalkeeper_refs.update(_clean_ref_set(consequence.get("occurrence_goalkeeper_context_refs")))
+            goalkeeper_bundle_refs.update(_clean_ref_set(consequence.get("occurrence_goalkeeper_context_bundle_refs")))
+            reflection_refs.update(_clean_ref_set(consequence.get("occurrence_reflection_context_refs")))
+            relation_types.update(_clean_ref_set(consequence.get("occurrence_relation_type_candidates")))
+
+        has_context = any((team_refs, goalkeeper_refs, goalkeeper_bundle_refs, reflection_refs))
+        state = "REVIEW_REQUIRED" if local_reviews else (
+            "SEQUENCE_OCCURRENCE_OBJECT_CONTEXT_ONLY" if has_context else "NO_CONTEXT_VISIBLE"
+        )
+        record["sequence_occurrence_object_context_state"] = state
+        record["sequence_occurrence_team_context_refs"] = sorted(team_refs) if not local_reviews else []
+        record["sequence_occurrence_goalkeeper_context_refs"] = sorted(goalkeeper_refs) if not local_reviews else []
+        record["sequence_occurrence_goalkeeper_context_bundle_refs"] = sorted(goalkeeper_bundle_refs) if not local_reviews else []
+        record["sequence_occurrence_reflection_context_refs"] = sorted(reflection_refs) if not local_reviews else []
+        record["sequence_occurrence_relation_type_candidates"] = sorted(relation_types) if not local_reviews else []
+        record["sequence_occurrence_context_projection_review_hits"] = sorted(local_reviews)
+        record["sequence_occurrence_context_is_independent_support"] = False
+        record["goalkeeper_context_is_sequence_participant_truth"] = False
+        record["reflection_context_is_sequence_equivalence_truth"] = False
+        record["sequence_occurrence_context_creates_event"] = False
+        record["sequence_occurrence_context_ref_count_is_action_count"] = False
+        record["canonical_event_count"] = "UNKNOWN"
+        projection_review_hits.update(local_reviews)
+
+    payload["sequence_occurrence_context_projection_review_hits"] = sorted(projection_review_hits)
+    payload["sequence_occurrence_context_is_independent_support"] = False
+    payload["goalkeeper_context_is_sequence_participant_truth"] = False
+    payload["reflection_context_is_sequence_equivalence_truth"] = False
+    payload["sequence_occurrence_context_creates_event"] = False
+    payload["sequence_occurrence_context_ref_count_is_action_count"] = False
+    payload["canonical_event_count"] = "UNKNOWN"
+    if projection_review_hits and payload.get("status") != "FAIL_CLOSED":
+        payload["status"] = "REVIEW_REQUIRED"
+        payload["module_status"] = "REVIEW_REQUIRED"
+        reviews = set(payload.get("review_hits") or [])
+        reviews.update(projection_review_hits)
+        payload["review_hits"] = sorted(reviews)
+    return payload
+
+
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = sequence.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
@@ -53,6 +136,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "source_row_order_is_temporal_truth": False,
             "visible_sequence_candidate_is_sequence_truth": False,
             "visible_sequence_candidate_is_possession_truth": False,
+            "sequence_occurrence_context_is_independent_support": False,
+            "goalkeeper_context_is_sequence_participant_truth": False,
+            "reflection_context_is_sequence_equivalence_truth": False,
+            "sequence_occurrence_context_creates_event": False,
+            "sequence_occurrence_context_ref_count_is_action_count": False,
             "sequence_truth": False,
             "possession_truth": False,
             "phase_truth": False,
@@ -66,6 +154,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
     trace_payload = _load(trace_path)
     payload = sequence.build_visible_action_sequence_candidates(trace_payload, consequence_payload)
+    payload = _project_sequence_occurrence_context(payload, consequence_payload)
     payload["current_consequence_status"] = consequence_payload.get("status")
     payload["current_trace_status"] = consequence_payload.get("current_trace_status")
     payload["current_content_source_role_bridge_status"] = consequence_payload.get(
@@ -97,6 +186,7 @@ def main() -> int:
         "primary_sequence_member_trace_count": payload.get("primary_sequence_member_trace_count"),
         "review_layer_member_trace_count": payload.get("review_layer_member_trace_count"),
         "trace_assignment_complete": payload.get("trace_assignment_complete"),
+        "sequence_occurrence_context_projection_review_hits": payload.get("sequence_occurrence_context_projection_review_hits") or [],
         "boundary_reason_counts": payload.get("boundary_reason_counts") or {},
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
