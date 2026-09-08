@@ -49,7 +49,15 @@ def atom(atom_id: str, *, start: float, atom_class: str = "DERIVED_CONSEQUENCE_A
     }
 
 
-def payloads(traces: list[dict], atoms: list[dict] | None = None) -> tuple[dict, dict]:
+def relation(anchor: str, candidate: str, state: str = "AFTER_CONFIRMED") -> dict:
+    return {
+        "anchor_trackable_action_trace_candidate_id": anchor,
+        "candidate_trackable_action_trace_candidate_id": candidate,
+        "relation_state": state,
+    }
+
+
+def payloads(traces: list[dict], atoms: list[dict] | None = None, relations: list[dict] | None = None) -> tuple[dict, dict]:
     atoms = atoms or []
     t = {
         "module_id": "trackable_action_trace_candidates_lite_v1",
@@ -61,6 +69,8 @@ def payloads(traces: list[dict], atoms: list[dict] | None = None) -> tuple[dict,
         "canonical_event_count": "UNKNOWN",
         "production_release": False,
     }
+    if relations is not None:
+        t["temporal_relation_admission_records"] = relations
     e = {
         "module_id": "evidence_atom_inventory_lite_v1",
         "module_status": "PASS",
@@ -74,15 +84,73 @@ def payloads(traces: list[dict], atoms: list[dict] | None = None) -> tuple[dict,
     return t, e
 
 
-def build(traces: list[dict], atoms: list[dict] | None = None) -> dict:
-    return build_trackable_action_consequence_candidates(*payloads(traces, atoms))
+def build(traces: list[dict], atoms: list[dict] | None = None, relations: list[dict] | None = None) -> dict:
+    return build_trackable_action_consequence_candidates(*payloads(traces, atoms, relations))
 
 
-def test_same_timestamp_is_never_linked() -> None:
+def test_numeric_delta_without_temporal_admission_stays_provenance_review() -> None:
+    a = trace("a", start=10, team="A")
+    b = trace("b", start=14, team="A", actor="b", x=20)
+    result = build([a, b])
+    row = next(r for r in result["trackable_action_consequence_candidates"] if r["anchor_trackable_action_trace_candidate_id"] == "a")
+    assert row["visible_follow_up_trace_ids"] == ["b"]
+    assert row["admitted_after_follow_up_trace_ids"] == []
+    assert row["primary_consequence_candidate"] == "PROVENANCE_WINDOW_ONLY_REVIEW_REQUIRED_CANDIDATE"
+    assert row["record_status"] == "REVIEW_REQUIRED"
+    assert row["numeric_window_is_provenance_candidate_only"] is True
+    assert row["first_visible_follow_up_delta_is_chronology_truth"] is False
+    assert result["status"] == "REVIEW_REQUIRED"
+
+
+def test_after_confirmed_unlocks_directional_same_team_continuation() -> None:
+    a = trace("a", start=10, team="A")
+    b = trace("b", start=14, team="A", actor="b", x=20)
+    result = build([a, b], relations=[relation("a", "b")])
+    row = next(r for r in result["trackable_action_consequence_candidates"] if r["anchor_trackable_action_trace_candidate_id"] == "a")
+    assert row["admitted_after_follow_up_trace_ids"] == ["b"]
+    assert row["primary_consequence_candidate"] == "SAME_TEAM_CONTINUATION_CANDIDATE"
+    assert row["record_status"] == "PASS_CANDIDATE_CLASSIFICATION"
+
+
+def test_same_time_unordered_does_not_unlock_directional_link() -> None:
+    a = trace("a", start=10, team="A")
+    b = trace("b", start=14, team="A", actor="b", x=20)
+    result = build([a, b], relations=[relation("a", "b", "SAME_TIME_UNORDERED")])
+    row = next(r for r in result["trackable_action_consequence_candidates"] if r["anchor_trackable_action_trace_candidate_id"] == "a")
+    assert row["admitted_after_follow_up_trace_ids"] == []
+    assert row["primary_consequence_candidate"] == "PROVENANCE_WINDOW_ONLY_REVIEW_REQUIRED_CANDIDATE"
+
+
+def test_provenance_order_only_does_not_unlock_directional_link() -> None:
+    a = trace("a", start=10, team="A")
+    b = trace("b", start=14, team="B", actor="b", x=20)
+    result = build([a, b], relations=[relation("a", "b", "PROVENANCE_ORDER_ONLY")])
+    row = next(r for r in result["trackable_action_consequence_candidates"] if r["anchor_trackable_action_trace_candidate_id"] == "a")
+    assert row["admitted_after_follow_up_trace_ids"] == []
+    assert row["primary_consequence_candidate"] == "PROVENANCE_WINDOW_ONLY_REVIEW_REQUIRED_CANDIDATE"
+
+
+def test_before_confirmed_conflicting_with_numeric_future_fails_closed() -> None:
+    a = trace("a", start=10)
+    b = trace("b", start=14, actor="b", x=20)
+    result = build([a, b], relations=[relation("a", "b", "BEFORE_CONFIRMED")])
+    assert result["status"] == "FAIL_CLOSED"
+    assert any(hit.startswith("temporal_relation_numeric_conflict:a:b") for hit in result["hard_block_hits"])
+
+
+def test_unknown_temporal_relation_state_fails_closed() -> None:
+    a = trace("a", start=10)
+    b = trace("b", start=14, actor="b", x=20)
+    result = build([a, b], relations=[relation("a", "b", "MAGIC_ORDER")])
+    assert result["status"] == "FAIL_CLOSED"
+    assert any(hit.startswith("temporal_relation_state_invalid") for hit in result["hard_block_hits"])
+
+
+def test_same_timestamp_is_never_numeric_window_linked() -> None:
     a = trace("a", start=10, actor="actor_a")
     b = trace("b", start=10, actor="actor_b", x=30)
     c = trace("c", start=14, actor="actor_c", x=40)
-    result = build([a, b, c])
+    result = build([a, b, c], relations=[relation("a", "c"), relation("b", "c")])
     by_anchor = {r["anchor_trackable_action_trace_candidate_id"]: r for r in result["trackable_action_consequence_candidates"]}
     assert by_anchor["a"]["visible_follow_up_trace_ids"] == ["c"]
     assert by_anchor["b"]["visible_follow_up_trace_ids"] == ["c"]
@@ -92,50 +160,20 @@ def test_same_timestamp_is_never_linked() -> None:
 def test_cross_period_is_never_linked() -> None:
     a = trace("a", start=10, period="1")
     b = trace("b", start=11, period="2")
-    result = build([a, b])
+    result = build([a, b], relations=[])
     assert all(not row["visible_follow_up_trace_ids"] for row in result["trackable_action_consequence_candidates"])
 
 
-def test_only_three_distinct_future_time_layers_are_used() -> None:
-    traces = [trace("a", start=10)] + [trace(f"n{i}", start=start, x=20+i) for i, start in enumerate((14, 17, 21, 22), 1)]
-    result = build(traces)
-    row = next(r for r in result["trackable_action_consequence_candidates"] if r["anchor_trackable_action_trace_candidate_id"] == "a")
-    assert row["follow_up_layer_count"] == 3
-    assert row["visible_follow_up_trace_count_5s"] == 1
-    assert row["visible_follow_up_trace_count_8s"] == 2
-    assert row["visible_follow_up_trace_count_12s"] == 3
-
-
-def test_same_team_continuation_and_opponent_handover() -> None:
-    a = trace("a", start=10, team="A")
-    b = trace("b", start=14, team="A", actor="b", x=20)
-    c = trace("c", start=18, team="B", actor="c", x=30)
-    result = build([a, b, c])
-    by_anchor = {r["anchor_trackable_action_trace_candidate_id"]: r for r in result["trackable_action_consequence_candidates"]}
-    assert by_anchor["a"]["primary_consequence_candidate"] == "SAME_TEAM_CONTINUATION_CANDIDATE"
-    assert by_anchor["b"]["primary_consequence_candidate"] == "OPPONENT_HANDOVER_CANDIDATE"
-
-
-def test_same_team_shot_follow_up_is_candidate_not_causal_truth() -> None:
+def test_same_team_shot_follow_up_requires_after_confirmed() -> None:
     a = trace("a", start=10, team="A")
     s = trace("s", start=14, team="A", actor="s", family="SHOT", x=90)
-    result = build([a, s])
+    result = build([a, s], relations=[relation("a", "s")])
     row = next(r for r in result["trackable_action_consequence_candidates"] if r["anchor_trackable_action_trace_candidate_id"] == "a")
     assert row["primary_consequence_candidate"] == "SHOT_FOLLOW_UP_CANDIDATE"
     assert row["consequence_candidate_is_causal_truth"] is False
 
 
-def test_mixed_team_first_future_layer_stays_review_required() -> None:
-    a = trace("a", start=10, team="A")
-    b = trace("b", start=14, team="A", actor="b", x=20)
-    c = trace("c", start=14, team="B", actor="c", x=30)
-    result = build([a, b, c])
-    row = next(r for r in result["trackable_action_consequence_candidates"] if r["anchor_trackable_action_trace_candidate_id"] == "a")
-    assert row["primary_consequence_candidate"] == "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE"
-    assert row["record_status"] == "REVIEW_REQUIRED"
-
-
-def test_terminal_support_is_exact_core_and_candidate_only() -> None:
+def test_terminal_support_remains_valid_without_directional_relation() -> None:
     a = trace("a", start=10)
     result = build([a], [atom("term", start=10, atom_class="TERMINAL_OUTCOME_ATOM")])
     row = result["trackable_action_consequence_candidates"][0]
@@ -166,6 +204,8 @@ def test_duplicate_trace_id_fails_closed() -> None:
 
 def test_claim_boundaries_remain_closed() -> None:
     result = build([trace("a", start=10), trace("b", start=14, x=30)])
+    assert result["numeric_time_parseability_is_chronology_truth"] is False
+    assert result["positive_numeric_delta_is_after_truth"] is False
     assert result["same_time_link_allowed"] is False
     assert result["negative_time_link_allowed"] is False
     assert result["cross_period_link_allowed"] is False
