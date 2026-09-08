@@ -1,5 +1,7 @@
 {
   "policy_version": "1.0.0",
+  "observation_model": "ENRICHED_FOOTBALL_OBSERVATION_DATA_V1",
+  "event_only_is_product_ceiling": false,
   "metrics": [
     {
       "metric_id": "surface_action_volume_candidate",
@@ -21,6 +23,9 @@
       "success_criteria": "not_applicable",
       "required_event_families": ["action_family_candidate"],
       "required_context_fields": ["source_provenance", "observation_window", "entity_scope"],
+      "required_observation_layers": ["L1_ACTION_OBSERVATION"],
+      "required_surface_semantics": ["action_family_admitted", "reflection_control_admitted", "entity_scope_admitted"],
+      "tracking_video_required": false,
       "event_only_compatible": true,
       "source_surface_roles": ["occurrence_candidate"],
       "derivation_dependency": ["duplicate_lineage", "aggregate_row_exclusion"],
@@ -58,6 +63,9 @@
       "success_criteria": "provider_version_definition_required",
       "required_event_families": ["pass_candidate", "successful_pass_candidate"],
       "required_context_fields": ["provider", "provider_version", "source_provenance", "observation_window", "entity_scope"],
+      "required_observation_layers": ["L1_ACTION_OBSERVATION"],
+      "required_surface_semantics": ["provider_metric_semantics_admitted", "pass_opportunity_set_admitted", "entity_scope_admitted"],
+      "tracking_video_required": false,
       "event_only_compatible": true,
       "source_surface_roles": ["occurrence_candidate", "aggregate_candidate"],
       "derivation_dependency": ["aggregate_definition_alignment", "duplicate_lineage"],
