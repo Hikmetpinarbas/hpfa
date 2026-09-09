@@ -24,50 +24,92 @@
       "path": "README.md",
       "token": "HPFA is an event-only, claim-safe Football Intelligence Platform",
       "classification": "GLOBAL_ERROR",
-      "action": "REPLACE_PRODUCT_MODEL_WITH_ZFGV",
+      "action": "REPLACED_PRODUCT_MODEL_WITH_ZFGV_ON_CURRENT_FRONTIER",
       "reason": "Event-only is no longer the canonical global ontology."
     },
     {
       "path": "docs/governance/product_architect_evolution_protocol_v1.md",
-      "token": "long-lived event-only football intelligence product",
+      "token": "long-lived event-only football intelligence product / event-only eligibility gate",
       "classification": "GLOBAL_ERROR",
-      "action": "REPLACE_PRODUCT_MODEL_WITH_ZFGV",
+      "action": "REPLACED_WITH_ZFGV_CAPABILITY_ELIGIBILITY_ON_CURRENT_FRONTIER",
       "reason": "Architecture governance must not globally constrain the product to event-only inputs."
     },
     {
       "path": "docs/prompts/HPFA_PROJECT_LOGBOOK_PROMPT.md",
       "token": "event-only, claim-safe, modular and portable Football Intelligence Platform",
       "classification": "GLOBAL_ERROR",
-      "action": "REPLACE_PRODUCT_MODEL_WITH_ZFGV",
+      "action": "REPLACED_WITH_ZFGV_OPERATOR_RULES_ON_CURRENT_FRONTIER",
       "reason": "Operator prompts must inherit the current canonical ontology."
+    },
+    {
+      "path": "docs/brand/HPFA_BRAND_IDENTITY_CORE_LAYER.md",
+      "token": "event-only epistemic discipline / event data to tactical intelligence",
+      "classification": "GLOBAL_ERROR",
+      "action": "REPLACED_WITH_ZFGV_EVIDENCE_SPINE_LANGUAGE_ON_CURRENT_FRONTIER",
+      "reason": "Brand and analyst language must not teach a narrower ontology than the product."
     },
     {
       "path": "configs/metrics/metric_registry_v1.json",
       "token": "event_only_compatible",
       "classification": "LEGACY_IDENTIFIER",
-      "action": "PRESERVE_AS_COMPATIBILITY_METADATA_AND_ADD_CAPABILITY_REQUIREMENTS",
+      "action": "PRESERVED_AS_COMPATIBILITY_METADATA_AND_ADDED_REQUIRED_SUPPORTING_ZFGV_CAPABILITIES",
       "reason": "The field may remain for compatibility but cannot act as a global metric admission gate."
     },
     {
       "path": "hpfa/modules/core/provider_metric_dictionary_lite/src/_provider_metric_dictionary_impl_v7.py",
       "token": "event_only_compatibility_required",
       "classification": "GLOBAL_ERROR",
-      "action": "REHABILITATE_AT_CURRENT_WRAPPER_WITH_EXPLICIT_ZFGV_CAPABILITY_CONTRACT",
-      "reason": "Hard-rejecting non-event-only constructs suppresses valid ZFGV observation families."
+      "action": "REHABILITATED_AT_CURRENT_WRAPPER_WITH_EXPLICIT_ZFGV_CAPABILITY_CONTRACT",
+      "reason": "Hard-rejecting non-event-only constructs suppresses valid ZFGV observation families; false without replacement capability contract still fails closed."
+    },
+    {
+      "path": "hpfa/modules/core/active_match_spine_runner/src/metric_governance_bridge.py",
+      "token": "metric governance without explicit observation-capability projection",
+      "classification": "GLOBAL_ERROR",
+      "action": "ZFGV_CAPABILITY_CONTRACT_BOUND_TO_FULL_SPINE_METRIC_GOVERNANCE",
+      "reason": "Capability requirements must remain visible downstream rather than exist only in registry documentation. Metric value and construct truth remain closed."
     },
     {
       "path": "hpfa/modules/core/metric_fusion_engine/README.md",
       "token": "HPFA Event-Only Metric Fusion Engine V1",
       "classification": "LEGACY_IDENTIFIER",
-      "action": "DO_NOT_BLIND_RENAME; RECLASSIFY_SCOPE_BEFORE_REHABILITATION",
+      "action": "RECLASSIFIED_AS_ZFGV_REHABILITATION_WITH_HISTORICAL_IDENTIFIER_PRESERVED",
       "reason": "Module is scaffold/not production-bound; historical identifier does not by itself prove an active global gate."
     },
     {
       "path": "hpfa/modules/core/metric_fusion_engine/policies/eventonly_metric_allowlist_v1.json",
       "token": "eventonly_metric_allowlist_v1",
       "classification": "LEGACY_IDENTIFIER",
-      "action": "AUDIT_FOR_CAPABILITY_BASED_REPLACEMENT_BEFORE_ANY_RUNTIME_BINDING",
-      "reason": "Allowlist is candidate/not production-bound; preserve blocked-claim safeguards while removing any future global event-only ceiling."
+      "action": "PRESERVED; ZFGV_CAPABILITY_POLICY_ADDED_BEFORE_ANY_FUTURE_RUNTIME_BINDING",
+      "reason": "Allowlist is candidate/not production-bound; preserve blocked-claim safeguards while preventing a future global event-only ceiling."
+    },
+    {
+      "path": "hpfa/modules/core/primary_event_surface_gate_lite/**",
+      "token": "aggregate_surface_excluded / XLSX aggregate surfaces must not become primary event surface",
+      "classification": "LEGITIMATE_EVENT_TERM",
+      "action": "KEEP_EVENT_SUBSYSTEM_LOCK",
+      "reason": "Aggregate/tabular surfaces are valuable ZFGV observations but must not create primary event identity. Recovery belongs on an aggregate/tabular route, not by weakening event identity."
+    },
+    {
+      "path": "hpfa/modules/core/context_action_semantics_rebind_lite/**",
+      "token": "PARTICIPATION_ONLY / CONTEXT_ONLY / AGGREGATE_ONLY are non-action roles",
+      "classification": "LEGITIMATE_EVENT_TERM",
+      "action": "KEEP_NON_ACTION_SEPARATION",
+      "reason": "Participation/context/aggregate observations must not be promoted into action occurrence merely to escape the historical event-only ontology."
+    },
+    {
+      "path": "hpfa/modules/core/semantic_role_action_bundle_candidates_lite/src/semantic_role_action_bundle_candidates.py",
+      "token": "PARTICIPATION_INTERVAL_ROUTE / CONTEXT_INTERVAL_ROUTE / DERIVED_CONSEQUENCE_ROUTE / TERMINAL_OUTCOME_ROUTE / REFERENCE_ROUTE",
+      "classification": "LEGITIMATE_EVENT_TERM",
+      "action": "ROUTES_PRESERVED_AND_RECOVERED_AS_NON_ACTION_ZFGV_CAPABILITIES_IN_FULL_SPINE_SIDECAR",
+      "reason": "The route separation is correct; the prior product gap was downstream invisibility/orphaning, not failure to classify them as events."
+    },
+    {
+      "path": "hpfa/modules/core/active_match_spine_runner/src/orphan_capability_sidecars.py",
+      "token": "non-action semantic routes not surfaced as ZFGV capabilities",
+      "classification": "GLOBAL_ERROR",
+      "action": "RECOVERED_CONTEXT_PARTICIPATION_CONSEQUENCE_OUTCOME_RELATION_ROUTES_WITHOUT_EVENT_PROMOTION",
+      "reason": "Full-spine now exposes admitted non-action routes as distinct observation capabilities while preserving action identity, possession, tactical, causal and independence locks."
     },
     {
       "path": "docs/contracts/reasoning_grammar_spine_lite_v1.md",
@@ -91,14 +133,23 @@
       "reason": "Event is still a valid observation family inside ZFGV; event-specific identity/count contracts remain necessary."
     }
   ],
+  "completed_frontier_slices": [
+    "global_product_language_zfgv_migration",
+    "operator_and_architecture_governance_zfgv_migration",
+    "metric_registry_required_supporting_capability_contract",
+    "provider_metric_dictionary_event_only_gate_rehabilitation",
+    "metric_fusion_zfgv_candidate_policy",
+    "metric_governance_bridge_capability_visibility",
+    "non_action_context_participation_consequence_outcome_relation_route_recovery"
+  ],
   "next_operational_audits": [
-    "metric_definition_policy",
-    "metric_fusion_eligibility",
-    "spatial_admission",
-    "process_participation_admission",
-    "aggregate_tabular_admission",
+    "metric_definition_fingerprint_includes_zfgv_capability_semantics",
+    "spatial_admission_and_direction_semantics",
+    "aggregate_tabular_downstream_consumers",
+    "process_participation_to_episode_process_binding",
     "relation_consequence_binding",
     "model_eligibility",
-    "analyst_finding_projection"
+    "analyst_finding_projection",
+    "multi_match_gold_corpus_generalization"
   ]
 }
