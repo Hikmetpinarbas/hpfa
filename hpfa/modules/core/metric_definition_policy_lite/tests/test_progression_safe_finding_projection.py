@@ -24,6 +24,14 @@ def _payload(*, status="PASS_CANDIDATE", denominator=3, evaluable=2):
         "analyst_action": "inspect support, counterevidence and unresolved refs before reporting",
         "team_progression_effectiveness_profile_candidates": [],
         "actor_progression_effectiveness_profile_candidates": [],
+        "denominator_set_id": "progression_trace_candidates:test",
+        "observation_window": "MATCH_LOCAL_VISIBLE_TRACE_SCOPE",
+        "entity_scope": "PLAYER_OR_GOALKEEPER_ACTOR_BEARING_TRACE",
+        "team_scope": "MATCH_LOCAL_TEAM_IDENTITY_CANDIDATES",
+        "period_scope": "TRACE_DECLARED_PERIOD_SCOPE",
+        "context_policy_id": "ZFGV_PROGRESSION_EFFECTIVENESS_V1",
+        "dependency_group": "progression_effectiveness:test",
+        "provenance_root": "test_surface_binding",
         "effectiveness_score_emitted": False,
         "same_provider_reflection_adds_independent_vote": False,
         "missing_consequence_is_counterevidence": False,
@@ -61,6 +69,25 @@ def test_builds_defeasible_finding_envelope_without_opening_claim_gate():
     assert result["claim_output_allowed"] is False
 
 
+def test_standard_analyst_evidence_envelope_is_present_and_lineage_bound():
+    result = build_progression_safe_finding_projection(_payload())
+    finding = result["finding_candidate"]
+    assert finding["WHAT_VISIBLE"] == finding["what_visible"]
+    assert finding["WHERE_WHEN"] == finding["where_when"]
+    assert finding["SUPPORT"] == finding["support"]
+    assert finding["COUNTEREVIDENCE"] == finding["counterevidence"]
+    assert finding["SAFE_MEANING"] == finding["safe_meaning"]
+    assert finding["FORBIDDEN_INFERENCE"] == finding["forbidden_inference"]
+    assert finding["ANALYST_ACTION"] == finding["analyst_action"]
+    assert finding["UNCERTAINTY"] == finding["uncertainty"]
+    assert finding["WITHDRAWAL_CONDITION"] == finding["withdrawal_condition"]
+    assert finding["WHERE_WHEN"]["denominator_set_id"] == "progression_trace_candidates:test"
+    assert finding["dependency_summary"]["dependency_group"] == "progression_effectiveness:test"
+    assert finding["dependency_summary"]["provenance_root"] == "test_surface_binding"
+    assert finding["dependency_summary"]["same_provider_support_is_independent_vote"] is False
+    assert finding["dependency_summary"]["independent_support_vote_count"] == 0
+
+
 def test_no_visible_counterevidence_is_allowed_but_never_confirmation():
     payload = _payload(denominator=1, evaluable=1)
     payload["construct_candidate"]["counterevidence_consequence_candidate_refs"] = []
@@ -68,6 +95,8 @@ def test_no_visible_counterevidence_is_allowed_but_never_confirmation():
     assert result["status"] == "PASS_CANDIDATE"
     assert result["finding_candidate"]["counterevidence_refs"] == []
     assert result["finding_candidate"]["counterevidence_absence_is_confirmation"] is False
+    assert result["finding_candidate"]["COUNTEREVIDENCE"]["absence_is_confirmation"] is False
+    assert result["finding_candidate"]["COUNTEREVIDENCE"]["missing_follow_up_is_failure"] is False
 
 
 def test_missing_alternative_explanation_fails_closed():
@@ -98,6 +127,8 @@ def test_same_provider_never_becomes_independent_vote():
     finding = result["finding_candidate"]
     assert finding["same_provider_support_is_independent_vote"] is False
     assert finding["independent_support_vote_count"] == 0
+    assert finding["dependency_summary"]["same_provider_support_is_independent_vote"] is False
+    assert finding["dependency_summary"]["independent_support_vote_count"] == 0
 
 
 def test_no_sample_match_identity_leak():
