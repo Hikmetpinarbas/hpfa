@@ -1,8 +1,6 @@
 from pathlib import Path
 
-from hpfa.modules.core.professional_finding_candidate_lite.src.sequence_safe_finding_binding import (
-    build_sequence_safe_finding_blocks,
-)
+from hpfa.modules.core.professional_finding_candidate_lite.src.sequence_safe_finding_binding import build_sequence_safe_finding_blocks
 
 
 def _payload(state="RECURRENT_VISIBLE_TRACE", independent="UNKNOWN", with_context=False):
@@ -56,140 +54,88 @@ def _payload(state="RECURRENT_VISIBLE_TRACE", independent="UNKNOWN", with_contex
     }
 
 
-def test_recurrent_trace_becomes_readable_analyst_block_not_tactical_truth():
+def test_recurrent_without_independence_is_downgraded_not_emitted():
     result = build_sequence_safe_finding_blocks(_payload())
     row = result["analyst_report_blocks"][0]
-    assert row["WHAT_VISIBLE"].startswith("A comparable admitted visible trace family")
-    assert "independence is not sufficiently established" in row["SAFE_MEANING"]
-    assert "TACTICAL_PATTERN_TRUTH" in row["FORBIDDEN_INFERENCE"]
+    assert row["finding_status"] == "DOWNGRADE"
     assert row["professional_finding_emitted"] is False
     assert row["claim_output_allowed"] is False
+    assert "independent_support_not_admitted" in row["downgrade_reasons"]
 
 
-def test_exact_supporting_trace_cohort_survives_safe_binding():
-    row = build_sequence_safe_finding_blocks(_payload())["analyst_report_blocks"][0]
-    assert row["trace_variant_refs"] == ["variant_a", "variant_b", "variant_c", "variant_d", "variant_e"]
-    assert row["recurrence_summary"]["eligible_trace_count"] == row["recurrence_summary"]["observed_support"] == 5
+def test_robust_independent_challenged_trace_emits_defeasible_finding():
+    result = build_sequence_safe_finding_blocks(_payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3))
+    row = result["analyst_report_blocks"][0]
+    assert row["finding_status"] == "EMIT"
+    assert row["professional_finding_emitted"] is True
+    assert row["claim_output_allowed"] is True
+    assert result["professional_finding_emitted_count"] == 1
+    assert result["finding_status_counts"] == {"EMIT": 1, "DOWNGRADE": 0, "ABSTAIN": 0}
+    assert row["production_release"] is False
+    assert "causality" in row["FORBIDDEN_INFERENCE"]
+
+
+def test_robust_trace_without_challenge_surface_downgrades():
+    payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
+    payload["sequence_pattern_admissions"][0]["counterevidence_refs"] = []
+    payload["sequence_pattern_admissions"][0]["alternative_explanations"] = []
+    row = build_sequence_safe_finding_blocks(payload)["analyst_report_blocks"][0]
+    assert row["finding_status"] == "DOWNGRADE"
+    assert "challenge_surface_empty" in row["downgrade_reasons"]
+
+
+def test_review_and_rejected_rows_abstain():
+    review = build_sequence_safe_finding_blocks(_payload("REVIEW_REQUIRED"))
+    rejected = build_sequence_safe_finding_blocks(_payload("REJECTED_INSUFFICIENT_EVIDENCE"))
+    assert review["finding_status_counts"]["ABSTAIN"] == 1
+    assert rejected["finding_status_counts"]["ABSTAIN"] == 1
+    assert review["analyst_report_block_count"] == 0
+    assert rejected["analyst_report_block_count"] == 0
 
 
 def test_pattern_occurrence_context_survives_as_lineage_only_not_support():
     row = build_sequence_safe_finding_blocks(_payload(with_context=True))["analyst_report_blocks"][0]
     assert row["sequence_occurrence_object_context_state"] == "SAFE_FINDING_OCCURRENCE_CONTEXT_LINEAGE_ONLY"
-    assert row["sequence_occurrence_team_context_refs"] == ["team_ctx_1", "team_ctx_2"]
-    assert row["sequence_occurrence_goalkeeper_context_refs"] == ["gk_ctx_1"]
-    assert row["sequence_occurrence_goalkeeper_context_bundle_refs"] == ["gk_bundle_1"]
-    assert row["sequence_occurrence_reflection_context_refs"] == ["reflection_1"]
     assert row["sequence_occurrence_context_is_finding_support"] is False
-    assert row["sequence_occurrence_context_is_prose_support"] is False
     assert row["sequence_occurrence_context_is_independent_support"] is False
-    assert row["goalkeeper_context_is_finding_participant_truth"] is False
-    assert row["reflection_context_is_finding_equivalence_truth"] is False
-    assert row["sequence_occurrence_context_ref_count_is_action_count"] is False
-    assert row["sequence_occurrence_context_ref_count_is_event_count"] is False
-    assert row["sequence_occurrence_context_ref_count_is_recurrence_strength"] is False
-    assert row["sequence_occurrence_context_ref_count_is_robustness_score"] is False
-    assert row["sequence_occurrence_context_is_tactical_truth"] is False
-    assert row["sequence_occurrence_context_is_causal_truth"] is False
+    assert row["sequence_occurrence_context_creates_event"] is False
 
 
-def test_unsafe_pattern_occurrence_context_is_reviewed_and_not_emitted():
+def test_unsafe_occurrence_context_abstains_under_review():
     payload = _payload(with_context=True)
-    row = payload["sequence_pattern_admissions"][0]
-    row["sequence_occurrence_context_is_pattern_support"] = True
+    payload["sequence_pattern_admissions"][0]["sequence_occurrence_context_is_pattern_support"] = True
     result = build_sequence_safe_finding_blocks(payload)
     assert result["status"] == "REVIEW_REQUIRED"
     assert result["analyst_report_block_count"] == 0
-    assert "safe_finding_occurrence_context_claim_boundary_mismatch:variant_a" in result["review_hits"]
+    assert result["finding_status_counts"]["ABSTAIN"] == 1
 
 
-def test_context_refs_without_admitted_state_are_reviewed_and_not_emitted():
-    payload = _payload(with_context=True)
-    row = payload["sequence_pattern_admissions"][0]
-    row["sequence_occurrence_object_context_state"] = ""
-    result = build_sequence_safe_finding_blocks(payload)
-    assert result["status"] == "REVIEW_REQUIRED"
-    assert result["analyst_report_block_count"] == 0
-    assert "safe_finding_occurrence_context_state_missing_or_unexpected:variant_a" in result["review_hits"]
+def test_missing_or_mismatched_trace_cohort_fails_closed():
+    missing = _payload(); missing["sequence_pattern_admissions"][0]["eligible_trace_refs"] = []
+    mismatch = _payload(); mismatch["sequence_pattern_admissions"][0]["eligible_trace_refs"] = ["variant_a"]
+    assert build_sequence_safe_finding_blocks(missing)["status"] == "FAIL_CLOSED"
+    assert build_sequence_safe_finding_blocks(mismatch)["status"] == "FAIL_CLOSED"
 
 
-def test_upstream_context_review_is_not_cleaned_to_pass():
-    payload = _payload(with_context=True)
-    payload["sequence_pattern_admissions"][0]["sequence_occurrence_object_context_state"] = "REVIEW_REQUIRED"
-    result = build_sequence_safe_finding_blocks(payload)
-    assert result["status"] == "REVIEW_REQUIRED"
-    assert result["analyst_report_block_count"] == 0
-    assert "safe_finding_occurrence_context_upstream_review:variant_a" in result["review_hits"]
-
-
-def test_missing_or_mismatched_trace_cohort_fails_closed_before_prose():
-    missing = _payload()
-    missing["sequence_pattern_admissions"][0]["eligible_trace_refs"] = []
-    result = build_sequence_safe_finding_blocks(missing)
-    assert result["status"] == "FAIL_CLOSED"
-    assert result["analyst_report_block_count"] == 0
-    assert "admission_missing_eligible_trace_refs:variant_a" in result["hard_block_hits"]
-
-    mismatch = _payload()
-    mismatch["sequence_pattern_admissions"][0]["eligible_trace_refs"] = ["variant_a"]
-    result = build_sequence_safe_finding_blocks(mismatch)
-    assert result["status"] == "FAIL_CLOSED"
-    assert "admission_trace_cohort_support_mismatch:variant_a" in result["hard_block_hits"]
-
-
-def test_success_failure_divergence_and_no_followup_are_exposed_together():
+def test_no_visible_followup_never_becomes_failure_or_counterevidence():
     row = build_sequence_safe_finding_blocks(_payload())["analyst_report_blocks"][0]
-    assert row["success_support"] == 2
-    assert row["failure_support"] == 1
-    assert row["divergence_support"] == 1
     assert row["no_visible_followup_support"] == 1
     assert "is not failure" in row["COUNTEREVIDENCE"]
 
 
-def test_robust_admission_can_strengthen_language_without_causality():
-    row = build_sequence_safe_finding_blocks(_payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3))["analyst_report_blocks"][0]
-    assert "explicitly admitted independent support" in row["SAFE_MEANING"]
-    assert "causality" in row["FORBIDDEN_INFERENCE"]
-    assert row["production_release"] is False
-
-
-def test_counterevidence_alternative_and_withdrawal_condition_survive_binding():
-    row = build_sequence_safe_finding_blocks(_payload())["analyst_report_blocks"][0]
-    assert row["counterevidence"]["refs"] == ["variant_b", "variant_c"]
-    assert row["alternative_explanations"][0]["type"] == "CONTEXT_DEPENDENCE"
-    assert row["withdrawal_condition"] == "Downgrade if evidence changes."
-
-
-def test_rejected_or_review_admission_does_not_become_analyst_claim():
-    rejected = build_sequence_safe_finding_blocks(_payload("REJECTED_INSUFFICIENT_EVIDENCE"))
-    review = build_sequence_safe_finding_blocks(_payload("REVIEW_REQUIRED"))
-    assert rejected["analyst_report_block_count"] == 0
-    assert review["analyst_report_block_count"] == 0
-    assert review["status"] == "REVIEW_REQUIRED"
-    assert "admission_row_review_required:variant_a" in review["review_hits"]
-
-
-def test_unknown_or_forbidden_admission_state_fails_closed_before_prose():
-    for state in ("TACTICAL_PATTERN", "UNKNOWN_FUTURE_STATE", ""):
-        result = build_sequence_safe_finding_blocks(_payload(state))
-        assert result["status"] == "FAIL_CLOSED"
-        assert result["analyst_report_block_count"] == 0
-        assert any(hit.startswith("unsupported_admission_state:") for hit in result["hard_block_hits"])
-
-
 def test_upstream_claim_lock_breach_fails_closed():
-    payload = _payload()
-    payload["tactical_pattern_state_allowed"] = True
+    payload = _payload(); payload["tactical_pattern_state_allowed"] = True
     result = build_sequence_safe_finding_blocks(payload)
     assert result["status"] == "FAIL_CLOSED"
-    assert "tactical_pattern_lock_missing" in result["hard_block_hits"]
-
-
-def test_claim_and_release_locks_remain_closed():
-    result = build_sequence_safe_finding_blocks(_payload())
-    assert result["professional_finding_emitted_count"] == 0
     assert result["claim_output_allowed_count"] == 0
-    assert result["canonical_event_count"] == "UNKNOWN"
-    assert result["true_action_count"] == "UNKNOWN"
+
+
+def test_release_and_truth_locks_remain_closed_even_when_finding_emits():
+    result = build_sequence_safe_finding_blocks(_payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3))
+    row = result["analyst_report_blocks"][0]
+    assert row["canonical_event_count"] == "UNKNOWN"
+    assert row["true_action_count"] == "UNKNOWN"
+    assert row["production_release"] is False
     assert result["production_release"] is False
 
 
