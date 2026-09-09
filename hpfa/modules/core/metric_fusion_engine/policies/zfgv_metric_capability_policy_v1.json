@@ -1,0 +1,83 @@
+{
+  "policy_id": "zfgv_metric_capability_policy_v1",
+  "status": "candidate_not_production_bound",
+  "observation_model": "ZFGV_MULTI_SURFACE_FOOTBALL_OBSERVATION_FABRIC",
+  "global_event_only_gate": false,
+  "legacy_policy": {
+    "policy_id": "eventonly_metric_allowlist_v1",
+    "classification": "LEGACY_IDENTIFIER",
+    "runtime_supersession_proven": false,
+    "delete_or_rename_now": false
+  },
+  "admission_rule": "required_capabilities_subset_of_admitted_capabilities",
+  "observation_capability_enum": [
+    "ACTION_EVENT",
+    "ENTITY_ACTOR",
+    "TEMPORAL",
+    "SPATIAL",
+    "OUTCOME_QUALIFIER",
+    "RELATIONAL",
+    "PROCESS_PARTICIPATION",
+    "AGGREGATE_TABULAR",
+    "EXTERNAL_CONTEXT",
+    "TRACKING_VIDEO",
+    "HPFA_DERIVED_INTELLIGENCE"
+  ],
+  "fusion_requirements": {
+    "metric_contract_required": true,
+    "source_provenance_required": true,
+    "dependency_group_required": true,
+    "independence_group_required_for_independent_support": true,
+    "identity_scope_required_when_entity_bound": true,
+    "time_admission_required_when_temporal": true,
+    "space_admission_required_when_spatial": true,
+    "denominator_contract_required_for_rate_or_ratio": true,
+    "construct_validity_required_before_comparison": true,
+    "model_validation_required_before_model_claim": true
+  },
+  "relation_types": [
+    "SUPPORTS",
+    "CONTRADICTS",
+    "COMPLEMENTS",
+    "CONTEXTUALIZES",
+    "ABSTAINS"
+  ],
+  "non_event_recovery": {
+    "ENTITY_ACTOR": "eligible_when_identity_scope_is_admitted",
+    "TEMPORAL": "eligible_when_semantic_role_unit_clock_basis_period_and_provenance_are_admitted",
+    "SPATIAL": "eligible_for_zone_channel_transition_candidates_after_coordinate_semantics_pitch_frame_and_direction_admission",
+    "OUTCOME_QUALIFIER": "eligible_when_label_semantics_and_source_role_are_admitted",
+    "RELATIONAL": "eligible_when_reference_identity_dependency_and_order_requirements_are_satisfied",
+    "PROCESS_PARTICIPATION": "eligible_as_membership_or_participation_candidate_without_possession_or_intention_truth",
+    "AGGREGATE_TABULAR": "eligible_as_aggregate_observation_and_reconciliation_support_without_action_identity_or_independence_vote",
+    "EXTERNAL_CONTEXT": "eligible_only_with_explicit_source_role_rights_and_context_semantics",
+    "HPFA_DERIVED_INTELLIGENCE": "eligible_only_with_complete derivation_lineage_and_upstream_claim_ceiling_preserved"
+  },
+  "tracking_video_required_claims": [
+    "true_team_shape",
+    "compactness",
+    "defensive_line_height",
+    "pitch_control",
+    "off_ball_geometry",
+    "off_ball_run_truth",
+    "body_orientation",
+    "scanning",
+    "true_pressure_geometry",
+    "true_player_or_ball_speed",
+    "physical_load"
+  ],
+  "blocked_claim_fields_without_separate_evidence": [
+    "dominance",
+    "tactical_superiority",
+    "coach_intention",
+    "tactical_plan",
+    "causality"
+  ],
+  "output_ceiling": "ZFGV_METRIC_RELATION_CANDIDATE_ONLY",
+  "metric_value_output_allowed": false,
+  "report_language_allowed": false,
+  "production_binding_allowed": false,
+  "canonical_event_count": "UNKNOWN",
+  "true_action_count": "UNKNOWN",
+  "production_release": false
+}
