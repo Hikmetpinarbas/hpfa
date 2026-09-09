@@ -20,6 +20,7 @@ ASSEMBLY_CLAIM_CEILING = "final_report_assembly_candidate_only"
 SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
 SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
 NULL_CONTRAST_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
+MATCH_STORY_BLOCK_FAMILY = "match_story_analyst_reading_candidate"
 SEQUENCE_BLOCK_FAMILIES = {
     "sequence_safe_finding_analyst_reading_candidate",
     "sequence_narrative_analyst_reading_candidate",
@@ -108,7 +109,7 @@ def _sequence_lineage_complete(block_family: str, lineage: Any) -> bool:
     family_refs = sorted(set(_string_list(lineage.get("trace_family_refs"))))
     trace_refs = sorted(set(_string_list(lineage.get("trace_variant_refs"))))
     support = lineage.get("observed_support")
-    if not family_refs or not trace_refs or not isinstance(support, int) or support < 0:
+    if not family_refs or not trace_refs or not isinstance(support, int) or isinstance(support, bool) or support < 0:
         return False
     if len(trace_refs) != support or family_refs[0] not in trace_refs:
         return False
@@ -186,6 +187,55 @@ def _sequence_lineage_complete(block_family: str, lineage: Any) -> bool:
     return True
 
 
+def _match_story_lineage_complete(block_family: str, lineage: Any) -> bool:
+    if block_family != MATCH_STORY_BLOCK_FAMILY:
+        return True
+    if not isinstance(lineage, dict) or not lineage:
+        return False
+    source_ids = _string_list(lineage.get("source_narrative_ids"))
+    if not source_ids or len(source_ids) != len(set(source_ids)):
+        return False
+    process_count = lineage.get("process_narrative_count")
+    if not isinstance(process_count, int) or isinstance(process_count, bool) or process_count != len(source_ids):
+        return False
+    subprocess_fields = (
+        "recurrent_process_count",
+        "robust_recurrent_process_count",
+        "counterevidence_bearing_process_count",
+        "context_sensitive_process_count",
+        "null_evaluated_process_count",
+        "alternative_explanation_bearing_process_count",
+    )
+    for field in subprocess_fields:
+        value = lineage.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > process_count:
+            return False
+    if lineage.get("robust_recurrent_process_count") > lineage.get("recurrent_process_count"):
+        return False
+    if lineage.get("nominal_support_is_independent_evidence_count") is not False:
+        return False
+    if lineage.get("cross_process_support_independence_proven") is not False:
+        return False
+    if lineage.get("alternative_explanation_is_independent_counterevidence_vote") is not False:
+        return False
+    if lineage.get("alternative_explanation_count_is_support_count") is not False:
+        return False
+    raw_alternatives = lineage.get("alternative_explanations")
+    if not isinstance(raw_alternatives, list):
+        return False
+    alt_sources: set[str] = set()
+    source_set = set(source_ids)
+    for raw in raw_alternatives:
+        if not isinstance(raw, dict):
+            return False
+        source_id = str(raw.get("source_narrative_id") or "").strip()
+        explanation = raw.get("alternative_explanation")
+        if not source_id or source_id not in source_set or not isinstance(explanation, dict) or not explanation:
+            return False
+        alt_sources.add(source_id)
+    return len(alt_sources) == lineage.get("alternative_explanation_bearing_process_count")
+
+
 def _assembly_report_entries(full_spine: dict[str, Any], limit: int = 12) -> list[dict[str, Any]]:
     seen: set[str] = set()
     result: list[dict[str, Any]] = []
@@ -208,10 +258,14 @@ def _assembly_report_entries(full_spine: dict[str, Any], limit: int = 12) -> lis
         if not text or text in seen:
             continue
         block_family = str(assembly.get("block_family") or "")
-        if block_family in SEQUENCE_BLOCK_FAMILIES and str(assembly.get("claim_ceiling") or "").strip() != ASSEMBLY_CLAIM_CEILING:
+        if block_family in SEQUENCE_BLOCK_FAMILIES | {MATCH_STORY_BLOCK_FAMILY}:
+            if str(assembly.get("claim_ceiling") or "").strip() != ASSEMBLY_CLAIM_CEILING:
+                continue
+        sequence_lineage = assembly.get("sequence_evidence_lineage")
+        if not _sequence_lineage_complete(block_family, sequence_lineage):
             continue
-        lineage = assembly.get("sequence_evidence_lineage")
-        if not _sequence_lineage_complete(block_family, lineage):
+        match_story_lineage = assembly.get("match_story_evidence_lineage")
+        if not _match_story_lineage_complete(block_family, match_story_lineage):
             continue
         seen.add(text)
         result.append(
@@ -219,7 +273,8 @@ def _assembly_report_entries(full_spine: dict[str, Any], limit: int = 12) -> lis
                 "text": text,
                 "block_family": block_family,
                 "claim_ceiling": str(assembly.get("claim_ceiling") or ""),
-                "sequence_evidence_lineage": dict(lineage) if isinstance(lineage, dict) else {},
+                "sequence_evidence_lineage": dict(sequence_lineage) if isinstance(sequence_lineage, dict) else {},
+                "match_story_evidence_lineage": dict(match_story_lineage) if isinstance(match_story_lineage, dict) else {},
             }
         )
         if len(result) >= limit:
@@ -479,6 +534,20 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 if lineage.get("origin_claim_ceiling"):
                     lines.append(f"  origin_claim_ceiling={lineage.get('origin_claim_ceiling')}")
                 lines.append(f"  assembly_claim_ceiling={entry.get('claim_ceiling')}")
+            story_lineage = entry.get("match_story_evidence_lineage") or {}
+            if story_lineage:
+                lines.append(f"  source_narrative_ids={json.dumps(story_lineage.get('source_narrative_ids') or [], ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  process_narrative_count={story_lineage.get('process_narrative_count')}")
+                lines.append(f"  recurrent_process_count={story_lineage.get('recurrent_process_count')}")
+                lines.append(f"  robust_recurrent_process_count={story_lineage.get('robust_recurrent_process_count')}")
+                lines.append(f"  counterevidence_bearing_process_count={story_lineage.get('counterevidence_bearing_process_count')}")
+                lines.append(f"  context_sensitive_process_count={story_lineage.get('context_sensitive_process_count')}")
+                lines.append(f"  null_evaluated_process_count={story_lineage.get('null_evaluated_process_count')}")
+                lines.append(f"  alternative_explanation_bearing_process_count={story_lineage.get('alternative_explanation_bearing_process_count')}")
+                lines.append(f"  alternative_explanations={json.dumps(story_lineage.get('alternative_explanations') or [], ensure_ascii=False, sort_keys=True)}")
+                lines.append("  alternative_explanation_is_independent_counterevidence_vote=false")
+                lines.append("  alternative_explanation_count_is_support_count=false")
+                lines.append(f"  assembly_claim_ceiling={entry.get('claim_ceiling')}")
     elif c4_current:
         lines.append("- Bu run'da final assembly gate tarafindan admitted analyst-text candidate gorunmedi.")
     else:
@@ -516,7 +585,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         "Phase/state etiketleri activity candidate'dir; phase truth degildir.",
         "MICRO/MEZZO/MACRO bir evidence-routing lattice'tir; macro claim mikro/mezo evidence'dan kopamaz.",
         "Player/GK/team gorunumleri candidate identity ve aggregate cell yuzeyidir; validated identity/quality truth degildir.",
-        "User-facing analyst text final assembly admission olmadan yayinlanmaz; sequence-derived text exact lineage, null/context safety locks ve claim-ceiling hop paketini korur.",
+        "User-facing analyst text final assembly admission olmadan yayinlanmaz; sequence ve match-story text exact lineage, alternative-explanation challenge provenance, null/context safety locks ve claim-ceiling hop paketini korur.",
         "",
         "[10] CLAIM LOCKS",
         "canonical_event_count=UNKNOWN",
@@ -607,6 +676,10 @@ def write_standard_user_outputs(
         "sequence_lineage_preserved_in_analyst_report": True,
         "sequence_claim_ceiling_revalidated_in_analyst_report": True,
         "sequence_null_context_locks_revalidated_in_analyst_report": True,
+        "match_story_lineage_preserved_in_analyst_report": True,
+        "match_story_alternative_explanation_lineage_revalidated_in_analyst_report": True,
+        "alternative_explanation_is_independent_counterevidence_vote": False,
+        "alternative_explanation_count_is_support_count": False,
         "current_invocation_artifacts_are_publication_authority": False,
         "bundle_file_inventory_is_publication_authority": False,
         "process_story_diagnostic_artifact": PROCESS_STORY_DIAGNOSTIC_JSON,
