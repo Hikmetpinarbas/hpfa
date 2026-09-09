@@ -14,6 +14,12 @@ from hpfa.modules.core.active_match_spine_runner.src.process_story_sidecar impor
 MODULE_ID = "active_match_professional_story_run_v1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
+PIPELINE_STAGE_ORDER = (
+    "base_active_match_run",
+    "reconstruction_intelligence_packet_run",
+    "reciprocal_process_run",
+    "process_story_projection",
+)
 
 
 def _run(command: list[str], cwd: Path) -> dict[str, Any]:
@@ -27,10 +33,20 @@ def _run(command: list[str], cwd: Path) -> dict[str, Any]:
     }
 
 
+def _not_run(reason: str) -> dict[str, Any]:
+    return {
+        "command": [],
+        "returncode": 1,
+        "passed": False,
+        "stdout": "",
+        "stderr": reason,
+    }
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(
-        description="Run current ACTIVE_MATCH evidence spine through the existing process/story bridge"
+        description="Run current ACTIVE_MATCH evidence spine through the existing reconstruction, process and story bridges"
     )
     parser.add_argument("--match-dir", required=True)
     parser.add_argument("--out-dir", required=True)
@@ -52,16 +68,11 @@ def main() -> int:
         repo_root,
     )
 
-    process = {
-        "command": [],
-        "returncode": 1,
-        "passed": False,
-        "stdout": "",
-        "stderr": "base_active_match_full_run_failed",
-    }
+    reconstruction = _not_run("base_active_match_full_run_failed")
+    process = _not_run("reconstruction_intelligence_packet_run_failed_or_not_evaluated")
     story: dict[str, Any] = {
         "status": "REVIEW_REQUIRED",
-        "decision": "PROCESS_STORY_NOT_EVALUATED_BASE_RUN_FAILED",
+        "decision": "PROCESS_STORY_NOT_EVALUATED_UPSTREAM_INCOMPLETE",
         "story_path_blocked": True,
         "entity_story_count": 0,
         "ready_assembly_item_count": 0,
@@ -69,8 +80,22 @@ def main() -> int:
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": False,
     }
+    story_projection_evaluated = False
 
     if base["passed"]:
+        reconstruction = _run(
+            [
+                sys.executable,
+                "reconstruction_intelligence_packet_adapter_current_v1.py",
+                "--input-dir",
+                str(match_dir),
+                "--out-dir",
+                str(out_dir),
+            ],
+            repo_root,
+        )
+
+    if base["passed"] and reconstruction["passed"]:
         process = _run(
             [
                 sys.executable,
@@ -82,24 +107,35 @@ def main() -> int:
             ],
             repo_root,
         )
-        if process["passed"]:
-            story = write_process_story_sidecar(out_dir)
 
-    story_runtime_bound = (
+    if base["passed"] and reconstruction["passed"] and process["passed"]:
+        story_projection_evaluated = True
+        story = write_process_story_sidecar(out_dir)
+
+    required_analysis_layers_activated = (
         base["passed"]
+        and reconstruction["passed"]
         and process["passed"]
+        and story_projection_evaluated
+    )
+    story_runtime_bound = (
+        required_analysis_layers_activated
         and story.get("story_path_blocked") is False
     )
 
     payload = {
         "module_id": MODULE_ID,
-        "status": "REVIEW_REQUIRED" if base["passed"] else "FAIL_CLOSED",
+        "status": "REVIEW_REQUIRED" if required_analysis_layers_activated else "FAIL_CLOSED",
         "decision": (
-            "ACTIVE_MATCH_PROFESSIONAL_STORY_RUNTIME_EVALUATED"
-            if base["passed"] and process["passed"]
-            else "ACTIVE_MATCH_PROFESSIONAL_STORY_RUNTIME_INCOMPLETE"
+            "ACTIVE_MATCH_FULL_POSTMATCH_PIPELINE_EVALUATED"
+            if required_analysis_layers_activated
+            else "ACTIVE_MATCH_FULL_POSTMATCH_PIPELINE_INCOMPLETE"
         ),
+        "pipeline_stage_order": list(PIPELINE_STAGE_ORDER),
+        "required_analysis_layers_activated": required_analysis_layers_activated,
+        "story_projection_evaluated": story_projection_evaluated,
         "base_active_match_run": base,
+        "reconstruction_intelligence_packet_run": reconstruction,
         "reciprocal_process_run": process,
         "process_story_status": story.get("status"),
         "process_story_decision": story.get("decision"),
@@ -111,6 +147,8 @@ def main() -> int:
         "ready_assembly_item_count": int(story.get("ready_assembly_item_count") or 0),
         "review_hits": list(story.get("review_hits") or []),
         "hard_block_hits": list(story.get("hard_block_hits") or []),
+        "pipeline_is_possession_truth": False,
+        "pipeline_is_tactical_plan_truth": False,
         "professional_story_is_tactical_plan_truth": False,
         "professional_story_is_coach_intention_truth": False,
         "professional_story_is_causality_truth": False,
@@ -127,9 +165,7 @@ def main() -> int:
     )
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
-    if not base["passed"]:
-        return 2
-    return 0
+    return 0 if required_analysis_layers_activated else 2
 
 
 if __name__ == "__main__":
