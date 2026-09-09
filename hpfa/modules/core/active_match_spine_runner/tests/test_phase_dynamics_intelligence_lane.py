@@ -21,6 +21,7 @@ def test_missing_inputs_fail_closed(tmp_path):
     assert payload["recovery_yield_truth"] is False
     assert payload["possession_gain_truth"] is False
     assert payload["progression_safe_finding_engineering_envelope_complete"] is False
+    assert payload["ball_security_safe_finding_engineering_envelope_complete"] is False
     assert payload["recovery_safe_finding_engineering_envelope_complete"] is False
     assert payload["physical_active_match_evidence_present"] is False
     assert payload["professional_finding_emitted"] is False
@@ -46,6 +47,7 @@ def test_lane_writes_all_outputs(monkeypatch, tmp_path):
     progression = {**base, "module_id": "progression_effectiveness_construct_v1", "status": "PASS_CANDIDATE", "construct_candidate_count": 1, "construct_candidate": {"effectiveness_score_emitted": False}, "professional_finding_emitted": False, "claim_output_allowed": False}
     progression_finding = {**base, "module_id": "progression_safe_finding_projection_v1", "status": "PASS_CANDIDATE", "finding_candidate_count": 1, "finding_candidate": {"finding_state": "ENGINEERING_ENVELOPE_READY_PHYSICAL_ACTIVE_MATCH_REQUIRED"}, "engineering_envelope_complete": True, "physical_active_match_evidence_present": False, "professional_finding_emitted": False, "claim_output_allowed": False}
     ball_security = {**base, "module_id": "ball_security_construct_v1", "status": "PASS_CANDIDATE", "construct_candidate_count": 1, "construct_candidate": {"ball_security_score_emitted": False}, "ball_security_truth": False, "loss_exposure_truth": False, "professional_finding_emitted": False, "claim_output_allowed": False}
+    ball_security_finding = {**base, "module_id": "ball_security_safe_finding_projection_v1", "status": "PASS_CANDIDATE", "finding_candidate_count": 1, "finding_candidate": {"finding_state": "ENGINEERING_ENVELOPE_READY_PHYSICAL_ACTIVE_MATCH_REQUIRED"}, "engineering_envelope_complete": True, "physical_active_match_evidence_present": False, "professional_finding_emitted": False, "claim_output_allowed": False}
     recovery_yield = {**base, "module_id": "recovery_yield_construct_v1", "status": "PASS_CANDIDATE", "construct_candidate_count": 1, "construct_candidate": {"recovery_yield_score_emitted": False}, "recovery_yield_truth": False, "possession_gain_truth": False, "professional_finding_emitted": False, "claim_output_allowed": False}
     recovery_finding = {**base, "module_id": "recovery_safe_finding_projection_v1", "status": "PASS_CANDIDATE", "finding_candidate_count": 1, "finding_candidate": {"finding_state": "ENGINEERING_ENVELOPE_READY_PHYSICAL_ACTIVE_MATCH_REQUIRED"}, "engineering_envelope_complete": True, "physical_active_match_evidence_present": False, "professional_finding_emitted": False, "claim_output_allowed": False}
 
@@ -57,6 +59,7 @@ def test_lane_writes_all_outputs(monkeypatch, tmp_path):
     monkeypatch.setattr(lane, "build_progression_effectiveness_construct", lambda *args, **kwargs: progression)
     monkeypatch.setattr(lane, "build_progression_safe_finding_projection", lambda *args: progression_finding)
     monkeypatch.setattr(lane, "build_ball_security_construct", lambda *args, **kwargs: ball_security)
+    monkeypatch.setattr(lane, "build_ball_security_safe_finding_projection", lambda *args: ball_security_finding)
     monkeypatch.setattr(lane, "build_recovery_yield_construct", lambda *args, **kwargs: recovery_yield)
     monkeypatch.setattr(lane, "build_recovery_safe_finding_projection", lambda *args: recovery_finding)
 
@@ -69,6 +72,8 @@ def test_lane_writes_all_outputs(monkeypatch, tmp_path):
     assert result["progression_safe_finding_candidate_count"] == 1
     assert result["progression_safe_finding_engineering_envelope_complete"] is True
     assert result["ball_security_construct_candidate_count"] == 1
+    assert result["ball_security_safe_finding_candidate_count"] == 1
+    assert result["ball_security_safe_finding_engineering_envelope_complete"] is True
     assert result["recovery_yield_construct_candidate_count"] == 1
     assert result["recovery_safe_finding_candidate_count"] == 1
     assert result["recovery_safe_finding_engineering_envelope_complete"] is True
@@ -95,6 +100,7 @@ def _patch_common_lane(monkeypatch, lane, base):
     monkeypatch.setattr(lane, "build_episode_consequence_projection", lambda *args: {**base, "module_id": "episode_consequence_projection_v1", "episode_consequence_candidates": []})
     monkeypatch.setattr(lane, "build_phase_dynamics_interaction_bridge", lambda *args: {**base, "module_id": "phase_dynamics_interaction_bridge_v1"})
     monkeypatch.setattr(lane, "load_guard", lambda *args: {"module_id": "construct_context_guard_v1"})
+    monkeypatch.setattr(lane, "build_ball_security_safe_finding_projection", lambda *args: {**base, "module_id": "ball_security_safe_finding_projection_v1", "finding_candidate_count": 0, "engineering_envelope_complete": False})
     monkeypatch.setattr(lane, "build_recovery_safe_finding_projection", lambda *args: {**base, "module_id": "recovery_safe_finding_projection_v1", "finding_candidate_count": 0, "engineering_envelope_complete": False})
 
 
@@ -122,10 +128,12 @@ def test_ball_security_failure_closes_lane(monkeypatch, tmp_path):
     monkeypatch.setattr(lane, "build_progression_effectiveness_construct", lambda *args, **kwargs: {**base, "module_id": "progression_effectiveness_construct_v1", "construct_candidate_count": 1})
     monkeypatch.setattr(lane, "build_progression_safe_finding_projection", lambda *args: {**base, "module_id": "progression_safe_finding_projection_v1", "finding_candidate_count": 1, "engineering_envelope_complete": False})
     monkeypatch.setattr(lane, "build_ball_security_construct", lambda *args, **kwargs: {**base, "module_id": "ball_security_construct_v1", "status": "FAIL_CLOSED", "hard_block_hits": ["guard_failure"], "construct_candidate_count": 0})
+    monkeypatch.setattr(lane, "build_ball_security_safe_finding_projection", lambda *args: {**base, "module_id": "ball_security_safe_finding_projection_v1", "status": "FAIL_CLOSED", "hard_block_hits": ["upstream_ball_security_failure"], "finding_candidate_count": 0, "engineering_envelope_complete": False})
     monkeypatch.setattr(lane, "build_recovery_yield_construct", lambda *args, **kwargs: {**base, "module_id": "recovery_yield_construct_v1", "construct_candidate_count": 1})
     result = run_phase_dynamics_intelligence_lane(tmp_path)
     assert result["status"] == "FAIL_CLOSED"
     assert "ball_security_fail_closed" in result["hard_block_hits"]
+    assert "ball_security_safe_finding_fail_closed" in result["hard_block_hits"]
 
 
 def test_recovery_yield_failure_closes_lane(monkeypatch, tmp_path):
