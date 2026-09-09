@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -86,6 +86,57 @@ def _validate_input(payload: dict[str, Any], module_id: str, prefix: str, blocks
         blocks.append(f"{prefix}_production_release_claimed")
     if payload.get("hard_block_hits"):
         blocks.append(f"{prefix}_hard_blocks_present")
+
+
+def _entity_profiles(
+    groups: dict[str, list[str]],
+    outcome_state_by_trace: dict[str, tuple[str, str | None, str | None]],
+    *,
+    entity_key: str,
+) -> list[dict[str, Any]]:
+    profiles: list[dict[str, Any]] = []
+    for entity_id, trace_ids in sorted(groups.items()):
+        denominator = len(trace_ids)
+        positive_refs: list[str] = []
+        adverse_refs: list[str] = []
+        unresolved_refs: list[str] = []
+        consequence_counts: Counter[str] = Counter()
+        evaluable = 0
+        for trace_id in trace_ids:
+            state, consequence_id, primary = outcome_state_by_trace.get(trace_id, ("UNRESOLVED", None, None))
+            if primary:
+                consequence_counts[primary] += 1
+            if state == "POSITIVE":
+                evaluable += 1
+                positive_refs.append(consequence_id or trace_id)
+            elif state == "ADVERSE":
+                evaluable += 1
+                adverse_refs.append(consequence_id or trace_id)
+            else:
+                unresolved_refs.append(consequence_id or trace_id)
+        profiles.append({
+            entity_key: entity_id,
+            "eligible_progression_trace_candidate_count": denominator,
+            "eligible_progression_trace_candidate_refs": sorted(trace_ids),
+            "evaluable_progression_consequence_candidate_count": evaluable,
+            "progression_consequence_coverage_rate_candidate": _ratio(evaluable, denominator),
+            "visible_positive_follow_up_candidate_count": len(positive_refs),
+            "visible_adverse_handover_candidate_count": len(adverse_refs),
+            "positive_follow_up_rate_among_evaluable_candidate": _ratio(len(positive_refs), evaluable),
+            "adverse_handover_rate_among_evaluable_candidate": _ratio(len(adverse_refs), evaluable),
+            "unresolved_or_missing_consequence_candidate_count": denominator - evaluable,
+            "consequence_classification_counts": dict(sorted(consequence_counts.items())),
+            "support_consequence_candidate_refs": sorted(positive_refs),
+            "counterevidence_consequence_candidate_refs": sorted(adverse_refs),
+            "unresolved_consequence_candidate_refs": sorted(unresolved_refs),
+            "profile_is_rank_truth": False,
+            "profile_is_player_quality_truth": False,
+            "profile_is_team_control_truth": False,
+            "same_provider_reflection_adds_independent_vote": False,
+            "independent_support_vote_count": 0,
+            "missing_consequence_is_counterevidence": False,
+        })
+    return profiles
 
 
 def build_progression_effectiveness_construct(
@@ -177,10 +228,27 @@ def build_progression_effectiveness_construct(
     counterevidence_refs: list[str] = []
     unresolved_refs: list[str] = []
     evaluable = 0
+    outcome_state_by_trace: dict[str, tuple[str, str | None, str | None]] = {}
+    team_groups: dict[str, list[str]] = defaultdict(list)
+    actor_groups: dict[str, list[str]] = defaultdict(list)
+
     for trace_id in progression_ids:
+        trace = trace_by_id[trace_id]
+        team_id = _clean(trace.get("team_identity_candidate_id"))
+        actor_id = _clean(trace.get("actor_identity_candidate_id"))
+        if team_id:
+            team_groups[team_id].append(trace_id)
+        else:
+            reviews.append(f"progression_trace_team_identity_missing:{trace_id}")
+        if actor_id:
+            actor_groups[actor_id].append(trace_id)
+        else:
+            reviews.append(f"progression_trace_actor_identity_missing:{trace_id}")
+
         row = consequence_by_anchor.get(trace_id)
         if row is None:
             unresolved_refs.append(trace_id)
+            outcome_state_by_trace[trace_id] = ("UNRESOLVED", None, None)
             continue
         primary = _clean(row.get("primary_consequence_candidate"))
         record_status = _clean(row.get("record_status"))
@@ -188,15 +256,19 @@ def build_progression_effectiveness_construct(
         outcome_counts[primary or "UNKNOWN"] += 1
         if record_status == "REVIEW_REQUIRED" or primary in REVIEW_OR_UNKNOWN_CONSEQUENCES or not primary:
             unresolved_refs.append(consequence_id)
+            outcome_state_by_trace[trace_id] = ("UNRESOLVED", consequence_id, primary or None)
             continue
         evaluable += 1
         if primary in POSITIVE_CONSEQUENCES:
             support_refs.append(consequence_id)
+            outcome_state_by_trace[trace_id] = ("POSITIVE", consequence_id, primary)
         elif primary in ADVERSE_CONSEQUENCES:
             counterevidence_refs.append(consequence_id)
+            outcome_state_by_trace[trace_id] = ("ADVERSE", consequence_id, primary)
         else:
             unresolved_refs.append(consequence_id)
             evaluable -= 1
+            outcome_state_by_trace[trace_id] = ("UNRESOLVED", consequence_id, primary)
 
     positive = len(support_refs)
     adverse = len(counterevidence_refs)
@@ -205,6 +277,13 @@ def build_progression_effectiveness_construct(
         reviews.append("no_progression_eligible_trace_candidate_visible")
     if missing_or_uncertain > 0:
         reviews.append("progression_consequence_coverage_incomplete")
+
+    team_profiles = _entity_profiles(team_groups, outcome_state_by_trace, entity_key="team_identity_candidate_id")
+    actor_profiles = _entity_profiles(actor_groups, outcome_state_by_trace, entity_key="actor_identity_candidate_id")
+    if sum(row["eligible_progression_trace_candidate_count"] for row in team_profiles) != denominator:
+        reviews.append("team_progression_denominator_reconciliation_incomplete")
+    if sum(row["eligible_progression_trace_candidate_count"] for row in actor_profiles) != denominator:
+        reviews.append("actor_progression_denominator_reconciliation_incomplete")
 
     blocks = sorted(set(blocks))
     reviews = sorted(set(reviews))
@@ -215,6 +294,7 @@ def build_progression_effectiveness_construct(
             "construct_candidate_id": f"pec_{trace_binding[-16:] or 'unbound'}",
             **context,
             "eligible_progression_trace_candidate_count": denominator,
+            "eligible_progression_trace_candidate_refs": sorted(progression_ids),
             "evaluable_progression_consequence_candidate_count": evaluable,
             "progression_consequence_coverage_rate_candidate": _ratio(evaluable, denominator),
             "visible_positive_follow_up_candidate_count": positive,
@@ -226,19 +306,33 @@ def build_progression_effectiveness_construct(
             "support_consequence_candidate_refs": sorted(support_refs),
             "counterevidence_consequence_candidate_refs": sorted(counterevidence_refs),
             "unresolved_consequence_candidate_refs": sorted(unresolved_refs),
+            "team_progression_effectiveness_profile_candidates": team_profiles,
+            "team_progression_effectiveness_profile_candidate_count": len(team_profiles),
+            "actor_progression_effectiveness_profile_candidates": actor_profiles,
+            "actor_progression_effectiveness_profile_candidate_count": len(actor_profiles),
+            "team_profile_denominator_reconciles_to_construct": sum(
+                row["eligible_progression_trace_candidate_count"] for row in team_profiles
+            ) == denominator,
+            "actor_profile_denominator_reconciles_to_construct": sum(
+                row["eligible_progression_trace_candidate_count"] for row in actor_profiles
+            ) == denominator,
+            "entity_profile_comparison_requires_construct_context_guard": True,
             "alternative_explanations": [
                 "visible consequence may reflect teammate/opponent response rather than anchor quality alone",
                 "provider progression annotation coverage may be selective",
                 "match-local role and game-state mix may change the opportunity set",
+                "player/team decomposition describes observed contribution surface and does not isolate individual causal value",
             ],
             "uncertainty": "MATCH_LOCAL_VISIBLE_CONSEQUENCE_COVERAGE_ONLY_NO_CALIBRATED_EFFECTIVENESS_TRUTH",
-            "withdrawal_condition": "withdraw comparison or finding if denominator/context alignment, progression semantic authority, temporal admission, consequence coverage, or dependency controls fail",
-            "analyst_action": "inspect support and counterevidence trace/consequence refs before describing progression effectiveness",
+            "withdrawal_condition": "withdraw comparison or finding if denominator/context alignment, progression semantic authority, temporal admission, consequence coverage, identity reconciliation, or dependency controls fail",
+            "analyst_action": "inspect team/player denominator, support, counterevidence and unresolved refs before describing progression contribution or effectiveness",
             "same_provider_reflection_adds_independent_vote": False,
             "independent_support_vote_count": 0,
             "missing_consequence_is_counterevidence": False,
             "effectiveness_score_emitted": False,
             "construct_validity_truth": False,
+            "player_quality_truth": False,
+            "team_control_truth": False,
             "professional_finding_emitted": False,
             "claim_output_allowed": False,
         }
@@ -255,6 +349,8 @@ def build_progression_effectiveness_construct(
         "review_hits": reviews,
         "progression_effectiveness_truth": False,
         "metric_validity_truth": False,
+        "player_quality_truth": False,
+        "team_control_truth": False,
         "possession_truth": False,
         "sequence_truth": False,
         "causal_truth": False,
