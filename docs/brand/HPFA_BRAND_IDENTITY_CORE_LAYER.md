@@ -4,7 +4,7 @@ Kayıt tipi: Brand identity / communication governance
 Kayıt dili: Türkçe  
 Ürün ilişkisi: HPFA'nın dış iletişim, rapor dili, arayüz tonu ve görsel kararları için temel marka katmanı  
 Runtime authority: Bu dosya runtime truth değildir.  
-Claim discipline: Marka dili, HPFA'nın event-only ve claim-safe analiz disiplinini bozmayacak şekilde çalışır.
+Claim discipline: Marka dili, HPFA'nın ZFGV/EFOD tabanlı ve claim-safe analiz disiplinini bozmayacak şekilde çalışır.
 
 ---
 
@@ -12,7 +12,16 @@ Claim discipline: Marka dili, HPFA'nın event-only ve claim-safe analiz disiplin
 
 HPFA bir futbol istatistik sitesi değildir.
 
-HPFA, event verisini yapılandırılmış taktik zekâya dönüştüren epistemik bir football intelligence sistemidir.
+HPFA, çoklu futbol gözlem yüzeylerini savunulabilir profesyonel futbol zekâsına dönüştüren epistemik bir Football Intelligence sistemidir.
+
+Kanonik veri modeli:
+
+```text
+event ⊂ ZFGV
+ZFGV != event
+```
+
+Event/action, entity, temporal, spatial, outcome/qualifier, relational, process/participation, aggregate/tabular ve uygun bağlam yüzeyleri aynı evidence spine içinde kullanılabilir. Tracking/video yalnız gerçekten mevcutsa ilgili truth ceiling'i yükseltebilir.
 
 Marka kimliği şu hissi vermelidir:
 
@@ -28,7 +37,7 @@ Referans karakter:
 - Palantir'in sistem/mimari hissi,
 - Stratfor'un analitik otoritesi,
 - Opta'nın ciddi yüzü,
-- fakat HPFA'nın kendi event-only ve claim-safe epistemik disiplini.
+- fakat HPFA'nın kendi ZFGV, evidence-lineage ve claim-safe epistemik disiplini.
 
 ---
 
@@ -46,15 +55,20 @@ Spekülasyon açıkça işaretlenir.
 
 HPFA rastgele gözlemler sunmaz.
 
-Event → primitive → sequence → behaviour → pattern → claim zinciriyle konuşur.
+```text
+SOURCE → SURFACE → OBSERVATION → SEMANTICS → IDENTITY/DEPENDENCY
+→ TIME/SPACE ADMISSION → RELATION → EPISODE/PROCESS → CONTEXT
+→ CONSEQUENCE → FEATURE → METRIC/MODEL → HYPOTHESIS
+→ COUNTEREVIDENCE → FINDING → CLAIM → ANALYST OUTPUT
+```
 
-Parça değil, bütün anlatır.
+Parça değil, kanıt zinciri içinde bütünü anlatır.
 
 ### 3. Sessiz Otorite
 
 HPFA bağırarak değil, netlikle ikna eder.
 
-Ton: kesinlik arayan, fakat abartmayan uzman.
+Ton: kesinlik arayan, fakat kanıt tavanını aşmayan uzman.
 
 ### 4. Entelektüel Derinlik
 
@@ -68,7 +82,7 @@ HPFA bilmediğini saklamaz.
 
 Belirsizliği sınıflandırır.
 
-`bilmiyoruz`, `veri yetersiz`, `doğrulanamadı`, `aday seviye`, `review-required` ifadeleri güvenilirliğin parçasıdır.
+`bilmiyoruz`, `veri yetersiz`, `doğrulanamadı`, `aday seviye`, `review-required`, `abstain`, `tracking/video required` ifadeleri güvenilirliğin parçasıdır.
 
 ---
 
@@ -86,9 +100,11 @@ Belirsizliği sınıflandırır.
 
 ### Kullanılacak dil
 
-- `visible surface evidence indicates...`
-- `row-level evidence shows...`
+- `visible observation evidence indicates...`
+- `admitted surface evidence shows...`
 - `action-family volume suggests...`
+- `aggregate observation supports but does not identify actions...`
+- `process participation candidate...`
 - `context candidate only...`
 - `high confidence at review level...`
 - `not validated as truth...`
@@ -111,17 +127,18 @@ Belirsizliği sınıflandırır.
 
 HPFA gerektiğinde şu tip sorularla konuşabilir:
 
-- `Bu gerçekten oldu mu, yoksa yüzeyde öyle mi göründü?`
-- `Bu bir pattern mı, yoksa tekil yoğunluk mu?`
+- `Bu gerçekten gözlendi mi, yoksa yalnızca provider etiketi mi?`
+- `Bu bir tekrar mı, yoksa tekil yoğunluk mu?`
 - `Bu veri neyi kanıtlıyor, neyi yalnızca aday gösteriyor?`
-- `Bu okuma tracking gerektiriyor mu?`
-- `Bu iddiayı hangi veri yanlışlar?`
+- `Bu construct için hangi observation capability gerekli?`
+- `Bu okuma tracking/video gerektiriyor mu?`
+- `Bu iddiayı hangi karşı örnek veya veri yanlışlar?`
 
 ---
 
 ## 3. Konumlandırma Metni
 
-> HPFA, futbol event verisini ham gözlemden yapılandırılmış taktik zekâya dönüştüren bir analiz mimarisidir. Popüler futbol analitiğinin aksine HPFA, her iddiayı kanıt seviyesine, bağlama ve yanlışlanabilirlik koşullarına göre sınıflandırır. Biz ilginç bulgular üretmiyoruz; açıklanabilir, denetlenebilir ve tekrarlanabilir bir analiz sistemi kuruyoruz. HPFA, futbolu tahmin etmez; futbolu doğru şekilde bilmenin sınırlarını haritalar.
+> HPFA, futbol gözlemlerini ham yüzeylerden savunulabilir profesyonel futbol zekâsına dönüştüren bir analiz mimarisidir. Event/action verisini önemli fakat tek olmayan bir gözlem ailesi olarak ele alır; entity, zaman, alan, outcome, ilişki, process/participation, aggregate ve bağlam yüzeylerini yalnız kanıt verdikleri ölçüde aynı evidence spine'a bağlar. Her iddia kanıt seviyesine, bağlama, karşı kanıta ve yanlışlanabilirlik koşullarına göre sınıflandırılır. Amaç ilginç bulgu üretmek değil; açıklanabilir, denetlenebilir ve tekrarlanabilir Football Intelligence üretmektir.
 
 ---
 
@@ -146,7 +163,7 @@ HPFA aşağıdaki görsel dillerden kaçınır:
 Logo şu dönüşümü hissettirmelidir:
 
 ```text
-ham veri → yapılandırılmış zekâ
+ham gözlem → bağlı kanıt → yapılandırılmış zekâ
 ```
 
 Logo bir top veya oyuncu figürü olmak zorunda değildir.
@@ -189,7 +206,9 @@ Bu marka kimliği yalnızca logo veya dış görünüş için değildir.
 ### Raporlarda
 
 - Her ana iddia evidence chain ile desteklenir.
+- Observation capability ve evidence strength gerektiğinde görünürdür.
 - Confidence seviyesi belirtilir.
+- Counterevidence ve alternative explanation korunur.
 - Claim boundary açık yazılır.
 - `ne görüldü` ana metinde anlatılır.
 - `ne söylenemez` teknik sınır bloğunda tutulur.
@@ -200,6 +219,7 @@ Bu marka kimliği yalnızca logo veya dış görünüş için değildir.
 - `PASS` ile `RELEASE` ayrılmalıdır.
 - `REVIEW_REQUIRED` fail gibi gösterilmemelidir.
 - `CANDIDATE_ONLY` kullanıcıya net sunulmalıdır.
+- `ABSTAIN` bilgi eksikliğini saklamamalıdır.
 
 ### Yayın / sunum dilinde
 
@@ -214,18 +234,24 @@ Bu marka kimliği yalnızca logo veya dış görünüş için değildir.
 
 Marka dili HPFA'nın teknik claim boundary'sini ihlal edemez.
 
-Aşağıdaki iddialar marka/sunum dilinde de yasaktır:
+Aşağıdaki iddialar uygun tracking/video veya ayrıca admitted evidence olmadan marka/sunum dilinde de truth olarak açılamaz:
 
-- dominance truth
+- dominance
 - coach intention
-- off-ball structure truth
-- pitch control truth
-- body orientation truth
-- fatigue truth
-- tactical plan truth
-- canonical event count before Canonical Event Lite
+- tactical plan
+- true team shape / compactness / defensive-line height
+- pitch control
+- off-ball geometry / run truth / option geometry
+- body orientation / scanning
+- true pressure geometry
+- true physical speed/load/fatigue
+- causality
+- canonical event count
+- true action count
 - validated event truth without validation
 - production release without release authority
+
+Provider label, aggregate, coordinate, recurrence veya model output tek başına bu sınırı yükseltmez.
 
 ---
 
@@ -236,7 +262,7 @@ HPFA'nın marka kimliği, spor-eğlence markası değil, epistemik mühendislik 
 Marka, sistemin yaptığı işi gizlememeli; tam tersine görünür kılmalıdır:
 
 ```text
-event-only evidence → structured football intelligence → claim-safe explanation
+ZFGV observations → evidence spine → defensible football intelligence → claim-safe explanation
 ```
 
 HPFA'nın dış dünyaya vereceği temel his:
