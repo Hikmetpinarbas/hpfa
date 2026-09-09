@@ -1,0 +1,22 @@
+{
+  "contract_id": "process_story_publication_alternative_explanation_lineage_v1",
+  "producer": "active_match_process_story_sidecar_v1",
+  "publication_authority_artifact": "active_match_process_story_sidecar_v1.txt",
+  "source_boundary": "final_report_assembly_candidate_only",
+  "purpose": "Preserve assembly-admitted match-story alternative-explanation provenance at the user-facing publication boundary without converting challenge lineage into support or independent counterevidence.",
+  "invariants": {
+    "assembly_admission_required": true,
+    "alternative_explanation_source_narrative_must_belong_to_exact_story_cohort": true,
+    "alternative_explanation_payload_must_be_nonempty_structured_object": true,
+    "alternative_explanation_bearing_process_count_must_equal_unique_source_narrative_count": true,
+    "alternative_explanation_is_independent_counterevidence_vote": false,
+    "alternative_explanation_count_is_support_count": false,
+    "alternative_explanation_must_not_strengthen_recurrence": true,
+    "alternative_explanation_must_not_create_action_or_event_truth": true
+  },
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}
