@@ -49,6 +49,8 @@ def test_valid_safe_finding_emit_is_accepted_as_input_not_re_emitted():
     assert block["production_release"] is False
     assert block["canonical_event_count"] == "UNKNOWN"
     assert block["true_action_count"] == "UNKNOWN"
+    assert result["numeric_evidence_counts_are_strict_nonnegative_integers"] is True
+    assert result["boolean_numeric_evidence_rejected"] is True
 
 
 def test_alternative_explanation_only_challenge_survives_structured_and_story_projection():
@@ -73,3 +75,31 @@ def test_emitted_row_without_emit_status_fails_closed():
     result = compose_sequence_analyst_narrative(_payload(_row(status="", emitted=True, allowed=True)))
     assert result["status"] == "FAIL_CLOSED"
     assert "upstream_emitted_finding_status_missing" in result["hard_block_hits"]
+
+
+def test_boolean_observed_support_cannot_become_one_visible_example():
+    row = _row()
+    row["trace_variant_refs"] = ["TRACE_A"]
+    row["recurrence_summary"]["observed_support"] = True
+    result = compose_sequence_analyst_narrative(_payload(row))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_numeric_evidence_invalid:observed_support" in result["hard_block_hits"]
+    assert result["narrative_blocks"] == []
+
+
+def test_boolean_challenge_support_cannot_inflate_counterweight():
+    row = _row()
+    row["failure_support"] = True
+    result = compose_sequence_analyst_narrative(_payload(row))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_numeric_evidence_invalid:failure_support" in result["hard_block_hits"]
+    assert result["narrative_blocks"] == []
+
+
+def test_negative_support_count_fails_closed_before_story_projection():
+    row = _row()
+    row["divergence_support"] = -1
+    result = compose_sequence_analyst_narrative(_payload(row))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "upstream_numeric_evidence_invalid:divergence_support" in result["hard_block_hits"]
+    assert result["narrative_blocks"] == []
