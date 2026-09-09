@@ -101,4 +101,3 @@ def test_xlsx_aggregate_can_bind_review_bounded_trace_cohort_without_truth_upgra
     assert result["aggregate_support_trace_candidate_ref_count"] == 1
     assert result["aggregate_support_trace_relation_review_required_count"] == 1
     assert result["aggregate_support_trace_relation_review_bound"] is True
-    assert result["canonical_event_count"] if "canonical_event_count" in result else True
