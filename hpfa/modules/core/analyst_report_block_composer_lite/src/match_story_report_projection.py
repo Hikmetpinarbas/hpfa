@@ -49,8 +49,8 @@ def compose_match_story_report(source_payload: dict[str, Any]) -> dict[str, Any]
     """Project entity-level match stories into analyst-readable report block candidates.
 
     The projection does not discover new football facts or strengthen evidence. It keeps
-    process counts nominal, preserves unique trace lineage, and carries the source claim
-    ceiling and withdrawal condition into the report candidate.
+    process counts nominal, preserves unique trace and challenge lineage, and carries the
+    source claim ceiling and withdrawal condition into the report candidate.
     """
     hard: list[str] = []
     reviews: list[str] = []
@@ -118,6 +118,10 @@ def compose_match_story_report(source_payload: dict[str, Any]) -> dict[str, Any]
             return _fail(f"story_nominal_support_independence_lock_breach:{entity}")
         if story.get("cross_process_support_independence_proven") is not False:
             return _fail(f"story_cross_process_independence_lock_breach:{entity}")
+        if story.get("alternative_explanation_is_independent_counterevidence_vote") is not False:
+            return _fail(f"story_alternative_explanation_independence_lock_breach:{entity}")
+        if story.get("alternative_explanation_count_is_support_count") is not False:
+            return _fail(f"story_alternative_explanation_support_lock_breach:{entity}")
 
         source_ids = sorted({_clean(x) for x in (story.get("source_narrative_ids") or []) if _clean(x)})
         trace_refs = sorted({_clean(x) for x in (story.get("unique_trace_refs") or []) if _clean(x)})
@@ -128,6 +132,7 @@ def compose_match_story_report(source_payload: dict[str, Any]) -> dict[str, Any]
         recurrent_count = story.get("recurrent_process_count")
         robust_count = story.get("robust_recurrent_process_count")
         counter_count = story.get("counterevidence_bearing_process_count")
+        alternative_count = story.get("alternative_explanation_bearing_process_count")
         context_count = story.get("context_sensitive_process_count")
         null_count = story.get("null_evaluated_process_count")
         accounting = {
@@ -135,6 +140,7 @@ def compose_match_story_report(source_payload: dict[str, Any]) -> dict[str, Any]
             "recurrent_process_count": recurrent_count,
             "robust_recurrent_process_count": robust_count,
             "counterevidence_bearing_process_count": counter_count,
+            "alternative_explanation_bearing_process_count": alternative_count,
             "context_sensitive_process_count": context_count,
             "null_evaluated_process_count": null_count,
         }
@@ -148,6 +154,26 @@ def compose_match_story_report(source_payload: dict[str, Any]) -> dict[str, Any]
                 return _fail(f"story_{key}_exceeds_process_count:{entity}")
         if robust_count > recurrent_count:
             return _fail(f"story_robust_recurrent_process_count_exceeds_recurrent:{entity}")
+
+        alternative_explanations = [
+            item for item in (story.get("alternative_explanations") or []) if isinstance(item, dict)
+        ]
+        alternative_source_ids: set[str] = set()
+        normalized_alternatives: list[dict[str, Any]] = []
+        for item in alternative_explanations:
+            source_id = _clean(item.get("source_narrative_id"))
+            explanation = item.get("alternative_explanation")
+            if not source_id or source_id not in source_ids:
+                return _fail(f"alternative_explanation_source_lineage_invalid:{entity}")
+            if not isinstance(explanation, dict) or not explanation:
+                return _fail(f"alternative_explanation_payload_invalid:{entity}")
+            alternative_source_ids.add(source_id)
+            normalized_alternatives.append({
+                "source_narrative_id": source_id,
+                "alternative_explanation": explanation,
+            })
+        if alternative_count != len(alternative_source_ids):
+            return _fail(f"alternative_explanation_bearing_process_count_mismatch:{entity}")
 
         unique_count = story.get("unique_trace_ref_count")
         if not _is_nonnegative_int(unique_count) or unique_count != len(trace_refs):
@@ -180,6 +206,10 @@ def compose_match_story_report(source_payload: dict[str, Any]) -> dict[str, Any]
             "recurrent_process_count": recurrent_count,
             "robust_recurrent_process_count": robust_count,
             "counterevidence_bearing_process_count": counter_count,
+            "alternative_explanation_bearing_process_count": alternative_count,
+            "alternative_explanations": normalized_alternatives,
+            "alternative_explanation_is_independent_counterevidence_vote": False,
+            "alternative_explanation_count_is_support_count": False,
             "context_sensitive_process_count": context_count,
             "null_evaluated_process_count": null_count,
             "nominal_support_sum": nominal_support,
