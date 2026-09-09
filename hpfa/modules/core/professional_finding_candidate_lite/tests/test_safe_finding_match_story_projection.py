@@ -111,6 +111,7 @@ def test_upstream_truth_or_release_lock_breach_fails_closed():
 
 
 def test_no_sample_match_identity_leak():
-    text = Path(__file__).with_name("../src/safe_finding_match_story_projection.py").resolve().read_text(encoding="utf-8")
+    source = Path(__file__).resolve().parents[1] / "src" / "safe_finding_match_story_projection.py"
+    text = source.read_text(encoding="utf-8")
     forbidden = ["Genclerbirligi", "Fenerbahce", "15.08.2026"]
     assert not any(token in text for token in forbidden)
