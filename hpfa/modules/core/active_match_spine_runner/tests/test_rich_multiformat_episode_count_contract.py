@@ -103,7 +103,7 @@ def test_any_invalid_family_count_withdraws_family_primitives_and_macro_projecti
         assert result["admitted_action_family_candidate_counts"] == {}
 
 
-def test_strict_integer_counts_preserve_existing_candidate_semantics():
+def test_strict_integer_counts_preserve_count_semantics_without_label_support_promotion():
     phase = _phase_state_candidates(_features())[0]
     assert phase["count_contract_review_required"] is False
     assert phase["invalid_count_fields"] == []
@@ -114,7 +114,13 @@ def test_strict_integer_counts_preserve_existing_candidate_semantics():
     c01 = _construct_c01([_progression_row()], _features())
     assert c01["count_contract_review_required"] is False
     assert c01["visible_shot_candidate_count"] == 1
-    assert c01["packet_candidate"] is not None
+    assert c01["progression_label_navigation_ref_count"] == 1
+    assert c01["terminal_label_navigation_ref_count"] == 1
+    assert c01["progression_aggregate_ref_count"] == 0
+    assert c01["terminal_aggregate_ref_count"] == 0
+    assert c01["packet_candidate"] is None
+    assert c01["construct_semantic_authority_admitted"] is False
+    assert c01["xlsx_metric_label_match_is_construct_semantic_authority"] is False
     assert c01["construct_truth"] is False
 
     primitives = _primitive_metrics(_features(), _entity_views())
