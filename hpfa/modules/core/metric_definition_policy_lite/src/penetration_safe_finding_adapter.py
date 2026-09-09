@@ -10,7 +10,7 @@ from hpfa.modules.core.metric_definition_policy_lite.src.progression_safe_findin
 MODULE_ID = "penetration_safe_finding_projection_v1"
 PENETRATION_MODULE_ID = "penetration_construct_v1"
 PROGRESSION_MODULE_ID = "progression_effectiveness_construct_v1"
-CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_TERMINAL_PENETRATION_FINDING_CANDIDATE_ONLY"
+CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_TERMINAL_PENETRATION_AND_EPISODE_RECURRENCE_FINDING_CANDIDATE_ONLY"
 
 
 def _clean(value: Any) -> str:
@@ -83,6 +83,10 @@ def _adapt_penetration_to_existing_safe_finding_schema(
         "claim_output_allowed": "claim_output_allowed_claimed",
     }
     lock_blocks = [name for field, name in required_false_locks.items() if construct.get(field) is not False]
+    if construct.get("recurrence_truth") not in {None, False}:
+        lock_blocks.append("recurrence_truth_claimed")
+    if construct.get("tactical_pattern_truth") not in {None, False}:
+        lock_blocks.append("tactical_pattern_truth_claimed")
     if construct.get("box_access_surface_available") is not False:
         lock_blocks.append("box_access_surface_unreviewed_or_claimed")
     if construct.get("box_access_rate_candidate") is not None:
@@ -149,8 +153,18 @@ def build_penetration_safe_finding_projection(
         "visible_terminal_outcome_support_candidate_count": construct.get("visible_terminal_outcome_support_candidate_count"),
         "visible_adverse_handover_candidate_count": construct.get("visible_adverse_handover_candidate_count"),
         "unresolved_or_missing_followup_candidate_count": construct.get("unresolved_or_missing_followup_candidate_count"),
+        "terminal_support_episode_candidate_count": construct.get("terminal_support_episode_candidate_count"),
+        "visible_terminal_penetration_recurrence_candidate": construct.get("visible_terminal_penetration_recurrence_candidate"),
         "box_access_surface_available": False,
         "box_access_rate_candidate": None,
+    }
+    where_when = {
+        "episode_context_surface_available": construct.get("episode_context_surface_available") is True,
+        "terminal_support_episode_binding_coverage_rate_candidate": construct.get("terminal_support_episode_binding_coverage_rate_candidate"),
+        "terminal_support_episode_candidate_refs": list(construct.get("terminal_support_episode_candidate_refs") or []),
+        "phase_activity_terminal_support_counts": dict(construct.get("phase_activity_terminal_support_counts") or {}),
+        "process_family_terminal_support_counts": dict(construct.get("process_family_terminal_support_counts") or {}),
+        "same_timestamp_total_order_inferred": False,
     }
     support = {
         "support_refs": list(finding.get("support_refs") or []),
@@ -163,10 +177,11 @@ def build_penetration_safe_finding_projection(
         "absence_is_confirmation": False,
         "missing_follow_up_is_failure": False,
         "no_box_access_surface_is_counterevidence": False,
+        "incomplete_episode_binding_is_counterevidence": False,
     }
     safe_meaning = (
-        "Describe the match-local admitted progression opportunity set and its visible terminal, adverse-handover, and unresolved follow-up distribution; "
-        "shot/terminal follow-up is terminal-access support only and must not be promoted to complete box-access, territorial-control, quality or causal truth."
+        "Describe the match-local admitted progression opportunity set, visible terminal/adverse/unresolved follow-up distribution, and—when episode binding coverage is complete—whether terminal support recurred across distinct navigation episodes. "
+        "Episode recurrence is observed repetition only; it is not tactical intention, causal quality, complete box access or territorial control."
     )
     forbidden = [
         "complete box-access rate",
@@ -175,7 +190,10 @@ def build_penetration_safe_finding_projection(
         "individual causal creation value",
         "player penetration quality truth",
         "team tactical plan truth",
+        "recurrence as tactical intention",
+        "recurrence as causality",
         "missing follow-up as failure",
+        "incomplete episode binding as counterevidence",
         "same-provider reflection as an independent evidence vote",
     ]
 
@@ -184,11 +202,13 @@ def build_penetration_safe_finding_projection(
         "construct_candidate_id": construct.get("construct_candidate_id"),
         "construct_target": "PENETRATION",
         "what_visible": what_visible,
+        "where_when": where_when,
         "support": support,
         "counterevidence": counterevidence,
         "safe_meaning": safe_meaning,
         "forbidden_inference": forbidden,
         "WHAT_VISIBLE": what_visible,
+        "WHERE_WHEN": where_when,
         "SUPPORT": support,
         "COUNTEREVIDENCE": counterevidence,
         "SAFE_MEANING": safe_meaning,
@@ -196,6 +216,8 @@ def build_penetration_safe_finding_projection(
         "box_access_surface_available": False,
         "box_access_rate_candidate": None,
         "box_access_not_inferred_from_shot": True,
+        "recurrence_truth": False,
+        "tactical_pattern_truth": False,
         "same_provider_support_is_independent_vote": False,
         "independent_support_vote_count": 0,
         "physical_active_match_evidence_required": True,
