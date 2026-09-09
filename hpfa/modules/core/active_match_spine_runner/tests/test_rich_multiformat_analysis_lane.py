@@ -336,7 +336,7 @@ def test_phase_state_candidates_are_explicitly_candidates_not_truth():
     assert rows[0]["tactical_truth"] is False
 
 
-def test_c01_construct_can_enter_existing_composite_packet_without_independence_inflation():
+def test_c01_label_only_metrics_do_not_enter_composite_packet_without_semantic_authority():
     projection_rows = [{
         "row_projection_id": "xrp_1",
         "source_sha256": "same_provider_sha",
@@ -349,10 +349,13 @@ def test_c01_construct_can_enter_existing_composite_packet_without_independence_
     features = {"episode_feature_vectors": [{"shot_candidate_count": 4}]}
     construct = _construct_c01(projection_rows, features)
     assert construct["status"] == "REVIEW_REQUIRED"
-    assert construct["packet_candidate"] is not None
-    packet = build_composite_packet(construct["packet_candidate"])
-    assert packet["status"] == "SMOKE_PASS"
-    assert packet["packet_family"] == "progression"
-    assert packet["independent_support_count"] == 0
-    assert packet["nominal_ref_count_is_independent_support_count"] is False
-    assert packet["claim_ceiling"] == "composite_candidate_only"
+    assert construct["progression_label_navigation_ref_count"] == 1
+    assert construct["terminal_label_navigation_ref_count"] == 1
+    assert construct["progression_aggregate_ref_count"] == 0
+    assert construct["terminal_aggregate_ref_count"] == 0
+    assert construct["packet_candidate"] is None
+    assert construct["construct_semantic_authority_admitted"] is False
+    assert construct["xlsx_metric_label_match_is_construct_semantic_authority"] is False
+    assert construct["xlsx_label_navigation_is_construct_support"] is False
+    assert construct["aggregate_support_is_independent_vote"] is False
+    assert construct["claim_ceiling"] == "CONSTRUCT_EVIDENCE_CANDIDATE_ONLY"
