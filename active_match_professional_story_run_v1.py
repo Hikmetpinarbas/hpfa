@@ -76,7 +76,7 @@ def main() -> int:
                 sys.executable,
                 "reciprocal_process_chain_current_v1.py",
                 "--input-dir",
-                str(out_dir),
+                str(match_dir),
                 "--out-dir",
                 str(out_dir),
             ],
