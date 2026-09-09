@@ -17,19 +17,15 @@ def _narrative(
     divergence: int = 0,
     no_followup: int = 0,
     counter: bool = True,
+    alternatives: list[dict] | None = None,
     context_effect: str | None = None,
     null_state: str | None = None,
 ):
     refs = refs or [f"{narrative_id}_v1", f"{narrative_id}_v2", f"{narrative_id}_v3"]
     variations = []
     if context_effect:
-        variations = [{
-            "context_dimension": "period_candidate",
-            "effect_descriptor": context_effect,
-        }]
-    null_summary = {}
-    if null_state:
-        null_summary = {"state": null_state}
+        variations = [{"context_dimension": "period_candidate", "effect_descriptor": context_effect}]
+    null_summary = {"state": null_state} if null_state else {}
     return {
         "narrative_id": narrative_id,
         "priority_rank": priority,
@@ -42,6 +38,7 @@ def _narrative(
         "divergence_support": divergence,
         "no_visible_followup_support": no_followup,
         "counterevidence_ref_count": 1 if counter else 0,
+        "alternative_explanations": list(alternatives or []),
         "admission_state": state,
         "context_variations": variations,
         "null_contrast_summary": null_summary,
@@ -75,28 +72,11 @@ def _payload(rows, status="PASS"):
 
 def test_multiple_safe_narratives_become_one_entity_match_story():
     rows = [
-        _narrative(
-            "n1",
-            state="ROBUST_RECURRENT_VISIBLE_TRACE",
-            priority=1,
-            context_effect="VISIBLE_OUTCOME_DISTRIBUTION_DIFFERENCE_CANDIDATE",
-            null_state="OBSERVED_ABOVE_DEFINED_NULL_MEDIAN",
-        ),
-        _narrative(
-            "n2",
-            priority=2,
-            failure=0,
-            divergence=1,
-            counter=True,
-        ),
-        _narrative(
-            "n3",
-            state="PROXY_CANDIDATE",
-            priority=3,
-            failure=0,
-            divergence=0,
-            counter=False,
-        ),
+        _narrative("n1", state="ROBUST_RECURRENT_VISIBLE_TRACE", priority=1,
+                   context_effect="VISIBLE_OUTCOME_DISTRIBUTION_DIFFERENCE_CANDIDATE",
+                   null_state="OBSERVED_ABOVE_DEFINED_NULL_MEDIAN"),
+        _narrative("n2", priority=2, failure=0, divergence=1, counter=True),
+        _narrative("n3", state="PROXY_CANDIDATE", priority=3, failure=0, divergence=0, counter=False),
     ]
     result = synthesize_match_story(_payload(rows))
     assert result["status"] == "PASS"
@@ -113,6 +93,31 @@ def test_multiple_safe_narratives_become_one_entity_match_story():
     assert "bağlama göre ayrışan" in story["story_tr"]
     assert "koşulsuz çalışan üstünlük" in story["story_tr"]
     assert "kronolojik maç hikâyesi" in story["story_tr"]
+
+
+def test_alternative_only_challenge_survives_match_story_synthesis():
+    alternative = {"code": "CONTEXT_DEPENDENCE", "meaning": "Observed recurrence may be context-bound."}
+    row = _narrative(
+        "n1",
+        state="ROBUST_RECURRENT_VISIBLE_TRACE",
+        success=3,
+        failure=0,
+        divergence=0,
+        counter=False,
+        alternatives=[alternative],
+    )
+    result = synthesize_match_story(_payload([row]))
+    assert result["status"] == "PASS"
+    story = result["entity_stories"][0]
+    assert story["counterevidence_bearing_process_count"] == 1
+    assert story["alternative_explanation_bearing_process_count"] == 1
+    assert story["alternative_explanations"] == [
+        {"source_narrative_id": "n1", "alternative_explanation": alternative}
+    ]
+    assert story["alternative_explanation_is_independent_counterevidence_vote"] is False
+    assert story["alternative_explanation_count_is_support_count"] is False
+    assert "alternatif açıklama" in story["story_tr"]
+    assert story["story_state"] == "ROBUST_PROCESS_SET_WITH_VISIBLE_COUNTEREVIDENCE"
 
 
 def test_story_keeps_nominal_support_separate_from_independent_evidence():
@@ -140,10 +145,7 @@ def test_shared_trace_refs_trigger_review_instead_of_fake_independence():
 
 
 def test_no_visible_context_difference_does_not_become_stability_truth():
-    row = _narrative(
-        "n1",
-        context_effect="NO_VISIBLE_DISTRIBUTION_DIFFERENCE_CURRENT_RESOLUTION",
-    )
+    row = _narrative("n1", context_effect="NO_VISIBLE_DISTRIBUTION_DIFFERENCE_CURRENT_RESOLUTION")
     story = synthesize_match_story(_payload([row]))["entity_stories"][0]
     assert story["context_sensitive_process_count"] == 0
     assert story["no_visible_context_difference_process_count"] == 1
