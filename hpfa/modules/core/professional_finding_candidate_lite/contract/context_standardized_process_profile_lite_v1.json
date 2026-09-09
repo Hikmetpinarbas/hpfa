@@ -1,0 +1,40 @@
+{
+  "contract_id": "context_standardized_process_profile_lite_v1",
+  "version": "1.0.0-contract-only-no-runtime-admission",
+  "purpose": "Define the minimum context fields and fail-closed admission policy required before any cross-match process standardization or standardized-rate claim is allowed.",
+  "required_context_fields_for_standardization": [
+    "minute_state",
+    "score_state",
+    "manpower_state",
+    "venue_state",
+    "eligible_exposure"
+  ],
+  "field_admission_policy": {
+    "missing_required_context_is_zero": false,
+    "missing_required_context_is_neutral_state": false,
+    "provider_label_is_context_truth": false,
+    "cross_match_context_may_be_inferred_from_period_only": false,
+    "context_field_requires_admitted_observation_or_explicit_contract_authority": true
+  },
+  "current_execution_state": {
+    "runtime_context_standardization_evaluated": false,
+    "model_implementation_present": false,
+    "model_execution_allowed": false,
+    "standardized_rate_output_allowed": false,
+    "cross_match_team_tendency_claim_allowed": false,
+    "tactical_adaptation_claim_allowed": false,
+    "coach_intention_claim_allowed": false,
+    "causal_score_effect_claim_allowed": false
+  },
+  "claim_locks": {
+    "context_standardization_is_contract_only": true,
+    "period_alone_is_not_game_state": true,
+    "missing_context_does_not_become_zero_or_neutral": true,
+    "standardized_rate_is_not_observed_rate": true,
+    "cross_match_tendency_is_not_tactical_truth": true,
+    "context_difference_is_not_adaptation_or_causality": true
+  },
+  "canonical_event_count": "UNKNOWN",
+  "true_action_count": "UNKNOWN",
+  "production_release": false
+}
