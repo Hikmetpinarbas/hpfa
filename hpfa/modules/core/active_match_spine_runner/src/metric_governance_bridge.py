@@ -15,6 +15,7 @@ MODULE_ID = "active_match_metric_governance_bridge_v1"
 OUTPUT_JSON = "active_match_metric_governance_bridge_v1.json"
 OUTPUT_TXT = "active_match_metric_governance_bridge_v1.txt"
 ZFGV_OBSERVATION_MODEL = "MULTI_SURFACE_FOOTBALL_OBSERVATION_FABRIC"
+ALIGNMENT_CANDIDATE_DECISION = "DEFINITION_ALIGNMENT_CANDIDATE"
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -64,6 +65,25 @@ def _metric_capability_admission_rows(
             "construct_truth_granted_by_capability_match": False,
         })
     return rows
+
+
+def _alignment_candidate_rows(alignment: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
+    candidates: list[dict[str, Any]] = []
+    violations: list[str] = []
+    for index, row in enumerate(alignment.get("alignment_rows", []) or []):
+        if not isinstance(row, dict) or row.get("alignment_decision") != ALIGNMENT_CANDIDATE_DECISION:
+            continue
+        candidates.append(row)
+        for field in (
+            "metric_value_output_allowed",
+            "claim_allowed",
+            "aggregate_equivalence_truth",
+            "independent_confirmation_allowed",
+            "measurement_invariance_truth",
+        ):
+            if row.get(field) is not False:
+                violations.append(f"alignment_candidate_claim_lock_invalid:{index}:{field}")
+    return candidates, violations
 
 
 def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) -> dict[str, Any]:
@@ -174,11 +194,8 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
     elif alignment_status in {"REVIEW_REQUIRED", "NOT_EVALUATED_PREREQUISITE_MISSING"}:
         review_hits.append(f"aggregate_definition_alignment_{alignment_status.casefold()}")
 
-    admitted_alignment_rows = [
-        row
-        for row in alignment.get("alignment_rows", []) or []
-        if isinstance(row, dict) and row.get("alignment_decision") == "DEFINITION_ALIGNMENT_CANDIDATE"
-    ]
+    alignment_candidate_rows, alignment_candidate_claim_lock_violations = _alignment_candidate_rows(alignment)
+    hard_blocks.extend(alignment_candidate_claim_lock_violations)
 
     payload = {
         "module_id": MODULE_ID,
@@ -199,7 +216,12 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         "provider_definition_ready_count": dictionary.get("provider_definition_ready_count"),
         "hpfa_domain_contract_ready_count": dictionary.get("hpfa_domain_contract_ready_count"),
         "aggregate_definition_candidate_count": alignment.get("definition_candidate_count"),
-        "aggregate_definition_admitted_candidate_count": len(admitted_alignment_rows),
+        "aggregate_definition_alignment_candidate_count": len(alignment_candidate_rows),
+        "aggregate_definition_admitted_candidate_count": 0,
+        "aggregate_definition_alignment_candidates_are_admitted": False,
+        "aggregate_definition_alignment_candidates_allow_metric_value_output": False,
+        "aggregate_definition_alignment_candidates_allow_claim_output": False,
+        "aggregate_definition_alignment_candidate_claim_lock_violation_count": len(alignment_candidate_claim_lock_violations),
         "aggregate_alignment_decision_counts": alignment.get("alignment_decision_counts") or {},
         "prerequisites": prerequisites,
         "metric_policy": policy,
@@ -237,7 +259,10 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         f"provider_definition_ready_count={payload['provider_definition_ready_count']}",
         f"hpfa_domain_contract_ready_count={payload['hpfa_domain_contract_ready_count']}",
         f"aggregate_definition_candidate_count={payload['aggregate_definition_candidate_count']}",
-        f"aggregate_definition_admitted_candidate_count={payload['aggregate_definition_admitted_candidate_count']}",
+        f"aggregate_definition_alignment_candidate_count={payload['aggregate_definition_alignment_candidate_count']}",
+        "aggregate_definition_admitted_candidate_count=0",
+        "aggregate_definition_alignment_candidates_are_admitted=false",
+        f"aggregate_definition_alignment_candidate_claim_lock_violation_count={payload['aggregate_definition_alignment_candidate_claim_lock_violation_count']}",
         f"hard_block_hits={payload['hard_block_hits']}",
         f"review_hits={payload['review_hits']}",
         "metric_value_output_allowed=false",
