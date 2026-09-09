@@ -1,0 +1,26 @@
+{
+  "contract_id": "rich_multiformat_xlsx_construct_semantic_authority_contract_v1",
+  "producer": "rich_multiformat_analysis_lattice_v1",
+  "scope": "C01 XLSX aggregate metric label navigation versus construct support",
+  "invariants": {
+    "xlsx_metric_label_match_is_construct_semantic_authority": false,
+    "xlsx_label_navigation_is_construct_support": false,
+    "positive_numeric_value_alone_is_construct_support": false,
+    "substring_match_alone_is_construct_support": false,
+    "unresolved_metric_semantics_can_create_c01_packet": false,
+    "label_navigation_may_remain_analyst_visible": true,
+    "aggregate_support_is_independent_vote": false,
+    "construct_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "withdrawal_rule": "Until an admitted metric-to-construct semantic authority exists, XLSX label matches may be retained only as navigation candidates and must not populate C01 progression/terminal support refs or C4 packet candidates.",
+  "forbidden_promotions": [
+    "goal substring -> terminal construct support",
+    "box substring -> progression construct support",
+    "chance substring -> terminal construct support",
+    "progressive substring -> progression construct support without semantic authority",
+    "same-provider XLSX label match -> independent evidence vote"
+  ]
+}
