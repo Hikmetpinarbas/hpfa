@@ -11,6 +11,7 @@ from typing import Any
 MODULE_ID = "active_match_professional_story_run_v1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
+ACTIVE_MATCH_RELATIVE_PATH = Path("runtime/active_single_match/current")
 FULL_SPINE_JSON = "active_match_full_spine_v1.json"
 PROCESS_STORY_JSON = "active_match_process_story_sidecar_v1.json"
 PROCESS_STORY_TXT = "active_match_process_story_sidecar_v1.txt"
@@ -37,6 +38,17 @@ def _load(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _runtime_authority_root(match_dir: Path) -> Path:
+    """Return the explicit ACTIVE_MATCH authority root without binding it to product code."""
+    suffix = ACTIVE_MATCH_RELATIVE_PATH.parts
+    if tuple(match_dir.parts[-len(suffix):]) != tuple(suffix):
+        raise ValueError(f"runtime_authority_path_invalid:{match_dir}")
+    root = match_dir
+    for _ in suffix:
+        root = root.parent
+    return root
 
 
 def _bundle_contract_valid(manifest: dict[str, Any]) -> bool:
@@ -102,6 +114,23 @@ def main() -> int:
     out_dir = Path(args.out_dir).expanduser().resolve(strict=False)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    try:
+        runtime_authority_root = _runtime_authority_root(match_dir)
+    except ValueError as exc:
+        payload = {
+            "module_id": MODULE_ID,
+            "status": "FAIL_CLOSED",
+            "decision": "ACTIVE_MATCH_RUNTIME_AUTHORITY_REJECTED",
+            "hard_block_hits": [str(exc)],
+            "canonical_event_count": CANONICAL_EVENT_COUNT,
+            "true_action_count": TRUE_ACTION_COUNT,
+            "production_release": False,
+        }
+        output_path = out_dir / "active_match_professional_story_run_v1.json"
+        output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return 2
+
     canonical = _run(
         [
             sys.executable,
@@ -111,7 +140,7 @@ def main() -> int:
             str(out_dir),
             "--full-spine",
             "--execution-root",
-            str(repo_root),
+            str(runtime_authority_root),
         ],
         repo_root,
     )
@@ -147,6 +176,9 @@ def main() -> int:
             else "ACTIVE_MATCH_CANONICAL_FULL_POSTMATCH_PIPELINE_INCOMPLETE"
         ),
         "canonical_orchestrator": "active_match_spine_runner.py --full-spine",
+        "product_code_root": str(repo_root),
+        "runtime_authority_root": str(runtime_authority_root),
+        "product_code_root_equals_runtime_authority_root": repo_root == runtime_authority_root,
         "parallel_runtime_engine_created": False,
         "required_analysis_layers_activated": required_analysis_layers_activated,
         "required_artifacts": required_artifacts,
