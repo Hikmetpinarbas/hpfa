@@ -154,8 +154,6 @@ def test_context_guard_failure_fails_closed():
 
 
 def test_no_sample_match_identity_leak():
-    text = Path(__file__).read_text(encoding="utf-8")
-    assert "Galatasaray" not in text
-    assert "Fenerbahce" not in text
-    assert "Besiktas" not in text
-    assert "Trabzonspor" not in text
+    source = (ROOT / "hpfa/modules/core/metric_definition_policy_lite/src/penetration_construct.py").read_text(encoding="utf-8")
+    forbidden_fragments = ["Galata" + "saray", "Fener" + "bahce", "Besik" + "tas", "Trabzon" + "spor"]
+    assert all(fragment not in source for fragment in forbidden_fragments)
