@@ -89,10 +89,9 @@ def _counter_sum(cards: list[dict[str, Any]], field: str) -> dict[str, int]:
         if not isinstance(values, dict):
             continue
         for key, value in values.items():
-            try:
-                counter[str(key)] += int(value)
-            except (TypeError, ValueError):
-                continue
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ValueError(f"analyst_report_distribution_count_invalid:{field}:{key}")
+            counter[str(key)] += value
     return dict(sorted(counter.items()))
 
 
