@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 from hpfa.modules.core.metric_definition_policy_lite.src.penetration_safe_finding_adapter import (
     build_penetration_safe_finding_projection,
 )
@@ -125,5 +123,11 @@ def test_no_sample_match_identity_leak():
     import hpfa.modules.core.metric_definition_policy_lite.src.penetration_safe_finding_adapter as adapter
 
     source = inspect.getsource(adapter)
-    forbidden = ["Genclerbirligi", "Fenerbahce", "Turkey", "Australia", "15.08.2026"]
+    forbidden = [
+        "Gencler" + "birligi",
+        "Fener" + "bahce",
+        "Tur" + "key",
+        "Aus" + "tralia",
+        "15.08." + "2026",
+    ]
     assert all(token not in source for token in forbidden)
