@@ -145,7 +145,9 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         guard = load_guard(repo_root / "configs/metrics/construct_context_guard_v1.json")
         progression_effectiveness = build_progression_effectiveness_construct(payloads["trace"], payloads["consequence"], guard, repo_root=repo_root)
         ball_security = build_ball_security_construct(payloads["trace"], payloads["consequence"], guard)
-        recovery_yield = build_recovery_yield_construct(payloads["trace"], payloads["consequence"], guard)
+        recovery_yield = build_recovery_yield_construct(
+            payloads["trace"], payloads["consequence"], guard, episode_consequence
+        )
     except (OSError, ValueError) as exc:
         progression_effectiveness = _construct_fail_closed(
             "progression_effectiveness_construct_v1", "progression_construct_authority_unavailable", exc,
