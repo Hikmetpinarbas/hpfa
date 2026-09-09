@@ -13,6 +13,9 @@ from hpfa.modules.core.analyst_episode_locator_lite.src.phase_conditioned_intera
 from hpfa.modules.core.analyst_episode_locator_lite.src.phase_dynamics_interaction_bridge import (
     build_phase_dynamics_interaction_bridge,
 )
+from hpfa.modules.core.metric_definition_policy_lite.src.ball_security_construct import (
+    build_ball_security_construct,
+)
 from hpfa.modules.core.metric_definition_policy_lite.src.construct_context_guard import load_guard
 from hpfa.modules.core.metric_definition_policy_lite.src.progression_effectiveness_construct import (
     build_progression_effectiveness_construct,
@@ -43,6 +46,7 @@ OUTPUTS = {
     "bridge": "phase_dynamics_interaction_bridge_v1.json",
     "progression_effectiveness": "progression_effectiveness_construct_v1.json",
     "progression_safe_finding": "progression_safe_finding_projection_v1.json",
+    "ball_security": "ball_security_construct_v1.json",
 }
 
 
@@ -94,6 +98,8 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
             "causal_truth": False,
             "consequence_candidate_is_causal_truth": False,
             "progression_effectiveness_truth": False,
+            "ball_security_truth": False,
+            "loss_exposure_truth": False,
             "progression_safe_finding_engineering_envelope_complete": False,
             "physical_active_match_evidence_present": False,
             "professional_finding_emitted": False,
@@ -120,6 +126,9 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         progression_effectiveness = build_progression_effectiveness_construct(
             payloads["trace"], payloads["consequence"], guard, repo_root=repo_root
         )
+        ball_security = build_ball_security_construct(
+            payloads["trace"], payloads["consequence"], guard
+        )
     except (OSError, ValueError) as exc:
         progression_effectiveness = {
             "module_id": "progression_effectiveness_construct_v1",
@@ -135,6 +144,21 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
             "true_action_count": "UNKNOWN",
             "production_release": False,
         }
+        ball_security = {
+            "module_id": "ball_security_construct_v1",
+            "status": "FAIL_CLOSED",
+            "construct_candidate": None,
+            "construct_candidate_count": 0,
+            "hard_block_hits": [f"ball_security_construct_authority_unavailable:{type(exc).__name__}"],
+            "review_hits": [],
+            "ball_security_truth": False,
+            "loss_exposure_truth": False,
+            "professional_finding_emitted": False,
+            "claim_output_allowed": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
 
     progression_safe_finding = build_progression_safe_finding_projection(progression_effectiveness)
 
@@ -144,6 +168,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
     _write(output / OUTPUTS["bridge"], bridge)
     _write(output / OUTPUTS["progression_effectiveness"], progression_effectiveness)
     _write(output / OUTPUTS["progression_safe_finding"], progression_safe_finding)
+    _write(output / OUTPUTS["ball_security"], ball_security)
 
     hard_blocks = []
     review_hits = []
@@ -154,6 +179,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         ("bridge", bridge),
         ("progression_effectiveness", progression_effectiveness),
         ("progression_safe_finding", progression_safe_finding),
+        ("ball_security", ball_security),
     ):
         if payload.get("status") == "FAIL_CLOSED":
             hard_blocks.append(f"{name}_fail_closed")
@@ -182,6 +208,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "progression_effectiveness_construct_candidate_count": progression_effectiveness.get("construct_candidate_count"),
         "progression_safe_finding_candidate_count": progression_safe_finding.get("finding_candidate_count"),
         "progression_safe_finding_engineering_envelope_complete": progression_safe_finding.get("engineering_envelope_complete") is True,
+        "ball_security_construct_candidate_count": ball_security.get("construct_candidate_count"),
         "physical_active_match_evidence_present": False,
         "outputs": {key: str(output / filename) for key, filename in OUTPUTS.items()},
         "hard_block_hits": hard_blocks,
@@ -197,6 +224,8 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "causal_truth": False,
         "consequence_candidate_is_causal_truth": False,
         "progression_effectiveness_truth": False,
+        "ball_security_truth": False,
+        "loss_exposure_truth": False,
         "professional_finding_emitted": False,
         "claim_output_allowed": False,
         "tactical_plan_truth": False,
