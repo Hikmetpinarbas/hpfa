@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -54,6 +55,20 @@ def _strict_nonnegative_count(value: Any) -> int | None:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         return None
     return value
+
+
+def _positive_numeric_observation(metric: Any) -> int | float | None:
+    if not isinstance(metric, dict) or metric.get("value_status") != "OBSERVED":
+        return None
+    if metric.get("value_kind") != "number":
+        return None
+    raw_value = metric.get("raw_value")
+    if not isinstance(raw_value, (int, float)) or isinstance(raw_value, bool):
+        return None
+    numeric_value = float(raw_value)
+    if not math.isfinite(numeric_value) or numeric_value <= 0:
+        return None
+    return raw_value
 
 
 def _flatten_projection(projection: dict[str, Any]) -> list[dict[str, Any]]:
@@ -520,11 +535,16 @@ def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int 
             raw_label = str(metric.get("raw_metric_label") or "").casefold()
             if not any(term in key_text or term in raw_label for term in terms):
                 continue
+            admitted_value = _positive_numeric_observation(metric)
+            if admitted_value is None:
+                continue
             refs.append({
                 "metric_id": f"{row.get('row_projection_id')}:{key}",
                 "source_surface": "xlsx_entity_metric_row_projection_lite_v1",
                 "raw_metric_label": metric.get("raw_metric_label"),
-                "raw_value": metric.get("raw_value"),
+                "raw_value": admitted_value,
+                "value_kind": "number",
+                "positive_numeric_support_only": True,
                 "entity_candidate": (row.get("identity_candidates") or {}).get("player_raw_candidate") or (row.get("identity_candidates") or {}).get("team_raw_candidate"),
                 "provenance_root": str(row.get("source_sha256") or "xlsx_unknown"),
                 "dependency_group": "same_provider_xlsx_aggregate",
@@ -579,9 +599,9 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
     if count_contract_review_required:
         reason = "episode_feature_shot_count_contract_invalid"
     elif not progression:
-        reason = "aggregate_progression_surface_not_observed"
+        reason = "positive_numeric_aggregate_progression_surface_not_observed"
     elif not terminal and shot_total <= 0:
-        reason = "terminal_surface_not_observed"
+        reason = "positive_numeric_terminal_surface_not_observed"
     else:
         reason = "occurrence_progression_semantics_not_yet_admitted_same_provider_support_non_independent"
     return {
@@ -596,6 +616,9 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
         "packet_candidate": packet_candidate,
         "count_contract_review_required": count_contract_review_required,
         "invalid_shot_count_episode_indices": invalid_shot_count_episode_indices,
+        "xlsx_metric_support_requires_observed_positive_numeric_value": True,
+        "xlsx_zero_metric_value_is_production_support": False,
+        "xlsx_nonnumeric_metric_value_is_production_support": False,
         "review_reason": reason,
         "aggregate_support_is_independent_vote": False,
         "construct_truth": False,
