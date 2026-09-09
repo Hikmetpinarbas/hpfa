@@ -1,0 +1,24 @@
+{
+  "contract_id": "rich_multiformat_xlsx_metric_support_contract_v1",
+  "producer": "rich_multiformat_analysis_lattice_v1",
+  "source_surface": "xlsx_entity_metric_row_projection_lite_v1",
+  "scope": "C01_AGGREGATE_PRODUCTION_SUPPORT_ADMISSION",
+  "invariants": {
+    "observed_cell_presence_is_not_production_support": true,
+    "xlsx_metric_support_requires_value_status_observed": true,
+    "xlsx_metric_support_requires_value_kind_number": true,
+    "xlsx_metric_support_requires_finite_numeric_raw_value": true,
+    "xlsx_metric_support_requires_positive_numeric_raw_value": true,
+    "zero_metric_value_is_not_production_support": true,
+    "boolean_metric_value_is_not_production_support": true,
+    "string_metric_value_is_not_production_support": true,
+    "nonfinite_metric_value_is_not_production_support": true,
+    "metric_label_match_alone_is_not_support": true,
+    "aggregate_support_is_independent_vote": false,
+    "metric_truth": false,
+    "construct_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}
