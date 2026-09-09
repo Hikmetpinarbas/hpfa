@@ -27,6 +27,12 @@ def _clean(value: Any) -> str:
     return " ".join(str(value or "").split()).strip()
 
 
+def _clean_ref_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return sorted({_clean(item) for item in value if _clean(item)})
+
+
 def _digest(*values: Any) -> str:
     raw = json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -89,6 +95,58 @@ def _index_null_contrast(null_payload: dict[str, Any] | None) -> tuple[dict[str,
             continue
         indexed[family_ref] = row
     return indexed, blocks, reviews
+
+
+def _safe_finding_occurrence_context(row: dict[str, Any], family_ref: str) -> tuple[dict[str, Any], str | None]:
+    state = _clean(row.get("sequence_occurrence_object_context_state"))
+    team_refs = _clean_ref_list(row.get("sequence_occurrence_team_context_refs"))
+    goalkeeper_refs = _clean_ref_list(row.get("sequence_occurrence_goalkeeper_context_refs"))
+    goalkeeper_bundle_refs = _clean_ref_list(row.get("sequence_occurrence_goalkeeper_context_bundle_refs"))
+    reflection_refs = _clean_ref_list(row.get("sequence_occurrence_reflection_context_refs"))
+    relation_types = _clean_ref_list(row.get("sequence_occurrence_relation_type_candidates"))
+    has_refs = any((team_refs, goalkeeper_refs, goalkeeper_bundle_refs, reflection_refs, relation_types))
+
+    if state == "REVIEW_REQUIRED":
+        return {}, f"safe_finding_occurrence_context_upstream_review:{family_ref}"
+
+    if state == "PATTERN_OCCURRENCE_CONTEXT_LINEAGE_ONLY":
+        locks = (
+            row.get("sequence_occurrence_context_is_pattern_support") is False,
+            row.get("sequence_occurrence_context_is_independent_support") is False,
+            row.get("goalkeeper_context_is_pattern_participant_truth") is False,
+            row.get("reflection_context_is_pattern_equivalence_truth") is False,
+            row.get("sequence_occurrence_context_ref_count_is_pattern_count") is False,
+            row.get("sequence_occurrence_context_ref_count_is_recurrence_count") is False,
+            row.get("sequence_occurrence_context_creates_event") is False,
+        )
+        if not all(locks):
+            return {}, f"safe_finding_occurrence_context_claim_boundary_mismatch:{family_ref}"
+    elif has_refs:
+        return {}, f"safe_finding_occurrence_context_state_missing_or_unexpected:{family_ref}"
+    elif state not in {"", "NO_CONTEXT_VISIBLE"}:
+        return {}, f"safe_finding_occurrence_context_state_unrecognized:{family_ref}"
+
+    finding_state = "SAFE_FINDING_OCCURRENCE_CONTEXT_LINEAGE_ONLY" if has_refs else "NO_CONTEXT_VISIBLE"
+    return {
+        "sequence_occurrence_object_context_state": finding_state,
+        "sequence_occurrence_team_context_refs": team_refs,
+        "sequence_occurrence_goalkeeper_context_refs": goalkeeper_refs,
+        "sequence_occurrence_goalkeeper_context_bundle_refs": goalkeeper_bundle_refs,
+        "sequence_occurrence_reflection_context_refs": reflection_refs,
+        "sequence_occurrence_relation_type_candidates": relation_types,
+        "sequence_occurrence_context_is_finding_support": False,
+        "sequence_occurrence_context_is_prose_support": False,
+        "sequence_occurrence_context_is_independent_support": False,
+        "goalkeeper_context_is_finding_participant_truth": False,
+        "reflection_context_is_finding_equivalence_truth": False,
+        "sequence_occurrence_context_ref_count_is_action_count": False,
+        "sequence_occurrence_context_ref_count_is_event_count": False,
+        "sequence_occurrence_context_ref_count_is_recurrence_strength": False,
+        "sequence_occurrence_context_ref_count_is_robustness_score": False,
+        "sequence_occurrence_context_creates_event": False,
+        "sequence_occurrence_context_is_tactical_truth": False,
+        "sequence_occurrence_context_is_causal_truth": False,
+    }, None
 
 
 def build_sequence_safe_finding_blocks(
@@ -159,6 +217,11 @@ def build_sequence_safe_finding_blocks(
             return _fail(f"admission_trace_cohort_support_mismatch:{family_ref}")
         if family_ref not in eligible_refs:
             return _fail(f"admission_anchor_not_in_trace_cohort:{family_ref}")
+
+        occurrence_context, occurrence_context_review = _safe_finding_occurrence_context(row, family_ref)
+        if occurrence_context_review:
+            reviews.append(occurrence_context_review)
+            continue
 
         independent = row.get("independent_support_count", "UNKNOWN")
         failures = int(row.get("failure_variant_count") or 0)
@@ -293,6 +356,7 @@ def build_sequence_safe_finding_blocks(
             "robustness_summary": {"robustness_state": robustness},
             "null_contrast_summary": null_summary,
             "context_deviation_summary": "BOUND_TO_ADMITTED_CONTEXT_SCOPE_ONLY",
+            **occurrence_context,
             "counterevidence": {"refs": counter_refs, "summary": counter_text},
             "alternative_explanations": alternatives,
             "dependency_summary": dependency,
