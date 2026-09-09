@@ -1,0 +1,35 @@
+{
+  "module_id": "sequence_safe_finding_binding_lite_v1",
+  "version": "1.1.0-strict-numeric-evidence-accounting",
+  "purpose": "Bind admitted sequence-pattern evidence into defeasible match-local Safe Finding blocks without allowing type coercion, count inflation, or claim escalation.",
+  "required_upstream_module": "sequence_pattern_admission_lite_v1",
+  "numeric_evidence_policy": {
+    "observed_support": "STRICT_NONNEGATIVE_INTEGER_REQUIRED",
+    "independent_support_count": "STRICT_NONNEGATIVE_INTEGER_OR_UNKNOWN",
+    "failure_variant_count": "STRICT_NONNEGATIVE_INTEGER",
+    "divergence_count": "STRICT_NONNEGATIVE_INTEGER",
+    "no_visible_followup_count": "STRICT_NONNEGATIVE_INTEGER",
+    "simulation_count": "STRICT_POSITIVE_INTEGER_WHEN_NULL_CONTRAST_PRESENT",
+    "boolean_numeric_evidence_rejected": true,
+    "independent_support_must_not_exceed_observed_support": true,
+    "outcome_accounting_must_not_exceed_observed_support": true
+  },
+  "emission_invariants": {
+    "robust_recurrent_visible_trace_required_for_emit": true,
+    "independence_proven_required_for_emit": true,
+    "explicit_challenge_surface_required_for_emit": true,
+    "withdrawal_condition_required_for_emit": true,
+    "upstream_review_abstains": true,
+    "numeric_accounting_failure": "FAIL_CLOSED"
+  },
+  "claim_locks": {
+    "recurrence_is_tactical_pattern_truth": false,
+    "emission_is_causality_truth": false,
+    "emission_is_coach_intention_truth": false,
+    "no_visible_followup_is_failure": false,
+    "context_refs_are_independent_support": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}
