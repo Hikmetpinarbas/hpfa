@@ -125,10 +125,6 @@ class ZfgvEventOnlyRehabilitationTests(unittest.TestCase):
         )
         policy_id = provider_row["upstream_bindings"]["metric_policy_id"]
         policy_row = next(x for x in policy["metrics"] if x["metric_id"] == policy_id)
-        policy_row["source_surface_roles"] = [
-            "occurrence_candidate",
-            "aggregate_candidate",
-        ]
 
         report = _build(dictionary=dictionary, metric_policy=policy)
         projected = next(
@@ -137,9 +133,11 @@ class ZfgvEventOnlyRehabilitationTests(unittest.TestCase):
         )
 
         self.assertIn("ACTION_EVENT", projected["required_observation_capabilities"])
-        self.assertIn("AGGREGATE_TABULAR", projected["required_observation_capabilities"])
+        self.assertIn("OUTCOME_QUALIFIER", projected["required_observation_capabilities"])
         self.assertIn("ENTITY_ACTOR", projected["required_observation_capabilities"])
         self.assertIn("TEMPORAL", projected["required_observation_capabilities"])
+        self.assertNotIn("AGGREGATE_TABULAR", projected["required_observation_capabilities"])
+        self.assertIn("AGGREGATE_TABULAR", policy_row["supporting_observation_capabilities"])
         self.assertFalse(projected["runtime_capability_admission_evaluated"])
 
 
