@@ -23,6 +23,9 @@ from hpfa.modules.core.metric_definition_policy_lite.src.construct_context_guard
 from hpfa.modules.core.metric_definition_policy_lite.src.penetration_construct import (
     build_penetration_construct,
 )
+from hpfa.modules.core.metric_definition_policy_lite.src.penetration_safe_finding_adapter import (
+    build_penetration_safe_finding_projection,
+)
 from hpfa.modules.core.metric_definition_policy_lite.src.progression_effectiveness_construct import (
     build_progression_effectiveness_construct,
 )
@@ -63,6 +66,7 @@ OUTPUTS = {
     "recovery_yield": "recovery_yield_construct_v1.json",
     "recovery_safe_finding": "recovery_safe_finding_projection_v1.json",
     "penetration": "penetration_construct_v1.json",
+    "penetration_safe_finding": "penetration_safe_finding_projection_v1.json",
 }
 
 
@@ -141,6 +145,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
             "progression_safe_finding_engineering_envelope_complete": False,
             "ball_security_safe_finding_engineering_envelope_complete": False,
             "recovery_safe_finding_engineering_envelope_complete": False,
+            "penetration_safe_finding_engineering_envelope_complete": False,
             "physical_active_match_evidence_present": False,
             "professional_finding_emitted": False,
             "claim_output_allowed": False,
@@ -190,6 +195,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
     progression_safe_finding = build_progression_safe_finding_projection(progression_effectiveness)
     ball_security_safe_finding = build_ball_security_safe_finding_projection(ball_security)
     recovery_safe_finding = build_recovery_safe_finding_projection(recovery_yield)
+    penetration_safe_finding = build_penetration_safe_finding_projection(penetration)
 
     output_payloads = {
         "interaction": interaction,
@@ -203,6 +209,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "recovery_yield": recovery_yield,
         "recovery_safe_finding": recovery_safe_finding,
         "penetration": penetration,
+        "penetration_safe_finding": penetration_safe_finding,
     }
     for key, payload in output_payloads.items():
         _write(output / OUTPUTS[key], payload)
@@ -249,6 +256,8 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "penetration_construct_candidate_count": penetration.get("construct_candidate_count"),
         "visible_terminal_penetration_support_candidate_count": penetration_construct.get("visible_terminal_penetration_support_candidate_count"),
         "box_access_surface_available": penetration_construct.get("box_access_surface_available") is True,
+        "penetration_safe_finding_candidate_count": penetration_safe_finding.get("finding_candidate_count"),
+        "penetration_safe_finding_engineering_envelope_complete": penetration_safe_finding.get("engineering_envelope_complete") is True,
         "physical_active_match_evidence_present": False,
         "outputs": {key: str(output / filename) for key, filename in OUTPUTS.items()},
         "hard_block_hits": hard_blocks,
