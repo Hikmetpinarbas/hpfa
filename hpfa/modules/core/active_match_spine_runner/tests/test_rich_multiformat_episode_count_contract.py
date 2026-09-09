@@ -36,11 +36,13 @@ def _progression_row():
         "metric_values": {
             "progressive_passes": {
                 "value_status": "OBSERVED",
+                "value_kind": "number",
                 "raw_metric_label": "Progressive passes",
                 "raw_value": 4,
             },
             "shots": {
                 "value_status": "OBSERVED",
+                "value_kind": "number",
                 "raw_metric_label": "Shots",
                 "raw_value": 2,
             },
