@@ -87,10 +87,23 @@ def test_row_order_not_promoted_to_chronology():
     assert row["provenance_order_is_football_chronology"] is False
 
 
-def test_trace_variant_requires_admitted_occurrence():
+def test_trace_only_variant_node_is_review_bound_not_hard_blocked():
     result = build_partial_order_trace_variants(*_payloads(missing_occurrence=True))
-    assert result["status"] == "FAIL_CLOSED"
-    assert "variant_trace_requires_admitted_occurrence:t2" in result["hard_block_hits"]
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["hard_block_hits"] == []
+    assert "variant_trace_without_admitted_occurrence:t2" in result["review_hits"]
+    assert result["trace_only_variant_node_count"] == 1
+    assert result["occurrence_backed_variant_node_count"] == 1
+    assert result["trace_only_node_is_event_truth"] is False
+    assert result["trace_only_node_is_independent_support"] is False
+    assert result["trace_only_node_count_is_recurrence_count"] is False
+    row = result["partial_order_trace_variants"][0]
+    nodes = {node["trace_ref"]: node for node in row["node_records"]}
+    assert nodes["t1"]["occurrence_binding_state"] == "OCCURRENCE_BACKED_VARIANT_NODE"
+    assert nodes["t2"]["occurrence_binding_state"] == "TRACE_ONLY_VARIANT_NODE_REVIEW_BOUND"
+    assert nodes["t2"]["trace_only_is_event_truth"] is False
+    assert nodes["t2"]["trace_only_is_independent_support"] is False
+    assert nodes["t2"]["trace_only_counts_as_recurrence_support"] is False
 
 
 def test_partial_order_survives_serialization():
