@@ -173,7 +173,12 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
             episode_consequence,
             progression_effectiveness,
         )
-        penetration = build_penetration_construct(progression_effectiveness, payloads["consequence"], guard)
+        penetration = build_penetration_construct(
+            progression_effectiveness,
+            payloads["consequence"],
+            guard,
+            episode_consequence,
+        )
     except (OSError, ValueError) as exc:
         progression_effectiveness = _construct_fail_closed(
             "progression_effectiveness_construct_v1", "progression_construct_authority_unavailable", exc,
@@ -255,6 +260,8 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "visible_recovery_to_progression_candidate_count": recovery_construct.get("visible_recovery_to_progression_candidate_count"),
         "penetration_construct_candidate_count": penetration.get("construct_candidate_count"),
         "visible_terminal_penetration_support_candidate_count": penetration_construct.get("visible_terminal_penetration_support_candidate_count"),
+        "terminal_support_episode_candidate_count": penetration_construct.get("terminal_support_episode_candidate_count"),
+        "visible_terminal_penetration_recurrence_candidate": penetration_construct.get("visible_terminal_penetration_recurrence_candidate"),
         "box_access_surface_available": penetration_construct.get("box_access_surface_available") is True,
         "penetration_safe_finding_candidate_count": penetration_safe_finding.get("finding_candidate_count"),
         "penetration_safe_finding_engineering_envelope_complete": penetration_safe_finding.get("engineering_envelope_complete") is True,
