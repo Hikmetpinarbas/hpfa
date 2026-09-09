@@ -342,8 +342,8 @@ def test_c01_construct_can_enter_existing_composite_packet_without_independence_
         "source_sha256": "same_provider_sha",
         "identity_candidates": {"player_raw_candidate": "P1", "team_raw_candidate": "T1"},
         "metric_values": {
-            "progressive_passes": {"raw_metric_label": "Progressive passes", "raw_value": 12, "value_status": "OBSERVED"},
-            "shots": {"raw_metric_label": "Shots", "raw_value": 4, "value_status": "OBSERVED"},
+            "progressive_passes": {"raw_metric_label": "Progressive passes", "raw_value": 12, "value_kind": "number", "value_status": "OBSERVED"},
+            "shots": {"raw_metric_label": "Shots", "raw_value": 4, "value_kind": "number", "value_status": "OBSERVED"},
         },
     }]
     features = {"episode_feature_vectors": [{"shot_candidate_count": 4}]}
