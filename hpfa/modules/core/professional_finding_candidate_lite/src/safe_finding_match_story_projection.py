@@ -54,13 +54,34 @@ def build_safe_finding_match_story_candidates(binding_payload: dict[str, Any]) -
         blocks.append("production_release_claimed")
     if binding_payload.get("hard_block_hits"):
         blocks.append("upstream_hard_blocks_present")
-    if _clean(binding_payload.get("status")).upper() == "FAIL_CLOSED":
+    upstream_status = _clean(binding_payload.get("status")).upper()
+    if upstream_status == "FAIL_CLOSED":
         blocks.append("upstream_fail_closed")
+    elif upstream_status == "REVIEW_REQUIRED":
+        reviews.append("upstream_review_required")
+    elif upstream_status != "PASS":
+        reviews.append(f"upstream_status_review:{upstream_status or 'UNKNOWN'}")
 
     if blocks:
         return _fail(*blocks)
 
     rows = [row for row in (binding_payload.get("analyst_report_blocks") or []) if isinstance(row, dict)]
+    if reviews:
+        return {
+            "module_id": MODULE_ID,
+            "status": "REVIEW_REQUIRED",
+            "decision": "SAFE_FINDING_MATCH_STORY_ABSTAINED_PENDING_UPSTREAM_REVIEW",
+            "match_story_candidates": [],
+            "match_story_candidate_count": 0,
+            "non_emitting_finding_rows_skipped": len(rows),
+            "hard_block_hits": [],
+            "review_hits": sorted(set(reviews)),
+            "canonical_event_count": CANONICAL_EVENT_COUNT,
+            "true_action_count": TRUE_ACTION_COUNT,
+            "production_release": False,
+            "claim_ceiling": CLAIM_CEILING,
+        }
+
     stories: list[dict[str, Any]] = []
     skipped = 0
 
@@ -75,6 +96,8 @@ def build_safe_finding_match_story_candidates(binding_payload: dict[str, Any]) -
         where_when = _clean(row.get("WHERE_WHEN"))
         support = _clean(row.get("SUPPORT"))
         counter = _clean(row.get("COUNTEREVIDENCE"))
+        alternatives = _clean(row.get("ALTERNATIVE_EXPLANATIONS"))
+        structured_alternatives = [item for item in (row.get("alternative_explanations") or []) if isinstance(item, dict)]
         analyst_action = _clean(row.get("ANALYST_ACTION"))
         withdrawal = _clean(row.get("withdrawal_condition"))
         forbidden = sorted({_clean(x).lower() for x in (row.get("FORBIDDEN_INFERENCE") or []) if _clean(x)})
@@ -82,7 +105,7 @@ def build_safe_finding_match_story_candidates(binding_payload: dict[str, Any]) -
         if row.get("professional_finding_emitted") is not True or row.get("claim_output_allowed") is not True:
             reviews.append(f"emit_row_without_claim_gate:{finding_id or 'UNKNOWN'}")
             continue
-        if not finding_id or not safe_meaning or not where_when or not support or not counter or not withdrawal:
+        if not finding_id or not safe_meaning or not where_when or not support or not counter or not alternatives or not withdrawal:
             reviews.append(f"emit_row_story_surface_incomplete:{finding_id or 'UNKNOWN'}")
             continue
         required_forbidden = {"causality", "coach intention", "dominance", "team shape", "true pressure geometry"}
@@ -90,16 +113,18 @@ def build_safe_finding_match_story_candidates(binding_payload: dict[str, Any]) -
             reviews.append(f"emit_row_forbidden_inference_surface_incomplete:{finding_id}")
             continue
 
-        story_text = f"{safe_meaning} {where_when} {counter}"
+        story_text = f"{safe_meaning} {where_when} {counter} {alternatives}"
         stories.append(
             {
-                "match_story_candidate_id": "msc_" + _digest(finding_id, safe_meaning, counter)[:24],
+                "match_story_candidate_id": "msc_" + _digest(finding_id, safe_meaning, counter, alternatives)[:24],
                 "source_professional_finding_ref": finding_id,
                 "entity_scope": row.get("entity_scope"),
                 "context_scope": row.get("context_scope") or [],
                 "match_story_candidate_text": story_text,
                 "story_support": support,
                 "story_counterevidence": counter,
+                "story_alternative_explanations": alternatives,
+                "story_alternative_explanation_objects": structured_alternatives,
                 "analyst_action": analyst_action,
                 "withdrawal_condition": withdrawal,
                 "story_order_is_football_chronology_truth": False,
