@@ -25,6 +25,7 @@ on:
       - 'feature/process-professional-finding-bridge-v1'
       - 'feature/sequence-pattern-admission-v1'
       - 'feature/safe-finding-sequence-binding-v1'
+      - 'feature/zfgv-safe-finding-emission-gate-v1'
 
 jobs:
   professional-finding-bridge:
@@ -60,6 +61,7 @@ jobs:
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_safe_finding_binding.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_safe_finding_null_contrast.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_analyst_narrative.py \
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_analyst_narrative_emission_handoff.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_match_story_synthesis.py \
             hpfa/modules/core/analyst_report_block_composer_lite/tests/test_sequence_finding_report_projection.py \
             hpfa/modules/core/analyst_report_block_composer_lite/tests/test_match_story_report_projection.py \
@@ -135,6 +137,8 @@ jobs:
           grep -F 'null_contrast_consumed' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_safe_finding_binding.py
           grep -F 'professional_finding_emitted_count' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_safe_finding_binding.py
           grep -F 'chronological_story_claimed' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_analyst_narrative.py
+          grep -F 'source_emission_is_input_eligibility_only' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_analyst_narrative.py
+          grep -F 'challenge_surface_preservation_required' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_analyst_narrative.py
           grep -F 'nominal_support_is_independent_evidence_count' hpfa/modules/core/professional_finding_candidate_lite/src/match_story_synthesis.py
           grep -F 'production_report_allowed' hpfa/modules/core/analyst_report_block_composer_lite/src/sequence_finding_report_projection.py
           grep -F 'nominal_support_is_independent_evidence_count' hpfa/modules/core/analyst_report_block_composer_lite/src/match_story_report_projection.py
