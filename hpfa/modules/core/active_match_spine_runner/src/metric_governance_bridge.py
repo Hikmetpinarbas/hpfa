@@ -11,6 +11,7 @@ from hpfa.modules.core.provider_metric_dictionary_lite.src.provider_metric_dicti
 MODULE_ID = "active_match_metric_governance_bridge_v1"
 OUTPUT_JSON = "active_match_metric_governance_bridge_v1.json"
 OUTPUT_TXT = "active_match_metric_governance_bridge_v1.txt"
+ZFGV_OBSERVATION_MODEL = "MULTI_SURFACE_FOOTBALL_OBSERVATION_FABRIC"
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -57,6 +58,35 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         if not present:
             review_hits.append(f"metric_governance_prerequisite_missing:{name}")
 
+    capability_requirements = [
+        row
+        for row in (dictionary.get("zfgv_metric_capability_requirements") or [])
+        if isinstance(row, dict)
+    ]
+    zfgv_capability_contract_present = (
+        dictionary.get("zfgv_observation_model") == ZFGV_OBSERVATION_MODEL
+        and dictionary.get("event_only_compatibility_is_global_admission_gate") is False
+        and dictionary.get("metric_admission_policy")
+        == "REQUIRED_CAPABILITIES_SUBSET_OF_ADMITTED_CAPABILITIES"
+        and bool(capability_requirements)
+    )
+    if not zfgv_capability_contract_present:
+        hard_blocks.append("zfgv_metric_capability_contract_missing_or_invalid")
+
+    invalid_capability_rows = [
+        str(row.get("metric_id") or "UNKNOWN")
+        for row in capability_requirements
+        if not isinstance(row.get("required_observation_capabilities"), list)
+        or row.get("runtime_capability_admission_evaluated") is not False
+        or row.get("metric_value_output_allowed_by_this_projection") is not False
+        or row.get("construct_truth_granted_by_this_projection") is not False
+    ]
+    if invalid_capability_rows:
+        hard_blocks.append(
+            "zfgv_metric_capability_projection_invalid:"
+            + ",".join(sorted(set(invalid_capability_rows)))
+        )
+
     alignment: dict[str, Any] = {
         "status": "NOT_EVALUATED_PREREQUISITE_MISSING",
         "alignment_rows": [],
@@ -102,6 +132,12 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
     payload = {
         "module_id": MODULE_ID,
         "status": "FAIL_CLOSED" if hard_blocks else ("REVIEW_REQUIRED" if review_hits else "SMOKE_PASS"),
+        "observation_model": ZFGV_OBSERVATION_MODEL,
+        "global_event_only_gate": False,
+        "metric_admission_rule": "REQUIRED_CAPABILITIES_SUBSET_OF_ADMITTED_CAPABILITIES",
+        "zfgv_capability_contract_present": zfgv_capability_contract_present,
+        "runtime_capability_admission_evaluated": False,
+        "zfgv_metric_capability_requirements": capability_requirements,
         "metric_definition_policy_status": policy_status,
         "provider_metric_dictionary_status": dictionary_status,
         "aggregate_definition_alignment_status": alignment_status,
@@ -133,6 +169,10 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         "HPFA ACTIVE_MATCH METRIC GOVERNANCE BRIDGE V1",
         "==============================================",
         f"status={payload['status']}",
+        f"observation_model={ZFGV_OBSERVATION_MODEL}",
+        "global_event_only_gate=false",
+        f"zfgv_capability_contract_present={str(zfgv_capability_contract_present).lower()}",
+        "runtime_capability_admission_evaluated=false",
         f"metric_definition_policy_status={policy_status}",
         f"provider_metric_dictionary_status={dictionary_status}",
         f"aggregate_definition_alignment_status={alignment_status}",
