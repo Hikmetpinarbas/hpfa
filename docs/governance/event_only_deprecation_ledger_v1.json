@@ -1,0 +1,125 @@
+{
+  "ledger_id": "event_only_deprecation_ledger_v1",
+  "data_model": "ZFGV",
+  "data_model_version": "1.0",
+  "authority_note": "Fresh main is executable truth; open PR entries are migration candidates until landed.",
+  "classification": {
+    "M1": "GLOBAL_MODEL_ERROR",
+    "M2": "LEGITIMATE_EVENT_DOMAIN_TERM",
+    "M3": "LEGACY_IDENTIFIER_API",
+    "M4": "HISTORICAL_CONTEXT"
+  },
+  "claim_locks": [
+    "ROW != EVENT TRUTH",
+    "EVENT != WHOLE OBSERVATION UNIVERSE",
+    "AGGREGATE != ACTION IDENTITY",
+    "PROVIDER LABEL != PHYSICAL_TACTICAL_TRUTH",
+    "MULTIFORMAT != INDEPENDENT EVIDENCE",
+    "SAME TIMESTAMP != TOTAL ORDER",
+    "COORDINATE != TRACKING",
+    "PROCESS PARTICIPATION != POSSESSION_OR_TACTICAL_PLAN",
+    "RECURRENCE != CAUSALITY_OR_COACH_INTENTION",
+    "MODEL OUTPUT != FACT",
+    "ABSENCE != COUNTEREVIDENCE"
+  ],
+  "entries": [
+    {
+      "source_path": "README.md",
+      "occurrence": "HPFA is an event-only, claim-safe Football Intelligence Platform",
+      "classification": "M1",
+      "action": "REPLACE_WITH_ZFGV_PRODUCT_DESCRIPTION",
+      "migration_status": "MIGRATED_IN_PR355_NOT_MAIN"
+    },
+    {
+      "source_path": "docs/prompts/HPFA_PROJECT_LOGBOOK_PROMPT.md",
+      "occurrence": "HPFA is an event-only, claim-safe, modular and portable Football Intelligence Platform",
+      "classification": "M1",
+      "action": "REPLACE_WITH_ZFGV_GOVERNANCE",
+      "migration_status": "DISCOVERED"
+    },
+    {
+      "source_path": "docs/governance/product_architect_evolution_protocol_v1.md",
+      "occurrence": "long-lived event-only football intelligence product",
+      "classification": "M1",
+      "action": "REPLACE_WITH_MULTI_SURFACE_OBSERVATION_PRODUCT",
+      "migration_status": "DISCOVERED"
+    },
+    {
+      "source_path": "docs/brand/HPFA_BRAND_IDENTITY_CORE_LAYER.md",
+      "occurrence": "event-only and claim-safe analysis discipline",
+      "classification": "M1",
+      "action": "REPLACE_EVENT_ONLY_WITH_ZFGV_CLAIM_DISCIPLINE",
+      "migration_status": "DISCOVERED"
+    },
+    {
+      "source_path": "configs/metrics/metric_registry_v1.json",
+      "occurrence": "event_only_compatible",
+      "classification": "M3",
+      "action": "KEEP_AS_LEGACY_COMPATIBILITY_METADATA_NOT_PRODUCT_GATE",
+      "migration_status": "MIGRATED_IN_PR355_NOT_MAIN"
+    },
+    {
+      "source_path": "hpfa/modules/core/metric_definition_policy_lite/src/metric_definition_policy.py",
+      "occurrence": "event_only_compatible required legacy field",
+      "classification": "M3",
+      "action": "KEEP_SHADOW_ONLY_WHILE_OBSERVATION_CONTRACT_IS_AUTHORITATIVE",
+      "migration_status": "MIGRATED_IN_PR355_NOT_MAIN"
+    },
+    {
+      "source_path": "hpfa/modules/core/provider_metric_dictionary_lite/src/_provider_metric_dictionary_impl_v7.py",
+      "occurrence": "event_only_compatibility_required",
+      "classification": "M3",
+      "action": "REHABILITATE_BEHIND_ZFGV_OBSERVATION_ADMISSION_WRAPPER",
+      "migration_status": "PARTIALLY_MIGRATED_IN_PR355"
+    },
+    {
+      "source_path": "hpfa/modules/core/metric_fusion_engine/policies/eventonly_metric_allowlist_v1.json",
+      "occurrence": "eventonly_metric_allowlist_v1",
+      "classification": "M3",
+      "action": "AUDIT_CALLERS_THEN_SUPERSEDE_WITH_CONSTRUCT_CAPABILITY_ADMISSION_IF_EXECUTABLE",
+      "migration_status": "DISCOVERED_CANDIDATE_NOT_PRODUCTION_BOUND"
+    },
+    {
+      "source_path": "hpfa/modules/core/canonical_event_lite/",
+      "occurrence": "canonical_event_*",
+      "classification": "M2_M3",
+      "action": "KEEP_EVENT_SPECIFIC_SEMANTICS_AND_COMPATIBILITY_NAME",
+      "migration_status": "LEGACY_PRESERVED"
+    },
+    {
+      "source_path": "hpfa/modules/core/event_window_builder_lite/",
+      "occurrence": "event_window_*",
+      "classification": "M2_M3",
+      "action": "KEEP_WHERE_WINDOW_IS_EVENT_SPECIFIC;DO_NOT_PROMOTE_TO_GLOBAL_OBSERVATION_MODEL",
+      "migration_status": "LEGACY_PRESERVED"
+    },
+    {
+      "source_path": "docs/HPFA_SIDER_SCHOLAR_EVENT_ONLY_LITERATURE_DONOR_SCAN_V1.md",
+      "occurrence": "event-only literature donor scan",
+      "classification": "M4",
+      "action": "PRESERVE_AS_LEGACY_EVENT_ONLY_CONTEXT",
+      "migration_status": "HISTORICAL_PRESERVED"
+    },
+    {
+      "source_path": "docs/research_support/academic_backing_matrix_v1.tsv",
+      "occurrence": "event_only_usable",
+      "classification": "M3_M4",
+      "action": "MIGRATE_RESEARCH_ELIGIBILITY_TO_REQUIRED_DATA_SURFACE_AND_TRACKING_DEPENDENCY",
+      "migration_status": "DISCOVERED"
+    }
+  ],
+  "next_audit_targets": [
+    "metric_fusion_engine executable callers",
+    "model eligibility and research admission",
+    "spatial/progression guards",
+    "process/participation gates",
+    "aggregate/XLSX reconciliation",
+    "relation/consequence gates",
+    "reporting/claim gates",
+    "video-review routing"
+  ],
+  "completion_claim": false,
+  "canonical_event_count": "UNKNOWN",
+  "true_action_count": "UNKNOWN",
+  "production_release": false
+}
