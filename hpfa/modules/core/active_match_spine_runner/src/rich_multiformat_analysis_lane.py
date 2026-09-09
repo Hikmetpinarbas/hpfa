@@ -119,14 +119,15 @@ def _trace_candidate_index(trace_payload: dict[str, Any], binding_id: str | None
     empty = {
         "input_state": "TRACE_CANDIDATE_INPUT_UNAVAILABLE",
         "actor_by_identity_candidate_ids": {},
+        "review_bound": False,
     }
     if not isinstance(trace_payload, dict) or not trace_payload:
         return empty
     if trace_payload.get("module_id") != TRACKABLE_TRACE_MODULE_ID:
         return {**empty, "input_state": "TRACE_CANDIDATE_MODULE_MISMATCH_REVIEW_REQUIRED"}
     status = str(trace_payload.get("status") or trace_payload.get("module_status") or "")
-    if status != "PASS":
-        return {**empty, "input_state": "TRACE_CANDIDATE_INPUT_NOT_PASS_REVIEW_REQUIRED"}
+    if status not in {"PASS", "REVIEW_REQUIRED"}:
+        return {**empty, "input_state": "TRACE_CANDIDATE_INPUT_NOT_ADMISSIBLE_REVIEW_REQUIRED"}
     expected_binding_id = str(binding_id or "").strip()
     payload_binding_id = str(trace_payload.get("match_surface_binding_id") or "").strip()
     if not expected_binding_id or payload_binding_id != expected_binding_id:
@@ -172,6 +173,7 @@ def _trace_candidate_index(trace_payload: dict[str, Any], binding_id: str | None
     return {
         "input_state": "TRACKABLE_ACTION_TRACE_CANDIDATES_AVAILABLE",
         "actor_by_identity_candidate_ids": dict(actor_by_identity_candidate_ids),
+        "review_bound": status == "REVIEW_REQUIRED",
     }
 
 
@@ -201,7 +203,7 @@ def _entity_views(
     trace_index = _trace_candidate_index(trace_payload or {}, common_binding_id)
     if identity_index["input_state"].endswith("REVIEW_REQUIRED"):
         aggregate_support_identity_relation_review_required_count += 1
-    if trace_index["input_state"].endswith("REVIEW_REQUIRED"):
+    if trace_index["input_state"].endswith("REVIEW_REQUIRED") or trace_index.get("review_bound"):
         aggregate_support_trace_relation_review_required_count += 1
 
     for row in rows:
@@ -293,7 +295,11 @@ def _entity_views(
                 )
             )
             if trace_context_refs:
-                trace_context_state = "TRACE_CANDIDATE_COHORT_CONTEXT_ONLY"
+                trace_context_state = (
+                    "TRACE_CANDIDATE_COHORT_CONTEXT_REVIEW_BOUND"
+                    if trace_index.get("review_bound")
+                    else "TRACE_CANDIDATE_COHORT_CONTEXT_ONLY"
+                )
                 trace_context_basis = [
                     "same_match_surface_binding_id",
                     "same_bound_team_identity_candidate_id",
@@ -329,6 +335,7 @@ def _entity_views(
             "aggregate_support_trackable_trace_candidate_refs": trace_context_refs,
             "aggregate_support_trace_context_basis": trace_context_basis,
             "aggregate_support_trace_relation_is_cohort_context_only": bool(trace_context_refs),
+            "aggregate_support_trace_relation_is_review_bound": bool(trace_context_refs and trace_index.get("review_bound")),
             "aggregate_support_trace_relation_is_individual_action_support": False,
             "aggregate_support_trace_relation_is_action_trace_identity": False,
             "aggregate_support_trace_relation_is_physical_action_truth": False,
@@ -358,6 +365,7 @@ def _entity_views(
         "aggregate_support_trace_candidate_ref_count": aggregate_support_trace_candidate_ref_count,
         "aggregate_support_trace_relation_review_required_count": aggregate_support_trace_relation_review_required_count,
         "aggregate_support_trace_relation_input_state": trace_index["input_state"],
+        "aggregate_support_trace_relation_review_bound": bool(trace_index.get("review_bound")),
         "aggregate_support_attachment_is_match_local_identity_truth": False,
         "aggregate_support_attachment_is_action_trace_identity": False,
         "aggregate_support_trace_relation_is_individual_action_support": False,
@@ -562,6 +570,7 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"aggregate_support_trace_candidate_ref_count={entity.get('aggregate_support_trace_candidate_ref_count')}",
         f"aggregate_support_trace_relation_review_required_count={entity.get('aggregate_support_trace_relation_review_required_count')}",
         f"aggregate_support_trace_relation_input_state={entity.get('aggregate_support_trace_relation_input_state')}",
+        f"aggregate_support_trace_relation_review_bound={entity.get('aggregate_support_trace_relation_review_bound')}",
         f"C01_status={c01.get('status')}",
         f"C01_progression_aggregate_ref_count={c01.get('progression_aggregate_ref_count')}",
         f"C01_terminal_aggregate_ref_count={c01.get('terminal_aggregate_ref_count')}",
