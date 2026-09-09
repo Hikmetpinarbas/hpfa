@@ -16,6 +16,9 @@ from hpfa.modules.core.analyst_episode_locator_lite.src.phase_dynamics_interacti
 from hpfa.modules.core.metric_definition_policy_lite.src.ball_security_construct import (
     build_ball_security_construct,
 )
+from hpfa.modules.core.metric_definition_policy_lite.src.ball_security_safe_finding_adapter import (
+    build_ball_security_safe_finding_projection,
+)
 from hpfa.modules.core.metric_definition_policy_lite.src.construct_context_guard import load_guard
 from hpfa.modules.core.metric_definition_policy_lite.src.progression_effectiveness_construct import (
     build_progression_effectiveness_construct,
@@ -53,6 +56,7 @@ OUTPUTS = {
     "progression_effectiveness": "progression_effectiveness_construct_v1.json",
     "progression_safe_finding": "progression_safe_finding_projection_v1.json",
     "ball_security": "ball_security_construct_v1.json",
+    "ball_security_safe_finding": "ball_security_safe_finding_projection_v1.json",
     "recovery_yield": "recovery_yield_construct_v1.json",
     "recovery_safe_finding": "recovery_safe_finding_projection_v1.json",
 }
@@ -129,6 +133,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
             "recovery_yield_truth": False,
             "possession_gain_truth": False,
             "progression_safe_finding_engineering_envelope_complete": False,
+            "ball_security_safe_finding_engineering_envelope_complete": False,
             "recovery_safe_finding_engineering_envelope_complete": False,
             "physical_active_match_evidence_present": False,
             "professional_finding_emitted": False,
@@ -172,6 +177,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         )
 
     progression_safe_finding = build_progression_safe_finding_projection(progression_effectiveness)
+    ball_security_safe_finding = build_ball_security_safe_finding_projection(ball_security)
     recovery_safe_finding = build_recovery_safe_finding_projection(recovery_yield)
 
     output_payloads = {
@@ -182,6 +188,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "progression_effectiveness": progression_effectiveness,
         "progression_safe_finding": progression_safe_finding,
         "ball_security": ball_security,
+        "ball_security_safe_finding": ball_security_safe_finding,
         "recovery_yield": recovery_yield,
         "recovery_safe_finding": recovery_safe_finding,
     }
@@ -220,6 +227,8 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "progression_safe_finding_candidate_count": progression_safe_finding.get("finding_candidate_count"),
         "progression_safe_finding_engineering_envelope_complete": progression_safe_finding.get("engineering_envelope_complete") is True,
         "ball_security_construct_candidate_count": ball_security.get("construct_candidate_count"),
+        "ball_security_safe_finding_candidate_count": ball_security_safe_finding.get("finding_candidate_count"),
+        "ball_security_safe_finding_engineering_envelope_complete": ball_security_safe_finding.get("engineering_envelope_complete") is True,
         "recovery_yield_construct_candidate_count": recovery_yield.get("construct_candidate_count"),
         "recovery_safe_finding_candidate_count": recovery_safe_finding.get("finding_candidate_count"),
         "recovery_safe_finding_engineering_envelope_complete": recovery_safe_finding.get("engineering_envelope_complete") is True,
