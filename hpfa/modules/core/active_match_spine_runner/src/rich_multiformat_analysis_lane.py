@@ -526,6 +526,7 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int = 20) -> list[dict[str, Any]]:
+    """Return label-navigation refs only; labels are not construct-semantic authority."""
     refs: list[dict[str, Any]] = []
     for row in rows:
         for key, metric in (row.get("metric_values") or {}).items():
@@ -544,7 +545,10 @@ def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int 
                 "raw_metric_label": metric.get("raw_metric_label"),
                 "raw_value": admitted_value,
                 "value_kind": "number",
-                "positive_numeric_support_only": True,
+                "positive_numeric_observation": True,
+                "label_navigation_only": True,
+                "construct_support_allowed": False,
+                "metric_label_match_is_construct_semantic_authority": False,
                 "entity_candidate": (row.get("identity_candidates") or {}).get("player_raw_candidate") or (row.get("identity_candidates") or {}).get("team_raw_candidate"),
                 "provenance_root": str(row.get("source_sha256") or "xlsx_unknown"),
                 "dependency_group": "same_provider_xlsx_aggregate",
@@ -558,8 +562,12 @@ def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int 
 
 
 def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict[str, Any]:
-    progression = _metric_refs(rows, ("progressive", "progression", "final_third", "final third", "penalty_area", "penalty area", "box"))
-    terminal = _metric_refs(rows, ("shot", "xg", "goal", "chance"))
+    progression_navigation = _metric_refs(rows, ("progressive", "progression", "final_third", "final third", "penalty_area", "penalty area", "box"))
+    terminal_navigation = _metric_refs(rows, ("shot", "xg", "goal", "chance"))
+    # Current XLSX projection explicitly withholds metric semantic authority.  These
+    # label matches remain analyst navigation only and cannot become C01 support.
+    progression: list[dict[str, Any]] = []
+    terminal: list[dict[str, Any]] = []
     shot_values: list[int] = []
     invalid_shot_count_episode_indices: list[int] = []
     for index, card in enumerate(features.get("episode_feature_vectors") or []):
@@ -582,28 +590,13 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
         "independent_support_vote": False,
     }
     packet_candidate = None
-    if not count_contract_review_required and progression and (terminal or shot_total > 0):
-        metrics = [progression[0]] + ([terminal[0]] if terminal else [])
-        packet_candidate = {
-            "packet_family": "progression",
-            "input_features": [occurrence_ref],
-            "input_windows": [],
-            "input_sequences": [],
-            "input_metrics": metrics,
-            "supporting_signals": [],
-            "contradicting_signals": [],
-            "claim_ceiling": "composite_candidate_only",
-            "blocked_language_families": ["tactical_truth", "dominance_truth", "control_truth"],
-        }
     state = "REVIEW_REQUIRED"
     if count_contract_review_required:
         reason = "episode_feature_shot_count_contract_invalid"
-    elif not progression:
-        reason = "positive_numeric_aggregate_progression_surface_not_observed"
-    elif not terminal and shot_total <= 0:
-        reason = "positive_numeric_terminal_surface_not_observed"
+    elif progression_navigation or terminal_navigation:
+        reason = "xlsx_metric_label_navigation_present_but_construct_semantic_authority_not_admitted"
     else:
-        reason = "occurrence_progression_semantics_not_yet_admitted_same_provider_support_non_independent"
+        reason = "construct_semantic_authority_not_admitted"
     return {
         "construct_id": "C01_PROGRESSION_VOLUME_VS_TERMINAL_CONVERSION",
         "status": state,
@@ -613,12 +606,19 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
         "visible_shot_candidate_count": shot_total,
         "progression_metric_refs": progression,
         "terminal_metric_refs": terminal,
+        "progression_label_navigation_ref_count": len(progression_navigation),
+        "terminal_label_navigation_ref_count": len(terminal_navigation),
+        "progression_label_navigation_refs": progression_navigation,
+        "terminal_label_navigation_refs": terminal_navigation,
         "packet_candidate": packet_candidate,
         "count_contract_review_required": count_contract_review_required,
         "invalid_shot_count_episode_indices": invalid_shot_count_episode_indices,
         "xlsx_metric_support_requires_observed_positive_numeric_value": True,
         "xlsx_zero_metric_value_is_production_support": False,
         "xlsx_nonnumeric_metric_value_is_production_support": False,
+        "xlsx_metric_label_match_is_construct_semantic_authority": False,
+        "xlsx_label_navigation_is_construct_support": False,
+        "construct_semantic_authority_admitted": False,
         "review_reason": reason,
         "aggregate_support_is_independent_vote": False,
         "construct_truth": False,
@@ -656,10 +656,14 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"C01_status={c01.get('status')}",
         f"C01_progression_aggregate_ref_count={c01.get('progression_aggregate_ref_count')}",
         f"C01_terminal_aggregate_ref_count={c01.get('terminal_aggregate_ref_count')}",
+        f"C01_progression_label_navigation_ref_count={c01.get('progression_label_navigation_ref_count')}",
+        f"C01_terminal_label_navigation_ref_count={c01.get('terminal_label_navigation_ref_count')}",
         f"C01_visible_shot_candidate_count={c01.get('visible_shot_candidate_count')}",
         f"C01_review_reason={c01.get('review_reason')}",
         f"hard_block_hits={payload.get('hard_block_hits') or []}",
         f"review_hits={payload.get('review_hits') or []}",
+        "xlsx_metric_label_match_is_construct_semantic_authority=false",
+        "xlsx_label_navigation_is_construct_support=false",
         "aggregate_support_attachment_is_match_local_identity_truth=false",
         "aggregate_support_attachment_is_action_trace_identity=false",
         "aggregate_support_trace_relation_is_individual_action_support=false",
@@ -781,7 +785,7 @@ def run_rich_lane(
                 "team_view_candidates": entity_views.get("team_view_candidates"),
                 "action_family_candidate_counts": admitted_action_family_counts,
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
-                "constructs": {"C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "packet_candidate"}}},
+                "constructs": {"C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "progression_label_navigation_refs", "terminal_label_navigation_refs", "packet_candidate"}}},
             },
         },
         "entity_views": entity_views,
@@ -790,6 +794,8 @@ def run_rich_lane(
         "review_hits": list(dict.fromkeys(review_hits)),
         "format_fusion_is_independent_evidence_vote": False,
         "xlsx_row_projection_is_event_truth": False,
+        "xlsx_metric_label_match_is_construct_semantic_authority": False,
+        "xlsx_label_navigation_is_construct_support": False,
         "aggregate_support_attachment_is_match_local_identity_truth": False,
         "aggregate_support_attachment_is_action_trace_identity": False,
         "aggregate_support_trace_relation_is_individual_action_support": False,
