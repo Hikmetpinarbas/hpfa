@@ -146,7 +146,11 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         progression_effectiveness = build_progression_effectiveness_construct(payloads["trace"], payloads["consequence"], guard, repo_root=repo_root)
         ball_security = build_ball_security_construct(payloads["trace"], payloads["consequence"], guard)
         recovery_yield = build_recovery_yield_construct(
-            payloads["trace"], payloads["consequence"], guard, episode_consequence
+            payloads["trace"],
+            payloads["consequence"],
+            guard,
+            episode_consequence,
+            progression_effectiveness,
         )
     except (OSError, ValueError) as exc:
         progression_effectiveness = _construct_fail_closed(
@@ -195,6 +199,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         status = "SMOKE_PASS"
         decision = "PHASE_DYNAMICS_INTELLIGENCE_COMPLETED"
 
+    recovery_construct = recovery_yield.get("construct_candidate") or {}
     return {
         "module_id": MODULE_ID,
         "status": status,
@@ -209,6 +214,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "progression_safe_finding_engineering_envelope_complete": progression_safe_finding.get("engineering_envelope_complete") is True,
         "ball_security_construct_candidate_count": ball_security.get("construct_candidate_count"),
         "recovery_yield_construct_candidate_count": recovery_yield.get("construct_candidate_count"),
+        "visible_recovery_to_progression_candidate_count": recovery_construct.get("visible_recovery_to_progression_candidate_count"),
         "physical_active_match_evidence_present": False,
         "outputs": {key: str(output / filename) for key, filename in OUTPUTS.items()},
         "hard_block_hits": hard_blocks,
