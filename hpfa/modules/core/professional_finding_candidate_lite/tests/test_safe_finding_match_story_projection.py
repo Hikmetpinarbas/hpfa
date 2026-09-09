@@ -14,6 +14,8 @@ def _emit_row():
         "WHERE_WHEN": "The statement is restricted to the admitted match-local evidence scope.",
         "SUPPORT": "Observed support=5; independent support=2.",
         "COUNTEREVIDENCE": "Visible failure variants=1; divergence variants=1; counterevidence refs=2. No-visible-followup is not failure.",
+        "ALTERNATIVE_EXPLANATIONS": "Visible alternatives/challenges: CONTEXT_DEPENDENCE",
+        "alternative_explanations": [{"type": "CONTEXT_DEPENDENCE", "causal_truth": False}],
         "ANALYST_ACTION": "Review recurrent examples and adverse twins before using the finding.",
         "withdrawal_condition": "Withdraw if recurrence, independence, counterevidence or context evidence changes materially.",
         "FORBIDDEN_INFERENCE": [
@@ -48,6 +50,9 @@ def test_emit_finding_projects_to_claim_safe_match_story_candidate():
     assert result["match_story_candidate_count"] == 1
     assert row["source_professional_finding_ref"] == "sfb_generic_1"
     assert "No-visible-followup is not failure" in row["match_story_candidate_text"]
+    assert "CONTEXT_DEPENDENCE" in row["match_story_candidate_text"]
+    assert row["story_alternative_explanations"] == "Visible alternatives/challenges: CONTEXT_DEPENDENCE"
+    assert row["story_alternative_explanation_objects"] == [{"type": "CONTEXT_DEPENDENCE", "causal_truth": False}]
     assert row["story_order_is_football_chronology_truth"] is False
     assert row["story_is_tactical_phase_truth"] is False
     assert row["story_is_formation_or_shape_truth"] is False
@@ -58,6 +63,26 @@ def test_emit_finding_projects_to_claim_safe_match_story_candidate():
     assert row["canonical_event_count"] == "UNKNOWN"
     assert row["true_action_count"] == "UNKNOWN"
     assert row["production_release"] is False
+
+
+def test_upstream_review_required_never_projects_story_even_with_emit_row():
+    payload = _payload()
+    payload["status"] = "REVIEW_REQUIRED"
+    result = build_safe_finding_match_story_candidates(payload)
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["match_story_candidate_count"] == 0
+    assert result["non_emitting_finding_rows_skipped"] == 1
+    assert "upstream_review_required" in result["review_hits"]
+
+
+def test_alternative_only_challenge_is_retained_in_story_surface():
+    row = _emit_row()
+    row["COUNTEREVIDENCE"] = "Visible failure variants=0; divergence variants=0; counterevidence refs=0. No-visible-followup=0 is reported separately and is not failure."
+    result = build_safe_finding_match_story_candidates(_payload([row]))
+    story = result["match_story_candidates"][0]
+    assert result["status"] == "PASS"
+    assert "CONTEXT_DEPENDENCE" in story["story_alternative_explanations"]
+    assert "CONTEXT_DEPENDENCE" in story["match_story_candidate_text"]
 
 
 def test_downgrade_and_abstain_never_enter_match_story():
@@ -84,7 +109,7 @@ def test_emit_label_without_upstream_claim_gate_is_review_required_not_story():
     assert "emit_row_without_claim_gate:sfb_generic_1" in result["review_hits"]
 
 
-def test_missing_counterevidence_or_withdrawal_surface_blocks_story_projection():
+def test_missing_counterevidence_alternative_or_withdrawal_surface_blocks_story_projection():
     row = _emit_row()
     row["COUNTEREVIDENCE"] = ""
     result = build_safe_finding_match_story_candidates(_payload([row]))
