@@ -106,6 +106,8 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any], null_c
     for row in admissions:
         state = _clean(row.get("admission_state"))
         if state not in SAFE_EMITTING_ADMISSION_STATES | NON_EMITTING_ADMISSION_STATES: return _fail(f"unsupported_admission_state:{state or 'UNKNOWN'}")
+    if reviews:
+        return {"module_id": MODULE_ID, "status": "REVIEW_REQUIRED", "decision": "SEQUENCE_SAFE_FINDING_BLOCKS_ABSTAINED_PENDING_UPSTREAM_REVIEW", "analyst_report_blocks": [], "analyst_report_block_count": 0, "hard_block_hits": [], "review_hits": sorted(set(reviews)), "complexity_inside_clarity_outside": True, "null_contrast_consumed": null_contrast_payload is not None, "professional_finding_emitted_count": 0, "claim_output_allowed_count": 0, "finding_status_counts": {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": len(admissions)}, "canonical_event_count": CANONICAL_EVENT_COUNT, "true_action_count": TRUE_ACTION_COUNT, "production_release": False, "claim_ceiling": CLAIM_CEILING}
     report_blocks: list[dict[str, Any]] = []
     for row in admissions:
         state = _clean(row.get("admission_state")); family_ref = _clean(row.get("trace_family_ref"))
