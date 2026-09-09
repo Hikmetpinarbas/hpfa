@@ -143,6 +143,31 @@ def _sequence_occurrence_context(sequence: dict[str, Any], sequence_id: str) -> 
     }, reviews
 
 
+def _rejected(blocks: list[str], reviews: list[str], decision: str) -> dict[str, Any]:
+    return {
+        "module_id": MODULE_ID,
+        "status": "FAIL_CLOSED",
+        "decision": decision,
+        "partial_order_trace_variants": [],
+        "partial_order_trace_variant_count": 0,
+        "hard_block_hits": sorted(set(blocks)),
+        "review_hits": sorted(set(reviews)),
+        "same_timestamp_internal_ordering_allowed": False,
+        "source_row_order_is_temporal_truth": False,
+        "provenance_order_is_football_chronology": False,
+        "sequence_occurrence_context_is_variant_support": False,
+        "sequence_occurrence_context_is_independent_support": False,
+        "sequence_occurrence_context_ref_count_is_recurrence_count": False,
+        "trace_only_node_is_event_truth": False,
+        "trace_only_node_is_independent_support": False,
+        "trace_only_node_count_is_recurrence_count": False,
+        "canonical_event_count": CANONICAL_EVENT_COUNT,
+        "true_action_count": TRUE_ACTION_COUNT,
+        "production_release": False,
+        "claim_ceiling": CLAIM_CEILING,
+    }
+
+
 def build_partial_order_trace_variants(
     sequence_payload: dict[str, Any],
     trace_payload: dict[str, Any],
@@ -150,25 +175,7 @@ def build_partial_order_trace_variants(
 ) -> dict[str, Any]:
     blocks, reviews = _validate_inputs(sequence_payload, trace_payload, consequence_payload)
     if blocks:
-        return {
-            "module_id": MODULE_ID,
-            "status": "FAIL_CLOSED",
-            "decision": "PARTIAL_ORDER_TRACE_VARIANT_INPUT_REJECTED",
-            "partial_order_trace_variants": [],
-            "partial_order_trace_variant_count": 0,
-            "hard_block_hits": blocks,
-            "review_hits": reviews,
-            "same_timestamp_internal_ordering_allowed": False,
-            "source_row_order_is_temporal_truth": False,
-            "provenance_order_is_football_chronology": False,
-            "sequence_occurrence_context_is_variant_support": False,
-            "sequence_occurrence_context_is_independent_support": False,
-            "sequence_occurrence_context_ref_count_is_recurrence_count": False,
-            "canonical_event_count": CANONICAL_EVENT_COUNT,
-            "true_action_count": TRUE_ACTION_COUNT,
-            "production_release": False,
-            "claim_ceiling": CLAIM_CEILING,
-        }
+        return _rejected(blocks, reviews, "PARTIAL_ORDER_TRACE_VARIANT_INPUT_REJECTED")
 
     traces = [row for row in (trace_payload.get("trackable_action_trace_candidates") or []) if isinstance(row, dict)]
     consequences = [row for row in (consequence_payload.get("trackable_action_consequence_candidates") or []) if isinstance(row, dict)]
@@ -180,6 +187,8 @@ def build_partial_order_trace_variants(
     layer_by_id = {_clean(row.get("visible_action_time_layer_candidate_id")): row for row in layers}
 
     variants: list[dict[str, Any]] = []
+    total_occurrence_backed_nodes = 0
+    total_trace_only_nodes = 0
 
     for sequence in sequences:
         sequence_id = _clean(sequence.get("visible_action_sequence_candidate_id"))
@@ -199,6 +208,8 @@ def build_partial_order_trace_variants(
         dependency_group_refs: set[str] = set()
         provenance_refs: set[str] = set()
         order_indeterminate = False
+        occurrence_backed_node_count = 0
+        trace_only_node_count = 0
 
         previous_layer_id: str | None = None
         previous_time: float | None = None
@@ -220,13 +231,22 @@ def build_partial_order_trace_variants(
                 if not consequence:
                     blocks.append(f"variant_consequence_missing:{sequence_id}:{trace_id}")
                     continue
+
                 occurrence_refs = [
                     _clean(value)
                     for value in (trace.get("supporting_action_occurrence_candidate_ids") or [])
                     if _clean(value)
                 ]
-                if not occurrence_refs:
-                    blocks.append(f"variant_trace_requires_admitted_occurrence:{trace_id}")
+                if occurrence_refs:
+                    occurrence_binding_state = "OCCURRENCE_BACKED_VARIANT_NODE"
+                    occurrence_backed_node_count += 1
+                    total_occurrence_backed_nodes += 1
+                else:
+                    occurrence_binding_state = "TRACE_ONLY_VARIANT_NODE_REVIEW_BOUND"
+                    trace_only_node_count += 1
+                    total_trace_only_nodes += 1
+                    reviews.append(f"variant_trace_without_admitted_occurrence:{trace_id}")
+
                 families = sorted({_clean(value) for value in (trace.get("action_family_candidates") or []) if _clean(value)})
                 for family in families:
                     family_counter[family] += 1
@@ -258,6 +278,10 @@ def build_partial_order_trace_variants(
                 node_records.append({
                     "trace_ref": trace_id,
                     "occurrence_refs": occurrence_refs,
+                    "occurrence_binding_state": occurrence_binding_state,
+                    "trace_only_is_event_truth": False,
+                    "trace_only_is_independent_support": False,
+                    "trace_only_counts_as_recurrence_support": False,
                     "time_layer_ref": layer_id,
                     "time_candidate": current_time,
                     "action_family_candidates": families,
@@ -333,6 +357,12 @@ def build_partial_order_trace_variants(
             "outcome_signature": outcome_signature,
             "ordering_completeness": ordering_completeness,
             "chronology_confidence": chronology_confidence,
+            "occurrence_backed_node_count": occurrence_backed_node_count,
+            "trace_only_node_count": trace_only_node_count,
+            "contains_trace_only_nodes": trace_only_node_count > 0,
+            "trace_only_nodes_are_event_truth": False,
+            "trace_only_nodes_are_independent_support": False,
+            "trace_only_node_count_is_recurrence_count": False,
             "dependency_group_refs": sorted(dependency_group_refs),
             "provenance_refs": sorted(provenance_refs),
             "same_timestamp_internal_ordering_allowed": False,
@@ -349,25 +379,7 @@ def build_partial_order_trace_variants(
         variants.append(variant_row)
 
     if blocks:
-        return {
-            "module_id": MODULE_ID,
-            "status": "FAIL_CLOSED",
-            "decision": "PARTIAL_ORDER_TRACE_VARIANT_BUILD_REJECTED",
-            "partial_order_trace_variants": [],
-            "partial_order_trace_variant_count": 0,
-            "hard_block_hits": sorted(set(blocks)),
-            "review_hits": sorted(set(reviews)),
-            "same_timestamp_internal_ordering_allowed": False,
-            "source_row_order_is_temporal_truth": False,
-            "provenance_order_is_football_chronology": False,
-            "sequence_occurrence_context_is_variant_support": False,
-            "sequence_occurrence_context_is_independent_support": False,
-            "sequence_occurrence_context_ref_count_is_recurrence_count": False,
-            "canonical_event_count": CANONICAL_EVENT_COUNT,
-            "true_action_count": TRUE_ACTION_COUNT,
-            "production_release": False,
-            "claim_ceiling": CLAIM_CEILING,
-        }
+        return _rejected(blocks, reviews, "PARTIAL_ORDER_TRACE_VARIANT_BUILD_REJECTED")
 
     return {
         "module_id": MODULE_ID,
@@ -376,6 +388,12 @@ def build_partial_order_trace_variants(
         "partial_order_trace_variants": variants,
         "partial_order_trace_variant_count": len(variants),
         "source_visible_action_sequence_candidate_count": len(sequences),
+        "occurrence_backed_variant_node_count": total_occurrence_backed_nodes,
+        "trace_only_variant_node_count": total_trace_only_nodes,
+        "trace_only_nodes_present": total_trace_only_nodes > 0,
+        "trace_only_node_is_event_truth": False,
+        "trace_only_node_is_independent_support": False,
+        "trace_only_node_count_is_recurrence_count": False,
         "hard_block_hits": [],
         "review_hits": sorted(set(reviews)),
         "same_timestamp_internal_ordering_allowed": False,
