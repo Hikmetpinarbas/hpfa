@@ -50,6 +50,12 @@ def _snapshot(root: Path) -> str:
     return hashlib.sha256(json.dumps(records, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
+def _strict_nonnegative_count(value: Any) -> int | None:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        return None
+    return value
+
+
 def _flatten_projection(projection: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         row
@@ -427,24 +433,34 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
     for index, card in enumerate(cards):
         if not isinstance(card, dict):
             continue
+        zones = card.get("eligible_action_zone_counts")
+        families = card.get("action_family_counts")
+        zones = zones if isinstance(zones, dict) else {}
+        families = families if isinstance(families, dict) else {}
+        raw_counts = {
+            "shot_candidate_count": card.get("shot_candidate_count", 0),
+            "turnover_candidate_count": card.get("turnover_candidate_count", 0),
+            "recovery_candidate_count": card.get("recovery_candidate_count", 0),
+            "final_third_action_candidate_count": zones.get("FINAL_THIRD", zones.get("final_third", 0)),
+            "pass_candidate_count": families.get("PASS", families.get("pass", 0)),
+        }
+        counts = {key: _strict_nonnegative_count(value) for key, value in raw_counts.items()}
+        invalid_fields = sorted(key for key, value in counts.items() if value is None)
+        count_contract_review_required = bool(invalid_fields)
+        support = {key: (0 if value is None else value) for key, value in counts.items()}
+
         labels: list[str] = []
-        shots = int(card.get("shot_candidate_count") or 0)
-        turnovers = int(card.get("turnover_candidate_count") or 0)
-        recoveries = int(card.get("recovery_candidate_count") or 0)
-        zones = card.get("eligible_action_zone_counts") or {}
-        families = card.get("action_family_counts") or {}
-        final_third = int(zones.get("FINAL_THIRD") or zones.get("final_third") or 0)
-        passes = int(families.get("PASS") or families.get("pass") or 0)
-        if shots:
-            labels.append("TERMINAL_ACTIVITY_CANDIDATE")
-        if turnovers:
-            labels.append("LOSS_TRANSITION_ACTIVITY_CANDIDATE")
-        if recoveries:
-            labels.append("RECOVERY_TRANSITION_ACTIVITY_CANDIDATE")
-        if final_third:
-            labels.append("ADVANCED_ACCESS_ACTIVITY_CANDIDATE")
-        if passes:
-            labels.append("CIRCULATION_ACTIVITY_CANDIDATE")
+        if not count_contract_review_required:
+            if support["shot_candidate_count"]:
+                labels.append("TERMINAL_ACTIVITY_CANDIDATE")
+            if support["turnover_candidate_count"]:
+                labels.append("LOSS_TRANSITION_ACTIVITY_CANDIDATE")
+            if support["recovery_candidate_count"]:
+                labels.append("RECOVERY_TRANSITION_ACTIVITY_CANDIDATE")
+            if support["final_third_action_candidate_count"]:
+                labels.append("ADVANCED_ACCESS_ACTIVITY_CANDIDATE")
+            if support["pass_candidate_count"]:
+                labels.append("CIRCULATION_ACTIVITY_CANDIDATE")
         if not labels:
             labels.append("UNRESOLVED_ACTIVITY_STATE")
         result.append({
@@ -453,13 +469,9 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
             "start_second_candidate": card.get("start_second_candidate"),
             "end_second_candidate": card.get("end_second_candidate"),
             "labels": labels,
-            "support": {
-                "shot_candidate_count": shots,
-                "turnover_candidate_count": turnovers,
-                "recovery_candidate_count": recoveries,
-                "final_third_action_candidate_count": final_third,
-                "pass_candidate_count": passes,
-            },
+            "support": support,
+            "count_contract_review_required": count_contract_review_required,
+            "invalid_count_fields": invalid_fields,
             "phase_truth": False,
             "possession_truth": False,
             "tactical_truth": False,
@@ -498,7 +510,18 @@ def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int 
 def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict[str, Any]:
     progression = _metric_refs(rows, ("progressive", "progression", "final_third", "final third", "penalty_area", "penalty area", "box"))
     terminal = _metric_refs(rows, ("shot", "xg", "goal", "chance"))
-    shot_total = sum(int(card.get("shot_candidate_count") or 0) for card in (features.get("episode_feature_vectors") or []) if isinstance(card, dict))
+    shot_values: list[int] = []
+    invalid_shot_count_episode_indices: list[int] = []
+    for index, card in enumerate(features.get("episode_feature_vectors") or []):
+        if not isinstance(card, dict):
+            continue
+        value = _strict_nonnegative_count(card.get("shot_candidate_count", 0))
+        if value is None:
+            invalid_shot_count_episode_indices.append(index)
+        else:
+            shot_values.append(value)
+    count_contract_review_required = bool(invalid_shot_count_episode_indices)
+    shot_total = sum(shot_values) if not count_contract_review_required else 0
     occurrence_ref = {
         "feature_id": "c01_visible_terminal_episode_surface",
         "source_surface": "episode_feature_vector_lite_v1",
@@ -509,7 +532,7 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
         "independent_support_vote": False,
     }
     packet_candidate = None
-    if progression and (terminal or shot_total > 0):
+    if not count_contract_review_required and progression and (terminal or shot_total > 0):
         metrics = [progression[0]] + ([terminal[0]] if terminal else [])
         packet_candidate = {
             "packet_family": "progression",
@@ -523,7 +546,9 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
             "blocked_language_families": ["tactical_truth", "dominance_truth", "control_truth"],
         }
     state = "REVIEW_REQUIRED"
-    if not progression:
+    if count_contract_review_required:
+        reason = "episode_feature_shot_count_contract_invalid"
+    elif not progression:
         reason = "aggregate_progression_surface_not_observed"
     elif not terminal and shot_total <= 0:
         reason = "terminal_surface_not_observed"
@@ -539,6 +564,8 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
         "progression_metric_refs": progression,
         "terminal_metric_refs": terminal,
         "packet_candidate": packet_candidate,
+        "count_contract_review_required": count_contract_review_required,
+        "invalid_shot_count_episode_indices": invalid_shot_count_episode_indices,
         "review_reason": reason,
         "aggregate_support_is_independent_vote": False,
         "construct_truth": False,
@@ -654,6 +681,8 @@ def run_rich_lane(
         review_hits.append("xlsx_entity_view_trackable_trace_relation_review_required")
     primitives = _primitive_metrics(features, entity_views)
     phase_states = _phase_state_candidates(features)
+    if any(item.get("count_contract_review_required") is True for item in phase_states):
+        review_hits.append("episode_feature_count_contract_review_required")
     c01 = _construct_c01(rows, features)
     if c01.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C01_progression_terminal_construct_review_required")
