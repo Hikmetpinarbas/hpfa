@@ -11,7 +11,7 @@ OUTPUT_TXT = "final_report_assembly_gate_lite_v1.txt"
 
 UPSTREAM_CLAIM_CEILING = "report_output_contract_candidate_only"
 ASSEMBLY_CLAIM_CEILING = "final_report_assembly_candidate_only"
-MISSING_CONTRACT_ITEM_ID = "MISSING_CONTRACT_ITEM_ID"
+MISSING_CONTRACT_ITEM_ID = "MISSING_REPORT_BLOCK_ID"
 SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
 SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
 MATCH_STORY_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_PROCESS_STORY_ONLY"
@@ -20,28 +20,11 @@ NULL_CONTRAST_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_O
 ALLOWED_DECISIONS = {"INCLUDE_BLOCK_CANDIDATE"}
 REVIEW_DECISIONS = {"REVIEW_BLOCK"}
 REJECT_DECISIONS = {"REJECT_BLOCK"}
-SEQUENCE_BLOCK_FAMILIES = {
-    "sequence_safe_finding_analyst_reading_candidate",
-    "sequence_narrative_analyst_reading_candidate",
-}
+SEQUENCE_BLOCK_FAMILIES = {"sequence_safe_finding_analyst_reading_candidate", "sequence_narrative_analyst_reading_candidate"}
 MATCH_STORY_BLOCK_FAMILIES = {"match_story_analyst_reading_candidate"}
-
-FORBIDDEN_UPSTREAM_FIELDS = {
-    "claim_text", "final_report_text", "production_report", "production_report_output",
-    "report_text", "tactical_truth", "dominance_truth", "control_truth",
-    "coach_intention", "coach_intention_truth", "off_ball_truth", "pitch_control_truth",
-    "causal_truth", "quality_truth", "sequence_truth", "organism_truth",
-}
-FORBIDDEN_TEXT_FRAGMENTS = [
-    "domine etti", "saha kontrolünü aldı", "hoca planladı", "bilinçli olarak",
-    "taktiksel gerçek", "kesin", "kanıtlıyor", "nedeni budur", "off-ball yapı",
-    "pitch control", "oyun kontrolü",
-]
-BLOCKED_LANGUAGE_FAMILIES = [
-    "tactical_truth", "dominance_truth", "control_truth", "coach_intention",
-    "off_ball_truth", "pitch_control_truth", "causal_truth", "quality_truth",
-    "sequence_truth", "organism_truth",
-]
+FORBIDDEN_UPSTREAM_FIELDS = {"claim_text","final_report_text","production_report","production_report_output","report_text","tactical_truth","dominance_truth","control_truth","coach_intention","coach_intention_truth","off_ball_truth","pitch_control_truth","causal_truth","quality_truth","sequence_truth","organism_truth"}
+FORBIDDEN_TEXT_FRAGMENTS = ["domine etti","saha kontrolünü aldı","hoca planladı","bilinçli olarak","taktiksel gerçek","kesin","kanıtlıyor","nedeni budur","off-ball yapı","pitch control","oyun kontrolü"]
+BLOCKED_LANGUAGE_FAMILIES = ["tactical_truth","dominance_truth","control_truth","coach_intention","off_ball_truth","pitch_control_truth","causal_truth","quality_truth","sequence_truth","organism_truth"]
 
 
 def _repo_root() -> Path:
@@ -133,7 +116,7 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
         hits.append("assembly_sequence_trace_family_refs_missing")
     if not trace_refs:
         hits.append("assembly_sequence_trace_variant_refs_missing")
-    if not isinstance(support, int) or isinstance(support, bool) or support < 0:
+    if not isinstance(support, int) or support < 0:
         hits.append("assembly_sequence_observed_support_invalid")
     elif len(trace_refs) != support:
         hits.append("assembly_sequence_trace_cohort_support_mismatch")
@@ -199,7 +182,7 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
                 if not isinstance(raw_variation, dict):
                     hits.append("assembly_sequence_context_variation_invalid")
                     continue
-                for flag in ("chronology_direction_claimed", "causality_claimed", "tactical_adaptation_claimed", "coach_intention_claimed"):
+                for flag in ("chronology_direction_claimed","causality_claimed","tactical_adaptation_claimed","coach_intention_claimed"):
                     if raw_variation.get(flag) is not False:
                         hits.append(f"assembly_sequence_context_variation_claim_lock_breach:{flag}")
                 baseline_refs = set(_string_list(raw_variation.get("baseline_trace_refs")))
@@ -223,12 +206,9 @@ def _match_story_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[
     nominal_support = lineage.get("nominal_support_sum")
     process_count = lineage.get("process_narrative_count")
     subprocess_fields = (
-        "recurrent_process_count",
-        "robust_recurrent_process_count",
-        "counterevidence_bearing_process_count",
-        "alternative_explanation_bearing_process_count",
-        "context_sensitive_process_count",
-        "null_evaluated_process_count",
+        "recurrent_process_count", "robust_recurrent_process_count",
+        "counterevidence_bearing_process_count", "alternative_explanation_bearing_process_count",
+        "context_sensitive_process_count", "null_evaluated_process_count",
     )
     withdrawal = str(lineage.get("withdrawal_condition") or "").strip()
     upstream_claim_ceiling = str(lineage.get("upstream_claim_ceiling") or "").strip()
@@ -277,9 +257,8 @@ def _match_story_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[
             alternative_source_ids.add(source_id)
             alternatives.append({"source_narrative_id": source_id, "alternative_explanation": dict(explanation)})
     alternative_count = lineage.get("alternative_explanation_bearing_process_count")
-    if isinstance(alternative_count, int) and not isinstance(alternative_count, bool) and alternative_count >= 0:
-        if alternative_count != len(alternative_source_ids):
-            hits.append("assembly_match_story_alternative_explanation_bearing_process_count_mismatch")
+    if isinstance(alternative_count, int) and not isinstance(alternative_count, bool) and alternative_count >= 0 and alternative_count != len(alternative_source_ids):
+        hits.append("assembly_match_story_alternative_explanation_bearing_process_count_mismatch")
     if lineage.get("alternative_explanation_is_independent_counterevidence_vote") is not False:
         hits.append("assembly_match_story_alternative_explanation_independence_lock_breach")
     if lineage.get("alternative_explanation_count_is_support_count") is not False:
@@ -337,74 +316,112 @@ def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]
     if normalized.get("final_report_allowed") not in [False, None]:
         hard_block_hits.append("upstream_contract_final_report_allowed")
     if normalized.get("production_report_allowed") not in [False, None]:
-        hard_block_hits.append("upstream_contract_production_report_allowed")
-    if normalized.get("production_release") is not False:
-        hard_block_hits.append("production_release_lock_breach")
-    if normalized.get("canonical_event_count") != "UNKNOWN":
-        hard_block_hits.append("canonical_event_count_claimed")
-    if normalized.get("true_action_count") != "UNKNOWN":
-        hard_block_hits.append("true_action_count_claimed")
-    sequence_lineage, sequence_hits = _sequence_lineage(normalized, block_family)
-    match_story_lineage, match_story_hits = _match_story_lineage(normalized, block_family)
-    hard_block_hits.extend(sequence_hits)
-    hard_block_hits.extend(match_story_hits)
+        hard_block_hits.append("upstream_contract_production_output_allowed")
+    if normalized.get("canonical_event_count") not in [None, "UNKNOWN"]:
+        hard_block_hits.append("canonical_event_count_claim_rejected")
+    if normalized.get("true_action_count") not in [None, "UNKNOWN"]:
+        hard_block_hits.append("true_action_count_claim_rejected")
+    if normalized.get("production_release") is True:
+        hard_block_hits.append("production_release_claim_rejected")
+    sequence_lineage, lineage_hits = _sequence_lineage(normalized, block_family)
+    hard_block_hits.extend(lineage_hits)
+    match_story_lineage, story_hits = _match_story_lineage(normalized, block_family)
+    hard_block_hits.extend(story_hits)
+    hard_block_hits = sorted(set(hard_block_hits))
     if hard_block_hits:
+        assembly_decision = "BLOCK_ASSEMBLY_ITEM"
         status = "FAIL_CLOSED"
-        assembly_decision = "REJECT_FROM_DRAFT_REPORT_ASSEMBLY"
-    elif review_hits or inclusion_decision in REVIEW_DECISIONS:
+        assembly_item_candidate_tr = ""
+    elif review_hits:
+        assembly_decision = "ROUTE_ASSEMBLY_ITEM_TO_REVIEW"
         status = "REVIEW_REQUIRED"
-        assembly_decision = "REVIEW_BEFORE_DRAFT_REPORT_ASSEMBLY"
+        assembly_item_candidate_tr = ""
     else:
-        status = "SMOKE_PASS"
         assembly_decision = "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
+        status = "SMOKE_PASS"
+        assembly_item_candidate_tr = output_candidate
     return {
         "module_id": MODULE_ID,
+        "assembly_item_id": f"assembly_item_{contract_item_id}",
         "contract_item_id": contract_item_id,
-        "report_block_id": normalized.get("report_block_id"),
+        "report_block_id": str(normalized.get("report_block_id") or ""),
         "block_family": block_family,
-        "block_language": normalized.get("block_language"),
-        "output_text_candidate_tr": output_candidate,
-        "status": status,
+        "source_inclusion_decision": inclusion_decision,
+        "assembly_order": idx + 1,
         "assembly_decision": assembly_decision,
-        "hard_block_hits": sorted(set(hard_block_hits)),
-        "review_hits": sorted(set(review_hits)),
-        "forbidden_upstream_hits": forbidden_upstream_hits,
-        "forbidden_text_hits": forbidden_text_hits,
+        "assembly_item_candidate_tr": assembly_item_candidate_tr,
         "sequence_evidence_lineage": sequence_lineage,
         "match_story_evidence_lineage": match_story_lineage,
+        "claim_ceiling": ASSEMBLY_CLAIM_CEILING,
+        "upstream_claim_ceiling": normalized.get("claim_ceiling"),
+        "status": status,
+        "hard_block_hits": hard_block_hits,
+        "review_hits": review_hits,
+        "missing_fields": missing_fields,
+        "forbidden_upstream_hits": forbidden_upstream_hits,
+        "forbidden_text_hits": forbidden_text_hits,
         "claim_output_allowed": False,
+        "draft_report_candidate_allowed": True if status == "SMOKE_PASS" else False,
         "final_report_allowed": False,
         "production_report_allowed": False,
+        "tactical_truth": False,
+        "dominance_truth": False,
+        "control_truth": False,
+        "coach_intention_truth": False,
+        "off_ball_truth": False,
+        "pitch_control_truth": False,
+        "causal_truth": False,
+        "quality_truth": False,
+        "sequence_truth": False,
+        "organism_truth": False,
+        "blocked_language_families": list(BLOCKED_LANGUAGE_FAMILIES),
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
-        "upstream_claim_ceiling": UPSTREAM_CLAIM_CEILING,
-        "claim_ceiling": ASSEMBLY_CLAIM_CEILING,
     }
 
 
-def build_assembly_gate(contract_payload: dict[str, Any]) -> dict[str, Any]:
-    items = [item for item in _as_list(contract_payload.get("contract_items")) if isinstance(item, dict)]
-    results = [evaluate_assembly_item(item, idx) for idx, item in enumerate(items)]
+def build_assembly_gate(contract_items: list[dict[str, Any]]) -> dict[str, Any]:
+    assembly_items = [evaluate_assembly_item(item, idx) for idx, item in enumerate(contract_items)]
+    blocked_count = sum(1 for item in assembly_items if item["assembly_decision"] == "BLOCK_ASSEMBLY_ITEM")
+    review_count = sum(1 for item in assembly_items if item["assembly_decision"] == "ROUTE_ASSEMBLY_ITEM_TO_REVIEW")
+    ready_count = sum(1 for item in assembly_items if item["assembly_decision"] == "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE")
+    status = "FAIL_CLOSED" if blocked_count else "REVIEW_REQUIRED" if review_count else "SMOKE_PASS"
     return {
         "module_id": MODULE_ID,
-        "status": "FAIL_CLOSED" if any(r["status"] == "FAIL_CLOSED" for r in results) else ("REVIEW_REQUIRED" if any(r["status"] == "REVIEW_REQUIRED" for r in results) else "SMOKE_PASS"),
-        "assembly_items": results,
-        "assembly_item_count": len(results),
+        "status": status,
+        "assembly_item_count": len(assembly_items),
+        "ready_count": ready_count,
+        "review_count": review_count,
+        "blocked_count": blocked_count,
+        "assembly_items": assembly_items,
         "claim_output_allowed": False,
+        "draft_report_candidate_allowed": True if ready_count and not blocked_count and not review_count else False,
         "final_report_allowed": False,
         "production_report_allowed": False,
+        "claim_ceiling": ASSEMBLY_CLAIM_CEILING,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
-        "claim_ceiling": ASSEMBLY_CLAIM_CEILING,
+        "claim_boundary": "final_report_assembly_candidate_only_not_final_report_not_production",
     }
 
 
-def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> tuple[Path, Path]:
-    root = _validate_output_root(out_dir)
-    json_path = root / OUTPUT_JSON
-    txt_path = root / OUTPUT_TXT
-    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    txt_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return json_path, txt_path
+def write_outputs(contract_items: list[dict[str, Any]], out_dir: str | Path) -> dict[str, Any]:
+    out = _validate_output_root(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    report = build_assembly_gate(contract_items)
+    (out / OUTPUT_JSON).write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    lines = [
+        "HPFA FINAL REPORT ASSEMBLY GATE LITE V1", "========================================",
+        f"status={report['status']}", f"assembly_item_count={report['assembly_item_count']}",
+        f"ready_count={report['ready_count']}", f"review_count={report['review_count']}",
+        f"blocked_count={report['blocked_count']}", f"draft_report_candidate_allowed={report['draft_report_candidate_allowed']}",
+        f"final_report_allowed={report['final_report_allowed']}", f"production_report_allowed={report['production_report_allowed']}",
+        f"canonical_event_count={report['canonical_event_count']}", f"true_action_count={report['true_action_count']}",
+        "production_release=false", "", "[assembly_items]",
+    ]
+    for item in report["assembly_items"][:50]:
+        lines.append(f"- {item['assembly_item_id']} order={item['assembly_order']} decision={item['assembly_decision']} status={item['status']}")
+    (out / OUTPUT_TXT).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return report
