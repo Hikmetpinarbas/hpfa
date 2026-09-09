@@ -1,17 +1,32 @@
 from pathlib import Path
 
 
-def test_professional_story_runner_requires_reconstruction_before_process() -> None:
+def test_professional_story_runner_uses_single_canonical_full_spine_orchestrator() -> None:
     root = Path(__file__).resolve().parents[5]
     source = (root / "active_match_professional_story_run_v1.py").read_text(encoding="utf-8")
 
-    base_call = source.index('"active_match_full_run.py"')
-    reconstruction_call = source.index('"reconstruction_intelligence_packet_adapter_current_v1.py"')
-    process_call = source.index('"reciprocal_process_chain_current_v1.py"')
-    story_call = source.index("write_process_story_sidecar(out_dir)")
+    assert '"active_match_spine_runner.py"' in source
+    assert '"--full-spine"' in source
+    assert '"--execution-root"' in source
+    assert '"parallel_runtime_engine_created": False' in source
+    assert '"reconstruction_intelligence_packet_adapter_current_v1.py"' not in source
+    assert '"reciprocal_process_chain_current_v1.py"' not in source
+    assert "write_process_story_sidecar" not in source
 
-    assert base_call < reconstruction_call < process_call < story_call
-    assert source.count('"--input-dir",\n                str(match_dir)') >= 2
+
+def test_professional_story_runner_requires_analyst_facing_bundle_artifacts() -> None:
+    root = Path(__file__).resolve().parents[5]
+    source = (root / "active_match_professional_story_run_v1.py").read_text(encoding="utf-8")
+
+    for artifact in (
+        "active_match_full_spine_v1.json",
+        "active_match_process_story_sidecar_v1.json",
+        "active_match_process_story_sidecar_v1.txt",
+        "HPFA_ANALYST_REPORT.txt",
+        "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json",
+        "HPFA_ACTIVE_MATCH_BUNDLE.zip",
+    ):
+        assert artifact in source
     assert '"required_analysis_layers_activated": required_analysis_layers_activated' in source
     assert 'return 0 if required_analysis_layers_activated else 2' in source
 
