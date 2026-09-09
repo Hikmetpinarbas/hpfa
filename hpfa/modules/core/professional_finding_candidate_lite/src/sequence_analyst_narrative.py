@@ -13,6 +13,33 @@ def _clean(value: Any) -> str:
     return " ".join(str(value or "").split()).strip()
 
 
+def _evidence_count(value: Any, field: str, *, missing_zero: bool = False) -> tuple[int, str | None]:
+    if value is None and missing_zero:
+        return 0, None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return 0, f"upstream_numeric_evidence_invalid:{field}"
+    return value, None
+
+
+def _validated_evidence_counts(row: dict[str, Any]) -> tuple[dict[str, int], list[str]]:
+    recurrence = row.get("recurrence_summary") if isinstance(row.get("recurrence_summary"), dict) else {}
+    specs = (
+        ("observed_support", recurrence.get("observed_support"), False),
+        ("success_support", row.get("success_support"), True),
+        ("failure_support", row.get("failure_support"), True),
+        ("divergence_support", row.get("divergence_support"), True),
+        ("no_visible_followup_support", row.get("no_visible_followup_support"), True),
+    )
+    counts: dict[str, int] = {}
+    hits: list[str] = []
+    for field, value, missing_zero in specs:
+        count, hit = _evidence_count(value, field, missing_zero=missing_zero)
+        counts[field] = count
+        if hit:
+            hits.append(hit)
+    return counts, hits
+
+
 def _fail(*hits: str) -> dict[str, Any]:
     return {
         "module_id": MODULE_ID,
@@ -31,8 +58,9 @@ def _fail(*hits: str) -> dict[str, Any]:
 def _strength_rank(row: dict[str, Any]) -> tuple[int, int, int]:
     state = _clean((row.get("recurrence_summary") or {}).get("admission_state"))
     rank = {"ROBUST_RECURRENT_VISIBLE_TRACE": 4, "RECURRENT_VISIBLE_TRACE": 3, "PROXY_CANDIDATE": 2, "DISCOVERY_ONLY": 1}.get(state, 0)
-    support = int((row.get("recurrence_summary") or {}).get("observed_support") or 0)
-    challenge = int(row.get("failure_support") or 0) + int(row.get("divergence_support") or 0)
+    counts = row.get("_validated_evidence_counts") or {}
+    support = counts.get("observed_support", 0)
+    challenge = counts.get("failure_support", 0) + counts.get("divergence_support", 0)
     return rank, support, -challenge
 
 
@@ -154,8 +182,10 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any], context_
         if row.get("production_release") is not False: return _fail("upstream_production_release_lock_breach")
         if row.get("canonical_event_count") != "UNKNOWN" or row.get("true_action_count") != "UNKNOWN": return _fail("upstream_count_truth_lock_breach")
         if not _clean(row.get("SAFE_MEANING")): reviews.append("safe_meaning_missing"); continue
-        recurrence = row.get("recurrence_summary") if isinstance(row.get("recurrence_summary"), dict) else {}
-        support = int(recurrence.get("observed_support") or 0)
+        counts, count_hard = _validated_evidence_counts(row)
+        if count_hard: return _fail(*count_hard)
+        row["_validated_evidence_counts"] = counts
+        support = counts["observed_support"]
         trace_refs = sorted({_clean(x) for x in (row.get("trace_variant_refs") or []) if _clean(x)})
         family_refs = sorted({_clean(x) for x in (row.get("trace_family_refs") or []) if _clean(x)})
         upstream_claim_ceiling = _clean(row.get("claim_ceiling"))
@@ -174,7 +204,13 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any], context_
     eligible.sort(key=_strength_rank, reverse=True)
     narratives: list[dict[str, Any]] = []
     for idx, row in enumerate(eligible):
-        recurrence = row.get("recurrence_summary") or {}; support = int(recurrence.get("observed_support") or 0); success = int(row.get("success_support") or 0); failure = int(row.get("failure_support") or 0); divergence = int(row.get("divergence_support") or 0); no_followup = int(row.get("no_visible_followup_support") or 0)
+        recurrence = row.get("recurrence_summary") or {}
+        counts = row.get("_validated_evidence_counts") or {}
+        support = counts["observed_support"]
+        success = counts["success_support"]
+        failure = counts["failure_support"]
+        divergence = counts["divergence_support"]
+        no_followup = counts["no_visible_followup_support"]
         counter_refs = sorted({_clean(x) for x in ((row.get("counterevidence") or {}).get("refs") or []) if _clean(x)})
         alternatives = [dict(x) for x in (row.get("alternative_explanations") or []) if isinstance(x, dict)]
         alternative_text = _clean(row.get("ALTERNATIVE_EXPLANATIONS"))
@@ -199,4 +235,4 @@ def compose_sequence_analyst_narrative(binding_payload: dict[str, Any], context_
         if change_text: story += " " + change_text
         narratives.append({"narrative_id": f"sequence_story_{idx + 1:03d}", "priority_rank": idx + 1, "source_report_block_id": row.get("analyst_report_block_id"), "source_finding_status": row.get("_source_finding_status"), "source_professional_finding_emitted": row.get("professional_finding_emitted"), "source_claim_output_allowed": row.get("claim_output_allowed"), "source_emission_is_input_eligibility_only": True, "entity_scope": row.get("entity_scope"), "context_scope": context_scope, "trace_family_refs": family_refs, "trace_variant_refs": trace_refs, "headline_tr": opening, "evidence_tr": evidence, "counterweight_tr": balance, "null_contrast_tr": null_text, "null_contrast_summary": null_summary, "change_tr": change_text, "context_variations": context_variations, "safe_meaning_tr": _clean(row.get("SAFE_MEANING")), "analyst_action_tr": "Başarılı, bozulan, farklılaşan ve bağlama göre ayrışan örnekleri aynı video/veri inceleme grubunda karşılaştır.", "story_tr": story, "support": support, "success_support": success, "failure_support": failure, "divergence_support": divergence, "no_visible_followup_support": no_followup, "counterevidence_refs": counter_refs, "counterevidence_ref_count": len(counter_refs), "alternative_explanations": alternatives, "alternative_explanation_count": len(alternatives), "alternative_explanations_tr": alternative_text, "challenge_surface_preserved": True, "admission_state": state, "dependency_summary": dict(row.get("dependency_summary") or {}), "robustness_summary": dict(row.get("robustness_summary") or {}), "forbidden_inference": row.get("FORBIDDEN_INFERENCE") or [], "uncertainty": dict(row.get("uncertainty") or {}), "withdrawal_condition": row.get("withdrawal_condition"), "upstream_claim_ceiling": upstream_claim_ceiling, "claim_ceiling": CLAIM_CEILING, "claim_output_allowed": False, "chronology_direction_claimed": False, "context_change_causality_claimed": False, "tactical_adaptation_claimed": False, "null_contrast_significance_claimed": False, "null_contrast_causality_claimed": False, "canonical_event_count": "UNKNOWN", "true_action_count": "UNKNOWN", "production_release": False})
 
-    return {"module_id": MODULE_ID, "status": "REVIEW_REQUIRED" if reviews else "PASS", "decision": "MATCH_LOCAL_SEQUENCE_NARRATIVE_COMPOSED", "narrative_blocks": narratives, "narrative_block_count": len(narratives), "review_hits": sorted(set(reviews)), "hard_block_hits": [], "story_order_basis": "EVIDENCE_STRENGTH_THEN_SUPPORT_NOT_FOOTBALL_CHRONOLOGY", "chronological_story_claimed": False, "context_variation_descriptive_only": True, "context_change_causality_claimed": False, "null_contrast_descriptive_only": True, "statistical_significance_claimed": False, "coach_intention_claimed": False, "causality_claimed": False, "tactical_plan_truth_claimed": False, "lineage_preservation_required": True, "source_emission_is_input_eligibility_only": True, "challenge_surface_preservation_required": True, "canonical_event_count": "UNKNOWN", "true_action_count": "UNKNOWN", "production_release": False, "claim_ceiling": CLAIM_CEILING}
+    return {"module_id": MODULE_ID, "status": "REVIEW_REQUIRED" if reviews else "PASS", "decision": "MATCH_LOCAL_SEQUENCE_NARRATIVE_COMPOSED", "narrative_blocks": narratives, "narrative_block_count": len(narratives), "review_hits": sorted(set(reviews)), "hard_block_hits": [], "story_order_basis": "EVIDENCE_STRENGTH_THEN_SUPPORT_NOT_FOOTBALL_CHRONOLOGY", "chronological_story_claimed": False, "context_variation_descriptive_only": True, "context_change_causality_claimed": False, "null_contrast_descriptive_only": True, "statistical_significance_claimed": False, "coach_intention_claimed": False, "causality_claimed": False, "tactical_plan_truth_claimed": False, "lineage_preservation_required": True, "source_emission_is_input_eligibility_only": True, "challenge_surface_preservation_required": True, "numeric_evidence_counts_are_strict_nonnegative_integers": True, "boolean_numeric_evidence_rejected": True, "canonical_event_count": "UNKNOWN", "true_action_count": "UNKNOWN", "production_release": False, "claim_ceiling": CLAIM_CEILING}
