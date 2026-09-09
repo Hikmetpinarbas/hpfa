@@ -129,6 +129,35 @@ def test_missing_or_mismatched_trace_cohort_fails_closed():
     assert build_sequence_safe_finding_blocks(mismatch)["status"] == "FAIL_CLOSED"
 
 
+def test_boolean_numeric_evidence_cannot_become_support_or_independence():
+    observed = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
+    observed["sequence_pattern_admissions"][0]["observed_support"] = True
+    result = build_sequence_safe_finding_blocks(observed)
+    assert result["status"] == "FAIL_CLOSED"
+    assert any("observed_support" in hit for hit in result["hard_block_hits"])
+
+    independent = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", True)
+    result = build_sequence_safe_finding_blocks(independent)
+    assert result["status"] == "FAIL_CLOSED"
+    assert any("independent_support_count" in hit for hit in result["hard_block_hits"])
+    assert result["professional_finding_emitted_count"] == 0
+
+
+def test_negative_or_overallocated_outcome_accounting_fails_closed():
+    negative = _payload()
+    negative["sequence_pattern_admissions"][0]["divergence_count"] = -1
+    assert build_sequence_safe_finding_blocks(negative)["status"] == "FAIL_CLOSED"
+
+    over = _payload()
+    row = over["sequence_pattern_admissions"][0]
+    row["failure_variant_count"] = 3
+    row["divergence_count"] = 2
+    row["no_visible_followup_count"] = 1
+    result = build_sequence_safe_finding_blocks(over)
+    assert result["status"] == "FAIL_CLOSED"
+    assert any("outcome_accounting_exceeds_observed_support" in hit for hit in result["hard_block_hits"])
+
+
 def test_no_visible_followup_never_becomes_failure_or_counterevidence():
     row = build_sequence_safe_finding_blocks(_payload())["analyst_report_blocks"][0]
     assert row["no_visible_followup_support"] == 1
@@ -148,6 +177,8 @@ def test_release_and_truth_locks_remain_closed_even_when_finding_emits():
     assert row["canonical_event_count"] == "UNKNOWN"
     assert row["true_action_count"] == "UNKNOWN"
     assert row["production_release"] is False
+    assert row["numeric_evidence_counts_are_strict_nonnegative_integers"] is True
+    assert row["boolean_numeric_evidence_rejected"] is True
     assert result["production_release"] is False
 
 
