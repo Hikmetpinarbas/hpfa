@@ -11,6 +11,16 @@ def test_metric_governance_bridge_preserves_claim_locks_without_runtime_prerequi
 
     assert report["module_id"] == "active_match_metric_governance_bridge_v1"
     assert report["status"] in {"REVIEW_REQUIRED", "FAIL_CLOSED"}
+    assert report["observation_model"] == "MULTI_SURFACE_FOOTBALL_OBSERVATION_FABRIC"
+    assert report["global_event_only_gate"] is False
+    assert report["metric_admission_rule"] == "REQUIRED_CAPABILITIES_SUBSET_OF_ADMITTED_CAPABILITIES"
+    assert report["zfgv_capability_contract_present"] is True
+    assert report["runtime_capability_admission_evaluated"] is False
+    assert report["zfgv_metric_capability_requirements"]
+    assert all(
+        isinstance(row.get("required_observation_capabilities"), list)
+        for row in report["zfgv_metric_capability_requirements"]
+    )
     assert report["metric_value_output_allowed"] is False
     assert report["construct_truth"] is False
     assert report["aggregate_equivalence_truth"] is False
