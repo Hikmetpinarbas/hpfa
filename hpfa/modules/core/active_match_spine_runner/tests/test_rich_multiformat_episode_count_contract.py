@@ -1,0 +1,83 @@
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[5]
+SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from rich_multiformat_analysis_lane import _construct_c01, _phase_state_candidates
+
+
+def _features(**overrides):
+    card = {
+        "shot_candidate_count": 1,
+        "turnover_candidate_count": 0,
+        "recovery_candidate_count": 0,
+        "eligible_action_zone_counts": {"FINAL_THIRD": 1},
+        "action_family_counts": {"PASS": 2},
+    }
+    card.update(overrides)
+    return {"episode_feature_vectors": [card]}
+
+
+def _progression_row():
+    return {
+        "row_projection_id": "xrp_contract",
+        "source_sha256": "sha_contract",
+        "identity_candidates": {"team_raw_candidate": "Team Generic"},
+        "metric_values": {
+            "progressive_passes": {
+                "value_status": "OBSERVED",
+                "raw_metric_label": "Progressive passes",
+                "raw_value": 4,
+            },
+            "shots": {
+                "value_status": "OBSERVED",
+                "raw_metric_label": "Shots",
+                "raw_value": 2,
+            },
+        },
+    }
+
+
+def test_invalid_numeric_shapes_do_not_emit_phase_activity_labels():
+    for invalid in (True, "1", 1.0, -1):
+        result = _phase_state_candidates(_features(shot_candidate_count=invalid))
+        assert len(result) == 1
+        row = result[0]
+        assert row["count_contract_review_required"] is True
+        assert row["invalid_count_fields"] == ["shot_candidate_count"]
+        assert row["support"]["shot_candidate_count"] == 0
+        assert row["labels"] == ["UNRESOLVED_ACTIVITY_STATE"]
+        assert row["phase_truth"] is False
+        assert row["tactical_truth"] is False
+
+
+def test_invalid_shot_count_blocks_c01_packet_instead_of_coercing_support():
+    for invalid in (True, "1", 1.0, -1):
+        result = _construct_c01([_progression_row()], _features(shot_candidate_count=invalid))
+        assert result["status"] == "REVIEW_REQUIRED"
+        assert result["count_contract_review_required"] is True
+        assert result["invalid_shot_count_episode_indices"] == [0]
+        assert result["visible_shot_candidate_count"] == 0
+        assert result["packet_candidate"] is None
+        assert result["review_reason"] == "episode_feature_shot_count_contract_invalid"
+        assert result["construct_truth"] is False
+
+
+def test_strict_integer_counts_preserve_existing_candidate_semantics():
+    phase = _phase_state_candidates(_features())[0]
+    assert phase["count_contract_review_required"] is False
+    assert phase["invalid_count_fields"] == []
+    assert "TERMINAL_ACTIVITY_CANDIDATE" in phase["labels"]
+    assert "ADVANCED_ACCESS_ACTIVITY_CANDIDATE" in phase["labels"]
+    assert "CIRCULATION_ACTIVITY_CANDIDATE" in phase["labels"]
+
+    c01 = _construct_c01([_progression_row()], _features())
+    assert c01["count_contract_review_required"] is False
+    assert c01["visible_shot_candidate_count"] == 1
+    assert c01["packet_candidate"] is not None
+    assert c01["construct_truth"] is False
