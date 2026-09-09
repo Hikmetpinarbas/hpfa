@@ -376,6 +376,7 @@ def _entity_views(
         "aggregate_support_attachment_is_action_trace_identity": False,
         "aggregate_support_trace_relation_is_individual_action_support": False,
         "aggregate_support_trace_relation_is_physical_action_truth": False,
+        "aggregate_support_attachment_is_timeline_identity_truth": False,
         "aggregate_support_attachment_is_timeline_identity": False,
         "aggregate_support_attachment_is_independent_vote": False,
         "player_identity_truth": False,
@@ -383,9 +384,14 @@ def _entity_views(
     }
 
 
-def _primitive_metrics(features: dict[str, Any], entity_views: dict[str, Any]) -> list[dict[str, Any]]:
+def _primitive_metrics(features: dict[str, Any], entity_views: dict[str, Any]) -> dict[str, Any]:
     values: list[dict[str, Any]] = []
-    total = features.get("total_eligible_action_candidate_count")
+    invalid_count_fields: list[str] = []
+
+    raw_total = features.get("total_eligible_action_candidate_count")
+    total = None if raw_total is None else _strict_nonnegative_count(raw_total)
+    if raw_total is not None and total is None:
+        invalid_count_fields.append("total_eligible_action_candidate_count")
     if total is not None:
         values.append({
             "metric_id": "primitive_visible_action_candidate_volume",
@@ -399,19 +405,38 @@ def _primitive_metrics(features: dict[str, Any], entity_views: dict[str, Any]) -
             "independent_support_vote": False,
             "claim_ceiling": "VISIBLE_CANDIDATE_VOLUME_ONLY",
         })
-    for family, value in sorted((features.get("eligible_action_family_candidate_counts") or {}).items()):
-        values.append({
-            "metric_id": f"primitive_action_family_{str(family).casefold()}",
-            "value": value,
-            "unit": "candidate_count",
-            "construct": "action_family_volume",
-            "source_surface": "episode_feature_vector_lite_v1",
-            "denominator": "eligible_action_candidate_population",
-            "dependency_group": "episode_feature_action_population",
-            "provenance_root": "episode_feature_vector_lite_v1",
-            "independent_support_vote": False,
-            "claim_ceiling": "ACTION_FAMILY_CANDIDATE_ONLY",
-        })
+
+    raw_family_counts = features.get("eligible_action_family_candidate_counts")
+    admitted_family_counts: dict[str, int] = {}
+    family_invalid = False
+    if raw_family_counts is not None and not isinstance(raw_family_counts, dict):
+        invalid_count_fields.append("eligible_action_family_candidate_counts")
+        family_invalid = True
+    elif isinstance(raw_family_counts, dict):
+        for family, raw_value in sorted(raw_family_counts.items(), key=lambda item: str(item[0])):
+            value = _strict_nonnegative_count(raw_value)
+            if value is None:
+                invalid_count_fields.append(f"eligible_action_family_candidate_counts.{family}")
+                family_invalid = True
+            else:
+                admitted_family_counts[str(family)] = value
+    if family_invalid:
+        admitted_family_counts = {}
+    else:
+        for family, value in sorted(admitted_family_counts.items()):
+            values.append({
+                "metric_id": f"primitive_action_family_{str(family).casefold()}",
+                "value": value,
+                "unit": "candidate_count",
+                "construct": "action_family_volume",
+                "source_surface": "episode_feature_vector_lite_v1",
+                "denominator": "eligible_action_candidate_population",
+                "dependency_group": "episode_feature_action_population",
+                "provenance_root": "episode_feature_vector_lite_v1",
+                "independent_support_vote": False,
+                "claim_ceiling": "ACTION_FAMILY_CANDIDATE_ONLY",
+            })
+
     values.append({
         "metric_id": "primitive_xlsx_observed_metric_cell_volume",
         "value": entity_views.get("observed_metric_cell_count", 0),
@@ -424,7 +449,12 @@ def _primitive_metrics(features: dict[str, Any], entity_views: dict[str, Any]) -
         "independent_support_vote": False,
         "claim_ceiling": "AGGREGATE_CELL_SURFACE_ONLY",
     })
-    return values
+    return {
+        "metrics": values,
+        "count_contract_review_required": bool(invalid_count_fields),
+        "invalid_count_fields": sorted(invalid_count_fields),
+        "admitted_action_family_candidate_counts": admitted_family_counts,
+    }
 
 
 def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
@@ -585,6 +615,8 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"xlsx_projection_status={payload.get('xlsx_projection_status')}",
         f"xlsx_projected_row_count={payload.get('xlsx_projected_row_count')}",
         f"primitive_metric_count={len(payload.get('primitive_metrics') or [])}",
+        f"primitive_count_contract_review_required={payload.get('primitive_count_contract_review_required')}",
+        f"primitive_invalid_count_fields={payload.get('primitive_invalid_count_fields') or []}",
         f"phase_state_candidate_count={len(payload.get('phase_state_candidates') or [])}",
         f"player_view_candidate_count={len(entity.get('player_view_candidates') or [])}",
         f"team_view_candidate_count={len(entity.get('team_view_candidates') or [])}",
@@ -679,7 +711,11 @@ def run_rich_lane(
         review_hits.append("xlsx_entity_view_match_local_identity_relation_review_required")
     if entity_views.get("aggregate_support_trace_relation_review_required_count"):
         review_hits.append("xlsx_entity_view_trackable_trace_relation_review_required")
-    primitives = _primitive_metrics(features, entity_views)
+    primitive_projection = _primitive_metrics(features, entity_views)
+    primitives = primitive_projection["metrics"]
+    admitted_action_family_counts = primitive_projection["admitted_action_family_candidate_counts"]
+    if primitive_projection.get("count_contract_review_required") is True:
+        review_hits.append("episode_feature_primitive_count_contract_review_required")
     phase_states = _phase_state_candidates(features)
     if any(item.get("count_contract_review_required") is True for item in phase_states):
         review_hits.append("episode_feature_count_contract_review_required")
@@ -703,6 +739,8 @@ def run_rich_lane(
         "xlsx_surface_audit": xlsx_audit,
         "xlsx_entity_metric_projection": projection,
         "primitive_metrics": primitives,
+        "primitive_count_contract_review_required": primitive_projection["count_contract_review_required"],
+        "primitive_invalid_count_fields": primitive_projection["invalid_count_fields"],
         "constructs": {"C01": c01},
         "phase_state_candidates": phase_states,
         "analysis_lattice": {
@@ -718,7 +756,7 @@ def run_rich_lane(
             },
             "MACRO": {
                 "team_view_candidates": entity_views.get("team_view_candidates"),
-                "action_family_candidate_counts": features.get("eligible_action_family_candidate_counts") or {},
+                "action_family_candidate_counts": admitted_action_family_counts,
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
                 "constructs": {"C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "packet_candidate"}}},
             },
