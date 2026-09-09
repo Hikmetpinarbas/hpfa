@@ -4,6 +4,7 @@ import argparse
 import json
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ PROCESS_STORY_TXT = "active_match_process_story_sidecar_v1.txt"
 ANALYST_REPORT = "HPFA_ANALYST_REPORT.txt"
 BUNDLE_MANIFEST = "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"
 BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
+BUNDLE_MODULE_ID = "active_match_standard_user_bundle_v1"
 
 
 def _run(command: list[str], cwd: Path) -> dict[str, Any]:
@@ -35,6 +37,56 @@ def _load(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _bundle_contract_valid(manifest: dict[str, Any]) -> bool:
+    if manifest.get("module_id") != BUNDLE_MODULE_ID:
+        return False
+    required_true = (
+        "analyst_text_requires_final_assembly_admission",
+        "sequence_lineage_preserved_in_analyst_report",
+        "sequence_claim_ceiling_revalidated_in_analyst_report",
+        "sequence_null_context_locks_revalidated_in_analyst_report",
+        "match_story_lineage_preserved_in_analyst_report",
+        "match_story_alternative_explanation_lineage_revalidated_in_analyst_report",
+    )
+    if any(manifest.get(key) is not True for key in required_true):
+        return False
+    required_false = (
+        "alternative_explanation_is_independent_counterevidence_vote",
+        "alternative_explanation_count_is_support_count",
+        "current_invocation_artifacts_are_publication_authority",
+        "bundle_file_inventory_is_publication_authority",
+        "production_release",
+    )
+    if any(manifest.get(key) is not False for key in required_false):
+        return False
+    if manifest.get("canonical_event_count") != CANONICAL_EVENT_COUNT:
+        return False
+    if manifest.get("true_action_count") != TRUE_ACTION_COUNT:
+        return False
+    if manifest.get("process_story_publication_authority_artifact") != PROCESS_STORY_TXT:
+        return False
+    return True
+
+
+def _bundle_physical_valid(zip_path: Path) -> bool:
+    if not zip_path.is_file() or zip_path.stat().st_size <= 0:
+        return False
+    try:
+        with zipfile.ZipFile(zip_path, "r") as archive:
+            if archive.testzip() is not None:
+                return False
+            names = set(archive.namelist())
+    except (OSError, zipfile.BadZipFile):
+        return False
+    required_members = {
+        BUNDLE_MANIFEST,
+        ANALYST_REPORT,
+        PROCESS_STORY_TXT,
+        FULL_SPINE_JSON,
+    }
+    return required_members.issubset(names)
 
 
 def main() -> int:
@@ -76,10 +128,14 @@ def main() -> int:
         BUNDLE_MANIFEST: (out_dir / BUNDLE_MANIFEST).is_file(),
         BUNDLE_ZIP: (out_dir / BUNDLE_ZIP).is_file(),
     }
+    bundle_contract_valid = _bundle_contract_valid(bundle_manifest)
+    bundle_physical_valid = _bundle_physical_valid(out_dir / BUNDLE_ZIP)
     required_analysis_layers_activated = (
         canonical["passed"]
         and bool(full_spine)
         and all(required_artifacts.values())
+        and bundle_contract_valid
+        and bundle_physical_valid
     )
 
     payload = {
@@ -108,7 +164,12 @@ def main() -> int:
         "analyst_report_present": required_artifacts[ANALYST_REPORT],
         "bundle_manifest_present": required_artifacts[BUNDLE_MANIFEST],
         "bundle_zip_present": required_artifacts[BUNDLE_ZIP],
-        "bundle_manifest_status": bundle_manifest.get("status"),
+        "bundle_contract_valid": bundle_contract_valid,
+        "bundle_physical_valid": bundle_physical_valid,
+        "bundle_file_inventory_is_publication_authority": False,
+        "bundle_presence_is_analysis_activation": False,
+        "alternative_explanation_is_independent_counterevidence_vote": False,
+        "alternative_explanation_count_is_support_count": False,
         "pipeline_is_possession_truth": False,
         "pipeline_is_tactical_plan_truth": False,
         "professional_story_is_tactical_plan_truth": False,
