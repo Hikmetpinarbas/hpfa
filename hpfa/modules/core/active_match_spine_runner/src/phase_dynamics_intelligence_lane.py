@@ -20,6 +20,9 @@ from hpfa.modules.core.metric_definition_policy_lite.src.ball_security_safe_find
     build_ball_security_safe_finding_projection,
 )
 from hpfa.modules.core.metric_definition_policy_lite.src.construct_context_guard import load_guard
+from hpfa.modules.core.metric_definition_policy_lite.src.penetration_construct import (
+    build_penetration_construct,
+)
 from hpfa.modules.core.metric_definition_policy_lite.src.progression_effectiveness_construct import (
     build_progression_effectiveness_construct,
 )
@@ -59,6 +62,7 @@ OUTPUTS = {
     "ball_security_safe_finding": "ball_security_safe_finding_projection_v1.json",
     "recovery_yield": "recovery_yield_construct_v1.json",
     "recovery_safe_finding": "recovery_safe_finding_projection_v1.json",
+    "penetration": "penetration_construct_v1.json",
 }
 
 
@@ -132,6 +136,8 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
             "loss_exposure_truth": False,
             "recovery_yield_truth": False,
             "possession_gain_truth": False,
+            "penetration_truth": False,
+            "box_access_truth": False,
             "progression_safe_finding_engineering_envelope_complete": False,
             "ball_security_safe_finding_engineering_envelope_complete": False,
             "recovery_safe_finding_engineering_envelope_complete": False,
@@ -162,6 +168,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
             episode_consequence,
             progression_effectiveness,
         )
+        penetration = build_penetration_construct(progression_effectiveness, payloads["consequence"], guard)
     except (OSError, ValueError) as exc:
         progression_effectiveness = _construct_fail_closed(
             "progression_effectiveness_construct_v1", "progression_construct_authority_unavailable", exc,
@@ -174,6 +181,10 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         recovery_yield = _construct_fail_closed(
             "recovery_yield_construct_v1", "recovery_yield_construct_authority_unavailable", exc,
             recovery_yield_truth=False, possession_gain_truth=False,
+        )
+        penetration = _construct_fail_closed(
+            "penetration_construct_v1", "penetration_construct_authority_unavailable", exc,
+            penetration_truth=False, box_access_truth=False,
         )
 
     progression_safe_finding = build_progression_safe_finding_projection(progression_effectiveness)
@@ -191,6 +202,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "ball_security_safe_finding": ball_security_safe_finding,
         "recovery_yield": recovery_yield,
         "recovery_safe_finding": recovery_safe_finding,
+        "penetration": penetration,
     }
     for key, payload in output_payloads.items():
         _write(output / OUTPUTS[key], payload)
@@ -214,6 +226,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         decision = "PHASE_DYNAMICS_INTELLIGENCE_COMPLETED"
 
     recovery_construct = recovery_yield.get("construct_candidate") or {}
+    penetration_construct = penetration.get("construct_candidate") or {}
     return {
         "module_id": MODULE_ID,
         "status": status,
@@ -233,6 +246,9 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "recovery_safe_finding_candidate_count": recovery_safe_finding.get("finding_candidate_count"),
         "recovery_safe_finding_engineering_envelope_complete": recovery_safe_finding.get("engineering_envelope_complete") is True,
         "visible_recovery_to_progression_candidate_count": recovery_construct.get("visible_recovery_to_progression_candidate_count"),
+        "penetration_construct_candidate_count": penetration.get("construct_candidate_count"),
+        "visible_terminal_penetration_support_candidate_count": penetration_construct.get("visible_terminal_penetration_support_candidate_count"),
+        "box_access_surface_available": penetration_construct.get("box_access_surface_available") is True,
         "physical_active_match_evidence_present": False,
         "outputs": {key: str(output / filename) for key, filename in OUTPUTS.items()},
         "hard_block_hits": hard_blocks,
@@ -252,6 +268,9 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "loss_exposure_truth": False,
         "recovery_yield_truth": False,
         "possession_gain_truth": False,
+        "penetration_truth": False,
+        "box_access_truth": False,
+        "territorial_control_truth": False,
         "professional_finding_emitted": False,
         "claim_output_allowed": False,
         "tactical_plan_truth": False,
