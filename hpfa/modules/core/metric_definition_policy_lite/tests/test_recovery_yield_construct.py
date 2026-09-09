@@ -3,7 +3,15 @@ from hpfa.modules.core.metric_definition_policy_lite.src.recovery_yield_construc
 BINDING = "msb_" + "r" * 24
 
 
-def trace(trace_id: str, *, family: str = "RECOVERY", team: str = "team_a", actor: str = "actor_a") -> dict:
+def trace(
+    trace_id: str,
+    *,
+    family: str = "RECOVERY",
+    team: str = "team_a",
+    actor: str = "actor_a",
+    start: str = "10",
+    end: str = "10.5",
+) -> dict:
     return {
         "trackable_action_trace_candidate_id": trace_id,
         "match_surface_binding_id": BINDING,
@@ -11,8 +19,8 @@ def trace(trace_id: str, *, family: str = "RECOVERY", team: str = "team_a", acto
         "team_identity_candidate_id": team,
         "actor_identity_candidate_id": actor,
         "period_candidate": "1",
-        "start_candidate": "10",
-        "end_candidate": "10.5",
+        "start_candidate": start,
+        "end_candidate": end,
         "action_family_candidates": [family],
         "canonical_event_count": "UNKNOWN",
     }
@@ -67,6 +75,8 @@ def build(
     episode_rows: list[dict] | None = None,
     *,
     episode_overrides: dict | None = None,
+    progression_refs: list[str] | None = None,
+    progression_overrides: dict | None = None,
 ) -> dict:
     trace_payload = {
         "module_id": "trackable_action_trace_candidates_lite_v1",
@@ -100,7 +110,31 @@ def build(
             "production_release": False,
         }
         episode_payload.update(episode_overrides or {})
-    return build_recovery_yield_construct(trace_payload, consequence_payload, guard(), episode_payload)
+    progression_payload = None
+    if progression_refs is not None:
+        progression_payload = {
+            "module_id": "progression_effectiveness_construct_v1",
+            "status": "PASS_CANDIDATE",
+            "construct_candidate": {
+                "construct_candidate_id": "pec_test",
+                "eligible_progression_trace_candidate_refs": progression_refs,
+            },
+            "construct_candidate_count": 1,
+            "hard_block_hits": [],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+            "professional_finding_emitted": False,
+            "claim_output_allowed": False,
+        }
+        progression_payload.update(progression_overrides or {})
+    return build_recovery_yield_construct(
+        trace_payload,
+        consequence_payload,
+        guard(),
+        episode_payload,
+        progression_payload,
+    )
 
 
 def test_recovery_denominator_uses_recovery_and_interception_only() -> None:
@@ -212,6 +246,78 @@ def test_overlapping_context_labels_are_marginal_not_additive_denominators() -> 
     assert sum(p["eligible_recovery_trace_candidate_count"] for p in row["process_family_context_recovery_yield_profile_candidates"]) == 2
     assert row["context_profile_denominators_are_marginal_not_additive"] is True
     assert all(p["context_profile_denominator_is_additive_across_labels"] is False for p in row["phase_activity_context_recovery_yield_profile_candidates"])
+
+
+def test_visible_recovery_to_progression_requires_same_team_episode_and_positive_time() -> None:
+    recovery = trace("r", start="10", end="10.5")
+    progression = trace("p", family="PASS", team="team_a", actor="actor_p", start="12", end="12.2")
+    result = build(
+        [recovery, progression],
+        [consequence(recovery, "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE")],
+        [episode_context(recovery, episode_id="ep_x"), episode_context(progression, episode_id="ep_x")],
+        progression_refs=["p"],
+    )
+    row = result["construct_candidate"]
+    assert row["recovery_progression_conversion_eligible_recovery_trace_candidate_count"] == 1
+    assert row["visible_recovery_to_progression_candidate_count"] == 1
+    conversion = row["visible_recovery_to_progression_candidates"][0]
+    assert conversion["recovery_trace_candidate_id"] == "r"
+    assert conversion["progression_trace_candidate_id"] == "p"
+    assert conversion["positive_time_delta_candidate"] == 1.5
+    assert conversion["sequence_truth"] is False
+    assert conversion["possession_truth"] is False
+    assert conversion["causal_truth"] is False
+
+
+def test_same_time_or_opponent_progression_never_creates_conversion() -> None:
+    recovery = trace("r", start="10", end="10.5")
+    same_time = trace("p_same", family="PASS", team="team_a", start="10.5", end="11")
+    opponent = trace("p_opp", family="PASS", team="team_b", start="12", end="12.2")
+    result = build(
+        [recovery, same_time, opponent],
+        [consequence(recovery, "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE")],
+        [episode_context(recovery), episode_context(same_time), episode_context(opponent)],
+        progression_refs=["p_same", "p_opp"],
+    )
+    row = result["construct_candidate"]
+    assert row["visible_recovery_to_progression_candidate_count"] == 0
+    assert row["no_visible_progression_followup_candidate_count"] == 1
+    assert row["no_visible_progression_followup_is_failure"] is False
+    assert row["no_visible_progression_followup_is_counterevidence"] is False
+    assert row["same_time_is_ordered"] is False
+    assert row["source_row_order_is_temporal_truth"] is False
+
+
+def test_ambiguous_earliest_progression_is_review_not_sequence_truth() -> None:
+    recovery = trace("r", end="10.5")
+    p1 = trace("p1", family="PASS", start="12", end="12.2")
+    p2 = trace("p2", family="CARRY", actor="actor_b", start="12", end="12.3")
+    result = build(
+        [recovery, p1, p2],
+        [consequence(recovery, "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE")],
+        [episode_context(recovery), episode_context(p1), episode_context(p2)],
+        progression_refs=["p1", "p2"],
+    )
+    row = result["construct_candidate"]
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert row["visible_recovery_to_progression_candidate_count"] == 0
+    assert row["ambiguous_progression_followup_review_count"] == 1
+    assert "recovery_progression_conversion_earliest_followup_ambiguous" in result["review_hits"]
+
+
+def test_progression_upstream_truth_claim_fails_closed() -> None:
+    recovery = trace("r")
+    progression = trace("p", family="PASS", start="12")
+    result = build(
+        [recovery, progression],
+        [consequence(recovery, "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE")],
+        [episode_context(recovery), episode_context(progression)],
+        progression_refs=["p"],
+        progression_overrides={"canonical_event_count": 1},
+    )
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["construct_candidate"] is None
+    assert "progression_canonical_event_count_claimed" in result["hard_block_hits"]
 
 
 def test_episode_context_upstream_truth_claim_fails_closed() -> None:
