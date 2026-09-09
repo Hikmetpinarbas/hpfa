@@ -1,0 +1,21 @@
+{
+  "contract_id": "rich_multiformat_episode_count_contract_v1",
+  "producer": "rich_multiformat_analysis_lattice_v1",
+  "source_surface": "episode_feature_vector_lite_v1",
+  "scope": "PHASE_STATE_AND_C01_DERIVED_MEANING_ONLY",
+  "invariants": {
+    "episode_feature_counts_are_strict_nonnegative_integers": true,
+    "boolean_counts_are_not_integer_counts": true,
+    "floating_point_counts_are_not_admitted_counts": true,
+    "numeric_strings_are_not_admitted_counts": true,
+    "negative_counts_are_not_admitted_counts": true,
+    "invalid_count_shape_cannot_emit_phase_activity_label": true,
+    "invalid_shot_count_cannot_create_c01_packet": true,
+    "invalid_count_shape_requires_review_surface": true,
+    "invalid_count_shape_does_not_create_event_truth": true,
+    "invalid_count_shape_does_not_create_tactical_truth": true,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}
