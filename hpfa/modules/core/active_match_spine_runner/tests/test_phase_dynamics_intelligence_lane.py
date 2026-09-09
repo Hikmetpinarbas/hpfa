@@ -122,6 +122,7 @@ def test_progression_construct_failure_closes_lane(monkeypatch, tmp_path):
     base = {"status": "PASS", "canonical_event_count": "UNKNOWN", "true_action_count": "UNKNOWN", "production_release": False, "hard_block_hits": []}
     _patch_common_lane(monkeypatch, lane, base)
     monkeypatch.setattr(lane, "build_progression_effectiveness_construct", lambda *args, **kwargs: {**base, "module_id": "progression_effectiveness_construct_v1", "status": "FAIL_CLOSED", "hard_block_hits": ["guard_failure"], "construct_candidate_count": 0})
+    monkeypatch.setattr(lane, "build_progression_safe_finding_projection", lambda *args: {**base, "module_id": "progression_safe_finding_projection_v1", "status": "FAIL_CLOSED", "hard_block_hits": ["upstream_progression_failure"], "finding_candidate_count": 0, "engineering_envelope_complete": False})
     monkeypatch.setattr(lane, "build_ball_security_construct", lambda *args, **kwargs: {**base, "module_id": "ball_security_construct_v1", "construct_candidate_count": 1})
     monkeypatch.setattr(lane, "build_recovery_yield_construct", lambda *args, **kwargs: {**base, "module_id": "recovery_yield_construct_v1", "construct_candidate_count": 1})
     result = run_phase_dynamics_intelligence_lane(tmp_path)
