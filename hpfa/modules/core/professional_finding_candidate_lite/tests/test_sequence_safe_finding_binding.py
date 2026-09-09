@@ -5,30 +5,47 @@ from hpfa.modules.core.professional_finding_candidate_lite.src.sequence_safe_fin
 )
 
 
-def _payload(state="RECURRENT_VISIBLE_TRACE", independent="UNKNOWN"):
+def _payload(state="RECURRENT_VISIBLE_TRACE", independent="UNKNOWN", with_context=False):
+    row = {
+        "trace_family_ref": "variant_a",
+        "eligible_trace_refs": ["variant_a", "variant_b", "variant_c", "variant_d", "variant_e"],
+        "eligible_trace_count": 5,
+        "admission_state": state,
+        "observed_support": 5,
+        "independent_support_count": independent,
+        "failure_variant_count": 1,
+        "divergence_count": 1,
+        "no_visible_followup_count": 1,
+        "robustness_state": "ROBUST_WITHIN_TESTED_RANGE",
+        "counterevidence_refs": ["variant_b", "variant_c"],
+        "alternative_explanations": [{"type": "CONTEXT_DEPENDENCE", "causal_truth": False}],
+        "dependency_summary": {"independence_proven": independent != "UNKNOWN"},
+        "uncertainty": {"recurrence_is_tactical_intention_truth": False},
+        "context_scope": [{"period_candidate": "1"}],
+        "source_anchor_context": {"team_identity_candidate_id": "team_a"},
+        "forbidden_inference": ["TACTICAL_PATTERN_TRUTH", "CAUSALITY"],
+        "withdrawal_condition": "Downgrade if evidence changes.",
+    }
+    if with_context:
+        row.update({
+            "sequence_occurrence_object_context_state": "PATTERN_OCCURRENCE_CONTEXT_LINEAGE_ONLY",
+            "sequence_occurrence_team_context_refs": ["team_ctx_2", "team_ctx_1", "team_ctx_1"],
+            "sequence_occurrence_goalkeeper_context_refs": ["gk_ctx_1"],
+            "sequence_occurrence_goalkeeper_context_bundle_refs": ["gk_bundle_1"],
+            "sequence_occurrence_reflection_context_refs": ["reflection_1"],
+            "sequence_occurrence_relation_type_candidates": ["TEAM_CONTEXT", "GOALKEEPER_CONTEXT"],
+            "sequence_occurrence_context_is_pattern_support": False,
+            "sequence_occurrence_context_is_independent_support": False,
+            "goalkeeper_context_is_pattern_participant_truth": False,
+            "reflection_context_is_pattern_equivalence_truth": False,
+            "sequence_occurrence_context_ref_count_is_pattern_count": False,
+            "sequence_occurrence_context_ref_count_is_recurrence_count": False,
+            "sequence_occurrence_context_creates_event": False,
+        })
     return {
         "module_id": "sequence_pattern_admission_lite_v1",
         "status": "PASS",
-        "sequence_pattern_admissions": [{
-            "trace_family_ref": "variant_a",
-            "eligible_trace_refs": ["variant_a", "variant_b", "variant_c", "variant_d", "variant_e"],
-            "eligible_trace_count": 5,
-            "admission_state": state,
-            "observed_support": 5,
-            "independent_support_count": independent,
-            "failure_variant_count": 1,
-            "divergence_count": 1,
-            "no_visible_followup_count": 1,
-            "robustness_state": "ROBUST_WITHIN_TESTED_RANGE",
-            "counterevidence_refs": ["variant_b", "variant_c"],
-            "alternative_explanations": [{"type": "CONTEXT_DEPENDENCE", "causal_truth": False}],
-            "dependency_summary": {"independence_proven": independent != "UNKNOWN"},
-            "uncertainty": {"recurrence_is_tactical_intention_truth": False},
-            "context_scope": [{"period_candidate": "1"}],
-            "source_anchor_context": {"team_identity_candidate_id": "team_a"},
-            "forbidden_inference": ["TACTICAL_PATTERN_TRUTH", "CAUSALITY"],
-            "withdrawal_condition": "Downgrade if evidence changes.",
-        }],
+        "sequence_pattern_admissions": [row],
         "tactical_pattern_state_allowed": False,
         "coach_intention_state_allowed": False,
         "team_style_truth_state_allowed": False,
@@ -53,6 +70,55 @@ def test_exact_supporting_trace_cohort_survives_safe_binding():
     row = build_sequence_safe_finding_blocks(_payload())["analyst_report_blocks"][0]
     assert row["trace_variant_refs"] == ["variant_a", "variant_b", "variant_c", "variant_d", "variant_e"]
     assert row["recurrence_summary"]["eligible_trace_count"] == row["recurrence_summary"]["observed_support"] == 5
+
+
+def test_pattern_occurrence_context_survives_as_lineage_only_not_support():
+    row = build_sequence_safe_finding_blocks(_payload(with_context=True))["analyst_report_blocks"][0]
+    assert row["sequence_occurrence_object_context_state"] == "SAFE_FINDING_OCCURRENCE_CONTEXT_LINEAGE_ONLY"
+    assert row["sequence_occurrence_team_context_refs"] == ["team_ctx_1", "team_ctx_2"]
+    assert row["sequence_occurrence_goalkeeper_context_refs"] == ["gk_ctx_1"]
+    assert row["sequence_occurrence_goalkeeper_context_bundle_refs"] == ["gk_bundle_1"]
+    assert row["sequence_occurrence_reflection_context_refs"] == ["reflection_1"]
+    assert row["sequence_occurrence_context_is_finding_support"] is False
+    assert row["sequence_occurrence_context_is_prose_support"] is False
+    assert row["sequence_occurrence_context_is_independent_support"] is False
+    assert row["goalkeeper_context_is_finding_participant_truth"] is False
+    assert row["reflection_context_is_finding_equivalence_truth"] is False
+    assert row["sequence_occurrence_context_ref_count_is_action_count"] is False
+    assert row["sequence_occurrence_context_ref_count_is_event_count"] is False
+    assert row["sequence_occurrence_context_ref_count_is_recurrence_strength"] is False
+    assert row["sequence_occurrence_context_ref_count_is_robustness_score"] is False
+    assert row["sequence_occurrence_context_is_tactical_truth"] is False
+    assert row["sequence_occurrence_context_is_causal_truth"] is False
+
+
+def test_unsafe_pattern_occurrence_context_is_reviewed_and_not_emitted():
+    payload = _payload(with_context=True)
+    row = payload["sequence_pattern_admissions"][0]
+    row["sequence_occurrence_context_is_pattern_support"] = True
+    result = build_sequence_safe_finding_blocks(payload)
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["analyst_report_block_count"] == 0
+    assert "safe_finding_occurrence_context_claim_boundary_mismatch:variant_a" in result["review_hits"]
+
+
+def test_context_refs_without_admitted_state_are_reviewed_and_not_emitted():
+    payload = _payload(with_context=True)
+    row = payload["sequence_pattern_admissions"][0]
+    row["sequence_occurrence_object_context_state"] = ""
+    result = build_sequence_safe_finding_blocks(payload)
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["analyst_report_block_count"] == 0
+    assert "safe_finding_occurrence_context_state_missing_or_unexpected:variant_a" in result["review_hits"]
+
+
+def test_upstream_context_review_is_not_cleaned_to_pass():
+    payload = _payload(with_context=True)
+    payload["sequence_pattern_admissions"][0]["sequence_occurrence_object_context_state"] = "REVIEW_REQUIRED"
+    result = build_sequence_safe_finding_blocks(payload)
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["analyst_report_block_count"] == 0
+    assert "safe_finding_occurrence_context_upstream_review:variant_a" in result["review_hits"]
 
 
 def test_missing_or_mismatched_trace_cohort_fails_closed_before_prose():
