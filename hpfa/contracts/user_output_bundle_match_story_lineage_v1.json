@@ -1,0 +1,26 @@
+{
+  "contract_id": "user_output_bundle_match_story_lineage_v1",
+  "version": "1.0.0",
+  "producer": "active_match_standard_user_bundle_v1",
+  "scope": "HPFA_ANALYST_REPORT final-assembly-admitted match-story lineage projection",
+  "requirements": {
+    "final_assembly_admission_required": true,
+    "match_story_lineage_required_for_match_story_block": true,
+    "source_narrative_ids_must_be_unique": true,
+    "process_narrative_count_must_equal_unique_source_narrative_count": true,
+    "alternative_explanation_source_must_belong_to_story_cohort": true,
+    "alternative_explanation_bearing_process_count_must_equal_unique_alternative_source_count": true,
+    "alternative_explanation_is_independent_counterevidence_vote": false,
+    "alternative_explanation_count_is_support_count": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "forbidden_upgrades": [
+    "alternative_explanation_to_support",
+    "alternative_explanation_to_independent_counterevidence",
+    "alternative_explanation_to_recurrence_strength",
+    "alternative_explanation_to_causal_truth",
+    "alternative_explanation_to_tactical_truth"
+  ]
+}
