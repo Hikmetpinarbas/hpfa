@@ -1,0 +1,104 @@
+{
+  "record": "HPFA_EVENT_ONLY_MIGRATION_LEDGER_V1",
+  "status": "ACTIVE_MIGRATION_LEDGER",
+  "product_model": "ZFGV_MULTI_SURFACE_FOOTBALL_OBSERVATION_FABRIC",
+  "canonical_rule": "event_subset_of_zfgv",
+  "global_event_only_product_gate_allowed": false,
+  "classification_enum": [
+    "GLOBAL_ERROR",
+    "LEGITIMATE_EVENT_TERM",
+    "LEGACY_IDENTIFIER",
+    "HISTORICAL"
+  ],
+  "migration_invariant": "required_capabilities_subset_of_admitted_capabilities",
+  "claim_locks": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false,
+    "tracking_video_truth_not_invented": true,
+    "provider_label_not_physical_or_tactical_truth": true,
+    "recurrence_not_causality_or_intention": true
+  },
+  "entries": [
+    {
+      "path": "README.md",
+      "token": "HPFA is an event-only, claim-safe Football Intelligence Platform",
+      "classification": "GLOBAL_ERROR",
+      "action": "REPLACE_PRODUCT_MODEL_WITH_ZFGV",
+      "reason": "Event-only is no longer the canonical global ontology."
+    },
+    {
+      "path": "docs/governance/product_architect_evolution_protocol_v1.md",
+      "token": "long-lived event-only football intelligence product",
+      "classification": "GLOBAL_ERROR",
+      "action": "REPLACE_PRODUCT_MODEL_WITH_ZFGV",
+      "reason": "Architecture governance must not globally constrain the product to event-only inputs."
+    },
+    {
+      "path": "docs/prompts/HPFA_PROJECT_LOGBOOK_PROMPT.md",
+      "token": "event-only, claim-safe, modular and portable Football Intelligence Platform",
+      "classification": "GLOBAL_ERROR",
+      "action": "REPLACE_PRODUCT_MODEL_WITH_ZFGV",
+      "reason": "Operator prompts must inherit the current canonical ontology."
+    },
+    {
+      "path": "configs/metrics/metric_registry_v1.json",
+      "token": "event_only_compatible",
+      "classification": "LEGACY_IDENTIFIER",
+      "action": "PRESERVE_AS_COMPATIBILITY_METADATA_AND_ADD_CAPABILITY_REQUIREMENTS",
+      "reason": "The field may remain for compatibility but cannot act as a global metric admission gate."
+    },
+    {
+      "path": "hpfa/modules/core/provider_metric_dictionary_lite/src/_provider_metric_dictionary_impl_v7.py",
+      "token": "event_only_compatibility_required",
+      "classification": "GLOBAL_ERROR",
+      "action": "REHABILITATE_AT_CURRENT_WRAPPER_WITH_EXPLICIT_ZFGV_CAPABILITY_CONTRACT",
+      "reason": "Hard-rejecting non-event-only constructs suppresses valid ZFGV observation families."
+    },
+    {
+      "path": "hpfa/modules/core/metric_fusion_engine/README.md",
+      "token": "HPFA Event-Only Metric Fusion Engine V1",
+      "classification": "LEGACY_IDENTIFIER",
+      "action": "DO_NOT_BLIND_RENAME; RECLASSIFY_SCOPE_BEFORE_REHABILITATION",
+      "reason": "Module is scaffold/not production-bound; historical identifier does not by itself prove an active global gate."
+    },
+    {
+      "path": "hpfa/modules/core/metric_fusion_engine/policies/eventonly_metric_allowlist_v1.json",
+      "token": "eventonly_metric_allowlist_v1",
+      "classification": "LEGACY_IDENTIFIER",
+      "action": "AUDIT_FOR_CAPABILITY_BASED_REPLACEMENT_BEFORE_ANY_RUNTIME_BINDING",
+      "reason": "Allowlist is candidate/not production-bound; preserve blocked-claim safeguards while removing any future global event-only ceiling."
+    },
+    {
+      "path": "docs/contracts/reasoning_grammar_spine_lite_v1.md",
+      "token": "Voronoi or pitch-control truth from event-only runtime; off-ball structure from event-only runtime",
+      "classification": "LEGITIMATE_EVENT_TERM",
+      "action": "KEEP_LOCK_AND_GENERALIZE_WORDING_TO_OBSERVATION_REQUIREMENTS_WHEN_EDITED",
+      "reason": "The prohibition remains correct: non-tracking observations do not create tracking geometry truth."
+    },
+    {
+      "path": "docs/logbook/*event-only*",
+      "token": "historical event-only development records",
+      "classification": "HISTORICAL",
+      "action": "PRESERVE_WITH_LEGACY_CONTEXT",
+      "reason": "Historical evidence must not be rewritten as if the old doctrine never existed."
+    },
+    {
+      "path": "hpfa/modules/core/canonical_event_lite/**",
+      "token": "event",
+      "classification": "LEGITIMATE_EVENT_TERM",
+      "action": "KEEP_AS_EVENT_SUBSYSTEM",
+      "reason": "Event is still a valid observation family inside ZFGV; event-specific identity/count contracts remain necessary."
+    }
+  ],
+  "next_operational_audits": [
+    "metric_definition_policy",
+    "metric_fusion_eligibility",
+    "spatial_admission",
+    "process_participation_admission",
+    "aggregate_tabular_admission",
+    "relation_consequence_binding",
+    "model_eligibility",
+    "analyst_finding_projection"
+  ]
+}
