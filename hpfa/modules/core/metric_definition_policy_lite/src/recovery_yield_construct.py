@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections import Counter, defaultdict
 from typing import Any
 
@@ -9,6 +10,7 @@ MODULE_ID = "recovery_yield_construct_v1"
 TRACE_MODULE_ID = "trackable_action_trace_candidates_lite_v1"
 CONSEQUENCE_MODULE_ID = "trackable_action_consequence_candidates_lite_v1"
 EPISODE_CONSEQUENCE_MODULE_ID = "episode_consequence_projection_v1"
+PROGRESSION_MODULE_ID = "progression_effectiveness_construct_v1"
 OBSERVATION_MODEL = "ENRICHED_FOOTBALL_OBSERVATION_DATA_V1"
 CLAIM_CEILING = "RECOVERY_YIELD_PROFILE_CANDIDATE_ONLY"
 RECOVERY_FAMILIES = {"RECOVERY", "INTERCEPTION"}
@@ -40,6 +42,17 @@ def _ratio(numerator: int, denominator: int) -> float | None:
     if denominator <= 0:
         return None
     return round(numerator / denominator, 6)
+
+
+def _time_candidate(value: Any) -> float | None:
+    text = _clean(value)
+    if not text:
+        return None
+    try:
+        number = float(text)
+    except ValueError:
+        return None
+    return number if math.isfinite(number) else None
 
 
 def _families(trace: dict[str, Any]) -> set[str]:
@@ -153,17 +166,163 @@ def _context_profiles(
     return rows
 
 
+def _progression_refs(
+    payload: dict[str, Any] | None,
+    blocks: list[str],
+    reviews: list[str],
+) -> list[str]:
+    if payload is None:
+        return []
+    _validate(payload, PROGRESSION_MODULE_ID, "progression", blocks)
+    construct = payload.get("construct_candidate")
+    if construct is None:
+        reviews.append("progression_construct_candidate_missing")
+        return []
+    if not isinstance(construct, dict):
+        blocks.append("progression_construct_candidate_invalid")
+        return []
+    refs = construct.get("eligible_progression_trace_candidate_refs")
+    if not isinstance(refs, list):
+        blocks.append("progression_trace_refs_invalid")
+        return []
+    return sorted({_clean(ref) for ref in refs if _clean(ref)})
+
+
+def _recovery_progression_conversion(
+    recovery_ids: list[str],
+    progression_refs: list[str],
+    trace_by_id: dict[str, dict[str, Any]],
+    episode_context_by_anchor: dict[str, dict[str, Any]],
+    reviews: list[str],
+) -> dict[str, Any]:
+    progression_ids: list[str] = []
+    missing_progression_trace_refs: list[str] = []
+    for ref in progression_refs:
+        if ref in trace_by_id:
+            progression_ids.append(ref)
+        else:
+            missing_progression_trace_refs.append(ref)
+    if missing_progression_trace_refs:
+        reviews.append("progression_trace_refs_missing_from_shared_trace_population")
+
+    conversions: list[dict[str, Any]] = []
+    no_visible: list[str] = []
+    ambiguous: list[str] = []
+    unevaluable: list[str] = []
+    eligible: list[str] = []
+
+    for recovery_id in recovery_ids:
+        recovery = trace_by_id[recovery_id]
+        recovery_team = _clean(recovery.get("team_identity_candidate_id"))
+        recovery_period = _clean(recovery.get("period_candidate"))
+        recovery_end = _time_candidate(recovery.get("end_candidate"))
+        recovery_context = episode_context_by_anchor.get(recovery_id) or {}
+        recovery_episode = _clean(recovery_context.get("episode_candidate_id"))
+        recovery_binding = _clean(recovery_context.get("episode_binding_state"))
+        if (
+            not recovery_team
+            or not recovery_period
+            or recovery_end is None
+            or recovery_binding != "SINGLE_EPISODE_NAVIGATION_ASSOCIATION"
+            or not recovery_episode
+        ):
+            unevaluable.append(recovery_id)
+            continue
+
+        eligible.append(recovery_id)
+        candidates: list[tuple[float, str]] = []
+        for progression_id in progression_ids:
+            progression = trace_by_id[progression_id]
+            if _clean(progression.get("team_identity_candidate_id")) != recovery_team:
+                continue
+            if _clean(progression.get("period_candidate")) != recovery_period:
+                continue
+            progression_context = episode_context_by_anchor.get(progression_id) or {}
+            if (
+                _clean(progression_context.get("episode_binding_state")) != "SINGLE_EPISODE_NAVIGATION_ASSOCIATION"
+                or _clean(progression_context.get("episode_candidate_id")) != recovery_episode
+            ):
+                continue
+            progression_start = _time_candidate(progression.get("start_candidate"))
+            if progression_start is None or progression_start <= recovery_end:
+                continue
+            candidates.append((progression_start, progression_id))
+
+        if not candidates:
+            no_visible.append(recovery_id)
+            continue
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        earliest_time = candidates[0][0]
+        earliest = [item for item in candidates if item[0] == earliest_time]
+        if len(earliest) != 1:
+            ambiguous.append(recovery_id)
+            continue
+        progression_start, progression_id = earliest[0]
+        conversions.append({
+            "recovery_trace_candidate_id": recovery_id,
+            "progression_trace_candidate_id": progression_id,
+            "episode_candidate_id": recovery_episode,
+            "team_identity_candidate_id": recovery_team,
+            "period_candidate": recovery_period,
+            "positive_time_delta_candidate": round(progression_start - recovery_end, 6),
+            "binding_state": "VISIBLE_RECOVERY_TO_PROGRESSION_CANDIDATE",
+            "same_team_required": True,
+            "same_episode_required": True,
+            "positive_time_required": True,
+            "source_row_order_used": False,
+            "same_time_order_inferred": False,
+            "sequence_truth": False,
+            "possession_truth": False,
+            "causal_truth": False,
+            "coach_intention_truth": False,
+            "independent_support_vote_count": 0,
+        })
+
+    if unevaluable:
+        reviews.append("recovery_progression_conversion_temporal_or_episode_coverage_incomplete")
+    if ambiguous:
+        reviews.append("recovery_progression_conversion_earliest_followup_ambiguous")
+
+    return {
+        "progression_surface_supplied": bool(progression_refs),
+        "progression_trace_candidate_ref_count": len(progression_refs),
+        "progression_trace_candidate_refs_missing_from_shared_trace_population": sorted(missing_progression_trace_refs),
+        "recovery_progression_conversion_eligible_recovery_trace_candidate_count": len(eligible),
+        "recovery_progression_conversion_eligible_recovery_trace_candidate_refs": sorted(eligible),
+        "visible_recovery_to_progression_candidate_count": len(conversions),
+        "visible_recovery_to_progression_candidates": conversions,
+        "visible_recovery_to_progression_rate_candidate": _ratio(len(conversions), len(eligible)),
+        "no_visible_progression_followup_candidate_count": len(no_visible),
+        "no_visible_progression_followup_recovery_trace_candidate_refs": sorted(no_visible),
+        "ambiguous_progression_followup_review_count": len(ambiguous),
+        "ambiguous_progression_followup_recovery_trace_candidate_refs": sorted(ambiguous),
+        "recovery_progression_conversion_unevaluable_count": len(unevaluable),
+        "recovery_progression_conversion_unevaluable_recovery_trace_candidate_refs": sorted(unevaluable),
+        "no_visible_progression_followup_is_failure": False,
+        "no_visible_progression_followup_is_counterevidence": False,
+        "conversion_rate_complement_is_failure_rate": False,
+        "conversion_candidate_is_sequence_truth": False,
+        "conversion_candidate_is_possession_truth": False,
+        "conversion_candidate_is_causal_truth": False,
+        "same_provider_conversion_adds_independent_vote": False,
+        "source_row_order_is_temporal_truth": False,
+        "same_time_is_ordered": False,
+    }
+
+
 def build_recovery_yield_construct(
     trace_payload: dict[str, Any],
     consequence_payload: dict[str, Any],
     guard: dict[str, Any],
     episode_consequence_payload: dict[str, Any] | None = None,
+    progression_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     blocks: list[str] = []
     reviews: list[str] = []
     _validate(trace_payload, TRACE_MODULE_ID, "trace", blocks)
     _validate(consequence_payload, CONSEQUENCE_MODULE_ID, "consequence", blocks)
     episode_context_by_anchor = _episode_context_index(episode_consequence_payload, blocks)
+    progression_refs = _progression_refs(progression_payload, blocks, reviews)
 
     binding = _clean(trace_payload.get("match_surface_binding_id"))
     if not binding or binding != _clean(consequence_payload.get("match_surface_binding_id")):
@@ -317,6 +476,32 @@ def build_recovery_yield_construct(
 
     phase_context_profiles = _context_profiles(phase_groups, states, "phase_activity_label_candidate")
     process_context_profiles = _context_profiles(process_groups, states, "process_family_annotation_candidate")
+    progression_conversion = _recovery_progression_conversion(
+        recovery_ids,
+        progression_refs,
+        trace_by_id,
+        episode_context_by_anchor,
+        reviews,
+    ) if progression_payload is not None and episode_consequence_payload is not None and not blocks else {
+        "progression_surface_supplied": progression_payload is not None,
+        "progression_trace_candidate_ref_count": len(progression_refs),
+        "recovery_progression_conversion_eligible_recovery_trace_candidate_count": 0,
+        "visible_recovery_to_progression_candidate_count": 0,
+        "visible_recovery_to_progression_candidates": [],
+        "visible_recovery_to_progression_rate_candidate": None,
+        "no_visible_progression_followup_candidate_count": 0,
+        "ambiguous_progression_followup_review_count": 0,
+        "recovery_progression_conversion_unevaluable_count": denominator,
+        "no_visible_progression_followup_is_failure": False,
+        "no_visible_progression_followup_is_counterevidence": False,
+        "conversion_rate_complement_is_failure_rate": False,
+        "conversion_candidate_is_sequence_truth": False,
+        "conversion_candidate_is_possession_truth": False,
+        "conversion_candidate_is_causal_truth": False,
+        "same_provider_conversion_adds_independent_vote": False,
+        "source_row_order_is_temporal_truth": False,
+        "same_time_is_ordered": False,
+    }
 
     blocks = sorted(set(blocks))
     reviews = sorted(set(reviews))
@@ -361,16 +546,19 @@ def build_recovery_yield_construct(
             "process_context_is_tactical_plan_truth": False,
             "episode_binding_is_possession_truth": False,
             "episode_binding_is_sequence_truth": False,
+            **progression_conversion,
             "alternative_explanations": [
                 "visible post-recovery continuation may reflect teammate support and opponent response rather than anchor quality alone",
                 "provider recovery/interception coverage may be selective or reflective across surfaces",
                 "match-local role, game-state and action mix may alter the recovery opportunity set",
                 "episode phase/process annotations are co-visible context candidates, not causes or tactical-plan truth",
                 "a visible recovery annotation does not establish possession gain or control truth",
+                "visible progression after recovery may reflect field location and teammate availability rather than recovery quality",
+                "no visible progression follow-up may reflect observation coverage or a valid non-progression continuation and is not failure evidence",
             ],
-            "uncertainty": "MATCH_LOCAL_VISIBLE_RECOVERY_CONSEQUENCE_AND_EPISODE_CONTEXT_COVERAGE_ONLY_NO_CALIBRATED_RECOVERY_YIELD_TRUTH",
-            "withdrawal_condition": "withdraw comparison or finding if denominator/context alignment, temporal admission, consequence coverage, episode-context binding, identity reconciliation, reflection control, or dependency controls fail",
-            "analyst_action": "inspect recovery/interception denominator, positive/adverse/unresolved consequence refs, actor/team reconciliation and marginal episode phase/process context profiles before describing recovery yield",
+            "uncertainty": "MATCH_LOCAL_VISIBLE_RECOVERY_CONSEQUENCE_EPISODE_CONTEXT_AND_POSITIVE_TIME_PROGRESSION_COVERAGE_ONLY_NO_CALIBRATED_RECOVERY_YIELD_TRUTH",
+            "withdrawal_condition": "withdraw comparison or finding if denominator/context alignment, temporal admission, consequence coverage, episode-context binding, progression semantic admission, identity reconciliation, reflection control, or dependency controls fail",
+            "analyst_action": "inspect recovery/interception denominator, positive/adverse/unresolved consequence refs, actor/team reconciliation, marginal episode context and positive-time same-team same-episode progression bindings before describing recovery yield",
             "same_provider_reflection_adds_independent_vote": False,
             "independent_support_vote_count": 0,
             "missing_consequence_is_counterevidence": False,
