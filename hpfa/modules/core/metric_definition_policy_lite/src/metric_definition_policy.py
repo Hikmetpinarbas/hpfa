@@ -10,15 +10,29 @@ MODULE_ID = "metric_definition_policy_lite_v1"
 OUTPUT_JSON = "metric_definition_policy_lite_v1.json"
 POLICY_VERSION = "1.0.0"
 RESEARCH_HARDENING_VERSION = "R07_R17_R18_R19_R22_v2"
+ZFGV_OBSERVATION_MODEL = "MULTI_SURFACE_FOOTBALL_OBSERVATION_FABRIC"
+OBSERVATION_CAPABILITIES = {
+    "ACTION_EVENT",
+    "ENTITY_ACTOR",
+    "TEMPORAL",
+    "SPATIAL",
+    "OUTCOME_QUALIFIER",
+    "RELATIONAL",
+    "PROCESS_PARTICIPATION",
+    "AGGREGATE_TABULAR",
+    "EXTERNAL_CONTEXT",
+    "TRACKING_VIDEO",
+    "HPFA_DERIVED_INTELLIGENCE",
+}
 
 REQUIRED_METRIC_FIELDS = {
     "metric_id", "metric_name", "metric_family", "construct_target",
     "aggregation_class", "value_type", "unit", "numerator_definition",
-    "observation_window", "entity_scope", "required_event_families",
-    "required_context_fields", "event_only_compatible", "source_surface_roles",
-    "derivation_dependency", "does_not_measure", "forbidden_claims",
-    "claim_ceiling", "denominator_policy_id", "context_policy_id",
-    "confidence_policy_id", "misuse_policy_ids",
+    "observation_window", "entity_scope", "required_observation_capabilities",
+    "required_event_families", "required_context_fields", "event_only_compatible",
+    "source_surface_roles", "derivation_dependency", "does_not_measure",
+    "forbidden_claims", "claim_ceiling", "denominator_policy_id",
+    "context_policy_id", "confidence_policy_id", "misuse_policy_ids",
 }
 RATE_TYPES = {"rate", "percentage", "ratio", "per_90"}
 AGGREGATION_CLASSES = {
@@ -47,17 +61,20 @@ BLOCKED = "BLOCKED"
 
 # R07: every direct semantic field belongs to the fingerprint. Referenced policy
 # semantics are included separately so changing a policy without renaming its ID
-# still changes the fingerprint.
+# still changes the fingerprint. ZFGV capability requirements are direct metric
+# semantics: changing what must be observed changes the metric definition identity.
 FINGERPRINT_FIELDS = (
     "metric_family", "construct_target", "aggregation_class", "value_type", "unit",
     "numerator_definition", "denominator_definition", "observation_window",
     "entity_scope", "period_scope", "team_scope", "player_scope", "position_scope",
-    "success_criteria", "required_event_families", "required_context_fields",
-    "event_only_compatible", "source_surface_roles", "derivation_dependency",
-    "independence_group", "stationarity_required", "sample_reliability_required",
-    "does_not_measure", "forbidden_claims", "claim_ceiling",
-    "denominator_policy_id", "context_policy_id", "confidence_policy_id",
-    "misuse_policy_ids", "exposure_policy_id",
+    "success_criteria", "required_observation_capabilities",
+    "supporting_observation_capabilities", "required_event_families",
+    "required_context_fields", "event_only_compatible", "event_only_compatible_role",
+    "source_surface_roles", "derivation_dependency", "independence_group",
+    "stationarity_required", "sample_reliability_required", "does_not_measure",
+    "forbidden_claims", "claim_ceiling", "denominator_policy_id",
+    "context_policy_id", "confidence_policy_id", "misuse_policy_ids",
+    "exposure_policy_id",
 )
 
 
@@ -223,6 +240,22 @@ def _validate_metric(
     for field in sorted(field for field in REQUIRED_METRIC_FIELDS if not _non_empty(record.get(field))):
         gaps.append(_gap(metric_id, f"{field}_missing"))
 
+    required_capabilities = _as_list(record.get("required_observation_capabilities"))
+    supporting_capabilities = _as_list(record.get("supporting_observation_capabilities"))
+    if not isinstance(record.get("required_observation_capabilities"), list) or not required_capabilities:
+        gaps.append(_gap(metric_id, "required_observation_capabilities_invalid"))
+    if "supporting_observation_capabilities" in record and not isinstance(record.get("supporting_observation_capabilities"), list):
+        gaps.append(_gap(metric_id, "supporting_observation_capabilities_invalid"))
+    required_unknown = sorted({str(value) for value in required_capabilities} - OBSERVATION_CAPABILITIES)
+    supporting_unknown = sorted({str(value) for value in supporting_capabilities} - OBSERVATION_CAPABILITIES)
+    if required_unknown:
+        gaps.append(_gap(metric_id, "required_observation_capability_unknown", detail=required_unknown))
+    if supporting_unknown:
+        gaps.append(_gap(metric_id, "supporting_observation_capability_unknown", detail=supporting_unknown))
+    overlap = sorted(set(map(str, required_capabilities)) & set(map(str, supporting_capabilities)))
+    if overlap:
+        gaps.append(_gap(metric_id, "observation_capability_required_supporting_overlap", detail=overlap))
+
     value_type = str(record.get("value_type", "")).strip().lower()
     aggregation_class = str(record.get("aggregation_class", "")).strip().upper()
     denominator_definition = str(record.get("denominator_definition", "")).strip()
@@ -295,6 +328,11 @@ def _validate_metric(
         "definition_correctness_status": "CANDIDATE_CONTRACT_COMPLETE" if not gaps else "CANDIDATE_CONTRACT_GAPS",
         "construct_validity_status": "UNVALIDATED_CONSTRUCT_CANDIDATE",
         "construct_validity_truth": False,
+        "observation_model": ZFGV_OBSERVATION_MODEL,
+        "event_only_compatibility_is_global_admission_gate": False,
+        "required_observation_capabilities": sorted({str(x) for x in required_capabilities}),
+        "supporting_observation_capabilities": sorted({str(x) for x in supporting_capabilities}),
+        "runtime_capability_admission_evaluated": False,
         "denominator_closure_status": closure_status,
         "rate_calculation_admitted": rate_calculation_admitted,
         "exposure_authority_status": exposure_authority_status,
@@ -346,6 +384,10 @@ def build_metric_definition_policy(
         "status": status,
         "policy_version": POLICY_VERSION,
         "research_hardening_version": RESEARCH_HARDENING_VERSION,
+        "observation_model": ZFGV_OBSERVATION_MODEL,
+        "global_event_only_gate": False,
+        "metric_admission_rule": "REQUIRED_CAPABILITIES_SUBSET_OF_ADMITTED_CAPABILITIES",
+        "runtime_capability_admission_evaluated": False,
         "metric_definition_candidate_count": len(metrics),
         "definition_status_counts": dict(sorted(Counter(m["definition_status"] for m in metrics).items())),
         "policy_counts": {
@@ -362,6 +404,9 @@ def build_metric_definition_policy(
             "R19_full_denominator_set_closure_required_for_rate_calculation": True,
             "R22_per90_requires_validated_exposure_authority": True,
             "R22_minutes_played_is_physical_cost": False,
+            "ZFGV_required_observation_capabilities_are_definition_semantics": True,
+            "ZFGV_supporting_observation_capabilities_are_definition_semantics": True,
+            "ZFGV_capability_contract_grants_construct_truth": False,
         },
         "metric_definition_candidate_only": True,
         "validated_metric_truth": False,
@@ -373,8 +418,9 @@ def build_metric_definition_policy(
         "tactical_truth_output_allowed": False,
         "claim_output_allowed": False,
         "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
         "production_release": False,
-        "claim_boundary": "definition_candidate_and_policy_admission_only_no_metric_value_no_construct_truth_no_quality_no_tactical_truth_no_canonical_event_claim",
+        "claim_boundary": "definition_candidate_and_policy_admission_only_no_metric_value_no_construct_truth_no_quality_no_tactical_truth_no_canonical_event_or_true_action_claim",
     }
 
 
