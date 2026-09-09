@@ -81,11 +81,26 @@ def _missing_required_derivation_denominator_policy_blocks(
     return blocks
 
 
+def _explicit_capabilities(row: dict[str, Any]) -> list[str]:
+    raw = row.get("required_observation_capabilities")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        return []
+    return sorted({str(item).strip().upper() for item in raw if str(item).strip()})
+
+
 def _legacy_event_only_metadata_blocks(
     dictionary: dict[str, Any],
     metric_policy: dict[str, Any] | None,
 ) -> list[dict[str, str]]:
-    """Keep the legacy field well-formed without using it as a global admission gate."""
+    """Keep legacy compatibility metadata well-formed and require a real ZFGV replacement.
+
+    event_only_compatible=False is not itself forbidden anymore.  But a record may
+    leave the historical event-only regime only when it declares the observation
+    capabilities that replace that legacy gate.  This prevents a blind relaxation
+    from turning into an implicit unlimited claim ceiling.
+    """
     blocks: list[dict[str, str]] = []
     for family, rows in (
         ("provider_dictionary", dictionary.get("metrics", [])),
@@ -95,10 +110,17 @@ def _legacy_event_only_metadata_blocks(
             metric_id = str(row.get("metric_id") or "UNKNOWN").strip() or "UNKNOWN"
             if "event_only_compatible" not in row:
                 continue
-            if not isinstance(row.get("event_only_compatible"), bool):
+            compatibility = row.get("event_only_compatible")
+            if not isinstance(compatibility, bool):
                 blocks.append(_impl._gap(
                     "event_only_compatibility_metadata_invalid",
                     f"{family}:{metric_id}",
+                ))
+                continue
+            if compatibility is False and not _explicit_capabilities(row):
+                blocks.append(_impl._gap(
+                    "event_only_compatibility_required",
+                    f"{family}:{metric_id}:legacy_gate_replacement_missing_required_observation_capabilities",
                 ))
     return blocks
 
@@ -107,29 +129,24 @@ def _neutralize_legacy_event_only_gate(
     dictionary: dict[str, Any],
     metric_policy: dict[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    """Adapt the legacy implementation without rewriting its historical contract.
+    """Adapt only explicitly migrated records for the historical v7 validator.
 
-    The v7 implementation predates ZFGV and hard-gates every metric on
-    event_only_compatible=True.  The wrapper feeds it a compatibility-normalized
-    view while preserving the caller's original metadata in the final report.
-    Runtime football admission remains a separate capability check; this function
-    does not make any metric value or football construct true.
+    Records that remain event-only compatible are passed through untouched so all
+    existing operational fingerprints, namespace checks and derivation contracts
+    retain their original evidentiary meaning.  A record marked false is normalized
+    only when an explicit ZFGV capability contract replaces the old gate.
     """
     dictionary_view = copy.deepcopy(dictionary)
     policy_view = copy.deepcopy(metric_policy) if metric_policy is not None else None
 
     for row in dictionary_view.get("metrics", []):
-        if isinstance(row.get("event_only_compatible"), bool):
+        if row.get("event_only_compatible") is False and _explicit_capabilities(row):
             row["event_only_compatible"] = True
-            # This fingerprint belongs to operational semantics.  The legacy
-            # implementation recomputes it from the normalized view; suppressing
-            # the stored value prevents a compatibility-only field from becoming
-            # a hidden global product gate.
             if "operational_semantic_fingerprint_sha256" in row:
                 row["operational_semantic_fingerprint_sha256"] = ""
 
     for row in (policy_view or {}).get("metrics", []):
-        if isinstance(row.get("event_only_compatible"), bool):
+        if row.get("event_only_compatible") is False and _explicit_capabilities(row):
             row["event_only_compatible"] = True
 
     return dictionary_view, policy_view
@@ -140,9 +157,16 @@ def _required_observation_capabilities(
     policy_row: dict[str, Any] | None,
 ) -> list[str]:
     """Describe construct prerequisites; do not claim that runtime admitted them."""
-    required: set[str] = set()
-    policy = policy_row or {}
+    explicit = _explicit_capabilities(dictionary_row)
+    if explicit:
+        return explicit
 
+    policy = policy_row or {}
+    policy_explicit = _explicit_capabilities(policy)
+    if policy_explicit:
+        return policy_explicit
+
+    required: set[str] = set()
     for role in policy.get("source_surface_roles") or []:
         capability = ZFGV_CAPABILITY_BY_SURFACE_ROLE.get(str(role).strip().lower())
         if capability:
@@ -180,13 +204,13 @@ def _zfgv_capability_projection(
         metric_id = str(row.get("metric_id") or "").strip()
         upstream = row.get("upstream_bindings") or {}
         policy_id = str(upstream.get("metric_policy_id") or "").strip() if isinstance(upstream, dict) else ""
+        required = _required_observation_capabilities(row, policy_index.get(policy_id))
         projection.append({
             "metric_id": metric_id,
             "event_only_compatible_legacy_metadata": row.get("event_only_compatible"),
             "event_only_compatibility_is_global_admission_gate": False,
-            "required_observation_capabilities": _required_observation_capabilities(
-                row, policy_index.get(policy_id)
-            ),
+            "required_observation_capabilities": required,
+            "capability_contract_explicit": bool(_explicit_capabilities(row)),
             "runtime_capability_admission_evaluated": False,
             "metric_value_output_allowed_by_this_projection": False,
             "construct_truth_granted_by_this_projection": False,
