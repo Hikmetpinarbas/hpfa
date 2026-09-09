@@ -7,6 +7,9 @@ from typing import Any
 from hpfa.modules.core.aggregate_definition_alignment_lite.src.aggregate_definition_alignment import build_alignment
 from hpfa.modules.core.metric_definition_policy_lite.src.metric_definition_policy import load_policy_pack
 from hpfa.modules.core.provider_metric_dictionary_lite.src.provider_metric_dictionary import load_dictionary_pack
+from hpfa.modules.core.active_match_spine_runner.src.zfgv_runtime_capability_admission import (
+    build_runtime_capability_admission,
+)
 
 MODULE_ID = "active_match_metric_governance_bridge_v1"
 OUTPUT_JSON = "active_match_metric_governance_bridge_v1.json"
@@ -24,6 +27,43 @@ def _load(path: Path) -> dict[str, Any]:
 
 def _status(value: Any) -> str:
     return str(value or "UNKNOWN").upper()
+
+
+def _metric_capability_admission_rows(
+    capability_requirements: list[dict[str, Any]],
+    runtime_admission: dict[str, Any],
+) -> list[dict[str, Any]]:
+    evaluated = runtime_admission.get("runtime_capability_admission_evaluated") is True
+    admitted = {
+        str(value).strip().upper()
+        for value in runtime_admission.get("admitted_observation_capabilities") or []
+        if str(value).strip()
+    }
+    rows: list[dict[str, Any]] = []
+    for requirement in capability_requirements:
+        required = {
+            str(value).strip().upper()
+            for value in requirement.get("required_observation_capabilities") or []
+            if str(value).strip()
+        }
+        missing = sorted(required - admitted) if evaluated else sorted(required)
+        if not evaluated:
+            state = "NOT_EVALUATED_RUNTIME_CAPABILITY_EVIDENCE_MISSING"
+        elif missing:
+            state = "NOT_ELIGIBLE_MISSING_REQUIRED_CAPABILITIES"
+        else:
+            state = "ELIGIBLE_REQUIRED_CAPABILITIES_PRESENT"
+        rows.append({
+            "metric_id": requirement.get("metric_id"),
+            "required_observation_capabilities": sorted(required),
+            "admitted_observation_capabilities": sorted(admitted),
+            "missing_required_observation_capabilities": missing,
+            "runtime_capability_admission_evaluated": evaluated,
+            "capability_eligibility_state": state,
+            "metric_value_output_allowed_by_capability_match": False,
+            "construct_truth_granted_by_capability_match": False,
+        })
+    return rows
 
 
 def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) -> dict[str, Any]:
@@ -45,6 +85,8 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         / "registry"
         / "sportsbase_aggregate_definition_candidates_v1.json"
     )
+
+    runtime_admission = build_runtime_capability_admission(output)
 
     hard_blocks: list[str] = []
     review_hits: list[str] = []
@@ -77,7 +119,6 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         str(row.get("metric_id") or "UNKNOWN")
         for row in capability_requirements
         if not isinstance(row.get("required_observation_capabilities"), list)
-        or row.get("runtime_capability_admission_evaluated") is not False
         or row.get("metric_value_output_allowed_by_this_projection") is not False
         or row.get("construct_truth_granted_by_this_projection") is not False
     ]
@@ -86,6 +127,16 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
             "zfgv_metric_capability_projection_invalid:"
             + ",".join(sorted(set(invalid_capability_rows)))
         )
+
+    runtime_capability_admission_evaluated = (
+        runtime_admission.get("runtime_capability_admission_evaluated") is True
+    )
+    if not runtime_capability_admission_evaluated:
+        review_hits.append("zfgv_runtime_capability_admission_not_evaluated")
+
+    metric_capability_admission = _metric_capability_admission_rows(
+        capability_requirements, runtime_admission
+    )
 
     alignment: dict[str, Any] = {
         "status": "NOT_EVALUATED_PREREQUISITE_MISSING",
@@ -136,8 +187,11 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         "global_event_only_gate": False,
         "metric_admission_rule": "REQUIRED_CAPABILITIES_SUBSET_OF_ADMITTED_CAPABILITIES",
         "zfgv_capability_contract_present": zfgv_capability_contract_present,
-        "runtime_capability_admission_evaluated": False,
+        "runtime_capability_admission_evaluated": runtime_capability_admission_evaluated,
+        "runtime_capability_admission": runtime_admission,
+        "admitted_observation_capabilities": runtime_admission.get("admitted_observation_capabilities") or [],
         "zfgv_metric_capability_requirements": capability_requirements,
+        "metric_capability_admission": metric_capability_admission,
         "metric_definition_policy_status": policy_status,
         "provider_metric_dictionary_status": dictionary_status,
         "aggregate_definition_alignment_status": alignment_status,
@@ -157,6 +211,8 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         "construct_truth": False,
         "aggregate_equivalence_truth": False,
         "same_provider_multiformat_is_independent_support": False,
+        "capability_eligibility_is_metric_truth": False,
+        "capability_eligibility_is_construct_truth": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -172,7 +228,8 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         f"observation_model={ZFGV_OBSERVATION_MODEL}",
         "global_event_only_gate=false",
         f"zfgv_capability_contract_present={str(zfgv_capability_contract_present).lower()}",
-        "runtime_capability_admission_evaluated=false",
+        f"runtime_capability_admission_evaluated={str(runtime_capability_admission_evaluated).lower()}",
+        f"admitted_observation_capabilities={payload['admitted_observation_capabilities']}",
         f"metric_definition_policy_status={policy_status}",
         f"provider_metric_dictionary_status={dictionary_status}",
         f"aggregate_definition_alignment_status={alignment_status}",
