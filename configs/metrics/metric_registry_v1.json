@@ -1,5 +1,5 @@
 {
-  "policy_version": "1.1.0-zfgv",
+  "policy_version": "1.0.0",
   "observation_model": "ZFGV_MULTI_SURFACE_FOOTBALL_OBSERVATION_FABRIC",
   "global_event_only_gate": false,
   "admission_rule": "required_observation_capabilities_subset_of_admitted_capabilities",
