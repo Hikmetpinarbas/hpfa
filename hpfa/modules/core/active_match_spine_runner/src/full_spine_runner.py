@@ -28,6 +28,8 @@ FUSED_PACKET_JSON = "active_match_fused_packet_inventory_v1.json"
 FUSED_PACKET_TXT = "active_match_fused_packet_inventory_v1.txt"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
+PROCESS_STORY_DIAGNOSTIC_ARTIFACT = "active_match_process_story_sidecar_v1.json"
+PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT = "active_match_process_story_sidecar_v1.txt"
 
 
 class FullSpineContractError(ValueError):
@@ -77,6 +79,35 @@ def _collect_current_artifacts(*payloads: dict[str, Any], extra: list[str] | Non
             seen.add(text)
             result.append(text)
     return result
+
+
+def _artifact_authority_projection(
+    sidecar_report: dict[str, Any],
+    current_invocation_artifacts: list[str],
+) -> dict[str, Any]:
+    """Keep mixed artifact inventory distinct from analyst-facing publication authority."""
+    artifact_names = {
+        Path(str(value)).name
+        for value in current_invocation_artifacts
+        if str(value or "").strip()
+    }
+    return {
+        "current_invocation_artifacts_are_publication_authority": False,
+        "process_story_diagnostic_artifact": PROCESS_STORY_DIAGNOSTIC_ARTIFACT,
+        "process_story_publication_authority_artifact": PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT,
+        "process_story_diagnostic_artifact_present_in_current_invocation": (
+            PROCESS_STORY_DIAGNOSTIC_ARTIFACT in artifact_names
+        ),
+        "process_story_publication_authority_artifact_present_in_current_invocation": (
+            PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT in artifact_names
+        ),
+        "process_story_parent_authority_contract_preserved": (
+            sidecar_report.get("current_invocation_artifacts_are_publication_authority") is False
+            and sidecar_report.get("process_story_diagnostic_user_facing_publication_authority") is False
+            and sidecar_report.get("process_story_publication_authority_artifact")
+            == PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT
+        ),
+    }
 
 
 def _stage_failure(stage: str, exc: Exception) -> dict[str, Any]:
@@ -384,6 +415,7 @@ def run_full_spine(
             str(output_root / OUTPUT_TXT),
         ],
     )
+    artifact_authority = _artifact_authority_projection(sidecar_report, current_invocation_artifacts)
 
     entity_views = rich_report.get("entity_views") or {}
     constructs = rich_report.get("constructs") or {}
@@ -427,6 +459,7 @@ def run_full_spine(
         "orphan_capability_sidecars": sidecar_report,
         "intelligence_chains": chains,
         "current_invocation_artifacts": current_invocation_artifacts,
+        **artifact_authority,
         "engineering_evidence": {
             "single_active_match_authority_validated": True,
             "reconstruction_bridge_executed": True,
@@ -503,6 +536,8 @@ def run_full_spine(
         f"review_hits={review_hits}",
         f"shared_foundation_reused={str(shared_foundation_reused).lower()}",
         f"row_nucleus_recomputed_by_episode_lane={row_nucleus_recomputed}",
+        "current_invocation_artifacts_are_publication_authority=false",
+        f"process_story_publication_authority_artifact={PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT}",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "phase_truth=false",

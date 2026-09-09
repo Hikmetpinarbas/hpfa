@@ -8,6 +8,7 @@ from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader import n
 
 MODULE_ID = "xlsx_entity_metric_row_projection_lite_v1"
 CLAIM_CEILING = "XLSX_ROW_ALIGNED_ENTITY_METRIC_SURFACE_ONLY"
+METRIC_ACTION_FAMILY_RELATION_STATE = "UNRESOLVED_NO_ADMITTED_SEMANTIC_AUTHORITY"
 IDENTITY_KEYS = {
     "player": "player_raw_candidate",
     "team": "team_raw_candidate",
@@ -27,6 +28,18 @@ def _inventory_index(inventory: dict[str, Any]) -> dict[str, dict[str, Any]]:
         str(item.get("file_id")): item
         for item in inventory.get("files", [])
         if item.get("file_id") is not None
+    }
+
+
+def _metric_semantic_authority_locks() -> dict[str, Any]:
+    return {
+        "action_family_relation_state": METRIC_ACTION_FAMILY_RELATION_STATE,
+        "action_family_candidates": [],
+        "action_family_relation_basis": [],
+        "action_family_relation_is_inferred_from_metric_label": False,
+        "action_family_relation_is_validated": False,
+        "metric_is_action_trace_support": False,
+        "metric_is_physical_action_truth": False,
     }
 
 
@@ -131,6 +144,7 @@ def _project_sheet(
                 "cached_value_used": bool(formula_present and not cache_missing),
                 "value_status": "NOT_ADMITTED_FORMULA_CACHE_MISSING" if cache_missing else ("MISSING" if xlsx.is_blank(cached) else "OBSERVED"),
                 "metric_truth": False,
+                **_metric_semantic_authority_locks(),
             }
 
         rows.append({
@@ -181,6 +195,9 @@ def build_projection(
         "validated_identity": False,
         "aggregate_definition_truth": False,
         "metric_truth": False,
+        "metric_action_family_relation_authority": False,
+        "metric_action_family_relation_default_state": METRIC_ACTION_FAMILY_RELATION_STATE,
+        "metric_label_may_imply_action_family": False,
         "comparison_allowed": False,
         "claim_allowed": False,
         "production_release": False,

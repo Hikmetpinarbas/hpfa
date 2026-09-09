@@ -13,6 +13,17 @@ BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
 EPISODE_FEATURE_JSON = "episode_feature_vector_lite_v1.json"
 FULL_SPINE_JSON = "active_match_full_spine_v1.json"
 FULL_SPINE_TXT = "active_match_full_spine_v1.txt"
+PROCESS_STORY_DIAGNOSTIC_JSON = "active_match_process_story_sidecar_v1.json"
+PROCESS_STORY_PUBLICATION_TXT = "active_match_process_story_sidecar_v1.txt"
+READY_ASSEMBLY_DECISION = "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
+ASSEMBLY_CLAIM_CEILING = "final_report_assembly_candidate_only"
+SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
+NULL_CONTRAST_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
+SEQUENCE_BLOCK_FAMILIES = {
+    "sequence_safe_finding_analyst_reading_candidate",
+    "sequence_narrative_analyst_reading_candidate",
+}
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -84,23 +95,133 @@ def _counter_sum(cards: list[dict[str, Any]], field: str) -> dict[str, int]:
     return dict(sorted(counter.items()))
 
 
-def _safe_sentences(full_spine: dict[str, Any], limit: int = 12) -> list[str]:
+def _string_list(value: Any) -> list[str]:
+    values = value if isinstance(value, list) else []
+    return [str(item).strip() for item in values if str(item or "").strip()]
+
+
+def _sequence_lineage_complete(block_family: str, lineage: Any) -> bool:
+    if block_family not in SEQUENCE_BLOCK_FAMILIES:
+        return True
+    if not isinstance(lineage, dict) or not lineage:
+        return False
+    family_refs = sorted(set(_string_list(lineage.get("trace_family_refs"))))
+    trace_refs = sorted(set(_string_list(lineage.get("trace_variant_refs"))))
+    support = lineage.get("observed_support")
+    if not family_refs or not trace_refs or not isinstance(support, int) or support < 0:
+        return False
+    if len(trace_refs) != support or family_refs[0] not in trace_refs:
+        return False
+    if not isinstance(lineage.get("dependency_summary"), dict):
+        return False
+    if not isinstance(lineage.get("robustness_summary"), dict):
+        return False
+    if not isinstance(lineage.get("uncertainty"), dict):
+        return False
+    if not str(lineage.get("withdrawal_condition") or "").strip():
+        return False
+    upstream_claim_ceiling = str(lineage.get("upstream_claim_ceiling") or "").strip()
+    origin_claim_ceiling = str(lineage.get("origin_claim_ceiling") or "").strip()
+    if block_family == "sequence_safe_finding_analyst_reading_candidate":
+        if upstream_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING or origin_claim_ceiling:
+            return False
+    elif block_family == "sequence_narrative_analyst_reading_candidate":
+        if upstream_claim_ceiling != SEQUENCE_NARRATIVE_CLAIM_CEILING:
+            return False
+        if origin_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING:
+            return False
+
+    raw_null_summary = lineage.get("null_contrast_summary")
+    if raw_null_summary is not None:
+        if not isinstance(raw_null_summary, dict):
+            return False
+        if raw_null_summary.get("claim_strengthened") is not False:
+            return False
+        null_state = str(raw_null_summary.get("state") or "NOT_EVALUATED").strip()
+        if null_state != "NOT_EVALUATED":
+            if str(raw_null_summary.get("claim_ceiling") or "").strip() != NULL_CONTRAST_CLAIM_CEILING:
+                return False
+            simulation_count = raw_null_summary.get("simulation_count")
+            if not isinstance(simulation_count, int) or isinstance(simulation_count, bool) or simulation_count < 1:
+                return False
+            expected_resolution = 1.0 / (simulation_count + 1)
+            resolution = raw_null_summary.get("empirical_upper_tail_resolution")
+            if not isinstance(resolution, (int, float)) or isinstance(resolution, bool):
+                return False
+            if abs(float(resolution) - expected_resolution) > 1e-12:
+                return False
+            if raw_null_summary.get("finite_simulation_resolution_only") is not True:
+                return False
+            if raw_null_summary.get("multiple_testing_corrected") is not False:
+                return False
+            if raw_null_summary.get("significance_claim_allowed") is not False:
+                return False
+            if raw_null_summary.get("tactical_pattern_truth_allowed") is not False:
+                return False
+            if raw_null_summary.get("causality_allowed") is not False:
+                return False
+            if not str(raw_null_summary.get("withdrawal_condition") or "").strip():
+                return False
+
+    raw_context_variations = lineage.get("context_variations")
+    if raw_context_variations is not None:
+        if not isinstance(raw_context_variations, list):
+            return False
+        trace_ref_set = set(trace_refs)
+        for raw_variation in raw_context_variations:
+            if not isinstance(raw_variation, dict):
+                return False
+            for flag in (
+                "chronology_direction_claimed",
+                "causality_claimed",
+                "tactical_adaptation_claimed",
+                "coach_intention_claimed",
+            ):
+                if raw_variation.get(flag) is not False:
+                    return False
+            baseline_refs = set(_string_list(raw_variation.get("baseline_trace_refs")))
+            comparison_refs = set(_string_list(raw_variation.get("comparison_trace_refs")))
+            if not baseline_refs.issubset(trace_ref_set) or not comparison_refs.issubset(trace_ref_set):
+                return False
+    return True
+
+
+def _assembly_report_entries(full_spine: dict[str, Any], limit: int = 12) -> list[dict[str, Any]]:
     seen: set[str] = set()
-    result: list[str] = []
+    result: list[dict[str, Any]] = []
     chains = full_spine.get("intelligence_chains")
     if not isinstance(chains, list):
         return result
     for chain in chains:
         if not isinstance(chain, dict):
             continue
-        safe = chain.get("safe_sentence")
-        if not isinstance(safe, dict):
+        assembly = chain.get("assembly")
+        if not isinstance(assembly, dict):
             continue
-        text = str(safe.get("safe_sentence_candidate_tr") or "").strip()
+        if str(assembly.get("status") or "").upper() != "SMOKE_PASS":
+            continue
+        if str(assembly.get("assembly_decision") or "") != READY_ASSEMBLY_DECISION:
+            continue
+        if assembly.get("draft_report_candidate_allowed") is not True:
+            continue
+        text = str(assembly.get("assembly_item_candidate_tr") or "").strip()
         if not text or text in seen:
             continue
+        block_family = str(assembly.get("block_family") or "")
+        if block_family in SEQUENCE_BLOCK_FAMILIES and str(assembly.get("claim_ceiling") or "").strip() != ASSEMBLY_CLAIM_CEILING:
+            continue
+        lineage = assembly.get("sequence_evidence_lineage")
+        if not _sequence_lineage_complete(block_family, lineage):
+            continue
         seen.add(text)
-        result.append(text)
+        result.append(
+            {
+                "text": text,
+                "block_family": block_family,
+                "claim_ceiling": str(assembly.get("claim_ceiling") or ""),
+                "sequence_evidence_lineage": dict(lineage) if isinstance(lineage, dict) else {},
+            }
+        )
         if len(result) >= limit:
             break
     return result
@@ -144,7 +265,30 @@ def _entity_summary(rich: dict[str, Any]) -> dict[str, int]:
         "team": len(entity.get("team_view_candidates") or []),
         "goalkeeper": len(entity.get("goalkeeper_view_candidates") or []),
         "observed_metric_cells": int(entity.get("observed_metric_cell_count") or 0),
+        "trace_cohort_context_links": int(entity.get("aggregate_support_trace_cohort_context_link_count") or 0),
+        "trace_candidate_refs": int(entity.get("aggregate_support_trace_candidate_ref_count") or 0),
+        "trace_relation_review_required": int(entity.get("aggregate_support_trace_relation_review_required_count") or 0),
     }
+
+
+def _trace_cohort_action_family_candidate_labels(row: dict[str, Any]) -> list[str]:
+    if str(row.get("aggregate_support_trace_context_state") or "") != "TRACE_CANDIDATE_COHORT_CONTEXT_ONLY":
+        return []
+    if row.get("aggregate_support_trace_relation_is_cohort_context_only") is not True:
+        return []
+    if row.get("aggregate_support_trace_relation_is_individual_action_support") is not False:
+        return []
+    if row.get("aggregate_support_trace_relation_is_physical_action_truth") is not False:
+        return []
+    labels: set[str] = set()
+    for trace_ref in row.get("aggregate_support_trackable_trace_candidate_refs") or []:
+        if not isinstance(trace_ref, dict):
+            continue
+        for label in trace_ref.get("action_family_candidates") or []:
+            normalized = str(label or "").strip()
+            if normalized:
+                labels.add(normalized)
+    return sorted(labels)
 
 
 def _representative_entities(rich: dict[str, Any], limit: int = 8) -> list[str]:
@@ -160,7 +304,26 @@ def _representative_entities(rich: dict[str, Any], limit: int = 8) -> list[str]:
             continue
         name = row.get("player_raw_candidate") or row.get("team_raw_candidate") or "UNRESOLVED_ENTITY"
         metrics = row.get("metric_values") or {}
-        result.append(f"{name}: observed_metric_cells={len(metrics)} source_role={row.get('source_role')}")
+        trace_refs = row.get("aggregate_support_trackable_trace_candidate_refs") or []
+        trace_ids = [
+            str(item.get("trackable_action_trace_candidate_id") or "").strip()
+            for item in trace_refs
+            if isinstance(item, dict) and str(item.get("trackable_action_trace_candidate_id") or "").strip()
+        ]
+        trace_state = str(row.get("aggregate_support_trace_context_state") or "TRACE_CANDIDATE_CONTEXT_UNAVAILABLE")
+        action_family_candidate_labels = _trace_cohort_action_family_candidate_labels(row)
+        result.append(
+            f"{name}: observed_metric_cells={len(metrics)} source_role={row.get('source_role')} "
+            f"trace_cohort_context_state={trace_state} "
+            f"trace_candidate_refs={json.dumps(trace_ids, ensure_ascii=False)} "
+            f"trace_cohort_action_family_candidate_labels={json.dumps(action_family_candidate_labels, ensure_ascii=False)} "
+            f"trace_relation_is_cohort_context_only={str(bool(trace_ids)).lower()} "
+            "trace_action_family_labels_are_cohort_navigation_only=true "
+            "trace_action_family_labels_are_individual_action_support=false "
+            "trace_action_family_labels_are_physical_action_truth=false "
+            "trace_relation_is_individual_action_support=false "
+            "trace_relation_is_physical_action_truth=false"
+        )
         if len(result) >= limit:
             break
     return result
@@ -259,6 +422,15 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             f"player_view_candidate_count={entity_summary['player']}",
             f"team_view_candidate_count={entity_summary['team']}",
             f"goalkeeper_view_candidate_count={entity_summary['goalkeeper']}",
+            f"aggregate_trace_cohort_context_link_count={entity_summary['trace_cohort_context_links']}",
+            f"aggregate_trace_candidate_ref_count={entity_summary['trace_candidate_refs']}",
+            f"aggregate_trace_relation_review_required_count={entity_summary['trace_relation_review_required']}",
+            "aggregate_trace_relation_is_cohort_context_only=true",
+            "aggregate_trace_relation_is_individual_action_support=false",
+            "aggregate_trace_relation_is_physical_action_truth=false",
+            "aggregate_trace_action_family_labels_are_cohort_navigation_only=true",
+            "aggregate_trace_action_family_labels_are_individual_action_support=false",
+            "aggregate_trace_action_family_labels_are_physical_action_truth=false",
             "format_fusion_is_independent_evidence_vote=false",
             "representative_entity_surfaces:",
         ])
@@ -285,12 +457,30 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
 
-    safe = _safe_sentences(full_spine) if c4_current else []
-    lines.extend(["", "[5] SAFE_ARGUMENT_CANDIDATES — MEVCUT C4 BLOKLARI"])
-    if safe:
-        lines.extend(f"- {text}" for text in safe)
+    admitted = _assembly_report_entries(full_spine) if c4_current else []
+    lines.extend(["", "[5] ASSEMBLY_ADMITTED_ARGUMENT_CANDIDATES — MEVCUT C4 BLOKLARI"])
+    if admitted:
+        for entry in admitted:
+            lines.append(f"- {entry['text']}")
+            lineage = entry.get("sequence_evidence_lineage") or {}
+            if lineage:
+                lines.append(f"  trace_family_refs={json.dumps(lineage.get('trace_family_refs') or [], ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  trace_variant_refs={json.dumps(lineage.get('trace_variant_refs') or [], ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  observed_support={lineage.get('observed_support')}")
+                lines.append(f"  dependency_summary={json.dumps(lineage.get('dependency_summary') or {}, ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  robustness_summary={json.dumps(lineage.get('robustness_summary') or {}, ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  uncertainty={json.dumps(lineage.get('uncertainty') or {}, ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  withdrawal_condition={lineage.get('withdrawal_condition')}")
+                if lineage.get("null_contrast_summary") is not None:
+                    lines.append(f"  null_contrast_summary={json.dumps(lineage.get('null_contrast_summary'), ensure_ascii=False, sort_keys=True)}")
+                if lineage.get("context_variations") is not None:
+                    lines.append(f"  context_variations={json.dumps(lineage.get('context_variations'), ensure_ascii=False, sort_keys=True)}")
+                lines.append(f"  upstream_claim_ceiling={lineage.get('upstream_claim_ceiling')}")
+                if lineage.get("origin_claim_ceiling"):
+                    lines.append(f"  origin_claim_ceiling={lineage.get('origin_claim_ceiling')}")
+                lines.append(f"  assembly_claim_ceiling={entry.get('claim_ceiling')}")
     elif c4_current:
-        lines.append("- Bu run'da yayinlanabilir safe-sentence candidate gorunmedi.")
+        lines.append("- Bu run'da final assembly gate tarafindan admitted analyst-text candidate gorunmedi.")
     else:
         lines.append("- Current invocation C4 producer zinciri tamamlanmadi; onceki run argumani kullanilmadi.")
 
@@ -306,7 +496,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         "[7] SAFE_MEANING",
     ])
     if feature_current and rich_current and c4_current:
-        lines.append("Bu rapor current invocation icinde uretilen event-only occurrence/episode yuzeyi, XLSX aggregate row projection, primitive/construct adaylari ve mevcut C4 defeasible argument yuzeyini ayni evidence zincirinde birlestirir.")
+        lines.append("Bu rapor current invocation icinde uretilen event-only occurrence/episode yuzeyi, XLSX aggregate row projection, primitive/construct adaylari ve final assembly gate tarafindan admitted C4 candidate yuzeyini ayni evidence zincirinde birlestirir.")
     elif feature_current and rich_current:
         lines.append("Current invocation occurrence/episode ve multiformat aggregate yuzeyi mevcut; C4 tamamlanmadigi icin argument sonucu current evidence olarak yayinlanmadi.")
     elif feature_current:
@@ -321,10 +511,12 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         "",
         "[9] CURRENT PRODUCT CEILING",
         "CSV/XML event-like occurrence ve XLSX aggregate surface artik ayni run'da birlikte tasinir; ayni provider yuzeyleri independent vote degildir.",
+        "XLSX aggregate entity context ayni match-local identity candidate altindaki trackable trace cohort'una analyst navigation olarak gosterilebilir; cohort action-family candidate etiketleri de yalniz navigation/context icindir, tekil trace support'u, event truth veya physical-action truth degildir.",
         "C01 ilk construct vertical slice'tir; occurrence-level progression semantics tam admission gecmeden progression truth uretilmez.",
         "Phase/state etiketleri activity candidate'dir; phase truth degildir.",
         "MICRO/MEZZO/MACRO bir evidence-routing lattice'tir; macro claim mikro/mezo evidence'dan kopamaz.",
         "Player/GK/team gorunumleri candidate identity ve aggregate cell yuzeyidir; validated identity/quality truth degildir.",
+        "User-facing analyst text final assembly admission olmadan yayinlanmaz; sequence-derived text exact lineage, null/context safety locks ve claim-ceiling hop paketini korur.",
         "",
         "[10] CLAIM LOCKS",
         "canonical_event_count=UNKNOWN",
@@ -401,6 +593,7 @@ def write_standard_user_outputs(
         {"name": path.name, "size_bytes": path.stat().st_size, "sha256": _sha256(path)}
         for path in candidates
     ]
+    candidate_names = {path.name for path in candidates}
     manifest = {
         "module_id": "active_match_standard_user_bundle_v1",
         "bundle_scope": "PRODUCER_DECLARED_CURRENT_INVOCATION_ARTIFACTS_PLUS_STANDARD_DELIVERABLES",
@@ -410,6 +603,16 @@ def write_standard_user_outputs(
         "feature_surface_current_invocation": _feature_surface_current(full_spine),
         "rich_multiformat_surface_current_invocation": _rich_surface_current(full_spine),
         "c4_surface_current_invocation": _c4_surface_current(full_spine),
+        "analyst_text_requires_final_assembly_admission": True,
+        "sequence_lineage_preserved_in_analyst_report": True,
+        "sequence_claim_ceiling_revalidated_in_analyst_report": True,
+        "sequence_null_context_locks_revalidated_in_analyst_report": True,
+        "current_invocation_artifacts_are_publication_authority": False,
+        "bundle_file_inventory_is_publication_authority": False,
+        "process_story_diagnostic_artifact": PROCESS_STORY_DIAGNOSTIC_JSON,
+        "process_story_publication_authority_artifact": PROCESS_STORY_PUBLICATION_TXT,
+        "process_story_diagnostic_artifact_present": PROCESS_STORY_DIAGNOSTIC_JSON in candidate_names,
+        "process_story_publication_authority_artifact_present": PROCESS_STORY_PUBLICATION_TXT in candidate_names,
         "file_count_before_manifest": len(entries),
         "files": entries,
         "canonical_event_count": "UNKNOWN",

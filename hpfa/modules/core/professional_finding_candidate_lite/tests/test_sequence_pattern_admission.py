@@ -14,6 +14,26 @@ def _variant(variant_id: str, *, order="LAYER_ORDER_CONFIRMED_INTERNAL_SINGLETON
     }
 
 
+def _with_occurrence_context(row, suffix: str):
+    row.update({
+        "sequence_occurrence_object_context_state": "VARIANT_SEQUENCE_OCCURRENCE_CONTEXT_LINEAGE_ONLY",
+        "sequence_occurrence_team_context_refs": [f"team_ctx_{suffix}"],
+        "sequence_occurrence_goalkeeper_context_refs": [f"gk_ctx_{suffix}"],
+        "sequence_occurrence_goalkeeper_context_bundle_refs": [f"gk_bundle_{suffix}"],
+        "sequence_occurrence_reflection_context_refs": [f"reflection_{suffix}"],
+        "sequence_occurrence_relation_type_candidates": ["TEAM_REFLECTION_CONTEXT"],
+        "sequence_occurrence_context_is_variant_support": False,
+        "sequence_occurrence_context_is_independent_support": False,
+        "goalkeeper_context_is_variant_participant_truth": False,
+        "reflection_context_is_variant_equivalence_truth": False,
+        "sequence_occurrence_context_ref_count_is_variant_count": False,
+        "sequence_occurrence_context_ref_count_is_recurrence_count": False,
+        "sequence_occurrence_context_creates_event": False,
+        "canonical_event_count": "UNKNOWN",
+    })
+    return row
+
+
 def _payloads(*, robustness="ROBUST_WITHIN_TESTED_RANGE", independent="UNKNOWN", independence_groups=None, independence_map=None, packet_state="CONTRAST_AVAILABLE", eligible=None):
     eligible = eligible or ["v1", "v2"]
     variants = [_variant("v1"), _variant("v2")]
@@ -83,6 +103,34 @@ def test_exact_eligible_trace_cohort_survives_admission_boundary():
     row = build_sequence_pattern_admissions(*_payloads())["sequence_pattern_admissions"][0]
     assert row["eligible_trace_refs"] == ["v1", "v2"]
     assert row["eligible_trace_count"] == row["observed_support"] == len(row["eligible_trace_refs"])
+
+
+def test_occurrence_object_context_lineage_survives_pattern_admission_without_support_inflation():
+    variant, contrast, robustness = _payloads()
+    _with_occurrence_context(variant["partial_order_trace_variants"][0], "a")
+    _with_occurrence_context(variant["partial_order_trace_variants"][1], "b")
+    row = build_sequence_pattern_admissions(variant, contrast, robustness)["sequence_pattern_admissions"][0]
+    assert row["sequence_occurrence_object_context_state"] == "PATTERN_OCCURRENCE_CONTEXT_LINEAGE_ONLY"
+    assert row["sequence_occurrence_team_context_refs"] == ["team_ctx_a", "team_ctx_b"]
+    assert row["sequence_occurrence_goalkeeper_context_refs"] == ["gk_ctx_a", "gk_ctx_b"]
+    assert row["sequence_occurrence_reflection_context_refs"] == ["reflection_a", "reflection_b"]
+    assert row["sequence_occurrence_context_is_pattern_support"] is False
+    assert row["sequence_occurrence_context_is_independent_support"] is False
+    assert row["sequence_occurrence_context_ref_count_is_recurrence_count"] is False
+    assert row["observed_support"] == 2
+
+
+def test_claim_upgraded_occurrence_context_fails_to_review_and_drops_context_refs():
+    variant, contrast, robustness = _payloads()
+    _with_occurrence_context(variant["partial_order_trace_variants"][0], "a")
+    variant["partial_order_trace_variants"][0]["sequence_occurrence_context_ref_count_is_recurrence_count"] = True
+    result = build_sequence_pattern_admissions(variant, contrast, robustness)
+    row = result["sequence_pattern_admissions"][0]
+    assert row["admission_state"] == "REVIEW_REQUIRED"
+    assert row["sequence_occurrence_object_context_state"] == "REVIEW_REQUIRED"
+    assert row["sequence_occurrence_team_context_refs"] == []
+    assert row["sequence_occurrence_goalkeeper_context_refs"] == []
+    assert any("pattern_sequence_occurrence_context_claim_boundary_mismatch:v1:v1" in hit for hit in result["review_hits"])
 
 
 def test_robust_recurrent_state_requires_explicit_independence_admission():
@@ -175,6 +223,9 @@ def test_claim_and_release_locks_remain_closed():
     assert result["tactical_pattern_state_allowed"] is False
     assert result["coach_intention_state_allowed"] is False
     assert result["team_style_truth_state_allowed"] is False
+    assert result["sequence_occurrence_context_is_pattern_support"] is False
+    assert result["sequence_occurrence_context_is_independent_support"] is False
+    assert result["sequence_occurrence_context_ref_count_is_recurrence_count"] is False
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["true_action_count"] == "UNKNOWN"
     assert result["production_release"] is False

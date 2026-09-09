@@ -6,8 +6,11 @@ from typing import Any
 from hpfa.modules.core.active_match_analyst_report_lite.src import report_lite
 from hpfa.modules.core.triplex_source_alignment_adapter_lite.src import triplex_source_alignment_adapter as triplex
 from hpfa.modules.core.active_match_spine_runner.src.metric_governance_bridge import run_metric_governance_bridge
+from hpfa.modules.core.active_match_spine_runner.src.process_story_sidecar import write_process_story_sidecar
 
 MODULE_ID = "active_match_orphan_capability_sidecars_v1"
+PROCESS_STORY_DIAGNOSTIC_ARTIFACT = "active_match_process_story_sidecar_v1.json"
+PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT = "active_match_process_story_sidecar_v1.txt"
 
 
 def _dedupe(values: list[str]) -> list[str]:
@@ -20,6 +23,39 @@ def _dedupe(values: list[str]) -> list[str]:
         seen.add(text)
         result.append(text)
     return result
+
+
+def _process_story_diagnostic_projection(process_story: dict[str, Any]) -> dict[str, Any]:
+    """Expose process-story metadata without upgrading diagnostics to publication authority.
+
+    The parent contract owns the authority identity. Upstream diagnostic payloads may
+    report their declaration for audit, but they cannot redirect publication authority
+    or turn the mixed artifact inventory into user-facing evidence.
+    """
+    artifact_names = {
+        Path(str(value)).name
+        for value in process_story.get("current_invocation_artifacts") or []
+        if str(value or "").strip()
+    }
+    return {
+        "process_story_diagnostic_artifact_semantics": process_story.get("artifact_semantics", "UNKNOWN"),
+        "process_story_diagnostic_user_facing_publication_authority": False,
+        "process_story_publication_authority_artifact": PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT,
+        "process_story_upstream_publication_authority_declaration_matches_contract": (
+            process_story.get("publication_authority_artifact") == PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT
+        ),
+        "process_story_entity_story_count_diagnostic": process_story.get("entity_story_count", 0),
+        "process_story_ready_assembly_item_count_diagnostic": process_story.get("ready_assembly_item_count", 0),
+        "process_story_diagnostic_counts_are_publication_admission": False,
+        "process_story_current_invocation_artifacts_are_publication_authority": False,
+        "process_story_diagnostic_artifact": PROCESS_STORY_DIAGNOSTIC_ARTIFACT,
+        "process_story_diagnostic_artifact_present_in_current_invocation": (
+            PROCESS_STORY_DIAGNOSTIC_ARTIFACT in artifact_names
+        ),
+        "process_story_publication_authority_artifact_present_in_current_invocation": (
+            PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT in artifact_names
+        ),
+    }
 
 
 def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root: str | Path) -> dict[str, Any]:
@@ -85,28 +121,57 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         metric_governance_status = "REVIEW_REQUIRED"
         review_hits.append(f"metric_governance_bridge_sidecar_failed:{type(exc).__name__}")
 
+    # The process-story bridge consumes the reconstruction files produced earlier in
+    # this same full-spine invocation. It never re-ingests the match and its failures
+    # are scoped to the story lane, not promoted to unrelated product lanes.
+    try:
+        process_story = write_process_story_sidecar(output)
+        process_story_status = process_story.get("status")
+        for value in process_story.get("current_invocation_artifacts") or []:
+            if value and Path(str(value)).is_file():
+                artifacts.append(str(value))
+        if str(process_story_status or "").upper() != "SMOKE_PASS":
+            reason = process_story.get("story_path_block_reason") or "review_required"
+            review_hits.append(f"process_story_sidecar_{str(process_story_status).casefold()}:{reason}")
+    except Exception as exc:
+        process_story = {
+            "status": "REVIEW_REQUIRED",
+            "story_path_blocked": True,
+            "story_path_block_reason": f"process_story_sidecar_exception:{type(exc).__name__}",
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+        process_story_status = "REVIEW_REQUIRED"
+        review_hits.append(f"process_story_sidecar_failed:{type(exc).__name__}")
+
     return {
         "module_id": MODULE_ID,
-        # A governance hard block is scoped to the metric/construct path. The
-        # unrelated baseline/triplex sidecars remain reviewable, so the sidecar
-        # container itself stays REVIEW_REQUIRED rather than promoting that
-        # scoped block to the whole ACTIVE_MATCH spine.
+        # Scoped sidecar failures do not silently become whole-spine football truth
+        # failures. They remain explicit review debt while unrelated lanes survive.
         "status": "REVIEW_REQUIRED" if hard_blocks or review_hits else "SMOKE_PASS",
         "active_match_analyst_report_lite_status": baseline_status,
         "triplex_source_alignment_status": triplex_status,
         "triplex_source_alignment_prerequisite_present": mapping_present,
         "metric_governance_bridge_status": metric_governance_status,
+        "process_story_sidecar_status": process_story_status,
         "active_match_analyst_report_lite": baseline,
         "triplex_source_alignment": triplex_report,
         "metric_governance_bridge": metric_governance,
+        "process_story_sidecar": process_story,
+        "process_story_runtime_bound": process_story.get("story_path_blocked") is False,
+        **_process_story_diagnostic_projection(process_story),
         "construct_path_blocked": construct_path_blocked,
         "construct_path_block_reason": construct_path_block_reason,
         "hard_block_hits": _dedupe(hard_blocks),
         "review_hits": _dedupe(review_hits),
         "current_invocation_artifacts": sorted(set(artifacts)),
+        "current_invocation_artifacts_are_publication_authority": False,
         "sidecar_outputs_are_primary_truth": False,
         "metric_value_output_allowed": False,
         "construct_truth": False,
+        "process_story_is_tactical_plan_truth": False,
+        "process_story_is_causality_truth": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "phase_truth": False,

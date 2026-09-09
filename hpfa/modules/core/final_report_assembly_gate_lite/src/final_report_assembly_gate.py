@@ -12,10 +12,19 @@ OUTPUT_TXT = "final_report_assembly_gate_lite_v1.txt"
 UPSTREAM_CLAIM_CEILING = "report_output_contract_candidate_only"
 ASSEMBLY_CLAIM_CEILING = "final_report_assembly_candidate_only"
 MISSING_CONTRACT_ITEM_ID = "MISSING_CONTRACT_ITEM_ID"
+SEQUENCE_FINDING_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_FINDING_ONLY"
+SEQUENCE_NARRATIVE_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_SEQUENCE_NARRATIVE_ONLY"
+MATCH_STORY_CLAIM_CEILING = "DEFEASIBLE_MATCH_LOCAL_PROCESS_STORY_ONLY"
+NULL_CONTRAST_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_ONLY"
 
 ALLOWED_DECISIONS = {"INCLUDE_BLOCK_CANDIDATE"}
 REVIEW_DECISIONS = {"REVIEW_BLOCK"}
 REJECT_DECISIONS = {"REJECT_BLOCK"}
+SEQUENCE_BLOCK_FAMILIES = {
+    "sequence_safe_finding_analyst_reading_candidate",
+    "sequence_narrative_analyst_reading_candidate",
+}
+MATCH_STORY_BLOCK_FAMILIES = {"match_story_analyst_reading_candidate"}
 
 FORBIDDEN_UPSTREAM_FIELDS = {
     "claim_text",
@@ -85,6 +94,10 @@ def _as_list(value: Any) -> list[Any]:
     return [value]
 
 
+def _string_list(value: Any) -> list[str]:
+    return [str(item) for item in _as_list(value) if item not in [None, ""]]
+
+
 def _is_forbidden_value(value: Any) -> bool:
     return value not in [None, "", False, []]
 
@@ -127,6 +140,183 @@ def _forbidden_text_hits(text: str) -> list[str]:
     return [fragment for fragment in FORBIDDEN_TEXT_FRAGMENTS if fragment in lower]
 
 
+def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str, Any], list[str]]:
+    if block_family not in SEQUENCE_BLOCK_FAMILIES:
+        return {}, []
+    raw = item.get("sequence_evidence_lineage")
+    if not isinstance(raw, dict) or not raw:
+        return {}, ["sequence_evidence_lineage_missing"]
+
+    lineage = dict(raw)
+    family_refs = sorted(set(_string_list(lineage.get("trace_family_refs"))))
+    trace_refs = sorted(set(_string_list(lineage.get("trace_variant_refs"))))
+    dependency = lineage.get("dependency_summary") if isinstance(lineage.get("dependency_summary"), dict) else None
+    robustness = lineage.get("robustness_summary") if isinstance(lineage.get("robustness_summary"), dict) else None
+    uncertainty = lineage.get("uncertainty") if isinstance(lineage.get("uncertainty"), dict) else None
+    withdrawal = str(lineage.get("withdrawal_condition") or "").strip()
+    upstream_claim_ceiling = str(lineage.get("upstream_claim_ceiling") or "").strip()
+    origin_claim_ceiling = str(lineage.get("origin_claim_ceiling") or "").strip()
+    support = lineage.get("observed_support")
+    raw_null_summary = lineage.get("null_contrast_summary")
+    raw_context_variations = lineage.get("context_variations")
+    hits: list[str] = []
+
+    if not family_refs:
+        hits.append("assembly_sequence_trace_family_refs_missing")
+    if not trace_refs:
+        hits.append("assembly_sequence_trace_variant_refs_missing")
+    if not isinstance(support, int) or support < 0:
+        hits.append("assembly_sequence_observed_support_invalid")
+    elif len(trace_refs) != support:
+        hits.append("assembly_sequence_trace_cohort_support_mismatch")
+    if family_refs and trace_refs and family_refs[0] not in trace_refs:
+        hits.append("assembly_sequence_anchor_not_in_trace_cohort")
+    if dependency is None:
+        hits.append("assembly_sequence_dependency_summary_missing")
+    if robustness is None:
+        hits.append("assembly_sequence_robustness_summary_missing")
+    if uncertainty is None:
+        hits.append("assembly_sequence_uncertainty_missing")
+    if not withdrawal:
+        hits.append("assembly_sequence_withdrawal_condition_missing")
+    if not upstream_claim_ceiling:
+        hits.append("assembly_sequence_upstream_claim_ceiling_missing")
+    elif block_family == "sequence_safe_finding_analyst_reading_candidate" and upstream_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING:
+        hits.append("assembly_sequence_upstream_claim_ceiling_mismatch")
+    elif block_family == "sequence_narrative_analyst_reading_candidate" and upstream_claim_ceiling != SEQUENCE_NARRATIVE_CLAIM_CEILING:
+        hits.append("assembly_sequence_upstream_claim_ceiling_mismatch")
+    if block_family == "sequence_narrative_analyst_reading_candidate":
+        if not origin_claim_ceiling:
+            hits.append("assembly_sequence_origin_claim_ceiling_missing")
+        elif origin_claim_ceiling != SEQUENCE_FINDING_CLAIM_CEILING:
+            hits.append("assembly_sequence_origin_claim_ceiling_mismatch")
+    elif origin_claim_ceiling:
+        hits.append("assembly_sequence_unexpected_origin_claim_ceiling")
+
+    if raw_null_summary is not None:
+        if not isinstance(raw_null_summary, dict):
+            hits.append("assembly_sequence_null_contrast_summary_invalid")
+        else:
+            if raw_null_summary.get("claim_strengthened") is not False:
+                hits.append("assembly_sequence_null_contrast_claim_strengthened")
+            null_state = str(raw_null_summary.get("state") or "NOT_EVALUATED").strip()
+            if null_state != "NOT_EVALUATED":
+                if str(raw_null_summary.get("claim_ceiling") or "").strip() != NULL_CONTRAST_CLAIM_CEILING:
+                    hits.append("assembly_sequence_null_contrast_claim_ceiling_mismatch")
+                simulation_count = raw_null_summary.get("simulation_count")
+                if not isinstance(simulation_count, int) or isinstance(simulation_count, bool) or simulation_count < 1:
+                    hits.append("assembly_sequence_null_contrast_simulation_count_invalid")
+                else:
+                    expected_resolution = 1.0 / (simulation_count + 1)
+                    resolution = raw_null_summary.get("empirical_upper_tail_resolution")
+                    if not isinstance(resolution, (int, float)) or isinstance(resolution, bool) or abs(float(resolution) - expected_resolution) > 1e-12:
+                        hits.append("assembly_sequence_null_contrast_tail_resolution_mismatch")
+                if raw_null_summary.get("finite_simulation_resolution_only") is not True:
+                    hits.append("assembly_sequence_null_contrast_finite_resolution_lock_breach")
+                if raw_null_summary.get("multiple_testing_corrected") is not False:
+                    hits.append("assembly_sequence_null_contrast_multiple_testing_lock_breach")
+                if raw_null_summary.get("significance_claim_allowed") is not False:
+                    hits.append("assembly_sequence_null_contrast_significance_lock_breach")
+                if raw_null_summary.get("tactical_pattern_truth_allowed") is not False:
+                    hits.append("assembly_sequence_null_contrast_tactical_truth_lock_breach")
+                if raw_null_summary.get("causality_allowed") is not False:
+                    hits.append("assembly_sequence_null_contrast_causality_lock_breach")
+                if not str(raw_null_summary.get("withdrawal_condition") or "").strip():
+                    hits.append("assembly_sequence_null_contrast_withdrawal_condition_missing")
+
+    if raw_context_variations is not None:
+        if not isinstance(raw_context_variations, list):
+            hits.append("assembly_sequence_context_variations_invalid")
+        else:
+            trace_ref_set = set(trace_refs)
+            for raw_variation in raw_context_variations:
+                if not isinstance(raw_variation, dict):
+                    hits.append("assembly_sequence_context_variation_invalid")
+                    continue
+                for flag in (
+                    "chronology_direction_claimed",
+                    "causality_claimed",
+                    "tactical_adaptation_claimed",
+                    "coach_intention_claimed",
+                ):
+                    if raw_variation.get(flag) is not False:
+                        hits.append(f"assembly_sequence_context_variation_claim_lock_breach:{flag}")
+                baseline_refs = set(_string_list(raw_variation.get("baseline_trace_refs")))
+                comparison_refs = set(_string_list(raw_variation.get("comparison_trace_refs")))
+                if not baseline_refs.issubset(trace_ref_set) or not comparison_refs.issubset(trace_ref_set):
+                    hits.append("assembly_sequence_context_variation_trace_lineage_mismatch")
+
+    return lineage, hits
+
+
+def _match_story_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str, Any], list[str]]:
+    if block_family not in MATCH_STORY_BLOCK_FAMILIES:
+        return {}, []
+    raw = item.get("match_story_evidence_lineage")
+    if not isinstance(raw, dict) or not raw:
+        return {}, ["match_story_evidence_lineage_missing"]
+
+    lineage = dict(raw)
+    source_ids = sorted(set(_string_list(lineage.get("source_narrative_ids"))))
+    trace_refs = sorted(set(_string_list(lineage.get("unique_trace_refs"))))
+    shared_refs = sorted(set(_string_list(lineage.get("shared_trace_refs_across_processes"))))
+    unique_count = lineage.get("unique_trace_ref_count")
+    nominal_support = lineage.get("nominal_support_sum")
+    process_count = lineage.get("process_narrative_count")
+    subprocess_fields = (
+        "recurrent_process_count",
+        "robust_recurrent_process_count",
+        "counterevidence_bearing_process_count",
+        "context_sensitive_process_count",
+        "null_evaluated_process_count",
+    )
+    withdrawal = str(lineage.get("withdrawal_condition") or "").strip()
+    upstream_claim_ceiling = str(lineage.get("upstream_claim_ceiling") or "").strip()
+    hits: list[str] = []
+
+    if not source_ids:
+        hits.append("assembly_match_story_source_narrative_ids_missing")
+    if not trace_refs:
+        hits.append("assembly_match_story_unique_trace_refs_missing")
+    if not isinstance(unique_count, int) or isinstance(unique_count, bool) or unique_count != len(trace_refs):
+        hits.append("assembly_match_story_unique_trace_ref_count_mismatch")
+    if not isinstance(nominal_support, int) or isinstance(nominal_support, bool) or nominal_support < len(trace_refs):
+        hits.append("assembly_match_story_nominal_support_invalid")
+    if not isinstance(process_count, int) or isinstance(process_count, bool) or process_count < 0:
+        hits.append("assembly_match_story_process_narrative_count_invalid")
+    elif process_count != len(source_ids):
+        hits.append("assembly_match_story_process_narrative_count_mismatch")
+    else:
+        for field in subprocess_fields:
+            value = lineage.get(field)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                hits.append(f"assembly_match_story_{field}_invalid")
+            elif value > process_count:
+                hits.append(f"assembly_match_story_{field}_exceeds_process_count")
+        recurrent = lineage.get("recurrent_process_count")
+        robust = lineage.get("robust_recurrent_process_count")
+        if (
+            isinstance(recurrent, int)
+            and not isinstance(recurrent, bool)
+            and isinstance(robust, int)
+            and not isinstance(robust, bool)
+            and robust > recurrent
+        ):
+            hits.append("assembly_match_story_robust_recurrent_exceeds_recurrent")
+    if not set(shared_refs).issubset(set(trace_refs)):
+        hits.append("assembly_match_story_shared_trace_refs_not_subset")
+    if lineage.get("nominal_support_is_independent_evidence_count") is not False:
+        hits.append("assembly_match_story_nominal_support_independence_lock_breach")
+    if lineage.get("cross_process_support_independence_proven") is not False:
+        hits.append("assembly_match_story_cross_process_independence_lock_breach")
+    if not withdrawal:
+        hits.append("assembly_match_story_withdrawal_condition_missing")
+    if upstream_claim_ceiling != MATCH_STORY_CLAIM_CEILING:
+        hits.append("assembly_match_story_upstream_claim_ceiling_mismatch")
+
+    return lineage, hits
+
+
 def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     normalized = dict(item)
     contract_item_id = _contract_item_id(normalized)
@@ -143,6 +333,7 @@ def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]
 
     inclusion_decision = str(normalized.get("inclusion_decision") or "")
     output_candidate = str(normalized.get("output_text_candidate_tr") or "")
+    block_family = str(normalized.get("block_family") or "")
     forbidden_upstream_hits = _forbidden_upstream_hits(normalized)
     forbidden_text_hits = _forbidden_text_hits(output_candidate)
     hard_block_hits: list[str] = []
@@ -170,6 +361,16 @@ def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]
         hard_block_hits.append("upstream_contract_production_output_allowed")
     if normalized.get("canonical_event_count") not in [None, "UNKNOWN"]:
         hard_block_hits.append("canonical_event_count_claim_rejected")
+    if normalized.get("true_action_count") not in [None, "UNKNOWN"]:
+        hard_block_hits.append("true_action_count_claim_rejected")
+    if normalized.get("production_release") is True:
+        hard_block_hits.append("production_release_claim_rejected")
+
+    sequence_lineage, lineage_hits = _sequence_lineage(normalized, block_family)
+    hard_block_hits.extend(lineage_hits)
+    match_story_lineage, story_hits = _match_story_lineage(normalized, block_family)
+    hard_block_hits.extend(story_hits)
+    hard_block_hits = sorted(set(hard_block_hits))
 
     if hard_block_hits:
         assembly_decision = "BLOCK_ASSEMBLY_ITEM"
@@ -189,10 +390,13 @@ def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]
         "assembly_item_id": f"assembly_item_{contract_item_id}",
         "contract_item_id": contract_item_id,
         "report_block_id": str(normalized.get("report_block_id") or ""),
+        "block_family": block_family,
         "source_inclusion_decision": inclusion_decision,
         "assembly_order": idx + 1,
         "assembly_decision": assembly_decision,
         "assembly_item_candidate_tr": assembly_item_candidate_tr,
+        "sequence_evidence_lineage": sequence_lineage,
+        "match_story_evidence_lineage": match_story_lineage,
         "claim_ceiling": ASSEMBLY_CLAIM_CEILING,
         "upstream_claim_ceiling": normalized.get("claim_ceiling"),
         "status": status,
@@ -217,6 +421,8 @@ def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]
         "organism_truth": False,
         "blocked_language_families": list(BLOCKED_LANGUAGE_FAMILIES),
         "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
     }
 
 
@@ -242,6 +448,8 @@ def build_assembly_gate(contract_items: list[dict[str, Any]]) -> dict[str, Any]:
         "production_report_allowed": False,
         "claim_ceiling": ASSEMBLY_CLAIM_CEILING,
         "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
         "claim_boundary": "final_report_assembly_candidate_only_not_final_report_not_production",
     }
 
@@ -263,6 +471,8 @@ def write_outputs(contract_items: list[dict[str, Any]], out_dir: str | Path) -> 
         f"final_report_allowed={report['final_report_allowed']}",
         f"production_report_allowed={report['production_report_allowed']}",
         f"canonical_event_count={report['canonical_event_count']}",
+        f"true_action_count={report['true_action_count']}",
+        "production_release=false",
         "",
         "[assembly_items]",
     ]

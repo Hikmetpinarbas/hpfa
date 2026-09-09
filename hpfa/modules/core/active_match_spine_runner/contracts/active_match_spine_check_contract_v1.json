@@ -21,6 +21,22 @@
     "report_language",
     "production_binding"
   ],
+  "process_story_artifact_authority": {
+    "diagnostic_artifact": "active_match_process_story_sidecar_v1.json",
+    "user_facing_publication_authority_artifact": "active_match_process_story_sidecar_v1.txt",
+    "diagnostic_artifact_is_publication_authority": false,
+    "mixed_current_invocation_artifacts_are_publication_authority": false,
+    "bundle_file_inventory_is_publication_authority": false,
+    "bundle_presence_may_upgrade_artifact_authority": false,
+    "diagnostic_counts_are_publication_admission": false,
+    "upstream_payload_may_redirect_publication_authority": false,
+    "assembly_admission_required_for_user_facing_story": true
+  },
+  "claim_locks": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
   "phone_output_policy": {
     "root": "/sdcard/Download/HPFA",
     "nested_folders_allowed": false

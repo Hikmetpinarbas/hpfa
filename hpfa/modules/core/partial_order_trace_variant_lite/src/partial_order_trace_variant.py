@@ -26,6 +26,12 @@ def _clean(value: Any) -> str:
     return " ".join(str(value or "").split()).strip()
 
 
+def _clean_ref_set(value: Any) -> set[str]:
+    if not isinstance(value, list):
+        return set()
+    return {_clean(item) for item in value if _clean(item)}
+
+
 def _number(value: Any) -> float | None:
     try:
         return float(value)
@@ -82,6 +88,61 @@ def _validate_inputs(
     return sorted(set(blocks)), sorted(set(reviews))
 
 
+def _sequence_occurrence_context(sequence: dict[str, Any], sequence_id: str) -> tuple[dict[str, Any], list[str]]:
+    """Carry admitted sequence occurrence-object context as lineage only, never support."""
+    reviews: list[str] = []
+    state = _clean(sequence.get("sequence_occurrence_object_context_state"))
+    team_refs = _clean_ref_set(sequence.get("sequence_occurrence_team_context_refs"))
+    goalkeeper_refs = _clean_ref_set(sequence.get("sequence_occurrence_goalkeeper_context_refs"))
+    goalkeeper_bundle_refs = _clean_ref_set(sequence.get("sequence_occurrence_goalkeeper_context_bundle_refs"))
+    reflection_refs = _clean_ref_set(sequence.get("sequence_occurrence_reflection_context_refs"))
+    relation_types = _clean_ref_set(sequence.get("sequence_occurrence_relation_type_candidates"))
+    has_refs = any((team_refs, goalkeeper_refs, goalkeeper_bundle_refs, reflection_refs, relation_types))
+
+    if state == "REVIEW_REQUIRED":
+        reviews.append(f"variant_sequence_occurrence_context_upstream_review:{sequence_id}")
+    elif state == "SEQUENCE_OCCURRENCE_OBJECT_CONTEXT_ONLY":
+        if (
+            sequence.get("sequence_occurrence_context_is_independent_support") is not False
+            or sequence.get("goalkeeper_context_is_sequence_participant_truth") is not False
+            or sequence.get("reflection_context_is_sequence_equivalence_truth") is not False
+            or sequence.get("sequence_occurrence_context_creates_event") is not False
+            or sequence.get("sequence_occurrence_context_ref_count_is_action_count") is not False
+            or sequence.get("canonical_event_count") != CANONICAL_EVENT_COUNT
+        ):
+            reviews.append(f"variant_sequence_occurrence_context_claim_boundary_mismatch:{sequence_id}")
+    elif has_refs:
+        reviews.append(f"variant_sequence_occurrence_context_state_missing_or_unexpected:{sequence_id}")
+
+    if reviews:
+        team_refs = set()
+        goalkeeper_refs = set()
+        goalkeeper_bundle_refs = set()
+        reflection_refs = set()
+        relation_types = set()
+        variant_state = "REVIEW_REQUIRED"
+    elif has_refs and state == "SEQUENCE_OCCURRENCE_OBJECT_CONTEXT_ONLY":
+        variant_state = "VARIANT_SEQUENCE_OCCURRENCE_CONTEXT_LINEAGE_ONLY"
+    else:
+        variant_state = "NO_CONTEXT_VISIBLE"
+
+    return {
+        "sequence_occurrence_object_context_state": variant_state,
+        "sequence_occurrence_team_context_refs": sorted(team_refs),
+        "sequence_occurrence_goalkeeper_context_refs": sorted(goalkeeper_refs),
+        "sequence_occurrence_goalkeeper_context_bundle_refs": sorted(goalkeeper_bundle_refs),
+        "sequence_occurrence_reflection_context_refs": sorted(reflection_refs),
+        "sequence_occurrence_relation_type_candidates": sorted(relation_types),
+        "sequence_occurrence_context_is_variant_support": False,
+        "sequence_occurrence_context_is_independent_support": False,
+        "goalkeeper_context_is_variant_participant_truth": False,
+        "reflection_context_is_variant_equivalence_truth": False,
+        "sequence_occurrence_context_ref_count_is_variant_count": False,
+        "sequence_occurrence_context_ref_count_is_recurrence_count": False,
+        "sequence_occurrence_context_creates_event": False,
+    }, reviews
+
+
 def build_partial_order_trace_variants(
     sequence_payload: dict[str, Any],
     trace_payload: dict[str, Any],
@@ -100,6 +161,9 @@ def build_partial_order_trace_variants(
             "same_timestamp_internal_ordering_allowed": False,
             "source_row_order_is_temporal_truth": False,
             "provenance_order_is_football_chronology": False,
+            "sequence_occurrence_context_is_variant_support": False,
+            "sequence_occurrence_context_is_independent_support": False,
+            "sequence_occurrence_context_ref_count_is_recurrence_count": False,
             "canonical_event_count": CANONICAL_EVENT_COUNT,
             "true_action_count": TRUE_ACTION_COUNT,
             "production_release": False,
@@ -123,6 +187,9 @@ def build_partial_order_trace_variants(
         if not sequence_id or not layer_ids:
             blocks.append(f"sequence_variant_input_incomplete:{sequence_id or 'UNKNOWN'}")
             continue
+
+        sequence_context, sequence_context_reviews = _sequence_occurrence_context(sequence, sequence_id)
+        reviews.extend(sequence_context_reviews)
 
         node_refs: list[str] = []
         node_records: list[dict[str, Any]] = []
@@ -249,7 +316,7 @@ def build_partial_order_trace_variants(
             outcome_signature,
             ordering_completeness,
         )[:24]
-        variants.append({
+        variant_row = {
             "trace_variant_id": variant_id,
             "sequence_ref": sequence_id,
             "episode_ref": None,
@@ -277,7 +344,9 @@ def build_partial_order_trace_variants(
             "canonical_event_count": CANONICAL_EVENT_COUNT,
             "true_action_count": TRUE_ACTION_COUNT,
             "claim_ceiling": CLAIM_CEILING,
-        })
+        }
+        variant_row.update(sequence_context)
+        variants.append(variant_row)
 
     if blocks:
         return {
@@ -291,6 +360,9 @@ def build_partial_order_trace_variants(
             "same_timestamp_internal_ordering_allowed": False,
             "source_row_order_is_temporal_truth": False,
             "provenance_order_is_football_chronology": False,
+            "sequence_occurrence_context_is_variant_support": False,
+            "sequence_occurrence_context_is_independent_support": False,
+            "sequence_occurrence_context_ref_count_is_recurrence_count": False,
             "canonical_event_count": CANONICAL_EVENT_COUNT,
             "true_action_count": TRUE_ACTION_COUNT,
             "production_release": False,
@@ -309,6 +381,9 @@ def build_partial_order_trace_variants(
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
         "provenance_order_is_football_chronology": False,
+        "sequence_occurrence_context_is_variant_support": False,
+        "sequence_occurrence_context_is_independent_support": False,
+        "sequence_occurrence_context_ref_count_is_recurrence_count": False,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": False,

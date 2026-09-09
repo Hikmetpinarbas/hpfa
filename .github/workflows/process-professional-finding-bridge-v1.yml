@@ -10,12 +10,21 @@ on:
       - 'hpfa/modules/core/player_aggregate_process_reconciliation_lite/**'
       - 'hpfa/modules/core/process_robustness_lens_lite/**'
       - 'hpfa/modules/core/process_metric_profile_lite/**'
+      - 'hpfa/modules/core/trace_contrast_packet_lite/**'
+      - 'hpfa/modules/core/partial_order_trace_variant_lite/**'
       - 'hpfa/modules/core/professional_finding_candidate_lite/**'
+      - 'hpfa/modules/core/analyst_report_block_composer_lite/**'
+      - 'hpfa/modules/core/report_output_contract_lite/**'
+      - 'hpfa/modules/core/final_report_assembly_gate_lite/**'
+      - 'hpfa/modules/core/active_match_spine_runner/src/process_story_sidecar.py'
+      - 'hpfa/modules/core/active_match_spine_runner/src/orphan_capability_sidecars.py'
+      - 'hpfa/modules/core/active_match_spine_runner/tests/test_process_story_sidecar.py'
       - '.github/workflows/process-professional-finding-bridge-v1.yml'
   push:
     branches:
       - 'feature/process-professional-finding-bridge-v1'
       - 'feature/sequence-pattern-admission-v1'
+      - 'feature/safe-finding-sequence-binding-v1'
 
 jobs:
   professional-finding-bridge:
@@ -36,6 +45,8 @@ jobs:
             hpfa/modules/core/player_aggregate_process_reconciliation_lite/tests/test_player_aggregate_process_reconciliation.py \
             hpfa/modules/core/process_robustness_lens_lite/tests/test_process_robustness_lens.py \
             hpfa/modules/core/process_metric_profile_lite/tests/test_process_metric_profile.py \
+            hpfa/modules/core/trace_contrast_packet_lite/tests/test_trace_contrast_independence_accounting.py \
+            hpfa/modules/core/partial_order_trace_variant_lite/tests/test_partial_order_trace_variant.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_professional_finding_candidate.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_visible_episode_context_contrast.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_threshold_sensitivity.py \
@@ -44,7 +55,17 @@ jobs:
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_duplicate_reflection_risk.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_context_period_deconfound.py \
             hpfa/modules/core/professional_finding_candidate_lite/tests/test_professional_finding_bundle_ledger.py \
-            hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_pattern_admission.py
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_pattern_admission.py \
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_recurrence_null_contrast.py \
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_safe_finding_binding.py \
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_safe_finding_null_contrast.py \
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_sequence_analyst_narrative.py \
+            hpfa/modules/core/professional_finding_candidate_lite/tests/test_match_story_synthesis.py \
+            hpfa/modules/core/analyst_report_block_composer_lite/tests/test_sequence_finding_report_projection.py \
+            hpfa/modules/core/analyst_report_block_composer_lite/tests/test_match_story_report_projection.py \
+            hpfa/modules/core/report_output_contract_lite/tests/test_match_story_lineage.py \
+            hpfa/modules/core/final_report_assembly_gate_lite/tests/test_match_story_assembly_lineage.py \
+            hpfa/modules/core/active_match_spine_runner/tests/test_process_story_sidecar.py
       - name: Compile current runtime and bridge modules
         run: |
           python -m py_compile reciprocal_process_chain_current_v1.py
@@ -54,6 +75,8 @@ jobs:
           python -m py_compile hpfa/modules/core/player_aggregate_process_reconciliation_lite/src/player_aggregate_process_reconciliation.py
           python -m py_compile hpfa/modules/core/process_robustness_lens_lite/src/process_robustness_lens.py
           python -m py_compile hpfa/modules/core/process_metric_profile_lite/src/process_metric_profile.py
+          python -m py_compile hpfa/modules/core/trace_contrast_packet_lite/src/trace_contrast_packet.py
+          python -m py_compile hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/threshold_sensitivity.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/failed_trace_support.py
@@ -61,6 +84,16 @@ jobs:
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/duplicate_reflection_risk.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
           python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
+          python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/recurrence_null_contrast.py
+          python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/sequence_safe_finding_binding.py
+          python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/sequence_analyst_narrative.py
+          python -m py_compile hpfa/modules/core/professional_finding_candidate_lite/src/match_story_synthesis.py
+          python -m py_compile hpfa/modules/core/analyst_report_block_composer_lite/src/sequence_finding_report_projection.py
+          python -m py_compile hpfa/modules/core/analyst_report_block_composer_lite/src/match_story_report_projection.py
+          python -m py_compile hpfa/modules/core/report_output_contract_lite/src/report_output_contract.py
+          python -m py_compile hpfa/modules/core/final_report_assembly_gate_lite/src/final_report_assembly_gate.py
+          python -m py_compile hpfa/modules/core/active_match_spine_runner/src/process_story_sidecar.py
+          python -m py_compile hpfa/modules/core/active_match_spine_runner/src/orphan_capability_sidecars.py
       - name: Claim and accounting lock audit
         run: |
           grep -F 'process_membership_share_uses_matching_unique_process_units' hpfa/modules/core/match_reconciliation_ledger_lite/src/match_reconciliation_ledger.py
@@ -71,6 +104,13 @@ jobs:
           grep -F 'aggregate_metric_truth' hpfa/modules/core/player_aggregate_process_reconciliation_lite/src/player_aggregate_process_reconciliation.py
           grep -F 'recurrence_surface_robustness_is_pattern_truth' hpfa/modules/core/process_robustness_lens_lite/src/process_robustness_lens.py
           grep -F 'composite_metrics_are_calibrated' hpfa/modules/core/process_metric_profile_lite/src/process_metric_profile.py
+          grep -F 'independence_is_statistical_independence' hpfa/modules/core/trace_contrast_packet_lite/src/trace_contrast_packet.py
+          grep -F 'MATCH_LOCAL_OCCURRENCE_AND_DEPENDENCY_COMPONENTS_ONLY' hpfa/modules/core/trace_contrast_packet_lite/src/trace_contrast_packet.py
+          grep -F 'sequence_occurrence_context_is_variant_support' hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
+          grep -F 'sequence_occurrence_context_is_independent_support' hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
+          grep -F 'goalkeeper_context_is_variant_participant_truth' hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
+          grep -F 'reflection_context_is_variant_equivalence_truth' hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
+          grep -F 'sequence_occurrence_context_ref_count_is_recurrence_count' hpfa/modules/core/partial_order_trace_variant_lite/src/partial_order_trace_variant.py
           grep -F 'claim_output_allowed' hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
           grep -F 'professional_finding_emitted' hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py
           grep -F 'thresholds_are_calibrated' hpfa/modules/core/professional_finding_candidate_lite/src/threshold_sensitivity.py
@@ -87,4 +127,19 @@ jobs:
           grep -F 'absence_of_visible_context_difference_disproves_context_dependence' hpfa/modules/core/professional_finding_candidate_lite/src/visible_episode_context_contrast.py
           grep -F 'independent_support_inferred_from_nominal_count' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
           grep -F 'tactical_pattern_state_allowed' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
+          grep -F 'sequence_occurrence_context_is_pattern_support' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
+          grep -F 'goalkeeper_context_is_pattern_participant_truth' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
+          grep -F 'sequence_occurrence_context_ref_count_is_recurrence_count' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_pattern_admission.py
+          grep -F 'significance_claim_allowed' hpfa/modules/core/professional_finding_candidate_lite/src/recurrence_null_contrast.py
+          grep -F 'multiple_testing_corrected' hpfa/modules/core/professional_finding_candidate_lite/src/recurrence_null_contrast.py
+          grep -F 'null_contrast_consumed' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_safe_finding_binding.py
+          grep -F 'professional_finding_emitted_count' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_safe_finding_binding.py
+          grep -F 'chronological_story_claimed' hpfa/modules/core/professional_finding_candidate_lite/src/sequence_analyst_narrative.py
+          grep -F 'nominal_support_is_independent_evidence_count' hpfa/modules/core/professional_finding_candidate_lite/src/match_story_synthesis.py
+          grep -F 'production_report_allowed' hpfa/modules/core/analyst_report_block_composer_lite/src/sequence_finding_report_projection.py
+          grep -F 'nominal_support_is_independent_evidence_count' hpfa/modules/core/analyst_report_block_composer_lite/src/match_story_report_projection.py
+          grep -F 'match_story_evidence_lineage' hpfa/modules/core/report_output_contract_lite/src/report_output_contract.py
+          grep -F 'match_story_evidence_lineage' hpfa/modules/core/final_report_assembly_gate_lite/src/final_report_assembly_gate.py
+          grep -F 'reconstruction_artifacts_reused_without_reingest' hpfa/modules/core/active_match_spine_runner/src/process_story_sidecar.py
+          grep -F 'process_story_runtime_bound' hpfa/modules/core/active_match_spine_runner/src/orphan_capability_sidecars.py
           grep -F 'production_release=false' hpfa/modules/core/professional_finding_candidate_lite/src/professional_finding_candidate.py

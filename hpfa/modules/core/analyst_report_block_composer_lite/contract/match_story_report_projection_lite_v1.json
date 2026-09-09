@@ -1,0 +1,45 @@
+{
+  "module_id": "analyst_report_block_composer_lite_v1",
+  "source_module_id": "match_story_synthesis_lite_v1",
+  "purpose": "Project claim-safe entity-level match process stories into analyst-readable report block candidates without strengthening evidence.",
+  "lineage_invariants": {
+    "source_narrative_ids_required": true,
+    "process_narrative_count_must_equal_exact_source_narrative_id_count": true,
+    "process_accounting_counts_must_be_non_boolean_nonnegative_integers": true,
+    "subprocess_counts_must_not_exceed_process_narrative_count": true,
+    "robust_recurrent_process_count_must_not_exceed_recurrent_process_count": true,
+    "unique_trace_refs_required": true,
+    "unique_trace_ref_count_must_match_refs": true,
+    "unique_trace_ref_count_must_be_non_boolean_nonnegative_integer": true,
+    "nominal_support_sum_must_be_non_boolean_nonnegative_integer": true,
+    "nominal_support_must_not_become_independent_evidence": true,
+    "cross_process_independence_must_not_be_fabricated": true,
+    "shared_trace_refs_are_review_evidence": true,
+    "withdrawal_condition_required": true,
+    "source_claim_ceiling_required": "DEFEASIBLE_MATCH_LOCAL_PROCESS_STORY_ONLY"
+  },
+  "claim_invariants": {
+    "chronological_story_allowed": false,
+    "tactical_plan_truth_allowed": false,
+    "coach_intention_allowed": false,
+    "causality_allowed": false,
+    "dominance_allowed": false,
+    "claim_output_allowed": false,
+    "production_report_allowed": false,
+    "final_report_allowed": false
+  },
+  "analyst_gain": {
+    "can_read_entity_level_process_story": true,
+    "can_see_recurrence_balance": true,
+    "can_see_counterevidence_bearing_process_count": true,
+    "can_see_context_sensitive_process_count": true,
+    "can_see_null_evaluated_process_count": true,
+    "can_distinguish_nominal_support_from_unique_trace_volume": true
+  },
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "claim_ceiling": "analyst_report_block_candidate_only"
+}
