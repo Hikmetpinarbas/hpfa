@@ -148,46 +148,93 @@ def build_progression_safe_finding_projection(
         else "REVIEW_REQUIRED_INSUFFICIENT_EVALUABLE_POPULATION"
     )
 
-    finding = {
-        "finding_candidate_id": "psf_" + _clean(construct.get("construct_candidate_id") or "progression")[-24:],
-        "observation_model": OBSERVATION_MODEL,
-        "construct_candidate_id": construct.get("construct_candidate_id"),
-        "construct_target": construct.get("construct_target"),
-        "finding_state": finding_state,
-        "what_visible": {
-            "eligible_progression_trace_candidate_count": denominator,
-            "evaluable_progression_consequence_candidate_count": evaluable,
-            "progression_consequence_coverage_rate_candidate": construct.get("progression_consequence_coverage_rate_candidate"),
-            "visible_positive_follow_up_candidate_count": construct.get("visible_positive_follow_up_candidate_count"),
-            "visible_adverse_handover_candidate_count": construct.get("visible_adverse_handover_candidate_count"),
-            "unresolved_or_missing_consequence_candidate_count": construct.get("unresolved_or_missing_consequence_candidate_count"),
-        },
+    what_visible = {
+        "eligible_progression_trace_candidate_count": denominator,
+        "evaluable_progression_consequence_candidate_count": evaluable,
+        "progression_consequence_coverage_rate_candidate": construct.get("progression_consequence_coverage_rate_candidate"),
+        "visible_positive_follow_up_candidate_count": construct.get("visible_positive_follow_up_candidate_count"),
+        "visible_adverse_handover_candidate_count": construct.get("visible_adverse_handover_candidate_count"),
+        "unresolved_or_missing_consequence_candidate_count": construct.get("unresolved_or_missing_consequence_candidate_count"),
+    }
+    where_when = {
+        "observation_window": construct.get("observation_window"),
+        "period_scope": construct.get("period_scope"),
+        "entity_scope": construct.get("entity_scope"),
+        "team_scope": construct.get("team_scope"),
+        "denominator_set_id": construct.get("denominator_set_id"),
+        "context_policy_id": construct.get("context_policy_id"),
+    }
+    support = {
         "support_refs": support_refs,
-        "counterevidence_refs": counter_refs,
-        "unresolved_refs": unresolved_refs,
-        "counterevidence_absence_is_confirmation": False,
-        "alternative_explanations": alternatives,
-        "uncertainty": construct.get("uncertainty"),
-        "withdrawal_condition": construct.get("withdrawal_condition"),
-        "analyst_action": construct.get("analyst_action"),
         "team_progression_effectiveness_profile_candidates": list(
             construct.get("team_progression_effectiveness_profile_candidates") or []
         ),
         "actor_progression_effectiveness_profile_candidates": list(
             construct.get("actor_progression_effectiveness_profile_candidates") or []
         ),
-        "safe_meaning": (
-            "Describe the match-local visible progression opportunity set and its observed positive, adverse, and unresolved follow-up distribution; "
-            "entity decomposition is contribution-surface evidence only."
-        ),
-        "forbidden_inference": [
-            "individual causal value",
-            "player quality truth",
-            "team control truth",
-            "tactical plan truth",
-            "defensive line bypass truth",
-            "dominance",
-            "missing follow-up as failure",
+    }
+    counterevidence = {
+        "refs": counter_refs,
+        "unresolved_refs": unresolved_refs,
+        "absence_is_confirmation": False,
+        "missing_follow_up_is_failure": False,
+    }
+    safe_meaning = (
+        "Describe the match-local visible progression opportunity set and its observed positive, adverse, and unresolved follow-up distribution; "
+        "entity decomposition is contribution-surface evidence only."
+    )
+    forbidden_inference = [
+        "individual causal value",
+        "player quality truth",
+        "team control truth",
+        "tactical plan truth",
+        "defensive line bypass truth",
+        "dominance",
+        "missing follow-up as failure",
+    ]
+    dependency_summary = {
+        "dependency_group": construct.get("dependency_group"),
+        "provenance_root": construct.get("provenance_root"),
+        "same_provider_support_is_independent_vote": False,
+        "independent_support_vote_count": 0,
+    }
+
+    finding = {
+        "finding_candidate_id": "psf_" + _clean(construct.get("construct_candidate_id") or "progression")[-24:],
+        "observation_model": OBSERVATION_MODEL,
+        "construct_candidate_id": construct.get("construct_candidate_id"),
+        "construct_target": construct.get("construct_target"),
+        "finding_state": finding_state,
+        "what_visible": what_visible,
+        "where_when": where_when,
+        "support": support,
+        "counterevidence": counterevidence,
+        "alternative_explanations": alternatives,
+        "safe_meaning": safe_meaning,
+        "forbidden_inference": forbidden_inference,
+        "analyst_action": construct.get("analyst_action"),
+        "uncertainty": construct.get("uncertainty"),
+        "withdrawal_condition": construct.get("withdrawal_condition"),
+        "dependency_summary": dependency_summary,
+        "WHAT_VISIBLE": what_visible,
+        "WHERE_WHEN": where_when,
+        "SUPPORT": support,
+        "COUNTEREVIDENCE": counterevidence,
+        "ALTERNATIVE_EXPLANATION": alternatives,
+        "SAFE_MEANING": safe_meaning,
+        "FORBIDDEN_INFERENCE": forbidden_inference,
+        "ANALYST_ACTION": construct.get("analyst_action"),
+        "UNCERTAINTY": construct.get("uncertainty"),
+        "WITHDRAWAL_CONDITION": construct.get("withdrawal_condition"),
+        "support_refs": support_refs,
+        "counterevidence_refs": counter_refs,
+        "unresolved_refs": unresolved_refs,
+        "counterevidence_absence_is_confirmation": False,
+        "team_progression_effectiveness_profile_candidates": support[
+            "team_progression_effectiveness_profile_candidates"
+        ],
+        "actor_progression_effectiveness_profile_candidates": support[
+            "actor_progression_effectiveness_profile_candidates"
         ],
         "same_provider_support_is_independent_vote": False,
         "independent_support_vote_count": 0,
