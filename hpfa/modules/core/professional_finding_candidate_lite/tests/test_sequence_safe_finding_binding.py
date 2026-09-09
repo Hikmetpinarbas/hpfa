@@ -75,6 +75,18 @@ def test_robust_independent_challenged_trace_emits_defeasible_finding():
     assert "causality" in row["FORBIDDEN_INFERENCE"]
 
 
+def test_upstream_review_envelope_abstains_even_for_otherwise_emittable_row():
+    payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
+    payload["status"] = "REVIEW_REQUIRED"
+    result = build_sequence_safe_finding_blocks(payload)
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["professional_finding_emitted_count"] == 0
+    assert result["claim_output_allowed_count"] == 0
+    assert result["analyst_report_block_count"] == 0
+    assert result["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 1}
+    assert "admission_upstream_review_required" in result["review_hits"]
+
+
 def test_robust_trace_without_challenge_surface_downgrades():
     payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
     payload["sequence_pattern_admissions"][0]["counterevidence_refs"] = []
