@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from typing import Any
 
 from . import _provider_metric_dictionary_impl_v7 as _impl
 from ._provider_metric_dictionary_impl_v7 import *  # noqa: F401,F403
+
+
+ZFGV_CAPABILITY_BY_SURFACE_ROLE = {
+    "occurrence_candidate": "ACTION_EVENT",
+    "aggregate_candidate": "AGGREGATE_TABULAR",
+    "entity_candidate": "ENTITY_ACTOR",
+    "temporal_candidate": "TEMPORAL",
+    "spatial_candidate": "SPATIAL",
+    "process_candidate": "PROCESS_PARTICIPATION",
+    "relational_candidate": "RELATIONAL",
+    "outcome_candidate": "OUTCOME_QUALIFIER",
+}
 
 
 def _missing_required_derivation_denominator_policy_blocks(
@@ -68,6 +81,119 @@ def _missing_required_derivation_denominator_policy_blocks(
     return blocks
 
 
+def _legacy_event_only_metadata_blocks(
+    dictionary: dict[str, Any],
+    metric_policy: dict[str, Any] | None,
+) -> list[dict[str, str]]:
+    """Keep the legacy field well-formed without using it as a global admission gate."""
+    blocks: list[dict[str, str]] = []
+    for family, rows in (
+        ("provider_dictionary", dictionary.get("metrics", [])),
+        ("metric_policy", (metric_policy or {}).get("metrics", [])),
+    ):
+        for row in rows:
+            metric_id = str(row.get("metric_id") or "UNKNOWN").strip() or "UNKNOWN"
+            if "event_only_compatible" not in row:
+                continue
+            if not isinstance(row.get("event_only_compatible"), bool):
+                blocks.append(_impl._gap(
+                    "event_only_compatibility_metadata_invalid",
+                    f"{family}:{metric_id}",
+                ))
+    return blocks
+
+
+def _neutralize_legacy_event_only_gate(
+    dictionary: dict[str, Any],
+    metric_policy: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Adapt the legacy implementation without rewriting its historical contract.
+
+    The v7 implementation predates ZFGV and hard-gates every metric on
+    event_only_compatible=True.  The wrapper feeds it a compatibility-normalized
+    view while preserving the caller's original metadata in the final report.
+    Runtime football admission remains a separate capability check; this function
+    does not make any metric value or football construct true.
+    """
+    dictionary_view = copy.deepcopy(dictionary)
+    policy_view = copy.deepcopy(metric_policy) if metric_policy is not None else None
+
+    for row in dictionary_view.get("metrics", []):
+        if isinstance(row.get("event_only_compatible"), bool):
+            row["event_only_compatible"] = True
+            # This fingerprint belongs to operational semantics.  The legacy
+            # implementation recomputes it from the normalized view; suppressing
+            # the stored value prevents a compatibility-only field from becoming
+            # a hidden global product gate.
+            if "operational_semantic_fingerprint_sha256" in row:
+                row["operational_semantic_fingerprint_sha256"] = ""
+
+    for row in (policy_view or {}).get("metrics", []):
+        if isinstance(row.get("event_only_compatible"), bool):
+            row["event_only_compatible"] = True
+
+    return dictionary_view, policy_view
+
+
+def _required_observation_capabilities(
+    dictionary_row: dict[str, Any],
+    policy_row: dict[str, Any] | None,
+) -> list[str]:
+    """Describe construct prerequisites; do not claim that runtime admitted them."""
+    required: set[str] = set()
+    policy = policy_row or {}
+
+    for role in policy.get("source_surface_roles") or []:
+        capability = ZFGV_CAPABILITY_BY_SURFACE_ROLE.get(str(role).strip().lower())
+        if capability:
+            required.add(capability)
+
+    if policy.get("required_event_families"):
+        required.add("ACTION_EVENT")
+    if policy.get("entity_scope") or dictionary_row.get("eligibility_scope"):
+        required.add("ENTITY_ACTOR")
+    if policy.get("observation_window") or dictionary_row.get("temporal_window"):
+        required.add("TEMPORAL")
+
+    spatial_rule = str(dictionary_row.get("spatial_rule") or "").strip().upper()
+    if spatial_rule and spatial_rule not in {"NOT_APPLICABLE", "NONE", "UNKNOWN"}:
+        required.add("SPATIAL")
+
+    aggregation_level = str(dictionary_row.get("aggregation_level") or "").strip().lower()
+    if "aggregate" in aggregation_level or "tabular" in aggregation_level:
+        required.add("AGGREGATE_TABULAR")
+
+    return sorted(required)
+
+
+def _zfgv_capability_projection(
+    dictionary: dict[str, Any],
+    metric_policy: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    policy_index = {
+        str(row.get("metric_id") or "").strip(): row
+        for row in (metric_policy or {}).get("metrics", [])
+        if str(row.get("metric_id") or "").strip()
+    }
+    projection: list[dict[str, Any]] = []
+    for row in dictionary.get("metrics", []):
+        metric_id = str(row.get("metric_id") or "").strip()
+        upstream = row.get("upstream_bindings") or {}
+        policy_id = str(upstream.get("metric_policy_id") or "").strip() if isinstance(upstream, dict) else ""
+        projection.append({
+            "metric_id": metric_id,
+            "event_only_compatible_legacy_metadata": row.get("event_only_compatible"),
+            "event_only_compatibility_is_global_admission_gate": False,
+            "required_observation_capabilities": _required_observation_capabilities(
+                row, policy_index.get(policy_id)
+            ),
+            "runtime_capability_admission_evaluated": False,
+            "metric_value_output_allowed_by_this_projection": False,
+            "construct_truth_granted_by_this_projection": False,
+        })
+    return projection
+
+
 def build_dictionary_report(
     dictionary: dict[str, Any],
     aliases: dict[str, Any],
@@ -78,18 +204,27 @@ def build_dictionary_report(
     denominator_policy: dict[str, Any] | None = None,
     aggregate_registry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    metadata_blocks = _legacy_event_only_metadata_blocks(dictionary, metric_policy)
+    dictionary_view, policy_view = _neutralize_legacy_event_only_gate(
+        dictionary, metric_policy
+    )
+
     report = _impl.build_dictionary_report(
-        dictionary,
+        dictionary_view,
         aliases,
         derivations,
         conflicts,
-        metric_policy=metric_policy,
+        metric_policy=policy_view,
         denominator_policy=denominator_policy,
         aggregate_registry=aggregate_registry,
     )
-    extra_blocks = _missing_required_derivation_denominator_policy_blocks(
-        dictionary, derivations, metric_policy
-    )
+
+    extra_blocks = [
+        *metadata_blocks,
+        *_missing_required_derivation_denominator_policy_blocks(
+            dictionary, derivations, metric_policy
+        ),
+    ]
     if extra_blocks:
         existing = {
             (str(gap.get("gap_type")), str(gap.get("detail")))
@@ -103,6 +238,17 @@ def build_dictionary_report(
         report["status"] = "FAIL_CLOSED"
         report["spec_contract_valid"] = False
         report["downstream_provider_definition_gate_open"] = False
+
+    report["zfgv_observation_model"] = "MULTI_SURFACE_FOOTBALL_OBSERVATION_FABRIC"
+    report["event_only_compatibility_is_global_admission_gate"] = False
+    report["event_only_compatibility_is_legacy_metadata"] = True
+    report["metric_admission_policy"] = "REQUIRED_CAPABILITIES_SUBSET_OF_ADMITTED_CAPABILITIES"
+    report["runtime_capability_admission_evaluated"] = False
+    report["zfgv_metric_capability_requirements"] = _zfgv_capability_projection(
+        dictionary, metric_policy
+    )
+    report["metric_value_output_allowed_by_zfgv_projection"] = False
+    report["construct_truth_granted_by_zfgv_projection"] = False
     return report
 
 
