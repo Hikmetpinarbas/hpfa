@@ -1,6 +1,8 @@
 import zipfile
 from pathlib import Path
 
+import pytest
+
 import active_match_professional_story_run_v1 as runner
 
 
@@ -41,6 +43,18 @@ def test_professional_story_runner_uses_single_canonical_full_spine_orchestrator
     assert '"reconstruction_intelligence_packet_adapter_current_v1.py"' not in source
     assert '"reciprocal_process_chain_current_v1.py"' not in source
     assert "write_process_story_sidecar" not in source
+
+
+def test_runtime_authority_root_is_separate_from_product_code_root(tmp_path: Path) -> None:
+    runtime_root = tmp_path / "runtime_authority"
+    match_dir = runtime_root / runner.ACTIVE_MATCH_RELATIVE_PATH
+    match_dir.mkdir(parents=True)
+
+    assert runner._runtime_authority_root(match_dir) == runtime_root
+    assert runtime_root != Path(runner.__file__).resolve().parent
+
+    with pytest.raises(ValueError, match="runtime_authority_path_invalid"):
+        runner._runtime_authority_root(tmp_path / "some_other_match")
 
 
 def test_professional_story_runner_requires_analyst_facing_bundle_artifacts() -> None:
