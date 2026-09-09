@@ -17,12 +17,15 @@ from hpfa.modules.core.metric_definition_policy_lite.src.construct_context_guard
 from hpfa.modules.core.metric_definition_policy_lite.src.progression_effectiveness_construct import (
     build_progression_effectiveness_construct,
 )
+from hpfa.modules.core.metric_definition_policy_lite.src.progression_safe_finding_projection import (
+    build_progression_safe_finding_projection,
+)
 from hpfa.modules.core.temporal_episode_signature_lite.src.observed_match_dynamics_projection import (
     build_observed_match_dynamics,
 )
 
 MODULE_ID = "phase_dynamics_intelligence_lane_v1"
-CLAIM_CEILING = "PHASE_DYNAMICS_INTERACTION_CONSEQUENCE_CONSTRUCT_CANDIDATE_ONLY"
+CLAIM_CEILING = "PHASE_DYNAMICS_INTERACTION_CONSEQUENCE_CONSTRUCT_FINDING_CANDIDATE_ONLY"
 
 INPUTS = {
     "process": "analyst_episode_process_participation_projection_v1.json",
@@ -39,6 +42,7 @@ OUTPUTS = {
     "episode_consequence": "episode_consequence_projection_v1.json",
     "bridge": "phase_dynamics_interaction_bridge_v1.json",
     "progression_effectiveness": "progression_effectiveness_construct_v1.json",
+    "progression_safe_finding": "progression_safe_finding_projection_v1.json",
 }
 
 
@@ -90,6 +94,8 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
             "causal_truth": False,
             "consequence_candidate_is_causal_truth": False,
             "progression_effectiveness_truth": False,
+            "progression_safe_finding_engineering_envelope_complete": False,
+            "physical_active_match_evidence_present": False,
             "professional_finding_emitted": False,
             "claim_output_allowed": False,
             "canonical_event_count": "UNKNOWN",
@@ -130,11 +136,14 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
             "production_release": False,
         }
 
+    progression_safe_finding = build_progression_safe_finding_projection(progression_effectiveness)
+
     _write(output / OUTPUTS["interaction"], interaction)
     _write(output / OUTPUTS["dynamics"], dynamics)
     _write(output / OUTPUTS["episode_consequence"], episode_consequence)
     _write(output / OUTPUTS["bridge"], bridge)
     _write(output / OUTPUTS["progression_effectiveness"], progression_effectiveness)
+    _write(output / OUTPUTS["progression_safe_finding"], progression_safe_finding)
 
     hard_blocks = []
     review_hits = []
@@ -144,6 +153,7 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         ("episode_consequence", episode_consequence),
         ("bridge", bridge),
         ("progression_effectiveness", progression_effectiveness),
+        ("progression_safe_finding", progression_safe_finding),
     ):
         if payload.get("status") == "FAIL_CLOSED":
             hard_blocks.append(f"{name}_fail_closed")
@@ -170,6 +180,9 @@ def run_phase_dynamics_intelligence_lane(out_dir: str | Path) -> dict[str, Any]:
         "bound_episode_consequence_candidate_count": episode_consequence.get("bound_episode_consequence_candidate_count"),
         "phase_dynamics_interaction_candidate_count": bridge.get("phase_dynamics_interaction_candidate_count"),
         "progression_effectiveness_construct_candidate_count": progression_effectiveness.get("construct_candidate_count"),
+        "progression_safe_finding_candidate_count": progression_safe_finding.get("finding_candidate_count"),
+        "progression_safe_finding_engineering_envelope_complete": progression_safe_finding.get("engineering_envelope_complete") is True,
+        "physical_active_match_evidence_present": False,
         "outputs": {key: str(output / filename) for key, filename in OUTPUTS.items()},
         "hard_block_hits": hard_blocks,
         "review_hits": review_hits,
