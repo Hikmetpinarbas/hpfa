@@ -94,7 +94,7 @@ def test_censoring_difference_does_not_become_outcome_difference_or_counterevide
         _variant("b3","2","X",censored=True),
     ]
     row=build_context_conditioned_trace_deviations(_payload(rows),context_dimension="period_candidate",baseline_context_value="1",comparison_context_value="2")["context_conditioned_trace_deviations"][0]
-    assert row["outcome_difference"] is True is False
+    assert row["outcome_difference"] is False
     assert row["censoring_coverage_difference"] is True
     assert row["right_censoring_is_outcome_difference"] is False
     assert row["right_censoring_is_counterevidence"] is False
