@@ -53,6 +53,7 @@ class ZfgvEventOnlyRehabilitationTests(unittest.TestCase):
             report["metric_admission_policy"],
             "REQUIRED_CAPABILITIES_SUBSET_OF_ADMITTED_CAPABILITIES",
         )
+        self.assertTrue(report["metric_capability_requirement_sources_are_union_preserved"])
         self.assertFalse(report["runtime_capability_admission_evaluated"])
         self.assertFalse(report["metric_value_output_allowed_by_zfgv_projection"])
         self.assertFalse(report["construct_truth_granted_by_zfgv_projection"])
@@ -82,6 +83,9 @@ class ZfgvEventOnlyRehabilitationTests(unittest.TestCase):
         self.assertFalse(projected["event_only_compatible_legacy_metadata"])
         self.assertFalse(projected["event_only_compatibility_is_global_admission_gate"])
         self.assertTrue(projected["capability_contract_explicit"])
+        self.assertTrue(projected["dictionary_capability_contract_explicit"])
+        self.assertFalse(projected["policy_capability_contract_explicit"])
+        self.assertTrue(projected["capability_requirement_sources_are_union_preserved"])
         self.assertEqual(
             projected["required_observation_capabilities"],
             ["ACTION_EVENT", "ENTITY_ACTOR", "TEMPORAL"],
@@ -138,7 +142,56 @@ class ZfgvEventOnlyRehabilitationTests(unittest.TestCase):
         self.assertIn("TEMPORAL", projected["required_observation_capabilities"])
         self.assertNotIn("AGGREGATE_TABULAR", projected["required_observation_capabilities"])
         self.assertIn("AGGREGATE_TABULAR", policy_row["supporting_observation_capabilities"])
+        self.assertTrue(projected["policy_capability_contract_explicit"])
+        self.assertTrue(projected["capability_contract_explicit"])
         self.assertFalse(projected["runtime_capability_admission_evaluated"])
+
+    def test_dictionary_explicit_capabilities_cannot_erase_policy_requirements(self):
+        dictionary = copy.deepcopy(_load("provider_metric_dictionary_v1.json"))
+        policy = copy.deepcopy(_load("metric_registry_v1.json"))
+        provider_row = next(
+            x for x in dictionary["metrics"] if x["metric_id"] == "pass_completion_rate"
+        )
+        provider_row["required_observation_capabilities"] = ["AGGREGATE_TABULAR"]
+
+        report = _build(dictionary=dictionary, metric_policy=policy)
+        projected = next(
+            item for item in report["zfgv_metric_capability_requirements"]
+            if item["metric_id"] == "pass_completion_rate"
+        )
+
+        self.assertTrue(projected["dictionary_capability_contract_explicit"])
+        self.assertTrue(projected["policy_capability_contract_explicit"])
+        self.assertTrue(projected["capability_requirement_sources_are_union_preserved"])
+        self.assertEqual(
+            projected["required_observation_capabilities"],
+            [
+                "ACTION_EVENT",
+                "AGGREGATE_TABULAR",
+                "ENTITY_ACTOR",
+                "OUTCOME_QUALIFIER",
+                "TEMPORAL",
+            ],
+        )
+
+    def test_explicit_capabilities_cannot_erase_structural_spatial_requirement(self):
+        dictionary = copy.deepcopy(_load("provider_metric_dictionary_v1.json"))
+        row = next(
+            x for x in dictionary["metrics"] if x["metric_id"] == "progressive_pass_accurate"
+        )
+        row["required_observation_capabilities"] = ["ACTION_EVENT"]
+
+        report = _build(dictionary=dictionary)
+        projected = next(
+            item for item in report["zfgv_metric_capability_requirements"]
+            if item["metric_id"] == "progressive_pass_accurate"
+        )
+
+        self.assertIn("ACTION_EVENT", projected["required_observation_capabilities"])
+        self.assertIn("ENTITY_ACTOR", projected["required_observation_capabilities"])
+        self.assertIn("TEMPORAL", projected["required_observation_capabilities"])
+        self.assertIn("SPATIAL", projected["required_observation_capabilities"])
+        self.assertTrue(projected["capability_requirement_sources_are_union_preserved"])
 
 
 if __name__ == "__main__":
