@@ -118,7 +118,7 @@ def observation_semantic_fingerprint(row: dict[str, Any]) -> str:
 def assess_observation_contract(row: dict[str, Any]) -> dict[str, Any]:
     """Assess construct-specific observation requirements without promoting truth.
 
-    Legacy `event_only_compatible` is accepted only as a migration signal. It is
+    Legacy `event_only_compatible` is accepted only as migration metadata. It is
     never used as the product-wide capability ceiling.
     """
     metric_id = str(row.get("metric_id") or "UNKNOWN").strip() or "UNKNOWN"
@@ -211,7 +211,10 @@ def assess_observation_contract(row: dict[str, Any]) -> dict[str, Any]:
         if CAP_STATE_TRANSITION in required_capabilities and "DEPENDENCY_CONTROL" not in declared_prerequisites:
             hard.append(f"state_transition_dependency_control_missing:{metric_id}")
 
-    legacy_shadow = PHYSICAL_TRUTH_LAYER not in explicit_layers
+    # Legacy engines still require a boolean compatibility field. For every explicit
+    # ZFGV contract we emit a permissive compatibility shadow so the legacy field can
+    # never veto an admitted observation capability, including L8 tracking/video.
+    legacy_shadow = True
     return {
         "metric_id": metric_id,
         "observation_model": OBSERVATION_MODEL,
@@ -236,10 +239,11 @@ def normalize_dictionary_for_legacy_impl(
     dictionary: dict[str, Any],
     metric_policy: dict[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None, list[dict[str, Any]]]:
-    """Translate explicit enriched contracts into a compatibility shadow for v7.
+    """Translate explicit ZFGV contracts into a non-blocking compatibility shadow.
 
     The old implementation can continue running while enriched observation layers
-    and capability manifests become authoritative. Pure legacy rows remain unchanged.
+    and capability manifests are authoritative. The legacy event-only field is not
+    allowed to narrow or veto an explicit ZFGV capability contract.
     """
     normalized_dictionary = deepcopy(dictionary)
     normalized_policy = deepcopy(metric_policy) if metric_policy is not None else None
@@ -260,7 +264,7 @@ def normalize_dictionary_for_legacy_impl(
         if assessment["migration_state"] != "EXPLICIT_OBSERVATION_CONTRACT":
             continue
 
-        row["event_only_compatible"] = assessment["legacy_event_only_shadow_compatible"]
+        row["event_only_compatible"] = True
         upstream = row.get("upstream_bindings") or {}
         if isinstance(upstream, dict):
             policy_id = str(upstream.get("metric_policy_id") or "").strip()
@@ -268,8 +272,6 @@ def normalize_dictionary_for_legacy_impl(
             if policy_row is not None:
                 policy_assessment = assess_observation_contract(policy_row)
                 if not policy_assessment["hard_block_hits"]:
-                    policy_row["event_only_compatible"] = policy_assessment[
-                        "legacy_event_only_shadow_compatible"
-                    ]
+                    policy_row["event_only_compatible"] = True
 
     return normalized_dictionary, normalized_policy, assessments
