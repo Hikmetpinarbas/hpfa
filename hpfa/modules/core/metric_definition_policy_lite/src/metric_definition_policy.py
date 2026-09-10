@@ -16,14 +16,12 @@ OUTPUT_JSON = "metric_definition_policy_lite_v1.json"
 POLICY_VERSION = "1.0.0"
 RESEARCH_HARDENING_VERSION = "R07_R17_R18_R19_R22_R23_v1"
 
-# `event_only_compatible` remains a required legacy compatibility field during
-# migration, but it is no longer the product-wide capability ceiling. New and
-# migrated constructs are admitted by construct-specific observation layers.
 REQUIRED_METRIC_FIELDS = {
     "metric_id", "metric_name", "metric_family", "construct_target",
     "aggregation_class", "value_type", "unit", "numerator_definition",
     "observation_window", "entity_scope", "required_event_families",
-    "required_context_fields", "event_only_compatible", "source_surface_roles",
+    "required_context_fields", "required_observation_layers",
+    "required_observation_capabilities", "source_surface_roles",
     "derivation_dependency", "does_not_measure", "forbidden_claims",
     "claim_ceiling", "denominator_policy_id", "context_policy_id",
     "confidence_policy_id", "misuse_policy_ids",
@@ -53,19 +51,18 @@ R19_DENOMINATOR_SET_SENTINELS = {"UNKNOWN", "NOT_APPLICABLE", "UNRESOLVED", "NON
 FAIL_CLOSED = "FAIL_CLOSED"
 BLOCKED = "BLOCKED"
 
-# Keep the legacy fingerprint stable while observation semantics receive their
-# own fingerprint from observation_contract_lite. This prevents a migration from
-# invalidating every historical metric definition fingerprint at once.
 FINGERPRINT_FIELDS = (
     "metric_family", "construct_target", "aggregation_class", "value_type", "unit",
     "numerator_definition", "denominator_definition", "observation_window",
     "entity_scope", "period_scope", "team_scope", "player_scope", "position_scope",
     "success_criteria", "required_event_families", "required_context_fields",
-    "event_only_compatible", "source_surface_roles", "derivation_dependency",
-    "independence_group", "stationarity_required", "sample_reliability_required",
-    "does_not_measure", "forbidden_claims", "claim_ceiling",
-    "denominator_policy_id", "context_policy_id", "confidence_policy_id",
-    "misuse_policy_ids", "exposure_policy_id",
+    "required_observation_layers", "required_surface_semantics",
+    "required_observation_capabilities", "optional_observation_capabilities",
+    "forbidden_without", "tracking_video_required", "source_surface_roles",
+    "derivation_dependency", "independence_group", "stationarity_required",
+    "sample_reliability_required", "does_not_measure", "forbidden_claims",
+    "claim_ceiling", "denominator_policy_id", "context_policy_id",
+    "confidence_policy_id", "misuse_policy_ids", "exposure_policy_id",
 )
 
 
@@ -170,26 +167,17 @@ def _denominator_closure_status(policy: dict[str, Any]) -> str:
         return "NOT_APPLICABLE"
     if subset == "VIOLATED":
         return "VIOLATED"
-
     denominator_set_id = policy.get("denominator_set_id")
-    if subset != "PROVEN":
-        return "UNKNOWN"
-    if not isinstance(denominator_set_id, str):
+    if subset != "PROVEN" or not isinstance(denominator_set_id, str):
         return "UNKNOWN"
     denominator_set_id = denominator_set_id.strip()
     if not denominator_set_id or denominator_set_id.upper() in R19_DENOMINATOR_SET_SENTINELS:
         return "UNKNOWN"
-
     relation = str(policy.get("component_relation", "")).strip().upper()
     exclusivity = str(policy.get("mutual_exclusivity_status", "")).strip().upper()
     exhaustiveness = str(policy.get("collective_exhaustiveness_status", "")).strip().upper()
     uncovered = str(policy.get("uncovered_opportunity_status", "")).strip().upper()
-
-    if exclusivity in R19_NEGATIVE_EXCLUSIVITY_STATES:
-        return "VIOLATED"
-    if exhaustiveness in R19_NEGATIVE_EXHAUSTIVENESS_STATES:
-        return "VIOLATED"
-    if uncovered in R19_UNCOVERED_PRESENT_STATES:
+    if exclusivity in R19_NEGATIVE_EXCLUSIVITY_STATES or exhaustiveness in R19_NEGATIVE_EXHAUSTIVENESS_STATES or uncovered in R19_UNCOVERED_PRESENT_STATES:
         return "VIOLATED"
     if relation not in R19_CLOSED_COMPONENT_RELATIONS:
         return "UNKNOWN"
@@ -199,7 +187,6 @@ def _denominator_closure_status(policy: dict[str, Any]) -> str:
         return "UNKNOWN"
     if uncovered not in R19_NO_UNCOVERED_OPPORTUNITY_STATES:
         return "UNKNOWN"
-
     nucleus = policy.get("denominator_nucleus_count")
     if isinstance(nucleus, bool) or not isinstance(nucleus, int) or nucleus <= 0:
         return "UNKNOWN"
@@ -222,7 +209,6 @@ def _validate_metric(
     if metric_id in seen:
         return None, [_gap(metric_id, "duplicate_metric_id")]
     seen.add(metric_id)
-
     for field in sorted(field for field in REQUIRED_METRIC_FIELDS if not _non_empty(record.get(field))):
         gaps.append(_gap(metric_id, f"{field}_missing"))
 
@@ -286,7 +272,6 @@ def _validate_metric(
     rate_calculation_admitted = value_type not in RATE_TYPES or (
         closure_status == "CLOSED" and (value_type != "per_90" or per90_calculation_admitted)
     )
-
     requested_comparison = bool(record.get("comparison_allowed", False))
     aggregate_aligned = str(record.get("aggregate_definition_status", "")).upper() == "ALIGNED"
     if requested_comparison and not aggregate_aligned:
@@ -298,9 +283,7 @@ def _validate_metric(
     normalized.update({
         "metric_id": metric_id,
         "definition_status": "BLOCKED" if gaps else "DEFINITION_CANDIDATE_READY",
-        "definition_fingerprint_sha256": _definition_fingerprint(
-            record, denominator_policy, context_policy, confidence_policy, resolved_misuse, resolved_exposure
-        ),
+        "definition_fingerprint_sha256": _definition_fingerprint(record, denominator_policy, context_policy, confidence_policy, resolved_misuse, resolved_exposure),
         "definition_correctness_status": "CANDIDATE_CONTRACT_COMPLETE" if not gaps else "CANDIDATE_CONTRACT_GAPS",
         "construct_validity_status": "UNVALIDATED_CONSTRUCT_CANDIDATE",
         "construct_validity_truth": False,
@@ -318,9 +301,11 @@ def _validate_metric(
         "observation_contract_status": observation["status"],
         "required_observation_layers": observation["required_observation_layers"],
         "required_surface_semantics": observation["required_surface_semantics"],
+        "required_observation_capabilities": observation["required_observation_capabilities"],
+        "optional_observation_capabilities": observation["optional_observation_capabilities"],
+        "forbidden_without": observation["forbidden_without"],
         "tracking_video_required": observation["tracking_video_required"],
-        "legacy_event_only_shadow_compatible": observation["legacy_event_only_shadow_compatible"],
-        "event_only_is_product_ceiling": False,
+        "zfgv_contract_state": observation["zfgv_contract_state"],
         "observation_semantic_fingerprint_sha256": observation["observation_semantic_fingerprint_sha256"],
     })
     return normalized, gaps
@@ -356,6 +341,8 @@ def build_metric_definition_policy(
     )}
     if versions != {POLICY_VERSION}:
         gaps.append(_gap(None, "policy_version_mismatch", detail=sorted(versions)))
+    if str(metric_registry.get("observation_model") or "") != OBSERVATION_MODEL:
+        gaps.append(_gap(None, "observation_model_mismatch", detail=metric_registry.get("observation_model")))
 
     status = FAIL_CLOSED if any(g["severity"] == FAIL_CLOSED for g in gaps) else ("REVIEW_REQUIRED" if gaps else "SMOKE_PASS")
     return {
@@ -364,7 +351,6 @@ def build_metric_definition_policy(
         "policy_version": POLICY_VERSION,
         "research_hardening_version": RESEARCH_HARDENING_VERSION,
         "observation_model": OBSERVATION_MODEL,
-        "event_only_is_product_ceiling": False,
         "metric_definition_candidate_count": len(metrics),
         "definition_status_counts": dict(sorted(Counter(m["definition_status"] for m in metrics).items())),
         "policy_counts": {
@@ -374,14 +360,14 @@ def build_metric_definition_policy(
         "policy_gaps": gaps,
         "metrics": metrics,
         "research_hardening_guards": {
-            "R07_definition_fingerprint": "DIRECT_AND_REFERENCED_POLICY_SEMANTICS_REQUIRED",
+            "R07_definition_fingerprint": "DIRECT_REFERENCED_AND_ZFGV_OBSERVATION_SEMANTICS_REQUIRED",
             "R17_definition_correctness_is_construct_validity": False,
             "R18_aggregation_algebra_required": True,
             "R18_rate_is_summable_count": False,
             "R19_full_denominator_set_closure_required_for_rate_calculation": True,
             "R22_per90_requires_validated_exposure_authority": True,
             "R22_minutes_played_is_physical_cost": False,
-            "R23_construct_specific_observation_layers_supersede_event_only_ceiling": True,
+            "R23_zfgv_observation_contract_is_authoritative": True,
         },
         "metric_definition_candidate_only": True,
         "validated_metric_truth": False,
@@ -394,7 +380,7 @@ def build_metric_definition_policy(
         "claim_output_allowed": False,
         "canonical_event_count": "UNKNOWN",
         "production_release": False,
-        "claim_boundary": "observation-layer-aware definition candidate and policy admission only; no metric value, construct truth, quality truth, tactical truth or canonical event claim",
+        "claim_boundary": "ZFGV-aware definition candidate and policy admission only; no metric value, construct truth, quality truth, tactical truth or canonical event claim",
     }
 
 
