@@ -1,0 +1,61 @@
+{
+  "contract_id": "zfgv_consequence_censoring_propagation_v1",
+  "version": "1.0.0",
+  "scope": "single_match_postmatch",
+  "target_producer": "reconstruction_intelligence_packet_adapter_lite_v1",
+  "input": "visible_action_sequence_candidates_lite_v1",
+  "required_capabilities": [
+    "TEMPORAL",
+    "OUTCOME_QUALIFIER",
+    "RELATIONAL",
+    "PROCESS_PARTICIPATION"
+  ],
+  "preconditions": [
+    "sequence consequence_candidate_counts are candidate classifications only",
+    "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE may be present only as observation-horizon state",
+    "NO_VISIBLE_FOLLOW_UP_CANDIDATE is not failure or neutral outcome truth"
+  ],
+  "propagation": {
+    "right_censored_class": "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE",
+    "complete_window_no_followup_class": "NO_VISIBLE_FOLLOW_UP_CANDIDATE",
+    "right_censoring_relation_type": "QUALIFIES",
+    "right_censoring_evidence_role": "right_censoring_observation_qualifier",
+    "right_censoring_is_terminal_event": false,
+    "right_censoring_is_failure": false,
+    "right_censoring_is_neutral_outcome": false,
+    "no_visible_follow_up_is_failure": false,
+    "no_visible_follow_up_is_neutral_outcome": false,
+    "censoring_is_counterevidence": false,
+    "censoring_is_independent_support_vote": false
+  },
+  "postconditions": [
+    "packet support signal preserves right-censored and complete-window-no-followup counts separately",
+    "a packet containing right-censored observations carries a non-contradictory QUALIFIES signal",
+    "censoring never increases independent support",
+    "censoring never becomes terminal-event truth, failure truth, causal truth or tactical truth"
+  ],
+  "invariants": [
+    "NO_VISIBLE_FOLLOWUP != FAILURE",
+    "NO_VISIBLE_FOLLOWUP != NEUTRAL_OUTCOME",
+    "RIGHT_CENSORING != TERMINAL_EVENT",
+    "RIGHT_CENSORING != COUNTEREVIDENCE",
+    "ABSENCE != COUNTEREVIDENCE",
+    "SEQUENCE_CANDIDATE != POSSESSION_TRUTH",
+    "canonical_event_count=UNKNOWN",
+    "true_action_count=UNKNOWN",
+    "production_release=false"
+  ],
+  "claim_ceiling": "MATCH_LOCAL_VISIBLE_SEQUENCE_WITH_OBSERVATION_HORIZON_QUALIFIER",
+  "error_modes": [
+    "UPSTREAM_FAIL_CLOSED",
+    "INVALID_SEQUENCE_CONSEQUENCE_COUNTS",
+    "CLAIM_BOUNDARY_BREACH"
+  ],
+  "tests": [
+    "right-censored count propagates as QUALIFIES not contradiction",
+    "right-censored observation does not increase support count",
+    "complete-window no-followup remains separate from censoring",
+    "no sample match identity leak"
+  ],
+  "production_release": false
+}
