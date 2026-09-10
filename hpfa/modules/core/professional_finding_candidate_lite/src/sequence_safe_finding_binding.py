@@ -155,6 +155,7 @@ def _finding_status(*, admission_state: str, independent_support: Any, counter_r
 def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any], null_contrast_payload: dict[str, Any] | None = None) -> dict[str, Any]:
     blocks: list[str] = []
     reviews: list[str] = []
+    blocking_reviews: list[str] = []
     abstain_count = 0
     if admission_payload.get("module_id") != ADMISSION_MODULE_ID: blocks.append("admission_module_id_mismatch")
     if admission_payload.get("canonical_event_count") != CANONICAL_EVENT_COUNT: blocks.append("canonical_event_count_claimed")
@@ -166,11 +167,11 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any], null_c
     if admission_payload.get("team_style_truth_state_allowed") is not False: blocks.append("team_style_truth_lock_missing")
     status = _clean(admission_payload.get("status")).upper()
     if status == "FAIL_CLOSED": blocks.append("admission_input_fail_closed")
-    elif status == "REVIEW_REQUIRED": reviews.append("admission_upstream_review_required")
-    elif status != "PASS": reviews.append(f"admission_status_review:{status or 'UNKNOWN'}")
+    elif status == "REVIEW_REQUIRED": reviews.append("admission_upstream_review_required_row_scoped")
+    elif status != "PASS": blocking_reviews.append(f"admission_status_review:{status or 'UNKNOWN'}")
     null_by_family, null_blocks, null_reviews = _index_null_contrast(null_contrast_payload)
     blocks.extend(null_blocks)
-    reviews.extend(null_reviews)
+    blocking_reviews.extend(null_reviews)
     if blocks:
         return _fail(*blocks)
     admissions = [row for row in (admission_payload.get("sequence_pattern_admissions") or []) if isinstance(row, dict)]
@@ -178,20 +179,22 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any], null_c
         state = _clean(row.get("admission_state"))
         if state not in SAFE_EMITTING_ADMISSION_STATES | NON_EMITTING_ADMISSION_STATES:
             return _fail(f"unsupported_admission_state:{state or 'UNKNOWN'}")
-    if reviews:
+    if blocking_reviews:
         return {
             "module_id": MODULE_ID,
             "status": "REVIEW_REQUIRED",
-            "decision": "SEQUENCE_SAFE_FINDING_BLOCKS_ABSTAINED_PENDING_UPSTREAM_REVIEW",
+            "decision": "SEQUENCE_SAFE_FINDING_BLOCKS_ABSTAINED_PENDING_UNSCOPED_REVIEW",
             "analyst_report_blocks": [],
             "analyst_report_block_count": 0,
             "hard_block_hits": [],
-            "review_hits": sorted(set(reviews)),
+            "review_hits": sorted(set(reviews + blocking_reviews)),
             "complexity_inside_clarity_outside": True,
             "null_contrast_consumed": null_contrast_payload is not None,
             "professional_finding_emitted_count": 0,
             "claim_output_allowed_count": 0,
             "finding_status_counts": {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": len(admissions)},
+            "review_required_is_global_abstain": True,
+            "row_scoped_review_preserves_other_row_eligibility": False,
             "numeric_evidence_counts_are_strict_nonnegative_integers": True,
             "boolean_numeric_evidence_rejected": True,
             "canonical_event_count": CANONICAL_EVENT_COUNT,
@@ -393,6 +396,8 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any], null_c
         "professional_finding_emitted_count": emitted,
         "claim_output_allowed_count": emitted,
         "finding_status_counts": {"EMIT": emitted, "DOWNGRADE": downgraded, "ABSTAIN": abstain_count},
+        "review_required_is_global_abstain": False,
+        "row_scoped_review_preserves_other_row_eligibility": True,
         "numeric_evidence_counts_are_strict_nonnegative_integers": True,
         "boolean_numeric_evidence_rejected": True,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
