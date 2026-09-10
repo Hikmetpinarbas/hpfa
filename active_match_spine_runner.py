@@ -29,6 +29,7 @@ RICH_OWNED_OUTPUTS = {
     "xlsx_entity_metric_row_projection_lite_v1.json",
     "xlsx_entity_metric_row_projection_lite_v1.txt",
 }
+RICH_CONSTRUCT_RUNTIME_STATE: dict[str, object | None] = {"report": None}
 
 
 def _bind_shared_snapshot_contract() -> None:
@@ -47,8 +48,24 @@ def _clear_rich_owned_outputs(out_dir: str | Path) -> list[str]:
     return cleared
 
 
+def _persist_rich_report(report: dict) -> None:
+    outputs = report.get("outputs") or {}
+    lattice_json = Path(str(outputs.get("lattice_json") or ""))
+    lattice_txt = Path(str(outputs.get("lattice_txt") or ""))
+    if lattice_json.is_file():
+        lattice_json.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    if lattice_txt.is_file():
+        text = lattice_txt.read_text(encoding="utf-8")
+        marker = f"C01_c4_admission_status={(report.get('constructs', {}).get('C01') or {}).get('c4_admission_status')}"
+        if marker not in text:
+            lattice_txt.write_text(text.rstrip() + "\n" + marker + "\n", encoding="utf-8")
+
+
 def _apply_construct_admission_gate(report: dict) -> dict:
-    """Keep review-only constructs visible without promoting them into C4."""
+    """Hold review constructs pending downstream metric-governance evaluation."""
     if not isinstance(report, dict):
         return report
     constructs = report.get("constructs")
@@ -62,28 +79,66 @@ def _apply_construct_admission_gate(report: dict) -> dict:
     if admitted:
         return report
 
-    withheld = len(report.get("c4_packet_candidates") or [])
+    pending = [row for row in (report.get("c4_packet_candidates") or []) if isinstance(row, dict)]
+    report["pending_c4_packet_candidates"] = pending
     report["c4_packet_candidates"] = []
-    report["construct_c4_promotion_withheld_count"] = withheld
+    report["construct_c4_promotion_withheld_count"] = len(pending)
     report["construct_c4_promotion_state"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
     c01["c4_admission_status"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
     c01["c4_admission_reason"] = c01.get("review_reason") or "explicit_construct_admission_not_available"
     c01["construct_truth"] = False
-
-    outputs = report.get("outputs") or {}
-    lattice_json = Path(str(outputs.get("lattice_json") or ""))
-    lattice_txt = Path(str(outputs.get("lattice_txt") or ""))
-    if lattice_json.is_file():
-        lattice_json.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-    if lattice_txt.is_file():
-        text = lattice_txt.read_text(encoding="utf-8")
-        marker = "C01_c4_admission_status=WITHHELD_PENDING_CONSTRUCT_ADMISSION"
-        if marker not in text:
-            lattice_txt.write_text(text.rstrip() + "\n" + marker + "\n", encoding="utf-8")
+    _persist_rich_report(report)
     return report
+
+
+def _rehydrate_governance_admitted_constructs(metric_governance: dict) -> dict[str, object]:
+    rich_report = RICH_CONSTRUCT_RUNTIME_STATE.get("report")
+    if not isinstance(rich_report, dict):
+        return {"evaluated": False, "admitted_count": 0, "review_required_count": 0}
+
+    pending = [row for row in (rich_report.get("pending_c4_packet_candidates") or []) if isinstance(row, dict)]
+    if not pending:
+        return {"evaluated": False, "admitted_count": 0, "review_required_count": 0}
+
+    admitted_candidates: list[dict] = []
+    decisions: list[dict] = []
+    for candidate in pending:
+        admission = assess_rich_construct_candidate(candidate, metric_governance)
+        decisions.append(admission)
+        if admission.get("admitted") is True:
+            enriched = dict(candidate)
+            enriched["metric_governance_admission"] = admission
+            admitted_candidates.append(enriched)
+
+    rich_report["construct_metric_governance_admissions"] = decisions
+    rich_report["c4_packet_candidates"] = admitted_candidates
+    rich_report["construct_c4_promotion_withheld_count"] = len(pending) - len(admitted_candidates)
+    c01 = (rich_report.get("constructs") or {}).get("C01")
+    if isinstance(c01, dict):
+        if admitted_candidates:
+            c01["c4_admission_status"] = "ADMITTED"
+            c01["c4_admission_reason"] = "aggregate_definition_alignment_admitted"
+            c01["status"] = "SMOKE_PASS"
+            c01["review_reason"] = None
+            c01["construct_truth"] = False
+            rich_report["construct_c4_promotion_state"] = "ADMITTED_BY_METRIC_GOVERNANCE"
+            hits = [
+                value for value in (rich_report.get("review_hits") or [])
+                if value != "C01_progression_terminal_construct_review_required"
+            ]
+            rich_report["review_hits"] = hits
+            if not (rich_report.get("hard_block_hits") or []) and not hits:
+                rich_report["status"] = "SMOKE_PASS"
+        else:
+            c01["c4_admission_status"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
+            rich_report["construct_c4_promotion_state"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
+    _persist_rich_report(rich_report)
+    return {
+        "evaluated": True,
+        "admitted_count": len(admitted_candidates),
+        "review_required_count": len(pending) - len(admitted_candidates),
+        "decisions": decisions,
+    }
 
 
 def _bind_construct_admission_gate() -> None:
@@ -98,6 +153,7 @@ def _bind_construct_admission_gate() -> None:
         cleared = _clear_rich_owned_outputs(out_dir) if out_dir is not None else []
         report = _apply_construct_admission_gate(original(*args, **kwargs))
         report["cleared_stale_rich_owned_outputs"] = cleared
+        RICH_CONSTRUCT_RUNTIME_STATE["report"] = report
         return report
 
     full_spine_module.run_rich_lane = gated_run_rich_lane
@@ -183,6 +239,14 @@ def _bind_metric_governance_construct_gate() -> None:
             state["reason"] = str(reasons[0]) if reasons else "metric_governance_fail_closed"
             report["construct_path_blocked"] = True
             report["construct_path_block_reason"] = state["reason"]
+            report["rich_construct_governance_recheck"] = {
+                "evaluated": False,
+                "admitted_count": 0,
+                "review_required_count": 0,
+                "reason": state["reason"],
+            }
+        else:
+            report["rich_construct_governance_recheck"] = _rehydrate_governance_admitted_constructs(governance)
         return report
 
     def gated_packet_builder(candidate):
@@ -252,6 +316,7 @@ def main() -> int:
     if args.full_spine:
         if args.composite_registry:
             parser.error("--composite-registry is not accepted with --full-spine")
+        RICH_CONSTRUCT_RUNTIME_STATE["report"] = None
         _bind_shared_snapshot_contract()
         _bind_construct_admission_gate()
         _bind_metric_governance_prerequisite_chain()
