@@ -1,0 +1,66 @@
+{
+  "module_id": "construct_context_guard_v1",
+  "policy_version": "1.0.0",
+  "observation_model": "ENRICHED_FOOTBALL_OBSERVATION_DATA_V1",
+  "purpose": "Prevent composite football constructs from being compared or promoted when their metric components do not share an admitted comparable context.",
+  "required_comparability_dimensions": [
+    "denominator_set_id",
+    "observation_window",
+    "entity_scope",
+    "team_scope",
+    "period_scope",
+    "context_policy_id",
+    "source_surface_roles",
+    "required_event_families",
+    "construct_target",
+    "dependency_group"
+  ],
+  "states": [
+    "CONSTRUCT_COMPARABLE_CANDIDATE",
+    "CONSTRUCT_CONTEXT_WARNING",
+    "CONTEXT_MISMATCH",
+    "COMPARISON_BLOCKED"
+  ],
+  "rules": {
+    "missing_required_dimension": "COMPARISON_BLOCKED",
+    "denominator_mismatch": "COMPARISON_BLOCKED",
+    "observation_window_mismatch": "CONTEXT_MISMATCH",
+    "entity_or_team_scope_mismatch": "CONTEXT_MISMATCH",
+    "period_scope_mismatch": "CONSTRUCT_CONTEXT_WARNING",
+    "context_policy_mismatch": "COMPARISON_BLOCKED",
+    "source_surface_mismatch": "CONSTRUCT_CONTEXT_WARNING",
+    "event_family_definition_mismatch": "COMPARISON_BLOCKED",
+    "construct_target_mismatch": "COMPARISON_BLOCKED",
+    "shared_dependency_group": "DEPENDENT_SUPPORT_ONLY"
+  },
+  "comparison_admission": {
+    "requires_denominator_closure": true,
+    "requires_definition_alignment": true,
+    "requires_context_dimensions_declared": true,
+    "requires_dependency_disclosure": true,
+    "same_provider_reflection_adds_independent_vote": false,
+    "missing_context_is_counterevidence": false
+  },
+  "safe_output": "Construct components are comparable only within the declared admitted context; mismatches downgrade or block comparison.",
+  "does_not_prove": [
+    "metric_validity",
+    "tactical_superiority",
+    "stable_construct_across_contexts",
+    "causality",
+    "coach_intention"
+  ],
+  "target_construct_families": [
+    "PROGRESSION_EFFECTIVENESS",
+    "BALL_SECURITY",
+    "TRANSITION_THREAT",
+    "TRANSITION_EXPOSURE",
+    "RECOVERY_YIELD",
+    "PENETRATION",
+    "RESTART_YIELD",
+    "PLAYER_PROCESS_CONTRIBUTION"
+  ],
+  "release_state": "POLICY_CANDIDATE / REVIEW_REQUIRED / ACTIVE_MATCH_NOT_YET_EVIDENCED / NOT_PRODUCTION",
+  "canonical_event_count": "UNKNOWN",
+  "true_action_count": "UNKNOWN",
+  "production_release": false
+}

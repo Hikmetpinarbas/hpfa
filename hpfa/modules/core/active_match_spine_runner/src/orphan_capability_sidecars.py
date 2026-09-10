@@ -7,6 +7,10 @@ from typing import Any
 from hpfa.modules.core.active_match_analyst_report_lite.src import report_lite
 from hpfa.modules.core.triplex_source_alignment_adapter_lite.src import triplex_source_alignment_adapter as triplex
 from hpfa.modules.core.active_match_spine_runner.src.metric_governance_bridge import run_metric_governance_bridge
+from hpfa.modules.core.active_match_spine_runner.src.phase_dynamics_intelligence_lane import (
+    INPUTS as PHASE_DYNAMICS_INPUTS,
+    run_phase_dynamics_intelligence_lane,
+)
 from hpfa.modules.core.spatial_transition_candidate_lite.src import spatial_transition_candidate as spatial_transition
 from hpfa.modules.core.state_transition_dynamics_lite.src import state_transition_dynamics as state_transition
 from hpfa.modules.core.analyst_episode_locator_lite.src import process_participation_projection as process_participation
@@ -201,6 +205,48 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         metric_governance_status = "REVIEW_REQUIRED"
         review_hits.append(f"metric_governance_bridge_sidecar_failed:{type(exc).__name__}")
 
+    phase_dynamics_missing_inputs = sorted(
+        filename for filename in PHASE_DYNAMICS_INPUTS.values() if not (output / filename).is_file()
+    )
+    phase_dynamics_prerequisite_present = not phase_dynamics_missing_inputs
+    if phase_dynamics_prerequisite_present and not construct_path_blocked:
+        try:
+            phase_dynamics_report = run_phase_dynamics_intelligence_lane(output)
+            phase_dynamics_status = phase_dynamics_report.get("status")
+            for value in (phase_dynamics_report.get("outputs") or {}).values():
+                if value and Path(str(value)).is_file():
+                    artifacts.append(str(value))
+            normalized_phase_status = str(phase_dynamics_status or "").upper()
+            if normalized_phase_status == "FAIL_CLOSED":
+                reasons = phase_dynamics_report.get("hard_block_hits") or []
+                reason = str(reasons[0]) if reasons else "phase_dynamics_intelligence_fail_closed"
+                hard_blocks.append(f"phase_dynamics_intelligence_construct_path_blocked:{reason}")
+            elif normalized_phase_status != "SMOKE_PASS":
+                review_hits.append("phase_dynamics_intelligence_lane_review_required")
+        except Exception as exc:
+            phase_dynamics_report = {"status": "REVIEW_REQUIRED", "error_type": type(exc).__name__}
+            phase_dynamics_status = "REVIEW_REQUIRED"
+            review_hits.append(f"phase_dynamics_intelligence_lane_failed:{type(exc).__name__}")
+    elif construct_path_blocked:
+        phase_dynamics_report = {
+            "status": "NOT_EVALUATED_UPSTREAM_FAIL_CLOSED",
+            "reason": "metric_governance_construct_path_blocked",
+            "missing_inputs": phase_dynamics_missing_inputs,
+            "physical_active_match_evidence_present": False,
+            "production_release": False,
+        }
+        phase_dynamics_status = phase_dynamics_report["status"]
+    else:
+        phase_dynamics_report = {
+            "status": "NOT_EVALUATED_PREREQUISITE_MISSING",
+            "reason": "phase_dynamics_required_artifacts_missing",
+            "missing_inputs": phase_dynamics_missing_inputs,
+            "physical_active_match_evidence_present": False,
+            "production_release": False,
+        }
+        phase_dynamics_status = phase_dynamics_report["status"]
+        review_hits.append("phase_dynamics_intelligence_lane_prerequisite_missing")
+
     return {
         "module_id": MODULE_ID,
         "status": "REVIEW_REQUIRED" if hard_blocks or review_hits else "SMOKE_PASS",
@@ -214,12 +260,16 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "process_participation_projection_status": process_participation_status,
         "process_participation_projection_prerequisite_present": process_participation_prerequisite_present,
         "metric_governance_bridge_status": metric_governance_status,
+        "phase_dynamics_intelligence_lane_status": phase_dynamics_status,
+        "phase_dynamics_intelligence_lane_prerequisite_present": phase_dynamics_prerequisite_present,
+        "phase_dynamics_intelligence_lane_missing_inputs": phase_dynamics_missing_inputs,
         "active_match_analyst_report_lite": baseline,
         "triplex_source_alignment": triplex_report,
         "spatial_transition_candidate": spatial_report,
         "state_transition_dynamics": state_transition_report,
         "process_participation_projection": process_participation_report,
         "metric_governance_bridge": metric_governance,
+        "phase_dynamics_intelligence_lane": phase_dynamics_report,
         "construct_path_blocked": construct_path_blocked,
         "construct_path_block_reason": construct_path_block_reason,
         "hard_block_hits": _dedupe(hard_blocks),

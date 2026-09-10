@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,63 @@ from .observation_layer_admission import (
     OBSERVATION_MODEL,
     normalize_dictionary_for_legacy_impl,
 )
+
+OBSERVATION_CONTRACT_FIELDS = (
+    "required_observation_layers",
+    "required_surface_semantics",
+    "required_observation_capabilities",
+    "optional_observation_capabilities",
+    "forbidden_without",
+    "tracking_video_required",
+)
+
+
+def _inherit_bound_observation_contract(
+    dictionary: dict[str, Any],
+    metric_policy: dict[str, Any] | None,
+) -> tuple[dict[str, Any], list[str]]:
+    """Inherit an explicit ZFGV observation manifest from a verified bound policy.
+
+    Provider-dictionary rows predate the ZFGV contract and may still carry only the
+    legacy `event_only_compatible` compatibility field. When such a row is already
+    bound to a unique upstream metric policy, the policy's explicit observation
+    contract is the authoritative construct requirement. Copying that contract into
+    the compatibility copy lets the existing v7 implementation keep running without
+    making the legacy boolean the product-wide admission gate.
+
+    Unbound, duplicate, or non-explicit policies are left unchanged and therefore
+    retain their existing fail-closed/review behavior.
+    """
+    normalized = deepcopy(dictionary)
+    policy_index, duplicate_policy_ids = _impl._unique_index(
+        (metric_policy or {}).get("metrics", []), "metric_id"
+    )
+    inherited: list[str] = []
+
+    for row in normalized.get("metrics", []):
+        if row.get("required_observation_layers") or row.get("required_observation_capabilities"):
+            continue
+        upstream = row.get("upstream_bindings") or {}
+        if not isinstance(upstream, dict):
+            continue
+        policy_id = str(upstream.get("metric_policy_id") or "").strip()
+        if not policy_id or policy_id in duplicate_policy_ids:
+            continue
+        policy_row = policy_index.get(policy_id)
+        if policy_row is None:
+            continue
+        if not policy_row.get("required_observation_layers"):
+            continue
+
+        for field in OBSERVATION_CONTRACT_FIELDS:
+            if field in policy_row:
+                row[field] = deepcopy(policy_row[field])
+        row["observation_contract_inherited_from_metric_policy_id"] = policy_id
+        metric_id = str(row.get("metric_id") or "").strip()
+        if metric_id:
+            inherited.append(metric_id)
+
+    return normalized, sorted(set(inherited))
 
 
 def _missing_required_derivation_denominator_policy_blocks(
@@ -128,8 +186,11 @@ def build_dictionary_report(
     denominator_policy: dict[str, Any] | None = None,
     aggregate_registry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    inherited_dictionary, inherited_metric_ids = _inherit_bound_observation_contract(
+        dictionary, metric_policy
+    )
     normalized_dictionary, normalized_metric_policy, observation_assessments = (
-        normalize_dictionary_for_legacy_impl(dictionary, metric_policy)
+        normalize_dictionary_for_legacy_impl(inherited_dictionary, metric_policy)
     )
 
     report = _impl.build_dictionary_report(
@@ -142,6 +203,8 @@ def build_dictionary_report(
         aggregate_registry=aggregate_registry,
     )
     _merge_observation_assessments(report, observation_assessments)
+    report["observation_contract_inherited_metric_ids"] = inherited_metric_ids
+    report["observation_contract_inherited_metric_count"] = len(inherited_metric_ids)
 
     extra_blocks = _missing_required_derivation_denominator_policy_blocks(
         normalized_dictionary, derivations, normalized_metric_policy
