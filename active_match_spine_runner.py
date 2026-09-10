@@ -18,7 +18,7 @@ import reciprocal_process_chain_current_v1 as reciprocal_current
 from hpfa.modules.core.reciprocal_process_chain_lite.src.full_spine_packet_bridge import bridge_reciprocal_packets
 from shared_surface_snapshot_contract import surface_snapshot_id
 from spine_runner import run_spine_check
-from user_output_bundle import snapshot_output_state, write_standard_user_outputs
+from zfgv_user_output_adapter import snapshot_output_state, write_standard_user_outputs
 
 RICH_OWNED_OUTPUTS = {
     "rich_multiformat_analysis_lattice_v1.json",
