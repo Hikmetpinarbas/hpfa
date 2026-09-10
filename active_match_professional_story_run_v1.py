@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
 from typing import Any
+
+import active_match_spine_runner as canonical_runner
 
 MODULE_ID = "active_match_professional_story_run_v1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
@@ -21,14 +25,101 @@ BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
 BUNDLE_MODULE_ID = "active_match_standard_user_bundle_v1"
 
 
-def _run(command: list[str], cwd: Path) -> dict[str, Any]:
-    completed = subprocess.run(command, cwd=cwd, text=True, capture_output=True)
+def _git_head(repo_root: Path) -> str | None:
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        return None
+    value = completed.stdout.strip()
+    return value or None
+
+
+def _run_canonical_full_spine(
+    *,
+    match_dir: Path,
+    out_dir: Path,
+    repo_root: Path,
+    runtime_authority_root: Path,
+    expected_product_commit: str | None = None,
+) -> dict[str, Any]:
+    """Run the existing canonical full-spine with code and match authority separated.
+
+    Product producers must execute from this checkout (`repo_root`). ACTIVE_MATCH must
+    remain under the independently supplied runtime authority root. The adapter only
+    narrows the authority validator for this invocation; it does not create another
+    analysis engine or copy/move ACTIVE_MATCH.
+    """
+    product_commit = _git_head(repo_root)
+    expected = str(expected_product_commit or "").strip() or None
+    commit_matches_expected = None if expected is None else product_commit == expected
+
+    command = [
+        sys.executable,
+        "active_match_spine_runner.py",
+        str(match_dir),
+        "--out-dir",
+        str(out_dir),
+        "--full-spine",
+        "--execution-root",
+        str(repo_root),
+    ]
+
+    if expected is not None and commit_matches_expected is not True:
+        return {
+            "command": command,
+            "returncode": 2,
+            "passed": False,
+            "stdout": "",
+            "stderr": "product_commit_mismatch_or_unavailable",
+            "product_execution_root": str(repo_root),
+            "runtime_authority_root": str(runtime_authority_root),
+            "product_commit": product_commit,
+            "expected_product_commit": expected,
+            "product_commit_matches_expected": False,
+            "exact_head_authority_separation_enforced": True,
+        }
+
+    original_validate = canonical_runner.full_spine_module.validate_active_match_authority
+    original_argv = list(sys.argv)
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+
+    def validate_runtime_authority(path: str | Path, _product_execution_root: str | Path) -> Path:
+        return original_validate(path, runtime_authority_root)
+
+    returncode = 2
+    try:
+        canonical_runner.full_spine_module.validate_active_match_authority = validate_runtime_authority
+        sys.argv = command[1:]
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            try:
+                value = canonical_runner.main()
+                returncode = int(value or 0)
+            except SystemExit as exc:
+                returncode = int(exc.code or 0) if isinstance(exc.code, int) else 2
+    except Exception as exc:
+        stderr.write(f"canonical_full_spine_exception:{type(exc).__name__}")
+        returncode = 2
+    finally:
+        canonical_runner.full_spine_module.validate_active_match_authority = original_validate
+        sys.argv = original_argv
+
     return {
         "command": command,
-        "returncode": completed.returncode,
-        "passed": completed.returncode == 0,
-        "stdout": completed.stdout.strip(),
-        "stderr": completed.stderr.strip(),
+        "returncode": returncode,
+        "passed": returncode == 0,
+        "stdout": stdout.getvalue().strip(),
+        "stderr": stderr.getvalue().strip(),
+        "product_execution_root": str(repo_root),
+        "runtime_authority_root": str(runtime_authority_root),
+        "product_commit": product_commit,
+        "expected_product_commit": expected,
+        "product_commit_matches_expected": commit_matches_expected,
+        "exact_head_authority_separation_enforced": True,
     }
 
 
@@ -108,6 +199,10 @@ def main() -> int:
     )
     parser.add_argument("--match-dir", required=True)
     parser.add_argument("--out-dir", required=True)
+    parser.add_argument(
+        "--expected-product-commit",
+        help="Optional exact checkout commit required for this physical acceptance invocation.",
+    )
     args = parser.parse_args()
 
     match_dir = Path(args.match_dir).expanduser().resolve(strict=False)
@@ -131,18 +226,12 @@ def main() -> int:
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
         return 2
 
-    canonical = _run(
-        [
-            sys.executable,
-            "active_match_spine_runner.py",
-            str(match_dir),
-            "--out-dir",
-            str(out_dir),
-            "--full-spine",
-            "--execution-root",
-            str(runtime_authority_root),
-        ],
-        repo_root,
+    canonical = _run_canonical_full_spine(
+        match_dir=match_dir,
+        out_dir=out_dir,
+        repo_root=repo_root,
+        runtime_authority_root=runtime_authority_root,
+        expected_product_commit=args.expected_product_commit,
     )
 
     full_spine = _load(out_dir / FULL_SPINE_JSON)
@@ -159,8 +248,19 @@ def main() -> int:
     }
     bundle_contract_valid = _bundle_contract_valid(bundle_manifest)
     bundle_physical_valid = _bundle_physical_valid(out_dir / BUNDLE_ZIP)
+    authority_separation_valid = (
+        canonical.get("exact_head_authority_separation_enforced") is True
+        and canonical.get("product_execution_root") == str(repo_root)
+        and canonical.get("runtime_authority_root") == str(runtime_authority_root)
+        and repo_root != runtime_authority_root
+    )
+    exact_product_commit_verified = (
+        bool(args.expected_product_commit)
+        and canonical.get("product_commit_matches_expected") is True
+    )
     required_analysis_layers_activated = (
         canonical["passed"]
+        and authority_separation_valid
         and bool(full_spine)
         and all(required_artifacts.values())
         and bundle_contract_valid
@@ -179,6 +279,10 @@ def main() -> int:
         "product_code_root": str(repo_root),
         "runtime_authority_root": str(runtime_authority_root),
         "product_code_root_equals_runtime_authority_root": repo_root == runtime_authority_root,
+        "product_runtime_authority_separation_valid": authority_separation_valid,
+        "product_code_commit": canonical.get("product_commit"),
+        "expected_product_commit": canonical.get("expected_product_commit"),
+        "exact_product_commit_verified": exact_product_commit_verified,
         "parallel_runtime_engine_created": False,
         "required_analysis_layers_activated": required_analysis_layers_activated,
         "required_artifacts": required_artifacts,
