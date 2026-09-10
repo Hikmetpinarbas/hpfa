@@ -12,6 +12,7 @@ CONSEQUENCE_MODULE_ID = "trackable_action_consequence_candidates_lite_v1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 CLAIM_CEILING = "PARTIAL_ORDER_VISIBLE_TRACE_VARIANT_CANDIDATE_ONLY"
+RIGHT_CENSORED_CLASS = "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE"
 
 ORDER_VOCABULARY = {
     "BEFORE_CONFIRMED",
@@ -89,7 +90,6 @@ def _validate_inputs(
 
 
 def _sequence_occurrence_context(sequence: dict[str, Any], sequence_id: str) -> tuple[dict[str, Any], list[str]]:
-    """Carry admitted sequence occurrence-object context as lineage only, never support."""
     reviews: list[str] = []
     state = _clean(sequence.get("sequence_occurrence_object_context_state"))
     team_refs = _clean_ref_set(sequence.get("sequence_occurrence_team_context_refs"))
@@ -161,6 +161,10 @@ def _rejected(blocks: list[str], reviews: list[str], decision: str) -> dict[str,
         "trace_only_node_is_event_truth": False,
         "trace_only_node_is_independent_support": False,
         "trace_only_node_count_is_recurrence_count": False,
+        "right_censored_nodes_are_terminal_outcomes": False,
+        "right_censored_nodes_are_failures": False,
+        "right_censored_nodes_are_neutral_outcomes": False,
+        "right_censored_node_count_is_recurrence_count": False,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": False,
@@ -189,6 +193,8 @@ def build_partial_order_trace_variants(
     variants: list[dict[str, Any]] = []
     total_occurrence_backed_nodes = 0
     total_trace_only_nodes = 0
+    total_right_censored_nodes = 0
+    total_non_censored_consequence_nodes = 0
 
     for sequence in sequences:
         sequence_id = _clean(sequence.get("visible_action_sequence_candidate_id"))
@@ -204,12 +210,16 @@ def build_partial_order_trace_variants(
         node_records: list[dict[str, Any]] = []
         edge_relations: list[dict[str, Any]] = []
         family_counter: Counter[str] = Counter()
-        outcome_counter: Counter[str] = Counter()
+        legacy_outcome_counter: Counter[str] = Counter()
+        non_censored_outcome_counter: Counter[str] = Counter()
+        censoring_counter: Counter[str] = Counter()
         dependency_group_refs: set[str] = set()
         provenance_refs: set[str] = set()
         order_indeterminate = False
         occurrence_backed_node_count = 0
         trace_only_node_count = 0
+        right_censored_node_count = 0
+        non_censored_consequence_node_count = 0
 
         previous_layer_id: str | None = None
         previous_time: float | None = None
@@ -222,6 +232,7 @@ def build_partial_order_trace_variants(
             trace_ids = [_clean(value) for value in (layer.get("trackable_action_trace_candidate_ids") or []) if _clean(value)]
             if len(trace_ids) > 1:
                 order_indeterminate = True
+
             for trace_id in trace_ids:
                 trace = trace_by_id.get(trace_id)
                 consequence = consequence_by_trace.get(trace_id)
@@ -232,11 +243,7 @@ def build_partial_order_trace_variants(
                     blocks.append(f"variant_consequence_missing:{sequence_id}:{trace_id}")
                     continue
 
-                occurrence_refs = [
-                    _clean(value)
-                    for value in (trace.get("supporting_action_occurrence_candidate_ids") or [])
-                    if _clean(value)
-                ]
+                occurrence_refs = [_clean(value) for value in (trace.get("supporting_action_occurrence_candidate_ids") or []) if _clean(value)]
                 if occurrence_refs:
                     occurrence_binding_state = "OCCURRENCE_BACKED_VARIANT_NODE"
                     occurrence_backed_node_count += 1
@@ -250,11 +257,24 @@ def build_partial_order_trace_variants(
                 families = sorted({_clean(value) for value in (trace.get("action_family_candidates") or []) if _clean(value)})
                 for family in families:
                     family_counter[family] += 1
+
                 outcome = _clean(consequence.get("primary_consequence_candidate"))
                 if not outcome:
                     blocks.append(f"variant_consequence_outcome_missing:{sequence_id}:{trace_id}")
                     continue
-                outcome_counter[outcome] += 1
+                legacy_outcome_counter[outcome] += 1
+
+                right_censored = consequence.get("right_censored_no_visible_follow_up") is True or outcome == RIGHT_CENSORED_CLASS
+                if right_censored:
+                    right_censored_node_count += 1
+                    total_right_censored_nodes += 1
+                    censoring_counter["RIGHT_CENSORED_OBSERVATION"] += 1
+                    consequence_observation_state = "RIGHT_CENSORED_OBSERVATION"
+                else:
+                    non_censored_consequence_node_count += 1
+                    total_non_censored_consequence_nodes += 1
+                    non_censored_outcome_counter[outcome] += 1
+                    consequence_observation_state = "VISIBLE_CONSEQUENCE_OBSERVED"
 
                 for value in trace.get("supporting_evidence_atom_ids") or []:
                     cleaned = _clean(value)
@@ -287,6 +307,13 @@ def build_partial_order_trace_variants(
                     "action_family_candidates": families,
                     "consequence_ref": consequence.get("trackable_action_consequence_candidate_id"),
                     "outcome_candidate": outcome,
+                    "consequence_observation_state": consequence_observation_state,
+                    "right_censored_observation": right_censored,
+                    "right_censoring_is_terminal_outcome": False,
+                    "right_censoring_is_failure": False,
+                    "right_censoring_is_neutral_outcome": False,
+                    "right_censoring_is_counterevidence": False,
+                    "right_censoring_counts_as_recurrence_support": False,
                     "same_time_peer_count": max(0, len(trace_ids) - 1),
                     "internal_same_time_order": "SAME_TIME_UNORDERED" if len(trace_ids) > 1 else "NOT_APPLICABLE",
                 })
@@ -312,16 +339,8 @@ def build_partial_order_trace_variants(
             previous_layer_id = layer_id
             previous_time = current_time
 
-        ordering_completeness = (
-            "PARTIAL_ORDER_WITH_UNORDERED_SAME_TIME_NODES"
-            if order_indeterminate
-            else "LAYER_ORDER_CONFIRMED_INTERNAL_SINGLETONS"
-        )
-        chronology_confidence = (
-            "PARTIAL_EXPLICIT_TIME_EVIDENCE"
-            if order_indeterminate
-            else "EXPLICIT_POSITIVE_TIME_LAYER_ORDER"
-        )
+        ordering_completeness = "PARTIAL_ORDER_WITH_UNORDERED_SAME_TIME_NODES" if order_indeterminate else "LAYER_ORDER_CONFIRMED_INTERNAL_SINGLETONS"
+        chronology_confidence = "PARTIAL_EXPLICIT_TIME_EVIDENCE" if order_indeterminate else "EXPLICIT_POSITIVE_TIME_LAYER_ORDER"
         if order_indeterminate:
             reviews.append(f"partial_order_preserved:{sequence_id}")
 
@@ -331,8 +350,17 @@ def build_partial_order_trace_variants(
         ]
         outcome_signature = [
             {"outcome_candidate": outcome, "count": count}
-            for outcome, count in sorted(outcome_counter.items())
+            for outcome, count in sorted(legacy_outcome_counter.items())
         ]
+        non_censored_outcome_signature = [
+            {"outcome_candidate": outcome, "count": count}
+            for outcome, count in sorted(non_censored_outcome_counter.items())
+        ]
+        censoring_signature = [
+            {"censoring_state": state, "count": count}
+            for state, count in sorted(censoring_counter.items())
+        ]
+
         variant_id = "potv_" + _digest(
             sequence_id,
             layer_ids,
@@ -355,6 +383,17 @@ def build_partial_order_trace_variants(
                 "end_reason_candidate": sequence.get("end_reason_candidate"),
             },
             "outcome_signature": outcome_signature,
+            "outcome_signature_role": "LEGACY_CONSEQUENCE_LINEAGE_ONLY_NOT_DENOMINATOR_AUTHORITY",
+            "non_censored_outcome_signature": non_censored_outcome_signature,
+            "censoring_signature": censoring_signature,
+            "non_censored_consequence_node_count": non_censored_consequence_node_count,
+            "right_censored_node_count": right_censored_node_count,
+            "outcome_denominator_authority": "NON_CENSORED_VISIBLE_CONSEQUENCE_NODES_ONLY",
+            "right_censored_nodes_are_terminal_outcomes": False,
+            "right_censored_nodes_are_failures": False,
+            "right_censored_nodes_are_neutral_outcomes": False,
+            "right_censored_nodes_are_counterevidence": False,
+            "right_censored_node_count_is_recurrence_count": False,
             "ordering_completeness": ordering_completeness,
             "chronology_confidence": chronology_confidence,
             "occurrence_backed_node_count": occurrence_backed_node_count,
@@ -390,10 +429,19 @@ def build_partial_order_trace_variants(
         "source_visible_action_sequence_candidate_count": len(sequences),
         "occurrence_backed_variant_node_count": total_occurrence_backed_nodes,
         "trace_only_variant_node_count": total_trace_only_nodes,
+        "right_censored_variant_node_count": total_right_censored_nodes,
+        "non_censored_consequence_variant_node_count": total_non_censored_consequence_nodes,
         "trace_only_nodes_present": total_trace_only_nodes > 0,
         "trace_only_node_is_event_truth": False,
         "trace_only_node_is_independent_support": False,
         "trace_only_node_count_is_recurrence_count": False,
+        "right_censored_nodes_are_terminal_outcomes": False,
+        "right_censored_nodes_are_failures": False,
+        "right_censored_nodes_are_neutral_outcomes": False,
+        "right_censored_nodes_are_counterevidence": False,
+        "right_censored_node_count_is_recurrence_count": False,
+        "outcome_signature_may_be_used_as_denominator_authority": False,
+        "non_censored_outcome_signature_is_denominator_candidate_only": True,
         "hard_block_hits": [],
         "review_hits": sorted(set(reviews)),
         "same_timestamp_internal_ordering_allowed": False,
