@@ -48,6 +48,32 @@ def flatten_element(elem: ET.Element) -> dict[str, Any]:
     }
 
 
+def _as_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    text = str(value or "").strip()
+    return [text] if text else []
+
+
+def _action_label_pairs(row: dict[str, Any]) -> list[tuple[str, str]]:
+    """Return provider-labelled ACTION group/text pairs without creating event identity."""
+    group_fields = sorted(
+        field for field in row
+        if field.casefold().endswith("label.group")
+    )
+    pairs: list[tuple[str, str]] = []
+    for group_field in group_fields:
+        text_field = group_field[: -len("group")] + "text"
+        if text_field not in row:
+            continue
+        groups = _as_list(row.get(group_field))
+        texts = _as_list(row.get(text_field))
+        for group, text in zip(groups, texts):
+            if norm(group) == "action" and text:
+                pairs.append((group, text))
+    return pairs
+
+
 def profile_rows(path: Path, selected_tag: str) -> dict[str, Any]:
     try:
         root = ET.parse(path).getroot()
@@ -60,6 +86,7 @@ def profile_rows(path: Path, selected_tag: str) -> dict[str, Any]:
     field_stats: dict[str, dict[str, Any]] = {}
     shape_counts: Counter[tuple[str, ...]] = Counter()
     hash_counts: Counter[str] = Counter()
+    action_label_counts: Counter[tuple[str, str]] = Counter()
     identity_values: dict[str, set[str]] = {role: set() for role in ROLE_ALIASES}
     identity_examples: dict[str, list[str]] = {role: [] for role in ROLE_ALIASES}
     examples: list[dict[str, Any]] = []
@@ -73,6 +100,9 @@ def profile_rows(path: Path, selected_tag: str) -> dict[str, Any]:
         hash_counts[digest] += 1
         if len(examples) < 3:
             examples.append(dict(list(sorted(row.items()))[:20]))
+
+        for group, label in _action_label_pairs(row):
+            action_label_counts[(group, label)] += 1
 
         for field, raw in row.items():
             values = raw if isinstance(raw, list) else [raw]
@@ -119,6 +149,19 @@ def profile_rows(path: Path, selected_tag: str) -> dict[str, Any]:
             }
             for field, stat in sorted(field_stats.items())
         ],
+        "action_taxonomy": [
+            {
+                "raw_group": group,
+                "raw_label": label,
+                "surface_row_volume": number,
+                "validated_semantics": False,
+                "event_identity": False,
+                "claim_ceiling": "XML_ACTION_LABEL_SURFACE_VOLUME_ONLY",
+            }
+            for (group, label), number in action_label_counts.most_common()
+        ],
+        "action_taxonomy_surface_row_volume": sum(action_label_counts.values()),
+        "action_taxonomy_is_event_identity": False,
         "row_shape_count": len(shape_counts),
         "row_shape_inventory": [
             {"field_paths": list(shape), "row_count": number}
