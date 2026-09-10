@@ -22,6 +22,9 @@ COUNTER_SEARCH_PENDING_FAMILIES = [
     "DUPLICATE_REFLECTION_RISK",
     "ALTERNATIVE_EXPLANATION",
 ]
+UNIQUE_EPISODE_BINDING = "UNIQUE_TIME_CONTAINMENT_CANDIDATE"
+CONFIRMED_RESPONSE_RELATION = "NEXT_DIFFERENT_TEAM_VISIBLE_SEQUENCE_AFTER_CONFIRMED"
+RIGHT_CENSORED_CLASS = "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE"
 
 
 def _clean(value: Any) -> str:
@@ -45,13 +48,64 @@ def _outcome_signature(row: dict[str, Any]) -> tuple[tuple[str, ...], tuple[str,
     return response, counter, bool(row.get("counter_response_visible"))
 
 
+def _trace_refs(row: dict[str, Any]) -> set[str]:
+    return {_clean(v) for v in (row.get("supporting_trackable_action_trace_candidate_ids") or []) if _clean(v)}
+
+
+def _contains_right_censoring(row: dict[str, Any]) -> bool:
+    for field in ("response_consequence_candidate_counts", "counter_response_consequence_candidate_counts"):
+        values = row.get(field) or {}
+        if isinstance(values, dict) and RIGHT_CENSORED_CLASS in values:
+            return True
+    return False
+
+
+def _record_eligibility(row: dict[str, Any]) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    anchor_team = _clean(row.get("anchor_team_identity_candidate_id"))
+    response_team = _clean(row.get("response_team_identity_candidate_id"))
+    if not anchor_team or not response_team:
+        reasons.append("team_identity_missing")
+    elif anchor_team == response_team:
+        reasons.append("response_team_not_opponent_candidate")
+    if _clean(row.get("response_relation_candidate")) != CONFIRMED_RESPONSE_RELATION:
+        reasons.append("positive_time_response_relation_not_admitted")
+    if not _clean(row.get("anchor_episode_candidate_id")) or _clean(row.get("anchor_episode_binding_status")) != UNIQUE_EPISODE_BINDING:
+        reasons.append("anchor_episode_binding_not_unique")
+    if not _clean(row.get("response_episode_candidate_id")) or _clean(row.get("response_episode_binding_status")) != UNIQUE_EPISODE_BINDING:
+        reasons.append("response_episode_binding_not_unique")
+    if row.get("counter_response_visible") is True:
+        if not _clean(row.get("counter_response_episode_candidate_id")) or _clean(row.get("counter_response_episode_binding_status")) != UNIQUE_EPISODE_BINDING:
+            reasons.append("counter_response_episode_binding_not_unique")
+    if row.get("review_hits"):
+        reasons.append("record_review_hits_present")
+    if _contains_right_censoring(row):
+        reasons.append("right_censored_outcome_not_counterevidence_eligible")
+    if not _outcome_signature(row)[0]:
+        reasons.append("response_outcome_missing")
+    return not reasons, sorted(set(reasons))
+
+
+def _peer_eligibility(anchor: dict[str, Any], peer: dict[str, Any]) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    anchor_ok, anchor_reasons = _record_eligibility(anchor)
+    peer_ok, peer_reasons = _record_eligibility(peer)
+    if not anchor_ok:
+        reasons.extend(f"anchor:{x}" for x in anchor_reasons)
+    if not peer_ok:
+        reasons.extend(f"peer:{x}" for x in peer_reasons)
+    if _clean(anchor.get("anchor_team_identity_candidate_id")) != _clean(peer.get("anchor_team_identity_candidate_id")):
+        reasons.append("anchor_team_scope_mismatch")
+    if _trace_refs(anchor) & _trace_refs(peer):
+        reasons.append("shared_trace_dependency_overlap")
+    return not reasons, sorted(set(reasons))
+
+
 def _counter_search_metadata(support_ids: list[str], counter_ids: list[str]) -> dict[str, Any]:
     peer_count = len(set(support_ids) | set(counter_ids))
     return {
         "counter_search_scope": COUNTER_SEARCH_SCOPE,
-        "counter_search_scope_state": (
-            "PARTIAL_SCOPE_EVALUATED" if peer_count else "PARTIAL_SCOPE_EVALUATED_NO_ANALOGUE"
-        ),
+        "counter_search_scope_state": "PARTIAL_SCOPE_EVALUATED" if peer_count else "PARTIAL_SCOPE_EVALUATED_NO_ANALOGUE",
         "counter_search_peer_count": peer_count,
         "counter_search_evaluated_families": list(COUNTER_SEARCH_EVALUATED_FAMILIES),
         "counter_search_pending_families": list(COUNTER_SEARCH_PENDING_FAMILIES),
@@ -87,12 +141,6 @@ def _claim_safety_metadata(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_outcome_contrast_candidates(reciprocal_payload: dict[str, Any]) -> dict[str, Any]:
-    """Build same-process/different-visible-outcome contrast candidates.
-
-    This function does not infer causal efficacy, tactical success, expected value,
-    or canonical outcomes. It only compares already-built reciprocal process
-    candidates that share the same visible anchor/response action-family signature.
-    """
     records = reciprocal_payload.get("reciprocal_process_chain_candidates") or []
     if reciprocal_payload.get("status") == "FAIL_CLOSED" or not isinstance(records, list):
         return {
@@ -100,44 +148,45 @@ def build_outcome_contrast_candidates(reciprocal_payload: dict[str, Any]) -> dic
             "outcome_contrast_candidate_count": 0,
             "different_outcome_analogue_link_count": 0,
             "same_outcome_support_link_count": 0,
+            "excluded_peer_link_count": 0,
             "outcome_contrast_status": "FAIL_CLOSED",
             "outcome_contrast_claim_ceiling": CLAIM_CEILING,
             "canonical_event_count": CANONICAL_EVENT_COUNT,
             "true_action_count": TRUE_ACTION_COUNT,
             "production_release": False,
         }
-
     groups: dict[tuple[tuple[str, ...], tuple[str, ...]], list[dict[str, Any]]] = defaultdict(list)
     for row in records:
-        if not isinstance(row, dict):
-            continue
-        chain_id = _clean(row.get("reciprocal_process_chain_candidate_id"))
-        if not chain_id:
-            continue
-        groups[_family_signature(row)].append(row)
-
+        if isinstance(row, dict) and _clean(row.get("reciprocal_process_chain_candidate_id")):
+            groups[_family_signature(row)].append(row)
     contrasts: list[dict[str, Any]] = []
-    different_links = 0
-    same_links = 0
+    different_links = same_links = excluded_links = 0
     for family_signature, group in sorted(groups.items(), key=lambda item: repr(item[0])):
         for anchor in group:
             anchor_id = _clean(anchor.get("reciprocal_process_chain_candidate_id"))
             anchor_outcome = _outcome_signature(anchor)
+            anchor_record_eligible, anchor_record_reasons = _record_eligibility(anchor)
             different: list[str] = []
             same: list[str] = []
+            excluded: list[dict[str, Any]] = []
             for peer in group:
                 peer_id = _clean(peer.get("reciprocal_process_chain_candidate_id"))
                 if not peer_id or peer_id == anchor_id:
+                    continue
+                eligible, reasons = _peer_eligibility(anchor, peer)
+                if not eligible:
+                    excluded.append({"chain_id": peer_id, "reasons": reasons})
                     continue
                 if _outcome_signature(peer) == anchor_outcome:
                     same.append(peer_id)
                 else:
                     different.append(peer_id)
-
             different = sorted(set(different))
             same = sorted(set(same))
+            excluded.sort(key=lambda x: x["chain_id"])
             different_links += len(different)
             same_links += len(same)
+            excluded_links += len(excluded)
             contrasts.append({
                 "outcome_contrast_candidate_id": "oc_" + _digest(anchor_id, family_signature, anchor_outcome)[:24],
                 "reciprocal_process_chain_candidate_id": anchor_id,
@@ -150,25 +199,30 @@ def build_outcome_contrast_candidates(reciprocal_payload: dict[str, Any]) -> dic
                     "counter_response_consequence_families": list(anchor_outcome[1]),
                     "counter_response_visible": anchor_outcome[2],
                 },
+                "counterevidence_anchor_eligibility_state": "ELIGIBLE" if anchor_record_eligible else "REVIEW_REQUIRED",
+                "counterevidence_anchor_ineligibility_reasons": anchor_record_reasons,
                 "different_visible_outcome_analogue_chain_ids": different,
                 "same_visible_outcome_support_chain_ids": same,
+                "excluded_analogue_candidates": excluded,
                 "counterevidence_candidate_present": bool(different),
+                "counterevidence_eligibility_requires_same_anchor_team": True,
+                "counterevidence_eligibility_requires_unique_episode_binding": True,
+                "counterevidence_eligibility_requires_positive_time_relation": True,
+                "counterevidence_eligibility_excludes_right_censoring": True,
+                "counterevidence_eligibility_excludes_shared_trace_dependency": True,
+                "counterevidence_eligibility_is_independence_truth": False,
                 "contrast_interpretation": (
-                    "A visible reciprocal process candidate with the same anchor/response action-family signature ended with a different visible consequence/counter-response signature."
-                    if different
-                    else "No same-signature different-outcome analogue is visible in the admitted reciprocal candidate set."
+                    "A review-free, episode-bound, positive-time visible reciprocal process candidate in the same anchor-team and action-family scope ended with a different visible consequence signature."
+                    if different else
+                    "No eligibility-admitted same-scope different-outcome analogue is visible in the current reciprocal candidate set."
                 ),
-                "allowed_claim": "Visible process candidates with the same admitted action-family signature may be contrasted by their observed consequence/counter-response signatures.",
+                "allowed_claim": "Only eligibility-admitted match-local visible process analogues may be contrasted by observed consequence signatures.",
                 "forbidden_inference": [
-                    "causal efficacy",
-                    "tactical success truth",
-                    "expected outcome probability",
-                    "coach intention",
-                    "adaptation truth",
-                    "possession truth",
-                    "dominance",
+                    "causal efficacy", "tactical success truth", "expected outcome probability", "coach intention",
+                    "adaptation truth", "possession truth", "dominance", "right-censoring as failure",
+                    "shared-trace projections as independent counterevidence",
                 ],
-                "withdrawal_condition": "Withdraw or downgrade if the underlying reciprocal chain, family signature, consequence signature, temporal relation, or episode binding is invalidated.",
+                "withdrawal_condition": "Withdraw or downgrade if team scope, process-family signature, consequence signature, positive-time relation, episode binding, censoring state, or trace dependency is invalidated.",
                 "outcome_contrast_is_causal_truth": False,
                 "outcome_contrast_is_tactical_success_truth": False,
                 "same_signature_implies_same_process_truth": False,
@@ -176,13 +230,15 @@ def build_outcome_contrast_candidates(reciprocal_payload: dict[str, Any]) -> dic
                 "true_action_count": TRUE_ACTION_COUNT,
                 "claim_ceiling": CLAIM_CEILING,
             })
-
     return {
         "outcome_contrast_candidates": contrasts,
         "outcome_contrast_candidate_count": len(contrasts),
         "different_outcome_analogue_link_count": different_links,
         "same_outcome_support_link_count": same_links,
+        "excluded_peer_link_count": excluded_links,
         "outcome_contrast_status": "PASS" if contrasts else "NO_ELIGIBLE_CONTRAST_CANDIDATES",
+        "counterevidence_eligibility_is_independence_truth": False,
+        "right_censoring_is_counterevidence": False,
         "outcome_contrast_claim_ceiling": CLAIM_CEILING,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
@@ -191,7 +247,6 @@ def build_outcome_contrast_candidates(reciprocal_payload: dict[str, Any]) -> dic
 
 
 def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) -> dict[str, Any]:
-    """Package contrasts as downstream finding inputs without emitting findings."""
     contrasts = contrast_payload.get("outcome_contrast_candidates") or []
     if contrast_payload.get("outcome_contrast_status") == "FAIL_CLOSED" or not isinstance(contrasts, list):
         return {
@@ -203,7 +258,6 @@ def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) ->
             "true_action_count": TRUE_ACTION_COUNT,
             "production_release": False,
         }
-
     inputs: list[dict[str, Any]] = []
     for contrast in contrasts:
         if not isinstance(contrast, dict):
@@ -212,8 +266,8 @@ def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) ->
         contrast_id = _clean(contrast.get("outcome_contrast_candidate_id"))
         if not chain_id or not contrast_id:
             continue
-        support_ids = sorted(set(_clean(item) for item in (contrast.get("same_visible_outcome_support_chain_ids") or []) if _clean(item)))
-        counter_ids = sorted(set(_clean(item) for item in (contrast.get("different_visible_outcome_analogue_chain_ids") or []) if _clean(item)))
+        support_ids = sorted({_clean(x) for x in (contrast.get("same_visible_outcome_support_chain_ids") or []) if _clean(x)})
+        counter_ids = sorted({_clean(x) for x in (contrast.get("different_visible_outcome_analogue_chain_ids") or []) if _clean(x)})
         if support_ids and counter_ids:
             evidence_state = "SUPPORT_AND_COUNTEREVIDENCE_VISIBLE_CANDIDATE"
         elif counter_ids:
@@ -222,7 +276,6 @@ def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) ->
             evidence_state = "DEPENDENT_SUPPORT_VISIBLE_NO_COUNTEREXAMPLE_CANDIDATE"
         else:
             evidence_state = "ISOLATED_VISIBLE_PROCESS_NO_ANALOGUE_CANDIDATE"
-
         inputs.append({
             "defeasible_process_finding_input_id": "dfi_" + _digest(contrast_id, chain_id, support_ids, counter_ids)[:24],
             "outcome_contrast_candidate_id": contrast_id,
@@ -231,29 +284,24 @@ def build_defeasible_process_finding_inputs(contrast_payload: dict[str, Any]) ->
             "visible_outcome_signature_candidate": contrast.get("visible_outcome_signature_candidate") or {},
             "dependent_support_chain_ids": support_ids,
             "counterevidence_chain_ids": counter_ids,
+            "excluded_analogue_candidates": list(contrast.get("excluded_analogue_candidates") or []),
             "evidence_balance_state_candidate": evidence_state,
             **_counter_search_metadata(support_ids, counter_ids),
+            "counterevidence_eligibility_gate_applied": True,
             "no_visible_counterexample_is_confirmation": False,
             "support_links_are_independent_votes": False,
             "counterevidence_links_are_independent_votes": False,
             "finding_emitted": False,
-            "allowed_claim": "This object packages one visible reciprocal process candidate with same-signature dependent support and different-outcome counterevidence for downstream defeasible finding composition.",
+            "allowed_claim": "This object packages one visible reciprocal process candidate with eligibility-admitted same-signature support and different-outcome counterevidence for downstream defeasible finding composition.",
             "forbidden_inference": [
-                "causality",
-                "tactical truth",
-                "expected outcome probability",
-                "effect size",
-                "stable team tendency",
-                "coach intention",
-                "adaptation truth",
-                "dominance",
+                "causality", "tactical truth", "expected outcome probability", "effect size",
+                "stable team tendency", "coach intention", "adaptation truth", "dominance",
             ],
-            "withdrawal_condition": "Withdraw or downgrade if the source reciprocal chain, contrast grouping, support/counterevidence linkage, temporal relation, or episode binding is invalidated.",
+            "withdrawal_condition": "Withdraw or downgrade if source chain, eligibility gate, support/counterevidence linkage, temporal relation, episode binding, censoring state, or dependency status is invalidated.",
             "canonical_event_count": CANONICAL_EVENT_COUNT,
             "true_action_count": TRUE_ACTION_COUNT,
             "claim_ceiling": FINDING_INPUT_CLAIM_CEILING,
         })
-
     return {
         "defeasible_process_finding_inputs": inputs,
         "defeasible_process_finding_input_count": len(inputs),
@@ -285,20 +333,13 @@ def _counter_signal_ref(ref_id: str) -> dict[str, Any]:
         "source_surface": "RECIPROCAL_OUTCOME_CONTRAST_CANDIDATE",
         "relation_type": "CONTRADICTS",
         "explicit_contradiction": True,
-        "contradiction_basis": "same admitted process-family signature with different visible outcome signature candidate",
+        "contradiction_basis": "eligibility-admitted same-team/same-family process analogue with different visible outcome signature candidate",
         "dependency_group": "same_upstream_reciprocal_process_population",
         "independent_support_vote": False,
     }
 
 
 def build_c4_packet_candidates(finding_payload: dict[str, Any]) -> dict[str, Any]:
-    """Adapt reciprocal finding inputs to the existing C4 composite packet contract.
-
-    This is an adapter, not a new reasoning engine. Only finding inputs with at
-    least one admitted analogue are emitted because the existing composite packet
-    contract requires at least two distinct evidence refs. All refs remain
-    dependent projections of the same upstream reciprocal process population.
-    """
     inputs = finding_payload.get("defeasible_process_finding_inputs") or []
     if finding_payload.get("finding_input_status") == "FAIL_CLOSED" or not isinstance(inputs, list):
         return {
@@ -310,18 +351,16 @@ def build_c4_packet_candidates(finding_payload: dict[str, Any]) -> dict[str, Any
             "true_action_count": TRUE_ACTION_COUNT,
             "production_release": False,
         }
-
     candidates: list[dict[str, Any]] = []
     for row in inputs:
         if not isinstance(row, dict):
             continue
         finding_id = _clean(row.get("defeasible_process_finding_input_id"))
         chain_id = _clean(row.get("reciprocal_process_chain_candidate_id"))
-        support_ids = sorted(set(_clean(item) for item in (row.get("dependent_support_chain_ids") or []) if _clean(item)))
-        counter_ids = sorted(set(_clean(item) for item in (row.get("counterevidence_chain_ids") or []) if _clean(item)))
+        support_ids = sorted({_clean(x) for x in (row.get("dependent_support_chain_ids") or []) if _clean(x)})
+        counter_ids = sorted({_clean(x) for x in (row.get("counterevidence_chain_ids") or []) if _clean(x)})
         if not finding_id or not chain_id or not (support_ids or counter_ids):
             continue
-
         safety_metadata = _claim_safety_metadata(row)
         candidates.append({
             "packet_id": "cep_reciprocal_" + _digest(finding_id, chain_id, support_ids, counter_ids)[:20],
@@ -337,22 +376,12 @@ def build_c4_packet_candidates(finding_payload: dict[str, Any]) -> dict[str, Any
             "contradicting_signals": [_counter_signal_ref(ref_id) for ref_id in counter_ids],
             "claim_ceiling": C4_PACKET_CLAIM_CEILING,
             "report_consumers": [
-                "multi_signal_evidence_fusion_lite",
-                "composite_argument_builder_lite",
-                "defeasible_argument_router_lite",
-                "evidence_graph_engine_lite",
-                "active_match_analyst_report_lite",
+                "multi_signal_evidence_fusion_lite", "composite_argument_builder_lite",
+                "defeasible_argument_router_lite", "evidence_graph_engine_lite", "active_match_analyst_report_lite",
             ],
             "blocked_language_families": [
-                "tactical_truth",
-                "dominance_truth",
-                "control_truth",
-                "coach_intention",
-                "off_ball_truth",
-                "pitch_control_truth",
-                "causal_truth",
-                "quality_truth",
-                "sequence_truth",
+                "tactical_truth", "dominance_truth", "control_truth", "coach_intention",
+                "off_ball_truth", "pitch_control_truth", "causal_truth", "quality_truth", "sequence_truth",
             ],
             "source_finding_input_id": finding_id,
             "source_outcome_contrast_candidate_id": row.get("outcome_contrast_candidate_id"),
@@ -372,7 +401,6 @@ def build_c4_packet_candidates(finding_payload: dict[str, Any]) -> dict[str, Any
             "true_action_count": TRUE_ACTION_COUNT,
             "production_release": False,
         })
-
     return {
         "reciprocal_c4_packet_candidates": candidates,
         "reciprocal_c4_packet_candidate_count": len(candidates),
