@@ -63,7 +63,7 @@ jobs:
           test "$(git hash-object "$TST")" = "$(git rev-parse "$HIST:$TST")"
 
           test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_seed_v1.json)" = "e2c7f721f5ea9060e86d8b4487ef0775fd74c64e"
-          test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py)" = "72e4818e8f155c7ea7984afa73f4fc5dde055c07"
+          test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py)" = "c7040950ce2c6bba819815ff4b34cd663c88427c"
           test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/tests/test_provider_label_value_semantics_registry_safety.py)" = "069e64a98bd940a40485d8c259e877ee621dcf2f"
           test "$(git hash-object provider_label_value_semantics_lite.py)" = "7d8fee4ef7735bd1f134b470125a6eeab0d0a4e7"
 
