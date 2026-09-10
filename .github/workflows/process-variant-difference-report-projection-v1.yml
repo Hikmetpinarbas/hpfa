@@ -1,0 +1,33 @@
+name: Process Variant Difference Report Projection V1
+
+on:
+  pull_request:
+    paths:
+      - 'hpfa/modules/core/analyst_report_block_composer_lite/src/process_variant_difference_report_projection.py'
+      - 'hpfa/modules/core/analyst_report_block_composer_lite/tests/test_process_variant_difference_report_projection.py'
+      - '.github/workflows/process-variant-difference-report-projection-v1.yml'
+  push:
+    branches:
+      - 'feature/zfgv-safe-finding-emission-gate-v1'
+
+jobs:
+  process-variant-difference-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pytest
+      - name: Run analyst projection regressions
+        run: python -m pytest -q hpfa/modules/core/analyst_report_block_composer_lite/tests/test_process_variant_difference_report_projection.py
+      - name: Compile projection
+        run: python -m py_compile hpfa/modules/core/analyst_report_block_composer_lite/src/process_variant_difference_report_projection.py
+      - name: Football intelligence locks
+        run: |
+          grep -F 'NORMAL VARYANT' hpfa/modules/core/analyst_report_block_composer_lite/src/process_variant_difference_report_projection.py
+          grep -F 'AYRIŞAN VARYANT' hpfa/modules/core/analyst_report_block_composer_lite/src/process_variant_difference_report_projection.py
+          grep -F 'GÖRÜNÜR FARK' hpfa/modules/core/analyst_report_block_composer_lite/src/process_variant_difference_report_projection.py
+          grep -F 'ANALİST AKSİYONU' hpfa/modules/core/analyst_report_block_composer_lite/src/process_variant_difference_report_projection.py
+          grep -F 'difference_report_is_causal_explanation' hpfa/modules/core/analyst_report_block_composer_lite/src/process_variant_difference_report_projection.py
+          grep -F 'production_release' hpfa/modules/core/analyst_report_block_composer_lite/src/process_variant_difference_report_projection.py
