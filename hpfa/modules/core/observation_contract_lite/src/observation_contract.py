@@ -5,7 +5,7 @@ import json
 from copy import deepcopy
 from typing import Any
 
-OBSERVATION_MODEL = "ENRICHED_FOOTBALL_OBSERVATION_DATA_V1"
+OBSERVATION_MODEL = "ZFGV_V1"
 
 L0 = "L0_AGGREGATE_SURFACE"
 L1 = "L1_ACTION_OBSERVATION"
@@ -20,9 +20,6 @@ L8 = "L8_TRACKING_VIDEO_PHYSICAL_OFF_BALL_STATE"
 ALLOWED_OBSERVATION_LAYERS = {L0, L1, L2, L3, L4, L5, L6, L7, L8}
 PHYSICAL_TRUTH_LAYER = L8
 
-# Capability vocabulary is construct-facing and deliberately more expressive than
-# the coarse observation-layer ladder. Layers remain the backward-compatible
-# structural gate; capabilities state what the construct actually needs.
 CAP_AGGREGATE = "AGGREGATE"
 CAP_ACTION = "ACTION"
 CAP_ACTOR = "ACTOR"
@@ -65,8 +62,6 @@ LAYER_DEFAULT_CAPABILITIES = {
     L8: {CAP_TRACKING_VIDEO_PHYSICAL},
 }
 
-# These tokens are evidence prerequisites, not claims. Unknown values fail closed
-# so a typo cannot silently widen the claim ceiling.
 ALLOWED_FORBIDDEN_WITHOUT = {
     "TRACKING",
     "VIDEO",
@@ -116,11 +111,7 @@ def observation_semantic_fingerprint(row: dict[str, Any]) -> str:
 
 
 def assess_observation_contract(row: dict[str, Any]) -> dict[str, Any]:
-    """Assess construct-specific observation requirements without promoting truth.
-
-    Legacy `event_only_compatible` is accepted only as migration metadata. It is
-    never used as the product-wide capability ceiling.
-    """
+    """Assess construct-specific ZFGV requirements without promoting truth."""
     metric_id = str(row.get("metric_id") or "UNKNOWN").strip() or "UNKNOWN"
     explicit_layers = _clean_list(row.get("required_observation_layers"))
     surface_semantics = _clean_list(row.get("required_surface_semantics"))
@@ -128,22 +119,16 @@ def assess_observation_contract(row: dict[str, Any]) -> dict[str, Any]:
     optional_capabilities = _clean_list(row.get("optional_observation_capabilities"))
     forbidden_without = _clean_list(row.get("forbidden_without"))
     tracking_video_required = row.get("tracking_video_required") is True
-    legacy_flag = row.get("event_only_compatible")
 
     hard: list[str] = []
     review: list[str] = []
-    migration_state = "EXPLICIT_OBSERVATION_CONTRACT"
 
-    if explicit_layers:
+    if not explicit_layers:
+        hard.append(f"required_observation_layers_missing:{metric_id}")
+    else:
         unknown = sorted(set(explicit_layers) - ALLOWED_OBSERVATION_LAYERS)
         if unknown:
             hard.append(f"unknown_observation_layer:{metric_id}:{','.join(unknown)}")
-    else:
-        if legacy_flag is True:
-            explicit_layers = [L1]
-            migration_state = "LEGACY_EVENT_ONLY_SHADOW"
-        else:
-            hard.append(f"required_observation_layers_missing:{metric_id}")
 
     if explicit_required_capabilities:
         required_capabilities = sorted(set(explicit_required_capabilities) | {CAP_PROVENANCE})
@@ -183,19 +168,12 @@ def assess_observation_contract(row: dict[str, Any]) -> dict[str, Any]:
         hard.append(f"l8_requires_physical_capability_manifest:{metric_id}")
 
     if tracking_video_required and not ({"TRACKING", "VIDEO"} & set(forbidden_without)):
-        # Backward-compatible rows can still pass while being explicitly flagged for
-        # migration; an explicit capability manifest must state the physical evidence gate.
-        if capability_state == "EXPLICIT_CAPABILITY_MANIFEST":
-            hard.append(f"tracking_video_forbidden_without_gate_missing:{metric_id}")
-        else:
-            review.append(f"tracking_video_forbidden_without_gate_not_declared:{metric_id}")
+        hard.append(f"tracking_video_forbidden_without_gate_missing:{metric_id}")
 
     rich_nonphysical = any(layer in explicit_layers for layer in {L2, L3, L4, L5, L6, L7})
     if rich_nonphysical and not surface_semantics:
         hard.append(f"required_surface_semantics_missing:{metric_id}")
 
-    # Capability-specific evidence prerequisites. These checks do not prove the
-    # prerequisites are satisfied at runtime; they ensure the construct declares them.
     declared_prerequisites = set(forbidden_without)
     if capability_state == "EXPLICIT_CAPABILITY_MANIFEST":
         if CAP_TEMPORAL in required_capabilities and "TEMPORAL_SEMANTICS" not in declared_prerequisites:
@@ -211,10 +189,6 @@ def assess_observation_contract(row: dict[str, Any]) -> dict[str, Any]:
         if CAP_STATE_TRANSITION in required_capabilities and "DEPENDENCY_CONTROL" not in declared_prerequisites:
             hard.append(f"state_transition_dependency_control_missing:{metric_id}")
 
-    # Legacy engines still require a boolean compatibility field. For every explicit
-    # ZFGV contract we emit a permissive compatibility shadow so the legacy field can
-    # never veto an admitted observation capability, including L8 tracking/video.
-    legacy_shadow = True
     return {
         "metric_id": metric_id,
         "observation_model": OBSERVATION_MODEL,
@@ -224,9 +198,7 @@ def assess_observation_contract(row: dict[str, Any]) -> dict[str, Any]:
         "optional_observation_capabilities": sorted(set(optional_capabilities)),
         "forbidden_without": sorted(set(forbidden_without)),
         "tracking_video_required": tracking_video_required,
-        "legacy_event_only_shadow_compatible": legacy_shadow,
-        "event_only_is_product_ceiling": False,
-        "migration_state": migration_state,
+        "zfgv_contract_state": "EXPLICIT" if explicit_layers else "INVALID",
         "capability_manifest_state": capability_state,
         "observation_semantic_fingerprint_sha256": observation_semantic_fingerprint(row),
         "hard_block_hits": hard,
@@ -235,43 +207,15 @@ def assess_observation_contract(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def normalize_dictionary_for_legacy_impl(
+def normalize_dictionary_for_zfgv(
     dictionary: dict[str, Any],
     metric_policy: dict[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None, list[dict[str, Any]]]:
-    """Translate explicit ZFGV contracts into a non-blocking compatibility shadow.
-
-    The old implementation can continue running while enriched observation layers
-    and capability manifests are authoritative. The legacy event-only field is not
-    allowed to narrow or veto an explicit ZFGV capability contract.
-    """
+    """Return isolated inputs plus ZFGV contract assessments for each dictionary row."""
     normalized_dictionary = deepcopy(dictionary)
     normalized_policy = deepcopy(metric_policy) if metric_policy is not None else None
-    assessments: list[dict[str, Any]] = []
-
-    policy_index: dict[str, dict[str, Any]] = {}
-    if normalized_policy is not None:
-        for policy_row in normalized_policy.get("metrics", []):
-            metric_id = str(policy_row.get("metric_id") or "").strip()
-            if metric_id:
-                policy_index[metric_id] = policy_row
-
-    for row in normalized_dictionary.get("metrics", []):
-        assessment = assess_observation_contract(row)
-        assessments.append(assessment)
-        if assessment["hard_block_hits"]:
-            continue
-        if assessment["migration_state"] != "EXPLICIT_OBSERVATION_CONTRACT":
-            continue
-
-        row["event_only_compatible"] = True
-        upstream = row.get("upstream_bindings") or {}
-        if isinstance(upstream, dict):
-            policy_id = str(upstream.get("metric_policy_id") or "").strip()
-            policy_row = policy_index.get(policy_id)
-            if policy_row is not None:
-                policy_assessment = assess_observation_contract(policy_row)
-                if not policy_assessment["hard_block_hits"]:
-                    policy_row["event_only_compatible"] = True
-
+    assessments = [
+        assess_observation_contract(row)
+        for row in normalized_dictionary.get("metrics", [])
+    ]
     return normalized_dictionary, normalized_policy, assessments
