@@ -30,6 +30,13 @@ def _signature(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+def _composition(counts: dict[str, int]) -> dict[str, float]:
+    total = sum(counts.values())
+    if total <= 0:
+        return {}
+    return {key: value / total for key, value in sorted(counts.items())}
+
+
 def _fail(blocks: list[str], reviews: list[str]) -> dict[str, Any]:
     return {
         "module_id": MODULE_ID,
@@ -41,6 +48,7 @@ def _fail(blocks: list[str], reviews: list[str]) -> dict[str, Any]:
         "legacy_outcome_signature_is_denominator_authority": False,
         "right_censoring_is_outcome_difference": False,
         "right_censoring_is_counterevidence": False,
+        "raw_count_difference_is_composition_difference": False,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": False,
@@ -175,6 +183,13 @@ def build_context_conditioned_trace_deviations(
             unresolved_outcome_authority_refs.extend(family_unresolved)
             reviews.append(f"outcome_denominator_authority_unresolved:{family_ref}")
 
+        base_outcome_profile = _composition(base_outcome)
+        comp_outcome_profile = _composition(comp_outcome)
+        base_censoring_profile = _composition(base_censoring)
+        comp_censoring_profile = _composition(comp_censoring)
+        base_sequence_profile = _composition(base_sequence)
+        comp_sequence_profile = _composition(comp_sequence)
+
         base_deps = sorted({_clean(v) for row in baseline for v in (row.get("dependency_group_refs") or []) if _clean(v)})
         comp_deps = sorted({_clean(v) for row in comparison for v in (row.get("dependency_group_refs") or []) if _clean(v)})
         shared_deps = sorted(set(base_deps) & set(comp_deps))
@@ -184,9 +199,9 @@ def build_context_conditioned_trace_deviations(
             reviews.append(f"small_context_cohort:{family_ref}")
 
         outcome_comparison_evaluable = not family_unresolved
-        outcome_diff = outcome_comparison_evaluable and base_outcome != comp_outcome
+        outcome_diff = outcome_comparison_evaluable and base_outcome_profile != comp_outcome_profile
         censoring_coverage_diff = outcome_comparison_evaluable and base_censoring != comp_censoring
-        sequence_diff = base_sequence != comp_sequence
+        sequence_diff = base_sequence_profile != comp_sequence_profile
         if not outcome_comparison_evaluable:
             effect = "OUTCOME_COMPARISON_REVIEW_REQUIRED_DENOMINATOR_AUTHORITY_UNRESOLVED"
         elif outcome_diff and sequence_diff:
@@ -214,11 +229,18 @@ def build_context_conditioned_trace_deviations(
             "comparison_variant_distribution": comp_variant,
             "baseline_outcome_distribution": base_outcome,
             "comparison_outcome_distribution": comp_outcome,
+            "baseline_outcome_composition_profile": base_outcome_profile,
+            "comparison_outcome_composition_profile": comp_outcome_profile,
             "baseline_censoring_distribution": base_censoring,
             "comparison_censoring_distribution": comp_censoring,
+            "baseline_censoring_composition_profile": base_censoring_profile,
+            "comparison_censoring_composition_profile": comp_censoring_profile,
             "baseline_sequence_distribution": base_sequence,
             "comparison_sequence_distribution": comp_sequence,
+            "baseline_sequence_composition_profile": base_sequence_profile,
+            "comparison_sequence_composition_profile": comp_sequence_profile,
             "support_difference": len(comparison) - len(baseline),
+            "raw_count_difference_is_composition_difference": False,
             "outcome_difference": outcome_diff,
             "outcome_comparison_evaluable": outcome_comparison_evaluable,
             "outcome_denominator_authority": OUTCOME_DENOMINATOR_AUTHORITY,
@@ -238,6 +260,8 @@ def build_context_conditioned_trace_deviations(
                 "missing_context_trace_count": len(missing_context_refs),
                 "censoring_coverage_difference_is_football_outcome_difference": False,
                 "outcome_comparison_requires_non_censored_denominator_authority": True,
+                "composition_profile_is_statistical_significance": False,
+                "composition_profile_is_causal_effect": False,
             },
             "sample_warning": sample_warning,
             "counterevidence": (
@@ -279,6 +303,7 @@ def build_context_conditioned_trace_deviations(
         "right_censoring_is_outcome_difference": False,
         "right_censoring_is_failure": False,
         "right_censoring_is_counterevidence": False,
+        "raw_count_difference_is_composition_difference": False,
         "hard_block_hits": [],
         "review_hits": sorted(set(reviews)),
         "context_difference_is_causality_truth": False,
