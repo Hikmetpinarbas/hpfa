@@ -14,6 +14,7 @@ if str(SRC) not in sys.path:
 
 import full_spine_runner as full_spine_module
 import rich_multiformat_analysis_lane as rich_lane_module
+from rich_construct_metric_governance_guard import assess_rich_construct_candidate
 from shared_surface_snapshot_contract import surface_snapshot_id
 from spine_runner import run_spine_check
 from user_output_bundle import snapshot_output_state, write_standard_user_outputs
@@ -103,21 +104,21 @@ def _bind_construct_admission_gate() -> None:
 
 
 def _bind_metric_governance_construct_gate() -> None:
-    """A metric-governance FAIL_CLOSED may not be converted into C4 construct support."""
+    """Require admitted XLSX aggregate semantics before rich construct promotion."""
     if getattr(full_spine_module, "_hpfa_metric_governance_gate_bound", False):
         return
     original_sidecars = full_spine_module.run_sidecars
     original_packet_builder = full_spine_module.build_composite_packet
-    state = {"construct_blocked": False, "reason": None}
+    state = {"governance": {}, "construct_blocked": False, "reason": None}
 
     def gated_sidecars(*args, **kwargs):
-        # Per-invocation state: one failed run may not poison a later healthy run
-        # in the same Python process.
+        state["governance"] = {}
         state["construct_blocked"] = False
         state["reason"] = None
         report = original_sidecars(*args, **kwargs)
         governance = report.get("metric_governance_bridge") if isinstance(report, dict) else None
         governance = governance if isinstance(governance, dict) else {}
+        state["governance"] = governance
         if str(governance.get("status") or "").upper() == "FAIL_CLOSED":
             state["construct_blocked"] = True
             reasons = governance.get("hard_block_hits") or []
@@ -135,7 +136,20 @@ def _bind_metric_governance_construct_gate() -> None:
                 "true_action_count": "UNKNOWN",
                 "production_release": False,
             }
-        return original_packet_builder(candidate)
+        admission = assess_rich_construct_candidate(candidate, state["governance"])
+        if admission.get("admitted") is not True:
+            return {
+                "status": "REVIEW_REQUIRED",
+                "hard_block_hits": [f"aggregate_semantics_blocks_construct_promotion:{admission.get('reason')}"],
+                "metric_governance_admission": admission,
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            }
+        packet = original_packet_builder(candidate)
+        if isinstance(packet, dict):
+            packet["metric_governance_admission"] = admission
+        return packet
 
     full_spine_module.run_sidecars = gated_sidecars
     full_spine_module.build_composite_packet = gated_packet_builder
