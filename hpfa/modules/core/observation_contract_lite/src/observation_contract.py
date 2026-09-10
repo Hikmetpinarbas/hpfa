@@ -215,42 +215,46 @@ def normalize_dictionary_for_zfgv(
     dictionary: dict[str, Any],
     metric_policy: dict[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None, list[dict[str, Any]]]:
-    """Assess raw rows under ZFGV, then isolate legacy-engine compatibility.
+    """Bridge the historical provider engine to the authoritative ZFGV policy.
 
-    The wrapped provider dictionary implementation still carries a historical
-    `event_only_compatible` operational field. For rows whose explicit ZFGV
-    contract is valid, a deep-copied compatibility shadow is set to True only
-    for that legacy implementation. This does not alter source data, prove an
-    observation, widen a claim ceiling, or make event-only a product gate.
-    Invalid/missing ZFGV contracts are not rehabilitated by the shadow.
+    Provider-dictionary rows describe provider definitions/surfaces; they are not
+    themselves HPFA construct-observation contracts. ZFGV requirements therefore
+    belong to the bound HPFA metric/construct policy rows. We assess those rows,
+    preserve the provider dictionary byte-semantics in a deep copy, and add only
+    a deprecated `event_only_compatible=True` shadow to ZFGV-valid policy rows so
+    the historical implementation can compare legacy shared fields.
+
+    This adapter cannot admit an invalid ZFGV construct, cannot create provider
+    truth, cannot widen a claim ceiling, and does not make event-only a product
+    gate. It exists solely until the historical provider implementation is fully
+    migrated away from that legacy operational field.
     """
     normalized_dictionary = deepcopy(dictionary)
     normalized_policy = deepcopy(metric_policy) if metric_policy is not None else None
-    raw_rows = dictionary.get("metrics", []) if isinstance(dictionary, dict) else []
-    assessments = [
-        assess_observation_contract(row)
-        for row in raw_rows
-        if isinstance(row, dict)
-    ]
 
-    valid_metric_ids = {
-        assessment["metric_id"]
-        for assessment in assessments
-        if assessment.get("status") != "FAIL_CLOSED"
-    }
-    for row in normalized_dictionary.get("metrics", []) or []:
+    policy_rows = (
+        metric_policy.get("metrics", [])
+        if isinstance(metric_policy, dict)
+        else []
+    )
+    assessments: list[dict[str, Any]] = []
+    valid_policy_ids: set[str] = set()
+
+    for row in policy_rows:
         if not isinstance(row, dict):
             continue
-        metric_id = str(row.get("metric_id") or "UNKNOWN").strip() or "UNKNOWN"
-        if metric_id in valid_metric_ids:
-            row["event_only_compatible"] = True
+        assessment = assess_observation_contract(row)
+        assessment["assessment_scope"] = "HPFA_METRIC_POLICY"
+        assessments.append(assessment)
+        if assessment.get("status") != "FAIL_CLOSED":
+            valid_policy_ids.add(assessment["metric_id"])
 
     if normalized_policy is not None:
         for row in normalized_policy.get("metrics", []) or []:
             if not isinstance(row, dict):
                 continue
             metric_id = str(row.get("metric_id") or "UNKNOWN").strip() or "UNKNOWN"
-            if metric_id in valid_metric_ids:
+            if metric_id in valid_policy_ids:
                 row["event_only_compatible"] = True
 
     return normalized_dictionary, normalized_policy, assessments
