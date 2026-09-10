@@ -156,17 +156,11 @@ def _required_observation_capabilities(
     dictionary_row: dict[str, Any],
     policy_row: dict[str, Any] | None,
 ) -> list[str]:
-    """Describe construct prerequisites; do not claim that runtime admitted them."""
-    explicit = _explicit_capabilities(dictionary_row)
-    if explicit:
-        return explicit
-
+    """Describe all known construct prerequisites; never let one source erase another."""
     policy = policy_row or {}
-    policy_explicit = _explicit_capabilities(policy)
-    if policy_explicit:
-        return policy_explicit
+    required: set[str] = set(_explicit_capabilities(dictionary_row))
+    required.update(_explicit_capabilities(policy))
 
-    required: set[str] = set()
     for role in policy.get("source_surface_roles") or []:
         capability = ZFGV_CAPABILITY_BY_SURFACE_ROLE.get(str(role).strip().lower())
         if capability:
@@ -204,13 +198,19 @@ def _zfgv_capability_projection(
         metric_id = str(row.get("metric_id") or "").strip()
         upstream = row.get("upstream_bindings") or {}
         policy_id = str(upstream.get("metric_policy_id") or "").strip() if isinstance(upstream, dict) else ""
-        required = _required_observation_capabilities(row, policy_index.get(policy_id))
+        policy_row = policy_index.get(policy_id)
+        dictionary_explicit = _explicit_capabilities(row)
+        policy_explicit = _explicit_capabilities(policy_row or {})
+        required = _required_observation_capabilities(row, policy_row)
         projection.append({
             "metric_id": metric_id,
             "event_only_compatible_legacy_metadata": row.get("event_only_compatible"),
             "event_only_compatibility_is_global_admission_gate": False,
             "required_observation_capabilities": required,
-            "capability_contract_explicit": bool(_explicit_capabilities(row)),
+            "capability_contract_explicit": bool(dictionary_explicit or policy_explicit),
+            "dictionary_capability_contract_explicit": bool(dictionary_explicit),
+            "policy_capability_contract_explicit": bool(policy_explicit),
+            "capability_requirement_sources_are_union_preserved": True,
             "runtime_capability_admission_evaluated": False,
             "metric_value_output_allowed_by_this_projection": False,
             "construct_truth_granted_by_this_projection": False,
@@ -271,6 +271,7 @@ def build_dictionary_report(
     report["zfgv_metric_capability_requirements"] = _zfgv_capability_projection(
         dictionary, metric_policy
     )
+    report["metric_capability_requirement_sources_are_union_preserved"] = True
     report["metric_value_output_allowed_by_zfgv_projection"] = False
     report["construct_truth_granted_by_zfgv_projection"] = False
     return report
