@@ -8,6 +8,9 @@ import action_occurrence_admission_current_v1 as current_occurrence
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src import (
     trackable_action_trace_candidates as trackable,
 )
+from hpfa.modules.core.trackable_action_trace_candidates_lite.src.occurrence_topology_adapter import (
+    apply_occurrence_topology_binding,
+)
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src.occurrence_trace_binding import (
     build_occurrence_aware_trace_payload,
 )
@@ -64,8 +67,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "occurrence_trace_binding_record_count": 0,
             "occurrence_bound_trace_candidate_count": 0,
             "occurrence_both_participants_trace_visible_count": 0,
+            "occurrence_single_actor_trace_visible_count": 0,
             "occurrence_partial_participant_trace_visible_count": 0,
             "occurrence_no_participant_trace_visible_count": 0,
+            "occurrence_unresolved_topology_count": 0,
+            "occurrence_topology_aware_binding": True,
             "hard_block_hits": ["current_occurrence_or_required_upstream_output_missing"],
             "review_hits": [],
             "trackable_action_candidate_is_event_truth": False,
@@ -108,6 +114,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         occurrence_payload,
         trackable.build_trackable_action_trace_candidates,
     )
+    payload = apply_occurrence_topology_binding(payload, occurrence_payload)
     payload["current_occurrence_status"] = occurrence_payload.get("status")
     payload["current_occurrence_candidate_count"] = occurrence_payload.get(
         "action_occurrence_candidate_count", 0
@@ -169,8 +176,10 @@ def main() -> int:
                 "trackable_action_trace_candidate_count": payload.get("trackable_action_trace_candidate_count"),
                 "occurrence_bound_trace_candidate_count": payload.get("occurrence_bound_trace_candidate_count", 0),
                 "occurrence_both_participants_trace_visible_count": payload.get("occurrence_both_participants_trace_visible_count", 0),
+                "occurrence_single_actor_trace_visible_count": payload.get("occurrence_single_actor_trace_visible_count", 0),
                 "occurrence_partial_participant_trace_visible_count": payload.get("occurrence_partial_participant_trace_visible_count", 0),
                 "occurrence_no_participant_trace_visible_count": payload.get("occurrence_no_participant_trace_visible_count", 0),
+                "occurrence_unresolved_topology_count": payload.get("occurrence_unresolved_topology_count", 0),
                 "hard_block_hits": payload.get("hard_block_hits") or [],
                 "review_hits": payload.get("review_hits") or [],
                 "canonical_event_count": "UNKNOWN",
