@@ -147,8 +147,10 @@ def build_context_conditioned_trace_deviations(
                 ):
                     unresolved_refs.append(ref)
                 else:
-                    outcome_counts[_signature(non_censored)] += 1
-                    censoring_counts[_signature(censoring)] += 1
+                    if non_censored:
+                        outcome_counts[_signature(non_censored)] += 1
+                    if censoring:
+                        censoring_counts[_signature(censoring)] += 1
 
                 ctx = item.get("context_signature") if isinstance(item.get("context_signature"), dict) else {}
                 sequence_signature = {
