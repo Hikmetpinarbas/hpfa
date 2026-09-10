@@ -13,6 +13,8 @@ SOURCE_CLAIM_CEILING = "VISIBLE_SEQUENCE_CANDIDATE_ONLY"
 TARGET_CLAIM_CEILING = "composite_candidate_only"
 OUTPUT_JSON = "reconstruction_intelligence_packet_adapter_lite_v1.json"
 OUTPUT_TXT = "reconstruction_intelligence_packet_adapter_lite_v1.txt"
+RIGHT_CENSORED_CLASS = "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE"
+COMPLETE_NO_FOLLOWUP_CLASS = "NO_VISIBLE_FOLLOW_UP_CANDIDATE"
 
 PASS_SEQUENCE_STATES = {
     "PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
@@ -98,6 +100,26 @@ def _sequence_review_reasons(sequence: dict[str, Any]) -> list[str]:
     return reasons
 
 
+def _consequence_observation_semantics(sequence: dict[str, Any]) -> dict[str, int | bool]:
+    counts = sequence.get("consequence_candidate_counts") or {}
+    if not isinstance(counts, dict):
+        counts = {}
+    right_censored_count = _count(counts.get(RIGHT_CENSORED_CLASS)) or 0
+    complete_no_followup_count = _count(counts.get(COMPLETE_NO_FOLLOWUP_CLASS)) or 0
+    return {
+        "right_censored_no_visible_follow_up_count": max(0, right_censored_count),
+        "complete_window_no_visible_follow_up_count": max(0, complete_no_followup_count),
+        "right_censoring_present": right_censored_count > 0,
+        "right_censoring_is_terminal_event": False,
+        "right_censoring_is_failure": False,
+        "right_censoring_is_neutral_outcome": False,
+        "no_visible_follow_up_is_failure": False,
+        "no_visible_follow_up_is_neutral_outcome": False,
+        "censoring_is_counterevidence": False,
+        "censoring_is_independent_support_vote": False,
+    }
+
+
 def _validate_upstream(payload: dict[str, Any]) -> tuple[list[str], list[str], dict[str, dict[str, Any]]]:
     blocks: list[str] = []
     reviews: list[str] = []
@@ -179,6 +201,15 @@ def _validate_upstream(payload: dict[str, Any]) -> tuple[list[str], list[str], d
         if state not in PASS_SEQUENCE_STATES | REVIEW_SEQUENCE_STATES:
             blocks.append(f"sequence_record_status_not_admitted:{sequence_id}:{state or 'UNKNOWN'}")
 
+        consequence_counts = raw.get("consequence_candidate_counts")
+        if not isinstance(consequence_counts, dict):
+            blocks.append(f"sequence_consequence_candidate_counts_invalid:{sequence_id}")
+        else:
+            for key, value in consequence_counts.items():
+                parsed = _count(value)
+                if parsed is None or parsed < 0:
+                    blocks.append(f"sequence_consequence_candidate_count_invalid:{sequence_id}:{_clean(key)}")
+
         layer_ids = [_clean(item) for item in _as_list(raw.get("time_layer_candidate_ids")) if _clean(item)]
         if not layer_ids:
             blocks.append(f"sequence_time_layer_refs_missing:{sequence_id}")
@@ -208,6 +239,7 @@ def _packet_candidate(sequence: dict[str, Any], layer_by_id: dict[str, dict[str,
     binding = _clean(sequence.get("match_surface_binding_id"))
     layer_ids = [_clean(item) for item in _as_list(sequence.get("time_layer_candidate_ids")) if _clean(item)]
     review_reasons = _sequence_review_reasons(sequence)
+    observation_semantics = _consequence_observation_semantics(sequence)
 
     sequence_ref = {
         "sequence_id": sequence_id,
@@ -243,6 +275,7 @@ def _packet_candidate(sequence: dict[str, Any], layer_by_id: dict[str, dict[str,
         "sequence_candidate_id": sequence_id,
         "action_family_counts": dict(sequence.get("action_family_counts") or {}),
         "consequence_candidate_counts": dict(sequence.get("consequence_candidate_counts") or {}),
+        **observation_semantics,
         "trace_candidate_count": sequence.get("trace_candidate_count"),
         "time_layer_count": sequence.get("time_layer_count"),
         "independent_support_vote": False,
@@ -253,6 +286,29 @@ def _packet_candidate(sequence: dict[str, Any], layer_by_id: dict[str, dict[str,
     }
 
     qualifiers: list[dict[str, Any]] = []
+    if observation_semantics["right_censoring_present"] is True:
+        qualifier_id = "riq_" + _digest(sequence_id, "right_censoring_observation_qualifier")[:24]
+        qualifiers.append(
+            {
+                "signal_id": qualifier_id,
+                "source_surface": "CURRENT_RECONSTRUCTION",
+                "evidence_derivation_role": "DERIVED_FROM_CONSEQUENCE_OBSERVATION_HORIZON",
+                "evidence_role": "right_censoring_observation_qualifier",
+                "relation_type": "QUALIFIES",
+                "match_surface_binding_id": binding,
+                "sequence_candidate_id": sequence_id,
+                "right_censored_no_visible_follow_up_count": observation_semantics["right_censored_no_visible_follow_up_count"],
+                "right_censoring_is_terminal_event": False,
+                "right_censoring_is_failure": False,
+                "right_censoring_is_neutral_outcome": False,
+                "censoring_is_counterevidence": False,
+                "censoring_is_independent_support_vote": False,
+                "independent_support_vote": False,
+                "explicit_contradiction": False,
+                "sequence_truth": False,
+                "possession_truth": False,
+            }
+        )
     if review_reasons:
         qualifier_id = "riq_" + _digest(sequence_id, review_reasons)[:24]
         qualifiers.append(
@@ -289,6 +345,7 @@ def _packet_candidate(sequence: dict[str, Any], layer_by_id: dict[str, dict[str,
         "source_match_surface_binding_id": binding,
         "review_required": bool(review_reasons),
         "review_reasons": review_reasons,
+        **observation_semantics,
         "derived_reconstruction_refs_are_independent_sources": False,
         "independent_support_vote_allowed": False,
         "claim_output_allowed": False,
@@ -316,6 +373,7 @@ def build_packet_input_candidates(payload: dict[str, Any]) -> dict[str, Any]:
         decision = "READY_FOR_COMPOSITE_PACKET_BUILDER"
 
     review_packet_count = sum(bool(row.get("review_required")) for row in packet_candidates)
+    censoring_qualified_packet_count = sum(bool(row.get("right_censoring_present")) for row in packet_candidates)
     binding = _clean(payload.get("match_surface_binding_id"))
     return {
         "module_id": MODULE_ID,
@@ -327,6 +385,7 @@ def build_packet_input_candidates(payload: dict[str, Any]) -> dict[str, Any]:
         "source_visible_action_sequence_candidate_count": len(sequences),
         "packet_input_candidate_count": len(packet_candidates),
         "review_required_packet_input_candidate_count": review_packet_count,
+        "censoring_qualified_packet_input_candidate_count": censoring_qualified_packet_count,
         "packet_input_assignment_complete": (not blocks and len(packet_candidates) == len(sequences)),
         "composite_packet_input_candidates": packet_candidates,
         "hard_block_hits": blocks,
@@ -336,6 +395,13 @@ def build_packet_input_candidates(payload: dict[str, Any]) -> dict[str, Any]:
         "packet_input_ref_count_is_independent_source_count": False,
         "derived_reconstruction_refs_are_independent_sources": False,
         "independent_support_vote_allowed": False,
+        "right_censoring_is_terminal_event": False,
+        "right_censoring_is_failure": False,
+        "right_censoring_is_neutral_outcome": False,
+        "no_visible_follow_up_is_failure": False,
+        "no_visible_follow_up_is_neutral_outcome": False,
+        "censoring_is_counterevidence": False,
+        "censoring_is_independent_support_vote": False,
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
         "visible_sequence_candidate_is_sequence_truth": False,
@@ -361,9 +427,13 @@ def render_txt(report: dict[str, Any]) -> str:
         f"source_visible_action_sequence_candidate_count={report.get('source_visible_action_sequence_candidate_count')}",
         f"packet_input_candidate_count={report.get('packet_input_candidate_count')}",
         f"review_required_packet_input_candidate_count={report.get('review_required_packet_input_candidate_count')}",
+        f"censoring_qualified_packet_input_candidate_count={report.get('censoring_qualified_packet_input_candidate_count')}",
         f"packet_input_assignment_complete={report.get('packet_input_assignment_complete')}",
         f"hard_block_hits={report.get('hard_block_hits') or []}",
         f"review_hits={report.get('review_hits') or []}",
+        "right_censoring_is_terminal_event=false",
+        "right_censoring_is_failure=false",
+        "censoring_is_counterevidence=false",
         "derived_reconstruction_refs_are_independent_sources=false",
         "independent_support_vote_allowed=false",
         "same_timestamp_internal_ordering_allowed=false",
