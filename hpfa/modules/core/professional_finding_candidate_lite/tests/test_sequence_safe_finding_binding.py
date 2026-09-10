@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 
 from hpfa.modules.core.professional_finding_candidate_lite.src.sequence_safe_finding_binding import build_sequence_safe_finding_blocks
@@ -75,16 +76,62 @@ def test_robust_independent_challenged_trace_emits_defeasible_finding():
     assert "causality" in row["FORBIDDEN_INFERENCE"]
 
 
-def test_upstream_review_envelope_abstains_even_for_otherwise_emittable_row():
+def test_review_required_envelope_preserves_row_level_emission_eligibility():
     payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
     payload["status"] = "REVIEW_REQUIRED"
     result = build_sequence_safe_finding_blocks(payload)
     assert result["status"] == "REVIEW_REQUIRED"
-    assert result["professional_finding_emitted_count"] == 0
-    assert result["claim_output_allowed_count"] == 0
+    assert result["professional_finding_emitted_count"] == 1
+    assert result["claim_output_allowed_count"] == 1
+    assert result["analyst_report_block_count"] == 1
+    assert result["finding_status_counts"] == {"EMIT": 1, "DOWNGRADE": 0, "ABSTAIN": 0}
+    assert result["review_required_is_global_abstain"] is False
+    assert result["row_scoped_review_preserves_other_row_eligibility"] is True
+    assert "admission_upstream_review_required_row_scoped" in result["review_hits"]
+
+
+def test_mixed_review_payload_routes_each_finding_without_cross_row_poisoning():
+    payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
+    payload["status"] = "REVIEW_REQUIRED"
+    emit_row = payload["sequence_pattern_admissions"][0]
+
+    downgrade_row = deepcopy(emit_row)
+    downgrade_row.update({
+        "trace_family_ref": "down_a",
+        "eligible_trace_refs": ["down_a", "down_b", "down_c", "down_d", "down_e"],
+        "admission_state": "RECURRENT_VISIBLE_TRACE",
+        "independent_support_count": "UNKNOWN",
+        "counterevidence_refs": ["down_b"],
+        "dependency_summary": {"independence_proven": False},
+    })
+
+    review_row = deepcopy(emit_row)
+    review_row.update({
+        "trace_family_ref": "review_a",
+        "eligible_trace_refs": ["review_a", "review_b", "review_c", "review_d", "review_e"],
+        "admission_state": "REVIEW_REQUIRED",
+        "counterevidence_refs": ["review_b"],
+    })
+
+    payload["sequence_pattern_admissions"] = [emit_row, downgrade_row, review_row]
+    result = build_sequence_safe_finding_blocks(payload)
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["analyst_report_block_count"] == 2
+    assert result["finding_status_counts"] == {"EMIT": 1, "DOWNGRADE": 1, "ABSTAIN": 1}
+    assert result["professional_finding_emitted_count"] == 1
+    assert result["claim_output_allowed_count"] == 1
+    assert {row["finding_status"] for row in result["analyst_report_blocks"]} == {"EMIT", "DOWNGRADE"}
+    assert "admission_row_review_required:review_a" in result["review_hits"]
+
+
+def test_unrecognized_upstream_status_still_abstains_globally():
+    payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
+    payload["status"] = "UNKNOWN"
+    result = build_sequence_safe_finding_blocks(payload)
+    assert result["status"] == "REVIEW_REQUIRED"
     assert result["analyst_report_block_count"] == 0
     assert result["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 1}
-    assert "admission_upstream_review_required" in result["review_hits"]
+    assert result["review_required_is_global_abstain"] is True
 
 
 def test_robust_trace_without_challenge_surface_downgrades():
