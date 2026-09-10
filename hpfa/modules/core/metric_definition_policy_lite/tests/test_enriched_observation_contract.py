@@ -1,4 +1,3 @@
-import copy
 import json
 import sys
 from pathlib import Path
@@ -24,11 +23,11 @@ def test_seed_pack_declares_zfgv_observation_model():
     report = load_policy_pack(CONFIG)
     assert report["status"] == "SMOKE_PASS"
     assert report["observation_model"] == "ZFGV_V1"
-    assert report["event_only_is_product_ceiling"] is False
+    assert report["research_hardening_guards"]["R23_zfgv_observation_contract_is_authoritative"] is True
     assert all(metric["observation_contract_status"] == "PASS" for metric in report["metrics"])
 
 
-def test_nonphysical_rich_construct_can_exceed_legacy_event_only_flag():
+def test_nonphysical_rich_construct_is_governed_by_zfgv_not_legacy_event_only_flag():
     docs = _docs()
     metric = docs[0]["metrics"][0]
     metric["event_only_compatible"] = False
@@ -49,9 +48,8 @@ def test_nonphysical_rich_construct_can_exceed_legacy_event_only_flag():
     report = build_metric_definition_policy(*docs)
     assert report["status"] == "SMOKE_PASS"
     observed = report["metrics"][0]
+    assert observed["observation_model"] == "ZFGV_V1"
     assert observed["observation_contract_status"] == "PASS"
-    assert observed["legacy_event_only_shadow_compatible"] is True
-    assert observed["event_only_is_product_ceiling"] is False
 
 
 def test_explicit_capability_manifest_admits_rich_progression_without_tracking():
@@ -81,8 +79,8 @@ def test_explicit_capability_manifest_admits_rich_progression_without_tracking()
     report = build_metric_definition_policy(*docs)
     assert report["status"] == "SMOKE_PASS"
     observed = report["metrics"][0]
+    assert observed["observation_model"] == "ZFGV_V1"
     assert observed["observation_contract_status"] == "PASS"
-    assert observed["event_only_is_product_ceiling"] is False
 
 
 def test_provider_label_alone_cannot_elevate_provider_derived_capability():
@@ -178,9 +176,9 @@ def test_explicit_l8_manifest_requires_physical_evidence_gate():
     assert admitted["status"] == "SMOKE_PASS"
 
 
-def test_observation_fingerprint_changes_without_invalidating_legacy_definition_fingerprint():
+def test_observation_contract_change_invalidates_both_metric_and_observation_fingerprints():
     baseline = load_policy_pack(CONFIG)
-    legacy_fp = baseline["metrics"][0]["definition_fingerprint_sha256"]
+    definition_fp = baseline["metrics"][0]["definition_fingerprint_sha256"]
     observation_fp = baseline["metrics"][0]["observation_semantic_fingerprint_sha256"]
 
     docs = _docs()
@@ -188,7 +186,7 @@ def test_observation_fingerprint_changes_without_invalidating_legacy_definition_
     metric["required_surface_semantics"] = list(metric["required_surface_semantics"]) + ["new_semantic_requirement"]
     changed = build_metric_definition_policy(*docs)
 
-    assert changed["metrics"][0]["definition_fingerprint_sha256"] == legacy_fp
+    assert changed["metrics"][0]["definition_fingerprint_sha256"] != definition_fp
     assert changed["metrics"][0]["observation_semantic_fingerprint_sha256"] != observation_fp
 
 
@@ -202,5 +200,5 @@ def test_no_sample_match_identity_leak():
         / "src"
         / "observation_contract.py"
     ).read_text(encoding="utf-8")
-    for token in ("Genclerbirligi", "Fenerbahce", "15.08.2026"):
+    for token in ("Genclerbirligi", "Fenerbahce", "15.08.2026", "Sporting", "Galatasaray", "09.09.2026"):
         assert token not in source
