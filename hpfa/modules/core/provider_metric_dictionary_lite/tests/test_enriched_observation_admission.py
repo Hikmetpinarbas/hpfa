@@ -33,13 +33,13 @@ def load(name: str):
     return json.loads((CONFIG / name).read_text(encoding="utf-8"))
 
 
-def build(dictionary):
+def build(dictionary, metric_policy=None):
     return build_dictionary_report(
         dictionary,
         load("provider_alias_registry_v1.json"),
         load("metric_derivation_registry_v1.json"),
         load("metric_conflict_queue_v1.json"),
-        metric_policy=load("metric_registry_v1.json"),
+        metric_policy=metric_policy or load("metric_registry_v1.json"),
         denominator_policy=load("metric_denominator_policy_v1.json"),
         aggregate_registry=json.loads(AGG.read_text(encoding="utf-8")),
     )
@@ -91,41 +91,39 @@ def test_rich_layers_require_declared_surface_semantics():
     )
 
 
-def test_explicit_enriched_contract_is_not_blocked_by_legacy_event_only_false():
+def test_provider_row_legacy_flag_cannot_veto_zfgv_policy_contract():
     dictionary = load("provider_metric_dictionary_v1.json")
-    row = dictionary["metrics"][0]
-    row["event_only_compatible"] = False
-    row["required_observation_layers"] = [L1, L2, L3]
-    row["required_surface_semantics"] = [
-        "action_family_admitted",
-        "football_time_semantics_admitted",
-        "coordinate_semantics_admitted",
-    ]
-    row["tracking_video_required"] = False
+    dictionary["metrics"][0]["event_only_compatible"] = False
 
     report = build(dictionary)
     gap_types = {gap["gap_type"] for gap in report.get("hard_block_hits", [])}
 
+    assert report["observation_model"] == "ZFGV_V1"
     assert "event_only_compatibility_required" not in gap_types
+    assessed_ids = {
+        item["metric_id"] for item in report["observation_contract_assessments"]
+    }
+    assert "surface_action_volume_candidate" in assessed_ids
+    assert dictionary["metrics"][0]["metric_id"] not in assessed_ids
+
+
+def test_invalid_zfgv_metric_policy_fails_closed_even_if_provider_row_looks_compatible():
+    dictionary = load("provider_metric_dictionary_v1.json")
+    dictionary["metrics"][0]["event_only_compatible"] = True
+    metric_policy = load("metric_registry_v1.json")
+    metric_policy["metrics"][0]["required_observation_layers"] = []
+
+    report = build(dictionary, metric_policy=metric_policy)
+    gap_types = {gap["gap_type"] for gap in report.get("hard_block_hits", [])}
+
+    assert report["status"] == "FAIL_CLOSED"
+    assert "observation_contract_invalid" in gap_types
     assessment = next(
         item
         for item in report["observation_contract_assessments"]
-        if item["metric_id"] == row["metric_id"]
+        if item["metric_id"] == "surface_action_volume_candidate"
     )
-    assert assessment["status"] == "PASS"
-    assert report["event_only_is_product_ceiling"] is False
-
-
-def test_legacy_false_without_enriched_contract_still_fails_closed():
-    dictionary = load("provider_metric_dictionary_v1.json")
-    row = dictionary["metrics"][0]
-    row["event_only_compatible"] = False
-
-    report = build(dictionary)
-    gap_types = {gap["gap_type"] for gap in report.get("hard_block_hits", [])}
-
-    assert "event_only_compatibility_required" in gap_types
-    assert "observation_contract_invalid" in gap_types
+    assert assessment["status"] == "FAIL_CLOSED"
 
 
 def test_no_sample_match_identity_leak():
@@ -138,5 +136,12 @@ def test_no_sample_match_identity_leak():
         / "src"
         / "observation_layer_admission.py"
     ).read_text(encoding="utf-8")
-    for token in ("Genclerbirligi", "Fenerbahce", "15.08.2026"):
+    for token in (
+        "Genclerbirligi",
+        "Fenerbahce",
+        "15.08.2026",
+        "Sporting",
+        "Galatasaray",
+        "09.09.2026",
+    ):
         assert token not in source
