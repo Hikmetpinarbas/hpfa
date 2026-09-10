@@ -1,7 +1,11 @@
 from hpfa.modules.core.professional_finding_candidate_lite.src.context_conditioned_trace_deviation import build_context_conditioned_trace_deviations
 
 
-def _variant(vid, period, outcome, *, deps=None, start="CONTINUATION", end="PERIOD_END", team="TEAM_A"):
+RIGHT_CENSORED = "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE"
+
+
+def _variant(vid, period, outcome, *, deps=None, start="CONTINUATION", end="PERIOD_END", team="TEAM_A", censored=False):
+    legacy_outcome = RIGHT_CENSORED if censored else outcome
     return {
         "trace_variant_id":vid,
         "action_family_signature":[{"action_family_candidate":"PASS","count":1}],
@@ -12,7 +16,11 @@ def _variant(vid, period, outcome, *, deps=None, start="CONTINUATION", end="PERI
             "end_reason_candidate":end,
             "team_identity_candidate_id":team,
         },
-        "outcome_signature":[{"outcome_candidate":outcome,"count":1}],
+        "outcome_signature":[{"outcome_candidate":legacy_outcome,"count":1}],
+        "outcome_signature_role":"LEGACY_CONSEQUENCE_LINEAGE_ONLY_NOT_DENOMINATOR_AUTHORITY",
+        "non_censored_outcome_signature":[] if censored else [{"outcome_candidate":outcome,"count":1}],
+        "censoring_signature":[{"censoring_state":"RIGHT_CENSORED_OBSERVATION","count":1}] if censored else [],
+        "outcome_denominator_authority":"NON_CENSORED_VISIBLE_CONSEQUENCE_NODES_ONLY",
         "dependency_group_refs":deps or [],
     }
 
@@ -77,6 +85,34 @@ def test_conditioned_end_reason_not_reused_as_sequence_difference():
     assert row["effect_descriptor"]=="NO_VISIBLE_DISTRIBUTION_DIFFERENCE_CURRENT_RESOLUTION"
 
 
+def test_censoring_difference_does_not_become_outcome_difference_or_counterevidence():
+    rows=[
+        _variant("a1","1","X"),
+        _variant("a2","1","X"),
+        _variant("b1","2","X"),
+        _variant("b2","2","X"),
+        _variant("b3","2","X",censored=True),
+    ]
+    row=build_context_conditioned_trace_deviations(_payload(rows),context_dimension="period_candidate",baseline_context_value="1",comparison_context_value="2")["context_conditioned_trace_deviations"][0]
+    assert row["outcome_difference"] is True is False
+    assert row["censoring_coverage_difference"] is True
+    assert row["right_censoring_is_outcome_difference"] is False
+    assert row["right_censoring_is_counterevidence"] is False
+    assert row["counterevidence"] is None
+    assert row["effect_descriptor"]=="NO_VISIBLE_NON_CENSORED_DISTRIBUTION_DIFFERENCE_CENSORING_COVERAGE_DIFFERS"
+
+
+def test_legacy_outcome_signature_without_new_authority_is_review_bound_not_reused():
+    rows=[_variant("a1","1","X"),_variant("a2","1","X"),_variant("b1","2","X"),_variant("b2","2","X")]
+    rows[0].pop("outcome_denominator_authority")
+    result=build_context_conditioned_trace_deviations(_payload(rows),context_dimension="period_candidate",baseline_context_value="1",comparison_context_value="2")
+    row=result["context_conditioned_trace_deviations"][0]
+    assert result["status"]=="REVIEW_REQUIRED"
+    assert row["outcome_comparison_evaluable"] is False
+    assert row["outcome_distribution_uses_legacy_signature"] is False
+    assert "a1" in row["outcome_denominator_authority_unresolved_trace_refs"]
+
+
 def test_unsupported_context_dimension_fails_closed():
     result=build_context_conditioned_trace_deviations(_payload([_variant("a","1","X")]),context_dimension="score_state",baseline_context_value="0-0",comparison_context_value="1-0")
     assert result["status"]=="FAIL_CLOSED"
@@ -89,6 +125,9 @@ def test_claim_locks_preserved():
     assert result["canonical_event_count"]=="UNKNOWN"
     assert result["true_action_count"]=="UNKNOWN"
     assert result["production_release"] is False
+    assert result["legacy_outcome_signature_is_denominator_authority"] is False
+    assert result["right_censoring_is_outcome_difference"] is False
+    assert result["right_censoring_is_counterevidence"] is False
 
 
 def test_no_sample_match_identity_leak():
