@@ -298,6 +298,8 @@ def build_process_participation_projection(
         "process_family_is_tactical_plan_truth": False,
         "process_family_is_coach_intention_truth": False,
         "absence_is_counterevidence": False,
+        "hard_block_hits": blocks,
+        "review_hits": reviews,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": False,
