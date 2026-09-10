@@ -35,6 +35,7 @@ def main() -> int:
 
     entrypoint_module._bind_shared_snapshot_contract()
     entrypoint_module._bind_construct_admission_gate()
+    entrypoint_module._bind_metric_governance_prerequisite_chain()
     entrypoint_module._bind_metric_governance_construct_gate()
 
     original_validator = full_spine_runner.validate_active_match_authority
