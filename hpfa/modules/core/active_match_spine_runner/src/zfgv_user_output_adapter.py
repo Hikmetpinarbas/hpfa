@@ -26,7 +26,7 @@ def _review_safe_trace_cohort_action_family_candidate_labels(row: dict[str, Any]
         return []
     if row.get("aggregate_support_trace_relation_is_physical_action_truth") is not False:
         return []
-    if row.get("aggregate_support_is_independent_vote") is not False:
+    if row.get("aggregate_support_is_independent_vote") is True:
         return []
 
     labels: set[str] = set()
