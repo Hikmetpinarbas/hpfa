@@ -59,7 +59,7 @@ jobs:
           test "$(git hash-object xml_surface_reader_lite.py)" = "4f36505976a10051060c47e4a6198384e85072db"
           test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/contract/xml_surface_reader_lite_v1.json)" = "fc61e9098fae2107fe1cb25981a948f53f82bec6"
           test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/src/xml_common.py)" = "17ad5bd5b9ae86237c664c8a06bdf5b10b8deb3b"
-          test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/src/xml_rows.py)" = "ff6241bdd701d3b35c8db144c9ea44806e63c16f"
+          test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/src/xml_rows.py)" = "dcf97f0c7c6ec63101587f913bc3ea08e21bb6bc"
           test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/src/xml_structure.py)" = "f06c640d6fbfabfdce29a7535bce2a95fe1c6d35"
           test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/src/xml_surface_reader.py)" = "dd6d27259aaaf2b53e646a9f1013e59fac352285"
           test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/tests/test_xml_surface_reader.py)" = "b03b2e939684e4937969d5a65c367ba2133983e3"
