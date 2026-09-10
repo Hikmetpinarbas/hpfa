@@ -1,7 +1,6 @@
 {
   "policy_version": "1.0.0",
-  "observation_model": "ENRICHED_FOOTBALL_OBSERVATION_DATA_V1",
-  "event_only_is_product_ceiling": false,
+  "observation_model": "ZFGV_V1",
   "metrics": [
     {
       "metric_id": "surface_action_volume_candidate",
@@ -29,7 +28,6 @@
       "optional_observation_capabilities": ["TEMPORAL", "SPATIAL", "OUTCOME", "CONTEXT"],
       "forbidden_without": ["IDENTITY_ADMISSION", "REFLECTION_CONTROL", "DEPENDENCY_CONTROL"],
       "tracking_video_required": false,
-      "event_only_compatible": true,
       "source_surface_roles": ["occurrence_candidate"],
       "derivation_dependency": ["duplicate_lineage", "aggregate_row_exclusion"],
       "independence_group": "row_level_surface",
@@ -72,7 +70,6 @@
       "optional_observation_capabilities": ["TEMPORAL", "SPATIAL", "OUTCOME", "CONTEXT"],
       "forbidden_without": ["PROVIDER_SEMANTICS", "IDENTITY_ADMISSION", "REFLECTION_CONTROL", "DEPENDENCY_CONTROL"],
       "tracking_video_required": false,
-      "event_only_compatible": true,
       "source_surface_roles": ["occurrence_candidate", "aggregate_candidate"],
       "derivation_dependency": ["aggregate_definition_alignment", "duplicate_lineage"],
       "independence_group": "provider_definition_bound",
