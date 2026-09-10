@@ -17,6 +17,7 @@ WINDOW_SECONDS = (5.0, 8.0, 12.0)
 MAX_FOLLOW_UP_LAYERS = 3
 SUPPORT_ATOM_CLASSES = {"DERIVED_CONSEQUENCE_ATOM", "TERMINAL_OUTCOME_ATOM"}
 ALLOWED_TRACE_ROLES = {"PLAYER_SURFACE_CANDIDATE", "GOALKEEPER_SURFACE_CANDIDATE"}
+RIGHT_CENSORED_CLASS = "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE"
 REVIEW_CLASSES = {
     "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE",
     "VISIBLE_FOLLOW_UP_UNCERTAIN_CANDIDATE",
@@ -165,6 +166,7 @@ def _classify_consequence(
     future: list[dict[str, Any]],
     terminal_support_visible: bool,
     derived_support_visible: bool,
+    follow_up_window_complete: bool,
 ) -> tuple[str, list[str]]:
     team = _clean(anchor.get("team_identity_candidate_id"))
     anchor_families = {_clean(item) for item in (anchor.get("action_family_candidates") or []) if _clean(item)}
@@ -179,6 +181,9 @@ def _classify_consequence(
     if not future:
         if terminal_support_visible:
             return "TERMINAL_OUTCOME_SUPPORT_CANDIDATE", sorted(signals)
+        if not follow_up_window_complete:
+            signals.add("FOLLOW_UP_WINDOW_RIGHT_CENSORED_BY_VISIBLE_TRACE_HORIZON")
+            return RIGHT_CENSORED_CLASS, sorted(signals)
         return "NO_VISIBLE_FOLLOW_UP_CANDIDATE", sorted(signals)
 
     same_team, opponent, missing_team = _team_family_sets(team, future)
@@ -295,8 +300,15 @@ def build_trackable_action_consequence_candidates(
 
         for period_traces in by_period.values():
             period_traces.sort(key=_timeline_key)
+            visible_starts = [_number(trace.get("start_candidate")) for trace in period_traces]
+            period_visible_trace_horizon = max((value for value in visible_starts if value is not None), default=None)
             for index, anchor in enumerate(period_traces):
                 anchor_start = _number(anchor.get("start_candidate"))
+                follow_up_window_complete = bool(
+                    anchor_start is not None
+                    and period_visible_trace_horizon is not None
+                    and period_visible_trace_horizon >= anchor_start + WINDOW_SECONDS[-1]
+                )
                 layer_map: dict[float, list[dict[str, Any]]] = defaultdict(list)
                 if anchor_start is not None:
                     for candidate in period_traces[index + 1 :]:
@@ -323,6 +335,7 @@ def build_trackable_action_consequence_candidates(
                     future,
                     terminal_visible,
                     derived_visible,
+                    follow_up_window_complete,
                 )
                 first_delta = None
                 if future and anchor_start is not None:
@@ -365,6 +378,14 @@ def build_trackable_action_consequence_candidates(
                         ],
                         "first_visible_follow_up_delta_seconds": first_delta,
                         **window_counts,
+                        "follow_up_window_seconds": WINDOW_SECONDS[-1],
+                        "visible_trace_horizon_start_candidate": period_visible_trace_horizon,
+                        "follow_up_window_complete_by_visible_trace_horizon": follow_up_window_complete,
+                        "follow_up_window_observation_state": (
+                            "COMPLETE_VISIBLE_TRACE_HORIZON"
+                            if follow_up_window_complete
+                            else "RIGHT_CENSORED_VISIBLE_TRACE_HORIZON"
+                        ),
                         "primary_consequence_candidate": primary,
                         "consequence_signal_candidates": signals,
                         "record_status": record_status,
@@ -374,6 +395,10 @@ def build_trackable_action_consequence_candidates(
                         "support_atom_class_counts": dict(sorted(class_counts.items())),
                         "terminal_outcome_support_visible": terminal_visible,
                         "derived_consequence_support_visible": derived_visible,
+                        "right_censored_no_visible_follow_up": primary == RIGHT_CENSORED_CLASS,
+                        "no_visible_follow_up_is_failure": False,
+                        "no_visible_follow_up_is_neutral_outcome": False,
+                        "right_censoring_is_terminal_event": False,
                         "same_time_link_allowed": False,
                         "negative_time_link_allowed": False,
                         "cross_period_link_allowed": False,
@@ -400,6 +425,8 @@ def build_trackable_action_consequence_candidates(
     review_required_count = sum(record.get("record_status") == "REVIEW_REQUIRED" for record in records)
     classified_count = len(records) - review_required_count
     support_visible_count = sum(bool(record.get("supporting_consequence_evidence_atom_ids")) for record in records)
+    right_censored_count = sum(record.get("right_censored_no_visible_follow_up") is True for record in records)
+    complete_no_followup_count = consequence_counts.get("NO_VISIBLE_FOLLOW_UP_CANDIDATE", 0)
     window_coverage = {
         f"visible_follow_up_within_{int(seconds)}s": sum(
             int(record.get(f"visible_follow_up_trace_count_{int(seconds)}s") or 0) > 0
@@ -436,12 +463,17 @@ def build_trackable_action_consequence_candidates(
         "classified_consequence_candidate_count": classified_count,
         "review_required_consequence_candidate_count": review_required_count,
         "support_visible_trace_count": support_visible_count,
+        "right_censored_no_visible_follow_up_count": right_censored_count,
+        "complete_window_no_visible_follow_up_count": complete_no_followup_count,
         "primary_consequence_candidate_counts": dict(sorted(consequence_counts.items())),
         "window_coverage_counts": window_coverage,
         "hard_block_hits": blocks,
         "review_hits": reviews,
         "window_seconds": list(WINDOW_SECONDS),
         "max_follow_up_time_layers": MAX_FOLLOW_UP_LAYERS,
+        "no_visible_follow_up_is_failure": False,
+        "no_visible_follow_up_is_neutral_outcome": False,
+        "right_censoring_is_terminal_event": False,
         "same_time_link_allowed": False,
         "negative_time_link_allowed": False,
         "cross_period_link_allowed": False,
@@ -468,6 +500,8 @@ def _summary(payload: dict[str, Any]) -> str:
         f"classified_consequence_candidate_count={payload.get('classified_consequence_candidate_count')}",
         f"review_required_consequence_candidate_count={payload.get('review_required_consequence_candidate_count')}",
         f"support_visible_trace_count={payload.get('support_visible_trace_count')}",
+        f"right_censored_no_visible_follow_up_count={payload.get('right_censored_no_visible_follow_up_count')}",
+        f"complete_window_no_visible_follow_up_count={payload.get('complete_window_no_visible_follow_up_count')}",
         f"primary_consequence_candidate_counts={payload.get('primary_consequence_candidate_counts')}",
         f"window_coverage_counts={payload.get('window_coverage_counts')}",
         f"hard_block_hits={payload.get('hard_block_hits')}",
@@ -487,12 +521,14 @@ def _analyst(payload: dict[str, Any]) -> str:
         f"Same-team continuation candidates: {counts.get('SAME_TEAM_CONTINUATION_CANDIDATE', 0)}",
         f"Opponent handover candidates: {counts.get('OPPONENT_HANDOVER_CANDIDATE', 0)}",
         f"Shot follow-up candidates: {counts.get('SHOT_FOLLOW_UP_CANDIDATE', 0)}",
-        f"No visible follow-up candidates: {counts.get('NO_VISIBLE_FOLLOW_UP_CANDIDATE', 0)}",
+        f"No visible follow-up candidates with complete 12s trace horizon: {counts.get('NO_VISIBLE_FOLLOW_UP_CANDIDATE', 0)}",
+        f"Right-censored no-visible-follow-up candidates: {counts.get(RIGHT_CENSORED_CLASS, 0)}",
         f"Review-required mixed/uncertain candidates: {payload.get('review_required_consequence_candidate_count', 0)}",
         f"Visible follow-up within 5s: {windows.get('visible_follow_up_within_5s', 0)}",
         f"Visible follow-up within 8s: {windows.get('visible_follow_up_within_8s', 0)}",
         f"Visible follow-up within 12s: {windows.get('visible_follow_up_within_12s', 0)}",
         "Analyst-safe meaning: visible trace candidates were linked only to later positive-time traces in the same period, within a capped 12-second window and at most three distinct later time layers.",
+        "A missing visible follow-up is reported only when the visible trace stream continues through the full 12-second horizon; otherwise the anchor is right-censored. Neither state is failure, neutral outcome or terminal-event truth.",
         "These are consequence candidates, not causal, possession, sequence, tactical, physical-action or canonical-event truth.",
         "canonical_event_count=UNKNOWN",
         "production_release=false",
@@ -525,6 +561,8 @@ def main() -> int:
         "trackable_action_consequence_candidate_count": payload.get("trackable_action_consequence_candidate_count"),
         "classified_consequence_candidate_count": payload.get("classified_consequence_candidate_count"),
         "review_required_consequence_candidate_count": payload.get("review_required_consequence_candidate_count"),
+        "right_censored_no_visible_follow_up_count": payload.get("right_censored_no_visible_follow_up_count"),
+        "complete_window_no_visible_follow_up_count": payload.get("complete_window_no_visible_follow_up_count"),
         "primary_consequence_candidate_counts": payload.get("primary_consequence_candidate_counts") or {},
         "window_coverage_counts": payload.get("window_coverage_counts") or {},
         "hard_block_hits": payload.get("hard_block_hits") or [],
