@@ -1,7 +1,7 @@
 {
   "module_id": "sequence_safe_finding_binding_lite_v1",
-  "version": "1.1.0-strict-numeric-evidence-accounting",
-  "purpose": "Bind admitted sequence-pattern evidence into defeasible match-local Safe Finding blocks without allowing type coercion, count inflation, or claim escalation.",
+  "version": "1.2.0-row-scoped-review-admission",
+  "purpose": "Bind admitted sequence-pattern evidence into defeasible match-local Safe Finding blocks without allowing type coercion, count inflation, cross-row review poisoning, or claim escalation.",
   "required_upstream_module": "sequence_pattern_admission_lite_v1",
   "numeric_evidence_policy": {
     "observed_support": "STRICT_NONNEGATIVE_INTEGER_REQUIRED",
@@ -14,12 +14,23 @@
     "independent_support_must_not_exceed_observed_support": true,
     "outcome_accounting_must_not_exceed_observed_support": true
   },
+  "review_scope_policy": {
+    "review_required_equals_fail_closed": false,
+    "admission_review_required_globally_abstains_all_rows": false,
+    "row_review_required_abstains_that_row": true,
+    "rejected_insufficient_evidence_abstains_that_row": true,
+    "recurrent_visible_trace_without_independence_downgrades_that_row": true,
+    "unrecognized_upstream_status_globally_abstains": true,
+    "null_contrast_review_remains_unscoped_global_abstain": true,
+    "hard_block_hits_globally_fail_closed": true,
+    "one_row_review_may_not_poison_other_row_eligibility": true
+  },
   "emission_invariants": {
     "robust_recurrent_visible_trace_required_for_emit": true,
     "independence_proven_required_for_emit": true,
     "explicit_challenge_surface_required_for_emit": true,
     "withdrawal_condition_required_for_emit": true,
-    "upstream_review_abstains": true,
+    "row_level_review_debt_preserved_in_module_status": true,
     "numeric_accounting_failure": "FAIL_CLOSED"
   },
   "claim_locks": {
