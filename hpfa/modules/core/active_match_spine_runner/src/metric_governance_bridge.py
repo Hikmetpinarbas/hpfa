@@ -47,8 +47,11 @@ def _metric_capability_admission_rows(
             for value in requirement.get("required_observation_capabilities") or []
             if str(value).strip()
         }
+        requirement_declared = bool(required)
         missing = sorted(required - admitted) if evaluated else sorted(required)
-        if not evaluated:
+        if not requirement_declared:
+            state = "NOT_ELIGIBLE_REQUIRED_CAPABILITIES_UNDECLARED"
+        elif not evaluated:
             state = "NOT_EVALUATED_RUNTIME_CAPABILITY_EVIDENCE_MISSING"
         elif missing:
             state = "NOT_ELIGIBLE_MISSING_REQUIRED_CAPABILITIES"
@@ -57,6 +60,7 @@ def _metric_capability_admission_rows(
         rows.append({
             "metric_id": requirement.get("metric_id"),
             "required_observation_capabilities": sorted(required),
+            "required_observation_capabilities_declared": requirement_declared,
             "admitted_observation_capabilities": sorted(admitted),
             "missing_required_observation_capabilities": missing,
             "runtime_capability_admission_evaluated": evaluated,
@@ -157,6 +161,16 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
     metric_capability_admission = _metric_capability_admission_rows(
         capability_requirements, runtime_admission
     )
+    undeclared_requirement_metric_ids = sorted({
+        str(row.get("metric_id") or "UNKNOWN")
+        for row in metric_capability_admission
+        if row.get("required_observation_capabilities_declared") is not True
+    })
+    if undeclared_requirement_metric_ids:
+        review_hits.append(
+            "zfgv_metric_required_capabilities_undeclared:"
+            + ",".join(undeclared_requirement_metric_ids)
+        )
 
     alignment: dict[str, Any] = {
         "status": "NOT_EVALUATED_PREREQUISITE_MISSING",
@@ -209,6 +223,7 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         "admitted_observation_capabilities": runtime_admission.get("admitted_observation_capabilities") or [],
         "zfgv_metric_capability_requirements": capability_requirements,
         "metric_capability_admission": metric_capability_admission,
+        "undeclared_required_capability_metric_ids": undeclared_requirement_metric_ids,
         "metric_definition_policy_status": policy_status,
         "provider_metric_dictionary_status": dictionary_status,
         "aggregate_definition_alignment_status": alignment_status,
@@ -235,6 +250,7 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         "same_provider_multiformat_is_independent_support": False,
         "capability_eligibility_is_metric_truth": False,
         "capability_eligibility_is_construct_truth": False,
+        "empty_required_capabilities_are_eligible": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -262,6 +278,8 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         f"aggregate_definition_alignment_candidate_count={payload['aggregate_definition_alignment_candidate_count']}",
         "aggregate_definition_admitted_candidate_count=0",
         "aggregate_definition_alignment_candidates_are_admitted=false",
+        f"undeclared_required_capability_metric_ids={payload['undeclared_required_capability_metric_ids']}",
+        "empty_required_capabilities_are_eligible=false",
         f"aggregate_definition_alignment_candidate_claim_lock_violation_count={payload['aggregate_definition_alignment_candidate_claim_lock_violation_count']}",
         f"hard_block_hits={payload['hard_block_hits']}",
         f"review_hits={payload['review_hits']}",
