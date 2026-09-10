@@ -9,6 +9,7 @@ MODULE_ID = "context_conditioned_trace_deviation_lite_v1"
 VARIANT_MODULE_ID = "partial_order_trace_variant_lite_v1"
 CANONICAL_EVENT_COUNT = TRUE_ACTION_COUNT = "UNKNOWN"
 CLAIM_CEILING = "CONTEXT_CONDITIONED_VISIBLE_TRACE_DEVIATION_CANDIDATE_ONLY"
+OUTCOME_DENOMINATOR_AUTHORITY = "NON_CENSORED_VISIBLE_CONSEQUENCE_NODES_ONLY"
 ALLOWED_CONTEXT_DIMENSIONS = {
     "period_candidate",
     "start_reason_candidate",
@@ -37,6 +38,9 @@ def _fail(blocks: list[str], reviews: list[str]) -> dict[str, Any]:
         "context_conditioned_trace_deviation_count": 0,
         "hard_block_hits": sorted(set(blocks)),
         "review_hits": sorted(set(reviews)),
+        "legacy_outcome_signature_is_denominator_authority": False,
+        "right_censoring_is_outcome_difference": False,
+        "right_censoring_is_counterevidence": False,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": False,
@@ -111,22 +115,41 @@ def build_context_conditioned_trace_deviations(
         by_family.setdefault(family_ref, {baseline_value: [], comparison_value: []})[value].append(row)
 
     out: list[dict[str, Any]] = []
+    unresolved_outcome_authority_refs: list[str] = []
     for family_ref, cohorts in sorted(by_family.items()):
         baseline = cohorts[baseline_value]
         comparison = cohorts[comparison_value]
         if not baseline or not comparison:
             continue
 
-        def distributions(rows: list[dict[str, Any]]) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+        def distributions(rows: list[dict[str, Any]]) -> tuple[dict[str, int], dict[str, int], dict[str, int], dict[str, int], list[str]]:
             variant_counts: Counter[str] = Counter()
             outcome_counts: Counter[str] = Counter()
+            censoring_counts: Counter[str] = Counter()
             sequence_counts: Counter[str] = Counter()
+            unresolved_refs: list[str] = []
             for item in rows:
+                ref = _clean(item.get("trace_variant_id")) or "UNKNOWN"
                 variant_counts[_signature({
                     "action_family_signature": item.get("action_family_signature") or [],
                     "ordering_completeness": item.get("ordering_completeness"),
                 })] += 1
-                outcome_counts[_signature(item.get("outcome_signature") or [])] += 1
+
+                authority = _clean(item.get("outcome_denominator_authority"))
+                non_censored = item.get("non_censored_outcome_signature")
+                censoring = item.get("censoring_signature")
+                legacy_role = _clean(item.get("outcome_signature_role"))
+                if (
+                    authority != OUTCOME_DENOMINATOR_AUTHORITY
+                    or not isinstance(non_censored, list)
+                    or not isinstance(censoring, list)
+                    or legacy_role != "LEGACY_CONSEQUENCE_LINEAGE_ONLY_NOT_DENOMINATOR_AUTHORITY"
+                ):
+                    unresolved_refs.append(ref)
+                else:
+                    outcome_counts[_signature(non_censored)] += 1
+                    censoring_counts[_signature(censoring)] += 1
+
                 ctx = item.get("context_signature") if isinstance(item.get("context_signature"), dict) else {}
                 sequence_signature = {
                     key: _clean(ctx.get(key))
@@ -135,10 +158,21 @@ def build_context_conditioned_trace_deviations(
                 }
                 if sequence_signature:
                     sequence_counts[_signature(sequence_signature)] += 1
-            return dict(sorted(variant_counts.items())), dict(sorted(outcome_counts.items())), dict(sorted(sequence_counts.items()))
+            return (
+                dict(sorted(variant_counts.items())),
+                dict(sorted(outcome_counts.items())),
+                dict(sorted(censoring_counts.items())),
+                dict(sorted(sequence_counts.items())),
+                sorted(set(unresolved_refs)),
+            )
 
-        base_variant, base_outcome, base_sequence = distributions(baseline)
-        comp_variant, comp_outcome, comp_sequence = distributions(comparison)
+        base_variant, base_outcome, base_censoring, base_sequence, base_unresolved = distributions(baseline)
+        comp_variant, comp_outcome, comp_censoring, comp_sequence, comp_unresolved = distributions(comparison)
+        family_unresolved = sorted(set(base_unresolved + comp_unresolved))
+        if family_unresolved:
+            unresolved_outcome_authority_refs.extend(family_unresolved)
+            reviews.append(f"outcome_denominator_authority_unresolved:{family_ref}")
+
         base_deps = sorted({_clean(v) for row in baseline for v in (row.get("dependency_group_refs") or []) if _clean(v)})
         comp_deps = sorted({_clean(v) for row in comparison for v in (row.get("dependency_group_refs") or []) if _clean(v)})
         shared_deps = sorted(set(base_deps) & set(comp_deps))
@@ -147,14 +181,20 @@ def build_context_conditioned_trace_deviations(
             sample_warning = "SMALL_CONTEXT_COHORT_REVIEW_REQUIRED"
             reviews.append(f"small_context_cohort:{family_ref}")
 
-        outcome_diff = base_outcome != comp_outcome
+        outcome_comparison_evaluable = not family_unresolved
+        outcome_diff = outcome_comparison_evaluable and base_outcome != comp_outcome
+        censoring_coverage_diff = outcome_comparison_evaluable and base_censoring != comp_censoring
         sequence_diff = base_sequence != comp_sequence
-        if outcome_diff and sequence_diff:
+        if not outcome_comparison_evaluable:
+            effect = "OUTCOME_COMPARISON_REVIEW_REQUIRED_DENOMINATOR_AUTHORITY_UNRESOLVED"
+        elif outcome_diff and sequence_diff:
             effect = "VISIBLE_OUTCOME_AND_SEQUENCE_DISTRIBUTION_DIFFERENCE_CANDIDATE"
         elif outcome_diff:
             effect = "VISIBLE_OUTCOME_DISTRIBUTION_DIFFERENCE_CANDIDATE"
         elif sequence_diff:
             effect = "VISIBLE_SEQUENCE_DISTRIBUTION_DIFFERENCE_CANDIDATE"
+        elif censoring_coverage_diff:
+            effect = "NO_VISIBLE_NON_CENSORED_DISTRIBUTION_DIFFERENCE_CENSORING_COVERAGE_DIFFERS"
         else:
             effect = "NO_VISIBLE_DISTRIBUTION_DIFFERENCE_CURRENT_RESOLUTION"
 
@@ -172,10 +212,21 @@ def build_context_conditioned_trace_deviations(
             "comparison_variant_distribution": comp_variant,
             "baseline_outcome_distribution": base_outcome,
             "comparison_outcome_distribution": comp_outcome,
+            "baseline_censoring_distribution": base_censoring,
+            "comparison_censoring_distribution": comp_censoring,
             "baseline_sequence_distribution": base_sequence,
             "comparison_sequence_distribution": comp_sequence,
             "support_difference": len(comparison) - len(baseline),
             "outcome_difference": outcome_diff,
+            "outcome_comparison_evaluable": outcome_comparison_evaluable,
+            "outcome_denominator_authority": OUTCOME_DENOMINATOR_AUTHORITY,
+            "outcome_distribution_uses_legacy_signature": False,
+            "outcome_denominator_authority_unresolved_trace_refs": family_unresolved,
+            "censoring_coverage_difference": censoring_coverage_diff,
+            "censoring_distribution_is_outcome_distribution": False,
+            "right_censoring_is_outcome_difference": False,
+            "right_censoring_is_failure": False,
+            "right_censoring_is_counterevidence": False,
             "sequence_difference": sequence_diff,
             "sequence_distribution_excludes_conditioned_dimension": True,
             "effect_descriptor": effect,
@@ -183,13 +234,20 @@ def build_context_conditioned_trace_deviations(
                 "cohort_counts_are_independence_truth": False,
                 "missing_context_is_zero": False,
                 "missing_context_trace_count": len(missing_context_refs),
+                "censoring_coverage_difference_is_football_outcome_difference": False,
+                "outcome_comparison_requires_non_censored_denominator_authority": True,
             },
             "sample_warning": sample_warning,
-            "counterevidence": "NO_VISIBLE_DISTRIBUTION_DIFFERENCE_CURRENT_RESOLUTION" if not outcome_diff and not sequence_diff else None,
+            "counterevidence": (
+                "NO_VISIBLE_DISTRIBUTION_DIFFERENCE_CURRENT_RESOLUTION"
+                if outcome_comparison_evaluable and not outcome_diff and not sequence_diff and not censoring_coverage_diff
+                else None
+            ),
             "alternative_explanations": [
                 "SAMPLE_COMPOSITION",
                 "DEPENDENT_EVIDENCE",
                 "UNOBSERVED_VIDEO_TRACKING_CONTEXT",
+                "OBSERVATION_CENSORING_DIFFERENCE",
             ],
             "dependency_summary": {
                 "baseline_dependency_group_refs": base_deps,
@@ -214,6 +272,11 @@ def build_context_conditioned_trace_deviations(
         "baseline_context_value": baseline_value,
         "comparison_context_value": comparison_value,
         "missing_context_trace_refs": sorted(set(missing_context_refs)),
+        "outcome_denominator_authority_unresolved_trace_refs": sorted(set(unresolved_outcome_authority_refs)),
+        "legacy_outcome_signature_is_denominator_authority": False,
+        "right_censoring_is_outcome_difference": False,
+        "right_censoring_is_failure": False,
+        "right_censoring_is_counterevidence": False,
         "hard_block_hits": [],
         "review_hits": sorted(set(reviews)),
         "context_difference_is_causality_truth": False,
