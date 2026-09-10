@@ -11,7 +11,8 @@ IDENTITY_MODULE_ID = "match_local_identity_candidates_lite_v1"
 EPISODE_MODULE_ID = "analyst_episode_locator_lite_v1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
-CLAIM_CEILING = "PROVIDER_ANNOTATED_PROCESS_PARTICIPATION_CANDIDATE_ONLY"
+CLAIM_CEILING = "OBSERVED_PROCESS_PARTICIPATION_WITHIN_DEFINED_ELIGIBLE_PROCESS_UNIVERSE"
+OFF_BALL_OBSERVATION_STATE = "NOT_OBSERVED_REQUIRES_TRACKING_OR_VIDEO"
 OUTPUTS = {
     "json": "analyst_episode_process_participation_projection_v1.json",
     "summary": "analyst_episode_process_participation_projection_v1.txt",
@@ -204,6 +205,14 @@ def build_process_participation_projection(
                 "source_role": source_role,
                 "semantic_role": role,
                 "process_family_candidate": process_family,
+                "eligible_process_universe_definition": "PROVIDER_REVIEWED_PROCESS_ANNOTATIONS_MATCHING_THIS_PROCESS_FAMILY",
+                "universe_filter_rules": [
+                    "semantic_role_in_PARTICIPATION_INTERVAL_or_CONTEXT_INTERVAL",
+                    "atom_status_PASS",
+                    "reviewed_provider_semantics",
+                    "required_match_local_identity_binding",
+                ],
+                "denominator_scope_state": "DEFINED_ANNOTATION_UNIVERSE_ONLY",
                 "shot_present_annotation_candidate": _clean(classified.get("terminal_outcome_candidate")) == "SHOT_PRESENT_CANDIDATE",
                 "team_identity_candidate_id": identity.get("team_identity_candidate_id"),
                 "actor_identity_candidate_id": identity.get("actor_identity_candidate_id") if role == "PARTICIPATION_INTERVAL" else None,
@@ -217,6 +226,15 @@ def build_process_participation_projection(
                 "dependency_group": atom_id,
                 "independence_group": None,
                 "independent_support_vote_count": 0,
+                "direct_observed_process_participation": role == "PARTICIPATION_INTERVAL",
+                "on_field_process_exposure_state": "NOT_ESTABLISHED_BY_THIS_PROJECTION",
+                "off_ball_observation_state": OFF_BALL_OBSERVATION_STATE,
+                "on_field_during_process_is_process_contribution": False,
+                "no_recorded_action_is_no_contribution": False,
+                "indirect_model_coefficient_is_observed_off_ball_action": False,
+                "model_attribution_is_physical_mechanism": False,
+                "player_process_association_is_causal_player_impact": False,
+                "selected_process_universe_is_all_team_opportunities": False,
                 "process_participation_is_action_truth": False,
                 "process_annotation_is_tactical_plan_truth": False,
                 "process_annotation_is_coach_intention_truth": False,
@@ -240,6 +258,18 @@ def build_process_participation_projection(
         if actor_id:
             actor_family_counts[actor_id][row["process_family_candidate"]] += 1
 
+    eligible_family_population = Counter(row["process_family_candidate"] for row in records)
+    participation_family_population = Counter(row["process_family_candidate"] for row in participation)
+    process_universe_eligibility_audit = {
+        family: {
+            "eligible_annotation_population": eligible_family_population[family],
+            "direct_observed_participation_population": participation_family_population.get(family, 0),
+            "selected_process_universe_is_all_team_opportunities": False,
+            "denominator_claim_ceiling": "DEFINED_PROVIDER_ANNOTATION_UNIVERSE_ONLY",
+        }
+        for family in sorted(eligible_family_population)
+    }
+
     return {
         "module_id": MODULE_ID,
         "status": status,
@@ -254,8 +284,13 @@ def build_process_participation_projection(
         "actor_process_family_annotation_counts": {
             actor: dict(sorted(counts.items())) for actor, counts in sorted(actor_family_counts.items())
         },
-        "hard_block_hits": blocks,
-        "review_hits": reviews,
+        "process_universe_eligibility_audit": process_universe_eligibility_audit,
+        "off_ball_observation_state": OFF_BALL_OBSERVATION_STATE,
+        "direct_participation_is_on_field_exposure": False,
+        "on_field_exposure_is_off_ball_contribution": False,
+        "no_recorded_action_is_no_contribution": False,
+        "selected_process_universe_is_whole_match_attacking_game": False,
+        "predictive_validity_is_mechanism_validity": False,
         "annotation_count_is_action_count": False,
         "annotation_count_is_independent_support_count": False,
         "reflection_adds_independent_vote": False,
@@ -278,6 +313,8 @@ def _summary(payload: dict[str, Any]) -> str:
         f"team_process_annotation_count={payload.get('team_process_annotation_count', 0)}",
         f"player_participation_family_annotation_counts={json.dumps(payload.get('player_participation_family_annotation_counts') or {}, sort_keys=True)}",
         f"player_shot_present_process_family_annotation_counts={json.dumps(payload.get('player_shot_present_process_family_annotation_counts') or {}, sort_keys=True)}",
+        f"process_universe_eligibility_audit={json.dumps(payload.get('process_universe_eligibility_audit') or {}, sort_keys=True)}",
+        f"off_ball_observation_state={payload.get('off_ball_observation_state')}",
         f"review_hits={payload.get('review_hits')}",
         f"hard_block_hits={payload.get('hard_block_hits')}",
         "canonical_event_count=UNKNOWN",
@@ -290,12 +327,15 @@ def _summary(payload: dict[str, Any]) -> str:
 def _analyst(payload: dict[str, Any]) -> str:
     return "\n".join([
         "HPFA ANALYST AUDIT — PROCESS PARTICIPATION",
-        "WHAT_VISIBLE: provider-reviewed process participation/context annotations are bound to match-local identity candidates and episode navigation candidates where available.",
+        "WHAT_VISIBLE: provider-reviewed player process participation annotations are separated from team process context and from any broader on-field exposure claim.",
         "SUPPORT: evidence atom + reviewed provider semantic rule + match-local identity binding + episode row-nucleus membership.",
-        "COUNTEREVIDENCE: not generated from missing annotations; absence is not counterevidence.",
-        "SAFE_MEANING: a player is visibly annotated as participating in a provider-defined process family; shot-present annotations may distinguish shot-producing process annotations.",
-        "FORBIDDEN_INFERENCE: participation is not an action, off-ball role, spacing, team shape, tactical plan, coach intention, possession truth or causality.",
-        "ANALYST_ACTION: compare recurring participant/process annotations with admitted episode consequences before writing a finding.",
+        "DENOMINATOR: any participation percentage or count is valid only inside the explicitly defined provider-annotation process universe; it is not automatically the whole attacking game.",
+        "EXPOSURE: being on the pitch during a process is exposure/context only unless a separate admitted on-field opportunity surface proves it; exposure is not contribution.",
+        "OFF_BALL: event/annotation evidence does not observe space-creating runs, pinning, decoys, support positioning, marking or other off-ball mechanisms; tracking/video is required.",
+        "COUNTEREVIDENCE: no recorded action or missing annotation does not prove no contribution and is not counterevidence.",
+        "SAFE_MEANING: a player is directly observed/annotated as participating in a provider-defined process family within a defined eligible annotation universe.",
+        "FORBIDDEN_INFERENCE: participation is not total contribution, on-field exposure is not off-ball contribution, predictive/model association is not physical mechanism or causal player impact.",
+        "ANALYST_ACTION: state the eligible process universe explicitly, separate direct participation from mere exposure, and use tracking/video before making off-ball mechanism claims.",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "production_release=false",
