@@ -27,6 +27,48 @@
     "provider_alias_field_semantics_lite_v1.txt",
     "provider_alias_field_semantics_analyst_audit_v1.txt"
   ],
+  "provider_semantic_mapping_provenance": {
+    "version": "provider_semantic_mapping_provenance_v1",
+    "required_record_fields": [
+      "provider_ref",
+      "provider_schema_version",
+      "raw_field",
+      "canonical_key_candidate",
+      "mapping_type",
+      "mapping_cardinality",
+      "mapping_loss_state",
+      "lost_information",
+      "introduced_assumptions",
+      "coordinate_transform",
+      "time_transform",
+      "unit_transform",
+      "mapping_validation_state",
+      "semantic_equivalence_state",
+      "schema_version_binding_state",
+      "schema_change_requires_revalidation",
+      "mapping_creates_evidence_independence",
+      "canonicalization_creates_new_observation_truth"
+    ],
+    "allowed_mapping_types": [
+      "RENAMED_ONLY",
+      "CONDITIONAL_MAPPING",
+      "MANY_TO_ONE",
+      "UNVERIFIED"
+    ],
+    "field_name_match_is_definition_match": false,
+    "format_normalization_is_semantic_normalization": false,
+    "ontology_alignment_is_construct_validity": false,
+    "lossy_mapping_is_equivalence": false,
+    "many_to_one_mapping_may_destroy_claim_detail": true,
+    "coordinate_normalization_is_measurement_equivalence": false,
+    "timestamp_normalization_is_temporal_precision_equivalence": false,
+    "canonicalization_creates_evidence_independence": false,
+    "unknown_provider_schema_version_state": "SCHEMA_VERSION_UNKNOWN",
+    "schema_change_action": "REVALIDATION_REQUIRED",
+    "semantic_equivalence_default": "NOT_VALIDATED",
+    "mapping_validation_default": "NOT_VALIDATED",
+    "claim_ceiling": "FIELD_SEMANTICS_CANDIDATE_ONLY"
+  },
   "provider_time_semantic_admission": {
     "admitted_time_basis": "ABSOLUTE_MATCH_SECONDS",
     "claim_ceiling": "PROVIDER_TIME_SEMANTIC_CANDIDATE_ONLY",
