@@ -83,6 +83,8 @@ def test_participation_annotation_becomes_process_intelligence_not_action_truth(
     assert row["actor_identity_candidate_id"] == "actor_a"
     assert row["episode_candidate_id"] == "ep_a"
     assert row["process_participation_is_action_truth"] is False
+    assert row["direct_observed_process_participation"] is True
+    assert row["on_field_process_exposure_state"] == "NOT_ESTABLISHED_BY_THIS_PROJECTION"
     assert result["annotation_count_is_action_count"] is False
 
 
@@ -100,6 +102,7 @@ def test_provider_process_annotation_is_not_tactical_plan_or_off_ball_role():
     assert row["process_annotation_is_tactical_plan_truth"] is False
     assert row["process_annotation_is_coach_intention_truth"] is False
     assert row["process_annotation_is_off_ball_role_truth"] is False
+    assert row["off_ball_observation_state"] == "NOT_OBSERVED_REQUIRES_TRACKING_OR_VIDEO"
 
 
 def test_participation_requires_actor_identity_binding():
@@ -125,9 +128,37 @@ def test_missing_episode_binding_is_review_not_fabricated():
     assert row["episode_candidate_id"] is None
 
 
-def test_absence_is_not_counterevidence():
+def test_absence_is_not_counterevidence_or_no_contribution_truth():
     result = build_process_participation_projection(evidence(), identity(), episode())
     assert result["absence_is_counterevidence"] is False
+    assert result["no_recorded_action_is_no_contribution"] is False
+
+
+def test_on_field_exposure_cannot_become_off_ball_contribution():
+    result = build_process_participation_projection(evidence(), identity(), episode())
+    row = result["process_participation_candidates"][0]
+    assert row["on_field_during_process_is_process_contribution"] is False
+    assert result["direct_participation_is_on_field_exposure"] is False
+    assert result["on_field_exposure_is_off_ball_contribution"] is False
+
+
+def test_defined_universe_is_not_whole_attacking_game():
+    result = build_process_participation_projection(evidence(), identity(), episode())
+    audit = result["process_universe_eligibility_audit"]["POSITIONAL_ATTACK_CANDIDATE"]
+    assert audit["eligible_annotation_population"] == 1
+    assert audit["direct_observed_participation_population"] == 1
+    assert audit["selected_process_universe_is_all_team_opportunities"] is False
+    assert result["selected_process_universe_is_whole_match_attacking_game"] is False
+    assert result["claim_ceiling"] == "OBSERVED_PROCESS_PARTICIPATION_WITHIN_DEFINED_ELIGIBLE_PROCESS_UNIVERSE"
+
+
+def test_prediction_cannot_upgrade_mechanism_truth():
+    result = build_process_participation_projection(evidence(), identity(), episode())
+    assert result["predictive_validity_is_mechanism_validity"] is False
+    row = result["process_participation_candidates"][0]
+    assert row["indirect_model_coefficient_is_observed_off_ball_action"] is False
+    assert row["model_attribution_is_physical_mechanism"] is False
+    assert row["player_process_association_is_causal_player_impact"] is False
 
 
 def test_no_sample_match_identity_leak():
