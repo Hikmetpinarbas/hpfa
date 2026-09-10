@@ -14,6 +14,7 @@ if str(SRC) not in sys.path:
 
 import full_spine_runner as full_spine_module
 import rich_multiformat_analysis_lane as rich_lane_module
+from metric_governance_prerequisite_chain import run_metric_governance_prerequisite_chain
 from rich_construct_metric_governance_guard import assess_rich_construct_candidate
 from shared_surface_snapshot_contract import surface_snapshot_id
 from spine_runner import run_spine_check
@@ -101,6 +102,63 @@ def _bind_construct_admission_gate() -> None:
 
     full_spine_module.run_rich_lane = gated_run_rich_lane
     full_spine_module._hpfa_construct_admission_gate_bound = True
+
+
+def _bind_metric_governance_prerequisite_chain() -> None:
+    """Produce current-run multiformat semantics before metric governance consumes them."""
+    if getattr(full_spine_module, "_hpfa_metric_governance_prerequisite_chain_bound", False):
+        return
+    original_sidecars = full_spine_module.run_sidecars
+
+    def prerequisite_sidecars(*args, **kwargs):
+        active_match_dir = kwargs.get("active_match_dir")
+        out_dir = kwargs.get("out_dir")
+        product_root = kwargs.get("product_root")
+        if active_match_dir is None and len(args) >= 1:
+            active_match_dir = args[0]
+        if out_dir is None and len(args) >= 2:
+            out_dir = args[1]
+        if product_root is None and len(args) >= 3:
+            product_root = args[2]
+
+        chain = run_metric_governance_prerequisite_chain(
+            active_match_dir,
+            out_dir,
+            product_root,
+        )
+        report = original_sidecars(*args, **kwargs)
+        if not isinstance(report, dict):
+            return report
+
+        report["metric_governance_prerequisite_chain"] = chain
+        report["metric_governance_prerequisite_chain_status"] = chain.get("status")
+        report["metric_governance_prerequisites_current_run_ready"] = chain.get(
+            "required_governance_inputs_ready"
+        ) is True
+        artifacts = list(report.get("current_invocation_artifacts") or [])
+        artifacts.extend(chain.get("current_invocation_artifacts") or [])
+        report["current_invocation_artifacts"] = sorted(set(str(value) for value in artifacts if value))
+
+        if str(chain.get("status") or "").upper() == "FAIL_CLOSED":
+            existing = list(report.get("hard_block_hits") or [])
+            existing.extend(chain.get("hard_block_hits") or [])
+            report["hard_block_hits"] = list(dict.fromkeys(existing))
+            report["construct_path_blocked"] = True
+            report["construct_path_block_reason"] = (
+                report.get("construct_path_block_reason")
+                or ((chain.get("hard_block_hits") or ["metric_governance_prerequisite_chain_fail_closed"])[0])
+            )
+            report["status"] = "REVIEW_REQUIRED"
+        elif str(chain.get("status") or "").upper() == "REVIEW_REQUIRED":
+            existing = list(report.get("review_hits") or [])
+            existing.extend(chain.get("review_hits") or [])
+            report["review_hits"] = list(dict.fromkeys(existing))
+            if str(report.get("status") or "").upper() == "SMOKE_PASS":
+                report["status"] = "REVIEW_REQUIRED"
+        return report
+
+    full_spine_module.run_sidecars = prerequisite_sidecars
+    full_spine_module._hpfa_metric_governance_prerequisite_chain_bound = True
 
 
 def _bind_metric_governance_construct_gate() -> None:
@@ -196,6 +254,7 @@ def main() -> int:
             parser.error("--composite-registry is not accepted with --full-spine")
         _bind_shared_snapshot_contract()
         _bind_construct_admission_gate()
+        _bind_metric_governance_prerequisite_chain()
         _bind_metric_governance_construct_gate()
         before_state = snapshot_output_state(args.out_dir)
         result = full_spine_module.run_full_spine(
