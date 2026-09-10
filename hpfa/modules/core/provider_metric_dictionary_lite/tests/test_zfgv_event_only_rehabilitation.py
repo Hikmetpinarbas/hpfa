@@ -140,10 +140,11 @@ class ZfgvEventOnlyRehabilitationTests(unittest.TestCase):
         self.assertIn("OUTCOME_QUALIFIER", projected["required_observation_capabilities"])
         self.assertIn("ENTITY_ACTOR", projected["required_observation_capabilities"])
         self.assertIn("TEMPORAL", projected["required_observation_capabilities"])
-        self.assertNotIn("AGGREGATE_TABULAR", projected["required_observation_capabilities"])
+        self.assertIn("AGGREGATE_TABULAR", projected["required_observation_capabilities"])
         self.assertIn("AGGREGATE_TABULAR", policy_row["supporting_observation_capabilities"])
         self.assertTrue(projected["policy_capability_contract_explicit"])
         self.assertTrue(projected["capability_contract_explicit"])
+        self.assertTrue(projected["capability_requirement_sources_are_union_preserved"])
         self.assertFalse(projected["runtime_capability_admission_evaluated"])
 
     def test_dictionary_explicit_capabilities_cannot_erase_policy_requirements(self):
