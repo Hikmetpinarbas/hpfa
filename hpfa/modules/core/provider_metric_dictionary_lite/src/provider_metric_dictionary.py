@@ -8,7 +8,7 @@ from . import _provider_metric_dictionary_impl_v7 as _impl
 from ._provider_metric_dictionary_impl_v7 import *  # noqa: F401,F403
 from .observation_layer_admission import (
     OBSERVATION_MODEL,
-    normalize_dictionary_for_legacy_impl,
+    normalize_dictionary_for_zfgv,
 )
 
 
@@ -76,7 +76,6 @@ def _merge_observation_assessments(
     report: dict[str, Any], assessments: list[dict[str, Any]]
 ) -> None:
     report["observation_model"] = OBSERVATION_MODEL
-    report["event_only_is_product_ceiling"] = False
     report["observation_contract_assessments"] = assessments
 
     observation_hard = [
@@ -85,7 +84,7 @@ def _merge_observation_assessments(
         for hit in assessment.get("hard_block_hits", [])
     ]
     observation_review = [
-        _impl._gap("observation_contract_migration_review", hit, "REVIEW_REQUIRED")
+        _impl._gap("observation_contract_review", hit, "REVIEW_REQUIRED")
         for assessment in assessments
         for hit in assessment.get("review_hits", [])
     ]
@@ -129,7 +128,7 @@ def build_dictionary_report(
     aggregate_registry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     normalized_dictionary, normalized_metric_policy, observation_assessments = (
-        normalize_dictionary_for_legacy_impl(dictionary, metric_policy)
+        normalize_dictionary_for_zfgv(dictionary, metric_policy)
     )
 
     report = _impl.build_dictionary_report(
