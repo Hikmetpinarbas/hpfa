@@ -1,25 +1,178 @@
 {
   "registry_id": "action_occurrence_semantic_compatibility_v1",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "status": "REVIEWED_CANDIDATE_RULES_ONLY",
-  "purpose": "Precision-first compatibility rules for candidate occurrence reconstruction from already admitted Action Bundle surfaces. Rules create candidate relations only; they never establish canonical events.",
+  "purpose": "Precision-first compatibility rules for candidate occurrence reconstruction from already admitted Action Bundle surfaces. Rules create candidate relations or same-actor action-grammar candidates only; they never establish canonical events.",
   "upstream_semantics_binding": {
     "registry_id": "sportsbase_label_semantics_reviewed_v2",
     "binding_mode": "EVIDENCE_ATOM_SEMANTIC_RULE_ID_REQUIRED",
     "semantic_mapping_status_required": "EXACT_REVIEWED_CANDIDATE"
   },
+  "intra_actor_occurrence_rules": [
+    {
+      "rule_id": "pass_semantic_annotation_collapse_exact_v1",
+      "action_family": "PASS",
+      "source_role": "PLAYER_SURFACE_CANDIDATE",
+      "minimum_distinct_semantic_labels": 2,
+      "semantic_labels": {
+        "Passes accurate": {
+          "semantic_rule_id": "plvs_v2_passes_accurate",
+          "outcome": "SUCCESS"
+        },
+        "Passes forward accurate": {
+          "semantic_rule_id": "plvs_v2_passes_forward_accurate",
+          "outcome": "SUCCESS",
+          "direction": "FORWARD"
+        },
+        "Inaccurate passes": {
+          "semantic_rule_id": "plvs_v2_inaccurate_passes",
+          "outcome": "FAILURE"
+        },
+        "Incomplete passes forward": {
+          "semantic_rule_id": "plvs_v2_incomplete_passes_forward",
+          "outcome": "FAILURE",
+          "direction": "FORWARD"
+        },
+        "Progressive passes accurate": {
+          "semantic_rule_id": "plvs_v2_progressive_passes_accurate",
+          "outcome": "SUCCESS",
+          "progression": "PROGRESSIVE_CANDIDATE"
+        },
+        "Incomplete progressive passes": {
+          "semantic_rule_id": "plvs_v2_incomplete_progressive_passes",
+          "outcome": "FAILURE",
+          "progression": "PROGRESSIVE_CANDIDATE"
+        },
+        "Passes into the penalty box accurate": {
+          "semantic_rule_id": "plvs_v2_passes_into_the_penalty_box_accurate",
+          "outcome": "SUCCESS",
+          "zone_context": "PENALTY_AREA"
+        },
+        "Incomplete passes into the box": {
+          "semantic_rule_id": "plvs_v2_incomplete_passes_into_the_box",
+          "outcome": "FAILURE",
+          "zone_context": "PENALTY_AREA"
+        },
+        "Long passes": {
+          "semantic_rule_id": "plvs_v2_long_passes",
+          "distance": "LONG"
+        },
+        "Incomplete long passes": {
+          "semantic_rule_id": "plvs_v2_incomplete_long_passes",
+          "outcome": "FAILURE",
+          "distance": "LONG"
+        },
+        "Key passes accurate": {
+          "semantic_rule_id": "plvs_v2_key_passes_accurate",
+          "outcome": "SUCCESS",
+          "key_action": "KEY_PASS_CANDIDATE"
+        },
+        "Incomplete key passes": {
+          "semantic_rule_id": "plvs_v2_incomplete_key_passes",
+          "outcome": "FAILURE",
+          "key_action": "KEY_PASS_CANDIDATE"
+        },
+        "Passes into offside": {
+          "semantic_rule_id": "plvs_v2_passes_into_offside",
+          "key_action": "OFFSIDE_CANDIDATE"
+        }
+      },
+      "required_bundle_conditions": [
+        "same player surface",
+        "same team and actor identity candidates",
+        "same period/start/end annotation core",
+        "same annotation anchor",
+        "same PASS family",
+        "reviewed provider semantic rule bindings"
+      ],
+      "forbidden_merge_authorities": [
+        "same timestamp alone",
+        "source row order",
+        "CSV/XML format agreement as independent vote",
+        "XLSX aggregate row"
+      ],
+      "allowed_claim": "Multiple compatible reviewed PASS annotations inside one exact same-actor Action Bundle may be represented as one PASS occurrence candidate with qualifier/outcome attributes.",
+      "forbidden_claims": [
+        "canonical event truth",
+        "true action count",
+        "exact physical chronology",
+        "physical player position",
+        "tactical intention",
+        "causality"
+      ]
+    },
+    {
+      "rule_id": "dribble_semantic_annotation_collapse_exact_v1",
+      "action_family": "DRIBBLE",
+      "source_role": "PLAYER_SURFACE_CANDIDATE",
+      "minimum_distinct_semantic_labels": 2,
+      "semantic_labels": {
+        "Dribbles successful": {
+          "semantic_rule_id": "plvs_v2_dribbles_successful",
+          "outcome": "SUCCESS"
+        },
+        "Dribbles unsuccessful": {
+          "semantic_rule_id": "plvs_v2_dribbles_unsuccessful",
+          "outcome": "FAILURE"
+        },
+        "Dribbling in the final third successful": {
+          "semantic_rule_id": "plvs_v2_dribbling_in_the_final_third_successful",
+          "outcome": "SUCCESS",
+          "zone_context": "FINAL_THIRD"
+        },
+        "Unsuccessful dribbles in the final third": {
+          "semantic_rule_id": "plvs_v2_unsuccessful_dribbles_in_the_final_third",
+          "outcome": "FAILURE",
+          "zone_context": "FINAL_THIRD"
+        }
+      },
+      "required_bundle_conditions": [
+        "same player surface",
+        "same team and actor identity candidates",
+        "same period/start/end annotation core",
+        "same annotation anchor",
+        "same DRIBBLE family",
+        "reviewed provider semantic rule bindings"
+      ],
+      "forbidden_merge_authorities": [
+        "same timestamp alone",
+        "source row order",
+        "CSV/XML format agreement as independent vote",
+        "XLSX aggregate row"
+      ],
+      "allowed_claim": "Multiple compatible reviewed DRIBBLE annotations inside one exact same-actor Action Bundle may be represented as one DRIBBLE occurrence candidate with outcome/context attributes.",
+      "forbidden_claims": [
+        "canonical event truth",
+        "true action count",
+        "exact physical chronology",
+        "physical player position",
+        "tactical intention",
+        "causality"
+      ]
+    }
+  ],
   "interaction_rules": [
     {
       "rule_id": "dribble_challenge_interaction_exact_v1",
       "interaction_type": "DRIBBLE_CHALLENGE_INTERACTION_CANDIDATE",
-      "source_roles": ["PLAYER_SURFACE_CANDIDATE", "PLAYER_SURFACE_CANDIDATE"],
-      "primary_required_families": ["DRIBBLE"],
+      "source_roles": [
+        "PLAYER_SURFACE_CANDIDATE",
+        "PLAYER_SURFACE_CANDIDATE"
+      ],
+      "primary_required_families": [
+        "DRIBBLE"
+      ],
       "primary_required_any_labels": [
         "Dribbles successful",
         "Dribbling in the final third successful"
       ],
-      "primary_support_any_labels": ["Challenges won"],
-      "counterpart_required_any_families": ["DUEL", "TACKLE"],
+      "primary_support_any_labels": [
+        "Challenges won"
+      ],
+      "counterpart_required_any_families": [
+        "DUEL",
+        "TACKLE"
+      ],
       "counterpart_required_any_labels": [
         "Challenges unsuccessful",
         "Tackles unsuccessful"
@@ -35,7 +188,9 @@
         "plvs_v2_dribbles_successful",
         "plvs_v2_dribbling_in_the_final_third_successful"
       ],
-      "primary_support_semantic_rule_ids_any": ["plvs_v2_challenges_won"],
+      "primary_support_semantic_rule_ids_any": [
+        "plvs_v2_challenges_won"
+      ],
       "counterpart_semantic_rule_ids_any": [
         "plvs_v2_challenges_unsuccessful",
         "plvs_v2_tackles_unsuccessful"
@@ -52,9 +207,14 @@
           "COMPOUND_ACTION_CO_OCCURRENCE_REVIEW_REQUIRED"
         ],
         "allowed_family_sets": [
-          ["DRIBBLE", "DUEL"]
+          [
+            "DRIBBLE",
+            "DUEL"
+          ]
         ],
-        "required_primary_support_labels": ["Challenges won"],
+        "required_primary_support_labels": [
+          "Challenges won"
+        ],
         "forbidden_taxonomy_classifications": [
           "MULTI_FAMILY_COMPLEX_REVIEW_REQUIRED"
         ]
@@ -72,6 +232,8 @@
   "global_claim_boundary": {
     "conditional_review_passthrough_changes_upstream_taxonomy_truth": false,
     "provider_semantics_binding_required": true,
+    "same_actor_semantic_collapse_is_canonical_event_truth": false,
+    "same_timestamp_alone_is_merge_authority": false,
     "canonical_event_count": "UNKNOWN",
     "true_action_count": "UNKNOWN",
     "validated_event_identity": false,
@@ -79,6 +241,7 @@
     "same_time_total_order_allowed": false,
     "source_row_order_is_temporal_truth": false,
     "independent_csv_xml_vote_allowed": false,
+    "xlsx_can_create_action_identity": false,
     "production_release": false
   }
 }
