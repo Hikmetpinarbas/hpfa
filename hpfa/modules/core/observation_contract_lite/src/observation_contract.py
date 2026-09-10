@@ -204,6 +204,10 @@ def assess_observation_contract(row: dict[str, Any]) -> dict[str, Any]:
         "hard_block_hits": hard,
         "review_hits": review,
         "status": "FAIL_CLOSED" if hard else ("REVIEW_REQUIRED" if review else "PASS"),
+        # Deprecated compatibility metadata only. ZFGV is the sole product contract;
+        # this shadow must never be used to admit or reject a construct.
+        "legacy_event_only_shadow_compatible": True,
+        "event_only_is_product_ceiling": False,
     }
 
 
@@ -211,11 +215,42 @@ def normalize_dictionary_for_zfgv(
     dictionary: dict[str, Any],
     metric_policy: dict[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None, list[dict[str, Any]]]:
-    """Return isolated inputs plus ZFGV contract assessments for each dictionary row."""
+    """Assess raw rows under ZFGV, then isolate legacy-engine compatibility.
+
+    The wrapped provider dictionary implementation still carries a historical
+    `event_only_compatible` operational field. For rows whose explicit ZFGV
+    contract is valid, a deep-copied compatibility shadow is set to True only
+    for that legacy implementation. This does not alter source data, prove an
+    observation, widen a claim ceiling, or make event-only a product gate.
+    Invalid/missing ZFGV contracts are not rehabilitated by the shadow.
+    """
     normalized_dictionary = deepcopy(dictionary)
     normalized_policy = deepcopy(metric_policy) if metric_policy is not None else None
+    raw_rows = dictionary.get("metrics", []) if isinstance(dictionary, dict) else []
     assessments = [
         assess_observation_contract(row)
-        for row in normalized_dictionary.get("metrics", [])
+        for row in raw_rows
+        if isinstance(row, dict)
     ]
+
+    valid_metric_ids = {
+        assessment["metric_id"]
+        for assessment in assessments
+        if assessment.get("status") != "FAIL_CLOSED"
+    }
+    for row in normalized_dictionary.get("metrics", []) or []:
+        if not isinstance(row, dict):
+            continue
+        metric_id = str(row.get("metric_id") or "UNKNOWN").strip() or "UNKNOWN"
+        if metric_id in valid_metric_ids:
+            row["event_only_compatible"] = True
+
+    if normalized_policy is not None:
+        for row in normalized_policy.get("metrics", []) or []:
+            if not isinstance(row, dict):
+                continue
+            metric_id = str(row.get("metric_id") or "UNKNOWN").strip() or "UNKNOWN"
+            if metric_id in valid_metric_ids:
+                row["event_only_compatible"] = True
+
     return normalized_dictionary, normalized_policy, assessments
