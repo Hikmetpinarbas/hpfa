@@ -20,10 +20,10 @@ def _docs():
     return [json.loads((CONFIG / name).read_text(encoding="utf-8")) for name in names]
 
 
-def test_seed_pack_declares_enriched_observation_model():
+def test_seed_pack_declares_zfgv_observation_model():
     report = load_policy_pack(CONFIG)
     assert report["status"] == "SMOKE_PASS"
-    assert report["observation_model"] == "ENRICHED_FOOTBALL_OBSERVATION_DATA_V1"
+    assert report["observation_model"] == "ZFGV_V1"
     assert report["event_only_is_product_ceiling"] is False
     assert all(metric["observation_contract_status"] == "PASS" for metric in report["metrics"])
 
