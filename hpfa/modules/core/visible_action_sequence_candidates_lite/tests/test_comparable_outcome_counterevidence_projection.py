@@ -38,6 +38,7 @@ def _payload(*, comparison_eligible=True, left_outcome="SUCCESS_SEMANTIC_VISIBLE
                 "observed_branch_opportunity_success_numerator": 1,
                 "observed_branch_opportunity_eligible_denominator": 2,
                 "observed_branch_opportunity_raw_success_rate": 0.5,
+                "observed_branch_opportunity_total_visible_branch_count": 2,
                 "observed_branch_opportunity_actor_spread_count": 2,
                 "observed_branch_opportunity_episode_spread_count": "UNKNOWN",
                 "observed_branch_opportunity_context_spread_state": "PARTIAL_PERIOD_AND_SHARED_ANCHOR_ONLY",
@@ -163,6 +164,57 @@ def test_safe_finding_handoff_is_downgraded_and_keeps_challenge_surface():
     assert handoff["canonical_event_count"] == "UNKNOWN"
     assert handoff["true_action_count"] == "UNKNOWN"
     assert handoff["production_release"] is False
+
+
+def test_evidence_sufficiency_profile_is_non_compensatory_and_explains_downgrade():
+    result = build_comparable_outcome_counterevidence(_payload())
+    assert result["evidence_sufficiency_profile_is_non_compensatory"] is True
+    assert result["evidence_sufficiency_numeric_score_allowed"] is False
+    assert result["evidence_sufficiency_universal_threshold_allowed"] is False
+
+    profile = result["safe_finding_handoff_candidates"][0]["evidence_sufficiency"]
+    assert profile["state"] == "INSUFFICIENT_FOR_PROFESSIONAL_EMIT"
+    assert profile["numeric_sufficiency_score"] is None
+    assert profile["universal_sufficiency_threshold_used"] is False
+    assert profile["dimensions_compensate_each_other"] is False
+    assert profile["missing_dimension_is_zero"] is False
+    assert profile["coverage_is_generalizability_truth"] is False
+    assert profile["high_raw_rate_can_override_dependency_block"] is False
+    assert profile["counterexample_pair_count_can_override_independence_block"] is False
+    assert profile["dimensions"]["outcome_coverage"]["state"] == "COMPLETE_FOR_VISIBLE_BRANCHES"
+    assert profile["dimensions"]["episode_spread"]["state"] == "UNKNOWN"
+    assert profile["dimensions"]["challenge_surface"]["pair_count_is_independent_evidence_count"] is False
+    assert "INDEPENDENT_SUPPORT_NOT_ADMITTED" in profile["blocking_dimensions"]
+    assert "EPISODE_SPREAD_UNKNOWN" in profile["blocking_dimensions"]
+    assert "CONTEXT_COVERAGE_PARTIAL_OR_UNKNOWN" in profile["blocking_dimensions"]
+
+
+def test_unknown_visible_branch_coverage_is_unknown_not_zero_or_complete():
+    payload = _payload()
+    divergence = payload["first_supported_branch_divergence_candidates"][0]
+    divergence.pop("observed_branch_opportunity_total_visible_branch_count")
+    result = build_comparable_outcome_counterevidence(payload)
+    profile = result["safe_finding_handoff_candidates"][0]["evidence_sufficiency"]
+    coverage = profile["dimensions"]["outcome_coverage"]
+    assert coverage["total_visible_branch_count"] == "UNKNOWN"
+    assert coverage["unresolved_visible_branch_count"] == "UNKNOWN"
+    assert coverage["state"] == "VISIBLE_OUTCOME_COVERAGE_UNKNOWN"
+    assert "OUTCOME_COVERAGE_PARTIAL_OR_UNKNOWN" in profile["blocking_dimensions"]
+
+
+def test_high_raw_rate_cannot_override_dependency_or_coverage_blocks():
+    payload = _payload()
+    divergence = payload["first_supported_branch_divergence_candidates"][0]
+    divergence["observed_branch_opportunity_success_numerator"] = 99
+    divergence["observed_branch_opportunity_eligible_denominator"] = 100
+    divergence["observed_branch_opportunity_raw_success_rate"] = 0.99
+    divergence["observed_branch_opportunity_total_visible_branch_count"] = 100
+    result = build_comparable_outcome_counterevidence(payload)
+    profile = result["safe_finding_handoff_candidates"][0]["evidence_sufficiency"]
+    assert profile["state"] == "INSUFFICIENT_FOR_PROFESSIONAL_EMIT"
+    assert profile["high_raw_rate_can_override_dependency_block"] is False
+    assert "INDEPENDENT_SUPPORT_NOT_ADMITTED" in profile["blocking_dimensions"]
+    assert "DEPENDENCY_INDEPENDENCE_NOT_PROVEN" in profile["blocking_dimensions"]
 
 
 def test_counterexample_pair_count_never_becomes_evidence_count():
