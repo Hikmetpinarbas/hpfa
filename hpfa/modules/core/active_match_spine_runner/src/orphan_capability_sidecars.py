@@ -18,6 +18,12 @@ from hpfa.modules.core.active_match_spine_runner.src.occurrence_state_transition
 from hpfa.modules.core.spatial_transition_candidate_lite.src import spatial_transition_candidate as spatial_transition
 from hpfa.modules.core.state_transition_dynamics_lite.src import state_transition_dynamics as state_transition
 from hpfa.modules.core.analyst_episode_locator_lite.src import process_participation_projection as process_participation
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.analyst_output_claim_contract_projection import (
+    build_analyst_output_claim_contract,
+)
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_sequence_grammar_alignment_projection import (
+    build_supported_sequence_grammar_alignment,
+)
 
 MODULE_ID = "active_match_orphan_capability_sidecars_v1"
 TRACE_OUTPUT = "trackable_action_trace_candidates_lite_v1.json"
@@ -25,6 +31,9 @@ EVIDENCE_OUTPUT = "evidence_atom_inventory_lite_v1.json"
 IDENTITY_OUTPUT = "match_local_identity_candidates_lite_v1.json"
 EPISODE_OUTPUT = "analyst_episode_locator_lite_v1.json"
 CONSEQUENCE_OUTPUT = "trackable_action_consequence_candidates_lite_v1.json"
+SEQUENCE_OUTPUT = "visible_action_sequence_candidates_lite_v1.json"
+GRAMMAR_ALIGNMENT_OUTPUT = "supported_sequence_grammar_alignment_projection_v1.json"
+ANALYST_OUTPUT_CLAIM_CONTRACT_OUTPUT = "analyst_output_claim_contract_projection_v1.json"
 
 
 def _dedupe(values: list[str]) -> list[str]:
@@ -44,6 +53,14 @@ def _load_json(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("json_input_not_object")
     return payload
+
+
+def _write_projection(path: Path, payload: dict[str, Any]) -> Path:
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root: str | Path) -> dict[str, Any]:
@@ -95,6 +112,7 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
     identity_path = output / IDENTITY_OUTPUT
     episode_path = output / EPISODE_OUTPUT
     consequence_path = output / CONSEQUENCE_OUTPUT
+    sequence_path = output / SEQUENCE_OUTPUT
 
     occurrence_projection_prerequisite_present = trace_path.is_file() and consequence_path.is_file()
     if occurrence_projection_prerequisite_present:
@@ -261,6 +279,60 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         }
         process_participation_status = process_participation_report["status"]
 
+    sequence_intelligence_prerequisite_present = sequence_path.is_file()
+    if sequence_intelligence_prerequisite_present:
+        try:
+            sequence_payload = _load_json(sequence_path)
+            grammar_alignment_report = build_supported_sequence_grammar_alignment(sequence_payload)
+            grammar_alignment_path = _write_projection(
+                output / GRAMMAR_ALIGNMENT_OUTPUT,
+                grammar_alignment_report,
+            )
+            artifacts.append(str(grammar_alignment_path))
+            grammar_alignment_status = grammar_alignment_report.get("status")
+            if grammar_alignment_status == "FAIL_CLOSED":
+                reasons = grammar_alignment_report.get("hard_block_hits") or []
+                reason = str(reasons[0]) if reasons else "grammar_alignment_fail_closed"
+                hard_blocks.append(f"sequence_grammar_alignment_construct_path_blocked:{reason}")
+            elif grammar_alignment_status != "PASS":
+                review_hits.append("sequence_grammar_alignment_review_required")
+
+            analyst_output_claim_contract_report = build_analyst_output_claim_contract(sequence_payload)
+            analyst_output_claim_contract_path = _write_projection(
+                output / ANALYST_OUTPUT_CLAIM_CONTRACT_OUTPUT,
+                analyst_output_claim_contract_report,
+            )
+            artifacts.append(str(analyst_output_claim_contract_path))
+            analyst_output_claim_contract_status = analyst_output_claim_contract_report.get("status")
+            if analyst_output_claim_contract_status == "FAIL_CLOSED":
+                reasons = analyst_output_claim_contract_report.get("hard_block_hits") or []
+                reason = str(reasons[0]) if reasons else "analyst_output_claim_contract_fail_closed"
+                hard_blocks.append(f"analyst_output_claim_contract_construct_path_blocked:{reason}")
+            elif analyst_output_claim_contract_status != "PASS":
+                review_hits.append("analyst_output_claim_contract_review_required")
+        except Exception as exc:
+            grammar_alignment_report = {"status": "REVIEW_REQUIRED", "error_type": type(exc).__name__}
+            grammar_alignment_status = "REVIEW_REQUIRED"
+            analyst_output_claim_contract_report = {
+                "status": "REVIEW_REQUIRED",
+                "error_type": type(exc).__name__,
+            }
+            analyst_output_claim_contract_status = "REVIEW_REQUIRED"
+            review_hits.append(f"sequence_intelligence_sidecar_failed:{type(exc).__name__}")
+    else:
+        grammar_alignment_report = {
+            "status": "NOT_APPLICABLE_PREREQUISITE_MISSING",
+            "reason": "visible_action_sequence_output_missing",
+            "production_release": False,
+        }
+        grammar_alignment_status = grammar_alignment_report["status"]
+        analyst_output_claim_contract_report = {
+            "status": "NOT_APPLICABLE_PREREQUISITE_MISSING",
+            "reason": "visible_action_sequence_output_missing",
+            "production_release": False,
+        }
+        analyst_output_claim_contract_status = analyst_output_claim_contract_report["status"]
+
     try:
         metric_governance = run_metric_governance_bridge(output, product_root)
         metric_governance_status = metric_governance.get("status")
@@ -296,6 +368,10 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "occurrence_state_transition_projection_prerequisite_present": occurrence_state_transition_prerequisite_present,
         "process_participation_projection_status": process_participation_status,
         "process_participation_projection_prerequisite_present": process_participation_prerequisite_present,
+        "sequence_grammar_alignment_status": grammar_alignment_status,
+        "sequence_grammar_alignment_prerequisite_present": sequence_intelligence_prerequisite_present,
+        "analyst_output_claim_contract_status": analyst_output_claim_contract_status,
+        "analyst_output_claim_contract_prerequisite_present": sequence_intelligence_prerequisite_present,
         "metric_governance_bridge_status": metric_governance_status,
         "active_match_analyst_report_lite": baseline,
         "triplex_source_alignment": triplex_report,
@@ -304,6 +380,8 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "state_transition_dynamics": state_transition_report,
         "occurrence_state_transition_projection": occurrence_state_transition_report,
         "process_participation_projection": process_participation_report,
+        "sequence_grammar_alignment": grammar_alignment_report,
+        "analyst_output_claim_contract": analyst_output_claim_contract_report,
         "metric_governance_bridge": metric_governance,
         "construct_path_blocked": construct_path_blocked,
         "construct_path_block_reason": construct_path_block_reason,
