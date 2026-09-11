@@ -63,6 +63,80 @@ def _bind_occurrence_projection(payload: dict, trace_payload: dict, consequence_
     return payload
 
 
+def _promote_occurrence_temporal_primary(payload: dict) -> dict:
+    projection_status = str(payload.get("occurrence_temporal_projection_status") or "").strip().upper()
+    occurrence_layers = payload.get("occurrence_temporal_time_layer_candidates")
+    occurrence_sequences = payload.get("occurrence_temporal_sequence_candidates")
+    if projection_status != "PASS" or not isinstance(occurrence_layers, list) or not isinstance(occurrence_sequences, list):
+        payload["primary_sequence_projection_mode"] = "LEGACY_TRACE_COMPATIBILITY"
+        payload["occurrence_temporal_primary_inventory_admitted"] = False
+        return payload
+
+    if not occurrence_sequences:
+        payload["primary_sequence_projection_mode"] = "LEGACY_TRACE_COMPATIBILITY_EMPTY_OCCURRENCE_PROJECTION"
+        payload["occurrence_temporal_primary_inventory_admitted"] = False
+        payload["occurrence_temporal_empty_projection_requires_review"] = True
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("occurrence_temporal_primary_inventory_empty")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+        return payload
+
+    legacy_layers = list(payload.get("visible_action_time_layer_candidates") or [])
+    legacy_sequences = list(payload.get("visible_action_sequence_candidates") or [])
+    payload["legacy_visible_action_time_layer_candidates"] = legacy_layers
+    payload["legacy_visible_action_sequence_candidates"] = legacy_sequences
+    payload["legacy_visible_action_time_layer_candidate_count"] = len(legacy_layers)
+    payload["legacy_visible_action_sequence_candidate_count"] = len(legacy_sequences)
+    payload["legacy_trace_sequence_surface_is_primary_action_member_surface"] = False
+    payload["legacy_trace_sequence_surface_retained_as_support_context"] = True
+
+    payload["visible_action_time_layer_candidates"] = occurrence_layers
+    payload["visible_action_time_layer_candidate_count"] = len(occurrence_layers)
+    payload["visible_action_sequence_candidates"] = occurrence_sequences
+    payload["visible_action_sequence_candidate_count"] = len(occurrence_sequences)
+    payload["primary_sequence_projection_mode"] = "OCCURRENCE_TEMPORAL_PRIMARY"
+    payload["occurrence_temporal_primary_inventory_admitted"] = True
+    payload["occurrence_temporal_primary_inventory_is_sequence_truth"] = False
+    payload["occurrence_temporal_primary_inventory_is_possession_truth"] = False
+    payload["occurrence_temporal_primary_inventory_is_tactical_truth"] = False
+    payload["occurrence_temporal_primary_inventory_is_causal_truth"] = False
+
+    payload["pass_multi_layer_visible_sequence_candidate_count"] = sum(
+        str(row.get("sequence_record_status") or "") == "PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE"
+        for row in occurrence_sequences
+        if isinstance(row, dict)
+    )
+    payload["pass_single_layer_visible_trace_candidate_count"] = sum(
+        str(row.get("sequence_record_status") or "") == "PASS_SINGLE_LAYER_VISIBLE_TRACE_CANDIDATE"
+        for row in occurrence_sequences
+        if isinstance(row, dict)
+    )
+    payload["review_required_sequence_context_count"] = sum(
+        str(row.get("sequence_record_status") or "") == "REVIEW_REQUIRED_CONTEXT"
+        for row in occurrence_sequences
+        if isinstance(row, dict)
+    )
+    payload["primary_sequence_member_trace_count"] = len(
+        {
+            str(trace_id)
+            for row in occurrence_sequences
+            if isinstance(row, dict)
+            for trace_id in (row.get("trackable_action_trace_candidate_ids") or [])
+            if str(trace_id)
+        }
+    )
+    payload["review_layer_member_trace_count"] = 0
+    payload["trace_assignment_complete"] = False
+    payload["trace_assignment_count"] = int(payload.get("source_trackable_action_trace_candidate_count") or 0)
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = sequence.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
@@ -117,6 +191,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     trace_payload = _load(trace_path)
     payload = sequence.build_visible_action_sequence_candidates(trace_payload, consequence_payload)
     payload = _bind_occurrence_projection(payload, trace_payload, consequence_payload)
+    payload = _promote_occurrence_temporal_primary(payload)
     payload["current_consequence_status"] = consequence_payload.get("status")
     payload["current_trace_status"] = consequence_payload.get("current_trace_status")
     payload["current_content_source_role_bridge_status"] = consequence_payload.get(
@@ -137,7 +212,10 @@ def main() -> int:
     print(json.dumps({
         "status": payload.get("status"),
         "current_consequence_status": payload.get("current_consequence_status"),
+        "primary_sequence_projection_mode": payload.get("primary_sequence_projection_mode"),
+        "occurrence_temporal_primary_inventory_admitted": payload.get("occurrence_temporal_primary_inventory_admitted"),
         "source_trackable_action_trace_candidate_count": payload.get("source_trackable_action_trace_candidate_count"),
+        "legacy_visible_action_sequence_candidate_count": payload.get("legacy_visible_action_sequence_candidate_count"),
         "visible_action_time_layer_candidate_count": payload.get("visible_action_time_layer_candidate_count"),
         "single_team_primary_layer_count": payload.get("single_team_primary_layer_count"),
         "mixed_team_primary_layer_review_required_count": payload.get("mixed_team_primary_layer_review_required_count"),
