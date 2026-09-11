@@ -11,6 +11,9 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src import (
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.anchor_centered_sequence_branch_map_projection import (
     build_anchor_centered_sequence_branch_maps,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.comparable_outcome_counterevidence_projection import (
+    build_comparable_outcome_counterevidence,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.dependency_aware_partial_order_similarity_projection import (
     build_dependency_aware_partial_order_similarity,
 )
@@ -266,6 +269,43 @@ def _bind_first_supported_divergence(payload: dict, occurrence_payload: dict) ->
     return payload
 
 
+def _bind_comparable_outcome_counterevidence(payload: dict) -> dict:
+    projection = build_comparable_outcome_counterevidence(payload)
+    payload["comparable_outcome_counterevidence_status"] = projection.get("status")
+    payload["comparable_outcome_counterevidence_records"] = list(
+        projection.get("comparable_outcome_counterevidence_records") or []
+    )
+    payload["comparable_outcome_counterevidence_record_count"] = int(
+        projection.get("comparable_outcome_counterevidence_record_count") or 0
+    )
+    payload["comparable_outcome_contrast_state_counts"] = dict(
+        projection.get("comparable_outcome_contrast_state_counts") or {}
+    )
+    payload["comparison_eligible_outcome_record_count"] = int(
+        projection.get("comparison_eligible_record_count") or 0
+    )
+    payload["comparable_counterevidence_candidate_count"] = int(
+        projection.get("comparable_counterevidence_candidate_count") or 0
+    )
+    payload["counterevidence_independent_support_count"] = 0
+    payload["counterevidence_is_independent_support"] = False
+    payload["comparable_outcome_counterevidence_claim_ceiling"] = projection.get("claim_ceiling")
+    payload["outcome_difference_is_failure_cause_truth"] = False
+    payload["outcome_difference_is_tactical_pattern_truth"] = False
+    payload["absence_is_counterevidence"] = False
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("comparable_outcome_counterevidence_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = sequence.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
@@ -311,6 +351,10 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "anchor_centered_sequence_total_visible_branch_count": 0,
             "first_supported_branch_divergence_candidates": [],
             "first_supported_branch_divergence_candidate_count": 0,
+            "comparable_outcome_counterevidence_records": [],
+            "comparable_outcome_counterevidence_record_count": 0,
+            "comparable_counterevidence_candidate_count": 0,
+            "counterevidence_independent_support_count": 0,
             "hard_block_hits": ["current_consequence_or_required_occurrence_trace_output_missing"],
             "review_hits": [],
             "same_timestamp_internal_ordering_allowed": False,
@@ -337,6 +381,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     payload = _bind_dependency_aware_similarity(payload)
     payload = _bind_anchor_centered_branch_maps(payload)
     payload = _bind_first_supported_divergence(payload, occurrence_payload)
+    payload = _bind_comparable_outcome_counterevidence(payload)
     payload["current_consequence_status"] = consequence_payload.get("status")
     payload["current_trace_status"] = consequence_payload.get("current_trace_status")
     payload["current_content_source_role_bridge_status"] = consequence_payload.get(
@@ -381,6 +426,11 @@ def main() -> int:
         "anchor_centered_sequence_total_visible_branch_count": payload.get("anchor_centered_sequence_total_visible_branch_count"),
         "first_supported_branch_divergence_status": payload.get("first_supported_branch_divergence_status"),
         "first_supported_branch_divergence_candidate_count": payload.get("first_supported_branch_divergence_candidate_count"),
+        "comparable_outcome_counterevidence_status": payload.get("comparable_outcome_counterevidence_status"),
+        "comparable_outcome_counterevidence_record_count": payload.get("comparable_outcome_counterevidence_record_count"),
+        "comparable_outcome_contrast_state_counts": payload.get("comparable_outcome_contrast_state_counts") or {},
+        "comparable_counterevidence_candidate_count": payload.get("comparable_counterevidence_candidate_count"),
+        "counterevidence_independent_support_count": payload.get("counterevidence_independent_support_count"),
         "primary_sequence_member_trace_count": payload.get("primary_sequence_member_trace_count"),
         "review_layer_member_trace_count": payload.get("review_layer_member_trace_count"),
         "trace_assignment_complete": payload.get("trace_assignment_complete"),
