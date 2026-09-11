@@ -57,10 +57,10 @@ def _run_canonical_full_spine(
     expected_product_commit: str | None = None,
 ) -> dict[str, Any]:
     """Run the existing canonical full-spine with exact product and match authority separated."""
-    product_commit = _git_head(repo_root)
-    product_worktree_clean = _git_worktree_clean(repo_root)
+    product_commit_before = _git_head(repo_root)
+    product_worktree_clean_before = _git_worktree_clean(repo_root)
     expected = str(expected_product_commit or "").strip() or None
-    commit_matches_expected = expected is not None and product_commit == expected
+    commit_matches_expected_before = expected is not None and product_commit_before == expected
 
     command = [
         sys.executable,
@@ -73,14 +73,14 @@ def _run_canonical_full_spine(
         str(repo_root),
     ]
 
-    provenance_valid = expected is not None and commit_matches_expected and product_worktree_clean
-    if not provenance_valid:
+    provenance_valid_before = expected is not None and commit_matches_expected_before and product_worktree_clean_before
+    if not provenance_valid_before:
         reasons = []
         if expected is None:
             reasons.append("expected_product_commit_required")
-        if expected is not None and not commit_matches_expected:
+        if expected is not None and not commit_matches_expected_before:
             reasons.append("product_commit_mismatch_or_unavailable")
-        if not product_worktree_clean:
+        if not product_worktree_clean_before:
             reasons.append("product_worktree_not_clean")
         return {
             "command": command,
@@ -90,10 +90,14 @@ def _run_canonical_full_spine(
             "stderr": ";".join(reasons),
             "product_execution_root": str(repo_root),
             "runtime_authority_root": str(runtime_authority_root),
-            "product_commit": product_commit,
+            "product_commit": product_commit_before,
             "expected_product_commit": expected,
-            "product_commit_matches_expected": commit_matches_expected,
-            "product_worktree_clean": product_worktree_clean,
+            "product_commit_matches_expected": commit_matches_expected_before,
+            "product_worktree_clean": product_worktree_clean_before,
+            "product_commit_before": product_commit_before,
+            "product_commit_after": product_commit_before,
+            "product_worktree_clean_before": product_worktree_clean_before,
+            "product_worktree_clean_after": product_worktree_clean_before,
             "exact_head_provenance_verified": False,
             "exact_head_authority_separation_enforced": True,
         }
@@ -123,19 +127,38 @@ def _run_canonical_full_spine(
         canonical_runner.full_spine_module.validate_active_match_authority = original_validate
         sys.argv = original_argv
 
+    product_commit_after = _git_head(repo_root)
+    product_worktree_clean_after = _git_worktree_clean(repo_root)
+    commit_matches_expected_after = expected is not None and product_commit_after == expected
+    exact_head_provenance_verified = (
+        returncode == 0
+        and commit_matches_expected_before
+        and commit_matches_expected_after
+        and product_commit_before == product_commit_after
+        and product_worktree_clean_before
+        and product_worktree_clean_after
+    )
+    if returncode == 0 and not exact_head_provenance_verified:
+        returncode = 2
+        stderr.write(";post_execution_product_provenance_changed")
+
     return {
         "command": command,
         "returncode": returncode,
-        "passed": returncode == 0,
+        "passed": returncode == 0 and exact_head_provenance_verified,
         "stdout": stdout.getvalue().strip(),
-        "stderr": stderr.getvalue().strip(),
+        "stderr": stderr.getvalue().strip(";"),
         "product_execution_root": str(repo_root),
         "runtime_authority_root": str(runtime_authority_root),
-        "product_commit": product_commit,
+        "product_commit": product_commit_after,
         "expected_product_commit": expected,
-        "product_commit_matches_expected": True,
-        "product_worktree_clean": True,
-        "exact_head_provenance_verified": True,
+        "product_commit_matches_expected": commit_matches_expected_after,
+        "product_worktree_clean": product_worktree_clean_after,
+        "product_commit_before": product_commit_before,
+        "product_commit_after": product_commit_after,
+        "product_worktree_clean_before": product_worktree_clean_before,
+        "product_worktree_clean_after": product_worktree_clean_after,
+        "exact_head_provenance_verified": exact_head_provenance_verified,
         "exact_head_authority_separation_enforced": True,
     }
 
@@ -219,13 +242,11 @@ def main() -> int:
     parser.add_argument(
         "--expected-product-commit",
         required=True,
-        help="Exact checkout commit required for this physical acceptance invocation.",
+        help="Exact clean checkout commit required for physical acceptance.",
     )
     args = parser.parse_args()
 
-    # Preserve the lexical match path so canonical authority validation can reject
-    # symlink/alias components. Do not resolve it before validation.
-    match_dir = Path(args.match_dir).expanduser().absolute()
+    match_dir = Path(args.match_dir).expanduser()
     out_dir = Path(args.out_dir).expanduser().resolve(strict=False)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -274,11 +295,7 @@ def main() -> int:
         and canonical.get("runtime_authority_root") == str(runtime_authority_root)
         and repo_root != runtime_authority_root
     )
-    exact_product_commit_verified = (
-        canonical.get("exact_head_provenance_verified") is True
-        and canonical.get("product_commit_matches_expected") is True
-        and canonical.get("product_worktree_clean") is True
-    )
+    exact_product_commit_verified = canonical.get("exact_head_provenance_verified") is True
     required_analysis_layers_activated = (
         canonical["passed"]
         and authority_separation_valid
@@ -304,8 +321,9 @@ def main() -> int:
         "product_runtime_authority_separation_valid": authority_separation_valid,
         "product_code_commit": canonical.get("product_commit"),
         "expected_product_commit": canonical.get("expected_product_commit"),
-        "product_worktree_clean": canonical.get("product_worktree_clean"),
         "exact_product_commit_verified": exact_product_commit_verified,
+        "product_worktree_clean_before": canonical.get("product_worktree_clean_before"),
+        "product_worktree_clean_after": canonical.get("product_worktree_clean_after"),
         "parallel_runtime_engine_created": False,
         "required_analysis_layers_activated": required_analysis_layers_activated,
         "required_artifacts": required_artifacts,
