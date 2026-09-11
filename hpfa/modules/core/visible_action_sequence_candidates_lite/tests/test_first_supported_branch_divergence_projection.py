@@ -52,6 +52,8 @@ def _occurrence(outcome_success: str = "SUCCESS", outcome_failure: str = "FAILUR
                 "action_occurrence_candidate_id": "occ_success",
                 "provider_semantics_binding_status": "PASS",
                 "primary_family_candidate": "PASS",
+                "actor_identity_candidate_id": "actor_a",
+                "team_identity_candidate_id": "team_a",
                 "semantic_dimensions": {"outcome_candidate": [outcome_success]},
                 "action_occurrence_candidate_is_event_truth": False,
                 "validated_event_identity": False,
@@ -60,6 +62,8 @@ def _occurrence(outcome_success: str = "SUCCESS", outcome_failure: str = "FAILUR
                 "action_occurrence_candidate_id": "occ_failure",
                 "provider_semantics_binding_status": "PASS",
                 "primary_family_candidate": "PASS",
+                "actor_identity_candidate_id": "actor_b",
+                "team_identity_candidate_id": "team_a",
                 "attributes": {
                     "outcome_candidate": outcome_failure,
                     "direction_candidates": ["FORWARD"],
@@ -87,11 +91,34 @@ def test_success_failure_successors_produce_first_supported_divergence() -> None
     assert row["branch_count_is_recurrence_count"] is False
 
 
-def test_same_outcome_does_not_create_divergence() -> None:
+def test_branch_opportunity_yield_is_explicit_and_dependency_qualified() -> None:
+    result = build_first_supported_branch_divergence(_sequence_payload(), _occurrence())
+    row = result["first_supported_branch_divergence_candidates"][0]
+    assert row["observed_branch_opportunity_success_numerator"] == 1
+    assert row["observed_branch_opportunity_eligible_denominator"] == 2
+    assert row["observed_branch_opportunity_raw_success_rate"] == 0.5
+    assert row["observed_branch_opportunity_actor_spread_count"] == 2
+    assert row["observed_branch_opportunity_admitted_independent_support_count"] == 0
+    assert row["observed_branch_opportunity_dependency_independence_proven"] is False
+    assert row["observed_branch_opportunity_statistical_independence_proven"] is False
+    assert row["observed_branch_opportunity_support_state"] == "DESCRIPTIVE_ONLY_DEPENDENCY_DOMINATED"
+    assert "DEPENDENCY_DOMINATED_SHARED_ANCHOR_BRANCHES" in row[
+        "observed_branch_opportunity_concentration_warnings"
+    ]
+    assert row["observed_branch_opportunity_binomial_interval_allowed"] is False
+    assert row["observed_branch_opportunity_shrinkage_allowed"] is False
+    assert row["observed_branch_opportunity_raw_rate_is_true_success_probability"] is False
+    assert row["observed_branch_opportunity_raw_rate_is_intrinsic_process_efficiency"] is False
+    assert result["opportunity_yield_requires_explicit_numerator_denominator"] is True
+    assert result["opportunity_yield_dependency_qualified_support_required"] is True
+
+
+def test_same_outcome_does_not_create_divergence_or_efficiency_claim() -> None:
     result = build_first_supported_branch_divergence(
         _sequence_payload(), _occurrence(outcome_success="SUCCESS", outcome_failure="SUCCESS")
     )
     assert result["first_supported_branch_divergence_candidate_count"] == 0
+    assert result["opportunity_yield_is_intrinsic_process_efficiency"] is False
 
 
 def test_unadmitted_semantics_do_not_create_success_failure_claim() -> None:
@@ -115,6 +142,8 @@ def test_claim_locks_and_no_sample_match_identity_leak() -> None:
     assert result["divergence_is_failure_cause_truth"] is False
     assert result["divergence_is_tactical_truth"] is False
     assert result["branches_are_independent_recurrence_support"] is False
+    assert result["opportunity_yield_binomial_interval_allowed"] is False
+    assert result["opportunity_yield_shrinkage_allowed"] is False
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["true_action_count"] == "UNKNOWN"
     assert result["production_release"] is False
