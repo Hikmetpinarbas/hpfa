@@ -14,6 +14,9 @@ from hpfa.modules.core.trackable_action_trace_candidates_lite.src.occurrence_top
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src.occurrence_trace_binding import (
     build_occurrence_aware_trace_payload,
 )
+from hpfa.modules.core.trackable_action_trace_candidates_lite.src.provider_time_runtime_context_adapter import (
+    build_provider_time_runtime_context,
+)
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src.temporal_relation_admission_adapter import (
     bind_temporal_relation_admission,
 )
@@ -36,7 +39,6 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     action_path = output / "semantic_role_action_bundle_candidates_lite_v1.json"
     taxonomy_path = output / "action_bundle_multi_family_review_taxonomy_lite_v1.json"
     evidence_path = output / "evidence_atom_inventory_lite_v1.json"
-    context_path = output / "minimum_viable_context_lite_v1.json"
 
     if (
         occurrence_payload.get("status") == "FAIL_CLOSED"
@@ -123,8 +125,9 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         trackable.build_trackable_action_trace_candidates,
     )
     payload = apply_occurrence_topology_binding(payload, occurrence_payload)
-    context_payload = _load(context_path) if context_path.is_file() else {}
+    context_payload = build_provider_time_runtime_context(input_dir)
     payload = bind_temporal_relation_admission(payload, context_payload)
+    payload["provider_time_runtime_context_source"] = context_payload.get("runtime_context_source")
     payload["current_occurrence_status"] = occurrence_payload.get("status")
     payload["current_occurrence_candidate_count"] = occurrence_payload.get(
         "action_occurrence_candidate_count", 0
@@ -138,13 +141,6 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     payload["current_provider_semantics_binding_status"] = occurrence_payload.get(
         "provider_semantics_binding_status"
     )
-    if not context_path.is_file():
-        reviews = list(payload.get("review_hits") or [])
-        reviews.append("minimum_viable_context_missing_for_temporal_relation_admission")
-        payload["review_hits"] = sorted(set(reviews))
-        if payload.get("status") == "PASS":
-            payload["status"] = "REVIEW_REQUIRED"
-            payload["module_status"] = "REVIEW_REQUIRED"
     if payload["current_content_source_role_bridge_status"] != "PASS":
         hard_blocks = list(payload.get("hard_block_hits") or [])
         hard_blocks.append("current_content_source_role_bridge_not_pass")
@@ -198,6 +194,7 @@ def main() -> int:
                 "occurrence_no_participant_trace_visible_count": payload.get("occurrence_no_participant_trace_visible_count", 0),
                 "occurrence_unresolved_topology_count": payload.get("occurrence_unresolved_topology_count", 0),
                 "provider_time_contract_admission_status": payload.get("provider_time_contract_admission_status"),
+                "provider_time_runtime_context_source": payload.get("provider_time_runtime_context_source"),
                 "temporal_relation_admission_record_count": payload.get("temporal_relation_admission_record_count", 0),
                 "temporal_relation_state_counts": payload.get("temporal_relation_state_counts") or {},
                 "hard_block_hits": payload.get("hard_block_hits") or [],
