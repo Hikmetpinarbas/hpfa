@@ -70,6 +70,8 @@ def test_canonical_full_spine_uses_clean_exact_product_checkout_but_validates_ru
     assert result["runtime_authority_root"] == str(runtime_root)
     assert result["product_commit_matches_expected"] is True
     assert result["product_worktree_clean"] is True
+    assert result["product_worktree_clean_before"] is True
+    assert result["product_worktree_clean_after"] is True
     assert result["exact_head_provenance_verified"] is True
     assert seen["authority_root"] == runtime_root
     assert seen["validated_path"] == match_dir
@@ -152,9 +154,54 @@ def test_dirty_checkout_fails_even_when_head_matches(monkeypatch, tmp_path: Path
     assert result["exact_head_provenance_verified"] is False
 
 
+def test_post_execution_dirty_checkout_fails_acceptance(monkeypatch, tmp_path: Path) -> None:
+    product_root = tmp_path / "product"
+    runtime_root = tmp_path / "runtime_authority"
+    match_dir = runtime_root / runner.ACTIVE_MATCH_RELATIVE_PATH
+    out_dir = tmp_path / "out"
+    product_root.mkdir(parents=True)
+    match_dir.mkdir(parents=True)
+    out_dir.mkdir(parents=True)
+
+    calls = {"status": 0}
+
+    class GitResult:
+        returncode = 0
+        stderr = ""
+
+        def __init__(self, stdout: str):
+            self.stdout = stdout
+
+    def run(command, *args, **kwargs):
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return GitResult("deadbeef\n")
+        if command[:3] == ["git", "status", "--porcelain"]:
+            calls["status"] += 1
+            return GitResult("" if calls["status"] == 1 else " M changed_after_run.py\n")
+        return GitResult("")
+
+    monkeypatch.setattr(runner.subprocess, "run", run)
+    monkeypatch.setattr(runner.canonical_runner, "main", lambda: 0)
+
+    result = runner._run_canonical_full_spine(
+        match_dir=match_dir,
+        out_dir=out_dir,
+        repo_root=product_root,
+        runtime_authority_root=runtime_root,
+        expected_product_commit="deadbeef",
+    )
+
+    assert result["passed"] is False
+    assert result["returncode"] == 2
+    assert result["product_worktree_clean_before"] is True
+    assert result["product_worktree_clean_after"] is False
+    assert result["exact_head_provenance_verified"] is False
+    assert "post_execution_product_provenance_changed" in result["stderr"]
+
+
 def test_match_dir_is_not_resolved_before_canonical_authority_validation() -> None:
     source = Path("active_match_professional_story_run_v1.py").read_text(encoding="utf-8")
-    assert "Path(args.match_dir).expanduser().absolute()" in source
+    assert "match_dir = Path(args.match_dir).expanduser()" in source
     assert "Path(args.match_dir).expanduser().resolve" not in source
 
 
