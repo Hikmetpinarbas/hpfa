@@ -6,6 +6,7 @@ from collections import Counter
 from typing import Any
 
 CLAIM_CEILING = "OBSERVED_EARLIEST_SUPPORTED_BRANCH_SEMANTIC_DIVERGENCE_CANDIDATE_ONLY"
+YIELD_CLAIM_CEILING = "MATCH_LOCAL_DEPENDENCY_QUALIFIED_BRANCH_OUTCOME_YIELD_CANDIDATE_ONLY"
 
 
 def _clean(value: Any) -> str:
@@ -63,6 +64,8 @@ def _semantic_profile(candidate: dict[str, Any]) -> dict[str, Any] | None:
             "direction_values": _dimension_values(candidate, "direction_candidates"),
             "progression_values": _dimension_values(candidate, "progression_candidates"),
             "zone_values": _dimension_values(candidate, "zone_context_candidates"),
+            "actor_identity_candidate_id": _clean(candidate.get("actor_identity_candidate_id")) or None,
+            "team_identity_candidate_id": _clean(candidate.get("team_identity_candidate_id")) or None,
         }
 
     outcome = outcome_values[0]
@@ -80,6 +83,8 @@ def _semantic_profile(candidate: dict[str, Any]) -> dict[str, Any] | None:
         "direction_values": _dimension_values(candidate, "direction_candidates"),
         "progression_values": _dimension_values(candidate, "progression_candidates"),
         "zone_values": _dimension_values(candidate, "zone_context_candidates"),
+        "actor_identity_candidate_id": _clean(candidate.get("actor_identity_candidate_id")) or None,
+        "team_identity_candidate_id": _clean(candidate.get("team_identity_candidate_id")) or None,
     }
 
 
@@ -174,6 +179,25 @@ def build_first_supported_branch_divergence(
         if not success or not failure:
             continue
 
+        resolved = success + failure
+        eligible_denominator = len(resolved)
+        raw_success_rate = round(len(success) / eligible_denominator, 6) if eligible_denominator else None
+        actor_ids = {
+            _clean(profile.get("actor_identity_candidate_id"))
+            for branch in resolved
+            for profile in (branch.get("semantic_profiles") or [])
+            if _clean(profile.get("actor_identity_candidate_id"))
+        }
+        concentration_warnings = [
+            "SINGLE_SHARED_ANCHOR_CONCENTRATION",
+            "DEPENDENCY_DOMINATED_SHARED_ANCHOR_BRANCHES",
+        ]
+        if len(actor_ids) == 1:
+            concentration_warnings.append("SINGLE_ACTOR_CONCENTRATION")
+        unresolved_count = len(branch_profiles) - len(resolved)
+        if unresolved_count:
+            concentration_warnings.append("UNRESOLVED_OUTCOME_BURDEN")
+
         divergence_id = "fsbd_" + _digest(
             map_id,
             branch_map.get("anchor_time_layer_ref"),
@@ -190,8 +214,29 @@ def build_first_supported_branch_divergence(
             "divergence_level": "FIRST_SUCCESSOR_AFTER_SHARED_VISIBLE_ANCHOR",
             "success_branch_count": len(success),
             "failure_branch_count": len(failure),
-            "other_or_unresolved_branch_count": len(branch_profiles) - len(success) - len(failure),
+            "other_or_unresolved_branch_count": unresolved_count,
             "branch_profiles": branch_profiles,
+            "observed_branch_opportunity_unit": "ADMITTED_SUCCESS_FAILURE_SUCCESSOR_BRANCH_SEMANTIC",
+            "observed_branch_opportunity_success_numerator": len(success),
+            "observed_branch_opportunity_eligible_denominator": eligible_denominator,
+            "observed_branch_opportunity_raw_success_rate": raw_success_rate,
+            "observed_branch_opportunity_total_visible_branch_count": len(branch_profiles),
+            "observed_branch_opportunity_actor_spread_count": len(actor_ids),
+            "observed_branch_opportunity_anchor_spread_count": 1,
+            "observed_branch_opportunity_episode_spread_count": "UNKNOWN",
+            "observed_branch_opportunity_context_spread_state": "PARTIAL_PERIOD_AND_SHARED_ANCHOR_ONLY",
+            "observed_branch_opportunity_admitted_independent_support_count": 0,
+            "observed_branch_opportunity_dependency_independence_proven": False,
+            "observed_branch_opportunity_statistical_independence_proven": False,
+            "observed_branch_opportunity_support_state": "DESCRIPTIVE_ONLY_DEPENDENCY_DOMINATED",
+            "observed_branch_opportunity_concentration_warnings": sorted(set(concentration_warnings)),
+            "observed_branch_opportunity_binomial_interval_allowed": False,
+            "observed_branch_opportunity_shrinkage_allowed": False,
+            "observed_branch_opportunity_prior_used": False,
+            "observed_branch_opportunity_raw_rate_is_true_success_probability": False,
+            "observed_branch_opportunity_raw_rate_is_intrinsic_process_efficiency": False,
+            "observed_branch_opportunity_raw_rate_is_tactical_quality": False,
+            "observed_branch_opportunity_claim_ceiling": YIELD_CLAIM_CEILING,
             "divergence_is_failure_cause_truth": False,
             "divergence_is_tactical_truth": False,
             "divergence_is_possession_truth": False,
@@ -223,6 +268,11 @@ def build_first_supported_branch_divergence(
         "divergence_is_failure_cause_truth": False,
         "divergence_is_tactical_truth": False,
         "branches_are_independent_recurrence_support": False,
+        "opportunity_yield_requires_explicit_numerator_denominator": True,
+        "opportunity_yield_dependency_qualified_support_required": True,
+        "opportunity_yield_binomial_interval_allowed": False,
+        "opportunity_yield_shrinkage_allowed": False,
+        "opportunity_yield_is_intrinsic_process_efficiency": False,
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
         "hard_block_hits": sorted(set(blocks)),
