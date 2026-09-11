@@ -8,6 +8,9 @@ import trackable_action_consequence_candidates_current_v1 as current_consequence
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src import (
     visible_action_sequence_candidates as sequence,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.occurrence_temporal_sequence_projection import (
+    build_occurrence_temporal_sequence_projection,
+)
 
 
 def _load(path: Path) -> dict:
@@ -16,6 +19,48 @@ def _load(path: Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _bind_occurrence_projection(payload: dict, trace_payload: dict, consequence_payload: dict) -> dict:
+    projection = build_occurrence_temporal_sequence_projection(trace_payload, consequence_payload)
+    payload["occurrence_temporal_projection_status"] = projection.get("status")
+    payload["occurrence_temporal_time_layer_candidates"] = list(
+        projection.get("occurrence_temporal_time_layer_candidates") or []
+    )
+    payload["occurrence_temporal_time_layer_candidate_count"] = int(
+        projection.get("occurrence_temporal_time_layer_candidate_count") or 0
+    )
+    payload["occurrence_temporal_sequence_candidates"] = list(
+        projection.get("occurrence_temporal_sequence_candidates") or []
+    )
+    payload["occurrence_temporal_sequence_candidate_count"] = int(
+        projection.get("occurrence_temporal_sequence_candidate_count") or 0
+    )
+    payload["eligible_occurrence_after_confirmed_edge_count"] = int(
+        projection.get("eligible_occurrence_after_confirmed_edge_count") or 0
+    )
+    payload["occurrence_temporal_rejected_edge_reason_counts"] = dict(
+        projection.get("rejected_edge_reason_counts") or {}
+    )
+    payload["occurrence_temporal_projection_claim_ceiling"] = "VISIBLE_SEQUENCE_CANDIDATE_ONLY"
+    payload["occurrence_temporal_projection_is_sequence_truth"] = False
+    payload["occurrence_temporal_projection_is_possession_truth"] = False
+    payload["occurrence_temporal_projection_is_causal_truth"] = False
+    payload["occurrence_temporal_projection_is_tactical_truth"] = False
+    payload["occurrence_temporal_projection_is_primary_consumer_candidate"] = bool(
+        payload["occurrence_temporal_sequence_candidate_count"] > 0
+    )
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("occurrence_temporal_projection_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
 
 
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
@@ -47,6 +92,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "review_layer_member_trace_count": 0,
             "trace_assignment_count": 0,
             "trace_assignment_complete": False,
+            "occurrence_temporal_time_layer_candidates": [],
+            "occurrence_temporal_time_layer_candidate_count": 0,
+            "occurrence_temporal_sequence_candidates": [],
+            "occurrence_temporal_sequence_candidate_count": 0,
+            "eligible_occurrence_after_confirmed_edge_count": 0,
             "hard_block_hits": ["current_consequence_fail_closed_or_trace_output_missing"],
             "review_hits": [],
             "same_timestamp_internal_ordering_allowed": False,
@@ -66,6 +116,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
 
     trace_payload = _load(trace_path)
     payload = sequence.build_visible_action_sequence_candidates(trace_payload, consequence_payload)
+    payload = _bind_occurrence_projection(payload, trace_payload, consequence_payload)
     payload["current_consequence_status"] = consequence_payload.get("status")
     payload["current_trace_status"] = consequence_payload.get("current_trace_status")
     payload["current_content_source_role_bridge_status"] = consequence_payload.get(
@@ -94,6 +145,8 @@ def main() -> int:
         "pass_multi_layer_visible_sequence_candidate_count": payload.get("pass_multi_layer_visible_sequence_candidate_count"),
         "pass_single_layer_visible_trace_candidate_count": payload.get("pass_single_layer_visible_trace_candidate_count"),
         "review_required_sequence_context_count": payload.get("review_required_sequence_context_count"),
+        "occurrence_temporal_sequence_candidate_count": payload.get("occurrence_temporal_sequence_candidate_count"),
+        "eligible_occurrence_after_confirmed_edge_count": payload.get("eligible_occurrence_after_confirmed_edge_count"),
         "primary_sequence_member_trace_count": payload.get("primary_sequence_member_trace_count"),
         "review_layer_member_trace_count": payload.get("review_layer_member_trace_count"),
         "trace_assignment_complete": payload.get("trace_assignment_complete"),
