@@ -26,6 +26,34 @@ def _admitted_alignment_rows(metric_governance: dict[str, Any]) -> list[dict[str
     ]
 
 
+def _progression_semantic_safety_hits(aggregate_inputs: list[dict[str, Any]]) -> list[str]:
+    """Reject defensive/goalkeeper terminal labels from attacking progression constructs.
+
+    This is a semantic safety gate only. It does not establish construct truth or
+    promote a provider metric definition. The purpose is to prevent a generic
+    token such as ``shot`` from turning ``Shots faced`` into attacking terminal
+    support for a progression construct.
+    """
+    hits: list[str] = []
+    defensive_terminal_terms = (
+        "shots faced",
+        "shot faced",
+        "goals conceded",
+        "goal conceded",
+        "shots saved",
+        "shot saved",
+        "saves",
+        "caught shots",
+        "close range shots saved",
+        "goalkeeper",
+    )
+    for row in aggregate_inputs:
+        label = _normalized(row.get("raw_metric_label"))
+        if any(term in label for term in defensive_terminal_terms):
+            hits.append(f"defensive_or_goalkeeper_terminal_metric:{_text(row.get('raw_metric_label'))}")
+    return sorted(set(hits))
+
+
 def assess_rich_construct_candidate(
     candidate: dict[str, Any],
     metric_governance: dict[str, Any],
@@ -53,9 +81,30 @@ def assess_rich_construct_candidate(
             "reason": "no_xlsx_aggregate_input",
             "aggregate_input_count": 0,
             "matched_alignment_count": 0,
+            "semantic_safety_hits": [],
             "construct_truth": False,
             "aggregate_equivalence_truth": False,
             "same_provider_multiformat_is_independent_support": False,
+            "production_release": False,
+        }
+
+    semantic_safety_hits: list[str] = []
+    if _text(candidate.get("packet_family")).casefold() == "progression":
+        semantic_safety_hits = _progression_semantic_safety_hits(aggregate_inputs)
+    if semantic_safety_hits:
+        return {
+            "module_id": MODULE_ID,
+            "status": "REVIEW_REQUIRED",
+            "admitted": False,
+            "reason": "construct_semantic_family_mismatch",
+            "aggregate_input_count": len(aggregate_inputs),
+            "matched_alignment_count": 0,
+            "semantic_safety_hits": semantic_safety_hits,
+            "construct_truth": False,
+            "aggregate_equivalence_truth": False,
+            "same_provider_multiformat_is_independent_support": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
             "production_release": False,
         }
 
@@ -67,6 +116,7 @@ def assess_rich_construct_candidate(
             "reason": "metric_governance_fail_closed",
             "aggregate_input_count": len(aggregate_inputs),
             "matched_alignment_count": 0,
+            "semantic_safety_hits": [],
             "construct_truth": False,
             "aggregate_equivalence_truth": False,
             "same_provider_multiformat_is_independent_support": False,
@@ -98,6 +148,7 @@ def assess_rich_construct_candidate(
         "aggregate_input_count": len(aggregate_inputs),
         "matched_alignment_count": matched,
         "unmatched_aggregate_labels": unmatched_labels,
+        "semantic_safety_hits": [],
         "construct_truth": False,
         "aggregate_equivalence_truth": False,
         "same_provider_multiformat_is_independent_support": False,
