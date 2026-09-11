@@ -66,6 +66,102 @@ def _branch_sequence_refs(divergence: dict[str, Any], outcome_state: str) -> lis
     return sorted(refs)
 
 
+def _evidence_sufficiency_profile(
+    divergence: dict[str, Any],
+    *,
+    denominator: int,
+    independent_support: int,
+    independence_proven: bool,
+    statistical_independence_proven: bool,
+    episode_spread: Any,
+    context_state: str,
+    counterexample_pair_count: int,
+) -> dict[str, Any]:
+    total_visible = divergence.get("observed_branch_opportunity_total_visible_branch_count", "UNKNOWN")
+    actor_spread = divergence.get("observed_branch_opportunity_actor_spread_count", "UNKNOWN")
+
+    if isinstance(total_visible, int) and not isinstance(total_visible, bool) and total_visible >= 0:
+        unresolved_visible = max(total_visible - denominator, 0)
+        outcome_coverage_state = (
+            "COMPLETE_FOR_VISIBLE_BRANCHES"
+            if total_visible == denominator
+            else "PARTIAL_VISIBLE_OUTCOME_COVERAGE"
+        )
+    else:
+        unresolved_visible = "UNKNOWN"
+        outcome_coverage_state = "VISIBLE_OUTCOME_COVERAGE_UNKNOWN"
+
+    blocking_dimensions: list[str] = []
+    if independent_support < 1:
+        blocking_dimensions.append("INDEPENDENT_SUPPORT_NOT_ADMITTED")
+    if not independence_proven:
+        blocking_dimensions.append("DEPENDENCY_INDEPENDENCE_NOT_PROVEN")
+    if not statistical_independence_proven:
+        blocking_dimensions.append("STATISTICAL_INDEPENDENCE_NOT_PROVEN")
+    if episode_spread == "UNKNOWN":
+        blocking_dimensions.append("EPISODE_SPREAD_UNKNOWN")
+    if context_state != "COMPLETE":
+        blocking_dimensions.append("CONTEXT_COVERAGE_PARTIAL_OR_UNKNOWN")
+    if outcome_coverage_state != "COMPLETE_FOR_VISIBLE_BRANCHES":
+        blocking_dimensions.append("OUTCOME_COVERAGE_PARTIAL_OR_UNKNOWN")
+    if isinstance(actor_spread, int) and not isinstance(actor_spread, bool) and actor_spread <= 1:
+        blocking_dimensions.append("SINGLE_ACTOR_CONCENTRATION")
+    elif actor_spread == "UNKNOWN":
+        blocking_dimensions.append("ACTOR_SPREAD_UNKNOWN")
+    if counterexample_pair_count < 1:
+        blocking_dimensions.append("CHALLENGE_SURFACE_EMPTY")
+
+    return {
+        "state": (
+            "INSUFFICIENT_FOR_PROFESSIONAL_EMIT"
+            if blocking_dimensions
+            else "NO_BLOCKING_DIMENSION_VISIBLE_BUT_EMIT_NOT_AUTHORIZED_HERE"
+        ),
+        "blocking_dimensions": sorted(set(blocking_dimensions)),
+        "dimensions": {
+            "independent_support": {
+                "admitted_count": independent_support,
+                "dependency_independence_proven": independence_proven,
+                "statistical_independence_proven": statistical_independence_proven,
+            },
+            "outcome_coverage": {
+                "eligible_resolved_branch_count": denominator,
+                "total_visible_branch_count": total_visible,
+                "unresolved_visible_branch_count": unresolved_visible,
+                "state": outcome_coverage_state,
+            },
+            "episode_spread": {
+                "count": episode_spread,
+                "state": "UNKNOWN" if episode_spread == "UNKNOWN" else "OBSERVED",
+            },
+            "context_coverage": {
+                "state": context_state,
+            },
+            "actor_spread": {
+                "count": actor_spread,
+                "single_actor_concentration": (
+                    actor_spread <= 1
+                    if isinstance(actor_spread, int) and not isinstance(actor_spread, bool)
+                    else "UNKNOWN"
+                ),
+            },
+            "challenge_surface": {
+                "comparable_counterexample_pair_count": counterexample_pair_count,
+                "pair_count_is_independent_evidence_count": False,
+                "independent_counterevidence_support_count": 0,
+            },
+        },
+        "numeric_sufficiency_score": None,
+        "universal_sufficiency_threshold_used": False,
+        "dimensions_compensate_each_other": False,
+        "missing_dimension_is_zero": False,
+        "coverage_is_generalizability_truth": False,
+        "high_raw_rate_can_override_dependency_block": False,
+        "counterexample_pair_count_can_override_independence_block": False,
+        "claim_strengthened_by_profile": False,
+    }
+
+
 def _safe_finding_handoff_candidates(
     sequence_payload: dict[str, Any],
     records: list[dict[str, Any]],
@@ -136,6 +232,18 @@ def _safe_finding_handoff_candidates(
             downgrade_reasons.append("CONTEXT_COVERAGE_PARTIAL_OR_UNKNOWN")
 
         counterexample_pair_count = len(comparable_counterexample_refs)
+        evidence_sufficiency = _evidence_sufficiency_profile(
+            divergence,
+            denominator=denominator,
+            independent_support=independent_support,
+            independence_proven=independence_proven,
+            statistical_independence_proven=statistical_independence_proven,
+            episode_spread=episode_spread,
+            context_state=context_state,
+            counterexample_pair_count=counterexample_pair_count,
+        )
+        downgrade_reasons.extend(evidence_sufficiency["blocking_dimensions"])
+
         handoff_id = "sfh_" + _digest(
             divergence_id,
             success_refs,
@@ -183,6 +291,7 @@ def _safe_finding_handoff_candidates(
                 "independent_counterevidence_support_count": 0,
                 "absence_used_as_counterevidence": False,
             },
+            "evidence_sufficiency": evidence_sufficiency,
             "alternative_explanations": [
                 {
                     "code": "SHARED_ANCHOR_DEPENDENCY",
@@ -364,6 +473,9 @@ def build_comparable_outcome_counterevidence(sequence_payload: dict[str, Any]) -
         "safe_finding_handoff_professional_emit_allowed": False,
         "counterexample_pair_count_is_independent_evidence_count": False,
         "safe_finding_handoff_claim_ceiling": SAFE_FINDING_HANDOFF_CLAIM_CEILING,
+        "evidence_sufficiency_profile_is_non_compensatory": True,
+        "evidence_sufficiency_numeric_score_allowed": False,
+        "evidence_sufficiency_universal_threshold_allowed": False,
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
         "hard_block_hits": sorted(set(blocks)),
