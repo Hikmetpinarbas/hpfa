@@ -70,7 +70,7 @@ def _pair(result):
     return result["dependency_aware_partial_order_similarity_pairs"][0]
 
 
-def test_shared_origin_structural_match_is_not_independent_recurrence():
+def test_shared_origin_structural_match_is_not_recurrence_candidate():
     left = _variant("a", occurrence_refs=["shared_occ", "a2"], dependency_refs=["shared_dep"])
     right = _variant("b", occurrence_refs=["shared_occ", "b2"], dependency_refs=["shared_dep"])
     pair = _pair(build_dependency_aware_partial_order_similarity(_payload(left, right)))
@@ -78,18 +78,27 @@ def test_shared_origin_structural_match_is_not_independent_recurrence():
     assert pair["pair_state"] == "DEPENDENT_SHARED_ORIGIN_VARIANT_PAIR"
     assert pair["recurrence_candidate_eligible"] is False
     assert pair["shared_occurrence_candidate_count"] == 1
+    assert pair["provenance_distinct_for_recurrence_candidate"] is False
     assert pair["dependency_independent_for_recurrence"] is False
+    assert pair["statistical_independence_proven"] is False
 
 
-def test_independent_same_team_exact_match_can_be_recurrence_candidate():
+def test_provenance_distinct_same_team_exact_match_can_be_recurrence_candidate_without_independence_claim():
     left = _variant("a")
     right = _variant("b")
     result = build_dependency_aware_partial_order_similarity(_payload(left, right))
     pair = _pair(result)
     assert pair["structural_exact_match"] is True
-    assert pair["pair_state"] == "INDEPENDENT_STRUCTURAL_MATCH_CANDIDATE"
+    assert pair["pair_state"] == "PROVENANCE_DISTINCT_STRUCTURAL_MATCH_CANDIDATE"
     assert pair["recurrence_candidate_eligible"] is True
+    assert pair["provenance_distinct_for_recurrence_candidate"] is True
+    assert pair["dependency_independent_for_recurrence"] is False
+    assert pair["dependency_independence_proven_for_recurrence"] is False
+    assert pair["statistical_independence_proven"] is False
+    assert pair["recurrence_candidate_is_independent_support"] is False
     assert result["recurrence_candidate_eligible_pair_count"] == 1
+    assert result["provenance_distinct_is_not_independence_proof"] is True
+    assert result["recurrence_candidate_is_independent_support"] is False
 
 
 def test_cross_team_pair_is_not_match_local_recurrence():
@@ -105,9 +114,10 @@ def test_outcome_difference_does_not_drive_similarity_decision():
     right = _variant("b", outcome="NO_VISIBLE_FOLLOW_UP_CANDIDATE")
     pair = _pair(build_dependency_aware_partial_order_similarity(_payload(left, right)))
     assert pair["structural_exact_match"] is True
-    assert pair["pair_state"] == "INDEPENDENT_STRUCTURAL_MATCH_CANDIDATE"
+    assert pair["pair_state"] == "PROVENANCE_DISTINCT_STRUCTURAL_MATCH_CANDIDATE"
     assert pair["outcome_contrast_state"] == "DIFFERENT_OBSERVED_OUTCOME_SIGNATURE"
     assert pair["outcome_used_in_similarity_decision"] is False
+    assert pair["statistical_independence_proven"] is False
 
 
 def test_layer_shape_difference_prevents_exact_structural_match():
