@@ -7,6 +7,10 @@ from typing import Any
 from hpfa.modules.core.active_match_analyst_report_lite.src import report_lite
 from hpfa.modules.core.triplex_source_alignment_adapter_lite.src import triplex_source_alignment_adapter as triplex
 from hpfa.modules.core.active_match_spine_runner.src.metric_governance_bridge import run_metric_governance_bridge
+from hpfa.modules.core.active_match_spine_runner.src.occurrence_consequence_projection import (
+    build_occurrence_consequence_projection,
+    write_outputs as write_occurrence_consequence_outputs,
+)
 from hpfa.modules.core.spatial_transition_candidate_lite.src import spatial_transition_candidate as spatial_transition
 from hpfa.modules.core.state_transition_dynamics_lite.src import state_transition_dynamics as state_transition
 from hpfa.modules.core.analyst_episode_locator_lite.src import process_participation_projection as process_participation
@@ -87,6 +91,40 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
     identity_path = output / IDENTITY_OUTPUT
     episode_path = output / EPISODE_OUTPUT
     consequence_path = output / CONSEQUENCE_OUTPUT
+
+    occurrence_projection_prerequisite_present = trace_path.is_file() and consequence_path.is_file()
+    if occurrence_projection_prerequisite_present:
+        try:
+            occurrence_projection_report = build_occurrence_consequence_projection(
+                _load_json(trace_path),
+                _load_json(consequence_path),
+            )
+            occurrence_projection_paths = write_occurrence_consequence_outputs(
+                occurrence_projection_report,
+                output,
+            )
+            for value in occurrence_projection_paths.values():
+                if value.is_file():
+                    artifacts.append(str(value))
+            occurrence_projection_status = occurrence_projection_report.get("status")
+            if occurrence_projection_status == "FAIL_CLOSED":
+                reasons = occurrence_projection_report.get("hard_block_hits") or []
+                reason = str(reasons[0]) if reasons else "occurrence_consequence_projection_fail_closed"
+                hard_blocks.append(f"occurrence_consequence_construct_path_blocked:{reason}")
+            elif occurrence_projection_status != "PASS":
+                review_hits.append("occurrence_consequence_projection_review_required")
+        except Exception as exc:
+            occurrence_projection_report = {"status": "REVIEW_REQUIRED", "error_type": type(exc).__name__}
+            occurrence_projection_status = "REVIEW_REQUIRED"
+            review_hits.append(f"occurrence_consequence_projection_sidecar_failed:{type(exc).__name__}")
+    else:
+        occurrence_projection_report = {
+            "status": "NOT_APPLICABLE_PREREQUISITE_MISSING",
+            "reason": "trackable_action_trace_or_consequence_output_missing",
+            "production_release": False,
+        }
+        occurrence_projection_status = occurrence_projection_report["status"]
+
     spatial_prerequisite_present = trace_path.is_file() and evidence_path.is_file()
     if spatial_prerequisite_present:
         try:
@@ -207,6 +245,8 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "active_match_analyst_report_lite_status": baseline_status,
         "triplex_source_alignment_status": triplex_status,
         "triplex_source_alignment_prerequisite_present": mapping_present,
+        "occurrence_consequence_projection_status": occurrence_projection_status,
+        "occurrence_consequence_projection_prerequisite_present": occurrence_projection_prerequisite_present,
         "spatial_transition_candidate_status": spatial_status,
         "spatial_transition_candidate_prerequisite_present": spatial_prerequisite_present,
         "state_transition_dynamics_status": state_transition_status,
@@ -216,6 +256,7 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "metric_governance_bridge_status": metric_governance_status,
         "active_match_analyst_report_lite": baseline,
         "triplex_source_alignment": triplex_report,
+        "occurrence_consequence_projection": occurrence_projection_report,
         "spatial_transition_candidate": spatial_report,
         "state_transition_dynamics": state_transition_report,
         "process_participation_projection": process_participation_report,
