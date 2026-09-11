@@ -138,6 +138,18 @@ def test_independence_is_recomputed_and_false_independence_fails_closed():
     assert any("dependency_independent_support_mismatch" in hit for hit in result["hard_block_hits"])
 
 
+def test_normalized_independence_mapping_collision_fails_closed():
+    payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
+    row = payload["sequence_pattern_admissions"][0]
+    mapping = dict(row["dependency_summary"]["independence_group_by_trace_ref"])
+    mapping[" variant_a "] = "unique_override"
+    row["dependency_summary"]["independence_group_by_trace_ref"] = mapping
+    row["dependency_summary"]["independence_groups"] = sorted(set(mapping.values()))
+    result = build_sequence_safe_finding_blocks(payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert any("dependency_independence_mapping_normalized_key_collision" in hit for hit in result["hard_block_hits"])
+
+
 def test_reflection_independence_lock_is_required_before_emit():
     payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
     payload["sequence_pattern_admissions"][0]["dependency_summary"]["object_views_or_reflections_may_not_create_independent_support"] = False
@@ -163,6 +175,24 @@ def test_robust_trace_without_challenge_surface_downgrades():
     row = build_sequence_safe_finding_blocks(payload)["analyst_report_blocks"][0]
     assert row["finding_status"] == "DOWNGRADE"
     assert "challenge_surface_empty" in row["downgrade_reasons"]
+
+
+def test_empty_or_unsafe_alternative_cannot_satisfy_challenge_surface():
+    empty = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
+    row = empty["sequence_pattern_admissions"][0]
+    row["counterevidence_refs"] = []
+    row["alternative_explanations"] = [{}]
+    result = build_sequence_safe_finding_blocks(empty)
+    assert result["status"] == "FAIL_CLOSED"
+    assert any("alternative_explanation_invalid" in hit for hit in result["hard_block_hits"])
+
+    unsafe = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
+    row = unsafe["sequence_pattern_admissions"][0]
+    row["counterevidence_refs"] = []
+    row["alternative_explanations"] = [{"type": "CONTEXT_DEPENDENCE", "causal_truth": True}]
+    result = build_sequence_safe_finding_blocks(unsafe)
+    assert result["status"] == "FAIL_CLOSED"
+    assert any("alternative_explanation_causal_truth_lock_missing" in hit for hit in result["hard_block_hits"])
 
 
 def test_review_and_rejected_rows_abstain():
