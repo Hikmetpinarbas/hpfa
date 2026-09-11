@@ -1,0 +1,50 @@
+{
+  "module_id": "sequence_safe_finding_binding_lite_v1",
+  "version": "1.3.0-global-unscoped-review-abstention",
+  "purpose": "Bind admitted sequence-pattern evidence into defeasible match-local Safe Finding blocks without allowing type coercion, count inflation, unscoped review laundering, dependency/reflection laundering, unsafe challenge promotion, or claim escalation.",
+  "required_upstream_module": "sequence_pattern_admission_lite_v1",
+  "numeric_evidence_policy": {
+    "observed_support": "STRICT_NONNEGATIVE_INTEGER_REQUIRED",
+    "independent_support_count": "STRICT_NONNEGATIVE_INTEGER_OR_UNKNOWN",
+    "failure_variant_count": "STRICT_NONNEGATIVE_INTEGER",
+    "divergence_count": "STRICT_NONNEGATIVE_INTEGER",
+    "no_visible_followup_count": "STRICT_NONNEGATIVE_INTEGER",
+    "simulation_count": "STRICT_POSITIVE_INTEGER_WHEN_NULL_CONTRAST_PRESENT",
+    "boolean_numeric_evidence_rejected": true,
+    "independent_support_must_not_exceed_observed_support": true,
+    "independence_mapping_normalized_key_collision_rejected": true,
+    "independence_recomputed_at_binding_boundary": true,
+    "outcome_accounting_must_not_exceed_observed_support": true
+  },
+  "review_scope_policy": {
+    "review_required_equals_fail_closed": false,
+    "admission_review_required_globally_abstains_all_rows": true,
+    "row_review_required_abstains_that_row_under_pass_envelope": true,
+    "rejected_insufficient_evidence_abstains_that_row": true,
+    "recurrent_visible_trace_without_independence_downgrades_that_row": true,
+    "unrecognized_upstream_status_globally_abstains": true,
+    "null_contrast_review_remains_unscoped_global_abstain": true,
+    "hard_block_hits_globally_fail_closed": true,
+    "unscoped_review_may_not_be_laundered_into_emit": true
+  },
+  "emission_invariants": {
+    "robust_recurrent_visible_trace_required_for_emit": true,
+    "independence_proven_required_for_emit": true,
+    "explicit_challenge_surface_required_for_emit": true,
+    "alternative_challenge_requires_recognized_nonempty_type": true,
+    "alternative_challenge_requires_causal_truth_false": true,
+    "withdrawal_condition_required_for_emit": true,
+    "row_level_review_debt_preserved_in_module_status": true,
+    "numeric_accounting_failure": "FAIL_CLOSED"
+  },
+  "claim_locks": {
+    "recurrence_is_tactical_pattern_truth": false,
+    "emission_is_causality_truth": false,
+    "emission_is_coach_intention_truth": false,
+    "no_visible_followup_is_failure": false,
+    "context_refs_are_independent_support": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}

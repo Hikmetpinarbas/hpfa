@@ -1,6 +1,6 @@
 # HPFA Product Architect Evolution Protocol V1
 
-Status: `POLICY_CORRECTION_PASS`
+Status: `POLICY_CORRECTION_PASS_ZFGV_MIGRATION`
 
 ## Product authority
 
@@ -19,7 +19,14 @@ This protocol extends, and does not replace, `HPFA_DONOR_TO_PRODUCT_OPERATING_MO
 
 ## Mission
 
-Every architecture review must strengthen HPFA as a long-lived event-only football intelligence product.
+Every architecture review must strengthen HPFA as a long-lived ZFGV/EFOD-based, claim-safe football intelligence product.
+
+ZFGV is a multi-surface Football Observation Fabric:
+
+```text
+event ⊂ ZFGV
+ZFGV != event
+```
 
 The objective is not to finish the current feature. The objective is to increase one or more of:
 
@@ -36,32 +43,70 @@ engineering quality
 repository governance
 ```
 
+## Observation capability rule
+
+Global `event-only compatible?` is retired as a product admission gate.
+
+For every construct ask:
+
+```text
+1. Which observation capabilities are required?
+2. Which are actually available and admitted?
+3. What source/evidence strength do they have?
+4. What is the maximum safe claim ceiling?
+5. Which capability gaps require downgrade, abstention, external evidence or tracking/video?
+```
+
+Canonical admission rule:
+
+```text
+required_capabilities ⊆ admitted_capabilities
+```
+
+Observation families:
+
+```text
+ACTION / EVENT
+ENTITY / ACTOR
+TEMPORAL
+SPATIAL
+OUTCOME / QUALIFIER
+RELATIONAL
+PROCESS / PARTICIPATION
+AGGREGATE / TABULAR
+EXTERNAL CONTEXT
+TRACKING / VIDEO — only when genuinely present
+HPFA-DERIVED INTELLIGENCE
+```
+
+Event-specific modules remain legitimate event subsystems. Historical identifiers are not blindly renamed. Historical event-only global gates are rehabilitated rather than copied forward.
+
 ## Mandatory search order
 
 Before proposing implementation:
 
 ```text
-1. current hpfa main
+1. current hpfa main / current producer-contract-tests
 2. HP-Motor
 3. HP-Engine
 4. HP-PROJELERI
 5. Google Drive
 6. Dropbox
 7. academic support
-8. runtime discovery / ACTIVE_MATCH evidence
+8. targeted runtime discovery / ACTIVE_MATCH evidence
 ```
 
-The search begins with a declared HPFA product gap.
-
-Never search donors merely for interesting code.
+The search begins with a declared HPFA product gap. Never search donors merely for interesting code.
 
 ## Donor rule
 
 ```text
 ADAPT_NOT_COPY
+REHABILITATE_BEFORE_PARALLEL_ENGINE
+CODE_LAST
 ```
 
-Never transplant donor modules.
+Never transplant donor modules or donor truth.
 
 Extract only:
 
@@ -78,7 +123,7 @@ architecture decisions
 reusable concepts
 ```
 
-Then design an HPFA-native implementation with HPFA contracts, claim ceilings, tests, runtime boundaries and release status.
+Then design an HPFA-native implementation with HPFA observation requirements, contracts, claim ceilings, tests, runtime boundaries and release state.
 
 ## Required architecture review output
 
@@ -87,10 +132,14 @@ Every substantive review must include:
 ```text
 Current limitation
 Hidden limitation
+Required observation capability
+Available admitted surface
+Safe new ceiling
+Still forbidden
 Better architecture
 Migration plan
-Future opportunities
 Tests required
+Analyst value gain
 Release readiness
 ```
 
@@ -117,7 +166,7 @@ Questions:
 ```text
 Does this create durable product differentiation?
 Does it improve analyst value or reduce strategic risk?
-Does it move HPFA toward the best event-only platform?
+Does it move HPFA toward the strongest defensible football intelligence platform?
 ```
 
 ### CTO
@@ -127,7 +176,7 @@ Questions:
 ```text
 Is the architecture reusable?
 Does it reduce or create coupling?
-Does it preserve source authority and release boundaries?
+Does it preserve source authority, capability admission and release boundaries?
 ```
 
 ### Principal Engineer
@@ -147,8 +196,9 @@ Questions:
 
 ```text
 What football behaviour becomes visible?
+Which observation capability supports it?
 What alternative explanations exist?
-What cannot be inferred from event-only data?
+What cannot be inferred from the admitted evidence?
 ```
 
 ### QA Lead
@@ -250,6 +300,8 @@ provider lock-in
 silent data loss
 state promotion
 identity loss
+obsolete global event-only gates
+capability suppression
 ```
 
 For every issue provide:
@@ -282,15 +334,17 @@ knowledge graphs
 ontology engineering
 ```
 
-Only ideas eventually implementable with event data are eligible.
+Ideas are eligible when their required observation capabilities can be stated explicitly and the current/future HPFA surface can satisfy them without inventing truth.
 
-Reject ideas that fundamentally require tracking, video-derived geometry or physical-load truth.
+Tracking-dependent research is not rejected wholesale. Separate the tracking/video-required component from the parts applicable to current ZFGV surfaces.
 
 Every research idea must include:
 
 ```text
 scientific basis
-football interpretation
+football construct
+required observations
+ZFGV applicability
 runtime feasibility
 claim safety
 potential module
@@ -320,35 +374,44 @@ future research questions
 
 A paper or donor document is research support only. It is never runtime truth.
 
-## Event-only eligibility gate
+## ZFGV eligibility gate
 
-A proposal is eligible only if its core output can eventually be generated from event data plus declared metadata.
+A proposal is eligible only when its required observation capabilities are explicit and can be bound to admitted surfaces or explicitly marked external/tracking/video required.
 
-Examples of eligible families:
+Examples potentially eligible with current ZFGV observations, depending on admission:
 
 ```text
-sequence candidates
+sequence/process candidates
 change-point candidates
 entropy diagnostics
 transition matrices
-point-process intensity
+point-process intensity candidates
 Bayesian evidence updates
 argument graphs
 contradiction routing
 uncertainty and abstention
 multi-scale context windows
+spatial zone/channel candidates
+process participation candidates
+aggregate/tabular reconciliation
+context-conditioned variation
+successful/failed/deviant process comparison
 ```
 
-Examples rejected without tracking or additional authority:
+Examples rejected as direct truth without tracking/video or equivalent authority:
 
 ```text
 true pitch control
-true off-ball structure
+true off-ball structure or geometry
+true team shape/compactness
 body orientation truth
-fatigue truth
-physical load truth
+scanning truth
+fatigue/physical load truth
+true pressure geometry
 coach intention
-complete tactical truth
+tactical plan
+causality
+dominance
 ```
 
 ## Architecture preference
@@ -366,6 +429,7 @@ thin orchestrators
 stage ledgers
 traceable JSON/TSV/text artifacts
 fail-closed state machines
+construct-specific capability admission
 ```
 
 Reject or isolate:
@@ -379,6 +443,7 @@ hardcoded match identity
 provider-specific shortcuts
 untraceable generated language
 single-signal truth assignment
+global event-only product gates
 ```
 
 ## AI reuse standard
@@ -416,6 +481,8 @@ Each major architecture decision records:
 decision_id
 product_gap
 current_main_state
+required_observation_capabilities
+available_admitted_surfaces
 donor_sources_checked
 accepted_capability
 rejected_alternatives
@@ -423,6 +490,7 @@ HPFA_native_contract
 runtime_dependency
 claim_impact
 test_strategy
+analyst_value_gain
 release_impact
 migration_cost
 open_questions
@@ -462,10 +530,13 @@ release
 The architecture council may recommend implementation, but cannot promote release without evidence.
 
 ```text
-SPEC_ONLY != executable
-SMOKE_PASS != ACTIVE_MATCH evidence
-RELEASE_CANDIDATE != production
-PASS != RELEASE
+IMPLEMENTED != TESTED
+TESTED != VALIDATED
+VALIDATED_ON_ONE_MATCH != GENERALIZED
+CI_GREEN != FOOTBALL_VALID
+OPEN_PR != MAIN
+MAIN != PRODUCTION
+ACTIVE_MATCH_PASS != PRODUCTION_RELEASE
 ```
 
 Required release answer:
@@ -479,23 +550,25 @@ next eligible status
 
 ## Current HPFA architecture priorities
 
-Under Pareto + Lindy review, current highest-leverage work remains:
+Current highest-leverage work:
 
 ```text
-1. repository and open-PR hygiene
-2. cross-module failure propagation
-3. shared recursive forbidden-field guard
-4. canonical Argument -> Defeasible Route -> Evidence Graph contract
-5. end-to-end Intelligence Chain fixture
-6. thin Intelligence Pipeline Orchestrator
-7. ACTIVE_MATCH engineering + analyst evidence
+1. ZFGV migration + obsolete global event-only gate rehabilitation
+2. observation/source semantics + provenance/dependency
+3. episode/process/consequence integration
+4. successful/failed/deviant variant comparison
+5. recurrence/variation/deviation + counterevidence
+6. Safe Finding + human analyst report closure
+7. multi-match Gold Corpus
+8. longitudinal Postmatch intelligence
 ```
 
-New isolated metrics, readers and report templates are lower priority until this integration spine is proven.
+Random isolated metrics, parallel engines and new product verticals are lower priority until the Postmatch reference spine is proven.
 
 ## Final rule
 
 ```text
 Do not optimize for today's feature.
 Optimize for HPFA's ten-year capability surface.
+Close a real evidence-spine gap and create new defensible analyst intelligence.
 ```

@@ -10,6 +10,14 @@ CLAIM_CEILING = "MATCH_LOCAL_VISIBLE_PROCESS_VARIANT_PROFILE_CANDIDATE_ONLY"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 
+RIGHT_CENSORED_MARKERS = {"RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE"}
+UNRESOLVED_MARKERS = {
+    "NO_VISIBLE_FOLLOW_UP_CANDIDATE",
+    "VISIBLE_FOLLOW_UP_UNCERTAIN_CANDIDATE",
+    "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE",
+    "BREAKDOWN_WITH_UNCERTAIN_VISIBLE_RESPONSE_CANDIDATE",
+}
+
 
 def _clean(value: Any) -> str:
     return " ".join(("" if value is None else str(value)).split()).strip()
@@ -78,6 +86,88 @@ def _scope_object(scope: tuple[str, str, str]) -> dict[str, str]:
         "response_episode_candidate_id": scope[1],
         "counter_response_episode_candidate_id": scope[2],
     }
+
+
+def _resolution_class(signature: tuple[tuple[str, ...], tuple[str, ...], bool]) -> str:
+    """Map already-visible consequence labels to football-functional resolution roles.
+
+    This is descriptive process resolution, not tactical success/failure truth. It is
+    deliberately outcome-family based so downstream analysts can see how otherwise
+    similar match-local processes resolve without inventing intent or causality.
+    """
+    labels = {value.upper() for value in (*signature[0], *signature[1]) if value}
+    if labels & RIGHT_CENSORED_MARKERS or any("RIGHT_CENSORED" in value for value in labels):
+        return "RIGHT_CENSORED_OBSERVATION_VARIANT"
+    if labels & UNRESOLVED_MARKERS or any(
+        marker in value
+        for value in labels
+        for marker in ("UNCERTAIN", "NO_VISIBLE_FOLLOW_UP", "MIXED_TEAM_SAME_TIME")
+    ):
+        return "UNRESOLVED_VISIBLE_PROCESS_VARIANT"
+    if any("RECOVERY_RESPONSE_AFTER_BREAKDOWN" in value for value in labels):
+        return "RECOVERY_AFTER_BREAKDOWN_VISIBLE_VARIANT"
+    if any("RESTART_OR_RESET" in value or "RESTART" in value or "RESET" in value for value in labels):
+        return "RESET_OR_RESTART_VISIBLE_VARIANT"
+    if any("OPPONENT_HANDOVER" in value or "OPPONENT_TAKEOVER" in value or "LOSS" in value for value in labels):
+        return "ADVERSE_HANDOVER_VISIBLE_VARIANT"
+    if any(
+        marker in value
+        for value in labels
+        for marker in (
+            "SHOT_FOLLOW_UP",
+            "SAME_TEAM_CONTINUATION",
+            "RECOVERY_TO_SAME_TEAM_CONTINUATION",
+            "CONTINUATION_VISIBLE",
+        )
+    ):
+        return "CONTINUATION_OR_ADVANCE_VISIBLE_VARIANT"
+    if any("TERMINAL_OUTCOME_SUPPORT" in value for value in labels):
+        return "TERMINAL_VISIBLE_VARIANT"
+    return "OTHER_VISIBLE_CONSEQUENCE_VARIANT"
+
+
+def _resolution_profile(
+    outcome_counts: Counter[tuple[tuple[str, ...], tuple[str, ...], bool]],
+) -> tuple[list[dict[str, Any]], int, str | None, list[str]]:
+    class_counts: Counter[str] = Counter()
+    for signature, count in outcome_counts.items():
+        class_counts[_resolution_class(signature)] += count
+
+    non_comparable = {
+        "RIGHT_CENSORED_OBSERVATION_VARIANT",
+        "UNRESOLVED_VISIBLE_PROCESS_VARIANT",
+    }
+    comparable_denominator = sum(
+        count for state, count in class_counts.items() if state not in non_comparable
+    )
+    total = sum(class_counts.values())
+    rows: list[dict[str, Any]] = []
+    for state, count in sorted(class_counts.items()):
+        comparable = state not in non_comparable
+        rows.append({
+            "process_resolution_class_candidate": state,
+            "chain_count_candidate": count,
+            "within_profile_share_candidate": round(count / total, 6) if total else None,
+            "within_comparable_resolution_share_candidate": (
+                round(count / comparable_denominator, 6)
+                if comparable and comparable_denominator
+                else None
+            ),
+            "comparable_for_modal_deviation_candidate": comparable,
+        })
+
+    comparable_counts = {
+        state: count for state, count in class_counts.items() if state not in non_comparable
+    }
+    dominant: str | None = None
+    deviants: list[str] = []
+    if comparable_counts:
+        max_count = max(comparable_counts.values())
+        leaders = sorted(state for state, count in comparable_counts.items() if count == max_count)
+        if len(leaders) == 1:
+            dominant = leaders[0]
+            deviants = sorted(state for state in comparable_counts if state != dominant)
+    return rows, comparable_denominator, dominant, deviants
 
 
 def build_process_variant_profiles(reciprocal_payload: dict[str, Any]) -> dict[str, Any]:
@@ -157,7 +247,22 @@ def build_process_variant_profiles(reciprocal_payload: dict[str, Any]) -> dict[s
                 "visible_outcome_signature_candidate": _outcome_object(signature),
                 "chain_count_candidate": count,
                 "within_variant_share_candidate": round(count / occurrence_count, 6) if occurrence_count else None,
+                "process_resolution_class_candidate": _resolution_class(signature),
             })
+
+        resolution_profile, comparable_resolution_count, dominant_resolution, deviant_resolutions = _resolution_profile(
+            outcome_counts
+        )
+        censored_count = sum(
+            row["chain_count_candidate"]
+            for row in resolution_profile
+            if row["process_resolution_class_candidate"] == "RIGHT_CENSORED_OBSERVATION_VARIANT"
+        )
+        unresolved_count = sum(
+            row["chain_count_candidate"]
+            for row in resolution_profile
+            if row["process_resolution_class_candidate"] == "UNRESOLVED_VISIBLE_PROCESS_VARIANT"
+        )
 
         segment_only_risk = (
             occurrence_count > 1
@@ -189,6 +294,18 @@ def build_process_variant_profiles(reciprocal_payload: dict[str, Any]) -> dict[s
             "distinct_visible_outcome_signature_count_candidate": distinct_outcome_count,
             "visible_outcome_profile_candidate": outcome_profile,
             "visible_outcome_variation_state_candidate": variation_state,
+            "process_resolution_variant_profile_candidate": resolution_profile,
+            "comparable_visible_resolution_count_candidate": comparable_resolution_count,
+            "right_censored_resolution_count_candidate": censored_count,
+            "unresolved_resolution_count_candidate": unresolved_count,
+            "dominant_process_resolution_class_candidate": dominant_resolution,
+            "deviant_process_resolution_classes_candidate": deviant_resolutions,
+            "dominant_resolution_state_candidate": (
+                "UNIQUE_MATCH_LOCAL_MODAL_RESOLUTION_CANDIDATE"
+                if dominant_resolution
+                else "NO_UNIQUE_MATCH_LOCAL_MODAL_RESOLUTION"
+            ),
+            "success_failure_classification_state_candidate": "REQUIRES_FAMILY_SPECIFIC_TARGET_CONSEQUENCE_DEFINITION",
             "segment_only_risk_candidate": segment_only_risk,
             "multi_episode_spread_visible_candidate": multi_episode_spread,
             "dependent_projection_only": True,
@@ -196,8 +313,10 @@ def build_process_variant_profiles(reciprocal_payload: dict[str, Any]) -> dict[s
             "repeat_candidate_is_recurrence_truth": False,
             "multi_episode_spread_is_stable_tendency_truth": False,
             "outcome_variation_is_tactical_flexibility_truth": False,
+            "dominant_resolution_is_tactical_preference_truth": False,
+            "deviant_resolution_is_failure_truth": False,
             "trace_variant_frequency_is_probability_truth": False,
-            "allowed_claim": "The same admitted match-local anchor/response action-family signature was visible this many times, across these admitted episode scopes, with these visible outcome-signature variants.",
+            "allowed_claim": "The same admitted match-local anchor/response action-family signature was visible this many times, across these admitted episode scopes, with these visible process-resolution variants and match-local modal/deviant resolution candidates.",
             "forbidden_inference": [
                 "recurrence truth",
                 "stable team tendency",
@@ -223,6 +342,12 @@ def build_process_variant_profiles(reciprocal_payload: dict[str, Any]) -> dict[s
         profile["distinct_visible_outcome_signature_count_candidate"] > 1 for profile in profiles
     )
     incomplete = sum(profile["incomplete_episode_binding_count"] > 0 for profile in profiles)
+    resolution_variation = sum(
+        len(profile["process_resolution_variant_profile_candidate"]) > 1 for profile in profiles
+    )
+    modal_resolution = sum(
+        profile["dominant_process_resolution_class_candidate"] is not None for profile in profiles
+    )
 
     if upstream_status not in {"PASS", "OK", "SUCCESS"}:
         profile_status = "REVIEW_REQUIRED"
@@ -241,6 +366,8 @@ def build_process_variant_profiles(reciprocal_payload: dict[str, Any]) -> dict[s
         "multi_episode_process_variant_profile_count": multi_episode,
         "single_episode_repeat_risk_profile_count": segment_only,
         "outcome_variation_profile_count": outcome_variation,
+        "process_resolution_variation_profile_count": resolution_variation,
+        "unique_modal_resolution_profile_count": modal_resolution,
         "incomplete_episode_binding_profile_count": incomplete,
         "eligible_reciprocal_population_count": eligible_population,
         "process_variant_profile_status": profile_status,

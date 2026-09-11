@@ -251,6 +251,43 @@ def build_process_story_from_current_reconstruction(output_root: str | Path) -> 
     }
 
 
+def _alternative_explanation_lineage_valid(lineage: dict[str, Any]) -> bool:
+    raw_count = lineage.get("alternative_explanation_bearing_process_count")
+    raw_alternatives = lineage.get("alternative_explanations")
+    locks_present = (
+        "alternative_explanation_is_independent_counterevidence_vote" in lineage
+        or "alternative_explanation_count_is_support_count" in lineage
+    )
+    if raw_count is None and raw_alternatives is None and not locks_present:
+        return True
+    if not isinstance(raw_count, int) or isinstance(raw_count, bool) or raw_count < 0:
+        return False
+    if not isinstance(raw_alternatives, list):
+        return False
+    source_ids = lineage.get("source_narrative_ids")
+    if not isinstance(source_ids, list):
+        return False
+    source_set = {source_id for source_id in source_ids if isinstance(source_id, str) and source_id}
+    alternative_source_ids: set[str] = set()
+    for item in raw_alternatives:
+        if not isinstance(item, dict):
+            return False
+        source_id = item.get("source_narrative_id")
+        explanation = item.get("alternative_explanation")
+        if not isinstance(source_id, str) or not source_id or source_id not in source_set:
+            return False
+        if not isinstance(explanation, dict) or not explanation:
+            return False
+        alternative_source_ids.add(source_id)
+    if raw_count != len(alternative_source_ids):
+        return False
+    if lineage.get("alternative_explanation_is_independent_counterevidence_vote") is not False:
+        return False
+    if lineage.get("alternative_explanation_count_is_support_count") is not False:
+        return False
+    return True
+
+
 def _publishable_match_story_assembly(item: Any) -> bool:
     if not isinstance(item, dict):
         return False
@@ -299,6 +336,8 @@ def _publishable_match_story_assembly(item: Any) -> bool:
         return False
     if lineage.get("cross_process_support_independence_proven") is not False:
         return False
+    if not _alternative_explanation_lineage_valid(lineage):
+        return False
     return True
 
 
@@ -331,6 +370,8 @@ def write_process_story_sidecar(output_root: str | Path) -> dict[str, Any]:
         f"hard_block_hits={report.get('hard_block_hits') or []}",
         "similarity_parameters_calibrated=false",
         "nominal_support_is_independent_evidence_count=false",
+        "alternative_explanation_is_independent_counterevidence_vote=false",
+        "alternative_explanation_count_is_support_count=false",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "production_release=false",
@@ -346,6 +387,14 @@ def write_process_story_sidecar(output_root: str | Path) -> dict[str, Any]:
         lines.append(f"  counterevidence_bearing_process_count={lineage.get('counterevidence_bearing_process_count')}")
         lines.append(f"  context_sensitive_process_count={lineage.get('context_sensitive_process_count')}")
         lines.append(f"  null_evaluated_process_count={lineage.get('null_evaluated_process_count')}")
+        if "alternative_explanation_bearing_process_count" in lineage:
+            lines.append(
+                f"  alternative_explanation_bearing_process_count={lineage.get('alternative_explanation_bearing_process_count')}"
+            )
+            lines.append(
+                "  alternative_explanations="
+                + json.dumps(lineage.get("alternative_explanations") or [], ensure_ascii=False, sort_keys=True)
+            )
     txt_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     report["current_invocation_artifacts"] = [str(json_path), str(txt_path)]
     return report

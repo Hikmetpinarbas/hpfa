@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,15 @@ from hpfa.modules.core.active_match_spine_runner.src.process_story_sidecar impor
 MODULE_ID = "active_match_orphan_capability_sidecars_v1"
 PROCESS_STORY_DIAGNOSTIC_ARTIFACT = "active_match_process_story_sidecar_v1.json"
 PROCESS_STORY_PUBLICATION_AUTHORITY_ARTIFACT = "active_match_process_story_sidecar_v1.txt"
+SEMANTIC_ROUTE_ARTIFACT = "semantic_role_action_bundle_candidates_lite_v1.json"
+ZFGV_NON_ACTION_ROUTES = {
+    "CONTEXT_INTERVAL_ROUTE": "EXTERNAL_OR_MATCH_CONTEXT",
+    "PARTICIPATION_INTERVAL_ROUTE": "PROCESS_PARTICIPATION",
+    "DERIVED_CONSEQUENCE_ROUTE": "HPFA_DERIVED_CONSEQUENCE",
+    "TERMINAL_OUTCOME_ROUTE": "OUTCOME_QUALIFIER",
+    "REFERENCE_ROUTE": "RELATIONAL",
+    "GOALKEEPER_OPPONENT_REFERENCE_ROUTE": "RELATIONAL",
+}
 
 
 def _dedupe(values: list[str]) -> list[str]:
@@ -23,6 +34,85 @@ def _dedupe(values: list[str]) -> list[str]:
         seen.add(text)
         result.append(text)
     return result
+
+
+def _load_optional_json(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _zfgv_non_action_route_projection(output: Path) -> dict[str, Any]:
+    """Expose already-routed non-action observations without promoting them to events.
+
+    This closes an observability/orphan gap only. Context, participation,
+    consequence, outcome and relation routes remain candidates with their upstream
+    identity/dependency/time semantics. They do not become action instances,
+    possession truth, tactical truth, causality or independent evidence votes.
+    """
+    payload = _load_optional_json(output / SEMANTIC_ROUTE_ARTIFACT)
+    if not payload:
+        return {
+            "status": "NOT_EVALUATED_PREREQUISITE_MISSING",
+            "source_artifact": SEMANTIC_ROUTE_ARTIFACT,
+            "observation_route_record_count": 0,
+            "route_counts": {},
+            "capability_counts": {},
+            "observation_refs": [],
+            "event_instance_created": False,
+            "action_identity_created": False,
+            "possession_truth": False,
+            "tactical_truth": False,
+            "causality_truth": False,
+            "independent_evidence_vote_created": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+
+    routes = [
+        row for row in (payload.get("semantic_routes") or [])
+        if isinstance(row, dict)
+        and row.get("semantic_route") in ZFGV_NON_ACTION_ROUTES
+        and row.get("route_status") == "PASS"
+    ]
+    route_counts = Counter(str(row.get("semantic_route")) for row in routes)
+    capability_counts = Counter(
+        ZFGV_NON_ACTION_ROUTES[str(row.get("semantic_route"))]
+        for row in routes
+    )
+    refs = [
+        {
+            "evidence_atom_id": row.get("evidence_atom_id"),
+            "semantic_route": row.get("semantic_route"),
+            "observation_capability": ZFGV_NON_ACTION_ROUTES[str(row.get("semantic_route"))],
+            "source_role": row.get("source_role"),
+            "semantic_role_candidate": row.get("semantic_role_candidate"),
+            "team_identity_candidate_id": row.get("team_identity_candidate_id"),
+            "actor_identity_candidate_id": row.get("actor_identity_candidate_id"),
+            "claim_ceiling": row.get("claim_ceiling"),
+        }
+        for row in routes
+    ]
+    return {
+        "status": "PASS" if routes else "REVIEW_REQUIRED",
+        "source_artifact": SEMANTIC_ROUTE_ARTIFACT,
+        "observation_route_record_count": len(routes),
+        "route_counts": dict(sorted(route_counts.items())),
+        "capability_counts": dict(sorted(capability_counts.items())),
+        "observation_refs": refs,
+        "event_instance_created": False,
+        "action_identity_created": False,
+        "possession_truth": False,
+        "tactical_truth": False,
+        "causality_truth": False,
+        "independent_evidence_vote_created": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
 
 
 def _process_story_diagnostic_projection(process_story: dict[str, Any]) -> dict[str, Any]:
@@ -121,6 +211,10 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         metric_governance_status = "REVIEW_REQUIRED"
         review_hits.append(f"metric_governance_bridge_sidecar_failed:{type(exc).__name__}")
 
+    zfgv_non_action_routes = _zfgv_non_action_route_projection(output)
+    if zfgv_non_action_routes.get("status") == "NOT_EVALUATED_PREREQUISITE_MISSING":
+        review_hits.append("zfgv_non_action_routes_prerequisite_missing")
+
     # The process-story bridge consumes the reconstruction files produced earlier in
     # this same full-spine invocation. It never re-ingests the match and its failures
     # are scoped to the story lane, not promoted to unrelated product lanes.
@@ -158,6 +252,9 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "active_match_analyst_report_lite": baseline,
         "triplex_source_alignment": triplex_report,
         "metric_governance_bridge": metric_governance,
+        "zfgv_non_action_observation_routes": zfgv_non_action_routes,
+        "zfgv_non_action_routes_are_action_instances": False,
+        "zfgv_non_action_routes_are_possession_truth": False,
         "process_story_sidecar": process_story,
         "process_story_runtime_bound": process_story.get("story_path_blocked") is False,
         **_process_story_diagnostic_projection(process_story),

@@ -247,6 +247,7 @@ def _match_story_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[st
     recurrent_count = block.get("recurrent_process_count")
     robust_count = block.get("robust_recurrent_process_count")
     counter_count = block.get("counterevidence_bearing_process_count")
+    alternative_count = block.get("alternative_explanation_bearing_process_count")
     context_count = block.get("context_sensitive_process_count")
     null_count = block.get("null_evaluated_process_count")
     accounting = {
@@ -254,6 +255,7 @@ def _match_story_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[st
         "recurrent_process_count": recurrent_count,
         "robust_recurrent_process_count": robust_count,
         "counterevidence_bearing_process_count": counter_count,
+        "alternative_explanation_bearing_process_count": alternative_count,
         "context_sensitive_process_count": context_count,
         "null_evaluated_process_count": null_count,
     }
@@ -276,6 +278,37 @@ def _match_story_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[st
                 hits.append(f"match_story_lineage_{key}_exceeds_process_count")
     if _is_nonnegative_int(robust_count) and _is_nonnegative_int(recurrent_count) and robust_count > recurrent_count:
         hits.append("match_story_lineage_robust_recurrent_process_count_exceeds_recurrent")
+
+    raw_alternatives = block.get("alternative_explanations")
+    alternatives: list[dict[str, Any]] = []
+    alternative_source_ids: set[str] = set()
+    if not isinstance(raw_alternatives, list):
+        hits.append("match_story_lineage_alternative_explanations_invalid")
+    else:
+        for item in raw_alternatives:
+            if not isinstance(item, dict):
+                hits.append("match_story_lineage_alternative_explanation_entry_invalid")
+                continue
+            source_id = str(item.get("source_narrative_id") or "").strip()
+            explanation = item.get("alternative_explanation")
+            if not source_id or source_id not in source_ids:
+                hits.append("match_story_lineage_alternative_explanation_source_mismatch")
+                continue
+            if not isinstance(explanation, dict) or not explanation:
+                hits.append("match_story_lineage_alternative_explanation_payload_invalid")
+                continue
+            alternative_source_ids.add(source_id)
+            alternatives.append({
+                "source_narrative_id": source_id,
+                "alternative_explanation": dict(explanation),
+            })
+    if _is_nonnegative_int(alternative_count) and alternative_count != len(alternative_source_ids):
+        hits.append("match_story_lineage_alternative_explanation_bearing_process_count_mismatch")
+    if block.get("alternative_explanation_is_independent_counterevidence_vote") is not False:
+        hits.append("match_story_lineage_alternative_explanation_independence_lock_breach")
+    if block.get("alternative_explanation_count_is_support_count") is not False:
+        hits.append("match_story_lineage_alternative_explanation_support_lock_breach")
+
     if not _is_nonnegative_int(unique_count):
         hits.append("match_story_lineage_unique_trace_ref_count_invalid")
     elif unique_count != len(trace_refs):
@@ -299,6 +332,10 @@ def _match_story_lineage(block: dict[str, Any]) -> tuple[dict[str, Any], list[st
         "recurrent_process_count": recurrent_count,
         "robust_recurrent_process_count": robust_count,
         "counterevidence_bearing_process_count": counter_count,
+        "alternative_explanation_bearing_process_count": alternative_count,
+        "alternative_explanations": alternatives,
+        "alternative_explanation_is_independent_counterevidence_vote": False,
+        "alternative_explanation_count_is_support_count": False,
         "context_sensitive_process_count": context_count,
         "null_evaluated_process_count": null_count,
         "unique_trace_refs": trace_refs,

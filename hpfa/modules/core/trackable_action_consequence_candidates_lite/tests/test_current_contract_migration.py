@@ -141,6 +141,7 @@ def test_terminal_support_is_exact_core_and_candidate_only() -> None:
     row = result["trackable_action_consequence_candidates"][0]
     assert row["terminal_outcome_support_visible"] is True
     assert row["primary_consequence_candidate"] == "TERMINAL_OUTCOME_SUPPORT_CANDIDATE"
+    assert row["right_censored_no_visible_follow_up"] is False
     assert row["validated_event_identity"] is False
 
 
@@ -149,6 +150,40 @@ def test_mismatched_support_atom_does_not_attach() -> None:
     result = build([a], [atom("derived", start=10, x=99)])
     row = result["trackable_action_consequence_candidates"][0]
     assert row["supporting_consequence_evidence_atom_ids"] == []
+
+
+def test_last_visible_trace_is_right_censored_not_no_followup_outcome() -> None:
+    result = build([trace("a", start=10)])
+    row = result["trackable_action_consequence_candidates"][0]
+    assert row["primary_consequence_candidate"] == "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE"
+    assert row["follow_up_window_complete_by_visible_trace_horizon"] is False
+    assert row["follow_up_window_observation_state"] == "RIGHT_CENSORED_VISIBLE_TRACE_HORIZON"
+    assert row["right_censored_no_visible_follow_up"] is True
+    assert row["no_visible_follow_up_is_failure"] is False
+    assert row["no_visible_follow_up_is_neutral_outcome"] is False
+    assert row["right_censoring_is_terminal_event"] is False
+
+
+def test_no_visible_followup_requires_trace_horizon_through_full_window() -> None:
+    a = trace("a", start=10)
+    outside_window = trace("later", start=30, actor="later", x=40)
+    result = build([a, outside_window])
+    by_anchor = {r["anchor_trackable_action_trace_candidate_id"]: r for r in result["trackable_action_consequence_candidates"]}
+    row = by_anchor["a"]
+    assert row["visible_follow_up_trace_ids"] == []
+    assert row["follow_up_window_complete_by_visible_trace_horizon"] is True
+    assert row["follow_up_window_observation_state"] == "COMPLETE_VISIBLE_TRACE_HORIZON"
+    assert row["primary_consequence_candidate"] == "NO_VISIBLE_FOLLOW_UP_CANDIDATE"
+    assert row["right_censored_no_visible_follow_up"] is False
+
+
+def test_censoring_and_complete_no_followup_are_separately_accounted() -> None:
+    result = build([trace("a", start=10), trace("later", start=30, actor="later", x=40)])
+    assert result["complete_window_no_visible_follow_up_count"] == 1
+    assert result["right_censored_no_visible_follow_up_count"] == 1
+    assert result["no_visible_follow_up_is_failure"] is False
+    assert result["no_visible_follow_up_is_neutral_outcome"] is False
+    assert result["right_censoring_is_terminal_event"] is False
 
 
 def test_trace_requires_actor_bearing_primary_role() -> None:
@@ -174,6 +209,9 @@ def test_claim_boundaries_remain_closed() -> None:
     assert result["continuation_candidate_is_possession_truth"] is False
     assert result["window_is_sequence_truth"] is False
     assert result["sequence_link_allowed"] is False
+    assert result["no_visible_follow_up_is_failure"] is False
+    assert result["no_visible_follow_up_is_neutral_outcome"] is False
+    assert result["right_censoring_is_terminal_event"] is False
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["true_action_count"] == "UNKNOWN"
     assert result["production_release"] is False

@@ -6,12 +6,26 @@ from hpfa.modules.core.professional_finding_candidate_lite.src.sequence_safe_fin
 
 
 def _admission(independent=3):
+    refs = ["TRACE_A", "TRACE_B", "TRACE_C"]
+    dependency = {
+        "independence_proven": isinstance(independent, int),
+        "object_views_or_reflections_may_not_create_independent_support": True,
+    }
+    if isinstance(independent, int):
+        dependency.update({
+            "independence_group_by_trace_ref": {
+                "TRACE_A": "GROUP_A",
+                "TRACE_B": "GROUP_B",
+                "TRACE_C": "GROUP_C",
+            },
+            "independence_groups": ["GROUP_A", "GROUP_B", "GROUP_C"],
+        })
     return {
         "module_id": "sequence_pattern_admission_lite_v1",
         "status": "PASS",
         "sequence_pattern_admissions": [{
             "trace_family_ref": "TRACE_A",
-            "eligible_trace_refs": ["TRACE_A", "TRACE_B", "TRACE_C"],
+            "eligible_trace_refs": refs,
             "observed_support": 3,
             "independent_support_count": independent,
             "failure_variant_count": 0,
@@ -20,7 +34,7 @@ def _admission(independent=3):
             "robustness_state": "ROBUST_WITHIN_TESTED_RANGE",
             "counterevidence_refs": [],
             "alternative_explanations": [],
-            "dependency_summary": {"independence_proven": isinstance(independent, int)},
+            "dependency_summary": dependency,
             "uncertainty": {"recurrence_is_tactical_intention_truth": False},
             "withdrawal_condition": "Downgrade if admitted evidence changes.",
             "admission_state": "ROBUST_RECURRENT_VISIBLE_TRACE" if isinstance(independent, int) else "RECURRENT_VISIBLE_TRACE",

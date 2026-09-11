@@ -27,6 +27,16 @@ def _item():
             "recurrent_process_count": 1,
             "robust_recurrent_process_count": 1,
             "counterevidence_bearing_process_count": 1,
+            "alternative_explanation_bearing_process_count": 1,
+            "alternative_explanations": [{
+                "source_narrative_id": "n1",
+                "alternative_explanation": {
+                    "alternative_explanation_id": "alt1",
+                    "family": "CONTEXT_DEPENDENCE",
+                },
+            }],
+            "alternative_explanation_is_independent_counterevidence_vote": False,
+            "alternative_explanation_count_is_support_count": False,
             "context_sensitive_process_count": 1,
             "null_evaluated_process_count": 1,
             "nominal_support_is_independent_evidence_count": False,
@@ -49,11 +59,16 @@ def test_match_story_lineage_reaches_ready_assembly_candidate():
     result = evaluate_assembly_item(_item())
     assert result["status"] == "SMOKE_PASS"
     assert result["assembly_decision"] == "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
-    assert result["match_story_evidence_lineage"]["source_narrative_ids"] == ["n1", "n2"]
-    assert result["match_story_evidence_lineage"]["unique_trace_ref_count"] == 6
-    assert result["match_story_evidence_lineage"]["process_narrative_count"] == 2
-    assert result["match_story_evidence_lineage"]["robust_recurrent_process_count"] == 1
-    assert result["match_story_evidence_lineage"]["nominal_support_is_independent_evidence_count"] is False
+    lineage = result["match_story_evidence_lineage"]
+    assert lineage["source_narrative_ids"] == ["n1", "n2"]
+    assert lineage["unique_trace_ref_count"] == 6
+    assert lineage["process_narrative_count"] == 2
+    assert lineage["robust_recurrent_process_count"] == 1
+    assert lineage["alternative_explanation_bearing_process_count"] == 1
+    assert lineage["alternative_explanations"][0]["source_narrative_id"] == "n1"
+    assert lineage["alternative_explanation_is_independent_counterevidence_vote"] is False
+    assert lineage["alternative_explanation_count_is_support_count"] is False
+    assert lineage["nominal_support_is_independent_evidence_count"] is False
     assert result["sequence_evidence_lineage"] == {}
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["true_action_count"] == "UNKNOWN"
@@ -74,6 +89,14 @@ def test_match_story_nominal_support_independence_escalation_fails_closed():
     result = evaluate_assembly_item(item)
     assert result["status"] == "FAIL_CLOSED"
     assert "assembly_match_story_nominal_support_independence_lock_breach" in result["hard_block_hits"]
+
+
+def test_cross_process_independence_cannot_be_fabricated():
+    item = _item()
+    item["match_story_evidence_lineage"]["cross_process_support_independence_proven"] = True
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_match_story_cross_process_independence_lock_breach" in result["hard_block_hits"]
 
 
 def test_match_story_claim_ceiling_mismatch_fails_closed():
@@ -122,6 +145,32 @@ def test_robust_recurrent_count_cannot_exceed_recurrent_count():
     result = evaluate_assembly_item(item)
     assert result["status"] == "FAIL_CLOSED"
     assert "assembly_match_story_robust_recurrent_exceeds_recurrent" in result["hard_block_hits"]
+
+
+def test_alternative_explanation_source_must_belong_to_exact_narrative_cohort():
+    item = _item()
+    item["match_story_evidence_lineage"]["alternative_explanations"][0]["source_narrative_id"] = "outside"
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_match_story_alternative_explanation_source_mismatch" in result["hard_block_hits"]
+
+
+def test_alternative_explanation_cannot_be_promoted_to_independent_vote_or_support():
+    item = _item()
+    item["match_story_evidence_lineage"]["alternative_explanation_is_independent_counterevidence_vote"] = True
+    item["match_story_evidence_lineage"]["alternative_explanation_count_is_support_count"] = True
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_match_story_alternative_explanation_independence_lock_breach" in result["hard_block_hits"]
+    assert "assembly_match_story_alternative_explanation_support_lock_breach" in result["hard_block_hits"]
+
+
+def test_alternative_explanation_bearing_count_must_match_unique_source_narratives():
+    item = _item()
+    item["match_story_evidence_lineage"]["alternative_explanation_bearing_process_count"] = 2
+    result = evaluate_assembly_item(item)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "assembly_match_story_alternative_explanation_bearing_process_count_mismatch" in result["hard_block_hits"]
 
 
 def test_no_sample_match_identity_leak():

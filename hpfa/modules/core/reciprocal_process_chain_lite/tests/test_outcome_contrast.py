@@ -12,9 +12,28 @@ from hpfa.modules.core.reciprocal_process_chain_lite.src.outcome_contrast import
 )
 
 
-def _chain(chain_id: str, response_consequence: str, counter_visible: bool) -> dict:
+def _chain(
+    chain_id: str,
+    response_consequence: str,
+    counter_visible: bool,
+    *,
+    anchor_team: str = "TEAM_A",
+    response_team: str = "TEAM_B",
+    review_hits=None,
+    anchor_bind: str = "UNIQUE_TIME_CONTAINMENT_CANDIDATE",
+    response_bind: str = "UNIQUE_TIME_CONTAINMENT_CANDIDATE",
+    counter_bind: str = "UNIQUE_TIME_CONTAINMENT_CANDIDATE",
+    traces=None,
+) -> dict:
     return {
         "reciprocal_process_chain_candidate_id": chain_id,
+        "anchor_team_identity_candidate_id": anchor_team,
+        "response_team_identity_candidate_id": response_team,
+        "anchor_episode_candidate_id": f"ep_anchor_{chain_id}",
+        "anchor_episode_binding_status": anchor_bind,
+        "response_episode_candidate_id": f"ep_response_{chain_id}",
+        "response_episode_binding_status": response_bind,
+        "response_relation_candidate": "NEXT_DIFFERENT_TEAM_VISIBLE_SEQUENCE_AFTER_CONFIRMED",
         "anchor_action_family_counts": {"RECOVERY": 1},
         "response_action_family_counts": {"PASS": 1},
         "response_consequence_candidate_counts": {response_consequence: 1},
@@ -22,6 +41,10 @@ def _chain(chain_id: str, response_consequence: str, counter_visible: bool) -> d
             {"SHOT_CANDIDATE": 1} if counter_visible else {}
         ),
         "counter_response_visible": counter_visible,
+        "counter_response_episode_candidate_id": f"ep_counter_{chain_id}" if counter_visible else None,
+        "counter_response_episode_binding_status": counter_bind if counter_visible else "NOT_APPLICABLE",
+        "supporting_trackable_action_trace_candidate_ids": traces or [f"trace_{chain_id}"],
+        "review_hits": review_hits or [],
     }
 
 
@@ -50,6 +73,7 @@ def test_same_process_signature_exposes_different_outcome_analogue_as_counterevi
     assert first["counterevidence_candidate_present"] is True
     assert first["outcome_contrast_is_causal_truth"] is False
     assert first["outcome_contrast_is_tactical_success_truth"] is False
+    assert first["counterevidence_eligibility_requires_unique_episode_binding"] is True
 
 
 def test_different_process_family_is_not_used_as_outcome_analogue() -> None:
@@ -71,6 +95,50 @@ def test_same_outcome_is_support_not_counterevidence() -> None:
     assert first["same_visible_outcome_support_chain_ids"] == ["rpc_b"]
     assert first["different_visible_outcome_analogue_chain_ids"] == []
     assert first["counterevidence_candidate_present"] is False
+
+
+def test_incomplete_episode_binding_is_excluded_not_counterevidence() -> None:
+    a = _chain("rpc_a", "SHOT_CANDIDATE", False)
+    b = _chain("rpc_b", "TURNOVER_CANDIDATE", False, response_bind="NO_EPISODE_TIME_CONTAINMENT")
+    row = next(x for x in build_outcome_contrast_candidates(_payload([a, b]))["outcome_contrast_candidates"] if x["reciprocal_process_chain_candidate_id"] == "rpc_a")
+    assert row["different_visible_outcome_analogue_chain_ids"] == []
+    assert row["counterevidence_candidate_present"] is False
+    assert row["excluded_analogue_candidates"][0]["chain_id"] == "rpc_b"
+    assert any("response_episode_binding_not_unique" in r for r in row["excluded_analogue_candidates"][0]["reasons"])
+
+
+def test_review_bound_peer_is_excluded_not_counterevidence() -> None:
+    a = _chain("rpc_a", "SHOT_CANDIDATE", False)
+    b = _chain("rpc_b", "TURNOVER_CANDIDATE", False, review_hits=["SOME_REVIEW"])
+    row = next(x for x in build_outcome_contrast_candidates(_payload([a, b]))["outcome_contrast_candidates"] if x["reciprocal_process_chain_candidate_id"] == "rpc_a")
+    assert row["different_visible_outcome_analogue_chain_ids"] == []
+    assert any("record_review_hits_present" in r for r in row["excluded_analogue_candidates"][0]["reasons"])
+
+
+def test_different_anchor_team_scope_is_not_comparable_counterevidence() -> None:
+    a = _chain("rpc_a", "SHOT_CANDIDATE", False, anchor_team="TEAM_A")
+    b = _chain("rpc_b", "TURNOVER_CANDIDATE", False, anchor_team="TEAM_C")
+    row = next(x for x in build_outcome_contrast_candidates(_payload([a, b]))["outcome_contrast_candidates"] if x["reciprocal_process_chain_candidate_id"] == "rpc_a")
+    assert row["different_visible_outcome_analogue_chain_ids"] == []
+    assert any("anchor_team_scope_mismatch" in r for r in row["excluded_analogue_candidates"][0]["reasons"])
+
+
+def test_right_censored_peer_is_not_counterevidence() -> None:
+    a = _chain("rpc_a", "SHOT_CANDIDATE", False)
+    b = _chain("rpc_b", "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE", False)
+    row = next(x for x in build_outcome_contrast_candidates(_payload([a, b]))["outcome_contrast_candidates"] if x["reciprocal_process_chain_candidate_id"] == "rpc_a")
+    assert row["different_visible_outcome_analogue_chain_ids"] == []
+    assert row["counterevidence_candidate_present"] is False
+    assert any("right_censored_outcome_not_counterevidence_eligible" in r for r in row["excluded_analogue_candidates"][0]["reasons"])
+
+
+def test_shared_trace_dependency_overlap_is_excluded() -> None:
+    a = _chain("rpc_a", "SHOT_CANDIDATE", False, traces=["trace_shared"])
+    b = _chain("rpc_b", "TURNOVER_CANDIDATE", False, traces=["trace_shared"])
+    row = next(x for x in build_outcome_contrast_candidates(_payload([a, b]))["outcome_contrast_candidates"] if x["reciprocal_process_chain_candidate_id"] == "rpc_a")
+    assert row["different_visible_outcome_analogue_chain_ids"] == []
+    assert any("shared_trace_dependency_overlap" in r for r in row["excluded_analogue_candidates"][0]["reasons"])
+    assert row["counterevidence_eligibility_is_independence_truth"] is False
 
 
 def test_finding_input_preserves_support_and_counterevidence_without_emitting_finding() -> None:
@@ -95,6 +163,7 @@ def test_finding_input_preserves_support_and_counterevidence_without_emitting_fi
     assert row["finding_emitted"] is False
     assert row["support_links_are_independent_votes"] is False
     assert row["counterevidence_links_are_independent_votes"] is False
+    assert row["counterevidence_eligibility_gate_applied"] is True
 
 
 def test_no_visible_counterexample_is_not_confirmation() -> None:
@@ -227,6 +296,7 @@ def test_attachment_preserves_claim_locks_and_no_independent_vote() -> None:
     assert result["reciprocal_c4_adapter_creates_new_engine"] is False
     assert result["reciprocal_c4_adapter_creates_independent_evidence"] is False
     assert result["reciprocal_c4_adapter_emits_final_finding"] is False
+    assert result["right_censoring_is_counterevidence"] is False
 
 
 def test_no_sample_match_identity_leak() -> None:

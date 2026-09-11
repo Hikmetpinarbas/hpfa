@@ -117,6 +117,64 @@ def test_review_required_sequence_becomes_qualifier_not_contradiction() -> None:
     assert fused["fusion_status"] == "SUPPORTED_WITH_QUALIFIER"
 
 
+def test_right_censoring_is_propagated_as_non_contradictory_observation_qualifier() -> None:
+    payload = _payload()
+    payload["visible_action_sequence_candidates"][0]["consequence_candidate_counts"] = {
+        "SAME_TEAM_CONTINUATION_CANDIDATE": 1,
+        "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE": 1,
+    }
+    adapted = adapter.build_packet_input_candidates(payload)
+    assert adapted["status"] == "SMOKE_PASS"
+    assert adapted["censoring_qualified_packet_input_candidate_count"] == 1
+    candidate = adapted["composite_packet_input_candidates"][0]
+    assert candidate["right_censored_no_visible_follow_up_count"] == 1
+    assert candidate["right_censoring_is_terminal_event"] is False
+    assert candidate["right_censoring_is_failure"] is False
+    assert candidate["censoring_is_counterevidence"] is False
+    assert candidate["censoring_is_independent_support_vote"] is False
+    censoring_qualifiers = [
+        row for row in candidate["contradicting_signals"]
+        if row.get("evidence_role") == "right_censoring_observation_qualifier"
+    ]
+    assert len(censoring_qualifiers) == 1
+    assert censoring_qualifiers[0]["relation_type"] == "QUALIFIES"
+    assert censoring_qualifiers[0]["explicit_contradiction"] is False
+    packet = packet_builder.build_report(adapted["composite_packet_input_candidates"])["packets"][0]
+    fused = fusion.fuse_packet(packet)
+    assert fused["support_signal_count"] == 1
+    assert fused["qualifier_signal_count"] == 1
+    assert fused["contradiction_signal_count"] == 0
+
+
+def test_complete_window_no_followup_remains_distinct_from_right_censoring() -> None:
+    payload = _payload()
+    payload["visible_action_sequence_candidates"][0]["consequence_candidate_counts"] = {
+        "NO_VISIBLE_FOLLOW_UP_CANDIDATE": 1,
+    }
+    adapted = adapter.build_packet_input_candidates(payload)
+    candidate = adapted["composite_packet_input_candidates"][0]
+    assert candidate["complete_window_no_visible_follow_up_count"] == 1
+    assert candidate["right_censored_no_visible_follow_up_count"] == 0
+    assert candidate["right_censoring_present"] is False
+    assert candidate["no_visible_follow_up_is_failure"] is False
+    assert candidate["no_visible_follow_up_is_neutral_outcome"] is False
+    assert not any(
+        row.get("evidence_role") == "right_censoring_observation_qualifier"
+        for row in candidate["contradicting_signals"]
+    )
+
+
+def test_invalid_negative_consequence_count_fails_closed() -> None:
+    payload = _payload()
+    payload["visible_action_sequence_candidates"][0]["consequence_candidate_counts"] = {
+        "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE": -1,
+    }
+    adapted = adapter.build_packet_input_candidates(payload)
+    assert adapted["status"] == "FAIL_CLOSED"
+    assert adapted["packet_input_candidate_count"] == 0
+    assert any("sequence_consequence_candidate_count_invalid" in hit for hit in adapted["hard_block_hits"])
+
+
 def test_upstream_hard_block_fails_closed_without_partial_packet_output() -> None:
     payload = _payload()
     payload["hard_block_hits"] = ["upstream_contract_failure"]

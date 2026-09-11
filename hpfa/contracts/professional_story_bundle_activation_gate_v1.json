@@ -1,0 +1,43 @@
+{
+  "contract_id": "professional_story_bundle_activation_gate_v1",
+  "consumer": "active_match_professional_story_run_v1.py",
+  "producer_authority": "active_match_spine_runner.py --full-spine",
+  "activation_requires": {
+    "canonical_full_spine_process_pass": true,
+    "required_user_facing_artifacts_present": true,
+    "bundle_manifest_claim_safe": true,
+    "bundle_zip_crc_valid": true,
+    "bundle_required_members_present": [
+      "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json",
+      "HPFA_ANALYST_REPORT.txt",
+      "active_match_process_story_sidecar_v1.txt",
+      "active_match_full_spine_v1.json"
+    ]
+  },
+  "manifest_invariants": {
+    "module_id": "active_match_standard_user_bundle_v1",
+    "analyst_text_requires_final_assembly_admission": true,
+    "sequence_lineage_preserved_in_analyst_report": true,
+    "sequence_claim_ceiling_revalidated_in_analyst_report": true,
+    "sequence_null_context_locks_revalidated_in_analyst_report": true,
+    "match_story_lineage_preserved_in_analyst_report": true,
+    "match_story_alternative_explanation_lineage_revalidated_in_analyst_report": true,
+    "current_invocation_artifacts_are_publication_authority": false,
+    "bundle_file_inventory_is_publication_authority": false,
+    "alternative_explanation_is_independent_counterevidence_vote": false,
+    "alternative_explanation_count_is_support_count": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "forbidden_promotions": [
+    "file_presence_to_analysis_activation",
+    "bundle_inventory_to_publication_authority",
+    "alternative_explanation_to_independent_counterevidence_vote",
+    "alternative_explanation_count_to_support_count",
+    "ci_success_to_active_match_pass",
+    "bundle_presence_to_football_truth"
+  ],
+  "parallel_runtime_engine_created": false,
+  "production_release": false
+}

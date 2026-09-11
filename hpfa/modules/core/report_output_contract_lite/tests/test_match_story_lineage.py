@@ -16,6 +16,16 @@ def _block(shared=None):
         "recurrent_process_count": 2,
         "robust_recurrent_process_count": 1,
         "counterevidence_bearing_process_count": 1,
+        "alternative_explanation_bearing_process_count": 1,
+        "alternative_explanations": [{
+            "source_narrative_id": "n2",
+            "alternative_explanation": {
+                "explanation_family": "CONTEXT_DEPENDENCE",
+                "explanation_tr": "Görünür tekrar bağlama bağlı olabilir.",
+            },
+        }],
+        "alternative_explanation_is_independent_counterevidence_vote": False,
+        "alternative_explanation_count_is_support_count": False,
         "context_sensitive_process_count": 1,
         "null_evaluated_process_count": 1,
         "story_state": "RECURRENT_PROCESS_SET_WITH_VISIBLE_COUNTEREVIDENCE",
@@ -50,6 +60,10 @@ def test_match_story_block_is_admitted_with_exact_story_lineage():
     assert lineage["recurrent_process_count"] == 2
     assert lineage["robust_recurrent_process_count"] == 1
     assert lineage["counterevidence_bearing_process_count"] == 1
+    assert lineage["alternative_explanation_bearing_process_count"] == 1
+    assert lineage["alternative_explanations"] == _block()["alternative_explanations"]
+    assert lineage["alternative_explanation_is_independent_counterevidence_vote"] is False
+    assert lineage["alternative_explanation_count_is_support_count"] is False
     assert lineage["context_sensitive_process_count"] == 1
     assert lineage["null_evaluated_process_count"] == 1
     assert lineage["unique_trace_ref_count"] == 6
@@ -59,6 +73,30 @@ def test_match_story_block_is_admitted_with_exact_story_lineage():
     assert lineage["cross_process_support_independence_proven"] is False
     assert lineage["upstream_claim_ceiling"] == "DEFEASIBLE_MATCH_LOCAL_PROCESS_STORY_ONLY"
     assert result["sequence_evidence_lineage"] == {}
+
+
+def test_alternative_explanation_count_must_match_source_narrative_lineage():
+    block = _block()
+    block["alternative_explanation_bearing_process_count"] = 2
+    result = evaluate_report_block(block)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "match_story_lineage_alternative_explanation_bearing_process_count_mismatch" in result["hard_block_hits"]
+
+
+def test_alternative_explanation_cannot_be_independent_counterevidence_vote():
+    block = _block()
+    block["alternative_explanation_is_independent_counterevidence_vote"] = True
+    result = evaluate_report_block(block)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "match_story_lineage_alternative_explanation_independence_lock_breach" in result["hard_block_hits"]
+
+
+def test_alternative_explanation_source_must_belong_to_story_cohort():
+    block = _block()
+    block["alternative_explanations"][0]["source_narrative_id"] = "outside_cohort"
+    result = evaluate_report_block(block)
+    assert result["status"] == "FAIL_CLOSED"
+    assert "match_story_lineage_alternative_explanation_source_mismatch" in result["hard_block_hits"]
 
 
 def test_nominal_support_independence_escalation_fails_closed():

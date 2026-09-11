@@ -1,5 +1,20 @@
+import json
+from pathlib import Path
+
 from hpfa.modules.core.professional_finding_candidate_lite.src.visible_episode_context_contrast import (
     attach_visible_episode_context_contrast,
+)
+
+
+ROOT = Path(__file__).resolve().parents[5]
+CONTEXT_STANDARDIZATION_CONTRACT = (
+    ROOT
+    / "hpfa"
+    / "modules"
+    / "core"
+    / "professional_finding_candidate_lite"
+    / "contract"
+    / "context_standardized_process_profile_lite_v1.json"
 )
 
 
@@ -90,3 +105,26 @@ def test_period_change_alone_does_not_create_visible_context_variation():
     assert contrast["period_reported_but_not_used_as_activity_fingerprint"] is True
     assert row["uncertainty"]["period_alone_does_not_create_context_variation"] is True
     assert result["claim_output_allowed_count"] == 0
+
+
+def test_cross_match_context_standardization_stays_contract_only_until_game_state_is_admitted():
+    contract = json.loads(CONTEXT_STANDARDIZATION_CONTRACT.read_text(encoding="utf-8"))
+    required = set(contract["required_context_fields_for_standardization"])
+    policy = contract["field_admission_policy"]
+    state = contract["current_execution_state"]
+
+    assert {"minute_state", "score_state", "manpower_state", "venue_state", "eligible_exposure"} <= required
+    assert policy["missing_required_context_is_zero"] is False
+    assert policy["missing_required_context_is_neutral_state"] is False
+    assert policy["provider_label_is_context_truth"] is False
+    assert state["runtime_context_standardization_evaluated"] is False
+    assert state["model_implementation_present"] is False
+    assert state["model_execution_allowed"] is False
+    assert state["standardized_rate_output_allowed"] is False
+    assert state["cross_match_team_tendency_claim_allowed"] is False
+    assert state["tactical_adaptation_claim_allowed"] is False
+    assert state["coach_intention_claim_allowed"] is False
+    assert state["causal_score_effect_claim_allowed"] is False
+    assert contract["canonical_event_count"] == "UNKNOWN"
+    assert contract["true_action_count"] == "UNKNOWN"
+    assert contract["production_release"] is False

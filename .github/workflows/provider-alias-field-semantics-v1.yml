@@ -28,7 +28,9 @@ jobs:
           python -m py_compile \
             provider_alias_field_semantics_lite.py \
             hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_alias_field_semantics.py \
-            hpfa/modules/core/provider_alias_field_semantics_lite/tests/test_provider_alias_field_semantics.py
+            hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_semantic_mapping_provenance.py \
+            hpfa/modules/core/provider_alias_field_semantics_lite/tests/test_provider_alias_field_semantics.py \
+            hpfa/modules/core/provider_alias_field_semantics_lite/tests/test_provider_semantic_mapping_provenance.py
       - name: Focused tests
         run: python -m pytest -q hpfa/modules/core/provider_alias_field_semantics_lite/tests
       - name: Shell syntax
@@ -39,17 +41,17 @@ jobs:
           grep -q 'HPFA_EXPECTED_BRANCH' tools/run_active_match_provider_alias_field_semantics_v1.sh
           grep -q 'HPFA_EXPECTED_HEAD' tools/run_active_match_provider_alias_field_semantics_v1.sh
           ! grep -F 'reset --hard' tools/bootstrap_termux_provider_alias_field_semantics_v1.sh
-      - name: Historical mapping implementation lineage
+      - name: Historical parser lineage and current provenance adapter
         run: |
-          test "$(git hash-object provider_alias_field_semantics_lite.py)" = "49d7cff116dd46a29d94cee0549c608d6694622d"
+          test "$(git hash-object provider_alias_field_semantics_lite.py)" = "09c3d29ba64a7fffa96b969dd2cce73d6b6a4059"
           test "$(git hash-object hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_alias_field_semantics.py)" = "65b915eb531a0943359c7351444354c54f7b5dd0"
-      - name: Claim boundary and R08 temporal-order guard
+      - name: Claim boundary, R08 and semantic mapping guards
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           c=json.loads(Path("hpfa/modules/core/provider_alias_field_semantics_lite/contract/provider_alias_field_semantics_lite_v1.json").read_text())
-          b=c["claim_boundary"]; g=c["temporal_order_guard"]
+          b=c["claim_boundary"]; g=c["temporal_order_guard"]; m=c["provider_semantic_mapping_provenance"]
           assert b["canonical_event_count"]=="UNKNOWN"
           assert b["validated_temporal_order"] is False
           assert b["source_row_order_truth"] is False
@@ -61,6 +63,15 @@ jobs:
           assert g["event_type_priority_ordering_allowed"] is False
           assert g["same_time_means_simultaneous_truth"] is False
           assert g["downstream_order_sensitive_claim_decision"]=="REVIEW_REQUIRED"
+          assert m["field_name_match_is_definition_match"] is False
+          assert m["format_normalization_is_semantic_normalization"] is False
+          assert m["ontology_alignment_is_construct_validity"] is False
+          assert m["lossy_mapping_is_equivalence"] is False
+          assert m["canonicalization_creates_evidence_independence"] is False
+          assert m["schema_change_action"]=="REVALIDATION_REQUIRED"
           PY
       - name: No sample identity leak
-        run: python -m pytest -q hpfa/modules/core/provider_alias_field_semantics_lite/tests/test_provider_alias_field_semantics.py::test_no_sample_match_identity_leak
+        run: |
+          python -m pytest -q \
+            hpfa/modules/core/provider_alias_field_semantics_lite/tests/test_provider_alias_field_semantics.py::test_no_sample_match_identity_leak \
+            hpfa/modules/core/provider_alias_field_semantics_lite/tests/test_provider_semantic_mapping_provenance.py::test_no_sample_match_identity_leak

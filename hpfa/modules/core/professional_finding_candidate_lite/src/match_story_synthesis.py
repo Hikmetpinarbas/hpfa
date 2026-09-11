@@ -16,6 +16,10 @@ def _is_nonnegative_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
+def _alternative_explanations(row: dict[str, Any]) -> list[dict[str, Any]]:
+    return [x for x in (row.get("alternative_explanations") or []) if isinstance(x, dict)]
+
+
 def _fail(*hits: str) -> dict[str, Any]:
     return {
         "module_id": MODULE_ID,
@@ -174,6 +178,16 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
             if row["failure_support"] > 0
             or row["divergence_support"] > 0
             or row["counterevidence_ref_count"] > 0
+            or bool(_alternative_explanations(row))
+        ]
+        alternative_challenge_rows = [row for row in entity_rows if _alternative_explanations(row)]
+        alternative_explanations = [
+            {
+                "source_narrative_id": row.get("narrative_id"),
+                "alternative_explanation": explanation,
+            }
+            for row in entity_rows
+            for explanation in _alternative_explanations(row)
         ]
         context_sensitive_rows = []
         no_visible_context_difference_rows = []
@@ -220,9 +234,11 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
             f"{len(entity_rows)} süreç anlatısı",
             f"{recurrent} tekrar eden",
             f"{robust} robust tekrar",
-            f"{len(challenged_rows)} karşı örnek/bozulma taşıyan",
+            f"{len(challenged_rows)} challenge taşıyan",
             f"{len(context_sensitive_rows)} bağlama göre ayrışan",
         ]
+        if alternative_challenge_rows:
+            balance_parts.append(f"{len(alternative_challenge_rows)} alternatif açıklama taşıyan")
         if null_evaluated_rows:
             balance_parts.append(f"{len(null_evaluated_rows)} null karşılaştırmalı")
         if null_above_median_rows:
@@ -233,6 +249,10 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
             f"Toplam görünür süreç desteği nominal olarak {nominal_support}; benzersiz trace referansı {len(unique_trace_refs)}. "
             f"Sonuç dengesinde {success} benzer ilerleme, {failure} başarısız sonlanma, {divergence} farklılaşan devam ve {no_followup} görünür takip olmayan örnek bulunuyor. "
         )
+        if alternative_challenge_rows:
+            story_tr += (
+                "En az bir süreçte explicit alternatif açıklama mevcut; bu challenge yüzeyi bağımsız karşı-kanıt oyu veya support sayısı değildir. "
+            )
         if context_sensitive_rows:
             story_tr += (
                 "Aynı süreç ailelerinin bazıları admitted bağlamlar arasında farklı görünür dağılım gösteriyor; "
@@ -240,11 +260,11 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
             )
         if challenged_rows:
             story_tr += (
-                "Karşı örnekler bulunduğu için hiçbir süreç koşulsuz çalışan üstünlük olarak sunulmadı. "
+                "Challenge yüzeyi bulunduğu için hiçbir süreç koşulsuz çalışan üstünlük olarak sunulmadı. "
             )
         else:
             story_tr += (
-                "Açık karşı örnek bağlanmamış olması süreçlerin koşulsuz çalıştığını kanıtlamaz. "
+                "Açık challenge bağlanmamış olması süreçlerin koşulsuz çalıştığını kanıtlamaz. "
             )
         story_tr += (
             "Bu sentez kronolojik maç hikâyesi, teknik direktör niyeti, taktik plan gerçeği veya nedensellik iddiası değildir."
@@ -261,6 +281,10 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
             "proxy_process_count": proxy,
             "discovery_process_count": discovery,
             "counterevidence_bearing_process_count": len(challenged_rows),
+            "alternative_explanation_bearing_process_count": len(alternative_challenge_rows),
+            "alternative_explanations": alternative_explanations,
+            "alternative_explanation_is_independent_counterevidence_vote": False,
+            "alternative_explanation_count_is_support_count": False,
             "context_sensitive_process_count": len(context_sensitive_rows),
             "no_visible_context_difference_process_count": len(no_visible_context_difference_rows),
             "null_evaluated_process_count": len(null_evaluated_rows),
@@ -279,7 +303,7 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
             ),
             "story_tr": story_tr,
             "safe_meaning_tr": (
-                "Bu entity için admitted görünür süreçlerin tekrar, sonuç dengesi, karşı örnek ve bağlamsal varyasyon profili birlikte özetlenmiştir."
+                "Bu entity için admitted görünür süreçlerin tekrar, sonuç dengesi, challenge yüzeyi ve bağlamsal varyasyon profili birlikte özetlenmiştir."
             ),
             "forbidden_inference": [
                 "football chronology from narrative priority",
@@ -289,10 +313,12 @@ def synthesize_match_story(narrative_payload: dict[str, Any]) -> dict[str, Any]:
                 "dominance",
                 "team shape",
                 "nominal support as independent evidence",
+                "alternative explanation as independent counterevidence vote",
+                "alternative explanation count as support count",
                 "absence of counterevidence as confirmation",
             ],
             "withdrawal_condition": (
-                "Recompute or downgrade if any source narrative, exact trace cohort, dependency state, counterevidence, context variation, null contrast or upstream claim ceiling changes."
+                "Recompute or downgrade if any source narrative, exact trace cohort, dependency state, counterevidence, alternative explanation, context variation, null contrast or upstream claim ceiling changes."
             ),
             "chronological_story_claimed": False,
             "tactical_plan_truth_claimed": False,

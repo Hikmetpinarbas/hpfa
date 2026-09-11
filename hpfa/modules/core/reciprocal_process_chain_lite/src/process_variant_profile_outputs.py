@@ -18,12 +18,6 @@ def _validate_out(path: str | Path) -> Path:
 
 
 def clear_outputs(out_dir: str | Path) -> list[Path]:
-    """Remove only artifacts owned by this producer before a new invocation.
-
-    This prevents a previous successful run from leaving apparently-current variant
-    outputs behind when an upstream sequence/episode stage fails before this producer
-    can write fresh artifacts.
-    """
     output = _validate_out(out_dir)
     removed: list[Path] = []
     for name in OWNED_OUTPUT_NAMES:
@@ -45,6 +39,8 @@ def _summary(payload: dict[str, Any]) -> str:
         f"multi_episode_process_variant_profile_count={payload.get('multi_episode_process_variant_profile_count', 0)}",
         f"single_episode_repeat_risk_profile_count={payload.get('single_episode_repeat_risk_profile_count', 0)}",
         f"outcome_variation_profile_count={payload.get('outcome_variation_profile_count', 0)}",
+        f"process_resolution_variation_profile_count={payload.get('process_resolution_variation_profile_count', 0)}",
+        f"unique_modal_resolution_profile_count={payload.get('unique_modal_resolution_profile_count', 0)}",
         f"incomplete_episode_binding_profile_count={payload.get('incomplete_episode_binding_profile_count', 0)}",
         "recurrence_truth=false",
         "stable_team_tendency_truth=false",
@@ -67,10 +63,14 @@ def _analyst(payload: dict[str, Any]) -> str:
         f"Repeated across multiple admitted episode scopes: {payload.get('multi_episode_process_variant_profile_count', 0)}",
         f"Repeated inside one admitted episode scope only: {payload.get('single_episode_repeat_risk_profile_count', 0)}",
         f"Profiles with multiple visible outcome signatures: {payload.get('outcome_variation_profile_count', 0)}",
+        f"Profiles with multiple football-functional resolution variants: {payload.get('process_resolution_variation_profile_count', 0)}",
+        f"Profiles with one unique match-local modal resolution: {payload.get('unique_modal_resolution_profile_count', 0)}",
         "",
     ]
     for row in (payload.get("process_variant_profiles") or [])[:20]:
         signature = row.get("process_family_signature_candidate") or {}
+        dominant = row.get("dominant_process_resolution_class_candidate") or "NO_UNIQUE_MODAL_RESOLUTION"
+        deviants = row.get("deviant_process_resolution_classes_candidate") or []
         lines.append(
             "- "
             + "+".join(signature.get("anchor_action_families") or ["UNKNOWN"])
@@ -78,13 +78,24 @@ def _analyst(payload: dict[str, Any]) -> str:
             + "+".join(signature.get("response_action_families") or ["UNKNOWN"])
             + f" | visible_repeat={row.get('visible_repeat_count_candidate')}"
             + f" | episode_scopes={row.get('unique_episode_scope_count_candidate')}"
-            + f" | outcome_variants={row.get('distinct_visible_outcome_signature_count_candidate')}"
-            + f" | state={row.get('repeat_scope_state_candidate')}"
+            + f" | comparable_resolutions={row.get('comparable_visible_resolution_count_candidate')}"
+            + f" | censored={row.get('right_censored_resolution_count_candidate')}"
+            + f" | unresolved={row.get('unresolved_resolution_count_candidate')}"
+            + f" | modal_resolution={dominant}"
+            + f" | deviant_resolutions={','.join(deviants) if deviants else 'NONE'}"
         )
+        for variant in row.get("process_resolution_variant_profile_candidate") or []:
+            lines.append(
+                "    · "
+                + str(variant.get("process_resolution_class_candidate"))
+                + f" | count={variant.get('chain_count_candidate')}"
+                + f" | share_all={variant.get('within_profile_share_candidate')}"
+                + f" | share_comparable={variant.get('within_comparable_resolution_share_candidate')}"
+            )
     lines.extend([
         "",
-        "Safe meaning: this surface describes how often the same admitted match-local visible process-family signature appears, where it is episode-bound, and whether its visible outcomes vary.",
-        "It does not establish recurrence truth, a stable team tendency, a rehearsed mechanism, tactical flexibility, expected outcome probability or coach intention.",
+        "Analyst meaning: this surface now shows how the same admitted match-local visible process family actually resolves — continuation/advance, adverse handover, breakdown recovery, reset/restart, terminal, censored, unresolved or other visible consequence — and whether one comparable resolution is modal while others are deviant in this match.",
+        "Success/failure is not assigned globally; it requires a family-specific target consequence definition. Modal/deviant is descriptive match-local process behaviour, not coach intention or stable tactical tendency.",
     ])
     return "\n".join(lines) + "\n"
 

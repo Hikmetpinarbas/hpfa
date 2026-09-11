@@ -1,0 +1,22 @@
+{
+  "contract_id": "metric_governance_capability_requirement_nonempty_v1",
+  "scope": "ACTIVE_MATCH metric capability eligibility only",
+  "invariants": {
+    "required_observation_capabilities_must_be_nonempty_for_eligibility": true,
+    "empty_required_observation_capabilities_state": "NOT_ELIGIBLE_REQUIRED_CAPABILITIES_UNDECLARED",
+    "empty_required_capabilities_are_eligible": false,
+    "capability_eligibility_is_metric_truth": false,
+    "capability_eligibility_is_construct_truth": false,
+    "metric_value_output_allowed_by_capability_match": false,
+    "construct_truth_granted_by_capability_match": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "forbidden_promotions": [
+    "empty_requirement_set_vacuously_eligible",
+    "capability_match_to_metric_truth",
+    "capability_match_to_construct_truth",
+    "capability_match_to_independent_evidence"
+  ]
+}

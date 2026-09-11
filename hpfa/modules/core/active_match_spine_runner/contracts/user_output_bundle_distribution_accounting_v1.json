@@ -1,0 +1,22 @@
+{
+  "module_id": "active_match_standard_user_bundle_v1",
+  "contract_id": "user_output_bundle_distribution_accounting_v1",
+  "version": "1.0.0-strict-numeric-candidate-distribution-accounting",
+  "scope": "HPFA_ANALYST_REPORT current-invocation candidate distribution aggregation only",
+  "invariants": {
+    "distribution_counts_are_strict_nonnegative_integers": true,
+    "boolean_distribution_counts_rejected": true,
+    "floating_point_distribution_counts_rejected": true,
+    "string_numeric_distribution_counts_rejected": true,
+    "negative_distribution_counts_rejected": true,
+    "invalid_distribution_count_fails_closed": true,
+    "distribution_count_is_canonical_event_count": false,
+    "distribution_count_is_true_action_count": false,
+    "distribution_count_is_independent_evidence_count": false
+  },
+  "claim_locks": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}

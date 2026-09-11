@@ -7,6 +7,10 @@
     "status",
     "policy_version",
     "research_hardening_version",
+    "observation_model",
+    "global_event_only_gate",
+    "metric_admission_rule",
+    "runtime_capability_admission_evaluated",
     "metric_definition_candidate_count",
     "policy_gaps",
     "metrics",
@@ -21,6 +25,7 @@
     "tactical_truth_output_allowed",
     "claim_output_allowed",
     "canonical_event_count",
+    "true_action_count",
     "production_release"
   ],
   "properties": {
@@ -28,9 +33,63 @@
     "status": {"enum": ["SMOKE_PASS", "REVIEW_REQUIRED", "FAIL_CLOSED"]},
     "policy_version": {"const": "1.0.0"},
     "research_hardening_version": {"const": "R07_R17_R18_R19_R22_v2"},
+    "observation_model": {"const": "MULTI_SURFACE_FOOTBALL_OBSERVATION_FABRIC"},
+    "global_event_only_gate": {"const": false},
+    "metric_admission_rule": {"const": "REQUIRED_CAPABILITIES_SUBSET_OF_ADMITTED_CAPABILITIES"},
+    "runtime_capability_admission_evaluated": {"const": false},
     "metric_definition_candidate_count": {"type": "integer", "minimum": 0},
     "policy_gaps": {"type": "array"},
-    "metrics": {"type": "array"},
+    "metrics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "metric_id",
+          "required_observation_capabilities",
+          "supporting_observation_capabilities",
+          "observation_model",
+          "event_only_compatibility_is_global_admission_gate",
+          "runtime_capability_admission_evaluated",
+          "metric_value_output_allowed",
+          "construct_validity_truth",
+          "canonical_event_count"
+        ],
+        "properties": {
+          "required_observation_capabilities": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "ACTION_EVENT",
+                "ENTITY_ACTOR",
+                "TEMPORAL",
+                "SPATIAL",
+                "OUTCOME_QUALIFIER",
+                "RELATIONAL",
+                "PROCESS_PARTICIPATION",
+                "AGGREGATE_TABULAR",
+                "EXTERNAL_CONTEXT",
+                "TRACKING_VIDEO",
+                "HPFA_DERIVED_INTELLIGENCE"
+              ]
+            }
+          },
+          "supporting_observation_capabilities": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string"}
+          },
+          "observation_model": {"const": "MULTI_SURFACE_FOOTBALL_OBSERVATION_FABRIC"},
+          "event_only_compatibility_is_global_admission_gate": {"const": false},
+          "runtime_capability_admission_evaluated": {"const": false},
+          "metric_value_output_allowed": {"const": false},
+          "construct_validity_truth": {"const": false},
+          "canonical_event_count": {"const": "UNKNOWN"}
+        },
+        "additionalProperties": true
+      }
+    },
     "research_hardening_guards": {"type": "object"},
     "metric_definition_candidate_only": {"const": true},
     "validated_metric_truth": {"const": false},
@@ -42,6 +101,7 @@
     "tactical_truth_output_allowed": {"const": false},
     "claim_output_allowed": {"const": false},
     "canonical_event_count": {"const": "UNKNOWN"},
+    "true_action_count": {"const": "UNKNOWN"},
     "production_release": {"const": false}
   },
   "additionalProperties": true

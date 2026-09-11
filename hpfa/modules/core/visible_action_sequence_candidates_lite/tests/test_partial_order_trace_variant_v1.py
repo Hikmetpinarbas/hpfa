@@ -115,10 +115,21 @@ def test_reflection_duplicate_not_double_counted() -> None:
     assert variant["dependency_group_refs"] == ["evidence_atom:atom_shared"]
 
 
-def test_trace_variant_requires_admitted_occurrence() -> None:
+def test_trace_without_admitted_occurrence_is_review_bound_not_rejected() -> None:
     result = build_partial_order_trace_variants(*_payload([_trace("a", start=10.0, occurrence=None)]))
-    assert result["status"] == "FAIL_CLOSED"
-    assert any(hit.startswith("variant_trace_requires_admitted_occurrence") for hit in result["hard_block_hits"])
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["hard_block_hits"] == []
+    assert "variant_trace_without_admitted_occurrence:a" in result["review_hits"]
+    assert result["trace_only_variant_node_count"] == 1
+    assert result["occurrence_backed_variant_node_count"] == 0
+    variant = result["partial_order_trace_variants"][0]
+    assert variant["trace_only_node_count"] == 1
+    assert variant["contains_trace_only_nodes"] is True
+    node = variant["node_records"][0]
+    assert node["occurrence_binding_state"] == "TRACE_ONLY_VARIANT_NODE_REVIEW_BOUND"
+    assert node["trace_only_is_event_truth"] is False
+    assert node["trace_only_is_independent_support"] is False
+    assert node["trace_only_counts_as_recurrence_support"] is False
 
 
 def test_partial_order_survives_serialization() -> None:

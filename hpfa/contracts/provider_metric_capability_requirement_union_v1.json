@@ -1,0 +1,25 @@
+{
+  "contract_id": "provider_metric_capability_requirement_union_v1",
+  "version": "1.0.1",
+  "scope": "provider_metric_dictionary_lite.zfgv_metric_capability_requirements",
+  "invariants": [
+    "dictionary_explicit_required_observation_capabilities_do_not_replace_policy_explicit_requirements",
+    "policy_explicit_required_observation_capabilities_do_not_replace_dictionary_explicit_requirements",
+    "explicit_required_capability_lists_do_not_suppress_structural_entity_temporal_spatial_or_aggregation_requirements",
+    "source_surface_roles_marked_as_supporting_observation_capabilities_are_not_implicitly_promoted_to_required_capabilities",
+    "required_observation_capabilities_are_the_union_of_all_admitted_required_requirement_sources",
+    "capability_requirement_projection_does_not_grant_metric_value_truth_construct_truth_or_independent_support"
+  ],
+  "forbidden_promotions": [
+    "supporting_observation_capability_to_required_capability_without_explicit_or_structural_required_authority",
+    "capability_requirement_presence_to_metric_truth",
+    "capability_requirement_presence_to_construct_truth",
+    "capability_requirement_presence_to_independent_evidence",
+    "single_requirement_source_to_authoritative_replacement_of_other_required_requirement_sources"
+  ],
+  "claim_locks": {
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}

@@ -69,6 +69,7 @@ def test_same_process_multi_episode_and_outcome_variation_are_visible_candidates
     assert result["repeated_process_variant_profile_count"] == 1
     assert result["multi_episode_process_variant_profile_count"] == 1
     assert result["outcome_variation_profile_count"] == 1
+    assert result["process_resolution_variation_profile_count"] == 1
 
     profile = result["process_variant_profiles"][0]
     assert profile["visible_repeat_count_candidate"] == 2
@@ -76,10 +77,54 @@ def test_same_process_multi_episode_and_outcome_variation_are_visible_candidates
     assert profile["trace_variant_frequency_candidate"] == 1.0
     assert profile["repeat_scope_state_candidate"] == "MULTI_EPISODE_SCOPE_REPEAT_CANDIDATE"
     assert profile["visible_outcome_variation_state_candidate"] == "MULTIPLE_VISIBLE_OUTCOME_SIGNATURES_CANDIDATE"
+    classes = {
+        row["process_resolution_class_candidate"]
+        for row in profile["process_resolution_variant_profile_candidate"]
+    }
+    assert classes == {
+        "CONTINUATION_OR_ADVANCE_VISIBLE_VARIANT",
+        "ADVERSE_HANDOVER_VISIBLE_VARIANT",
+    }
+    assert profile["comparable_visible_resolution_count_candidate"] == 2
+    assert profile["dominant_process_resolution_class_candidate"] is None
+    assert profile["dominant_resolution_state_candidate"] == "NO_UNIQUE_MATCH_LOCAL_MODAL_RESOLUTION"
     assert profile["repeat_candidate_is_recurrence_truth"] is False
     assert profile["multi_episode_spread_is_stable_tendency_truth"] is False
     assert profile["outcome_variation_is_tactical_flexibility_truth"] is False
     assert profile["independent_evidence_vote"] is False
+
+
+def test_unique_match_local_modal_resolution_and_deviant_variant_are_exposed():
+    result = build_process_variant_profiles(
+        _payload(
+            _chain("r1", anchor_episode="e1", response_episode="e2", response_consequence="SAME_TEAM_CONTINUATION_CANDIDATE"),
+            _chain("r2", anchor_episode="e3", response_episode="e4", response_consequence="SHOT_FOLLOW_UP_CANDIDATE"),
+            _chain("r3", anchor_episode="e5", response_episode="e6", response_consequence="OPPONENT_HANDOVER_CANDIDATE"),
+        )
+    )
+    profile = result["process_variant_profiles"][0]
+    assert profile["dominant_process_resolution_class_candidate"] == "CONTINUATION_OR_ADVANCE_VISIBLE_VARIANT"
+    assert profile["deviant_process_resolution_classes_candidate"] == ["ADVERSE_HANDOVER_VISIBLE_VARIANT"]
+    assert profile["dominant_resolution_state_candidate"] == "UNIQUE_MATCH_LOCAL_MODAL_RESOLUTION_CANDIDATE"
+    assert result["unique_modal_resolution_profile_count"] == 1
+
+
+def test_right_censoring_is_reported_but_excluded_from_comparable_resolution_denominator():
+    result = build_process_variant_profiles(
+        _payload(
+            _chain("r1", anchor_episode="e1", response_episode="e2", response_consequence="SAME_TEAM_CONTINUATION_CANDIDATE"),
+            _chain("r2", anchor_episode="e3", response_episode="e4", response_consequence="RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE"),
+        )
+    )
+    profile = result["process_variant_profiles"][0]
+    assert profile["right_censored_resolution_count_candidate"] == 1
+    assert profile["comparable_visible_resolution_count_candidate"] == 1
+    censored = next(
+        row for row in profile["process_resolution_variant_profile_candidate"]
+        if row["process_resolution_class_candidate"] == "RIGHT_CENSORED_OBSERVATION_VARIANT"
+    )
+    assert censored["within_comparable_resolution_share_candidate"] is None
+    assert censored["comparable_for_modal_deviation_candidate"] is False
 
 
 def test_repeat_confined_to_one_episode_scope_surfaces_segment_only_risk():
@@ -180,21 +225,28 @@ def test_profile_fail_closes_with_upstream_fail_closed_and_keeps_module_identity
     assert result["production_release"] is False
 
 
-def test_output_writer_keeps_claim_locks_and_direct_root(tmp_path: Path):
+def test_output_writer_exposes_resolution_intelligence_and_keeps_claim_locks(tmp_path: Path):
     payload = build_process_variant_profiles(
-        _payload(_chain("r1", anchor_episode="e1", response_episode="e2"))
+        _payload(
+            _chain("r1", anchor_episode="e1", response_episode="e2", response_consequence="SAME_TEAM_CONTINUATION_CANDIDATE"),
+            _chain("r2", anchor_episode="e3", response_episode="e4", response_consequence="OPPONENT_HANDOVER_CANDIDATE"),
+        )
     )
     paths = write_outputs(payload, tmp_path)
     assert paths["json"].is_file()
     assert paths["summary"].is_file()
     assert paths["analyst"].is_file()
-    text = paths["summary"].read_text(encoding="utf-8")
-    assert f"module_id={MODULE_ID}" in text
-    assert "recurrence_truth=false" in text
-    assert "tactical_truth=false" in text
-    assert "canonical_event_count=UNKNOWN" in text
-    assert "true_action_count=UNKNOWN" in text
-    assert "production_release=false" in text
+    summary = paths["summary"].read_text(encoding="utf-8")
+    analyst = paths["analyst"].read_text(encoding="utf-8")
+    assert f"module_id={MODULE_ID}" in summary
+    assert "process_resolution_variation_profile_count=1" in summary
+    assert "recurrence_truth=false" in summary
+    assert "canonical_event_count=UNKNOWN" in summary
+    assert "true_action_count=UNKNOWN" in summary
+    assert "production_release=false" in summary
+    assert "CONTINUATION_OR_ADVANCE_VISIBLE_VARIANT" in analyst
+    assert "ADVERSE_HANDOVER_VISIBLE_VARIANT" in analyst
+    assert "modal_resolution=" in analyst
 
 
 def test_clear_outputs_removes_only_owned_stale_variant_artifacts(tmp_path: Path):

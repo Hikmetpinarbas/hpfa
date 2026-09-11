@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,26 @@ def _snapshot(root: Path) -> str:
             if path.is_file():
                 records.append((path.relative_to(root).as_posix(), path.stat().st_size, _hash_file(path)))
     return hashlib.sha256(json.dumps(records, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _strict_nonnegative_count(value: Any) -> int | None:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        return None
+    return value
+
+
+def _positive_numeric_observation(metric: Any) -> int | float | None:
+    if not isinstance(metric, dict) or metric.get("value_status") != "OBSERVED":
+        return None
+    if metric.get("value_kind") != "number":
+        return None
+    raw_value = metric.get("raw_value")
+    if not isinstance(raw_value, (int, float)) or isinstance(raw_value, bool):
+        return None
+    numeric_value = float(raw_value)
+    if not math.isfinite(numeric_value) or numeric_value <= 0:
+        return None
+    return raw_value
 
 
 def _flatten_projection(projection: dict[str, Any]) -> list[dict[str, Any]]:
@@ -119,14 +140,15 @@ def _trace_candidate_index(trace_payload: dict[str, Any], binding_id: str | None
     empty = {
         "input_state": "TRACE_CANDIDATE_INPUT_UNAVAILABLE",
         "actor_by_identity_candidate_ids": {},
+        "review_bound": False,
     }
     if not isinstance(trace_payload, dict) or not trace_payload:
         return empty
     if trace_payload.get("module_id") != TRACKABLE_TRACE_MODULE_ID:
         return {**empty, "input_state": "TRACE_CANDIDATE_MODULE_MISMATCH_REVIEW_REQUIRED"}
     status = str(trace_payload.get("status") or trace_payload.get("module_status") or "")
-    if status != "PASS":
-        return {**empty, "input_state": "TRACE_CANDIDATE_INPUT_NOT_PASS_REVIEW_REQUIRED"}
+    if status not in {"PASS", "REVIEW_REQUIRED"}:
+        return {**empty, "input_state": "TRACE_CANDIDATE_INPUT_NOT_ADMISSIBLE_REVIEW_REQUIRED"}
     expected_binding_id = str(binding_id or "").strip()
     payload_binding_id = str(trace_payload.get("match_surface_binding_id") or "").strip()
     if not expected_binding_id or payload_binding_id != expected_binding_id:
@@ -172,6 +194,7 @@ def _trace_candidate_index(trace_payload: dict[str, Any], binding_id: str | None
     return {
         "input_state": "TRACKABLE_ACTION_TRACE_CANDIDATES_AVAILABLE",
         "actor_by_identity_candidate_ids": dict(actor_by_identity_candidate_ids),
+        "review_bound": status == "REVIEW_REQUIRED",
     }
 
 
@@ -201,7 +224,7 @@ def _entity_views(
     trace_index = _trace_candidate_index(trace_payload or {}, common_binding_id)
     if identity_index["input_state"].endswith("REVIEW_REQUIRED"):
         aggregate_support_identity_relation_review_required_count += 1
-    if trace_index["input_state"].endswith("REVIEW_REQUIRED"):
+    if trace_index["input_state"].endswith("REVIEW_REQUIRED") or trace_index.get("review_bound"):
         aggregate_support_trace_relation_review_required_count += 1
 
     for row in rows:
@@ -293,7 +316,11 @@ def _entity_views(
                 )
             )
             if trace_context_refs:
-                trace_context_state = "TRACE_CANDIDATE_COHORT_CONTEXT_ONLY"
+                trace_context_state = (
+                    "TRACE_CANDIDATE_COHORT_CONTEXT_REVIEW_BOUND"
+                    if trace_index.get("review_bound")
+                    else "TRACE_CANDIDATE_COHORT_CONTEXT_ONLY"
+                )
                 trace_context_basis = [
                     "same_match_surface_binding_id",
                     "same_bound_team_identity_candidate_id",
@@ -329,6 +356,7 @@ def _entity_views(
             "aggregate_support_trackable_trace_candidate_refs": trace_context_refs,
             "aggregate_support_trace_context_basis": trace_context_basis,
             "aggregate_support_trace_relation_is_cohort_context_only": bool(trace_context_refs),
+            "aggregate_support_trace_relation_is_review_bound": bool(trace_context_refs and trace_index.get("review_bound")),
             "aggregate_support_trace_relation_is_individual_action_support": False,
             "aggregate_support_trace_relation_is_action_trace_identity": False,
             "aggregate_support_trace_relation_is_physical_action_truth": False,
@@ -358,10 +386,12 @@ def _entity_views(
         "aggregate_support_trace_candidate_ref_count": aggregate_support_trace_candidate_ref_count,
         "aggregate_support_trace_relation_review_required_count": aggregate_support_trace_relation_review_required_count,
         "aggregate_support_trace_relation_input_state": trace_index["input_state"],
+        "aggregate_support_trace_relation_review_bound": bool(trace_index.get("review_bound")),
         "aggregate_support_attachment_is_match_local_identity_truth": False,
         "aggregate_support_attachment_is_action_trace_identity": False,
         "aggregate_support_trace_relation_is_individual_action_support": False,
         "aggregate_support_trace_relation_is_physical_action_truth": False,
+        "aggregate_support_attachment_is_timeline_identity_truth": False,
         "aggregate_support_attachment_is_timeline_identity": False,
         "aggregate_support_attachment_is_independent_vote": False,
         "player_identity_truth": False,
@@ -369,9 +399,14 @@ def _entity_views(
     }
 
 
-def _primitive_metrics(features: dict[str, Any], entity_views: dict[str, Any]) -> list[dict[str, Any]]:
+def _primitive_metrics(features: dict[str, Any], entity_views: dict[str, Any]) -> dict[str, Any]:
     values: list[dict[str, Any]] = []
-    total = features.get("total_eligible_action_candidate_count")
+    invalid_count_fields: list[str] = []
+
+    raw_total = features.get("total_eligible_action_candidate_count")
+    total = None if raw_total is None else _strict_nonnegative_count(raw_total)
+    if raw_total is not None and total is None:
+        invalid_count_fields.append("total_eligible_action_candidate_count")
     if total is not None:
         values.append({
             "metric_id": "primitive_visible_action_candidate_volume",
@@ -385,19 +420,38 @@ def _primitive_metrics(features: dict[str, Any], entity_views: dict[str, Any]) -
             "independent_support_vote": False,
             "claim_ceiling": "VISIBLE_CANDIDATE_VOLUME_ONLY",
         })
-    for family, value in sorted((features.get("eligible_action_family_candidate_counts") or {}).items()):
-        values.append({
-            "metric_id": f"primitive_action_family_{str(family).casefold()}",
-            "value": value,
-            "unit": "candidate_count",
-            "construct": "action_family_volume",
-            "source_surface": "episode_feature_vector_lite_v1",
-            "denominator": "eligible_action_candidate_population",
-            "dependency_group": "episode_feature_action_population",
-            "provenance_root": "episode_feature_vector_lite_v1",
-            "independent_support_vote": False,
-            "claim_ceiling": "ACTION_FAMILY_CANDIDATE_ONLY",
-        })
+
+    raw_family_counts = features.get("eligible_action_family_candidate_counts")
+    admitted_family_counts: dict[str, int] = {}
+    family_invalid = False
+    if raw_family_counts is not None and not isinstance(raw_family_counts, dict):
+        invalid_count_fields.append("eligible_action_family_candidate_counts")
+        family_invalid = True
+    elif isinstance(raw_family_counts, dict):
+        for family, raw_value in sorted(raw_family_counts.items(), key=lambda item: str(item[0])):
+            value = _strict_nonnegative_count(raw_value)
+            if value is None:
+                invalid_count_fields.append(f"eligible_action_family_candidate_counts.{family}")
+                family_invalid = True
+            else:
+                admitted_family_counts[str(family)] = value
+    if family_invalid:
+        admitted_family_counts = {}
+    else:
+        for family, value in sorted(admitted_family_counts.items()):
+            values.append({
+                "metric_id": f"primitive_action_family_{str(family).casefold()}",
+                "value": value,
+                "unit": "candidate_count",
+                "construct": "action_family_volume",
+                "source_surface": "episode_feature_vector_lite_v1",
+                "denominator": "eligible_action_candidate_population",
+                "dependency_group": "episode_feature_action_population",
+                "provenance_root": "episode_feature_vector_lite_v1",
+                "independent_support_vote": False,
+                "claim_ceiling": "ACTION_FAMILY_CANDIDATE_ONLY",
+            })
+
     values.append({
         "metric_id": "primitive_xlsx_observed_metric_cell_volume",
         "value": entity_views.get("observed_metric_cell_count", 0),
@@ -410,7 +464,12 @@ def _primitive_metrics(features: dict[str, Any], entity_views: dict[str, Any]) -
         "independent_support_vote": False,
         "claim_ceiling": "AGGREGATE_CELL_SURFACE_ONLY",
     })
-    return values
+    return {
+        "metrics": values,
+        "count_contract_review_required": bool(invalid_count_fields),
+        "invalid_count_fields": sorted(invalid_count_fields),
+        "admitted_action_family_candidate_counts": admitted_family_counts,
+    }
 
 
 def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
@@ -419,24 +478,34 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
     for index, card in enumerate(cards):
         if not isinstance(card, dict):
             continue
+        zones = card.get("eligible_action_zone_counts")
+        families = card.get("action_family_counts")
+        zones = zones if isinstance(zones, dict) else {}
+        families = families if isinstance(families, dict) else {}
+        raw_counts = {
+            "shot_candidate_count": card.get("shot_candidate_count", 0),
+            "turnover_candidate_count": card.get("turnover_candidate_count", 0),
+            "recovery_candidate_count": card.get("recovery_candidate_count", 0),
+            "final_third_action_candidate_count": zones.get("FINAL_THIRD", zones.get("final_third", 0)),
+            "pass_candidate_count": families.get("PASS", families.get("pass", 0)),
+        }
+        counts = {key: _strict_nonnegative_count(value) for key, value in raw_counts.items()}
+        invalid_fields = sorted(key for key, value in counts.items() if value is None)
+        count_contract_review_required = bool(invalid_fields)
+        support = {key: (0 if value is None else value) for key, value in counts.items()}
+
         labels: list[str] = []
-        shots = int(card.get("shot_candidate_count") or 0)
-        turnovers = int(card.get("turnover_candidate_count") or 0)
-        recoveries = int(card.get("recovery_candidate_count") or 0)
-        zones = card.get("eligible_action_zone_counts") or {}
-        families = card.get("action_family_counts") or {}
-        final_third = int(zones.get("FINAL_THIRD") or zones.get("final_third") or 0)
-        passes = int(families.get("PASS") or families.get("pass") or 0)
-        if shots:
-            labels.append("TERMINAL_ACTIVITY_CANDIDATE")
-        if turnovers:
-            labels.append("LOSS_TRANSITION_ACTIVITY_CANDIDATE")
-        if recoveries:
-            labels.append("RECOVERY_TRANSITION_ACTIVITY_CANDIDATE")
-        if final_third:
-            labels.append("ADVANCED_ACCESS_ACTIVITY_CANDIDATE")
-        if passes:
-            labels.append("CIRCULATION_ACTIVITY_CANDIDATE")
+        if not count_contract_review_required:
+            if support["shot_candidate_count"]:
+                labels.append("TERMINAL_ACTIVITY_CANDIDATE")
+            if support["turnover_candidate_count"]:
+                labels.append("LOSS_TRANSITION_ACTIVITY_CANDIDATE")
+            if support["recovery_candidate_count"]:
+                labels.append("RECOVERY_TRANSITION_ACTIVITY_CANDIDATE")
+            if support["final_third_action_candidate_count"]:
+                labels.append("ADVANCED_ACCESS_ACTIVITY_CANDIDATE")
+            if support["pass_candidate_count"]:
+                labels.append("CIRCULATION_ACTIVITY_CANDIDATE")
         if not labels:
             labels.append("UNRESOLVED_ACTIVITY_STATE")
         result.append({
@@ -445,13 +514,9 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
             "start_second_candidate": card.get("start_second_candidate"),
             "end_second_candidate": card.get("end_second_candidate"),
             "labels": labels,
-            "support": {
-                "shot_candidate_count": shots,
-                "turnover_candidate_count": turnovers,
-                "recovery_candidate_count": recoveries,
-                "final_third_action_candidate_count": final_third,
-                "pass_candidate_count": passes,
-            },
+            "support": support,
+            "count_contract_review_required": count_contract_review_required,
+            "invalid_count_fields": invalid_fields,
             "phase_truth": False,
             "possession_truth": False,
             "tactical_truth": False,
@@ -461,6 +526,7 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int = 20) -> list[dict[str, Any]]:
+    """Return label-navigation refs only; labels are not construct-semantic authority."""
     refs: list[dict[str, Any]] = []
     for row in rows:
         for key, metric in (row.get("metric_values") or {}).items():
@@ -470,11 +536,19 @@ def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int 
             raw_label = str(metric.get("raw_metric_label") or "").casefold()
             if not any(term in key_text or term in raw_label for term in terms):
                 continue
+            admitted_value = _positive_numeric_observation(metric)
+            if admitted_value is None:
+                continue
             refs.append({
                 "metric_id": f"{row.get('row_projection_id')}:{key}",
                 "source_surface": "xlsx_entity_metric_row_projection_lite_v1",
                 "raw_metric_label": metric.get("raw_metric_label"),
-                "raw_value": metric.get("raw_value"),
+                "raw_value": admitted_value,
+                "value_kind": "number",
+                "positive_numeric_observation": True,
+                "label_navigation_only": True,
+                "construct_support_allowed": False,
+                "metric_label_match_is_construct_semantic_authority": False,
                 "entity_candidate": (row.get("identity_candidates") or {}).get("player_raw_candidate") or (row.get("identity_candidates") or {}).get("team_raw_candidate"),
                 "provenance_root": str(row.get("source_sha256") or "xlsx_unknown"),
                 "dependency_group": "same_provider_xlsx_aggregate",
@@ -488,9 +562,24 @@ def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int 
 
 
 def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict[str, Any]:
-    progression = _metric_refs(rows, ("progressive", "progression", "final_third", "final third", "penalty_area", "penalty area", "box"))
-    terminal = _metric_refs(rows, ("shot", "xg", "goal", "chance"))
-    shot_total = sum(int(card.get("shot_candidate_count") or 0) for card in (features.get("episode_feature_vectors") or []) if isinstance(card, dict))
+    progression_navigation = _metric_refs(rows, ("progressive", "progression", "final_third", "final third", "penalty_area", "penalty area", "box"))
+    terminal_navigation = _metric_refs(rows, ("shot", "xg", "goal", "chance"))
+    # Current XLSX projection explicitly withholds metric semantic authority.  These
+    # label matches remain analyst navigation only and cannot become C01 support.
+    progression: list[dict[str, Any]] = []
+    terminal: list[dict[str, Any]] = []
+    shot_values: list[int] = []
+    invalid_shot_count_episode_indices: list[int] = []
+    for index, card in enumerate(features.get("episode_feature_vectors") or []):
+        if not isinstance(card, dict):
+            continue
+        value = _strict_nonnegative_count(card.get("shot_candidate_count", 0))
+        if value is None:
+            invalid_shot_count_episode_indices.append(index)
+        else:
+            shot_values.append(value)
+    count_contract_review_required = bool(invalid_shot_count_episode_indices)
+    shot_total = sum(shot_values) if not count_contract_review_required else 0
     occurrence_ref = {
         "feature_id": "c01_visible_terminal_episode_surface",
         "source_surface": "episode_feature_vector_lite_v1",
@@ -501,26 +590,13 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
         "independent_support_vote": False,
     }
     packet_candidate = None
-    if progression and (terminal or shot_total > 0):
-        metrics = [progression[0]] + ([terminal[0]] if terminal else [])
-        packet_candidate = {
-            "packet_family": "progression",
-            "input_features": [occurrence_ref],
-            "input_windows": [],
-            "input_sequences": [],
-            "input_metrics": metrics,
-            "supporting_signals": [],
-            "contradicting_signals": [],
-            "claim_ceiling": "composite_candidate_only",
-            "blocked_language_families": ["tactical_truth", "dominance_truth", "control_truth"],
-        }
     state = "REVIEW_REQUIRED"
-    if not progression:
-        reason = "aggregate_progression_surface_not_observed"
-    elif not terminal and shot_total <= 0:
-        reason = "terminal_surface_not_observed"
+    if count_contract_review_required:
+        reason = "episode_feature_shot_count_contract_invalid"
+    elif progression_navigation or terminal_navigation:
+        reason = "xlsx_metric_label_navigation_present_but_construct_semantic_authority_not_admitted"
     else:
-        reason = "occurrence_progression_semantics_not_yet_admitted_same_provider_support_non_independent"
+        reason = "construct_semantic_authority_not_admitted"
     return {
         "construct_id": "C01_PROGRESSION_VOLUME_VS_TERMINAL_CONVERSION",
         "status": state,
@@ -530,7 +606,19 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
         "visible_shot_candidate_count": shot_total,
         "progression_metric_refs": progression,
         "terminal_metric_refs": terminal,
+        "progression_label_navigation_ref_count": len(progression_navigation),
+        "terminal_label_navigation_ref_count": len(terminal_navigation),
+        "progression_label_navigation_refs": progression_navigation,
+        "terminal_label_navigation_refs": terminal_navigation,
         "packet_candidate": packet_candidate,
+        "count_contract_review_required": count_contract_review_required,
+        "invalid_shot_count_episode_indices": invalid_shot_count_episode_indices,
+        "xlsx_metric_support_requires_observed_positive_numeric_value": True,
+        "xlsx_zero_metric_value_is_production_support": False,
+        "xlsx_nonnumeric_metric_value_is_production_support": False,
+        "xlsx_metric_label_match_is_construct_semantic_authority": False,
+        "xlsx_label_navigation_is_construct_support": False,
+        "construct_semantic_authority_admitted": False,
         "review_reason": reason,
         "aggregate_support_is_independent_vote": False,
         "construct_truth": False,
@@ -550,6 +638,8 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"xlsx_projection_status={payload.get('xlsx_projection_status')}",
         f"xlsx_projected_row_count={payload.get('xlsx_projected_row_count')}",
         f"primitive_metric_count={len(payload.get('primitive_metrics') or [])}",
+        f"primitive_count_contract_review_required={payload.get('primitive_count_contract_review_required')}",
+        f"primitive_invalid_count_fields={payload.get('primitive_invalid_count_fields') or []}",
         f"phase_state_candidate_count={len(payload.get('phase_state_candidates') or [])}",
         f"player_view_candidate_count={len(entity.get('player_view_candidates') or [])}",
         f"team_view_candidate_count={len(entity.get('team_view_candidates') or [])}",
@@ -562,13 +652,18 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"aggregate_support_trace_candidate_ref_count={entity.get('aggregate_support_trace_candidate_ref_count')}",
         f"aggregate_support_trace_relation_review_required_count={entity.get('aggregate_support_trace_relation_review_required_count')}",
         f"aggregate_support_trace_relation_input_state={entity.get('aggregate_support_trace_relation_input_state')}",
+        f"aggregate_support_trace_relation_review_bound={entity.get('aggregate_support_trace_relation_review_bound')}",
         f"C01_status={c01.get('status')}",
         f"C01_progression_aggregate_ref_count={c01.get('progression_aggregate_ref_count')}",
         f"C01_terminal_aggregate_ref_count={c01.get('terminal_aggregate_ref_count')}",
+        f"C01_progression_label_navigation_ref_count={c01.get('progression_label_navigation_ref_count')}",
+        f"C01_terminal_label_navigation_ref_count={c01.get('terminal_label_navigation_ref_count')}",
         f"C01_visible_shot_candidate_count={c01.get('visible_shot_candidate_count')}",
         f"C01_review_reason={c01.get('review_reason')}",
         f"hard_block_hits={payload.get('hard_block_hits') or []}",
         f"review_hits={payload.get('review_hits') or []}",
+        "xlsx_metric_label_match_is_construct_semantic_authority=false",
+        "xlsx_label_navigation_is_construct_support=false",
         "aggregate_support_attachment_is_match_local_identity_truth=false",
         "aggregate_support_attachment_is_action_trace_identity=false",
         "aggregate_support_trace_relation_is_individual_action_support=false",
@@ -643,8 +738,14 @@ def run_rich_lane(
         review_hits.append("xlsx_entity_view_match_local_identity_relation_review_required")
     if entity_views.get("aggregate_support_trace_relation_review_required_count"):
         review_hits.append("xlsx_entity_view_trackable_trace_relation_review_required")
-    primitives = _primitive_metrics(features, entity_views)
+    primitive_projection = _primitive_metrics(features, entity_views)
+    primitives = primitive_projection["metrics"]
+    admitted_action_family_counts = primitive_projection["admitted_action_family_candidate_counts"]
+    if primitive_projection.get("count_contract_review_required") is True:
+        review_hits.append("episode_feature_primitive_count_contract_review_required")
     phase_states = _phase_state_candidates(features)
+    if any(item.get("count_contract_review_required") is True for item in phase_states):
+        review_hits.append("episode_feature_count_contract_review_required")
     c01 = _construct_c01(rows, features)
     if c01.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C01_progression_terminal_construct_review_required")
@@ -665,6 +766,8 @@ def run_rich_lane(
         "xlsx_surface_audit": xlsx_audit,
         "xlsx_entity_metric_projection": projection,
         "primitive_metrics": primitives,
+        "primitive_count_contract_review_required": primitive_projection["count_contract_review_required"],
+        "primitive_invalid_count_fields": primitive_projection["invalid_count_fields"],
         "constructs": {"C01": c01},
         "phase_state_candidates": phase_states,
         "analysis_lattice": {
@@ -680,9 +783,9 @@ def run_rich_lane(
             },
             "MACRO": {
                 "team_view_candidates": entity_views.get("team_view_candidates"),
-                "action_family_candidate_counts": features.get("eligible_action_family_candidate_counts") or {},
+                "action_family_candidate_counts": admitted_action_family_counts,
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
-                "constructs": {"C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "packet_candidate"}}},
+                "constructs": {"C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "progression_label_navigation_refs", "terminal_label_navigation_refs", "packet_candidate"}}},
             },
         },
         "entity_views": entity_views,
@@ -691,6 +794,8 @@ def run_rich_lane(
         "review_hits": list(dict.fromkeys(review_hits)),
         "format_fusion_is_independent_evidence_vote": False,
         "xlsx_row_projection_is_event_truth": False,
+        "xlsx_metric_label_match_is_construct_semantic_authority": False,
+        "xlsx_label_navigation_is_construct_support": False,
         "aggregate_support_attachment_is_match_local_identity_truth": False,
         "aggregate_support_attachment_is_action_trace_identity": False,
         "aggregate_support_trace_relation_is_individual_action_support": False,

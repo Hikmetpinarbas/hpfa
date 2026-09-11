@@ -20,57 +20,11 @@ NULL_CONTRAST_CLAIM_CEILING = "UNCORRECTED_MATCH_LOCAL_NULL_CONTRAST_CANDIDATE_O
 ALLOWED_DECISIONS = {"INCLUDE_BLOCK_CANDIDATE"}
 REVIEW_DECISIONS = {"REVIEW_BLOCK"}
 REJECT_DECISIONS = {"REJECT_BLOCK"}
-SEQUENCE_BLOCK_FAMILIES = {
-    "sequence_safe_finding_analyst_reading_candidate",
-    "sequence_narrative_analyst_reading_candidate",
-}
+SEQUENCE_BLOCK_FAMILIES = {"sequence_safe_finding_analyst_reading_candidate", "sequence_narrative_analyst_reading_candidate"}
 MATCH_STORY_BLOCK_FAMILIES = {"match_story_analyst_reading_candidate"}
-
-FORBIDDEN_UPSTREAM_FIELDS = {
-    "claim_text",
-    "final_report_text",
-    "production_report",
-    "production_report_output",
-    "report_text",
-    "tactical_truth",
-    "dominance_truth",
-    "control_truth",
-    "coach_intention",
-    "coach_intention_truth",
-    "off_ball_truth",
-    "pitch_control_truth",
-    "causal_truth",
-    "quality_truth",
-    "sequence_truth",
-    "organism_truth",
-}
-
-FORBIDDEN_TEXT_FRAGMENTS = [
-    "domine etti",
-    "saha kontrolünü aldı",
-    "hoca planladı",
-    "bilinçli olarak",
-    "taktiksel gerçek",
-    "kesin",
-    "kanıtlıyor",
-    "nedeni budur",
-    "off-ball yapı",
-    "pitch control",
-    "oyun kontrolü",
-]
-
-BLOCKED_LANGUAGE_FAMILIES = [
-    "tactical_truth",
-    "dominance_truth",
-    "control_truth",
-    "coach_intention",
-    "off_ball_truth",
-    "pitch_control_truth",
-    "causal_truth",
-    "quality_truth",
-    "sequence_truth",
-    "organism_truth",
-]
+FORBIDDEN_UPSTREAM_FIELDS = {"claim_text","final_report_text","production_report","production_report_output","report_text","tactical_truth","dominance_truth","control_truth","coach_intention","coach_intention_truth","off_ball_truth","pitch_control_truth","causal_truth","quality_truth","sequence_truth","organism_truth"}
+FORBIDDEN_TEXT_FRAGMENTS = ["domine etti","saha kontrolünü aldı","hoca planladı","bilinçli olarak","taktiksel gerçek","kesin","kanıtlıyor","nedeni budur","off-ball yapı","pitch control","oyun kontrolü"]
+BLOCKED_LANGUAGE_FAMILIES = ["tactical_truth","dominance_truth","control_truth","coach_intention","off_ball_truth","pitch_control_truth","causal_truth","quality_truth","sequence_truth","organism_truth"]
 
 
 def _repo_root() -> Path:
@@ -82,7 +36,6 @@ def _validate_output_root(out_dir: str | Path) -> Path:
     if str(spine_src) not in sys.path:
         sys.path.insert(0, str(spine_src))
     from spine_runner import validate_output_root  # type: ignore
-
     return validate_output_root(out_dir)
 
 
@@ -146,7 +99,6 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
     raw = item.get("sequence_evidence_lineage")
     if not isinstance(raw, dict) or not raw:
         return {}, ["sequence_evidence_lineage_missing"]
-
     lineage = dict(raw)
     family_refs = sorted(set(_string_list(lineage.get("trace_family_refs"))))
     trace_refs = sorted(set(_string_list(lineage.get("trace_variant_refs"))))
@@ -160,7 +112,6 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
     raw_null_summary = lineage.get("null_contrast_summary")
     raw_context_variations = lineage.get("context_variations")
     hits: list[str] = []
-
     if not family_refs:
         hits.append("assembly_sequence_trace_family_refs_missing")
     if not trace_refs:
@@ -192,7 +143,6 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
             hits.append("assembly_sequence_origin_claim_ceiling_mismatch")
     elif origin_claim_ceiling:
         hits.append("assembly_sequence_unexpected_origin_claim_ceiling")
-
     if raw_null_summary is not None:
         if not isinstance(raw_null_summary, dict):
             hits.append("assembly_sequence_null_contrast_summary_invalid")
@@ -223,7 +173,6 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
                     hits.append("assembly_sequence_null_contrast_causality_lock_breach")
                 if not str(raw_null_summary.get("withdrawal_condition") or "").strip():
                     hits.append("assembly_sequence_null_contrast_withdrawal_condition_missing")
-
     if raw_context_variations is not None:
         if not isinstance(raw_context_variations, list):
             hits.append("assembly_sequence_context_variations_invalid")
@@ -233,19 +182,13 @@ def _sequence_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[str
                 if not isinstance(raw_variation, dict):
                     hits.append("assembly_sequence_context_variation_invalid")
                     continue
-                for flag in (
-                    "chronology_direction_claimed",
-                    "causality_claimed",
-                    "tactical_adaptation_claimed",
-                    "coach_intention_claimed",
-                ):
+                for flag in ("chronology_direction_claimed","causality_claimed","tactical_adaptation_claimed","coach_intention_claimed"):
                     if raw_variation.get(flag) is not False:
                         hits.append(f"assembly_sequence_context_variation_claim_lock_breach:{flag}")
                 baseline_refs = set(_string_list(raw_variation.get("baseline_trace_refs")))
                 comparison_refs = set(_string_list(raw_variation.get("comparison_trace_refs")))
                 if not baseline_refs.issubset(trace_ref_set) or not comparison_refs.issubset(trace_ref_set):
                     hits.append("assembly_sequence_context_variation_trace_lineage_mismatch")
-
     return lineage, hits
 
 
@@ -255,7 +198,6 @@ def _match_story_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[
     raw = item.get("match_story_evidence_lineage")
     if not isinstance(raw, dict) or not raw:
         return {}, ["match_story_evidence_lineage_missing"]
-
     lineage = dict(raw)
     source_ids = sorted(set(_string_list(lineage.get("source_narrative_ids"))))
     trace_refs = sorted(set(_string_list(lineage.get("unique_trace_refs"))))
@@ -264,16 +206,13 @@ def _match_story_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[
     nominal_support = lineage.get("nominal_support_sum")
     process_count = lineage.get("process_narrative_count")
     subprocess_fields = (
-        "recurrent_process_count",
-        "robust_recurrent_process_count",
-        "counterevidence_bearing_process_count",
-        "context_sensitive_process_count",
-        "null_evaluated_process_count",
+        "recurrent_process_count", "robust_recurrent_process_count",
+        "counterevidence_bearing_process_count", "alternative_explanation_bearing_process_count",
+        "context_sensitive_process_count", "null_evaluated_process_count",
     )
     withdrawal = str(lineage.get("withdrawal_condition") or "").strip()
     upstream_claim_ceiling = str(lineage.get("upstream_claim_ceiling") or "").strip()
     hits: list[str] = []
-
     if not source_ids:
         hits.append("assembly_match_story_source_narrative_ids_missing")
     if not trace_refs:
@@ -295,14 +234,36 @@ def _match_story_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[
                 hits.append(f"assembly_match_story_{field}_exceeds_process_count")
         recurrent = lineage.get("recurrent_process_count")
         robust = lineage.get("robust_recurrent_process_count")
-        if (
-            isinstance(recurrent, int)
-            and not isinstance(recurrent, bool)
-            and isinstance(robust, int)
-            and not isinstance(robust, bool)
-            and robust > recurrent
-        ):
+        if isinstance(recurrent, int) and not isinstance(recurrent, bool) and isinstance(robust, int) and not isinstance(robust, bool) and robust > recurrent:
             hits.append("assembly_match_story_robust_recurrent_exceeds_recurrent")
+    raw_alternatives = lineage.get("alternative_explanations")
+    alternatives: list[dict[str, Any]] = []
+    alternative_source_ids: set[str] = set()
+    if not isinstance(raw_alternatives, list):
+        hits.append("assembly_match_story_alternative_explanations_invalid")
+    else:
+        for item in raw_alternatives:
+            if not isinstance(item, dict):
+                hits.append("assembly_match_story_alternative_explanation_entry_invalid")
+                continue
+            source_id = str(item.get("source_narrative_id") or "").strip()
+            explanation = item.get("alternative_explanation")
+            if not source_id or source_id not in source_ids:
+                hits.append("assembly_match_story_alternative_explanation_source_mismatch")
+                continue
+            if not isinstance(explanation, dict) or not explanation:
+                hits.append("assembly_match_story_alternative_explanation_payload_invalid")
+                continue
+            alternative_source_ids.add(source_id)
+            alternatives.append({"source_narrative_id": source_id, "alternative_explanation": dict(explanation)})
+    alternative_count = lineage.get("alternative_explanation_bearing_process_count")
+    if isinstance(alternative_count, int) and not isinstance(alternative_count, bool) and alternative_count >= 0 and alternative_count != len(alternative_source_ids):
+        hits.append("assembly_match_story_alternative_explanation_bearing_process_count_mismatch")
+    if lineage.get("alternative_explanation_is_independent_counterevidence_vote") is not False:
+        hits.append("assembly_match_story_alternative_explanation_independence_lock_breach")
+    if lineage.get("alternative_explanation_count_is_support_count") is not False:
+        hits.append("assembly_match_story_alternative_explanation_support_lock_breach")
+    lineage["alternative_explanations"] = alternatives
     if not set(shared_refs).issubset(set(trace_refs)):
         hits.append("assembly_match_story_shared_trace_refs_not_subset")
     if lineage.get("nominal_support_is_independent_evidence_count") is not False:
@@ -313,7 +274,6 @@ def _match_story_lineage(item: dict[str, Any], block_family: str) -> tuple[dict[
         hits.append("assembly_match_story_withdrawal_condition_missing")
     if upstream_claim_ceiling != MATCH_STORY_CLAIM_CEILING:
         hits.append("assembly_match_story_upstream_claim_ceiling_mismatch")
-
     return lineage, hits
 
 
@@ -330,7 +290,6 @@ def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]
         missing_fields.append("claim_ceiling")
     if "inclusion_decision" not in normalized:
         missing_fields.append("inclusion_decision")
-
     inclusion_decision = str(normalized.get("inclusion_decision") or "")
     output_candidate = str(normalized.get("output_text_candidate_tr") or "")
     block_family = str(normalized.get("block_family") or "")
@@ -338,7 +297,6 @@ def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]
     forbidden_text_hits = _forbidden_text_hits(output_candidate)
     hard_block_hits: list[str] = []
     review_hits: list[str] = []
-
     if missing_fields:
         hard_block_hits.append("assembly_required_fields_missing")
     if _upstream_item_failed(normalized):
@@ -365,13 +323,11 @@ def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]
         hard_block_hits.append("true_action_count_claim_rejected")
     if normalized.get("production_release") is True:
         hard_block_hits.append("production_release_claim_rejected")
-
     sequence_lineage, lineage_hits = _sequence_lineage(normalized, block_family)
     hard_block_hits.extend(lineage_hits)
     match_story_lineage, story_hits = _match_story_lineage(normalized, block_family)
     hard_block_hits.extend(story_hits)
     hard_block_hits = sorted(set(hard_block_hits))
-
     if hard_block_hits:
         assembly_decision = "BLOCK_ASSEMBLY_ITEM"
         status = "FAIL_CLOSED"
@@ -384,7 +340,6 @@ def evaluate_assembly_item(item: dict[str, Any], idx: int = 0) -> dict[str, Any]
         assembly_decision = "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
         status = "SMOKE_PASS"
         assembly_item_candidate_tr = output_candidate
-
     return {
         "module_id": MODULE_ID,
         "assembly_item_id": f"assembly_item_{contract_item_id}",
@@ -430,9 +385,7 @@ def build_assembly_gate(contract_items: list[dict[str, Any]]) -> dict[str, Any]:
     assembly_items = [evaluate_assembly_item(item, idx) for idx, item in enumerate(contract_items)]
     blocked_count = sum(1 for item in assembly_items if item["assembly_decision"] == "BLOCK_ASSEMBLY_ITEM")
     review_count = sum(1 for item in assembly_items if item["assembly_decision"] == "ROUTE_ASSEMBLY_ITEM_TO_REVIEW")
-    ready_count = sum(
-        1 for item in assembly_items if item["assembly_decision"] == "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
-    )
+    ready_count = sum(1 for item in assembly_items if item["assembly_decision"] == "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE")
     status = "FAIL_CLOSED" if blocked_count else "REVIEW_REQUIRED" if review_count else "SMOKE_PASS"
     return {
         "module_id": MODULE_ID,
@@ -460,26 +413,15 @@ def write_outputs(contract_items: list[dict[str, Any]], out_dir: str | Path) -> 
     report = build_assembly_gate(contract_items)
     (out / OUTPUT_JSON).write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     lines = [
-        "HPFA FINAL REPORT ASSEMBLY GATE LITE V1",
-        "========================================",
-        f"status={report['status']}",
-        f"assembly_item_count={report['assembly_item_count']}",
-        f"ready_count={report['ready_count']}",
-        f"review_count={report['review_count']}",
-        f"blocked_count={report['blocked_count']}",
-        f"draft_report_candidate_allowed={report['draft_report_candidate_allowed']}",
-        f"final_report_allowed={report['final_report_allowed']}",
-        f"production_report_allowed={report['production_report_allowed']}",
-        f"canonical_event_count={report['canonical_event_count']}",
-        f"true_action_count={report['true_action_count']}",
-        "production_release=false",
-        "",
-        "[assembly_items]",
+        "HPFA FINAL REPORT ASSEMBLY GATE LITE V1", "========================================",
+        f"status={report['status']}", f"assembly_item_count={report['assembly_item_count']}",
+        f"ready_count={report['ready_count']}", f"review_count={report['review_count']}",
+        f"blocked_count={report['blocked_count']}", f"draft_report_candidate_allowed={report['draft_report_candidate_allowed']}",
+        f"final_report_allowed={report['final_report_allowed']}", f"production_report_allowed={report['production_report_allowed']}",
+        f"canonical_event_count={report['canonical_event_count']}", f"true_action_count={report['true_action_count']}",
+        "production_release=false", "", "[assembly_items]",
     ]
     for item in report["assembly_items"][:50]:
-        lines.append(
-            f"- {item['assembly_item_id']} order={item['assembly_order']} "
-            f"decision={item['assembly_decision']} status={item['status']}"
-        )
+        lines.append(f"- {item['assembly_item_id']} order={item['assembly_order']} decision={item['assembly_decision']} status={item['status']}")
     (out / OUTPUT_TXT).write_text("\n".join(lines) + "\n", encoding="utf-8")
     return report

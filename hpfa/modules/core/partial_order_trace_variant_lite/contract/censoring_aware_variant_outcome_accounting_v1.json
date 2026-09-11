@@ -1,0 +1,52 @@
+{
+  "contract_id": "censoring_aware_variant_outcome_accounting_v1",
+  "version": "1.0.0",
+  "module_id": "partial_order_trace_variant_lite_v1",
+  "purpose": "Preserve observation censoring separately from visible consequence outcomes in match-local trace variants.",
+  "required_zfgv_capabilities": [
+    "TEMPORAL",
+    "RELATIONAL",
+    "PROCESS_PARTICIPATION",
+    "OUTCOME_QUALIFIER",
+    "ENTITY_ACTOR",
+    "DEPENDENCY"
+  ],
+  "input_semantics": {
+    "right_censored_class": "RIGHT_CENSORED_NO_VISIBLE_FOLLOW_UP_CANDIDATE",
+    "right_censoring_means": "terminal consequence not observed before the admitted visible observation horizon ended",
+    "right_censoring_is_football_outcome": false
+  },
+  "output_semantics": {
+    "outcome_signature": "legacy consequence lineage only; not denominator authority",
+    "non_censored_outcome_signature": "visible non-censored consequence distribution candidate",
+    "censoring_signature": "observation-censoring distribution",
+    "outcome_denominator_authority": "NON_CENSORED_VISIBLE_CONSEQUENCE_NODES_ONLY"
+  },
+  "invariants": {
+    "right_censored_nodes_are_terminal_outcomes": false,
+    "right_censored_nodes_are_failures": false,
+    "right_censored_nodes_are_neutral_outcomes": false,
+    "right_censored_nodes_are_counterevidence": false,
+    "right_censored_node_count_is_recurrence_count": false,
+    "outcome_signature_may_be_used_as_denominator_authority": false,
+    "non_censored_outcome_signature_is_denominator_candidate_only": true,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "claim_ceiling": "PARTIAL_ORDER_VISIBLE_TRACE_VARIANT_CANDIDATE_ONLY",
+  "forbidden_inference": [
+    "right-censoring = failure",
+    "right-censoring = neutral football outcome",
+    "longer visible persistence = better football",
+    "variant outcome distribution = tactical plan truth",
+    "single-match node counts = statistically independent trials"
+  ],
+  "tests": [
+    "right-censored node remains visible as censoring",
+    "right-censored node is excluded from non-censored outcome signature",
+    "non-censored consequence remains denominator candidate",
+    "censoring does not increase recurrence support",
+    "sample match identity does not leak into product code"
+  ]
+}

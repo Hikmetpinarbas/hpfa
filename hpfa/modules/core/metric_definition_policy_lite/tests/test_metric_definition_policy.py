@@ -26,6 +26,10 @@ def test_seed_policy_pack_smoke_passes():
     assert report["metric_definition_candidate_count"] == 2
     assert report["definition_status_counts"] == {"DEFINITION_CANDIDATE_READY": 2}
     assert report["policy_counts"]["exposure"] == 1
+    assert report["observation_model"] == "MULTI_SURFACE_FOOTBALL_OBSERVATION_FABRIC"
+    assert report["global_event_only_gate"] is False
+    assert report["metric_admission_rule"] == "REQUIRED_CAPABILITIES_SUBSET_OF_ADMITTED_CAPABILITIES"
+    assert report["runtime_capability_admission_evaluated"] is False
 
 
 def test_every_metric_requires_unique_registry_entry():
@@ -64,6 +68,29 @@ def test_metric_requires_does_not_measure_and_forbidden_claims():
         assert any(g["gap_type"] == f"{field}_missing" for g in report["policy_gaps"])
 
 
+def test_metric_requires_explicit_zfgv_observation_capabilities():
+    docs = _docs(); docs[0]["metrics"][0]["required_observation_capabilities"] = []
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "FAIL_CLOSED"
+    gaps = {g["gap_type"] for g in report["policy_gaps"]}
+    assert "required_observation_capabilities_missing" in gaps
+    assert "required_observation_capabilities_invalid" in gaps
+
+
+def test_unknown_or_overlapping_zfgv_capabilities_fail_closed():
+    docs = _docs(); metric = docs[0]["metrics"][0]
+    metric["required_observation_capabilities"] = ["ACTION_EVENT", "UNKNOWN_CAPABILITY"]
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "FAIL_CLOSED"
+    assert any(g["gap_type"] == "required_observation_capability_unknown" for g in report["policy_gaps"])
+
+    docs = _docs(); metric = docs[0]["metrics"][1]
+    metric["supporting_observation_capabilities"] = ["ACTION_EVENT"]
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "FAIL_CLOSED"
+    assert any(g["gap_type"] == "observation_capability_required_supporting_overlap" for g in report["policy_gaps"])
+
+
 def test_definition_fingerprint_is_stable_and_semantically_sensitive():
     baseline = load_policy_pack(CONFIG)
     fp = baseline["metrics"][1]["definition_fingerprint_sha256"]
@@ -73,6 +100,8 @@ def test_definition_fingerprint_is_stable_and_semantically_sensitive():
         lambda d: d[0]["metrics"][1].__setitem__("numerator_definition", "changed numerator"),
         lambda d: d[0]["metrics"][1].__setitem__("construct_target", "changed construct"),
         lambda d: d[0]["metrics"][1].__setitem__("aggregation_class", "STANDARDIZATION_REQUIRED"),
+        lambda d: d[0]["metrics"][1].__setitem__("required_observation_capabilities", ["ACTION_EVENT", "ENTITY_ACTOR", "TEMPORAL"]),
+        lambda d: d[0]["metrics"][1].__setitem__("supporting_observation_capabilities", []),
         lambda d: d[1]["policies"][1].__setitem__("review_reason", "changed policy semantics"),
     ):
         docs = _docs(); mutator(docs)
@@ -84,6 +113,8 @@ def test_definition_correctness_never_promotes_construct_validity():
     report = load_policy_pack(CONFIG)
     assert report["construct_validity_truth"] is False
     assert all(m["construct_validity_truth"] is False for m in report["metrics"])
+    assert all(m["runtime_capability_admission_evaluated"] is False for m in report["metrics"])
+    assert all(m["event_only_compatibility_is_global_admission_gate"] is False for m in report["metrics"])
 
 
 def test_aggregation_class_is_required_and_validated():
@@ -183,9 +214,10 @@ def test_policy_pack_never_emits_metric_quality_or_tactical_truth():
         assert report[key] is False
 
 
-def test_canonical_event_count_remains_unknown():
+def test_canonical_event_and_true_action_counts_remain_unknown():
     report = load_policy_pack(CONFIG)
     assert report["canonical_event_count"] == "UNKNOWN"
+    assert report["true_action_count"] == "UNKNOWN"
     assert all(m["canonical_event_count"] == "UNKNOWN" for m in report["metrics"])
 
 

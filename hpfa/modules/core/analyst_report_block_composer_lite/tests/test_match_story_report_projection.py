@@ -15,6 +15,18 @@ def _story(entity="team_a", shared=None):
         "recurrent_process_count": 2,
         "robust_recurrent_process_count": 1,
         "counterevidence_bearing_process_count": 1,
+        "alternative_explanation_bearing_process_count": 1,
+        "alternative_explanations": [
+            {
+                "source_narrative_id": "n2",
+                "alternative_explanation": {
+                    "family": "CONTEXT_DEPENDENCE",
+                    "description": "Visible recurrence may depend on admitted match-local context.",
+                },
+            }
+        ],
+        "alternative_explanation_is_independent_counterevidence_vote": False,
+        "alternative_explanation_count_is_support_count": False,
         "context_sensitive_process_count": 1,
         "null_evaluated_process_count": 1,
         "nominal_support_sum": 6,
@@ -78,6 +90,57 @@ def test_match_story_becomes_analyst_report_candidate_without_claim_strengthenin
     assert block["canonical_event_count"] == "UNKNOWN"
     assert block["true_action_count"] == "UNKNOWN"
     assert block["production_release"] is False
+
+
+def test_alternative_explanation_lineage_survives_projection_without_becoming_support():
+    result = compose_match_story_report(_payload([_story()]))
+    assert result["status"] == "SMOKE_PASS"
+    block = result["report_blocks"][0]
+    assert block["alternative_explanation_bearing_process_count"] == 1
+    assert block["alternative_explanations"] == [
+        {
+            "source_narrative_id": "n2",
+            "alternative_explanation": {
+                "family": "CONTEXT_DEPENDENCE",
+                "description": "Visible recurrence may depend on admitted match-local context.",
+            },
+        }
+    ]
+    assert block["alternative_explanation_is_independent_counterevidence_vote"] is False
+    assert block["alternative_explanation_count_is_support_count"] is False
+    assert block["nominal_support_sum"] == 6
+
+
+def test_alternative_explanation_bearing_process_count_must_match_source_lineage():
+    story = _story()
+    story["alternative_explanation_bearing_process_count"] = 2
+    result = compose_match_story_report(_payload([story]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "alternative_explanation_bearing_process_count_mismatch:team_a" in result["hard_block_hits"]
+
+
+def test_alternative_explanation_cannot_be_promoted_to_independent_counterevidence():
+    story = _story()
+    story["alternative_explanation_is_independent_counterevidence_vote"] = True
+    result = compose_match_story_report(_payload([story]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "story_alternative_explanation_independence_lock_breach:team_a" in result["hard_block_hits"]
+
+
+def test_alternative_explanation_count_cannot_be_promoted_to_support():
+    story = _story()
+    story["alternative_explanation_count_is_support_count"] = True
+    result = compose_match_story_report(_payload([story]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "story_alternative_explanation_support_lock_breach:team_a" in result["hard_block_hits"]
+
+
+def test_alternative_explanation_source_must_belong_to_exact_story_cohort():
+    story = _story()
+    story["alternative_explanations"][0]["source_narrative_id"] = "n999"
+    result = compose_match_story_report(_payload([story]))
+    assert result["status"] == "FAIL_CLOSED"
+    assert "alternative_explanation_source_lineage_invalid:team_a" in result["hard_block_hits"]
 
 
 def test_shared_trace_refs_survive_as_review_not_independent_support():

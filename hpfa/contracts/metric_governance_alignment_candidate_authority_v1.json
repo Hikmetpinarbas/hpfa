@@ -1,0 +1,23 @@
+{
+  "contract_id": "metric_governance_alignment_candidate_authority_v1",
+  "module_id": "active_match_metric_governance_bridge_v1",
+  "purpose": "Keep aggregate definition alignment candidates distinct from metric/construct admission and fail closed on candidate claim-lock escalation.",
+  "invariants": {
+    "definition_alignment_candidate_is_admitted_metric_definition": false,
+    "definition_alignment_candidate_is_metric_value_authority": false,
+    "definition_alignment_candidate_is_construct_truth": false,
+    "definition_alignment_candidate_is_aggregate_equivalence_truth": false,
+    "definition_alignment_candidate_is_independent_confirmation": false,
+    "aggregate_definition_admitted_candidate_count_without_explicit_admission_gate": 0,
+    "candidate_claim_lock_violation_fails_closed": true,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  },
+  "forbidden_promotions": [
+    "DEFINITION_ALIGNMENT_CANDIDATE -> ADMITTED_METRIC_VALUE",
+    "DEFINITION_ALIGNMENT_CANDIDATE -> CONSTRUCT_TRUTH",
+    "DEFINITION_ALIGNMENT_CANDIDATE -> AGGREGATE_EQUIVALENCE_TRUTH",
+    "DEFINITION_ALIGNMENT_CANDIDATE -> INDEPENDENT_CONFIRMATION"
+  ]
+}
