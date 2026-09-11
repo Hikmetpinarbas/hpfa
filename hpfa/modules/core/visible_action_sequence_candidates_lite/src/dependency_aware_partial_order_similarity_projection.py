@@ -126,6 +126,7 @@ def build_dependency_aware_partial_order_similarity(
         left_dep = {_clean(v) for v in (left.get("dependency_group_refs") or []) if _clean(v)}
         right_dep = {_clean(v) for v in (right.get("dependency_group_refs") or []) if _clean(v)}
         shared_dep = sorted(left_dep & right_dep)
+        provenance_distinct = not bool(shared_occ or shared_dep)
 
         action_similarity = _multiset_jaccard(
             _counter(left.get("action_family_signature"), "action_family_candidate"),
@@ -150,7 +151,7 @@ def build_dependency_aware_partial_order_similarity(
             pair_state = "DEPENDENT_SHARED_ORIGIN_VARIANT_PAIR"
             recurrence_eligible = False
         elif structural_exact_match:
-            pair_state = "INDEPENDENT_STRUCTURAL_MATCH_CANDIDATE"
+            pair_state = "PROVENANCE_DISTINCT_STRUCTURAL_MATCH_CANDIDATE"
             recurrence_eligible = True
         else:
             pair_state = "SAME_TEAM_STRUCTURAL_COMPARISON_ONLY"
@@ -181,7 +182,11 @@ def build_dependency_aware_partial_order_similarity(
             "shared_occurrence_candidate_count": len(shared_occ),
             "shared_dependency_group_refs": shared_dep,
             "shared_dependency_group_count": len(shared_dep),
-            "dependency_independent_for_recurrence": not bool(shared_occ or shared_dep),
+            "provenance_distinct_for_recurrence_candidate": provenance_distinct,
+            "dependency_independent_for_recurrence": False,
+            "dependency_independence_proven_for_recurrence": False,
+            "statistical_independence_proven": False,
+            "recurrence_candidate_is_independent_support": False,
             "pair_state": pair_state,
             "recurrence_candidate_eligible": recurrence_eligible,
             "outcome_contrast_state": outcome_state,
@@ -212,7 +217,9 @@ def build_dependency_aware_partial_order_similarity(
             1 for row in pairs if row.get("recurrence_candidate_eligible")
         ) if not blocks else 0,
         "outcome_used_in_similarity_decision": False,
-        "dependency_overlap_blocks_independent_recurrence": True,
+        "dependency_overlap_blocks_recurrence_candidate_eligibility": True,
+        "provenance_distinct_is_not_independence_proof": True,
+        "recurrence_candidate_is_independent_support": False,
         "cross_team_pairs_are_match_local_recurrence_not_applicable": True,
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
