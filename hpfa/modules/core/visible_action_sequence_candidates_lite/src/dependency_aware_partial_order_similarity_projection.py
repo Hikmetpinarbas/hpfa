@@ -81,6 +81,30 @@ def _outcome_signature_equal(a: dict[str, Any], b: dict[str, Any]) -> bool | Non
     return ca == cb
 
 
+def _comparison_eligibility(
+    *,
+    same_team: bool,
+    left_period: str,
+    right_period: str,
+    structural_exact_match: bool,
+    shared_origin: bool,
+) -> tuple[str, bool, bool, bool]:
+    """Return state, eligible, outcome_contrast_allowed, review_required."""
+    if not same_team:
+        return "NOT_COMPARABLE_CROSS_TEAM_MATCH_LOCAL", False, False, False
+    if not left_period or not right_period:
+        return "INDETERMINATE_MISSING_PERIOD_CONTEXT", False, False, True
+    if left_period != right_period:
+        return "PARTIALLY_COMPARABLE_REVIEW_REQUIRED_CROSS_PERIOD", False, False, True
+    if shared_origin and structural_exact_match:
+        return "COMPARABLE_FOR_SHARED_ORIGIN_BRANCH_CONTRAST", True, True, False
+    if shared_origin:
+        return "PARTIALLY_COMPARABLE_REVIEW_REQUIRED_SHARED_ORIGIN_STRUCTURE_MISMATCH", False, False, True
+    if structural_exact_match:
+        return "COMPARABLE_FOR_MATCH_LOCAL_RECURRENCE_CANDIDATE_INDEPENDENCE_UNPROVEN", True, True, False
+    return "PARTIALLY_COMPARABLE_REVIEW_REQUIRED_STRUCTURE_MISMATCH", False, False, True
+
+
 def build_dependency_aware_partial_order_similarity(
     variant_payload: dict[str, Any],
 ) -> dict[str, Any]:
@@ -118,6 +142,9 @@ def build_dependency_aware_partial_order_similarity(
         left_team = _clean(left.get("team_identity_candidate_id"))
         right_team = _clean(right.get("team_identity_candidate_id"))
         same_team = bool(left_team and right_team and left_team == right_team)
+        left_period = _clean(left.get("period_candidate"))
+        right_period = _clean(right.get("period_candidate"))
+        same_period = bool(left_period and right_period and left_period == right_period)
 
         left_occ = {_clean(v) for v in (left.get("supporting_action_occurrence_candidate_ids") or []) if _clean(v)}
         right_occ = {_clean(v) for v in (right.get("supporting_action_occurrence_candidate_ids") or []) if _clean(v)}
@@ -126,7 +153,8 @@ def build_dependency_aware_partial_order_similarity(
         left_dep = {_clean(v) for v in (left.get("dependency_group_refs") or []) if _clean(v)}
         right_dep = {_clean(v) for v in (right.get("dependency_group_refs") or []) if _clean(v)}
         shared_dep = sorted(left_dep & right_dep)
-        provenance_distinct = not bool(shared_occ or shared_dep)
+        shared_origin = bool(shared_occ or shared_dep)
+        provenance_distinct = not shared_origin
 
         action_similarity = _multiset_jaccard(
             _counter(left.get("action_family_signature"), "action_family_candidate"),
@@ -144,10 +172,26 @@ def build_dependency_aware_partial_order_similarity(
         )
         outcome_equal = _outcome_signature_equal(left, right)
 
+        comparison_state, comparison_eligible, outcome_contrast_allowed, comparison_requires_review = (
+            _comparison_eligibility(
+                same_team=same_team,
+                left_period=left_period,
+                right_period=right_period,
+                structural_exact_match=structural_exact_match,
+                shared_origin=shared_origin,
+            )
+        )
+
         if not same_team:
             pair_state = "NOT_APPLICABLE_CROSS_TEAM_MATCH_LOCAL_RECURRENCE"
             recurrence_eligible = False
-        elif shared_occ or shared_dep:
+        elif not left_period or not right_period:
+            pair_state = "SAME_TEAM_PERIOD_CONTEXT_INDETERMINATE"
+            recurrence_eligible = False
+        elif not same_period:
+            pair_state = "SAME_TEAM_CROSS_PERIOD_COMPARISON_REVIEW_REQUIRED"
+            recurrence_eligible = False
+        elif shared_origin:
             pair_state = "DEPENDENT_SHARED_ORIGIN_VARIANT_PAIR"
             recurrence_eligible = False
         elif structural_exact_match:
@@ -174,6 +218,7 @@ def build_dependency_aware_partial_order_similarity(
             "same_team_comparison": same_team,
             "left_period_candidate": left.get("period_candidate"),
             "right_period_candidate": right.get("period_candidate"),
+            "same_period_comparison": same_period,
             "action_structure_similarity": action_similarity,
             "partial_order_similarity": order_similarity,
             "layer_shape_similarity": layer_shape_similarity,
@@ -189,6 +234,16 @@ def build_dependency_aware_partial_order_similarity(
             "recurrence_candidate_is_independent_support": False,
             "pair_state": pair_state,
             "recurrence_candidate_eligible": recurrence_eligible,
+            "comparison_eligibility_state": comparison_state,
+            "comparison_eligible": comparison_eligible,
+            "comparison_outcome_contrast_allowed": outcome_contrast_allowed,
+            "comparison_requires_review": comparison_requires_review,
+            "comparison_is_process_identity_truth": False,
+            "comparison_is_route_family_truth": False,
+            "comparison_is_same_tactical_situation_truth": False,
+            "provider_label_equality_is_comparability_proof": False,
+            "same_action_family_is_sufficient_for_comparability": False,
+            "missing_spatial_context_is_counterevidence": False,
             "outcome_contrast_state": outcome_state,
             "outcome_used_in_similarity_decision": False,
             "same_timestamp_internal_ordering_allowed": False,
@@ -207,11 +262,14 @@ def build_dependency_aware_partial_order_similarity(
         status = "PASS"
 
     counts = Counter(_clean(row.get("pair_state")) for row in pairs)
+    comparison_counts = Counter(_clean(row.get("comparison_eligibility_state")) for row in pairs)
     return {
         "status": status,
         "dependency_aware_partial_order_similarity_pairs": pairs if not blocks else [],
         "dependency_aware_partial_order_similarity_pair_count": len(pairs) if not blocks else 0,
         "pair_state_counts": dict(sorted(counts.items())) if not blocks else {},
+        "comparison_eligibility_state_counts": dict(sorted(comparison_counts.items())) if not blocks else {},
+        "comparison_eligible_pair_count": sum(1 for row in pairs if row.get("comparison_eligible")) if not blocks else 0,
         "source_partial_order_occurrence_variant_count": len(variants),
         "recurrence_candidate_eligible_pair_count": sum(
             1 for row in pairs if row.get("recurrence_candidate_eligible")
@@ -221,6 +279,11 @@ def build_dependency_aware_partial_order_similarity(
         "provenance_distinct_is_not_independence_proof": True,
         "recurrence_candidate_is_independent_support": False,
         "cross_team_pairs_are_match_local_recurrence_not_applicable": True,
+        "same_action_family_is_sufficient_for_comparability": False,
+        "provider_label_equality_is_comparability_proof": False,
+        "comparison_is_process_identity_truth": False,
+        "comparison_is_same_tactical_situation_truth": False,
+        "missing_spatial_context_is_counterevidence": False,
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
         "hard_block_hits": sorted(set(blocks)),
