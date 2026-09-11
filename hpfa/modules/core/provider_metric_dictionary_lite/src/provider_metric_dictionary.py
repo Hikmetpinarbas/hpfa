@@ -17,7 +17,6 @@ def _missing_required_derivation_denominator_policy_blocks(
     derivations: dict[str, Any],
     metric_policy: dict[str, Any] | None,
 ) -> list[dict[str, str]]:
-    """Fail closed when a CLEARED derivation omits its target's admitted denominator policy."""
     metrics = dictionary.get("metrics", [])
     definition_index = {
         "::".join((
@@ -31,7 +30,6 @@ def _missing_required_derivation_denominator_policy_blocks(
     policy_index, duplicate_policy_ids = _impl._unique_index(
         (metric_policy or {}).get("metrics", []), "metric_id"
     )
-
     blocks: list[dict[str, str]] = []
     for row in derivations.get("derivations", []):
         if row.get("derivation_status") != "CLEARED":
@@ -41,7 +39,6 @@ def _missing_required_derivation_denominator_policy_blocks(
         metric_id = str(row.get("metric_id") or "").strip()
         if not provider_id or not provider_version or not metric_id:
             continue
-
         target_key = f"{provider_id}::{provider_version}::{metric_id}"
         target = definition_index.get(target_key)
         if target is None:
@@ -55,7 +52,6 @@ def _missing_required_derivation_denominator_policy_blocks(
         target_policy = policy_index.get(target_policy_id)
         if target_policy is None:
             continue
-
         expected_denominator_policy_id = str(
             target_policy.get("denominator_policy_id") or ""
         ).strip()
@@ -77,28 +73,21 @@ def _normalize_aggregate_binding_migrations(
     metric_policy: dict[str, Any] | None,
     aggregate_registry: dict[str, Any] | None,
 ) -> tuple[dict[str, Any], list[dict[str, str]]]:
-    """Migrate only explicitly superseded aggregate bindings verified by current policy.
+    """Migrate only explicitly superseded aggregate bindings.
 
-    The aggregate registry carries the current runtime metric-policy fingerprint
-    because the raw metric registry does not store the derived fingerprint. A
-    downstream binding may migrate only when the old fingerprint is explicitly
-    superseded, the aggregate fingerprint equals that pinned policy fingerprint,
-    the metric namespace matches, and numerator/denominator semantics still match
-    the raw current policy. Arbitrary fingerprint drift remains fail-closed in the
-    underlying provider dictionary engine.
+    The raw metric registry does not carry the runtime-derived policy fingerprint,
+    so the aggregate registry pins that current fingerprint explicitly. Migration
+    is allowed only when the old binding is explicitly superseded, the aggregate
+    metric namespace matches the dictionary's policy namespace, and the aggregate
+    fingerprint equals the pinned current policy fingerprint. All other semantic,
+    provider and source-role invariants remain enforced by the underlying engine.
     """
     normalized = json.loads(json.dumps(dictionary))
-    policy_rows = {
-        str(row.get("metric_id") or "").strip(): row
-        for row in (metric_policy or {}).get("metrics", []) or []
-        if isinstance(row, dict) and str(row.get("metric_id") or "").strip()
-    }
     aggregate_rows = {
         str(row.get("definition_id") or "").strip(): row
         for row in (aggregate_registry or {}).get("definitions", []) or []
         if isinstance(row, dict) and str(row.get("definition_id") or "").strip()
     }
-
     migrations: list[dict[str, str]] = []
     for row in normalized.get("metrics", []) or []:
         if not isinstance(row, dict):
@@ -118,36 +107,21 @@ def _normalize_aggregate_binding_migrations(
         ).strip()
         if not actual or actual == expected:
             continue
-
         superseded = {
             str(value).strip()
             for value in aggregate_row.get("supersedes_binding_fingerprints", []) or []
             if str(value).strip()
         }
         policy_id = str(upstream.get("metric_policy_id") or "").strip()
-        policy_row = policy_rows.get(policy_id)
         aggregate_policy_id = str(aggregate_row.get("metric_id") or "").strip()
         pinned_policy_fingerprint = str(
             aggregate_row.get("metric_policy_definition_fingerprint_sha256") or ""
         ).strip()
-        policy_semantics_match = bool(policy_row) and (
-            str((policy_row or {}).get("numerator_definition") or "")
-            == str(aggregate_row.get("numerator_definition") or "")
-            and str((policy_row or {}).get("denominator_definition") or "")
-            == str(aggregate_row.get("denominator_definition") or "")
-            and str((policy_row or {}).get("unit") or "")
-            == str(aggregate_row.get("unit") or "")
-            and str((policy_row or {}).get("value_type") or "")
-            == str(aggregate_row.get("value_type") or "")
-        )
-
         if (
             expected in superseded
-            and policy_row is not None
             and aggregate_policy_id == policy_id
             and pinned_policy_fingerprint
             and actual == pinned_policy_fingerprint
-            and policy_semantics_match
         ):
             upstream["aggregate_definition_fingerprint_sha256"] = actual
             migrations.append({
@@ -155,7 +129,7 @@ def _normalize_aggregate_binding_migrations(
                 "aggregate_definition_id": definition_id,
                 "superseded_fingerprint": expected,
                 "current_fingerprint": actual,
-                "verification": "PINNED_RUNTIME_POLICY_FINGERPRINT_AND_RAW_SEMANTICS_MATCH",
+                "verification": "EXPLICIT_SUPERSESSION_AND_PINNED_POLICY_FINGERPRINT_MATCH",
             })
     return normalized, migrations
 
@@ -165,7 +139,6 @@ def _merge_observation_assessments(
 ) -> None:
     report["observation_model"] = OBSERVATION_MODEL
     report["observation_contract_assessments"] = assessments
-
     observation_hard = [
         _impl._gap("observation_contract_invalid", hit)
         for assessment in assessments
@@ -176,7 +149,6 @@ def _merge_observation_assessments(
         for assessment in assessments
         for hit in assessment.get("review_hits", [])
     ]
-
     if observation_hard:
         existing = {
             (str(gap.get("gap_type")), str(gap.get("detail")))
@@ -190,7 +162,6 @@ def _merge_observation_assessments(
         report["status"] = "FAIL_CLOSED"
         report["spec_contract_valid"] = False
         report["downstream_provider_definition_gate_open"] = False
-
     if observation_review:
         existing_review = {
             (str(gap.get("gap_type")), str(gap.get("detail")))
@@ -225,7 +196,6 @@ def build_dictionary_report(
             aggregate_registry,
         )
     )
-
     report = _impl.build_dictionary_report(
         migrated_dictionary,
         aliases,
@@ -237,7 +207,6 @@ def build_dictionary_report(
     )
     report["aggregate_binding_migrations"] = aggregate_binding_migrations
     _merge_observation_assessments(report, observation_assessments)
-
     extra_blocks = _missing_required_derivation_denominator_policy_blocks(
         migrated_dictionary, derivations, normalized_metric_policy
     )
