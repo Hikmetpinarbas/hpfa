@@ -8,6 +8,9 @@ import trackable_action_consequence_candidates_current_v1 as current_consequence
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src import (
     visible_action_sequence_candidates as sequence,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.anchor_centered_sequence_branch_map_projection import (
+    build_anchor_centered_sequence_branch_maps,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.dependency_aware_partial_order_similarity_projection import (
     build_dependency_aware_partial_order_similarity,
 )
@@ -203,6 +206,37 @@ def _bind_dependency_aware_similarity(payload: dict) -> dict:
     return payload
 
 
+def _bind_anchor_centered_branch_maps(payload: dict) -> dict:
+    projection = build_anchor_centered_sequence_branch_maps(payload)
+    payload["anchor_centered_sequence_branch_map_status"] = projection.get("status")
+    payload["anchor_centered_sequence_branch_maps"] = list(
+        projection.get("anchor_centered_sequence_branch_maps") or []
+    )
+    payload["anchor_centered_sequence_branch_map_count"] = int(
+        projection.get("anchor_centered_sequence_branch_map_count") or 0
+    )
+    payload["anchor_centered_sequence_total_visible_branch_count"] = int(
+        projection.get("total_visible_branch_count") or 0
+    )
+    payload["anchor_centered_sequence_branch_map_claim_ceiling"] = projection.get("claim_ceiling")
+    payload["branch_count_is_recurrence_count"] = False
+    payload["branch_map_is_sequence_truth"] = False
+    payload["branch_map_is_possession_truth"] = False
+    payload["branch_map_is_tactical_plan_truth"] = False
+    payload["branch_map_is_causal_truth"] = False
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("anchor_centered_sequence_branch_map_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = sequence.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
@@ -242,6 +276,9 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "dependency_aware_partial_order_similarity_pairs": [],
             "dependency_aware_partial_order_similarity_pair_count": 0,
             "recurrence_candidate_eligible_pair_count": 0,
+            "anchor_centered_sequence_branch_maps": [],
+            "anchor_centered_sequence_branch_map_count": 0,
+            "anchor_centered_sequence_total_visible_branch_count": 0,
             "hard_block_hits": ["current_consequence_fail_closed_or_trace_output_missing"],
             "review_hits": [],
             "same_timestamp_internal_ordering_allowed": False,
@@ -265,6 +302,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     payload = _promote_occurrence_temporal_primary(payload)
     payload = _bind_partial_order_variants(payload, trace_payload, consequence_payload)
     payload = _bind_dependency_aware_similarity(payload)
+    payload = _bind_anchor_centered_branch_maps(payload)
     payload["current_consequence_status"] = consequence_payload.get("status")
     payload["current_trace_status"] = consequence_payload.get("current_trace_status")
     payload["current_content_source_role_bridge_status"] = consequence_payload.get(
@@ -304,6 +342,9 @@ def main() -> int:
         "dependency_aware_partial_order_similarity_pair_count": payload.get("dependency_aware_partial_order_similarity_pair_count"),
         "dependency_aware_partial_order_similarity_pair_state_counts": payload.get("dependency_aware_partial_order_similarity_pair_state_counts") or {},
         "recurrence_candidate_eligible_pair_count": payload.get("recurrence_candidate_eligible_pair_count"),
+        "anchor_centered_sequence_branch_map_status": payload.get("anchor_centered_sequence_branch_map_status"),
+        "anchor_centered_sequence_branch_map_count": payload.get("anchor_centered_sequence_branch_map_count"),
+        "anchor_centered_sequence_total_visible_branch_count": payload.get("anchor_centered_sequence_total_visible_branch_count"),
         "primary_sequence_member_trace_count": payload.get("primary_sequence_member_trace_count"),
         "review_layer_member_trace_count": payload.get("review_layer_member_trace_count"),
         "trace_assignment_complete": payload.get("trace_assignment_complete"),
