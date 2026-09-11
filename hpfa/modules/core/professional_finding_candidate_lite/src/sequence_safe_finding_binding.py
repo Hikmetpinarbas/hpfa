@@ -38,6 +38,36 @@ def _strict_nonnegative_int(value: Any, field: str, family_ref: str) -> tuple[in
     return value, None
 
 
+def _revalidate_independence(
+    row: dict[str, Any],
+    eligible_refs: list[str],
+    declared: int | str,
+    family_ref: str,
+) -> tuple[int | str, dict[str, Any], str | None]:
+    dependency = dict(row.get("dependency_summary") or {})
+    if declared == "UNKNOWN":
+        return declared, dependency, None
+    if dependency.get("object_views_or_reflections_may_not_create_independent_support") is not True:
+        return "UNKNOWN", dependency, f"dependency_reflection_independence_lock_missing:{family_ref}"
+    mapping = dependency.get("independence_group_by_trace_ref")
+    if not isinstance(mapping, dict):
+        return "UNKNOWN", dependency, f"dependency_independence_mapping_missing:{family_ref}"
+    normalized = {
+        _clean(ref): _clean(group)
+        for ref, group in mapping.items()
+        if _clean(ref) and _clean(group)
+    }
+    if set(normalized) != set(eligible_refs):
+        return "UNKNOWN", dependency, f"dependency_independence_mapping_cohort_mismatch:{family_ref}"
+    recomputed = len(set(normalized.values()))
+    groups = sorted({_clean(value) for value in (dependency.get("independence_groups") or []) if _clean(value)})
+    if set(groups) != set(normalized.values()):
+        return "UNKNOWN", dependency, f"dependency_independence_group_set_mismatch:{family_ref}"
+    if declared != recomputed:
+        return "UNKNOWN", dependency, f"dependency_independent_support_mismatch:{family_ref}"
+    return recomputed, dependency, None
+
+
 def _fail(*blocks: str) -> dict[str, Any]:
     return {
         "module_id": MODULE_ID,
@@ -167,7 +197,7 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any], null_c
     if admission_payload.get("team_style_truth_state_allowed") is not False: blocks.append("team_style_truth_lock_missing")
     status = _clean(admission_payload.get("status")).upper()
     if status == "FAIL_CLOSED": blocks.append("admission_input_fail_closed")
-    elif status == "REVIEW_REQUIRED": reviews.append("admission_upstream_review_required_row_scoped")
+    elif status == "REVIEW_REQUIRED": blocking_reviews.append("admission_upstream_review_required_unscoped")
     elif status != "PASS": blocking_reviews.append(f"admission_status_review:{status or 'UNKNOWN'}")
     null_by_family, null_blocks, null_reviews = _index_null_contrast(null_contrast_payload)
     blocks.extend(null_blocks)
@@ -243,6 +273,9 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any], null_c
         if not eligible_refs: return _fail(f"admission_missing_eligible_trace_refs:{family_ref}")
         if len(eligible_refs) != support: return _fail(f"admission_trace_cohort_support_mismatch:{family_ref}")
         if family_ref not in eligible_refs: return _fail(f"admission_anchor_not_in_trace_cohort:{family_ref}")
+        independent, dependency, independence_error = _revalidate_independence(row, eligible_refs, independent, family_ref)
+        if independence_error:
+            return _fail(independence_error)
         occurrence_context, occurrence_context_review = _safe_finding_occurrence_context(row, family_ref)
         if occurrence_context_review:
             reviews.append(occurrence_context_review)
@@ -253,7 +286,6 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any], null_c
         counter_refs = sorted({_clean(x) for x in (row.get("counterevidence_refs") or []) if _clean(x)})
         alternatives = [x for x in (row.get("alternative_explanations") or []) if isinstance(x, dict)]
         uncertainty = dict(row.get("uncertainty") or {})
-        dependency = dict(row.get("dependency_summary") or {})
         withdrawal = _clean(row.get("withdrawal_condition"))
         null_summary: dict[str, Any] = {"state": "NOT_EVALUATED", "claim_strengthened": False}
         null_row = null_by_family.get(family_ref)
@@ -316,15 +348,15 @@ def build_sequence_safe_finding_blocks(admission_payload: dict[str, Any], null_c
         alt_types = sorted({_clean(x.get("type")) for x in alternatives if _clean(x.get("type"))})
         alternative_text = "Visible alternatives/challenges: " + ", ".join(alt_types) if alt_types else "No explicit alternative signal is attached in the current evaluated scope; this does not prove the primary explanation."
         if state == "ROBUST_RECURRENT_VISIBLE_TRACE":
-            safe_meaning = "A recurrent visible process candidate is supported across the tested robustness scope and explicitly admitted independent support; it remains descriptive evidence rather than tactical or causal truth."
+            safe_meaning = "A recurrent visible process candidate is supported across the tested robustness scope and explicitly admitted dependency-separated support; it remains descriptive evidence rather than tactical or causal truth."
         elif state == "RECURRENT_VISIBLE_TRACE":
-            safe_meaning = "A recurrent visible process candidate exists in the observed scope, but independence is not sufficiently established for a stronger robustness claim."
+            safe_meaning = "A recurrent visible process candidate exists in the observed scope, but dependency separation is not sufficiently established for a stronger robustness claim."
         elif state == "PROXY_CANDIDATE":
             safe_meaning = "A visible process candidate exists, but sensitivity evidence makes the recurrence interpretation conditional and fragile."
         else:
             safe_meaning = "A discovery-level visible process candidate exists and requires stronger recurrence/robustness evidence before promotion."
         if null_row is not None and isinstance(independent, int) and not isinstance(independent, bool):
-            safe_meaning += " Its admitted independent recurrence can also be described relative to the supplied audited null distribution at the explicit finite-simulation tail resolution, without treating the uncorrected tail probability as significance, tactical truth or causality."
+            safe_meaning += " Its admitted dependency-separated recurrence can also be described relative to the supplied audited null distribution at the explicit finite-simulation tail resolution, without treating the uncorrected tail probability as significance, tactical truth or causality."
         forbidden = sorted(set([
             "coach intention", "tactical plan truth", "team style truth", "causality", "dominance", "team shape",
             "true pressure geometry", "no-visible-followup as failure", "statistical significance from uncorrected null tail",
