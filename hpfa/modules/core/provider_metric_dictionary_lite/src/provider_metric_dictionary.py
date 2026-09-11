@@ -72,6 +72,81 @@ def _missing_required_derivation_denominator_policy_blocks(
     return blocks
 
 
+def _normalize_aggregate_binding_migrations(
+    dictionary: dict[str, Any],
+    metric_policy: dict[str, Any] | None,
+    aggregate_registry: dict[str, Any] | None,
+) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    """Migrate only explicitly superseded aggregate bindings verified by current policy.
+
+    Aggregate registry rows may move to a new current metric-policy fingerprint when
+    observation semantics are corrected. A downstream dictionary binding may follow
+    that migration only when the registry explicitly lists the old fingerprint as
+    superseded *and* the new fingerprint exactly matches the current metric-policy
+    definition. Arbitrary hash drift remains fail-closed in the underlying engine.
+    """
+    normalized = json.loads(json.dumps(dictionary))
+    policy_rows = {
+        str(row.get("metric_id") or "").strip(): row
+        for row in (metric_policy or {}).get("metrics", []) or []
+        if isinstance(row, dict) and str(row.get("metric_id") or "").strip()
+    }
+    aggregate_rows = {
+        str(row.get("definition_id") or "").strip(): row
+        for row in (aggregate_registry or {}).get("definitions", []) or []
+        if isinstance(row, dict) and str(row.get("definition_id") or "").strip()
+    }
+
+    migrations: list[dict[str, str]] = []
+    for row in normalized.get("metrics", []) or []:
+        if not isinstance(row, dict):
+            continue
+        upstream = row.get("upstream_bindings")
+        if not isinstance(upstream, dict):
+            continue
+        definition_id = str(upstream.get("aggregate_definition_id") or "").strip()
+        expected = str(
+            upstream.get("aggregate_definition_fingerprint_sha256") or ""
+        ).strip()
+        aggregate_row = aggregate_rows.get(definition_id)
+        if not definition_id or not expected or aggregate_row is None:
+            continue
+        actual = str(
+            aggregate_row.get("metric_definition_fingerprint_sha256") or ""
+        ).strip()
+        if not actual or actual == expected:
+            continue
+
+        superseded = {
+            str(value).strip()
+            for value in aggregate_row.get("supersedes_binding_fingerprints", []) or []
+            if str(value).strip()
+        }
+        policy_id = str(upstream.get("metric_policy_id") or "").strip()
+        policy_row = policy_rows.get(policy_id)
+        current_policy_fingerprint = str(
+            (policy_row or {}).get("definition_fingerprint_sha256") or ""
+        ).strip()
+        aggregate_policy_id = str(aggregate_row.get("metric_id") or "").strip()
+
+        if (
+            expected in superseded
+            and policy_row is not None
+            and aggregate_policy_id == policy_id
+            and current_policy_fingerprint
+            and actual == current_policy_fingerprint
+        ):
+            upstream["aggregate_definition_fingerprint_sha256"] = actual
+            migrations.append({
+                "metric_id": str(row.get("metric_id") or ""),
+                "aggregate_definition_id": definition_id,
+                "superseded_fingerprint": expected,
+                "current_fingerprint": actual,
+                "verification": "CURRENT_METRIC_POLICY_EXACT_MATCH",
+            })
+    return normalized, migrations
+
+
 def _merge_observation_assessments(
     report: dict[str, Any], assessments: list[dict[str, Any]]
 ) -> None:
@@ -130,9 +205,16 @@ def build_dictionary_report(
     normalized_dictionary, normalized_metric_policy, observation_assessments = (
         normalize_dictionary_for_zfgv(dictionary, metric_policy)
     )
+    migrated_dictionary, aggregate_binding_migrations = (
+        _normalize_aggregate_binding_migrations(
+            normalized_dictionary,
+            normalized_metric_policy,
+            aggregate_registry,
+        )
+    )
 
     report = _impl.build_dictionary_report(
-        normalized_dictionary,
+        migrated_dictionary,
         aliases,
         derivations,
         conflicts,
@@ -140,10 +222,11 @@ def build_dictionary_report(
         denominator_policy=denominator_policy,
         aggregate_registry=aggregate_registry,
     )
+    report["aggregate_binding_migrations"] = aggregate_binding_migrations
     _merge_observation_assessments(report, observation_assessments)
 
     extra_blocks = _missing_required_derivation_denominator_policy_blocks(
-        normalized_dictionary, derivations, normalized_metric_policy
+        migrated_dictionary, derivations, normalized_metric_policy
     )
     if extra_blocks:
         existing = {
