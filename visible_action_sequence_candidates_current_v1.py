@@ -14,6 +14,9 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.anchor_center
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.dependency_aware_partial_order_similarity_projection import (
     build_dependency_aware_partial_order_similarity,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.first_supported_branch_divergence_projection import (
+    build_first_supported_branch_divergence,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.occurrence_temporal_sequence_projection import (
     build_occurrence_temporal_sequence_projection,
 )
@@ -237,14 +240,41 @@ def _bind_anchor_centered_branch_maps(payload: dict) -> dict:
     return payload
 
 
+def _bind_first_supported_divergence(payload: dict, occurrence_payload: dict) -> dict:
+    projection = build_first_supported_branch_divergence(payload, occurrence_payload)
+    payload["first_supported_branch_divergence_status"] = projection.get("status")
+    payload["first_supported_branch_divergence_candidates"] = list(
+        projection.get("first_supported_branch_divergence_candidates") or []
+    )
+    payload["first_supported_branch_divergence_candidate_count"] = int(
+        projection.get("first_supported_branch_divergence_candidate_count") or 0
+    )
+    payload["first_supported_branch_divergence_claim_ceiling"] = projection.get("claim_ceiling")
+    payload["divergence_is_failure_cause_truth"] = False
+    payload["divergence_is_tactical_truth"] = False
+    payload["divergence_branches_are_independent_recurrence_support"] = False
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("first_supported_branch_divergence_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = sequence.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
 
     consequence_payload = current_consequence.runtime_write_outputs(input_dir, output)
     trace_path = output / "trackable_action_trace_candidates_lite_v1.json"
+    occurrence_path = output / "action_occurrence_admission_lite_v1.json"
 
-    if consequence_payload.get("status") == "FAIL_CLOSED" or not trace_path.is_file():
+    if consequence_payload.get("status") == "FAIL_CLOSED" or not trace_path.is_file() or not occurrence_path.is_file():
         return {
             "module_id": sequence.MODULE_ID,
             "status": "FAIL_CLOSED",
@@ -279,7 +309,9 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "anchor_centered_sequence_branch_maps": [],
             "anchor_centered_sequence_branch_map_count": 0,
             "anchor_centered_sequence_total_visible_branch_count": 0,
-            "hard_block_hits": ["current_consequence_fail_closed_or_trace_output_missing"],
+            "first_supported_branch_divergence_candidates": [],
+            "first_supported_branch_divergence_candidate_count": 0,
+            "hard_block_hits": ["current_consequence_or_required_occurrence_trace_output_missing"],
             "review_hits": [],
             "same_timestamp_internal_ordering_allowed": False,
             "source_row_order_is_temporal_truth": False,
@@ -297,12 +329,14 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         }
 
     trace_payload = _load(trace_path)
+    occurrence_payload = _load(occurrence_path)
     payload = sequence.build_visible_action_sequence_candidates(trace_payload, consequence_payload)
     payload = _bind_occurrence_projection(payload, trace_payload, consequence_payload)
     payload = _promote_occurrence_temporal_primary(payload)
     payload = _bind_partial_order_variants(payload, trace_payload, consequence_payload)
     payload = _bind_dependency_aware_similarity(payload)
     payload = _bind_anchor_centered_branch_maps(payload)
+    payload = _bind_first_supported_divergence(payload, occurrence_payload)
     payload["current_consequence_status"] = consequence_payload.get("status")
     payload["current_trace_status"] = consequence_payload.get("current_trace_status")
     payload["current_content_source_role_bridge_status"] = consequence_payload.get(
@@ -345,6 +379,8 @@ def main() -> int:
         "anchor_centered_sequence_branch_map_status": payload.get("anchor_centered_sequence_branch_map_status"),
         "anchor_centered_sequence_branch_map_count": payload.get("anchor_centered_sequence_branch_map_count"),
         "anchor_centered_sequence_total_visible_branch_count": payload.get("anchor_centered_sequence_total_visible_branch_count"),
+        "first_supported_branch_divergence_status": payload.get("first_supported_branch_divergence_status"),
+        "first_supported_branch_divergence_candidate_count": payload.get("first_supported_branch_divergence_candidate_count"),
         "primary_sequence_member_trace_count": payload.get("primary_sequence_member_trace_count"),
         "review_layer_member_trace_count": payload.get("review_layer_member_trace_count"),
         "trace_assignment_complete": payload.get("trace_assignment_complete"),
