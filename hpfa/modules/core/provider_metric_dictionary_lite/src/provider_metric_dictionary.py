@@ -12,6 +12,21 @@ from .observation_layer_admission import (
 )
 
 
+def _enable_zfgv_aggregate_source_role_compatibility() -> None:
+    """Bind the admitted ZFGV aggregate/tabular surface into legacy provider-role compatibility.
+
+    The provider dictionary still uses provider-definition source roles for semantic
+    authority, while current XLSX observation surfaces are classified by ZFGV as
+    AGGREGATE_OR_TABULAR_SURFACE_CANDIDATE. This adapter only adds that current
+    aggregate observation role to existing provider-role compatibility sets; it
+    does not admit provider truth, tracking truth, or any otherwise unsupported
+    source role.
+    """
+    zfgv_role = "AGGREGATE_OR_TABULAR_SURFACE_CANDIDATE"
+    for provider_role in tuple(_impl.AGGREGATE_SOURCE_ROLE_COMPATIBILITY):
+        _impl.AGGREGATE_SOURCE_ROLE_COMPATIBILITY[provider_role].add(zfgv_role)
+
+
 def _missing_required_derivation_denominator_policy_blocks(
     dictionary: dict[str, Any],
     derivations: dict[str, Any],
@@ -186,6 +201,7 @@ def build_dictionary_report(
     denominator_policy: dict[str, Any] | None = None,
     aggregate_registry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    _enable_zfgv_aggregate_source_role_compatibility()
     normalized_dictionary, normalized_metric_policy, observation_assessments = (
         normalize_dictionary_for_zfgv(dictionary, metric_policy)
     )
