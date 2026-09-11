@@ -11,6 +11,9 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src import (
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.occurrence_temporal_sequence_projection import (
     build_occurrence_temporal_sequence_projection,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.partial_order_occurrence_variant_projection import (
+    build_partial_order_occurrence_variants,
+)
 
 
 def _load(path: Path) -> dict:
@@ -137,6 +140,33 @@ def _promote_occurrence_temporal_primary(payload: dict) -> dict:
     return payload
 
 
+def _bind_partial_order_variants(payload: dict, trace_payload: dict, consequence_payload: dict) -> dict:
+    projection = build_partial_order_occurrence_variants(payload, trace_payload, consequence_payload)
+    payload["partial_order_occurrence_variant_status"] = projection.get("status")
+    payload["partial_order_occurrence_variants"] = list(
+        projection.get("partial_order_occurrence_variants") or []
+    )
+    payload["partial_order_occurrence_variant_count"] = int(
+        projection.get("partial_order_occurrence_variant_count") or 0
+    )
+    payload["partial_order_occurrence_variant_claim_ceiling"] = projection.get("claim_ceiling")
+    payload["partial_order_occurrence_variant_is_sequence_truth"] = False
+    payload["partial_order_occurrence_variant_is_possession_truth"] = False
+    payload["partial_order_occurrence_variant_is_tactical_pattern_truth"] = False
+    payload["partial_order_occurrence_variant_is_coach_intention_truth"] = False
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("partial_order_occurrence_variant_projection_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = sequence.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
@@ -171,6 +201,8 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "occurrence_temporal_sequence_candidates": [],
             "occurrence_temporal_sequence_candidate_count": 0,
             "eligible_occurrence_after_confirmed_edge_count": 0,
+            "partial_order_occurrence_variants": [],
+            "partial_order_occurrence_variant_count": 0,
             "hard_block_hits": ["current_consequence_fail_closed_or_trace_output_missing"],
             "review_hits": [],
             "same_timestamp_internal_ordering_allowed": False,
@@ -192,6 +224,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     payload = sequence.build_visible_action_sequence_candidates(trace_payload, consequence_payload)
     payload = _bind_occurrence_projection(payload, trace_payload, consequence_payload)
     payload = _promote_occurrence_temporal_primary(payload)
+    payload = _bind_partial_order_variants(payload, trace_payload, consequence_payload)
     payload["current_consequence_status"] = consequence_payload.get("status")
     payload["current_trace_status"] = consequence_payload.get("current_trace_status")
     payload["current_content_source_role_bridge_status"] = consequence_payload.get(
@@ -225,6 +258,8 @@ def main() -> int:
         "review_required_sequence_context_count": payload.get("review_required_sequence_context_count"),
         "occurrence_temporal_sequence_candidate_count": payload.get("occurrence_temporal_sequence_candidate_count"),
         "eligible_occurrence_after_confirmed_edge_count": payload.get("eligible_occurrence_after_confirmed_edge_count"),
+        "partial_order_occurrence_variant_status": payload.get("partial_order_occurrence_variant_status"),
+        "partial_order_occurrence_variant_count": payload.get("partial_order_occurrence_variant_count"),
         "primary_sequence_member_trace_count": payload.get("primary_sequence_member_trace_count"),
         "review_layer_member_trace_count": payload.get("review_layer_member_trace_count"),
         "trace_assignment_complete": payload.get("trace_assignment_complete"),
