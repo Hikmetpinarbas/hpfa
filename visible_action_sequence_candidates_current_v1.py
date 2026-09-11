@@ -8,6 +8,9 @@ import trackable_action_consequence_candidates_current_v1 as current_consequence
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src import (
     visible_action_sequence_candidates as sequence,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.dependency_aware_partial_order_similarity_projection import (
+    build_dependency_aware_partial_order_similarity,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.occurrence_temporal_sequence_projection import (
     build_occurrence_temporal_sequence_projection,
 )
@@ -167,6 +170,39 @@ def _bind_partial_order_variants(payload: dict, trace_payload: dict, consequence
     return payload
 
 
+def _bind_dependency_aware_similarity(payload: dict) -> dict:
+    projection = build_dependency_aware_partial_order_similarity(payload)
+    payload["dependency_aware_partial_order_similarity_status"] = projection.get("status")
+    payload["dependency_aware_partial_order_similarity_pairs"] = list(
+        projection.get("dependency_aware_partial_order_similarity_pairs") or []
+    )
+    payload["dependency_aware_partial_order_similarity_pair_count"] = int(
+        projection.get("dependency_aware_partial_order_similarity_pair_count") or 0
+    )
+    payload["dependency_aware_partial_order_similarity_pair_state_counts"] = dict(
+        projection.get("pair_state_counts") or {}
+    )
+    payload["recurrence_candidate_eligible_pair_count"] = int(
+        projection.get("recurrence_candidate_eligible_pair_count") or 0
+    )
+    payload["outcome_used_in_similarity_decision"] = False
+    payload["dependency_overlap_blocks_independent_recurrence"] = True
+    payload["similarity_is_recurrence_truth"] = False
+    payload["similarity_is_tactical_pattern_truth"] = False
+    payload["dependency_aware_partial_order_similarity_claim_ceiling"] = projection.get("claim_ceiling")
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("dependency_aware_partial_order_similarity_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = sequence.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
@@ -203,6 +239,9 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "eligible_occurrence_after_confirmed_edge_count": 0,
             "partial_order_occurrence_variants": [],
             "partial_order_occurrence_variant_count": 0,
+            "dependency_aware_partial_order_similarity_pairs": [],
+            "dependency_aware_partial_order_similarity_pair_count": 0,
+            "recurrence_candidate_eligible_pair_count": 0,
             "hard_block_hits": ["current_consequence_fail_closed_or_trace_output_missing"],
             "review_hits": [],
             "same_timestamp_internal_ordering_allowed": False,
@@ -225,6 +264,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     payload = _bind_occurrence_projection(payload, trace_payload, consequence_payload)
     payload = _promote_occurrence_temporal_primary(payload)
     payload = _bind_partial_order_variants(payload, trace_payload, consequence_payload)
+    payload = _bind_dependency_aware_similarity(payload)
     payload["current_consequence_status"] = consequence_payload.get("status")
     payload["current_trace_status"] = consequence_payload.get("current_trace_status")
     payload["current_content_source_role_bridge_status"] = consequence_payload.get(
@@ -260,6 +300,10 @@ def main() -> int:
         "eligible_occurrence_after_confirmed_edge_count": payload.get("eligible_occurrence_after_confirmed_edge_count"),
         "partial_order_occurrence_variant_status": payload.get("partial_order_occurrence_variant_status"),
         "partial_order_occurrence_variant_count": payload.get("partial_order_occurrence_variant_count"),
+        "dependency_aware_partial_order_similarity_status": payload.get("dependency_aware_partial_order_similarity_status"),
+        "dependency_aware_partial_order_similarity_pair_count": payload.get("dependency_aware_partial_order_similarity_pair_count"),
+        "dependency_aware_partial_order_similarity_pair_state_counts": payload.get("dependency_aware_partial_order_similarity_pair_state_counts") or {},
+        "recurrence_candidate_eligible_pair_count": payload.get("recurrence_candidate_eligible_pair_count"),
         "primary_sequence_member_trace_count": payload.get("primary_sequence_member_trace_count"),
         "review_layer_member_trace_count": payload.get("review_layer_member_trace_count"),
         "trace_assignment_complete": payload.get("trace_assignment_complete"),
