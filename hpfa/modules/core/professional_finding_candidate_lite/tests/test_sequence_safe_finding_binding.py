@@ -4,10 +4,26 @@ from pathlib import Path
 from hpfa.modules.core.professional_finding_candidate_lite.src.sequence_safe_finding_binding import build_sequence_safe_finding_blocks
 
 
+def _dependency(refs, independent):
+    if independent == "UNKNOWN":
+        return {
+            "independence_proven": False,
+            "object_views_or_reflections_may_not_create_independent_support": True,
+        }
+    groups = [f"g{min(i, independent - 1)}" for i in range(len(refs))]
+    return {
+        "independence_proven": True,
+        "independence_group_by_trace_ref": dict(zip(refs, groups)),
+        "independence_groups": sorted(set(groups)),
+        "object_views_or_reflections_may_not_create_independent_support": True,
+    }
+
+
 def _payload(state="RECURRENT_VISIBLE_TRACE", independent="UNKNOWN", with_context=False):
+    refs = ["variant_a", "variant_b", "variant_c", "variant_d", "variant_e"]
     row = {
         "trace_family_ref": "variant_a",
-        "eligible_trace_refs": ["variant_a", "variant_b", "variant_c", "variant_d", "variant_e"],
+        "eligible_trace_refs": refs,
         "eligible_trace_count": 5,
         "admission_state": state,
         "observed_support": 5,
@@ -18,7 +34,7 @@ def _payload(state="RECURRENT_VISIBLE_TRACE", independent="UNKNOWN", with_contex
         "robustness_state": "ROBUST_WITHIN_TESTED_RANGE",
         "counterevidence_refs": ["variant_b", "variant_c"],
         "alternative_explanations": [{"type": "CONTEXT_DEPENDENCE", "causal_truth": False}],
-        "dependency_summary": {"independence_proven": independent != "UNKNOWN"},
+        "dependency_summary": _dependency(refs, independent),
         "uncertainty": {"recurrence_is_tactical_intention_truth": False},
         "context_scope": [{"period_candidate": "1"}],
         "source_anchor_context": {"team_identity_candidate_id": "team_a"},
@@ -76,35 +92,23 @@ def test_robust_independent_challenged_trace_emits_defeasible_finding():
     assert "causality" in row["FORBIDDEN_INFERENCE"]
 
 
-def test_review_required_envelope_preserves_row_level_emission_eligibility():
+def test_unscoped_review_required_envelope_abstains_globally():
     payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
     payload["status"] = "REVIEW_REQUIRED"
+    payload["review_hits"] = ["contrast_upstream_review_required"]
     result = build_sequence_safe_finding_blocks(payload)
     assert result["status"] == "REVIEW_REQUIRED"
-    assert result["professional_finding_emitted_count"] == 1
-    assert result["claim_output_allowed_count"] == 1
-    assert result["analyst_report_block_count"] == 1
-    assert result["finding_status_counts"] == {"EMIT": 1, "DOWNGRADE": 0, "ABSTAIN": 0}
-    assert result["review_required_is_global_abstain"] is False
-    assert result["row_scoped_review_preserves_other_row_eligibility"] is True
-    assert "admission_upstream_review_required_row_scoped" in result["review_hits"]
+    assert result["professional_finding_emitted_count"] == 0
+    assert result["claim_output_allowed_count"] == 0
+    assert result["analyst_report_block_count"] == 0
+    assert result["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 1}
+    assert result["review_required_is_global_abstain"] is True
+    assert "admission_upstream_review_required_unscoped" in result["review_hits"]
 
 
-def test_mixed_review_payload_routes_each_finding_without_cross_row_poisoning():
+def test_row_scoped_review_is_represented_by_row_state_under_pass_envelope():
     payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
-    payload["status"] = "REVIEW_REQUIRED"
     emit_row = payload["sequence_pattern_admissions"][0]
-
-    downgrade_row = deepcopy(emit_row)
-    downgrade_row.update({
-        "trace_family_ref": "down_a",
-        "eligible_trace_refs": ["down_a", "down_b", "down_c", "down_d", "down_e"],
-        "admission_state": "RECURRENT_VISIBLE_TRACE",
-        "independent_support_count": "UNKNOWN",
-        "counterevidence_refs": ["down_b"],
-        "dependency_summary": {"independence_proven": False},
-    })
-
     review_row = deepcopy(emit_row)
     review_row.update({
         "trace_family_ref": "review_a",
@@ -112,16 +116,34 @@ def test_mixed_review_payload_routes_each_finding_without_cross_row_poisoning():
         "admission_state": "REVIEW_REQUIRED",
         "counterevidence_refs": ["review_b"],
     })
-
-    payload["sequence_pattern_admissions"] = [emit_row, downgrade_row, review_row]
+    payload["sequence_pattern_admissions"] = [emit_row, review_row]
     result = build_sequence_safe_finding_blocks(payload)
     assert result["status"] == "REVIEW_REQUIRED"
-    assert result["analyst_report_block_count"] == 2
-    assert result["finding_status_counts"] == {"EMIT": 1, "DOWNGRADE": 1, "ABSTAIN": 1}
+    assert result["analyst_report_block_count"] == 1
     assert result["professional_finding_emitted_count"] == 1
-    assert result["claim_output_allowed_count"] == 1
-    assert {row["finding_status"] for row in result["analyst_report_blocks"]} == {"EMIT", "DOWNGRADE"}
+    assert result["finding_status_counts"] == {"EMIT": 1, "DOWNGRADE": 0, "ABSTAIN": 1}
     assert "admission_row_review_required:review_a" in result["review_hits"]
+
+
+def test_independence_is_recomputed_and_false_independence_fails_closed():
+    payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
+    row = payload["sequence_pattern_admissions"][0]
+    row["dependency_summary"]["independence_group_by_trace_ref"] = {
+        ref: "shared_group" for ref in row["eligible_trace_refs"]
+    }
+    row["dependency_summary"]["independence_groups"] = ["shared_group"]
+    result = build_sequence_safe_finding_blocks(payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["professional_finding_emitted_count"] == 0
+    assert any("dependency_independent_support_mismatch" in hit for hit in result["hard_block_hits"])
+
+
+def test_reflection_independence_lock_is_required_before_emit():
+    payload = _payload("ROBUST_RECURRENT_VISIBLE_TRACE", 3)
+    payload["sequence_pattern_admissions"][0]["dependency_summary"]["object_views_or_reflections_may_not_create_independent_support"] = False
+    result = build_sequence_safe_finding_blocks(payload)
+    assert result["status"] == "FAIL_CLOSED"
+    assert any("dependency_reflection_independence_lock_missing" in hit for hit in result["hard_block_hits"])
 
 
 def test_unrecognized_upstream_status_still_abstains_globally():
