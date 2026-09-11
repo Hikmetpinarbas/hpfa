@@ -29,6 +29,26 @@ def _payload(*, comparison_eligible=True, left_outcome="SUCCESS_SEMANTIC_VISIBLE
         ],
         "first_supported_branch_divergence_candidates": [
             {
+                "first_supported_branch_divergence_id": "d1",
+                "anchor_centered_sequence_branch_map_ref": "m1",
+                "team_identity_candidate_id": "team-1",
+                "period_candidate": 2,
+                "shared_anchor_time_layer_ref": "tl1",
+                "shared_anchor_time_candidate": 100.0,
+                "observed_branch_opportunity_success_numerator": 1,
+                "observed_branch_opportunity_eligible_denominator": 2,
+                "observed_branch_opportunity_raw_success_rate": 0.5,
+                "observed_branch_opportunity_actor_spread_count": 2,
+                "observed_branch_opportunity_episode_spread_count": "UNKNOWN",
+                "observed_branch_opportunity_context_spread_state": "PARTIAL_PERIOD_AND_SHARED_ANCHOR_ONLY",
+                "observed_branch_opportunity_admitted_independent_support_count": 0,
+                "observed_branch_opportunity_dependency_independence_proven": False,
+                "observed_branch_opportunity_statistical_independence_proven": False,
+                "observed_branch_opportunity_support_state": "DESCRIPTIVE_ONLY_DEPENDENCY_DOMINATED",
+                "observed_branch_opportunity_concentration_warnings": [
+                    "SINGLE_SHARED_ANCHOR_CONCENTRATION",
+                    "DEPENDENCY_DOMINATED_SHARED_ANCHOR_BRANCHES",
+                ],
                 "branch_profiles": [
                     {
                         "branch_outcome_state": left_outcome,
@@ -38,7 +58,7 @@ def _payload(*, comparison_eligible=True, left_outcome="SUCCESS_SEMANTIC_VISIBLE
                         "branch_outcome_state": right_outcome,
                         "supporting_visible_sequence_candidate_ids": ["s2"],
                     },
-                ]
+                ],
             }
         ],
     }
@@ -71,6 +91,7 @@ def test_comparable_same_visible_outcome_is_not_counterevidence():
     record = _record(result)
     assert record["comparable_outcome_contrast_state"] == "COMPARABLE_SAME_VISIBLE_OUTCOME"
     assert record["comparable_counterevidence_candidate"] is False
+    assert result["safe_finding_handoff_candidate_count"] == 0
 
 
 def test_noncomparable_pair_cannot_create_outcome_counterevidence():
@@ -79,6 +100,7 @@ def test_noncomparable_pair_cannot_create_outcome_counterevidence():
     assert record["comparison_eligible"] is False
     assert record["comparable_outcome_contrast_state"] == "NOT_APPLICABLE_OR_REVIEW_REQUIRED_COMPARISON"
     assert record["comparable_counterevidence_candidate"] is False
+    assert result["safe_finding_handoff_candidate_count"] == 0
 
 
 def test_comparable_pair_with_unresolved_outcome_requires_review():
@@ -90,6 +112,7 @@ def test_comparable_pair_with_unresolved_outcome_requires_review():
     assert record["comparable_outcome_contrast_state"] == "COMPARABLE_VISIBLE_OUTCOME_SEMANTIC_UNRESOLVED_REVIEW_REQUIRED"
     assert record["comparable_counterevidence_candidate"] is False
     assert result["review_hits"]
+    assert result["safe_finding_handoff_candidate_count"] == 0
 
 
 def test_missing_variant_sequence_binding_requires_review():
@@ -99,6 +122,55 @@ def test_missing_variant_sequence_binding_requires_review():
     record = _record(result)
     assert result["status"] == "REVIEW_REQUIRED"
     assert record["comparable_outcome_contrast_state"] == "COMPARABLE_VARIANT_SEQUENCE_BINDING_MISSING_REVIEW_REQUIRED"
+    assert result["safe_finding_handoff_candidate_count"] == 0
+
+
+def test_safe_finding_handoff_is_downgraded_and_keeps_challenge_surface():
+    result = build_comparable_outcome_counterevidence(_payload())
+    assert result["safe_finding_handoff_candidate_count"] == 1
+    assert result["safe_finding_handoff_finding_status_counts"] == {
+        "EMIT": 0,
+        "DOWNGRADE": 1,
+        "ABSTAIN": 0,
+    }
+    assert result["professional_finding_emitted_count"] == 0
+    assert result["safe_finding_handoff_professional_emit_allowed"] is False
+
+    handoff = result["safe_finding_handoff_candidates"][0]
+    assert handoff["finding_status"] == "DOWNGRADE"
+    assert handoff["professional_finding_emit_allowed"] is False
+    assert handoff["what_visible"]["success_branch_count"] == 1
+    assert handoff["what_visible"]["failure_branch_count"] == 1
+    assert handoff["support"]["visible_success_numerator"] == 1
+    assert handoff["support"]["eligible_denominator"] == 2
+    assert handoff["support"]["raw_success_rate"] == 0.5
+    assert handoff["support"]["admitted_independent_support_count"] == 0
+    assert handoff["support"]["dependency_independence_proven"] is False
+    assert handoff["counterevidence"]["visible_failure_sequence_refs"] == ["s2"]
+    assert handoff["counterevidence"]["comparable_counterexample_pair_count"] == 1
+    assert handoff["counterevidence"]["counterexample_pair_count_is_independent_evidence_count"] is False
+    assert handoff["counterevidence"]["independent_counterevidence_support_count"] == 0
+    assert handoff["counterevidence"]["absence_used_as_counterevidence"] is False
+    assert handoff["safe_meaning"] == "MATCH_LOCAL_SHARED_ANCHOR_VISIBLE_OUTCOME_VARIATION_ONLY"
+    assert "TRUE_SUCCESS_PROBABILITY" in handoff["forbidden_inference"]
+    assert "FAILURE_CAUSE" in handoff["forbidden_inference"]
+    assert handoff["uncertainty"]["binomial_interval_allowed"] is False
+    assert handoff["uncertainty"]["shrinkage_allowed"] is False
+    assert handoff["withdrawal_conditions"]
+    assert handoff["safe_finding_handoff_is_professional_finding_truth"] is False
+    assert handoff["safe_finding_handoff_is_tactical_truth"] is False
+    assert handoff["safe_finding_handoff_is_causal_truth"] is False
+    assert handoff["canonical_event_count"] == "UNKNOWN"
+    assert handoff["true_action_count"] == "UNKNOWN"
+    assert handoff["production_release"] is False
+
+
+def test_counterexample_pair_count_never_becomes_evidence_count():
+    result = build_comparable_outcome_counterevidence(_payload())
+    handoff = result["safe_finding_handoff_candidates"][0]
+    assert result["counterexample_pair_count_is_independent_evidence_count"] is False
+    assert handoff["counterevidence"]["comparable_counterexample_pair_count"] == 1
+    assert handoff["counterevidence"]["independent_counterevidence_support_count"] == 0
 
 
 def test_truth_policy_breach_fails_closed():
@@ -107,6 +179,7 @@ def test_truth_policy_breach_fails_closed():
     result = build_comparable_outcome_counterevidence(payload)
     assert result["status"] == "FAIL_CLOSED"
     assert result["comparable_outcome_counterevidence_record_count"] == 0
+    assert result["safe_finding_handoff_candidate_count"] == 0
     assert "production_release_claimed" in result["hard_block_hits"]
 
 
