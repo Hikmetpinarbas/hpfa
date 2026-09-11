@@ -38,6 +38,16 @@ def _git_head(repo_root: Path) -> str | None:
     return value or None
 
 
+def _git_worktree_clean(repo_root: Path) -> bool:
+    completed = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+    )
+    return completed.returncode == 0 and not completed.stdout.strip()
+
+
 def _run_canonical_full_spine(
     *,
     match_dir: Path,
@@ -46,16 +56,11 @@ def _run_canonical_full_spine(
     runtime_authority_root: Path,
     expected_product_commit: str | None = None,
 ) -> dict[str, Any]:
-    """Run the existing canonical full-spine with code and match authority separated.
-
-    Product producers must execute from this checkout (`repo_root`). ACTIVE_MATCH must
-    remain under the independently supplied runtime authority root. The adapter only
-    narrows the authority validator for this invocation; it does not create another
-    analysis engine or copy/move ACTIVE_MATCH.
-    """
+    """Run the existing canonical full-spine with exact product and match authority separated."""
     product_commit = _git_head(repo_root)
+    product_worktree_clean = _git_worktree_clean(repo_root)
     expected = str(expected_product_commit or "").strip() or None
-    commit_matches_expected = None if expected is None else product_commit == expected
+    commit_matches_expected = expected is not None and product_commit == expected
 
     command = [
         sys.executable,
@@ -68,18 +73,28 @@ def _run_canonical_full_spine(
         str(repo_root),
     ]
 
-    if expected is not None and commit_matches_expected is not True:
+    provenance_valid = expected is not None and commit_matches_expected and product_worktree_clean
+    if not provenance_valid:
+        reasons = []
+        if expected is None:
+            reasons.append("expected_product_commit_required")
+        if expected is not None and not commit_matches_expected:
+            reasons.append("product_commit_mismatch_or_unavailable")
+        if not product_worktree_clean:
+            reasons.append("product_worktree_not_clean")
         return {
             "command": command,
             "returncode": 2,
             "passed": False,
             "stdout": "",
-            "stderr": "product_commit_mismatch_or_unavailable",
+            "stderr": ";".join(reasons),
             "product_execution_root": str(repo_root),
             "runtime_authority_root": str(runtime_authority_root),
             "product_commit": product_commit,
             "expected_product_commit": expected,
-            "product_commit_matches_expected": False,
+            "product_commit_matches_expected": commit_matches_expected,
+            "product_worktree_clean": product_worktree_clean,
+            "exact_head_provenance_verified": False,
             "exact_head_authority_separation_enforced": True,
         }
 
@@ -118,7 +133,9 @@ def _run_canonical_full_spine(
         "runtime_authority_root": str(runtime_authority_root),
         "product_commit": product_commit,
         "expected_product_commit": expected,
-        "product_commit_matches_expected": commit_matches_expected,
+        "product_commit_matches_expected": True,
+        "product_worktree_clean": True,
+        "exact_head_provenance_verified": True,
         "exact_head_authority_separation_enforced": True,
     }
 
@@ -132,7 +149,7 @@ def _load(path: Path) -> dict[str, Any]:
 
 
 def _runtime_authority_root(match_dir: Path) -> Path:
-    """Return the explicit ACTIVE_MATCH authority root without binding it to product code."""
+    """Return the explicit ACTIVE_MATCH authority root without resolving lexical aliases."""
     suffix = ACTIVE_MATCH_RELATIVE_PATH.parts
     if tuple(match_dir.parts[-len(suffix):]) != tuple(suffix):
         raise ValueError(f"runtime_authority_path_invalid:{match_dir}")
@@ -201,11 +218,14 @@ def main() -> int:
     parser.add_argument("--out-dir", required=True)
     parser.add_argument(
         "--expected-product-commit",
-        help="Optional exact checkout commit required for this physical acceptance invocation.",
+        required=True,
+        help="Exact checkout commit required for this physical acceptance invocation.",
     )
     args = parser.parse_args()
 
-    match_dir = Path(args.match_dir).expanduser().resolve(strict=False)
+    # Preserve the lexical match path so canonical authority validation can reject
+    # symlink/alias components. Do not resolve it before validation.
+    match_dir = Path(args.match_dir).expanduser().absolute()
     out_dir = Path(args.out_dir).expanduser().resolve(strict=False)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -255,12 +275,14 @@ def main() -> int:
         and repo_root != runtime_authority_root
     )
     exact_product_commit_verified = (
-        bool(args.expected_product_commit)
+        canonical.get("exact_head_provenance_verified") is True
         and canonical.get("product_commit_matches_expected") is True
+        and canonical.get("product_worktree_clean") is True
     )
     required_analysis_layers_activated = (
         canonical["passed"]
         and authority_separation_valid
+        and exact_product_commit_verified
         and bool(full_spine)
         and all(required_artifacts.values())
         and bundle_contract_valid
@@ -282,6 +304,7 @@ def main() -> int:
         "product_runtime_authority_separation_valid": authority_separation_valid,
         "product_code_commit": canonical.get("product_commit"),
         "expected_product_commit": canonical.get("expected_product_commit"),
+        "product_worktree_clean": canonical.get("product_worktree_clean"),
         "exact_product_commit_verified": exact_product_commit_verified,
         "parallel_runtime_engine_created": False,
         "required_analysis_layers_activated": required_analysis_layers_activated,
