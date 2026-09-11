@@ -293,6 +293,21 @@ def _bind_comparable_outcome_counterevidence(payload: dict) -> dict:
     payload["outcome_difference_is_failure_cause_truth"] = False
     payload["outcome_difference_is_tactical_pattern_truth"] = False
     payload["absence_is_counterevidence"] = False
+    payload["safe_finding_handoff_candidates"] = list(
+        projection.get("safe_finding_handoff_candidates") or []
+    )
+    payload["safe_finding_handoff_candidate_count"] = int(
+        projection.get("safe_finding_handoff_candidate_count") or 0
+    )
+    payload["safe_finding_handoff_finding_status_counts"] = dict(
+        projection.get("safe_finding_handoff_finding_status_counts") or {}
+    )
+    payload["professional_finding_emitted_count"] = int(
+        projection.get("professional_finding_emitted_count") or 0
+    )
+    payload["safe_finding_handoff_professional_emit_allowed"] = False
+    payload["safe_finding_handoff_claim_ceiling"] = projection.get("safe_finding_handoff_claim_ceiling")
+    payload["counterexample_pair_count_is_independent_evidence_count"] = False
     if projection.get("status") == "FAIL_CLOSED":
         reviews = list(payload.get("review_hits") or [])
         reviews.append("comparable_outcome_counterevidence_fail_closed_preserved_as_review")
@@ -355,6 +370,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "comparable_outcome_counterevidence_record_count": 0,
             "comparable_counterevidence_candidate_count": 0,
             "counterevidence_independent_support_count": 0,
+            "safe_finding_handoff_candidates": [],
+            "safe_finding_handoff_candidate_count": 0,
+            "safe_finding_handoff_finding_status_counts": {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 0},
+            "professional_finding_emitted_count": 0,
+            "safe_finding_handoff_professional_emit_allowed": False,
             "hard_block_hits": ["current_consequence_or_required_occurrence_trace_output_missing"],
             "review_hits": [],
             "same_timestamp_internal_ordering_allowed": False,
@@ -431,6 +451,10 @@ def main() -> int:
         "comparable_outcome_contrast_state_counts": payload.get("comparable_outcome_contrast_state_counts") or {},
         "comparable_counterevidence_candidate_count": payload.get("comparable_counterevidence_candidate_count"),
         "counterevidence_independent_support_count": payload.get("counterevidence_independent_support_count"),
+        "safe_finding_handoff_candidate_count": payload.get("safe_finding_handoff_candidate_count"),
+        "safe_finding_handoff_finding_status_counts": payload.get("safe_finding_handoff_finding_status_counts") or {},
+        "professional_finding_emitted_count": payload.get("professional_finding_emitted_count"),
+        "safe_finding_handoff_professional_emit_allowed": payload.get("safe_finding_handoff_professional_emit_allowed"),
         "primary_sequence_member_trace_count": payload.get("primary_sequence_member_trace_count"),
         "review_layer_member_trace_count": payload.get("review_layer_member_trace_count"),
         "trace_assignment_complete": payload.get("trace_assignment_complete"),
