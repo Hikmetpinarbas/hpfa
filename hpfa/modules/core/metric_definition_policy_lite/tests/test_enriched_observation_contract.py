@@ -1,0 +1,204 @@
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[5]
+SRC = ROOT / "hpfa" / "modules" / "core" / "metric_definition_policy_lite" / "src"
+CONFIG = ROOT / "configs" / "metrics"
+sys.path.insert(0, str(SRC))
+
+from metric_definition_policy import build_metric_definition_policy, load_policy_pack
+
+
+def _docs():
+    names = [
+        "metric_registry_v1.json", "metric_denominator_policy_v1.json",
+        "metric_context_schema_v1.json", "metric_confidence_rules_v1.json",
+        "metric_misuse_warnings_v1.json", "metric_exposure_policy_v1.json",
+    ]
+    return [json.loads((CONFIG / name).read_text(encoding="utf-8")) for name in names]
+
+
+def test_seed_pack_declares_zfgv_observation_model():
+    report = load_policy_pack(CONFIG)
+    assert report["status"] == "SMOKE_PASS"
+    assert report["observation_model"] == "ZFGV_V1"
+    assert report["research_hardening_guards"]["R23_zfgv_observation_contract_is_authoritative"] is True
+    assert all(metric["observation_contract_status"] == "PASS" for metric in report["metrics"])
+
+
+def test_nonphysical_rich_construct_is_governed_by_zfgv_not_legacy_event_only_flag():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["event_only_compatible"] = False
+    metric["required_observation_layers"] = [
+        "L1_ACTION_OBSERVATION",
+        "L2_TEMPORAL_OBSERVATION",
+        "L3_SPATIAL_OBSERVATION",
+        "L6_CONSEQUENCE_OPPONENT_RESPONSE_OBSERVATION",
+    ]
+    metric["required_surface_semantics"] = [
+        "action_family_admitted",
+        "football_time_semantics_admitted",
+        "coordinate_semantics_admitted",
+        "visible_consequence_relation_admitted",
+    ]
+    metric["tracking_video_required"] = False
+
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "SMOKE_PASS"
+    observed = report["metrics"][0]
+    assert observed["observation_model"] == "ZFGV_V1"
+    assert observed["observation_contract_status"] == "PASS"
+
+
+def test_explicit_capability_manifest_admits_rich_progression_without_tracking():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["event_only_compatible"] = False
+    metric["required_observation_layers"] = [
+        "L1_ACTION_OBSERVATION",
+        "L2_TEMPORAL_OBSERVATION",
+        "L3_SPATIAL_OBSERVATION",
+    ]
+    metric["required_surface_semantics"] = [
+        "action_family_admitted",
+        "football_time_semantics_admitted",
+        "coordinate_semantics_admitted",
+    ]
+    metric["required_observation_capabilities"] = ["ACTION", "ACTOR", "TEMPORAL", "SPATIAL"]
+    metric["optional_observation_capabilities"] = ["OUTCOME", "CONTEXT"]
+    metric["forbidden_without"] = [
+        "TEMPORAL_SEMANTICS",
+        "COORDINATE_FRAME",
+        "IDENTITY_ADMISSION",
+        "REFLECTION_CONTROL",
+    ]
+    metric["tracking_video_required"] = False
+
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "SMOKE_PASS"
+    observed = report["metrics"][0]
+    assert observed["observation_model"] == "ZFGV_V1"
+    assert observed["observation_contract_status"] == "PASS"
+
+
+def test_provider_label_alone_cannot_elevate_provider_derived_capability():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["required_observation_layers"] = ["L1_ACTION_OBSERVATION"]
+    metric["required_surface_semantics"] = ["raw_provider_label_present"]
+    metric["required_observation_capabilities"] = ["ACTION", "PROVIDER_DERIVED"]
+    metric["optional_observation_capabilities"] = []
+    metric["forbidden_without"] = []
+
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "FAIL_CLOSED"
+    assert any(
+        "provider_derived_capability_semantics_missing" in str(gap.get("detail", ""))
+        for gap in report["policy_gaps"]
+    )
+
+
+def test_relational_capability_requires_identity_and_reflection_control():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["required_observation_layers"] = [
+        "L1_ACTION_OBSERVATION",
+        "L4_RELATIONAL_COOCCURRENCE_OBSERVATION",
+    ]
+    metric["required_surface_semantics"] = ["relation_candidate_present"]
+    metric["required_observation_capabilities"] = ["ACTION", "ACTOR", "RELATIONAL"]
+    metric["optional_observation_capabilities"] = []
+    metric["forbidden_without"] = ["IDENTITY_ADMISSION"]
+
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "FAIL_CLOSED"
+    assert any(
+        "relational_capability_reflection_control_missing" in str(gap.get("detail", ""))
+        for gap in report["policy_gaps"]
+    )
+
+
+def test_unknown_observation_layer_fails_closed():
+    docs = _docs()
+    docs[0]["metrics"][0]["required_observation_layers"] = ["L9_MAGIC_TRUTH"]
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "FAIL_CLOSED"
+    assert any(gap["gap_type"] == "observation_contract_invalid" for gap in report["policy_gaps"])
+
+
+def test_unknown_observation_capability_fails_closed():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["required_observation_capabilities"] = ["ACTION", "MAGIC_TACTICAL_TRUTH"]
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "FAIL_CLOSED"
+    assert any(
+        "unknown_required_observation_capability" in str(gap.get("detail", ""))
+        for gap in report["policy_gaps"]
+    )
+
+
+def test_l8_physical_state_requires_tracking_or_video():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["required_observation_layers"] = ["L8_TRACKING_VIDEO_PHYSICAL_OFF_BALL_STATE"]
+    metric["required_surface_semantics"] = ["tracking_trajectory"]
+    metric["tracking_video_required"] = False
+    report = build_metric_definition_policy(*docs)
+    assert report["status"] == "FAIL_CLOSED"
+    assert any(
+        "tracking_video_requirement_missing_for_l8" in str(gap.get("detail", ""))
+        for gap in report["policy_gaps"]
+    )
+
+
+def test_explicit_l8_manifest_requires_physical_evidence_gate():
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["required_observation_layers"] = ["L8_TRACKING_VIDEO_PHYSICAL_OFF_BALL_STATE"]
+    metric["required_surface_semantics"] = ["tracking_trajectory"]
+    metric["required_observation_capabilities"] = ["TRACKING_VIDEO_PHYSICAL"]
+    metric["optional_observation_capabilities"] = []
+    metric["forbidden_without"] = []
+    metric["tracking_video_required"] = True
+
+    blocked = build_metric_definition_policy(*docs)
+    assert blocked["status"] == "FAIL_CLOSED"
+    assert any(
+        "tracking_video_forbidden_without_gate_missing" in str(gap.get("detail", ""))
+        for gap in blocked["policy_gaps"]
+    )
+
+    metric["forbidden_without"] = ["TRACKING"]
+    admitted = build_metric_definition_policy(*docs)
+    assert admitted["status"] == "SMOKE_PASS"
+
+
+def test_observation_contract_change_invalidates_both_metric_and_observation_fingerprints():
+    baseline = load_policy_pack(CONFIG)
+    definition_fp = baseline["metrics"][0]["definition_fingerprint_sha256"]
+    observation_fp = baseline["metrics"][0]["observation_semantic_fingerprint_sha256"]
+
+    docs = _docs()
+    metric = docs[0]["metrics"][0]
+    metric["required_surface_semantics"] = list(metric["required_surface_semantics"]) + ["new_semantic_requirement"]
+    changed = build_metric_definition_policy(*docs)
+
+    assert changed["metrics"][0]["definition_fingerprint_sha256"] != definition_fp
+    assert changed["metrics"][0]["observation_semantic_fingerprint_sha256"] != observation_fp
+
+
+def test_no_sample_match_identity_leak():
+    source = (
+        ROOT
+        / "hpfa"
+        / "modules"
+        / "core"
+        / "observation_contract_lite"
+        / "src"
+        / "observation_contract.py"
+    ).read_text(encoding="utf-8")
+    for token in ("Genclerbirligi", "Fenerbahce", "15.08.2026", "Sporting", "Galatasaray", "09.09.2026"):
+        assert token not in source

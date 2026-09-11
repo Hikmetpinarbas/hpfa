@@ -82,11 +82,12 @@ class ProviderMetricDictionaryTests(unittest.TestCase):
             {g["gap_type"] for g in r["hard_block_hits"]},
         )
 
-    def test_event_only_operational_tamper_fails_closed(self):
+    def test_legacy_event_only_metadata_cannot_veto_zfgv(self):
         d = load("provider_metric_dictionary_v1.json")
         d["metrics"][0]["event_only_compatible"] = False
         r = build(dictionary=d)
-        self.assertIn(
+        self.assertEqual(r["observation_model"], "ZFGV_V1")
+        self.assertNotIn(
             "event_only_compatibility_required",
             {g["gap_type"] for g in r["hard_block_hits"]},
         )

@@ -14,6 +14,8 @@ if str(SRC) not in sys.path:
 
 import full_spine_runner as full_spine_module
 import rich_multiformat_analysis_lane as rich_lane_module
+from metric_governance_prerequisite_chain import run_metric_governance_prerequisite_chain
+from rich_construct_metric_governance_guard import assess_rich_construct_candidate
 from shared_surface_snapshot_contract import surface_snapshot_id
 from spine_runner import run_spine_check
 from user_output_bundle import snapshot_output_state, write_standard_user_outputs
@@ -27,6 +29,7 @@ RICH_OWNED_OUTPUTS = {
     "xlsx_entity_metric_row_projection_lite_v1.json",
     "xlsx_entity_metric_row_projection_lite_v1.txt",
 }
+RICH_CONSTRUCT_RUNTIME_STATE: dict[str, object | None] = {"report": None}
 
 
 def _bind_shared_snapshot_contract() -> None:
@@ -45,8 +48,24 @@ def _clear_rich_owned_outputs(out_dir: str | Path) -> list[str]:
     return cleared
 
 
+def _persist_rich_report(report: dict) -> None:
+    outputs = report.get("outputs") or {}
+    lattice_json = Path(str(outputs.get("lattice_json") or ""))
+    lattice_txt = Path(str(outputs.get("lattice_txt") or ""))
+    if lattice_json.is_file():
+        lattice_json.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    if lattice_txt.is_file():
+        text = lattice_txt.read_text(encoding="utf-8")
+        marker = f"C01_c4_admission_status={(report.get('constructs', {}).get('C01') or {}).get('c4_admission_status')}"
+        if marker not in text:
+            lattice_txt.write_text(text.rstrip() + "\n" + marker + "\n", encoding="utf-8")
+
+
 def _apply_construct_admission_gate(report: dict) -> dict:
-    """Keep review-only constructs visible without promoting them into C4."""
+    """Hold review constructs pending downstream metric-governance evaluation."""
     if not isinstance(report, dict):
         return report
     constructs = report.get("constructs")
@@ -60,28 +79,66 @@ def _apply_construct_admission_gate(report: dict) -> dict:
     if admitted:
         return report
 
-    withheld = len(report.get("c4_packet_candidates") or [])
+    pending = [row for row in (report.get("c4_packet_candidates") or []) if isinstance(row, dict)]
+    report["pending_c4_packet_candidates"] = pending
     report["c4_packet_candidates"] = []
-    report["construct_c4_promotion_withheld_count"] = withheld
+    report["construct_c4_promotion_withheld_count"] = len(pending)
     report["construct_c4_promotion_state"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
     c01["c4_admission_status"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
     c01["c4_admission_reason"] = c01.get("review_reason") or "explicit_construct_admission_not_available"
     c01["construct_truth"] = False
-
-    outputs = report.get("outputs") or {}
-    lattice_json = Path(str(outputs.get("lattice_json") or ""))
-    lattice_txt = Path(str(outputs.get("lattice_txt") or ""))
-    if lattice_json.is_file():
-        lattice_json.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-    if lattice_txt.is_file():
-        text = lattice_txt.read_text(encoding="utf-8")
-        marker = "C01_c4_admission_status=WITHHELD_PENDING_CONSTRUCT_ADMISSION"
-        if marker not in text:
-            lattice_txt.write_text(text.rstrip() + "\n" + marker + "\n", encoding="utf-8")
+    _persist_rich_report(report)
     return report
+
+
+def _rehydrate_governance_admitted_constructs(metric_governance: dict) -> dict[str, object]:
+    rich_report = RICH_CONSTRUCT_RUNTIME_STATE.get("report")
+    if not isinstance(rich_report, dict):
+        return {"evaluated": False, "admitted_count": 0, "review_required_count": 0}
+
+    pending = [row for row in (rich_report.get("pending_c4_packet_candidates") or []) if isinstance(row, dict)]
+    if not pending:
+        return {"evaluated": False, "admitted_count": 0, "review_required_count": 0}
+
+    admitted_candidates: list[dict] = []
+    decisions: list[dict] = []
+    for candidate in pending:
+        admission = assess_rich_construct_candidate(candidate, metric_governance)
+        decisions.append(admission)
+        if admission.get("admitted") is True:
+            enriched = dict(candidate)
+            enriched["metric_governance_admission"] = admission
+            admitted_candidates.append(enriched)
+
+    rich_report["construct_metric_governance_admissions"] = decisions
+    rich_report["c4_packet_candidates"] = admitted_candidates
+    rich_report["construct_c4_promotion_withheld_count"] = len(pending) - len(admitted_candidates)
+    c01 = (rich_report.get("constructs") or {}).get("C01")
+    if isinstance(c01, dict):
+        if admitted_candidates:
+            c01["c4_admission_status"] = "ADMITTED"
+            c01["c4_admission_reason"] = "aggregate_definition_alignment_admitted"
+            c01["status"] = "SMOKE_PASS"
+            c01["review_reason"] = None
+            c01["construct_truth"] = False
+            rich_report["construct_c4_promotion_state"] = "ADMITTED_BY_METRIC_GOVERNANCE"
+            hits = [
+                value for value in (rich_report.get("review_hits") or [])
+                if value != "C01_progression_terminal_construct_review_required"
+            ]
+            rich_report["review_hits"] = hits
+            if not (rich_report.get("hard_block_hits") or []) and not hits:
+                rich_report["status"] = "SMOKE_PASS"
+        else:
+            c01["c4_admission_status"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
+            rich_report["construct_c4_promotion_state"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
+    _persist_rich_report(rich_report)
+    return {
+        "evaluated": True,
+        "admitted_count": len(admitted_candidates),
+        "review_required_count": len(pending) - len(admitted_candidates),
+        "decisions": decisions,
+    }
 
 
 def _bind_construct_admission_gate() -> None:
@@ -96,34 +153,100 @@ def _bind_construct_admission_gate() -> None:
         cleared = _clear_rich_owned_outputs(out_dir) if out_dir is not None else []
         report = _apply_construct_admission_gate(original(*args, **kwargs))
         report["cleared_stale_rich_owned_outputs"] = cleared
+        RICH_CONSTRUCT_RUNTIME_STATE["report"] = report
         return report
 
     full_spine_module.run_rich_lane = gated_run_rich_lane
     full_spine_module._hpfa_construct_admission_gate_bound = True
 
 
+def _bind_metric_governance_prerequisite_chain() -> None:
+    """Produce current-run multiformat semantics before metric governance consumes them."""
+    if getattr(full_spine_module, "_hpfa_metric_governance_prerequisite_chain_bound", False):
+        return
+    original_sidecars = full_spine_module.run_sidecars
+
+    def prerequisite_sidecars(*args, **kwargs):
+        active_match_dir = kwargs.get("active_match_dir")
+        out_dir = kwargs.get("out_dir")
+        product_root = kwargs.get("product_root")
+        if active_match_dir is None and len(args) >= 1:
+            active_match_dir = args[0]
+        if out_dir is None and len(args) >= 2:
+            out_dir = args[1]
+        if product_root is None and len(args) >= 3:
+            product_root = args[2]
+
+        chain = run_metric_governance_prerequisite_chain(
+            active_match_dir,
+            out_dir,
+            product_root,
+        )
+        report = original_sidecars(*args, **kwargs)
+        if not isinstance(report, dict):
+            return report
+
+        report["metric_governance_prerequisite_chain"] = chain
+        report["metric_governance_prerequisite_chain_status"] = chain.get("status")
+        report["metric_governance_prerequisites_current_run_ready"] = chain.get(
+            "required_governance_inputs_ready"
+        ) is True
+        artifacts = list(report.get("current_invocation_artifacts") or [])
+        artifacts.extend(chain.get("current_invocation_artifacts") or [])
+        report["current_invocation_artifacts"] = sorted(set(str(value) for value in artifacts if value))
+
+        if str(chain.get("status") or "").upper() == "FAIL_CLOSED":
+            existing = list(report.get("hard_block_hits") or [])
+            existing.extend(chain.get("hard_block_hits") or [])
+            report["hard_block_hits"] = list(dict.fromkeys(existing))
+            report["construct_path_blocked"] = True
+            report["construct_path_block_reason"] = (
+                report.get("construct_path_block_reason")
+                or ((chain.get("hard_block_hits") or ["metric_governance_prerequisite_chain_fail_closed"])[0])
+            )
+            report["status"] = "REVIEW_REQUIRED"
+        elif str(chain.get("status") or "").upper() == "REVIEW_REQUIRED":
+            existing = list(report.get("review_hits") or [])
+            existing.extend(chain.get("review_hits") or [])
+            report["review_hits"] = list(dict.fromkeys(existing))
+            if str(report.get("status") or "").upper() == "SMOKE_PASS":
+                report["status"] = "REVIEW_REQUIRED"
+        return report
+
+    full_spine_module.run_sidecars = prerequisite_sidecars
+    full_spine_module._hpfa_metric_governance_prerequisite_chain_bound = True
+
+
 def _bind_metric_governance_construct_gate() -> None:
-    """A metric-governance FAIL_CLOSED may not be converted into C4 construct support."""
+    """Require admitted XLSX aggregate semantics before rich construct promotion."""
     if getattr(full_spine_module, "_hpfa_metric_governance_gate_bound", False):
         return
     original_sidecars = full_spine_module.run_sidecars
     original_packet_builder = full_spine_module.build_composite_packet
-    state = {"construct_blocked": False, "reason": None}
+    state = {"governance": {}, "construct_blocked": False, "reason": None}
 
     def gated_sidecars(*args, **kwargs):
-        # Per-invocation state: one failed run may not poison a later healthy run
-        # in the same Python process.
+        state["governance"] = {}
         state["construct_blocked"] = False
         state["reason"] = None
         report = original_sidecars(*args, **kwargs)
         governance = report.get("metric_governance_bridge") if isinstance(report, dict) else None
         governance = governance if isinstance(governance, dict) else {}
+        state["governance"] = governance
         if str(governance.get("status") or "").upper() == "FAIL_CLOSED":
             state["construct_blocked"] = True
             reasons = governance.get("hard_block_hits") or []
             state["reason"] = str(reasons[0]) if reasons else "metric_governance_fail_closed"
             report["construct_path_blocked"] = True
             report["construct_path_block_reason"] = state["reason"]
+            report["rich_construct_governance_recheck"] = {
+                "evaluated": False,
+                "admitted_count": 0,
+                "review_required_count": 0,
+                "reason": state["reason"],
+            }
+        else:
+            report["rich_construct_governance_recheck"] = _rehydrate_governance_admitted_constructs(governance)
         return report
 
     def gated_packet_builder(candidate):
@@ -135,7 +258,20 @@ def _bind_metric_governance_construct_gate() -> None:
                 "true_action_count": "UNKNOWN",
                 "production_release": False,
             }
-        return original_packet_builder(candidate)
+        admission = assess_rich_construct_candidate(candidate, state["governance"])
+        if admission.get("admitted") is not True:
+            return {
+                "status": "REVIEW_REQUIRED",
+                "hard_block_hits": [f"aggregate_semantics_blocks_construct_promotion:{admission.get('reason')}"],
+                "metric_governance_admission": admission,
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            }
+        packet = original_packet_builder(candidate)
+        if isinstance(packet, dict):
+            packet["metric_governance_admission"] = admission
+        return packet
 
     full_spine_module.run_sidecars = gated_sidecars
     full_spine_module.build_composite_packet = gated_packet_builder
@@ -180,8 +316,10 @@ def main() -> int:
     if args.full_spine:
         if args.composite_registry:
             parser.error("--composite-registry is not accepted with --full-spine")
+        RICH_CONSTRUCT_RUNTIME_STATE["report"] = None
         _bind_shared_snapshot_contract()
         _bind_construct_admission_gate()
+        _bind_metric_governance_prerequisite_chain()
         _bind_metric_governance_construct_gate()
         before_state = snapshot_output_state(args.out_dir)
         result = full_spine_module.run_full_spine(

@@ -1,12 +1,59 @@
 {
   "module_id": "trackable_action_consequence_candidates_lite_v1",
-  "version": "1.1.0-occurrence-aware-current-migration",
+  "version": "1.2.0-zfgv-temporal-admission",
   "input_modules": {
     "trackable_action_trace": "trackable_action_trace_candidates_lite_v1",
     "evidence_atoms": "evidence_atom_inventory_lite_v1",
     "upstream_occurrence_context": "action_occurrence_admission_lite_v1 via occurrence-aware trace binding"
   },
   "purpose": "Attach claim-safe visible consequence candidates to current occurrence-aware Trackable Action trace candidates without opening event, possession, sequence, causal or tactical truth.",
+  "observation_capability_manifest": {
+    "observation_model": "ENRICHED_FOOTBALL_OBSERVATION_DATA_V1",
+    "required_observation_capabilities": [
+      "ACTION",
+      "ACTOR",
+      "TEMPORAL",
+      "OUTCOME",
+      "PROVENANCE"
+    ],
+    "optional_observation_capabilities": [
+      "SPATIAL",
+      "RELATIONAL",
+      "CONTEXT",
+      "PROCESS"
+    ],
+    "forbidden_without": [
+      "TEMPORAL_SEMANTICS",
+      "IDENTITY_ADMISSION",
+      "REFLECTION_CONTROL",
+      "DEPENDENCY_CONTROL"
+    ],
+    "tracking_video_required": false,
+    "claim_ceiling": "VISIBLE_CONSEQUENCE_CANDIDATE_ONLY"
+  },
+  "temporal_admission": {
+    "allowed_relation_states": [
+      "BEFORE_CONFIRMED",
+      "AFTER_CONFIRMED",
+      "SAME_TIME_UNORDERED",
+      "ORDER_INDETERMINATE",
+      "PROVENANCE_ORDER_ONLY"
+    ],
+    "directional_follow_up_states": [
+      "BEFORE_CONFIRMED",
+      "AFTER_CONFIRMED"
+    ],
+    "numeric_time_parseability_is_chronology": false,
+    "positive_numeric_delta_is_football_after_truth": false,
+    "same_timestamp_internal_ordering_allowed": false,
+    "source_row_order_is_temporal_truth": false,
+    "period_candidate_alone_is_clock_basis": false,
+    "directional_consequence_link_requires_explicit_temporal_relation_admission": true,
+    "missing_temporal_semantics_default": "ORDER_INDETERMINATE",
+    "provenance_only_order_may_emit_directional_follow_up": false,
+    "current_positive_time_window_role": "PROVENANCE_WINDOW_CANDIDATE_ONLY_UNTIL_TEMPORAL_BINDING",
+    "rehabilitation_state": "REVIEW_REQUIRED_UNTIL_EXECUTABLE_TEMPORAL_BINDING"
+  },
   "timeline_rules": {
     "same_period_only": true,
     "positive_time_delta_only": true,
@@ -15,7 +62,8 @@
     "cross_period_link_allowed": false,
     "source_row_order_is_temporal_truth": false,
     "window_seconds": [5.0, 8.0, 12.0],
-    "max_follow_up_time_layers": 3
+    "max_follow_up_time_layers": 3,
+    "window_role_until_temporal_binding": "PRESENTATION_OR_PROVENANCE_WINDOW_CANDIDATE_ONLY"
   },
   "support_rules": {
     "allowed_atom_classes": ["DERIVED_CONSEQUENCE_ATOM", "TERMINAL_OUTCOME_ATOM"],
@@ -49,7 +97,9 @@
   },
   "review_rules": {
     "mixed_team_same_time_first_follow_up_layer": "REVIEW_REQUIRED",
-    "missing_team_visible_follow_up": "REVIEW_REQUIRED"
+    "missing_team_visible_follow_up": "REVIEW_REQUIRED",
+    "numeric_time_without_temporal_admission": "REVIEW_REQUIRED",
+    "provenance_order_only_directional_follow_up": "FAIL_CLOSED"
   },
   "claim_boundary": {
     "consequence_candidate_is_causal_truth": false,
@@ -57,6 +107,7 @@
     "occurrence_binding_is_event_truth": false,
     "continuation_candidate_is_possession_truth": false,
     "window_is_sequence_truth": false,
+    "positive_numeric_delta_is_football_chronology_truth": false,
     "team_response_is_tactical_truth": false,
     "sequence_link_allowed": false,
     "event_instance_count": 0,
