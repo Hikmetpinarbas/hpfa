@@ -79,11 +79,13 @@ def _normalize_aggregate_binding_migrations(
 ) -> tuple[dict[str, Any], list[dict[str, str]]]:
     """Migrate only explicitly superseded aggregate bindings verified by current policy.
 
-    Aggregate registry rows may move to a new current metric-policy fingerprint when
-    observation semantics are corrected. A downstream dictionary binding may follow
-    that migration only when the registry explicitly lists the old fingerprint as
-    superseded *and* the new fingerprint exactly matches the current metric-policy
-    definition. Arbitrary hash drift remains fail-closed in the underlying engine.
+    The aggregate registry carries the current runtime metric-policy fingerprint
+    because the raw metric registry does not store the derived fingerprint. A
+    downstream binding may migrate only when the old fingerprint is explicitly
+    superseded, the aggregate fingerprint equals that pinned policy fingerprint,
+    the metric namespace matches, and numerator/denominator semantics still match
+    the raw current policy. Arbitrary fingerprint drift remains fail-closed in the
+    underlying provider dictionary engine.
     """
     normalized = json.loads(json.dumps(dictionary))
     policy_rows = {
@@ -124,17 +126,28 @@ def _normalize_aggregate_binding_migrations(
         }
         policy_id = str(upstream.get("metric_policy_id") or "").strip()
         policy_row = policy_rows.get(policy_id)
-        current_policy_fingerprint = str(
-            (policy_row or {}).get("definition_fingerprint_sha256") or ""
-        ).strip()
         aggregate_policy_id = str(aggregate_row.get("metric_id") or "").strip()
+        pinned_policy_fingerprint = str(
+            aggregate_row.get("metric_policy_definition_fingerprint_sha256") or ""
+        ).strip()
+        policy_semantics_match = bool(policy_row) and (
+            str((policy_row or {}).get("numerator_definition") or "")
+            == str(aggregate_row.get("numerator_definition") or "")
+            and str((policy_row or {}).get("denominator_definition") or "")
+            == str(aggregate_row.get("denominator_definition") or "")
+            and str((policy_row or {}).get("unit") or "")
+            == str(aggregate_row.get("unit") or "")
+            and str((policy_row or {}).get("value_type") or "")
+            == str(aggregate_row.get("value_type") or "")
+        )
 
         if (
             expected in superseded
             and policy_row is not None
             and aggregate_policy_id == policy_id
-            and current_policy_fingerprint
-            and actual == current_policy_fingerprint
+            and pinned_policy_fingerprint
+            and actual == pinned_policy_fingerprint
+            and policy_semantics_match
         ):
             upstream["aggregate_definition_fingerprint_sha256"] = actual
             migrations.append({
@@ -142,7 +155,7 @@ def _normalize_aggregate_binding_migrations(
                 "aggregate_definition_id": definition_id,
                 "superseded_fingerprint": expected,
                 "current_fingerprint": actual,
-                "verification": "CURRENT_METRIC_POLICY_EXACT_MATCH",
+                "verification": "PINNED_RUNTIME_POLICY_FINGERPRINT_AND_RAW_SEMANTICS_MATCH",
             })
     return normalized, migrations
 
