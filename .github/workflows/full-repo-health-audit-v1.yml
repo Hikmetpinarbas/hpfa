@@ -1,0 +1,51 @@
+name: Full Repo Health Audit V1
+
+on:
+  push:
+    branches:
+      - feature/zfgv-action-grammar-synced-v1
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  full-repo-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install audit dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest openpyxl numpy pandas pydantic PyYAML
+
+      - name: Full repository compile and pytest audit
+        id: full_audit
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/hpfa-full-repo-audit"
+          python repo_full_health_audit_v1.py \
+            --out-dir "$RUNNER_TEMP/hpfa-full-repo-audit" \
+            --timeout-seconds 1800
+
+      - name: Upload full repo audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hpfa-full-repo-health-audit-v1
+          path: ${{ runner.temp }}/hpfa-full-repo-audit/
+          if-no-files-found: error
+
+      - name: Enforce audit result
+        if: steps.full_audit.outcome != 'success'
+        run: |
+          echo "Full repository health audit did not pass. Inspect uploaded audit artifact."
+          exit 1
