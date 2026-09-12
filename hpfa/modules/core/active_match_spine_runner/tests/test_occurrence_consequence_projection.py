@@ -133,3 +133,41 @@ def test_occurrence_without_consequence_is_preserved_as_review_required() -> Non
     record = payload["occurrence_consequence_projections"][0]
     assert record["record_status"] == "REVIEW_REQUIRED"
     assert record["supporting_consequence_candidate_count"] == 0
+
+
+def test_legacy_unbound_consequence_cannot_create_occurrence_member() -> None:
+    bound_trace = _trace("trace_bound", "aoc_1", "actor_1", "team_1")
+    legacy_trace = _trace("trace_legacy", "legacy_occ", "legacy_actor", "legacy_team")
+    trace_payload = {
+        "status": "REVIEW_REQUIRED",
+        "current_occurrence_candidate_count": 1,
+        "trackable_action_trace_candidate_count": 2,
+        "primary_occurrence_trace_candidates": [bound_trace],
+        "occurrence_trace_binding_records": [
+            {
+                "action_occurrence_candidate_id": "aoc_1",
+                "occurrence_topology": "SINGLE_ACTOR_ACTION",
+                "required_participant_scope": "ACTOR_ONLY",
+                "binding_state": "SINGLE_ACTOR_TRACE_VISIBLE_CANDIDATE",
+            }
+        ],
+        "trackable_action_trace_candidates": [bound_trace, legacy_trace],
+    }
+    consequence_payload = {
+        "status": "REVIEW_REQUIRED",
+        "trackable_action_consequence_candidate_count": 2,
+        "trackable_action_consequence_candidates": [
+            _consequence("cons_bound", "aoc_1", "trace_bound"),
+            _consequence("cons_legacy", "legacy_occ", "trace_legacy"),
+        ],
+    }
+
+    payload = build_occurrence_consequence_projection(trace_payload, consequence_payload)
+
+    assert payload["source_trace_member_surface"] == "PRIMARY_OCCURRENCE_TRACE"
+    assert payload["source_primary_occurrence_trace_candidate_count"] == 1
+    assert payload["occurrence_consequence_projection_count"] == 1
+    assert payload["occurrence_consequence_projections"][0]["action_occurrence_candidate_id"] == "aoc_1"
+    assert payload["legacy_unbound_consequence_candidate_count"] == 1
+    assert payload["occurrence_binding_records_are_primary_member_authority"] is True
+    assert payload["legacy_consequence_records_cannot_create_occurrence_members"] is True
