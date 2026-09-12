@@ -224,6 +224,197 @@ def _post_sequence_admission_ready(
     )
 
 
+def _admission_gated_full_spine_for_user_outputs(
+    *,
+    out_dir: Path,
+    full_spine: dict[str, Any],
+    sequence: dict[str, Any],
+    post_sequence: dict[str, Any],
+) -> dict[str, Any]:
+    """Replace legacy C4 report sentences with explicitly admitted Safe Findings only.
+
+    This is an output projection. It creates no evidence, does not rebuild sequence
+    intelligence, and never strengthens the upstream claim ceiling.
+    """
+    admission = post_sequence.get("safe_finding_admission") or {}
+    claim = post_sequence.get("analyst_output_claim") or {}
+    if post_sequence.get("status") != "PASS":
+        return {"status": "FAIL_CLOSED", "reason": "post_sequence_admission_not_pass"}
+
+    handoff_by_ref: dict[str, dict[str, Any]] = {}
+    for row in sequence.get("safe_finding_handoff_candidates") or []:
+        if not isinstance(row, dict):
+            return {"status": "FAIL_CLOSED", "reason": "safe_finding_handoff_not_object"}
+        ref = str(row.get("safe_finding_handoff_candidate_id") or "").strip()
+        if not ref:
+            return {"status": "FAIL_CLOSED", "reason": "safe_finding_handoff_ref_missing"}
+        if ref in handoff_by_ref:
+            return {"status": "FAIL_CLOSED", "reason": f"duplicate_safe_finding_handoff_ref:{ref}"}
+        handoff_by_ref[ref] = row
+
+    admission_emit_refs: set[str] = set()
+    for row in admission.get("safe_finding_admission_decisions") or []:
+        if not isinstance(row, dict):
+            return {"status": "FAIL_CLOSED", "reason": "safe_finding_admission_row_not_object"}
+        if str(row.get("decision") or "").strip().upper() != "EMIT":
+            continue
+        if row.get("claim_output_allowed") is not True:
+            return {"status": "FAIL_CLOSED", "reason": "emit_without_claim_output_allowed"}
+        ref = str(row.get("source_safe_finding_handoff_ref") or "").strip()
+        if not ref:
+            return {"status": "FAIL_CLOSED", "reason": "emit_admission_source_ref_missing"}
+        if ref in admission_emit_refs:
+            return {"status": "FAIL_CLOSED", "reason": f"duplicate_emit_admission_ref:{ref}"}
+        admission_emit_refs.add(ref)
+
+    allowed: list[tuple[str, str]] = []
+    allowed_refs: set[str] = set()
+    for row in claim.get("analyst_output_contracts") or []:
+        if not isinstance(row, dict):
+            return {"status": "FAIL_CLOSED", "reason": "analyst_output_contract_not_object"}
+        if row.get("professional_emit_allowed") is not True:
+            continue
+        if str(row.get("safe_finding_admission_decision") or "").strip().upper() != "EMIT":
+            return {"status": "FAIL_CLOSED", "reason": "professional_emit_without_emit_decision"}
+        ref = str(row.get("source_safe_finding_handoff_ref") or "").strip()
+        if not ref:
+            return {"status": "FAIL_CLOSED", "reason": "professional_emit_source_ref_missing"}
+        if ref in allowed_refs:
+            return {"status": "FAIL_CLOSED", "reason": f"duplicate_professional_emit_ref:{ref}"}
+        handoff = handoff_by_ref.get(ref)
+        if handoff is None:
+            return {"status": "FAIL_CLOSED", "reason": f"professional_emit_handoff_missing:{ref}"}
+        safe_meaning = str(handoff.get("safe_meaning") or "").strip()
+        if not safe_meaning:
+            return {"status": "FAIL_CLOSED", "reason": f"professional_emit_safe_meaning_missing:{ref}"}
+        allowed_refs.add(ref)
+        allowed.append((ref, safe_meaning))
+
+    expected_emit_count = int(claim.get("professional_emit_allowed_count") or 0)
+    admitted_emit_count = int(admission.get("professional_finding_emitted_count") or 0)
+    if len(allowed) != expected_emit_count or len(allowed) != admitted_emit_count:
+        return {"status": "FAIL_CLOSED", "reason": "professional_emit_count_mismatch"}
+    if allowed_refs != admission_emit_refs:
+        return {"status": "FAIL_CLOSED", "reason": "professional_emit_ref_mismatch"}
+
+    engineering = full_spine.get("engineering_evidence")
+    engineering = dict(engineering) if isinstance(engineering, dict) else {}
+    if allowed and engineering.get("current_c4_producers_reused") is not True:
+        return {"status": "FAIL_CLOSED", "reason": "professional_emit_without_current_c4_surface"}
+
+    gated = dict(full_spine)
+    gated["engineering_evidence"] = engineering
+    gated["intelligence_chains"] = [
+        {
+            "source_safe_finding_handoff_ref": ref,
+            "professional_finding_admission": "EMIT",
+            "safe_sentence": {
+                "safe_sentence_candidate_tr": safe_meaning,
+            },
+        }
+        for ref, safe_meaning in allowed
+    ]
+    gated["intelligence_chain_count"] = len(allowed)
+    gated["professional_finding_emitted_count"] = len(allowed)
+    gated["analyst_output_admission_gated"] = True
+    gated["canonical_event_count"] = "UNKNOWN"
+    gated["true_action_count"] = "UNKNOWN"
+    gated["production_release"] = False
+
+    engineering["safe_finding_admission_consumed_for_user_output"] = True
+    engineering["analyst_output_claim_contract_consumed_for_user_output"] = True
+    engineering["legacy_c4_safe_sentences_used_for_professional_output"] = False
+    engineering["admitted_professional_finding_output_count"] = len(allowed)
+
+    current_artifacts = [
+        str(value)
+        for value in (full_spine.get("current_invocation_artifacts") or [])
+        if str(value or "").strip()
+    ]
+    current_artifacts.extend(
+        [
+            str(out_dir / SAFE_FINDING_ADMISSION_JSON),
+            str(out_dir / ANALYST_OUTPUT_CLAIM_JSON),
+        ]
+    )
+    gated["current_invocation_artifacts"] = sorted(set(current_artifacts))
+    return {
+        "status": "PASS",
+        "reason": None,
+        "full_spine": gated,
+        "admitted_professional_finding_output_count": len(allowed),
+        "admitted_professional_finding_refs": sorted(allowed_refs),
+    }
+
+
+def _rewrite_standard_user_outputs_after_admission(
+    *,
+    out_dir: Path,
+    full_spine: dict[str, Any],
+    sequence: dict[str, Any],
+    post_sequence: dict[str, Any],
+) -> dict[str, Any]:
+    gated = _admission_gated_full_spine_for_user_outputs(
+        out_dir=out_dir,
+        full_spine=full_spine,
+        sequence=sequence,
+        post_sequence=post_sequence,
+    )
+    if gated.get("status") != "PASS":
+        return {
+            "status": "FAIL_CLOSED",
+            "reason": gated.get("reason") or "user_output_admission_gate_failed",
+            "outputs": {},
+            "admitted_professional_finding_output_count": 0,
+        }
+
+    try:
+        outputs = canonical_runner.write_standard_user_outputs(
+            out_dir,
+            gated["full_spine"],
+        )
+    except Exception as exc:
+        return {
+            "status": "FAIL_CLOSED",
+            "reason": f"admission_gated_user_output_exception:{type(exc).__name__}",
+            "outputs": {},
+            "admitted_professional_finding_output_count": 0,
+        }
+
+    required = {
+        "analyst_report": outputs.get("analyst_report"),
+        "bundle_manifest": outputs.get("bundle_manifest"),
+        "bundle_zip": outputs.get("bundle_zip"),
+    }
+    missing = [
+        key
+        for key, value in required.items()
+        if not value or not Path(str(value)).is_file()
+    ]
+    if missing:
+        return {
+            "status": "FAIL_CLOSED",
+            "reason": f"admission_gated_user_output_missing:{','.join(sorted(missing))}",
+            "outputs": outputs,
+            "admitted_professional_finding_output_count": 0,
+        }
+
+    return {
+        "status": "PASS",
+        "reason": None,
+        "outputs": outputs,
+        "admitted_professional_finding_output_count": int(
+            gated.get("admitted_professional_finding_output_count") or 0
+        ),
+        "admitted_professional_finding_refs": list(
+            gated.get("admitted_professional_finding_refs") or []
+        ),
+        "analyst_report_admission_gated": True,
+        "bundle_includes_safe_finding_admission": (out_dir / SAFE_FINDING_ADMISSION_JSON).is_file(),
+        "bundle_includes_analyst_output_claim": (out_dir / ANALYST_OUTPUT_CLAIM_JSON).is_file(),
+    }
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(
@@ -292,6 +483,22 @@ def main() -> int:
         sequence=sequence,
         post_sequence=post_sequence,
     ) if sequence else False
+    user_output_gate = (
+        _rewrite_standard_user_outputs_after_admission(
+            out_dir=out_dir,
+            full_spine=full_spine,
+            sequence=sequence,
+            post_sequence=post_sequence,
+        )
+        if post_sequence_admission_ready and bool(full_spine)
+        else {
+            "status": "FAIL_CLOSED",
+            "reason": "post_sequence_admission_or_full_spine_not_ready",
+            "outputs": {},
+            "admitted_professional_finding_output_count": 0,
+        }
+    )
+    user_output_admission_ready = user_output_gate.get("status") == "PASS"
     acceptance_surface_ready = (
         canonical.get("passed") is True
         and authority_separation_valid
@@ -299,6 +506,7 @@ def main() -> int:
         and bool(full_spine)
         and bool(sequence)
         and post_sequence_admission_ready
+        and user_output_admission_ready
     )
 
     payload = {
@@ -342,6 +550,21 @@ def main() -> int:
         "analyst_output_claim_contract_count": int(claim.get("analyst_output_contract_count") or 0),
         "safe_finding_admission_consumed_by_claim_contract": claim.get("safe_finding_admission_consumed") is True,
         "post_sequence_admission_ready": post_sequence_admission_ready,
+        "analyst_user_output_admission_gate_status": user_output_gate.get("status"),
+        "analyst_user_output_admission_gate_reason": user_output_gate.get("reason"),
+        "analyst_report_admission_gated": user_output_gate.get("analyst_report_admission_gated") is True,
+        "admitted_professional_finding_output_count": int(
+            user_output_gate.get("admitted_professional_finding_output_count") or 0
+        ),
+        "admitted_professional_finding_output_refs": list(
+            user_output_gate.get("admitted_professional_finding_refs") or []
+        ),
+        "bundle_includes_safe_finding_admission": user_output_gate.get(
+            "bundle_includes_safe_finding_admission"
+        ) is True,
+        "bundle_includes_analyst_output_claim": user_output_gate.get(
+            "bundle_includes_analyst_output_claim"
+        ) is True,
         "professional_finding_emitted_count": int(admission.get("professional_finding_emitted_count") or 0),
         "professional_emit_allowed_count": int(claim.get("professional_emit_allowed_count") or 0),
         "professional_emit_allowed": claim.get("professional_emit_allowed") is True,
