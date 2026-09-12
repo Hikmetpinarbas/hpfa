@@ -193,6 +193,14 @@ def _member_profile(
                 base_consequence.add("terminal_outcome_support_visible:TRUE")
             elif consequence_row.get("terminal_outcome_support_visible") is False:
                 base_consequence.add("terminal_outcome_support_visible:FALSE")
+            if consequence_row.get("ensuing_terminal_support_visible") is True:
+                base_consequence.add("ensuing_terminal_support_visible:TRUE")
+            elif consequence_row.get("ensuing_terminal_support_visible") is False:
+                base_consequence.add("ensuing_terminal_support_visible:FALSE")
+            if consequence_row.get("ensuing_derived_consequence_support_visible") is True:
+                base_consequence.add("ensuing_derived_consequence_support_visible:TRUE")
+            elif consequence_row.get("ensuing_derived_consequence_support_visible") is False:
+                base_consequence.add("ensuing_derived_consequence_support_visible:FALSE")
             base_consequence |= _ensuing_visible_chain_tokens(consequence_row)
             consequence_features |= _with_layer_tokens(base_consequence, layer_positions)
 
@@ -312,6 +320,8 @@ def build_grammar_stable_variant_feature_delta(
         blocks.append("followup_terminal_truth_lock_breached")
     if occurrence_consequence_payload.get("projection_is_causal_truth") is True:
         blocks.append("consequence_causal_truth_lock_breached")
+    if occurrence_consequence_payload.get("ensuing_terminal_support_is_causal_truth") is True:
+        blocks.append("ensuing_terminal_support_causal_truth_lock_breached")
 
     horizon = occurrence_consequence_payload.get("source_consequence_horizon")
     horizon = horizon if isinstance(horizon, dict) else {}
@@ -417,6 +427,7 @@ def build_grammar_stable_variant_feature_delta(
             "difference_is_tactical_explanation": False,
             "difference_is_coach_intention_truth": False,
             "ensuing_visible_chain_is_causal_truth": False,
+            "ensuing_terminal_support_is_causal_truth": False,
             "actor_identity_difference_is_player_quality_truth": False,
             "independent_recurrence_support_count": 0,
             "dependency_independence_proven": False,
@@ -458,6 +469,7 @@ def build_grammar_stable_variant_feature_delta(
         "difference_is_tactical_explanation": False,
         "difference_is_coach_intention_truth": False,
         "ensuing_visible_chain_is_causal_truth": False,
+        "ensuing_terminal_support_is_causal_truth": False,
         "actor_identity_difference_is_player_quality_truth": False,
         "difference_rows_are_independent_evidence_votes": False,
         "hard_block_hits": sorted(set(blocks)),
