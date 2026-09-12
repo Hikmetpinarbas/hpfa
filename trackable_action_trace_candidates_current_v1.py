@@ -9,6 +9,7 @@ from hpfa.modules.core.trackable_action_trace_candidates_lite.src import (
     trackable_action_trace_candidates as trackable,
 )
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src.observed_actor_acquisition_release_interval_projection import (
+    CLAIM_CEILING as INTERVAL_CLAIM_CEILING,
     build_observed_actor_acquisition_release_interval_projection,
 )
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src.occurrence_topology_adapter import (
@@ -36,7 +37,24 @@ def _load(path: Path) -> dict:
 
 
 def _write_interval_projection(payload: dict, output: Path) -> dict:
-    projection = build_observed_actor_acquisition_release_interval_projection(payload)
+    if payload.get("status") == "FAIL_CLOSED":
+        projection = {
+            "status": "FAIL_CLOSED",
+            "observed_actor_acquisition_release_interval_candidates": [],
+            "observed_actor_acquisition_release_interval_candidate_count": 0,
+            "eligible_acquisition_trace_count": 0,
+            "hard_block_hits": ["upstream_trace_runtime_fail_closed"],
+            "review_hits": [],
+            "projection_creates_new_evidence": False,
+            "projection_reconstructs_sequences": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+            "claim_ceiling": INTERVAL_CLAIM_CEILING,
+        }
+    else:
+        projection = build_observed_actor_acquisition_release_interval_projection(payload)
+
     path = output / INTERVAL_OUTPUT_JSON
     path.write_text(
         json.dumps(projection, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
