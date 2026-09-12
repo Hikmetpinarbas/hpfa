@@ -32,6 +32,16 @@ def _families(row: dict[str, Any]) -> set[str]:
     return {_clean(v) for v in (row.get("action_family_candidates") or []) if _clean(v)}
 
 
+def _occurrence_ids(row: dict[str, Any]) -> list[str]:
+    return sorted(
+        {
+            _clean(v)
+            for v in (row.get("supporting_action_occurrence_candidate_ids") or [])
+            if _clean(v)
+        }
+    )
+
+
 def _primary_trace_map(trace_payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     rows = trace_payload.get("primary_occurrence_trace_candidates")
     if not isinstance(rows, list):
@@ -263,18 +273,13 @@ def build_observed_actor_acquisition_release_interval_projection(
             rejection["non_positive_interval"] += 1
             continue
 
-        acquisition_occurrences = sorted(
+        acquisition_occurrences = _occurrence_ids(anchor)
+        release_occurrences = _occurrence_ids(release)
+        retention_occurrences = sorted(
             {
-                _clean(v)
-                for v in (anchor.get("supporting_action_occurrence_candidate_ids") or [])
-                if _clean(v)
-            }
-        )
-        release_occurrences = sorted(
-            {
-                _clean(v)
-                for v in (release.get("supporting_action_occurrence_candidate_ids") or [])
-                if _clean(v)
+                occurrence_id
+                for trace_id in retained
+                for occurrence_id in _occurrence_ids(trace_by_id.get(trace_id, {}))
             }
         )
 
@@ -305,8 +310,9 @@ def build_observed_actor_acquisition_release_interval_projection(
                 "ordering_basis": rel.get("ordering_basis"),
                 "provider_time_contract_rule_id": rel.get("provider_time_contract_rule_id"),
                 "intervening_same_actor_retention_trace_ids": retained,
+                "intervening_same_actor_retention_occurrence_candidate_ids": retention_occurrences,
                 "supporting_action_occurrence_candidate_ids": sorted(
-                    set(acquisition_occurrences + release_occurrences)
+                    set(acquisition_occurrences + retention_occurrences + release_occurrences)
                 ),
                 "start_timestamp_point_is_physical_control_time_truth": False,
                 "release_start_timestamp_is_physical_ball_release_time_truth": False,
