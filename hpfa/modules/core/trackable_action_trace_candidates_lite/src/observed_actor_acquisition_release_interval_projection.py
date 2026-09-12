@@ -144,6 +144,8 @@ def build_observed_actor_acquisition_release_interval_projection(
             "interval_is_decision_speed_truth": False,
             "interval_is_cognitive_speed_truth": False,
             "interval_is_press_resistance_truth": False,
+            "temporal_relation_window_is_observation_horizon_truth": False,
+            "interval_candidates_are_right_censored": False,
             "canonical_event_count": "UNKNOWN",
             "true_action_count": "UNKNOWN",
             "production_release": False,
@@ -325,7 +327,7 @@ def build_observed_actor_acquisition_release_interval_projection(
     if candidates:
         review_hits.append("interval_distribution_not_yet_calibrated")
     if relation_window is not None:
-        review_hits.append("interval_candidates_censored_by_temporal_relation_window")
+        review_hits.append("interval_candidate_visibility_window_limited")
 
     status = "REVIEW_REQUIRED" if review_hits else "PASS"
     return {
@@ -344,7 +346,9 @@ def build_observed_actor_acquisition_release_interval_projection(
         ),
         "rejection_reason_counts": dict(sorted(rejection.items())),
         "temporal_relation_window_seconds": relation_window,
-        "interval_candidates_censored_by_temporal_relation_window": relation_window is not None,
+        "interval_candidate_visibility_is_window_limited": relation_window is not None,
+        "temporal_relation_window_is_observation_horizon_truth": False,
+        "interval_candidates_are_right_censored": False,
         "projection_creates_new_evidence": False,
         "projection_reconstructs_sequences": False,
         "projection_uses_primary_occurrence_trace_surface_only": True,
