@@ -5,6 +5,15 @@ from typing import Any
 
 CLAIM_CEILING_DOWNGRADE = "MATCH_LOCAL_SAFE_FINDING_CUE_ONLY"
 
+_CONSEQUENCE_HORIZON_CHALLENGE_REASONS = {
+    "CONSEQUENCE_HORIZON_UNSPECIFIED",
+    "CONSEQUENCE_HORIZON_SENSITIVITY_NOT_TESTED",
+}
+_CONSEQUENCE_CENSORING_CHALLENGE_REASONS = {
+    "RIGHT_CENSORING_NOT_ASSESSED",
+    "NO_VISIBLE_FOLLOWUP_CENSORING_UNRESOLVED",
+}
+
 
 def _clean(value: Any) -> str:
     return " ".join(str(value or "").split()).strip()
@@ -59,6 +68,10 @@ def _validate_payload(
         return "variant_feature_challenge_emit_lock_not_false"
     if challenge_payload.get("feature_absence_is_counterevidence") is not False:
         return "variant_feature_challenge_absence_counterevidence_lock_breached"
+    if challenge_payload.get("no_visible_followup_is_failure") is True:
+        return "variant_feature_challenge_no_visible_followup_failure_lock_breached"
+    if challenge_payload.get("unassessed_censoring_can_be_treated_as_failure") is True:
+        return "variant_feature_challenge_censoring_failure_lock_breached"
     if challenge_payload.get("difference_rows_are_independent_evidence_votes") is not False:
         return "variant_feature_challenge_independent_vote_lock_breached"
     return None
@@ -276,6 +289,15 @@ def apply_variant_feature_challenge_to_admission(
                 challenge_downgrade_reasons.append(
                     "VARIANT_FEATURE_CHALLENGE_STATISTICAL_INDEPENDENCE_UNPROVEN"
                 )
+            challenge_reason_codes = set(binding["challenge_reason_codes"])
+            if challenge_reason_codes.intersection(_CONSEQUENCE_HORIZON_CHALLENGE_REASONS):
+                challenge_downgrade_reasons.append(
+                    "VARIANT_FEATURE_CHALLENGE_CONSEQUENCE_HORIZON_UNRESOLVED"
+                )
+            if challenge_reason_codes.intersection(_CONSEQUENCE_CENSORING_CHALLENGE_REASONS):
+                challenge_downgrade_reasons.append(
+                    "VARIANT_FEATURE_CHALLENGE_CENSORING_UNRESOLVED"
+                )
 
         reasons.update(challenge_downgrade_reasons)
         if challenge_downgrade_reasons and _clean(row.get("decision")).upper() == "EMIT":
@@ -311,6 +333,8 @@ def apply_variant_feature_challenge_to_admission(
         "variant_feature_challenge_can_authorize_emit": False,
         "variant_feature_challenge_refs_are_independent_evidence_votes": False,
         "challenge_adapter_creates_new_evidence": False,
+        "unresolved_consequence_horizon_can_authorize_emit": False,
+        "unresolved_consequence_censoring_can_authorize_emit": False,
         "review_hits": sorted(set(review_hits)),
         "hard_block_hits": list(admission_payload.get("hard_block_hits") or []),
         "canonical_event_count": "UNKNOWN",
