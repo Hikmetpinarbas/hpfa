@@ -33,10 +33,32 @@ def test_report_delta_reports_added_and_removed_lines(tmp_path: Path) -> None:
     assert result["removed_line_count"] == 1
 
 
+def test_profile_aggregation_is_scoped_to_core_modules(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    core = repo / "hpfa" / "modules" / "core"
+    alpha = core / "alpha_lite" / "src" / "alpha.py"
+    beta = core / "beta_lite" / "src" / "beta.py"
+    external = repo / "other.py"
+    stats = {
+        (str(alpha), 10, "a"): (1, 3, 0.4, 0.8, {}),
+        (str(alpha), 20, "b"): (1, 2, 0.1, 0.2, {}),
+        (str(beta), 10, "c"): (1, 5, 0.2, 0.3, {}),
+        (str(external), 1, "x"): (1, 99, 9.0, 9.0, {}),
+    }
+    result = benchmark._aggregate_profile_stats(repo, stats)
+    assert result["profiled_core_module_count"] == 2
+    assert result["profiled_core_module_order_by_internal_time"] == ["alpha_lite", "beta_lite"]
+    assert result["per_module_profile_internal_seconds"]["alpha_lite"] == 0.5
+    assert result["per_module_profile_call_count"]["alpha_lite"] == 5
+    assert "other" not in result["per_module_profile_internal_seconds"]
+
+
 def test_health_output_never_claims_unobserved_equals_orphan(tmp_path: Path) -> None:
     payload = {
         "status": "PASS",
         "exact_head_elapsed_seconds": 1.0,
+        "profile_status": "PASS",
+        "profile_wall_seconds": 1.2,
         "core_module_directory_count": 2,
         "modules_with_source_count": 2,
         "modules_with_tests_count": 2,
@@ -45,13 +67,19 @@ def test_health_output_never_claims_unobserved_equals_orphan(tmp_path: Path) -> 
         "runtime_observed_module_id_count": 1,
         "runtime_observed_core_module_candidate_count": 1,
         "runtime_unobserved_core_module_candidate_count": 1,
-        "module_runtime_timing_coverage": "END_TO_END_ONLY_PER_MODULE_TIMERS_NOT_YET_INSTRUMENTED",
+        "profiled_core_module_count": 1,
+        "module_runtime_timing_coverage": "END_TO_END_PLUS_CPROFILE_INTERNAL_TIME_NOT_WALL_TIME_PER_MODULE",
         "analyst_report_present": False,
         "analyst_report_delta": {"comparison_state": "NOT_EVALUATED_PREVIOUS_REPORT_MISSING"},
         "runtime_observed_core_module_candidates": ["alpha_lite"],
         "runtime_unobserved_core_module_candidates": ["beta_lite"],
+        "profiled_core_module_order_by_internal_time": ["alpha_lite"],
+        "per_module_profile_internal_seconds": {"alpha_lite": 0.25},
+        "per_module_profile_call_count": {"alpha_lite": 3},
     }
     benchmark._write_health_outputs(tmp_path, payload)
     text = (tmp_path / benchmark.HEALTH_TXT).read_text(encoding="utf-8")
     assert "runtime_unobserved does not prove orphan status" in text
     assert "per-module timing is not fabricated" in text
+    assert "internal_seconds=0.25" in text
+    assert "exact_head_elapsed_seconds is the unprofiled one-click wall time" in text
