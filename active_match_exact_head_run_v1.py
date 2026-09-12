@@ -10,11 +10,15 @@ from pathlib import Path
 from typing import Any
 
 import active_match_spine_runner as canonical_runner
+import analyst_output_claim_admission_current_v1 as claim_admission_runner
+import safe_finding_admission_current_v1 as safe_finding_runner
 
 MODULE_ID = "active_match_exact_head_run_v1"
 ACTIVE_MATCH_RELATIVE_PATH = Path("runtime/active_single_match/current")
 FULL_SPINE_JSON = "active_match_full_spine_v1.json"
 SEQUENCE_JSON = "visible_action_sequence_candidates_lite_v1.json"
+SAFE_FINDING_ADMISSION_JSON = "safe_finding_admission_projection_v1.json"
+ANALYST_OUTPUT_CLAIM_JSON = "analyst_output_claim_contract_projection_v1.json"
 OUTPUT_JSON = "active_match_exact_head_run_v1.json"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
@@ -127,6 +131,99 @@ def _run_canonical_full_spine(
     }
 
 
+def _run_post_sequence_admission(out_dir: Path) -> dict[str, Any]:
+    """Run only the two compact post-sequence decision gears.
+
+    These gears consume the already-produced sequence artifact. They do not rebuild
+    sequence/counterevidence or create new evidence.
+    """
+    sequence_path = out_dir / SEQUENCE_JSON
+    if not sequence_path.is_file():
+        return {
+            "status": "FAIL_CLOSED",
+            "reason": "sequence_artifact_missing",
+            "safe_finding_admission": {},
+            "analyst_output_claim": {},
+        }
+
+    try:
+        admission = safe_finding_runner.runtime_write_outputs(sequence_path, out_dir)
+    except Exception as exc:
+        return {
+            "status": "FAIL_CLOSED",
+            "reason": f"safe_finding_admission_exception:{type(exc).__name__}",
+            "safe_finding_admission": {},
+            "analyst_output_claim": {},
+        }
+
+    if admission.get("status") == "FAIL_CLOSED":
+        return {
+            "status": "FAIL_CLOSED",
+            "reason": "safe_finding_admission_fail_closed",
+            "safe_finding_admission": admission,
+            "analyst_output_claim": {},
+        }
+
+    admission_path = out_dir / SAFE_FINDING_ADMISSION_JSON
+    try:
+        claim = claim_admission_runner.runtime_write_outputs(
+            sequence_path,
+            admission_path,
+            out_dir,
+        )
+    except Exception as exc:
+        return {
+            "status": "FAIL_CLOSED",
+            "reason": f"analyst_output_claim_admission_exception:{type(exc).__name__}",
+            "safe_finding_admission": admission,
+            "analyst_output_claim": {},
+        }
+
+    if claim.get("status") == "FAIL_CLOSED":
+        return {
+            "status": "FAIL_CLOSED",
+            "reason": "analyst_output_claim_admission_fail_closed",
+            "safe_finding_admission": admission,
+            "analyst_output_claim": claim,
+        }
+
+    return {
+        "status": "PASS",
+        "reason": None,
+        "safe_finding_admission": admission,
+        "analyst_output_claim": claim,
+    }
+
+
+def _post_sequence_admission_ready(
+    *,
+    out_dir: Path,
+    sequence: dict[str, Any],
+    post_sequence: dict[str, Any],
+) -> bool:
+    admission = post_sequence.get("safe_finding_admission") or {}
+    claim = post_sequence.get("analyst_output_claim") or {}
+    expected_count = int(sequence.get("safe_finding_handoff_candidate_count") or 0)
+    admission_count = int(admission.get("safe_finding_admission_decision_count") or 0)
+    claim_count = int(claim.get("analyst_output_contract_count") or 0)
+    return (
+        post_sequence.get("status") == "PASS"
+        and (out_dir / SAFE_FINDING_ADMISSION_JSON).is_file()
+        and (out_dir / ANALYST_OUTPUT_CLAIM_JSON).is_file()
+        and admission.get("status") != "FAIL_CLOSED"
+        and claim.get("status") != "FAIL_CLOSED"
+        and claim.get("safe_finding_admission_consumed") is True
+        and admission_count == expected_count
+        and claim_count == expected_count
+        and admission.get("canonical_event_count") == "UNKNOWN"
+        and admission.get("true_action_count") == "UNKNOWN"
+        and admission.get("production_release") is False
+        and claim.get("canonical_event_count") == "UNKNOWN"
+        and claim.get("true_action_count") == "UNKNOWN"
+        and claim.get("production_release") is False
+    )
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(
@@ -170,6 +267,19 @@ def main() -> int:
 
     full_spine = _load(out_dir / FULL_SPINE_JSON)
     sequence = _load(out_dir / SEQUENCE_JSON)
+    post_sequence = (
+        _run_post_sequence_admission(out_dir)
+        if canonical.get("passed") is True and bool(sequence)
+        else {
+            "status": "FAIL_CLOSED",
+            "reason": "canonical_or_sequence_not_ready",
+            "safe_finding_admission": {},
+            "analyst_output_claim": {},
+        }
+    )
+    admission = post_sequence.get("safe_finding_admission") or {}
+    claim = post_sequence.get("analyst_output_claim") or {}
+
     authority_separation_valid = (
         canonical.get("exact_head_authority_separation_enforced") is True
         and canonical.get("product_execution_root") == str(repo_root)
@@ -177,12 +287,18 @@ def main() -> int:
         and repo_root != runtime_authority_root
     )
     exact_product_commit_verified = canonical.get("product_commit_matches_expected") is True
+    post_sequence_admission_ready = _post_sequence_admission_ready(
+        out_dir=out_dir,
+        sequence=sequence,
+        post_sequence=post_sequence,
+    ) if sequence else False
     acceptance_surface_ready = (
         canonical.get("passed") is True
         and authority_separation_valid
         and exact_product_commit_verified
         and bool(full_spine)
         and bool(sequence)
+        and post_sequence_admission_ready
     )
 
     payload = {
@@ -219,9 +335,16 @@ def main() -> int:
         "comparable_counterevidence_candidate_count": int(sequence.get("comparable_counterevidence_candidate_count") or 0),
         "counterevidence_independent_support_count": int(sequence.get("counterevidence_independent_support_count") or 0),
         "safe_finding_handoff_candidate_count": int(sequence.get("safe_finding_handoff_candidate_count") or 0),
-        "safe_finding_handoff_finding_status_counts": dict(sequence.get("safe_finding_handoff_finding_status_counts") or {}),
-        "professional_finding_emitted_count": int(sequence.get("professional_finding_emitted_count") or 0),
-        "safe_finding_handoff_professional_emit_allowed": sequence.get("safe_finding_handoff_professional_emit_allowed") is True,
+        "safe_finding_admission_status": admission.get("status"),
+        "safe_finding_admission_decision_count": int(admission.get("safe_finding_admission_decision_count") or 0),
+        "safe_finding_admission_decision_counts": dict(admission.get("finding_status_counts") or {}),
+        "analyst_output_claim_status": claim.get("status"),
+        "analyst_output_claim_contract_count": int(claim.get("analyst_output_contract_count") or 0),
+        "safe_finding_admission_consumed_by_claim_contract": claim.get("safe_finding_admission_consumed") is True,
+        "post_sequence_admission_ready": post_sequence_admission_ready,
+        "professional_finding_emitted_count": int(admission.get("professional_finding_emitted_count") or 0),
+        "professional_emit_allowed_count": int(claim.get("professional_emit_allowed_count") or 0),
+        "professional_emit_allowed": claim.get("professional_emit_allowed") is True,
         "counterexample_pair_count_is_independent_evidence_count": False,
         "provider_success_is_tactical_success_truth": False,
         "comparable_is_same_tactical_situation_truth": False,
