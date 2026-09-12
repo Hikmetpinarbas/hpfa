@@ -154,9 +154,17 @@ def build_occurrence_consequence_projection(
             traces_by_occurrence[occurrence_id].append(trace)
 
     consequences_by_occurrence: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    consequence_by_anchor_trace: dict[str, dict[str, Any]] = {}
+    duplicate_consequence_anchor_trace_ids: set[str] = set()
     for consequence in consequence_records:
         for occurrence_id in _sorted_text(consequence.get("supporting_action_occurrence_candidate_ids")):
             consequences_by_occurrence[occurrence_id].append(consequence)
+        anchor_trace_id = _text(consequence.get("anchor_trackable_action_trace_candidate_id"))
+        if anchor_trace_id:
+            if anchor_trace_id in consequence_by_anchor_trace:
+                duplicate_consequence_anchor_trace_ids.add(anchor_trace_id)
+            else:
+                consequence_by_anchor_trace[anchor_trace_id] = consequence
 
     if binding_surface_present:
         occurrence_ids = sorted(binding_by_occurrence)
@@ -179,6 +187,8 @@ def build_occurrence_consequence_projection(
     review_count = 0
     no_consequence_record_count = 0
     terminal_support_count = 0
+    ensuing_terminal_support_count = 0
+    ensuing_derived_support_count = 0
 
     for occurrence_id in occurrence_ids:
         binding = binding_by_occurrence.get(occurrence_id, {})
@@ -209,6 +219,19 @@ def build_occurrence_consequence_projection(
                 if _text(row.get("primary_consequence_candidate"))
             }
         )
+        ensuing_terminal_support_trace_ids = sorted(
+            trace_id
+            for trace_id in admitted_after_ids
+            if consequence_by_anchor_trace.get(trace_id, {}).get("terminal_outcome_support_visible") is True
+        )
+        ensuing_derived_support_trace_ids = sorted(
+            trace_id
+            for trace_id in admitted_after_ids
+            if consequence_by_anchor_trace.get(trace_id, {}).get("derived_consequence_support_visible") is True
+        )
+        ensuing_terminal_support_visible = bool(ensuing_terminal_support_trace_ids)
+        ensuing_derived_support_visible = bool(ensuing_derived_support_trace_ids)
+
         action_families: set[str] = set()
         actor_ids: set[str] = set()
         team_ids: set[str] = set()
@@ -256,6 +279,10 @@ def build_occurrence_consequence_projection(
             no_consequence_record_count += 1
         if terminal_support:
             terminal_support_count += 1
+        if ensuing_terminal_support_visible:
+            ensuing_terminal_support_count += 1
+        if ensuing_derived_support_visible:
+            ensuing_derived_support_count += 1
 
         records.append(
             {
@@ -277,6 +304,11 @@ def build_occurrence_consequence_projection(
                 "end_candidates": sorted(ends),
                 "visible_follow_up_trace_ids": visible_follow_up_ids,
                 "admitted_after_follow_up_trace_ids": admitted_after_ids,
+                "ensuing_terminal_support_trace_ids": ensuing_terminal_support_trace_ids,
+                "ensuing_derived_consequence_support_trace_ids": ensuing_derived_support_trace_ids,
+                "ensuing_terminal_support_visible": ensuing_terminal_support_visible,
+                "ensuing_derived_consequence_support_visible": ensuing_derived_support_visible,
+                "ensuing_support_relation_basis": "ADMITTED_AFTER_FOLLOW_UP_TRACE_ONLY",
                 "followup_observation_status": followup_status,
                 "process_continuation_status": process_status,
                 "terminal_status": terminal_status,
@@ -295,6 +327,8 @@ def build_occurrence_consequence_projection(
                 "no_visible_followup_is_failure": False,
                 "followup_is_terminal_outcome_truth": False,
                 "terminal_support_is_terminal_type_truth": False,
+                "ensuing_terminal_support_is_causal_truth": False,
+                "ensuing_terminal_support_is_anchor_terminal_state_truth": False,
                 "observation_status_is_outcome_polarity_truth": False,
                 "right_censoring_assessed": False,
                 "competing_terminal_outcomes_assessed": False,
@@ -316,6 +350,8 @@ def build_occurrence_consequence_projection(
     review_hits: list[str] = []
     if expected_occurrence_count and projection_count != expected_occurrence_count:
         hard_blocks.append("occurrence_projection_count_mismatch")
+    if duplicate_consequence_anchor_trace_ids:
+        hard_blocks.append("duplicate_consequence_anchor_trace_id")
     if review_count:
         review_hits.append("occurrence_consequence_projection_review_required")
     if no_consequence_record_count:
@@ -329,6 +365,20 @@ def build_occurrence_consequence_projection(
     observation_counts = Counter(row.get("observation_status") for row in records)
 
     status = "FAIL_CLOSED" if hard_blocks else ("REVIEW_REQUIRED" if review_hits else "PASS")
+    if hard_blocks:
+        records = []
+        projection_count = 0
+        visible_count = 0
+        review_count = 0
+        no_consequence_record_count = 0
+        terminal_support_count = 0
+        ensuing_terminal_support_count = 0
+        ensuing_derived_support_count = 0
+        followup_counts = Counter()
+        process_counts = Counter()
+        terminal_counts = Counter()
+        observation_counts = Counter()
+
     return {
         "module_id": MODULE_ID,
         "status": status,
@@ -345,6 +395,8 @@ def build_occurrence_consequence_projection(
         "review_required_occurrence_projection_count": review_count,
         "occurrence_without_consequence_record_count": no_consequence_record_count,
         "occurrence_with_terminal_outcome_support_count": terminal_support_count,
+        "occurrence_with_ensuing_terminal_support_count": ensuing_terminal_support_count,
+        "occurrence_with_ensuing_derived_consequence_support_count": ensuing_derived_support_count,
         "legacy_unbound_consequence_candidate_count": legacy_unbound_consequence_count,
         "followup_observation_status_counts": dict(sorted(followup_counts.items())),
         "process_continuation_status_counts": dict(sorted(process_counts.items())),
@@ -356,9 +408,12 @@ def build_occurrence_consequence_projection(
         "legacy_trace_records_are_support_evidence_not_action_universe": True,
         "legacy_consequence_records_cannot_create_occurrence_members": binding_surface_present,
         "occurrence_projection_is_primary_action_member_candidate_surface": True,
+        "ensuing_support_uses_admitted_after_only": True,
         "no_visible_followup_is_failure": False,
         "followup_is_terminal_outcome_truth": False,
         "terminal_support_is_terminal_type_truth": False,
+        "ensuing_terminal_support_is_causal_truth": False,
+        "ensuing_terminal_support_is_anchor_terminal_state_truth": False,
         "right_censoring_assessed": False,
         "competing_terminal_outcomes_assessed": False,
         "outcome_polarity_emitted": False,
@@ -366,8 +421,8 @@ def build_occurrence_consequence_projection(
         "projection_is_sequence_truth": False,
         "projection_is_possession_truth": False,
         "projection_is_causal_truth": False,
-        "hard_block_hits": hard_blocks,
-        "review_hits": review_hits,
+        "hard_block_hits": sorted(set(hard_blocks)),
+        "review_hits": sorted(set(review_hits)),
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -388,6 +443,8 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
                 f"source_action_occurrence_candidate_count={payload.get('source_action_occurrence_candidate_count', 0)}",
                 f"occurrence_consequence_projection_count={payload.get('occurrence_consequence_projection_count', 0)}",
                 f"occurrence_with_visible_consequence_support_count={payload.get('occurrence_with_visible_consequence_support_count', 0)}",
+                f"occurrence_with_ensuing_terminal_support_count={payload.get('occurrence_with_ensuing_terminal_support_count', 0)}",
+                f"occurrence_with_ensuing_derived_consequence_support_count={payload.get('occurrence_with_ensuing_derived_consequence_support_count', 0)}",
                 f"review_required_occurrence_projection_count={payload.get('review_required_occurrence_projection_count', 0)}",
                 f"followup_observation_status_counts={payload.get('followup_observation_status_counts', {})}",
                 f"process_continuation_status_counts={payload.get('process_continuation_status_counts', {})}",
@@ -400,8 +457,10 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
                 f"source_legacy_consequence_candidate_count={payload.get('source_legacy_consequence_candidate_count', 0)}",
                 f"legacy_unbound_consequence_candidate_count={payload.get('legacy_unbound_consequence_candidate_count', 0)}",
                 "legacy_trace_records_are_support_evidence_not_action_universe=true",
+                "ensuing_support_uses_admitted_after_only=true",
                 "no_visible_followup_is_failure=false",
                 "followup_is_terminal_outcome_truth=false",
+                "ensuing_terminal_support_is_causal_truth=false",
                 "right_censoring_assessed=false",
                 "competing_terminal_outcomes_assessed=false",
                 "projection_is_causal_truth=false",
