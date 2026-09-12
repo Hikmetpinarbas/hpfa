@@ -13,6 +13,7 @@ def _sequence_payload() -> dict:
     left = {
         "partial_order_occurrence_variant_id": "left",
         "time_layer_refs": ["left_l0", "left_l1", "left_l2"],
+        "supporting_action_occurrence_candidate_ids": ["o1"],
         "node_records": [
             {
                 "time_layer_ref": "left_l0",
@@ -35,6 +36,7 @@ def _sequence_payload() -> dict:
     right = {
         "partial_order_occurrence_variant_id": "right",
         "time_layer_refs": ["right_l0", "right_l1", "right_l2"],
+        "supporting_action_occurrence_candidate_ids": ["o2"],
         "node_records": [
             {
                 "time_layer_ref": "right_l0",
@@ -89,6 +91,95 @@ def _sequence_payload() -> dict:
     }
 
 
+def _process_variant_payload() -> dict:
+    return {
+        "status": "PASS",
+        "grammar_stable_visible_outcome_variation_family_count": 1,
+        "observable_process_variant_families": [
+            {
+                "observable_process_variant_family_id": "fam_1",
+                "same_grammar_visible_outcome_variation_observed": True,
+                "grammar_signature_tokens": ["LAYER[PASS]", "LAYER[PASS]"],
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "member_records": [
+                    {
+                        "variant_ref": "left",
+                        "sequence_ref": "s1",
+                        "visible_outcome_state": "SUCCESS_SEMANTIC_VISIBLE",
+                    },
+                    {
+                        "variant_ref": "right",
+                        "sequence_ref": "s2",
+                        "visible_outcome_state": "FAILURE_SEMANTIC_VISIBLE",
+                    },
+                ],
+            }
+        ],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
+def _occurrence_projection_payload() -> dict:
+    return {
+        "status": "PASS",
+        "occurrence_consequence_projections": [
+            {
+                "action_occurrence_candidate_id": "o1",
+                "consequence_signal_candidates": ["SAME_TEAM_FOLLOW_UP_VISIBLE"],
+                "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+                "visible_consequence_support": True,
+                "terminal_outcome_support_visible": False,
+            },
+            {
+                "action_occurrence_candidate_id": "o2",
+                "consequence_signal_candidates": ["OPPONENT_FOLLOW_UP_VISIBLE"],
+                "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+                "visible_consequence_support": True,
+                "terminal_outcome_support_visible": False,
+            },
+        ],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
+def _occurrence_state_payload() -> dict:
+    return {
+        "status": "PASS",
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "o1",
+                "provider_context_candidates": [],
+                "provider_direction_candidates": ["FORWARD"],
+                "provider_progression_candidates": [],
+                "provider_zone_candidates": ["FINAL_THIRD"],
+                "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+                "adverse_consequence_candidates": [],
+                "transition_class_candidates": ["VISIBLE_DIRECTIONAL_CONSEQUENCE_TRANSITION_CANDIDATE"],
+                "support_candidates": ["VISIBLE_CONSEQUENCE_CANDIDATE_PRESENT"],
+            },
+            {
+                "action_occurrence_candidate_id": "o2",
+                "provider_context_candidates": [],
+                "provider_direction_candidates": [],
+                "provider_progression_candidates": [],
+                "provider_zone_candidates": [],
+                "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+                "adverse_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+                "transition_class_candidates": ["VISIBLE_DIRECTIONAL_CONSEQUENCE_TRANSITION_CANDIDATE"],
+                "support_candidates": ["VISIBLE_CONSEQUENCE_CANDIDATE_PRESENT"],
+            },
+        ],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
 class SequenceIntelligenceSidecarBindingTest(unittest.TestCase):
     def test_active_match_sidecar_writes_grammar_and_claim_contract_artifacts(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -116,6 +207,11 @@ class SequenceIntelligenceSidecarBindingTest(unittest.TestCase):
             self.assertEqual(report["analyst_output_claim_contract_status"], "PASS")
             self.assertTrue(report["sequence_grammar_alignment_prerequisite_present"])
             self.assertTrue(report["analyst_output_claim_contract_prerequisite_present"])
+            self.assertEqual(
+                report["grammar_stable_variant_feature_delta_status"],
+                "NOT_APPLICABLE_PREREQUISITE_MISSING",
+            )
+            self.assertFalse(report["grammar_stable_variant_feature_delta_prerequisite_present"])
 
             grammar = json.loads(grammar_path.read_text(encoding="utf-8"))
             claim = json.loads(claim_path.read_text(encoding="utf-8"))
@@ -130,6 +226,91 @@ class SequenceIntelligenceSidecarBindingTest(unittest.TestCase):
             artifact_names = {Path(value).name for value in report["current_invocation_artifacts"]}
             self.assertIn(sidecars.GRAMMAR_ALIGNMENT_OUTPUT, artifact_names)
             self.assertIn(sidecars.ANALYST_OUTPUT_CLAIM_CONTRACT_OUTPUT, artifact_names)
+            self.assertNotIn(sidecars.GRAMMAR_STABLE_VARIANT_FEATURE_DELTA_OUTPUT, artifact_names)
+
+    def test_feature_delta_uses_existing_occurrence_surfaces_without_reconstruction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            (output / sidecars.SEQUENCE_OUTPUT).write_text(json.dumps(_sequence_payload()), encoding="utf-8")
+            for name in (sidecars.TRACE_OUTPUT, sidecars.CONSEQUENCE_OUTPUT, sidecars.EVIDENCE_OUTPUT):
+                (output / name).write_text("{}", encoding="utf-8")
+
+            occurrence_projection = _occurrence_projection_payload()
+            occurrence_state = _occurrence_state_payload()
+            process_variant = _process_variant_payload()
+
+            with patch.object(
+                sidecars.report_lite,
+                "write_report",
+                return_value={"status": "PASS", "engineering_evidence": {}},
+            ), patch.object(
+                sidecars,
+                "build_occurrence_consequence_projection",
+                return_value=occurrence_projection,
+            ), patch.object(
+                sidecars,
+                "write_occurrence_consequence_outputs",
+                return_value={},
+            ), patch.object(
+                sidecars.spatial_transition,
+                "build_spatial_transition_candidates",
+                return_value={"status": "PASS"},
+            ), patch.object(
+                sidecars.spatial_transition,
+                "write_outputs",
+                return_value={},
+            ), patch.object(
+                sidecars.state_transition,
+                "build_state_transition_dynamics",
+                return_value={"status": "PASS"},
+            ), patch.object(
+                sidecars.state_transition,
+                "write_outputs",
+                return_value={},
+            ), patch.object(
+                sidecars,
+                "build_occurrence_state_transition_projection",
+                return_value=occurrence_state,
+            ), patch.object(
+                sidecars,
+                "write_occurrence_state_transition_outputs",
+                return_value={},
+            ), patch.object(
+                sidecars,
+                "build_observable_process_variant_binding",
+                return_value=process_variant,
+            ), patch.object(
+                sidecars,
+                "run_metric_governance_bridge",
+                return_value={"status": "SMOKE_PASS", "current_invocation_artifacts": []},
+            ):
+                report = sidecars.run_sidecars(output, output, output)
+
+            delta_path = output / sidecars.GRAMMAR_STABLE_VARIANT_FEATURE_DELTA_OUTPUT
+            self.assertTrue(delta_path.is_file())
+            self.assertEqual(report["grammar_stable_variant_feature_delta_status"], "PASS")
+            self.assertTrue(report["grammar_stable_variant_feature_delta_prerequisite_present"])
+
+            delta = json.loads(delta_path.read_text(encoding="utf-8"))
+            self.assertEqual(delta["grammar_stable_variant_feature_delta_record_count"], 1)
+            family = delta["grammar_stable_variant_feature_delta_records"][0]
+            context_tokens = {
+                row["feature_token"] for row in family["context_feature_difference_candidates"]
+            }
+            consequence_tokens = {
+                row["feature_token"] for row in family["consequence_feature_difference_candidates"]
+            }
+            self.assertIn("provider_direction_candidates:FORWARD", context_tokens)
+            self.assertIn(
+                "primary_consequence_candidates:OPPONENT_HANDOVER_CANDIDATE",
+                consequence_tokens,
+            )
+            self.assertFalse(family["difference_is_failure_cause_truth"])
+            self.assertFalse(family["difference_is_tactical_explanation"])
+            self.assertFalse(delta["difference_rows_are_independent_evidence_votes"])
+
+            artifact_names = {Path(value).name for value in report["current_invocation_artifacts"]}
+            self.assertIn(sidecars.GRAMMAR_STABLE_VARIANT_FEATURE_DELTA_OUTPUT, artifact_names)
 
     def test_missing_sequence_output_does_not_fabricate_runtime_intelligence(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -150,10 +331,15 @@ class SequenceIntelligenceSidecarBindingTest(unittest.TestCase):
                 "NOT_APPLICABLE_PREREQUISITE_MISSING",
             )
             self.assertEqual(
+                report["grammar_stable_variant_feature_delta_status"],
+                "NOT_APPLICABLE_PREREQUISITE_MISSING",
+            )
+            self.assertEqual(
                 report["analyst_output_claim_contract_status"],
                 "NOT_APPLICABLE_PREREQUISITE_MISSING",
             )
             self.assertFalse(report["sequence_grammar_alignment_prerequisite_present"])
+            self.assertFalse(report["grammar_stable_variant_feature_delta_prerequisite_present"])
             self.assertFalse(report["analyst_output_claim_contract_prerequisite_present"])
 
 
