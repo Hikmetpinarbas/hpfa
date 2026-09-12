@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.occurrence_temporal_sequence_projection import (
     build_occurrence_temporal_sequence_projection,
 )
@@ -7,7 +9,13 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.occurrence_te
 BINDING = "msb_" + "s" * 24
 
 
-def _trace_payload(*, follow_occurrence: bool = True, follow_team: str = "team_a") -> dict:
+def _trace_payload(
+    *,
+    follow_occurrence: bool = True,
+    follow_team: str = "team_a",
+    anchor_family: str = "PASS",
+    relation_state: str = "AFTER_CONFIRMED",
+) -> dict:
     follow_occurrences = ["occ_b"] if follow_occurrence else []
     return {
         "module_id": "trackable_action_trace_candidates_lite_v1",
@@ -20,7 +28,7 @@ def _trace_payload(*, follow_occurrence: bool = True, follow_team: str = "team_a
                 "actor_identity_candidate_id": "actor_a",
                 "period_candidate": "1",
                 "start_candidate": "10.0",
-                "action_family_candidates": ["PASS"],
+                "action_family_candidates": [anchor_family],
                 "supporting_action_occurrence_candidate_ids": ["occ_a"],
                 "reflection_context_action_bundle_candidate_ids": [],
             },
@@ -50,7 +58,7 @@ def _trace_payload(*, follow_occurrence: bool = True, follow_team: str = "team_a
             {
                 "anchor_trackable_action_trace_candidate_id": "trace_a",
                 "candidate_trackable_action_trace_candidate_id": "trace_b",
-                "relation_state": "AFTER_CONFIRMED",
+                "relation_state": relation_state,
             }
         ],
         "canonical_event_count": "UNKNOWN",
@@ -59,7 +67,11 @@ def _trace_payload(*, follow_occurrence: bool = True, follow_team: str = "team_a
     }
 
 
-def _consequence_payload(*, status: str = "PASS_CANDIDATE_CLASSIFICATION") -> dict:
+def _consequence_payload(
+    *,
+    status: str = "PASS_CANDIDATE_CLASSIFICATION",
+    consequence: str = "SAME_TEAM_CONTINUATION_CANDIDATE",
+) -> dict:
     return {
         "module_id": "trackable_action_consequence_candidates_lite_v1",
         "match_surface_binding_id": BINDING,
@@ -68,7 +80,7 @@ def _consequence_payload(*, status: str = "PASS_CANDIDATE_CLASSIFICATION") -> di
                 "trackable_action_consequence_candidate_id": "cons_a",
                 "anchor_trackable_action_trace_candidate_id": "trace_a",
                 "record_status": status,
-                "primary_consequence_candidate": "SAME_TEAM_CONTINUATION_CANDIDATE",
+                "primary_consequence_candidate": consequence,
                 "admitted_after_follow_up_trace_ids": ["trace_b"],
                 "canonical_event_count": "UNKNOWN",
             }
@@ -90,12 +102,55 @@ def test_occurrence_backed_after_confirmed_same_team_continuation_builds_two_lay
     assert sequence["time_layer_count"] == 2
     assert sequence["sequence_record_status"] == "PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE"
     assert sequence["supporting_action_occurrence_candidate_ids"] == ["occ_a", "occ_b"]
+    assert sequence["consequence_candidate_counts"] == {"SAME_TEAM_CONTINUATION_CANDIDATE": 1}
+    assert sequence["recovery_origin_continuation_candidate"] is False
     assert sequence["visible_sequence_candidate_is_sequence_truth"] is False
     assert sequence["visible_sequence_candidate_is_possession_truth"] is False
     assert sequence["same_timestamp_internal_ordering_allowed"] is False
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["true_action_count"] == "UNKNOWN"
     assert result["production_release"] is False
+
+
+def test_recovery_origin_same_team_continuation_enters_sequence_surface() -> None:
+    trace = _trace_payload(anchor_family="RECOVERY")
+    consequence = _consequence_payload(
+        consequence="RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE"
+    )
+    result = build_occurrence_temporal_sequence_projection(trace, consequence)
+
+    assert result["status"] == "PASS"
+    assert result["recovery_origin_continuation_edge_count"] == 1
+    assert result["occurrence_temporal_sequence_candidate_count"] == 1
+    sequence = result["occurrence_temporal_sequence_candidates"][0]
+    assert sequence["origin_action_family_counts"] == {"RECOVERY": 1}
+    assert sequence["consequence_candidate_counts"] == {
+        "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE": 1
+    }
+    assert sequence["recovery_origin_continuation_candidate"] is True
+    assert sequence["recovery_origin_continuation_is_successful_press_truth"] is False
+    assert result["successful_press_truth"] is False
+
+
+def test_recovery_continuation_requires_recovery_or_interception_anchor() -> None:
+    result = build_occurrence_temporal_sequence_projection(
+        _trace_payload(anchor_family="PASS"),
+        _consequence_payload(consequence="RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE"),
+    )
+
+    assert result["occurrence_temporal_sequence_candidate_count"] == 0
+    assert result["rejected_edge_reason_counts"]["recovery_continuation_anchor_family_mismatch"] == 1
+    assert result["possession_truth"] is False
+
+
+def test_opponent_handover_is_not_promoted_to_same_team_sequence() -> None:
+    result = build_occurrence_temporal_sequence_projection(
+        _trace_payload(follow_team="team_b"),
+        _consequence_payload(consequence="OPPONENT_HANDOVER_CANDIDATE"),
+    )
+    assert result["occurrence_temporal_sequence_candidate_count"] == 0
+    assert result["tactical_truth"] is False
+    assert result["causal_truth"] is False
 
 
 def test_missing_follow_occurrence_keeps_sequence_closed() -> None:
@@ -129,6 +184,16 @@ def test_review_required_consequence_is_not_promoted_to_sequence_candidate() -> 
 
     assert result["occurrence_temporal_sequence_candidate_count"] == 0
     assert result["causal_truth"] is False
+
+
+def test_same_timestamp_relation_remains_closed_for_strict_after_sequence() -> None:
+    result = build_occurrence_temporal_sequence_projection(
+        _trace_payload(relation_state="SAME_TIME_UNORDERED"),
+        _consequence_payload(),
+    )
+    assert result["occurrence_temporal_sequence_candidate_count"] == 0
+    assert result["rejected_edge_reason_counts"]["after_confirmed_relation_missing"] == 1
+    assert result["same_timestamp_internal_ordering_allowed"] is False
 
 
 def test_same_timestamp_occurrences_remain_unordered_within_layer() -> None:
@@ -179,3 +244,10 @@ def test_same_timestamp_occurrences_remain_unordered_within_layer() -> None:
     assert source_layer["supporting_action_occurrence_candidate_ids"] == ["occ_a", "occ_a2"]
     assert source_layer["same_timestamp_internal_ordering_allowed"] is False
     assert sequence["supporting_after_confirmed_edge_count"] == 2
+
+
+def test_no_sample_match_identity_leak() -> None:
+    source = Path(__file__).parents[1] / "src" / "occurrence_temporal_sequence_projection.py"
+    text = source.read_text(encoding="utf-8").casefold()
+    for token in ("sporting", "roma", "fenerbah", "galatasaray"):
+        assert token not in text
