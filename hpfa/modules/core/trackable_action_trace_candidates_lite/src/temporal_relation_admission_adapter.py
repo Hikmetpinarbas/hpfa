@@ -45,19 +45,22 @@ def _contract_admitted(context_payload: dict[str, Any]) -> tuple[bool, list[str]
 
 
 def _relation(a: dict[str, Any], b: dict[str, Any]) -> str:
+    """Resolve temporal order from admitted absolute start timestamps only.
+
+    Trackable-action ``end_candidate`` can delimit the visible trace/context window and is
+    therefore not admitted as physical action duration. Using overlapping trace windows to
+    suppress otherwise ordered start timestamps would convert provenance-window geometry
+    into chronology truth. Same timestamps remain explicitly unordered.
+    """
     a_start = _number(a.get("start_candidate"))
-    a_end = _number(a.get("end_candidate"))
     b_start = _number(b.get("start_candidate"))
-    b_end = _number(b.get("end_candidate"))
-    if None in {a_start, a_end, b_start, b_end}:
+    if a_start is None or b_start is None:
         return "ORDER_INDETERMINATE"
-    if a_end < b_start:
+    if a_start < b_start:
         return "AFTER_CONFIRMED"
-    if b_end < a_start:
+    if b_start < a_start:
         return "BEFORE_CONFIRMED"
-    if a_start == b_start:
-        return "SAME_TIME_UNORDERED"
-    return "ORDER_INDETERMINATE"
+    return "SAME_TIME_UNORDERED"
 
 
 def bind_temporal_relation_admission(
@@ -80,6 +83,9 @@ def bind_temporal_relation_admission(
     payload["temporal_relation_state_counts"] = {}
     payload["temporal_relation_max_window_seconds"] = MAX_RELATION_WINDOW_SECONDS
     payload["numeric_time_relation_requires_admitted_provider_contract"] = True
+    payload["temporal_relation_uses_start_timestamp_only"] = True
+    payload["trace_end_candidate_used_for_ordering"] = False
+    payload["trace_end_candidate_is_physical_action_duration_truth"] = False
     payload["same_timestamp_is_total_order"] = False
     payload["source_row_order_is_temporal_truth"] = False
     payload["cross_period_temporal_relation_admitted"] = False
@@ -136,10 +142,12 @@ def bind_temporal_relation_admission(
                         "period_candidate": period,
                         "relation_state": state,
                         "temporal_basis": "ABSOLUTE_MATCH_SECONDS",
+                        "ordering_basis": "START_TIMESTAMP_POINT_CANDIDATE",
                         "unit": "SECOND",
                         "provider_time_contract_rule_id": _provider_time_contract(
                             context_payload
                         ).get("rule_id"),
+                        "trace_end_candidate_used_for_ordering": False,
                         "same_timestamp_is_total_order": False,
                         "source_row_order_is_temporal_truth": False,
                         "relation_is_possession_truth": False,
