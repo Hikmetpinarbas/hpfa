@@ -53,11 +53,11 @@ def _variant(
     }
 
 
-def _payload(left, right, *, same_time_policy=False):
+def _payload(*variants, same_time_policy=False):
     return {
         "partial_order_occurrence_variant_status": "PASS",
-        "partial_order_occurrence_variants": [left, right],
-        "partial_order_occurrence_variant_count": 2,
+        "partial_order_occurrence_variants": list(variants),
+        "partial_order_occurrence_variant_count": len(variants),
         "same_timestamp_internal_ordering_allowed": same_time_policy,
         "source_row_order_is_temporal_truth": False,
         "canonical_event_count": "UNKNOWN",
@@ -86,92 +86,83 @@ def test_shared_origin_structural_match_is_comparable_for_branch_contrast_not_re
     assert pair["provenance_distinct_for_recurrence_candidate"] is False
     assert pair["dependency_independent_for_recurrence"] is False
     assert pair["statistical_independence_proven"] is False
-    assert pair["comparison_is_process_identity_truth"] is False
-    assert pair["comparison_is_route_family_truth"] is False
-    assert pair["comparison_is_same_tactical_situation_truth"] is False
 
 
-def test_provenance_distinct_same_team_same_period_exact_match_is_comparable_without_independence_claim():
-    left = _variant("a")
-    right = _variant("b")
-    result = build_dependency_aware_partial_order_similarity(_payload(left, right))
+def test_provenance_distinct_exact_match_is_comparable_without_independence_claim():
+    result = build_dependency_aware_partial_order_similarity(_payload(_variant("a"), _variant("b")))
     pair = _pair(result)
     assert pair["structural_exact_match"] is True
-    assert pair["same_period_comparison"] is True
     assert pair["pair_state"] == "PROVENANCE_DISTINCT_STRUCTURAL_MATCH_CANDIDATE"
     assert pair["recurrence_candidate_eligible"] is True
-    assert pair["comparison_eligibility_state"] == "COMPARABLE_FOR_MATCH_LOCAL_RECURRENCE_CANDIDATE_INDEPENDENCE_UNPROVEN"
     assert pair["comparison_eligible"] is True
-    assert pair["comparison_outcome_contrast_allowed"] is True
-    assert pair["provenance_distinct_for_recurrence_candidate"] is True
-    assert pair["dependency_independent_for_recurrence"] is False
     assert pair["dependency_independence_proven_for_recurrence"] is False
     assert pair["statistical_independence_proven"] is False
     assert pair["recurrence_candidate_is_independent_support"] is False
     assert result["recurrence_candidate_eligible_pair_count"] == 1
-    assert result["provenance_distinct_is_not_independence_proof"] is True
 
 
-def test_cross_period_same_structure_requires_review_and_cannot_be_recurrence_candidate():
-    left = _variant("a", period="1")
-    right = _variant("b", period="2")
-    pair = _pair(build_dependency_aware_partial_order_similarity(_payload(left, right)))
-    assert pair["structural_exact_match"] is True
-    assert pair["same_period_comparison"] is False
-    assert pair["pair_state"] == "SAME_TEAM_CROSS_PERIOD_COMPARISON_REVIEW_REQUIRED"
-    assert pair["recurrence_candidate_eligible"] is False
-    assert pair["comparison_eligibility_state"] == "PARTIALLY_COMPARABLE_REVIEW_REQUIRED_CROSS_PERIOD"
-    assert pair["comparison_eligible"] is False
-    assert pair["comparison_requires_review"] is True
-    assert pair["comparison_outcome_contrast_allowed"] is False
+def test_cross_period_pair_is_pruned_before_pair_materialization():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", period="1"), _variant("b", period="2"))
+    )
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert result["source_all_possible_pair_count"] == 1
+    assert result["comparison_prefilter_pruned_pair_count"] == 1
+    assert result["cross_period_pairs_materialized"] is False
 
 
-def test_missing_period_context_is_indeterminate():
-    left = _variant("a", period=None)
-    right = _variant("b", period="2")
-    pair = _pair(build_dependency_aware_partial_order_similarity(_payload(left, right)))
-    assert pair["pair_state"] == "SAME_TEAM_PERIOD_CONTEXT_INDETERMINATE"
-    assert pair["comparison_eligibility_state"] == "INDETERMINATE_MISSING_PERIOD_CONTEXT"
-    assert pair["comparison_eligible"] is False
-    assert pair["comparison_requires_review"] is True
+def test_missing_period_context_is_reviewed_and_not_materialized():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", period=None), _variant("b", period="2"))
+    )
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert result["missing_period_variant_count"] == 1
+    assert "variant_period_context_missing_before_comparison_admission" in result["review_hits"]
 
 
-def test_cross_team_pair_is_not_comparable_for_match_local_recurrence():
-    left = _variant("a", team="team_a")
-    right = _variant("b", team="team_b")
-    pair = _pair(build_dependency_aware_partial_order_similarity(_payload(left, right)))
-    assert pair["pair_state"] == "NOT_APPLICABLE_CROSS_TEAM_MATCH_LOCAL_RECURRENCE"
-    assert pair["recurrence_candidate_eligible"] is False
-    assert pair["comparison_eligibility_state"] == "NOT_COMPARABLE_CROSS_TEAM_MATCH_LOCAL"
-    assert pair["comparison_eligible"] is False
-    assert pair["comparison_outcome_contrast_allowed"] is False
+def test_cross_team_pair_is_not_materialized_for_match_local_recurrence():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", team="team_a"), _variant("b", team="team_b"))
+    )
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert result["source_all_possible_pair_count"] == 1
+    assert result["cross_team_pairs_materialized"] is False
 
 
 def test_outcome_difference_does_not_drive_structural_or_comparison_eligibility():
     left = _variant("a", outcome="SAME_TEAM_CONTINUATION_CANDIDATE")
     right = _variant("b", outcome="NO_VISIBLE_FOLLOW_UP_CANDIDATE")
-    pair = _pair(build_dependency_aware_partial_order_similarity(_payload(left, right)))
+    result = build_dependency_aware_partial_order_similarity(_payload(left, right))
+    pair = _pair(result)
     assert pair["structural_exact_match"] is True
-    assert pair["pair_state"] == "PROVENANCE_DISTINCT_STRUCTURAL_MATCH_CANDIDATE"
     assert pair["comparison_eligible"] is True
     assert pair["outcome_contrast_state"] == "DIFFERENT_OBSERVED_OUTCOME_SIGNATURE"
     assert pair["outcome_used_in_similarity_decision"] is False
-    assert pair["statistical_independence_proven"] is False
+    assert result["outcome_used_in_similarity_decision"] is False
+    assert result["outcome_used_only_for_representative_materialization_after_structural_admission"] is True
 
 
-def test_same_action_family_with_layer_shape_difference_is_only_partially_comparable():
-    left = _variant("a", first_layer_size=2)
-    right = _variant("b", first_layer_size=3)
-    pair = _pair(build_dependency_aware_partial_order_similarity(_payload(left, right)))
-    assert pair["action_structure_similarity"] < 1.0
-    assert pair["layer_shape_similarity"] < 1.0
-    assert pair["structural_exact_match"] is False
-    assert pair["recurrence_candidate_eligible"] is False
-    assert pair["comparison_eligibility_state"] == "PARTIALLY_COMPARABLE_REVIEW_REQUIRED_STRUCTURE_MISMATCH"
-    assert pair["comparison_eligible"] is False
-    assert pair["same_action_family_is_sufficient_for_comparability"] is False
-    assert pair["provider_label_equality_is_comparability_proof"] is False
-    assert pair["missing_spatial_context_is_counterevidence"] is False
+def test_structure_mismatch_is_pruned_before_pair_materialization():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", first_layer_size=2), _variant("b", first_layer_size=3))
+    )
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert result["structural_mismatch_pairs_materialized"] is False
+    assert result["comparison_prefilter_pruned_pair_count"] == 1
+
+
+def test_large_exact_group_uses_representative_surface_not_all_pairs():
+    variants = [_variant(f"v{index:04d}") for index in range(1000)]
+    result = build_dependency_aware_partial_order_similarity(_payload(*variants))
+    assert result["status"] == "PASS"
+    assert result["source_all_possible_pair_count"] == 499500
+    assert result["dependency_aware_partial_order_similarity_group_count"] == 1
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 999
+    assert result["comparison_prefilter_pruned_pair_count"] == 498501
+    assert result["pair_materialization_mode"] == "ELIGIBILITY_GROUP_REPRESENTATIVE_PAIRS"
+    assert result["comparison_admission_precedes_pair_materialization"] is True
+    assert all(row["comparison_eligible"] is True for row in result["dependency_aware_partial_order_similarity_pairs"])
 
 
 def test_same_timestamp_policy_breach_fails_closed():
