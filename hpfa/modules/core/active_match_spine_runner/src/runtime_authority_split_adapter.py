@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from spine_runner import (
+from hpfa.modules.core.active_match_spine_runner.src.spine_runner import (
     ACTIVE_MATCH_RELATIVE_PATH,
     _absolute_lexical_path,
     _authority_symlink_component,
