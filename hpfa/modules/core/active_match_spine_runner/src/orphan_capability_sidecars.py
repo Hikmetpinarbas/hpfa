@@ -27,6 +27,9 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_seq
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.observable_process_variant_binding_projection import (
     build_observable_process_variant_binding,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.grammar_stable_variant_feature_delta_projection import (
+    build_grammar_stable_variant_feature_delta,
+)
 
 MODULE_ID = "active_match_orphan_capability_sidecars_v1"
 TRACE_OUTPUT = "trackable_action_trace_candidates_lite_v1.json"
@@ -37,6 +40,7 @@ CONSEQUENCE_OUTPUT = "trackable_action_consequence_candidates_lite_v1.json"
 SEQUENCE_OUTPUT = "visible_action_sequence_candidates_lite_v1.json"
 GRAMMAR_ALIGNMENT_OUTPUT = "supported_sequence_grammar_alignment_projection_v1.json"
 PROCESS_VARIANT_BINDING_OUTPUT = "observable_process_variant_binding_projection_v1.json"
+GRAMMAR_STABLE_VARIANT_FEATURE_DELTA_OUTPUT = "grammar_stable_variant_feature_delta_projection_v1.json"
 ANALYST_OUTPUT_CLAIM_CONTRACT_OUTPUT = "analyst_output_claim_contract_projection_v1.json"
 
 
@@ -284,6 +288,7 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         process_participation_status = process_participation_report["status"]
 
     sequence_intelligence_prerequisite_present = sequence_path.is_file()
+    variant_feature_delta_prerequisite_present = False
     if sequence_intelligence_prerequisite_present:
         try:
             sequence_payload = _load_json(sequence_path)
@@ -318,6 +323,45 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
             elif process_variant_binding_status != "PASS":
                 review_hits.append("observable_process_variant_binding_review_required")
 
+            variant_feature_delta_prerequisite_present = (
+                occurrence_state_transition_prerequisite_present
+                and occurrence_projection_prerequisite_present
+                and occurrence_state_transition_status != "FAIL_CLOSED"
+                and occurrence_projection_status != "FAIL_CLOSED"
+                and process_variant_binding_status != "FAIL_CLOSED"
+            )
+            if variant_feature_delta_prerequisite_present:
+                try:
+                    variant_feature_delta_report = build_grammar_stable_variant_feature_delta(
+                        sequence_payload,
+                        process_variant_binding_report,
+                        occurrence_state_transition_report,
+                        occurrence_projection_report,
+                    )
+                    variant_feature_delta_path = _write_projection(
+                        output / GRAMMAR_STABLE_VARIANT_FEATURE_DELTA_OUTPUT,
+                        variant_feature_delta_report,
+                    )
+                    artifacts.append(str(variant_feature_delta_path))
+                    variant_feature_delta_status = variant_feature_delta_report.get("status")
+                    if variant_feature_delta_status == "FAIL_CLOSED":
+                        reasons = variant_feature_delta_report.get("hard_block_hits") or []
+                        reason = str(reasons[0]) if reasons else "grammar_stable_variant_feature_delta_fail_closed"
+                        hard_blocks.append(f"grammar_stable_variant_feature_delta_construct_path_blocked:{reason}")
+                    elif variant_feature_delta_status != "PASS":
+                        review_hits.append("grammar_stable_variant_feature_delta_review_required")
+                except Exception as exc:
+                    variant_feature_delta_report = {"status": "REVIEW_REQUIRED", "error_type": type(exc).__name__}
+                    variant_feature_delta_status = "REVIEW_REQUIRED"
+                    review_hits.append(f"grammar_stable_variant_feature_delta_sidecar_failed:{type(exc).__name__}")
+            else:
+                variant_feature_delta_report = {
+                    "status": "NOT_APPLICABLE_PREREQUISITE_MISSING",
+                    "reason": "process_variant_or_occurrence_context_consequence_surface_missing",
+                    "production_release": False,
+                }
+                variant_feature_delta_status = variant_feature_delta_report["status"]
+
             analyst_output_claim_contract_report = build_analyst_output_claim_contract(sequence_payload)
             analyst_output_claim_contract_path = _write_projection(
                 output / ANALYST_OUTPUT_CLAIM_CONTRACT_OUTPUT,
@@ -339,6 +383,11 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
                 "error_type": type(exc).__name__,
             }
             process_variant_binding_status = "REVIEW_REQUIRED"
+            variant_feature_delta_report = {
+                "status": "REVIEW_REQUIRED",
+                "error_type": type(exc).__name__,
+            }
+            variant_feature_delta_status = "REVIEW_REQUIRED"
             analyst_output_claim_contract_report = {
                 "status": "REVIEW_REQUIRED",
                 "error_type": type(exc).__name__,
@@ -358,6 +407,12 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
             "production_release": False,
         }
         process_variant_binding_status = process_variant_binding_report["status"]
+        variant_feature_delta_report = {
+            "status": "NOT_APPLICABLE_PREREQUISITE_MISSING",
+            "reason": "visible_action_sequence_output_missing",
+            "production_release": False,
+        }
+        variant_feature_delta_status = variant_feature_delta_report["status"]
         analyst_output_claim_contract_report = {
             "status": "NOT_APPLICABLE_PREREQUISITE_MISSING",
             "reason": "visible_action_sequence_output_missing",
@@ -404,6 +459,8 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "sequence_grammar_alignment_prerequisite_present": sequence_intelligence_prerequisite_present,
         "observable_process_variant_binding_status": process_variant_binding_status,
         "observable_process_variant_binding_prerequisite_present": sequence_intelligence_prerequisite_present,
+        "grammar_stable_variant_feature_delta_status": variant_feature_delta_status,
+        "grammar_stable_variant_feature_delta_prerequisite_present": variant_feature_delta_prerequisite_present,
         "analyst_output_claim_contract_status": analyst_output_claim_contract_status,
         "analyst_output_claim_contract_prerequisite_present": sequence_intelligence_prerequisite_present,
         "metric_governance_bridge_status": metric_governance_status,
@@ -416,6 +473,7 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "process_participation_projection": process_participation_report,
         "sequence_grammar_alignment": grammar_alignment_report,
         "observable_process_variant_binding": process_variant_binding_report,
+        "grammar_stable_variant_feature_delta": variant_feature_delta_report,
         "analyst_output_claim_contract": analyst_output_claim_contract_report,
         "metric_governance_bridge": metric_governance,
         "construct_path_blocked": construct_path_blocked,
