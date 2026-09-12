@@ -45,6 +45,10 @@ def _union(rows: list[dict[str, Any]], key: str) -> list[str]:
     return sorted(out)
 
 
+def _union_scalar(rows: list[dict[str, Any]], key: str) -> list[str]:
+    return sorted({_text(row.get(key)) for row in rows if _text(row.get(key))})
+
+
 def _candidate_id(occurrence_id: str) -> str:
     digest = hashlib.sha1(occurrence_id.encode("utf-8")).hexdigest()[:24]
     return f"ostp_{digest}"
@@ -150,6 +154,8 @@ def build_occurrence_state_transition_projection(
             directions = _union(supporting_spatial, "provider_direction_candidates")
             outcomes = _union(supporting_spatial, "provider_outcome_candidates")
             semantic_rule_ids = _union(supporting_spatial, "provider_semantic_rule_ids")
+            coordinate_zones = _union_scalar(supporting_spatial, "coordinate_derived_zone_candidate")
+            spatial_admission_states = _union_scalar(supporting_spatial, "spatial_admission_state")
             spatial_candidate_ids = sorted(
                 {
                     _text(row.get("spatial_transition_candidate_id"))
@@ -195,6 +201,8 @@ def build_occurrence_state_transition_projection(
                 support_candidates.append("PROVIDER_CONTEXT_SEMANTIC_VISIBLE")
             if directions:
                 support_candidates.append("PROVIDER_DIRECTION_SEMANTIC_VISIBLE")
+            if coordinate_zones:
+                support_candidates.append("ADMITTED_COORDINATE_ZONE_CANDIDATE_VISIBLE")
             if consequence_classes:
                 support_candidates.append("VISIBLE_CONSEQUENCE_CANDIDATE_PRESENT")
             if admitted_after:
@@ -208,6 +216,8 @@ def build_occurrence_state_transition_projection(
                         "occurrence_consequence_projection_id"
                     ),
                     "occurrence_topology": occurrence.get("occurrence_topology"),
+                    "required_participant_scope": occurrence.get("required_participant_scope"),
+                    "binding_state": occurrence.get("binding_state"),
                     "supporting_trackable_action_trace_candidate_ids": trace_ids,
                     "supporting_spatial_transition_candidate_ids": spatial_candidate_ids,
                     "supporting_consequence_candidate_ids": occurrence.get(
@@ -218,12 +228,17 @@ def build_occurrence_state_transition_projection(
                     "actor_identity_candidate_ids": occurrence.get("actor_identity_candidate_ids") or [],
                     "team_identity_candidate_ids": occurrence.get("team_identity_candidate_ids") or [],
                     "action_family_candidates": occurrence.get("action_family_candidates") or [],
+                    "period_candidates": occurrence.get("period_candidates") or [],
+                    "start_candidates": occurrence.get("start_candidates") or [],
+                    "end_candidates": occurrence.get("end_candidates") or [],
                     "provider_progression_candidates": progression,
                     "provider_zone_candidates": zones,
                     "provider_context_candidates": contexts,
                     "provider_direction_candidates": directions,
                     "provider_outcome_candidates": outcomes,
                     "provider_semantic_rule_ids": semantic_rule_ids,
+                    "coordinate_derived_zone_candidates": coordinate_zones,
+                    "spatial_admission_states": spatial_admission_states,
                     "primary_consequence_candidates": consequence_classes,
                     "admitted_after_follow_up_trace_ids": admitted_after,
                     "transition_class_candidates": transition_classes,
@@ -236,6 +251,7 @@ def build_occurrence_state_transition_projection(
                     "legacy_trace_records_are_support_evidence_not_action_universe": True,
                     "occurrence_projection_is_primary_action_member_candidate_surface": True,
                     "provider_semantic_progression_is_measured_displacement_truth": False,
+                    "coordinate_derived_zone_is_team_shape_truth": False,
                     "same_timestamp_is_total_order": False,
                     "source_row_order_is_temporal_truth": False,
                     "transition_is_possession_truth": False,
