@@ -4,6 +4,9 @@ import argparse
 import json
 from pathlib import Path
 
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.process_participation_variant_context_adapter import (
+    apply_process_participation_context,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_admission_projection import (
     build_safe_finding_admission,
 )
@@ -17,6 +20,8 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.variant_featu
 OUTPUT_NAME = "safe_finding_admission_projection_v1.json"
 FEATURE_DELTA_NAME = "grammar_stable_variant_feature_delta_projection_v1.json"
 PROCESS_VARIANT_NAME = "observable_process_variant_binding_projection_v1.json"
+PROCESS_PARTICIPATION_NAME = "analyst_episode_process_participation_projection_v1.json"
+OCCURRENCE_CONSEQUENCE_NAME = "occurrence_consequence_projection_v1.json"
 CHALLENGE_NAME = "variant_feature_challenge_projection_v1.json"
 
 
@@ -43,11 +48,24 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
     source_payload = _load(source_path)
     feature_delta_path = output / FEATURE_DELTA_NAME
     process_variant_path = output / PROCESS_VARIANT_NAME
+    process_participation_path = output / PROCESS_PARTICIPATION_NAME
+    occurrence_consequence_path = output / OCCURRENCE_CONSEQUENCE_NAME
     challenge_path = output / CHALLENGE_NAME
 
     feature_delta_payload = _load(feature_delta_path)
     process_variant_payload = _load(process_variant_path)
+    process_participation_payload = _load(process_participation_path)
+    occurrence_consequence_payload = _load(occurrence_consequence_path)
     challenge_payload: dict | None = None
+
+    if source_payload and feature_delta_payload:
+        feature_delta_payload = apply_process_participation_context(
+            source_payload,
+            feature_delta_payload,
+            process_participation_payload or None,
+            occurrence_consequence_payload or None,
+        )
+        _write(feature_delta_path, feature_delta_payload)
 
     if feature_delta_payload and process_variant_payload:
         challenge_payload = build_variant_feature_challenge_projection(
@@ -89,10 +107,27 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
     result["source_process_variant_json"] = (
         str(process_variant_path) if process_variant_path.is_file() else None
     )
+    result["source_process_participation_json"] = (
+        str(process_participation_path) if process_participation_path.is_file() else None
+    )
+    result["source_occurrence_consequence_json"] = (
+        str(occurrence_consequence_path) if occurrence_consequence_path.is_file() else None
+    )
     result["source_variant_feature_challenge_json"] = (
         str(challenge_path) if challenge_path.is_file() else None
     )
     result["variant_feature_challenge_materialized"] = challenge_path.is_file()
+    result["process_participation_context_enrichment_consumed"] = bool(
+        feature_delta_payload.get("process_participation_context_enrichment_consumed")
+    ) if feature_delta_payload else False
+    result["process_participation_context_binding_state"] = (
+        feature_delta_payload.get("process_participation_context_binding_state")
+        if feature_delta_payload
+        else "NOT_AVAILABLE"
+    )
+    result["process_context_feature_difference_appended_count"] = int(
+        feature_delta_payload.get("process_context_feature_difference_appended_count") or 0
+    ) if feature_delta_payload else 0
     return result
 
 
@@ -111,6 +146,15 @@ def main() -> int:
         "claim_output_allowed_count": result.get("claim_output_allowed_count"),
         "variant_feature_challenge_consumed": result.get("variant_feature_challenge_consumed"),
         "variant_feature_challenge_materialized": result.get("variant_feature_challenge_materialized"),
+        "process_participation_context_enrichment_consumed": result.get(
+            "process_participation_context_enrichment_consumed"
+        ),
+        "process_participation_context_binding_state": result.get(
+            "process_participation_context_binding_state"
+        ),
+        "process_context_feature_difference_appended_count": result.get(
+            "process_context_feature_difference_appended_count", 0
+        ),
         "hard_block_hits": result.get("hard_block_hits") or [],
         "review_hits": result.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",
