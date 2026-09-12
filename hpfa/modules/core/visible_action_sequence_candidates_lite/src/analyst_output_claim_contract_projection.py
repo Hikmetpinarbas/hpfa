@@ -27,6 +27,12 @@ REQUIRED_QUALIFIERS = [
 ]
 
 
+def _compact_refs(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return sorted({str(item).strip() for item in value if str(item).strip()})
+
+
 def _admission_map(admission_payload: dict[str, Any] | None) -> tuple[dict[str, dict[str, Any]], list[str], str | None]:
     if admission_payload is None:
         return {}, [], None
@@ -55,6 +61,54 @@ def _admission_map(admission_payload: dict[str, Any] | None) -> tuple[dict[str, 
     return decisions, reviews, None
 
 
+def _challenge_contract(decision_row: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(decision_row, dict):
+        return {
+            "variant_feature_challenge_binding_state": "NOT_AVAILABLE",
+            "variant_feature_challenge_family_refs": [],
+            "variant_feature_challenge_refs": [],
+            "variant_feature_challenge_reason_codes": [],
+            "variant_feature_challenge_counter_scenario_candidates": [],
+            "variant_feature_challenge_withdrawal_condition_candidates": [],
+            "variant_feature_challenge_coverage_partial": False,
+            "variant_feature_challenge_dependency_independence_proven": False,
+            "variant_feature_challenge_statistical_independence_proven": False,
+            "variant_feature_challenge_is_independent_evidence_vote": False,
+            "variant_feature_challenge_can_authorize_emit": False,
+        }
+    return {
+        "variant_feature_challenge_binding_state": str(
+            decision_row.get("variant_feature_challenge_binding_state") or "NOT_AVAILABLE"
+        ),
+        "variant_feature_challenge_family_refs": _compact_refs(
+            decision_row.get("variant_feature_challenge_family_refs")
+        ),
+        "variant_feature_challenge_refs": _compact_refs(
+            decision_row.get("variant_feature_challenge_refs")
+        ),
+        "variant_feature_challenge_reason_codes": _compact_refs(
+            decision_row.get("variant_feature_challenge_reason_codes")
+        ),
+        "variant_feature_challenge_counter_scenario_candidates": _compact_refs(
+            decision_row.get("variant_feature_challenge_counter_scenario_candidates")
+        ),
+        "variant_feature_challenge_withdrawal_condition_candidates": _compact_refs(
+            decision_row.get("variant_feature_challenge_withdrawal_condition_candidates")
+        ),
+        "variant_feature_challenge_coverage_partial": (
+            decision_row.get("variant_feature_challenge_coverage_partial") is True
+        ),
+        "variant_feature_challenge_dependency_independence_proven": (
+            decision_row.get("variant_feature_challenge_dependency_independence_proven") is True
+        ),
+        "variant_feature_challenge_statistical_independence_proven": (
+            decision_row.get("variant_feature_challenge_statistical_independence_proven") is True
+        ),
+        "variant_feature_challenge_is_independent_evidence_vote": False,
+        "variant_feature_challenge_can_authorize_emit": False,
+    }
+
+
 def build_analyst_output_claim_contract(
     comparable_outcome_payload: dict[str, Any],
     admission_payload: dict[str, Any] | None = None,
@@ -64,8 +118,8 @@ def build_analyst_output_claim_contract(
     With no admission payload this preserves the legacy fail-safe behavior: no
     professional finding may emit. When the compact Safe Finding admission micro-gear
     is provided, only an explicit EMIT decision may open a defeasible match-local
-    professional finding. This stage creates no evidence and never strengthens the
-    underlying football claim ceiling.
+    professional finding. Variant-feature challenge metadata is carried only as compact
+    provenance/qualification; it creates no evidence and cannot authorize EMIT.
     """
     if comparable_outcome_payload.get("production_release") is True:
         return _fail_closed("production_release_claimed")
@@ -142,6 +196,7 @@ def build_analyst_output_claim_contract(
                 else NO_CLAIM_SCOPE if decision == "ABSTAIN" else ANALYST_OUTPUT_CLAIM_SCOPE
             )
 
+        challenge_contract = _challenge_contract(decision_row)
         decision_counts[decision] = decision_counts.get(decision, 0) + 1
         contracts.append(
             {
@@ -154,6 +209,7 @@ def build_analyst_output_claim_contract(
                 "blocking_dimensions": blocking_dimensions,
                 "required_qualifiers": list(REQUIRED_QUALIFIERS),
                 "forbidden_claim_families": forbidden,
+                **challenge_contract,
                 "raw_rate_may_be_reported_as_observed_sample_description": decision != "ABSTAIN",
                 "raw_rate_may_be_labeled_probability": False,
                 "provider_outcome_semantic_may_be_labeled_tactical_success": False,
@@ -178,6 +234,10 @@ def build_analyst_output_claim_contract(
         "analyst_output_contracts": contracts,
         "analyst_output_contract_count": len(contracts),
         "safe_finding_admission_consumed": admission_payload is not None,
+        "variant_feature_challenge_admission_consumed": (
+            isinstance(admission_payload, dict)
+            and admission_payload.get("variant_feature_challenge_consumed") is True
+        ),
         "safe_finding_admission_decision_counts": decision_counts,
         "professional_emit_allowed": emitted_count > 0,
         "professional_emit_allowed_count": emitted_count,
@@ -185,6 +245,8 @@ def build_analyst_output_claim_contract(
         "probability_language_allowed_from_raw_rate": False,
         "tactical_success_language_allowed_from_provider_outcome_semantic": False,
         "independent_recurrence_language_allowed_for_dependent_branches": False,
+        "variant_feature_challenge_is_independent_evidence_vote": False,
+        "variant_feature_challenge_can_authorize_emit": False,
         "analyst_or_llm_text_is_evidence": False,
         "claim_contract_creates_new_evidence": False,
         "review_hits": sorted(set(review_hits)),
@@ -206,6 +268,7 @@ def _fail_closed(reason: str) -> dict[str, Any]:
         "analyst_output_contracts": [],
         "analyst_output_contract_count": 0,
         "safe_finding_admission_consumed": False,
+        "variant_feature_challenge_admission_consumed": False,
         "safe_finding_admission_decision_counts": {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 0, "NOT_EVALUATED": 0},
         "professional_emit_allowed": False,
         "professional_emit_allowed_count": 0,
@@ -213,6 +276,8 @@ def _fail_closed(reason: str) -> dict[str, Any]:
         "probability_language_allowed_from_raw_rate": False,
         "tactical_success_language_allowed_from_provider_outcome_semantic": False,
         "independent_recurrence_language_allowed_for_dependent_branches": False,
+        "variant_feature_challenge_is_independent_evidence_vote": False,
+        "variant_feature_challenge_can_authorize_emit": False,
         "analyst_or_llm_text_is_evidence": False,
         "claim_contract_creates_new_evidence": False,
         "review_hits": [],
