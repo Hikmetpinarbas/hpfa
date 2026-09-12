@@ -39,16 +39,24 @@ def build_occurrence_consequence_projection(
     trace_payload: dict[str, Any],
     consequence_payload: dict[str, Any],
 ) -> dict[str, Any]:
-    trace_records = [
-        row
-        for row in _values(trace_payload.get("trackable_action_trace_candidates"))
-        if isinstance(row, dict)
-    ]
+    primary_trace_surface_present = "primary_occurrence_trace_candidates" in trace_payload
+    trace_source = (
+        trace_payload.get("primary_occurrence_trace_candidates")
+        if primary_trace_surface_present
+        else trace_payload.get("trackable_action_trace_candidates")
+    )
+    trace_records = [row for row in _values(trace_source) if isinstance(row, dict)]
+    trace_member_surface = (
+        "PRIMARY_OCCURRENCE_TRACE"
+        if primary_trace_surface_present
+        else "LEGACY_COMPATIBILITY_FALLBACK"
+    )
     consequence_records = [
         row
         for row in _values(consequence_payload.get("trackable_action_consequence_candidates"))
         if isinstance(row, dict)
     ]
+    binding_surface_present = "occurrence_trace_binding_records" in trace_payload
     binding_records = [
         row
         for row in _values(trace_payload.get("occurrence_trace_binding_records"))
@@ -70,7 +78,22 @@ def build_occurrence_consequence_projection(
         for occurrence_id in _sorted_text(consequence.get("supporting_action_occurrence_candidate_ids")):
             consequences_by_occurrence[occurrence_id].append(consequence)
 
-    occurrence_ids = sorted(set(binding_by_occurrence) | set(traces_by_occurrence) | set(consequences_by_occurrence))
+    if binding_surface_present:
+        occurrence_ids = sorted(binding_by_occurrence)
+    else:
+        occurrence_ids = sorted(
+            set(binding_by_occurrence) | set(traces_by_occurrence) | set(consequences_by_occurrence)
+        )
+    authoritative_occurrence_ids = set(occurrence_ids)
+    legacy_unbound_consequence_count = sum(
+        1
+        for consequence in consequence_records
+        if not (
+            set(_sorted_text(consequence.get("supporting_action_occurrence_candidate_ids")))
+            & authoritative_occurrence_ids
+        )
+    )
+
     records: list[dict[str, Any]] = []
     visible_count = 0
     review_count = 0
@@ -201,6 +224,8 @@ def build_occurrence_consequence_projection(
         "module_status": status,
         "source_trace_status": trace_payload.get("status"),
         "source_consequence_status": consequence_payload.get("status"),
+        "source_trace_member_surface": trace_member_surface,
+        "source_primary_occurrence_trace_candidate_count": len(trace_records),
         "source_legacy_trace_candidate_count": trace_payload.get("trackable_action_trace_candidate_count", 0),
         "source_legacy_consequence_candidate_count": consequence_payload.get("trackable_action_consequence_candidate_count", 0),
         "source_action_occurrence_candidate_count": expected_occurrence_count,
@@ -209,8 +234,11 @@ def build_occurrence_consequence_projection(
         "review_required_occurrence_projection_count": review_count,
         "occurrence_without_consequence_record_count": no_consequence_record_count,
         "occurrence_with_terminal_outcome_support_count": terminal_support_count,
+        "legacy_unbound_consequence_candidate_count": legacy_unbound_consequence_count,
         "occurrence_consequence_projections": records,
+        "occurrence_binding_records_are_primary_member_authority": binding_surface_present,
         "legacy_trace_records_are_support_evidence_not_action_universe": True,
+        "legacy_consequence_records_cannot_create_occurrence_members": binding_surface_present,
         "occurrence_projection_is_primary_action_member_candidate_surface": True,
         "projection_is_action_identity_truth": False,
         "projection_is_sequence_truth": False,
@@ -239,8 +267,11 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
                 f"occurrence_consequence_projection_count={payload.get('occurrence_consequence_projection_count', 0)}",
                 f"occurrence_with_visible_consequence_support_count={payload.get('occurrence_with_visible_consequence_support_count', 0)}",
                 f"review_required_occurrence_projection_count={payload.get('review_required_occurrence_projection_count', 0)}",
+                f"source_trace_member_surface={payload.get('source_trace_member_surface')}",
+                f"source_primary_occurrence_trace_candidate_count={payload.get('source_primary_occurrence_trace_candidate_count', 0)}",
                 f"source_legacy_trace_candidate_count={payload.get('source_legacy_trace_candidate_count', 0)}",
                 f"source_legacy_consequence_candidate_count={payload.get('source_legacy_consequence_candidate_count', 0)}",
+                f"legacy_unbound_consequence_candidate_count={payload.get('legacy_unbound_consequence_candidate_count', 0)}",
                 "legacy_trace_records_are_support_evidence_not_action_universe=true",
                 "projection_is_causal_truth=false",
                 "canonical_event_count=UNKNOWN",
