@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Any
 
 CLAIM_CEILING = "MATCH_LOCAL_DEPENDENCY_QUALIFIED_VARIANT_FEATURE_DIFFERENCE_CANDIDATE_ONLY"
@@ -11,6 +12,16 @@ _CONTEXT_KEYS = (
     "provider_direction_candidates",
     "provider_progression_candidates",
     "provider_zone_candidates",
+    "coordinate_derived_zone_candidates",
+)
+_CONTEXT_LIST_KEYS = (
+    "actor_identity_candidate_ids",
+    "action_family_candidates",
+)
+_CONTEXT_SCALAR_KEYS = (
+    "occurrence_topology",
+    "required_participant_scope",
+    "binding_state",
 )
 _STATE_CONSEQUENCE_KEYS = (
     "primary_consequence_candidates",
@@ -23,6 +34,7 @@ _CONSEQUENCE_KEYS = (
     "primary_consequence_candidates",
 )
 _RESOLVED_OUTCOMES = {"SUCCESS_SEMANTIC_VISIBLE", "FAILURE_SEMANTIC_VISIBLE"}
+_LAYER_TOKEN_RE = re.compile(r"^LAYER\[(\d+)\]::")
 
 
 def _clean(value: Any) -> str:
@@ -55,6 +67,81 @@ def _tokens(row: dict[str, Any], keys: tuple[str, ...]) -> set[str]:
     return result
 
 
+def _scalar_tokens(row: dict[str, Any], keys: tuple[str, ...]) -> set[str]:
+    result: set[str] = set()
+    for key in keys:
+        text = _clean(row.get(key))
+        if text:
+            result.add(f"{key}:{text}")
+    return result
+
+
+def _layer_occurrence_index(variant: dict[str, Any]) -> tuple[list[str], dict[str, set[int]]]:
+    layer_refs: list[str] = []
+    layer_position_by_ref: dict[str, int] = {}
+    occurrence_layers: dict[str, set[int]] = {}
+    occurrence_order: list[str] = []
+    seen_occurrences: set[str] = set()
+
+    for node in variant.get("node_records") or []:
+        if not isinstance(node, dict):
+            continue
+        layer_ref = _clean(node.get("time_layer_ref"))
+        if layer_ref and layer_ref not in layer_position_by_ref:
+            layer_position_by_ref[layer_ref] = len(layer_refs)
+            layer_refs.append(layer_ref)
+        position = layer_position_by_ref.get(layer_ref)
+        for occurrence_ref in node.get("occurrence_refs") or []:
+            occurrence_ref = _clean(occurrence_ref)
+            if not occurrence_ref:
+                continue
+            if occurrence_ref not in seen_occurrences:
+                seen_occurrences.add(occurrence_ref)
+                occurrence_order.append(occurrence_ref)
+            if position is not None:
+                occurrence_layers.setdefault(occurrence_ref, set()).add(position)
+
+    if not occurrence_order:
+        occurrence_order = [
+            _clean(value)
+            for value in (variant.get("supporting_action_occurrence_candidate_ids") or [])
+            if _clean(value)
+        ]
+    return occurrence_order, occurrence_layers
+
+
+def _with_layer_tokens(base_tokens: set[str], layer_positions: set[int]) -> set[str]:
+    result = set(base_tokens)
+    for position in sorted(layer_positions):
+        result.update(f"LAYER[{position}]::{token}" for token in base_tokens)
+    return result
+
+
+def _ensuing_visible_chain_tokens(consequence_row: dict[str, Any]) -> set[str]:
+    signals = {
+        _clean(value)
+        for value in (consequence_row.get("consequence_signal_candidates") or [])
+        if _clean(value)
+    }
+    primary = {
+        _clean(value)
+        for value in (consequence_row.get("primary_consequence_candidates") or [])
+        if _clean(value)
+    }
+    tokens: set[str] = set()
+    if "OPPONENT_SHOT_FOLLOW_UP_VISIBLE" in signals:
+        tokens.add("ensuing_visible_chain:OPPONENT_SHOT_FOLLOW_UP_VISIBLE")
+    if "SAME_TEAM_SHOT_FOLLOW_UP_VISIBLE" in signals:
+        tokens.add("ensuing_visible_chain:SAME_TEAM_SHOT_FOLLOW_UP_VISIBLE")
+    if "OPPONENT_HANDOVER_CANDIDATE" in primary and "OPPONENT_SHOT_FOLLOW_UP_VISIBLE" in signals:
+        tokens.add("ensuing_visible_chain:OPPONENT_HANDOVER_PLUS_OPPONENT_SHOT_VISIBLE")
+    if "SAME_TEAM_CONTINUATION_CANDIDATE" in primary and "SAME_TEAM_SHOT_FOLLOW_UP_VISIBLE" in signals:
+        tokens.add("ensuing_visible_chain:SAME_TEAM_CONTINUATION_PLUS_SHOT_VISIBLE")
+    if "NO_VISIBLE_FOLLOW_UP_CANDIDATE" in primary or consequence_row.get("visible_consequence_support") is False:
+        tokens.add("ensuing_visible_chain:NO_VISIBLE_FOLLOW_UP")
+    return tokens
+
+
 def _member_profile(
     member: dict[str, Any],
     variant_by_id: dict[str, dict[str, Any]],
@@ -69,43 +156,48 @@ def _member_profile(
     if variant is None:
         return None
 
-    occurrence_refs = [
-        _clean(value)
-        for value in (variant.get("supporting_action_occurrence_candidate_ids") or [])
-        if _clean(value)
-    ]
+    occurrence_refs, occurrence_layers = _layer_occurrence_index(variant)
     context_features: set[str] = set()
     consequence_features: set[str] = set()
     missing_state: list[str] = []
     missing_consequence: list[str] = []
 
     for occurrence_ref in occurrence_refs:
+        layer_positions = occurrence_layers.get(occurrence_ref, set())
         state_row = state_by_occurrence.get(occurrence_ref)
         if state_row is None:
             missing_state.append(occurrence_ref)
         else:
-            context_features |= _tokens(state_row, _CONTEXT_KEYS)
-            consequence_features |= _tokens(state_row, _STATE_CONSEQUENCE_KEYS)
+            base_context = _tokens(state_row, _CONTEXT_KEYS)
+            base_context |= _tokens(state_row, _CONTEXT_LIST_KEYS)
+            base_context |= _scalar_tokens(state_row, _CONTEXT_SCALAR_KEYS)
+            context_features |= _with_layer_tokens(base_context, layer_positions)
+
+            base_state_consequence = _tokens(state_row, _STATE_CONSEQUENCE_KEYS)
+            consequence_features |= _with_layer_tokens(base_state_consequence, layer_positions)
 
         consequence_row = consequence_by_occurrence.get(occurrence_ref)
         if consequence_row is None:
             missing_consequence.append(occurrence_ref)
         else:
-            consequence_features |= _tokens(consequence_row, _CONSEQUENCE_KEYS)
+            base_consequence = _tokens(consequence_row, _CONSEQUENCE_KEYS)
             if consequence_row.get("visible_consequence_support") is True:
-                consequence_features.add("visible_consequence_support:TRUE")
+                base_consequence.add("visible_consequence_support:TRUE")
             elif consequence_row.get("visible_consequence_support") is False:
-                consequence_features.add("visible_consequence_support:FALSE")
+                base_consequence.add("visible_consequence_support:FALSE")
             if consequence_row.get("terminal_outcome_support_visible") is True:
-                consequence_features.add("terminal_outcome_support_visible:TRUE")
+                base_consequence.add("terminal_outcome_support_visible:TRUE")
             elif consequence_row.get("terminal_outcome_support_visible") is False:
-                consequence_features.add("terminal_outcome_support_visible:FALSE")
+                base_consequence.add("terminal_outcome_support_visible:FALSE")
+            base_consequence |= _ensuing_visible_chain_tokens(consequence_row)
+            consequence_features |= _with_layer_tokens(base_consequence, layer_positions)
 
     return {
         "variant_ref": variant_ref,
         "sequence_ref": member.get("sequence_ref"),
         "visible_outcome_state": outcome,
         "supporting_occurrence_refs": occurrence_refs,
+        "partial_order_layer_count": len(variant.get("time_layer_refs") or []),
         "context_feature_tokens": sorted(context_features),
         "consequence_feature_tokens": sorted(consequence_features),
         "context_coverage_complete": bool(occurrence_refs) and not missing_state,
@@ -145,8 +237,11 @@ def _feature_rows(
         failure_rate = failure_numerator / failure_denominator if failure_denominator else None
         if success_rate == failure_rate:
             continue
+        layer_match = _LAYER_TOKEN_RE.match(feature)
         rows.append({
             "feature_token": feature,
+            "feature_scope": "PARTIAL_ORDER_LAYER" if layer_match else "VARIANT_AGGREGATE",
+            "partial_order_layer_index": int(layer_match.group(1)) if layer_match else None,
             "success_visible_numerator": success_numerator,
             "success_eligible_denominator": success_denominator,
             "failure_visible_numerator": failure_numerator,
@@ -167,6 +262,16 @@ def _feature_rows(
             "claim_ceiling": CLAIM_CEILING,
         })
     return rows
+
+
+def _first_supported_layer_candidate(rows: list[dict[str, Any]]) -> int | None:
+    layers = [
+        row.get("partial_order_layer_index")
+        for row in rows
+        if row.get("feature_scope") == "PARTIAL_ORDER_LAYER"
+        and isinstance(row.get("partial_order_layer_index"), int)
+    ]
+    return min(layers) if layers else None
 
 
 def build_grammar_stable_variant_feature_delta(
@@ -245,6 +350,9 @@ def build_grammar_stable_variant_feature_delta(
         if missing_consequence_count:
             reviews.append(f"variant_consequence_coverage_partial:{family_ref or 'UNKNOWN'}")
 
+        first_context_layer = _first_supported_layer_candidate(context_rows)
+        first_consequence_layer = _first_supported_layer_candidate(consequence_rows)
+
         family_records.append({
             "grammar_stable_variant_feature_delta_id": "gsvfd_" + _digest(family_ref, context_rows, consequence_rows)[:24],
             "source_process_variant_family_ref": family_ref or None,
@@ -260,14 +368,20 @@ def build_grammar_stable_variant_feature_delta(
             "context_feature_difference_candidate_count": len(context_rows),
             "consequence_feature_difference_candidates": consequence_rows,
             "consequence_feature_difference_candidate_count": len(consequence_rows),
+            "first_supported_context_difference_layer_candidate": first_context_layer,
+            "first_supported_consequence_difference_layer_candidate": first_consequence_layer,
             "member_profiles": profiles,
             "outcome_used_only_as_partition_label": True,
             "outcome_used_to_define_features": False,
             "same_timestamp_internal_ordering_used_for_first_difference": False,
+            "partial_order_layer_position_is_total_order_truth": False,
+            "layer_position_does_not_order_same_time_peers": True,
             "feature_absence_is_counterevidence": False,
             "difference_is_failure_cause_truth": False,
             "difference_is_tactical_explanation": False,
             "difference_is_coach_intention_truth": False,
+            "ensuing_visible_chain_is_causal_truth": False,
+            "actor_identity_difference_is_player_quality_truth": False,
             "independent_recurrence_support_count": 0,
             "dependency_independence_proven": False,
             "statistical_independence_proven": False,
@@ -295,10 +409,14 @@ def build_grammar_stable_variant_feature_delta(
         "outcome_used_only_as_partition_label": True,
         "outcome_used_to_define_features": False,
         "same_timestamp_internal_ordering_used_for_first_difference": False,
+        "partial_order_layer_position_is_total_order_truth": False,
+        "layer_position_does_not_order_same_time_peers": True,
         "feature_absence_is_counterevidence": False,
         "difference_is_failure_cause_truth": False,
         "difference_is_tactical_explanation": False,
         "difference_is_coach_intention_truth": False,
+        "ensuing_visible_chain_is_causal_truth": False,
+        "actor_identity_difference_is_player_quality_truth": False,
         "difference_rows_are_independent_evidence_votes": False,
         "hard_block_hits": sorted(set(blocks)),
         "review_hits": sorted(set(reviews)),
