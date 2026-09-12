@@ -12,9 +12,10 @@ from typing import Any
 MODULE_ID = "repo_full_health_audit_v1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
+LEGACY_ROOT_NAMES = {"hpfa-main", "vendor"}
 
 
-def _run(command: list[str], *, cwd: Path, timeout: int = 1800) -> dict[str, Any]:
+def _run(command: list[str], *, cwd: Path, timeout: int = 1800, env: dict[str, str] | None = None) -> dict[str, Any]:
     started = time.perf_counter()
     try:
         completed = subprocess.run(
@@ -23,13 +24,14 @@ def _run(command: list[str], *, cwd: Path, timeout: int = 1800) -> dict[str, Any
             text=True,
             capture_output=True,
             timeout=timeout,
+            env=env,
         )
         return {
             "command": command,
             "returncode": completed.returncode,
             "elapsed_seconds": round(time.perf_counter() - started, 6),
-            "stdout_tail": completed.stdout[-12000:],
-            "stderr_tail": completed.stderr[-12000:],
+            "stdout_tail": completed.stdout[-16000:],
+            "stderr_tail": completed.stderr[-16000:],
             "timed_out": False,
         }
     except subprocess.TimeoutExpired as exc:
@@ -37,8 +39,8 @@ def _run(command: list[str], *, cwd: Path, timeout: int = 1800) -> dict[str, Any
             "command": command,
             "returncode": 124,
             "elapsed_seconds": round(time.perf_counter() - started, 6),
-            "stdout_tail": str(exc.stdout or "")[-12000:],
-            "stderr_tail": str(exc.stderr or "")[-12000:],
+            "stdout_tail": str(exc.stdout or "")[-16000:],
+            "stderr_tail": str(exc.stderr or "")[-16000:],
             "timed_out": True,
         }
 
@@ -47,8 +49,8 @@ def _git_head(root: Path) -> str | None:
     result = _run(["git", "rev-parse", "HEAD"], cwd=root, timeout=30)
     if result["returncode"] != 0:
         return None
-    value = str(result["stdout_tail"]).strip().splitlines()
-    return value[-1] if value else None
+    lines = str(result["stdout_tail"]).strip().splitlines()
+    return lines[-1] if lines else None
 
 
 def _module_inventory(root: Path) -> dict[str, Any]:
@@ -65,19 +67,19 @@ def _module_inventory(root: Path) -> dict[str, Any]:
         tests = module / "tests"
         source_files = sorted(path for path in src.glob("*.py") if path.name != "__init__.py") if src.is_dir() else []
         test_files = sorted(tests.glob("test_*.py")) if tests.is_dir() else []
-        rows.append(
-            {
-                "module": module.name,
-                "source_file_count": len(source_files),
-                "test_file_count": len(test_files),
-                "has_source": bool(source_files),
-                "has_tests": bool(test_files),
-            }
-        )
+        root_tests = sorted(module.glob("test_*.py"))
+        all_tests = [*test_files, *root_tests]
+        rows.append({
+            "module": module.name,
+            "source_file_count": len(source_files),
+            "test_file_count": len(all_tests),
+            "has_source": bool(source_files),
+            "has_tests": bool(all_tests),
+        })
     return {
         "core_module_directory_count": len(rows),
-        "modules_with_source_count": sum(row["has_source"] for row in rows),
-        "modules_with_tests_count": sum(row["has_tests"] for row in rows),
+        "modules_with_source_count": sum(bool(row["has_source"]) for row in rows),
+        "modules_with_tests_count": sum(bool(row["has_tests"]) for row in rows),
         "core_source_file_count": sum(int(row["source_file_count"]) for row in rows),
         "core_test_file_count": sum(int(row["test_file_count"]) for row in rows),
         "modules_without_source": [row["module"] for row in rows if not row["has_source"]],
@@ -86,53 +88,60 @@ def _module_inventory(root: Path) -> dict[str, Any]:
     }
 
 
+def _is_current_product_test(root: Path, path: Path) -> bool:
+    try:
+        rel = path.relative_to(root)
+    except ValueError:
+        return False
+    if not rel.parts:
+        return False
+    if rel.parts[0] in LEGACY_ROOT_NAMES:
+        return False
+    if rel.parts[0] == "hpfa":
+        return True
+    return rel.parts[0] == "tests"
+
+
 def _repo_inventory(root: Path) -> dict[str, Any]:
-    py_files = [path for path in root.rglob("*.py") if ".git" not in path.parts]
-    test_files = [path for path in py_files if path.name.startswith("test_")]
-    product_test_files = [path for path in test_files if "vendor" not in path.parts]
-    product_python_files = [path for path in root.glob("*.py")]
+    all_py = [path for path in root.rglob("*.py") if ".git" not in path.parts]
+    all_tests = [path for path in all_py if path.name.startswith("test_")]
+    product_tests = [path for path in all_tests if _is_current_product_test(root, path)]
+    legacy_tests = [path for path in all_tests if path not in product_tests]
+
+    product_py = list(root.glob("*.py"))
     hpfa_root = root / "hpfa"
     if hpfa_root.is_dir():
-        product_python_files.extend(path for path in hpfa_root.rglob("*.py") if ".git" not in path.parts)
+        product_py.extend(path for path in hpfa_root.rglob("*.py") if ".git" not in path.parts)
+
     workflow_dir = root / ".github" / "workflows"
-    workflows = sorted(workflow_dir.glob("*.yml")) + sorted(workflow_dir.glob("*.yaml")) if workflow_dir.is_dir() else []
-    root_entrypoints = sorted(path.name for path in root.glob("*.py"))
+    workflows = []
+    if workflow_dir.is_dir():
+        workflows = sorted([*workflow_dir.glob("*.yml"), *workflow_dir.glob("*.yaml")])
+
     return {
-        "repository_python_file_count": len(py_files),
-        "repository_test_file_count": len(test_files),
-        "product_python_file_count": len(product_python_files),
-        "product_test_file_count": len(product_test_files),
-        "product_test_files": [str(path.relative_to(root)) for path in product_test_files],
-        "product_python_files": [str(path.relative_to(root)) for path in product_python_files],
+        "repository_python_file_count": len(all_py),
+        "repository_test_file_count": len(all_tests),
+        "product_python_file_count": len(product_py),
+        "product_test_file_count": len(product_tests),
+        "legacy_or_imported_test_file_count": len(legacy_tests),
+        "product_test_files": [str(path.relative_to(root)) for path in product_tests],
+        "legacy_or_imported_test_files": [str(path.relative_to(root)) for path in legacy_tests],
+        "product_python_files": [str(path.relative_to(root)) for path in product_py],
         "workflow_file_count": len(workflows),
-        "root_python_entrypoint_count": len(root_entrypoints),
-        "root_python_entrypoints": root_entrypoints,
+        "root_python_entrypoint_count": len(list(root.glob("*.py"))),
+        "root_python_entrypoints": sorted(path.name for path in root.glob("*.py")),
         "workflow_files": [path.name for path in workflows],
     }
 
 
 def _parse_junit(path: Path) -> dict[str, Any]:
     if not path.is_file():
-        return {
-            "junit_present": False,
-            "tests": None,
-            "failures": None,
-            "errors": None,
-            "skipped": None,
-            "time_seconds": None,
-        }
+        return {"junit_present": False, "tests": None, "failures": None, "errors": None, "skipped": None, "time_seconds": None}
     try:
-        root = ET.parse(path).getroot()
+        xml_root = ET.parse(path).getroot()
     except (ET.ParseError, OSError):
-        return {
-            "junit_present": True,
-            "tests": None,
-            "failures": None,
-            "errors": None,
-            "skipped": None,
-            "time_seconds": None,
-        }
-    suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+        return {"junit_present": True, "tests": None, "failures": None, "errors": None, "skipped": None, "time_seconds": None}
+    suites = [xml_root] if xml_root.tag == "testsuite" else list(xml_root.findall("testsuite"))
 
     def total(name: str, cast):
         values = []
@@ -164,11 +173,11 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
         f"product_core_status={payload.get('product_core_status')}",
         f"whole_tree_status={payload.get('whole_tree_status')}",
         f"git_head={payload.get('git_head')}",
-        f"python={payload.get('python_version')}",
         f"repository_python_file_count={repo.get('repository_python_file_count')}",
         f"repository_test_file_count={repo.get('repository_test_file_count')}",
         f"product_python_file_count={repo.get('product_python_file_count')}",
         f"product_test_file_count={repo.get('product_test_file_count')}",
+        f"legacy_or_imported_test_file_count={repo.get('legacy_or_imported_test_file_count')}",
         f"workflow_file_count={repo.get('workflow_file_count')}",
         f"core_module_directory_count={modules.get('core_module_directory_count')}",
         f"modules_with_source_count={modules.get('modules_with_source_count')}",
@@ -190,6 +199,8 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
     lines.extend(f"- {name}" for name in modules.get("modules_without_tests") or [])
     lines.extend(["", "MODULES_WITHOUT_SOURCE"])
     lines.extend(f"- {name}" for name in modules.get("modules_without_source") or [])
+    lines.extend(["", "LEGACY_OR_IMPORTED_TEST_SURFACE"])
+    lines.extend(f"- {name}" for name in repo.get("legacy_or_imported_test_files") or [])
     lines.extend([
         "",
         "WHOLE_TREE_COMPILE_DEBT",
@@ -201,8 +212,9 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
         "production_release=false",
         "",
         "NOTE",
-        "product_core_status is based on current HPFA/root Python compile plus explicit non-vendor test files.",
-        "whole_tree_status also includes vendor/donor code health and may remain REVIEW_REQUIRED without making vendor product authority.",
+        "Product core tests are explicit current tests under hpfa/ or root tests/, run with pytest --import-mode=importlib to avoid duplicate-basename collection collisions.",
+        "hpfa-main/* is classified by repository governance as legacy_or_imported_structure and is reported separately rather than treated as current product authority.",
+        "vendor/donor compile debt remains visible in whole_tree_status.",
         "This audit does not substitute for physical ACTIVE_MATCH evidence.",
         "A module directory is not automatically an independent runtime engine or an orphan capability.",
         "",
@@ -211,7 +223,7 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Compile and test the HPFA product surface and audit the full repository tree.")
+    parser = argparse.ArgumentParser(description="Compile/test current HPFA product core and separately audit legacy/vendor tree debt.")
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     args = parser.parse_args()
@@ -226,39 +238,23 @@ def main() -> int:
     product_python_files = [str(root / value) for value in repo_inventory["product_python_files"]]
     product_test_files = list(repo_inventory["product_test_files"])
 
-    product_compile = _run(
-        [sys.executable, "-m", "py_compile", *product_python_files],
-        cwd=root,
-        timeout=args.timeout_seconds,
-    )
-    whole_tree_compile = _run(
-        [sys.executable, "-m", "compileall", "-q", str(root)],
-        cwd=root,
-        timeout=args.timeout_seconds,
-    )
-    collect_result = _run(
-        [sys.executable, "-m", "pytest", "--collect-only", "-q", *product_test_files],
-        cwd=root,
-        timeout=args.timeout_seconds,
-    )
-    pytest_result = _run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-q",
-            "--durations=50",
-            f"--junitxml={junit}",
-            *product_test_files,
-        ],
-        cwd=root,
-        timeout=args.timeout_seconds,
-    )
-    pytest_summary = _parse_junit(junit)
+    product_compile = _run([sys.executable, "-m", "py_compile", *product_python_files], cwd=root, timeout=args.timeout_seconds)
+    whole_tree_compile = _run([sys.executable, "-m", "compileall", "-q", str(root)], cwd=root, timeout=args.timeout_seconds)
 
-    product_core_status = "PASS"
-    if product_compile["returncode"] != 0 or collect_result["returncode"] != 0 or pytest_result["returncode"] != 0:
-        product_core_status = "REVIEW_REQUIRED"
+    pytest_base = [sys.executable, "-m", "pytest", "--import-mode=importlib"]
+    if product_test_files:
+        collect_result = _run([*pytest_base, "--collect-only", "-q", *product_test_files], cwd=root, timeout=args.timeout_seconds)
+        pytest_result = _run(
+            [*pytest_base, "-q", "--durations=50", f"--junitxml={junit}", *product_test_files],
+            cwd=root,
+            timeout=args.timeout_seconds,
+        )
+    else:
+        collect_result = {"returncode": 5, "elapsed_seconds": 0.0, "stdout_tail": "no_current_product_tests", "stderr_tail": "", "timed_out": False, "command": []}
+        pytest_result = dict(collect_result)
+
+    pytest_summary = _parse_junit(junit)
+    product_core_status = "PASS" if all(result["returncode"] == 0 for result in (product_compile, collect_result, pytest_result)) else "REVIEW_REQUIRED"
     whole_tree_status = "PASS" if whole_tree_compile["returncode"] == 0 else "REVIEW_REQUIRED"
     status = "PASS" if product_core_status == "PASS" and whole_tree_status == "PASS" else "REVIEW_REQUIRED"
 
@@ -292,6 +288,7 @@ def main() -> int:
         "git_head": payload["git_head"],
         "core_module_directory_count": module_inventory["core_module_directory_count"],
         "modules_with_tests_count": module_inventory["modules_with_tests_count"],
+        "product_test_file_count": repo_inventory["product_test_file_count"],
         "pytest_tests": pytest_summary.get("tests"),
         "pytest_failures": pytest_summary.get("failures"),
         "pytest_errors": pytest_summary.get("errors"),
