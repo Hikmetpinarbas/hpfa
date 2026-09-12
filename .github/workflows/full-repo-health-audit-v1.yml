@@ -26,6 +26,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pytest openpyxl numpy pandas pydantic PyYAML
 
+      - name: Validate Termux operator scripts
+        run: |
+          bash -n tools/termux_active_match_crash_probe_v1.sh
+          bash -n tools/termux_p1_physical_acceptance_v1.sh
+
       - name: Fail-local repository compile and product test audit
         id: full_audit
         continue-on-error: true
