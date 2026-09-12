@@ -32,6 +32,10 @@ _STATE_CONSEQUENCE_KEYS = (
 _CONSEQUENCE_KEYS = (
     "consequence_signal_candidates",
     "primary_consequence_candidates",
+    "followup_observation_status",
+    "process_continuation_status",
+    "terminal_status",
+    "observation_status",
 )
 _RESOLVED_OUTCOMES = {"SUCCESS_SEMANTIC_VISIBLE", "FAILURE_SEMANTIC_VISIBLE"}
 _LAYER_TOKEN_RE = re.compile(r"^LAYER\[(\d+)\]::")
@@ -302,6 +306,32 @@ def build_grammar_stable_variant_feature_delta(
         blocks.append("occurrence_state_transition_fail_closed")
     if occurrence_consequence_payload.get("status") == "FAIL_CLOSED":
         blocks.append("occurrence_consequence_fail_closed")
+    if occurrence_consequence_payload.get("no_visible_followup_is_failure") is True:
+        blocks.append("no_visible_followup_failure_lock_breached")
+    if occurrence_consequence_payload.get("followup_is_terminal_outcome_truth") is True:
+        blocks.append("followup_terminal_truth_lock_breached")
+    if occurrence_consequence_payload.get("projection_is_causal_truth") is True:
+        blocks.append("consequence_causal_truth_lock_breached")
+
+    horizon = occurrence_consequence_payload.get("source_consequence_horizon")
+    horizon = horizon if isinstance(horizon, dict) else {}
+    horizon_state = _clean(horizon.get("horizon_definition_state")) or "HORIZON_UNSPECIFIED"
+    right_censoring_assessed = occurrence_consequence_payload.get("right_censoring_assessed") is True
+    observation_state_surface_present = any(
+        any(
+            key in row
+            for key in (
+                "followup_observation_status",
+                "process_continuation_status",
+                "terminal_status",
+                "observation_status",
+            )
+        )
+        for row in (occurrence_consequence_payload.get("occurrence_consequence_projections") or [])
+        if isinstance(row, dict)
+    )
+    if horizon_state == "HORIZON_UNSPECIFIED":
+        reviews.append("consequence_horizon_unspecified")
 
     variant_by_id = _index(sequence_payload.get("partial_order_occurrence_variants"), "partial_order_occurrence_variant_id")
     state_by_occurrence = _index(
@@ -370,6 +400,10 @@ def build_grammar_stable_variant_feature_delta(
             "consequence_feature_difference_candidate_count": len(consequence_rows),
             "first_supported_context_difference_layer_candidate": first_context_layer,
             "first_supported_consequence_difference_layer_candidate": first_consequence_layer,
+            "consequence_observation_state_features_consumed": observation_state_surface_present,
+            "consequence_horizon_definition_state": horizon_state,
+            "consequence_horizon_sensitivity_tested": False,
+            "right_censoring_assessed": right_censoring_assessed,
             "member_profiles": profiles,
             "outcome_used_only_as_partition_label": True,
             "outcome_used_to_define_features": False,
@@ -377,6 +411,8 @@ def build_grammar_stable_variant_feature_delta(
             "partial_order_layer_position_is_total_order_truth": False,
             "layer_position_does_not_order_same_time_peers": True,
             "feature_absence_is_counterevidence": False,
+            "no_visible_followup_is_failure": False,
+            "followup_is_terminal_outcome_truth": False,
             "difference_is_failure_cause_truth": False,
             "difference_is_tactical_explanation": False,
             "difference_is_coach_intention_truth": False,
@@ -406,12 +442,18 @@ def build_grammar_stable_variant_feature_delta(
         "source_grammar_stable_visible_outcome_variation_family_count": int(
             process_variant_payload.get("grammar_stable_visible_outcome_variation_family_count") or 0
         ),
+        "consequence_observation_state_features_consumed": observation_state_surface_present,
+        "consequence_horizon_definition_state": horizon_state,
+        "consequence_horizon_sensitivity_tested": False,
+        "right_censoring_assessed": right_censoring_assessed,
         "outcome_used_only_as_partition_label": True,
         "outcome_used_to_define_features": False,
         "same_timestamp_internal_ordering_used_for_first_difference": False,
         "partial_order_layer_position_is_total_order_truth": False,
         "layer_position_does_not_order_same_time_peers": True,
         "feature_absence_is_counterevidence": False,
+        "no_visible_followup_is_failure": False,
+        "followup_is_terminal_outcome_truth": False,
         "difference_is_failure_cause_truth": False,
         "difference_is_tactical_explanation": False,
         "difference_is_coach_intention_truth": False,
