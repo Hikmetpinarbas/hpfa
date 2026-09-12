@@ -21,7 +21,8 @@ def _spatial_payload():
                 "provider_direction_candidates": ["FORWARD"],
                 "provider_outcome_candidates": ["SUCCESS"],
                 "provider_semantic_rule_ids": ["r1"],
-                "spatial_admission_state": "PROVIDER_SPATIAL_CONTEXT_CANDIDATE_ONLY",
+                "coordinate_derived_zone_candidate": "FINAL_THIRD_LOCATION_CANDIDATE",
+                "spatial_admission_state": "ADMITTED_LOCATION_ONLY",
             },
             {
                 "spatial_transition_candidate_id": "stc_2",
@@ -62,11 +63,16 @@ def _occurrence_payload():
                 "occurrence_consequence_projection_id": "ocp_1",
                 "action_occurrence_candidate_id": "aoc_1",
                 "occurrence_topology": "TWO_PARTICIPANT_INTERACTION",
+                "required_participant_scope": "ACTOR_AND_OPPONENT",
+                "binding_state": "BOTH_PARTICIPANTS_TRACE_VISIBLE_CANDIDATE",
                 "supporting_trackable_action_trace_candidate_ids": ["tat_1", "tat_2"],
                 "supporting_consequence_candidate_ids": ["tacc_1", "tacc_2"],
                 "actor_identity_candidate_ids": ["actor_1", "actor_2"],
                 "team_identity_candidate_ids": ["team_1", "team_2"],
                 "action_family_candidates": ["DRIBBLE", "TACKLE"],
+                "period_candidates": ["1"],
+                "start_candidates": ["100.0"],
+                "end_candidates": ["104.0"],
                 "primary_consequence_candidates": ["SHOT_FOLLOW_UP_CANDIDATE"],
                 "admitted_after_follow_up_trace_ids": ["tat_after"],
                 "record_status": "PASS",
@@ -75,11 +81,16 @@ def _occurrence_payload():
                 "occurrence_consequence_projection_id": "ocp_2",
                 "action_occurrence_candidate_id": "aoc_2",
                 "occurrence_topology": "SINGLE_ACTOR_ACTION",
+                "required_participant_scope": "ACTOR_ONLY",
+                "binding_state": "ACTOR_TRACE_VISIBLE_CANDIDATE",
                 "supporting_trackable_action_trace_candidate_ids": ["tat_3"],
                 "supporting_consequence_candidate_ids": ["tacc_3"],
                 "actor_identity_candidate_ids": ["actor_3"],
                 "team_identity_candidate_ids": ["team_1"],
                 "action_family_candidates": ["PASS"],
+                "period_candidates": ["2"],
+                "start_candidates": ["200.0"],
+                "end_candidates": ["201.0"],
                 "primary_consequence_candidates": ["PROVENANCE_WINDOW_ONLY_REVIEW_REQUIRED_CANDIDATE"],
                 "admitted_after_follow_up_trace_ids": [],
                 "record_status": "REVIEW_REQUIRED",
@@ -103,6 +114,26 @@ def test_two_trace_interaction_projects_to_one_occurrence_state_record():
     assert first["supporting_spatial_transition_candidate_ids"] == ["stc_1", "stc_2"]
     assert first["transition_class_candidates"] == ["PROGRESSIVE_TO_SHOT_FOLLOW_UP_CANDIDATE"]
     assert payload["legacy_trace_records_are_support_evidence_not_action_universe"] is True
+
+
+def test_occurrence_context_is_carried_forward_without_promoting_truth():
+    payload = build_occurrence_state_transition_projection(
+        _spatial_payload(),
+        _occurrence_payload(),
+    )
+    first = next(
+        row
+        for row in payload["occurrence_state_transition_projections"]
+        if row["action_occurrence_candidate_id"] == "aoc_1"
+    )
+    assert first["actor_identity_candidate_ids"] == ["actor_1", "actor_2"]
+    assert first["period_candidates"] == ["1"]
+    assert first["start_candidates"] == ["100.0"]
+    assert first["occurrence_topology"] == "TWO_PARTICIPANT_INTERACTION"
+    assert first["coordinate_derived_zone_candidates"] == ["FINAL_THIRD_LOCATION_CANDIDATE"]
+    assert "ADMITTED_COORDINATE_ZONE_CANDIDATE_VISIBLE" in first["support_candidates"]
+    assert first["coordinate_derived_zone_is_team_shape_truth"] is False
+    assert first["transition_is_causal_truth"] is False
 
 
 def test_occurrence_count_is_projection_denominator_not_trace_count():
