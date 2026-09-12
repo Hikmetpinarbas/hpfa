@@ -73,3 +73,36 @@ def test_interval_projection_fail_closed_is_lane_local_not_trace_hard_block(
     assert payload["status"] == "REVIEW_REQUIRED"
     assert payload["module_status"] == "REVIEW_REQUIRED"
     assert "actor_acquisition_release_interval_projection_fail_closed" in payload["review_hits"]
+
+
+def test_upstream_fail_closed_short_circuits_interval_builder(
+    tmp_path, monkeypatch
+) -> None:
+    def forbidden_builder(payload):
+        raise AssertionError("interval builder must not run on fail-closed upstream trace")
+
+    monkeypatch.setattr(
+        current,
+        "build_observed_actor_acquisition_release_interval_projection",
+        forbidden_builder,
+    )
+    payload = {
+        "status": "FAIL_CLOSED",
+        "module_status": "FAIL_CLOSED",
+        "review_hits": [],
+    }
+
+    report = current._write_interval_projection(payload, tmp_path)
+
+    sidecar = tmp_path / current.INTERVAL_OUTPUT_JSON
+    assert sidecar.is_file()
+    assert report["status"] == "FAIL_CLOSED"
+    assert report["observed_actor_acquisition_release_interval_candidate_count"] == 0
+    assert report["hard_block_hits"] == ["upstream_trace_runtime_fail_closed"]
+    assert report["projection_creates_new_evidence"] is False
+    assert report["projection_reconstructs_sequences"] is False
+    assert payload["status"] == "FAIL_CLOSED"
+    assert payload["module_status"] == "FAIL_CLOSED"
+    assert payload["current_actor_acquisition_release_interval_projection_bound"] is True
+    assert payload["current_actor_acquisition_release_interval_status"] == "FAIL_CLOSED"
+    assert "actor_acquisition_release_interval_projection_fail_closed" in payload["review_hits"]
