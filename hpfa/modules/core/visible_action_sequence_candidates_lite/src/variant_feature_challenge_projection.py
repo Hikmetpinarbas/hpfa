@@ -19,6 +19,16 @@ _WITHDRAWAL_CONDITIONS = [
     "WITHDRAW_OR_QUALIFY_IF_SOURCE_EVIDENCE_REFS_CANNOT_BE_RESOLVED",
 ]
 
+_CONSEQUENCE_COUNTER_SCENARIOS = [
+    "CONSEQUENCE_HORIZON_DEFINITION_MAY_CHANGE_APPARENT_DIFFERENCE",
+    "UNASSESSED_CENSORING_MAY_CHANGE_APPARENT_DIFFERENCE",
+]
+
+_CONSEQUENCE_WITHDRAWAL_CONDITIONS = [
+    "WITHDRAW_OR_QUALIFY_IF_DIFFERENCE_IS_NOT_STABLE_ACROSS_ADMITTED_CONSEQUENCE_HORIZONS",
+    "WITHDRAW_OR_QUALIFY_IF_CENSORING_RESOLUTION_CHANGES_THE_APPARENT_DIFFERENCE",
+]
+
 
 def _clean(value: Any) -> str:
     return " ".join(str(value or "").split()).strip()
@@ -105,6 +115,26 @@ def _challenge_row(
     )
     statistical_independence_proven = feature.get("statistical_independence_proven") is True
 
+    consequence_contract_present = (
+        feature_surface == "CONSEQUENCE"
+        and delta_record.get("consequence_observation_state_features_consumed") is True
+    )
+    consequence_horizon_state = (
+        _clean(delta_record.get("consequence_horizon_definition_state"))
+        if consequence_contract_present
+        else "LEGACY_OR_NOT_APPLICABLE"
+    )
+    consequence_horizon_sensitivity_tested = (
+        delta_record.get("consequence_horizon_sensitivity_tested") is True
+        if consequence_contract_present
+        else False
+    )
+    right_censoring_assessed = (
+        delta_record.get("right_censoring_assessed") is True
+        if consequence_contract_present
+        else False
+    )
+
     challenge_reasons = [
         "SAMPLE_STRENGTH_UNCALIBRATED",
         "CONTEXT_ROBUSTNESS_NOT_TESTED",
@@ -119,6 +149,20 @@ def _challenge_row(
         challenge_reasons.append("SINGLE_PERIOD_SCOPE")
     if visible_in_success and visible_in_failure:
         challenge_reasons.append("FEATURE_VISIBLE_IN_BOTH_OUTCOME_PARTITIONS")
+
+    counter_scenarios = list(_COUNTER_SCENARIOS)
+    withdrawal_conditions = list(_WITHDRAWAL_CONDITIONS)
+    if consequence_contract_present:
+        counter_scenarios.extend(_CONSEQUENCE_COUNTER_SCENARIOS)
+        withdrawal_conditions.extend(_CONSEQUENCE_WITHDRAWAL_CONDITIONS)
+        if consequence_horizon_state == "HORIZON_UNSPECIFIED":
+            challenge_reasons.append("CONSEQUENCE_HORIZON_UNSPECIFIED")
+        elif not consequence_horizon_sensitivity_tested:
+            challenge_reasons.append("CONSEQUENCE_HORIZON_SENSITIVITY_NOT_TESTED")
+        if not right_censoring_assessed:
+            challenge_reasons.append("RIGHT_CENSORING_NOT_ASSESSED")
+        if "NO_VISIBLE_FOLLOWUP" in feature_token or "CENSORING_NOT_ASSESSED" in feature_token:
+            challenge_reasons.append("NO_VISIBLE_FOLLOWUP_CENSORING_UNRESOLVED")
 
     return {
         "variant_feature_challenge_id": "vfc_" + _digest(
@@ -147,15 +191,20 @@ def _challenge_row(
         "sample_strength_state": "UNCALIBRATED_NO_ARBITRARY_THRESHOLD_APPLIED",
         "relevant_coverage_incomplete_variant_count": relevant_incomplete,
         "context_robustness_proven": False,
+        "consequence_observation_contract_present": consequence_contract_present,
+        "consequence_horizon_definition_state": consequence_horizon_state,
+        "consequence_horizon_sensitivity_tested": consequence_horizon_sensitivity_tested,
+        "right_censoring_assessed": right_censoring_assessed,
         "period_spread_is_context_robustness_truth": False,
         "feature_absence_is_counterevidence": False,
+        "no_visible_followup_is_failure": False,
         "difference_is_statistically_significant": False,
         "difference_is_failure_cause_truth": False,
         "difference_is_tactical_explanation": False,
         "difference_is_coach_intention_truth": False,
-        "counter_scenario_candidates": list(_COUNTER_SCENARIOS),
+        "counter_scenario_candidates": sorted(set(counter_scenarios)),
         "alternative_explanations_present": True,
-        "withdrawal_conditions": list(_WITHDRAWAL_CONDITIONS),
+        "withdrawal_conditions": sorted(set(withdrawal_conditions)),
         "challenge_reasons": sorted(set(challenge_reasons)),
         "qualification_state": "DESCRIPTIVE_DIFFERENCE_REQUIRES_CHALLENGE",
         "analyst_hypothesis_review_candidate": True,
@@ -191,6 +240,8 @@ def build_variant_feature_challenge_projection(
         hard_blocks.append("outcome_feature_leakage_lock_missing")
     if feature_delta_payload.get("feature_absence_is_counterevidence") is not False:
         hard_blocks.append("absence_counterevidence_lock_breached")
+    if feature_delta_payload.get("no_visible_followup_is_failure") is True:
+        hard_blocks.append("no_visible_followup_failure_lock_breached")
 
     families = _index(
         process_variant_payload.get("observable_process_variant_families"),
@@ -244,6 +295,18 @@ def build_variant_feature_challenge_projection(
         review_hits.append("statistical_independence_unproven")
     if any(row.get("relevant_coverage_incomplete_variant_count", 0) > 0 for row in rows):
         review_hits.append("one_or_more_feature_surfaces_have_partial_coverage")
+    if any(
+        row.get("consequence_observation_contract_present") is True
+        and row.get("consequence_horizon_sensitivity_tested") is not True
+        for row in rows
+    ):
+        review_hits.append("consequence_horizon_sensitivity_not_tested")
+    if any(
+        row.get("consequence_observation_contract_present") is True
+        and row.get("right_censoring_assessed") is not True
+        for row in rows
+    ):
+        review_hits.append("right_censoring_not_assessed")
     if rows:
         review_hits.append("sample_strength_uncalibrated")
         review_hits.append("context_robustness_not_tested")
@@ -267,6 +330,9 @@ def build_variant_feature_challenge_projection(
         "difference_rows_are_independent_evidence_votes": False,
         "period_spread_is_context_robustness_truth": False,
         "feature_absence_is_counterevidence": False,
+        "no_visible_followup_is_failure": False,
+        "consequence_horizon_sensitivity_can_be_ignored": False,
+        "unassessed_censoring_can_be_treated_as_failure": False,
         "hypothesis_candidate_is_truth": False,
         "professional_finding_emit_allowed": False,
         "hard_block_hits": sorted(set(hard_blocks)),
