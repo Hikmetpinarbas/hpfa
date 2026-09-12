@@ -89,12 +89,21 @@ def _module_inventory(root: Path) -> dict[str, Any]:
 def _repo_inventory(root: Path) -> dict[str, Any]:
     py_files = [path for path in root.rglob("*.py") if ".git" not in path.parts]
     test_files = [path for path in py_files if path.name.startswith("test_")]
+    product_test_files = [path for path in test_files if "vendor" not in path.parts]
+    product_python_files = [path for path in root.glob("*.py")]
+    hpfa_root = root / "hpfa"
+    if hpfa_root.is_dir():
+        product_python_files.extend(path for path in hpfa_root.rglob("*.py") if ".git" not in path.parts)
     workflow_dir = root / ".github" / "workflows"
     workflows = sorted(workflow_dir.glob("*.yml")) + sorted(workflow_dir.glob("*.yaml")) if workflow_dir.is_dir() else []
     root_entrypoints = sorted(path.name for path in root.glob("*.py"))
     return {
         "repository_python_file_count": len(py_files),
         "repository_test_file_count": len(test_files),
+        "product_python_file_count": len(product_python_files),
+        "product_test_file_count": len(product_test_files),
+        "product_test_files": [str(path.relative_to(root)) for path in product_test_files],
+        "product_python_files": [str(path.relative_to(root)) for path in product_python_files],
         "workflow_file_count": len(workflows),
         "root_python_entrypoint_count": len(root_entrypoints),
         "root_python_entrypoints": root_entrypoints,
@@ -124,6 +133,7 @@ def _parse_junit(path: Path) -> dict[str, Any]:
             "time_seconds": None,
         }
     suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+
     def total(name: str, cast):
         values = []
         for suite in suites:
@@ -132,6 +142,7 @@ def _parse_junit(path: Path) -> dict[str, Any]:
             except (TypeError, ValueError):
                 pass
         return sum(values) if values else 0
+
     return {
         "junit_present": True,
         "tests": total("tests", int),
@@ -150,20 +161,23 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
         "HPFA FULL REPOSITORY HEALTH AUDIT V1",
         "====================================",
         f"status={payload.get('status')}",
+        f"product_core_status={payload.get('product_core_status')}",
+        f"whole_tree_status={payload.get('whole_tree_status')}",
         f"git_head={payload.get('git_head')}",
         f"python={payload.get('python_version')}",
         f"repository_python_file_count={repo.get('repository_python_file_count')}",
         f"repository_test_file_count={repo.get('repository_test_file_count')}",
+        f"product_python_file_count={repo.get('product_python_file_count')}",
+        f"product_test_file_count={repo.get('product_test_file_count')}",
         f"workflow_file_count={repo.get('workflow_file_count')}",
         f"core_module_directory_count={modules.get('core_module_directory_count')}",
         f"modules_with_source_count={modules.get('modules_with_source_count')}",
         f"modules_with_tests_count={modules.get('modules_with_tests_count')}",
         f"core_source_file_count={modules.get('core_source_file_count')}",
         f"core_test_file_count={modules.get('core_test_file_count')}",
-        f"compile_returncode={(payload.get('compile') or {}).get('returncode')}",
-        f"compile_elapsed_seconds={(payload.get('compile') or {}).get('elapsed_seconds')}",
+        f"product_compile_returncode={(payload.get('product_compile') or {}).get('returncode')}",
+        f"whole_tree_compile_returncode={(payload.get('whole_tree_compile') or {}).get('returncode')}",
         f"collect_returncode={(payload.get('collect') or {}).get('returncode')}",
-        f"collect_elapsed_seconds={(payload.get('collect') or {}).get('elapsed_seconds')}",
         f"pytest_returncode={(payload.get('pytest') or {}).get('returncode')}",
         f"pytest_elapsed_seconds={(payload.get('pytest') or {}).get('elapsed_seconds')}",
         f"pytest_tests={tests.get('tests')}",
@@ -178,13 +192,18 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
     lines.extend(f"- {name}" for name in modules.get("modules_without_source") or [])
     lines.extend([
         "",
+        "WHOLE_TREE_COMPILE_DEBT",
+        str((payload.get("whole_tree_compile") or {}).get("stdout_tail") or "NONE"),
+        "",
         "CLAIM_LOCKS",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "production_release=false",
         "",
         "NOTE",
-        "This audit proves repository compile/test health only. It does not substitute for physical ACTIVE_MATCH evidence.",
+        "product_core_status is based on current HPFA/root Python compile plus explicit non-vendor test files.",
+        "whole_tree_status also includes vendor/donor code health and may remain REVIEW_REQUIRED without making vendor product authority.",
+        "This audit does not substitute for physical ACTIVE_MATCH evidence.",
         "A module directory is not automatically an independent runtime engine or an orphan capability.",
         "",
     ])
@@ -192,7 +211,7 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Compile and test the full HPFA repository and write an inventory report.")
+    parser = argparse.ArgumentParser(description="Compile and test the HPFA product surface and audit the full repository tree.")
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     args = parser.parse_args()
@@ -204,8 +223,24 @@ def main() -> int:
 
     module_inventory = _module_inventory(root)
     repo_inventory = _repo_inventory(root)
-    compile_result = _run([sys.executable, "-m", "compileall", "-q", str(root)], cwd=root, timeout=args.timeout_seconds)
-    collect_result = _run([sys.executable, "-m", "pytest", "--collect-only", "-q"], cwd=root, timeout=args.timeout_seconds)
+    product_python_files = [str(root / value) for value in repo_inventory["product_python_files"]]
+    product_test_files = list(repo_inventory["product_test_files"])
+
+    product_compile = _run(
+        [sys.executable, "-m", "py_compile", *product_python_files],
+        cwd=root,
+        timeout=args.timeout_seconds,
+    )
+    whole_tree_compile = _run(
+        [sys.executable, "-m", "compileall", "-q", str(root)],
+        cwd=root,
+        timeout=args.timeout_seconds,
+    )
+    collect_result = _run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q", *product_test_files],
+        cwd=root,
+        timeout=args.timeout_seconds,
+    )
     pytest_result = _run(
         [
             sys.executable,
@@ -214,24 +249,30 @@ def main() -> int:
             "-q",
             "--durations=50",
             f"--junitxml={junit}",
+            *product_test_files,
         ],
         cwd=root,
         timeout=args.timeout_seconds,
     )
     pytest_summary = _parse_junit(junit)
 
-    status = "PASS"
-    if compile_result["returncode"] != 0 or collect_result["returncode"] != 0 or pytest_result["returncode"] != 0:
-        status = "REVIEW_REQUIRED"
+    product_core_status = "PASS"
+    if product_compile["returncode"] != 0 or collect_result["returncode"] != 0 or pytest_result["returncode"] != 0:
+        product_core_status = "REVIEW_REQUIRED"
+    whole_tree_status = "PASS" if whole_tree_compile["returncode"] == 0 else "REVIEW_REQUIRED"
+    status = "PASS" if product_core_status == "PASS" and whole_tree_status == "PASS" else "REVIEW_REQUIRED"
 
     payload = {
         "module_id": MODULE_ID,
         "status": status,
+        "product_core_status": product_core_status,
+        "whole_tree_status": whole_tree_status,
         "git_head": _git_head(root),
         "python_version": sys.version.replace("\n", " "),
         "module_inventory": module_inventory,
         "repo_inventory": repo_inventory,
-        "compile": compile_result,
+        "product_compile": product_compile,
+        "whole_tree_compile": whole_tree_compile,
         "collect": collect_result,
         "pytest": pytest_result,
         "pytest_summary": pytest_summary,
@@ -246,6 +287,8 @@ def main() -> int:
     _write_text(txt_path, payload)
     print(json.dumps({
         "status": status,
+        "product_core_status": product_core_status,
+        "whole_tree_status": whole_tree_status,
         "git_head": payload["git_head"],
         "core_module_directory_count": module_inventory["core_module_directory_count"],
         "modules_with_tests_count": module_inventory["modules_with_tests_count"],
@@ -255,7 +298,7 @@ def main() -> int:
         "pytest_elapsed_seconds": pytest_result["elapsed_seconds"],
         "report": str(txt_path),
     }, ensure_ascii=False, sort_keys=True))
-    return 0 if status == "PASS" else 1
+    return 0 if product_core_status == "PASS" else 1
 
 
 if __name__ == "__main__":
