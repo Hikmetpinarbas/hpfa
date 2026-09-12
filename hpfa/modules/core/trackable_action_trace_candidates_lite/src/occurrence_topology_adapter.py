@@ -17,6 +17,10 @@ def apply_occurrence_topology_binding(
     candidate with SINGLE_ACTOR_ACTION topology requires only the actor trace. This prevents a
     correctly admitted pass/dribble occurrence from being downgraded merely because it has no
     opponent participant by definition.
+
+    The legacy trace inventory is preserved for support/provenance, but an explicit occurrence-
+    backed primary trace surface is exposed for downstream membership. This does not promote
+    occurrence candidates to canonical event truth or physical action truth.
     """
     if trace_payload.get("status") == "FAIL_CLOSED":
         return trace_payload
@@ -88,6 +92,36 @@ def apply_occurrence_topology_binding(
     trace_payload["occurrence_no_participant_trace_visible_count"] = missing
     trace_payload["occurrence_unresolved_topology_count"] = unresolved_topology
     trace_payload["occurrence_topology_aware_binding"] = True
+
+    legacy_traces = [
+        row
+        for row in (trace_payload.get("trackable_action_trace_candidates") or [])
+        if isinstance(row, dict)
+    ]
+    primary_traces: list[dict[str, Any]] = []
+    for trace in legacy_traces:
+        occurrence_ids = sorted(
+            {
+                _clean(value)
+                for value in trace.get("supporting_action_occurrence_candidate_ids") or []
+                if _clean(value)
+            }
+        )
+        is_primary = bool(occurrence_ids)
+        trace["primary_occurrence_member_candidate"] = is_primary
+        trace["legacy_unbound_support_only"] = not is_primary
+        if is_primary:
+            primary_traces.append(trace)
+
+    trace_payload["source_legacy_trace_candidate_count"] = len(legacy_traces)
+    trace_payload["primary_occurrence_trace_candidates"] = primary_traces
+    trace_payload["primary_occurrence_trace_candidate_count"] = len(primary_traces)
+    trace_payload["legacy_unbound_trace_candidate_count"] = len(legacy_traces) - len(primary_traces)
+    trace_payload["primary_trace_member_surface"] = "OCCURRENCE_BACKED_TRACE_CANDIDATES"
+    trace_payload["legacy_trace_records_are_primary_action_member_surface"] = False
+    trace_payload["legacy_unbound_trace_records_retained_as_support_only"] = True
+    trace_payload["primary_occurrence_trace_surface_is_action_identity_truth"] = False
+    trace_payload["primary_occurrence_trace_surface_is_canonical_event_truth"] = False
 
     reviews = [
         _clean(value)
