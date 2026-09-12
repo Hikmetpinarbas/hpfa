@@ -69,16 +69,49 @@ def _relation_map(payload):
     }
 
 
-def test_admitted_absolute_seconds_emit_after_same_time_and_indeterminate_without_row_order():
+def test_admitted_absolute_start_timestamps_emit_after_same_time_without_row_order():
     payload = bind_temporal_relation_admission(_trace_payload(), _context())
     relations = _relation_map(payload)
     assert relations[("tat_a", "tat_same")] == "SAME_TIME_UNORDERED"
-    assert relations[("tat_a", "tat_overlap")] == "ORDER_INDETERMINATE"
+    assert relations[("tat_a", "tat_overlap")] == "AFTER_CONFIRMED"
     assert relations[("tat_a", "tat_after")] == "AFTER_CONFIRMED"
+    assert payload["temporal_relation_uses_start_timestamp_only"] is True
+    assert payload["trace_end_candidate_used_for_ordering"] is False
+    assert payload["trace_end_candidate_is_physical_action_duration_truth"] is False
     assert payload["same_timestamp_is_total_order"] is False
     assert payload["source_row_order_is_temporal_truth"] is False
     assert payload["cross_period_temporal_relation_admitted"] is False
     assert not any("tat_period2" in pair for pair in relations)
+
+
+def test_overlapping_trace_windows_do_not_erase_admitted_start_order():
+    trace_payload = {
+        "status": "PASS",
+        "module_status": "PASS",
+        "review_hits": [],
+        "trackable_action_trace_candidates": [
+            {
+                "trackable_action_trace_candidate_id": "tat_recovery",
+                "period_candidate": "1",
+                "start_candidate": "100.0",
+                "end_candidate": "112.0",
+            },
+            {
+                "trackable_action_trace_candidate_id": "tat_follow",
+                "period_candidate": "1",
+                "start_candidate": "103.0",
+                "end_candidate": "115.0",
+            },
+        ],
+    }
+    payload = bind_temporal_relation_admission(trace_payload, _context())
+    relations = _relation_map(payload)
+    assert relations[("tat_recovery", "tat_follow")] == "AFTER_CONFIRMED"
+    record = payload["temporal_relation_admission_records"][0]
+    assert record["ordering_basis"] == "START_TIMESTAMP_POINT_CANDIDATE"
+    assert record["trace_end_candidate_used_for_ordering"] is False
+    assert record["relation_is_sequence_truth"] is False
+    assert record["relation_is_causal_truth"] is False
 
 
 def test_unadmitted_time_contract_emits_no_directional_relation():
