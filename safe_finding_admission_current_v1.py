@@ -7,8 +7,17 @@ from pathlib import Path
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_admission_projection import (
     build_safe_finding_admission,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_variant_feature_challenge_adapter import (
+    apply_variant_feature_challenge_to_admission,
+)
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.variant_feature_challenge_projection import (
+    build_variant_feature_challenge_projection,
+)
 
 OUTPUT_NAME = "safe_finding_admission_projection_v1.json"
+FEATURE_DELTA_NAME = "grammar_stable_variant_feature_delta_projection_v1.json"
+PROCESS_VARIANT_NAME = "observable_process_variant_binding_projection_v1.json"
+CHALLENGE_NAME = "variant_feature_challenge_projection_v1.json"
 
 
 def _load(path: Path) -> dict:
@@ -19,12 +28,34 @@ def _load(path: Path) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _write(path: Path, payload: dict) -> None:
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
 def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dict:
     source_path = Path(sequence_json).expanduser().resolve()
     output = Path(out_dir).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
 
     source_payload = _load(source_path)
+    feature_delta_path = output / FEATURE_DELTA_NAME
+    process_variant_path = output / PROCESS_VARIANT_NAME
+    challenge_path = output / CHALLENGE_NAME
+
+    feature_delta_payload = _load(feature_delta_path)
+    process_variant_payload = _load(process_variant_path)
+    challenge_payload: dict | None = None
+
+    if feature_delta_payload and process_variant_payload:
+        challenge_payload = build_variant_feature_challenge_projection(
+            feature_delta_payload,
+            process_variant_payload,
+        )
+        _write(challenge_path, challenge_payload)
+
     if not source_payload:
         result = {
             "status": "FAIL_CLOSED",
@@ -40,12 +71,28 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
             "production_release": False,
         }
     else:
-        result = build_safe_finding_admission(source_payload)
+        base_admission = build_safe_finding_admission(source_payload)
+        result = apply_variant_feature_challenge_to_admission(
+            source_payload,
+            base_admission,
+            challenge_payload,
+            process_variant_payload or None,
+        )
 
     target = output / OUTPUT_NAME
-    target.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    _write(target, result)
     result["output"] = str(target)
     result["source_sequence_json"] = str(source_path)
+    result["source_feature_delta_json"] = (
+        str(feature_delta_path) if feature_delta_path.is_file() else None
+    )
+    result["source_process_variant_json"] = (
+        str(process_variant_path) if process_variant_path.is_file() else None
+    )
+    result["source_variant_feature_challenge_json"] = (
+        str(challenge_path) if challenge_path.is_file() else None
+    )
+    result["variant_feature_challenge_materialized"] = challenge_path.is_file()
     return result
 
 
@@ -62,6 +109,8 @@ def main() -> int:
         "finding_status_counts": result.get("finding_status_counts") or {},
         "professional_finding_emitted_count": result.get("professional_finding_emitted_count"),
         "claim_output_allowed_count": result.get("claim_output_allowed_count"),
+        "variant_feature_challenge_consumed": result.get("variant_feature_challenge_consumed"),
+        "variant_feature_challenge_materialized": result.get("variant_feature_challenge_materialized"),
         "hard_block_hits": result.get("hard_block_hits") or [],
         "review_hits": result.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",
