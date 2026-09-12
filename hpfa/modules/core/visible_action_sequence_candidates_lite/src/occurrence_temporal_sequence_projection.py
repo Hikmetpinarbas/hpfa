@@ -53,9 +53,15 @@ def _occurrence_topology(trace_payload: dict[str, Any]) -> dict[str, str]:
 
 
 def _trace_map(trace_payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    primary_surface = trace_payload.get("primary_occurrence_trace_candidates")
+    trace_rows = (
+        primary_surface
+        if isinstance(primary_surface, list)
+        else trace_payload.get("trackable_action_trace_candidates") or []
+    )
     return {
         _clean(row.get("trackable_action_trace_candidate_id")): row
-        for row in trace_payload.get("trackable_action_trace_candidates") or []
+        for row in trace_rows
         if isinstance(row, dict) and _clean(row.get("trackable_action_trace_candidate_id"))
     }
 
