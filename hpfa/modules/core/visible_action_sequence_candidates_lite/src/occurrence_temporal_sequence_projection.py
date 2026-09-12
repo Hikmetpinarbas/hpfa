@@ -7,8 +7,14 @@ from typing import Any
 
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 CLAIM_CEILING = "VISIBLE_SEQUENCE_CANDIDATE_ONLY"
-PASS_CONSEQUENCE = "SAME_TEAM_CONTINUATION_CANDIDATE"
 PASS_RECORD_STATUS = "PASS_CANDIDATE_CLASSIFICATION"
+SAME_TEAM_CONTINUATION = "SAME_TEAM_CONTINUATION_CANDIDATE"
+RECOVERY_CONTINUATION = "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE"
+ELIGIBLE_CONTINUATION_CONSEQUENCES = {
+    SAME_TEAM_CONTINUATION,
+    RECOVERY_CONTINUATION,
+}
+RECOVERY_OR_INTERCEPTION_FAMILIES = {"RECOVERY", "INTERCEPTION"}
 AFTER_CONFIRMED = "AFTER_CONFIRMED"
 SINGLE_ACTOR_TOPOLOGY = "SINGLE_ACTOR_ACTION"
 
@@ -70,6 +76,14 @@ def _trace_occurrences(trace: dict[str, Any]) -> list[str]:
     return sorted({_clean(value) for value in trace.get("supporting_action_occurrence_candidate_ids") or [] if _clean(value)})
 
 
+def _trace_families(trace: dict[str, Any]) -> set[str]:
+    return {
+        _clean(value)
+        for value in trace.get("action_family_candidates") or []
+        if _clean(value)
+    }
+
+
 def build_occurrence_temporal_sequence_projection(
     trace_payload: dict[str, Any],
     consequence_payload: dict[str, Any],
@@ -77,13 +91,15 @@ def build_occurrence_temporal_sequence_projection(
     """Build conservative two-layer sequence candidates from admitted occurrence-backed continuation evidence.
 
     This projection never creates possession, canonical-event, causal or tactical truth. A candidate requires:
-    - a PASS same-team continuation consequence record;
+    - a PASS same-team continuation consequence, including a recovery-origin same-team continuation;
     - an explicit AFTER_CONFIRMED temporal relation for the same trace pair;
     - occurrence backing on both trace endpoints;
     - SINGLE_ACTOR_ACTION topology on both endpoint occurrences;
     - same team and period.
 
-    Same-time occurrence multiplicity is preserved as an unordered layer rather than internally ordered.
+    Recovery-origin continuation is admitted only when the anchor trace itself carries an
+    admitted RECOVERY or INTERCEPTION action-family candidate. Same-time occurrence
+    multiplicity is preserved as an unordered layer rather than internally ordered.
     """
     trace_by_id = _trace_map(trace_payload)
     topology_by_occurrence = _occurrence_topology(trace_payload)
@@ -105,19 +121,27 @@ def build_occurrence_temporal_sequence_projection(
 
     edges: list[dict[str, Any]] = []
     rejected = Counter()
-    seen_edge_keys: set[tuple[str, str, str, str]] = set()
+    seen_edge_keys: set[tuple[str, str, str, str, str]] = set()
 
     for record in consequence_payload.get("trackable_action_consequence_candidates") or []:
         if not isinstance(record, dict):
             continue
         if _clean(record.get("record_status")) != PASS_RECORD_STATUS:
             continue
-        if _clean(record.get("primary_consequence_candidate")) != PASS_CONSEQUENCE:
+        continuation_consequence = _clean(record.get("primary_consequence_candidate"))
+        if continuation_consequence not in ELIGIBLE_CONTINUATION_CONSEQUENCES:
             continue
         anchor_trace_id = _clean(record.get("anchor_trackable_action_trace_candidate_id"))
         anchor_trace = trace_by_id.get(anchor_trace_id)
         if anchor_trace is None:
             rejected["anchor_trace_missing"] += 1
+            continue
+        anchor_families = _trace_families(anchor_trace)
+        if (
+            continuation_consequence == RECOVERY_CONTINUATION
+            and not (anchor_families & RECOVERY_OR_INTERCEPTION_FAMILIES)
+        ):
+            rejected["recovery_continuation_anchor_family_mismatch"] += 1
             continue
         anchor_occurrences = _trace_occurrences(anchor_trace)
         if not anchor_occurrences:
@@ -167,7 +191,13 @@ def build_occurrence_temporal_sequence_projection(
                     if topology_by_occurrence.get(follow_occurrence_id) != SINGLE_ACTOR_TOPOLOGY:
                         rejected["follow_topology_not_single_actor"] += 1
                         continue
-                    key = (anchor_occurrence_id, follow_occurrence_id, anchor_trace_id, follow_trace_id)
+                    key = (
+                        anchor_occurrence_id,
+                        follow_occurrence_id,
+                        anchor_trace_id,
+                        follow_trace_id,
+                        continuation_consequence,
+                    )
                     if key in seen_edge_keys:
                         continue
                     seen_edge_keys.add(key)
@@ -181,6 +211,11 @@ def build_occurrence_temporal_sequence_projection(
                             "period_candidate": anchor_period,
                             "anchor_start_candidate": anchor_start,
                             "follow_start_candidate": follow_start,
+                            "anchor_action_family_candidates": sorted(anchor_families),
+                            "continuation_consequence_candidate": continuation_consequence,
+                            "recovery_origin_continuation_candidate": (
+                                continuation_consequence == RECOVERY_CONTINUATION
+                            ),
                             "consequence_candidate_id": _clean(record.get("trackable_action_consequence_candidate_id")),
                         }
                     )
@@ -281,6 +316,14 @@ def build_occurrence_temporal_sequence_projection(
             for family in (trace_by_id[trace_id].get("action_family_candidates") or [])
             if _clean(family)
         )
+        origin_family_counts = Counter(
+            family
+            for edge in group
+            for family in edge.get("anchor_action_family_candidates") or []
+        )
+        continuation_consequence_counts = Counter(
+            edge["continuation_consequence_candidate"] for edge in group
+        )
         reflection_context_trace_count = sum(
             bool(trace_by_id[trace_id].get("reflection_context_action_bundle_candidate_ids"))
             for trace_id in trace_ids
@@ -305,7 +348,16 @@ def build_occurrence_temporal_sequence_projection(
                 "supporting_after_confirmed_edge_count": len(group),
                 "trace_candidate_count": len(trace_ids),
                 "action_family_counts": dict(sorted(family_counts.items())),
-                "consequence_candidate_counts": {PASS_CONSEQUENCE: len(consequence_ids)},
+                "origin_action_family_counts": dict(sorted(origin_family_counts.items())),
+                "continuation_consequence_candidate_counts": dict(
+                    sorted(continuation_consequence_counts.items())
+                ),
+                "consequence_candidate_counts": dict(
+                    sorted(continuation_consequence_counts.items())
+                ),
+                "recovery_origin_continuation_candidate": any(
+                    edge.get("recovery_origin_continuation_candidate") is True for edge in group
+                ),
                 "consequence_review_trace_count": 0,
                 "reflection_context_trace_count": reflection_context_trace_count,
                 "sequence_record_status": "PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
@@ -316,6 +368,7 @@ def build_occurrence_temporal_sequence_projection(
                 "visible_sequence_candidate_is_sequence_truth": False,
                 "visible_sequence_candidate_is_possession_truth": False,
                 "single_team_continuity_is_control_truth": False,
+                "recovery_origin_continuation_is_successful_press_truth": False,
                 "sequence_duration_is_physical_action_duration": False,
                 "same_timestamp_internal_ordering_allowed": False,
                 "source_row_order_is_temporal_truth": False,
@@ -333,6 +386,9 @@ def build_occurrence_temporal_sequence_projection(
         "occurrence_temporal_sequence_candidates": sequences,
         "occurrence_temporal_sequence_candidate_count": len(sequences),
         "eligible_occurrence_after_confirmed_edge_count": len(edges),
+        "recovery_origin_continuation_edge_count": sum(
+            1 for edge in edges if edge.get("recovery_origin_continuation_candidate") is True
+        ),
         "rejected_edge_reason_counts": dict(sorted(rejected.items())),
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
@@ -340,6 +396,7 @@ def build_occurrence_temporal_sequence_projection(
         "possession_truth": False,
         "causal_truth": False,
         "tactical_truth": False,
+        "successful_press_truth": False,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": "UNKNOWN",
         "production_release": False,
