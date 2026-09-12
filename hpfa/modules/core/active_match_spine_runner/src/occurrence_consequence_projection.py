@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
 MODULE_ID = "occurrence_consequence_projection_v1"
 OUTPUT_JSON = "occurrence_consequence_projection_v1.json"
 OUTPUT_TXT = "occurrence_consequence_projection_v1.txt"
+HORIZON_BASIS = "FIXED_TIME_WITH_LAYER_CAP_VISIBLE_TRACE_SEARCH"
 
 
 def _text(value: Any) -> str:
@@ -33,6 +34,84 @@ def _union_text(records: list[dict[str, Any]], key: str) -> list[str]:
 def _candidate_id(occurrence_id: str) -> str:
     digest = hashlib.sha1(occurrence_id.encode("utf-8")).hexdigest()[:24]
     return f"ocp_{digest}"
+
+
+def _positive_number_list(value: Any) -> list[float]:
+    result: set[float] = set()
+    for item in _values(value):
+        if isinstance(item, bool):
+            continue
+        try:
+            parsed = float(item)
+        except (TypeError, ValueError):
+            continue
+        if parsed > 0:
+            result.add(parsed)
+    return sorted(result)
+
+
+def _positive_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _horizon_contract(consequence_payload: dict[str, Any]) -> dict[str, Any]:
+    windows = _positive_number_list(consequence_payload.get("window_seconds"))
+    max_layers = _positive_int(consequence_payload.get("max_follow_up_time_layers"))
+    declared = bool(windows and max_layers)
+    return {
+        "horizon_definition_state": "DECLARED_SOURCE_HORIZON" if declared else "HORIZON_UNSPECIFIED",
+        "horizon_basis": HORIZON_BASIS if declared else None,
+        "window_seconds": windows,
+        "maximum_window_seconds": max(windows) if windows else None,
+        "max_follow_up_time_layers": max_layers,
+        "same_episode_terminal_horizon_assessed": False,
+        "right_censoring_assessed": False,
+        "horizon_is_construct_definition": True,
+        "fixed_window_is_terminal_outcome_truth": False,
+    }
+
+
+def _followup_observation_state(
+    *,
+    consequence_ids: list[str],
+    visible_follow_up_ids: list[str],
+    admitted_after_ids: list[str],
+    terminal_support: bool,
+    derived_support: bool,
+) -> tuple[str, str]:
+    if not consequence_ids:
+        return "FOLLOWUP_UNRESOLVED", "SOURCE_COVERAGE_INSUFFICIENT"
+    if admitted_after_ids:
+        return "VISIBLE_FOLLOWUP", "ORDER_ADMITTED_WITHIN_DECLARED_SOURCE_HORIZON"
+    if visible_follow_up_ids:
+        return "FOLLOWUP_UNRESOLVED", "ORDER_INDETERMINATE"
+    if terminal_support or derived_support:
+        return "FOLLOWUP_UNRESOLVED", "SUPPORT_VISIBLE_FOLLOWUP_ACTION_NOT_ESTABLISHED"
+    return "NO_VISIBLE_FOLLOWUP", "CENSORING_NOT_ASSESSED"
+
+
+def _terminal_state(terminal_support: bool) -> tuple[str, str]:
+    if terminal_support:
+        return "TERMINAL_SUPPORT_VISIBLE_TYPE_UNRESOLVED", "UNKNOWN"
+    return "TERMINAL_STATE_UNRESOLVED", "UNKNOWN"
+
+
+def _process_state(primary_candidates: list[str]) -> str:
+    if any(
+        candidate in {
+            "SAME_TEAM_CONTINUATION_CANDIDATE",
+            "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE",
+        }
+        for candidate in primary_candidates
+    ):
+        return "PROCESS_CONTINUES_VISIBLE_CANDIDATE"
+    return "PROCESS_STATE_UNRESOLVED"
 
 
 def build_occurrence_consequence_projection(
@@ -62,6 +141,7 @@ def build_occurrence_consequence_projection(
         for row in _values(trace_payload.get("occurrence_trace_binding_records"))
         if isinstance(row, dict)
     ]
+    horizon = _horizon_contract(consequence_payload)
 
     binding_by_occurrence = {
         _text(row.get("action_occurrence_candidate_id")): row
@@ -158,6 +238,15 @@ def build_occurrence_consequence_projection(
         missing_trace = not trace_ids
         missing_consequence = not consequence_ids
         record_status = "REVIEW_REQUIRED" if (any_review or missing_trace or missing_consequence) else "PASS"
+        followup_status, observation_status = _followup_observation_state(
+            consequence_ids=consequence_ids,
+            visible_follow_up_ids=visible_follow_up_ids,
+            admitted_after_ids=admitted_after_ids,
+            terminal_support=terminal_support,
+            derived_support=derived_support,
+        )
+        terminal_status, terminal_type = _terminal_state(terminal_support)
+        process_status = _process_state(primary_candidates)
 
         if visible:
             visible_count += 1
@@ -188,12 +277,27 @@ def build_occurrence_consequence_projection(
                 "end_candidates": sorted(ends),
                 "visible_follow_up_trace_ids": visible_follow_up_ids,
                 "admitted_after_follow_up_trace_ids": admitted_after_ids,
+                "followup_observation_status": followup_status,
+                "process_continuation_status": process_status,
+                "terminal_status": terminal_status,
+                "terminal_type": terminal_type,
+                "observation_status": observation_status,
+                "horizon_definition_state": horizon["horizon_definition_state"],
+                "horizon_basis": horizon["horizon_basis"],
+                "maximum_window_seconds": horizon["maximum_window_seconds"],
+                "max_follow_up_time_layers": horizon["max_follow_up_time_layers"],
                 "consequence_signal_candidates": consequence_signals,
                 "primary_consequence_candidates": primary_candidates,
                 "terminal_outcome_support_visible": terminal_support,
                 "derived_consequence_support_visible": derived_support,
                 "visible_consequence_support": visible,
                 "record_status": record_status,
+                "no_visible_followup_is_failure": False,
+                "followup_is_terminal_outcome_truth": False,
+                "terminal_support_is_terminal_type_truth": False,
+                "observation_status_is_outcome_polarity_truth": False,
+                "right_censoring_assessed": False,
+                "competing_terminal_outcomes_assessed": False,
                 "projection_is_action_identity_truth": False,
                 "projection_is_sequence_truth": False,
                 "projection_is_possession_truth": False,
@@ -216,6 +320,13 @@ def build_occurrence_consequence_projection(
         review_hits.append("occurrence_consequence_projection_review_required")
     if no_consequence_record_count:
         review_hits.append("occurrence_without_consequence_record_present")
+    if horizon["horizon_definition_state"] == "HORIZON_UNSPECIFIED":
+        review_hits.append("consequence_horizon_unspecified")
+
+    followup_counts = Counter(row.get("followup_observation_status") for row in records)
+    process_counts = Counter(row.get("process_continuation_status") for row in records)
+    terminal_counts = Counter(row.get("terminal_status") for row in records)
+    observation_counts = Counter(row.get("observation_status") for row in records)
 
     status = "FAIL_CLOSED" if hard_blocks else ("REVIEW_REQUIRED" if review_hits else "PASS")
     return {
@@ -235,11 +346,22 @@ def build_occurrence_consequence_projection(
         "occurrence_without_consequence_record_count": no_consequence_record_count,
         "occurrence_with_terminal_outcome_support_count": terminal_support_count,
         "legacy_unbound_consequence_candidate_count": legacy_unbound_consequence_count,
+        "followup_observation_status_counts": dict(sorted(followup_counts.items())),
+        "process_continuation_status_counts": dict(sorted(process_counts.items())),
+        "terminal_status_counts": dict(sorted(terminal_counts.items())),
+        "observation_status_counts": dict(sorted(observation_counts.items())),
+        "source_consequence_horizon": horizon,
         "occurrence_consequence_projections": records,
         "occurrence_binding_records_are_primary_member_authority": binding_surface_present,
         "legacy_trace_records_are_support_evidence_not_action_universe": True,
         "legacy_consequence_records_cannot_create_occurrence_members": binding_surface_present,
         "occurrence_projection_is_primary_action_member_candidate_surface": True,
+        "no_visible_followup_is_failure": False,
+        "followup_is_terminal_outcome_truth": False,
+        "terminal_support_is_terminal_type_truth": False,
+        "right_censoring_assessed": False,
+        "competing_terminal_outcomes_assessed": False,
+        "outcome_polarity_emitted": False,
         "projection_is_action_identity_truth": False,
         "projection_is_sequence_truth": False,
         "projection_is_possession_truth": False,
@@ -267,12 +389,21 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
                 f"occurrence_consequence_projection_count={payload.get('occurrence_consequence_projection_count', 0)}",
                 f"occurrence_with_visible_consequence_support_count={payload.get('occurrence_with_visible_consequence_support_count', 0)}",
                 f"review_required_occurrence_projection_count={payload.get('review_required_occurrence_projection_count', 0)}",
+                f"followup_observation_status_counts={payload.get('followup_observation_status_counts', {})}",
+                f"process_continuation_status_counts={payload.get('process_continuation_status_counts', {})}",
+                f"terminal_status_counts={payload.get('terminal_status_counts', {})}",
+                f"observation_status_counts={payload.get('observation_status_counts', {})}",
+                f"source_consequence_horizon={payload.get('source_consequence_horizon', {})}",
                 f"source_trace_member_surface={payload.get('source_trace_member_surface')}",
                 f"source_primary_occurrence_trace_candidate_count={payload.get('source_primary_occurrence_trace_candidate_count', 0)}",
                 f"source_legacy_trace_candidate_count={payload.get('source_legacy_trace_candidate_count', 0)}",
                 f"source_legacy_consequence_candidate_count={payload.get('source_legacy_consequence_candidate_count', 0)}",
                 f"legacy_unbound_consequence_candidate_count={payload.get('legacy_unbound_consequence_candidate_count', 0)}",
                 "legacy_trace_records_are_support_evidence_not_action_universe=true",
+                "no_visible_followup_is_failure=false",
+                "followup_is_terminal_outcome_truth=false",
+                "right_censoring_assessed=false",
+                "competing_terminal_outcomes_assessed=false",
                 "projection_is_causal_truth=false",
                 "canonical_event_count=UNKNOWN",
                 "true_action_count=UNKNOWN",
