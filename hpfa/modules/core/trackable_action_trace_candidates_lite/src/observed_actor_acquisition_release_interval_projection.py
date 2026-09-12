@@ -102,6 +102,37 @@ def _intervening_break(
     return bool(breakers), sorted(set(retained)), sorted(set(breakers))
 
 
+def _boundary_order_unresolved(
+    *,
+    anchor: dict[str, Any],
+    release: dict[str, Any],
+    ordered_rows: list[dict[str, Any]],
+) -> bool:
+    """Distinct occurrences at either endpoint have no admitted internal order."""
+    anchor_start = _number(anchor.get("start_candidate"))
+    release_start = _number(release.get("start_candidate"))
+    period = _clean(anchor.get("period_candidate"))
+    endpoint_ids = {
+        _clean(anchor.get("trackable_action_trace_candidate_id")),
+        _clean(release.get("trackable_action_trace_candidate_id")),
+    }
+    for row in ordered_rows:
+        row_id = _clean(row.get("trackable_action_trace_candidate_id"))
+        if row_id in endpoint_ids or _clean(row.get("period_candidate")) != period:
+            continue
+        row_start = _number(row.get("start_candidate"))
+        if row_start is None:
+            continue
+        endpoint = anchor if row_start == anchor_start else release if row_start == release_start else None
+        if endpoint is None:
+            continue
+        endpoint_occurrences = set(_occurrence_ids(endpoint))
+        row_occurrences = set(_occurrence_ids(row))
+        if not endpoint_occurrences or not row_occurrences or not endpoint_occurrences & row_occurrences:
+            return True
+    return False
+
+
 def build_observed_actor_acquisition_release_interval_projection(
     trace_payload: dict[str, Any],
 ) -> dict[str, Any]:
@@ -239,6 +270,14 @@ def build_observed_actor_acquisition_release_interval_projection(
                 release.get("primary_occurrence_member_candidate") is not True
                 or release.get("occurrence_backed_trace_candidate") is not True
             ):
+                continue
+
+            if _boundary_order_unresolved(
+                anchor=anchor,
+                release=release,
+                ordered_rows=ordered_rows,
+            ):
+                rejection["same_timestamp_boundary_order_unresolved"] += 1
                 continue
 
             has_break, retained, breakers = _intervening_break(

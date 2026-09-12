@@ -98,6 +98,42 @@ class ObservedActorAcquisitionReleaseIntervalProjectionTest(unittest.TestCase):
 
         self.assertEqual(report["observed_actor_acquisition_release_interval_candidate_count"], 0)
 
+    def test_distinct_action_at_either_boundary_withholds_interval(self) -> None:
+        for boundary in (10.0, 13.0):
+            with self.subTest(boundary=boundary):
+                payload = _base_payload(
+                    [
+                        _trace("acquisition", "RECOVERY", start=10.0),
+                        _trace("other", "PASS", actor="actor_b", start=boundary),
+                        _trace("release", "PASS", start=13.0),
+                    ],
+                    [_after("acquisition", "release")],
+                )
+
+                report = build_observed_actor_acquisition_release_interval_projection(payload)
+
+                self.assertEqual(report["observed_actor_acquisition_release_interval_candidate_count"], 0)
+                self.assertEqual(
+                    report["rejection_reason_counts"].get("same_timestamp_boundary_order_unresolved"),
+                    1,
+                )
+
+    def test_second_trace_of_same_acquisition_occurrence_is_not_a_new_boundary(self) -> None:
+        other_participant = _trace("other", "DUEL", actor="actor_b", start=10.0)
+        other_participant["supporting_action_occurrence_candidate_ids"] = ["occ_acquisition"]
+        payload = _base_payload(
+            [
+                _trace("acquisition", "RECOVERY", start=10.0),
+                other_participant,
+                _trace("release", "PASS", start=13.0),
+            ],
+            [_after("acquisition", "release")],
+        )
+
+        report = build_observed_actor_acquisition_release_interval_projection(payload)
+
+        self.assertEqual(report["observed_actor_acquisition_release_interval_candidate_count"], 1)
+
     def test_different_actor_intervening_trace_breaks_chain(self) -> None:
         payload = _base_payload(
             [
