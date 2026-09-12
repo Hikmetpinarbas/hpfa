@@ -13,6 +13,10 @@ MODULE_ID = "repo_full_health_audit_v1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 LEGACY_ROOT_NAMES = {"hpfa-main", "vendor"}
+RECONCILIATION_ISOLATION_NODEIDS = [
+    "hpfa/modules/core/cross_format_reconciliation_lite/tests/test_cross_format_reconciliation.py::test_active_match_execution_and_flat_outputs",
+    "hpfa/modules/core/cross_format_reconciliation_lite/tests/test_cross_format_reconciliation.py::test_review_required_cannot_set_active_match_evidence_pass",
+]
 
 
 def _run(command: list[str], *, cwd: Path, timeout: int = 1800, env: dict[str, str] | None = None) -> dict[str, Any]:
@@ -162,10 +166,35 @@ def _parse_junit(path: Path) -> dict[str, Any]:
     }
 
 
+def _isolated_reconciliation_probe(root: Path, timeout: int) -> dict[str, Any]:
+    result = _run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--import-mode=importlib",
+            "-q",
+            *RECONCILIATION_ISOLATION_NODEIDS,
+        ],
+        cwd=root,
+        timeout=timeout,
+    )
+    if result["returncode"] == 0:
+        classification = "FULL_SUITE_STATE_OR_IMPORT_CONTAMINATION_CANDIDATE"
+    else:
+        classification = "ISOLATED_RECONCILIATION_CONTRACT_OR_TEST_DRIFT_CANDIDATE"
+    return {
+        **result,
+        "classification": classification,
+        "nodeids": list(RECONCILIATION_ISOLATION_NODEIDS),
+    }
+
+
 def _write_text(path: Path, payload: dict[str, Any]) -> None:
     tests = payload.get("pytest_summary") or {}
     modules = payload.get("module_inventory") or {}
     repo = payload.get("repo_inventory") or {}
+    isolated = payload.get("isolated_reconciliation_probe") or {}
     lines = [
         "HPFA FULL REPOSITORY HEALTH AUDIT V1",
         "====================================",
@@ -193,6 +222,12 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
         f"pytest_failures={tests.get('failures')}",
         f"pytest_errors={tests.get('errors')}",
         f"pytest_skipped={tests.get('skipped')}",
+        f"isolated_reconciliation_returncode={isolated.get('returncode')}",
+        f"isolated_reconciliation_classification={isolated.get('classification')}",
+        "",
+        "ISOLATED_RECONCILIATION_PROBE",
+        str(isolated.get("stdout_tail") or "NONE"),
+        str(isolated.get("stderr_tail") or ""),
         "",
         "MODULES_WITHOUT_TESTS",
     ]
@@ -213,6 +248,7 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
         "",
         "NOTE",
         "Product core tests are explicit current tests under hpfa/ or root tests/, run with pytest --import-mode=importlib to avoid duplicate-basename collection collisions.",
+        "The isolated reconciliation probe runs the two aggregate-suite failures again in a fresh Python process. It is diagnostic only and never turns a failing full suite into PASS.",
         "hpfa-main/* is classified by repository governance as legacy_or_imported_structure and is reported separately rather than treated as current product authority.",
         "vendor/donor compile debt remains visible in whole_tree_status.",
         "This audit does not substitute for physical ACTIVE_MATCH evidence.",
@@ -254,6 +290,17 @@ def main() -> int:
         pytest_result = dict(collect_result)
 
     pytest_summary = _parse_junit(junit)
+    isolated_probe = _isolated_reconciliation_probe(root, args.timeout_seconds) if pytest_result["returncode"] != 0 else {
+        "returncode": None,
+        "elapsed_seconds": 0.0,
+        "stdout_tail": "not_needed_full_suite_passed",
+        "stderr_tail": "",
+        "timed_out": False,
+        "command": [],
+        "classification": "NOT_NEEDED_FULL_SUITE_PASSED",
+        "nodeids": list(RECONCILIATION_ISOLATION_NODEIDS),
+    }
+
     product_core_status = "PASS" if all(result["returncode"] == 0 for result in (product_compile, collect_result, pytest_result)) else "REVIEW_REQUIRED"
     whole_tree_status = "PASS" if whole_tree_compile["returncode"] == 0 else "REVIEW_REQUIRED"
     status = "PASS" if product_core_status == "PASS" and whole_tree_status == "PASS" else "REVIEW_REQUIRED"
@@ -272,6 +319,7 @@ def main() -> int:
         "collect": collect_result,
         "pytest": pytest_result,
         "pytest_summary": pytest_summary,
+        "isolated_reconciliation_probe": isolated_probe,
         "physical_active_match_evaluated": False,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
@@ -293,6 +341,8 @@ def main() -> int:
         "pytest_failures": pytest_summary.get("failures"),
         "pytest_errors": pytest_summary.get("errors"),
         "pytest_elapsed_seconds": pytest_result["elapsed_seconds"],
+        "isolated_reconciliation_returncode": isolated_probe.get("returncode"),
+        "isolated_reconciliation_classification": isolated_probe.get("classification"),
         "report": str(txt_path),
     }, ensure_ascii=False, sort_keys=True))
     return 0 if product_core_status == "PASS" else 1
