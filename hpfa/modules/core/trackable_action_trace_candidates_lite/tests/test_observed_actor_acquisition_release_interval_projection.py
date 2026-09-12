@@ -128,6 +128,14 @@ class ObservedActorAcquisitionReleaseIntervalProjectionTest(unittest.TestCase):
         self.assertEqual(report["observed_actor_acquisition_release_interval_candidate_count"], 1)
         row = report["observed_actor_acquisition_release_interval_candidates"][0]
         self.assertEqual(row["intervening_same_actor_retention_trace_ids"], ["tmid"])
+        self.assertEqual(
+            row["intervening_same_actor_retention_occurrence_candidate_ids"],
+            ["occ_tmid"],
+        )
+        self.assertEqual(
+            row["supporting_action_occurrence_candidate_ids"],
+            ["occ_t1", "occ_t2", "occ_tmid"],
+        )
 
     def test_later_acquisition_breaks_earlier_anchor_and_binds_nearest_anchor(self) -> None:
         payload = _base_payload(
