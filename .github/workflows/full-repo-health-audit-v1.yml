@@ -1,9 +1,6 @@
 name: Full Repo Health Audit V1
 
 on:
-  push:
-    branches:
-      - feature/zfgv-action-grammar-synced-v1
   pull_request:
   workflow_dispatch:
 
@@ -14,8 +11,10 @@ jobs:
     env:
       PYTHONPATH: ${{ github.workspace }}
     steps:
-      - name: Checkout
+      - name: Checkout exact PR head
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -27,14 +26,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pytest openpyxl numpy pandas pydantic PyYAML
 
-      - name: Full repository compile and pytest audit
+      - name: Fail-local repository compile and product test audit
         id: full_audit
         continue-on-error: true
         run: |
           mkdir -p "$RUNNER_TEMP/hpfa-full-repo-audit"
-          python repo_full_health_audit_v1.py \
+          python repo_fail_local_product_test_audit_v1.py \
             --out-dir "$RUNNER_TEMP/hpfa-full-repo-audit" \
-            --timeout-seconds 1800
+            --timeout-seconds 1800 \
+            --per-file-timeout-seconds 300
 
       - name: Upload full repo audit artifact
         if: always()
@@ -44,8 +44,8 @@ jobs:
           path: ${{ runner.temp }}/hpfa-full-repo-audit/
           if-no-files-found: error
 
-      - name: Enforce audit result
+      - name: Enforce fail-local audit result
         if: steps.full_audit.outcome != 'success'
         run: |
-          echo "Full repository health audit did not pass. Inspect uploaded audit artifact."
+          echo "Fail-local product audit did not pass. Inspect uploaded audit artifact."
           exit 1
