@@ -8,6 +8,9 @@ import action_occurrence_admission_current_v1 as current_occurrence
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src import (
     trackable_action_trace_candidates as trackable,
 )
+from hpfa.modules.core.trackable_action_trace_candidates_lite.src.observed_actor_acquisition_release_interval_projection import (
+    build_observed_actor_acquisition_release_interval_projection,
+)
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src.occurrence_topology_adapter import (
     apply_occurrence_topology_binding,
 )
@@ -21,6 +24,8 @@ from hpfa.modules.core.trackable_action_trace_candidates_lite.src.temporal_relat
     bind_temporal_relation_admission,
 )
 
+INTERVAL_OUTPUT_JSON = "observed_actor_acquisition_release_interval_projection_v1.json"
+
 
 def _load(path: Path) -> dict:
     try:
@@ -28,6 +33,38 @@ def _load(path: Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _write_interval_projection(payload: dict, output: Path) -> dict:
+    projection = build_observed_actor_acquisition_release_interval_projection(payload)
+    path = output / INTERVAL_OUTPUT_JSON
+    path.write_text(
+        json.dumps(projection, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    payload["current_actor_acquisition_release_interval_projection_bound"] = True
+    payload["current_actor_acquisition_release_interval_status"] = projection.get("status")
+    payload["current_actor_acquisition_release_interval_candidate_count"] = projection.get(
+        "observed_actor_acquisition_release_interval_candidate_count", 0
+    )
+    payload["current_actor_acquisition_release_interval_claim_ceiling"] = projection.get(
+        "claim_ceiling"
+    )
+    payload["current_actor_acquisition_release_interval_output"] = str(path)
+    payload["current_actor_acquisition_release_interval_projection_creates_new_evidence"] = (
+        projection.get("projection_creates_new_evidence") is True
+    )
+    payload["current_actor_acquisition_release_interval_projection_reconstructs_sequences"] = (
+        projection.get("projection_reconstructs_sequences") is True
+    )
+    if projection.get("status") == "FAIL_CLOSED":
+        review_hits = list(payload.get("review_hits") or [])
+        review_hits.append("actor_acquisition_release_interval_projection_fail_closed")
+        payload["review_hits"] = sorted(set(review_hits))
+        if payload.get("status") == "PASS":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    return projection
 
 
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
@@ -82,6 +119,9 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "temporal_relation_admission_record_count": 0,
             "temporal_relation_state_counts": {},
             "provider_time_contract_admission_status": "NOT_EVALUATED",
+            "current_actor_acquisition_release_interval_projection_bound": False,
+            "current_actor_acquisition_release_interval_status": "NOT_EVALUATED",
+            "current_actor_acquisition_release_interval_candidate_count": 0,
             "hard_block_hits": ["current_occurrence_or_required_upstream_output_missing"],
             "review_hits": [],
             "trackable_action_candidate_is_event_truth": False,
@@ -155,9 +195,14 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         payload["status"] = "FAIL_CLOSED"
         payload["module_status"] = "FAIL_CLOSED"
         payload["runtime_evidence_status"] = "NOT_EVALUATED"
+
+    _write_interval_projection(payload, output)
     payload["active_match_evidence_pass"] = False
     paths = trackable.write_outputs(payload, output)
     payload["outputs"] = {key: str(path) for key, path in paths.items()}
+    payload["outputs"]["observed_actor_acquisition_release_interval_projection"] = str(
+        output / INTERVAL_OUTPUT_JSON
+    )
     return payload
 
 
@@ -197,6 +242,15 @@ def main() -> int:
                 "provider_time_runtime_context_source": payload.get("provider_time_runtime_context_source"),
                 "temporal_relation_admission_record_count": payload.get("temporal_relation_admission_record_count", 0),
                 "temporal_relation_state_counts": payload.get("temporal_relation_state_counts") or {},
+                "current_actor_acquisition_release_interval_status": payload.get(
+                    "current_actor_acquisition_release_interval_status"
+                ),
+                "current_actor_acquisition_release_interval_candidate_count": payload.get(
+                    "current_actor_acquisition_release_interval_candidate_count", 0
+                ),
+                "current_actor_acquisition_release_interval_projection_bound": payload.get(
+                    "current_actor_acquisition_release_interval_projection_bound", False
+                ),
                 "hard_block_hits": payload.get("hard_block_hits") or [],
                 "review_hits": payload.get("review_hits") or [],
                 "canonical_event_count": "UNKNOWN",
