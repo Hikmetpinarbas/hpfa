@@ -330,7 +330,7 @@ def build_grammar_stable_variant_feature_delta(
         for row in (occurrence_consequence_payload.get("occurrence_consequence_projections") or [])
         if isinstance(row, dict)
     )
-    if horizon_state == "HORIZON_UNSPECIFIED":
+    if observation_state_surface_present and horizon_state == "HORIZON_UNSPECIFIED":
         reviews.append("consequence_horizon_unspecified")
 
     variant_by_id = _index(sequence_payload.get("partial_order_occurrence_variants"), "partial_order_occurrence_variant_id")
