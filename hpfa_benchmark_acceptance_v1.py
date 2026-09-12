@@ -4,9 +4,11 @@ import argparse
 import difflib
 import hashlib
 import json
+import pstats
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -113,6 +115,117 @@ def _report_delta(current: Path, previous: Path | None) -> dict[str, Any]:
     }
 
 
+def _aggregate_profile_stats(repo_root: Path, stats: dict[Any, Any]) -> dict[str, Any]:
+    core_root = (repo_root / "hpfa" / "modules" / "core").resolve(strict=False)
+    internal_seconds: dict[str, float] = {}
+    call_counts: dict[str, int] = {}
+    for function_key, values in stats.items():
+        if not isinstance(function_key, tuple) or not function_key:
+            continue
+        filename = str(function_key[0] or "")
+        if not filename or filename.startswith("~"):
+            continue
+        path = Path(filename)
+        if not path.is_absolute():
+            path = repo_root / path
+        path = path.resolve(strict=False)
+        try:
+            relative = path.relative_to(core_root)
+        except ValueError:
+            continue
+        if not relative.parts:
+            continue
+        module_name = relative.parts[0]
+        if not isinstance(values, tuple) or len(values) < 4:
+            continue
+        try:
+            total_calls = int(values[1])
+            total_internal_time = float(values[2])
+        except (TypeError, ValueError):
+            continue
+        internal_seconds[module_name] = internal_seconds.get(module_name, 0.0) + total_internal_time
+        call_counts[module_name] = call_counts.get(module_name, 0) + total_calls
+    ordered = sorted(internal_seconds, key=lambda name: (-internal_seconds[name], name))
+    return {
+        "per_module_profile_internal_seconds": {
+            name: round(internal_seconds[name], 6) for name in ordered
+        },
+        "per_module_profile_call_count": {name: call_counts.get(name, 0) for name in ordered},
+        "profiled_core_module_count": len(ordered),
+        "profiled_core_module_order_by_internal_time": ordered,
+    }
+
+
+def _run_profile_pass(
+    *,
+    repo_root: Path,
+    out_dir: Path,
+    match_dir: Path,
+    expected_product_commit: str,
+    exact_runner: Path,
+) -> dict[str, Any]:
+    try:
+        with tempfile.TemporaryDirectory(prefix="hpfa_profile_", dir=str(out_dir.parent)) as tmp:
+            temp_root = Path(tmp)
+            profile_path = temp_root / "profile.pstats"
+            profile_out = temp_root / "out"
+            profile_out.mkdir(parents=True, exist_ok=True)
+            command = [
+                sys.executable,
+                "-m",
+                "cProfile",
+                "-o",
+                str(profile_path),
+                str(exact_runner),
+                "--match-dir",
+                str(match_dir),
+                "--out-dir",
+                str(profile_out),
+                "--expected-product-commit",
+                str(expected_product_commit),
+            ]
+            started = time.perf_counter()
+            completed = subprocess.run(command, cwd=repo_root, text=True, capture_output=True)
+            wall = round(time.perf_counter() - started, 6)
+            if completed.returncode != 0 or not profile_path.is_file():
+                return {
+                    "profile_status": "REVIEW_REQUIRED",
+                    "profile_returncode": completed.returncode,
+                    "profile_wall_seconds": wall,
+                    "profile_reason": "profile_run_failed_or_profile_missing",
+                    "per_module_profile_internal_seconds": {},
+                    "per_module_profile_call_count": {},
+                    "profiled_core_module_count": 0,
+                    "profiled_core_module_order_by_internal_time": [],
+                    "profile_stdout_tail": completed.stdout[-2000:],
+                    "profile_stderr_tail": completed.stderr[-2000:],
+                }
+            stats = pstats.Stats(str(profile_path))
+            aggregated = _aggregate_profile_stats(repo_root, stats.stats)
+            return {
+                "profile_status": "PASS",
+                "profile_returncode": completed.returncode,
+                "profile_wall_seconds": wall,
+                "profile_reason": None,
+                **aggregated,
+                "profile_stdout_tail": completed.stdout[-2000:],
+                "profile_stderr_tail": completed.stderr[-2000:],
+            }
+    except Exception as exc:
+        return {
+            "profile_status": "REVIEW_REQUIRED",
+            "profile_returncode": None,
+            "profile_wall_seconds": None,
+            "profile_reason": f"profile_exception:{type(exc).__name__}",
+            "per_module_profile_internal_seconds": {},
+            "per_module_profile_call_count": {},
+            "profiled_core_module_count": 0,
+            "profiled_core_module_order_by_internal_time": [],
+            "profile_stdout_tail": "",
+            "profile_stderr_tail": "",
+        }
+
+
 def _write_health_outputs(out_dir: Path, payload: dict[str, Any]) -> None:
     (out_dir / HEALTH_JSON).write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -123,6 +236,8 @@ def _write_health_outputs(out_dir: Path, payload: dict[str, Any]) -> None:
         "========================",
         f"status={payload.get('status')}",
         f"exact_head_elapsed_seconds={payload.get('exact_head_elapsed_seconds')}",
+        f"profile_status={payload.get('profile_status')}",
+        f"profile_wall_seconds={payload.get('profile_wall_seconds')}",
         f"core_module_directory_count={payload.get('core_module_directory_count')}",
         f"modules_with_source_count={payload.get('modules_with_source_count')}",
         f"modules_with_tests_count={payload.get('modules_with_tests_count')}",
@@ -131,6 +246,7 @@ def _write_health_outputs(out_dir: Path, payload: dict[str, Any]) -> None:
         f"runtime_observed_module_id_count={payload.get('runtime_observed_module_id_count')}",
         f"runtime_observed_core_module_candidate_count={payload.get('runtime_observed_core_module_candidate_count')}",
         f"runtime_unobserved_core_module_candidate_count={payload.get('runtime_unobserved_core_module_candidate_count')}",
+        f"profiled_core_module_count={payload.get('profiled_core_module_count')}",
         f"module_runtime_timing_coverage={payload.get('module_runtime_timing_coverage')}",
         f"analyst_report_present={payload.get('analyst_report_present')}",
         f"analyst_report_delta_state={(payload.get('analyst_report_delta') or {}).get('comparison_state')}",
@@ -140,11 +256,18 @@ def _write_health_outputs(out_dir: Path, payload: dict[str, Any]) -> None:
     lines.extend(f"- {name}" for name in payload.get("runtime_observed_core_module_candidates") or [])
     lines.extend(["", "not_observed_as_independent_artifact_on_this_run:"])
     lines.extend(f"- {name}" for name in payload.get("runtime_unobserved_core_module_candidates") or [])
+    lines.extend(["", "profiled_core_modules_by_internal_time:"])
+    timing = payload.get("per_module_profile_internal_seconds") or {}
+    calls = payload.get("per_module_profile_call_count") or {}
+    for name in payload.get("profiled_core_module_order_by_internal_time") or []:
+        lines.append(f"- {name}: internal_seconds={timing.get(name)} calls={calls.get(name)}")
     lines.extend([
         "",
         "NOTES",
         "- runtime_unobserved does not prove orphan status; a module may be used as an imported library without emitting its own artifact.",
-        "- per-module timing is not fabricated. Until producer-level timers are instrumented, only exact-head end-to-end elapsed time is authoritative.",
+        "- exact_head_elapsed_seconds is the unprofiled one-click wall time and is the authoritative user-facing total runtime for this benchmark.",
+        "- per-module profile values are cProfile internal Python time, not independent wall-clock duration; they identify computational hotspots without pretending nested call time is additive.",
+        "- per-module timing is not fabricated when profiling is unavailable; missing profile coverage remains explicit.",
         "- canonical_event_count remains UNKNOWN; true_action_count remains UNKNOWN; production_release remains false.",
         "",
     ])
@@ -181,18 +304,20 @@ def main() -> int:
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--expected-product-commit", required=True)
     parser.add_argument("--previous-analyst-report")
+    parser.add_argument("--skip-module-profile", action="store_true")
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parent
     out_dir = Path(args.out_dir).expanduser().resolve(strict=False)
     out_dir.mkdir(parents=True, exist_ok=True)
     exact_runner = repo_root / "active_match_exact_head_run_v1.py"
+    match_dir = Path(args.match_dir).expanduser().resolve(strict=False)
 
     command = [
         sys.executable,
         str(exact_runner),
         "--match-dir",
-        str(Path(args.match_dir).expanduser().resolve(strict=False)),
+        str(match_dir),
         "--out-dir",
         str(out_dir),
         "--expected-product-commit",
@@ -201,6 +326,28 @@ def main() -> int:
     started = time.perf_counter()
     completed = subprocess.run(command, cwd=repo_root, text=True, capture_output=True)
     elapsed = round(time.perf_counter() - started, 6)
+
+    if args.skip_module_profile or completed.returncode != 0:
+        profile = {
+            "profile_status": "NOT_EVALUATED" if args.skip_module_profile else "REVIEW_REQUIRED",
+            "profile_returncode": None,
+            "profile_wall_seconds": None,
+            "profile_reason": "explicitly_skipped" if args.skip_module_profile else "exact_head_run_not_passed",
+            "per_module_profile_internal_seconds": {},
+            "per_module_profile_call_count": {},
+            "profiled_core_module_count": 0,
+            "profiled_core_module_order_by_internal_time": [],
+            "profile_stdout_tail": "",
+            "profile_stderr_tail": "",
+        }
+    else:
+        profile = _run_profile_pass(
+            repo_root=repo_root,
+            out_dir=out_dir,
+            match_dir=match_dir,
+            expected_product_commit=str(args.expected_product_commit),
+            exact_runner=exact_runner,
+        )
 
     module_dirs = _module_dirs(repo_root)
     module_names = [path.name for path in module_dirs]
@@ -215,10 +362,17 @@ def main() -> int:
     previous_path = Path(args.previous_analyst_report).expanduser().resolve(strict=False) if args.previous_analyst_report else None
     delta = _report_delta(analyst_path, previous_path)
     exact = _load_json(out_dir / "active_match_exact_head_run_v1.json")
+    profile_required_and_missing = not args.skip_module_profile and profile.get("profile_status") != "PASS"
+    benchmark_status = "PASS" if completed.returncode == 0 and not profile_required_and_missing else "REVIEW_REQUIRED"
+    timing_coverage = (
+        "END_TO_END_PLUS_CPROFILE_INTERNAL_TIME_NOT_WALL_TIME_PER_MODULE"
+        if profile.get("profile_status") == "PASS"
+        else "END_TO_END_ONLY_PER_MODULE_PROFILE_UNAVAILABLE"
+    )
 
     payload = {
         "module_id": MODULE_ID,
-        "status": "PASS" if completed.returncode == 0 else "REVIEW_REQUIRED",
+        "status": benchmark_status,
         "exact_head_returncode": completed.returncode,
         "exact_head_elapsed_seconds": elapsed,
         "exact_product_commit_verified": exact.get("exact_product_commit_verified") is True,
@@ -241,8 +395,8 @@ def main() -> int:
         "runtime_unobserved_core_module_candidates": unobserved_dirs,
         "runtime_unobserved_is_orphan_truth": False,
         "orphan_status": "NOT_PROVEN_BY_THIS_AUDIT",
-        "module_runtime_timing_coverage": "END_TO_END_ONLY_PER_MODULE_TIMERS_NOT_YET_INSTRUMENTED",
-        "per_module_runtime_seconds": {},
+        "module_runtime_timing_coverage": timing_coverage,
+        **profile,
         "analyst_report_present": analyst_path.is_file(),
         "analyst_report_sha256": _sha256(analyst_path),
         "analyst_report_delta": delta,
@@ -257,13 +411,15 @@ def main() -> int:
     print(json.dumps({
         "status": payload["status"],
         "exact_head_elapsed_seconds": elapsed,
+        "profile_status": payload["profile_status"],
+        "profiled_core_module_count": payload["profiled_core_module_count"],
         "core_module_directory_count": payload["core_module_directory_count"],
         "modules_with_tests_count": payload["modules_with_tests_count"],
         "runtime_observed_core_module_candidate_count": payload["runtime_observed_core_module_candidate_count"],
         "health_json": str(out_dir / HEALTH_JSON),
         "combined_report": str(out_dir / COMBINED_TXT),
     }, ensure_ascii=False, sort_keys=True))
-    return completed.returncode
+    return completed.returncode if completed.returncode != 0 else (0 if benchmark_status == "PASS" else 1)
 
 
 if __name__ == "__main__":
