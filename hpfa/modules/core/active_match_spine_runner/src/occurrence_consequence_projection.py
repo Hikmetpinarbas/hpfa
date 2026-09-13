@@ -11,6 +11,7 @@ OUTPUT_JSON = "occurrence_consequence_projection_v1.json"
 OUTPUT_TXT = "occurrence_consequence_projection_v1.txt"
 HORIZON_BASIS = "FIXED_TIME_WITH_LAYER_CAP_VISIBLE_TRACE_SEARCH"
 END_BOUNDARY_TYPES = {"HALFTIME", "FULL_TIME"}
+NONBLOCKING_ADMIN_BOUNDARY_REVIEW_REASONS = {"visible_field_serialization_discrepancy"}
 
 
 def _text(value: Any) -> str:
@@ -87,6 +88,23 @@ def _horizon_contract(consequence_payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _boundary_review_reasons(members: list[dict[str, Any]]) -> tuple[list[str], list[str]]:
+    reasons: set[str] = set()
+    declared_count = 0
+    for row in members:
+        declared_count += int(row.get("review_debt_count") or 0)
+        for ref in _values(row.get("review_debt_refs")):
+            if not isinstance(ref, dict):
+                continue
+            reason = _text(ref.get("reason"))
+            if reason:
+                reasons.add(reason)
+    if declared_count and not reasons:
+        reasons.add("UNSPECIFIED_REVIEW_DEBT")
+    blocking = sorted(reasons - NONBLOCKING_ADMIN_BOUNDARY_REVIEW_REASONS)
+    return sorted(reasons), blocking
+
+
 def _administrative_end_boundary_index(
     episode_payload: dict[str, Any] | None,
 ) -> tuple[dict[str, dict[str, Any]], bool, list[str]]:
@@ -95,6 +113,10 @@ def _administrative_end_boundary_index(
     Only HALF/FULL-TIME navigation boundaries are consumed. They define an observation
     limit for fixed-horizon follow-up search; they never become football actions, phases,
     possession truth, sequence truth, or an ordering device for same-time actions.
+
+    A visible-field serialization discrepancy may remain as review debt while the grouped
+    administrative type/time still converges. That debt is not treated as independent
+    corroboration and does not by itself invalidate the observation boundary.
     """
     if not isinstance(episode_payload, dict):
         return {}, False, []
@@ -132,20 +154,25 @@ def _administrative_end_boundary_index(
         boundary_types = sorted({_text(row.get("boundary_type")) for row in members if _text(row.get("boundary_type"))})
         boundary_refs = sorted({_text(row.get("administrative_boundary_candidate_id")) for row in members if _text(row.get("administrative_boundary_candidate_id"))})
         review_debt_count = sum(int(row.get("review_debt_count") or 0) for row in members)
+        review_reasons, blocking_review_reasons = _boundary_review_reasons(members)
         index[period] = {
             "boundary_second": seconds[0],
             "boundary_types": boundary_types,
             "boundary_refs": boundary_refs,
             "review_debt_count": review_debt_count,
+            "review_debt_reasons": review_reasons,
+            "blocking_review_debt_reasons": blocking_review_reasons,
+            "serialization_review_only": bool(review_reasons) and not blocking_review_reasons,
             "same_time_visible_layer_collision": any(
                 row.get("same_time_visible_layer_collision") is True for row in members
             ),
             "boundary_can_split_same_time_visible_layer": False,
             "boundary_is_football_action_truth": False,
             "boundary_is_phase_truth": False,
+            "reflection_rows_are_independent_evidence_votes": False,
         }
-        if review_debt_count:
-            reviews.append(f"administrative_end_boundary_review_debt:{period}")
+        if blocking_review_reasons:
+            reviews.append(f"administrative_end_boundary_blocking_review_debt:{period}")
 
     return index, bool(index), sorted(set(reviews))
 
@@ -166,9 +193,11 @@ def _right_censoring_profile(
         "seconds_to_observation_boundary_max": None,
         "observation_boundary_refs": [],
         "observation_boundary_types": [],
+        "observation_boundary_review_reasons": [],
         "administrative_boundary_is_football_action_truth": False,
         "administrative_boundary_is_phase_truth": False,
         "administrative_boundary_orders_same_time_action": False,
+        "administrative_boundary_reflections_are_independent_evidence_votes": False,
     }
     if not consequences:
         profile["right_censoring_status"] = "CENSORING_UNRESOLVED_SOURCE_COVERAGE"
@@ -215,14 +244,18 @@ def _right_censoring_profile(
     remaining: list[float] = []
     boundary_refs: set[str] = set()
     boundary_types: set[str] = set()
+    review_reasons: set[str] = set()
     for period, start in anchors:
         boundary = boundary_by_period.get(period)
         if not boundary:
             profile["right_censoring_status"] = "CENSORING_UNRESOLVED_END_BOUNDARY_MISSING"
             return profile
-        if int(boundary.get("review_debt_count") or 0) > 0:
+        blocking_review_reasons = _sorted_text(boundary.get("blocking_review_debt_reasons"))
+        if blocking_review_reasons:
             profile["right_censoring_status"] = "CENSORING_UNRESOLVED_END_BOUNDARY_REVIEW_DEBT"
+            profile["observation_boundary_review_reasons"] = blocking_review_reasons
             return profile
+        review_reasons.update(_sorted_text(boundary.get("review_debt_reasons")))
         boundary_second = _number(boundary.get("boundary_second"))
         if boundary_second is None:
             profile["right_censoring_status"] = "CENSORING_UNRESOLVED_END_BOUNDARY_TIME"
@@ -242,6 +275,7 @@ def _right_censoring_profile(
     profile["seconds_to_observation_boundary_max"] = round(max(remaining), 6)
     profile["observation_boundary_refs"] = sorted(boundary_refs)
     profile["observation_boundary_types"] = sorted(boundary_types)
+    profile["observation_boundary_review_reasons"] = sorted(review_reasons)
 
     complete_flags = [value >= maximum_window_seconds for value in remaining]
     if all(complete_flags):
@@ -655,6 +689,7 @@ def build_occurrence_consequence_projection(
                 "seconds_to_observation_boundary_max": censoring.get("seconds_to_observation_boundary_max"),
                 "observation_boundary_refs": censoring.get("observation_boundary_refs") or [],
                 "observation_boundary_types": censoring.get("observation_boundary_types") or [],
+                "observation_boundary_review_reasons": censoring.get("observation_boundary_review_reasons") or [],
                 "horizon_definition_state": horizon["horizon_definition_state"],
                 "horizon_basis": horizon["horizon_basis"],
                 "maximum_window_seconds": horizon["maximum_window_seconds"],
@@ -676,6 +711,7 @@ def build_occurrence_consequence_projection(
                 "administrative_boundary_is_football_action_truth": False,
                 "administrative_boundary_is_phase_truth": False,
                 "administrative_boundary_orders_same_time_action": False,
+                "administrative_boundary_reflections_are_independent_evidence_votes": False,
                 "competing_terminal_outcomes_assessed": False,
                 "projection_is_action_identity_truth": False,
                 "projection_is_sequence_truth": False,
@@ -819,6 +855,7 @@ def build_occurrence_consequence_projection(
         "administrative_boundary_is_football_action_truth": False,
         "administrative_boundary_is_phase_truth": False,
         "administrative_boundary_orders_same_time_action": False,
+        "administrative_boundary_reflections_are_independent_evidence_votes": False,
         "competing_terminal_outcomes_assessed": False,
         "outcome_polarity_emitted": False,
         "projection_is_action_identity_truth": False,
@@ -881,6 +918,7 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
                 "administrative_boundary_is_football_action_truth=false",
                 "administrative_boundary_is_phase_truth=false",
                 "administrative_boundary_orders_same_time_action=false",
+                "administrative_boundary_reflections_are_independent_evidence_votes=false",
                 "competing_terminal_outcomes_assessed=false",
                 "projection_is_causal_truth=false",
                 "canonical_event_count=UNKNOWN",
