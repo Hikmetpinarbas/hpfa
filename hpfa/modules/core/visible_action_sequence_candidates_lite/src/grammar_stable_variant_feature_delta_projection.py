@@ -36,6 +36,7 @@ _CONSEQUENCE_KEYS = (
     "process_continuation_status",
     "terminal_status",
     "observation_status",
+    "admitted_followup_horizon_sensitivity_state",
 )
 _RESOLVED_OUTCOMES = {"SUCCESS_SEMANTIC_VISIBLE", "FAILURE_SEMANTIC_VISIBLE"}
 _LAYER_TOKEN_RE = re.compile(r"^LAYER\[(\d+)\]::")
@@ -165,6 +166,9 @@ def _member_profile(
     consequence_features: set[str] = set()
     missing_state: list[str] = []
     missing_consequence: list[str] = []
+    horizon_sensitive_occurrence_refs: list[str] = []
+    horizon_tested_occurrence_refs: list[str] = []
+    horizon_unresolved_occurrence_refs: list[str] = []
 
     for occurrence_ref in occurrence_refs:
         layer_positions = occurrence_layers.get(occurrence_ref, set())
@@ -183,6 +187,7 @@ def _member_profile(
         consequence_row = consequence_by_occurrence.get(occurrence_ref)
         if consequence_row is None:
             missing_consequence.append(occurrence_ref)
+            horizon_unresolved_occurrence_refs.append(occurrence_ref)
         else:
             base_consequence = _tokens(consequence_row, _CONSEQUENCE_KEYS)
             if consequence_row.get("visible_consequence_support") is True:
@@ -201,9 +206,18 @@ def _member_profile(
                 base_consequence.add("ensuing_derived_consequence_support_visible:TRUE")
             elif consequence_row.get("ensuing_derived_consequence_support_visible") is False:
                 base_consequence.add("ensuing_derived_consequence_support_visible:FALSE")
+            if consequence_row.get("admitted_followup_horizon_sensitivity_tested") is True:
+                horizon_tested_occurrence_refs.append(occurrence_ref)
+            else:
+                horizon_unresolved_occurrence_refs.append(occurrence_ref)
+            if consequence_row.get("admitted_followup_horizon_sensitive") is True:
+                horizon_sensitive_occurrence_refs.append(occurrence_ref)
             base_consequence |= _ensuing_visible_chain_tokens(consequence_row)
             consequence_features |= _with_layer_tokens(base_consequence, layer_positions)
 
+    horizon_complete = bool(occurrence_refs) and (
+        len(set(horizon_tested_occurrence_refs)) == len(set(occurrence_refs))
+    )
     return {
         "variant_ref": variant_ref,
         "sequence_ref": member.get("sequence_ref"),
@@ -216,6 +230,11 @@ def _member_profile(
         "consequence_coverage_complete": bool(occurrence_refs) and not missing_consequence,
         "missing_context_occurrence_refs": sorted(missing_state),
         "missing_consequence_occurrence_refs": sorted(missing_consequence),
+        "admitted_followup_horizon_sensitivity_complete": horizon_complete,
+        "admitted_followup_horizon_sensitive": bool(horizon_sensitive_occurrence_refs),
+        "admitted_followup_horizon_sensitive_occurrence_refs": sorted(set(horizon_sensitive_occurrence_refs)),
+        "admitted_followup_horizon_tested_occurrence_refs": sorted(set(horizon_tested_occurrence_refs)),
+        "admitted_followup_horizon_unresolved_occurrence_refs": sorted(set(horizon_unresolved_occurrence_refs)),
     }
 
 
@@ -322,6 +341,8 @@ def build_grammar_stable_variant_feature_delta(
         blocks.append("consequence_causal_truth_lock_breached")
     if occurrence_consequence_payload.get("ensuing_terminal_support_is_causal_truth") is True:
         blocks.append("ensuing_terminal_support_causal_truth_lock_breached")
+    if occurrence_consequence_payload.get("admitted_followup_horizon_sensitivity_is_terminal_outcome_truth") is True:
+        blocks.append("horizon_sensitivity_terminal_truth_lock_breached")
 
     horizon = occurrence_consequence_payload.get("source_consequence_horizon")
     horizon = horizon if isinstance(horizon, dict) else {}
@@ -337,6 +358,11 @@ def build_grammar_stable_variant_feature_delta(
                 "observation_status",
             )
         )
+        for row in (occurrence_consequence_payload.get("occurrence_consequence_projections") or [])
+        if isinstance(row, dict)
+    )
+    horizon_sensitivity_surface_present = any(
+        "admitted_followup_horizon_sensitivity_state" in row
         for row in (occurrence_consequence_payload.get("occurrence_consequence_projections") or [])
         if isinstance(row, dict)
     )
@@ -385,10 +411,22 @@ def build_grammar_stable_variant_feature_delta(
         )
         missing_context_count = sum(row.get("context_coverage_complete") is not True for row in profiles)
         missing_consequence_count = sum(row.get("consequence_coverage_complete") is not True for row in profiles)
+        horizon_sensitive_variant_count = sum(
+            row.get("admitted_followup_horizon_sensitive") is True for row in profiles
+        )
+        horizon_incomplete_variant_count = sum(
+            row.get("admitted_followup_horizon_sensitivity_complete") is not True
+            for row in profiles
+        )
+        horizon_tested = bool(profiles) and horizon_incomplete_variant_count == 0
         if missing_context_count:
             reviews.append(f"variant_context_coverage_partial:{family_ref or 'UNKNOWN'}")
         if missing_consequence_count:
             reviews.append(f"variant_consequence_coverage_partial:{family_ref or 'UNKNOWN'}")
+        if horizon_sensitive_variant_count:
+            reviews.append(f"variant_admitted_followup_horizon_sensitive:{family_ref or 'UNKNOWN'}")
+        if horizon_incomplete_variant_count:
+            reviews.append(f"variant_admitted_followup_horizon_sensitivity_partial:{family_ref or 'UNKNOWN'}")
 
         first_context_layer = _first_supported_layer_candidate(context_rows)
         first_consequence_layer = _first_supported_layer_candidate(consequence_rows)
@@ -413,6 +451,10 @@ def build_grammar_stable_variant_feature_delta(
             "consequence_observation_state_features_consumed": observation_state_surface_present,
             "consequence_horizon_definition_state": horizon_state,
             "consequence_horizon_sensitivity_tested": False,
+            "admitted_followup_horizon_sensitivity_surface_consumed": horizon_sensitivity_surface_present,
+            "admitted_followup_horizon_sensitivity_tested": horizon_tested,
+            "admitted_followup_horizon_sensitive_variant_count": horizon_sensitive_variant_count,
+            "admitted_followup_horizon_sensitivity_incomplete_variant_count": horizon_incomplete_variant_count,
             "right_censoring_assessed": right_censoring_assessed,
             "member_profiles": profiles,
             "outcome_used_only_as_partition_label": True,
@@ -428,6 +470,7 @@ def build_grammar_stable_variant_feature_delta(
             "difference_is_coach_intention_truth": False,
             "ensuing_visible_chain_is_causal_truth": False,
             "ensuing_terminal_support_is_causal_truth": False,
+            "admitted_followup_horizon_sensitivity_is_terminal_outcome_truth": False,
             "actor_identity_difference_is_player_quality_truth": False,
             "independent_recurrence_support_count": 0,
             "dependency_independence_proven": False,
@@ -446,6 +489,15 @@ def build_grammar_stable_variant_feature_delta(
     else:
         status = "PASS"
 
+    all_family_horizon_tested = bool(family_records) and all(
+        row.get("admitted_followup_horizon_sensitivity_tested") is True
+        for row in family_records
+    )
+    horizon_sensitive_family_count = sum(
+        int(row.get("admitted_followup_horizon_sensitive_variant_count") or 0) > 0
+        for row in family_records
+    )
+
     return {
         "status": status,
         "grammar_stable_variant_feature_delta_records": family_records,
@@ -456,6 +508,9 @@ def build_grammar_stable_variant_feature_delta(
         "consequence_observation_state_features_consumed": observation_state_surface_present,
         "consequence_horizon_definition_state": horizon_state,
         "consequence_horizon_sensitivity_tested": False,
+        "admitted_followup_horizon_sensitivity_surface_consumed": horizon_sensitivity_surface_present,
+        "admitted_followup_horizon_sensitivity_tested": all_family_horizon_tested,
+        "admitted_followup_horizon_sensitive_family_count": horizon_sensitive_family_count,
         "right_censoring_assessed": right_censoring_assessed,
         "outcome_used_only_as_partition_label": True,
         "outcome_used_to_define_features": False,
@@ -470,6 +525,7 @@ def build_grammar_stable_variant_feature_delta(
         "difference_is_coach_intention_truth": False,
         "ensuing_visible_chain_is_causal_truth": False,
         "ensuing_terminal_support_is_causal_truth": False,
+        "admitted_followup_horizon_sensitivity_is_terminal_outcome_truth": False,
         "actor_identity_difference_is_player_quality_truth": False,
         "difference_rows_are_independent_evidence_votes": False,
         "hard_block_hits": sorted(set(blocks)),
