@@ -148,9 +148,24 @@ def test_nonisomorphic_same_histogram_not_exact_match():
     assert result["source_all_possible_pair_count"] == 1
     assert result["comparison_prefilter_pruned_pair_count"] == 1
     assert result["coarse_signature_topology_split_group_count"] == 1
+    assert result["topology_mismatch_pair_pruned_count"] == 1
     assert result["topology_mismatch_pairs_materialized"] is False
     assert result["coarse_signature_is_only_prefilter"] is True
     assert result["structural_exact_match_requires_relation_preserving_topology"] is True
+
+
+def test_topology_filter_is_downward_only_and_does_not_create_new_pairs():
+    path = _topology_variant("a_path", [(0, 1), (1, 2), (2, 3)])
+    star_one = _topology_variant("b_star", [(0, 1), (0, 2), (0, 3)])
+    star_two = _topology_variant("c_star", [(0, 1), (0, 2), (0, 3)])
+
+    result = build_dependency_aware_partial_order_similarity(_payload(path, star_one, star_two))
+
+    assert result["source_all_possible_pair_count"] == 3
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert result["topology_mismatch_pair_pruned_count"] == 2
+    assert result["topology_filter_can_create_new_pair"] is False
+    assert result["topology_filter_only_removes_or_preserves_coarse_prefilter_pairs"] is True
 
 
 def test_isomorphic_topology_with_different_layer_refs_remains_exact_match():
@@ -228,6 +243,7 @@ def test_large_exact_group_uses_representative_surface_not_all_pairs():
     assert result["comparison_admission_precedes_pair_materialization"] is True
     assert result["coarse_signature_is_only_prefilter"] is True
     assert result["structural_exact_match_requires_relation_preserving_topology"] is True
+    assert result["topology_filter_can_create_new_pair"] is False
     assert all(row["comparison_eligible"] is True for row in result["dependency_aware_partial_order_similarity_pairs"])
 
 
