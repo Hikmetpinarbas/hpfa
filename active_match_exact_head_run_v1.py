@@ -203,7 +203,9 @@ def _post_sequence_admission_ready(
 ) -> bool:
     admission = post_sequence.get("safe_finding_admission") or {}
     claim = post_sequence.get("analyst_output_claim") or {}
-    expected_count = int(sequence.get("safe_finding_handoff_candidate_count") or 0)
+    current_sequence = _load(out_dir / SEQUENCE_JSON)
+    expected_surface = current_sequence if current_sequence else sequence
+    expected_count = int(expected_surface.get("safe_finding_handoff_candidate_count") or 0)
     admission_count = int(admission.get("safe_finding_admission_decision_count") or 0)
     claim_count = int(claim.get("analyst_output_contract_count") or 0)
     return (
@@ -241,8 +243,10 @@ def _admission_gated_full_spine_for_user_outputs(
     if post_sequence.get("status") != "PASS":
         return {"status": "FAIL_CLOSED", "reason": "post_sequence_admission_not_pass"}
 
+    current_sequence = _load(out_dir / SEQUENCE_JSON)
+    handoff_surface = current_sequence if current_sequence else sequence
     handoff_by_ref: dict[str, dict[str, Any]] = {}
-    for row in sequence.get("safe_finding_handoff_candidates") or []:
+    for row in handoff_surface.get("safe_finding_handoff_candidates") or []:
         if not isinstance(row, dict):
             return {"status": "FAIL_CLOSED", "reason": "safe_finding_handoff_not_object"}
         ref = str(row.get("safe_finding_handoff_candidate_id") or "").strip()
@@ -483,11 +487,13 @@ def main() -> int:
         sequence=sequence,
         post_sequence=post_sequence,
     ) if sequence else False
+    current_sequence = _load(out_dir / SEQUENCE_JSON)
+    user_output_sequence = current_sequence if current_sequence else sequence
     user_output_gate = (
         _rewrite_standard_user_outputs_after_admission(
             out_dir=out_dir,
             full_spine=full_spine,
-            sequence=sequence,
+            sequence=user_output_sequence,
             post_sequence=post_sequence,
         )
         if post_sequence_admission_ready and bool(full_spine)
@@ -529,20 +535,20 @@ def main() -> int:
         "canonical_full_spine_run": canonical,
         "canonical_full_spine_status": full_spine.get("status"),
         "canonical_full_spine_decision": full_spine.get("decision"),
-        "sequence_status": sequence.get("status"),
-        "primary_sequence_projection_mode": sequence.get("primary_sequence_projection_mode"),
-        "occurrence_temporal_sequence_candidate_count": int(sequence.get("occurrence_temporal_sequence_candidate_count") or 0),
-        "partial_order_occurrence_variant_count": int(sequence.get("partial_order_occurrence_variant_count") or 0),
-        "dependency_aware_partial_order_similarity_pair_count": int(sequence.get("dependency_aware_partial_order_similarity_pair_count") or 0),
-        "recurrence_candidate_eligible_pair_count": int(sequence.get("recurrence_candidate_eligible_pair_count") or 0),
-        "anchor_centered_sequence_branch_map_count": int(sequence.get("anchor_centered_sequence_branch_map_count") or 0),
-        "first_supported_branch_divergence_candidate_count": int(sequence.get("first_supported_branch_divergence_candidate_count") or 0),
-        "comparison_eligible_outcome_record_count": int(sequence.get("comparison_eligible_outcome_record_count") or 0),
-        "comparable_outcome_counterevidence_record_count": int(sequence.get("comparable_outcome_counterevidence_record_count") or 0),
-        "comparable_outcome_contrast_state_counts": dict(sequence.get("comparable_outcome_contrast_state_counts") or {}),
-        "comparable_counterevidence_candidate_count": int(sequence.get("comparable_counterevidence_candidate_count") or 0),
-        "counterevidence_independent_support_count": int(sequence.get("counterevidence_independent_support_count") or 0),
-        "safe_finding_handoff_candidate_count": int(sequence.get("safe_finding_handoff_candidate_count") or 0),
+        "sequence_status": user_output_sequence.get("status"),
+        "primary_sequence_projection_mode": user_output_sequence.get("primary_sequence_projection_mode"),
+        "occurrence_temporal_sequence_candidate_count": int(user_output_sequence.get("occurrence_temporal_sequence_candidate_count") or 0),
+        "partial_order_occurrence_variant_count": int(user_output_sequence.get("partial_order_occurrence_variant_count") or 0),
+        "dependency_aware_partial_order_similarity_pair_count": int(user_output_sequence.get("dependency_aware_partial_order_similarity_pair_count") or 0),
+        "recurrence_candidate_eligible_pair_count": int(user_output_sequence.get("recurrence_candidate_eligible_pair_count") or 0),
+        "anchor_centered_sequence_branch_map_count": int(user_output_sequence.get("anchor_centered_sequence_branch_map_count") or 0),
+        "first_supported_branch_divergence_candidate_count": int(user_output_sequence.get("first_supported_branch_divergence_candidate_count") or 0),
+        "comparison_eligible_outcome_record_count": int(user_output_sequence.get("comparison_eligible_outcome_record_count") or 0),
+        "comparable_outcome_counterevidence_record_count": int(user_output_sequence.get("comparable_outcome_counterevidence_record_count") or 0),
+        "comparable_outcome_contrast_state_counts": dict(user_output_sequence.get("comparable_outcome_contrast_state_counts") or {}),
+        "comparable_counterevidence_candidate_count": int(user_output_sequence.get("comparable_counterevidence_candidate_count") or 0),
+        "counterevidence_independent_support_count": int(user_output_sequence.get("counterevidence_independent_support_count") or 0),
+        "safe_finding_handoff_candidate_count": int(user_output_sequence.get("safe_finding_handoff_candidate_count") or 0),
         "safe_finding_admission_status": admission.get("status"),
         "safe_finding_admission_decision_count": int(admission.get("safe_finding_admission_decision_count") or 0),
         "safe_finding_admission_decision_counts": dict(admission.get("finding_status_counts") or {}),
