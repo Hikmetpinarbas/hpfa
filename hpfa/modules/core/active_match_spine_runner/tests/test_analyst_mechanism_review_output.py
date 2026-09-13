@@ -18,6 +18,8 @@ def _full_spine(tmp_path: Path, *, declared: bool = True) -> dict:
             str(tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"),
             str(tmp_path / "match_local_identity_candidates_lite_v1.json"),
             str(tmp_path / "occurrence_consequence_projection_v1.json"),
+            str(tmp_path / "visible_action_sequence_candidates_lite_v1.json"),
+            str(tmp_path / "observable_process_variant_binding_projection_v1.json"),
         ]
     return {
         "status": "REVIEW_REQUIRED",
@@ -38,6 +40,7 @@ def _write_payloads(tmp_path: Path) -> None:
         "status": "REVIEW_REQUIRED",
         "grammar_stable_variant_feature_delta_records": [
             {
+                "source_process_variant_family_ref": "family_1",
                 "team_identity_candidate_ids": ["team_1"],
                 "period_candidates": ["1"],
                 "grammar_signature_tokens": ["LAYER[PASS]", "LAYER[PASS]"],
@@ -100,7 +103,11 @@ def _write_payloads(tmp_path: Path) -> None:
             {
                 "actor_identity_candidate_id": "actor_1",
                 "actor_normalized_key": "player_alpha",
-            }
+            },
+            {
+                "actor_identity_candidate_id": "actor_2",
+                "actor_normalized_key": "player_beta",
+            },
         ],
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
@@ -117,6 +124,59 @@ def _write_payloads(tmp_path: Path) -> None:
         "true_action_count": "UNKNOWN",
         "production_release": False,
     }
+    sequence = {
+        "status": "REVIEW_REQUIRED",
+        "partial_order_occurrence_variants": [
+            {
+                "partial_order_occurrence_variant_id": "variant_failure",
+                "sequence_ref": "sequence_failure",
+            },
+            {
+                "partial_order_occurrence_variant_id": "variant_success",
+                "sequence_ref": "sequence_success",
+            },
+        ],
+        "first_supported_branch_divergence_candidates": [
+            {
+                "team_identity_candidate_id": "team_1",
+                "period_candidate": 1,
+                "shared_anchor_time_candidate": 120.0,
+                "branch_profiles": [
+                    {
+                        "branch_outcome_state": "FAILURE_SEMANTIC_VISIBLE",
+                        "neighbor_time_candidate": 122.0,
+                        "supporting_visible_sequence_candidate_ids": ["sequence_failure"],
+                        "semantic_profiles": [
+                            {
+                                "actor_identity_candidate_id": "actor_1",
+                                "primary_family_candidate": "PASS",
+                            }
+                        ],
+                    },
+                    {
+                        "branch_outcome_state": "SUCCESS_SEMANTIC_VISIBLE",
+                        "neighbor_time_candidate": 124.0,
+                        "supporting_visible_sequence_candidate_ids": ["sequence_success"],
+                        "semantic_profiles": [
+                            {
+                                "actor_identity_candidate_id": "actor_2",
+                                "primary_family_candidate": "PASS",
+                            }
+                        ],
+                    },
+                ],
+            }
+        ],
+    }
+    process_variants = {
+        "status": "REVIEW_REQUIRED",
+        "observable_process_variant_families": [
+            {
+                "observable_process_variant_family_id": "family_1",
+                "member_variant_refs": ["variant_failure", "variant_success"],
+            }
+        ],
+    }
     (tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json").write_text(
         json.dumps(delta), encoding="utf-8"
     )
@@ -125,6 +185,12 @@ def _write_payloads(tmp_path: Path) -> None:
     )
     (tmp_path / "occurrence_consequence_projection_v1.json").write_text(
         json.dumps(occurrence), encoding="utf-8"
+    )
+    (tmp_path / "visible_action_sequence_candidates_lite_v1.json").write_text(
+        json.dumps(sequence), encoding="utf-8"
+    )
+    (tmp_path / "observable_process_variant_binding_projection_v1.json").write_text(
+        json.dumps(process_variants), encoding="utf-8"
     )
 
 
@@ -145,6 +211,8 @@ def test_current_mechanism_surface_is_occurrence_primary_review_only(tmp_path: P
     assert "positive_review_focus: actor=Player Alpha success=0/7 failure=2/3" in text
     assert "provider_direction_candidates" not in text
     assert "tek basina mac mekanizmasi sayilmaz" in text
+    assert "locator_semantics=FIRST_SUCCESSOR_AFTER_SHARED_VISIBLE_ANCHOR_NOT_PROVEN_FIRST_DIVERGENCE" in text
+    assert "video_review_locator: shared_anchor=02:00 -> 02:02 Player Alpha FAILURE PASS; 02:04 Player Beta SUCCESS PASS" in text
     assert "claim_ceiling=ANALYST_REVIEW_MECHANISM_CANDIDATE_ONLY" in text
     assert "professional_emit_allowed=false" in text
 
@@ -156,6 +224,7 @@ def test_stale_mechanism_artifact_is_not_consumed(tmp_path: Path) -> None:
     assert "eski artifact kullanilmadi" in text
     assert "Team Alpha" not in text
     assert "occurrence_candidates=12" not in text
+    assert "video_review_locator" not in text
 
 
 def test_standard_report_contains_context_focused_review_without_promoting_emit(tmp_path: Path) -> None:
@@ -164,6 +233,7 @@ def test_standard_report_contains_context_focused_review_without_promoting_emit(
     assert "ANALYST REVIEW — GORUNUR SUREC MEKANIZMASI ADAYLARI" in text
     assert "primary_occurrence_spine: occurrence_candidates=12" in text
     assert "positive_review_focus: actor=Player Alpha" in text
+    assert "video_review_locator: shared_anchor=02:00" in text
     assert "professional_emit_allowed=false" in text
     assert "canonical_event_count=UNKNOWN" in text
     assert "production_release=false" in text
