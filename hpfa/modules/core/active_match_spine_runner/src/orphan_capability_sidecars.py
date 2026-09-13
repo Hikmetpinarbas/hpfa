@@ -123,11 +123,16 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
     sequence_path = output / SEQUENCE_OUTPUT
 
     occurrence_projection_prerequisite_present = trace_path.is_file() and consequence_path.is_file()
+    occurrence_censoring_boundary_prerequisite_present = episode_path.is_file()
     if occurrence_projection_prerequisite_present:
         try:
+            episode_boundary_payload = (
+                _load_json(episode_path) if occurrence_censoring_boundary_prerequisite_present else None
+            )
             occurrence_projection_report = build_occurrence_consequence_projection(
                 _load_json(trace_path),
                 _load_json(consequence_path),
+                episode_boundary_payload,
             )
             occurrence_projection_paths = write_occurrence_consequence_outputs(
                 occurrence_projection_report,
@@ -447,6 +452,7 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "triplex_source_alignment_prerequisite_present": mapping_present,
         "occurrence_consequence_projection_status": occurrence_projection_status,
         "occurrence_consequence_projection_prerequisite_present": occurrence_projection_prerequisite_present,
+        "occurrence_consequence_censoring_boundary_prerequisite_present": occurrence_censoring_boundary_prerequisite_present,
         "spatial_transition_candidate_status": spatial_status,
         "spatial_transition_candidate_prerequisite_present": spatial_prerequisite_present,
         "state_transition_dynamics_status": state_transition_status,
