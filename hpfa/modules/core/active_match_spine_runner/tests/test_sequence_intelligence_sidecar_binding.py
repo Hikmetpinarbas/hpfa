@@ -125,6 +125,20 @@ def _process_variant_payload() -> dict:
 def _occurrence_projection_payload() -> dict:
     return {
         "status": "PASS",
+        "source_consequence_horizon": {
+            "horizon_definition_state": "DECLARED_SOURCE_HORIZON",
+            "horizon_basis": "FIXED_TIME_WITH_LAYER_CAP_VISIBLE_TRACE_SEARCH",
+            "window_seconds": [5.0, 8.0, 12.0],
+            "maximum_window_seconds": 12.0,
+            "max_follow_up_time_layers": 3,
+            "right_censoring_assessed": False,
+        },
+        "right_censoring_assessed": False,
+        "no_visible_followup_is_failure": False,
+        "followup_is_terminal_outcome_truth": False,
+        "projection_is_causal_truth": False,
+        "ensuing_terminal_support_is_causal_truth": False,
+        "admitted_followup_horizon_sensitivity_is_terminal_outcome_truth": False,
         "occurrence_consequence_projections": [
             {
                 "action_occurrence_candidate_id": "o1",
@@ -132,6 +146,9 @@ def _occurrence_projection_payload() -> dict:
                 "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
                 "visible_consequence_support": True,
                 "terminal_outcome_support_visible": False,
+                "admitted_followup_horizon_sensitivity_state": "STABLE_ACROSS_DECLARED_WINDOWS",
+                "admitted_followup_horizon_sensitivity_tested": True,
+                "admitted_followup_horizon_sensitive": False,
             },
             {
                 "action_occurrence_candidate_id": "o2",
@@ -139,6 +156,9 @@ def _occurrence_projection_payload() -> dict:
                 "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
                 "visible_consequence_support": True,
                 "terminal_outcome_support_visible": False,
+                "admitted_followup_horizon_sensitivity_state": "STABLE_ACROSS_DECLARED_WINDOWS",
+                "admitted_followup_horizon_sensitivity_tested": True,
+                "admitted_followup_horizon_sensitive": False,
             },
         ],
         "canonical_event_count": "UNKNOWN",
@@ -305,6 +325,8 @@ class SequenceIntelligenceSidecarBindingTest(unittest.TestCase):
                 "primary_consequence_candidates:OPPONENT_HANDOVER_CANDIDATE",
                 consequence_tokens,
             )
+            self.assertTrue(family["admitted_followup_horizon_sensitivity_tested"])
+            self.assertEqual(family["admitted_followup_horizon_sensitive_variant_count"], 0)
             self.assertFalse(family["difference_is_failure_cause_truth"])
             self.assertFalse(family["difference_is_tactical_explanation"])
             self.assertFalse(delta["difference_rows_are_independent_evidence_votes"])
