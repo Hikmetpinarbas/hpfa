@@ -36,8 +36,11 @@ def _compact_refs(value: Any) -> list[str]:
 def _admission_map(admission_payload: dict[str, Any] | None) -> tuple[dict[str, dict[str, Any]], list[str], str | None]:
     if admission_payload is None:
         return {}, [], None
-    if admission_payload.get("status") == "FAIL_CLOSED":
+    status = str(admission_payload.get("status") or "").strip().upper()
+    if status == "FAIL_CLOSED":
         return {}, [], "safe_finding_admission_fail_closed"
+    if status not in {"PASS", "REVIEW_REQUIRED"}:
+        return {}, [], f"safe_finding_admission_status_unrecognized:{status or 'UNKNOWN'}"
     if admission_payload.get("production_release") is True:
         return {}, [], "admission_production_release_claimed"
     if admission_payload.get("canonical_event_count") != "UNKNOWN":
@@ -47,6 +50,9 @@ def _admission_map(admission_payload: dict[str, Any] | None) -> tuple[dict[str, 
 
     decisions: dict[str, dict[str, Any]] = {}
     reviews: list[str] = []
+    review_required = status == "REVIEW_REQUIRED"
+    if review_required:
+        reviews.append("safe_finding_admission_review_required")
     for row in admission_payload.get("safe_finding_admission_decisions") or []:
         if not isinstance(row, dict):
             reviews.append("admission_row_not_object")
@@ -57,7 +63,12 @@ def _admission_map(admission_payload: dict[str, Any] | None) -> tuple[dict[str, 
             continue
         if source_ref in decisions:
             return {}, reviews, f"duplicate_admission_decision:{source_ref}"
-        decisions[source_ref] = row
+        normalized = dict(row)
+        if review_required and str(normalized.get("decision") or "").strip().upper() == "EMIT":
+            normalized["decision"] = "ABSTAIN"
+            normalized["claim_output_allowed"] = False
+            reviews.append(f"emit_blocked_by_review_required_admission:{source_ref}")
+        decisions[source_ref] = normalized
     return decisions, reviews, None
 
 
@@ -117,9 +128,11 @@ def build_analyst_output_claim_contract(
 
     With no admission payload this preserves the legacy fail-safe behavior: no
     professional finding may emit. When the compact Safe Finding admission micro-gear
-    is provided, only an explicit EMIT decision may open a defeasible match-local
-    professional finding. Variant-feature challenge metadata is carried only as compact
-    provenance/qualification; it creates no evidence and cannot authorize EMIT.
+    is provided, only an explicit EMIT decision from a PASS admission envelope may open
+    a defeasible match-local professional finding. REVIEW_REQUIRED is preserved as review
+    debt and can never be laundered into professional output. Variant-feature challenge
+    metadata is carried only as compact provenance/qualification; it creates no evidence
+    and cannot authorize EMIT.
     """
     if comparable_outcome_payload.get("production_release") is True:
         return _fail_closed("production_release_claimed")
@@ -247,6 +260,7 @@ def build_analyst_output_claim_contract(
         "independent_recurrence_language_allowed_for_dependent_branches": False,
         "variant_feature_challenge_is_independent_evidence_vote": False,
         "variant_feature_challenge_can_authorize_emit": False,
+        "review_required_admission_can_authorize_emit": False,
         "analyst_or_llm_text_is_evidence": False,
         "claim_contract_creates_new_evidence": False,
         "review_hits": sorted(set(review_hits)),
@@ -278,6 +292,7 @@ def _fail_closed(reason: str) -> dict[str, Any]:
         "independent_recurrence_language_allowed_for_dependent_branches": False,
         "variant_feature_challenge_is_independent_evidence_vote": False,
         "variant_feature_challenge_can_authorize_emit": False,
+        "review_required_admission_can_authorize_emit": False,
         "analyst_or_llm_text_is_evidence": False,
         "claim_contract_creates_new_evidence": False,
         "review_hits": [],
