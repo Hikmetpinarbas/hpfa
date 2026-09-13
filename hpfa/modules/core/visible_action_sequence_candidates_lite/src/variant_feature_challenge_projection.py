@@ -149,6 +149,21 @@ def _challenge_row(
         if consequence_contract_present
         else False
     )
+    right_censored_variant_count = (
+        int(delta_record.get("right_censored_variant_count") or 0)
+        if consequence_contract_present
+        else 0
+    )
+    right_censoring_incomplete_variant_count = (
+        int(delta_record.get("right_censoring_incomplete_variant_count") or 0)
+        if consequence_contract_present
+        else 0
+    )
+    fully_observed_no_followup_variant_count = (
+        int(delta_record.get("fully_observed_no_followup_variant_count") or 0)
+        if consequence_contract_present
+        else 0
+    )
 
     challenge_reasons = [
         "SAMPLE_STRENGTH_UNCALIBRATED",
@@ -182,6 +197,14 @@ def _challenge_row(
             challenge_reasons.append("ADMITTED_FOLLOWUP_HORIZON_SENSITIVITY_NOT_TESTED")
         if not right_censoring_assessed:
             challenge_reasons.append("RIGHT_CENSORING_NOT_ASSESSED")
+        if right_censoring_incomplete_variant_count:
+            challenge_reasons.append("RIGHT_CENSORING_PARTIAL")
+        if right_censored_variant_count:
+            challenge_reasons.append("RIGHT_CENSORED_VARIANT_PRESENT")
+        if "right_censoring_status:RIGHT_CENSORED_BY_ADMIN_BOUNDARY" in feature_token:
+            challenge_reasons.append("RIGHT_CENSORED_VARIANT_PRESENT")
+        if "right_censoring_status:CENSORING_UNRESOLVED_" in feature_token:
+            challenge_reasons.append("RIGHT_CENSORING_PARTIAL")
         if "NO_VISIBLE_FOLLOWUP" in feature_token or "CENSORING_NOT_ASSESSED" in feature_token:
             challenge_reasons.append("NO_VISIBLE_FOLLOWUP_CENSORING_UNRESOLVED")
 
@@ -219,9 +242,13 @@ def _challenge_row(
         "admitted_followup_horizon_sensitive_variant_count": admitted_followup_horizon_sensitive_variant_count,
         "admitted_followup_horizon_sensitivity_incomplete_variant_count": admitted_followup_horizon_sensitivity_incomplete_variant_count,
         "right_censoring_assessed": right_censoring_assessed,
+        "right_censored_variant_count": right_censored_variant_count,
+        "right_censoring_incomplete_variant_count": right_censoring_incomplete_variant_count,
+        "fully_observed_no_followup_variant_count": fully_observed_no_followup_variant_count,
         "period_spread_is_context_robustness_truth": False,
         "feature_absence_is_counterevidence": False,
         "no_visible_followup_is_failure": False,
+        "right_censoring_is_failure": False,
         "difference_is_statistically_significant": False,
         "difference_is_failure_cause_truth": False,
         "difference_is_tactical_explanation": False,
@@ -266,6 +293,8 @@ def build_variant_feature_challenge_projection(
         hard_blocks.append("absence_counterevidence_lock_breached")
     if feature_delta_payload.get("no_visible_followup_is_failure") is True:
         hard_blocks.append("no_visible_followup_failure_lock_breached")
+    if feature_delta_payload.get("right_censoring_is_failure") is True:
+        hard_blocks.append("right_censoring_failure_lock_breached")
 
     families = _index(
         process_variant_payload.get("observable_process_variant_families"),
@@ -339,6 +368,10 @@ def build_variant_feature_challenge_projection(
         for row in rows
     ):
         review_hits.append("right_censoring_not_assessed")
+    if any(row.get("right_censoring_incomplete_variant_count", 0) > 0 for row in rows):
+        review_hits.append("right_censoring_partial_variant_present")
+    if any(row.get("right_censored_variant_count", 0) > 0 for row in rows):
+        review_hits.append("right_censored_variant_present")
     if rows:
         review_hits.append("sample_strength_uncalibrated")
         review_hits.append("context_robustness_not_tested")
@@ -363,6 +396,7 @@ def build_variant_feature_challenge_projection(
         "period_spread_is_context_robustness_truth": False,
         "feature_absence_is_counterevidence": False,
         "no_visible_followup_is_failure": False,
+        "right_censoring_is_failure": False,
         "consequence_horizon_sensitivity_can_be_ignored": False,
         "unassessed_censoring_can_be_treated_as_failure": False,
         "hypothesis_candidate_is_truth": False,
