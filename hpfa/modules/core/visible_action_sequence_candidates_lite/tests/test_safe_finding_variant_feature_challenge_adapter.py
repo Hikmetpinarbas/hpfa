@@ -135,6 +135,27 @@ def test_unproven_challenge_independence_downgrades_emit() -> None:
     assert out["professional_finding_emitted_count"] == 0
 
 
+def test_right_censored_challenge_downgrades_emit_without_calling_it_failure() -> None:
+    challenge = _challenge(partial=False, dep=True, stat=True)
+    challenge["variant_feature_challenge_records"][0]["challenge_reasons"] = [
+        "RIGHT_CENSORED_VARIANT_PRESENT",
+        "NO_VISIBLE_FOLLOWUP_CENSORING_UNRESOLVED",
+    ]
+    out = apply_variant_feature_challenge_to_admission(
+        _sequence(),
+        _admission("EMIT"),
+        challenge,
+        _process_variant(),
+    )
+    row = out["safe_finding_admission_decisions"][0]
+    assert row["decision"] == "DOWNGRADE"
+    assert row["claim_output_allowed"] is False
+    assert "VARIANT_FEATURE_CHALLENGE_CENSORING_UNRESOLVED" in row["decision_reasons"]
+    assert "RIGHT_CENSORED_VARIANT_PRESENT" in row["variant_feature_challenge_reason_codes"]
+    assert out["professional_finding_emitted_count"] == 0
+    assert out["unresolved_consequence_censoring_can_authorize_emit"] is False
+
+
 def test_complete_challenge_can_preserve_but_never_create_emit() -> None:
     out = apply_variant_feature_challenge_to_admission(
         _sequence(),
