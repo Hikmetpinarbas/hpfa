@@ -11,6 +11,9 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.process_parti
     apply_process_context_to_comparison,
     apply_process_participation_context,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.puzzle_finding_contract_adapter import (
+    build_puzzle_finding_contract,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_admission_projection import (
     build_safe_finding_admission,
 )
@@ -27,6 +30,7 @@ PROCESS_VARIANT_NAME = "observable_process_variant_binding_projection_v1.json"
 PROCESS_PARTICIPATION_NAME = "analyst_episode_process_participation_projection_v1.json"
 OCCURRENCE_CONSEQUENCE_NAME = "occurrence_consequence_projection_v1.json"
 CHALLENGE_NAME = "variant_feature_challenge_projection_v1.json"
+PUZZLE_FINDING_NAME = "puzzle_finding_contract_projection_v1.json"
 
 
 def _load(path: Path) -> dict:
@@ -90,6 +94,34 @@ def _bind_counterevidence_projection(source_payload: dict, projection: dict) -> 
     return source_payload
 
 
+def _missing_sequence_puzzle_contract() -> dict:
+    return {
+        "module_id": "puzzle_finding_contract_adapter_v1",
+        "status": "FAIL_CLOSED",
+        "puzzle_finding_contract_version": "PUZZLE_FINDING_V1",
+        "puzzle_findings": [],
+        "puzzle_finding_count": 0,
+        "puzzle_finding_status_counts": {},
+        "bound_puzzle_ids": [],
+        "safe_finding_handoff_consumed": False,
+        "safe_finding_admission_consumed": False,
+        "discovery_recomputed": False,
+        "comparison_recomputed": False,
+        "falsification_recomputed": False,
+        "creates_new_evidence": False,
+        "creates_new_finding": False,
+        "cross_mechanism_fusion_performed": False,
+        "mechanism_candidate_emitted": False,
+        "game_state_conditioning_ready": False,
+        "hard_block_hits": ["sequence_payload_missing_or_invalid"],
+        "review_hits": [],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+        "claim_ceiling": "MATCH_LOCAL_PUZZLE_FINDING_CONTRACT_CANDIDATE_ONLY",
+    }
+
+
 def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dict:
     source_path = Path(sequence_json).expanduser().resolve()
     output = Path(out_dir).expanduser().resolve()
@@ -101,6 +133,7 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
     process_participation_path = output / PROCESS_PARTICIPATION_NAME
     occurrence_consequence_path = output / OCCURRENCE_CONSEQUENCE_NAME
     challenge_path = output / CHALLENGE_NAME
+    puzzle_finding_path = output / PUZZLE_FINDING_NAME
 
     feature_delta_payload = _load(feature_delta_path)
     process_variant_payload = _load(process_variant_path)
@@ -181,9 +214,34 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
             process_variant_payload or None,
         )
 
+    if source_payload:
+        puzzle_finding_payload = build_puzzle_finding_contract(source_payload, result)
+    else:
+        puzzle_finding_payload = _missing_sequence_puzzle_contract()
+    _write(puzzle_finding_path, puzzle_finding_payload)
+
+    result["puzzle_finding_contract_status"] = puzzle_finding_payload.get("status")
+    result["puzzle_finding_contract_version"] = puzzle_finding_payload.get(
+        "puzzle_finding_contract_version"
+    )
+    result["puzzle_finding_count"] = int(
+        puzzle_finding_payload.get("puzzle_finding_count") or 0
+    )
+    result["puzzle_finding_status_counts"] = dict(
+        puzzle_finding_payload.get("puzzle_finding_status_counts") or {}
+    )
+    result["puzzle_finding_bound_puzzle_ids"] = list(
+        puzzle_finding_payload.get("bound_puzzle_ids") or []
+    )
+    result["puzzle_finding_contract_creates_new_evidence"] = False
+    result["puzzle_finding_contract_creates_new_finding"] = False
+    result["cross_mechanism_fusion_performed"] = False
+    result["mechanism_candidate_emitted"] = False
+
     target = output / OUTPUT_NAME
     _write(target, result)
     result["output"] = str(target)
+    result["puzzle_finding_contract_output"] = str(puzzle_finding_path)
     result["source_sequence_json"] = str(source_path)
     result["source_feature_delta_json"] = (
         str(feature_delta_path) if feature_delta_path.is_file() else None
@@ -241,6 +299,10 @@ def main() -> int:
         "finding_status_counts": result.get("finding_status_counts") or {},
         "professional_finding_emitted_count": result.get("professional_finding_emitted_count"),
         "claim_output_allowed_count": result.get("claim_output_allowed_count"),
+        "puzzle_finding_contract_status": result.get("puzzle_finding_contract_status"),
+        "puzzle_finding_count": result.get("puzzle_finding_count", 0),
+        "puzzle_finding_status_counts": result.get("puzzle_finding_status_counts") or {},
+        "puzzle_finding_bound_puzzle_ids": result.get("puzzle_finding_bound_puzzle_ids") or [],
         "variant_feature_challenge_consumed": result.get("variant_feature_challenge_consumed"),
         "variant_feature_challenge_materialized": result.get("variant_feature_challenge_materialized"),
         "process_participation_context_enrichment_consumed": result.get(
@@ -262,12 +324,15 @@ def main() -> int:
         "process_context_counterevidence_recomputed": result.get(
             "process_context_counterevidence_recomputed"
         ),
+        "cross_mechanism_fusion_performed": result.get("cross_mechanism_fusion_performed"),
+        "mechanism_candidate_emitted": result.get("mechanism_candidate_emitted"),
         "hard_block_hits": result.get("hard_block_hits") or [],
         "review_hits": result.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
         "output": result.get("output"),
+        "puzzle_finding_contract_output": result.get("puzzle_finding_contract_output"),
     }, ensure_ascii=False, indent=2, sort_keys=True))
     return 2 if result.get("status") == "FAIL_CLOSED" else 0
 
