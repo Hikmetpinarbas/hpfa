@@ -99,6 +99,14 @@ def _fmt_clock(value: Any) -> str:
     return f"{minute:02d}:{second:02d}"
 
 
+def _exact_time_key(value: Any) -> tuple[str, str]:
+    """Identity key for one exact visible time candidate; no tolerance/window is used."""
+    try:
+        return ("NUMERIC", f"{float(value):.9f}")
+    except (TypeError, ValueError):
+        return ("RAW", str(value))
+
+
 def _occurrence_spine_lines(root: Path, full_spine: dict[str, Any]) -> list[str]:
     if not _declared_current(full_spine, OCCURRENCE_CONSEQUENCE_JSON):
         return [
@@ -236,7 +244,13 @@ def _clip_locator_lines(
         return []
     team_refs = {str(value) for value in record.get("team_identity_candidate_ids") or [] if str(value)}
     periods = {str(value) for value in record.get("period_candidates") or [] if str(value)}
-    candidates: list[tuple[float, str]] = []
+
+    # One exact focus-actor occurrence can be reachable from several shared anchors.
+    # Keep one locator per exact focus timestamp, choosing the richest in-family branch
+    # comparison; tie-break with the earlier anchor. This is identity-based de-duplication,
+    # not an arbitrary temporal window.
+    best_by_focus_time: dict[tuple[str, str], tuple[int, float, str]] = {}
+
     for divergence in sequence_payload.get("first_supported_branch_divergence_candidates") or []:
         if not isinstance(divergence, dict):
             continue
@@ -244,8 +258,8 @@ def _clip_locator_lines(
             continue
         if str(divergence.get("period_candidate") or "") not in periods:
             continue
-        family_profiles: list[tuple[str, Any, str, str]] = []
-        focus_visible = False
+
+        family_profiles_raw: list[tuple[str, Any, str, str]] = []
         for branch in divergence.get("branch_profiles") or []:
             if not isinstance(branch, dict):
                 continue
@@ -259,12 +273,29 @@ def _clip_locator_lines(
                     continue
                 actor_ref = str(semantic.get("actor_identity_candidate_id") or "").strip()
                 family = str(semantic.get("primary_family_candidate") or "UNRESOLVED")
-                family_profiles.append((outcome, neighbor_time, actor_ref, family))
-                if actor_ref == focus_actor_ref:
-                    focus_visible = True
+                family_profiles_raw.append((outcome, neighbor_time, actor_ref, family))
+
+        # Collapse duplicate semantic rows inside one divergence without changing order.
+        seen_profiles: set[tuple[str, tuple[str, str], str, str]] = set()
+        family_profiles: list[tuple[str, Any, str, str]] = []
+        for outcome, time_value, actor_ref, family in family_profiles_raw:
+            key = (outcome, _exact_time_key(time_value), actor_ref, family)
+            if key in seen_profiles:
+                continue
+            seen_profiles.add(key)
+            family_profiles.append((outcome, time_value, actor_ref, family))
+
         outcome_states = {item[0] for item in family_profiles if item[0]}
-        if not focus_visible or len(outcome_states) < 2:
+        if len(outcome_states) < 2:
             continue
+
+        focus_times: dict[tuple[str, str], Any] = {}
+        for _outcome, time_value, actor_ref, _family in family_profiles:
+            if actor_ref == focus_actor_ref:
+                focus_times.setdefault(_exact_time_key(time_value), time_value)
+        if not focus_times:
+            continue
+
         anchor_time_raw = divergence.get("shared_anchor_time_candidate")
         try:
             anchor_sort = float(anchor_time_raw)
@@ -275,16 +306,19 @@ def _clip_locator_lines(
             f"{outcome.replace('_SEMANTIC_VISIBLE', '')} {family}"
             for outcome, time_value, actor_ref, family in family_profiles
         )
-        candidates.append(
-            (
-                anchor_sort,
-                f"shared_anchor={_fmt_clock(anchor_time_raw)} -> {branch_text}",
-            )
-        )
-    if not candidates:
+        rendered = f"shared_anchor={_fmt_clock(anchor_time_raw)} -> {branch_text}"
+        richness = len(family_profiles)
+
+        for focus_key in focus_times:
+            current = best_by_focus_time.get(focus_key)
+            candidate = (richness, anchor_sort, rendered)
+            if current is None or richness > current[0] or (richness == current[0] and anchor_sort < current[1]):
+                best_by_focus_time[focus_key] = candidate
+
+    if not best_by_focus_time:
         return []
-    candidates.sort(key=lambda item: item[0])
-    return [item[1] for item in candidates[:limit]]
+    selected = sorted(best_by_focus_time.values(), key=lambda item: item[1])
+    return [item[2] for item in selected[:limit]]
 
 
 def build_mechanism_review_lines(
