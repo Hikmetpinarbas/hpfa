@@ -40,10 +40,16 @@ def _handoff(ref: str, *, independent: int, dep: bool, stat: bool, blocking: lis
     }
 
 
-def _payload(handoffs: list[dict], *, source_status: str = "PASS") -> dict:
+def _payload(
+    handoffs: list[dict],
+    *,
+    source_status: str = "PASS",
+    review_hits: list[str] | None = None,
+) -> dict:
     return {
         "comparable_outcome_counterevidence_status": source_status,
         "safe_finding_handoff_candidates": handoffs,
+        "review_hits": list(review_hits or []),
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -72,6 +78,23 @@ def test_unscoped_upstream_review_cannot_authorize_emit() -> None:
     assert row["claim_output_allowed"] is False
     assert "UPSTREAM_COUNTEREVIDENCE_REVIEW_UNSCOPED" in row["decision_reasons"]
     assert out["unscoped_upstream_review_can_authorize_emit"] is False
+
+
+def test_pass_envelope_with_unscoped_review_hits_cannot_authorize_emit() -> None:
+    out = build_safe_finding_admission(
+        _payload(
+            [_handoff("sfh_pass_review", independent=2, dep=True, stat=True, blocking=[])],
+            source_status="PASS",
+            review_hits=["serialization_or_replay_review"],
+        )
+    )
+    assert out["status"] == "REVIEW_REQUIRED"
+    assert out["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 1, "ABSTAIN": 0}
+    row = out["safe_finding_admission_decisions"][0]
+    assert row["claim_output_allowed"] is False
+    assert "UPSTREAM_COUNTEREVIDENCE_REVIEW_UNSCOPED" in row["decision_reasons"]
+    assert "counterevidence_upstream_pass_with_review_hits" in out["review_hits"]
+    assert out["pass_with_unscoped_review_hits_can_authorize_emit"] is False
 
 
 def test_downgrade_when_independence_is_not_admitted() -> None:
