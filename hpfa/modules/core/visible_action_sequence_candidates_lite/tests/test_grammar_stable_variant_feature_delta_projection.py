@@ -269,6 +269,43 @@ def test_partial_order_layer_discrimination_preserves_first_supported_difference
     assert row["ensuing_visible_chain_is_causal_truth"] is False
 
 
+def test_right_censoring_is_propagated_as_observation_debt_not_failure() -> None:
+    consequence_payload = _consequence()
+    consequence_payload["source_consequence_horizon"] = {
+        "horizon_definition_state": "DECLARED_SOURCE_HORIZON"
+    }
+    consequence_payload["right_censoring_assessed"] = True
+    success_row, failure_row = consequence_payload["occurrence_consequence_projections"]
+    success_row.update({
+        "right_censoring_status": "NOT_CENSORED_ADMITTED_FOLLOWUP_OBSERVED",
+        "right_censoring_assessed": True,
+        "right_censored": False,
+    })
+    failure_row.update({
+        "consequence_signal_candidates": [],
+        "primary_consequence_candidates": ["NO_VISIBLE_FOLLOW_UP_CANDIDATE"],
+        "visible_consequence_support": False,
+        "right_censoring_status": "RIGHT_CENSORED_BY_ADMIN_BOUNDARY",
+        "right_censoring_assessed": True,
+        "right_censored": True,
+    })
+
+    result = build_grammar_stable_variant_feature_delta(
+        _sequence(), _process_variants(), _state(), consequence_payload
+    )
+    assert result["status"] == "REVIEW_REQUIRED"
+    row = result["grammar_stable_variant_feature_delta_records"][0]
+    assert row["right_censoring_assessed"] is True
+    assert row["right_censored_variant_count"] == 1
+    assert row["right_censoring_incomplete_variant_count"] == 0
+    assert row["right_censoring_is_failure"] is False
+    consequence = {item["feature_token"]: item for item in row["consequence_feature_difference_candidates"]}
+    censored = consequence["right_censoring_status:RIGHT_CENSORED_BY_ADMIN_BOUNDARY"]
+    assert censored["failure_visible_numerator"] == 1
+    assert censored["success_visible_numerator"] == 0
+    assert "variant_right_censored_occurrence_present:fam_1" in result["review_hits"]
+
+
 def test_outcome_semantics_are_partition_labels_not_compared_features() -> None:
     result = build_grammar_stable_variant_feature_delta(
         _sequence(), _process_variants(), _state(), _consequence()
