@@ -7,6 +7,8 @@ from typing import Any
 FEATURE_DELTA_JSON = "grammar_stable_variant_feature_delta_projection_v1.json"
 IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 OCCURRENCE_CONSEQUENCE_JSON = "occurrence_consequence_projection_v1.json"
+SEQUENCE_JSON = "visible_action_sequence_candidates_lite_v1.json"
+PROCESS_VARIANT_JSON = "observable_process_variant_binding_projection_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -85,6 +87,18 @@ def _fmt_counts(row: dict[str, Any] | None) -> str | None:
     )
 
 
+def _fmt_clock(value: Any) -> str:
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return "UNKNOWN"
+    if seconds < 0:
+        return "UNKNOWN"
+    minute = int(seconds // 60)
+    second = int(seconds - minute * 60)
+    return f"{minute:02d}:{second:02d}"
+
+
 def _occurrence_spine_lines(root: Path, full_spine: dict[str, Any]) -> list[str]:
     if not _declared_current(full_spine, OCCURRENCE_CONSEQUENCE_JSON):
         return [
@@ -130,14 +144,29 @@ def _context_focus_candidates(record: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
-def _render_context_focus(record: dict[str, Any], actors: dict[str, str]) -> str:
+def _select_context_focus(record: dict[str, Any]) -> dict[str, Any] | None:
     candidates = _context_focus_candidates(record)
     if not candidates:
-        return "NO_NON_OUTCOME_CONTEXT_OR_ACTOR_CONTRAST_EXPOSED"
-    row = max(
+        return None
+    return max(
         candidates,
         key=lambda item: abs(float(item.get("descriptive_rate_delta_success_minus_failure") or 0.0)),
     )
+
+
+def _focus_actor_ref(row: dict[str, Any] | None) -> str | None:
+    if not row:
+        return None
+    token = str(row.get("feature_token") or "")
+    if "actor_identity_candidate_ids:" not in token:
+        return None
+    value = token.rsplit("actor_identity_candidate_ids:", 1)[-1].strip()
+    return value or None
+
+
+def _render_context_focus(row: dict[str, Any] | None, actors: dict[str, str]) -> str:
+    if not row:
+        return "NO_NON_OUTCOME_CONTEXT_OR_ACTOR_CONTRAST_EXPOSED"
     token = str(row.get("feature_token") or "")
     label = token
     if "actor_identity_candidate_ids:" in token:
@@ -157,6 +186,107 @@ def _render_context_focus(record: dict[str, Any], actors: dict[str, str]) -> str
     )
 
 
+def _family_sequence_refs(
+    record: dict[str, Any],
+    process_variant_payload: dict[str, Any],
+    sequence_payload: dict[str, Any],
+) -> set[str]:
+    family_ref = str(record.get("source_process_variant_family_ref") or "").strip()
+    if not family_ref:
+        return set()
+    family = next(
+        (
+            row
+            for row in process_variant_payload.get("observable_process_variant_families") or []
+            if isinstance(row, dict) and str(row.get("observable_process_variant_family_id") or "") == family_ref
+        ),
+        None,
+    )
+    if not isinstance(family, dict):
+        return set()
+    variant_by_ref = {
+        str(row.get("partial_order_occurrence_variant_id") or ""): row
+        for row in sequence_payload.get("partial_order_occurrence_variants") or []
+        if isinstance(row, dict)
+    }
+    result: set[str] = set()
+    for variant_ref in family.get("member_variant_refs") or []:
+        variant = variant_by_ref.get(str(variant_ref))
+        if not isinstance(variant, dict):
+            continue
+        sequence_ref = str(variant.get("sequence_ref") or "").strip()
+        if sequence_ref:
+            result.add(sequence_ref)
+    return result
+
+
+def _clip_locator_lines(
+    record: dict[str, Any],
+    focus_actor_ref: str | None,
+    actors: dict[str, str],
+    sequence_payload: dict[str, Any],
+    process_variant_payload: dict[str, Any],
+    *,
+    limit: int = 3,
+) -> list[str]:
+    if not focus_actor_ref or not sequence_payload or not process_variant_payload:
+        return []
+    family_sequence_refs = _family_sequence_refs(record, process_variant_payload, sequence_payload)
+    if not family_sequence_refs:
+        return []
+    team_refs = {str(value) for value in record.get("team_identity_candidate_ids") or [] if str(value)}
+    periods = {str(value) for value in record.get("period_candidates") or [] if str(value)}
+    candidates: list[tuple[float, str]] = []
+    for divergence in sequence_payload.get("first_supported_branch_divergence_candidates") or []:
+        if not isinstance(divergence, dict):
+            continue
+        if str(divergence.get("team_identity_candidate_id") or "") not in team_refs:
+            continue
+        if str(divergence.get("period_candidate") or "") not in periods:
+            continue
+        family_profiles: list[tuple[str, Any, str, str]] = []
+        focus_visible = False
+        for branch in divergence.get("branch_profiles") or []:
+            if not isinstance(branch, dict):
+                continue
+            branch_refs = {str(value) for value in branch.get("supporting_visible_sequence_candidate_ids") or []}
+            if not (branch_refs & family_sequence_refs):
+                continue
+            outcome = str(branch.get("branch_outcome_state") or "UNRESOLVED")
+            neighbor_time = branch.get("neighbor_time_candidate")
+            for semantic in branch.get("semantic_profiles") or []:
+                if not isinstance(semantic, dict):
+                    continue
+                actor_ref = str(semantic.get("actor_identity_candidate_id") or "").strip()
+                family = str(semantic.get("primary_family_candidate") or "UNRESOLVED")
+                family_profiles.append((outcome, neighbor_time, actor_ref, family))
+                if actor_ref == focus_actor_ref:
+                    focus_visible = True
+        outcome_states = {item[0] for item in family_profiles if item[0]}
+        if not focus_visible or len(outcome_states) < 2:
+            continue
+        anchor_time_raw = divergence.get("shared_anchor_time_candidate")
+        try:
+            anchor_sort = float(anchor_time_raw)
+        except (TypeError, ValueError):
+            anchor_sort = float("inf")
+        branch_text = "; ".join(
+            f"{_fmt_clock(time_value)} {actors.get(actor_ref, actor_ref or 'UNRESOLVED_ACTOR')} "
+            f"{outcome.replace('_SEMANTIC_VISIBLE', '')} {family}"
+            for outcome, time_value, actor_ref, family in family_profiles
+        )
+        candidates.append(
+            (
+                anchor_sort,
+                f"shared_anchor={_fmt_clock(anchor_time_raw)} -> {branch_text}",
+            )
+        )
+    if not candidates:
+        return []
+    candidates.sort(key=lambda item: item[0])
+    return [item[1] for item in candidates[:limit]]
+
+
 def build_mechanism_review_lines(
     output_root: str | Path,
     full_spine: dict[str, Any],
@@ -166,7 +296,8 @@ def build_mechanism_review_lines(
     This function creates no evidence, no causal/tactical claim and no EMIT authority.
     Continuation/handover contrasts are explicitly treated as outcome-adjacent; the
     positive review focus is the largest currently exposed non-outcome actor/process
-    context contrast, when one exists.
+    context contrast. Video locators reuse existing shared-anchor successor candidates
+    only and are not presented as proven first divergence.
     """
     root = Path(output_root)
     if not _declared_current(full_spine, FEATURE_DELTA_JSON):
@@ -177,6 +308,10 @@ def build_mechanism_review_lines(
         return ["- Process-difference surface fail-closed veya okunamadi; mekanizma adayi uretilmedi."]
 
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
+    sequence_payload = _load_json(root / SEQUENCE_JSON) if _declared_current(full_spine, SEQUENCE_JSON) else {}
+    process_variant_payload = (
+        _load_json(root / PROCESS_VARIANT_JSON) if _declared_current(full_spine, PROCESS_VARIANT_JSON) else {}
+    )
     teams = _team_names(identity)
     actors = _actor_names(identity)
     records = [
@@ -191,6 +326,7 @@ def build_mechanism_review_lines(
         "Adaylar siralanmamistir. Oranlar gercek basari olasiligi degildir ve causality/tactical-plan kaniti sayilmaz.",
         *_occurrence_spine_lines(root, full_spine),
         "information_value_guard=SUCCESS/FAILURE ile same-team continuation/opponent handover farki outcome'a yakindir; tek basina mac mekanizmasi sayilmaz.",
+        "locator_semantics=FIRST_SUCCESSOR_AFTER_SHARED_VISIBLE_ANCHOR_NOT_PROVEN_FIRST_DIVERGENCE",
     ]
     for index, record in enumerate(records, start=1):
         team_ids = [str(value) for value in (record.get("team_identity_candidate_ids") or []) if str(value)]
@@ -227,8 +363,18 @@ def build_mechanism_review_lines(
         if rendered_facts:
             lines.append("  outcome_adjacent_consequence_contrast: " + " | ".join(rendered_facts))
 
-        focus = _render_context_focus(record, actors)
-        lines.append("  positive_review_focus: " + focus)
+        focus_row = _select_context_focus(record)
+        focus_actor_ref = _focus_actor_ref(focus_row)
+        lines.append("  positive_review_focus: " + _render_context_focus(focus_row, actors))
+        locators = _clip_locator_lines(
+            record,
+            focus_actor_ref,
+            actors,
+            sequence_payload,
+            process_variant_payload,
+        )
+        for locator in locators:
+            lines.append("  video_review_locator: " + locator)
         lines.append(
             f"  uncertainty: process_context_missing={process_context_missing}/{resolved} "
             f"right_censored={right_censored}/{resolved} dependency_independence_proven="
@@ -236,8 +382,8 @@ def build_mechanism_review_lines(
         )
         lines.append(
             "  analyst_meaning: Once actor/process-context farkini videoda kontrol et; "
-            "continuation/handover farkini tek basina mekanizma, neden, taktik plan, oyuncu kalitesi "
-            "veya gercek basari olasiligi olarak yorumlama."
+            "locator yalniz shared-anchor successor review hedefidir. Continuation/handover farkini tek basina "
+            "mekanizma, neden, taktik plan, oyuncu kalitesi veya gercek basari olasiligi olarak yorumlama."
         )
 
     lines.extend([
