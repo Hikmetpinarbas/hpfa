@@ -1,13 +1,32 @@
 from __future__ import annotations
 
 import hashlib
-import itertools
 import json
 from collections import Counter, defaultdict
 from typing import Any
 
 CLAIM_CEILING = "DEPENDENCY_AWARE_PARTIAL_ORDER_SIMILARITY_CANDIDATE_ONLY"
+COMPARABLE_SET_CLAIM_CEILING = "QUESTION_CONDITIONED_OUTCOME_BLIND_PROCESS_COMPARABLE_SET_CANDIDATE_ONLY"
 PAIR_MATERIALIZATION_MODE = "ELIGIBILITY_GROUP_REPRESENTATIVE_PAIRS"
+DEFAULT_COMPARISON_QUESTION_CONTRACT = {
+    "comparison_question_id": "match_local_structural_recurrence_v1",
+    "football_question": "Which same-team, same-period partial-order variants are structurally comparable before visible outcome is read?",
+    "analysis_scale": "PARTIAL_ORDER_OCCURRENCE_VARIANT",
+    "candidate_universe": "CURRENT_MATCH_PARTIAL_ORDER_OCCURRENCE_VARIANTS",
+    "anchor_process_family": "STRUCTURAL_PARTIAL_ORDER_FAMILY_CANDIDATE",
+    "comparison_target": "MATCH_LOCAL_VISIBLE_VARIANT_CONTRAST",
+    "required_exact_dimensions": ["team", "period", "partial_order_structure"],
+    "required_coarsened_dimensions": [],
+    "allowed_test_dimensions": [],
+    "optional_similarity_dimensions": [],
+    "forbidden_leakage_dimensions": ["outcome_signature", "downstream_visible_outcome", "terminal_consequence"],
+    "required_observation_capabilities": ["TEAM_IDENTITY", "PERIOD_CONTEXT", "PARTIAL_ORDER_STRUCTURE"],
+    "optional_observation_capabilities": [],
+    "consequence_horizon": "ATTACH_ONLY_AFTER_COMPARABLE_SET_FREEZE",
+    "minimum_support_rule": "AT_LEAST_TWO_ELIGIBLE_CASES",
+    "minimum_spread_rule": "DESCRIBE_SPREAD_DO_NOT_INFER_INDEPENDENCE",
+    "claim_ceiling": COMPARABLE_SET_CLAIM_CEILING,
+}
 
 
 def _clean(value: Any) -> str:
@@ -63,11 +82,10 @@ def _order_signature(variant: dict[str, Any]) -> Counter[str]:
 def _layer_shape_signature(variant: dict[str, Any]) -> Counter[str]:
     by_layer: Counter[str] = Counter()
     for node in variant.get("node_records") or []:
-        if not isinstance(node, dict):
-            continue
-        layer = _clean(node.get("time_layer_ref"))
-        if layer:
-            by_layer[layer] += 1
+        if isinstance(node, dict):
+            layer = _clean(node.get("time_layer_ref"))
+            if layer:
+                by_layer[layer] += 1
     out: Counter[str] = Counter()
     for size in by_layer.values():
         out[f"LAYER_SIZE_{size}"] += 1
@@ -89,7 +107,6 @@ def _signature_tuple(counter: Counter[str]) -> tuple[tuple[str, int], ...] | Non
 
 
 def _structural_signature(variant: dict[str, Any]) -> tuple[Any, ...] | None:
-    """Cheap coarse prefilter only; not proof of topology equivalence."""
     action = _signature_tuple(_counter(variant.get("action_family_signature"), "action_family_candidate"))
     order = _signature_tuple(_order_signature(variant))
     layer = _signature_tuple(_layer_shape_signature(variant))
@@ -104,7 +121,6 @@ def _layer_graph(
     dict[str, tuple[tuple[tuple[str, ...], str], ...]],
     dict[tuple[str, str], tuple[tuple[str, int], ...]],
 ] | None:
-    """Build a relation-preserving layer graph without inventing same-time order."""
     layer_nodes: dict[str, list[tuple[tuple[str, ...], str]]] = defaultdict(list)
     for node in variant.get("node_records") or []:
         if not isinstance(node, dict):
@@ -127,14 +143,9 @@ def _layer_graph(
         if internal not in {"NOT_APPLICABLE", "SAME_TIME_UNORDERED"}:
             return None
         layer_nodes[layer].append((actions, internal))
-
     if not layer_nodes:
         return None
-
-    labels = {
-        layer: tuple(sorted(records))
-        for layer, records in layer_nodes.items()
-    }
+    labels = {layer: tuple(sorted(records)) for layer, records in layer_nodes.items()}
     edge_counters: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
     for edge in variant.get("edge_relations") or []:
         if not isinstance(edge, dict):
@@ -147,7 +158,6 @@ def _layer_graph(
         if source not in labels or target not in labels:
             return None
         edge_counters[(source, target)][relation] += 1
-
     edges = {
         pair: tuple(sorted((relation, int(count)) for relation, count in counter.items()))
         for pair, counter in edge_counters.items()
@@ -169,20 +179,14 @@ def _layer_invariant(
         if source == layer:
             for relation, count in relation_counts:
                 outgoing[relation] += count
-    return (
-        labels[layer],
-        tuple(sorted(incoming.items())),
-        tuple(sorted(outgoing.items())),
-    )
+    return labels[layer], tuple(sorted(incoming.items())), tuple(sorted(outgoing.items()))
 
 
 def _topology_exact_match(left: dict[str, Any], right: dict[str, Any]) -> bool | None:
-    """Exact labeled-layer graph isomorphism; layer refs themselves carry no identity."""
     left_graph = _layer_graph(left)
     right_graph = _layer_graph(right)
     if left_graph is None or right_graph is None:
         return None
-
     left_labels, left_edges = left_graph
     right_labels, right_edges = right_graph
     if len(left_labels) != len(right_labels):
@@ -191,13 +195,11 @@ def _topology_exact_match(left: dict[str, Any], right: dict[str, Any]) -> bool |
         return False
     if Counter(left_edges.values()) != Counter(right_edges.values()):
         return False
-
     left_invariants = {layer: _layer_invariant(layer, left_labels, left_edges) for layer in left_labels}
     right_invariants = {layer: _layer_invariant(layer, right_labels, right_edges) for layer in right_labels}
     if Counter(left_invariants.values()) != Counter(right_invariants.values()):
         return False
-
-    candidates: dict[str, list[str]] = {
+    candidates = {
         layer: sorted(
             other
             for other, invariant in right_invariants.items()
@@ -207,8 +209,10 @@ def _topology_exact_match(left: dict[str, Any], right: dict[str, Any]) -> bool |
     }
     if any(not values for values in candidates.values()):
         return False
-
-    ordered_left = sorted(left_labels, key=lambda layer: (len(candidates[layer]), repr(left_invariants[layer]), layer))
+    ordered_left = sorted(
+        left_labels,
+        key=lambda layer: (len(candidates[layer]), repr(left_invariants[layer]), layer),
+    )
     mapping: dict[str, str] = {}
     used_right: set[str] = set()
 
@@ -242,8 +246,72 @@ def _topology_exact_match(left: dict[str, Any], right: dict[str, Any]) -> bool |
     return search(0)
 
 
-def _outcome_materialization_signature(variant: dict[str, Any]) -> tuple[tuple[str, int], ...]:
-    return _signature_tuple(_counter(variant.get("outcome_signature"), "outcome_candidate")) or (("UNRESOLVED", 0),)
+def _dimension_set(contract: dict[str, Any], key: str) -> set[str]:
+    aliases = {
+        "team_identity_candidate_id": "team",
+        "period_candidate": "period",
+        "structural_topology": "partial_order_structure",
+    }
+    return {
+        aliases.get(_clean(value), _clean(value))
+        for value in (contract.get(key) or [])
+        if _clean(value)
+    }
+
+
+def _comparison_contract(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str], list[str]]:
+    blocks: list[str] = []
+    reviews: list[str] = []
+    supplied = payload.get("process_comparison_question_contract")
+    if supplied is None:
+        contract = json.loads(json.dumps(DEFAULT_COMPARISON_QUESTION_CONTRACT))
+    elif not isinstance(supplied, dict):
+        return {}, ["comparison_question_contract_not_object"], []
+    else:
+        contract = json.loads(json.dumps(supplied))
+
+    required_fields = (
+        "comparison_question_id",
+        "football_question",
+        "analysis_scale",
+        "required_exact_dimensions",
+        "required_coarsened_dimensions",
+        "allowed_test_dimensions",
+        "forbidden_leakage_dimensions",
+        "required_observation_capabilities",
+        "claim_ceiling",
+    )
+    for field in required_fields:
+        if field not in contract or contract.get(field) is None:
+            blocks.append(f"comparison_question_contract_missing:{field}")
+    for field in ("comparison_question_id", "football_question", "analysis_scale", "claim_ceiling"):
+        if field in contract and not _clean(contract.get(field)):
+            blocks.append(f"comparison_question_contract_empty:{field}")
+    for field in (
+        "required_exact_dimensions",
+        "required_coarsened_dimensions",
+        "allowed_test_dimensions",
+        "forbidden_leakage_dimensions",
+        "required_observation_capabilities",
+    ):
+        if field in contract and not isinstance(contract.get(field), list):
+            blocks.append(f"comparison_question_contract_not_list:{field}")
+
+    exact = _dimension_set(contract, "required_exact_dimensions")
+    coarsened = _dimension_set(contract, "required_coarsened_dimensions")
+    tested = _dimension_set(contract, "allowed_test_dimensions")
+    if tested & exact:
+        blocks.append("comparison_question_test_dimension_exact_match_overlap")
+    if tested & coarsened:
+        blocks.append("comparison_question_test_dimension_coarsened_match_overlap")
+    forbidden = {
+        _clean(value)
+        for value in (contract.get("forbidden_leakage_dimensions") or [])
+        if _clean(value)
+    }
+    if not any("outcome" in value.lower() or "consequence" in value.lower() for value in forbidden):
+        reviews.append("comparison_question_outcome_leakage_dimension_not_declared")
+    return contract, blocks, reviews
 
 
 def _pair_key(left_index: int, right_index: int) -> tuple[int, int]:
@@ -259,15 +327,12 @@ def _add_star_pairs(indices: list[int], out: set[tuple[int, int]]) -> None:
         out.add(_pair_key(anchor, index))
 
 
-def _candidate_pair_indices(variants: list[dict[str, Any]]) -> tuple[set[tuple[int, int]], list[dict[str, Any]], dict[str, int]]:
-    """Build the legacy-bounded pair surface, then only remove topology-invalid pairs.
-
-    Same-team, same-period, coarse-signature equality remains a cheap prefilter. The exact
-    legacy representative pair set is materialized first. Relation-preserving topology then
-    acts only as a downward filter: it may remove or preserve a pair, but can never create a
-    new pair. Outcome signatures still select representatives only after coarse admission and
-    never decide comparison eligibility.
-    """
+def _candidate_pair_indices(
+    variants: list[dict[str, Any]],
+    contract: dict[str, Any],
+) -> tuple[set[tuple[int, int]], list[dict[str, Any]], dict[str, int]]:
+    tested = _dimension_set(contract, "allowed_test_dimensions")
+    period_is_test = "period" in tested
     groups: dict[tuple[str, str, tuple[Any, ...]], list[int]] = defaultdict(list)
     missing_team = 0
     missing_period = 0
@@ -286,7 +351,8 @@ def _candidate_pair_indices(variants: list[dict[str, Any]]) -> tuple[set[tuple[i
         if signature is None:
             structural_unresolved += 1
             continue
-        groups[(team, period, signature)].append(index)
+        period_key = "__TEST_DIMENSION_PERIOD__" if period_is_test else period
+        groups[(team, period_key, signature)].append(index)
 
     admitted_pair_indices: set[tuple[int, int]] = set()
     comparison_groups: list[dict[str, Any]] = []
@@ -294,27 +360,19 @@ def _candidate_pair_indices(variants: list[dict[str, Any]]) -> tuple[set[tuple[i
     topology_unresolved_pair_count = 0
     coarse_signature_topology_split_group_count = 0
 
-    for (team, period, signature), indices in sorted(
+    for (team, period_key, signature), indices in sorted(
         groups.items(),
         key=lambda item: (item[0][0], item[0][1], repr(item[0][2])),
     ):
-        ordered = sorted(indices, key=lambda idx: _clean(variants[idx].get("partial_order_occurrence_variant_id")))
+        ordered = sorted(
+            indices,
+            key=lambda idx: _clean(variants[idx].get("partial_order_occurrence_variant_id")),
+        )
         if len(ordered) < 2:
             continue
 
         coarse_pair_indices: set[tuple[int, int]] = set()
-
         _add_star_pairs(ordered, coarse_pair_indices)
-
-        by_outcome: dict[tuple[tuple[str, int], ...], list[int]] = defaultdict(list)
-        for index in ordered:
-            by_outcome[_outcome_materialization_signature(variants[index])].append(index)
-        outcome_representatives: list[int] = []
-        for outcome_indices in by_outcome.values():
-            _add_star_pairs(outcome_indices, coarse_pair_indices)
-            outcome_representatives.append(sorted(outcome_indices)[0])
-        for left, right in itertools.combinations(sorted(outcome_representatives), 2):
-            coarse_pair_indices.add(_pair_key(left, right))
 
         occurrence_members: dict[str, list[int]] = defaultdict(list)
         dependency_members: dict[str, list[int]] = defaultdict(list)
@@ -335,13 +393,13 @@ def _candidate_pair_indices(variants: list[dict[str, Any]]) -> tuple[set[tuple[i
 
         group_topology_mismatch = False
         group_topology_unresolved = False
+        group_admitted_pairs: set[tuple[int, int]] = set()
         for left_index, right_index in sorted(coarse_pair_indices):
-            topology_match = _topology_exact_match(
-                variants[left_index],
-                variants[right_index],
-            )
+            topology_match = _topology_exact_match(variants[left_index], variants[right_index])
             if topology_match is True:
-                admitted_pair_indices.add(_pair_key(left_index, right_index))
+                pair_key = _pair_key(left_index, right_index)
+                admitted_pair_indices.add(pair_key)
+                group_admitted_pairs.add(pair_key)
             elif topology_match is False:
                 topology_mismatch_pair_pruned_count += 1
                 group_topology_mismatch = True
@@ -352,32 +410,45 @@ def _candidate_pair_indices(variants: list[dict[str, Any]]) -> tuple[set[tuple[i
         if group_topology_mismatch:
             coarse_signature_topology_split_group_count += 1
 
+        eligible_indices = sorted({index for pair in group_admitted_pairs for index in pair})
+        eligible_refs = [
+            _clean(variants[index].get("partial_order_occurrence_variant_id"))
+            for index in eligible_indices
+        ]
         member_refs = [
             _clean(variants[index].get("partial_order_occurrence_variant_id"))
             for index in ordered
         ]
-        group_id = "po_group_" + _digest(team, period, signature)[:24]
+        group_id = "po_group_" + _digest(
+            team,
+            period_key,
+            signature,
+            contract.get("comparison_question_id"),
+        )[:24]
         comparison_groups.append({
             "comparison_group_id": group_id,
+            "comparison_question_id": contract.get("comparison_question_id"),
             "team_identity_candidate_id": team,
-            "period_candidate": period,
+            "period_candidate": None if period_is_test else period_key,
+            "period_is_test_dimension": period_is_test,
             "member_variant_refs": member_refs,
             "member_variant_count": len(ordered),
+            "eligible_member_variant_refs": eligible_refs,
+            "eligible_case_count": len(eligible_refs),
             "coarse_partial_order_signature_match_required": True,
             "coarse_signature_is_exact_equivalence_proof": False,
             "relation_preserving_topology_filter_applied": True,
             "topology_filter_can_create_new_pair": False,
             "topology_filter_only_removes_or_preserves_coarse_prefilter_pairs": True,
-            "structural_exact_equivalence_proven_for_all_materialized_pairs": (
-                not group_topology_unresolved
-            ),
+            "structural_exact_equivalence_proven_for_all_materialized_pairs": not group_topology_unresolved,
             "coarse_signature_group_contains_topology_mismatch": group_topology_mismatch,
             "outcome_used_in_comparison_admission": False,
+            "outcome_used_in_pair_materialization": False,
             "dependency_independence_proven": False,
             "statistical_independence_proven": False,
             "comparison_group_is_process_identity_truth": False,
             "comparison_group_is_tactical_pattern_truth": False,
-            "claim_ceiling": CLAIM_CEILING,
+            "claim_ceiling": COMPARABLE_SET_CLAIM_CEILING,
         })
 
     diagnostics = {
@@ -399,23 +470,36 @@ def _comparison_eligibility(
     right_period: str,
     structural_exact_match: bool,
     shared_origin: bool,
-) -> tuple[str, bool, bool, bool]:
+    contract: dict[str, Any],
+) -> tuple[str, bool, bool, bool, str]:
+    tested = _dimension_set(contract, "allowed_test_dimensions")
+    period_is_test = "period" in tested
     if not same_team:
-        return "NOT_COMPARABLE_CROSS_TEAM_MATCH_LOCAL", False, False, False
+        return "NOT_COMPARABLE_CROSS_TEAM_MATCH_LOCAL", False, False, False, "INELIGIBLE"
     if not left_period or not right_period:
-        return "INDETERMINATE_MISSING_PERIOD_CONTEXT", False, False, True
-    if left_period != right_period:
-        return "PARTIALLY_COMPARABLE_REVIEW_REQUIRED_CROSS_PERIOD", False, False, True
-    if shared_origin and structural_exact_match:
-        return "COMPARABLE_FOR_SHARED_ORIGIN_BRANCH_CONTRAST", True, True, False
+        return "INDETERMINATE_MISSING_PERIOD_CONTEXT", False, False, True, "REVIEW_REQUIRED"
+    if left_period != right_period and not period_is_test:
+        return "PARTIALLY_COMPARABLE_REVIEW_REQUIRED_CROSS_PERIOD", False, False, True, "INELIGIBLE"
+    if not structural_exact_match:
+        return "PARTIALLY_COMPARABLE_REVIEW_REQUIRED_STRUCTURE_MISMATCH", False, False, True, "REVIEW_REQUIRED"
+    if left_period != right_period and period_is_test:
+        return "COMPARABLE_FOR_DECLARED_PERIOD_TEST_DIMENSION", True, True, False, "STRICT_ELIGIBLE"
     if shared_origin:
-        return "PARTIALLY_COMPARABLE_REVIEW_REQUIRED_SHARED_ORIGIN_STRUCTURE_MISMATCH", False, False, True
-    if structural_exact_match:
-        return "COMPARABLE_FOR_MATCH_LOCAL_RECURRENCE_CANDIDATE_INDEPENDENCE_UNPROVEN", True, True, False
-    return "PARTIALLY_COMPARABLE_REVIEW_REQUIRED_STRUCTURE_MISMATCH", False, False, True
+        return "COMPARABLE_FOR_SHARED_ORIGIN_BRANCH_CONTRAST", True, True, False, "STRICT_ELIGIBLE"
+    return (
+        "COMPARABLE_FOR_MATCH_LOCAL_RECURRENCE_CANDIDATE_INDEPENDENCE_UNPROVEN",
+        True,
+        True,
+        False,
+        "STRICT_ELIGIBLE",
+    )
 
 
-def _build_pair(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any] | None:
+def _build_pair(
+    left: dict[str, Any],
+    right: dict[str, Any],
+    contract: dict[str, Any],
+) -> dict[str, Any] | None:
     left_id = _clean(left.get("partial_order_occurrence_variant_id"))
     right_id = _clean(right.get("partial_order_occurrence_variant_id"))
     if not left_id or not right_id:
@@ -428,11 +512,27 @@ def _build_pair(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any] |
     right_period = _clean(right.get("period_candidate"))
     same_period = bool(left_period and right_period and left_period == right_period)
 
-    left_occ = {_clean(v) for v in (left.get("supporting_action_occurrence_candidate_ids") or []) if _clean(v)}
-    right_occ = {_clean(v) for v in (right.get("supporting_action_occurrence_candidate_ids") or []) if _clean(v)}
+    left_occ = {
+        _clean(value)
+        for value in (left.get("supporting_action_occurrence_candidate_ids") or [])
+        if _clean(value)
+    }
+    right_occ = {
+        _clean(value)
+        for value in (right.get("supporting_action_occurrence_candidate_ids") or [])
+        if _clean(value)
+    }
     shared_occ = sorted(left_occ & right_occ)
-    left_dep = {_clean(v) for v in (left.get("dependency_group_refs") or []) if _clean(v)}
-    right_dep = {_clean(v) for v in (right.get("dependency_group_refs") or []) if _clean(v)}
+    left_dep = {
+        _clean(value)
+        for value in (left.get("dependency_group_refs") or [])
+        if _clean(value)
+    }
+    right_dep = {
+        _clean(value)
+        for value in (right.get("dependency_group_refs") or [])
+        if _clean(value)
+    }
     shared_dep = sorted(left_dep & right_dep)
     shared_origin = bool(shared_occ or shared_dep)
     provenance_distinct = not shared_origin
@@ -442,7 +542,10 @@ def _build_pair(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any] |
         _counter(right.get("action_family_signature"), "action_family_candidate"),
     )
     order_similarity = _multiset_jaccard(_order_signature(left), _order_signature(right))
-    layer_shape_similarity = _multiset_jaccard(_layer_shape_signature(left), _layer_shape_signature(right))
+    layer_shape_similarity = _multiset_jaccard(
+        _layer_shape_signature(left),
+        _layer_shape_signature(right),
+    )
     coarse_signature_match = (
         action_similarity == 1.0
         and order_similarity == 1.0
@@ -452,14 +555,19 @@ def _build_pair(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any] |
     structural_exact_match = topology_match is True
     outcome_equal = _outcome_signature_equal(left, right)
 
-    comparison_state, comparison_eligible, outcome_contrast_allowed, comparison_requires_review = (
-        _comparison_eligibility(
-            same_team=same_team,
-            left_period=left_period,
-            right_period=right_period,
-            structural_exact_match=structural_exact_match,
-            shared_origin=shared_origin,
-        )
+    (
+        comparison_state,
+        comparison_eligible,
+        outcome_contrast_allowed,
+        comparison_requires_review,
+        eligibility_grade,
+    ) = _comparison_eligibility(
+        same_team=same_team,
+        left_period=left_period,
+        right_period=right_period,
+        structural_exact_match=structural_exact_match,
+        shared_origin=shared_origin,
+        contract=contract,
     )
 
     if not same_team:
@@ -491,6 +599,7 @@ def _build_pair(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any] |
     pair_id = "po_sim_" + _digest(left_id, right_id)[:24]
     return {
         "partial_order_similarity_pair_id": pair_id,
+        "comparison_question_id": contract.get("comparison_question_id"),
         "left_variant_ref": left_id,
         "right_variant_ref": right_id,
         "left_team_identity_candidate_id": left_team or None,
@@ -519,6 +628,7 @@ def _build_pair(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any] |
         "pair_state": pair_state,
         "recurrence_candidate_eligible": recurrence_eligible,
         "comparison_eligibility_state": comparison_state,
+        "process_comparison_eligibility_grade": eligibility_grade,
         "comparison_eligible": comparison_eligible,
         "comparison_outcome_contrast_allowed": outcome_contrast_allowed,
         "comparison_requires_review": comparison_requires_review,
@@ -530,6 +640,7 @@ def _build_pair(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any] |
         "missing_spatial_context_is_counterevidence": False,
         "outcome_contrast_state": outcome_state,
         "outcome_used_in_similarity_decision": False,
+        "outcome_used_in_comparison_admission": False,
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
         "similarity_is_recurrence_truth": False,
@@ -537,6 +648,82 @@ def _build_pair(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any] |
         "similarity_is_causal_truth": False,
         "claim_ceiling": CLAIM_CEILING,
     }
+
+
+def _build_comparable_sets(
+    groups: list[dict[str, Any]],
+    variants: list[dict[str, Any]],
+    contract: dict[str, Any],
+) -> list[dict[str, Any]]:
+    variant_by_id = {
+        _clean(row.get("partial_order_occurrence_variant_id")): row
+        for row in variants
+        if _clean(row.get("partial_order_occurrence_variant_id"))
+    }
+    sets: list[dict[str, Any]] = []
+    for group in groups:
+        members = [
+            _clean(value)
+            for value in (group.get("eligible_member_variant_refs") or [])
+            if _clean(value)
+        ]
+        if len(members) < 2:
+            continue
+        dependency_refs = {
+            _clean(dependency_ref)
+            for member in members
+            for dependency_ref in (variant_by_id.get(member, {}).get("dependency_group_refs") or [])
+            if _clean(dependency_ref)
+        }
+        periods = sorted({
+            _clean(variant_by_id.get(member, {}).get("period_candidate"))
+            for member in members
+            if _clean(variant_by_id.get(member, {}).get("period_candidate"))
+        })
+        teams = sorted({
+            _clean(variant_by_id.get(member, {}).get("team_identity_candidate_id"))
+            for member in members
+            if _clean(variant_by_id.get(member, {}).get("team_identity_candidate_id"))
+        })
+        set_id = "pcs_" + _digest(contract.get("comparison_question_id"), members)[:24]
+        sets.append({
+            "comparable_set_id": set_id,
+            "comparison_question_id": contract.get("comparison_question_id"),
+            "team": teams[0] if len(teams) == 1 else None,
+            "analysis_scale": contract.get("analysis_scale"),
+            "anchor_process_family": contract.get("anchor_process_family"),
+            "eligibility_grade": "STRICT_ELIGIBLE",
+            "member_process_candidate_ids": members,
+            "eligible_case_count": len(members),
+            "unique_dependency_group_count": len(dependency_refs),
+            "required_exact_dimensions": list(contract.get("required_exact_dimensions") or []),
+            "required_coarsened_dimensions": list(contract.get("required_coarsened_dimensions") or []),
+            "allowed_test_dimensions": list(contract.get("allowed_test_dimensions") or []),
+            "resolved_context": {
+                "team_identity_candidate_ids": teams,
+                "period_candidates": periods,
+            },
+            "unresolved_context": [],
+            "prefix_support_summary": "STRUCTURAL_EXACT_RELATION_PRESERVING_TOPOLOGY_CANDIDATE",
+            "partial_order_state": "SAME_TIME_UNORDERED_PRESERVED",
+            "censoring_burden": "NOT_EVALUATED_BEFORE_OUTCOME_ATTACHMENT",
+            "dependency_burden": "DEPENDENCY_INDEPENDENCE_NOT_PROVEN",
+            "episode_spread": "UNKNOWN",
+            "actor_spread": "UNKNOWN",
+            "context_spread": {"period_count": len(periods)},
+            "eligible_denominator_frozen_before_outcome_attachment": True,
+            "outcome_used_in_eligibility": False,
+            "outcome_used_in_pair_materialization": False,
+            "comparable_set_is_finding": False,
+            "comparable_set_is_process_identity_truth": False,
+            "comparable_set_is_tactical_pattern_truth": False,
+            "comparable_set_is_causal_truth": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+            "claim_ceiling": contract.get("claim_ceiling") or COMPARABLE_SET_CLAIM_CEILING,
+        })
+    return sets
 
 
 def build_dependency_aware_partial_order_similarity(
@@ -558,15 +745,31 @@ def build_dependency_aware_partial_order_similarity(
     if variant_payload.get("production_release") is True:
         blocks.append("production_release_claimed")
 
+    contract, contract_blocks, contract_reviews = _comparison_contract(variant_payload)
+    blocks.extend(contract_blocks)
+    reviews.extend(contract_reviews)
+
     variants = [
-        row for row in (variant_payload.get("partial_order_occurrence_variants") or [])
+        row
+        for row in (variant_payload.get("partial_order_occurrence_variants") or [])
         if isinstance(row, dict)
     ]
     if len(variants) < 2:
         reviews.append("insufficient_partial_order_variants_for_pairwise_similarity")
 
     all_pair_count = len(variants) * max(len(variants) - 1, 0) // 2
-    pair_indices, comparison_groups, diagnostics = _candidate_pair_indices(variants)
+    if contract:
+        pair_indices, comparison_groups, diagnostics = _candidate_pair_indices(variants, contract)
+    else:
+        pair_indices, comparison_groups, diagnostics = set(), [], {
+            "missing_team_variant_count": 0,
+            "missing_period_variant_count": 0,
+            "structural_signature_unresolved_variant_count": 0,
+            "topology_unresolved_pair_count": 0,
+            "topology_mismatch_pair_pruned_count": 0,
+            "coarse_signature_topology_split_group_count": 0,
+            "admitted_structural_comparison_group_count": 0,
+        }
     if diagnostics["missing_period_variant_count"]:
         reviews.append("variant_period_context_missing_before_comparison_admission")
     if diagnostics["topology_unresolved_pair_count"]:
@@ -575,7 +778,7 @@ def build_dependency_aware_partial_order_similarity(
     pairs: list[dict[str, Any]] = []
     if not blocks:
         for left_index, right_index in sorted(pair_indices):
-            pair = _build_pair(variants[left_index], variants[right_index])
+            pair = _build_pair(variants[left_index], variants[right_index], contract)
             if pair is None:
                 blocks.append("partial_order_variant_id_missing")
                 break
@@ -588,10 +791,17 @@ def build_dependency_aware_partial_order_similarity(
                 break
             pairs.append(pair)
 
+    comparable_sets = (
+        _build_comparable_sets(comparison_groups, variants, contract)
+        if not blocks
+        else []
+    )
+
     if blocks:
         status = "FAIL_CLOSED"
         pairs = []
         comparison_groups = []
+        comparable_sets = []
     elif reviews or variant_payload.get("partial_order_occurrence_variant_status") == "REVIEW_REQUIRED":
         status = "REVIEW_REQUIRED"
     else:
@@ -600,8 +810,21 @@ def build_dependency_aware_partial_order_similarity(
     counts = Counter(_clean(row.get("pair_state")) for row in pairs)
     comparison_counts = Counter(_clean(row.get("comparison_eligibility_state")) for row in pairs)
     materialized_pair_count = len(pairs)
+    tested = _dimension_set(contract, "allowed_test_dimensions") if contract else set()
+
     return {
         "status": status,
+        "process_comparison_question_contract": contract,
+        "process_comparison_question_contract_status": (
+            "FAIL_CLOSED"
+            if contract_blocks
+            else "REVIEW_REQUIRED"
+            if contract_reviews
+            else "PASS"
+        ),
+        "process_comparable_sets": comparable_sets,
+        "process_comparable_set_count": len(comparable_sets),
+        "eligible_denominator_frozen_before_outcome_attachment": True,
         "dependency_aware_partial_order_similarity_pairs": pairs,
         "dependency_aware_partial_order_similarity_pair_count": materialized_pair_count,
         "dependency_aware_partial_order_similarity_groups": comparison_groups,
@@ -618,7 +841,10 @@ def build_dependency_aware_partial_order_similarity(
         "coarse_signature_is_only_prefilter": True,
         "structural_exact_match_requires_relation_preserving_topology": True,
         "cross_team_pairs_materialized": False,
-        "cross_period_pairs_materialized": False,
+        "cross_period_pairs_materialized": (
+            "period" in tested
+            and any(not row.get("same_period_comparison") for row in pairs)
+        ),
         "structural_mismatch_pairs_materialized": False,
         "topology_mismatch_pairs_materialized": False,
         "topology_filter_can_create_new_pair": False,
@@ -628,7 +854,9 @@ def build_dependency_aware_partial_order_similarity(
             1 for row in pairs if row.get("recurrence_candidate_eligible")
         ),
         "outcome_used_in_similarity_decision": False,
-        "outcome_used_only_for_representative_materialization_after_structural_admission": True,
+        "outcome_used_in_comparison_admission": False,
+        "outcome_used_in_pair_materialization": False,
+        "outcome_used_only_for_representative_materialization_after_structural_admission": False,
         "dependency_overlap_blocks_recurrence_candidate_eligibility": True,
         "provenance_distinct_is_not_independence_proof": True,
         "recurrence_candidate_is_independent_support": False,
