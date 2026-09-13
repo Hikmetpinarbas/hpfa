@@ -37,6 +37,7 @@ _CONSEQUENCE_KEYS = (
     "terminal_status",
     "observation_status",
     "admitted_followup_horizon_sensitivity_state",
+    "right_censoring_status",
 )
 _RESOLVED_OUTCOMES = {"SUCCESS_SEMANTIC_VISIBLE", "FAILURE_SEMANTIC_VISIBLE"}
 _LAYER_TOKEN_RE = re.compile(r"^LAYER\[(\d+)\]::")
@@ -169,6 +170,10 @@ def _member_profile(
     horizon_sensitive_occurrence_refs: list[str] = []
     horizon_tested_occurrence_refs: list[str] = []
     horizon_unresolved_occurrence_refs: list[str] = []
+    censoring_assessed_occurrence_refs: list[str] = []
+    right_censored_occurrence_refs: list[str] = []
+    fully_observed_no_followup_occurrence_refs: list[str] = []
+    censoring_unresolved_occurrence_refs: list[str] = []
 
     for occurrence_ref in occurrence_refs:
         layer_positions = occurrence_layers.get(occurrence_ref, set())
@@ -188,6 +193,7 @@ def _member_profile(
         if consequence_row is None:
             missing_consequence.append(occurrence_ref)
             horizon_unresolved_occurrence_refs.append(occurrence_ref)
+            censoring_unresolved_occurrence_refs.append(occurrence_ref)
         else:
             base_consequence = _tokens(consequence_row, _CONSEQUENCE_KEYS)
             if consequence_row.get("visible_consequence_support") is True:
@@ -212,11 +218,34 @@ def _member_profile(
                 horizon_unresolved_occurrence_refs.append(occurrence_ref)
             if consequence_row.get("admitted_followup_horizon_sensitive") is True:
                 horizon_sensitive_occurrence_refs.append(occurrence_ref)
+
+            censoring_status = _clean(consequence_row.get("right_censoring_status"))
+            if consequence_row.get("right_censoring_assessed") is True:
+                censoring_assessed_occurrence_refs.append(occurrence_ref)
+            else:
+                censoring_unresolved_occurrence_refs.append(occurrence_ref)
+            if (
+                consequence_row.get("right_censored") is True
+                or censoring_status == "RIGHT_CENSORED_BY_ADMIN_BOUNDARY"
+            ):
+                right_censored_occurrence_refs.append(occurrence_ref)
+            if censoring_status == "COMPLETE_TO_DECLARED_HORIZON_NO_ADMITTED_FOLLOWUP":
+                fully_observed_no_followup_occurrence_refs.append(occurrence_ref)
+            if (
+                censoring_status == "CENSORING_NOT_ASSESSED"
+                or censoring_status.startswith("CENSORING_UNRESOLVED_")
+            ):
+                censoring_unresolved_occurrence_refs.append(occurrence_ref)
+
             base_consequence |= _ensuing_visible_chain_tokens(consequence_row)
             consequence_features |= _with_layer_tokens(base_consequence, layer_positions)
 
     horizon_complete = bool(occurrence_refs) and (
         len(set(horizon_tested_occurrence_refs)) == len(set(occurrence_refs))
+    )
+    censoring_complete = bool(occurrence_refs) and (
+        len(set(censoring_assessed_occurrence_refs)) == len(set(occurrence_refs))
+        and not censoring_unresolved_occurrence_refs
     )
     return {
         "variant_ref": variant_ref,
@@ -235,6 +264,12 @@ def _member_profile(
         "admitted_followup_horizon_sensitive_occurrence_refs": sorted(set(horizon_sensitive_occurrence_refs)),
         "admitted_followup_horizon_tested_occurrence_refs": sorted(set(horizon_tested_occurrence_refs)),
         "admitted_followup_horizon_unresolved_occurrence_refs": sorted(set(horizon_unresolved_occurrence_refs)),
+        "right_censoring_complete": censoring_complete,
+        "right_censored": bool(right_censored_occurrence_refs),
+        "right_censored_occurrence_refs": sorted(set(right_censored_occurrence_refs)),
+        "fully_observed_no_followup_occurrence_refs": sorted(set(fully_observed_no_followup_occurrence_refs)),
+        "right_censoring_assessed_occurrence_refs": sorted(set(censoring_assessed_occurrence_refs)),
+        "right_censoring_unresolved_occurrence_refs": sorted(set(censoring_unresolved_occurrence_refs)),
     }
 
 
@@ -347,7 +382,7 @@ def build_grammar_stable_variant_feature_delta(
     horizon = occurrence_consequence_payload.get("source_consequence_horizon")
     horizon = horizon if isinstance(horizon, dict) else {}
     horizon_state = _clean(horizon.get("horizon_definition_state")) or "HORIZON_UNSPECIFIED"
-    right_censoring_assessed = occurrence_consequence_payload.get("right_censoring_assessed") is True
+    source_right_censoring_assessed = occurrence_consequence_payload.get("right_censoring_assessed") is True
     observation_state_surface_present = any(
         any(
             key in row
@@ -356,6 +391,7 @@ def build_grammar_stable_variant_feature_delta(
                 "process_continuation_status",
                 "terminal_status",
                 "observation_status",
+                "right_censoring_status",
             )
         )
         for row in (occurrence_consequence_payload.get("occurrence_consequence_projections") or [])
@@ -424,6 +460,16 @@ def build_grammar_stable_variant_feature_delta(
             horizon_sensitive_variant_count = 0
             horizon_incomplete_variant_count = 0
             horizon_tested = False
+
+        right_censored_variant_count = sum(row.get("right_censored") is True for row in profiles)
+        right_censoring_incomplete_variant_count = sum(
+            row.get("right_censoring_complete") is not True for row in profiles
+        )
+        fully_observed_no_followup_variant_count = sum(
+            bool(row.get("fully_observed_no_followup_occurrence_refs")) for row in profiles
+        )
+        family_right_censoring_assessed = bool(profiles) and right_censoring_incomplete_variant_count == 0
+
         if missing_context_count:
             reviews.append(f"variant_context_coverage_partial:{family_ref or 'UNKNOWN'}")
         if missing_consequence_count:
@@ -432,6 +478,10 @@ def build_grammar_stable_variant_feature_delta(
             reviews.append(f"variant_admitted_followup_horizon_sensitive:{family_ref or 'UNKNOWN'}")
         if horizon_sensitivity_surface_present and horizon_incomplete_variant_count:
             reviews.append(f"variant_admitted_followup_horizon_sensitivity_partial:{family_ref or 'UNKNOWN'}")
+        if right_censored_variant_count:
+            reviews.append(f"variant_right_censored_occurrence_present:{family_ref or 'UNKNOWN'}")
+        if right_censoring_incomplete_variant_count:
+            reviews.append(f"variant_right_censoring_partial:{family_ref or 'UNKNOWN'}")
 
         first_context_layer = _first_supported_layer_candidate(context_rows)
         first_consequence_layer = _first_supported_layer_candidate(consequence_rows)
@@ -460,7 +510,10 @@ def build_grammar_stable_variant_feature_delta(
             "admitted_followup_horizon_sensitivity_tested": horizon_tested,
             "admitted_followup_horizon_sensitive_variant_count": horizon_sensitive_variant_count,
             "admitted_followup_horizon_sensitivity_incomplete_variant_count": horizon_incomplete_variant_count,
-            "right_censoring_assessed": right_censoring_assessed,
+            "right_censoring_assessed": family_right_censoring_assessed,
+            "right_censored_variant_count": right_censored_variant_count,
+            "right_censoring_incomplete_variant_count": right_censoring_incomplete_variant_count,
+            "fully_observed_no_followup_variant_count": fully_observed_no_followup_variant_count,
             "member_profiles": profiles,
             "outcome_used_only_as_partition_label": True,
             "outcome_used_to_define_features": False,
@@ -469,6 +522,7 @@ def build_grammar_stable_variant_feature_delta(
             "layer_position_does_not_order_same_time_peers": True,
             "feature_absence_is_counterevidence": False,
             "no_visible_followup_is_failure": False,
+            "right_censoring_is_failure": False,
             "followup_is_terminal_outcome_truth": False,
             "difference_is_failure_cause_truth": False,
             "difference_is_tactical_explanation": False,
@@ -502,6 +556,12 @@ def build_grammar_stable_variant_feature_delta(
         int(row.get("admitted_followup_horizon_sensitive_variant_count") or 0) > 0
         for row in family_records
     )
+    all_family_censoring_assessed = bool(family_records) and all(
+        row.get("right_censoring_assessed") is True for row in family_records
+    )
+    right_censored_family_count = sum(
+        int(row.get("right_censored_variant_count") or 0) > 0 for row in family_records
+    )
 
     return {
         "status": status,
@@ -516,7 +576,9 @@ def build_grammar_stable_variant_feature_delta(
         "admitted_followup_horizon_sensitivity_surface_consumed": horizon_sensitivity_surface_present,
         "admitted_followup_horizon_sensitivity_tested": all_family_horizon_tested,
         "admitted_followup_horizon_sensitive_family_count": horizon_sensitive_family_count,
-        "right_censoring_assessed": right_censoring_assessed,
+        "right_censoring_source_assessed": source_right_censoring_assessed,
+        "right_censoring_assessed": all_family_censoring_assessed,
+        "right_censored_family_count": right_censored_family_count,
         "outcome_used_only_as_partition_label": True,
         "outcome_used_to_define_features": False,
         "same_timestamp_internal_ordering_used_for_first_difference": False,
@@ -524,6 +586,7 @@ def build_grammar_stable_variant_feature_delta(
         "layer_position_does_not_order_same_time_peers": True,
         "feature_absence_is_counterevidence": False,
         "no_visible_followup_is_failure": False,
+        "right_censoring_is_failure": False,
         "followup_is_terminal_outcome_truth": False,
         "difference_is_failure_cause_truth": False,
         "difference_is_tactical_explanation": False,
