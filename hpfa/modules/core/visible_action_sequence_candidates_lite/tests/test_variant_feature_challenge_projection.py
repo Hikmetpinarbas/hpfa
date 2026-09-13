@@ -114,6 +114,33 @@ class VariantFeatureChallengeProjectionTest(unittest.TestCase):
         self.assertEqual(consequence["relevant_coverage_incomplete_variant_count"], 1)
         self.assertIn("OBSERVATION_COVERAGE_PARTIAL", consequence["challenge_reasons"])
 
+    def test_right_censored_variant_is_explicit_challenge_not_failure(self):
+        feature_delta, process_variant = _payloads()
+        delta = feature_delta["grammar_stable_variant_feature_delta_records"][0]
+        delta.update({
+            "consequence_observation_state_features_consumed": True,
+            "consequence_horizon_definition_state": "DECLARED_SOURCE_HORIZON",
+            "consequence_horizon_sensitivity_tested": True,
+            "admitted_followup_horizon_sensitivity_tested": True,
+            "admitted_followup_horizon_sensitive_variant_count": 0,
+            "admitted_followup_horizon_sensitivity_incomplete_variant_count": 0,
+            "right_censoring_assessed": True,
+            "right_censored_variant_count": 1,
+            "right_censoring_incomplete_variant_count": 0,
+            "fully_observed_no_followup_variant_count": 0,
+        })
+        report = build_variant_feature_challenge_projection(feature_delta, process_variant)
+        consequence = next(
+            row for row in report["variant_feature_challenge_records"]
+            if row["feature_surface"] == "CONSEQUENCE"
+        )
+        self.assertTrue(consequence["right_censoring_assessed"])
+        self.assertEqual(consequence["right_censored_variant_count"], 1)
+        self.assertFalse(consequence["right_censoring_is_failure"])
+        self.assertIn("RIGHT_CENSORED_VARIANT_PRESENT", consequence["challenge_reasons"])
+        self.assertIn("NO_VISIBLE_FOLLOWUP_CENSORING_UNRESOLVED", consequence["challenge_reasons"])
+        self.assertIn("right_censored_variant_present", report["review_hits"])
+
     def test_unresolved_source_family_fails_closed(self):
         feature_delta, process_variant = _payloads()
         process_variant["observable_process_variant_families"] = []
