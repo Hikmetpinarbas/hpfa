@@ -129,6 +129,21 @@ def _challenge_row(
         if consequence_contract_present
         else False
     )
+    admitted_followup_horizon_sensitivity_tested = (
+        delta_record.get("admitted_followup_horizon_sensitivity_tested") is True
+        if consequence_contract_present
+        else False
+    )
+    admitted_followup_horizon_sensitive_variant_count = (
+        int(delta_record.get("admitted_followup_horizon_sensitive_variant_count") or 0)
+        if consequence_contract_present
+        else 0
+    )
+    admitted_followup_horizon_sensitivity_incomplete_variant_count = (
+        int(delta_record.get("admitted_followup_horizon_sensitivity_incomplete_variant_count") or 0)
+        if consequence_contract_present
+        else 0
+    )
     right_censoring_assessed = (
         delta_record.get("right_censoring_assessed") is True
         if consequence_contract_present
@@ -159,6 +174,12 @@ def _challenge_row(
             challenge_reasons.append("CONSEQUENCE_HORIZON_UNSPECIFIED")
         elif not consequence_horizon_sensitivity_tested:
             challenge_reasons.append("CONSEQUENCE_HORIZON_SENSITIVITY_NOT_TESTED")
+        if admitted_followup_horizon_sensitive_variant_count:
+            challenge_reasons.append("ADMITTED_FOLLOWUP_HORIZON_SENSITIVE")
+        if admitted_followup_horizon_sensitivity_incomplete_variant_count:
+            challenge_reasons.append("ADMITTED_FOLLOWUP_HORIZON_SENSITIVITY_PARTIAL")
+        elif not admitted_followup_horizon_sensitivity_tested:
+            challenge_reasons.append("ADMITTED_FOLLOWUP_HORIZON_SENSITIVITY_NOT_TESTED")
         if not right_censoring_assessed:
             challenge_reasons.append("RIGHT_CENSORING_NOT_ASSESSED")
         if "NO_VISIBLE_FOLLOWUP" in feature_token or "CENSORING_NOT_ASSESSED" in feature_token:
@@ -194,6 +215,9 @@ def _challenge_row(
         "consequence_observation_contract_present": consequence_contract_present,
         "consequence_horizon_definition_state": consequence_horizon_state,
         "consequence_horizon_sensitivity_tested": consequence_horizon_sensitivity_tested,
+        "admitted_followup_horizon_sensitivity_tested": admitted_followup_horizon_sensitivity_tested,
+        "admitted_followup_horizon_sensitive_variant_count": admitted_followup_horizon_sensitive_variant_count,
+        "admitted_followup_horizon_sensitivity_incomplete_variant_count": admitted_followup_horizon_sensitivity_incomplete_variant_count,
         "right_censoring_assessed": right_censoring_assessed,
         "period_spread_is_context_robustness_truth": False,
         "feature_absence_is_counterevidence": False,
@@ -301,6 +325,14 @@ def build_variant_feature_challenge_projection(
         for row in rows
     ):
         review_hits.append("consequence_horizon_sensitivity_not_tested")
+    if any(row.get("admitted_followup_horizon_sensitive_variant_count", 0) > 0 for row in rows):
+        review_hits.append("admitted_followup_horizon_sensitive_variant_present")
+    if any(
+        row.get("consequence_observation_contract_present") is True
+        and row.get("admitted_followup_horizon_sensitivity_tested") is not True
+        for row in rows
+    ):
+        review_hits.append("admitted_followup_horizon_sensitivity_not_fully_tested")
     if any(
         row.get("consequence_observation_contract_present") is True
         and row.get("right_censoring_assessed") is not True
