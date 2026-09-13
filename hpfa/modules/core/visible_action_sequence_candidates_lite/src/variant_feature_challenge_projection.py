@@ -207,7 +207,16 @@ def _challenge_row(
             challenge_reasons.append("NO_VISIBLE_FOLLOWUP_CENSORING_UNRESOLVED")
         if "right_censoring_status:CENSORING_UNRESOLVED_" in feature_token:
             challenge_reasons.append("RIGHT_CENSORING_PARTIAL")
-        if "NO_VISIBLE_FOLLOWUP" in feature_token or "CENSORING_NOT_ASSESSED" in feature_token:
+        if "CENSORING_NOT_ASSESSED" in feature_token:
+            challenge_reasons.append("NO_VISIBLE_FOLLOWUP_CENSORING_UNRESOLVED")
+        elif (
+            "NO_VISIBLE_FOLLOWUP" in feature_token
+            and (
+                not right_censoring_assessed
+                or right_censored_variant_count > 0
+                or right_censoring_incomplete_variant_count > 0
+            )
+        ):
             challenge_reasons.append("NO_VISIBLE_FOLLOWUP_CENSORING_UNRESOLVED")
 
     return {
