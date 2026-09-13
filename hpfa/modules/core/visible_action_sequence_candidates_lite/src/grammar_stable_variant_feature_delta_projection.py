@@ -411,21 +411,26 @@ def build_grammar_stable_variant_feature_delta(
         )
         missing_context_count = sum(row.get("context_coverage_complete") is not True for row in profiles)
         missing_consequence_count = sum(row.get("consequence_coverage_complete") is not True for row in profiles)
-        horizon_sensitive_variant_count = sum(
-            row.get("admitted_followup_horizon_sensitive") is True for row in profiles
-        )
-        horizon_incomplete_variant_count = sum(
-            row.get("admitted_followup_horizon_sensitivity_complete") is not True
-            for row in profiles
-        )
-        horizon_tested = bool(profiles) and horizon_incomplete_variant_count == 0
+        if horizon_sensitivity_surface_present:
+            horizon_sensitive_variant_count = sum(
+                row.get("admitted_followup_horizon_sensitive") is True for row in profiles
+            )
+            horizon_incomplete_variant_count = sum(
+                row.get("admitted_followup_horizon_sensitivity_complete") is not True
+                for row in profiles
+            )
+            horizon_tested = bool(profiles) and horizon_incomplete_variant_count == 0
+        else:
+            horizon_sensitive_variant_count = 0
+            horizon_incomplete_variant_count = 0
+            horizon_tested = False
         if missing_context_count:
             reviews.append(f"variant_context_coverage_partial:{family_ref or 'UNKNOWN'}")
         if missing_consequence_count:
             reviews.append(f"variant_consequence_coverage_partial:{family_ref or 'UNKNOWN'}")
-        if horizon_sensitive_variant_count:
+        if horizon_sensitivity_surface_present and horizon_sensitive_variant_count:
             reviews.append(f"variant_admitted_followup_horizon_sensitive:{family_ref or 'UNKNOWN'}")
-        if horizon_incomplete_variant_count:
+        if horizon_sensitivity_surface_present and horizon_incomplete_variant_count:
             reviews.append(f"variant_admitted_followup_horizon_sensitivity_partial:{family_ref or 'UNKNOWN'}")
 
         first_context_layer = _first_supported_layer_candidate(context_rows)
