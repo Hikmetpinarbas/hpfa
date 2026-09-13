@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import copy
 import re
+from collections import Counter
 from typing import Any
 
 CLAIM_CEILING = "MATCH_LOCAL_PROVIDER_PROCESS_CONTEXT_DIFFERENCE_CANDIDATE_ONLY"
 _LAYER_TOKEN_RE = re.compile(r"^LAYER\[(\d+)\]::")
 _PROCESS_ROLES = {"PARTICIPATION_INTERVAL", "CONTEXT_INTERVAL"}
+_COMPARISON_CONTEXT_ROLE = "CONTEXT_INTERVAL"
+_COMPARISON_CONTEXT_DIMENSION = "PROVIDER_REVIEWED_TEAM_CONTEXT_INTERVAL_PROCESS_FAMILY"
 
 
 def _clean(value: Any) -> str:
@@ -99,6 +102,212 @@ def _process_tokens_for_occurrence(
         if _clean(process.get("episode_candidate_id")):
             tokens.add("process_episode_navigation_binding_visible:TRUE")
     return tokens
+
+
+def _team_process_families_for_occurrence(
+    occurrence: dict[str, Any],
+    process_rows: list[dict[str, Any]],
+    *,
+    team_identity_candidate_id: str,
+    period_candidate: str,
+) -> set[str]:
+    periods = {_clean(value) for value in occurrence.get("period_candidates") or [] if _clean(value)}
+    starts = [_number(value) for value in occurrence.get("start_candidates") or []]
+    ends = [_number(value) for value in occurrence.get("end_candidates") or []]
+    starts = [value for value in starts if value is not None]
+    ends = [value for value in ends if value is not None]
+    if not team_identity_candidate_id or not period_candidate or period_candidate not in periods or not starts:
+        return set()
+    occurrence_start = min(starts)
+    occurrence_end = max(ends) if ends else occurrence_start
+
+    families: set[str] = set()
+    for process in process_rows:
+        if not isinstance(process, dict):
+            continue
+        if _clean(process.get("semantic_role")) != _COMPARISON_CONTEXT_ROLE:
+            continue
+        if _clean(process.get("team_identity_candidate_id")) != team_identity_candidate_id:
+            continue
+        if _clean(process.get("period_candidate")) != period_candidate:
+            continue
+        process_start = _number(process.get("start_candidate"))
+        process_end = _number(process.get("end_candidate"))
+        if process_start is None or process_end is None:
+            continue
+        if not _ranges_overlap(occurrence_start, occurrence_end, process_start, process_end):
+            continue
+        family = _clean(process.get("process_family_candidate"))
+        if family:
+            families.add(family)
+    return families
+
+
+def apply_process_context_to_comparison(
+    sequence_payload: dict[str, Any],
+    process_participation_payload: dict[str, Any] | None,
+    occurrence_consequence_payload: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Downward-only process-context admission for already-materialized comparison pairs.
+
+    Pair materialization remains owned by the existing partial-order comparator. This adapter
+    never creates a pair, never uses outcome/shot/episode navigation/player participation to
+    open eligibility, and only preserves or lowers comparison/outcome-contrast admission.
+    """
+    result = copy.deepcopy(sequence_payload)
+    result["process_comparison_context_consumed"] = False
+    result["process_comparison_context_binding_state"] = "NOT_AVAILABLE"
+    result["process_comparison_context_required_dimension"] = _COMPARISON_CONTEXT_DIMENSION
+    result["process_comparison_context_can_create_new_pair"] = False
+    result["process_comparison_context_uses_outcome"] = False
+    result["process_comparison_context_uses_shot_annotation"] = False
+    result["process_comparison_context_uses_episode_navigation"] = False
+    result["process_comparison_context_uses_player_participation"] = False
+    result["unknown_context_is_different_context"] = False
+    result["process_annotation_is_tactical_plan_truth"] = False
+
+    if not process_participation_payload or not occurrence_consequence_payload:
+        return result
+    for label, payload in (
+        ("sequence", sequence_payload),
+        ("process_participation", process_participation_payload),
+        ("occurrence_consequence", occurrence_consequence_payload),
+    ):
+        if payload.get("canonical_event_count") != "UNKNOWN":
+            result.setdefault("review_hits", []).append(
+                f"{label}_canonical_event_count_claimed_process_comparison_context_not_consumed"
+            )
+            result["process_comparison_context_binding_state"] = "REVIEW_REQUIRED_NOT_CONSUMED"
+            return result
+        if payload.get("production_release") is True:
+            result.setdefault("review_hits", []).append(
+                f"{label}_production_release_claimed_process_comparison_context_not_consumed"
+            )
+            result["process_comparison_context_binding_state"] = "REVIEW_REQUIRED_NOT_CONSUMED"
+            return result
+    if (
+        process_participation_payload.get("status") == "FAIL_CLOSED"
+        or occurrence_consequence_payload.get("status") == "FAIL_CLOSED"
+    ):
+        result.setdefault("review_hits", []).append("process_comparison_context_upstream_fail_closed_not_consumed")
+        result["process_comparison_context_binding_state"] = "REVIEW_REQUIRED_NOT_CONSUMED"
+        return result
+
+    process_rows = [
+        row
+        for row in (process_participation_payload.get("process_participation_candidates") or [])
+        if isinstance(row, dict) and _clean(row.get("semantic_role")) == _COMPARISON_CONTEXT_ROLE
+    ]
+    occurrence_by_id = _index(
+        occurrence_consequence_payload.get("occurrence_consequence_projections"),
+        "action_occurrence_candidate_id",
+    )
+    variants = [
+        row for row in (result.get("partial_order_occurrence_variants") or []) if isinstance(row, dict)
+    ]
+    variant_context: dict[str, dict[str, Any]] = {}
+    for variant in variants:
+        variant_id = _clean(variant.get("partial_order_occurrence_variant_id"))
+        team = _clean(variant.get("team_identity_candidate_id"))
+        period = _clean(variant.get("period_candidate"))
+        families: set[str] = set()
+        matched_occurrence_count = 0
+        for occurrence_ref in variant.get("supporting_action_occurrence_candidate_ids") or []:
+            occurrence = occurrence_by_id.get(_clean(occurrence_ref))
+            if occurrence is None:
+                continue
+            matched = _team_process_families_for_occurrence(
+                occurrence,
+                process_rows,
+                team_identity_candidate_id=team,
+                period_candidate=period,
+            )
+            if matched:
+                matched_occurrence_count += 1
+                families.update(matched)
+        family_list = sorted(families)
+        variant["comparison_process_context_families"] = family_list
+        variant["comparison_process_context_coverage_visible"] = bool(family_list)
+        variant["comparison_process_context_matched_occurrence_count"] = matched_occurrence_count
+        variant["comparison_process_context_dimension"] = _COMPARISON_CONTEXT_DIMENSION
+        variant["comparison_process_context_is_tactical_plan_truth"] = False
+        variant_context[variant_id] = {
+            "families": set(family_list),
+            "coverage_visible": bool(family_list),
+        }
+
+    counts: Counter[str] = Counter()
+    lowered_count = 0
+    pairs = [
+        row for row in (result.get("dependency_aware_partial_order_similarity_pairs") or [])
+        if isinstance(row, dict)
+    ]
+    for pair in pairs:
+        left = variant_context.get(_clean(pair.get("left_variant_ref")), {"families": set(), "coverage_visible": False})
+        right = variant_context.get(_clean(pair.get("right_variant_ref")), {"families": set(), "coverage_visible": False})
+        left_families = set(left.get("families") or set())
+        right_families = set(right.get("families") or set())
+        upstream_eligible = pair.get("comparison_eligible") is True
+        pair["comparison_eligible_before_process_context"] = upstream_eligible
+        pair["comparison_outcome_contrast_allowed_before_process_context"] = (
+            pair.get("comparison_outcome_contrast_allowed") is True
+        )
+        pair["recurrence_candidate_eligible_before_process_context"] = (
+            pair.get("recurrence_candidate_eligible") is True
+        )
+        pair["left_process_context_families"] = sorted(left_families)
+        pair["right_process_context_families"] = sorted(right_families)
+        pair["comparison_process_context_dimension"] = _COMPARISON_CONTEXT_DIMENSION
+        pair["process_context_outcome_used_in_admission"] = False
+        pair["process_context_shot_annotation_used_in_admission"] = False
+        pair["process_context_episode_navigation_used_in_admission"] = False
+        pair["process_context_player_participation_used_in_admission"] = False
+        pair["process_context_is_tactical_plan_truth"] = False
+        pair["unknown_context_is_different_context"] = False
+
+        if not upstream_eligible:
+            state = "NOT_EVALUATED_UPSTREAM_COMPARISON_INELIGIBLE"
+            match_state: bool | None = None
+        elif left_families and right_families and left_families == right_families:
+            state = "MATCHED_PROVIDER_REVIEWED_TEAM_PROCESS_CONTEXT"
+            match_state = True
+        elif left_families and right_families and left_families.isdisjoint(right_families):
+            state = "DIFFERENT_PROVIDER_REVIEWED_TEAM_PROCESS_CONTEXT"
+            match_state = False
+        elif left_families and right_families:
+            state = "PARTIAL_PROVIDER_REVIEWED_TEAM_PROCESS_CONTEXT_OVERLAP_REVIEW_REQUIRED"
+            match_state = False
+        else:
+            state = "UNKNOWN_PROVIDER_REVIEWED_TEAM_PROCESS_CONTEXT_REVIEW_REQUIRED"
+            match_state = None
+
+        pair["comparison_process_context_state"] = state
+        pair["comparison_process_context_match"] = match_state
+        counts[state] += 1
+        if upstream_eligible and state != "MATCHED_PROVIDER_REVIEWED_TEAM_PROCESS_CONTEXT":
+            pair["comparison_eligible"] = False
+            pair["comparison_outcome_contrast_allowed"] = False
+            pair["recurrence_candidate_eligible"] = False
+            pair["comparison_requires_review"] = True
+            lowered_count += 1
+
+    result["dependency_aware_partial_order_similarity_pairs"] = pairs
+    result["comparison_eligible_pair_count"] = sum(
+        row.get("comparison_eligible") is True for row in pairs
+    )
+    result["recurrence_candidate_eligible_pair_count"] = sum(
+        row.get("recurrence_candidate_eligible") is True for row in pairs
+    )
+    result["process_comparison_context_state_counts"] = dict(sorted(counts.items()))
+    result["process_comparison_context_lowered_pair_count"] = lowered_count
+    result["process_comparison_context_consumed"] = True
+    result["process_comparison_context_binding_state"] = "PROVIDER_REVIEWED_TEAM_PROCESS_CONTEXT_APPLIED_DOWNWARD_ONLY"
+    result["process_comparison_context_can_create_new_pair"] = False
+    result["process_comparison_context_pair_count_unchanged"] = (
+        len(pairs) == int(sequence_payload.get("dependency_aware_partial_order_similarity_pair_count") or len(pairs))
+    )
+    result["review_hits"] = sorted(set(result.get("review_hits") or []))
+    return result
 
 
 def _feature_rows(profiles: list[dict[str, Any]]) -> list[dict[str, Any]]:
