@@ -201,8 +201,10 @@ def _challenge_row(
             challenge_reasons.append("RIGHT_CENSORING_PARTIAL")
         if right_censored_variant_count:
             challenge_reasons.append("RIGHT_CENSORED_VARIANT_PRESENT")
+            challenge_reasons.append("NO_VISIBLE_FOLLOWUP_CENSORING_UNRESOLVED")
         if "right_censoring_status:RIGHT_CENSORED_BY_ADMIN_BOUNDARY" in feature_token:
             challenge_reasons.append("RIGHT_CENSORED_VARIANT_PRESENT")
+            challenge_reasons.append("NO_VISIBLE_FOLLOWUP_CENSORING_UNRESOLVED")
         if "right_censoring_status:CENSORING_UNRESOLVED_" in feature_token:
             challenge_reasons.append("RIGHT_CENSORING_PARTIAL")
         if "NO_VISIBLE_FOLLOWUP" in feature_token or "CENSORING_NOT_ASSESSED" in feature_token:
