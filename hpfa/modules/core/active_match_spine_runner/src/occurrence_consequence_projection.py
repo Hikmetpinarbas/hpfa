@@ -10,6 +10,7 @@ MODULE_ID = "occurrence_consequence_projection_v1"
 OUTPUT_JSON = "occurrence_consequence_projection_v1.json"
 OUTPUT_TXT = "occurrence_consequence_projection_v1.txt"
 HORIZON_BASIS = "FIXED_TIME_WITH_LAYER_CAP_VISIBLE_TRACE_SEARCH"
+END_BOUNDARY_TYPES = {"HALFTIME", "FULL_TIME"}
 
 
 def _text(value: Any) -> str:
@@ -86,6 +87,176 @@ def _horizon_contract(consequence_payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _administrative_end_boundary_index(
+    episode_payload: dict[str, Any] | None,
+) -> tuple[dict[str, dict[str, Any]], bool, list[str]]:
+    """Index explicit observation-ending administrative boundaries by period.
+
+    Only HALF/FULL-TIME navigation boundaries are consumed. They define an observation
+    limit for fixed-horizon follow-up search; they never become football actions, phases,
+    possession truth, sequence truth, or an ordering device for same-time actions.
+    """
+    if not isinstance(episode_payload, dict):
+        return {}, False, []
+    rows = episode_payload.get("administrative_boundary_candidates")
+    if not isinstance(rows, list):
+        return {}, False, ["administrative_boundary_candidates_missing_or_invalid"]
+
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    reviews: list[str] = []
+    for position, row in enumerate(rows):
+        if not isinstance(row, dict):
+            reviews.append(f"administrative_boundary_record_invalid:{position}")
+            continue
+        boundary_type = _text(row.get("boundary_type"))
+        if boundary_type not in END_BOUNDARY_TYPES:
+            continue
+        period = _text(row.get("period_candidate"))
+        second = _number(row.get("second_candidate"))
+        boundary_ref = _text(row.get("administrative_boundary_candidate_id"))
+        if not period or second is None or not boundary_ref:
+            reviews.append(f"administrative_end_boundary_semantics_incomplete:{position}")
+            continue
+        grouped[period].append(row)
+
+    if not grouped:
+        return {}, False, sorted(set(reviews + ["administrative_end_boundary_not_visible"]))
+
+    index: dict[str, dict[str, Any]] = {}
+    for period, members in sorted(grouped.items()):
+        seconds = sorted({_number(row.get("second_candidate")) for row in members})
+        seconds = [value for value in seconds if value is not None]
+        if len(seconds) != 1:
+            reviews.append(f"administrative_end_boundary_time_conflict:{period}")
+            continue
+        boundary_types = sorted({_text(row.get("boundary_type")) for row in members if _text(row.get("boundary_type"))})
+        boundary_refs = sorted({_text(row.get("administrative_boundary_candidate_id")) for row in members if _text(row.get("administrative_boundary_candidate_id"))})
+        review_debt_count = sum(int(row.get("review_debt_count") or 0) for row in members)
+        index[period] = {
+            "boundary_second": seconds[0],
+            "boundary_types": boundary_types,
+            "boundary_refs": boundary_refs,
+            "review_debt_count": review_debt_count,
+            "same_time_visible_layer_collision": any(
+                row.get("same_time_visible_layer_collision") is True for row in members
+            ),
+            "boundary_can_split_same_time_visible_layer": False,
+            "boundary_is_football_action_truth": False,
+            "boundary_is_phase_truth": False,
+        }
+        if review_debt_count:
+            reviews.append(f"administrative_end_boundary_review_debt:{period}")
+
+    return index, bool(index), sorted(set(reviews))
+
+
+def _right_censoring_profile(
+    consequences: list[dict[str, Any]],
+    trace_by_id: dict[str, dict[str, Any]],
+    maximum_window_seconds: float | None,
+    boundary_by_period: dict[str, dict[str, Any]],
+    boundary_surface_present: bool,
+) -> dict[str, Any]:
+    profile: dict[str, Any] = {
+        "right_censoring_status": "CENSORING_NOT_ASSESSED",
+        "right_censoring_assessed": False,
+        "right_censored": False,
+        "declared_horizon_fully_observable": False,
+        "seconds_to_observation_boundary_min": None,
+        "seconds_to_observation_boundary_max": None,
+        "observation_boundary_refs": [],
+        "observation_boundary_types": [],
+        "administrative_boundary_is_football_action_truth": False,
+        "administrative_boundary_is_phase_truth": False,
+        "administrative_boundary_orders_same_time_action": False,
+    }
+    if not consequences:
+        profile["right_censoring_status"] = "CENSORING_UNRESOLVED_SOURCE_COVERAGE"
+        return profile
+    if maximum_window_seconds is None:
+        profile["right_censoring_status"] = "CENSORING_UNRESOLVED_HORIZON_UNSPECIFIED"
+        return profile
+    if not boundary_surface_present:
+        return profile
+
+    admitted_after = _union_text(consequences, "admitted_after_follow_up_trace_ids")
+    visible_followup = _union_text(consequences, "visible_follow_up_trace_ids")
+    if admitted_after:
+        profile["right_censoring_status"] = "NOT_CENSORED_ADMITTED_FOLLOWUP_OBSERVED"
+        profile["right_censoring_assessed"] = True
+        return profile
+    if visible_followup:
+        profile["right_censoring_status"] = "CENSORING_NOT_CAUSE_VISIBLE_FOLLOWUP_ORDER_UNRESOLVED"
+        profile["right_censoring_assessed"] = True
+        return profile
+    if any(
+        row.get("terminal_outcome_support_visible") is True
+        or row.get("derived_consequence_support_visible") is True
+        for row in consequences
+    ):
+        profile["right_censoring_status"] = "CENSORING_NOT_CAUSE_ANCHOR_SUPPORT_VISIBLE"
+        profile["right_censoring_assessed"] = True
+        return profile
+
+    anchors: list[tuple[str, float]] = []
+    for consequence in consequences:
+        anchor_id = _text(consequence.get("anchor_trackable_action_trace_candidate_id"))
+        anchor = trace_by_id.get(anchor_id)
+        period = _text((anchor or {}).get("period_candidate"))
+        start = _number((anchor or {}).get("start_candidate"))
+        if not anchor_id or anchor is None or not period or start is None:
+            profile["right_censoring_status"] = "CENSORING_UNRESOLVED_ANCHOR_TIME_OR_PERIOD"
+            return profile
+        anchors.append((period, start))
+    if not anchors:
+        profile["right_censoring_status"] = "CENSORING_UNRESOLVED_ANCHOR_MISSING"
+        return profile
+
+    remaining: list[float] = []
+    boundary_refs: set[str] = set()
+    boundary_types: set[str] = set()
+    for period, start in anchors:
+        boundary = boundary_by_period.get(period)
+        if not boundary:
+            profile["right_censoring_status"] = "CENSORING_UNRESOLVED_END_BOUNDARY_MISSING"
+            return profile
+        if int(boundary.get("review_debt_count") or 0) > 0:
+            profile["right_censoring_status"] = "CENSORING_UNRESOLVED_END_BOUNDARY_REVIEW_DEBT"
+            return profile
+        boundary_second = _number(boundary.get("boundary_second"))
+        if boundary_second is None:
+            profile["right_censoring_status"] = "CENSORING_UNRESOLVED_END_BOUNDARY_TIME"
+            return profile
+        delta = boundary_second - start
+        if delta < 0:
+            profile["right_censoring_status"] = "CENSORING_UNRESOLVED_BOUNDARY_BEFORE_ANCHOR"
+            return profile
+        if abs(delta) <= 1e-9:
+            profile["right_censoring_status"] = "CENSORING_UNRESOLVED_SAME_TIME_ADMIN_BOUNDARY"
+            return profile
+        remaining.append(delta)
+        boundary_refs.update(_sorted_text(boundary.get("boundary_refs")))
+        boundary_types.update(_sorted_text(boundary.get("boundary_types")))
+
+    profile["seconds_to_observation_boundary_min"] = round(min(remaining), 6)
+    profile["seconds_to_observation_boundary_max"] = round(max(remaining), 6)
+    profile["observation_boundary_refs"] = sorted(boundary_refs)
+    profile["observation_boundary_types"] = sorted(boundary_types)
+
+    complete_flags = [value >= maximum_window_seconds for value in remaining]
+    if all(complete_flags):
+        profile["right_censoring_status"] = "COMPLETE_TO_DECLARED_HORIZON_NO_ADMITTED_FOLLOWUP"
+        profile["right_censoring_assessed"] = True
+        profile["declared_horizon_fully_observable"] = True
+    elif not any(complete_flags):
+        profile["right_censoring_status"] = "RIGHT_CENSORED_BY_ADMIN_BOUNDARY"
+        profile["right_censoring_assessed"] = True
+        profile["right_censored"] = True
+    else:
+        profile["right_censoring_status"] = "CENSORING_UNRESOLVED_MIXED_PARTICIPANT_HORIZON_COVERAGE"
+    return profile
+
+
 def _admitted_followup_horizon_profile(
     consequences: list[dict[str, Any]],
     trace_by_id: dict[str, dict[str, Any]],
@@ -160,6 +331,7 @@ def _followup_observation_state(
     admitted_after_ids: list[str],
     terminal_support: bool,
     derived_support: bool,
+    censoring_status: str,
 ) -> tuple[str, str]:
     if not consequence_ids:
         return "FOLLOWUP_UNRESOLVED", "SOURCE_COVERAGE_INSUFFICIENT"
@@ -169,7 +341,13 @@ def _followup_observation_state(
         return "FOLLOWUP_UNRESOLVED", "ORDER_INDETERMINATE"
     if terminal_support or derived_support:
         return "FOLLOWUP_UNRESOLVED", "SUPPORT_VISIBLE_FOLLOWUP_ACTION_NOT_ESTABLISHED"
-    return "NO_VISIBLE_FOLLOWUP", "CENSORING_NOT_ASSESSED"
+    if censoring_status == "RIGHT_CENSORED_BY_ADMIN_BOUNDARY":
+        return "FOLLOWUP_CENSORED", "RIGHT_CENSORED"
+    if censoring_status == "COMPLETE_TO_DECLARED_HORIZON_NO_ADMITTED_FOLLOWUP":
+        return "NO_VISIBLE_FOLLOWUP", "COMPLETE_TO_HORIZON"
+    if censoring_status == "CENSORING_NOT_ASSESSED":
+        return "FOLLOWUP_UNRESOLVED", "CENSORING_NOT_ASSESSED"
+    return "FOLLOWUP_UNRESOLVED", "CENSORING_UNRESOLVED"
 
 
 def _terminal_state(terminal_support: bool) -> tuple[str, str]:
@@ -193,6 +371,7 @@ def _process_state(primary_candidates: list[str]) -> str:
 def build_occurrence_consequence_projection(
     trace_payload: dict[str, Any],
     consequence_payload: dict[str, Any],
+    episode_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     primary_trace_surface_present = "primary_occurrence_trace_candidates" in trace_payload
     trace_source = (
@@ -225,6 +404,9 @@ def build_occurrence_consequence_projection(
         if isinstance(row, dict)
     ]
     horizon = _horizon_contract(consequence_payload)
+    boundary_by_period, boundary_surface_present, boundary_reviews = _administrative_end_boundary_index(
+        episode_payload
+    )
 
     binding_by_occurrence = {
         _text(row.get("action_occurrence_candidate_id")): row
@@ -286,6 +468,11 @@ def build_occurrence_consequence_projection(
     horizon_sensitivity_tested_count = 0
     horizon_sensitive_count = 0
     horizon_sensitivity_unresolved_count = 0
+    censoring_eligible_count = 0
+    censoring_assessed_count = 0
+    right_censored_count = 0
+    complete_horizon_no_followup_count = 0
+    censoring_unresolved_count = 0
 
     for occurrence_id in occurrence_ids:
         binding = binding_by_occurrence.get(occurrence_id, {})
@@ -328,6 +515,13 @@ def build_occurrence_consequence_projection(
         )
         ensuing_terminal_support_visible = bool(ensuing_terminal_support_trace_ids)
         ensuing_derived_support_visible = bool(ensuing_derived_support_trace_ids)
+        censoring = _right_censoring_profile(
+            consequences,
+            trace_by_id,
+            horizon.get("maximum_window_seconds"),
+            boundary_by_period,
+            boundary_surface_present,
+        )
         horizon_profile, horizon_sensitivity_state, horizon_sensitivity_tested = (
             _admitted_followup_horizon_profile(
                 consequences,
@@ -335,6 +529,19 @@ def build_occurrence_consequence_projection(
                 horizon.get("window_seconds") or [],
             )
         )
+        no_future_observation = not (
+            admitted_after_ids
+            or visible_follow_up_ids
+            or any(row.get("terminal_outcome_support_visible") is True for row in consequences)
+            or any(row.get("derived_consequence_support_visible") is True for row in consequences)
+        )
+        if no_future_observation:
+            if censoring.get("right_censoring_status") == "RIGHT_CENSORED_BY_ADMIN_BOUNDARY":
+                horizon_sensitivity_state = "HORIZON_SENSITIVITY_CENSORED"
+                horizon_sensitivity_tested = False
+            elif censoring.get("right_censoring_status") != "COMPLETE_TO_DECLARED_HORIZON_NO_ADMITTED_FOLLOWUP":
+                horizon_sensitivity_state = "HORIZON_SENSITIVITY_UNRESOLVED_BY_CENSORING"
+                horizon_sensitivity_tested = False
         horizon_sensitive = horizon_sensitivity_state == "SENSITIVE_ACROSS_DECLARED_WINDOWS"
 
         action_families: set[str] = set()
@@ -372,6 +579,7 @@ def build_occurrence_consequence_projection(
             admitted_after_ids=admitted_after_ids,
             terminal_support=terminal_support,
             derived_support=derived_support,
+            censoring_status=_text(censoring.get("right_censoring_status")),
         )
         terminal_status, terminal_type = _terminal_state(terminal_support)
         process_status = _process_state(primary_candidates)
@@ -382,6 +590,12 @@ def build_occurrence_consequence_projection(
             review_count += 1
         if missing_consequence:
             no_consequence_record_count += 1
+        else:
+            censoring_eligible_count += 1
+            if censoring.get("right_censoring_assessed") is True:
+                censoring_assessed_count += 1
+            else:
+                censoring_unresolved_count += 1
         if terminal_support:
             terminal_support_count += 1
         if ensuing_terminal_support_visible:
@@ -394,6 +608,10 @@ def build_occurrence_consequence_projection(
             horizon_sensitivity_unresolved_count += 1
         if horizon_sensitive:
             horizon_sensitive_count += 1
+        if censoring.get("right_censored") is True:
+            right_censored_count += 1
+        if censoring.get("right_censoring_status") == "COMPLETE_TO_DECLARED_HORIZON_NO_ADMITTED_FOLLOWUP":
+            complete_horizon_no_followup_count += 1
 
         records.append(
             {
@@ -429,6 +647,14 @@ def build_occurrence_consequence_projection(
                 "terminal_status": terminal_status,
                 "terminal_type": terminal_type,
                 "observation_status": observation_status,
+                "right_censoring_status": censoring.get("right_censoring_status"),
+                "right_censoring_assessed": censoring.get("right_censoring_assessed") is True,
+                "right_censored": censoring.get("right_censored") is True,
+                "declared_horizon_fully_observable": censoring.get("declared_horizon_fully_observable") is True,
+                "seconds_to_observation_boundary_min": censoring.get("seconds_to_observation_boundary_min"),
+                "seconds_to_observation_boundary_max": censoring.get("seconds_to_observation_boundary_max"),
+                "observation_boundary_refs": censoring.get("observation_boundary_refs") or [],
+                "observation_boundary_types": censoring.get("observation_boundary_types") or [],
                 "horizon_definition_state": horizon["horizon_definition_state"],
                 "horizon_basis": horizon["horizon_basis"],
                 "maximum_window_seconds": horizon["maximum_window_seconds"],
@@ -447,7 +673,9 @@ def build_occurrence_consequence_projection(
                 "ensuing_terminal_support_is_causal_truth": False,
                 "ensuing_terminal_support_is_anchor_terminal_state_truth": False,
                 "observation_status_is_outcome_polarity_truth": False,
-                "right_censoring_assessed": False,
+                "administrative_boundary_is_football_action_truth": False,
+                "administrative_boundary_is_phase_truth": False,
+                "administrative_boundary_orders_same_time_action": False,
                 "competing_terminal_outcomes_assessed": False,
                 "projection_is_action_identity_truth": False,
                 "projection_is_sequence_truth": False,
@@ -464,13 +692,20 @@ def build_occurrence_consequence_projection(
     expected_occurrence_count = int(trace_payload.get("current_occurrence_candidate_count") or 0)
     projection_count = len(records)
     hard_blocks: list[str] = []
-    review_hits: list[str] = []
+    review_hits: list[str] = list(boundary_reviews)
     if expected_occurrence_count and projection_count != expected_occurrence_count:
         hard_blocks.append("occurrence_projection_count_mismatch")
     if duplicate_trace_ids:
         hard_blocks.append("duplicate_trace_id_in_horizon_index")
     if duplicate_consequence_anchor_trace_ids:
         hard_blocks.append("duplicate_consequence_anchor_trace_id")
+    if episode_payload is not None:
+        if episode_payload.get("canonical_event_count") not in {None, "UNKNOWN"}:
+            hard_blocks.append("episode_boundary_surface_canonical_event_count_claimed")
+        if episode_payload.get("true_action_count") not in {None, "UNKNOWN"}:
+            hard_blocks.append("episode_boundary_surface_true_action_count_claimed")
+        if episode_payload.get("production_release") is True:
+            hard_blocks.append("episode_boundary_surface_production_release_claimed")
     if review_count:
         review_hits.append("occurrence_consequence_projection_review_required")
     if no_consequence_record_count:
@@ -481,6 +716,10 @@ def build_occurrence_consequence_projection(
         review_hits.append("admitted_followup_horizon_sensitive_occurrence_present")
     if horizon_sensitivity_unresolved_count:
         review_hits.append("admitted_followup_horizon_sensitivity_unresolved")
+    if boundary_surface_present and censoring_unresolved_count:
+        review_hits.append("right_censoring_unresolved_occurrence_present")
+    if episode_payload is not None and not boundary_surface_present:
+        review_hits.append("administrative_end_boundary_surface_not_admitted")
 
     followup_counts = Counter(row.get("followup_observation_status") for row in records)
     process_counts = Counter(row.get("process_continuation_status") for row in records)
@@ -489,6 +728,7 @@ def build_occurrence_consequence_projection(
     horizon_sensitivity_counts = Counter(
         row.get("admitted_followup_horizon_sensitivity_state") for row in records
     )
+    censoring_counts = Counter(row.get("right_censoring_status") for row in records)
 
     status = "FAIL_CLOSED" if hard_blocks else ("REVIEW_REQUIRED" if review_hits else "PASS")
     if hard_blocks:
@@ -503,15 +743,25 @@ def build_occurrence_consequence_projection(
         horizon_sensitivity_tested_count = 0
         horizon_sensitive_count = 0
         horizon_sensitivity_unresolved_count = 0
+        censoring_eligible_count = 0
+        censoring_assessed_count = 0
+        right_censored_count = 0
+        complete_horizon_no_followup_count = 0
+        censoring_unresolved_count = 0
         followup_counts = Counter()
         process_counts = Counter()
         terminal_counts = Counter()
         observation_counts = Counter()
         horizon_sensitivity_counts = Counter()
+        censoring_counts = Counter()
 
     all_occurrences_horizon_tested = bool(projection_count) and (
         horizon_sensitivity_tested_count == projection_count
     )
+    right_censoring_assessed = bool(censoring_eligible_count) and (
+        censoring_assessed_count == censoring_eligible_count
+    )
+    horizon["right_censoring_assessed"] = right_censoring_assessed
 
     return {
         "module_id": MODULE_ID,
@@ -519,6 +769,7 @@ def build_occurrence_consequence_projection(
         "module_status": status,
         "source_trace_status": trace_payload.get("status"),
         "source_consequence_status": consequence_payload.get("status"),
+        "source_episode_boundary_status": episode_payload.get("status") if isinstance(episode_payload, dict) else None,
         "source_trace_member_surface": trace_member_surface,
         "source_primary_occurrence_trace_candidate_count": len(trace_records),
         "source_legacy_trace_candidate_count": trace_payload.get("trackable_action_trace_candidate_count", 0),
@@ -536,6 +787,15 @@ def build_occurrence_consequence_projection(
         "admitted_followup_horizon_sensitivity_unresolved_occurrence_count": horizon_sensitivity_unresolved_count,
         "admitted_followup_horizon_sensitivity_state_counts": dict(sorted(horizon_sensitivity_counts.items())),
         "admitted_followup_horizon_sensitivity_tested": all_occurrences_horizon_tested,
+        "right_censoring_eligible_occurrence_count": censoring_eligible_count,
+        "right_censoring_assessed_occurrence_count": censoring_assessed_count,
+        "right_censored_occurrence_count": right_censored_count,
+        "complete_to_declared_horizon_no_admitted_followup_count": complete_horizon_no_followup_count,
+        "right_censoring_unresolved_occurrence_count": censoring_unresolved_count,
+        "right_censoring_status_counts": dict(sorted(censoring_counts.items())),
+        "administrative_end_boundary_surface_present": boundary_surface_present,
+        "administrative_end_boundary_period_count": len(boundary_by_period),
+        "administrative_end_boundary_reviews": boundary_reviews,
         "legacy_unbound_consequence_candidate_count": legacy_unbound_consequence_count,
         "followup_observation_status_counts": dict(sorted(followup_counts.items())),
         "process_continuation_status_counts": dict(sorted(process_counts.items())),
@@ -555,7 +815,10 @@ def build_occurrence_consequence_projection(
         "terminal_support_is_terminal_type_truth": False,
         "ensuing_terminal_support_is_causal_truth": False,
         "ensuing_terminal_support_is_anchor_terminal_state_truth": False,
-        "right_censoring_assessed": False,
+        "right_censoring_assessed": right_censoring_assessed,
+        "administrative_boundary_is_football_action_truth": False,
+        "administrative_boundary_is_phase_truth": False,
+        "administrative_boundary_orders_same_time_action": False,
         "competing_terminal_outcomes_assessed": False,
         "outcome_polarity_emitted": False,
         "projection_is_action_identity_truth": False,
@@ -590,6 +853,13 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
                 f"admitted_followup_horizon_sensitive_occurrence_count={payload.get('admitted_followup_horizon_sensitive_occurrence_count', 0)}",
                 f"admitted_followup_horizon_sensitivity_unresolved_occurrence_count={payload.get('admitted_followup_horizon_sensitivity_unresolved_occurrence_count', 0)}",
                 f"admitted_followup_horizon_sensitivity_state_counts={payload.get('admitted_followup_horizon_sensitivity_state_counts', {})}",
+                f"right_censoring_assessed={payload.get('right_censoring_assessed')}",
+                f"right_censoring_eligible_occurrence_count={payload.get('right_censoring_eligible_occurrence_count', 0)}",
+                f"right_censoring_assessed_occurrence_count={payload.get('right_censoring_assessed_occurrence_count', 0)}",
+                f"right_censored_occurrence_count={payload.get('right_censored_occurrence_count', 0)}",
+                f"complete_to_declared_horizon_no_admitted_followup_count={payload.get('complete_to_declared_horizon_no_admitted_followup_count', 0)}",
+                f"right_censoring_unresolved_occurrence_count={payload.get('right_censoring_unresolved_occurrence_count', 0)}",
+                f"right_censoring_status_counts={payload.get('right_censoring_status_counts', {})}",
                 f"review_required_occurrence_projection_count={payload.get('review_required_occurrence_projection_count', 0)}",
                 f"followup_observation_status_counts={payload.get('followup_observation_status_counts', {})}",
                 f"process_continuation_status_counts={payload.get('process_continuation_status_counts', {})}",
@@ -608,7 +878,9 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
                 "no_visible_followup_is_failure=false",
                 "followup_is_terminal_outcome_truth=false",
                 "ensuing_terminal_support_is_causal_truth=false",
-                "right_censoring_assessed=false",
+                "administrative_boundary_is_football_action_truth=false",
+                "administrative_boundary_is_phase_truth=false",
+                "administrative_boundary_orders_same_time_action=false",
                 "competing_terminal_outcomes_assessed=false",
                 "projection_is_causal_truth=false",
                 "canonical_event_count=UNKNOWN",
