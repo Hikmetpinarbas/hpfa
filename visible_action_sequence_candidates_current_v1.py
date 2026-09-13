@@ -182,6 +182,17 @@ def _bind_partial_order_variants(payload: dict, trace_payload: dict, consequence
 def _bind_dependency_aware_similarity(payload: dict) -> dict:
     projection = build_dependency_aware_partial_order_similarity(payload)
     payload["dependency_aware_partial_order_similarity_status"] = projection.get("status")
+    payload["process_comparison_question_contract"] = dict(
+        projection.get("process_comparison_question_contract") or {}
+    )
+    payload["process_comparison_question_contract_status"] = projection.get(
+        "process_comparison_question_contract_status"
+    )
+    payload["process_comparable_sets"] = list(projection.get("process_comparable_sets") or [])
+    payload["process_comparable_set_count"] = int(projection.get("process_comparable_set_count") or 0)
+    payload["eligible_denominator_frozen_before_outcome_attachment"] = (
+        projection.get("eligible_denominator_frozen_before_outcome_attachment") is True
+    )
     payload["dependency_aware_partial_order_similarity_pairs"] = list(
         projection.get("dependency_aware_partial_order_similarity_pairs") or []
     )
@@ -195,6 +206,8 @@ def _bind_dependency_aware_similarity(payload: dict) -> dict:
         projection.get("recurrence_candidate_eligible_pair_count") or 0
     )
     payload["outcome_used_in_similarity_decision"] = False
+    payload["outcome_used_in_comparison_admission"] = False
+    payload["outcome_used_in_pair_materialization"] = False
     payload["dependency_overlap_blocks_independent_recurrence"] = True
     payload["similarity_is_recurrence_truth"] = False
     payload["similarity_is_tactical_pattern_truth"] = False
@@ -358,9 +371,16 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "eligible_occurrence_after_confirmed_edge_count": 0,
             "partial_order_occurrence_variants": [],
             "partial_order_occurrence_variant_count": 0,
+            "process_comparison_question_contract": {},
+            "process_comparison_question_contract_status": "NOT_EVALUATED",
+            "process_comparable_sets": [],
+            "process_comparable_set_count": 0,
+            "eligible_denominator_frozen_before_outcome_attachment": False,
             "dependency_aware_partial_order_similarity_pairs": [],
             "dependency_aware_partial_order_similarity_pair_count": 0,
             "recurrence_candidate_eligible_pair_count": 0,
+            "outcome_used_in_comparison_admission": False,
+            "outcome_used_in_pair_materialization": False,
             "anchor_centered_sequence_branch_maps": [],
             "anchor_centered_sequence_branch_map_count": 0,
             "anchor_centered_sequence_total_visible_branch_count": 0,
@@ -437,6 +457,11 @@ def main() -> int:
         "eligible_occurrence_after_confirmed_edge_count": payload.get("eligible_occurrence_after_confirmed_edge_count"),
         "partial_order_occurrence_variant_status": payload.get("partial_order_occurrence_variant_status"),
         "partial_order_occurrence_variant_count": payload.get("partial_order_occurrence_variant_count"),
+        "process_comparison_question_contract_status": payload.get("process_comparison_question_contract_status"),
+        "process_comparable_set_count": payload.get("process_comparable_set_count"),
+        "eligible_denominator_frozen_before_outcome_attachment": payload.get(
+            "eligible_denominator_frozen_before_outcome_attachment"
+        ),
         "dependency_aware_partial_order_similarity_status": payload.get("dependency_aware_partial_order_similarity_status"),
         "dependency_aware_partial_order_similarity_pair_count": payload.get("dependency_aware_partial_order_similarity_pair_count"),
         "dependency_aware_partial_order_similarity_pair_state_counts": payload.get("dependency_aware_partial_order_similarity_pair_state_counts") or {},
