@@ -17,6 +17,7 @@ def _full_spine(tmp_path: Path, *, declared: bool = True) -> dict:
         artifacts = [
             str(tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"),
             str(tmp_path / "match_local_identity_candidates_lite_v1.json"),
+            str(tmp_path / "occurrence_consequence_projection_v1.json"),
         ]
     return {
         "status": "REVIEW_REQUIRED",
@@ -48,6 +49,24 @@ def _write_payloads(tmp_path: Path) -> None:
                 "process_context_coverage_incomplete_variant_count": 2,
                 "right_censored_variant_count": 0,
                 "dependency_independence_proven": False,
+                "context_feature_difference_candidates": [
+                    {
+                        "feature_token": "LAYER[1]::actor_identity_candidate_ids:actor_1",
+                        "success_visible_numerator": 0,
+                        "success_eligible_denominator": 7,
+                        "failure_visible_numerator": 2,
+                        "failure_eligible_denominator": 3,
+                        "descriptive_rate_delta_success_minus_failure": -0.666667,
+                    },
+                    {
+                        "feature_token": "LAYER[1]::provider_direction_candidates:FORWARD",
+                        "success_visible_numerator": 6,
+                        "success_eligible_denominator": 7,
+                        "failure_visible_numerator": 0,
+                        "failure_eligible_denominator": 3,
+                        "descriptive_rate_delta_success_minus_failure": 0.857143,
+                    },
+                ],
                 "consequence_feature_difference_candidates": [
                     {
                         "feature_token": "LAYER[1]::primary_consequence_candidates:SAME_TEAM_CONTINUATION_CANDIDATE",
@@ -77,6 +96,23 @@ def _write_payloads(tmp_path: Path) -> None:
                 "team_normalized_key": "team_alpha",
             }
         ],
+        "actor_identity_candidates": [
+            {
+                "actor_identity_candidate_id": "actor_1",
+                "actor_normalized_key": "player_alpha",
+            }
+        ],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+    occurrence = {
+        "status": "REVIEW_REQUIRED",
+        "occurrence_consequence_projection_count": 12,
+        "occurrence_with_visible_consequence_support_count": 9,
+        "complete_to_declared_horizon_no_admitted_followup_count": 2,
+        "right_censored_occurrence_count": 1,
+        "right_censoring_unresolved_occurrence_count": 0,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -87,20 +123,30 @@ def _write_payloads(tmp_path: Path) -> None:
     (tmp_path / "match_local_identity_candidates_lite_v1.json").write_text(
         json.dumps(identity), encoding="utf-8"
     )
+    (tmp_path / "occurrence_consequence_projection_v1.json").write_text(
+        json.dumps(occurrence), encoding="utf-8"
+    )
 
 
-def test_current_mechanism_surface_is_rendered_as_review_only(tmp_path: Path) -> None:
+def test_current_mechanism_surface_is_occurrence_primary_review_only(tmp_path: Path) -> None:
     _write_payloads(tmp_path)
     lines = build_mechanism_review_lines(tmp_path, _full_spine(tmp_path))
     text = "\n".join(lines)
     assert "Team Alpha" in text
     assert "grammar=PASS -> PASS" in text
     assert "resolved=10 (SUCCESS=7, FAILURE=3)" in text
+    assert "primary_occurrence_spine: occurrence_candidates=12" in text
+    assert "visible_consequence_support=9" in text
+    assert "fully_observed_no_followup=2" in text
+    assert "right_censored=1 unresolved_censoring=0" in text
+    assert "outcome_adjacent_consequence_contrast:" in text
     assert "same_team_continuation success=6/7 failure=1/3" in text
     assert "opponent_handover success=0/7 failure=2/3" in text
+    assert "positive_review_focus: actor=Player Alpha success=0/7 failure=2/3" in text
+    assert "provider_direction_candidates" not in text
+    assert "tek basina mac mekanizmasi sayilmaz" in text
     assert "claim_ceiling=ANALYST_REVIEW_MECHANISM_CANDIDATE_ONLY" in text
     assert "professional_emit_allowed=false" in text
-    assert "causality" not in text.casefold() or "degildir" in text.casefold()
 
 
 def test_stale_mechanism_artifact_is_not_consumed(tmp_path: Path) -> None:
@@ -109,13 +155,15 @@ def test_stale_mechanism_artifact_is_not_consumed(tmp_path: Path) -> None:
     text = "\n".join(lines)
     assert "eski artifact kullanilmadi" in text
     assert "Team Alpha" not in text
+    assert "occurrence_candidates=12" not in text
 
 
-def test_standard_report_contains_review_section_without_promoting_emit(tmp_path: Path) -> None:
+def test_standard_report_contains_context_focused_review_without_promoting_emit(tmp_path: Path) -> None:
     _write_payloads(tmp_path)
     text = build_analyst_report(tmp_path, _full_spine(tmp_path))
     assert "ANALYST REVIEW — GORUNUR SUREC MEKANIZMASI ADAYLARI" in text
-    assert "same_team_continuation success=6/7 failure=1/3" in text
+    assert "primary_occurrence_spine: occurrence_candidates=12" in text
+    assert "positive_review_focus: actor=Player Alpha" in text
     assert "professional_emit_allowed=false" in text
     assert "canonical_event_count=UNKNOWN" in text
     assert "production_release=false" in text
