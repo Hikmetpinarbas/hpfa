@@ -89,12 +89,157 @@ def _signature_tuple(counter: Counter[str]) -> tuple[tuple[str, int], ...] | Non
 
 
 def _structural_signature(variant: dict[str, Any]) -> tuple[Any, ...] | None:
+    """Cheap coarse prefilter only; not proof of topology equivalence."""
     action = _signature_tuple(_counter(variant.get("action_family_signature"), "action_family_candidate"))
     order = _signature_tuple(_order_signature(variant))
     layer = _signature_tuple(_layer_shape_signature(variant))
     if action is None or order is None or layer is None:
         return None
     return (action, order, layer)
+
+
+def _layer_graph(
+    variant: dict[str, Any],
+) -> tuple[
+    dict[str, tuple[tuple[tuple[str, ...], str], ...]],
+    dict[tuple[str, str], tuple[tuple[str, int], ...]],
+] | None:
+    """Build a relation-preserving layer graph without inventing same-time order."""
+    layer_nodes: dict[str, list[tuple[tuple[str, ...], str]]] = defaultdict(list)
+    for node in variant.get("node_records") or []:
+        if not isinstance(node, dict):
+            return None
+        layer = _clean(node.get("time_layer_ref"))
+        if not layer:
+            return None
+        actions = tuple(
+            sorted(
+                {
+                    _clean(value)
+                    for value in (node.get("action_family_candidates") or [])
+                    if _clean(value)
+                }
+            )
+        )
+        if not actions:
+            return None
+        internal = _clean(node.get("internal_same_time_order")) or "NOT_APPLICABLE"
+        if internal not in {"NOT_APPLICABLE", "SAME_TIME_UNORDERED"}:
+            return None
+        layer_nodes[layer].append((actions, internal))
+
+    if not layer_nodes:
+        return None
+
+    labels = {
+        layer: tuple(sorted(records))
+        for layer, records in layer_nodes.items()
+    }
+    edge_counters: dict[tuple[str, str], Counter[str]] = defaultdict(Counter)
+    for edge in variant.get("edge_relations") or []:
+        if not isinstance(edge, dict):
+            return None
+        source = _clean(edge.get("from_layer_ref"))
+        target = _clean(edge.get("to_layer_ref"))
+        relation = _clean(edge.get("relation"))
+        if not source or not target or not relation:
+            return None
+        if source not in labels or target not in labels:
+            return None
+        edge_counters[(source, target)][relation] += 1
+
+    edges = {
+        pair: tuple(sorted((relation, int(count)) for relation, count in counter.items()))
+        for pair, counter in edge_counters.items()
+    }
+    return labels, edges
+
+
+def _layer_invariant(
+    layer: str,
+    labels: dict[str, tuple[tuple[tuple[str, ...], str], ...]],
+    edges: dict[tuple[str, str], tuple[tuple[str, int], ...]],
+) -> tuple[Any, ...]:
+    incoming: Counter[str] = Counter()
+    outgoing: Counter[str] = Counter()
+    for (source, target), relation_counts in edges.items():
+        if target == layer:
+            for relation, count in relation_counts:
+                incoming[relation] += count
+        if source == layer:
+            for relation, count in relation_counts:
+                outgoing[relation] += count
+    return (
+        labels[layer],
+        tuple(sorted(incoming.items())),
+        tuple(sorted(outgoing.items())),
+    )
+
+
+def _topology_exact_match(left: dict[str, Any], right: dict[str, Any]) -> bool | None:
+    """Exact labeled-layer graph isomorphism; layer refs themselves carry no identity."""
+    left_graph = _layer_graph(left)
+    right_graph = _layer_graph(right)
+    if left_graph is None or right_graph is None:
+        return None
+
+    left_labels, left_edges = left_graph
+    right_labels, right_edges = right_graph
+    if len(left_labels) != len(right_labels):
+        return False
+    if sum(len(value) for value in left_labels.values()) != sum(len(value) for value in right_labels.values()):
+        return False
+    if Counter(left_edges.values()) != Counter(right_edges.values()):
+        return False
+
+    left_invariants = {layer: _layer_invariant(layer, left_labels, left_edges) for layer in left_labels}
+    right_invariants = {layer: _layer_invariant(layer, right_labels, right_edges) for layer in right_labels}
+    if Counter(left_invariants.values()) != Counter(right_invariants.values()):
+        return False
+
+    candidates: dict[str, list[str]] = {
+        layer: sorted(
+            other
+            for other, invariant in right_invariants.items()
+            if invariant == left_invariants[layer]
+        )
+        for layer in left_labels
+    }
+    if any(not values for values in candidates.values()):
+        return False
+
+    ordered_left = sorted(left_labels, key=lambda layer: (len(candidates[layer]), repr(left_invariants[layer]), layer))
+    mapping: dict[str, str] = {}
+    used_right: set[str] = set()
+
+    def compatible(left_layer: str, right_layer: str) -> bool:
+        if left_edges.get((left_layer, left_layer), ()) != right_edges.get((right_layer, right_layer), ()):
+            return False
+        for assigned_left, assigned_right in mapping.items():
+            if left_edges.get((left_layer, assigned_left), ()) != right_edges.get((right_layer, assigned_right), ()):
+                return False
+            if left_edges.get((assigned_left, left_layer), ()) != right_edges.get((assigned_right, right_layer), ()):
+                return False
+        return True
+
+    def search(position: int) -> bool:
+        if position >= len(ordered_left):
+            return True
+        left_layer = ordered_left[position]
+        for right_layer in candidates[left_layer]:
+            if right_layer in used_right:
+                continue
+            if not compatible(left_layer, right_layer):
+                continue
+            mapping[left_layer] = right_layer
+            used_right.add(right_layer)
+            if search(position + 1):
+                return True
+            used_right.remove(right_layer)
+            mapping.pop(left_layer, None)
+        return False
+
+    return search(0)
 
 
 def _outcome_materialization_signature(variant: dict[str, Any]) -> tuple[tuple[str, int], ...]:
@@ -114,15 +259,39 @@ def _add_star_pairs(indices: list[int], out: set[tuple[int, int]]) -> None:
         out.add(_pair_key(anchor, index))
 
 
-def _candidate_pair_indices(variants: list[dict[str, Any]]) -> tuple[set[tuple[int, int]], list[dict[str, Any]], dict[str, int]]:
-    """Build a bounded comparison surface without exhaustive all-v-all materialization.
+def _topology_partitions(
+    indices: list[int],
+    variants: list[dict[str, Any]],
+) -> tuple[list[list[int]], list[int]]:
+    partitions: list[list[int]] = []
+    unresolved: list[int] = []
+    for index in sorted(indices, key=lambda idx: _clean(variants[idx].get("partial_order_occurrence_variant_id"))):
+        if _layer_graph(variants[index]) is None:
+            unresolved.append(index)
+            continue
+        placed = False
+        for partition in partitions:
+            match = _topology_exact_match(variants[partition[0]], variants[index])
+            if match is True:
+                partition.append(index)
+                placed = True
+                break
+            if match is None:
+                unresolved.append(index)
+                placed = True
+                break
+        if not placed:
+            partitions.append([index])
+    return partitions, unresolved
 
-    Comparison admission precedes pair creation. Only same-team, same-period variants with
-    an exact structural signature can enter a comparison group. Inside each admitted group
-    we retain a linear representative surface, preserve at least one edge for each visible
-    outcome-signature contrast, and retain shared-origin connectivity. Outcome signatures
-    select representative records only after structural admission; they never decide
-    structural or comparison eligibility.
+
+def _candidate_pair_indices(variants: list[dict[str, Any]]) -> tuple[set[tuple[int, int]], list[dict[str, Any]], dict[str, int]]:
+    """Build a bounded comparison surface using coarse prefilter + exact topology admission.
+
+    Same-team, same-period, coarse-signature equality is only a cheap prefilter. Variants are
+    then partitioned by relation-preserving labeled-layer graph isomorphism before any pair is
+    admitted. Outcome signatures select representative records only after structural admission;
+    they never decide structural or comparison eligibility.
     """
     groups: dict[tuple[str, str, tuple[Any, ...]], list[int]] = defaultdict(list)
     missing_team = 0
@@ -146,67 +315,89 @@ def _candidate_pair_indices(variants: list[dict[str, Any]]) -> tuple[set[tuple[i
 
     pair_indices: set[tuple[int, int]] = set()
     comparison_groups: list[dict[str, Any]] = []
+    topology_unresolved_variant_count = 0
+    coarse_signature_topology_split_group_count = 0
 
-    for (team, period, signature), indices in sorted(groups.items(), key=lambda item: (item[0][0], item[0][1], repr(item[0][2]))):
+    for (team, period, signature), indices in sorted(
+        groups.items(),
+        key=lambda item: (item[0][0], item[0][1], repr(item[0][2])),
+    ):
         ordered = sorted(indices, key=lambda idx: _clean(variants[idx].get("partial_order_occurrence_variant_id")))
         if len(ordered) < 2:
             continue
 
-        # Linear backbone: enough to preserve repeated-structure support without n^2 records.
-        _add_star_pairs(ordered, pair_indices)
+        topology_groups, unresolved = _topology_partitions(ordered, variants)
+        topology_unresolved_variant_count += len(set(unresolved))
+        if len(topology_groups) > 1:
+            coarse_signature_topology_split_group_count += 1
 
-        # Preserve at least one pair across every observed outcome-signature class. This does
-        # not affect comparison eligibility; admission has already happened on structure.
-        by_outcome: dict[tuple[tuple[str, int], ...], list[int]] = defaultdict(list)
-        for index in ordered:
-            by_outcome[_outcome_materialization_signature(variants[index])].append(index)
-        outcome_representatives: list[int] = []
-        for outcome_indices in by_outcome.values():
-            _add_star_pairs(outcome_indices, pair_indices)
-            outcome_representatives.append(sorted(outcome_indices)[0])
-        for left, right in itertools.combinations(sorted(outcome_representatives), 2):
-            pair_indices.add(_pair_key(left, right))
+        for topology_group in topology_groups:
+            ordered_topology = sorted(
+                topology_group,
+                key=lambda idx: _clean(variants[idx].get("partial_order_occurrence_variant_id")),
+            )
+            if len(ordered_topology) < 2:
+                continue
 
-        # Preserve shared-origin connectivity without materializing every shared-origin pair.
-        occurrence_members: dict[str, list[int]] = defaultdict(list)
-        dependency_members: dict[str, list[int]] = defaultdict(list)
-        for index in ordered:
-            variant = variants[index]
-            for value in variant.get("supporting_action_occurrence_candidate_ids") or []:
-                cleaned = _clean(value)
-                if cleaned:
-                    occurrence_members[cleaned].append(index)
-            for value in variant.get("dependency_group_refs") or []:
-                cleaned = _clean(value)
-                if cleaned:
-                    dependency_members[cleaned].append(index)
-        for member_indices in occurrence_members.values():
-            _add_star_pairs(member_indices, pair_indices)
-        for member_indices in dependency_members.values():
-            _add_star_pairs(member_indices, pair_indices)
+            _add_star_pairs(ordered_topology, pair_indices)
 
-        group_id = "po_group_" + _digest(team, period, signature)[:24]
-        comparison_groups.append({
-            "comparison_group_id": group_id,
-            "team_identity_candidate_id": team,
-            "period_candidate": period,
-            "member_variant_refs": [
-                _clean(variants[index].get("partial_order_occurrence_variant_id")) for index in ordered
-            ],
-            "member_variant_count": len(ordered),
-            "structural_exact_match_required": True,
-            "outcome_used_in_comparison_admission": False,
-            "dependency_independence_proven": False,
-            "statistical_independence_proven": False,
-            "comparison_group_is_process_identity_truth": False,
-            "comparison_group_is_tactical_pattern_truth": False,
-            "claim_ceiling": CLAIM_CEILING,
-        })
+            by_outcome: dict[tuple[tuple[str, int], ...], list[int]] = defaultdict(list)
+            for index in ordered_topology:
+                by_outcome[_outcome_materialization_signature(variants[index])].append(index)
+            outcome_representatives: list[int] = []
+            for outcome_indices in by_outcome.values():
+                _add_star_pairs(outcome_indices, pair_indices)
+                outcome_representatives.append(sorted(outcome_indices)[0])
+            for left, right in itertools.combinations(sorted(outcome_representatives), 2):
+                pair_indices.add(_pair_key(left, right))
+
+            occurrence_members: dict[str, list[int]] = defaultdict(list)
+            dependency_members: dict[str, list[int]] = defaultdict(list)
+            for index in ordered_topology:
+                variant = variants[index]
+                for value in variant.get("supporting_action_occurrence_candidate_ids") or []:
+                    cleaned = _clean(value)
+                    if cleaned:
+                        occurrence_members[cleaned].append(index)
+                for value in variant.get("dependency_group_refs") or []:
+                    cleaned = _clean(value)
+                    if cleaned:
+                        dependency_members[cleaned].append(index)
+            for member_indices in occurrence_members.values():
+                _add_star_pairs(member_indices, pair_indices)
+            for member_indices in dependency_members.values():
+                _add_star_pairs(member_indices, pair_indices)
+
+            member_refs = [
+                _clean(variants[index].get("partial_order_occurrence_variant_id"))
+                for index in ordered_topology
+            ]
+            group_id = "po_group_" + _digest(team, period, signature, member_refs)[:24]
+            comparison_groups.append({
+                "comparison_group_id": group_id,
+                "team_identity_candidate_id": team,
+                "period_candidate": period,
+                "member_variant_refs": member_refs,
+                "member_variant_count": len(ordered_topology),
+                "coarse_partial_order_signature_match_required": True,
+                "relation_preserving_topology_match_required": True,
+                "structural_exact_match_required": True,
+                "structural_exact_equivalence_proven": True,
+                "coarse_signature_is_exact_equivalence_proof": False,
+                "outcome_used_in_comparison_admission": False,
+                "dependency_independence_proven": False,
+                "statistical_independence_proven": False,
+                "comparison_group_is_process_identity_truth": False,
+                "comparison_group_is_tactical_pattern_truth": False,
+                "claim_ceiling": CLAIM_CEILING,
+            })
 
     diagnostics = {
         "missing_team_variant_count": missing_team,
         "missing_period_variant_count": missing_period,
         "structural_signature_unresolved_variant_count": structural_unresolved,
+        "topology_unresolved_variant_count": topology_unresolved_variant_count,
+        "coarse_signature_topology_split_group_count": coarse_signature_topology_split_group_count,
         "admitted_structural_comparison_group_count": len(comparison_groups),
     }
     return pair_indices, comparison_groups, diagnostics
@@ -263,11 +454,13 @@ def _build_pair(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any] |
     )
     order_similarity = _multiset_jaccard(_order_signature(left), _order_signature(right))
     layer_shape_similarity = _multiset_jaccard(_layer_shape_signature(left), _layer_shape_signature(right))
-    structural_exact_match = (
+    coarse_signature_match = (
         action_similarity == 1.0
         and order_similarity == 1.0
         and layer_shape_similarity == 1.0
     )
+    topology_match = _topology_exact_match(left, right) if coarse_signature_match else False
+    structural_exact_match = topology_match is True
     outcome_equal = _outcome_signature_equal(left, right)
 
     comparison_state, comparison_eligible, outcome_contrast_allowed, comparison_requires_review = (
@@ -320,7 +513,11 @@ def _build_pair(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any] |
         "action_structure_similarity": action_similarity,
         "partial_order_similarity": order_similarity,
         "layer_shape_similarity": layer_shape_similarity,
+        "coarse_partial_order_signature_match": coarse_signature_match,
+        "relation_preserving_topology_match": topology_match,
+        "structural_exact_equivalence_proven": structural_exact_match,
         "structural_exact_match": structural_exact_match,
+        "coarse_signature_is_exact_equivalence_proof": False,
         "shared_occurrence_candidate_ids": shared_occ,
         "shared_occurrence_candidate_count": len(shared_occ),
         "shared_dependency_group_refs": shared_dep,
@@ -383,6 +580,8 @@ def build_dependency_aware_partial_order_similarity(
     pair_indices, comparison_groups, diagnostics = _candidate_pair_indices(variants)
     if diagnostics["missing_period_variant_count"]:
         reviews.append("variant_period_context_missing_before_comparison_admission")
+    if diagnostics["topology_unresolved_variant_count"]:
+        reviews.append("variant_topology_unresolved_before_comparison_admission")
 
     pairs: list[dict[str, Any]] = []
     if not blocks:
@@ -391,8 +590,11 @@ def build_dependency_aware_partial_order_similarity(
             if pair is None:
                 blocks.append("partial_order_variant_id_missing")
                 break
-            # Candidate selection guarantees exact structural, same-team, same-period admission.
-            if pair.get("comparison_eligible") is not True or pair.get("structural_exact_match") is not True:
+            if (
+                pair.get("comparison_eligible") is not True
+                or pair.get("structural_exact_match") is not True
+                or pair.get("relation_preserving_topology_match") is not True
+            ):
                 blocks.append("comparison_prefilter_contract_breached")
                 break
             pairs.append(pair)
@@ -424,9 +626,12 @@ def build_dependency_aware_partial_order_similarity(
         "comparison_prefilter_pruned_pair_count": max(all_pair_count - materialized_pair_count, 0),
         "pair_materialization_mode": PAIR_MATERIALIZATION_MODE,
         "comparison_admission_precedes_pair_materialization": True,
+        "coarse_signature_is_only_prefilter": True,
+        "structural_exact_match_requires_relation_preserving_topology": True,
         "cross_team_pairs_materialized": False,
         "cross_period_pairs_materialized": False,
         "structural_mismatch_pairs_materialized": False,
+        "topology_mismatch_pairs_materialized": False,
         **diagnostics,
         "recurrence_candidate_eligible_pair_count": sum(
             1 for row in pairs if row.get("recurrence_candidate_eligible")
