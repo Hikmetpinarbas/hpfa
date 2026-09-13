@@ -259,39 +259,14 @@ def _add_star_pairs(indices: list[int], out: set[tuple[int, int]]) -> None:
         out.add(_pair_key(anchor, index))
 
 
-def _topology_partitions(
-    indices: list[int],
-    variants: list[dict[str, Any]],
-) -> tuple[list[list[int]], list[int]]:
-    partitions: list[list[int]] = []
-    unresolved: list[int] = []
-    for index in sorted(indices, key=lambda idx: _clean(variants[idx].get("partial_order_occurrence_variant_id"))):
-        if _layer_graph(variants[index]) is None:
-            unresolved.append(index)
-            continue
-        placed = False
-        for partition in partitions:
-            match = _topology_exact_match(variants[partition[0]], variants[index])
-            if match is True:
-                partition.append(index)
-                placed = True
-                break
-            if match is None:
-                unresolved.append(index)
-                placed = True
-                break
-        if not placed:
-            partitions.append([index])
-    return partitions, unresolved
-
-
 def _candidate_pair_indices(variants: list[dict[str, Any]]) -> tuple[set[tuple[int, int]], list[dict[str, Any]], dict[str, int]]:
-    """Build a bounded comparison surface using coarse prefilter + exact topology admission.
+    """Build the legacy-bounded pair surface, then only remove topology-invalid pairs.
 
-    Same-team, same-period, coarse-signature equality is only a cheap prefilter. Variants are
-    then partitioned by relation-preserving labeled-layer graph isomorphism before any pair is
-    admitted. Outcome signatures select representative records only after structural admission;
-    they never decide structural or comparison eligibility.
+    Same-team, same-period, coarse-signature equality remains a cheap prefilter. The exact
+    legacy representative pair set is materialized first. Relation-preserving topology then
+    acts only as a downward filter: it may remove or preserve a pair, but can never create a
+    new pair. Outcome signatures still select representatives only after coarse admission and
+    never decide comparison eligibility.
     """
     groups: dict[tuple[str, str, tuple[Any, ...]], list[int]] = defaultdict(list)
     missing_team = 0
@@ -313,9 +288,10 @@ def _candidate_pair_indices(variants: list[dict[str, Any]]) -> tuple[set[tuple[i
             continue
         groups[(team, period, signature)].append(index)
 
-    pair_indices: set[tuple[int, int]] = set()
+    admitted_pair_indices: set[tuple[int, int]] = set()
     comparison_groups: list[dict[str, Any]] = []
-    topology_unresolved_variant_count = 0
+    topology_mismatch_pair_pruned_count = 0
+    topology_unresolved_pair_count = 0
     coarse_signature_topology_split_group_count = 0
 
     for (team, period, signature), indices in sorted(
@@ -326,81 +302,94 @@ def _candidate_pair_indices(variants: list[dict[str, Any]]) -> tuple[set[tuple[i
         if len(ordered) < 2:
             continue
 
-        topology_groups, unresolved = _topology_partitions(ordered, variants)
-        topology_unresolved_variant_count += len(set(unresolved))
-        if len(topology_groups) > 1:
+        coarse_pair_indices: set[tuple[int, int]] = set()
+
+        _add_star_pairs(ordered, coarse_pair_indices)
+
+        by_outcome: dict[tuple[tuple[str, int], ...], list[int]] = defaultdict(list)
+        for index in ordered:
+            by_outcome[_outcome_materialization_signature(variants[index])].append(index)
+        outcome_representatives: list[int] = []
+        for outcome_indices in by_outcome.values():
+            _add_star_pairs(outcome_indices, coarse_pair_indices)
+            outcome_representatives.append(sorted(outcome_indices)[0])
+        for left, right in itertools.combinations(sorted(outcome_representatives), 2):
+            coarse_pair_indices.add(_pair_key(left, right))
+
+        occurrence_members: dict[str, list[int]] = defaultdict(list)
+        dependency_members: dict[str, list[int]] = defaultdict(list)
+        for index in ordered:
+            variant = variants[index]
+            for value in variant.get("supporting_action_occurrence_candidate_ids") or []:
+                cleaned = _clean(value)
+                if cleaned:
+                    occurrence_members[cleaned].append(index)
+            for value in variant.get("dependency_group_refs") or []:
+                cleaned = _clean(value)
+                if cleaned:
+                    dependency_members[cleaned].append(index)
+        for member_indices in occurrence_members.values():
+            _add_star_pairs(member_indices, coarse_pair_indices)
+        for member_indices in dependency_members.values():
+            _add_star_pairs(member_indices, coarse_pair_indices)
+
+        group_topology_mismatch = False
+        group_topology_unresolved = False
+        for left_index, right_index in sorted(coarse_pair_indices):
+            topology_match = _topology_exact_match(
+                variants[left_index],
+                variants[right_index],
+            )
+            if topology_match is True:
+                admitted_pair_indices.add(_pair_key(left_index, right_index))
+            elif topology_match is False:
+                topology_mismatch_pair_pruned_count += 1
+                group_topology_mismatch = True
+            else:
+                topology_unresolved_pair_count += 1
+                group_topology_unresolved = True
+
+        if group_topology_mismatch:
             coarse_signature_topology_split_group_count += 1
 
-        for topology_group in topology_groups:
-            ordered_topology = sorted(
-                topology_group,
-                key=lambda idx: _clean(variants[idx].get("partial_order_occurrence_variant_id")),
-            )
-            if len(ordered_topology) < 2:
-                continue
-
-            _add_star_pairs(ordered_topology, pair_indices)
-
-            by_outcome: dict[tuple[tuple[str, int], ...], list[int]] = defaultdict(list)
-            for index in ordered_topology:
-                by_outcome[_outcome_materialization_signature(variants[index])].append(index)
-            outcome_representatives: list[int] = []
-            for outcome_indices in by_outcome.values():
-                _add_star_pairs(outcome_indices, pair_indices)
-                outcome_representatives.append(sorted(outcome_indices)[0])
-            for left, right in itertools.combinations(sorted(outcome_representatives), 2):
-                pair_indices.add(_pair_key(left, right))
-
-            occurrence_members: dict[str, list[int]] = defaultdict(list)
-            dependency_members: dict[str, list[int]] = defaultdict(list)
-            for index in ordered_topology:
-                variant = variants[index]
-                for value in variant.get("supporting_action_occurrence_candidate_ids") or []:
-                    cleaned = _clean(value)
-                    if cleaned:
-                        occurrence_members[cleaned].append(index)
-                for value in variant.get("dependency_group_refs") or []:
-                    cleaned = _clean(value)
-                    if cleaned:
-                        dependency_members[cleaned].append(index)
-            for member_indices in occurrence_members.values():
-                _add_star_pairs(member_indices, pair_indices)
-            for member_indices in dependency_members.values():
-                _add_star_pairs(member_indices, pair_indices)
-
-            member_refs = [
-                _clean(variants[index].get("partial_order_occurrence_variant_id"))
-                for index in ordered_topology
-            ]
-            group_id = "po_group_" + _digest(team, period, signature, member_refs)[:24]
-            comparison_groups.append({
-                "comparison_group_id": group_id,
-                "team_identity_candidate_id": team,
-                "period_candidate": period,
-                "member_variant_refs": member_refs,
-                "member_variant_count": len(ordered_topology),
-                "coarse_partial_order_signature_match_required": True,
-                "relation_preserving_topology_match_required": True,
-                "structural_exact_match_required": True,
-                "structural_exact_equivalence_proven": True,
-                "coarse_signature_is_exact_equivalence_proof": False,
-                "outcome_used_in_comparison_admission": False,
-                "dependency_independence_proven": False,
-                "statistical_independence_proven": False,
-                "comparison_group_is_process_identity_truth": False,
-                "comparison_group_is_tactical_pattern_truth": False,
-                "claim_ceiling": CLAIM_CEILING,
-            })
+        member_refs = [
+            _clean(variants[index].get("partial_order_occurrence_variant_id"))
+            for index in ordered
+        ]
+        group_id = "po_group_" + _digest(team, period, signature)[:24]
+        comparison_groups.append({
+            "comparison_group_id": group_id,
+            "team_identity_candidate_id": team,
+            "period_candidate": period,
+            "member_variant_refs": member_refs,
+            "member_variant_count": len(ordered),
+            "coarse_partial_order_signature_match_required": True,
+            "coarse_signature_is_exact_equivalence_proof": False,
+            "relation_preserving_topology_filter_applied": True,
+            "topology_filter_can_create_new_pair": False,
+            "topology_filter_only_removes_or_preserves_coarse_prefilter_pairs": True,
+            "structural_exact_equivalence_proven_for_all_materialized_pairs": (
+                not group_topology_unresolved
+            ),
+            "coarse_signature_group_contains_topology_mismatch": group_topology_mismatch,
+            "outcome_used_in_comparison_admission": False,
+            "dependency_independence_proven": False,
+            "statistical_independence_proven": False,
+            "comparison_group_is_process_identity_truth": False,
+            "comparison_group_is_tactical_pattern_truth": False,
+            "claim_ceiling": CLAIM_CEILING,
+        })
 
     diagnostics = {
         "missing_team_variant_count": missing_team,
         "missing_period_variant_count": missing_period,
         "structural_signature_unresolved_variant_count": structural_unresolved,
-        "topology_unresolved_variant_count": topology_unresolved_variant_count,
+        "topology_unresolved_pair_count": topology_unresolved_pair_count,
+        "topology_mismatch_pair_pruned_count": topology_mismatch_pair_pruned_count,
         "coarse_signature_topology_split_group_count": coarse_signature_topology_split_group_count,
         "admitted_structural_comparison_group_count": len(comparison_groups),
     }
-    return pair_indices, comparison_groups, diagnostics
+    return admitted_pair_indices, comparison_groups, diagnostics
 
 
 def _comparison_eligibility(
@@ -580,7 +569,7 @@ def build_dependency_aware_partial_order_similarity(
     pair_indices, comparison_groups, diagnostics = _candidate_pair_indices(variants)
     if diagnostics["missing_period_variant_count"]:
         reviews.append("variant_period_context_missing_before_comparison_admission")
-    if diagnostics["topology_unresolved_variant_count"]:
+    if diagnostics["topology_unresolved_pair_count"]:
         reviews.append("variant_topology_unresolved_before_comparison_admission")
 
     pairs: list[dict[str, Any]] = []
@@ -632,6 +621,8 @@ def build_dependency_aware_partial_order_similarity(
         "cross_period_pairs_materialized": False,
         "structural_mismatch_pairs_materialized": False,
         "topology_mismatch_pairs_materialized": False,
+        "topology_filter_can_create_new_pair": False,
+        "topology_filter_only_removes_or_preserves_coarse_prefilter_pairs": True,
         **diagnostics,
         "recurrence_candidate_eligible_pair_count": sum(
             1 for row in pairs if row.get("recurrence_candidate_eligible")
