@@ -83,6 +83,29 @@ def test_consequence_feature_challenge_exposes_horizon_and_censoring_debt() -> N
     assert result["professional_finding_emit_allowed"] is False
 
 
+def test_fully_observed_no_followup_does_not_invent_unresolved_censoring() -> None:
+    payload = _feature_delta()
+    row = payload["grammar_stable_variant_feature_delta_records"][0]
+    row["right_censoring_assessed"] = True
+    row["right_censored_variant_count"] = 0
+    row["right_censoring_incomplete_variant_count"] = 0
+    row["fully_observed_no_followup_variant_count"] = 4
+
+    result = build_variant_feature_challenge_projection(payload, _process_variant())
+    challenge = result["variant_feature_challenge_records"][0]
+    reasons = set(challenge["challenge_reasons"])
+
+    assert challenge["right_censoring_assessed"] is True
+    assert challenge["right_censored_variant_count"] == 0
+    assert challenge["right_censoring_incomplete_variant_count"] == 0
+    assert challenge["fully_observed_no_followup_variant_count"] == 4
+    assert "RIGHT_CENSORING_NOT_ASSESSED" not in reasons
+    assert "RIGHT_CENSORING_PARTIAL" not in reasons
+    assert "RIGHT_CENSORED_VARIANT_PRESENT" not in reasons
+    assert "NO_VISIBLE_FOLLOWUP_CENSORING_UNRESOLVED" not in reasons
+    assert challenge["no_visible_followup_is_failure"] is False
+
+
 def test_legacy_feature_delta_does_not_invent_new_horizon_debt() -> None:
     result = build_variant_feature_challenge_projection(
         _feature_delta(contract_present=False, feature_token="primary_consequence_candidates:OPPONENT_HANDOVER_CANDIDATE"),
