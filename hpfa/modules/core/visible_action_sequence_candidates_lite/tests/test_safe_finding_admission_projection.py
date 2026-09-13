@@ -40,9 +40,9 @@ def _handoff(ref: str, *, independent: int, dep: bool, stat: bool, blocking: lis
     }
 
 
-def _payload(handoffs: list[dict]) -> dict:
+def _payload(handoffs: list[dict], *, source_status: str = "PASS") -> dict:
     return {
-        "comparable_outcome_counterevidence_status": "REVIEW_REQUIRED",
+        "comparable_outcome_counterevidence_status": source_status,
         "safe_finding_handoff_candidates": handoffs,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
@@ -57,6 +57,21 @@ def test_emit_when_all_required_evidence_dimensions_are_admitted() -> None:
     assert out["finding_status_counts"] == {"EMIT": 1, "DOWNGRADE": 0, "ABSTAIN": 0}
     assert out["professional_finding_emitted_count"] == 1
     assert out["safe_finding_admission_decisions"][0]["claim_output_allowed"] is True
+
+
+def test_unscoped_upstream_review_cannot_authorize_emit() -> None:
+    out = build_safe_finding_admission(
+        _payload(
+            [_handoff("sfh_review", independent=2, dep=True, stat=True, blocking=[])],
+            source_status="REVIEW_REQUIRED",
+        )
+    )
+    assert out["status"] == "REVIEW_REQUIRED"
+    assert out["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 1, "ABSTAIN": 0}
+    row = out["safe_finding_admission_decisions"][0]
+    assert row["claim_output_allowed"] is False
+    assert "UPSTREAM_COUNTEREVIDENCE_REVIEW_UNSCOPED" in row["decision_reasons"]
+    assert out["unscoped_upstream_review_can_authorize_emit"] is False
 
 
 def test_downgrade_when_independence_is_not_admitted() -> None:
@@ -83,6 +98,41 @@ def test_abstain_when_safe_finding_contract_is_incomplete() -> None:
     out = build_safe_finding_admission(_payload([row]))
     assert out["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 1}
     assert out["status"] == "REVIEW_REQUIRED"
+
+
+def test_empty_alternative_object_cannot_satisfy_challenge() -> None:
+    row = _handoff("sfh_empty_alt", independent=2, dep=True, stat=True, blocking=[])
+    row["counterevidence"]["comparable_counterexample_refs"] = []
+    row["alternative_explanations"] = [{}]
+    out = build_safe_finding_admission(_payload([row]))
+    assert out["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 1}
+    decision = out["safe_finding_admission_decisions"][0]
+    assert decision["claim_output_allowed"] is False
+    assert "alternative_explanation_incomplete" in decision["decision_reasons"]
+
+
+def test_truth_bearing_alternative_fields_are_rejected() -> None:
+    row = _handoff("sfh_truth_alt", independent=2, dep=True, stat=True, blocking=[])
+    row["alternative_explanations"] = [
+        {
+            "code": "ALT",
+            "meaning": "candidate explanation",
+            "causality": True,
+        }
+    ]
+    out = build_safe_finding_admission(_payload([row]))
+    assert out["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 1}
+    decision = out["safe_finding_admission_decisions"][0]
+    assert decision["claim_output_allowed"] is False
+    assert "alternative_explanation_schema_not_allowlisted" in decision["decision_reasons"]
+
+
+def test_uncertainty_truth_lock_violation_abstains() -> None:
+    row = _handoff("sfh_uncertainty_lock", independent=2, dep=True, stat=True, blocking=[])
+    row["uncertainty"] = {"no_visible_followup_is_failure": True}
+    out = build_safe_finding_admission(_payload([row]))
+    assert out["finding_status_counts"]["ABSTAIN"] == 1
+    assert out["professional_finding_emitted_count"] == 0
 
 
 def test_projection_does_not_copy_evidence_payloads_or_create_evidence() -> None:
