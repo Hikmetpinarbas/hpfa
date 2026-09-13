@@ -171,9 +171,20 @@ def _two_layer_state() -> dict:
 def _consequence() -> dict:
     return {
         "status": "PASS",
+        "source_consequence_horizon": {
+            "horizon_definition_state": "DECLARED_SOURCE_HORIZON",
+            "horizon_basis": "FIXED_TIME_WITH_LAYER_CAP_VISIBLE_TRACE_SEARCH",
+            "window_seconds": [5.0, 8.0, 12.0],
+            "maximum_window_seconds": 12.0,
+            "max_follow_up_time_layers": 3,
+        },
+        "right_censoring_assessed": True,
         "occurrence_consequence_projections": [
             {
                 "action_occurrence_candidate_id": "o1",
+                "right_censoring_status": "NOT_CENSORED_ADMITTED_FOLLOWUP_OBSERVED",
+                "right_censoring_assessed": True,
+                "right_censored": False,
                 "consequence_signal_candidates": ["SAME_TEAM_FOLLOW_UP_VISIBLE"],
                 "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
                 "visible_consequence_support": True,
@@ -181,6 +192,9 @@ def _consequence() -> dict:
             },
             {
                 "action_occurrence_candidate_id": "o2",
+                "right_censoring_status": "NOT_CENSORED_ADMITTED_FOLLOWUP_OBSERVED",
+                "right_censoring_assessed": True,
+                "right_censored": False,
                 "consequence_signal_candidates": ["OPPONENT_FOLLOW_UP_VISIBLE"],
                 "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
                 "visible_consequence_support": True,
@@ -196,9 +210,20 @@ def _consequence() -> dict:
 def _two_layer_consequence() -> dict:
     return {
         "status": "PASS",
+        "source_consequence_horizon": {
+            "horizon_definition_state": "DECLARED_SOURCE_HORIZON",
+            "horizon_basis": "FIXED_TIME_WITH_LAYER_CAP_VISIBLE_TRACE_SEARCH",
+            "window_seconds": [5.0, 8.0, 12.0],
+            "maximum_window_seconds": 12.0,
+            "max_follow_up_time_layers": 3,
+        },
+        "right_censoring_assessed": True,
         "occurrence_consequence_projections": [
             {
                 "action_occurrence_candidate_id": "o1a",
+                "right_censoring_status": "NOT_CENSORED_ADMITTED_FOLLOWUP_OBSERVED",
+                "right_censoring_assessed": True,
+                "right_censored": False,
                 "consequence_signal_candidates": ["SAME_TEAM_FOLLOW_UP_VISIBLE"],
                 "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
                 "visible_consequence_support": True,
@@ -206,6 +231,9 @@ def _two_layer_consequence() -> dict:
             },
             {
                 "action_occurrence_candidate_id": "o1b",
+                "right_censoring_status": "NOT_CENSORED_ADMITTED_FOLLOWUP_OBSERVED",
+                "right_censoring_assessed": True,
+                "right_censored": False,
                 "consequence_signal_candidates": ["SAME_TEAM_FOLLOW_UP_VISIBLE"],
                 "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
                 "visible_consequence_support": True,
@@ -213,6 +241,9 @@ def _two_layer_consequence() -> dict:
             },
             {
                 "action_occurrence_candidate_id": "o2a",
+                "right_censoring_status": "NOT_CENSORED_ADMITTED_FOLLOWUP_OBSERVED",
+                "right_censoring_assessed": True,
+                "right_censored": False,
                 "consequence_signal_candidates": ["SAME_TEAM_FOLLOW_UP_VISIBLE"],
                 "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
                 "visible_consequence_support": True,
@@ -220,6 +251,9 @@ def _two_layer_consequence() -> dict:
             },
             {
                 "action_occurrence_candidate_id": "o2b",
+                "right_censoring_status": "NOT_CENSORED_ADMITTED_FOLLOWUP_OBSERVED",
+                "right_censoring_assessed": True,
+                "right_censored": False,
                 "consequence_signal_candidates": [
                     "OPPONENT_FOLLOW_UP_VISIBLE",
                     "OPPONENT_SHOT_FOLLOW_UP_VISIBLE",
@@ -271,16 +305,7 @@ def test_partial_order_layer_discrimination_preserves_first_supported_difference
 
 def test_right_censoring_is_propagated_as_observation_debt_not_failure() -> None:
     consequence_payload = _consequence()
-    consequence_payload["source_consequence_horizon"] = {
-        "horizon_definition_state": "DECLARED_SOURCE_HORIZON"
-    }
-    consequence_payload["right_censoring_assessed"] = True
     success_row, failure_row = consequence_payload["occurrence_consequence_projections"]
-    success_row.update({
-        "right_censoring_status": "NOT_CENSORED_ADMITTED_FOLLOWUP_OBSERVED",
-        "right_censoring_assessed": True,
-        "right_censored": False,
-    })
     failure_row.update({
         "consequence_signal_candidates": [],
         "primary_consequence_candidates": ["NO_VISIBLE_FOLLOW_UP_CANDIDATE"],
