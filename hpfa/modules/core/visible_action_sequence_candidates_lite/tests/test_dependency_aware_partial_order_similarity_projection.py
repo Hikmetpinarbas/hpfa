@@ -97,6 +97,28 @@ def _payload(*variants, same_time_policy=False):
     }
 
 
+def _period_test_contract():
+    return {
+        "comparison_question_id": "half_to_half_process_evolution_v1",
+        "football_question": "Does the same visible process family branch differently across periods?",
+        "analysis_scale": "PARTIAL_ORDER_OCCURRENCE_VARIANT",
+        "candidate_universe": "CURRENT_MATCH_PARTIAL_ORDER_OCCURRENCE_VARIANTS",
+        "anchor_process_family": "STRUCTURAL_PARTIAL_ORDER_FAMILY_CANDIDATE",
+        "comparison_target": "PERIOD_VARIATION",
+        "required_exact_dimensions": ["team", "partial_order_structure"],
+        "required_coarsened_dimensions": [],
+        "allowed_test_dimensions": ["period"],
+        "optional_similarity_dimensions": [],
+        "forbidden_leakage_dimensions": ["outcome_signature", "terminal_consequence"],
+        "required_observation_capabilities": ["TEAM_IDENTITY", "PERIOD_CONTEXT", "PARTIAL_ORDER_STRUCTURE"],
+        "optional_observation_capabilities": [],
+        "consequence_horizon": "ATTACH_ONLY_AFTER_COMPARABLE_SET_FREEZE",
+        "minimum_support_rule": "AT_LEAST_TWO_ELIGIBLE_CASES",
+        "minimum_spread_rule": "DESCRIBE_SPREAD_DO_NOT_INFER_INDEPENDENCE",
+        "claim_ceiling": "QUESTION_CONDITIONED_OUTCOME_BLIND_PROCESS_COMPARABLE_SET_CANDIDATE_ONLY",
+    }
+
+
 def _pair(result):
     assert result["dependency_aware_partial_order_similarity_pair_count"] == 1
     return result["dependency_aware_partial_order_similarity_pairs"][0]
@@ -135,6 +157,24 @@ def test_provenance_distinct_exact_match_is_comparable_without_independence_clai
     assert pair["statistical_independence_proven"] is False
     assert pair["recurrence_candidate_is_independent_support"] is False
     assert result["recurrence_candidate_eligible_pair_count"] == 1
+
+
+def test_comparable_set_freezes_outcome_blind_eligible_denominator():
+    left = _variant("a", outcome="SAME_TEAM_CONTINUATION_CANDIDATE")
+    right = _variant("b", outcome="NO_VISIBLE_FOLLOW_UP_CANDIDATE")
+    result = build_dependency_aware_partial_order_similarity(_payload(left, right))
+
+    assert result["process_comparison_question_contract_status"] == "PASS"
+    assert result["process_comparable_set_count"] == 1
+    comparable_set = result["process_comparable_sets"][0]
+    assert comparable_set["eligible_case_count"] == 2
+    assert comparable_set["eligible_denominator_frozen_before_outcome_attachment"] is True
+    assert comparable_set["outcome_used_in_eligibility"] is False
+    assert comparable_set["outcome_used_in_pair_materialization"] is False
+    assert comparable_set["comparable_set_is_finding"] is False
+    assert result["eligible_denominator_frozen_before_outcome_attachment"] is True
+    assert result["outcome_used_in_comparison_admission"] is False
+    assert result["outcome_used_in_pair_materialization"] is False
 
 
 def test_nonisomorphic_same_histogram_not_exact_match():
@@ -180,7 +220,7 @@ def test_isomorphic_topology_with_different_layer_refs_remains_exact_match():
     assert pair["structural_exact_match"] is True
 
 
-def test_cross_period_pair_is_pruned_before_pair_materialization():
+def test_cross_period_pair_is_pruned_before_pair_materialization_by_default():
     result = build_dependency_aware_partial_order_similarity(
         _payload(_variant("a", period="1"), _variant("b", period="2"))
     )
@@ -188,6 +228,38 @@ def test_cross_period_pair_is_pruned_before_pair_materialization():
     assert result["source_all_possible_pair_count"] == 1
     assert result["comparison_prefilter_pruned_pair_count"] == 1
     assert result["cross_period_pairs_materialized"] is False
+
+
+def test_period_test_dimension_allows_cross_period_comparison_without_recurrence_promotion():
+    payload = _payload(_variant("a", period="1"), _variant("b", period="2"))
+    payload["process_comparison_question_contract"] = _period_test_contract()
+    result = build_dependency_aware_partial_order_similarity(payload)
+    pair = _pair(result)
+
+    assert result["status"] == "PASS"
+    assert pair["comparison_eligibility_state"] == "COMPARABLE_FOR_DECLARED_PERIOD_TEST_DIMENSION"
+    assert pair["process_comparison_eligibility_grade"] == "STRICT_ELIGIBLE"
+    assert pair["comparison_eligible"] is True
+    assert pair["same_period_comparison"] is False
+    assert pair["recurrence_candidate_eligible"] is False
+    assert result["cross_period_pairs_materialized"] is True
+    assert result["process_comparable_set_count"] == 1
+    assert result["process_comparable_sets"][0]["resolved_context"]["period_candidates"] == ["1", "2"]
+    assert result["process_comparable_sets"][0]["allowed_test_dimensions"] == ["period"]
+
+
+def test_test_dimension_cannot_also_be_required_exact_match():
+    payload = _payload(_variant("a", period="1"), _variant("b", period="2"))
+    contract = _period_test_contract()
+    contract["required_exact_dimensions"] = ["team", "period", "partial_order_structure"]
+    payload["process_comparison_question_contract"] = contract
+
+    result = build_dependency_aware_partial_order_similarity(payload)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["process_comparison_question_contract_status"] == "FAIL_CLOSED"
+    assert result["process_comparable_set_count"] == 0
+    assert "comparison_question_test_dimension_exact_match_overlap" in result["hard_block_hits"]
 
 
 def test_missing_period_context_is_reviewed_and_not_materialized():
@@ -218,8 +290,11 @@ def test_outcome_difference_does_not_drive_structural_or_comparison_eligibility(
     assert pair["comparison_eligible"] is True
     assert pair["outcome_contrast_state"] == "DIFFERENT_OBSERVED_OUTCOME_SIGNATURE"
     assert pair["outcome_used_in_similarity_decision"] is False
+    assert pair["outcome_used_in_comparison_admission"] is False
     assert result["outcome_used_in_similarity_decision"] is False
-    assert result["outcome_used_only_for_representative_materialization_after_structural_admission"] is True
+    assert result["outcome_used_in_comparison_admission"] is False
+    assert result["outcome_used_in_pair_materialization"] is False
+    assert result["outcome_used_only_for_representative_materialization_after_structural_admission"] is False
 
 
 def test_structure_mismatch_is_pruned_before_pair_materialization():
@@ -244,6 +319,8 @@ def test_large_exact_group_uses_representative_surface_not_all_pairs():
     assert result["coarse_signature_is_only_prefilter"] is True
     assert result["structural_exact_match_requires_relation_preserving_topology"] is True
     assert result["topology_filter_can_create_new_pair"] is False
+    assert result["process_comparable_set_count"] == 1
+    assert result["process_comparable_sets"][0]["eligible_case_count"] == 1000
     assert all(row["comparison_eligible"] is True for row in result["dependency_aware_partial_order_similarity_pairs"])
 
 
@@ -253,6 +330,7 @@ def test_same_timestamp_policy_breach_fails_closed():
     )
     assert result["status"] == "FAIL_CLOSED"
     assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert result["process_comparable_set_count"] == 0
     assert "same_timestamp_internal_ordering_policy_breached" in result["hard_block_hits"]
 
 
