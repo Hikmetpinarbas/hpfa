@@ -6,6 +6,9 @@ from pathlib import Path
 
 import cross_role_relation_candidate_resolver_current_v1 as current_relation
 from hpfa.modules.core.action_occurrence_admission_lite.src import action_occurrence_admission as occurrence
+from hpfa.modules.core.action_occurrence_admission_lite.src.action_grammar_public_adapter import (
+    bind_intra_actor_action_grammar,
+)
 from hpfa.modules.core.action_occurrence_admission_lite.src.conditional_review_passthrough import (
     build_action_occurrence_admission_with_conditional_review,
 )
@@ -43,11 +46,23 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "match_surface_binding_id": relation_payload.get("match_surface_binding_id"),
             "action_occurrence_candidates": [],
             "action_occurrence_candidate_count": 0,
+            "interaction_occurrence_candidate_count": 0,
+            "intra_actor_action_grammar_candidate_count": 0,
+            "intra_actor_action_grammar_candidates": [],
+            "single_action_anchor_occurrence_candidate_count": 0,
+            "single_action_anchor_occurrence_candidates": [],
+            "single_action_anchor_family_counts": {},
+            "single_action_anchor_source_role_counts": {},
+            "single_action_anchor_not_admitted_with_reason_counts": {},
+            "semantic_consumer_coverage_state_vocabulary": [],
+            "unknown_downstream_usage_is_not_non_use": True,
             "admission_class_counts": {},
             "interaction_type_counts": {},
             "conditional_review_passthrough_record_count": 0,
             "conditional_review_passthrough_candidate_count": 0,
             "candidate_rejected_provider_semantics_binding_count": 0,
+            "intra_actor_action_grammar_rejected_provider_semantics_binding_count": 0,
+            "intra_actor_action_grammar_contradictory_semantics_count": 0,
             "provider_semantics_binding_required": True,
             "provider_semantics_binding_status": "FAIL_CLOSED",
             "hard_block_hits": ["current_relation_or_required_action_outputs_missing"],
@@ -56,6 +71,8 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "near_time_or_space_admission_enabled": False,
             "probability_output_allowed": False,
             "same_time_total_order_allowed": False,
+            "same_timestamp_alone_is_merge_authority": False,
+            "single_label_alone_is_event_truth": False,
             "source_row_order_is_temporal_truth": False,
             "coordinate_is_physical_player_position": False,
             "independent_csv_xml_vote_allowed": False,
@@ -80,11 +97,19 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     action_payload = _load(action_path)
     taxonomy_payload = _load(taxonomy_path)
     evidence_payload = _load(evidence_path)
+    registry_payload = occurrence.load_registry()
     payload = build_action_occurrence_admission_with_conditional_review(
         action_payload,
         taxonomy_payload,
         relation_payload,
         evidence_payload,
+        registry_payload,
+    )
+    payload = bind_intra_actor_action_grammar(
+        payload,
+        action_payload,
+        evidence_payload,
+        registry_payload,
     )
     payload["current_relation_status"] = relation_payload.get("status")
     payload["current_taxonomy_status"] = relation_payload.get("current_taxonomy_status")
@@ -123,10 +148,16 @@ def main() -> int:
                 ),
                 "provider_semantics_binding_status": payload.get("provider_semantics_binding_status"),
                 "action_occurrence_candidate_count": payload.get("action_occurrence_candidate_count"),
+                "interaction_occurrence_candidate_count": payload.get("interaction_occurrence_candidate_count", 0),
+                "intra_actor_action_grammar_candidate_count": payload.get("intra_actor_action_grammar_candidate_count", 0),
+                "single_action_anchor_occurrence_candidate_count": payload.get("single_action_anchor_occurrence_candidate_count", 0),
+                "single_action_anchor_family_counts": payload.get("single_action_anchor_family_counts") or {},
+                "single_action_anchor_source_role_counts": payload.get("single_action_anchor_source_role_counts") or {},
                 "conditional_review_passthrough_record_count": payload.get("conditional_review_passthrough_record_count", 0),
                 "conditional_review_passthrough_candidate_count": payload.get("conditional_review_passthrough_candidate_count", 0),
                 "candidate_rejected_missing_primary_support_count": payload.get("candidate_rejected_missing_primary_support_count", 0),
                 "candidate_rejected_provider_semantics_binding_count": payload.get("candidate_rejected_provider_semantics_binding_count", 0),
+                "intra_actor_action_grammar_contradictory_semantics_count": payload.get("intra_actor_action_grammar_contradictory_semantics_count", 0),
                 "admission_class_counts": payload.get("admission_class_counts") or {},
                 "interaction_type_counts": payload.get("interaction_type_counts") or {},
                 "hard_block_hits": payload.get("hard_block_hits") or [],

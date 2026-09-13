@@ -1,0 +1,59 @@
+{
+  "registry_id": "single_action_anchor_admission_v1",
+  "version": "1.0.0",
+  "status": "REVIEWED_CANDIDATE_RULES_ONLY",
+  "rule_id": "single_action_anchor_exact_reviewed_v1",
+  "purpose": "Admit one conservative action-occurrence candidate from one exact reviewed ACTION_ANCHOR Evidence Atom already bound inside one exact same-role Action Bundle. This never establishes canonical event truth or true action count.",
+  "allowed_source_roles": [
+    "PLAYER_SURFACE_CANDIDATE",
+    "GOALKEEPER_SURFACE_CANDIDATE"
+  ],
+  "required_bundle_state": {
+    "bundle_status": "PASS",
+    "same_role_exact_grouping": true,
+    "coordinate_evidence_status": "COORDINATE_PRESENT",
+    "supporting_evidence_atom_count": 1,
+    "distinct_label_count": 1
+  },
+  "required_evidence_atom_state": {
+    "atom_class": "ACTION_ANCHOR_ATOM",
+    "atom_status": "PASS",
+    "semantic_role_candidate": "ACTION_ANCHOR",
+    "semantic_mapping_status": "EXACT_REVIEWED_CANDIDATE",
+    "downstream_eligibility": "ACTION_CANDIDATE_ELIGIBLE",
+    "action_eligible": true
+  },
+  "required_exact_bindings": [
+    "match_surface_binding_id",
+    "source_role",
+    "period_candidate",
+    "start_candidate",
+    "end_candidate",
+    "pos_x_candidate",
+    "pos_y_candidate",
+    "action_family_candidate"
+  ],
+  "forbidden_authorities": [
+    "same timestamp alone",
+    "source row order",
+    "CSV/XML format agreement as independent vote",
+    "XLSX aggregate row",
+    "provider label as physical or tactical truth"
+  ],
+  "consumer_coverage_states": [
+    "CONSUMED",
+    "NOT_ADMITTED_WITH_REASON",
+    "NOT_APPLICABLE",
+    "DOWNSTREAM_USAGE_UNKNOWN"
+  ],
+  "claim_boundary": {
+    "action_occurrence_candidate_is_event_truth": false,
+    "physical_action_identity_truth": false,
+    "sequence_truth": false,
+    "possession_truth": false,
+    "causality_truth": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "production_release": false
+  }
+}

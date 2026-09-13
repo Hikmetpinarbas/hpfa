@@ -8,6 +8,24 @@ import trackable_action_consequence_candidates_current_v1 as current_consequence
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src import (
     visible_action_sequence_candidates as sequence,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.anchor_centered_sequence_branch_map_projection import (
+    build_anchor_centered_sequence_branch_maps,
+)
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.comparable_outcome_counterevidence_projection import (
+    build_comparable_outcome_counterevidence,
+)
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.dependency_aware_partial_order_similarity_projection import (
+    build_dependency_aware_partial_order_similarity,
+)
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.first_supported_branch_divergence_projection import (
+    build_first_supported_branch_divergence,
+)
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.occurrence_temporal_sequence_projection import (
+    build_occurrence_temporal_sequence_projection,
+)
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.partial_order_occurrence_variant_projection import (
+    build_partial_order_occurrence_variants,
+)
 
 
 def _load(path: Path) -> dict:
@@ -18,14 +36,300 @@ def _load(path: Path) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _bind_occurrence_projection(payload: dict, trace_payload: dict, consequence_payload: dict) -> dict:
+    projection = build_occurrence_temporal_sequence_projection(trace_payload, consequence_payload)
+    payload["occurrence_temporal_projection_status"] = projection.get("status")
+    payload["occurrence_temporal_time_layer_candidates"] = list(
+        projection.get("occurrence_temporal_time_layer_candidates") or []
+    )
+    payload["occurrence_temporal_time_layer_candidate_count"] = int(
+        projection.get("occurrence_temporal_time_layer_candidate_count") or 0
+    )
+    payload["occurrence_temporal_sequence_candidates"] = list(
+        projection.get("occurrence_temporal_sequence_candidates") or []
+    )
+    payload["occurrence_temporal_sequence_candidate_count"] = int(
+        projection.get("occurrence_temporal_sequence_candidate_count") or 0
+    )
+    payload["eligible_occurrence_after_confirmed_edge_count"] = int(
+        projection.get("eligible_occurrence_after_confirmed_edge_count") or 0
+    )
+    payload["occurrence_temporal_rejected_edge_reason_counts"] = dict(
+        projection.get("rejected_edge_reason_counts") or {}
+    )
+    payload["occurrence_temporal_projection_claim_ceiling"] = "VISIBLE_SEQUENCE_CANDIDATE_ONLY"
+    payload["occurrence_temporal_projection_is_sequence_truth"] = False
+    payload["occurrence_temporal_projection_is_possession_truth"] = False
+    payload["occurrence_temporal_projection_is_causal_truth"] = False
+    payload["occurrence_temporal_projection_is_tactical_truth"] = False
+    payload["occurrence_temporal_projection_is_primary_consumer_candidate"] = bool(
+        payload["occurrence_temporal_sequence_candidate_count"] > 0
+    )
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("occurrence_temporal_projection_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
+def _promote_occurrence_temporal_primary(payload: dict) -> dict:
+    projection_status = str(payload.get("occurrence_temporal_projection_status") or "").strip().upper()
+    occurrence_layers = payload.get("occurrence_temporal_time_layer_candidates")
+    occurrence_sequences = payload.get("occurrence_temporal_sequence_candidates")
+    if projection_status != "PASS" or not isinstance(occurrence_layers, list) or not isinstance(occurrence_sequences, list):
+        payload["primary_sequence_projection_mode"] = "LEGACY_TRACE_COMPATIBILITY"
+        payload["occurrence_temporal_primary_inventory_admitted"] = False
+        return payload
+
+    if not occurrence_sequences:
+        payload["primary_sequence_projection_mode"] = "LEGACY_TRACE_COMPATIBILITY_EMPTY_OCCURRENCE_PROJECTION"
+        payload["occurrence_temporal_primary_inventory_admitted"] = False
+        payload["occurrence_temporal_empty_projection_requires_review"] = True
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("occurrence_temporal_primary_inventory_empty")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+        return payload
+
+    legacy_layers = list(payload.get("visible_action_time_layer_candidates") or [])
+    legacy_sequences = list(payload.get("visible_action_sequence_candidates") or [])
+    payload["legacy_visible_action_time_layer_candidates"] = legacy_layers
+    payload["legacy_visible_action_sequence_candidates"] = legacy_sequences
+    payload["legacy_visible_action_time_layer_candidate_count"] = len(legacy_layers)
+    payload["legacy_visible_action_sequence_candidate_count"] = len(legacy_sequences)
+    payload["legacy_trace_sequence_surface_is_primary_action_member_surface"] = False
+    payload["legacy_trace_sequence_surface_retained_as_support_context"] = True
+
+    payload["visible_action_time_layer_candidates"] = occurrence_layers
+    payload["visible_action_time_layer_candidate_count"] = len(occurrence_layers)
+    payload["visible_action_sequence_candidates"] = occurrence_sequences
+    payload["visible_action_sequence_candidate_count"] = len(occurrence_sequences)
+    payload["primary_sequence_projection_mode"] = "OCCURRENCE_TEMPORAL_PRIMARY"
+    payload["occurrence_temporal_primary_inventory_admitted"] = True
+    payload["occurrence_temporal_primary_inventory_is_sequence_truth"] = False
+    payload["occurrence_temporal_primary_inventory_is_possession_truth"] = False
+    payload["occurrence_temporal_primary_inventory_is_tactical_truth"] = False
+    payload["occurrence_temporal_primary_inventory_is_causal_truth"] = False
+
+    payload["pass_multi_layer_visible_sequence_candidate_count"] = sum(
+        str(row.get("sequence_record_status") or "") == "PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE"
+        for row in occurrence_sequences
+        if isinstance(row, dict)
+    )
+    payload["pass_single_layer_visible_trace_candidate_count"] = sum(
+        str(row.get("sequence_record_status") or "") == "PASS_SINGLE_LAYER_VISIBLE_TRACE_CANDIDATE"
+        for row in occurrence_sequences
+        if isinstance(row, dict)
+    )
+    payload["review_required_sequence_context_count"] = sum(
+        str(row.get("sequence_record_status") or "") == "REVIEW_REQUIRED_CONTEXT"
+        for row in occurrence_sequences
+        if isinstance(row, dict)
+    )
+    payload["primary_sequence_member_trace_count"] = len(
+        {
+            str(trace_id)
+            for row in occurrence_sequences
+            if isinstance(row, dict)
+            for trace_id in (row.get("trackable_action_trace_candidate_ids") or [])
+            if str(trace_id)
+        }
+    )
+    payload["review_layer_member_trace_count"] = 0
+    payload["trace_assignment_complete"] = False
+    payload["trace_assignment_count"] = int(payload.get("source_trackable_action_trace_candidate_count") or 0)
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
+def _bind_partial_order_variants(payload: dict, trace_payload: dict, consequence_payload: dict) -> dict:
+    projection = build_partial_order_occurrence_variants(payload, trace_payload, consequence_payload)
+    payload["partial_order_occurrence_variant_status"] = projection.get("status")
+    payload["partial_order_occurrence_variants"] = list(
+        projection.get("partial_order_occurrence_variants") or []
+    )
+    payload["partial_order_occurrence_variant_count"] = int(
+        projection.get("partial_order_occurrence_variant_count") or 0
+    )
+    payload["partial_order_occurrence_variant_claim_ceiling"] = projection.get("claim_ceiling")
+    payload["partial_order_occurrence_variant_is_sequence_truth"] = False
+    payload["partial_order_occurrence_variant_is_possession_truth"] = False
+    payload["partial_order_occurrence_variant_is_tactical_pattern_truth"] = False
+    payload["partial_order_occurrence_variant_is_coach_intention_truth"] = False
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("partial_order_occurrence_variant_projection_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
+def _bind_dependency_aware_similarity(payload: dict) -> dict:
+    projection = build_dependency_aware_partial_order_similarity(payload)
+    payload["dependency_aware_partial_order_similarity_status"] = projection.get("status")
+    payload["dependency_aware_partial_order_similarity_pairs"] = list(
+        projection.get("dependency_aware_partial_order_similarity_pairs") or []
+    )
+    payload["dependency_aware_partial_order_similarity_pair_count"] = int(
+        projection.get("dependency_aware_partial_order_similarity_pair_count") or 0
+    )
+    payload["dependency_aware_partial_order_similarity_pair_state_counts"] = dict(
+        projection.get("pair_state_counts") or {}
+    )
+    payload["recurrence_candidate_eligible_pair_count"] = int(
+        projection.get("recurrence_candidate_eligible_pair_count") or 0
+    )
+    payload["outcome_used_in_similarity_decision"] = False
+    payload["dependency_overlap_blocks_independent_recurrence"] = True
+    payload["similarity_is_recurrence_truth"] = False
+    payload["similarity_is_tactical_pattern_truth"] = False
+    payload["dependency_aware_partial_order_similarity_claim_ceiling"] = projection.get("claim_ceiling")
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("dependency_aware_partial_order_similarity_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
+def _bind_anchor_centered_branch_maps(payload: dict) -> dict:
+    projection = build_anchor_centered_sequence_branch_maps(payload)
+    payload["anchor_centered_sequence_branch_map_status"] = projection.get("status")
+    payload["anchor_centered_sequence_branch_maps"] = list(
+        projection.get("anchor_centered_sequence_branch_maps") or []
+    )
+    payload["anchor_centered_sequence_branch_map_count"] = int(
+        projection.get("anchor_centered_sequence_branch_map_count") or 0
+    )
+    payload["anchor_centered_sequence_total_visible_branch_count"] = int(
+        projection.get("total_visible_branch_count") or 0
+    )
+    payload["anchor_centered_sequence_branch_map_claim_ceiling"] = projection.get("claim_ceiling")
+    payload["branch_count_is_recurrence_count"] = False
+    payload["branch_map_is_sequence_truth"] = False
+    payload["branch_map_is_possession_truth"] = False
+    payload["branch_map_is_tactical_plan_truth"] = False
+    payload["branch_map_is_causal_truth"] = False
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("anchor_centered_sequence_branch_map_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
+def _bind_first_supported_divergence(payload: dict, occurrence_payload: dict) -> dict:
+    projection = build_first_supported_branch_divergence(payload, occurrence_payload)
+    payload["first_supported_branch_divergence_status"] = projection.get("status")
+    payload["first_supported_branch_divergence_candidates"] = list(
+        projection.get("first_supported_branch_divergence_candidates") or []
+    )
+    payload["first_supported_branch_divergence_candidate_count"] = int(
+        projection.get("first_supported_branch_divergence_candidate_count") or 0
+    )
+    payload["first_supported_branch_divergence_claim_ceiling"] = projection.get("claim_ceiling")
+    payload["divergence_is_failure_cause_truth"] = False
+    payload["divergence_is_tactical_truth"] = False
+    payload["divergence_branches_are_independent_recurrence_support"] = False
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("first_supported_branch_divergence_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
+def _bind_comparable_outcome_counterevidence(payload: dict) -> dict:
+    projection = build_comparable_outcome_counterevidence(payload)
+    payload["comparable_outcome_counterevidence_status"] = projection.get("status")
+    payload["comparable_outcome_counterevidence_records"] = list(
+        projection.get("comparable_outcome_counterevidence_records") or []
+    )
+    payload["comparable_outcome_counterevidence_record_count"] = int(
+        projection.get("comparable_outcome_counterevidence_record_count") or 0
+    )
+    payload["comparable_outcome_contrast_state_counts"] = dict(
+        projection.get("comparable_outcome_contrast_state_counts") or {}
+    )
+    payload["comparison_eligible_outcome_record_count"] = int(
+        projection.get("comparison_eligible_record_count") or 0
+    )
+    payload["comparable_counterevidence_candidate_count"] = int(
+        projection.get("comparable_counterevidence_candidate_count") or 0
+    )
+    payload["counterevidence_independent_support_count"] = 0
+    payload["counterevidence_is_independent_support"] = False
+    payload["comparable_outcome_counterevidence_claim_ceiling"] = projection.get("claim_ceiling")
+    payload["outcome_difference_is_failure_cause_truth"] = False
+    payload["outcome_difference_is_tactical_pattern_truth"] = False
+    payload["absence_is_counterevidence"] = False
+    payload["safe_finding_handoff_candidates"] = list(
+        projection.get("safe_finding_handoff_candidates") or []
+    )
+    payload["safe_finding_handoff_candidate_count"] = int(
+        projection.get("safe_finding_handoff_candidate_count") or 0
+    )
+    payload["safe_finding_handoff_finding_status_counts"] = dict(
+        projection.get("safe_finding_handoff_finding_status_counts") or {}
+    )
+    payload["professional_finding_emitted_count"] = int(
+        projection.get("professional_finding_emitted_count") or 0
+    )
+    payload["safe_finding_handoff_professional_emit_allowed"] = False
+    payload["safe_finding_handoff_claim_ceiling"] = projection.get("safe_finding_handoff_claim_ceiling")
+    payload["counterexample_pair_count_is_independent_evidence_count"] = False
+    if projection.get("status") == "FAIL_CLOSED":
+        reviews = list(payload.get("review_hits") or [])
+        reviews.append("comparable_outcome_counterevidence_fail_closed_preserved_as_review")
+        payload["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+        if payload.get("status") != "FAIL_CLOSED":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    payload["canonical_event_count"] = "UNKNOWN"
+    payload["true_action_count"] = "UNKNOWN"
+    payload["production_release"] = False
+    return payload
+
+
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
     output = sequence.validate_out(out_dir)
     output.mkdir(parents=True, exist_ok=True)
 
     consequence_payload = current_consequence.runtime_write_outputs(input_dir, output)
     trace_path = output / "trackable_action_trace_candidates_lite_v1.json"
+    occurrence_path = output / "action_occurrence_admission_lite_v1.json"
 
-    if consequence_payload.get("status") == "FAIL_CLOSED" or not trace_path.is_file():
+    if consequence_payload.get("status") == "FAIL_CLOSED" or not trace_path.is_file() or not occurrence_path.is_file():
         return {
             "module_id": sequence.MODULE_ID,
             "status": "FAIL_CLOSED",
@@ -47,7 +351,31 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "review_layer_member_trace_count": 0,
             "trace_assignment_count": 0,
             "trace_assignment_complete": False,
-            "hard_block_hits": ["current_consequence_fail_closed_or_trace_output_missing"],
+            "occurrence_temporal_time_layer_candidates": [],
+            "occurrence_temporal_time_layer_candidate_count": 0,
+            "occurrence_temporal_sequence_candidates": [],
+            "occurrence_temporal_sequence_candidate_count": 0,
+            "eligible_occurrence_after_confirmed_edge_count": 0,
+            "partial_order_occurrence_variants": [],
+            "partial_order_occurrence_variant_count": 0,
+            "dependency_aware_partial_order_similarity_pairs": [],
+            "dependency_aware_partial_order_similarity_pair_count": 0,
+            "recurrence_candidate_eligible_pair_count": 0,
+            "anchor_centered_sequence_branch_maps": [],
+            "anchor_centered_sequence_branch_map_count": 0,
+            "anchor_centered_sequence_total_visible_branch_count": 0,
+            "first_supported_branch_divergence_candidates": [],
+            "first_supported_branch_divergence_candidate_count": 0,
+            "comparable_outcome_counterevidence_records": [],
+            "comparable_outcome_counterevidence_record_count": 0,
+            "comparable_counterevidence_candidate_count": 0,
+            "counterevidence_independent_support_count": 0,
+            "safe_finding_handoff_candidates": [],
+            "safe_finding_handoff_candidate_count": 0,
+            "safe_finding_handoff_finding_status_counts": {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 0},
+            "professional_finding_emitted_count": 0,
+            "safe_finding_handoff_professional_emit_allowed": False,
+            "hard_block_hits": ["current_consequence_or_required_occurrence_trace_output_missing"],
             "review_hits": [],
             "same_timestamp_internal_ordering_allowed": False,
             "source_row_order_is_temporal_truth": False,
@@ -65,7 +393,15 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         }
 
     trace_payload = _load(trace_path)
+    occurrence_payload = _load(occurrence_path)
     payload = sequence.build_visible_action_sequence_candidates(trace_payload, consequence_payload)
+    payload = _bind_occurrence_projection(payload, trace_payload, consequence_payload)
+    payload = _promote_occurrence_temporal_primary(payload)
+    payload = _bind_partial_order_variants(payload, trace_payload, consequence_payload)
+    payload = _bind_dependency_aware_similarity(payload)
+    payload = _bind_anchor_centered_branch_maps(payload)
+    payload = _bind_first_supported_divergence(payload, occurrence_payload)
+    payload = _bind_comparable_outcome_counterevidence(payload)
     payload["current_consequence_status"] = consequence_payload.get("status")
     payload["current_trace_status"] = consequence_payload.get("current_trace_status")
     payload["current_content_source_role_bridge_status"] = consequence_payload.get(
@@ -86,7 +422,10 @@ def main() -> int:
     print(json.dumps({
         "status": payload.get("status"),
         "current_consequence_status": payload.get("current_consequence_status"),
+        "primary_sequence_projection_mode": payload.get("primary_sequence_projection_mode"),
+        "occurrence_temporal_primary_inventory_admitted": payload.get("occurrence_temporal_primary_inventory_admitted"),
         "source_trackable_action_trace_candidate_count": payload.get("source_trackable_action_trace_candidate_count"),
+        "legacy_visible_action_sequence_candidate_count": payload.get("legacy_visible_action_sequence_candidate_count"),
         "visible_action_time_layer_candidate_count": payload.get("visible_action_time_layer_candidate_count"),
         "single_team_primary_layer_count": payload.get("single_team_primary_layer_count"),
         "mixed_team_primary_layer_review_required_count": payload.get("mixed_team_primary_layer_review_required_count"),
@@ -94,6 +433,28 @@ def main() -> int:
         "pass_multi_layer_visible_sequence_candidate_count": payload.get("pass_multi_layer_visible_sequence_candidate_count"),
         "pass_single_layer_visible_trace_candidate_count": payload.get("pass_single_layer_visible_trace_candidate_count"),
         "review_required_sequence_context_count": payload.get("review_required_sequence_context_count"),
+        "occurrence_temporal_sequence_candidate_count": payload.get("occurrence_temporal_sequence_candidate_count"),
+        "eligible_occurrence_after_confirmed_edge_count": payload.get("eligible_occurrence_after_confirmed_edge_count"),
+        "partial_order_occurrence_variant_status": payload.get("partial_order_occurrence_variant_status"),
+        "partial_order_occurrence_variant_count": payload.get("partial_order_occurrence_variant_count"),
+        "dependency_aware_partial_order_similarity_status": payload.get("dependency_aware_partial_order_similarity_status"),
+        "dependency_aware_partial_order_similarity_pair_count": payload.get("dependency_aware_partial_order_similarity_pair_count"),
+        "dependency_aware_partial_order_similarity_pair_state_counts": payload.get("dependency_aware_partial_order_similarity_pair_state_counts") or {},
+        "recurrence_candidate_eligible_pair_count": payload.get("recurrence_candidate_eligible_pair_count"),
+        "anchor_centered_sequence_branch_map_status": payload.get("anchor_centered_sequence_branch_map_status"),
+        "anchor_centered_sequence_branch_map_count": payload.get("anchor_centered_sequence_branch_map_count"),
+        "anchor_centered_sequence_total_visible_branch_count": payload.get("anchor_centered_sequence_total_visible_branch_count"),
+        "first_supported_branch_divergence_status": payload.get("first_supported_branch_divergence_status"),
+        "first_supported_branch_divergence_candidate_count": payload.get("first_supported_branch_divergence_candidate_count"),
+        "comparable_outcome_counterevidence_status": payload.get("comparable_outcome_counterevidence_status"),
+        "comparable_outcome_counterevidence_record_count": payload.get("comparable_outcome_counterevidence_record_count"),
+        "comparable_outcome_contrast_state_counts": payload.get("comparable_outcome_contrast_state_counts") or {},
+        "comparable_counterevidence_candidate_count": payload.get("comparable_counterevidence_candidate_count"),
+        "counterevidence_independent_support_count": payload.get("counterevidence_independent_support_count"),
+        "safe_finding_handoff_candidate_count": payload.get("safe_finding_handoff_candidate_count"),
+        "safe_finding_handoff_finding_status_counts": payload.get("safe_finding_handoff_finding_status_counts") or {},
+        "professional_finding_emitted_count": payload.get("professional_finding_emitted_count"),
+        "safe_finding_handoff_professional_emit_allowed": payload.get("safe_finding_handoff_professional_emit_allowed"),
         "primary_sequence_member_trace_count": payload.get("primary_sequence_member_trace_count"),
         "review_layer_member_trace_count": payload.get("review_layer_member_trace_count"),
         "trace_assignment_complete": payload.get("trace_assignment_complete"),

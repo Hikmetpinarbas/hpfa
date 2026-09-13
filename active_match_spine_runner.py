@@ -19,6 +19,7 @@ from rich_construct_metric_governance_guard import assess_rich_construct_candida
 from shared_surface_snapshot_contract import surface_snapshot_id
 from spine_runner import run_spine_check
 from user_output_bundle import snapshot_output_state, write_standard_user_outputs
+from variant_feature_challenge_runtime_binding import materialize_variant_feature_challenge
 
 RICH_OWNED_OUTPUTS = {
     "rich_multiformat_analysis_lattice_v1.json",
@@ -288,6 +289,36 @@ def _normalize_current_surface_evidence(result: dict) -> None:
         )
 
 
+def _bind_variant_feature_challenge_runtime(result: dict, out_dir: str | Path) -> dict:
+    binding = materialize_variant_feature_challenge(out_dir)
+    result["variant_feature_challenge_runtime_binding"] = binding
+    engineering = result.get("engineering_evidence")
+    if isinstance(engineering, dict):
+        engineering["variant_feature_challenge_current_invocation_materialized"] = (
+            binding.get("artifact_materialized") is True
+        )
+        engineering["variant_feature_challenge_creates_new_evidence"] = False
+        engineering["variant_feature_challenge_can_authorize_emit"] = False
+
+    status = str(binding.get("status") or "").upper()
+    if status == "FAIL_CLOSED":
+        hits = list(result.get("review_hits") or [])
+        hits.append("variant_feature_challenge_runtime_binding_fail_closed")
+        result["review_hits"] = list(dict.fromkeys(hits))
+        if str(result.get("status") or "").upper() != "FAIL_CLOSED":
+            result["status"] = "REVIEW_REQUIRED"
+    return result
+
+
+def _persist_full_spine_result(out_dir: str | Path, result: dict) -> None:
+    target = Path(out_dir).expanduser().resolve(strict=False) / "active_match_full_spine_v1.json"
+    if target.is_file():
+        target.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run HPFA ACTIVE_MATCH spine v1.")
     parser.add_argument("active_match_dir")
@@ -328,6 +359,8 @@ def main() -> int:
             execution_root=execution_root,
         )
         _normalize_current_surface_evidence(result)
+        _bind_variant_feature_challenge_runtime(result, args.out_dir)
+        _persist_full_spine_result(args.out_dir, result)
         user_outputs = write_standard_user_outputs(
             args.out_dir,
             result,
