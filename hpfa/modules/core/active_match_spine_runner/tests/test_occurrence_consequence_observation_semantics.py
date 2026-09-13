@@ -77,8 +77,14 @@ def _episode_payload(
     boundary_second: float,
     *,
     review_debt_count: int = 0,
+    review_reason: str | None = None,
     same_time_collision: bool = False,
 ) -> dict:
+    review_refs = (
+        [{"context_id": "ctx_admin", "reason": review_reason}]
+        if review_reason
+        else []
+    )
     return {
         "status": "REVIEW_REQUIRED",
         "administrative_boundary_candidates": [
@@ -88,6 +94,7 @@ def _episode_payload(
                 "period_candidate": "1",
                 "second_candidate": boundary_second,
                 "review_debt_count": review_debt_count,
+                "review_debt_refs": review_refs,
                 "same_time_visible_layer_collision": same_time_collision,
                 "boundary_can_split_same_time_visible_layer": False,
                 "boundary_is_football_action_truth": False,
@@ -153,7 +160,7 @@ def test_admin_boundary_before_full_horizon_marks_right_censoring_not_failure() 
     assert row["no_visible_followup_is_failure"] is False
 
 
-def test_boundary_review_debt_keeps_censoring_unresolved() -> None:
+def test_unspecified_boundary_review_debt_keeps_censoring_unresolved() -> None:
     payload = build_occurrence_consequence_projection(
         _trace_payload(),
         _consequence_payload(),
@@ -166,6 +173,27 @@ def test_boundary_review_debt_keeps_censoring_unresolved() -> None:
     assert row["right_censoring_assessed"] is False
     assert payload["right_censoring_assessed"] is False
     assert "right_censoring_unresolved_occurrence_present" in payload["review_hits"]
+
+
+def test_serialization_only_boundary_review_debt_does_not_block_censoring_assessment() -> None:
+    payload = build_occurrence_consequence_projection(
+        _trace_payload(),
+        _consequence_payload(),
+        _episode_payload(
+            18.0,
+            review_debt_count=3,
+            review_reason="visible_field_serialization_discrepancy",
+        ),
+    )
+    row = payload["occurrence_consequence_projections"][0]
+    assert row["right_censoring_status"] == "RIGHT_CENSORED_BY_ADMIN_BOUNDARY"
+    assert row["right_censoring_assessed"] is True
+    assert row["right_censored"] is True
+    assert row["observation_boundary_review_reasons"] == [
+        "visible_field_serialization_discrepancy"
+    ]
+    assert row["administrative_boundary_reflections_are_independent_evidence_votes"] is False
+    assert payload["administrative_boundary_reflections_are_independent_evidence_votes"] is False
 
 
 def test_numeric_visible_followup_without_admitted_order_stays_unresolved() -> None:
@@ -268,6 +296,7 @@ def test_truth_and_release_locks_remain_closed() -> None:
     assert payload["administrative_boundary_is_football_action_truth"] is False
     assert payload["administrative_boundary_is_phase_truth"] is False
     assert payload["administrative_boundary_orders_same_time_action"] is False
+    assert payload["administrative_boundary_reflections_are_independent_evidence_votes"] is False
     assert payload["canonical_event_count"] == "UNKNOWN"
     assert payload["true_action_count"] == "UNKNOWN"
     assert payload["production_release"] is False
