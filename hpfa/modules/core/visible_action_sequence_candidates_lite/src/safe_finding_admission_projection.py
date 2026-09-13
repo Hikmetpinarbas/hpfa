@@ -6,6 +6,7 @@ from typing import Any
 CLAIM_CEILING_EMIT = "DEFEASIBLE_MATCH_LOCAL_PROFESSIONAL_FINDING_ONLY"
 CLAIM_CEILING_DOWNGRADE = "MATCH_LOCAL_SAFE_FINDING_CUE_ONLY"
 CLAIM_CEILING_ABSTAIN = "NO_CLAIM_OUTPUT"
+_ALLOWED_ALTERNATIVE_KEYS = {"code", "meaning"}
 
 
 def _clean(value: Any) -> str:
@@ -16,6 +17,32 @@ def _refs(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return sorted({_clean(item) for item in value if _clean(item)})
+
+
+def _validated_alternatives(value: Any) -> tuple[list[dict[str, str]], str | None]:
+    """Accept only the compact non-truth-bearing alternative schema.
+
+    Alternative explanations can satisfy the challenge-surface requirement only when each
+    row is an explicit ``code`` + ``meaning`` observation-level explanation. Arbitrary or
+    truth-bearing fields must not be laundered into a claim-enabled finding.
+    """
+    if value is None:
+        return [], None
+    if not isinstance(value, list):
+        return [], "alternative_explanations_invalid"
+
+    validated: list[dict[str, str]] = []
+    for row in value:
+        if not isinstance(row, dict):
+            return [], "alternative_explanation_not_object"
+        if set(row) - _ALLOWED_ALTERNATIVE_KEYS:
+            return [], "alternative_explanation_schema_not_allowlisted"
+        code = _clean(row.get("code"))
+        meaning = _clean(row.get("meaning"))
+        if not code or not meaning:
+            return [], "alternative_explanation_incomplete"
+        validated.append({"code": code, "meaning": meaning})
+    return validated, None
 
 
 def _abstain(source_ref: str | None, *reasons: str) -> dict[str, Any]:
@@ -34,6 +61,10 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
     This projection is intentionally tiny: it creates no evidence, copies no sequence or
     counterevidence inventory, and never re-runs discovery. It only references the source
     handoff and returns a decision plus compact reasons.
+
+    An upstream REVIEW_REQUIRED envelope is not assumed to be row-scoped. Until the
+    upstream producer carries machine-readable review-to-handoff lineage, that review debt
+    can preserve a match-local cue but cannot authorize a professional EMIT.
     """
     hard_blocks: list[str] = []
     review_hits: list[str] = []
@@ -63,7 +94,10 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
         }
 
     source_status = _clean(sequence_payload.get("comparable_outcome_counterevidence_status")).upper()
-    if source_status not in {"PASS", "REVIEW_REQUIRED"}:
+    source_review_unscoped = source_status == "REVIEW_REQUIRED"
+    if source_review_unscoped:
+        review_hits.append("counterevidence_upstream_review_unscoped")
+    elif source_status != "PASS":
         review_hits.append(f"counterevidence_status_unrecognized:{source_status or 'UNKNOWN'}")
 
     decisions: list[dict[str, Any]] = []
@@ -106,7 +140,7 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
         independence_proven = support.get("dependency_independence_proven") is True
         statistical_independence_proven = support.get("statistical_independence_proven") is True
         counter_refs = _refs(counterevidence.get("comparable_counterexample_refs"))
-        alternatives = handoff.get("alternative_explanations")
+        alternatives, alternatives_error = _validated_alternatives(handoff.get("alternative_explanations"))
         withdrawals = _refs(handoff.get("withdrawal_conditions"))
         forbidden = _refs(handoff.get("forbidden_inference"))
         safe_meaning = _clean(handoff.get("safe_meaning"))
@@ -120,8 +154,22 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
         if not safe_meaning or not forbidden or not withdrawals:
             decisions.append(_abstain(source_ref, "safe_finding_contract_incomplete"))
             continue
-        if alternatives is not None and not isinstance(alternatives, list):
-            decisions.append(_abstain(source_ref, "alternative_explanations_invalid"))
+        if alternatives_error:
+            decisions.append(_abstain(source_ref, alternatives_error))
+            continue
+
+        uncertainty = handoff.get("uncertainty")
+        if isinstance(uncertainty, dict) and any(
+            uncertainty.get(key) is True
+            for key in (
+                "no_visible_followup_is_failure",
+                "absence_of_evidence_is_counterevidence",
+                "robustness_is_tactical_pattern_truth",
+                "recurrence_is_tactical_intention_truth",
+                "censoring_is_failure",
+            )
+        ):
+            decisions.append(_abstain(source_ref, "uncertainty_truth_lock_breached"))
             continue
 
         challenge_visible = bool(counter_refs) or bool(alternatives)
@@ -136,6 +184,8 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
             emit_reasons.append("STATISTICAL_INDEPENDENCE_NOT_PROVEN")
         if not challenge_visible:
             emit_reasons.append("CHALLENGE_SURFACE_EMPTY")
+        if source_review_unscoped:
+            emit_reasons.append("UPSTREAM_COUNTEREVIDENCE_REVIEW_UNSCOPED")
 
         if not emit_reasons:
             decision = "EMIT"
@@ -180,6 +230,8 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
         "decision_projection_creates_new_evidence": False,
         "decision_projection_reconstructs_sequences": False,
         "review_required_is_not_fail": True,
+        "unscoped_upstream_review_can_authorize_emit": False,
+        "malformed_alternative_can_satisfy_challenge": False,
         "hard_block_hits": [],
         "review_hits": sorted(set(review_hits)),
         "canonical_event_count": "UNKNOWN",
