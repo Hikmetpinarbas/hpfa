@@ -6,6 +6,7 @@ from typing import Any
 
 FEATURE_DELTA_JSON = "grammar_stable_variant_feature_delta_projection_v1.json"
 IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
+OCCURRENCE_CONSEQUENCE_JSON = "occurrence_consequence_projection_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -23,6 +24,10 @@ def _declared_current(full_spine: dict[str, Any], filename: str) -> bool:
     return False
 
 
+def _pretty_key(value: Any) -> str:
+    return str(value or "").strip().replace("_", " ").title()
+
+
 def _team_names(identity_payload: dict[str, Any]) -> dict[str, str]:
     result: dict[str, str] = {}
     for row in identity_payload.get("team_identity_candidates") or []:
@@ -31,7 +36,19 @@ def _team_names(identity_payload: dict[str, Any]) -> dict[str, str]:
         ref = str(row.get("team_identity_candidate_id") or "").strip()
         name = str(row.get("team_normalized_key") or "").strip()
         if ref and name:
-            result[ref] = name.replace("_", " ").title()
+            result[ref] = _pretty_key(name)
+    return result
+
+
+def _actor_names(identity_payload: dict[str, Any]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for row in identity_payload.get("actor_identity_candidates") or []:
+        if not isinstance(row, dict):
+            continue
+        ref = str(row.get("actor_identity_candidate_id") or "").strip()
+        name = str(row.get("actor_normalized_key") or "").strip()
+        if ref and name:
+            result[ref] = _pretty_key(name)
     return result
 
 
@@ -68,14 +85,88 @@ def _fmt_counts(row: dict[str, Any] | None) -> str | None:
     )
 
 
+def _occurrence_spine_lines(root: Path, full_spine: dict[str, Any]) -> list[str]:
+    if not _declared_current(full_spine, OCCURRENCE_CONSEQUENCE_JSON):
+        return [
+            "primary_occurrence_spine=UNAVAILABLE_CURRENT_INVOCATION",
+            "surface_role_note=Episode/action-volume adaylari primary action identity sayimi degildir.",
+        ]
+    payload = _load_json(root / OCCURRENCE_CONSEQUENCE_JSON)
+    if not payload or str(payload.get("status") or "").upper() == "FAIL_CLOSED":
+        return [
+            "primary_occurrence_spine=FAIL_CLOSED_OR_UNREADABLE",
+            "surface_role_note=Episode/action-volume adaylari primary action identity sayimi degildir.",
+        ]
+    return [
+        "primary_occurrence_spine: "
+        f"occurrence_candidates={int(payload.get('occurrence_consequence_projection_count') or 0)} "
+        f"visible_consequence_support={int(payload.get('occurrence_with_visible_consequence_support_count') or 0)} "
+        f"fully_observed_no_followup={int(payload.get('complete_to_declared_horizon_no_admitted_followup_count') or 0)} "
+        f"right_censored={int(payload.get('right_censored_occurrence_count') or 0)} "
+        f"unresolved_censoring={int(payload.get('right_censoring_unresolved_occurrence_count') or 0)}",
+        "surface_role_note=Primary occurrence spine futbol aksiyon-uyesi aday yuzeyidir; "
+        "episode/action-volume ve legacy trace yuzeyleri support/context'tir, canonical action count degildir.",
+    ]
+
+
+def _context_focus_candidates(record: dict[str, Any]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for row in record.get("context_feature_difference_candidates") or []:
+        if not isinstance(row, dict):
+            continue
+        token = str(row.get("feature_token") or "")
+        # Outcome-adjacent, navigation-only, provider-direction and generic participation
+        # labels are not promoted as positive football mechanism review focus.
+        if "process_shot_present_annotation_candidate" in token:
+            continue
+        if "process_episode_navigation_binding_visible" in token:
+            continue
+        if "provider_direction_candidates" in token:
+            continue
+        if "process_semantic_role" in token:
+            continue
+        if "actor_identity_candidate_ids:" in token or "process_family_candidate:" in token:
+            result.append(row)
+    return result
+
+
+def _render_context_focus(record: dict[str, Any], actors: dict[str, str]) -> str:
+    candidates = _context_focus_candidates(record)
+    if not candidates:
+        return "NO_NON_OUTCOME_CONTEXT_OR_ACTOR_CONTRAST_EXPOSED"
+    row = max(
+        candidates,
+        key=lambda item: abs(float(item.get("descriptive_rate_delta_success_minus_failure") or 0.0)),
+    )
+    token = str(row.get("feature_token") or "")
+    label = token
+    if "actor_identity_candidate_ids:" in token:
+        actor_ref = token.rsplit("actor_identity_candidate_ids:", 1)[-1]
+        label = "actor=" + actors.get(actor_ref, actor_ref)
+    elif "process_family_candidate:" in token:
+        family = token.rsplit("process_family_candidate:", 1)[-1]
+        label = "process_context=" + _pretty_key(family)
+    success_n = int(row.get("success_visible_numerator") or 0)
+    success_d = int(row.get("success_eligible_denominator") or 0)
+    failure_n = int(row.get("failure_visible_numerator") or 0)
+    failure_d = int(row.get("failure_eligible_denominator") or 0)
+    delta = float(row.get("descriptive_rate_delta_success_minus_failure") or 0.0)
+    return (
+        f"{label} success={success_n}/{success_d} failure={failure_n}/{failure_d} "
+        f"descriptive_rate_delta={delta:+.3f}"
+    )
+
+
 def build_mechanism_review_lines(
     output_root: str | Path,
     full_spine: dict[str, Any],
 ) -> list[str]:
-    """Render existing grammar-stable feature-delta evidence for analyst review only.
+    """Render current grammar-stable process differences for analyst review only.
 
-    This function creates no evidence, no ranking, no causal/tactical claim and no EMIT
-    authority. It only exposes current-invocation producer output in football-readable form.
+    This function creates no evidence, no causal/tactical claim and no EMIT authority.
+    Continuation/handover contrasts are explicitly treated as outcome-adjacent; the
+    positive review focus is the largest currently exposed non-outcome actor/process
+    context contrast, when one exists.
     """
     root = Path(output_root)
     if not _declared_current(full_spine, FEATURE_DELTA_JSON):
@@ -87,6 +178,7 @@ def build_mechanism_review_lines(
 
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     teams = _team_names(identity)
+    actors = _actor_names(identity)
     records = [
         row for row in (payload.get("grammar_stable_variant_feature_delta_records") or [])
         if isinstance(row, dict)
@@ -97,6 +189,8 @@ def build_mechanism_review_lines(
     lines = [
         "Bu bolum YAYINLANABILIR BULGU degildir; analyst-review mekanizma adayidir.",
         "Adaylar siralanmamistir. Oranlar gercek basari olasiligi degildir ve causality/tactical-plan kaniti sayilmaz.",
+        *_occurrence_spine_lines(root, full_spine),
+        "information_value_guard=SUCCESS/FAILURE ile same-team continuation/opponent handover farki outcome'a yakindir; tek basina mac mekanizmasi sayilmaz.",
     ]
     for index, record in enumerate(records, start=1):
         team_ids = [str(value) for value in (record.get("team_identity_candidate_ids") or []) if str(value)]
@@ -131,19 +225,23 @@ def build_mechanism_review_lines(
             if counts:
                 rendered_facts.append(f"{label} {counts}")
         if rendered_facts:
-            lines.append("  visible_consequence_contrast: " + " | ".join(rendered_facts))
+            lines.append("  outcome_adjacent_consequence_contrast: " + " | ".join(rendered_facts))
+
+        focus = _render_context_focus(record, actors)
+        lines.append("  positive_review_focus: " + focus)
         lines.append(
             f"  uncertainty: process_context_missing={process_context_missing}/{resolved} "
             f"right_censored={right_censored}/{resolved} dependency_independence_proven="
             f"{str(record.get('dependency_independence_proven') is True).lower()}"
         )
         lines.append(
-            "  analyst_meaning: Ayni action-family grammar'i icinde gorunur downstream sonuc farki var; "
-            "neden, taktik plan, oyuncu kalitesi veya gercek basari olasiligi oldugu kanitlanmis degildir."
+            "  analyst_meaning: Once actor/process-context farkini videoda kontrol et; "
+            "continuation/handover farkini tek basina mekanizma, neden, taktik plan, oyuncu kalitesi "
+            "veya gercek basari olasiligi olarak yorumlama."
         )
 
     lines.extend([
-        "analyst_action=VIDEO_OR_MATCH_REVIEW_OF_VISIBLE_DIFFERENCE_CANDIDATES",
+        "analyst_action=VIDEO_OR_MATCH_REVIEW_OF_CONTEXT_ENRICHED_VISIBLE_DIFFERENCE_CANDIDATES",
         "claim_ceiling=ANALYST_REVIEW_MECHANISM_CANDIDATE_ONLY",
         "professional_emit_allowed=false",
     ])
