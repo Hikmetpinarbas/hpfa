@@ -53,6 +53,37 @@ def _variant(
     }
 
 
+def _topology_variant(variant_id: str, edges: list[tuple[int, int]]):
+    layers = [f"layer_{variant_id}_{index}" for index in range(4)]
+    return {
+        "partial_order_occurrence_variant_id": variant_id,
+        "team_identity_candidate_id": "team_a",
+        "period_candidate": "2",
+        "node_records": [
+            {
+                "trace_ref": f"trace_{variant_id}_{index}",
+                "time_layer_ref": layer,
+                "action_family_candidates": ["PASS"],
+                "outcome_candidate": "SAME_TEAM_CONTINUATION_CANDIDATE",
+                "internal_same_time_order": "NOT_APPLICABLE",
+            }
+            for index, layer in enumerate(layers)
+        ],
+        "edge_relations": [
+            {
+                "from_layer_ref": layers[source],
+                "to_layer_ref": layers[target],
+                "relation": "BEFORE_CONFIRMED",
+            }
+            for source, target in edges
+        ],
+        "action_family_signature": [{"action_family_candidate": "PASS", "count": 4}],
+        "outcome_signature": [{"outcome_candidate": "SAME_TEAM_CONTINUATION_CANDIDATE", "count": 4}],
+        "supporting_action_occurrence_candidate_ids": [f"occ_{variant_id}_{index}" for index in range(4)],
+        "dependency_group_refs": [f"dep_{variant_id}"],
+    }
+
+
 def _payload(*variants, same_time_policy=False):
     return {
         "partial_order_occurrence_variant_status": "PASS",
@@ -75,7 +106,11 @@ def test_shared_origin_structural_match_is_comparable_for_branch_contrast_not_re
     left = _variant("a", occurrence_refs=["shared_occ", "a2"], dependency_refs=["shared_dep"])
     right = _variant("b", occurrence_refs=["shared_occ", "b2"], dependency_refs=["shared_dep"])
     pair = _pair(build_dependency_aware_partial_order_similarity(_payload(left, right)))
+    assert pair["coarse_partial_order_signature_match"] is True
+    assert pair["relation_preserving_topology_match"] is True
+    assert pair["structural_exact_equivalence_proven"] is True
     assert pair["structural_exact_match"] is True
+    assert pair["coarse_signature_is_exact_equivalence_proof"] is False
     assert pair["pair_state"] == "DEPENDENT_SHARED_ORIGIN_VARIANT_PAIR"
     assert pair["recurrence_candidate_eligible"] is False
     assert pair["comparison_eligibility_state"] == "COMPARABLE_FOR_SHARED_ORIGIN_BRANCH_CONTRAST"
@@ -92,6 +127,7 @@ def test_provenance_distinct_exact_match_is_comparable_without_independence_clai
     result = build_dependency_aware_partial_order_similarity(_payload(_variant("a"), _variant("b")))
     pair = _pair(result)
     assert pair["structural_exact_match"] is True
+    assert pair["relation_preserving_topology_match"] is True
     assert pair["pair_state"] == "PROVENANCE_DISTINCT_STRUCTURAL_MATCH_CANDIDATE"
     assert pair["recurrence_candidate_eligible"] is True
     assert pair["comparison_eligible"] is True
@@ -99,6 +135,34 @@ def test_provenance_distinct_exact_match_is_comparable_without_independence_clai
     assert pair["statistical_independence_proven"] is False
     assert pair["recurrence_candidate_is_independent_support"] is False
     assert result["recurrence_candidate_eligible_pair_count"] == 1
+
+
+def test_nonisomorphic_same_histogram_not_exact_match():
+    path = _topology_variant("path", [(0, 1), (1, 2), (2, 3)])
+    star = _topology_variant("star", [(0, 1), (0, 2), (0, 3)])
+
+    result = build_dependency_aware_partial_order_similarity(_payload(path, star))
+
+    assert result["status"] == "PASS"
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert result["source_all_possible_pair_count"] == 1
+    assert result["comparison_prefilter_pruned_pair_count"] == 1
+    assert result["coarse_signature_topology_split_group_count"] == 1
+    assert result["topology_mismatch_pairs_materialized"] is False
+    assert result["coarse_signature_is_only_prefilter"] is True
+    assert result["structural_exact_match_requires_relation_preserving_topology"] is True
+
+
+def test_isomorphic_topology_with_different_layer_refs_remains_exact_match():
+    left = _topology_variant("left", [(0, 1), (1, 2), (2, 3)])
+    right = _topology_variant("right", [(0, 1), (1, 2), (2, 3)])
+
+    pair = _pair(build_dependency_aware_partial_order_similarity(_payload(left, right)))
+
+    assert pair["coarse_partial_order_signature_match"] is True
+    assert pair["relation_preserving_topology_match"] is True
+    assert pair["structural_exact_equivalence_proven"] is True
+    assert pair["structural_exact_match"] is True
 
 
 def test_cross_period_pair_is_pruned_before_pair_materialization():
@@ -162,6 +226,8 @@ def test_large_exact_group_uses_representative_surface_not_all_pairs():
     assert result["comparison_prefilter_pruned_pair_count"] == 498501
     assert result["pair_materialization_mode"] == "ELIGIBILITY_GROUP_REPRESENTATIVE_PAIRS"
     assert result["comparison_admission_precedes_pair_materialization"] is True
+    assert result["coarse_signature_is_only_prefilter"] is True
+    assert result["structural_exact_match_requires_relation_preserving_topology"] is True
     assert all(row["comparison_eligible"] is True for row in result["dependency_aware_partial_order_similarity_pairs"])
 
 
