@@ -75,6 +75,28 @@ def _payload(follow_start: float | None) -> tuple[dict, dict]:
     return trace_payload, consequence_payload
 
 
+def _episode_payload(boundary_second: float) -> dict:
+    return {
+        "status": "REVIEW_REQUIRED",
+        "administrative_boundary_candidates": [
+            {
+                "administrative_boundary_candidate_id": "aeb_half",
+                "boundary_type": "HALFTIME",
+                "period_candidate": "1",
+                "second_candidate": boundary_second,
+                "review_debt_count": 0,
+                "same_time_visible_layer_collision": False,
+                "boundary_can_split_same_time_visible_layer": False,
+                "boundary_is_football_action_truth": False,
+                "boundary_is_phase_truth": False,
+            }
+        ],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
 def test_admitted_followup_can_be_horizon_sensitive_without_becoming_terminal_truth() -> None:
     trace_payload, consequence_payload = _payload(16.0)
     result = build_occurrence_consequence_projection(trace_payload, consequence_payload)
@@ -106,18 +128,36 @@ def test_admitted_followup_can_be_horizon_sensitive_without_becoming_terminal_tr
     assert "admitted_followup_horizon_sensitive_occurrence_present" in result["review_hits"]
 
 
-def test_no_admitted_followup_is_stable_observation_but_not_failure_or_censoring_resolution() -> None:
+def test_no_followup_without_observation_end_cannot_be_called_horizon_stable() -> None:
     trace_payload, consequence_payload = _payload(None)
     result = build_occurrence_consequence_projection(trace_payload, consequence_payload)
+
+    row = result["occurrence_consequence_projections"][0]
+    assert row["admitted_followup_horizon_sensitivity_tested"] is False
+    assert row["admitted_followup_horizon_sensitive"] is False
+    assert row["admitted_followup_horizon_sensitivity_state"] == "HORIZON_SENSITIVITY_UNRESOLVED_BY_CENSORING"
+    assert row["followup_observation_status"] == "FOLLOWUP_UNRESOLVED"
+    assert row["observation_status"] == "CENSORING_NOT_ASSESSED"
+    assert row["no_visible_followup_is_failure"] is False
+    assert row["right_censoring_assessed"] is False
+
+
+def test_no_followup_is_stable_only_when_declared_horizon_was_observable() -> None:
+    trace_payload, consequence_payload = _payload(None)
+    result = build_occurrence_consequence_projection(
+        trace_payload,
+        consequence_payload,
+        _episode_payload(30.0),
+    )
 
     row = result["occurrence_consequence_projections"][0]
     assert row["admitted_followup_horizon_sensitivity_tested"] is True
     assert row["admitted_followup_horizon_sensitive"] is False
     assert row["admitted_followup_horizon_sensitivity_state"] == "STABLE_ACROSS_DECLARED_WINDOWS"
     assert row["followup_observation_status"] == "NO_VISIBLE_FOLLOWUP"
-    assert row["observation_status"] == "CENSORING_NOT_ASSESSED"
+    assert row["observation_status"] == "COMPLETE_TO_HORIZON"
+    assert row["right_censoring_assessed"] is True
     assert row["no_visible_followup_is_failure"] is False
-    assert row["right_censoring_assessed"] is False
 
 
 def test_missing_followup_trace_time_keeps_horizon_sensitivity_unresolved() -> None:
