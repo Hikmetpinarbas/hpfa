@@ -131,9 +131,9 @@ def _occurrence_projection_payload() -> dict:
             "window_seconds": [5.0, 8.0, 12.0],
             "maximum_window_seconds": 12.0,
             "max_follow_up_time_layers": 3,
-            "right_censoring_assessed": False,
+            "right_censoring_assessed": True,
         },
-        "right_censoring_assessed": False,
+        "right_censoring_assessed": True,
         "no_visible_followup_is_failure": False,
         "followup_is_terminal_outcome_truth": False,
         "projection_is_causal_truth": False,
@@ -142,6 +142,9 @@ def _occurrence_projection_payload() -> dict:
         "occurrence_consequence_projections": [
             {
                 "action_occurrence_candidate_id": "o1",
+                "right_censoring_status": "NOT_CENSORED_ADMITTED_FOLLOWUP_OBSERVED",
+                "right_censoring_assessed": True,
+                "right_censored": False,
                 "consequence_signal_candidates": ["SAME_TEAM_FOLLOW_UP_VISIBLE"],
                 "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
                 "visible_consequence_support": True,
@@ -152,6 +155,9 @@ def _occurrence_projection_payload() -> dict:
             },
             {
                 "action_occurrence_candidate_id": "o2",
+                "right_censoring_status": "NOT_CENSORED_ADMITTED_FOLLOWUP_OBSERVED",
+                "right_censoring_assessed": True,
+                "right_censored": False,
                 "consequence_signal_candidates": ["OPPONENT_FOLLOW_UP_VISIBLE"],
                 "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
                 "visible_consequence_support": True,
@@ -327,6 +333,8 @@ class SequenceIntelligenceSidecarBindingTest(unittest.TestCase):
             )
             self.assertTrue(family["admitted_followup_horizon_sensitivity_tested"])
             self.assertEqual(family["admitted_followup_horizon_sensitive_variant_count"], 0)
+            self.assertTrue(family["right_censoring_assessed"])
+            self.assertEqual(family["right_censored_variant_count"], 0)
             self.assertFalse(family["difference_is_failure_cause_truth"])
             self.assertFalse(family["difference_is_tactical_explanation"])
             self.assertFalse(delta["difference_rows_are_independent_evidence_votes"])
