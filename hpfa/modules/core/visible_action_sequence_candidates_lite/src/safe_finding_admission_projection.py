@@ -62,9 +62,10 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
     counterevidence inventory, and never re-runs discovery. It only references the source
     handoff and returns a decision plus compact reasons.
 
-    An upstream REVIEW_REQUIRED envelope is not assumed to be row-scoped. Until the
-    upstream producer carries machine-readable review-to-handoff lineage, that review debt
-    can preserve a match-local cue but cannot authorize a professional EMIT.
+    An upstream REVIEW_REQUIRED envelope, or a nominal PASS envelope that still carries
+    unscoped review hits, is not assumed to be row-scoped. Until the upstream producer
+    carries machine-readable review-to-handoff lineage, that review debt can preserve a
+    match-local cue but cannot authorize a professional EMIT.
     """
     hard_blocks: list[str] = []
     review_hits: list[str] = []
@@ -94,11 +95,16 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
         }
 
     source_status = _clean(sequence_payload.get("comparable_outcome_counterevidence_status")).upper()
-    source_review_unscoped = source_status == "REVIEW_REQUIRED"
-    if source_review_unscoped:
+    upstream_review_hits = _refs(sequence_payload.get("review_hits"))
+    source_review_unscoped = source_status == "REVIEW_REQUIRED" or bool(upstream_review_hits)
+    if source_status == "REVIEW_REQUIRED":
         review_hits.append("counterevidence_upstream_review_unscoped")
     elif source_status != "PASS":
         review_hits.append(f"counterevidence_status_unrecognized:{source_status or 'UNKNOWN'}")
+    if upstream_review_hits:
+        review_hits.append("counterevidence_upstream_review_hits_unscoped")
+        if source_status == "PASS":
+            review_hits.append("counterevidence_upstream_pass_with_review_hits")
 
     decisions: list[dict[str, Any]] = []
     for handoff in sequence_payload.get("safe_finding_handoff_candidates") or []:
@@ -111,7 +117,6 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
             decisions.append(_abstain(None, "handoff_id_missing"))
             continue
 
-        # Upstream must never pre-authorize a professional finding. This gate owns that decision.
         if handoff.get("professional_finding_emit_allowed") is not False:
             decisions.append(_abstain(source_ref, "upstream_emit_lock_not_false"))
             continue
@@ -231,6 +236,7 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
         "decision_projection_reconstructs_sequences": False,
         "review_required_is_not_fail": True,
         "unscoped_upstream_review_can_authorize_emit": False,
+        "pass_with_unscoped_review_hits_can_authorize_emit": False,
         "malformed_alternative_can_satisfy_challenge": False,
         "hard_block_hits": [],
         "review_hits": sorted(set(review_hits)),
