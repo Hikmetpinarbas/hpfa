@@ -28,9 +28,9 @@ def _source() -> dict:
     }
 
 
-def _admission(decision: str, allowed: bool) -> dict:
+def _admission(decision: str, allowed: bool, *, status: str = "PASS") -> dict:
     return {
-        "status": "PASS",
+        "status": status,
         "safe_finding_admission_decisions": [
             {
                 "source_safe_finding_handoff_ref": "sfh_1",
@@ -63,6 +63,37 @@ def test_explicit_emit_opens_only_defeasible_match_local_professional_finding() 
     assert row["claim_scope"] == ADMITTED_PROFESSIONAL_FINDING_SCOPE
     assert row["raw_rate_may_be_labeled_probability"] is False
     assert row["match_local_observation_may_be_generalized_cross_match"] is False
+    assert out["review_required_admission_can_authorize_emit"] is False
+
+
+def test_review_required_emit_is_blocked_from_professional_output() -> None:
+    out = build_analyst_output_claim_contract(
+        _source(),
+        _admission("EMIT", True, status="REVIEW_REQUIRED"),
+    )
+    assert out["status"] == "REVIEW_REQUIRED"
+    assert out["professional_emit_allowed"] is False
+    assert out["professional_emit_allowed_count"] == 0
+    row = out["analyst_output_contracts"][0]
+    assert row["safe_finding_admission_decision"] == "ABSTAIN"
+    assert row["professional_emit_allowed"] is False
+    assert row["claim_scope"] == NO_CLAIM_SCOPE
+    assert "safe_finding_admission_review_required" in out["review_hits"]
+    assert "emit_blocked_by_review_required_admission:sfh_1" in out["review_hits"]
+    assert out["review_required_admission_can_authorize_emit"] is False
+
+
+def test_review_required_downgrade_preserves_review_debt_without_emit() -> None:
+    out = build_analyst_output_claim_contract(
+        _source(),
+        _admission("DOWNGRADE", False, status="REVIEW_REQUIRED"),
+    )
+    assert out["status"] == "REVIEW_REQUIRED"
+    assert out["professional_emit_allowed"] is False
+    row = out["analyst_output_contracts"][0]
+    assert row["safe_finding_admission_decision"] == "DOWNGRADE"
+    assert row["claim_scope"] == ANALYST_OUTPUT_CLAIM_SCOPE
+    assert "safe_finding_admission_review_required" in out["review_hits"]
 
 
 def test_downgrade_keeps_professional_emit_closed() -> None:
@@ -97,6 +128,16 @@ def test_admission_fail_closed_blocks_claim_contract() -> None:
     assert out["status"] == "FAIL_CLOSED"
     assert out["analyst_output_contracts"] == []
     assert out["professional_emit_allowed"] is False
+
+
+def test_unrecognized_admission_status_fails_closed() -> None:
+    out = build_analyst_output_claim_contract(
+        _source(),
+        _admission("EMIT", True, status="UNKNOWN_STATUS"),
+    )
+    assert out["status"] == "FAIL_CLOSED"
+    assert out["professional_emit_allowed"] is False
+    assert out["analyst_output_contracts"] == []
 
 
 def test_emit_label_without_claim_output_permission_abstains() -> None:
