@@ -137,8 +137,6 @@ def _context_focus_candidates(record: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(row, dict):
             continue
         token = str(row.get("feature_token") or "")
-        # Outcome-adjacent, navigation-only, provider-direction and generic participation
-        # labels are not promoted as positive football mechanism review focus.
         if "process_shot_present_annotation_candidate" in token:
             continue
         if "process_episode_navigation_binding_visible" in token:
@@ -244,11 +242,6 @@ def _clip_locator_lines(
         return []
     team_refs = {str(value) for value in record.get("team_identity_candidate_ids") or [] if str(value)}
     periods = {str(value) for value in record.get("period_candidates") or [] if str(value)}
-
-    # One exact focus-actor occurrence can be reachable from several shared anchors.
-    # Keep one locator per exact focus timestamp, choosing the richest in-family branch
-    # comparison; tie-break with the earlier anchor. This is identity-based de-duplication,
-    # not an arbitrary temporal window.
     best_by_focus_time: dict[tuple[str, str], tuple[int, float, str]] = {}
 
     for divergence in sequence_payload.get("first_supported_branch_divergence_candidates") or []:
@@ -275,7 +268,6 @@ def _clip_locator_lines(
                 family = str(semantic.get("primary_family_candidate") or "UNRESOLVED")
                 family_profiles_raw.append((outcome, neighbor_time, actor_ref, family))
 
-        # Collapse duplicate semantic rows inside one divergence without changing order.
         seen_profiles: set[tuple[str, tuple[str, str], str, str]] = set()
         family_profiles: list[tuple[str, Any, str, str]] = []
         for outcome, time_value, actor_ref, family in family_profiles_raw:
@@ -318,21 +310,23 @@ def _clip_locator_lines(
     if not best_by_focus_time:
         return []
     selected = sorted(best_by_focus_time.values(), key=lambda item: item[1])
-    return [item[2] for item in selected[:limit]]
+    result: list[str] = []
+    seen_rendered: set[str] = set()
+    for _richness, _anchor, rendered in selected:
+        if rendered in seen_rendered:
+            continue
+        seen_rendered.add(rendered)
+        result.append(rendered)
+        if len(result) >= limit:
+            break
+    return result
 
 
 def build_mechanism_review_lines(
     output_root: str | Path,
     full_spine: dict[str, Any],
 ) -> list[str]:
-    """Render current grammar-stable process differences for analyst review only.
-
-    This function creates no evidence, no causal/tactical claim and no EMIT authority.
-    Continuation/handover contrasts are explicitly treated as outcome-adjacent; the
-    positive review focus is the largest currently exposed non-outcome actor/process
-    context contrast. Video locators reuse existing shared-anchor successor candidates
-    only and are not presented as proven first divergence.
-    """
+    """Render current grammar-stable process differences for analyst review only."""
     root = Path(output_root)
     if not _declared_current(full_spine, FEATURE_DELTA_JSON):
         return ["- Current invocation process-difference surface mevcut degil; eski artifact kullanilmadi."]
