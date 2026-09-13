@@ -36,6 +36,15 @@ def _candidate_id(occurrence_id: str) -> str:
     return f"ocp_{digest}"
 
 
+def _number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _positive_number_list(value: Any) -> list[float]:
     result: set[float] = set()
     for item in _values(value):
@@ -75,6 +84,73 @@ def _horizon_contract(consequence_payload: dict[str, Any]) -> dict[str, Any]:
         "horizon_is_construct_definition": True,
         "fixed_window_is_terminal_outcome_truth": False,
     }
+
+
+def _admitted_followup_horizon_profile(
+    consequences: list[dict[str, Any]],
+    trace_by_id: dict[str, dict[str, Any]],
+    windows: list[float],
+) -> tuple[list[dict[str, Any]], str, bool]:
+    """Test visible admitted-after follow-up availability across declared time horizons.
+
+    Only follow-up traces already admitted as AFTER_CONFIRMED are eligible. Numeric time is
+    used to place those admitted relations inside the declared fixed-time windows; it never
+    upgrades row order, same-time order, possession, terminal outcome, or causality.
+    """
+    if not consequences or len(windows) < 2:
+        return [], "HORIZON_SENSITIVITY_UNRESOLVED", False
+
+    unresolved = False
+    admitted_delta_by_trace_id: dict[str, float] = {}
+    for consequence in consequences:
+        admitted_ids = _sorted_text(consequence.get("admitted_after_follow_up_trace_ids"))
+        if not admitted_ids:
+            continue
+        anchor_id = _text(consequence.get("anchor_trackable_action_trace_candidate_id"))
+        anchor = trace_by_id.get(anchor_id)
+        anchor_start = _number((anchor or {}).get("start_candidate"))
+        anchor_period = _text((anchor or {}).get("period_candidate"))
+        if not anchor_id or anchor is None or anchor_start is None or not anchor_period:
+            unresolved = True
+            continue
+        for follow_id in admitted_ids:
+            follow = trace_by_id.get(follow_id)
+            follow_start = _number((follow or {}).get("start_candidate"))
+            follow_period = _text((follow or {}).get("period_candidate"))
+            if follow is None or follow_start is None or follow_period != anchor_period:
+                unresolved = True
+                continue
+            delta = follow_start - anchor_start
+            if delta <= 0:
+                unresolved = True
+                continue
+            prior = admitted_delta_by_trace_id.get(follow_id)
+            if prior is not None and abs(prior - delta) > 1e-9:
+                unresolved = True
+                continue
+            admitted_delta_by_trace_id[follow_id] = delta
+
+    profile = [
+        {
+            "window_seconds": seconds,
+            "admitted_after_followup_trace_count": sum(
+                delta <= seconds for delta in admitted_delta_by_trace_id.values()
+            ),
+            "admitted_after_followup_present": any(
+                delta <= seconds for delta in admitted_delta_by_trace_id.values()
+            ),
+        }
+        for seconds in windows
+    ]
+    if unresolved:
+        return profile, "HORIZON_SENSITIVITY_UNRESOLVED", False
+    presence = {row["admitted_after_followup_present"] for row in profile}
+    state = (
+        "STABLE_ACROSS_DECLARED_WINDOWS"
+        if len(presence) <= 1
+        else "SENSITIVE_ACROSS_DECLARED_WINDOWS"
+    )
+    return profile, state, True
 
 
 def _followup_observation_state(
@@ -125,6 +201,13 @@ def build_occurrence_consequence_projection(
         else trace_payload.get("trackable_action_trace_candidates")
     )
     trace_records = [row for row in _values(trace_source) if isinstance(row, dict)]
+    all_trace_records = [
+        row
+        for row in _values(trace_payload.get("trackable_action_trace_candidates"))
+        if isinstance(row, dict)
+    ]
+    if not all_trace_records:
+        all_trace_records = list(trace_records)
     trace_member_surface = (
         "PRIMARY_OCCURRENCE_TRACE"
         if primary_trace_surface_present
@@ -152,6 +235,17 @@ def build_occurrence_consequence_projection(
     for trace in trace_records:
         for occurrence_id in _sorted_text(trace.get("supporting_action_occurrence_candidate_ids")):
             traces_by_occurrence[occurrence_id].append(trace)
+
+    trace_by_id: dict[str, dict[str, Any]] = {}
+    duplicate_trace_ids: set[str] = set()
+    for trace in all_trace_records:
+        trace_id = _text(trace.get("trackable_action_trace_candidate_id"))
+        if not trace_id:
+            continue
+        if trace_id in trace_by_id:
+            duplicate_trace_ids.add(trace_id)
+        else:
+            trace_by_id[trace_id] = trace
 
     consequences_by_occurrence: dict[str, list[dict[str, Any]]] = defaultdict(list)
     consequence_by_anchor_trace: dict[str, dict[str, Any]] = {}
@@ -189,6 +283,9 @@ def build_occurrence_consequence_projection(
     terminal_support_count = 0
     ensuing_terminal_support_count = 0
     ensuing_derived_support_count = 0
+    horizon_sensitivity_tested_count = 0
+    horizon_sensitive_count = 0
+    horizon_sensitivity_unresolved_count = 0
 
     for occurrence_id in occurrence_ids:
         binding = binding_by_occurrence.get(occurrence_id, {})
@@ -231,6 +328,14 @@ def build_occurrence_consequence_projection(
         )
         ensuing_terminal_support_visible = bool(ensuing_terminal_support_trace_ids)
         ensuing_derived_support_visible = bool(ensuing_derived_support_trace_ids)
+        horizon_profile, horizon_sensitivity_state, horizon_sensitivity_tested = (
+            _admitted_followup_horizon_profile(
+                consequences,
+                trace_by_id,
+                horizon.get("window_seconds") or [],
+            )
+        )
+        horizon_sensitive = horizon_sensitivity_state == "SENSITIVE_ACROSS_DECLARED_WINDOWS"
 
         action_families: set[str] = set()
         actor_ids: set[str] = set()
@@ -283,6 +388,12 @@ def build_occurrence_consequence_projection(
             ensuing_terminal_support_count += 1
         if ensuing_derived_support_visible:
             ensuing_derived_support_count += 1
+        if horizon_sensitivity_tested:
+            horizon_sensitivity_tested_count += 1
+        else:
+            horizon_sensitivity_unresolved_count += 1
+        if horizon_sensitive:
+            horizon_sensitive_count += 1
 
         records.append(
             {
@@ -304,6 +415,10 @@ def build_occurrence_consequence_projection(
                 "end_candidates": sorted(ends),
                 "visible_follow_up_trace_ids": visible_follow_up_ids,
                 "admitted_after_follow_up_trace_ids": admitted_after_ids,
+                "admitted_followup_horizon_profile": horizon_profile,
+                "admitted_followup_horizon_sensitivity_state": horizon_sensitivity_state,
+                "admitted_followup_horizon_sensitivity_tested": horizon_sensitivity_tested,
+                "admitted_followup_horizon_sensitive": horizon_sensitive,
                 "ensuing_terminal_support_trace_ids": ensuing_terminal_support_trace_ids,
                 "ensuing_derived_consequence_support_trace_ids": ensuing_derived_support_trace_ids,
                 "ensuing_terminal_support_visible": ensuing_terminal_support_visible,
@@ -327,6 +442,8 @@ def build_occurrence_consequence_projection(
                 "no_visible_followup_is_failure": False,
                 "followup_is_terminal_outcome_truth": False,
                 "terminal_support_is_terminal_type_truth": False,
+                "admitted_followup_horizon_profile_is_terminal_outcome_truth": False,
+                "admitted_followup_horizon_profile_is_causal_truth": False,
                 "ensuing_terminal_support_is_causal_truth": False,
                 "ensuing_terminal_support_is_anchor_terminal_state_truth": False,
                 "observation_status_is_outcome_polarity_truth": False,
@@ -350,6 +467,8 @@ def build_occurrence_consequence_projection(
     review_hits: list[str] = []
     if expected_occurrence_count and projection_count != expected_occurrence_count:
         hard_blocks.append("occurrence_projection_count_mismatch")
+    if duplicate_trace_ids:
+        hard_blocks.append("duplicate_trace_id_in_horizon_index")
     if duplicate_consequence_anchor_trace_ids:
         hard_blocks.append("duplicate_consequence_anchor_trace_id")
     if review_count:
@@ -358,11 +477,18 @@ def build_occurrence_consequence_projection(
         review_hits.append("occurrence_without_consequence_record_present")
     if horizon["horizon_definition_state"] == "HORIZON_UNSPECIFIED":
         review_hits.append("consequence_horizon_unspecified")
+    if horizon_sensitive_count:
+        review_hits.append("admitted_followup_horizon_sensitive_occurrence_present")
+    if horizon_sensitivity_unresolved_count:
+        review_hits.append("admitted_followup_horizon_sensitivity_unresolved")
 
     followup_counts = Counter(row.get("followup_observation_status") for row in records)
     process_counts = Counter(row.get("process_continuation_status") for row in records)
     terminal_counts = Counter(row.get("terminal_status") for row in records)
     observation_counts = Counter(row.get("observation_status") for row in records)
+    horizon_sensitivity_counts = Counter(
+        row.get("admitted_followup_horizon_sensitivity_state") for row in records
+    )
 
     status = "FAIL_CLOSED" if hard_blocks else ("REVIEW_REQUIRED" if review_hits else "PASS")
     if hard_blocks:
@@ -374,10 +500,18 @@ def build_occurrence_consequence_projection(
         terminal_support_count = 0
         ensuing_terminal_support_count = 0
         ensuing_derived_support_count = 0
+        horizon_sensitivity_tested_count = 0
+        horizon_sensitive_count = 0
+        horizon_sensitivity_unresolved_count = 0
         followup_counts = Counter()
         process_counts = Counter()
         terminal_counts = Counter()
         observation_counts = Counter()
+        horizon_sensitivity_counts = Counter()
+
+    all_occurrences_horizon_tested = bool(projection_count) and (
+        horizon_sensitivity_tested_count == projection_count
+    )
 
     return {
         "module_id": MODULE_ID,
@@ -397,6 +531,11 @@ def build_occurrence_consequence_projection(
         "occurrence_with_terminal_outcome_support_count": terminal_support_count,
         "occurrence_with_ensuing_terminal_support_count": ensuing_terminal_support_count,
         "occurrence_with_ensuing_derived_consequence_support_count": ensuing_derived_support_count,
+        "admitted_followup_horizon_sensitivity_tested_occurrence_count": horizon_sensitivity_tested_count,
+        "admitted_followup_horizon_sensitive_occurrence_count": horizon_sensitive_count,
+        "admitted_followup_horizon_sensitivity_unresolved_occurrence_count": horizon_sensitivity_unresolved_count,
+        "admitted_followup_horizon_sensitivity_state_counts": dict(sorted(horizon_sensitivity_counts.items())),
+        "admitted_followup_horizon_sensitivity_tested": all_occurrences_horizon_tested,
         "legacy_unbound_consequence_candidate_count": legacy_unbound_consequence_count,
         "followup_observation_status_counts": dict(sorted(followup_counts.items())),
         "process_continuation_status_counts": dict(sorted(process_counts.items())),
@@ -409,6 +548,8 @@ def build_occurrence_consequence_projection(
         "legacy_consequence_records_cannot_create_occurrence_members": binding_surface_present,
         "occurrence_projection_is_primary_action_member_candidate_surface": True,
         "ensuing_support_uses_admitted_after_only": True,
+        "admitted_followup_horizon_profile_uses_after_confirmed_only": True,
+        "admitted_followup_horizon_sensitivity_is_terminal_outcome_truth": False,
         "no_visible_followup_is_failure": False,
         "followup_is_terminal_outcome_truth": False,
         "terminal_support_is_terminal_type_truth": False,
@@ -445,6 +586,10 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
                 f"occurrence_with_visible_consequence_support_count={payload.get('occurrence_with_visible_consequence_support_count', 0)}",
                 f"occurrence_with_ensuing_terminal_support_count={payload.get('occurrence_with_ensuing_terminal_support_count', 0)}",
                 f"occurrence_with_ensuing_derived_consequence_support_count={payload.get('occurrence_with_ensuing_derived_consequence_support_count', 0)}",
+                f"admitted_followup_horizon_sensitivity_tested_occurrence_count={payload.get('admitted_followup_horizon_sensitivity_tested_occurrence_count', 0)}",
+                f"admitted_followup_horizon_sensitive_occurrence_count={payload.get('admitted_followup_horizon_sensitive_occurrence_count', 0)}",
+                f"admitted_followup_horizon_sensitivity_unresolved_occurrence_count={payload.get('admitted_followup_horizon_sensitivity_unresolved_occurrence_count', 0)}",
+                f"admitted_followup_horizon_sensitivity_state_counts={payload.get('admitted_followup_horizon_sensitivity_state_counts', {})}",
                 f"review_required_occurrence_projection_count={payload.get('review_required_occurrence_projection_count', 0)}",
                 f"followup_observation_status_counts={payload.get('followup_observation_status_counts', {})}",
                 f"process_continuation_status_counts={payload.get('process_continuation_status_counts', {})}",
@@ -458,6 +603,8 @@ def write_outputs(payload: dict[str, Any], out_dir: str | Path) -> dict[str, Pat
                 f"legacy_unbound_consequence_candidate_count={payload.get('legacy_unbound_consequence_candidate_count', 0)}",
                 "legacy_trace_records_are_support_evidence_not_action_universe=true",
                 "ensuing_support_uses_admitted_after_only=true",
+                "admitted_followup_horizon_profile_uses_after_confirmed_only=true",
+                "admitted_followup_horizon_sensitivity_is_terminal_outcome_truth=false",
                 "no_visible_followup_is_failure=false",
                 "followup_is_terminal_outcome_truth=false",
                 "ensuing_terminal_support_is_causal_truth=false",
