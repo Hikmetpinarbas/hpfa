@@ -49,7 +49,7 @@ def _write_payloads(tmp_path: Path) -> None:
                 "failure_resolved_variant_count": 3,
                 "first_supported_context_difference_layer_candidate": 0,
                 "first_supported_consequence_difference_layer_candidate": 1,
-                "process_context_coverage_incomplete_variant_count": 2,
+                "context_coverage_incomplete_variant_count": 2,
                 "right_censored_variant_count": 0,
                 "dependency_independence_proven": False,
                 "context_feature_difference_candidates": [
@@ -68,6 +68,14 @@ def _write_payloads(tmp_path: Path) -> None:
                         "failure_visible_numerator": 0,
                         "failure_eligible_denominator": 3,
                         "descriptive_rate_delta_success_minus_failure": 0.857143,
+                    },
+                    {
+                        "feature_token": "LAYER[1]::process_family_candidate:POSITIONAL_ATTACK_CANDIDATE",
+                        "success_visible_numerator": 5,
+                        "success_eligible_denominator": 7,
+                        "failure_visible_numerator": 1,
+                        "failure_eligible_denominator": 3,
+                        "descriptive_rate_delta_success_minus_failure": 0.380952,
                     },
                 ],
                 "consequence_feature_difference_candidates": [
@@ -194,7 +202,7 @@ def _write_payloads(tmp_path: Path) -> None:
     )
 
 
-def test_current_mechanism_surface_is_occurrence_primary_review_only(tmp_path: Path) -> None:
+def test_current_mechanism_surface_separates_context_locator_and_outcome_adjacent_cues(tmp_path: Path) -> None:
     _write_payloads(tmp_path)
     lines = build_mechanism_review_lines(tmp_path, _full_spine(tmp_path))
     text = "\n".join(lines)
@@ -208,13 +216,35 @@ def test_current_mechanism_surface_is_occurrence_primary_review_only(tmp_path: P
     assert "outcome_adjacent_consequence_contrast:" in text
     assert "same_team_continuation success=6/7 failure=1/3" in text
     assert "opponent_handover success=0/7 failure=2/3" in text
-    assert "positive_review_focus: actor=Player Alpha success=0/7 failure=2/3" in text
+    assert (
+        "mechanism_context_review_focus: process_context_candidate=Positional Attack Candidate "
+        "success=5/7 failure=1/3" in text
+    )
+    assert "actor_locator_only: actor=Player Alpha success=0/7 failure=2/3" in text
+    assert "role=VIDEO_REVIEW_LOCATOR_ONLY" in text
     assert "provider_direction_candidates" not in text
-    assert "tek basina mac mekanizmasi sayilmaz" in text
+    assert "context_missing=2/10" in text
+    assert "actor identity yalniz locator" in text
     assert "locator_semantics=FIRST_SUCCESSOR_AFTER_SHARED_VISIBLE_ANCHOR_NOT_PROVEN_FIRST_DIVERGENCE" in text
     assert "video_review_locator: shared_anchor=02:00 -> 02:02 Player Alpha FAILURE PASS; 02:04 Player Beta SUCCESS PASS" in text
     assert "claim_ceiling=ANALYST_REVIEW_MECHANISM_CANDIDATE_ONLY" in text
     assert "professional_emit_allowed=false" in text
+
+
+def test_actor_only_difference_does_not_become_mechanism_context_focus(tmp_path: Path) -> None:
+    _write_payloads(tmp_path)
+    payload_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    rows = payload["grammar_stable_variant_feature_delta_records"][0]["context_feature_difference_candidates"]
+    payload["grammar_stable_variant_feature_delta_records"][0]["context_feature_difference_candidates"] = [
+        row for row in rows if "process_family_candidate:" not in row["feature_token"]
+    ]
+    payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    text = "\n".join(build_mechanism_review_lines(tmp_path, _full_spine(tmp_path)))
+    assert "mechanism_context_review_focus: NO_NON_ACTOR_CONTEXT_DIAGNOSTIC_EXPOSED" in text
+    assert "actor_locator_only: actor=Player Alpha" in text
+    assert "video_review_locator: shared_anchor=02:00" in text
 
 
 def test_stale_mechanism_artifact_is_not_consumed(tmp_path: Path) -> None:
@@ -227,12 +257,13 @@ def test_stale_mechanism_artifact_is_not_consumed(tmp_path: Path) -> None:
     assert "video_review_locator" not in text
 
 
-def test_standard_report_contains_context_focused_review_without_promoting_emit(tmp_path: Path) -> None:
+def test_standard_report_contains_role_separated_review_without_promoting_emit(tmp_path: Path) -> None:
     _write_payloads(tmp_path)
     text = build_analyst_report(tmp_path, _full_spine(tmp_path))
     assert "ANALYST REVIEW — GORUNUR SUREC MEKANIZMASI ADAYLARI" in text
     assert "primary_occurrence_spine: occurrence_candidates=12" in text
-    assert "positive_review_focus: actor=Player Alpha" in text
+    assert "mechanism_context_review_focus: process_context_candidate=Positional Attack Candidate" in text
+    assert "actor_locator_only: actor=Player Alpha" in text
     assert "video_review_locator: shared_anchor=02:00" in text
     assert "professional_emit_allowed=false" in text
     assert "canonical_event_count=UNKNOWN" in text
