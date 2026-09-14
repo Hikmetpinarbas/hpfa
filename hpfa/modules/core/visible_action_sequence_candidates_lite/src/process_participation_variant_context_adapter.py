@@ -143,6 +143,47 @@ def _team_process_families_for_occurrence(
     return families
 
 
+def _team_process_episode_refs_for_occurrence(
+    occurrence: dict[str, Any],
+    process_rows: list[dict[str, Any]],
+    *,
+    team_identity_candidate_id: str,
+    period_candidate: str,
+) -> set[str]:
+    periods = {_clean(value) for value in occurrence.get("period_candidates") or [] if _clean(value)}
+    starts = [_number(value) for value in occurrence.get("start_candidates") or []]
+    ends = [_number(value) for value in occurrence.get("end_candidates") or []]
+    starts = [value for value in starts if value is not None]
+    ends = [value for value in ends if value is not None]
+    if not team_identity_candidate_id or not period_candidate or period_candidate not in periods or not starts:
+        return set()
+    occurrence_start = min(starts)
+    occurrence_end = max(ends) if ends else occurrence_start
+
+    episode_refs: set[str] = set()
+    for process in process_rows:
+        if not isinstance(process, dict):
+            continue
+        if _clean(process.get("semantic_role")) != _COMPARISON_CONTEXT_ROLE:
+            continue
+        if _clean(process.get("team_identity_candidate_id")) != team_identity_candidate_id:
+            continue
+        if _clean(process.get("period_candidate")) != period_candidate:
+            continue
+        process_start = _number(process.get("start_candidate"))
+        process_end = _number(process.get("end_candidate"))
+        if process_start is None or process_end is None:
+            continue
+        if not _ranges_overlap(occurrence_start, occurrence_end, process_start, process_end):
+            continue
+        if not _clean(process.get("process_family_candidate")):
+            continue
+        episode_ref = _clean(process.get("episode_candidate_id"))
+        if episode_ref:
+            episode_refs.add(episode_ref)
+    return episode_refs
+
+
 def apply_process_context_to_comparison(
     sequence_payload: dict[str, Any],
     process_participation_payload: dict[str, Any] | None,
@@ -163,6 +204,10 @@ def apply_process_context_to_comparison(
     result["process_comparison_context_uses_shot_annotation"] = False
     result["process_comparison_context_uses_episode_navigation"] = False
     result["process_comparison_context_uses_player_participation"] = False
+    result["process_comparison_episode_navigation_is_admission_dimension"] = False
+    result["process_comparison_episode_spread_is_independent_support"] = False
+    result["process_comparison_episode_spread_is_recurrence_truth"] = False
+    result["episode_navigation_binding_is_possession_truth"] = False
     result["unknown_context_is_different_context"] = False
     result["process_annotation_is_tactical_plan_truth"] = False
 
@@ -211,6 +256,7 @@ def apply_process_context_to_comparison(
         team = _clean(variant.get("team_identity_candidate_id"))
         period = _clean(variant.get("period_candidate"))
         families: set[str] = set()
+        episode_refs: set[str] = set()
         matched_occurrence_count = 0
         for occurrence_ref in variant.get("supporting_action_occurrence_candidate_ids") or []:
             occurrence = occurrence_by_id.get(_clean(occurrence_ref))
@@ -222,17 +268,33 @@ def apply_process_context_to_comparison(
                 team_identity_candidate_id=team,
                 period_candidate=period,
             )
+            matched_episodes = _team_process_episode_refs_for_occurrence(
+                occurrence,
+                process_rows,
+                team_identity_candidate_id=team,
+                period_candidate=period,
+            )
             if matched:
                 matched_occurrence_count += 1
                 families.update(matched)
+                episode_refs.update(matched_episodes)
         family_list = sorted(families)
+        episode_list = sorted(episode_refs)
         variant["comparison_process_context_families"] = family_list
         variant["comparison_process_context_coverage_visible"] = bool(family_list)
         variant["comparison_process_context_matched_occurrence_count"] = matched_occurrence_count
         variant["comparison_process_context_dimension"] = _COMPARISON_CONTEXT_DIMENSION
+        variant["comparison_process_context_episode_candidate_ids"] = episode_list
+        variant["comparison_process_context_episode_spread_count"] = len(episode_list)
+        variant["comparison_process_context_episode_navigation_visible"] = bool(episode_list)
+        variant["comparison_process_context_episode_navigation_is_admission_dimension"] = False
+        variant["comparison_process_context_episode_spread_is_independent_support"] = False
+        variant["comparison_process_context_episode_spread_is_recurrence_truth"] = False
+        variant["comparison_process_context_episode_navigation_is_possession_truth"] = False
         variant["comparison_process_context_is_tactical_plan_truth"] = False
         variant_context[variant_id] = {
             "families": set(family_list),
+            "episodes": set(episode_list),
             "coverage_visible": bool(family_list),
         }
 
@@ -243,10 +305,18 @@ def apply_process_context_to_comparison(
         if isinstance(row, dict)
     ]
     for pair in pairs:
-        left = variant_context.get(_clean(pair.get("left_variant_ref")), {"families": set(), "coverage_visible": False})
-        right = variant_context.get(_clean(pair.get("right_variant_ref")), {"families": set(), "coverage_visible": False})
+        left = variant_context.get(
+            _clean(pair.get("left_variant_ref")),
+            {"families": set(), "episodes": set(), "coverage_visible": False},
+        )
+        right = variant_context.get(
+            _clean(pair.get("right_variant_ref")),
+            {"families": set(), "episodes": set(), "coverage_visible": False},
+        )
         left_families = set(left.get("families") or set())
         right_families = set(right.get("families") or set())
+        left_episodes = set(left.get("episodes") or set())
+        right_episodes = set(right.get("episodes") or set())
         upstream_eligible = pair.get("comparison_eligible") is True
         pair["comparison_eligible_before_process_context"] = upstream_eligible
         pair["comparison_outcome_contrast_allowed_before_process_context"] = (
@@ -257,10 +327,15 @@ def apply_process_context_to_comparison(
         )
         pair["left_process_context_families"] = sorted(left_families)
         pair["right_process_context_families"] = sorted(right_families)
+        pair["left_process_context_episode_candidate_ids"] = sorted(left_episodes)
+        pair["right_process_context_episode_candidate_ids"] = sorted(right_episodes)
         pair["comparison_process_context_dimension"] = _COMPARISON_CONTEXT_DIMENSION
         pair["process_context_outcome_used_in_admission"] = False
         pair["process_context_shot_annotation_used_in_admission"] = False
         pair["process_context_episode_navigation_used_in_admission"] = False
+        pair["process_context_episode_navigation_is_admission_dimension"] = False
+        pair["process_context_episode_spread_is_independent_support"] = False
+        pair["process_context_episode_spread_is_recurrence_truth"] = False
         pair["process_context_player_participation_used_in_admission"] = False
         pair["process_context_is_tactical_plan_truth"] = False
         pair["unknown_context_is_different_context"] = False
@@ -303,6 +378,10 @@ def apply_process_context_to_comparison(
     result["process_comparison_context_consumed"] = True
     result["process_comparison_context_binding_state"] = "PROVIDER_REVIEWED_TEAM_PROCESS_CONTEXT_APPLIED_DOWNWARD_ONLY"
     result["process_comparison_context_can_create_new_pair"] = False
+    result["process_comparison_episode_navigation_is_admission_dimension"] = False
+    result["process_comparison_episode_spread_is_independent_support"] = False
+    result["process_comparison_episode_spread_is_recurrence_truth"] = False
+    result["episode_navigation_binding_is_possession_truth"] = False
     result["process_comparison_context_pair_count_unchanged"] = (
         len(pairs) == int(sequence_payload.get("dependency_aware_partial_order_similarity_pair_count") or len(pairs))
     )
