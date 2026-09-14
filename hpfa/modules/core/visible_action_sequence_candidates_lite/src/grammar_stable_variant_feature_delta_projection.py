@@ -603,3 +603,136 @@ def build_grammar_stable_variant_feature_delta(
         "production_release": False,
         "claim_ceiling": CLAIM_CEILING,
     }
+
+
+_BASE_BUILD_GRAMMAR_STABLE_VARIANT_FEATURE_DELTA = build_grammar_stable_variant_feature_delta
+_PROVIDER_SEMANTIC_CONTEXT_FIELDS = {
+    "provider_context_candidates",
+    "provider_direction_candidates",
+    "provider_progression_candidates",
+    "provider_zone_candidates",
+}
+_COORDINATE_DERIVED_CONTEXT_FIELDS = {"coordinate_derived_zone_candidates"}
+_OCCURRENCE_STRUCTURE_CONTEXT_FIELDS = {
+    "occurrence_topology",
+    "required_participant_scope",
+    "binding_state",
+}
+
+
+def _base_context_feature_field(feature_token: Any) -> str:
+    token = _clean(feature_token)
+    if _LAYER_TOKEN_RE.match(token) and "::" in token:
+        token = token.split("::", 1)[1]
+    return token.split(":", 1)[0] if ":" in token else token
+
+
+def _base_context_feature_provenance_record(feature: dict[str, Any]) -> dict[str, Any] | None:
+    feature_token = _clean(feature.get("feature_token"))
+    if not feature_token:
+        return None
+    source_field = _base_context_feature_field(feature_token)
+
+    if source_field in _PROVIDER_SEMANTIC_CONTEXT_FIELDS:
+        information_role = "PROVIDER_SEMANTIC_CONTEXT_CANDIDATE_ONLY"
+        dependency_surface = "spatial_transition_candidate_lite_v1"
+    elif source_field in _COORDINATE_DERIVED_CONTEXT_FIELDS:
+        information_role = "COORDINATE_DERIVED_ZONE_CONTEXT_CANDIDATE_ONLY"
+        dependency_surface = "spatial_transition_candidate_lite_v1"
+    elif source_field == "actor_identity_candidate_ids":
+        information_role = "ACTOR_IDENTITY_CONTEXT_CANDIDATE_ONLY"
+        dependency_surface = "occurrence_consequence_projection_v1"
+    elif source_field == "action_family_candidates":
+        information_role = "ACTION_FAMILY_CONTEXT_CANDIDATE_ONLY"
+        dependency_surface = "occurrence_consequence_projection_v1"
+    elif source_field in _OCCURRENCE_STRUCTURE_CONTEXT_FIELDS:
+        information_role = "OCCURRENCE_STRUCTURE_CONTEXT_CANDIDATE_ONLY"
+        dependency_surface = "occurrence_consequence_projection_v1"
+    else:
+        information_role = "SOURCE_ROLE_UNRESOLVED_REVIEW_REQUIRED"
+        dependency_surface = "UNRESOLVED_DEPENDENCY_SURFACE"
+
+    return {
+        "feature_token": feature_token,
+        "feature_source_surface": "occurrence_state_transition_projection_v1",
+        "feature_dependency_surface": dependency_surface,
+        "feature_source_field": source_field or None,
+        "feature_information_role": information_role,
+        "eligible_denominator_basis": "VARIANTS_WITH_COMPLETE_OCCURRENCE_STATE_CONTEXT_COVERAGE",
+        "feature_is_physical_geometry_truth": False,
+        "feature_is_tracking_truth": False,
+        "feature_is_tactical_truth": False,
+        "feature_is_causal_truth": False,
+        "dependency_independence_proven": False,
+        "statistical_independence_proven": False,
+        "claim_ceiling": CLAIM_CEILING,
+    }
+
+
+def _bind_base_context_feature_provenance(payload: dict[str, Any]) -> dict[str, Any]:
+    if payload.get("status") == "FAIL_CLOSED":
+        payload["base_context_feature_provenance_contract_applied"] = False
+        payload["base_context_feature_provenance_record_count"] = 0
+        payload["base_context_feature_provenance_unresolved_count"] = 0
+        payload["base_context_feature_provenance_is_independent_evidence_vote"] = False
+        payload["base_context_feature_provenance_changes_feature_difference"] = False
+        return payload
+
+    total = 0
+    unresolved = 0
+    provenance_review_hits: list[str] = []
+    for family in payload.get("grammar_stable_variant_feature_delta_records") or []:
+        if not isinstance(family, dict):
+            continue
+        rows: list[dict[str, Any]] = []
+        for feature in family.get("context_feature_difference_candidates") or []:
+            if not isinstance(feature, dict):
+                continue
+            if _clean(feature.get("feature_surface_detail")):
+                continue
+            record = _base_context_feature_provenance_record(feature)
+            if record is None:
+                continue
+            rows.append(record)
+            if record.get("feature_information_role") == "SOURCE_ROLE_UNRESOLVED_REVIEW_REQUIRED":
+                unresolved += 1
+        family["base_context_feature_provenance_records"] = rows
+        family["base_context_feature_provenance_record_count"] = len(rows)
+        family["base_context_feature_provenance_complete"] = not any(
+            row.get("feature_information_role") == "SOURCE_ROLE_UNRESOLVED_REVIEW_REQUIRED"
+            for row in rows
+        )
+        family["base_context_feature_provenance_is_independent_evidence_vote"] = False
+        family["base_context_feature_provenance_changes_feature_difference"] = False
+        total += len(rows)
+        if family["base_context_feature_provenance_complete"] is not True:
+            family_ref = _clean(family.get("source_process_variant_family_ref")) or "UNKNOWN"
+            provenance_review_hits.append(f"base_context_feature_provenance_unresolved:{family_ref}")
+
+    payload["base_context_feature_provenance_contract_applied"] = True
+    payload["base_context_feature_provenance_record_count"] = total
+    payload["base_context_feature_provenance_unresolved_count"] = unresolved
+    payload["base_context_feature_provenance_is_independent_evidence_vote"] = False
+    payload["base_context_feature_provenance_changes_feature_difference"] = False
+    if provenance_review_hits:
+        payload["review_hits"] = sorted(
+            set(payload.get("review_hits") or []) | set(provenance_review_hits)
+        )
+        if payload.get("status") == "PASS":
+            payload["status"] = "REVIEW_REQUIRED"
+    return payload
+
+
+def build_grammar_stable_variant_feature_delta(
+    sequence_payload: dict[str, Any],
+    process_variant_payload: dict[str, Any],
+    occurrence_state_transition_payload: dict[str, Any],
+    occurrence_consequence_payload: dict[str, Any],
+) -> dict[str, Any]:
+    payload = _BASE_BUILD_GRAMMAR_STABLE_VARIANT_FEATURE_DELTA(
+        sequence_payload,
+        process_variant_payload,
+        occurrence_state_transition_payload,
+        occurrence_consequence_payload,
+    )
+    return _bind_base_context_feature_provenance(payload)
