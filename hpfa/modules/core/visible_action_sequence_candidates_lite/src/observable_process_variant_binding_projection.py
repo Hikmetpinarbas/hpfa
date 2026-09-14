@@ -253,6 +253,9 @@ def build_observable_process_variant_binding(
         period_refs: set[str] = set()
         dependency_refs: set[str] = set()
         unique_occurrence_refs: set[str] = set()
+        visible_episode_refs: set[str] = set()
+        success_visible_episode_refs: set[str] = set()
+        failure_visible_episode_refs: set[str] = set()
         supporting_occurrence_slot_count = 0
 
         for variant_ref in sorted(component):
@@ -268,14 +271,26 @@ def build_observable_process_variant_binding(
                 for value in (variant.get("supporting_action_occurrence_candidate_ids") or [])
                 if _clean(value)
             })
+            episode_refs = sorted({
+                _clean(value)
+                for value in (variant.get("comparison_process_context_episode_candidate_ids") or [])
+                if _clean(value)
+            })
             supporting_occurrence_slot_count += len(supporting_occurrence_refs)
             unique_occurrence_refs.update(supporting_occurrence_refs)
+            visible_episode_refs.update(episode_refs)
+            if visible_outcome == "SUCCESS_SEMANTIC_VISIBLE":
+                success_visible_episode_refs.update(episode_refs)
+            elif visible_outcome == "FAILURE_SEMANTIC_VISIBLE":
+                failure_visible_episode_refs.update(episode_refs)
             member_records.append({
                 "variant_ref": variant_ref,
                 "sequence_ref": sequence_by_variant.get(variant_ref),
                 "visible_outcome_state": visible_outcome,
                 "supporting_action_occurrence_candidate_ids": supporting_occurrence_refs,
                 "supporting_action_occurrence_candidate_count": len(supporting_occurrence_refs),
+                "visible_episode_candidate_ids": episode_refs,
+                "visible_episode_candidate_count": len(episode_refs),
             })
             team_ref = _clean(variant.get("team_identity_candidate_id"))
             period_ref = _clean(variant.get("period_candidate"))
@@ -326,6 +341,13 @@ def build_observable_process_variant_binding(
             len(cluster.get("visible_outcome_state_counts", {})) >= 2
             for cluster in disjoint_clusters
         )
+        episode_spread_count = len(visible_episode_refs)
+        if episode_spread_count >= 2:
+            episode_spread_state = "MULTIPLE_VISIBLE_EPISODE_CANDIDATES"
+        elif episode_spread_count == 1:
+            episode_spread_state = "SINGLE_VISIBLE_EPISODE_CONCENTRATION"
+        else:
+            episode_spread_state = "VISIBLE_EPISODE_SPREAD_UNRESOLVED"
 
         families.append({
             "observable_process_variant_family_id": "opvf_" + _digest(
@@ -359,6 +381,16 @@ def build_observable_process_variant_binding(
             "success_visible_support_cluster_count": success_cluster_count,
             "failure_visible_support_cluster_count": failure_cluster_count,
             "mixed_visible_outcome_support_cluster_count": mixed_outcome_cluster_count,
+            "visible_episode_candidate_ids": sorted(visible_episode_refs),
+            "visible_episode_spread_count": episode_spread_count,
+            "visible_episode_spread_state": episode_spread_state,
+            "success_visible_episode_candidate_ids": sorted(success_visible_episode_refs),
+            "success_visible_episode_spread_count": len(success_visible_episode_refs),
+            "failure_visible_episode_candidate_ids": sorted(failure_visible_episode_refs),
+            "failure_visible_episode_spread_count": len(failure_visible_episode_refs),
+            "episode_navigation_binding_is_possession_truth": False,
+            "episode_spread_count_is_independent_support_count": False,
+            "episode_spread_is_recurrence_truth": False,
             "occurrence_disjoint_cluster_count_is_independent_support_count": False,
             "occurrence_disjoint_cluster_count_is_recurrence_truth": False,
             "member_count_is_independent_support_count": False,
@@ -408,6 +440,14 @@ def build_observable_process_variant_binding(
             if not blocks
             else 0
         ),
+        "multi_visible_episode_spread_family_count": (
+            sum(1 for row in families if row.get("visible_episode_spread_count", 0) >= 2)
+            if not blocks
+            else 0
+        ),
+        "episode_navigation_binding_is_possession_truth": False,
+        "episode_spread_count_is_independent_support_count": False,
+        "episode_spread_is_recurrence_truth": False,
         "occurrence_disjoint_cluster_count_is_independent_support_count": False,
         "member_count_is_independent_support_count": False,
         "unique_occurrence_count_is_independent_support_count": False,
