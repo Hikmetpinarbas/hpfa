@@ -513,3 +513,152 @@ def build_mechanism_review_lines(
         "professional_emit_allowed=false",
     ])
     return lines
+
+
+_BASE_BUILD_MECHANISM_REVIEW_LINES = build_mechanism_review_lines
+
+
+def _base_context_provenance_by_token(record: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {
+        str(row.get("feature_token") or "").strip(): row
+        for row in (record.get("base_context_feature_provenance_records") or [])
+        if isinstance(row, dict) and str(row.get("feature_token") or "").strip()
+    }
+
+
+def _provider_semantic_review_candidates(record: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    provenance = _base_context_provenance_by_token(record)
+    result: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for row in record.get("context_feature_difference_candidates") or []:
+        if not isinstance(row, dict):
+            continue
+        token = str(row.get("feature_token") or "").strip()
+        source = provenance.get(token)
+        if not source:
+            continue
+        if source.get("feature_information_role") != "PROVIDER_SEMANTIC_CONTEXT_CANDIDATE_ONLY":
+            continue
+        result.append((row, source))
+    return result
+
+
+def _select_provider_semantic_review_cue(
+    record: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    candidates = _provider_semantic_review_candidates(record)
+    if not candidates:
+        return None
+    return max(
+        candidates,
+        key=lambda pair: abs(float(pair[0].get("descriptive_rate_delta_success_minus_failure") or 0.0)),
+    )
+
+
+def _provider_semantic_label(token: str) -> str:
+    layer = ""
+    body = token
+    if token.startswith("LAYER[") and "::" in token:
+        layer, body = token.split("::", 1)
+        layer += "::"
+    field, _, value = body.partition(":")
+    field_label = {
+        "provider_context_candidates": "provider_context",
+        "provider_direction_candidates": "provider_direction",
+        "provider_progression_candidates": "provider_progression",
+        "provider_zone_candidates": "provider_zone",
+    }.get(field, field or "provider_semantic")
+    return f"{layer}{field_label}={value or 'UNRESOLVED'}"
+
+
+def _render_provider_semantic_review_cue(
+    cue: tuple[dict[str, Any], dict[str, Any]] | None,
+) -> str:
+    if not cue:
+        return "NO_PROVIDER_SEMANTIC_CONTEXT_CUE_EXPOSED"
+    row, _source = cue
+    token = str(row.get("feature_token") or "").strip()
+    success_n = int(row.get("success_visible_numerator") or 0)
+    success_d = int(row.get("success_eligible_denominator") or 0)
+    failure_n = int(row.get("failure_visible_numerator") or 0)
+    failure_d = int(row.get("failure_eligible_denominator") or 0)
+    delta = float(row.get("descriptive_rate_delta_success_minus_failure") or 0.0)
+    return (
+        f"{_provider_semantic_label(token)} success={success_n}/{success_d} "
+        f"failure={failure_n}/{failure_d} descriptive_rate_delta={delta:+.3f} "
+        "role=PROVIDER_SEMANTIC_REVIEW_CUE_ONLY "
+        "selection=MAX_ABS_DESCRIPTIVE_RATE_DELTA_NOT_STRENGTH_OR_SIGNIFICANCE"
+    )
+
+
+def _render_provider_semantic_source(
+    cue: tuple[dict[str, Any], dict[str, Any]] | None,
+) -> str:
+    if not cue:
+        return "source_role=NO_PROVIDER_SEMANTIC_CONTEXT_SOURCE_EXPOSED"
+    _row, source = cue
+    return (
+        f"source_role={source.get('feature_information_role') or 'SOURCE_ROLE_UNRESOLVED_REVIEW_REQUIRED'} "
+        f"source_surface={source.get('feature_source_surface') or 'UNRESOLVED_SOURCE_SURFACE'} "
+        f"dependency_surface={source.get('feature_dependency_surface') or 'UNRESOLVED_DEPENDENCY_SURFACE'} "
+        f"source_field={source.get('feature_source_field') or 'UNRESOLVED_SOURCE_FIELD'} "
+        f"denominator_basis={source.get('eligible_denominator_basis') or 'UNRESOLVED_DENOMINATOR_BASIS'} "
+        f"claim_ceiling={source.get('claim_ceiling') or 'UNRESOLVED_CLAIM_CEILING'} "
+        f"dependency_independence_proven={str(source.get('dependency_independence_proven') is True).lower()} "
+        f"statistical_independence_proven={str(source.get('statistical_independence_proven') is True).lower()}"
+    )
+
+
+def _render_provider_semantic_guard(
+    cue: tuple[dict[str, Any], dict[str, Any]] | None,
+) -> str:
+    if not cue:
+        return "NOT_APPLICABLE_NO_PROVIDER_SEMANTIC_CONTEXT_CUE"
+    _row, source = cue
+    return (
+        f"physical_geometry_truth={str(source.get('feature_is_physical_geometry_truth') is True).lower()} "
+        f"tracking_truth={str(source.get('feature_is_tracking_truth') is True).lower()} "
+        f"tactical_truth={str(source.get('feature_is_tactical_truth') is True).lower()} "
+        f"causal_truth={str(source.get('feature_is_causal_truth') is True).lower()} "
+        "success_probability_truth=false independent_evidence_vote=false "
+        "analyst_action=REVIEW_PROVIDER_SEMANTIC_LABEL_AGAINST_MATCH_EVIDENCE"
+    )
+
+
+def build_mechanism_review_lines(
+    output_root: str | Path,
+    full_spine: dict[str, Any],
+) -> list[str]:
+    lines = _BASE_BUILD_MECHANISM_REVIEW_LINES(output_root, full_spine)
+    root = Path(output_root)
+    if not _declared_current(full_spine, FEATURE_DELTA_JSON):
+        return lines
+    payload = _load_json(root / FEATURE_DELTA_JSON)
+    if not payload or str(payload.get("status") or "").upper() == "FAIL_CLOSED":
+        return lines
+    records = [
+        row for row in (payload.get("grammar_stable_variant_feature_delta_records") or [])
+        if isinstance(row, dict)
+    ]
+    if not records:
+        return lines
+
+    cue_by_index = {
+        index: _select_provider_semantic_review_cue(record)
+        for index, record in enumerate(records, start=1)
+    }
+    result: list[str] = []
+    current_index: int | None = None
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped.startswith("- M") and " | " in stripped:
+            try:
+                current_index = int(stripped.split(" | ", 1)[0].replace("- M", ""))
+            except ValueError:
+                current_index = None
+        result.append(line)
+        if line.startswith("  mechanism_context_source:") and current_index in cue_by_index:
+            cue = cue_by_index[current_index]
+            result.append("  provider_semantic_context_review_cue: " + _render_provider_semantic_review_cue(cue))
+            result.append("  provider_semantic_context_source: " + _render_provider_semantic_source(cue))
+            result.append("  provider_semantic_context_guard: " + _render_provider_semantic_guard(cue))
+    return result
