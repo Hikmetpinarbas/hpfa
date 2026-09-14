@@ -132,26 +132,67 @@ def _occurrence_spine_lines(root: Path, full_spine: dict[str, Any]) -> list[str]
 
 
 def _context_focus_candidates(record: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return non-actor context diagnostics that may justify analyst review.
+
+    These remain descriptive candidates only. Actor identity, provider direction, shot
+    annotations and navigation/binding metadata are deliberately excluded so they do not
+    become the leading football-mechanism explanation.
+    """
     result: list[dict[str, Any]] = []
     for row in record.get("context_feature_difference_candidates") or []:
         if not isinstance(row, dict):
             continue
         token = str(row.get("feature_token") or "")
+        if "actor_identity_candidate_ids:" in token:
+            continue
         if "process_shot_present_annotation_candidate" in token:
             continue
         if "process_episode_navigation_binding_visible" in token:
             continue
         if "provider_direction_candidates" in token:
             continue
+        if "provider_progression_candidates" in token:
+            continue
+        if "provider_zone_candidates" in token:
+            continue
+        if "coordinate_derived_zone_candidates" in token:
+            continue
         if "process_semantic_role" in token:
             continue
-        if "actor_identity_candidate_ids:" in token or "process_family_candidate:" in token:
+        if any(
+            marker in token
+            for marker in (
+                "process_family_candidate:",
+                "occurrence_topology:",
+                "required_participant_scope:",
+                "binding_state:",
+            )
+        ):
             result.append(row)
     return result
 
 
 def _select_context_focus(record: dict[str, Any]) -> dict[str, Any] | None:
     candidates = _context_focus_candidates(record)
+    if not candidates:
+        return None
+    return max(
+        candidates,
+        key=lambda item: abs(float(item.get("descriptive_rate_delta_success_minus_failure") or 0.0)),
+    )
+
+
+def _actor_locator_candidates(record: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in (record.get("context_feature_difference_candidates") or [])
+        if isinstance(row, dict)
+        and "actor_identity_candidate_ids:" in str(row.get("feature_token") or "")
+    ]
+
+
+def _select_actor_locator(record: dict[str, Any]) -> dict[str, Any] | None:
+    candidates = _actor_locator_candidates(record)
     if not candidates:
         return None
     return max(
@@ -170,17 +211,20 @@ def _focus_actor_ref(row: dict[str, Any] | None) -> str | None:
     return value or None
 
 
-def _render_context_focus(row: dict[str, Any] | None, actors: dict[str, str]) -> str:
+def _render_context_focus(row: dict[str, Any] | None) -> str:
     if not row:
-        return "NO_NON_OUTCOME_CONTEXT_OR_ACTOR_CONTRAST_EXPOSED"
+        return "NO_NON_ACTOR_CONTEXT_DIAGNOSTIC_EXPOSED"
     token = str(row.get("feature_token") or "")
     label = token
-    if "actor_identity_candidate_ids:" in token:
-        actor_ref = token.rsplit("actor_identity_candidate_ids:", 1)[-1]
-        label = "actor=" + actors.get(actor_ref, actor_ref)
-    elif "process_family_candidate:" in token:
+    if "process_family_candidate:" in token:
         family = token.rsplit("process_family_candidate:", 1)[-1]
-        label = "process_context=" + _pretty_key(family)
+        label = "process_context_candidate=" + _pretty_key(family)
+    elif "occurrence_topology:" in token:
+        label = "occurrence_topology=" + _pretty_key(token.rsplit("occurrence_topology:", 1)[-1])
+    elif "required_participant_scope:" in token:
+        label = "participant_scope=" + _pretty_key(token.rsplit("required_participant_scope:", 1)[-1])
+    elif "binding_state:" in token:
+        label = "binding_state=" + _pretty_key(token.rsplit("binding_state:", 1)[-1])
     success_n = int(row.get("success_visible_numerator") or 0)
     success_d = int(row.get("success_eligible_denominator") or 0)
     failure_n = int(row.get("failure_visible_numerator") or 0)
@@ -189,6 +233,23 @@ def _render_context_focus(row: dict[str, Any] | None, actors: dict[str, str]) ->
     return (
         f"{label} success={success_n}/{success_d} failure={failure_n}/{failure_d} "
         f"descriptive_rate_delta={delta:+.3f}"
+    )
+
+
+def _render_actor_locator(row: dict[str, Any] | None, actors: dict[str, str]) -> str:
+    if not row:
+        return "NO_ACTOR_LOCATOR_CONTRAST_EXPOSED"
+    token = str(row.get("feature_token") or "")
+    actor_ref = token.rsplit("actor_identity_candidate_ids:", 1)[-1].strip()
+    label = actors.get(actor_ref, actor_ref)
+    success_n = int(row.get("success_visible_numerator") or 0)
+    success_d = int(row.get("success_eligible_denominator") or 0)
+    failure_n = int(row.get("failure_visible_numerator") or 0)
+    failure_d = int(row.get("failure_eligible_denominator") or 0)
+    delta = float(row.get("descriptive_rate_delta_success_minus_failure") or 0.0)
+    return (
+        f"actor={label} success={success_n}/{success_d} failure={failure_n}/{failure_d} "
+        f"descriptive_rate_delta={delta:+.3f} role=VIDEO_REVIEW_LOCATOR_ONLY"
     )
 
 
@@ -353,7 +414,7 @@ def build_mechanism_review_lines(
         "Bu bolum YAYINLANABILIR BULGU degildir; analyst-review mekanizma adayidir.",
         "Adaylar siralanmamistir. Oranlar gercek basari olasiligi degildir ve causality/tactical-plan kaniti sayilmaz.",
         *_occurrence_spine_lines(root, full_spine),
-        "information_value_guard=SUCCESS/FAILURE ile same-team continuation/opponent handover farki outcome'a yakindir; tek basina mac mekanizmasi sayilmaz.",
+        "information_value_guard=actor identity yalniz locator; same-team continuation/opponent handover outcome-adjacent descriptive consequence; process-context farki review adayi olabilir ama mekanizma/taktik/neden truth degildir.",
         "locator_semantics=FIRST_SUCCESSOR_AFTER_SHARED_VISIBLE_ANCHOR_NOT_PROVEN_FIRST_DIVERGENCE",
     ]
     for index, record in enumerate(records, start=1):
@@ -366,7 +427,11 @@ def build_mechanism_review_lines(
         failure = int(record.get("failure_resolved_variant_count") or 0)
         first_consequence_layer = record.get("first_supported_consequence_difference_layer_candidate")
         first_context_layer = record.get("first_supported_context_difference_layer_candidate")
-        process_context_missing = int(record.get("process_context_coverage_incomplete_variant_count") or 0)
+        context_missing = int(
+            record.get("context_coverage_incomplete_variant_count")
+            or record.get("process_context_coverage_incomplete_variant_count")
+            or 0
+        )
         right_censored = int(record.get("right_censored_variant_count") or 0)
 
         lines.append(
@@ -391,9 +456,11 @@ def build_mechanism_review_lines(
         if rendered_facts:
             lines.append("  outcome_adjacent_consequence_contrast: " + " | ".join(rendered_facts))
 
-        focus_row = _select_context_focus(record)
-        focus_actor_ref = _focus_actor_ref(focus_row)
-        lines.append("  positive_review_focus: " + _render_context_focus(focus_row, actors))
+        context_focus = _select_context_focus(record)
+        actor_locator = _select_actor_locator(record)
+        focus_actor_ref = _focus_actor_ref(actor_locator)
+        lines.append("  mechanism_context_review_focus: " + _render_context_focus(context_focus))
+        lines.append("  actor_locator_only: " + _render_actor_locator(actor_locator, actors))
         locators = _clip_locator_lines(
             record,
             focus_actor_ref,
@@ -404,14 +471,13 @@ def build_mechanism_review_lines(
         for locator in locators:
             lines.append("  video_review_locator: " + locator)
         lines.append(
-            f"  uncertainty: process_context_missing={process_context_missing}/{resolved} "
+            f"  uncertainty: context_missing={context_missing}/{resolved} "
             f"right_censored={right_censored}/{resolved} dependency_independence_proven="
             f"{str(record.get('dependency_independence_proven') is True).lower()}"
         )
         lines.append(
-            "  analyst_meaning: Once actor/process-context farkini videoda kontrol et; "
-            "locator yalniz shared-anchor successor review hedefidir. Continuation/handover farkini tek basina "
-            "mekanizma, neden, taktik plan, oyuncu kalitesi veya gercek basari olasiligi olarak yorumlama."
+            "  analyst_meaning: Once non-actor process/context farkini ve actor locator ile ilgili klipleri videoda kontrol et. "
+            "Actor farkini oyuncu kalitesi/mekanizma; continuation-handover farkini neden/taktik plan; provider labelini fiziksel futbol truth olarak yorumlama."
         )
 
     lines.extend([
