@@ -236,6 +236,31 @@ def _render_context_focus(row: dict[str, Any] | None) -> str:
     )
 
 
+def _context_source_role(row: dict[str, Any] | None) -> str:
+    if not row:
+        return "NO_CURRENT_CONTEXT_SOURCE_EXPOSED"
+    surface = str(row.get("feature_surface_detail") or "").strip()
+    if surface == "PROVIDER_REVIEWED_PROCESS_PARTICIPATION_CONTEXT":
+        return "PROVIDER_REVIEWED_ANNOTATION"
+    return "SOURCE_ROLE_UNRESOLVED_REVIEW_REQUIRED"
+
+
+def _render_context_source(row: dict[str, Any] | None) -> str:
+    if not row:
+        return "source_role=NO_CURRENT_CONTEXT_SOURCE_EXPOSED"
+    surface = str(row.get("feature_surface_detail") or "UNDECLARED_SURFACE").strip()
+    scope = str(row.get("feature_scope") or "UNDECLARED_SCOPE").strip()
+    denominator = str(row.get("eligible_denominator_basis") or "UNDECLARED_DENOMINATOR_BASIS").strip()
+    ceiling = str(row.get("claim_ceiling") or "UNDECLARED_CLAIM_CEILING").strip()
+    dependency = str(row.get("dependency_independence_proven") is True).lower()
+    statistical = str(row.get("statistical_independence_proven") is True).lower()
+    return (
+        f"source_role={_context_source_role(row)} surface={surface} scope={scope} "
+        f"denominator_basis={denominator} claim_ceiling={ceiling} "
+        f"dependency_independence_proven={dependency} statistical_independence_proven={statistical}"
+    )
+
+
 def _render_actor_locator(row: dict[str, Any] | None, actors: dict[str, str]) -> str:
     if not row:
         return "NO_ACTOR_LOCATOR_CONTRAST_EXPOSED"
@@ -415,6 +440,7 @@ def build_mechanism_review_lines(
         "Adaylar siralanmamistir. Oranlar gercek basari olasiligi degildir ve causality/tactical-plan kaniti sayilmaz.",
         *_occurrence_spine_lines(root, full_spine),
         "information_value_guard=actor identity yalniz locator; same-team continuation/opponent handover outcome-adjacent descriptive consequence; process-context farki review adayi olabilir ama mekanizma/taktik/neden truth degildir.",
+        "source_provenance_guard=provider-reviewed annotation direct admitted observation degildir; derived context physical/tracking truth degildir; unresolved source role yorumlama izni vermez.",
         "locator_semantics=FIRST_SUCCESSOR_AFTER_SHARED_VISIBLE_ANCHOR_NOT_PROVEN_FIRST_DIVERGENCE",
     ]
     for index, record in enumerate(records, start=1):
@@ -460,6 +486,7 @@ def build_mechanism_review_lines(
         actor_locator = _select_actor_locator(record)
         focus_actor_ref = _focus_actor_ref(actor_locator)
         lines.append("  mechanism_context_review_focus: " + _render_context_focus(context_focus))
+        lines.append("  mechanism_context_source: " + _render_context_source(context_focus))
         lines.append("  actor_locator_only: " + _render_actor_locator(actor_locator, actors))
         locators = _clip_locator_lines(
             record,
@@ -476,7 +503,7 @@ def build_mechanism_review_lines(
             f"{str(record.get('dependency_independence_proven') is True).lower()}"
         )
         lines.append(
-            "  analyst_meaning: Once non-actor process/context farkini ve actor locator ile ilgili klipleri videoda kontrol et. "
+            "  analyst_meaning: Once non-actor process/context farkini, onun source/provenance rolunu ve actor locator ile ilgili klipleri videoda kontrol et. "
             "Actor farkini oyuncu kalitesi/mekanizma; continuation-handover farkini neden/taktik plan; provider labelini fiziksel futbol truth olarak yorumlama."
         )
 
