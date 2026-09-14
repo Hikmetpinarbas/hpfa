@@ -40,6 +40,10 @@ def _fail_closed(reason: str, admission_payload: dict[str, Any]) -> dict[str, An
         "variant_feature_challenge_can_increase_support": False,
         "variant_feature_challenge_can_authorize_emit": False,
         "variant_feature_challenge_refs_are_independent_evidence_votes": False,
+        "variant_support_spread_can_increase_support": False,
+        "variant_support_spread_can_authorize_emit": False,
+        "variant_support_spread_is_independent_support": False,
+        "variant_support_spread_is_recurrence_truth": False,
         "challenge_adapter_creates_new_evidence": False,
         "hard_block_hits": [reason],
         "review_hits": list(admission_payload.get("review_hits") or []),
@@ -105,6 +109,55 @@ def _family_lineage(process_variant_payload: dict[str, Any]) -> dict[str, tuple[
     return result
 
 
+def _family_spread_profiles(process_variant_payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for family in process_variant_payload.get("observable_process_variant_families") or []:
+        if not isinstance(family, dict):
+            continue
+        family_ref = _clean(family.get("observable_process_variant_family_id"))
+        if not family_ref:
+            continue
+        result[family_ref] = {
+            "family_ref": family_ref,
+            "member_count": int(family.get("member_count") or 0),
+            "supporting_occurrence_slot_count": int(
+                family.get("supporting_occurrence_slot_count") or 0
+            ),
+            "unique_supporting_action_occurrence_candidate_count": int(
+                family.get("unique_supporting_action_occurrence_candidate_count") or 0
+            ),
+            "supporting_occurrence_reuse_slot_count": int(
+                family.get("supporting_occurrence_reuse_slot_count") or 0
+            ),
+            "supporting_occurrence_reuse_state": _clean(
+                family.get("supporting_occurrence_reuse_state")
+            ) or "NOT_AVAILABLE",
+            "occurrence_disjoint_support_cluster_count": int(
+                family.get("occurrence_disjoint_support_cluster_count") or 0
+            ),
+            "occurrence_disjoint_support_cluster_state": _clean(
+                family.get("occurrence_disjoint_support_cluster_state")
+            ) or "NOT_AVAILABLE",
+            "visible_episode_spread_count": int(family.get("visible_episode_spread_count") or 0),
+            "visible_episode_spread_state": _clean(
+                family.get("visible_episode_spread_state")
+            ) or "NOT_AVAILABLE",
+            "success_visible_episode_spread_count": int(
+                family.get("success_visible_episode_spread_count") or 0
+            ),
+            "failure_visible_episode_spread_count": int(
+                family.get("failure_visible_episode_spread_count") or 0
+            ),
+            "member_count_is_independent_support_count": False,
+            "unique_occurrence_count_is_independent_support_count": False,
+            "occurrence_disjoint_cluster_count_is_independent_support_count": False,
+            "episode_spread_count_is_independent_support_count": False,
+            "occurrence_disjoint_cluster_count_is_recurrence_truth": False,
+            "episode_spread_is_recurrence_truth": False,
+        }
+    return result
+
+
 def _binding_for_handoff(
     handoff: dict[str, Any],
     challenge_payload: dict[str, Any] | None,
@@ -120,6 +173,11 @@ def _binding_for_handoff(
         "coverage_partial": False,
         "dependency_independence_proven": False,
         "statistical_independence_proven": False,
+        "support_spread_profiles": [],
+        "multi_occurrence_disjoint_cluster_visible": False,
+        "multi_episode_spread_visible": False,
+        "support_spread_is_independent_support": False,
+        "support_spread_is_recurrence_truth": False,
     }
     if not challenge_payload or not process_variant_payload:
         return unavailable
@@ -141,6 +199,21 @@ def _binding_for_handoff(
     if not family_refs:
         return {**unavailable, "state": "NOT_APPLICABLE_NO_GRAMMAR_STABLE_LINEAGE"}
 
+    spread_by_family = _family_spread_profiles(process_variant_payload)
+    spread_profiles = [
+        spread_by_family[family_ref]
+        for family_ref in family_refs
+        if family_ref in spread_by_family
+    ]
+    multi_cluster_visible = any(
+        int(profile.get("occurrence_disjoint_support_cluster_count") or 0) >= 2
+        for profile in spread_profiles
+    )
+    multi_episode_visible = any(
+        int(profile.get("visible_episode_spread_count") or 0) >= 2
+        for profile in spread_profiles
+    )
+
     rows_by_family: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in challenge_payload.get("variant_feature_challenge_records") or []:
         if not isinstance(row, dict):
@@ -155,6 +228,9 @@ def _binding_for_handoff(
             **unavailable,
             "state": "MATCHED_LINEAGE_CHALLENGE_MISSING",
             "family_refs": family_refs,
+            "support_spread_profiles": spread_profiles,
+            "multi_occurrence_disjoint_cluster_visible": multi_cluster_visible,
+            "multi_episode_spread_visible": multi_episode_visible,
         }
 
     challenge_refs = sorted(
@@ -205,6 +281,11 @@ def _binding_for_handoff(
         "statistical_independence_proven": all(
             row.get("statistical_independence_proven") is True for row in rows
         ),
+        "support_spread_profiles": spread_profiles,
+        "multi_occurrence_disjoint_cluster_visible": multi_cluster_visible,
+        "multi_episode_spread_visible": multi_episode_visible,
+        "support_spread_is_independent_support": False,
+        "support_spread_is_recurrence_truth": False,
     }
 
 
@@ -273,6 +354,17 @@ def apply_variant_feature_challenge_to_admission(
         row["variant_feature_challenge_statistical_independence_proven"] = bool(
             binding["statistical_independence_proven"]
         )
+        row["variant_support_spread_profiles"] = list(binding["support_spread_profiles"])
+        row["variant_support_multi_occurrence_disjoint_cluster_visible"] = bool(
+            binding["multi_occurrence_disjoint_cluster_visible"]
+        )
+        row["variant_support_multi_episode_spread_visible"] = bool(
+            binding["multi_episode_spread_visible"]
+        )
+        row["variant_support_spread_is_independent_support"] = False
+        row["variant_support_spread_is_recurrence_truth"] = False
+        row["variant_support_spread_can_increase_support"] = False
+        row["variant_support_spread_can_authorize_emit"] = False
 
         reasons = set(_refs(row.get("decision_reasons")))
         state = binding["state"]
@@ -335,6 +427,10 @@ def apply_variant_feature_challenge_to_admission(
         "variant_feature_challenge_can_increase_support": False,
         "variant_feature_challenge_can_authorize_emit": False,
         "variant_feature_challenge_refs_are_independent_evidence_votes": False,
+        "variant_support_spread_can_increase_support": False,
+        "variant_support_spread_can_authorize_emit": False,
+        "variant_support_spread_is_independent_support": False,
+        "variant_support_spread_is_recurrence_truth": False,
         "challenge_adapter_creates_new_evidence": False,
         "unresolved_consequence_horizon_can_authorize_emit": False,
         "unresolved_consequence_censoring_can_authorize_emit": False,
