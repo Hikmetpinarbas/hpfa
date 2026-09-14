@@ -126,6 +126,10 @@ def _support_spread_contract(decision_row: dict[str, Any] | None) -> dict[str, A
             "variant_support_spread_profiles": [],
             "variant_support_multi_occurrence_disjoint_cluster_visible": False,
             "variant_support_multi_episode_spread_visible": False,
+            "variant_support_episode_spread_observed": False,
+            "variant_support_episode_spread_max_visible_count": 0,
+            "variant_support_episode_spread_resolution_state": "UNRESOLVED",
+            "variant_support_episode_spread_resolves_upstream_unknown": False,
             "variant_support_spread_is_independent_support": False,
             "variant_support_spread_is_recurrence_truth": False,
             "variant_support_spread_can_increase_support": False,
@@ -188,6 +192,18 @@ def _support_spread_contract(decision_row: dict[str, Any] | None) -> dict[str, A
         "variant_support_multi_episode_spread_visible": (
             decision_row.get("variant_support_multi_episode_spread_visible") is True
         ),
+        "variant_support_episode_spread_observed": (
+            decision_row.get("variant_support_episode_spread_observed") is True
+        ),
+        "variant_support_episode_spread_max_visible_count": int(
+            decision_row.get("variant_support_episode_spread_max_visible_count") or 0
+        ),
+        "variant_support_episode_spread_resolution_state": str(
+            decision_row.get("variant_support_episode_spread_resolution_state") or "UNRESOLVED"
+        ),
+        "variant_support_episode_spread_resolves_upstream_unknown": (
+            decision_row.get("variant_support_episode_spread_resolves_upstream_unknown") is True
+        ),
         "variant_support_spread_is_independent_support": False,
         "variant_support_spread_is_recurrence_truth": False,
         "variant_support_spread_can_increase_support": False,
@@ -207,7 +223,8 @@ def build_analyst_output_claim_contract(
     a defeasible match-local professional finding. REVIEW_REQUIRED is preserved as review
     debt and can never be laundered into professional output. Variant-feature challenge
     and support-spread metadata are carried only as compact provenance/qualification;
-    they create no evidence and cannot authorize EMIT.
+    they create no evidence and cannot authorize EMIT. Late-bound episode spread may
+    resolve only a stale upstream UNKNOWN label and never independence or recurrence.
     """
     if comparable_outcome_payload.get("production_release") is True:
         return _fail_closed("production_release_claimed")
@@ -286,6 +303,13 @@ def build_analyst_output_claim_contract(
 
         challenge_contract = _challenge_contract(decision_row)
         support_spread_contract = _support_spread_contract(decision_row)
+        episode_spread_unknown_resolved = (
+            support_spread_contract["variant_support_episode_spread_observed"] is True
+        )
+        if episode_spread_unknown_resolved:
+            blocking_dimensions = [
+                value for value in blocking_dimensions if value != "EPISODE_SPREAD_UNKNOWN"
+            ]
         decision_counts[decision] = decision_counts.get(decision, 0) + 1
         contracts.append(
             {
@@ -296,6 +320,9 @@ def build_analyst_output_claim_contract(
                 "professional_emit_allowed": professional_emit_allowed,
                 "evidence_sufficiency_state": sufficiency_state,
                 "blocking_dimensions": blocking_dimensions,
+                "upstream_episode_spread_unknown_resolved_by_late_bound_variant_family": (
+                    episode_spread_unknown_resolved
+                ),
                 "required_qualifiers": list(REQUIRED_QUALIFIERS),
                 "forbidden_claim_families": forbidden,
                 **challenge_contract,
@@ -344,6 +371,7 @@ def build_analyst_output_claim_contract(
         "variant_support_spread_is_recurrence_truth": False,
         "variant_support_spread_can_increase_support": False,
         "variant_support_spread_can_authorize_emit": False,
+        "late_bound_episode_spread_can_only_resolve_stale_unknown": True,
         "review_required_admission_can_authorize_emit": False,
         "analyst_or_llm_text_is_evidence": False,
         "claim_contract_creates_new_evidence": False,
@@ -380,6 +408,7 @@ def _fail_closed(reason: str) -> dict[str, Any]:
         "variant_support_spread_is_recurrence_truth": False,
         "variant_support_spread_can_increase_support": False,
         "variant_support_spread_can_authorize_emit": False,
+        "late_bound_episode_spread_can_only_resolve_stale_unknown": True,
         "review_required_admission_can_authorize_emit": False,
         "analyst_or_llm_text_is_evidence": False,
         "claim_contract_creates_new_evidence": False,
