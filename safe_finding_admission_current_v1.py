@@ -7,6 +7,12 @@ from pathlib import Path
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.comparable_outcome_counterevidence_projection import (
     build_comparable_outcome_counterevidence,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.grammar_stable_variant_feature_delta_projection import (
+    build_grammar_stable_variant_feature_delta,
+)
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.observable_process_variant_binding_projection import (
+    build_observable_process_variant_binding,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.process_participation_variant_context_adapter import (
     apply_process_context_to_comparison,
     apply_process_participation_context,
@@ -20,6 +26,9 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_variant_feature_challenge_adapter import (
     apply_variant_feature_challenge_to_admission,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_sequence_grammar_alignment_projection import (
+    build_supported_sequence_grammar_alignment,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.variant_feature_challenge_projection import (
     build_variant_feature_challenge_projection,
 )
@@ -27,8 +36,10 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.variant_featu
 OUTPUT_NAME = "safe_finding_admission_projection_v1.json"
 FEATURE_DELTA_NAME = "grammar_stable_variant_feature_delta_projection_v1.json"
 PROCESS_VARIANT_NAME = "observable_process_variant_binding_projection_v1.json"
+GRAMMAR_ALIGNMENT_NAME = "supported_sequence_grammar_alignment_projection_v1.json"
 PROCESS_PARTICIPATION_NAME = "analyst_episode_process_participation_projection_v1.json"
 OCCURRENCE_CONSEQUENCE_NAME = "occurrence_consequence_projection_v1.json"
+OCCURRENCE_STATE_TRANSITION_NAME = "occurrence_state_transition_projection_v1.json"
 CHALLENGE_NAME = "variant_feature_challenge_projection_v1.json"
 PUZZLE_FINDING_NAME = "puzzle_finding_contract_projection_v1.json"
 
@@ -130,18 +141,25 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
     source_payload = _load(source_path)
     feature_delta_path = output / FEATURE_DELTA_NAME
     process_variant_path = output / PROCESS_VARIANT_NAME
+    grammar_alignment_path = output / GRAMMAR_ALIGNMENT_NAME
     process_participation_path = output / PROCESS_PARTICIPATION_NAME
     occurrence_consequence_path = output / OCCURRENCE_CONSEQUENCE_NAME
+    occurrence_state_transition_path = output / OCCURRENCE_STATE_TRANSITION_NAME
     challenge_path = output / CHALLENGE_NAME
     puzzle_finding_path = output / PUZZLE_FINDING_NAME
 
     feature_delta_payload = _load(feature_delta_path)
     process_variant_payload = _load(process_variant_path)
+    grammar_alignment_payload = _load(grammar_alignment_path)
     process_participation_payload = _load(process_participation_path)
     occurrence_consequence_payload = _load(occurrence_consequence_path)
+    occurrence_state_transition_payload = _load(occurrence_state_transition_path)
     challenge_payload: dict | None = None
     process_context_counterevidence_recomputed = False
     process_context_counterevidence_fail_closed = False
+    process_context_downstream_recomputed = False
+    process_context_downstream_recompute_fail_closed = False
+    stale_process_variant_surface_reused = False
 
     if source_payload and process_participation_payload and occurrence_consequence_payload:
         source_payload = apply_process_context_to_comparison(
@@ -161,7 +179,41 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
                 process_context_counterevidence_recomputed = True
                 _write(source_path, source_payload)
 
-    if source_payload and feature_delta_payload:
+                if not occurrence_state_transition_payload:
+                    process_context_downstream_recompute_fail_closed = True
+                else:
+                    grammar_alignment_payload = build_supported_sequence_grammar_alignment(source_payload)
+                    if grammar_alignment_payload.get("status") == "FAIL_CLOSED":
+                        process_context_downstream_recompute_fail_closed = True
+                    else:
+                        _write(grammar_alignment_path, grammar_alignment_payload)
+                        process_variant_payload = build_observable_process_variant_binding(
+                            source_payload,
+                            grammar_alignment_payload,
+                        )
+                        if process_variant_payload.get("status") == "FAIL_CLOSED":
+                            process_context_downstream_recompute_fail_closed = True
+                        else:
+                            _write(process_variant_path, process_variant_payload)
+                            feature_delta_payload = build_grammar_stable_variant_feature_delta(
+                                source_payload,
+                                process_variant_payload,
+                                occurrence_state_transition_payload,
+                                occurrence_consequence_payload,
+                            )
+                            if feature_delta_payload.get("status") == "FAIL_CLOSED":
+                                process_context_downstream_recompute_fail_closed = True
+                            else:
+                                _write(feature_delta_path, feature_delta_payload)
+                                process_context_downstream_recomputed = True
+        elif process_variant_payload:
+            stale_process_variant_surface_reused = True
+
+    if (
+        source_payload
+        and feature_delta_payload
+        and not process_context_downstream_recompute_fail_closed
+    ):
         feature_delta_payload = apply_process_participation_context(
             source_payload,
             feature_delta_payload,
@@ -170,7 +222,11 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
         )
         _write(feature_delta_path, feature_delta_payload)
 
-    if feature_delta_payload and process_variant_payload:
+    if (
+        feature_delta_payload
+        and process_variant_payload
+        and not process_context_downstream_recompute_fail_closed
+    ):
         challenge_payload = build_variant_feature_challenge_projection(
             feature_delta_payload,
             process_variant_payload,
@@ -200,6 +256,20 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
             "professional_finding_emitted_count": 0,
             "claim_output_allowed_count": 0,
             "hard_block_hits": ["process_context_counterevidence_recompute_fail_closed"],
+            "review_hits": [],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+    elif process_context_downstream_recompute_fail_closed:
+        result = {
+            "status": "FAIL_CLOSED",
+            "safe_finding_admission_decisions": [],
+            "safe_finding_admission_decision_count": 0,
+            "finding_status_counts": {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 0},
+            "professional_finding_emitted_count": 0,
+            "claim_output_allowed_count": 0,
+            "hard_block_hits": ["process_context_downstream_recompute_fail_closed"],
             "review_hits": [],
             "canonical_event_count": "UNKNOWN",
             "true_action_count": "UNKNOWN",
@@ -249,11 +319,17 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
     result["source_process_variant_json"] = (
         str(process_variant_path) if process_variant_path.is_file() else None
     )
+    result["source_supported_sequence_grammar_alignment_json"] = (
+        str(grammar_alignment_path) if grammar_alignment_path.is_file() else None
+    )
     result["source_process_participation_json"] = (
         str(process_participation_path) if process_participation_path.is_file() else None
     )
     result["source_occurrence_consequence_json"] = (
         str(occurrence_consequence_path) if occurrence_consequence_path.is_file() else None
+    )
+    result["source_occurrence_state_transition_json"] = (
+        str(occurrence_state_transition_path) if occurrence_state_transition_path.is_file() else None
     )
     result["source_variant_feature_challenge_json"] = (
         str(challenge_path) if challenge_path.is_file() else None
@@ -282,6 +358,26 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
         source_payload.get("process_comparison_context_lowered_pair_count") or 0
     ) if source_payload else 0
     result["process_context_counterevidence_recomputed"] = process_context_counterevidence_recomputed
+    result["process_context_downstream_recomputed"] = process_context_downstream_recomputed
+    result["process_context_stale_process_variant_surface_reused"] = stale_process_variant_surface_reused
+    result["context_aligned_grammar_alignment_status"] = grammar_alignment_payload.get("status") if grammar_alignment_payload else None
+    result["context_aligned_grammar_alignment_count"] = int(
+        grammar_alignment_payload.get("supported_sequence_grammar_alignment_count") or 0
+    ) if grammar_alignment_payload else 0
+    result["context_aligned_process_variant_status"] = process_variant_payload.get("status") if process_variant_payload else None
+    result["context_aligned_process_variant_binding_count"] = int(
+        process_variant_payload.get("observable_process_variant_binding_count") or 0
+    ) if process_variant_payload else 0
+    result["context_aligned_process_variant_family_count"] = int(
+        process_variant_payload.get("observable_process_variant_family_count") or 0
+    ) if process_variant_payload else 0
+    result["context_aligned_visible_outcome_variation_family_count"] = int(
+        process_variant_payload.get("grammar_stable_visible_outcome_variation_family_count") or 0
+    ) if process_variant_payload else 0
+    result["context_aligned_feature_delta_status"] = feature_delta_payload.get("status") if feature_delta_payload else None
+    result["context_aligned_feature_delta_record_count"] = int(
+        feature_delta_payload.get("grammar_stable_variant_feature_delta_record_count") or 0
+    ) if feature_delta_payload else 0
     result["process_context_can_create_new_pair"] = False
     return result
 
@@ -323,6 +419,24 @@ def main() -> int:
         ),
         "process_context_counterevidence_recomputed": result.get(
             "process_context_counterevidence_recomputed"
+        ),
+        "process_context_downstream_recomputed": result.get(
+            "process_context_downstream_recomputed"
+        ),
+        "process_context_stale_process_variant_surface_reused": result.get(
+            "process_context_stale_process_variant_surface_reused"
+        ),
+        "context_aligned_grammar_alignment_count": result.get(
+            "context_aligned_grammar_alignment_count", 0
+        ),
+        "context_aligned_process_variant_binding_count": result.get(
+            "context_aligned_process_variant_binding_count", 0
+        ),
+        "context_aligned_process_variant_family_count": result.get(
+            "context_aligned_process_variant_family_count", 0
+        ),
+        "context_aligned_visible_outcome_variation_family_count": result.get(
+            "context_aligned_visible_outcome_variation_family_count", 0
         ),
         "cross_mechanism_fusion_performed": result.get("cross_mechanism_fusion_performed"),
         "mechanism_candidate_emitted": result.get("mechanism_candidate_emitted"),
