@@ -44,6 +44,7 @@ def _fail_closed(reason: str, admission_payload: dict[str, Any]) -> dict[str, An
         "variant_support_spread_can_authorize_emit": False,
         "variant_support_spread_is_independent_support": False,
         "variant_support_spread_is_recurrence_truth": False,
+        "late_bound_episode_spread_can_only_resolve_stale_unknown": True,
         "challenge_adapter_creates_new_evidence": False,
         "hard_block_hits": [reason],
         "review_hits": list(admission_payload.get("review_hits") or []),
@@ -158,6 +159,28 @@ def _family_spread_profiles(process_variant_payload: dict[str, Any]) -> dict[str
     return result
 
 
+def _episode_spread_summary(profiles: list[dict[str, Any]]) -> dict[str, Any]:
+    counts = [
+        int(profile.get("visible_episode_spread_count") or 0)
+        for profile in profiles
+        if isinstance(profile, dict)
+        and int(profile.get("visible_episode_spread_count") or 0) > 0
+        and _clean(profile.get("visible_episode_spread_state"))
+        in {"SINGLE_VISIBLE_EPISODE_CONCENTRATION", "MULTIPLE_VISIBLE_EPISODE_CANDIDATES"}
+    ]
+    if not counts:
+        return {
+            "observed": False,
+            "max_visible_episode_spread_count": 0,
+            "resolution_state": "UNRESOLVED",
+        }
+    return {
+        "observed": True,
+        "max_visible_episode_spread_count": max(counts),
+        "resolution_state": "OBSERVED_LATE_BOUND_VARIANT_FAMILY_SPREAD",
+    }
+
+
 def _binding_for_handoff(
     handoff: dict[str, Any],
     challenge_payload: dict[str, Any] | None,
@@ -176,6 +199,9 @@ def _binding_for_handoff(
         "support_spread_profiles": [],
         "multi_occurrence_disjoint_cluster_visible": False,
         "multi_episode_spread_visible": False,
+        "episode_spread_observed": False,
+        "episode_spread_max_visible_count": 0,
+        "episode_spread_resolution_state": "UNRESOLVED",
         "support_spread_is_independent_support": False,
         "support_spread_is_recurrence_truth": False,
     }
@@ -213,6 +239,7 @@ def _binding_for_handoff(
         int(profile.get("visible_episode_spread_count") or 0) >= 2
         for profile in spread_profiles
     )
+    episode_summary = _episode_spread_summary(spread_profiles)
 
     rows_by_family: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in challenge_payload.get("variant_feature_challenge_records") or []:
@@ -231,6 +258,9 @@ def _binding_for_handoff(
             "support_spread_profiles": spread_profiles,
             "multi_occurrence_disjoint_cluster_visible": multi_cluster_visible,
             "multi_episode_spread_visible": multi_episode_visible,
+            "episode_spread_observed": episode_summary["observed"],
+            "episode_spread_max_visible_count": episode_summary["max_visible_episode_spread_count"],
+            "episode_spread_resolution_state": episode_summary["resolution_state"],
         }
 
     challenge_refs = sorted(
@@ -284,6 +314,9 @@ def _binding_for_handoff(
         "support_spread_profiles": spread_profiles,
         "multi_occurrence_disjoint_cluster_visible": multi_cluster_visible,
         "multi_episode_spread_visible": multi_episode_visible,
+        "episode_spread_observed": episode_summary["observed"],
+        "episode_spread_max_visible_count": episode_summary["max_visible_episode_spread_count"],
+        "episode_spread_resolution_state": episode_summary["resolution_state"],
         "support_spread_is_independent_support": False,
         "support_spread_is_recurrence_truth": False,
     }
@@ -299,7 +332,8 @@ def apply_variant_feature_challenge_to_admission(
 
     The adapter may preserve a decision or lower EMIT to DOWNGRADE. It can never create
     evidence, increase admitted support, prove independence, or turn DOWNGRADE/ABSTAIN
-    into EMIT.
+    into EMIT. Late-bound episode spread may only resolve a stale UNKNOWN label; it is
+    never converted into independent support or recurrence truth.
     """
     if admission_payload.get("status") == "FAIL_CLOSED":
         return admission_payload
@@ -361,12 +395,26 @@ def apply_variant_feature_challenge_to_admission(
         row["variant_support_multi_episode_spread_visible"] = bool(
             binding["multi_episode_spread_visible"]
         )
+        row["variant_support_episode_spread_observed"] = bool(
+            binding["episode_spread_observed"]
+        )
+        row["variant_support_episode_spread_max_visible_count"] = int(
+            binding["episode_spread_max_visible_count"] or 0
+        )
+        row["variant_support_episode_spread_resolution_state"] = _clean(
+            binding["episode_spread_resolution_state"]
+        ) or "UNRESOLVED"
+        row["variant_support_episode_spread_resolves_upstream_unknown"] = bool(
+            binding["episode_spread_observed"]
+        )
         row["variant_support_spread_is_independent_support"] = False
         row["variant_support_spread_is_recurrence_truth"] = False
         row["variant_support_spread_can_increase_support"] = False
         row["variant_support_spread_can_authorize_emit"] = False
 
         reasons = set(_refs(row.get("decision_reasons")))
+        if binding["episode_spread_observed"]:
+            reasons.discard("EPISODE_SPREAD_UNKNOWN")
         state = binding["state"]
         challenge_downgrade_reasons: list[str] = []
         if state == "UNAVAILABLE_REVIEW_REQUIRED":
@@ -431,6 +479,7 @@ def apply_variant_feature_challenge_to_admission(
         "variant_support_spread_can_authorize_emit": False,
         "variant_support_spread_is_independent_support": False,
         "variant_support_spread_is_recurrence_truth": False,
+        "late_bound_episode_spread_can_only_resolve_stale_unknown": True,
         "challenge_adapter_creates_new_evidence": False,
         "unresolved_consequence_horizon_can_authorize_emit": False,
         "unresolved_consequence_censoring_can_authorize_emit": False,
