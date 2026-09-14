@@ -259,12 +259,18 @@ def test_stale_mechanism_artifact_is_not_consumed(tmp_path: Path) -> None:
 
 def test_standard_report_contains_role_separated_review_without_promoting_emit(tmp_path: Path) -> None:
     _write_payloads(tmp_path)
-    text = build_analyst_report(tmp_path, _full_spine(tmp_path))
+    spine = _full_spine(tmp_path)
+    spine["engineering_evidence"]["current_context_episode_feature_lane_completed"] = True
+    spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+    spine["rich_multiformat_analysis_lattice"] = {"status": "REVIEW_REQUIRED"}
+    text = build_analyst_report(tmp_path, spine)
     assert "ANALYST REVIEW — GORUNUR SUREC MEKANIZMASI ADAYLARI" in text
     assert "primary_occurrence_spine: occurrence_candidates=12" in text
     assert "mechanism_context_review_focus: process_context_candidate=Positional Attack Candidate" in text
     assert "actor_locator_only: actor=Player Alpha" in text
     assert "video_review_locator: shared_anchor=02:00" in text
     assert "professional_emit_allowed=false" in text
+    assert "ZFGV observation ailesindeki occurrence/episode aday yuzeylerini" in text
+    assert "event-only" not in text
     assert "canonical_event_count=UNKNOWN" in text
     assert "production_release=false" in text
