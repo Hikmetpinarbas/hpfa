@@ -14,20 +14,41 @@ def _load_module():
     return module
 
 
-def test_parse_pytest_summary() -> None:
+def test_module_states_reuse_fail_local_execution_truth() -> None:
     module = _load_module()
-    assert module._parse_pytest_summary('775 passed, 3 skipped in 12.40s') == {
-        'passed': 775,
-        'failed': 0,
-        'skipped': 3,
-        'errors': 0,
+    modules = [
+        {'module': 'alpha', 'source_file_count': 1, 'test_file_count': 1, 'test_files': ['hpfa/modules/core/alpha/tests/test_a.py']},
+        {'module': 'beta', 'source_file_count': 1, 'test_file_count': 1, 'test_files': ['hpfa/modules/core/beta/tests/test_b.py']},
+        {'module': 'gamma', 'source_file_count': 1, 'test_file_count': 1, 'test_files': ['hpfa/modules/core/gamma/tests/test_c.py']},
+        {'module': 'delta', 'source_file_count': 1, 'test_file_count': 0, 'test_files': []},
+    ]
+    audit = {
+        'product_compile_status': 'PASS',
+        'per_file_results': [
+            {
+                'test_file': 'hpfa/modules/core/alpha/tests/test_a.py',
+                'returncode': 0,
+                'tests': 2,
+                'failures': 0,
+                'errors': 0,
+                'skipped': 1,
+            },
+            {
+                'test_file': 'hpfa/modules/core/beta/tests/test_b.py',
+                'returncode': 1,
+                'tests': 1,
+                'failures': 1,
+                'errors': 0,
+                'skipped': 0,
+            },
+        ],
     }
-    assert module._parse_pytest_summary('2 failed, 8 passed, 1 error in 1.2s') == {
-        'passed': 8,
-        'failed': 2,
-        'skipped': 0,
-        'errors': 1,
-    }
+    rows = {row['module']: row for row in module._module_states_from_fail_local(modules, audit)}
+    assert rows['alpha']['engineering_test_state'] == 'PASS'
+    assert rows['alpha']['passed'] == 1
+    assert rows['beta']['engineering_test_state'] == 'FAIL'
+    assert rows['gamma']['engineering_test_state'] == 'UNKNOWN'
+    assert rows['delta']['engineering_test_state'] == 'NO_TESTS'
 
 
 def test_apply_engineering_states_keeps_runtime_and_test_truth_separate() -> None:
@@ -69,23 +90,29 @@ def test_apply_engineering_states_keeps_runtime_and_test_truth_separate() -> Non
     assert enriched['engineering_test_state_counts'] == {'PASS': 1, 'UNKNOWN': 1}
 
 
-def test_junit_module_execution_distinguishes_pass_skip_and_fail(tmp_path: Path) -> None:
+def test_fail_local_monolithic_review_does_not_overwrite_isolated_pass() -> None:
     module = _load_module()
-    junit = tmp_path / 'junit.xml'
-    junit.write_text(
-        """<?xml version='1.0' encoding='utf-8'?>
-<testsuites><testsuite tests='4'>
-  <testcase classname='hpfa.modules.core.alpha.tests.test_a' name='test_pass' file='hpfa/modules/core/alpha/tests/test_a.py' />
-  <testcase classname='hpfa.modules.core.alpha.tests.test_a' name='test_skip' file='hpfa/modules/core/alpha/tests/test_a.py'><skipped /></testcase>
-  <testcase classname='hpfa.modules.core.beta.tests.test_b' name='test_fail' file='hpfa/modules/core/beta/tests/test_b.py'><failure /></testcase>
-  <testcase classname='hpfa.modules.core.gamma.tests.test_c' name='test_error' file='hpfa/modules/core/gamma/tests/test_c.py'><error /></testcase>
-</testsuite></testsuites>""",
-        encoding='utf-8',
-    )
-    execution = module._junit_module_execution(junit)
-    assert execution['alpha'] == {'test_case_count': 2, 'passed': 1, 'skipped': 1}
-    assert execution['beta']['failed'] == 1
-    assert execution['gamma']['errors'] == 1
+    modules = [
+        {'module': 'alpha', 'source_file_count': 1, 'test_file_count': 1, 'test_files': ['hpfa/modules/core/alpha/tests/test_a.py']},
+    ]
+    audit = {
+        'product_compile_status': 'PASS',
+        'isolated_test_status': 'PASS',
+        'monolithic_product_core_status': 'REVIEW_REQUIRED',
+        'monolithic_state_contamination_classification': 'FULL_SUITE_STATE_OR_IMPORT_CONTAMINATION_CONFIRMED',
+        'per_file_results': [
+            {
+                'test_file': 'hpfa/modules/core/alpha/tests/test_a.py',
+                'returncode': 0,
+                'tests': 1,
+                'failures': 0,
+                'errors': 0,
+                'skipped': 0,
+            }
+        ],
+    }
+    rows = module._module_states_from_fail_local(modules, audit)
+    assert rows[0]['engineering_test_state'] == 'PASS'
 
 
 def test_human_answer_pack_preserves_claim_ceiling() -> None:
