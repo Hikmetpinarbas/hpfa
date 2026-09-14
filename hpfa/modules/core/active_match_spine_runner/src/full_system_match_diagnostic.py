@@ -295,6 +295,24 @@ def build_diagnostic(root: Path, *, repository: str | None = None, branch: str |
         {"component":"tracking_video_pipeline","purpose":"support physical geometry/off-ball/video claims","invoked":False,"status":"NOT_APPLICABLE","required_prerequisite":"tracking/video observation surface and implemented pipeline","available_prerequisite":False,"output_artifact":None,"meaningful_object_count":None,"degraded_reason":"tracking/video absent and current implementation not established","fail_closed_reason":None,"downstream_consumer_reached":False},
     ])
 
+    for component_row in components:
+        component_status = str(component_row.get("status") or "UNKNOWN").upper()
+        if component_status == "BLOCKED_BY_PREREQUISITE":
+            runtime_state = "BLOCKED_BY_PREREQUISITE"
+        elif component_status == "NOT_APPLICABLE":
+            runtime_state = "NOT_APPLICABLE"
+        elif component_row.get("invoked") is True:
+            runtime_state = "EXECUTED"
+        else:
+            runtime_state = "NOT_BOUND_CURRENT_RUN"
+        if component_status in {"PASS", "REVIEW_REQUIRED", "FAIL_CLOSED"}:
+            result_state = component_status
+        else:
+            result_state = "UNKNOWN"
+        component_row["runtime_execution_state"] = runtime_state
+        component_row["engineering_test_state"] = "UNKNOWN"
+        component_row["result_state"] = result_state
+
     occurrence = _load_json(root, "occurrence_consequence_projection_v1.json")
     sequence = _load_json(root, "visible_action_sequence_candidates_lite_v1.json")
     process = _load_json(root, "observable_process_variant_binding_projection_v1.json")
@@ -337,7 +355,7 @@ def build_diagnostic(root: Path, *, repository: str | None = None, branch: str |
         {"node":"METRIC/MODEL","reached":True,"meaningful_object_count":{"primitive_metrics":full.get("primitive_metric_count"),"construct_C01":1},"major_censoring":None,"unresolved_burden":"C01 REVIEW_REQUIRED","dependency_burden":"same-provider support non-independent","next_barrier":"occurrence progression semantics admission"},
         {"node":"SIGNAL","reached":bool(process),"meaningful_object_count":process.get("observable_process_variant_binding_count"),"major_censoring":None,"unresolved_burden":None,"dependency_burden":"signal != finding","next_barrier":"hypothesis/challenge"},
         {"node":"HYPOTHESIS","reached":bool(delta),"meaningful_object_count":delta.get("grammar_stable_variant_feature_delta_record_count"),"major_censoring":None,"unresolved_burden":delta.get("review_hits"),"dependency_burden":"descriptive difference != explanation","next_barrier":"counterevidence"},
-        {"node":"COUNTEREVIDENCE","reached":bool(sequence),"meaningful_object_count":sequence.get("comparable_counterevidence_candidate_count"),"major_censoring":occurrence.get("right_censored_occurrence_count"),"unresolved_burden":occurrence.get("followup_semantics_unresolved_occurrence_count"),"dependency_burden":"counterexample pair is not independent evidence count","next_barrier":"safe finding sufficiency"},
+        {"node":"COUNTEREVIDENCE","reached":bool(sequence),"meaningful_object_count":sequence.get("comparable_counterevidence_candidate_count"),"major_censoring":occurrence.get("right_censored_occurrence_count"),"unresolved_burden":(occurrence.get("followup_observation_status_counts") or {}).get("FOLLOWUP_UNRESOLVED"),"dependency_burden":"counterexample pair is not independent evidence count","next_barrier":"safe finding sufficiency"},
         {"node":"FINDING","reached":bool(safe),"meaningful_object_count":safe.get("safe_finding_admission_decision_count"),"major_censoring":None,"unresolved_burden":safe.get("finding_status_counts"),"dependency_burden":"independent support not proven","next_barrier":"professional EMIT admission"},
         {"node":"CLAIM","reached":bool(_load_json(root,"analyst_output_claim_contract_projection_v1.json")),"meaningful_object_count":_load_json(root,"analyst_output_claim_contract_projection_v1.json").get("analyst_output_contract_count"),"major_censoring":None,"unresolved_burden":"professional_emit_allowed=false","dependency_burden":"claim ceiling enforced","next_barrier":"independent/contextual sufficiency"},
         {"node":"ANALYST OUTPUT","reached":(root/"HPFA_ANALYST_REPORT.txt").is_file(),"meaningful_object_count":1 if (root/"HPFA_ANALYST_REPORT.txt").is_file() else 0,"major_censoring":None,"unresolved_burden":"report is review output, not evidence","dependency_burden":"human text must remain under machine ceiling","next_barrier":"cross-artifact accounting consistency"},
@@ -386,8 +404,8 @@ def build_diagnostic(root: Path, *, repository: str | None = None, branch: str |
 
     match_intelligence = {
         "action_occurrence_structure":{"occurrence_candidates":occurrences.get("action_occurrence_candidate_count"),"claim_ceiling":"ACTION_OCCURRENCE_CANDIDATE_ONLY"},
-        "visible_consequence":{"occurrence_projection_count":occurrence.get("occurrence_consequence_projection_count"),"admitted_visible_followup":occurrence.get("occurrence_with_admitted_followup_count"),"broader_visible_support":occurrence.get("occurrence_with_ensuing_visible_consequence_support_count") or occurrence.get("occurrence_with_ensuing_consequence_support_count")},
-        "censoring":{"fully_observed_no_followup":occurrence.get("complete_to_declared_horizon_no_admitted_followup_count"),"unresolved":occurrence.get("followup_semantics_unresolved_occurrence_count"),"right_censored":occurrence.get("right_censored_occurrence_count")},
+        "visible_consequence":{"occurrence_projection_count":occurrence.get("occurrence_consequence_projection_count"),"admitted_visible_followup":(occurrence.get("followup_observation_status_counts") or {}).get("VISIBLE_FOLLOWUP"),"broader_visible_support":occurrence.get("occurrence_with_visible_consequence_support_count")},
+        "censoring":{"fully_observed_no_followup":occurrence.get("complete_to_declared_horizon_no_admitted_followup_count"),"unresolved":(occurrence.get("followup_observation_status_counts") or {}).get("FOLLOWUP_UNRESOLVED"),"right_censored":occurrence.get("right_censored_occurrence_count")},
         "partial_order_sequences":{"sequence_candidates":sequence.get("occurrence_temporal_sequence_candidate_count"),"partial_order_variants":sequence.get("partial_order_occurrence_variant_count"),"branch_maps":sequence.get("anchor_centered_sequence_branch_map_count"),"first_supported_divergence_candidates":sequence.get("first_supported_branch_divergence_candidate_count"),"same_time_total_order_claim":False},
         "comparison":{"eligible_outcome_records":sequence.get("comparison_eligible_outcome_record_count"),"comparable_counterevidence_candidates":sequence.get("comparable_counterevidence_candidate_count"),"process_variant_families":process.get("observable_process_variant_family_count"),"grammar_stable_mixed_outcome_families":delta.get("grammar_stable_variant_feature_delta_record_count")},
         "safe_findings":{"decision_count":safe.get("safe_finding_admission_decision_count"),"status_counts":safe.get("finding_status_counts") or safe.get("safe_finding_admission_decision_counts"),"professional_finding_emitted_count":safe.get("professional_finding_emitted_count",0),"professional_emit_allowed":False},
@@ -439,6 +457,13 @@ def build_diagnostic(root: Path, *, repository: str | None = None, branch: str |
         "run_identity": run_identity,
         "component_coverage": components,
         "component_status_counts": dict(Counter(c["status"] for c in components)),
+        "runtime_execution_state_counts": dict(Counter(c["runtime_execution_state"] for c in components)),
+        "engineering_test_state_counts": dict(Counter(c["engineering_test_state"] for c in components)),
+        "result_state_counts": dict(Counter(c["result_state"] for c in components)),
+        "engineering_test_evidence": {
+            "state": "UNKNOWN",
+            "reason": "runtime diagnostic does not convert repository presence or CI history into per-component engineering test proof",
+        },
         "observation_capability_coverage": capabilities,
         "evidence_spine_coverage": evidence_spine,
         "cross_artifact_consistency": consistency,
@@ -474,8 +499,9 @@ def _render_text(d: dict[str, Any]) -> str:
         "",
         "[2] SISTEM CALISMA KAPSAMI",
     ]
-    for status, count in sorted(d["component_status_counts"].items()):
-        lines.append(f"{status}={count}")
+    lines.append("runtime_execution_state_counts=" + json.dumps(d["runtime_execution_state_counts"], ensure_ascii=False, sort_keys=True))
+    lines.append("engineering_test_state_counts=" + json.dumps(d["engineering_test_state_counts"], ensure_ascii=False, sort_keys=True))
+    lines.append("result_state_counts=" + json.dumps(d["result_state_counts"], ensure_ascii=False, sort_keys=True))
     lines.extend(["", "cross_artifact_consistency:"])
     for row in d["cross_artifact_consistency"]:
         lines.append(f"- {row['check']}: {row['status']} | {row.get('reason') or 'consistent'}")
@@ -483,6 +509,8 @@ def _render_text(d: dict[str, Any]) -> str:
         "",
         "[3] BU MACTA HPFA NE GORDU?",
         f"action_occurrence_candidates={mi['action_occurrence_structure']['occurrence_candidates']}",
+        f"visible_followup={mi['visible_consequence']['admitted_visible_followup']}",
+        f"broader_visible_consequence_support={mi['visible_consequence']['broader_visible_support']}",
         f"partial_order_sequence_candidates={mi['partial_order_sequences']['sequence_candidates']}",
         f"branch_maps={mi['partial_order_sequences']['branch_maps']}",
         f"first_supported_divergence_candidates={mi['partial_order_sequences']['first_supported_divergence_candidates']}",
