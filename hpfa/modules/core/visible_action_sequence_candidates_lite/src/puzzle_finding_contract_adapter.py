@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from collections import Counter
 from typing import Any
 
@@ -87,6 +88,40 @@ def _context_refs(where_when: dict[str, Any]) -> list[str]:
     return refs
 
 
+def _late_bound_episode_spread_sufficiency(
+    sufficiency: dict[str, Any],
+    admission_row: dict[str, Any] | None,
+) -> dict[str, Any]:
+    result = copy.deepcopy(sufficiency)
+    observed = (
+        isinstance(admission_row, dict)
+        and admission_row.get("variant_support_episode_spread_observed") is True
+    )
+    result["late_bound_episode_spread_resolution_applied"] = False
+    result["late_bound_episode_spread_is_independent_support"] = False
+    result["late_bound_episode_spread_is_recurrence_truth"] = False
+    if not observed:
+        return result
+
+    blocking = [
+        value
+        for value in (result.get("blocking_dimensions") or [])
+        if _clean(value) != "EPISODE_SPREAD_UNKNOWN"
+    ]
+    result["blocking_dimensions"] = sorted({_clean(value) for value in blocking if _clean(value)})
+    dimensions = dict(result.get("dimensions") or {})
+    dimensions["episode_spread"] = {
+        "count": int(admission_row.get("variant_support_episode_spread_max_visible_count") or 0),
+        "state": _clean(admission_row.get("variant_support_episode_spread_resolution_state"))
+        or "OBSERVED_LATE_BOUND_VARIANT_FAMILY_SPREAD",
+        "count_is_independent_support_count": False,
+        "spread_is_recurrence_truth": False,
+    }
+    result["dimensions"] = dimensions
+    result["late_bound_episode_spread_resolution_applied"] = True
+    return result
+
+
 def build_puzzle_finding_contract(
     sequence_payload: dict[str, Any],
     admission_payload: dict[str, Any] | None = None,
@@ -97,7 +132,9 @@ def build_puzzle_finding_contract(
     tactical mechanism. It only makes already-admitted Safe Finding surfaces explicit as
     Discovery / Comparison / Falsification / Evolution / Fusion inputs. The first bound
     producer is Puzzle 6 (Process Variant & Divergence); other puzzle producers may later
-    emit the same contract without changing downstream fusion semantics.
+    emit the same contract without changing downstream fusion semantics. Late-bound
+    episode spread may resolve only a stale UNKNOWN label; it cannot create support,
+    recurrence truth, tactical truth, or a professional claim.
     """
     blocks: list[str] = []
     reviews: list[str] = []
@@ -146,7 +183,7 @@ def build_puzzle_finding_contract(
             where_when = handoff.get("where_when") if isinstance(handoff.get("where_when"), dict) else {}
             support = handoff.get("support") if isinstance(handoff.get("support"), dict) else {}
             counterevidence = handoff.get("counterevidence") if isinstance(handoff.get("counterevidence"), dict) else {}
-            sufficiency = handoff.get("evidence_sufficiency") if isinstance(handoff.get("evidence_sufficiency"), dict) else {}
+            source_sufficiency = handoff.get("evidence_sufficiency") if isinstance(handoff.get("evidence_sufficiency"), dict) else {}
             uncertainty = handoff.get("uncertainty") if isinstance(handoff.get("uncertainty"), dict) else {}
             alternatives = handoff.get("alternative_explanations") if isinstance(handoff.get("alternative_explanations"), list) else []
             withdrawals = _refs(handoff.get("withdrawal_conditions"))
@@ -163,13 +200,19 @@ def build_puzzle_finding_contract(
                 independent_support = 0
                 reviews.append(f"independent_support_count_invalid:{handoff_id}")
 
+            admission_row = admission_by_ref.get(handoff_id)
             decision, claim_allowed, admission_claim_ceiling = _finding_decision(
                 handoff,
-                admission_by_ref.get(handoff_id),
+                admission_row,
                 admission_payload is not None,
             )
             if admission_payload is not None and handoff_id not in admission_by_ref:
                 reviews.append(f"admission_decision_missing:{handoff_id}")
+
+            sufficiency = _late_bound_episode_spread_sufficiency(
+                source_sufficiency,
+                admission_row,
+            )
 
             if dependency_independence_proven and statistical_independence_proven and independent_support > 0:
                 dependency_state = "INDEPENDENT_SUPPORT_ADMITTED"
@@ -196,6 +239,11 @@ def build_puzzle_finding_contract(
                 "support": support,
                 "counterevidence": counterevidence,
                 "evidence_sufficiency": sufficiency,
+                "late_bound_episode_spread_resolution_applied": (
+                    sufficiency.get("late_bound_episode_spread_resolution_applied") is True
+                ),
+                "late_bound_episode_spread_is_independent_support": False,
+                "late_bound_episode_spread_is_recurrence_truth": False,
                 "alternative_explanations": alternatives,
                 "safe_meaning": handoff.get("safe_meaning"),
                 "forbidden_inference": forbidden,
@@ -276,6 +324,9 @@ def build_puzzle_finding_contract(
         "bound_puzzle_ids": [PUZZLE_ID] if findings and not blocks else [],
         "safe_finding_handoff_consumed": True,
         "safe_finding_admission_consumed": admission_payload is not None,
+        "late_bound_episode_spread_can_only_resolve_stale_unknown": True,
+        "late_bound_episode_spread_is_independent_support": False,
+        "late_bound_episode_spread_is_recurrence_truth": False,
         "discovery_recomputed": False,
         "comparison_recomputed": False,
         "falsification_recomputed": False,
