@@ -1,6 +1,9 @@
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.analyst_output_claim_contract_projection import (
     build_analyst_output_claim_contract,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.puzzle_finding_contract_adapter import (
+    build_puzzle_finding_contract,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_variant_feature_challenge_adapter import (
     apply_variant_feature_challenge_to_admission,
 )
@@ -28,6 +31,12 @@ def _sequence() -> dict:
                         "INDEPENDENCE_UNPROVEN",
                         "EPISODE_SPREAD_UNKNOWN",
                     ],
+                    "dimensions": {
+                        "episode_spread": {
+                            "count": "UNKNOWN",
+                            "state": "UNKNOWN",
+                        }
+                    },
                 },
                 "forbidden_inference": ["TACTICAL_PATTERN_TRUTH"],
             }
@@ -193,3 +202,30 @@ def test_analyst_output_can_describe_spread_but_never_call_it_independent_recurr
     profile = row["variant_support_spread_profiles"][0]
     assert profile["occurrence_disjoint_support_cluster_count"] == 4
     assert profile["visible_episode_spread_count"] == 3
+
+
+def test_puzzle_contract_uses_late_bound_episode_spread_without_claim_inflation() -> None:
+    adapted = apply_variant_feature_challenge_to_admission(
+        _sequence(), _base_admission(), _challenge(), _process_variant()
+    )
+    puzzle = build_puzzle_finding_contract(_sequence(), adapted)
+
+    assert puzzle["late_bound_episode_spread_can_only_resolve_stale_unknown"] is True
+    assert puzzle["late_bound_episode_spread_is_independent_support"] is False
+    assert puzzle["late_bound_episode_spread_is_recurrence_truth"] is False
+    finding = puzzle["puzzle_findings"][0]
+    assert finding["finding_status"] == "DOWNGRADE"
+    assert finding["claim_output_allowed"] is False
+    assert finding["late_bound_episode_spread_resolution_applied"] is True
+    assert finding["late_bound_episode_spread_is_independent_support"] is False
+    assert finding["late_bound_episode_spread_is_recurrence_truth"] is False
+    sufficiency = finding["evidence_sufficiency"]
+    assert "EPISODE_SPREAD_UNKNOWN" not in sufficiency["blocking_dimensions"]
+    assert sufficiency["late_bound_episode_spread_resolution_applied"] is True
+    assert sufficiency["dimensions"]["episode_spread"]["count"] == 3
+    assert (
+        sufficiency["dimensions"]["episode_spread"]["state"]
+        == "OBSERVED_LATE_BOUND_VARIANT_FAMILY_SPREAD"
+    )
+    assert sufficiency["dimensions"]["episode_spread"]["count_is_independent_support_count"] is False
+    assert sufficiency["dimensions"]["episode_spread"]["spread_is_recurrence_truth"] is False
