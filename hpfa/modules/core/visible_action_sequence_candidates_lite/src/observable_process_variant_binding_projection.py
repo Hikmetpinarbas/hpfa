@@ -189,6 +189,8 @@ def build_observable_process_variant_binding(
         team_refs: set[str] = set()
         period_refs: set[str] = set()
         dependency_refs: set[str] = set()
+        unique_occurrence_refs: set[str] = set()
+        supporting_occurrence_slot_count = 0
 
         for variant_ref in sorted(component):
             variant = variants[variant_ref]
@@ -198,10 +200,19 @@ def build_observable_process_variant_binding(
                 outcome_counts[visible_outcome] += 1
             else:
                 unresolved_members.append(variant_ref)
+            supporting_occurrence_refs = sorted({
+                _clean(value)
+                for value in (variant.get("supporting_action_occurrence_candidate_ids") or [])
+                if _clean(value)
+            })
+            supporting_occurrence_slot_count += len(supporting_occurrence_refs)
+            unique_occurrence_refs.update(supporting_occurrence_refs)
             member_records.append({
                 "variant_ref": variant_ref,
                 "sequence_ref": sequence_by_variant.get(variant_ref),
                 "visible_outcome_state": visible_outcome,
+                "supporting_action_occurrence_candidate_ids": supporting_occurrence_refs,
+                "supporting_action_occurrence_candidate_count": len(supporting_occurrence_refs),
             })
             team_ref = _clean(variant.get("team_identity_candidate_id"))
             period_ref = _clean(variant.get("period_candidate"))
@@ -222,6 +233,16 @@ def build_observable_process_variant_binding(
         else:
             family_state = "GRAMMAR_STABLE_OUTCOME_UNRESOLVED"
         outcome_variation = len(visible_outcome_states) >= 2
+        unique_occurrence_count = len(unique_occurrence_refs)
+        occurrence_reuse_slot_count = max(
+            0,
+            supporting_occurrence_slot_count - unique_occurrence_count,
+        )
+        occurrence_reuse_state = (
+            "OCCURRENCE_REUSE_VISIBLE"
+            if occurrence_reuse_slot_count > 0
+            else "NO_OCCURRENCE_REUSE_VISIBLE"
+        )
 
         families.append({
             "observable_process_variant_family_id": "opvf_" + _digest(
@@ -244,6 +265,14 @@ def build_observable_process_variant_binding(
             "period_candidates": sorted(period_refs),
             "dependency_group_ref_count": len(dependency_refs),
             "dependency_group_refs": sorted(dependency_refs),
+            "supporting_occurrence_slot_count": supporting_occurrence_slot_count,
+            "unique_supporting_action_occurrence_candidate_count": unique_occurrence_count,
+            "unique_supporting_action_occurrence_candidate_ids": sorted(unique_occurrence_refs),
+            "supporting_occurrence_reuse_slot_count": occurrence_reuse_slot_count,
+            "supporting_occurrence_reuse_state": occurrence_reuse_state,
+            "member_count_is_independent_support_count": False,
+            "unique_occurrence_count_is_independent_support_count": False,
+            "occurrence_reuse_is_recurrence_truth": False,
             "independent_recurrence_support_count": 0,
             "family_is_independent_recurrence_truth": False,
             "family_is_process_identity_truth": False,
@@ -278,6 +307,13 @@ def build_observable_process_variant_binding(
             if not blocks
             else 0
         ),
+        "occurrence_reuse_visible_family_count": (
+            sum(1 for row in families if row.get("supporting_occurrence_reuse_slot_count", 0) > 0)
+            if not blocks
+            else 0
+        ),
+        "member_count_is_independent_support_count": False,
+        "unique_occurrence_count_is_independent_support_count": False,
         "outcome_excluded_from_grammar_alignment": True,
         "process_variant_family_is_recurrence_truth": False,
         "process_variant_family_is_tactical_pattern_truth": False,
