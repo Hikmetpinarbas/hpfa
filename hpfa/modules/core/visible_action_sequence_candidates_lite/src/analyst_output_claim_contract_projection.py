@@ -120,6 +120,81 @@ def _challenge_contract(decision_row: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _support_spread_contract(decision_row: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(decision_row, dict):
+        return {
+            "variant_support_spread_profiles": [],
+            "variant_support_multi_occurrence_disjoint_cluster_visible": False,
+            "variant_support_multi_episode_spread_visible": False,
+            "variant_support_spread_is_independent_support": False,
+            "variant_support_spread_is_recurrence_truth": False,
+            "variant_support_spread_can_increase_support": False,
+            "variant_support_spread_can_authorize_emit": False,
+        }
+
+    profiles: list[dict[str, Any]] = []
+    for profile in decision_row.get("variant_support_spread_profiles") or []:
+        if not isinstance(profile, dict):
+            continue
+        family_ref = str(profile.get("family_ref") or "").strip()
+        if not family_ref:
+            continue
+        profiles.append({
+            "family_ref": family_ref,
+            "member_count": int(profile.get("member_count") or 0),
+            "supporting_occurrence_slot_count": int(
+                profile.get("supporting_occurrence_slot_count") or 0
+            ),
+            "unique_supporting_action_occurrence_candidate_count": int(
+                profile.get("unique_supporting_action_occurrence_candidate_count") or 0
+            ),
+            "supporting_occurrence_reuse_slot_count": int(
+                profile.get("supporting_occurrence_reuse_slot_count") or 0
+            ),
+            "supporting_occurrence_reuse_state": str(
+                profile.get("supporting_occurrence_reuse_state") or "NOT_AVAILABLE"
+            ),
+            "occurrence_disjoint_support_cluster_count": int(
+                profile.get("occurrence_disjoint_support_cluster_count") or 0
+            ),
+            "occurrence_disjoint_support_cluster_state": str(
+                profile.get("occurrence_disjoint_support_cluster_state") or "NOT_AVAILABLE"
+            ),
+            "visible_episode_spread_count": int(
+                profile.get("visible_episode_spread_count") or 0
+            ),
+            "visible_episode_spread_state": str(
+                profile.get("visible_episode_spread_state") or "NOT_AVAILABLE"
+            ),
+            "success_visible_episode_spread_count": int(
+                profile.get("success_visible_episode_spread_count") or 0
+            ),
+            "failure_visible_episode_spread_count": int(
+                profile.get("failure_visible_episode_spread_count") or 0
+            ),
+            "member_count_is_independent_support_count": False,
+            "unique_occurrence_count_is_independent_support_count": False,
+            "occurrence_disjoint_cluster_count_is_independent_support_count": False,
+            "episode_spread_count_is_independent_support_count": False,
+            "occurrence_disjoint_cluster_count_is_recurrence_truth": False,
+            "episode_spread_is_recurrence_truth": False,
+        })
+
+    return {
+        "variant_support_spread_profiles": profiles,
+        "variant_support_multi_occurrence_disjoint_cluster_visible": (
+            decision_row.get("variant_support_multi_occurrence_disjoint_cluster_visible") is True
+        ),
+        "variant_support_multi_episode_spread_visible": (
+            decision_row.get("variant_support_multi_episode_spread_visible") is True
+        ),
+        "variant_support_spread_is_independent_support": False,
+        "variant_support_spread_is_recurrence_truth": False,
+        "variant_support_spread_can_increase_support": False,
+        "variant_support_spread_can_authorize_emit": False,
+    }
+
+
 def build_analyst_output_claim_contract(
     comparable_outcome_payload: dict[str, Any],
     admission_payload: dict[str, Any] | None = None,
@@ -131,8 +206,8 @@ def build_analyst_output_claim_contract(
     is provided, only an explicit EMIT decision from a PASS admission envelope may open
     a defeasible match-local professional finding. REVIEW_REQUIRED is preserved as review
     debt and can never be laundered into professional output. Variant-feature challenge
-    metadata is carried only as compact provenance/qualification; it creates no evidence
-    and cannot authorize EMIT.
+    and support-spread metadata are carried only as compact provenance/qualification;
+    they create no evidence and cannot authorize EMIT.
     """
     if comparable_outcome_payload.get("production_release") is True:
         return _fail_closed("production_release_claimed")
@@ -210,6 +285,7 @@ def build_analyst_output_claim_contract(
             )
 
         challenge_contract = _challenge_contract(decision_row)
+        support_spread_contract = _support_spread_contract(decision_row)
         decision_counts[decision] = decision_counts.get(decision, 0) + 1
         contracts.append(
             {
@@ -223,6 +299,10 @@ def build_analyst_output_claim_contract(
                 "required_qualifiers": list(REQUIRED_QUALIFIERS),
                 "forbidden_claim_families": forbidden,
                 **challenge_contract,
+                **support_spread_contract,
+                "support_spread_may_be_reported_as_observed_match_local_description": (
+                    decision != "ABSTAIN"
+                ),
                 "raw_rate_may_be_reported_as_observed_sample_description": decision != "ABSTAIN",
                 "raw_rate_may_be_labeled_probability": False,
                 "provider_outcome_semantic_may_be_labeled_tactical_success": False,
@@ -260,6 +340,10 @@ def build_analyst_output_claim_contract(
         "independent_recurrence_language_allowed_for_dependent_branches": False,
         "variant_feature_challenge_is_independent_evidence_vote": False,
         "variant_feature_challenge_can_authorize_emit": False,
+        "variant_support_spread_is_independent_support": False,
+        "variant_support_spread_is_recurrence_truth": False,
+        "variant_support_spread_can_increase_support": False,
+        "variant_support_spread_can_authorize_emit": False,
         "review_required_admission_can_authorize_emit": False,
         "analyst_or_llm_text_is_evidence": False,
         "claim_contract_creates_new_evidence": False,
@@ -292,6 +376,10 @@ def _fail_closed(reason: str) -> dict[str, Any]:
         "independent_recurrence_language_allowed_for_dependent_branches": False,
         "variant_feature_challenge_is_independent_evidence_vote": False,
         "variant_feature_challenge_can_authorize_emit": False,
+        "variant_support_spread_is_independent_support": False,
+        "variant_support_spread_is_recurrence_truth": False,
+        "variant_support_spread_can_increase_support": False,
+        "variant_support_spread_can_authorize_emit": False,
         "review_required_admission_can_authorize_emit": False,
         "analyst_or_llm_text_is_evidence": False,
         "claim_contract_creates_new_evidence": False,
