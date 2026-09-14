@@ -24,7 +24,10 @@ def _sequence() -> dict:
                 },
                 "evidence_sufficiency": {
                     "state": "DEPENDENCY_LIMITED",
-                    "blocking_dimensions": ["INDEPENDENCE_UNPROVEN"],
+                    "blocking_dimensions": [
+                        "INDEPENDENCE_UNPROVEN",
+                        "EPISODE_SPREAD_UNKNOWN",
+                    ],
                 },
                 "forbidden_inference": ["TACTICAL_PATTERN_TRUTH"],
             }
@@ -44,7 +47,7 @@ def _base_admission() -> dict:
                 "decision": "EMIT",
                 "claim_output_allowed": True,
                 "claim_ceiling": "DEFEASIBLE_MATCH_LOCAL_PROFESSIONAL_FINDING_ONLY",
-                "decision_reasons": [],
+                "decision_reasons": ["EPISODE_SPREAD_UNKNOWN"],
             }
         ],
         "safe_finding_admission_decision_count": 1,
@@ -126,11 +129,20 @@ def test_multi_cluster_multi_episode_spread_cannot_rescue_unproven_independence(
     )
 
     assert adapted["status"] == "REVIEW_REQUIRED"
+    assert adapted["late_bound_episode_spread_can_only_resolve_stale_unknown"] is True
     decision = adapted["safe_finding_admission_decisions"][0]
     assert decision["decision"] == "DOWNGRADE"
     assert decision["claim_output_allowed"] is False
     assert decision["variant_support_multi_occurrence_disjoint_cluster_visible"] is True
     assert decision["variant_support_multi_episode_spread_visible"] is True
+    assert decision["variant_support_episode_spread_observed"] is True
+    assert decision["variant_support_episode_spread_max_visible_count"] == 3
+    assert (
+        decision["variant_support_episode_spread_resolution_state"]
+        == "OBSERVED_LATE_BOUND_VARIANT_FAMILY_SPREAD"
+    )
+    assert decision["variant_support_episode_spread_resolves_upstream_unknown"] is True
+    assert "EPISODE_SPREAD_UNKNOWN" not in decision["decision_reasons"]
     assert decision["variant_support_spread_is_independent_support"] is False
     assert decision["variant_support_spread_is_recurrence_truth"] is False
     assert decision["variant_support_spread_can_increase_support"] is False
@@ -161,12 +173,18 @@ def test_analyst_output_can_describe_spread_but_never_call_it_independent_recurr
     assert contract["variant_support_spread_is_recurrence_truth"] is False
     assert contract["variant_support_spread_can_increase_support"] is False
     assert contract["variant_support_spread_can_authorize_emit"] is False
+    assert contract["late_bound_episode_spread_can_only_resolve_stale_unknown"] is True
 
     row = contract["analyst_output_contracts"][0]
     assert row["safe_finding_admission_decision"] == "DOWNGRADE"
     assert row["professional_emit_allowed"] is False
     assert row["variant_support_multi_occurrence_disjoint_cluster_visible"] is True
     assert row["variant_support_multi_episode_spread_visible"] is True
+    assert row["variant_support_episode_spread_observed"] is True
+    assert row["variant_support_episode_spread_max_visible_count"] == 3
+    assert row["upstream_episode_spread_unknown_resolved_by_late_bound_variant_family"] is True
+    assert "EPISODE_SPREAD_UNKNOWN" not in row["blocking_dimensions"]
+    assert "INDEPENDENCE_UNPROVEN" in row["blocking_dimensions"]
     assert row["support_spread_may_be_reported_as_observed_match_local_description"] is True
     assert row["variant_support_spread_is_independent_support"] is False
     assert row["variant_support_spread_is_recurrence_truth"] is False
