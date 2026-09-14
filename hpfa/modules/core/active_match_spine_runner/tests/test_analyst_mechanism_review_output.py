@@ -71,11 +71,18 @@ def _write_payloads(tmp_path: Path) -> None:
                     },
                     {
                         "feature_token": "LAYER[1]::process_family_candidate:POSITIONAL_ATTACK_CANDIDATE",
+                        "feature_surface_detail": "PROVIDER_REVIEWED_PROCESS_PARTICIPATION_CONTEXT",
+                        "feature_scope": "PARTIAL_ORDER_LAYER",
+                        "partial_order_layer_index": 1,
+                        "eligible_denominator_basis": "VARIANTS_WITH_MATCHED_PROVIDER_REVIEWED_PROCESS_ANNOTATION",
                         "success_visible_numerator": 5,
                         "success_eligible_denominator": 7,
                         "failure_visible_numerator": 1,
                         "failure_eligible_denominator": 3,
                         "descriptive_rate_delta_success_minus_failure": 0.380952,
+                        "dependency_independence_proven": False,
+                        "statistical_independence_proven": False,
+                        "claim_ceiling": "MATCH_LOCAL_PROVIDER_PROCESS_CONTEXT_DIFFERENCE_CANDIDATE_ONLY",
                     },
                 ],
                 "consequence_feature_difference_candidates": [
@@ -220,11 +227,19 @@ def test_current_mechanism_surface_separates_context_locator_and_outcome_adjacen
         "mechanism_context_review_focus: process_context_candidate=Positional Attack Candidate "
         "success=5/7 failure=1/3" in text
     )
+    assert "mechanism_context_source: source_role=PROVIDER_REVIEWED_ANNOTATION" in text
+    assert "surface=PROVIDER_REVIEWED_PROCESS_PARTICIPATION_CONTEXT" in text
+    assert "scope=PARTIAL_ORDER_LAYER" in text
+    assert "denominator_basis=VARIANTS_WITH_MATCHED_PROVIDER_REVIEWED_PROCESS_ANNOTATION" in text
+    assert "claim_ceiling=MATCH_LOCAL_PROVIDER_PROCESS_CONTEXT_DIFFERENCE_CANDIDATE_ONLY" in text
+    assert "dependency_independence_proven=false" in text
+    assert "statistical_independence_proven=false" in text
     assert "actor_locator_only: actor=Player Alpha success=0/7 failure=2/3" in text
     assert "role=VIDEO_REVIEW_LOCATOR_ONLY" in text
     assert "provider_direction_candidates" not in text
     assert "context_missing=2/10" in text
     assert "actor identity yalniz locator" in text
+    assert "source_provenance_guard=" in text
     assert "locator_semantics=FIRST_SUCCESSOR_AFTER_SHARED_VISIBLE_ANCHOR_NOT_PROVEN_FIRST_DIVERGENCE" in text
     assert "video_review_locator: shared_anchor=02:00 -> 02:02 Player Alpha FAILURE PASS; 02:04 Player Beta SUCCESS PASS" in text
     assert "claim_ceiling=ANALYST_REVIEW_MECHANISM_CANDIDATE_ONLY" in text
@@ -243,8 +258,27 @@ def test_actor_only_difference_does_not_become_mechanism_context_focus(tmp_path:
 
     text = "\n".join(build_mechanism_review_lines(tmp_path, _full_spine(tmp_path)))
     assert "mechanism_context_review_focus: NO_NON_ACTOR_CONTEXT_DIAGNOSTIC_EXPOSED" in text
+    assert "mechanism_context_source: source_role=NO_CURRENT_CONTEXT_SOURCE_EXPOSED" in text
+    assert "SOURCE_ROLE_UNRESOLVED_REVIEW_REQUIRED" not in text
     assert "actor_locator_only: actor=Player Alpha" in text
     assert "video_review_locator: shared_anchor=02:00" in text
+
+
+def test_unknown_context_provenance_fails_closed(tmp_path: Path) -> None:
+    _write_payloads(tmp_path)
+    payload_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    rows = payload["grammar_stable_variant_feature_delta_records"][0]["context_feature_difference_candidates"]
+    process_row = next(row for row in rows if "process_family_candidate:" in row["feature_token"])
+    process_row["feature_surface_detail"] = "UNDECLARED_SURFACE"
+    payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    text = "\n".join(build_mechanism_review_lines(tmp_path, _full_spine(tmp_path)))
+    assert "mechanism_context_review_focus: process_context_candidate=Positional Attack Candidate" in text
+    assert "mechanism_context_source: source_role=SOURCE_ROLE_UNRESOLVED_REVIEW_REQUIRED" in text
+    assert "surface=UNDECLARED_SURFACE" in text
+    assert "source_role=DIRECT" not in text
+    assert "source_role=TRACKING" not in text
 
 
 def test_stale_mechanism_artifact_is_not_consumed(tmp_path: Path) -> None:
@@ -267,6 +301,10 @@ def test_standard_report_contains_role_separated_review_without_promoting_emit(t
     assert "ANALYST REVIEW — GORUNUR SUREC MEKANIZMASI ADAYLARI" in text
     assert "primary_occurrence_spine: occurrence_candidates=12" in text
     assert "mechanism_context_review_focus: process_context_candidate=Positional Attack Candidate" in text
+    assert "mechanism_context_source: source_role=PROVIDER_REVIEWED_ANNOTATION" in text
+    assert "surface=PROVIDER_REVIEWED_PROCESS_PARTICIPATION_CONTEXT" in text
+    assert "denominator_basis=VARIANTS_WITH_MATCHED_PROVIDER_REVIEWED_PROCESS_ANNOTATION" in text
+    assert "claim_ceiling=MATCH_LOCAL_PROVIDER_PROCESS_CONTEXT_DIFFERENCE_CANDIDATE_ONLY" in text
     assert "actor_locator_only: actor=Player Alpha" in text
     assert "video_review_locator: shared_anchor=02:00" in text
     assert "professional_emit_allowed=false" in text
