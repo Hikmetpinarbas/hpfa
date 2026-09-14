@@ -16,6 +16,12 @@ def _sequence() -> dict:
             {
                 "safe_finding_handoff_candidate_id": "handoff_1",
                 "professional_finding_emit_allowed": False,
+                "safe_finding_handoff_is_professional_finding_truth": False,
+                "safe_finding_handoff_is_tactical_truth": False,
+                "safe_finding_handoff_is_causal_truth": False,
+                "safe_finding_handoff_is_coach_intention_truth": False,
+                "same_timestamp_internal_ordering_allowed": False,
+                "source_row_order_is_temporal_truth": False,
                 "support": {
                     "visible_success_sequence_refs": ["seq_success"],
                     "admitted_independent_support_count": 0,
