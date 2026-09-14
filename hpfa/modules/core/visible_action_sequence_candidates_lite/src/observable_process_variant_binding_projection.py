@@ -31,6 +31,69 @@ def _process_variant_state(*, exact_grammar: bool, left_outcome: str | None, rig
     return "GRAMMAR_DIVERGENT_SAME_VISIBLE_OUTCOME_VARIANT"
 
 
+def _occurrence_disjoint_support_clusters(member_records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    refs_by_variant: dict[str, set[str]] = {}
+    outcome_by_variant: dict[str, str] = {}
+    occurrence_to_variants: dict[str, set[str]] = defaultdict(set)
+    for member in member_records:
+        variant_ref = _clean(member.get("variant_ref"))
+        if not variant_ref:
+            continue
+        refs = {
+            _clean(value)
+            for value in (member.get("supporting_action_occurrence_candidate_ids") or [])
+            if _clean(value)
+        }
+        refs_by_variant[variant_ref] = refs
+        outcome = _clean(member.get("visible_outcome_state"))
+        if outcome:
+            outcome_by_variant[variant_ref] = outcome
+        for occurrence_ref in refs:
+            occurrence_to_variants[occurrence_ref].add(variant_ref)
+
+    seen: set[str] = set()
+    clusters: list[dict[str, Any]] = []
+    for start in sorted(refs_by_variant):
+        if start in seen:
+            continue
+        stack = [start]
+        variant_refs: set[str] = set()
+        occurrence_refs: set[str] = set()
+        while stack:
+            current = stack.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            variant_refs.add(current)
+            current_occurrences = refs_by_variant.get(current, set())
+            occurrence_refs.update(current_occurrences)
+            neighbours: set[str] = set()
+            for occurrence_ref in current_occurrences:
+                neighbours.update(occurrence_to_variants.get(occurrence_ref, set()))
+            stack.extend(sorted(neighbours - seen))
+
+        outcome_counts = Counter(
+            outcome_by_variant[variant_ref]
+            for variant_ref in variant_refs
+            if variant_ref in outcome_by_variant
+        )
+        sorted_variants = sorted(variant_refs)
+        sorted_occurrences = sorted(occurrence_refs)
+        clusters.append({
+            "occurrence_disjoint_support_cluster_id": "odsc_" + _digest(
+                sorted_variants, sorted_occurrences
+            )[:24],
+            "member_variant_refs": sorted_variants,
+            "member_variant_count": len(sorted_variants),
+            "supporting_action_occurrence_candidate_ids": sorted_occurrences,
+            "supporting_action_occurrence_candidate_count": len(sorted_occurrences),
+            "visible_outcome_state_counts": dict(sorted(outcome_counts.items())),
+            "cluster_is_independent_support_truth": False,
+            "cluster_is_recurrence_truth": False,
+        })
+    return clusters
+
+
 def build_observable_process_variant_binding(
     sequence_payload: dict[str, Any],
     grammar_payload: dict[str, Any],
@@ -243,6 +306,26 @@ def build_observable_process_variant_binding(
             if occurrence_reuse_slot_count > 0
             else "NO_OCCURRENCE_REUSE_VISIBLE"
         )
+        disjoint_clusters = _occurrence_disjoint_support_clusters(member_records)
+        disjoint_cluster_count = len(disjoint_clusters)
+        if disjoint_cluster_count >= 2:
+            disjoint_cluster_state = "MULTIPLE_OCCURRENCE_DISJOINT_SUPPORT_CLUSTERS_VISIBLE"
+        elif disjoint_cluster_count == 1:
+            disjoint_cluster_state = "SINGLE_OCCURRENCE_SUPPORT_CLUSTER_CONCENTRATION"
+        else:
+            disjoint_cluster_state = "OCCURRENCE_SUPPORT_CLUSTER_UNRESOLVED"
+        success_cluster_count = sum(
+            int(cluster.get("visible_outcome_state_counts", {}).get("SUCCESS_SEMANTIC_VISIBLE", 0)) > 0
+            for cluster in disjoint_clusters
+        )
+        failure_cluster_count = sum(
+            int(cluster.get("visible_outcome_state_counts", {}).get("FAILURE_SEMANTIC_VISIBLE", 0)) > 0
+            for cluster in disjoint_clusters
+        )
+        mixed_outcome_cluster_count = sum(
+            len(cluster.get("visible_outcome_state_counts", {})) >= 2
+            for cluster in disjoint_clusters
+        )
 
         families.append({
             "observable_process_variant_family_id": "opvf_" + _digest(
@@ -270,6 +353,14 @@ def build_observable_process_variant_binding(
             "unique_supporting_action_occurrence_candidate_ids": sorted(unique_occurrence_refs),
             "supporting_occurrence_reuse_slot_count": occurrence_reuse_slot_count,
             "supporting_occurrence_reuse_state": occurrence_reuse_state,
+            "occurrence_disjoint_support_clusters": disjoint_clusters,
+            "occurrence_disjoint_support_cluster_count": disjoint_cluster_count,
+            "occurrence_disjoint_support_cluster_state": disjoint_cluster_state,
+            "success_visible_support_cluster_count": success_cluster_count,
+            "failure_visible_support_cluster_count": failure_cluster_count,
+            "mixed_visible_outcome_support_cluster_count": mixed_outcome_cluster_count,
+            "occurrence_disjoint_cluster_count_is_independent_support_count": False,
+            "occurrence_disjoint_cluster_count_is_recurrence_truth": False,
             "member_count_is_independent_support_count": False,
             "unique_occurrence_count_is_independent_support_count": False,
             "occurrence_reuse_is_recurrence_truth": False,
@@ -312,6 +403,12 @@ def build_observable_process_variant_binding(
             if not blocks
             else 0
         ),
+        "multi_occurrence_disjoint_support_cluster_family_count": (
+            sum(1 for row in families if row.get("occurrence_disjoint_support_cluster_count", 0) >= 2)
+            if not blocks
+            else 0
+        ),
+        "occurrence_disjoint_cluster_count_is_independent_support_count": False,
         "member_count_is_independent_support_count": False,
         "unique_occurrence_count_is_independent_support_count": False,
         "outcome_excluded_from_grammar_alignment": True,
