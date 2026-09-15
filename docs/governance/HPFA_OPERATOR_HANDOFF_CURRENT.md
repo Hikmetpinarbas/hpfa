@@ -78,11 +78,11 @@ Preserve truth locks:
 
 Repository: `Hikmetpinarbas/hpfa`
 Current development PR: `#359 — ZFGV: Action Grammar synced to current frontier`
-Current development head after this governance supersession: `9e03334544a4136f8f8c93e1db3fe0ad63e70a9e`.
+Current development head: `FRESH_VERIFY_REQUIRED`.
 Last exact physical ACTIVE_MATCH acceptance head: `b0dc4dc97f1c03ab766b61826e5ec92279807ae4`.
-State: OPEN / DRAFT / UNMERGED / NOT_PRODUCTION.
+State: OPEN / DRAFT / UNMERGED / NOT_PRODUCTION unless freshly verified otherwise.
 
-Important: this document itself may move the branch head when updated. Therefore the live PR head must still be freshly verified before every subsequent write/current-state claim; the physical acceptance head remains the last runtime-evidenced code head until a later physical run proves otherwise.
+Do not store a supposedly live PR head SHA as static authority in this handoff: updating this file itself changes the branch head. Re-fetch the PR head before every write/current-state claim. The physical acceptance head remains the last runtime-evidenced code head until a later physical run proves otherwise.
 
 ## 4. FULL SYSTEM MATCH DIAGNOSTIC — CLOSED WIP
 
