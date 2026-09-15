@@ -736,3 +736,154 @@ def build_grammar_stable_variant_feature_delta(
         occurrence_consequence_payload,
     )
     return _bind_base_context_feature_provenance(payload)
+
+
+_BASE_BUILD_GRAMMAR_STABLE_VARIANT_FEATURE_DELTA_WITH_PROVENANCE = build_grammar_stable_variant_feature_delta
+
+
+def _visible_consequence_class_signature(
+    variant: dict[str, Any],
+    consequence_by_occurrence: dict[str, dict[str, Any]],
+) -> tuple[list[str], bool]:
+    occurrence_refs, _ = _layer_occurrence_index(variant)
+    if not occurrence_refs:
+        return [], False
+    classes: set[str] = set()
+    for occurrence_ref in occurrence_refs:
+        consequence = consequence_by_occurrence.get(occurrence_ref)
+        if consequence is None:
+            return [], False
+        primary = [
+            _clean(value)
+            for value in (consequence.get("primary_consequence_candidates") or [])
+            if _clean(value)
+        ]
+        if primary:
+            classes.update(primary)
+            continue
+        followup_state = _clean(consequence.get("followup_observation_status"))
+        if followup_state == "NO_VISIBLE_FOLLOWUP":
+            classes.add("NO_VISIBLE_FOLLOW_UP_CANDIDATE")
+        elif consequence.get("visible_consequence_support") is not True:
+            return [], False
+    return sorted(classes), True
+
+
+def _bind_grammar_stable_consequence_contrast(
+    payload: dict[str, Any],
+    sequence_payload: dict[str, Any],
+    process_variant_payload: dict[str, Any],
+    occurrence_consequence_payload: dict[str, Any],
+) -> dict[str, Any]:
+    if payload.get("status") == "FAIL_CLOSED":
+        payload["grammar_stable_consequence_contrast_records"] = []
+        payload["grammar_stable_consequence_contrast_record_count"] = 0
+        payload["provider_outcome_partition_required_for_consequence_contrast"] = False
+        return payload
+
+    variant_by_id = _index(
+        sequence_payload.get("partial_order_occurrence_variants"),
+        "partial_order_occurrence_variant_id",
+    )
+    consequence_by_occurrence = _index(
+        occurrence_consequence_payload.get("occurrence_consequence_projections"),
+        "action_occurrence_candidate_id",
+    )
+    records: list[dict[str, Any]] = []
+
+    for family in process_variant_payload.get("observable_process_variant_families") or []:
+        if not isinstance(family, dict):
+            continue
+        family_ref = _clean(family.get("observable_process_variant_family_id"))
+        member_signatures: list[dict[str, Any]] = []
+        for member in family.get("member_records") or []:
+            if not isinstance(member, dict):
+                continue
+            variant_ref = _clean(member.get("variant_ref"))
+            variant = variant_by_id.get(variant_ref)
+            if not variant:
+                continue
+            classes, complete = _visible_consequence_class_signature(
+                variant,
+                consequence_by_occurrence,
+            )
+            if not complete or not classes:
+                continue
+            member_signatures.append({
+                "variant_ref": variant_ref,
+                "sequence_ref": member.get("sequence_ref"),
+                "provider_visible_outcome_state": _clean(member.get("visible_outcome_state")) or None,
+                "visible_consequence_classes": classes,
+            })
+
+        if len(member_signatures) < 2:
+            continue
+        signatures = {
+            tuple(row.get("visible_consequence_classes") or [])
+            for row in member_signatures
+        }
+        if len(signatures) < 2:
+            continue
+        visible_classes = sorted({
+            value
+            for row in member_signatures
+            for value in (row.get("visible_consequence_classes") or [])
+            if _clean(value)
+        })
+        records.append({
+            "grammar_stable_consequence_contrast_id": "gscc_" + _digest(
+                family_ref,
+                sorted(signatures),
+            )[:24],
+            "source_process_variant_family_ref": family_ref or None,
+            "grammar_signature_tokens": list(family.get("grammar_signature_tokens") or []),
+            "team_identity_candidate_ids": list(family.get("team_identity_candidate_ids") or []),
+            "period_candidates": list(family.get("period_candidates") or []),
+            "member_consequence_profiles": member_signatures,
+            "member_count": len(member_signatures),
+            "visible_consequence_classes": visible_classes,
+            "consequence_variant_state": "GRAMMAR_STABLE_VISIBLE_CONSEQUENCE_VARIATION",
+            "provider_outcome_partition_required": False,
+            "provider_outcome_used_to_define_consequence_variation": False,
+            "no_visible_followup_is_failure": False,
+            "consequence_variation_is_success_failure_truth": False,
+            "consequence_variation_is_counterevidence_truth": False,
+            "consequence_variation_is_causal_truth": False,
+            "consequence_variation_is_tactical_truth": False,
+            "consequence_variation_is_coach_intention_truth": False,
+            "independent_recurrence_support_count": 0,
+            "dependency_independence_proven": False,
+            "statistical_independence_proven": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+            "claim_ceiling": "MATCH_LOCAL_GRAMMAR_STABLE_VISIBLE_CONSEQUENCE_VARIATION_CANDIDATE_ONLY",
+        })
+
+    payload["grammar_stable_consequence_contrast_records"] = records
+    payload["grammar_stable_consequence_contrast_record_count"] = len(records)
+    payload["provider_outcome_partition_required_for_consequence_contrast"] = False
+    payload["consequence_contrast_is_independent_evidence_vote"] = False
+    payload["consequence_contrast_is_causal_truth"] = False
+    payload["consequence_contrast_is_tactical_truth"] = False
+    return payload
+
+
+def build_grammar_stable_variant_feature_delta(
+    sequence_payload: dict[str, Any],
+    process_variant_payload: dict[str, Any],
+    occurrence_state_transition_payload: dict[str, Any],
+    occurrence_consequence_payload: dict[str, Any],
+) -> dict[str, Any]:
+    payload = _BASE_BUILD_GRAMMAR_STABLE_VARIANT_FEATURE_DELTA_WITH_PROVENANCE(
+        sequence_payload,
+        process_variant_payload,
+        occurrence_state_transition_payload,
+        occurrence_consequence_payload,
+    )
+    return _bind_grammar_stable_consequence_contrast(
+        payload,
+        sequence_payload,
+        process_variant_payload,
+        occurrence_consequence_payload,
+    )
