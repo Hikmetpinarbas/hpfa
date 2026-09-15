@@ -52,11 +52,12 @@ def test_current_authority_declares_zfgv_not_event_only_product():
     assert "event != whole observation universe" in handoff
 
 
-def test_semantic_residual_overlay_deauthorizes_stale_future_current_surfaces():
+def test_semantic_residual_overlay_closes_stale_future_current_authority():
     text = _text(SEMANTIC_RESIDUAL_OVERLAY)
 
     assert "status: `current_authority_overlay`" in text
-    assert "migration coverage: `incomplete`" in text
+    assert "migration coverage: `complete`" in text
+    assert "`migration_coverage=complete`" in text
     assert "event ⊂ zfgv" in text
 
     residual_surfaces = (
@@ -92,6 +93,8 @@ def test_semantic_residual_overlay_deauthorizes_stale_future_current_surfaces():
     assert "academic_event_only_compatibility_authority=false" in text
     assert "legacy_engine_event_contract_global_authority=false" in text
     assert "legacy_imported_subtree_current_authority=false" in text
+    assert "current_verified_global_event_only_authority=0" in text
+    assert "unresolved_current_or_future_current_universal_event_prerequisite=0" in text
 
 
 def test_metric_registry_uses_zfgv_observation_model():
