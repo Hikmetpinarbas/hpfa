@@ -212,6 +212,7 @@ def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int 
                 "independence_group": None,
                 "independent_support_vote": False,
                 "metric_truth": False,
+                "lens": "aggregate",
             })
             if len(refs) >= limit:
                 return refs
@@ -230,6 +231,7 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
         "dependency_group": "episode_feature_action_population",
         "independence_group": None,
         "independent_support_vote": False,
+        "lens": "action",
     }
     packet_candidate = None
     if progression and (terminal or shot_total > 0):
@@ -242,6 +244,8 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
             "input_metrics": metrics,
             "supporting_signals": [],
             "contradicting_signals": [],
+            "required_lenses": ["action", "aggregate"],
+            "optional_lenses": ["outcome", "context", "contradiction"],
             "claim_ceiling": "composite_candidate_only",
             "blocked_language_families": ["tactical_truth", "dominance_truth", "control_truth"],
         }
