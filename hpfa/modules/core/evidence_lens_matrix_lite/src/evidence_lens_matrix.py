@@ -13,9 +13,6 @@ UPSTREAM_CLAIM_CEILING = "evidence_graph_candidate_only"
 LENS_CLAIM_CEILING = "evidence_lens_coverage_candidate_only"
 MISSING_GRAPH_ID = "MISSING_GRAPH_ID"
 
-# Compatibility default for graphs created before construct-specific ZFGV lens
-# requirements existed.  Keep this public name because existing tests and callers
-# import it directly.
 REQUIRED_LENSES = (
     "time",
     "space",
@@ -29,8 +26,6 @@ REQUIRED_LENSES = (
     "contradiction",
 )
 
-# Product-wide lens vocabulary is broader than the legacy action/event review set.
-# Presence in this catalog does not make a lens required for every construct.
 ZFGV_LENS_CATALOG = (
     *REQUIRED_LENSES,
     "relational",
@@ -39,6 +34,15 @@ ZFGV_LENS_CATALOG = (
     "external_context",
     "tracking_video",
     "derived",
+)
+
+PACKET_LENS_RECORD_KEYS = (
+    "input_feature_records",
+    "input_window_records",
+    "input_sequence_records",
+    "input_metric_records",
+    "supporting_signal_records",
+    "contradicting_signal_records",
 )
 
 EXPLICIT_NODE_TYPE_LENSES = {
@@ -167,10 +171,75 @@ def _lens_requirements(graph: dict[str, Any]) -> tuple[str, list[str], list[str]
 
     required = _normalize_lenses(graph.get("required_lenses"))
     optional = _normalize_lenses(graph.get("optional_lenses"))
-    invalid = sorted(
-        {lens for lens in required + optional if lens not in ZFGV_LENS_CATALOG}
-    )
+    invalid = sorted({lens for lens in required + optional if lens not in ZFGV_LENS_CATALOG})
     return "EXPLICIT_ZFGV", required, optional, invalid
+
+
+def _packet_record_ref(record: dict[str, Any], record_key: str, index: int) -> str:
+    for key in ("signal_ref", "ref_id", "signal_id", "metric_id", "feature_id", "window_id", "sequence_id", "id"):
+        value = record.get(key)
+        if value not in [None, ""]:
+            return str(value)
+    return f"{record_key}_{index}"
+
+
+def bind_construct_lens_contract(graph: dict[str, Any], packet: dict[str, Any]) -> dict[str, Any]:
+    """Bind an explicit construct lens manifest and its evidence refs onto a graph.
+
+    Legacy packets without a manifest are returned unchanged so existing action-centric
+    review behaviour remains intact.  Evidence records are never invented: only lens
+    tags explicitly carried by preserved packet records become graph lens evidence.
+    """
+    if "required_lenses" not in packet and "optional_lenses" not in packet:
+        return dict(graph)
+
+    bound = dict(graph)
+    bound["required_lenses"] = list(_as_list(packet.get("required_lenses")))
+    bound["optional_lenses"] = list(_as_list(packet.get("optional_lenses")))
+    nodes = [dict(node) for node in _as_list(graph.get("nodes")) if isinstance(node, dict)]
+    edges = [dict(edge) for edge in _as_list(graph.get("edges")) if isinstance(edge, dict)]
+    graph_id = str(graph.get("graph_id") or MISSING_GRAPH_ID)
+    argument_id = str(graph.get("argument_id") or "")
+    seen_node_ids = {str(node.get("node_id") or "") for node in nodes}
+
+    for record_key in PACKET_LENS_RECORD_KEYS:
+        for index, raw_record in enumerate(_as_list(packet.get(record_key))):
+            if not isinstance(raw_record, dict):
+                continue
+            lenses = _normalize_lenses(_as_list(raw_record.get("lens")) + _as_list(raw_record.get("lenses")))
+            if not lenses:
+                continue
+            ref = _packet_record_ref(raw_record, record_key, index)
+            for lens in lenses:
+                node_id = f"{graph_id}:lens:{record_key}:{index}:{lens}"
+                if node_id in seen_node_ids:
+                    continue
+                seen_node_ids.add(node_id)
+                nodes.append(
+                    {
+                        "node_id": node_id,
+                        "node_type": "lens_evidence_ref",
+                        "source": "composite_evidence_packet_builder_lite_v1",
+                        "payload": {
+                            "lens": lens,
+                            "ref": ref,
+                            "evidence_record_group": record_key,
+                        },
+                    }
+                )
+                if argument_id:
+                    edges.append(
+                        {
+                            "source": node_id,
+                            "target": argument_id,
+                            "relation_type": "LENS_EVIDENCE_FOR_ARGUMENT",
+                        }
+                    )
+
+    bound["nodes"] = nodes
+    bound["edges"] = edges
+    bound["construct_lens_contract_bound"] = True
+    return bound
 
 
 def build_lens_matrix(graph: dict[str, Any]) -> dict[str, Any]:
@@ -254,9 +323,6 @@ def build_lens_matrix(graph: dict[str, Any]) -> dict[str, Any]:
     covered_lenses = [row["lens"] for row in lens_rows if row["status"] == "COVERED"]
     missing_required_lenses = [lens for lens in required_lenses if not lens_refs.get(lens)]
     missing_optional_lenses = [lens for lens in optional_lenses if not lens_refs.get(lens)]
-    # Backward-compatible meaning: "missing_lenses" is the set that can change
-    # the matrix decision.  Optional or undeclared missing lenses are inventory
-    # information only and never become absence/counterevidence.
     missing_lenses = list(missing_required_lenses)
     covered_required_count = sum(1 for lens in required_lenses if lens_refs.get(lens))
     coverage_score = covered_required_count / len(required_lenses) if required_lenses else 0.0
