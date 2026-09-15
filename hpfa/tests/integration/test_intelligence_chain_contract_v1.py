@@ -24,7 +24,7 @@ from multi_signal_evidence_fusion import fuse_packet
 from composite_argument_builder import build_argument_candidate
 from defeasible_argument_router import route_argument
 from evidence_graph_engine import build_evidence_graph
-from evidence_lens_matrix import build_lens_matrix
+from evidence_lens_matrix import bind_construct_lens_contract, build_lens_matrix
 from safe_argument_router_tr import route_safe_sentence
 from analyst_report_block_composer import compose_report_block
 from report_output_contract import evaluate_report_block
@@ -103,7 +103,7 @@ def run_chain(candidate):
     fusion = fuse_packet(packet)
     argument = build_argument_candidate(fusion)
     route = route_argument(argument)
-    graph = build_evidence_graph(route)
+    graph = bind_construct_lens_contract(build_evidence_graph(route), packet)
     lens = build_lens_matrix(graph)
     safe_sentence = route_safe_sentence(graph)
     report_block = compose_report_block(safe_sentence)
