@@ -8,6 +8,7 @@ if str(ROOT) not in sys.path:
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from full_spine_runner import run_intelligence_chain
 from rich_multiformat_analysis_lane import _construct_c01, _phase_state_candidates
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
@@ -133,9 +134,41 @@ def test_c01_construct_can_enter_existing_composite_packet_without_independence_
     construct = _construct_c01(projection_rows, features)
     assert construct["status"] == "REVIEW_REQUIRED"
     assert construct["packet_candidate"] is not None
-    packet = build_composite_packet(construct["packet_candidate"])
+    candidate = construct["packet_candidate"]
+    assert candidate["required_lenses"] == ["action", "aggregate"]
+    assert candidate["optional_lenses"] == ["outcome", "context", "contradiction"]
+    assert candidate["input_features"][0]["lens"] == "action"
+    assert all(metric["lens"] == "aggregate" for metric in candidate["input_metrics"])
+
+    packet = build_composite_packet(candidate)
     assert packet["status"] == "SMOKE_PASS"
     assert packet["packet_family"] == "progression"
     assert packet["independent_support_count"] == 0
     assert packet["nominal_ref_count_is_independent_support_count"] is False
     assert packet["claim_ceiling"] == "composite_candidate_only"
+
+    chain = run_intelligence_chain(packet)
+    assert chain["lens"]["lens_requirement_mode"] == "EXPLICIT_ZFGV"
+    assert chain["lens"]["required_lenses"] == ["action", "aggregate"]
+    assert chain["lens"]["missing_required_lenses"] == []
+    assert chain["lens"]["status"] == "SMOKE_PASS"
+    assert construct["review_reason"] == "occurrence_progression_semantics_not_yet_admitted_same_provider_support_non_independent"
+
+
+def test_c01_lens_specificity_does_not_promote_same_provider_aggregate_to_independent_support():
+    projection_rows = [{
+        "row_projection_id": "xrp_2",
+        "source_sha256": "same_provider_sha",
+        "identity_candidates": {"player_raw_candidate": "P2", "team_raw_candidate": "T2"},
+        "metric_values": {
+            "progressive_passes": {"raw_metric_label": "Progressive passes", "raw_value": 15, "value_status": "OBSERVED"},
+            "shots": {"raw_metric_label": "Shots", "raw_value": 5, "value_status": "OBSERVED"},
+        },
+    }]
+    construct = _construct_c01(projection_rows, {"episode_feature_vectors": [{"shot_candidate_count": 5}]})
+    packet = build_composite_packet(construct["packet_candidate"])
+    chain = run_intelligence_chain(packet)
+
+    assert packet["independent_support_count"] == 0
+    assert chain["fusion"]["independent_support_count"] == 0
+    assert construct["aggregate_support_is_independent_vote"] is False
