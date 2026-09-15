@@ -41,7 +41,8 @@ def test_current_authority_declares_zfgv_not_event_only_product():
     handoff = _text(ROOT / "docs/governance/HPFA_OPERATOR_HANDOFF_CURRENT.md")
 
     assert "zenginleştirilmiş futbol gözlem verisi" in master
-    assert "not the product-wide observation ceiling" in master
+    assert "product-wide observation ceiling" in master
+    assert "must not be used as a binary reason to suppress" in master
     assert "global `event_only_compatible=true/false` must not be the sole executable capability gate" in master
 
     assert "event ⊂ zfgv" in handoff
