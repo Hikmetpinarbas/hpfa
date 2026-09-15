@@ -78,10 +78,11 @@ Preserve truth locks:
 
 Repository: `Hikmetpinarbas/hpfa`
 Current development PR: `#359 — ZFGV: Action Grammar synced to current frontier`
-Current verified head at this handoff update: `b0dc4dc97f1c03ab766b61826e5ec92279807ae4`
+Current development head after this governance supersession: `9e03334544a4136f8f8c93e1db3fe0ad63e70a9e`.
+Last exact physical ACTIVE_MATCH acceptance head: `b0dc4dc97f1c03ab766b61826e5ec92279807ae4`.
 State: OPEN / DRAFT / UNMERGED / NOT_PRODUCTION.
 
-PR/main/runtime state must still be freshly verified before every write or current-state claim.
+Important: this document itself may move the branch head when updated. Therefore the live PR head must still be freshly verified before every subsequent write/current-state claim; the physical acceptance head remains the last runtime-evidenced code head until a later physical run proves otherwise.
 
 ## 4. FULL SYSTEM MATCH DIAGNOSTIC — CLOSED WIP
 
@@ -112,7 +113,7 @@ Exact-head physical ACTIVE_MATCH evidence on `b0dc4dc97f1c03ab766b61826e5ec92279
 - true_action_count=UNKNOWN
 - production_release=false
 
-Exact-head engineering evidence on the same head:
+Exact-head engineering evidence on the same physical-acceptance head:
 - full-repo fail-local audit: PASS
 - product compile: PASS
 - isolated test files: 228
