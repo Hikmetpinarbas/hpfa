@@ -31,7 +31,7 @@ Mandatory startup sequence:
 - PASS != RELEASE; CI SUCCESS != ACTIVE_MATCH evidence; MERGED != PRODUCTION_RELEASE.
 - Same-content reflections must not be double-counted.
 - Product code must remain match-agnostic and preserve sample-identity non-leakage.
-- No merge/release/production decision without explicit user approval.
+- No merge/release/production decision without explicit exact-head user approval.
 - Existing producers/contracts/tests must be rehabilitated before any parallel engine is opened.
 
 ## 2. CANONICAL OBSERVATION MODEL
@@ -57,7 +57,8 @@ Construct admission is capability-specific:
 
 Missing required capability: FAIL_CLOSED / DOWNGRADE.
 Missing optional capability: DEGRADED.
-Legacy binary compatibility metadata may remain only for compatibility/regression lineage; it must never be product admission authority.
+
+`event_only_compatible` is not current operational metadata. It must not participate in current registries, fingerprints, routing, eligibility or admission. Historical/negative-regression text may mention the retired term only to prove that the old veto cannot return.
 
 Truth locks:
 - ROW != EVENT TRUTH
@@ -107,20 +108,24 @@ Physical ACTIVE_MATCH evidence on `b0dc4dc97f1c03ab766b61826e5ec92279807ae4`:
 
 Safe meaning: remaining REVIEW_REQUIRED states are product/evidence limitations, not diagnostic-accounting failure.
 
-## 5. CURRENT WIP — REMOVE GLOBAL EVENT-ONLY AUTHORITY
+## 5. EVENT-ONLY AUTHORITY MIGRATION — CLOSED
 
-Priority: HIGH architectural product debt.
-WIP=1.
+Closure classification:
+`COMPLETE_CURRENT_PRODUCT_SCOPE`
 
-Objective:
-Current HPFA must have zero global Event-Only product authority. Event-shaped data may be required by a legitimate ACTION/EVENT construct, but it may not become the observation universe, product-wide eligibility gate, default admission veto, routing assumption, metric/model ceiling or analyst-output identity.
+Closure record:
+`docs/governance/HPFA_ZFGV_EVENT_ONLY_CURRENT_PRODUCT_CLOSURE_V1.md`
 
 Current audited invariant:
 `CURRENT_VERIFIED_GLOBAL_EVENT_ONLY_AUTHORITY = 0`
 
-This is not yet a repository-wide completeness claim. Historical records, legacy identifiers and negative regression fixtures may still retain old vocabulary, but none may authorize or veto current ZFGV capability.
+Current HPFA does not use Event-Only as observation universe, product-wide eligibility gate, default admission veto, global routing prerequisite, metric/model compatibility ceiling, analyst-output identity or current operational metadata.
 
-## 6. CONFIRMED REHABILITATION
+The unbound legacy `eventonly_metric_allowlist_v1.json` policy has been removed from the current tree. Git history preserves its lineage.
+
+Historical/logbook/donor records may retain old wording only as explicit history. Negative regressions may retain the literal only to prove the old veto cannot return. Neither may authorize, veto, route or narrow current ZFGV capability.
+
+## 6. CONFIRMED ZFGV REHABILITATION
 
 - Current README / master directive / handoff / North Star / continuity / logbook / brand identity use ZFGV.
 - Metric registry uses `observation_model=ZFGV_V1`.
@@ -129,61 +134,71 @@ This is not yet a repository-wide completeness claim. Historical records, legacy
 - Provider metric dictionary operational/fingerprint semantics no longer carry the retired binary veto.
 - Evidence Lens Matrix accepts construct-specific required/optional lenses; aggregate-only constructs do not need a fake action lens.
 - Rich multiformat analysis admits XLSX aggregate evidence without creating action identity or independent support.
-- Product Architect Evolution Protocol now judges ideas by required/admitted ZFGV capabilities rather than event-data eligibility.
-- Metric Fusion scaffold is ZFGV-scoped; a global event allowlist is explicitly forbidden.
-- The legacy event-only metric allowlist is explicitly compatibility-only, unbound and unable to veto non-event ZFGV constructs.
+- Product Architect Evolution Protocol judges ideas by required/admitted ZFGV capabilities rather than event-data eligibility.
+- Metric Fusion scaffold is ZFGV-scoped and the old Event-Only allowlist policy is absent from the current tree.
 - Action Value Cost Fusion is construct-specific rather than globally event-gated.
 - Reasoning Grammar begins from admitted observation rather than an Event-Only universe.
-- Progression planning now allows the observation families genuinely required by the progression construct.
-- Capability Closure Guard contains a regression preventing positive global Event-Only authority from returning.
+- Progression planning allows the observation families genuinely required by the progression construct.
+- Capability Closure Guard prevents positive global Event-Only authority from returning and checks that the legacy allowlist file is absent.
 
 ## 7. LEGITIMATE ACTION/EVENT SUBPATHS — PRESERVE
 
-Do not destroy legitimate event-specific capability while removing the old global ontology.
+Do not destroy legitimate event-specific capability while removing the retired global ontology.
 
 Verified examples:
 - Data Quality Gate feeds an event-shaped phase/sequence consumer. Current proven consumer scope is ACTION/EVENT-specific.
 - Primary Event Surface Gate reviews event-derived candidates only; it is not the product-wide surface selector.
 - Event identity, occurrence, temporal relation, consequence and action-sequence producers may require event-shaped evidence when the construct itself requires it.
 
-The rule is not “event terms = 0”. The rule is “global Event-Only authority = 0”.
+ACTION/EVENT-specific != Event-Only product.
 
-## 8. HISTORICAL / COMPATIBILITY RESIDUE RULE
+## 8. CURRENT WIP — ZFGV SPATIAL PROGRESSION CAPABILITY RECOVERY
 
-Old vocabulary may remain only as:
-- historical/logbook/donor lineage;
-- legacy filenames/IDs retained for compatibility;
-- negative regression fixtures proving the retired veto cannot return;
-- descriptions of legitimate ACTION/EVENT-specific subpaths.
+Priority: HIGH football-intelligence bridge.
+WIP=1.
 
-None may authorize, veto, route or narrow current ZFGV capability.
+Football question:
+Can HPFA use admitted spatial observation to describe **where and how visible progression occurred** without pretending that coordinates are tracking or team-shape truth?
 
-## 9. REMAINING AUDIT ORDER
+Target bridge:
 
-1. Exact-frontier lexical sweep of remaining old terminology.
-2. Semantic sweep for generic components that silently require event id/type even when their construct does not require ACTION/EVENT.
-3. Reverse capability trace for remaining ENTITY, TEMPORAL, SPATIAL, RELATIONAL, PROCESS, AGGREGATE, CONTEXT, TRACKING/VIDEO and DERIVED consumers.
-4. Classify dormant PLAN/SPEC/runtime-pack surfaces as current, compatibility, historical or unknown.
-5. Preserve negative regressions and legitimate event subpaths.
-6. Rehabilitate only proven current authority/executable ceilings.
-7. Use ACTIVE_MATCH physical validation only if runtime behavior is materially changed.
+`SPATIAL OBSERVATION → PITCH FRAME / DIRECTION ADMISSION → LOCATION/ZONE/CHANNEL → VISIBLE PROGRESSION CANDIDATE → CONTEXT/CONSEQUENCE → COMPARABLE VARIANT → SAFE FINDING`
 
-Until stop condition is met:
-`MIGRATION_COVERAGE=INCOMPLETE`.
+Required investigation before code:
+1. Identify current spatial producers and consumers.
+2. Determine which coordinate semantics, pitch-frame and attacking-direction evidence are actually admitted.
+3. Find any residual event-shaped prerequisite that suppresses a spatial construct which does not intrinsically require ACTION/EVENT identity.
+4. Preserve `COORDINATE != TRACKING` and all tracking/video claim ceilings.
+5. Define the analyst gain before implementation: zone/channel/progression description, not true team shape, compactness, pressure geometry or off-ball movement.
+6. Rehabilitate an existing producer/contract/test only if a real gap is proven.
+7. Request physical ACTIVE_MATCH only if runtime behaviour materially changes.
+
+## 9. POST-CLOSURE EVENT-ONLY REGRESSION WATCH
+
+Do not reopen the Event-Only migration because a historical string exists.
+Reopen only if a current consumer, registry, routing rule, admission contract or product-authority document reintroduces a global Event-Only veto or identity.
+
+Event-specific terminology is legitimate when scoped to ACTION/EVENT constructs.
+Tracking/video guards must not be weakened.
 
 ## 10. CURRENT NEXT SAFE ACTION
 
-Continue exact-frontier lexical + semantic sweep for any remaining component where event-shaped input is treated as a universal prerequisite.
+Audit the exact current frontier for the spatial-progression chain:
+- coordinate candidate semantics;
+- pitch frame;
+- direction normalization;
+- zone/channel candidates;
+- progression candidates;
+- downstream context/consequence use;
+- current analyst-output ceiling.
 
-Do not redesign legitimate event-specific gates without consumer evidence.
-Do not bulk rename historical identifiers.
-Do not weaken tracking/video claim ceilings.
-Do not infer completion from absence of a literal string.
+CODE LAST.
+Do not open a new spatial engine if an existing producer can be rehabilitated.
 
 ## 11. RELEASE STATE
 
 PR #359 remains OPEN / DRAFT / UNMERGED.
-No merge, auto-merge, release or production binding is authorized.
+No merge, auto-merge, release or production binding is authorized without exact-head landing confirmation.
 
 Current locks:
 `canonical_event_count=UNKNOWN`
