@@ -62,9 +62,10 @@ The earlier 50-file inventory is a discovered minimum set only. It is not comple
 | `hpfa/modules/core/observation_contract_lite/src/observation_contract.py` | Explicit L0-L8 and capability-specific contract; deprecated event-only shadow cannot admit/reject | Canonical observation contract | Metric definition policy / ZFGV adapters | CODE | CURRENT_PRODUCT_AUTHORITY | NEGATIVE_REGRESSION | Correct target model; `event_only_is_product_ceiling=False` | LOW | Preserve; use as migration target | Core migration authority | Strong regression protection | None | Enables richer defensible observation without overclaim |
 | `hpfa/modules/core/observation_contract_lite/test_zfgv_event_only_ceiling_removed.py` | Tracking construct carries `event_only_compatible=False` and must PASS ZFGV contract | Anti-regression | Observation contract | TEST | CURRENT_CONSUMED_SUPPORT | NEGATIVE_REGRESSION | Prevents reintroduction of binary Event-Only veto | LOW | Preserve | Literal Event-Only reference is intentional | Must remain green | None | Protects future tracking/video-capable constructs |
 | `hpfa/modules/core/provider_metric_dictionary_lite/tests/test_provider_metric_dictionary.py` | `test_legacy_event_only_metadata_cannot_veto_zfgv` | Anti-regression | Provider dictionary | TEST | CURRENT_CONSUMED_SUPPORT | NEGATIVE_REGRESSION | Explicitly proves legacy metadata cannot create Event-Only fail-close | LOW | Preserve | Deleting it weakens migration safety | Must remain green | None | Prevents provider metadata suppressing ZFGV constructs |
-| `hpfa/modules/core/metric_fusion_engine/policies/eventonly_metric_allowlist_v1.json` | Legacy policy id and allowlist | Scaffold policy | No current product-wide consumer proved in current reference spine | CONFIG | UNBOUND | LEGACY_IDENTIFIER | File says `candidate_not_production_bound`; current source inspection did not prove global admission authority | MEDIUM future risk | Reverse-consumer trace; do not rename/delete until consumer role is known | Historical/scaffold lineage may be useful | Consumer-specific tests if bound | None proven | Avoids future accidental global allowlist authority |
+| `hpfa/modules/core/metric_fusion_engine/policies/eventonly_metric_allowlist_v1.json` | Legacy policy id and action/event metric allowlist; file declares `candidate_not_production_bound` | Scaffold policy | No current product-wide consumer proved | CONFIG | UNBOUND | LEGACY_IDENTIFIER | Exact-head policy is explicitly non-production-bound and evidence-only; default-branch code search found no consumer reference beyond the policy itself | LOW/MEDIUM future risk | Preserve as unbound legacy identifier; re-open consumer trace only if a current executable binding appears | Historical/scaffold lineage and metric ids may remain useful | Consumer-specific tests only if bound | None proven | Avoids accidental promotion of a legacy allowlist into product authority |
 | `hpfa/modules/core/metric_fusion_engine/README.md` | Title=`Event-Only Metric Fusion Engine V1` | Scaffold documentation | Metric fusion maintainers | DOC | UNBOUND | LEGACY_IDENTIFIER | Module status is scaffold/not production bound; source code inspected is relation-specific, not global observation admission | LOW/MEDIUM | Reclassify terminology after consumer audit; no behavior change based on title alone | Preserve scaffold lineage until migration is explicit | Documentation only | None proven | Reduces future design drift once classified |
-| `hpfa/modules/core/primary_event_surface_gate_lite/src/primary_event_surface_gate.py` | Selects candidate only when event type + coordinates exist; excludes XLSX aggregate | Event-specific surface selection | Historical/legacy contracts; exact current full-spine direct consumer not found | CODE | CURRENT_EXECUTABLE | REVIEW_REQUIRED | Could be legitimate ACTION/EVENT subpath, but must not become universal surface selector for all ZFGV families | MEDIUM | Reverse-consumer trace. If unbound, keep legacy/event-specific. If bound globally, scope to ACTION/EVENT observation family | Event-specific duplicate/primary-surface review remains legitimate | Existing event gate tests must remain | No direct current full-spine binding proved | Protects event chronology without suppressing aggregate/process/entity surfaces |
+| `hpfa/modules/core/primary_event_surface_gate_lite/src/primary_event_surface_gate.py` | Selects ACTION/EVENT surface candidates using event/team/coordinate evidence; aggregate XLSX excluded from this event-specific candidate pool | Event-specific surface selection | Primary-surface review resolution; event-derived metric/transition/report support | CODE | CURRENT_EXECUTABLE | LEGITIMATE_EVENT_TERM | Reverse-consumer trace shows the gate scopes event-derived candidate readiness and does not establish a product-wide observation-universe veto; physical/report support remains separately available | LOW | Preserve as ACTION/EVENT subpath; regression-protect against future use as universal surface selector | Event identity/chronology review requires event-shaped evidence | Existing event gate and consumer tests must remain | Exact current canonical full-spine direct binding not found | Protects event-derived chronology/metric candidates without suppressing aggregate/process/entity surfaces |
+| `hpfa/modules/core/primary_surface_review_resolution_lite/src/primary_surface_review_resolution.py` | Consumes primary event candidate and only unlocks event time/phase review; counts and production binding remain blocked | Event-specific review resolver | Event-derived time/phase/possession/sequence subpath | CODE | CURRENT_EXECUTABLE | LEGITIMATE_EVENT_TERM | Explicit downstream gate is event-scoped and keeps `canonical_event_count=UNKNOWN`, `event_count_claim_allowed=false`, `production_binding_allowed=false` | LOW | Preserve | Fail-closed/review behavior is the intended event claim guard | Existing event review regressions | No global ZFGV runtime authority | Prevents an event candidate being promoted to event truth |
 | `docs/prompts/HPFA_PROJECT_LOGBOOK_PROMPT.md` | Product identity now uses ZFGV; global Event-Only veto explicitly prohibited | Session continuity prompt | Operators/AI logbook generation | DOC/PROMPT | CURRENT_CONSUMED_SUPPORT | PRESERVE_AS_GUARD | Current prompt records observation families/capabilities and preserves claim guards without Event-Only product identity | LOW | Preserve | Session continuity is now aligned with current ontology | Prompt/governance regression | No direct match runtime | Prevents future operators from reintroducing Event-Only doctrine |
 | `docs/brand/HPFA_BRAND_IDENTITY_CORE_LAYER.md` | Brand identity now states `EVENT ⊂ ZFGV`, evidence-first and claim-safe observation model | Brand/product language | Analyst-facing communication | DOC | CURRENT_CONSUMED_SUPPORT | PRESERVE_AS_GUARD | Current external/product identity matches the ZFGV evidence spine | LOW | Preserve | Brand tone and epistemic guards remain valid | Documentation review | No runtime | User-facing product language matches actual architecture |
 | `docs/governance/HPFA_PRODUCT_ARCHITECT_EVOLUTION_ENGINE_DIRECTIVE_V1.md` | Product feasibility now uses construct-specific admitted ZFGV capabilities and retains tracking/video truth guards | Active architecture directive | New operators / architecture decisions | DOC | CURRENT_CONSUMED_SUPPORT | PRESERVE_AS_GUARD | Current directive no longer restricts ideas to ACTION/EVENT; it explicitly evaluates multiple observation families | LOW | Preserve and regression-check future edits | Research feasibility and claim-safety checks are legitimate | Governance regression | Indirect architecture impact only | Opens correct research space without lowering evidence ceiling |
@@ -74,14 +75,14 @@ The earlier 50-file inventory is a discovered minimum set only. It is not comple
 
 ## Confirmed non-current-binding distinction
 
-The exact current `active_match_spine_runner` / `full_spine_runner` inspection in this pass did not contain a direct `data_quality_gate` binding. Repository search found the policy helper itself and its tests, but did not prove a current canonical reference-spine consumer. Therefore:
+The exact current `active_match_spine_runner` / `full_spine_runner` inspection in this pass did not contain a direct `data_quality_gate` or `primary_event_surface_gate` binding. Repository search did not prove either as a current canonical reference-spine authority. Therefore:
 
-- `tools/hpfa_data_quality_gate_v1.py` remains an event-shaped current executable;
-- its `downstream_policy.py` can enforce broad phase/sequence/metric permissions when explicitly consumed;
-- current stage/dependency governance now scopes that behavior to a conditional ACTION/EVENT branch;
-- this audit does **not** claim that the current single-match reference full-spine is presently blocked by that gate.
+- `tools/hpfa_data_quality_gate_v1.py` remains an event-shaped current executable with broader legacy permission vocabulary when explicitly consumed;
+- current stage/dependency governance scopes that data-quality behavior to a conditional ACTION/EVENT branch;
+- `primary_event_surface_gate_lite` has now been reverse-traced through its direct event-specific resolution/metric/report consumers and is classified as a legitimate ACTION/EVENT subpath, not a global ZFGV ceiling;
+- this audit does **not** claim that either gate presently blocks the canonical single-match reference full-spine.
 
-Until reverse-consumer trace proves a broader binding, current reference-run binding remains `UNBOUND / UNKNOWN`, not assumed.
+For the Data Quality Gate, current reference-run binding remains `UNBOUND / UNKNOWN` until a broader executable consumer is proved. For the Primary Event Surface Gate, the verified consumer role is event-specific and claim-bounded.
 
 ## Confirmed semantic rehabilitation — no Event-Only literal required
 
@@ -111,14 +112,17 @@ The following previously stale current-consumed governance surfaces are now alig
 
 These are governance/product-language closures, not physical ACTIVE_MATCH evidence.
 
+## Legacy allowlist check
+
+`eventonly_metric_allowlist_v1.json` is explicitly `candidate_not_production_bound` and `EVIDENCE_ONLY`. Current repository search did not produce a current executable consumer reference beyond the policy itself. Because code search covers the default branch, this is not treated as proof of universal absence; exact current full-spine inspection also did not show a binding. Classification therefore remains `UNBOUND / LEGACY_IDENTIFIER`, not deleted and not promoted.
+
 ## Search still required before completeness claim
 
 - repository-wide semantic equivalents beyond current seed searches;
 - code branches of form `if not event... reject` and universal `event_id/event_type` assumptions;
 - reverse capability tracing for ENTITY/ACTOR, TEMPORAL, SPATIAL, OUTCOME, RELATIONAL, PROCESS, AGGREGATE, EXTERNAL CONTEXT, TRACKING/VIDEO, HPFA-DERIVED INTELLIGENCE;
-- reverse-consumer trace for Data Quality Gate, Primary Event Surface Gate and legacy metric-fusion allowlist;
-- runtime-pack and generated-policy consumers;
-- analyst/user output identity language;
+- reverse-consumer trace for Data Quality Gate and any generated/runtime policy consumers;
+- analyst/user output identity language not yet covered by current governance set;
 - historical/current/legacy separation for remaining literal occurrences;
 - tests that encode `non-event observation → reject` without using Event-Only vocabulary.
 
@@ -128,7 +132,7 @@ Until these are closed:
 
 ## Next safe action
 
-1. Continue reverse-consumer trace for the Data Quality Gate and Primary Event Surface Gate before altering either executable producer.
+1. Continue reverse-consumer trace for the Data Quality Gate before altering its executable producer/contract/policy.
 2. Search semantic equivalents that reject non-event observation without using Event-Only vocabulary.
 3. Audit remaining unbound/historical governance such as `product_architect_evolution_protocol_v1.md` before migration or supersession.
 4. Do not request ACTIVE_MATCH merely for governance/ledger synchronization; physical evidence is required only if executable current-run behavior changes materially.
