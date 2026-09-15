@@ -67,6 +67,10 @@ ACTION/EVENT-specific producers may still require ACTION/EVENT evidence when the
 | `hpfa/modules/core/match_local_identity_candidates_lite/src/match_local_identity_candidates.py` | CSV/XML match-local identity candidates | ACTION/EVENT identity subpath | Event/action reconstruction | CODE | CURRENT_EXECUTABLE | LEGITIMATE_EVENT_TERM | CSV/XML lineage restriction is scoped to the event/action identity construct; XLSX entity candidates have a separate current rich-multiformat route | LOW | Preserve scoped contract | Event identity requires event-capable lineage; it is not generic ENTITY admission authority | Identity + rich-lane regressions | Event/action identity subpath | Keeps action attribution strict without suppressing tabular entity evidence |
 | `hpfa/modules/core/time_scale_router_lite/src/time_scale_router.py` | Admitted time-scale routing from event windows | ACTION/EVENT episode temporal subpath | `episode_lane_runner` | CODE | CURRENT_EXECUTABLE | LEGITIMATE_EVENT_TERM | Direct caller is the action-derived episode lane; partial-order and same-time guards prevent row order becoming total temporal truth | LOW | Preserve scoped contract | Episode temporal ordering legitimately depends on admitted action windows | Episode/time regressions | Episode lane only | Gives defensible sequence timing without inventing chronology |
 | `hpfa/modules/core/spatial_transition_candidate_lite/src/spatial_transition_candidate.py` | Visible spatial transition candidate | ACTION transition spatial construct | `orphan_capability_sidecars` | CODE | CURRENT_EXECUTABLE | LEGITIMATE_EVENT_TERM | Producer consumes admitted trackable action traces because the construct is an action transition; claim ceiling is visible spatial transition candidate only | LOW | Preserve scoped contract | Action-transition space is not generic SPATIAL ingress and must not be promoted to tracking truth | Spatial sidecar regressions | Current sidecar only | Adds where/how progression evidence while retaining spatial claim ceiling |
+| `hpfa/modules/core/cross_role_relation_candidate_resolver_lite/src/cross_role_relation_candidate_resolver.py` | Cross-role relation candidates derived from reviewed action bundles | RELATIONAL reconstruction subpath | Current C1→C2→C3 reconstruction bridge | CODE | CURRENT_EXECUTABLE | LEGITIMATE_EVENT_TERM | Action-bundle dependence belongs to this action-reconstruction construct; claim ceiling remains `CROSS_ROLE_RELATION_CANDIDATE_ONLY` and does not define generic RELATIONAL admission | LOW | Preserve scoped contract | Relation candidate != tactical truth / coach intention | Reconstruction regressions | Current reconstruction only | Retains visible actor/team relations without turning them into universal event requirements |
+| `hpfa/modules/core/analyst_episode_locator_lite/src/process_participation_projection.py` | Provider-reviewed participation/context annotations | PROCESS/PARTICIPATION projection | `orphan_capability_sidecars` | CODE | CURRENT_EXECUTABLE | PRESERVE_AS_GUARD | Uses an explicitly defined provider-annotation universe plus admitted identity/episode bindings; excludes off-ball, tactical-plan, coach-intention and whole-game opportunity truth | LOW | Preserve | Process annotation is not coach intention or total process exposure | Process-participation regressions | Current sidecar | Converts visible process annotations into bounded analyst evidence |
+| `hpfa/modules/core/minimum_viable_context_lite/src/minimum_viable_context.py` | CSV/XML time/team/action/space context candidates | ACTION/EVENT episode-context subpath | `episode_lane_runner` | CODE | CURRENT_EXECUTABLE | LEGITIMATE_EVENT_TERM | This is internal episode context, not generic EXTERNAL CONTEXT authority; event-shaped parsing is scoped to the episode lane | LOW | Preserve scoped contract | Episode context legitimately depends on visible action/event surfaces | Episode/context regressions | Episode lane only | Adds bounded when/where/team context without narrowing all ZFGV |
+| `hpfa/modules/core/composite_evidence_packet_builder_lite/src/composite_evidence_packet_builder.py` | Generic composite evidence admission | HPFA-DERIVED INTELLIGENCE packet gate | Current full-spine/C4 intelligence chain | CODE | CURRENT_EXECUTABLE | PRESERVE_AS_GUARD | Gates on evidence refs, dependency/independence, claim ceiling and forbidden outputs; no universal Event/event_id prerequisite, and aggregate-only rich candidates can enter the same C4 chain | LOW | Preserve | Derived intelligence must stay evidence-dependent and claim-bounded | Composite/C4 regressions | Current intelligence chain | Allows non-event evidence to become defensible intelligence without creating new facts |
 | `tools/hpfa_data_quality_gate_v1.py` | Event id/type/team/period quality checks | ACTION/EVENT data-quality producer | `phase_sequence_composite` | CODE | CURRENT_EXECUTABLE | LEGITIMATE_EVENT_TERM | Verified consumer is event-shaped phase/sequence branch; no non-event consumer proven | LOW/MEDIUM latent naming risk | Preserve event-specific scope; never promote to global ZFGV gate | Event phase/sequence genuinely needs event-shaped input | Existing gate tests | Event branch only | Keeps unsafe event sequence work closed without suppressing other families |
 | `hpfa/modules/core/data_quality_gate/src/downstream_policy.py` | Event-gate permissions | Event branch router | `phase_sequence_composite` + tests | CODE | CURRENT_EXECUTABLE | LEGITIMATE_EVENT_TERM | Current executable consumer is event-specific; generic field names are not proven global authority | LOW/MEDIUM latent | Preserve until real cross-family consumer exists; forbid global reuse | Fail-closed event routing is legitimate | Consumer regression | No canonical global binding proven | Avoids unnecessary redesign while protecting ZFGV |
 | `hpfa/modules/core/primary_event_surface_gate_lite/src/primary_event_surface_gate.py` | Selects event-surface candidate | Event-specific surface selection | Event review/metric/transition support | CODE | CURRENT_EXECUTABLE | LEGITIMATE_EVENT_TERM | Does not select whole observation universe; aggregate/physical/report surfaces remain separate | LOW | Preserve | Event chronology needs event-specific surface review | Event-gate regression | No global ZFGV authority | Protects event subpath only |
@@ -103,25 +107,29 @@ Audited paths currently support the following without a global Event-Only ceilin
 - TEMPORAL: current generic admission contract is capability-specific, while the inspected event-window/time-scale path is an action-derived episode subpath with partial-order guards;
 - SPATIAL: inspected spatial-transition producer is construct-scoped to admitted action transitions and does not act as universal SPATIAL ingress or tracking truth;
 - OUTCOME/QUALIFIER: visible consequence candidates without causality;
-- RELATIONAL: relation candidates without tactical truth;
-- PROCESS/PARTICIPATION: provider/process context without coach-intention promotion;
+- RELATIONAL: current cross-role relation resolver is an action-reconstruction-scoped candidate producer in the current C1→C2→C3 bridge; it is not generic RELATIONAL admission authority;
+- PROCESS/PARTICIPATION: current sidecar projection is limited to provider-reviewed process annotations inside a defined eligible annotation universe; off-ball contribution, tactical plan and coach intention remain closed;
 - AGGREGATE/TABULAR: XLSX aggregate/entity support travels through the rich lane without action identity or independence fabrication;
-- EXTERNAL CONTEXT: admitted only by source/claim contract;
-- TRACKING/VIDEO: permitted as its own family when actually available and required;
-- HPFA-DERIVED INTELLIGENCE: derived outputs remain evidence-dependent, not new facts.
+- EXTERNAL CONTEXT: no current executable generic consumer was proven in the targeted trace; authority state is `UNBOUND/NOT_CURRENTLY_BOUND`. Internal `minimum_viable_context` is ACTION/episode context and must not be mistaken for external-context authority;
+- TRACKING/VIDEO: L8 construct admission is independently capability-scoped and passes without fake event-family metadata; no tracking/video physical evidence was used;
+- HPFA-DERIVED INTELLIGENCE: aggregate-only rich candidates can enter generic composite admission and the common C4 intelligence chain without an Event/event_id prerequisite; outputs remain evidence-dependent, not new facts.
 
-First reverse-capability tranche status: `AGGREGATE/TABULAR + ENTITY/ACTOR + TEMPORAL + SPATIAL = SCOPED/CLEAN` on the exact audited frontier. This does not close repository-wide migration coverage.
+First reverse-capability tranche status: `AGGREGATE/TABULAR + ENTITY/ACTOR + TEMPORAL + SPATIAL = SCOPED/CLEAN` on the exact audited frontier.
+
+Second reverse-capability tranche status: `RELATIONAL + PROCESS/PARTICIPATION + TRACKING/VIDEO + HPFA-DERIVED INTELLIGENCE = SCOPED/CLEAN`; `EXTERNAL CONTEXT = UNBOUND/NOT_CURRENTLY_BOUND` on the targeted current executable trace.
+
+Neither tranche closes repository-wide migration coverage by itself.
 
 ## Remaining completeness work
 
 Before `MIGRATION_COVERAGE=COMPLETE`, still audit:
 
-- reverse-consumer traces for RELATIONAL, PROCESS/PARTICIPATION, EXTERNAL CONTEXT, TRACKING/VIDEO and HPFA-DERIVED INTELLIGENCE;
-- remaining default-branch lexical hits against exact current frontier;
-- dormant/current ambiguity in old PLAN/SPEC docs not yet classified;
-- semantic equivalents with no Event-Only literal, especially universal `event_id/event_type` assumptions in generic components;
+- exact-current-frontier semantic/lexical residues that could impose a universal event-shaped prerequisite outside the already traced executable families;
+- dormant/current ambiguity in old PLAN/SPEC documents not yet authority-classified;
+- dormant/future-current EXTERNAL CONTEXT surfaces and their authority state;
+- generated/config/runtime-pack surfaces that could be mistaken for current authority;
 - any future consumer of broad event-gate permission fields;
-- generated/config/runtime-pack surfaces that could be mistaken for current authority.
+- any unresolved `CURRENT` / `UNKNOWN` authority candidate capable of globally narrowing ZFGV.
 
 Until then:
 
