@@ -6,6 +6,42 @@ HPFA is a claim-safe Football Intelligence Platform built on **Enriched Football
 
 HPFA observation capacity is admitted construct-by-construct from the fields and relationships actually visible in the current match surfaces. Depending on upstream admission, these surfaces may expose action, temporal, spatial, relational/co-occurrence, process/context, consequence/response, and reconstructed state-transition candidates. Tracking/video remains required only for constructs whose physical or off-ball truth cannot be established from the admitted observation surface.
 
+## Product scope and portability doctrine
+
+The current reference product is **single-match Postmatch**. This is a product/validation scope, not an architectural dependency on one fixture, team, competition, provider, machine, path or user interface.
+
+The intended product is a portable, headless Football Intelligence Core that can be reused behind CLI, API, web, mobile, desktop, on-premise club infrastructure or private-cloud delivery layers without changing football truth semantics.
+
+The architecture boundary is:
+
+```text
+INPUT / PROVIDER ADAPTERS
+→ CANONICAL OBSERVATION + ADMISSION CONTRACTS
+→ MATCH-AGNOSTIC FOOTBALL INTELLIGENCE CORE
+→ CLAIM-SAFE ARTIFACT CONTRACTS
+→ DELIVERY ADAPTERS / API / WEB / APP / REPORT
+```
+
+The following are hard product rules:
+
+- single-match Postmatch is the first reference product, not a single-match hard-code model;
+- product core is match-agnostic, team-agnostic, competition-agnostic and provider-agnostic behind explicit adapters/contracts;
+- fixture identities, team names, player names, dates and sample-specific values must never control product logic;
+- sample-match identities may exist only in runtime input, test fixtures, validation artefacts or explicitly isolated examples;
+- provider-specific labels must be normalized/admitted at the boundary and must not become universal football truth inside the core;
+- Termux is a physical validation environment, not a runtime requirement of the product;
+- GitHub, Drive, Dropbox, web connectors and cloud services are support/ingestion/operator surfaces, not mandatory dependencies of football reasoning;
+- once admitted input artefacts are locally available, core reasoning must not require a live network service;
+- filesystem paths are runtime configuration/authority inputs, never football semantics;
+- each match run has isolated state and deterministic artefacts; no hidden global mutable match state may change another match's result;
+- cross-match intelligence must compose admitted per-match artefacts later; it must not be simulated by leaking one fixture into another;
+- missing provider capability must FAIL_CLOSED or DOWNGRADE according to construct requirements, never trigger a hidden sample-specific fallback;
+- core outputs must be machine-readable/serializable so a website, app, API or club platform can consume the same evidence and finding contracts without reimplementing football logic;
+- UI/presentation code never owns evidence truth, finding truth or claim admission;
+- deployment packaging may have normal software/runtime dependencies, but there must be no hard operational dependency on one device, one provider, one external service or one match dataset.
+
+The long-term commercial target is therefore not a script that analyzes one fixture. It is a reusable autonomous football-analysis system whose ingestion, reasoning, evidence audit and analyst-output contracts can be deployed for professional clubs while preserving the same claim-safety rules.
+
 ## Authority
 
 - Product repository: `Hikmetpinarbas/hpfa`

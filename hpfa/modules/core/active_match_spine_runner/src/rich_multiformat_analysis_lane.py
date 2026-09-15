@@ -194,6 +194,8 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
 def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int = 20) -> list[dict[str, Any]]:
     refs: list[dict[str, Any]] = []
     for row in rows:
+        identity = row.get("identity_candidates") or {}
+        row_projection_id = str(row.get("row_projection_id") or "").strip()
         for key, metric in (row.get("metric_values") or {}).items():
             if not isinstance(metric, dict) or metric.get("value_status") != "OBSERVED":
                 continue
@@ -201,26 +203,66 @@ def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int 
             raw_label = str(metric.get("raw_metric_label") or "").casefold()
             if not any(term in key_text or term in raw_label for term in terms):
                 continue
+            player_candidate = identity.get("player_raw_candidate")
+            team_candidate = identity.get("team_raw_candidate")
             refs.append({
-                "metric_id": f"{row.get('row_projection_id')}:{key}",
+                "metric_id": f"{row_projection_id}:{key}",
+                "row_projection_id": row_projection_id,
+                "source_role": row.get("source_role"),
                 "source_surface": "xlsx_entity_metric_row_projection_lite_v1",
                 "raw_metric_label": metric.get("raw_metric_label"),
                 "raw_value": metric.get("raw_value"),
-                "entity_candidate": (row.get("identity_candidates") or {}).get("player_raw_candidate") or (row.get("identity_candidates") or {}).get("team_raw_candidate"),
+                "player_candidate": player_candidate,
+                "team_candidate": team_candidate,
+                "entity_candidate": player_candidate or team_candidate,
                 "provenance_root": str(row.get("source_sha256") or "xlsx_unknown"),
                 "dependency_group": "same_provider_xlsx_aggregate",
                 "independence_group": None,
                 "independent_support_vote": False,
                 "metric_truth": False,
+                "lens": "aggregate",
             })
             if len(refs) >= limit:
                 return refs
     return refs
 
 
+def _comparable_aggregate_pairs(
+    progression: list[dict[str, Any]],
+    terminal: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    terminal_by_row: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for ref in terminal:
+        row_id = str(ref.get("row_projection_id") or "").strip()
+        if row_id:
+            terminal_by_row[row_id].append(ref)
+
+    pairs: list[dict[str, Any]] = []
+    for progression_ref in progression:
+        row_id = str(progression_ref.get("row_projection_id") or "").strip()
+        if not row_id:
+            continue
+        for terminal_ref in terminal_by_row.get(row_id, []):
+            if progression_ref.get("metric_id") == terminal_ref.get("metric_id"):
+                continue
+            pairs.append({
+                "row_projection_id": row_id,
+                "source_role": progression_ref.get("source_role"),
+                "player_candidate": progression_ref.get("player_candidate"),
+                "team_candidate": progression_ref.get("team_candidate"),
+                "progression_metric": progression_ref,
+                "terminal_metric": terminal_ref,
+                "same_row_scope": True,
+                "same_provider_surface": True,
+                "independent_support_vote": False,
+            })
+    return pairs
+
+
 def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict[str, Any]:
     progression = _metric_refs(rows, ("progressive", "progression", "final_third", "final third", "penalty_area", "penalty area", "box"))
     terminal = _metric_refs(rows, ("shot", "xg", "goal", "chance"))
+    comparable_pairs = _comparable_aggregate_pairs(progression, terminal)
     shot_total = sum(int(card.get("shot_candidate_count") or 0) for card in (features.get("episode_feature_vectors") or []) if isinstance(card, dict))
     occurrence_ref = {
         "feature_id": "c01_visible_terminal_episode_surface",
@@ -230,40 +272,69 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
         "dependency_group": "episode_feature_action_population",
         "independence_group": None,
         "independent_support_vote": False,
+        "lens": "action",
     }
+
     packet_candidate = None
-    if progression and (terminal or shot_total > 0):
-        metrics = [progression[0]] + ([terminal[0]] if terminal else [])
+    if comparable_pairs:
+        pair = comparable_pairs[0]
+        metrics = [pair["progression_metric"], pair["terminal_metric"]]
+        relation_signal = {
+            "signal_id": "c01_same_scope_progression_terminal_alignment_candidate",
+            "source_surface": "HPFA_DERIVED_FROM_SAME_ROW_AGGREGATE",
+            "evidence_derivation_role": "DERIVED_FROM_COMPARABLE_AGGREGATE_PAIR_CANDIDATE",
+            "evidence_role": "same_scope_progression_terminal_alignment_candidate",
+            "relation_type": "SUPPORTS",
+            "source_refs": [str(metric.get("metric_id")) for metric in metrics],
+            "row_projection_id": pair.get("row_projection_id"),
+            "player_candidate": pair.get("player_candidate"),
+            "team_candidate": pair.get("team_candidate"),
+            "provenance_root": str(pair["progression_metric"].get("provenance_root") or "c01_same_row_aggregate"),
+            "dependency_group": "c01_same_row_aggregate_relation",
+            "independence_group": None,
+            "independent_support_vote": False,
+            "causal_truth": False,
+            "tactical_truth_candidate_admitted": False,
+        }
         packet_candidate = {
             "packet_family": "progression",
             "input_features": [occurrence_ref],
             "input_windows": [],
             "input_sequences": [],
             "input_metrics": metrics,
-            "supporting_signals": [],
+            "supporting_signals": [relation_signal],
             "contradicting_signals": [],
+            "required_lenses": ["aggregate"],
+            "optional_lenses": ["action", "outcome", "context", "contradiction"],
             "claim_ceiling": "composite_candidate_only",
             "blocked_language_families": ["tactical_truth", "dominance_truth", "control_truth"],
         }
-    state = "REVIEW_REQUIRED"
+
     if not progression:
         reason = "aggregate_progression_surface_not_observed"
-    elif not terminal and shot_total <= 0:
+    elif not terminal:
         reason = "terminal_surface_not_observed"
+    elif not comparable_pairs:
+        reason = "comparable_aggregate_scope_not_observed"
     else:
-        reason = "occurrence_progression_semantics_not_yet_admitted_same_provider_support_non_independent"
+        reason = "aggregate_pair_scope_aligned_same_provider_support_non_independent"
+
     return {
         "construct_id": "C01_PROGRESSION_VOLUME_VS_TERMINAL_CONVERSION",
-        "status": state,
-        "question": "Visible progression/access production and terminal production appear together on admitted surfaces?",
+        "status": "REVIEW_REQUIRED",
+        "question": "Visible progression/access production and terminal production appear together on comparable admitted aggregate scope?",
         "progression_aggregate_ref_count": len(progression),
         "terminal_aggregate_ref_count": len(terminal),
+        "comparable_scope_pair_count": len(comparable_pairs),
         "visible_shot_candidate_count": shot_total,
         "progression_metric_refs": progression,
         "terminal_metric_refs": terminal,
+        "comparable_scope_pairs": comparable_pairs,
         "packet_candidate": packet_candidate,
         "review_reason": reason,
         "aggregate_support_is_independent_vote": False,
+        "action_surface_is_optional_context": True,
+        "cross_entity_aggregate_pairing_allowed": False,
         "construct_truth": False,
         "claim_ceiling": "CONSTRUCT_EVIDENCE_CANDIDATE_ONLY",
     }
@@ -288,6 +359,7 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"C01_status={c01.get('status')}",
         f"C01_progression_aggregate_ref_count={c01.get('progression_aggregate_ref_count')}",
         f"C01_terminal_aggregate_ref_count={c01.get('terminal_aggregate_ref_count')}",
+        f"C01_comparable_scope_pair_count={c01.get('comparable_scope_pair_count')}",
         f"C01_visible_shot_candidate_count={c01.get('visible_shot_candidate_count')}",
         f"C01_review_reason={c01.get('review_reason')}",
         f"hard_block_hits={payload.get('hard_block_hits') or []}",
@@ -391,7 +463,7 @@ def run_rich_lane(
                 "team_view_candidates": entity_views.get("team_view_candidates"),
                 "action_family_candidate_counts": features.get("eligible_action_family_candidate_counts") or {},
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
-                "constructs": {"C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "packet_candidate"}}},
+                "constructs": {"C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "comparable_scope_pairs", "packet_candidate"}}},
             },
         },
         "entity_views": entity_views,

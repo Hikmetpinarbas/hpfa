@@ -2,7 +2,7 @@ from hpfa.modules.core.observation_contract_lite.src.observation_contract import
     L8,
     CAP_TRACKING_VIDEO_PHYSICAL,
     assess_observation_contract,
-    normalize_dictionary_for_legacy_impl,
+    normalize_dictionary_for_zfgv,
 )
 
 
@@ -32,18 +32,31 @@ def test_explicit_zfgv_tracking_contract_is_not_blocked_by_event_only_flag():
     assert CAP_TRACKING_VIDEO_PHYSICAL in assessment["required_observation_capabilities"]
 
 
-def test_legacy_dictionary_shadow_cannot_veto_explicit_zfgv_capability():
+def test_provider_dictionary_cannot_veto_explicit_zfgv_policy_capability():
     row = _tracking_metric()
-    dictionary = {"metrics": [dict(row)]}
-    policy = {"metrics": []}
-    normalized_dictionary, _normalized_policy, assessments = normalize_dictionary_for_legacy_impl(
+    dictionary = {
+        "metrics": [
+            {
+                "metric_id": row["metric_id"],
+                "provider_definition": "provider_surface_only",
+                "event_only_compatible": False,
+            }
+        ]
+    }
+    policy = {"metrics": [dict(row)]}
+
+    normalized_dictionary, normalized_policy, assessments = normalize_dictionary_for_zfgv(
         dictionary,
         policy,
     )
+
     assert assessments[0]["status"] == "PASS"
-    assert normalized_dictionary["metrics"][0]["event_only_compatible"] is True
-    assert normalized_dictionary["metrics"][0]["required_observation_layers"] == [L8]
-    assert normalized_dictionary["metrics"][0]["tracking_video_required"] is True
+    assert assessments[0]["assessment_scope"] == "HPFA_METRIC_POLICY"
+    assert normalized_dictionary == dictionary
+    assert normalized_policy is not None
+    assert normalized_policy["metrics"][0]["event_only_compatible"] is True
+    assert normalized_policy["metrics"][0]["required_observation_layers"] == [L8]
+    assert normalized_policy["metrics"][0]["tracking_video_required"] is True
 
 
 def test_no_sample_match_identity_leak():

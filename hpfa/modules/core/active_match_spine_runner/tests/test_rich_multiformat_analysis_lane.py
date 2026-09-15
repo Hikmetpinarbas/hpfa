@@ -8,6 +8,7 @@ if str(ROOT) not in sys.path:
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from full_spine_runner import run_intelligence_chain
 from rich_multiformat_analysis_lane import _construct_c01, _phase_state_candidates
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
@@ -119,10 +120,11 @@ def test_phase_state_candidates_are_explicitly_candidates_not_truth():
     assert rows[0]["tactical_truth"] is False
 
 
-def test_c01_construct_can_enter_existing_composite_packet_without_independence_inflation():
+def test_c01_same_scope_aggregate_pair_can_enter_c4_without_fake_action_requirement():
     projection_rows = [{
         "row_projection_id": "xrp_1",
         "source_sha256": "same_provider_sha",
+        "source_role": "PLAYER_SURFACE_CANDIDATE",
         "identity_candidates": {"player_raw_candidate": "P1", "team_raw_candidate": "T1"},
         "metric_values": {
             "progressive_passes": {"raw_metric_label": "Progressive passes", "raw_value": 12, "value_status": "OBSERVED"},
@@ -133,9 +135,77 @@ def test_c01_construct_can_enter_existing_composite_packet_without_independence_
     construct = _construct_c01(projection_rows, features)
     assert construct["status"] == "REVIEW_REQUIRED"
     assert construct["packet_candidate"] is not None
-    packet = build_composite_packet(construct["packet_candidate"])
+    candidate = construct["packet_candidate"]
+
+    assert candidate["required_lenses"] == ["aggregate"]
+    assert candidate["optional_lenses"] == ["action", "outcome", "context", "contradiction"]
+    assert candidate["input_features"][0]["lens"] == "action"
+    assert all(metric["lens"] == "aggregate" for metric in candidate["input_metrics"])
+    assert len({metric["row_projection_id"] for metric in candidate["input_metrics"]}) == 1
+    assert candidate["supporting_signals"][0]["relation_type"] == "SUPPORTS"
+    assert candidate["supporting_signals"][0]["independent_support_vote"] is False
+    assert candidate["supporting_signals"][0]["causal_truth"] is False
+
+    packet = build_composite_packet(candidate)
     assert packet["status"] == "SMOKE_PASS"
     assert packet["packet_family"] == "progression"
     assert packet["independent_support_count"] == 0
     assert packet["nominal_ref_count_is_independent_support_count"] is False
     assert packet["claim_ceiling"] == "composite_candidate_only"
+
+    chain = run_intelligence_chain(packet)
+    assert chain["lens"]["lens_requirement_mode"] == "EXPLICIT_ZFGV"
+    assert chain["lens"]["required_lenses"] == ["aggregate"]
+    assert chain["lens"]["missing_required_lenses"] == []
+    assert chain["lens"]["status"] == "SMOKE_PASS"
+    assert construct["review_reason"] == "aggregate_pair_scope_aligned_same_provider_support_non_independent"
+
+
+def test_c01_must_not_pair_progression_from_one_entity_with_terminal_output_from_another():
+    projection_rows = [
+        {
+            "row_projection_id": "xrp_progression_p1",
+            "source_sha256": "same_provider_sha",
+            "source_role": "PLAYER_SURFACE_CANDIDATE",
+            "identity_candidates": {"player_raw_candidate": "P1", "team_raw_candidate": "T1"},
+            "metric_values": {
+                "progressive_passes": {"raw_metric_label": "Progressive passes", "raw_value": 12, "value_status": "OBSERVED"},
+            },
+        },
+        {
+            "row_projection_id": "xrp_terminal_p2",
+            "source_sha256": "same_provider_sha",
+            "source_role": "PLAYER_SURFACE_CANDIDATE",
+            "identity_candidates": {"player_raw_candidate": "P2", "team_raw_candidate": "T1"},
+            "metric_values": {
+                "shots": {"raw_metric_label": "Shots", "raw_value": 5, "value_status": "OBSERVED"},
+            },
+        },
+    ]
+    features = {"episode_feature_vectors": [{"shot_candidate_count": 9}]}
+    construct = _construct_c01(projection_rows, features)
+
+    assert construct["packet_candidate"] is None
+    assert construct["status"] == "REVIEW_REQUIRED"
+    assert construct["review_reason"] == "comparable_aggregate_scope_not_observed"
+    assert construct["comparable_scope_pair_count"] == 0
+
+
+def test_c01_scope_alignment_does_not_promote_same_provider_aggregate_to_independent_support():
+    projection_rows = [{
+        "row_projection_id": "xrp_2",
+        "source_sha256": "same_provider_sha",
+        "source_role": "PLAYER_SURFACE_CANDIDATE",
+        "identity_candidates": {"player_raw_candidate": "P2", "team_raw_candidate": "T2"},
+        "metric_values": {
+            "progressive_passes": {"raw_metric_label": "Progressive passes", "raw_value": 15, "value_status": "OBSERVED"},
+            "shots": {"raw_metric_label": "Shots", "raw_value": 5, "value_status": "OBSERVED"},
+        },
+    }]
+    construct = _construct_c01(projection_rows, {"episode_feature_vectors": [{"shot_candidate_count": 5}]})
+    packet = build_composite_packet(construct["packet_candidate"])
+    chain = run_intelligence_chain(packet)
+
+    assert packet["independent_support_count"] == 0
+    assert chain["fusion"]["independent_support_count"] == 0
+    assert construct["aggregate_support_is_independent_vote"] is False

@@ -3,6 +3,8 @@
 NODE: hpfa_core_data_quality_gate_template_discovery_v1
 STATUS: DISCOVERY_PASS_PLAN_ONLY
 
+ZFGV migration note (2026-09-15): `AUTHORITY_STATUS=HISTORICAL_ONLY`. The product-wide event-data gate described below is historical planning lineage, not current/future-current ZFGV admission authority. Any future data-quality gate must be scoped to the source/surface and construct-required observation capabilities; non-event ZFGV families cannot be globally blocked for lacking event-shaped fields.
+
 ## Purpose
 
 Define the donor-supported discovery plan for the HPFA data quality gate.

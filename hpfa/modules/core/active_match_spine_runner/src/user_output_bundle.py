@@ -7,6 +7,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from analyst_mechanism_review import build_mechanism_review_lines
+
 ANALYST_REPORT = "HPFA_ANALYST_REPORT.txt"
 BUNDLE_MANIFEST = "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"
 BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
@@ -294,19 +296,22 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     else:
         lines.append("- Current invocation C4 producer zinciri tamamlanmadi; onceki run argumani kullanilmadi.")
 
+    lines.extend(["", "[6] ANALYST REVIEW — GORUNUR SUREC MEKANIZMASI ADAYLARI"])
+    lines.extend(build_mechanism_review_lines(root, full_spine))
+
     lines.extend([
         "",
-        "[6] COUNTEREVIDENCE / UNCERTAINTY",
+        "[7] COUNTEREVIDENCE / UNCERTAINTY",
         f"review_hits={full_spine.get('review_hits') or []}",
         f"review_debt_feature_vector_count={features.get('review_debt_feature_vector_count') if feature_current else 'UNAVAILABLE_CURRENT_INVOCATION'}",
         f"total_unresolved_semantics_context_count={features.get('total_unresolved_semantics_context_count') if feature_current else 'UNAVAILABLE_CURRENT_INVOCATION'}",
         f"rich_lane_review_hits={(rich.get('review_hits') or []) if rich_current else 'UNAVAILABLE_CURRENT_INVOCATION'}",
         "absence_of_evidence_is_counterevidence=false",
         "",
-        "[7] SAFE_MEANING",
+        "[8] SAFE_MEANING",
     ])
     if feature_current and rich_current and c4_current:
-        lines.append("Bu rapor current invocation icinde uretilen event-only occurrence/episode yuzeyi, XLSX aggregate row projection, primitive/construct adaylari ve mevcut C4 defeasible argument yuzeyini ayni evidence zincirinde birlestirir.")
+        lines.append("Bu rapor current invocation icinde uretilen ZFGV observation ailesindeki occurrence/episode aday yuzeylerini, XLSX aggregate/tabular yuzeyini, primitive/construct adaylarini ve mevcut C4 defeasible argument yuzeyini ayni evidence zincirinde birlestirir.")
     elif feature_current and rich_current:
         lines.append("Current invocation occurrence/episode ve multiformat aggregate yuzeyi mevcut; C4 tamamlanmadigi icin argument sonucu current evidence olarak yayinlanmadi.")
     elif feature_current:
@@ -316,17 +321,17 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     lines.extend([
         "Takim/oyuncu aday dagilimlari yalniz current invocation attribution ve aggregate candidate yuzeyini anlatir; possession, dominance veya control degildir.",
         "",
-        "[8] FORBIDDEN_INFERENCE",
+        "[9] FORBIDDEN_INFERENCE",
         "Tracking/video olmadan team shape, defensive line height, compactness, off-ball structure/run, passing options, body orientation, scanning, fatigue/load/speed, true pressure geometry, coach intention, tactical plan, dominance ve causality kanitlanmis sayilmaz.",
         "",
-        "[9] CURRENT PRODUCT CEILING",
+        "[10] CURRENT PRODUCT CEILING",
         "CSV/XML event-like occurrence ve XLSX aggregate surface artik ayni run'da birlikte tasinir; ayni provider yuzeyleri independent vote degildir.",
         "C01 ilk construct vertical slice'tir; occurrence-level progression semantics tam admission gecmeden progression truth uretilmez.",
         "Phase/state etiketleri activity candidate'dir; phase truth degildir.",
         "MICRO/MEZZO/MACRO bir evidence-routing lattice'tir; macro claim mikro/mezo evidence'dan kopamaz.",
         "Player/GK/team gorunumleri candidate identity ve aggregate cell yuzeyidir; validated identity/quality truth degildir.",
         "",
-        "[10] CLAIM LOCKS",
+        "[11] CLAIM LOCKS",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "phase_truth=false",

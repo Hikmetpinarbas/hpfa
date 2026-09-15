@@ -13,7 +13,7 @@ from hpfa.modules.core.composite_argument_builder_lite.src.composite_argument_bu
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.defeasible_argument_router_lite.src.defeasible_argument_router import route_argument
 from hpfa.modules.core.evidence_graph_engine_lite.src.evidence_graph_engine import build_evidence_graph
-from hpfa.modules.core.evidence_lens_matrix_lite.src.evidence_lens_matrix import build_lens_matrix
+from hpfa.modules.core.evidence_lens_matrix_lite.src.evidence_lens_matrix import bind_construct_lens_contract, build_lens_matrix
 from hpfa.modules.core.final_report_assembly_gate_lite.src.final_report_assembly_gate import evaluate_assembly_item
 from hpfa.modules.core.multi_signal_evidence_fusion_lite.src.multi_signal_evidence_fusion import fuse_packet
 from hpfa.modules.core.report_output_contract_lite.src.report_output_contract import evaluate_report_block
@@ -141,6 +141,8 @@ def run_intelligence_chain(packet: dict[str, Any], stage_overrides: dict[str, Ca
             output = producer(chain[input_stage])
             if not isinstance(output, dict):
                 raise TypeError("stage_output_must_be_dict")
+            if stage_name == "graph":
+                output = bind_construct_lens_contract(output, packet)
         except Exception as exc:
             chain[stage_name] = _stage_failure(stage_name, exc)
             if stage_name != "lens":
