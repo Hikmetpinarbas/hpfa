@@ -39,8 +39,13 @@ def test_current_authority_declares_zfgv_not_event_only_product():
 
     master = _text(ROOT / "docs/governance/HPFA_MASTER_PROJECT_DIRECTIVE_SHORT_CURRENT.md")
     handoff = _text(ROOT / "docs/governance/HPFA_OPERATOR_HANDOFF_CURRENT.md")
-    assert "event ⊂ zfgv" in master
+
+    assert "zenginleştirilmiş futbol gözlem verisi" in master
+    assert "not the product-wide observation ceiling" in master
+    assert "global `event_only_compatible=true/false` must not be the sole executable capability gate" in master
+
     assert "event ⊂ zfgv" in handoff
+    assert "event is one observation family, not the whole observation universe" in handoff
 
 
 def test_metric_registry_uses_zfgv_observation_model():
