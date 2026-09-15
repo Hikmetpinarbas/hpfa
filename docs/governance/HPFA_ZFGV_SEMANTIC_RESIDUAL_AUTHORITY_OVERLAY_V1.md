@@ -2,13 +2,13 @@
 
 Date: 2026-09-15
 Status: `CURRENT_AUTHORITY_OVERLAY`
-Migration coverage: `INCOMPLETE`
+Migration coverage: `COMPLETE`
 Reference product: single-match Postmatch
 Canonical ontology: `EVENT ⊂ ZFGV`; `ZFGV != EVENT`
 
 ## Purpose
 
-This overlay closes a bounded class of semantic-residual authority risks without rewriting historical records.
+This overlay closes the semantic-residual authority migration without rewriting historical records.
 
 Historical wording, old planning language, research templates and legacy apparatus descriptions may remain in the repository for lineage. They must not become current or future-current authority merely because a filename, status label or prose block sounds operational.
 
@@ -144,7 +144,7 @@ legacy_engine_event_contract_global_authority=false
 
 Authority classification: `LEGACY_OR_IMPORTED_SUPPORT`
 
-The repository asset classification already marks `hpfa-main/*` as `legacy_or_imported_structure` with nested-structure risk and `data_inbox/*` as an archive candidate rather than canonical code.
+The repository asset classification marks `hpfa-main/*` as `legacy_or_imported_structure` with nested-structure risk and `data_inbox/*` as an archive candidate rather than canonical code.
 
 Their internal Event schemas, state machines or data assumptions cannot become current product authority without explicit re-admission through current contracts, tests and consumers.
 
@@ -156,35 +156,41 @@ legacy_imported_subtree_current_authority=false
 
 Authority classification: `EVENT_SCHEMA_DONOR_INSPECT_ONLY`
 
-The current donor-to-composite binding map classifies this schema as `canonical_schema_donor` with `promotion_status=INSPECT_ONLY`. It is legitimate support for an Event identity/canonicalization subpath, not the schema for the whole ZFGV observation universe.
+The donor-to-composite binding map classifies this schema as `canonical_schema_donor` with `promotion_status=INSPECT_ONLY`. It is legitimate support for an Event identity/canonicalization subpath, not the schema for the whole ZFGV observation universe.
+
+## Closure decision
+
+`MIGRATION_COVERAGE=COMPLETE`
+
+Closure scope is semantic authority, not lexical deletion. Event-specific names, historical plans, legacy imported code and compatibility metadata may remain.
+
+The audited current/future-current invariant is:
+
+```text
+CURRENT_VERIFIED_GLOBAL_EVENT_ONLY_AUTHORITY=0
+UNRESOLVED_CURRENT_OR_FUTURE_CURRENT_UNIVERSAL_EVENT_PREREQUISITE=0
+```
+
+The following are not migration blockers:
+
+- an unbound future EXTERNAL CONTEXT consumer: this is a capability-development gap, not evidence of global Event admission authority;
+- future misuse risk of broad Event-gate permission fields: this is handled by the Capability Closure Guard regression contract;
+- legitimate ACTION/EVENT-specific phase, possession, sequence, identity or chronology paths;
+- historical/compatibility strings that have no current admission or veto authority.
+
+Reopening this migration WIP requires new repository evidence that a current/future-current generic producer, consumer, router, schema, prompt, plan, runtime pack, metric/model admission path or research gate makes ACTION/EVENT shape a universal prerequisite for a non-Event ZFGV construct.
 
 ## Football intelligence effect
 
-This overlay prevents a governance-layer false negative:
+This closure prevents a governance-layer false negative:
 
 - admitted aggregate/tabular evidence is not discarded for lacking Event identity;
 - admitted process/participation evidence is not discarded for lacking Event shape;
-- future external context research is not pre-rejected merely because it is not an Event row;
+- external context research is not pre-rejected merely because it is not an Event row;
 - spatial evidence can be admitted according to coordinate/frame/direction semantics without being promoted to tracking truth;
 - legitimate ACTION/EVENT sequence work remains fail-closed on its own required Event semantics.
 
 Therefore HPFA can maximize admitted tracking-free intelligence without widening football claims beyond the evidence.
-
-## What this overlay does not prove
-
-This overlay does **not** prove repository-wide migration completeness.
-
-Still open:
-
-- exact-frontier semantic/lexical residues outside already classified surfaces;
-- dormant PLAN/SPEC/config/generated surfaces not yet authority-classified;
-- future-current EXTERNAL CONTEXT consumer design;
-- future consumers of broad Event-gate permission fields;
-- any unresolved `CURRENT` / `UNKNOWN` authority candidate that could globally narrow ZFGV.
-
-Therefore:
-
-`MIGRATION_COVERAGE=INCOMPLETE`
 
 ## Claim locks
 
