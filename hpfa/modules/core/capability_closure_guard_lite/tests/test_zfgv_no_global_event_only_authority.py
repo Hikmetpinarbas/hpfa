@@ -46,7 +46,8 @@ def test_current_authority_declares_zfgv_not_event_only_product():
     assert "global `event_only_compatible=true/false` must not be the sole executable capability gate" in master
 
     assert "event ⊂ zfgv" in handoff
-    assert "event is one observation family, not the whole observation universe" in handoff
+    assert "event is one observation family" in handoff
+    assert "event != whole observation universe" in handoff
 
 
 def test_metric_registry_uses_zfgv_observation_model():
