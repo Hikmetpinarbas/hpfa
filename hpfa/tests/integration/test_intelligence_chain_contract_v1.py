@@ -50,6 +50,33 @@ def supported_candidate():
     }
 
 
+def aggregate_construct_candidate():
+    return {
+        "packet_family": "source_integrity",
+        "input_features": [],
+        "input_windows": [],
+        "input_sequences": [],
+        "input_metrics": [
+            {
+                "metric_id": "aggregate_metric_001",
+                "source_surface": "xlsx_team_aggregate",
+                "lens": "aggregate",
+            }
+        ],
+        "supporting_signals": [
+            {
+                "signal_id": "aggregate_support_001",
+                "source_surface": "xlsx_team_aggregate",
+                "lens": "aggregate",
+            }
+        ],
+        "contradicting_signals": [],
+        "required_lenses": ["aggregate"],
+        "optional_lenses": ["team", "context", "contradiction"],
+        "claim_ceiling": "composite_candidate_only",
+    }
+
+
 def explicit_contradiction_candidate():
     candidate = supported_candidate()
     candidate["contradicting_signals"] = [
@@ -118,6 +145,20 @@ def test_intelligence_chain_standard_fields_connect():
     assert chain["report_block"]["safe_sentence_id"] == chain["safe_sentence"]["safe_sentence_id"]
     assert chain["output_contract"]["report_block_id"] == chain["report_block"]["report_block_id"]
     assert chain["assembly"]["contract_item_id"] == chain["output_contract"]["contract_item_id"]
+
+
+def test_zfgv_construct_specific_lens_requirements_survive_the_intelligence_chain():
+    chain = run_chain(aggregate_construct_candidate())
+
+    assert chain["packet"]["status"] == "SMOKE_PASS"
+    assert chain["fusion"]["fusion_status"] == "SUPPORTED"
+    assert chain["graph"]["status"] == "SMOKE_PASS"
+    assert chain["lens"]["lens_requirement_mode"] == "EXPLICIT_ZFGV"
+    assert chain["lens"]["required_lenses"] == ["aggregate"]
+    assert chain["lens"]["status"] == "SMOKE_PASS"
+    assert chain["lens"]["missing_required_lenses"] == []
+    assert "aggregate" in chain["lens"]["covered_lenses"]
+    assert "action" not in chain["lens"]["required_lenses"]
 
 
 def test_intelligence_chain_explicit_counterevidence_remains_review_bounded():
