@@ -26,6 +26,10 @@ research_event_only_eligibility_authority=false
 historical_plan_current_wip_authority=false
 event_specific_paths_remain_allowed=true
 tracking_video_claim_ceiling_preserved=true
+temporal_event_path_global_authority=false
+academic_event_only_compatibility_authority=false
+legacy_engine_event_contract_global_authority=false
+legacy_imported_subtree_current_authority=false
 ```
 
 These locks do not weaken legitimate ACTION/EVENT-specific producers. They only prevent a scoped Event requirement from becoming a universal product prerequisite.
@@ -99,6 +103,60 @@ Fresh repository state, current governance, the current development frontier and
 Authority classification: `BOUNDED_BY_CURRENT_AUTHORITY_NOTE`
 
 `docs/governance/runtime_pack_v1/00_CURRENT_AUTHORITY_NOTE.md` remains the interpretation overlay for that directory. Historical status labels or module rows cannot create current capability or WIP authority without current repository evidence.
+
+## Additional exact-frontier classifications
+
+### `docs/contracts/football_time_foundation_lite_v1.md`
+
+Authority classification: `EVENT_TEMPORAL_SPEC_COMPATIBILITY`
+
+The contract is `SPEC_ONLY` and preserves useful temporal-safety rules for action-derived sequence work. Its wording that places Football Time Foundation before broad downstream metric/report consumers is not a universal ZFGV admission rule.
+
+A construct that requires admitted action chronology may require this temporal subpath. An aggregate-only, external-context-only or otherwise non-action construct cannot be rejected merely because event `start/end/half` primitives are absent.
+
+```text
+temporal_event_path_global_authority=false
+```
+
+### `docs/research_support/academic_backing_matrix_v1.tsv`
+
+Authority classification: `ACADEMIC_SUPPORT_COMPATIBILITY`
+
+The `event_only_usable` column is legacy research compatibility metadata, not product or research-admission authority. Scientific transfer must be evaluated from the target construct's required observations, assumptions, validity, claim ceiling and transferability.
+
+```text
+academic_event_only_compatibility_authority=false
+```
+
+### `ssot/contracts/engine_provider_contract_v01.json`, `ssot/providers/registry.json`, `tools/make_run_context.py`
+
+Authority classification: `LEGACY_ENGINE_COMPATIBILITY_UNBOUND`
+
+This legacy engine bundle requires `events_canonical.csv` and event-shaped columns for its own engine contract. Current trace found the contract bound to the legacy run-context utility, not to generic ZFGV admission.
+
+It may remain as lineage/compatibility support for that engine-specific path, but it cannot make `events_canonical.csv`, `event_id`, `type` or other Event fields universal HPFA prerequisites.
+
+```text
+legacy_engine_event_contract_global_authority=false
+```
+
+### `hpfa-main/*` and `data_inbox/*`
+
+Authority classification: `LEGACY_OR_IMPORTED_SUPPORT`
+
+The repository asset classification already marks `hpfa-main/*` as `legacy_or_imported_structure` with nested-structure risk and `data_inbox/*` as an archive candidate rather than canonical code.
+
+Their internal Event schemas, state machines or data assumptions cannot become current product authority without explicit re-admission through current contracts, tests and consumers.
+
+```text
+legacy_imported_subtree_current_authority=false
+```
+
+### `configs/hpfa_canon/HPFA_Canonical_Event_Schema_v0.1.yaml`
+
+Authority classification: `EVENT_SCHEMA_DONOR_INSPECT_ONLY`
+
+The current donor-to-composite binding map classifies this schema as `canonical_schema_donor` with `promotion_status=INSPECT_ONLY`. It is legitimate support for an Event identity/canonicalization subpath, not the schema for the whole ZFGV observation universe.
 
 ## Football intelligence effect
 

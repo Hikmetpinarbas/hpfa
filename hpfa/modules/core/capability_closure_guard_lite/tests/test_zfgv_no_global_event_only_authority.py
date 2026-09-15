@@ -66,6 +66,13 @@ def test_semantic_residual_overlay_deauthorizes_stale_future_current_surfaces():
         "docs/project_knowledge_base/apparatus_registry.md",
         "docs/hpfa_active_match_completion_plan_v1.md",
         "docs/hpfa_clean_canonical_rebase_project_v1.md",
+        "docs/contracts/football_time_foundation_lite_v1.md",
+        "docs/research_support/academic_backing_matrix_v1.tsv",
+        "ssot/contracts/engine_provider_contract_v01.json",
+        "ssot/providers/registry.json",
+        "tools/make_run_context.py",
+        "docs/hpfa_github_repo_asset_classification_v1.tsv",
+        "docs/hpfa_external_github_donor_to_composite_binding_map_v1.tsv",
     )
     for relative in residual_surfaces:
         assert relative in text
@@ -76,6 +83,10 @@ def test_semantic_residual_overlay_deauthorizes_stale_future_current_surfaces():
     assert "historical_plan_current_wip_authority=false" in text
     assert "event_specific_paths_remain_allowed=true" in text
     assert "tracking_video_claim_ceiling_preserved=true" in text
+    assert "temporal_event_path_global_authority=false" in text
+    assert "academic_event_only_compatibility_authority=false" in text
+    assert "legacy_engine_event_contract_global_authority=false" in text
+    assert "legacy_imported_subtree_current_authority=false" in text
 
 
 def test_metric_registry_uses_zfgv_observation_model():
