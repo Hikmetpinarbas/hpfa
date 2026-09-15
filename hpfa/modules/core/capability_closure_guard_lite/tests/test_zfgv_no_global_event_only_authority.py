@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[5]
+SEMANTIC_RESIDUAL_OVERLAY = ROOT / "docs/governance/HPFA_ZFGV_SEMANTIC_RESIDUAL_AUTHORITY_OVERLAY_V1.md"
 
 
 CURRENT_AUTHORITY_FILES = [
@@ -14,6 +15,7 @@ CURRENT_AUTHORITY_FILES = [
     ROOT / "docs/governance/product_architect_evolution_protocol_v1.md",
     ROOT / "docs/prompts/HPFA_PROJECT_LOGBOOK_PROMPT.md",
     ROOT / "docs/brand/HPFA_BRAND_IDENTITY_CORE_LAYER.md",
+    SEMANTIC_RESIDUAL_OVERLAY,
 ]
 
 FORBIDDEN_POSITIVE_AUTHORITY_PHRASES = [
@@ -48,6 +50,32 @@ def test_current_authority_declares_zfgv_not_event_only_product():
     assert "event ⊂ zfgv" in handoff
     assert "event is one observation family" in handoff
     assert "event != whole observation universe" in handoff
+
+
+def test_semantic_residual_overlay_deauthorizes_stale_future_current_surfaces():
+    text = _text(SEMANTIC_RESIDUAL_OVERLAY)
+
+    assert "status: `current_authority_overlay`" in text
+    assert "migration coverage: `incomplete`" in text
+    assert "event ⊂ zfgv" in text
+
+    residual_surfaces = (
+        "docs/governance/connector_and_analysis_prompt_architecture_review_v1.md",
+        "docs/governance/autonomous_review_orchestration_standard_v1.md",
+        "docs/project_knowledge_base/football_intelligence_research_log_template.md",
+        "docs/project_knowledge_base/apparatus_registry.md",
+        "docs/hpfa_active_match_completion_plan_v1.md",
+        "docs/hpfa_clean_canonical_rebase_project_v1.md",
+    )
+    for relative in residual_surfaces:
+        assert relative in text
+        assert (ROOT / relative).exists()
+
+    assert "global_event_eligibility_authority=false" in text
+    assert "research_event_only_eligibility_authority=false" in text
+    assert "historical_plan_current_wip_authority=false" in text
+    assert "event_specific_paths_remain_allowed=true" in text
+    assert "tracking_video_claim_ceiling_preserved=true" in text
 
 
 def test_metric_registry_uses_zfgv_observation_model():
