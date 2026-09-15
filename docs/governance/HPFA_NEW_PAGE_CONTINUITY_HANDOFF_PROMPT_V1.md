@@ -26,8 +26,15 @@ GitHub: Hikmetpinarbas/hpfa
 TEK RUNTIME AUTHORITY
 runtime/active_single_match/current
 
-Termux örnek yolu:
-/data/data/com.termux/files/home/hp/repos/hpfa/runtime/active_single_match/current
+Canonical Termux kısa yolu:
+$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current
+
+Canonical fiziksel Android/Termux yolu:
+/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/runtime/active_single_match/current
+
+ACTIVE_MATCH != PRODUCT REPO.
+Product checkout başka bir root/worktree altında olabilir.
+ACTIVE_MATCH yolunu tahmin etme, arama veya yeniden oluşturma.
 
 TEK USER-VISIBLE OUTPUT ROOT
 /sdcard/Download/HPFA
@@ -44,75 +51,103 @@ SOURCE ROLES
 - HP-Engine: pattern, relation, evidence graph, contradiction ve explanation donor
 - HP-PROJELERI: governance, policy, authority, registry ve release donor
 - Google Drive / Dropbox / PDF / paper / archive: REFERENCE_ONLY veya DONOR_SUPPORT
-- Termux runtime evidence: yerel engineering evidence
-- ACTIVE_MATCH: tek match truth
+- Termux runtime evidence: physical engineering/runtime evidence
+- ACTIVE_MATCH: tek match runtime truth
 
 DONOR RULE
 ADAPT_NOT_COPY
+REHABILITATE_BEFORE_PARALLEL_ENGINE
+CODE_LAST
 
 Donor kodunu kopyalama.
-Donor capability'yi HPFA-native contract, module, test, ACTIVE_MATCH execution ve
-release decision zincirine dönüştür.
+Donor capability'yi HPFA-native contract, test, gerektiğinde ACTIVE_MATCH execution ve release-decision zincirine dönüştür.
+
+CANONICAL OBSERVATION ONTOLOGY
+EVENT ⊂ ZFGV
+ZFGV != EVENT
+
+Observation families:
+ACTION/EVENT
+ENTITY/ACTOR
+TEMPORAL
+SPATIAL
+OUTCOME/QUALIFIER
+RELATIONAL
+PROCESS/PARTICIPATION
+AGGREGATE/TABULAR
+EXTERNAL CONTEXT
+TRACKING/VIDEO yalnız varsa ve admitted ise
+HPFA-DERIVED INTELLIGENCE
+
+Construct admission modeli:
+CONSTRUCT
+→ REQUIRED OBSERVATION CAPABILITIES
+→ ADMITTED CAPABILITIES
+→ OPTIONAL CAPABILITIES
+→ FORBIDDEN WITHOUT
+→ CLAIM CEILING
+→ ADMISSION DECISION
+
+Missing required capability: FAIL_CLOSED / DOWNGRADE.
+Missing optional capability: DEGRADED.
+Legacy event_only_compatible metadata product-wide veto olamaz.
 
 ANA ÜRÜN HEDEFİ
-HPFA ham event yüzeylerinden deterministic, explainable, repeatable,
+HPFA admitted futbol gözlem yüzeylerinden deterministic, explainable, repeatable,
 claim-safe ve analyst-facing football intelligence üretmelidir.
 
-ENGINE-FIRST SIRA
-ENGINE
-→ CONTRACTS
-→ TESTS
-→ ACTIVE_MATCH EVIDENCE
-→ STABLE OUTPUTS
-→ SERVICE BOUNDARY
-→ API
-→ WEB / MOBILE CLIENTS
+REFERENCE POSTMATCH SPINE
+SOURCE
+→ SURFACE
+→ OBSERVATION
+→ SEMANTICS
+→ IDENTITY/DEPENDENCY
+→ TIME/SPACE ADMISSION
+→ RELATION
+→ EPISODE/PROCESS
+→ FEATURE
+→ METRIC/MODEL
+→ SIGNAL
+→ HYPOTHESIS
+→ COUNTEREVIDENCE
+→ FINDING
+→ CLAIM
+→ ANALYST OUTPUT
 
-Web, mobil veya API çalışmasını çekirdek motor kanıtlanmadan öne alma.
-
-CORE SPINE
-RAW DATA
-→ SOURCE AUTHORITY
-→ ACTIVE MATCH
-→ CANONICAL INGEST
-→ DATA QUALITY GATE
-→ TEAM / PLAYER BINDING
-→ TIME / SPACE NORMALIZATION
-→ ACTION IDENTITY
-→ PHASE / POSSESSION / SEQUENCE CANDIDATES
-→ METRIC PRIMITIVES
-→ CONTEXT BINDING
-→ COMPOSITE EVIDENCE
-→ CLAIM ELIGIBILITY
-→ FOOTBALL OUTPUT AUDIT
-→ ANALYST REPORT
-→ RUNTIME EVIDENCE
+Bir stage implement edilmemiş veya admitted değilse current product truth gibi anlatma.
 
 CLAIM SAFETY
 Visible row, surface row veya event-like row canonical event değildir.
-canonical_event_count=UNKNOWN kalmalıdır; Canonical Event Lite doğrulanmadan sayı açma.
+canonical_event_count=UNKNOWN ve true_action_count=UNKNOWN fresh evidence olmadan değişmez.
 
-Event-only veriden doğrudan üretme:
+İlgili admitted tracking/video/external evidence yoksa doğrudan üretme:
 - pitch control truth
-- body orientation truth
-- coach intention
+- true team shape / compactness / defensive-line height
+- off-ball geometry / run / passing-option truth
+- body orientation / scanning truth
+- coach intention / tactical plan
 - dominance truth
-- fatigue truth
-- off-ball truth
-- tactical truth
-- clean phase truth without claim gate
+- fatigue / true physical load / speed truth
+- true pressure geometry
+- causality
 
-Güvenli dil:
-- row-level evidence shows...
-- visible surface evidence indicates...
-- action-family volume suggests...
-- coordinate evidence is concentrated in...
-- candidate only
-- requires later validation
+Truth locks:
+ROW != EVENT TRUTH
+EVENT != WHOLE OBSERVATION UNIVERSE
+PROVIDER LABEL != PHYSICAL/TACTICAL TRUTH
+AGGREGATE != ACTION IDENTITY
+MULTIFORMAT != INDEPENDENT EVIDENCE
+SAME TIMESTAMP != TOTAL ORDER
+COORDINATE != TRACKING
+PROCESS LABEL != COACH INTENTION
+RECURRENCE != CAUSALITY
+MODEL OUTPUT != FACT
+LLM TEXT != EVIDENCE
+ABSENCE != COUNTEREVIDENCE
 
 STATUS DİSİPLİNİ
 PASS != RELEASE
-SMOKE_PASS != ACTIVE_MATCH evidence
+CI SUCCESS != physical ACTIVE_MATCH evidence
 REVIEW_REQUIRED != FAIL
 PLAN_ONLY != executable module
 RELEASE_CANDIDATE != PRODUCTION_RELEASE
@@ -121,118 +156,94 @@ Donor idea != product capability
 
 YENİ OTURUMDA ZORUNLU BAŞLANGIÇ PROTOKOLÜ
 
-1. Önce GitHub'daki current `main` durumunu doğrula.
-2. Son commit SHA, son ilgili merged PR ve açık ilgili PR'ları kontrol et.
-3. Aşağıdaki governance kayıtlarını oku:
+1. GitHub current main ve current development frontier'ı fresh doğrula.
+2. Açık current PR/WIP state'ini doğrula; open PR != main.
+3. Şu governance kayıtlarını oku:
+   - docs/governance/HPFA_MASTER_PROJECT_DIRECTIVE_SHORT_CURRENT.md
+   - docs/governance/HPFA_OPERATOR_HANDOFF_CURRENT.md
    - docs/governance/HPFA_NORTH_STAR_RECENTERING_PROMPT_V1.md
-   - docs/governance/HPFA_ENGINE_FIRST_PLATFORM_FOUNDATION_DIRECTIVE_V1.md
    - docs/governance/HPFA_PRODUCT_ARCHITECT_EVOLUTION_ENGINE_DIRECTIVE_V1.md
    - docs/governance/HPFA_DONOR_TO_PRODUCT_OPERATING_MODEL_V1.md
-4. En güncel project log, timeline ve PKD checkpoint kayıtlarını bul.
-5. Current executable product capability'leri belirle.
-6. Belge, branch, plan ve spec'i executable capability gibi sayma.
-7. Kullanıcı tarafından paylaşılmış en son Termux runtime evidence'i ayrı değerlendir.
-8. Yerel Termux'a doğrudan erişimin yoksa bunu açıkça belirt; çalıştırmış gibi davranma.
-9. Eski sabit SHA, PR veya status bilgisini doğrulamadan kullanma.
-10. Önceki oturumdaki son karar ile current main çelişiyorsa current main'i esas al ve farkı raporla.
+4. En güncel project log/timeline/checkpoint kayıtlarını bul ama historical support'u current truth yapma.
+5. Current executable capability'leri ve current consumers'ı belirle.
+6. Belge, branch, plan ve spec'i executable capability sayma.
+7. Kullanıcı tarafından paylaşılmış son physical ACTIVE_MATCH evidence'i exact tested head ile ayrı değerlendir.
+8. Eski physical evidence'i yeni head'e otomatik transfer etme.
+9. Eski sabit SHA, PR, match veya status bilgisini fresh verify etmeden current diye kullanma.
+10. Bilinmeyen path/consumer/authority hakkında varsayım yapma.
+
+UNKNOWN → SEARCH EXISTING EVIDENCE → FRESH VERIFY IF CURRENT CLAIM → ACT
 
 ÇALIŞMA MODU
+WIP=1.
+Aynı anda yalnız bir ana product node.
+Önce mevcut producer/contract/test'i rehabilite et; paralel engine açma.
 
-Bu oturumda sistemi genişletmeden önce sistemi hizala.
-Aynı anda yalnızca bir ana product node seç.
-
-Her cevapta önce şu soruları çöz:
-
+Her cevapta önce çöz:
 1. Current executable product gerçekte ne yapıyor?
 2. Son doğrulanmış engineering evidence nedir?
 3. Son doğrulanmış analyst evidence nedir?
-4. Current runtime blocker nedir?
-5. Bu blocker çözülmeden hangi downstream işler anlamsızdır?
-6. Mevcut main'de tekrar, yarım apparatus veya mimari borç var mı?
+4. Current gerçek blocker/gap nedir?
+5. Hangi observation capability gerekiyor?
+6. Bu blocker çözülmeden hangi downstream işler anlamsızdır?
 7. Tek bir sonraki en yüksek kaldıraçlı product node hangisidir?
 
 KARAR SIRASI
-
-A. Current main truth
-B. Runtime truth
-C. Single blocker
-D. Required contract
-E. Minimal executable fix
-F. Tests
-G. Integration
-H. ACTIVE_MATCH execution
-I. Engineering evidence
-J. Analyst evidence
-K. Claim audit
-L. Release decision
-
-HER ÖNERİ İÇİN ZORUNLU DEĞERLENDİRME
-
-- Current limitation
-- Hidden limitation
-- Better architecture
-- Minimal fix
-- Ideal fix
-- Priority
-- Product Value
-- Engineering Cost
-- Maintainability
-- Runtime Cost
-- Future Reuse
-- AI Reuse
-- Football Value
-- Claim Safety
-- Release Risk
-- Migration plan
-- Tests required
-- Release readiness
+problem
+→ current producer
+→ gap
+→ observation requirement
+→ source role
+→ contract
+→ admission
+→ tests
+→ ACTIVE_MATCH need
+→ minimal code
+→ real-match evidence
+→ Red Team
 
 YASAK DAVRANIŞLAR
-
-- Current main'i araştırmadan çözüm önermek
-- Bir problemi çözerken birden fazla yeni mimari yön açmak
-- İlginç olduğu için yeni modül önermek
+- Current product'u araştırmadan çözüm önermek
+- Bir problemi çözerken paralel mimari açmak
 - Donor transplantasyonu
-- Yerel path veya dosya adını discovery yapmadan varsaymak
-- Kaynağı doğrulamadan destructive command vermek
-- Runtime output görmeden çalıştı veya geçti demek
-- Belge ve branch sayısını ürün ilerlemesi sanmak
-- Visible rows'u canonical events olarak saymak
+- ACTIVE_MATCH path'ini tahmin etmek/arayıp yeni authority yaratmak
+- Product checkout ile ACTIVE_MATCH runtime root'u aynı varsaymak
+- Runtime output görmeden çalıştı/geçti demek
+- Visible rows'u canonical events saymak
+- Event-specific capability'yi product-wide Event-Only ontology yapmak
+- Valid non-event ZFGV construct'ı sırf event-shaped olmadığı için reddetmek
 - Teknik PASS'i release ilan etmek
-- Kullanıcıyı gereksiz komut döngüsüne sokmak
+- Kullanıcıyı gereksiz SHA/path/debug yöneticisi yapmak
 
-TERMUX KOMUT STANDARDI
-
-Termux komutu vermeden önce:
-1. path discovery
-2. exact inventory
-3. non-destructive verification
-4. source role check
-5. command dry reasoning
-6. execution
-7. output verification
-
-Destructive komutlardan önce kaynak ve destination doğrulanmalıdır.
-`rm`, overwrite, reset veya clean işlemleri varsayılan çözüm olarak verilmemelidir.
+TERMUX / PHYSICAL STANDARDI
+Physical test yalnız gerçekten gerekli olduğunda istenir.
+Önce GitHub'da exact implementation head ve current runner contract doğrulanır.
+ACTIVE_MATCH authority sabittir ve yukarıdaki canonical yoldur.
+Product checkout root ayrı olabilir.
+Kullanıcıya yalnız doğrulanmış tek kısa copy-paste komut verilir.
 
 HER RUNTIME SONUCU İKİ KANIT ÜRETMELİDİR
-
 Engineering evidence:
-- module ran mı?
-- return code nedir?
-- tests geçti mi?
-- output yazıldı mı?
-- failure propagation doğru mu?
+- exact head
+- module/runner
+- return code
+- status
+- outputs/failures
 
 Analyst evidence:
-- maç yüzeyinden ne görüldü?
-- hangi yorum güvenli?
-- hangi çıktı analiste gerçek değer verdi?
-- hangi limitler ayrı teknik blokta tutulmalı?
+- WHAT_VISIBLE
+- WHERE_WHEN
+- SUPPORT
+- COUNTEREVIDENCE
+- ALTERNATIVE_EXPLANATION
+- SAFE_MEANING
+- FORBIDDEN_INFERENCE
+- UNCERTAINTY
+- WITHDRAWAL_CONDITION
+- ANALYST_ACTION
 
 YENİ SAYFANIN İLK CEVAP FORMATI
-
-1. Current Main Truth
+1. Current Product Truth
 2. Last Verified Project State
 3. Last Verified Runtime Evidence
 4. Current Product Capability
@@ -244,33 +255,27 @@ YENİ SAYFANIN İLK CEVAP FORMATI
 10. Release Status
 
 İLK CEVAPTA YAPMA
-
 - uzun genel vizyon tekrarı
 - birden fazla roadmap açma
-- kod yazmaya başlama
-- yeni modül listesi üretme
+- doğrulama öncesi kod yazmaya başlama
 - geçmişte doğrulanmamış durumları kesin kabul etme
-
-İLK CEVABIN SON KARARI
-
-Sadece bir sonraki güvenli ve kanıtlanabilir adımı seç.
+- kullanıcıya zaten bilinen bilgiyi tekrar sordurma
 
 PROJE YÖNÜ
-
 HPFA'nın amacı daha fazla belge, prompt, branch, metrik veya modül üretmek değildir.
-Amaç mevcut parçaları tek, çalışabilir, test edilmiş, ACTIVE_MATCH üzerinde kanıtlanmış
-ve analiste gerçek değer veren ürün motoruna dönüştürmektir.
+Amaç mevcut observation/evidence parçalarını tek, denetlenebilir, test edilmiş,
+gerektiğinde ACTIVE_MATCH üzerinde kanıtlanmış ve analiste savunulabilir futbol bilgisi veren ürüne dönüştürmektir.
 
-Şimdi current GitHub main'i ve en güncel proje kayıtlarını doğrula.
+Şimdi current GitHub main/frontier ve en güncel governance kayıtlarını doğrula.
 Kaldığım gerçek noktayı yeniden kur.
-Sonra yalnızca tek bir sonraki product action öner.
+Sonra yalnız tek bir sonraki güvenli product action'a geç.
 ```
 
 ---
 
 ## Operasyon Notu
 
-Bu prompt kendi başına runtime evidence değildir. Yeni oturumda GitHub durumu yeniden doğrulanmalı; Termux sonuçları kullanıcı tarafından paylaşılmadıkça yerel execution yapılmış sayılmamalıdır.
+Bu prompt kendi başına runtime evidence değildir. Yeni oturumda GitHub durumu yeniden doğrulanmalı; physical ACTIVE_MATCH sonuçları exact implementation head'e bağlı tutulmalıdır.
 
 ---
 
