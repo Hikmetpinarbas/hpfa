@@ -53,7 +53,7 @@ def _ids(report: dict) -> set[str]:
 def _skipped(report: dict) -> dict[str, str]:
     return {
         row["capability_id"]: row["reason"]
-        for row in report.get("skipped_seed_only_candidates", [])
+        for row in report.get("unclassified_seed_candidates", [])
     }
 
 
