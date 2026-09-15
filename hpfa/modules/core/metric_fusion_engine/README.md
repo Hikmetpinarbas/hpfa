@@ -76,9 +76,11 @@ causality
 production binding
 ```
 
-## Legacy compatibility
+## Current-tree rule
 
-Historical files or policy identifiers containing `eventonly` may remain for lineage while unbound. Their presence does not create product authority and they must not become a global eligibility gate.
+Git history preserves the legacy Event-Only lineage. The current metric-fusion tree must not retain an Event-Only allowlist policy, compatibility configuration, product identifier, admission rule or veto surface.
+
+Negative-regression fixtures may mention legacy Event-Only terminology only to prove that the old global veto cannot return.
 
 ## Donor rule
 

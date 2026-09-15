@@ -44,6 +44,7 @@ def test_current_authority_declares_zfgv_not_event_only_product():
     assert "product-wide observation ceiling" in master
     assert "must not be used as a binary reason to suppress" in master
     assert "global `event_only_compatible=true/false` must not be the sole executable capability gate" in master
+    assert "`event_only_compatible` is not current operational metadata" in master
 
     assert "event ⊂ zfgv" in handoff
     assert "event is one observation family, not the whole observation universe" in handoff
@@ -58,22 +59,24 @@ def test_metric_registry_uses_zfgv_observation_model():
         assert "event_only_compatible" not in metric
 
 
-def test_legacy_eventonly_allowlist_has_zero_product_authority():
-    policy = json.loads(
-        (ROOT / "hpfa/modules/core/metric_fusion_engine/policies/eventonly_metric_allowlist_v1.json").read_text(
-            encoding="utf-8"
-        )
+def test_legacy_eventonly_allowlist_is_absent_from_current_tree():
+    legacy_policy = (
+        ROOT
+        / "hpfa"
+        / "modules"
+        / "core"
+        / "metric_fusion_engine"
+        / "policies"
+        / "eventonly_metric_allowlist_v1.json"
     )
-    assert policy["status"] == "legacy_compatibility_not_product_authority"
-    assert policy["product_wide_admission_authority"] is False
-    assert policy["construct_eligibility_authority"] is False
-    assert policy["can_veto_non_event_zfgv_construct"] is False
+    assert not legacy_policy.exists()
 
 
 def test_metric_fusion_scaffold_is_zfgv_not_global_event_gate():
     text = _text(ROOT / "hpfa/modules/core/metric_fusion_engine/README.md")
     assert "# hpfa zfgv metric fusion engine v1" in text
     assert "global event-only or event-surface allowlist must never authorize or veto zfgv product admission" in text
+    assert "current metric-fusion tree must not retain an event-only allowlist policy" in text
 
 
 def test_reasoning_and_progression_plans_do_not_make_event_shape_universal():
