@@ -129,3 +129,55 @@ def test_human_report_cannot_hide_machine_execution_and_truth_locks_survive(tmp_
     assert guards["zero_professional_emit_is_valid"] is True
     assert guards["human_report_may_exceed_machine_claim_ceiling"] is False
     assert guards["diagnostic_creates_new_evidence"] is False
+
+
+def test_not_evaluated_safe_finding_is_not_reported_as_downgrade(tmp_path: Path) -> None:
+    module = _load_module()
+    _minimal_runtime(tmp_path)
+
+    full_path = tmp_path / "active_match_full_spine_v1.json"
+    full = json.loads(full_path.read_text(encoding="utf-8"))
+    full["intelligence_chain_count"] = 1
+    full["current_invocation_artifacts"].append(
+        str(tmp_path / "analyst_output_claim_contract_projection_v1.json")
+    )
+    _write_json(tmp_path, "active_match_full_spine_v1.json", full)
+    _write_json(tmp_path, "analyst_output_claim_contract_projection_v1.json", {
+        "status": "PASS",
+        "safe_finding_admission_consumed": False,
+        "analyst_output_contract_count": 100,
+        "safe_finding_admission_decision_counts": {
+            "ABSTAIN": 0,
+            "DOWNGRADE": 0,
+            "EMIT": 0,
+            "NOT_EVALUATED": 100,
+        },
+        "professional_emit_allowed_count": 0,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    })
+    (tmp_path / "HPFA_ANALYST_REPORT.txt").write_text(
+        "intelligence_chain_count=1\n", encoding="utf-8"
+    )
+
+    diagnostic = module.build_diagnostic(tmp_path)
+    components = {row["component"]: row for row in diagnostic["component_coverage"]}
+    safe = diagnostic["match_football_intelligence"]["safe_findings"]
+    check = next(
+        row for row in diagnostic["cross_artifact_consistency"]
+        if row["check"] == "safe_finding_current_run_accounting"
+    )
+
+    assert components["safe_finding_admission"]["runtime_execution_state"] == "NOT_BOUND_CURRENT_RUN"
+    assert safe["evaluation_state"] == "NOT_BOUND_CURRENT_RUN"
+    assert safe["decision_count"] is None
+    assert safe["professional_finding_emitted_count"] is None
+    assert safe["claim_contract_current_run"] is True
+    assert safe["claim_contract_evaluation_state"] == "EXECUTED_SAFE_FINDING_NOT_EVALUATED"
+    assert safe["claim_contract_decision_counts"]["NOT_EVALUATED"] == 100
+    assert check["status"] == "PASS"
+    assert diagnostic["diagnostic_safeguards"]["not_evaluated_is_downgrade"] is False
+    symptoms = [row["current_symptom"] for row in diagnostic["gap_report"]]
+    assert not any("100/100 safe findings DOWNGRADE" in value for value in symptoms)
+    assert not any("machine full-spine and human report disagree" in value for value in symptoms)
