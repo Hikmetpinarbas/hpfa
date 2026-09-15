@@ -292,6 +292,18 @@ def _normalize_current_surface_evidence(result: dict) -> None:
 def _bind_variant_feature_challenge_runtime(result: dict, out_dir: str | Path) -> dict:
     binding = materialize_variant_feature_challenge(out_dir)
     result["variant_feature_challenge_runtime_binding"] = binding
+
+    if binding.get("artifact_materialized") is True:
+        current_artifacts = [
+            str(value)
+            for value in (result.get("current_invocation_artifacts") or [])
+            if str(value or "").strip()
+        ]
+        output = str(binding.get("output") or "").strip()
+        if output:
+            current_artifacts.append(output)
+        result["current_invocation_artifacts"] = sorted(set(current_artifacts))
+
     engineering = result.get("engineering_evidence")
     if isinstance(engineering, dict):
         engineering["variant_feature_challenge_current_invocation_materialized"] = (
