@@ -236,13 +236,27 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
     packet_candidate = None
     if progression and (terminal or shot_total > 0):
         metrics = [progression[0]] + ([terminal[0]] if terminal else [])
+        relation_signal = {
+            "signal_id": "c01_progression_terminal_surface_alignment_candidate",
+            "source_surface": "HPFA_DERIVED_FROM_ACTION_AND_AGGREGATE",
+            "evidence_derivation_role": "DERIVED_FROM_VISIBLE_ACTION_AND_AGGREGATE_CANDIDATES",
+            "evidence_role": "progression_terminal_surface_alignment_candidate",
+            "relation_type": "SUPPORTS",
+            "source_refs": [occurrence_ref["feature_id"]] + [str(metric.get("metric_id")) for metric in metrics],
+            "provenance_root": "c01_action_aggregate_mixed_evidence",
+            "dependency_group": "c01_action_aggregate_relation",
+            "independence_group": None,
+            "independent_support_vote": False,
+            "causal_truth": False,
+            "tactical_truth_candidate_admitted": False,
+        }
         packet_candidate = {
             "packet_family": "progression",
             "input_features": [occurrence_ref],
             "input_windows": [],
             "input_sequences": [],
             "input_metrics": metrics,
-            "supporting_signals": [],
+            "supporting_signals": [relation_signal],
             "contradicting_signals": [],
             "required_lenses": ["action", "aggregate"],
             "optional_lenses": ["outcome", "context", "contradiction"],
