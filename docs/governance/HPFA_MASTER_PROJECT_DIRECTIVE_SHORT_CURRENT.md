@@ -1,13 +1,13 @@
 # HPFA MASTER PROJECT DIRECTIVE — SHORT CURRENT
 
-Version: 2026.09.15-ZFGV-NO-EVENT-ONLY-AUTHORITY
+Version: 2026.09.08-ENRICHED-OBSERVATION
 Status: ACTIVE_GOVERNANCE_RECORD
 
 ## PROJECT
 HPFA = Hikmet Pınarbaş Football Analytics.
 Claim-safe, modular and portable Football Intelligence Platform operating on **Enriched Football Observation Data / Zenginleştirilmiş Futbol Gözlem Verisi**.
 
-`event-only` is a superseded product doctrine. The literal may appear only in explicitly historical/donor lineage or negative-regression text. It is **not** current product metadata, product identity, observation ceiling, admission authority, routing authority or capability identity and must not be used as a binary reason to suppress an otherwise admitted temporal, spatial, relational, process, consequence, aggregate, context, tracking/video or reconstructed-state capability.
+`event-only` is a legacy/source-class description where useful. It is **not** the product-wide observation ceiling and must not be used as a binary reason to suppress an otherwise admitted temporal, spatial, relational, process, consequence or reconstructed-state capability.
 
 HPFA turns visible and admitted football observation into defensible analyst intelligence without promoting rows, labels, timestamps, coordinates, metrics, model outputs or reconstructed relations beyond the evidence that supports them.
 
@@ -35,7 +35,6 @@ Rules:
 - Co-occurrence does not automatically prove interaction, marking, pressure or causality.
 - Reconstructed state transitions remain candidates until their upstream gates are admitted.
 - Global `event_only_compatible=true/false` must not be the sole executable capability gate for new or migrated constructs.
-- `event_only_compatible` is not current operational metadata and must not participate in current registries, fingerprints, routing, eligibility or admission contracts. Negative-regression fixtures may mention it only to prove that the legacy veto cannot return.
 
 The canonical executable observation contract is the current hpfa implementation of `observation_contract_lite` when landed on main. Until landing, the exact PR head is engineering evidence only.
 
@@ -186,7 +185,7 @@ Attention apparatus such as Match ECG may surface `ATTENTION_SIGNAL` / `FOCUS_CA
 Formula alone is not product capability.
 Every metric/model must define construct, observation surface, required observation layers, required surface semantics, inputs/units, eligibility, prerequisites, denominator/exposure, leakage, validation, uncertainty, provenance/dependency, interpretation, claim ceiling and release state.
 
-Current metric/model contracts must express capability scope only through construct-specific observation requirements and admission. `event_only_compatible` is not current operational metadata.
+`event_only_compatible` may remain as legacy metadata during migration; construct-specific observation admission is authoritative for capability scope.
 
 ## PHONE OUTPUT POLICY
 All user-visible Termux outputs must be written directly under:
@@ -242,9 +241,9 @@ PRODUCTION_RELEASE
 ```
 
 ## CURRENT DEVELOPMENT DIRECTION
-Global Event-Only authority migration is closed for current product scope. Any reappearance of Event-Only as current operational metadata, admission/routing authority, product identity or capability ceiling is a regression.
+First migrate genuine executable `event-only` ceilings into construct-specific observation-layer admission. Do not waste effort renaming historical filenames or weakening valid tracking/video claim guards.
 
-Continue construct-specific capability audits and rehabilitation in this order:
+Priority re-audit after the observation-model migration:
 1. temporal dynamics;
 2. spatial progression;
 3. relational reconstruction;
@@ -255,8 +254,6 @@ Continue construct-specific capability audits and rehabilitation in this order:
 8. Match ECG / Attention Radar;
 9. recurrence/change/counterevidence integration;
 10. safe analyst finding projection.
-
-Do not waste effort rewriting explicitly historical/donor records, and do not weaken valid tracking/video claim guards.
 
 Every new work item must answer:
 “Mevcut evidence spine'ın hangi gerçek boşluğunu kapatıyor ve analiste hangi yeni savunulabilir bilgiyi kazandırıyor?”

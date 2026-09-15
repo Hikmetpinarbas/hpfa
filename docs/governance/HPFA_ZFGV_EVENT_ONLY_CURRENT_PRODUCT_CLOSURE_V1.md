@@ -14,7 +14,6 @@ Current HPFA product authority and the audited current reference-product path no
 - a global routing prerequisite;
 - a metric/model compatibility ceiling;
 - an analyst-output identity;
-- current operational metadata;
 - a reason to reject valid non-event ZFGV observation families.
 
 Current verified invariant:
@@ -31,7 +30,7 @@ Current verified invariant:
 - XLSX aggregate evidence can travel without becoming action identity or independent support;
 - research/product eligibility is based on required/admitted ZFGV capabilities, not event-data eligibility;
 - metric fusion, reasoning and progression planning are ZFGV-scoped;
-- the legacy Event-Only metric allowlist has been removed from the current tree because it had no current consumer or product authority; its lineage remains in Git history;
+- legacy Event-Only allowlist is compatibility-only and has zero product admission/veto authority;
 - current authority regression prevents positive global Event-Only doctrine from returning.
 
 ## Legitimate ACTION/EVENT subpaths preserved
@@ -42,11 +41,9 @@ This does not re-create Event-Only product authority.
 
 ## Residue policy
 
-Current operational registries, fingerprints, routing, admission contracts, product identifiers and compatibility configuration must not use Event-Only authority or `event_only_compatible` semantics.
+Historical/logbook/donor vocabulary, legacy filenames/IDs retained for compatibility, negative-regression fixtures and legitimate event-specific terminology may remain only when they cannot authorize, veto, route or narrow current ZFGV capability.
 
-Explicitly historical/logbook/donor records and negative-regression fixtures may retain the literal only when they cannot authorize, veto, route or narrow current ZFGV capability.
-
-Git history is the authority for removed legacy policy lineage; a compatibility file is not required in the current tree merely to preserve history.
+The remaining legacy filename `eventonly_metric_allowlist_v1.json` is explicitly compatibility-only, unbound from product-wide admission and unable to veto non-event ZFGV constructs.
 
 ## Scope boundary
 
