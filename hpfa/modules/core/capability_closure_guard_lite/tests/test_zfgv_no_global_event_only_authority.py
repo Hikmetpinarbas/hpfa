@@ -71,11 +71,16 @@ def test_semantic_residual_overlay_deauthorizes_stale_future_current_surfaces():
         "ssot/contracts/engine_provider_contract_v01.json",
         "ssot/providers/registry.json",
         "tools/make_run_context.py",
-        "docs/hpfa_github_repo_asset_classification_v1.tsv",
-        "docs/hpfa_external_github_donor_to_composite_binding_map_v1.tsv",
     )
     for relative in residual_surfaces:
         assert relative.casefold() in text
+        assert (ROOT / relative).exists()
+
+    classification_evidence = (
+        "docs/hpfa_github_repo_asset_classification_v1.tsv",
+        "docs/hpfa_external_github_donor_to_composite_binding_map_v1.tsv",
+    )
+    for relative in classification_evidence:
         assert (ROOT / relative).exists()
 
     assert "global_event_eligibility_authority=false" in text
