@@ -1,7 +1,13 @@
 {
   "policy_id": "eventonly_metric_allowlist_v1",
-  "status": "candidate_not_production_bound",
+  "status": "legacy_compatibility_not_product_authority",
   "claim_safety": "EVIDENCE_ONLY",
+  "authority_scope": "UNBOUND_LEGACY_RELATION_SCAFFOLD",
+  "product_wide_admission_authority": false,
+  "construct_eligibility_authority": false,
+  "can_veto_non_event_zfgv_construct": false,
+  "can_authorize_report_language": false,
+  "can_authorize_tactical_truth": false,
   "allowed_metric_ids": [
     "M_PASS_COUNT",
     "M_PROG_PASS_COUNT",
@@ -34,5 +40,5 @@
     "pressing_shape_truth",
     "line_breaking_truth_without_opponent_structure"
   ],
-  "notes": "This allowlist controls V1 relation building only. It does not authorize report language or tactical truth."
+  "notes": "Historical V1 action/event relation scaffold retained for lineage only. It must never be used as a product-wide allowlist, observation ceiling, construct eligibility gate, or veto over AGGREGATE/TABULAR, RELATIONAL, PROCESS/PARTICIPATION, SPATIAL, EXTERNAL CONTEXT, TRACKING/VIDEO, or other admitted ZFGV capabilities."
 }
