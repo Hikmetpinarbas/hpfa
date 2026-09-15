@@ -62,10 +62,10 @@ def test_semantic_residual_overlay_deauthorizes_stale_future_current_surfaces():
     residual_surfaces = (
         "docs/governance/connector_and_analysis_prompt_architecture_review_v1.md",
         "docs/governance/autonomous_review_orchestration_standard_v1.md",
-        "docs/project_knowledge_base/football_intelligence_research_log_template.md",
-        "docs/project_knowledge_base/apparatus_registry.md",
-        "docs/hpfa_active_match_completion_plan_v1.md",
-        "docs/hpfa_clean_canonical_rebase_project_v1.md",
+        "docs/project_knowledge_base/FOOTBALL_INTELLIGENCE_RESEARCH_LOG_TEMPLATE.md",
+        "docs/project_knowledge_base/APPARATUS_REGISTRY.md",
+        "docs/HPFA_ACTIVE_MATCH_COMPLETION_PLAN_V1.md",
+        "docs/HPFA_CLEAN_CANONICAL_REBASE_PROJECT_V1.md",
         "docs/contracts/football_time_foundation_lite_v1.md",
         "docs/research_support/academic_backing_matrix_v1.tsv",
         "ssot/contracts/engine_provider_contract_v01.json",
@@ -75,7 +75,7 @@ def test_semantic_residual_overlay_deauthorizes_stale_future_current_surfaces():
         "docs/hpfa_external_github_donor_to_composite_binding_map_v1.tsv",
     )
     for relative in residual_surfaces:
-        assert relative in text
+        assert relative.casefold() in text
         assert (ROOT / relative).exists()
 
     assert "global_event_eligibility_authority=false" in text
