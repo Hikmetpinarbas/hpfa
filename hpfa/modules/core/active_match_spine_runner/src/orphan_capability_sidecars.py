@@ -38,6 +38,7 @@ IDENTITY_OUTPUT = "match_local_identity_candidates_lite_v1.json"
 EPISODE_OUTPUT = "analyst_episode_locator_lite_v1.json"
 CONSEQUENCE_OUTPUT = "trackable_action_consequence_candidates_lite_v1.json"
 SEQUENCE_OUTPUT = "visible_action_sequence_candidates_lite_v1.json"
+ACTION_OCCURRENCE_OUTPUT = "action_occurrence_admission_lite_v1.json"
 GRAMMAR_ALIGNMENT_OUTPUT = "supported_sequence_grammar_alignment_projection_v1.json"
 PROCESS_VARIANT_BINDING_OUTPUT = "observable_process_variant_binding_projection_v1.json"
 GRAMMAR_STABLE_VARIANT_FEATURE_DELTA_OUTPUT = "grammar_stable_variant_feature_delta_projection_v1.json"
@@ -121,6 +122,7 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
     episode_path = output / EPISODE_OUTPUT
     consequence_path = output / CONSEQUENCE_OUTPUT
     sequence_path = output / SEQUENCE_OUTPUT
+    action_occurrence_path = output / ACTION_OCCURRENCE_OUTPUT
 
     occurrence_projection_prerequisite_present = trace_path.is_file() and consequence_path.is_file()
     occurrence_censoring_boundary_prerequisite_present = episode_path.is_file()
@@ -161,12 +163,16 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         occurrence_projection_status = occurrence_projection_report["status"]
 
     spatial_prerequisite_present = trace_path.is_file() and evidence_path.is_file()
+    spatial_action_occurrence_prerequisite_present = action_occurrence_path.is_file()
     if spatial_prerequisite_present:
         try:
             spatial_report = spatial_transition.build_spatial_transition_candidates(
                 _load_json(trace_path),
                 _load_json(evidence_path),
                 None,
+                _load_json(action_occurrence_path)
+                if spatial_action_occurrence_prerequisite_present
+                else None,
             )
             spatial_paths = spatial_transition.write_outputs(spatial_report, output)
             for value in spatial_paths.values():
@@ -455,6 +461,7 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         "occurrence_consequence_censoring_boundary_prerequisite_present": occurrence_censoring_boundary_prerequisite_present,
         "spatial_transition_candidate_status": spatial_status,
         "spatial_transition_candidate_prerequisite_present": spatial_prerequisite_present,
+        "spatial_action_occurrence_admission_prerequisite_present": spatial_action_occurrence_prerequisite_present,
         "state_transition_dynamics_status": state_transition_status,
         "state_transition_dynamics_prerequisite_present": state_transition_prerequisite_present,
         "occurrence_state_transition_projection_status": occurrence_state_transition_status,
