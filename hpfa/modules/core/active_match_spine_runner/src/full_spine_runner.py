@@ -189,33 +189,55 @@ def _nonnegative_int(value: Any) -> int | None:
 
 
 def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dict[str, Any]:
-    """Expose existing spatial/progression consequence evidence without widening its claim ceiling."""
+    """Expose existing spatial/progression evidence without widening its claim ceiling."""
     state = sidecar_report.get("state_transition_dynamics")
+    spatial = sidecar_report.get("spatial_transition_candidate")
     if not isinstance(state, dict):
         return {
             "status": "NOT_EVALUATED",
             "reason": "state_transition_dynamics_not_available",
             "source_module": "state_transition_dynamics_lite_v1",
+            "spatial_source_module": (
+                str(spatial.get("module_id"))
+                if isinstance(spatial, dict) and spatial.get("module_id")
+                else "spatial_transition_candidate_lite_v1"
+            ),
             "provider_progression_semantic_transition_count": None,
             "adverse_consequence_transition_count": None,
             "admitted_directional_transition_count": None,
             "transition_class_counts": {},
+            "coordinate_anchor_present_count": None,
+            "action_location_semantics_admitted_count": None,
+            "occurrence_annotation_anchor_location_admitted_count": None,
+            "spatial_location_admitted_count": None,
+            "coordinate_semantics_state": "NOT_EVALUATED",
+            "provider_team_relative_attack_axis_state": "NOT_EVALUATED",
+            "attack_direction": None,
+            "attack_direction_admission_basis": None,
+            "pitch_frame_state": "NOT_EVALUATED",
+            "direction_normalization_state": "NOT_EVALUATED",
             "zero_count_is_counterevidence": False,
             "provider_progression_is_measured_displacement_truth": False,
             "coordinate_is_tracking_truth": False,
+            "occurrence_annotation_anchor_is_physical_position_truth": False,
+            "team_relative_attack_axis_is_absolute_pitch_frame_truth": False,
             "causality_truth": False,
             "production_release": False,
         }
 
+    spatial = spatial if isinstance(spatial, dict) else {}
     transition_counts = state.get("transition_class_counts")
     if not isinstance(transition_counts, dict):
         transition_counts = {}
     source_status = _status(state.get("status"))
-    hard_blocks = state.get("hard_block_hits") if isinstance(state.get("hard_block_hits"), list) else []
+    state_blocks = state.get("hard_block_hits") if isinstance(state.get("hard_block_hits"), list) else []
+    spatial_blocks = spatial.get("hard_block_hits") if isinstance(spatial.get("hard_block_hits"), list) else []
+    hard_blocks = _dedupe_preserve_order([str(item) for item in [*state_blocks, *spatial_blocks]])
     return {
         "status": source_status,
         "reason": "state_transition_dynamics_fail_closed" if source_status == "FAIL_CLOSED" else None,
         "source_module": str(state.get("module_id") or "state_transition_dynamics_lite_v1"),
+        "spatial_source_module": str(spatial.get("module_id") or "spatial_transition_candidate_lite_v1"),
         "match_surface_binding_id": state.get("match_surface_binding_id"),
         "provider_progression_semantic_transition_count": _nonnegative_int(
             state.get("provider_progression_semantic_transition_count")
@@ -230,17 +252,40 @@ def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dic
             state.get("state_transition_dynamics_candidate_count")
         ),
         "transition_class_counts": dict(sorted((str(k), v) for k, v in transition_counts.items())),
-        "hard_block_hits": [str(item) for item in hard_blocks],
+        "coordinate_anchor_present_count": _nonnegative_int(spatial.get("coordinate_anchor_present_count")),
+        "action_location_semantics_admitted_count": _nonnegative_int(
+            spatial.get("action_location_semantics_admitted_count")
+        ),
+        "occurrence_annotation_anchor_location_admitted_count": _nonnegative_int(
+            spatial.get("occurrence_annotation_anchor_location_admitted_count")
+        ),
+        "spatial_location_admitted_count": _nonnegative_int(spatial.get("spatial_location_admitted_count")),
+        "coordinate_semantics_state": _status(spatial.get("coordinate_semantics_state")) if spatial else "NOT_EVALUATED",
+        "provider_team_relative_attack_axis_state": (
+            _status(spatial.get("provider_team_relative_attack_axis_state")) if spatial else "NOT_EVALUATED"
+        ),
+        "attack_direction": str(spatial.get("attack_direction") or "").strip() or None,
+        "attack_direction_admission_basis": (
+            str(spatial.get("attack_direction_admission_basis") or "").strip() or None
+        ),
+        "pitch_frame_state": _status(spatial.get("pitch_frame_state")) if spatial else "NOT_EVALUATED",
+        "direction_normalization_state": (
+            _status(spatial.get("direction_normalization_state")) if spatial else "NOT_EVALUATED"
+        ),
+        "hard_block_hits": hard_blocks,
         "claim_ceiling": state.get("claim_ceiling") or "SEMANTIC_SPATIAL_CONSEQUENCE_ASSOCIATION_ONLY",
         "safe_meaning": (
-            "Provider-admitted progression/zone/context semantics may be associated with visible consequence candidates."
+            "Occurrence-bound annotation-anchor location admission and a provider-coordinate attack-axis convention may be surfaced alongside visible semantic spatial/consequence associations."
         ),
         "forbidden_inference": (
-            "No measured displacement, tracking geometry, possession truth, tactical pattern, intention, dominance or causality."
+            "No absolute pitch frame, physical player position, measured displacement, tracking geometry, possession truth, tactical pattern, intention, dominance or causality."
         ),
         "zero_count_is_counterevidence": False,
         "provider_progression_is_measured_displacement_truth": False,
         "coordinate_is_tracking_truth": False,
+        "occurrence_annotation_anchor_is_physical_position_truth": False,
+        "team_relative_attack_axis_is_absolute_pitch_frame_truth": False,
+        "provider_semantic_zone_coordinate_order_is_tactical_truth": False,
         "possession_truth": False,
         "sequence_truth": False,
         "tactical_pattern_truth": False,
@@ -574,6 +619,14 @@ def run_full_spine(
         f"intelligence_chain_count={len(chains)}",
         f"completed_intelligence_chain_count={completed_chain_count}",
         f"spatial_progression_evidence_status={spatial_progression_evidence.get('status')}",
+        f"spatial_coordinate_anchor_present_count={spatial_progression_evidence.get('coordinate_anchor_present_count')}",
+        f"spatial_action_location_semantics_admitted_count={spatial_progression_evidence.get('action_location_semantics_admitted_count')}",
+        f"spatial_occurrence_annotation_anchor_location_admitted_count={spatial_progression_evidence.get('occurrence_annotation_anchor_location_admitted_count')}",
+        f"spatial_provider_team_relative_attack_axis_state={spatial_progression_evidence.get('provider_team_relative_attack_axis_state')}",
+        f"spatial_attack_direction={spatial_progression_evidence.get('attack_direction')}",
+        f"spatial_attack_direction_admission_basis={spatial_progression_evidence.get('attack_direction_admission_basis')}",
+        f"spatial_pitch_frame_state={spatial_progression_evidence.get('pitch_frame_state')}",
+        f"spatial_location_admitted_count={spatial_progression_evidence.get('spatial_location_admitted_count')}",
         f"provider_progression_semantic_transition_count={spatial_progression_evidence.get('provider_progression_semantic_transition_count')}",
         f"spatial_progression_adverse_consequence_transition_count={spatial_progression_evidence.get('adverse_consequence_transition_count')}",
         f"spatial_progression_claim_ceiling={spatial_progression_evidence.get('claim_ceiling')}",
