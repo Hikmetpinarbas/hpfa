@@ -3,7 +3,9 @@ from pathlib import Path
 import active_match_exact_head_run_v1 as runner
 
 
-def test_exact_head_runner_uses_product_checkout_and_separate_runtime_authority(monkeypatch, tmp_path: Path) -> None:
+def test_exact_head_runner_uses_product_checkout_and_canonical_runtime_execution_root(
+    monkeypatch, tmp_path: Path
+) -> None:
     product_root = tmp_path / "product"
     runtime_root = tmp_path / "runtime_authority"
     match_dir = runtime_root / runner.ACTIVE_MATCH_RELATIVE_PATH
@@ -36,7 +38,9 @@ def test_exact_head_runner_uses_product_checkout_and_separate_runtime_authority(
         args = list(runner.sys.argv)
         seen["argv"] = args
         execution_root = Path(args[args.index("--execution-root") + 1])
-        runner.canonical_runner.full_spine_module.validate_active_match_authority(match_dir, execution_root)
+        runner.canonical_runner.full_spine_module.validate_active_match_authority(
+            match_dir, execution_root
+        )
         return 0
 
     monkeypatch.setattr(runner.canonical_runner, "main", fake_main)
@@ -50,12 +54,54 @@ def test_exact_head_runner_uses_product_checkout_and_separate_runtime_authority(
     )
 
     assert result["passed"] is True
+    assert result["product_code_root"] == str(product_root)
     assert result["product_execution_root"] == str(product_root)
+    assert result["canonical_execution_root"] == str(runtime_root)
     assert result["runtime_authority_root"] == str(runtime_root)
     assert result["product_commit_matches_expected"] is True
+    assert result["canonical_authority_validator_bypassed"] is False
     assert seen["authority_root"] == runtime_root
     assert seen["validated_path"] == match_dir
-    assert Path(seen["argv"][seen["argv"].index("--execution-root") + 1]) == product_root
+    assert Path(seen["argv"][seen["argv"].index("--execution-root") + 1]) == runtime_root
+
+
+def test_exact_head_runner_does_not_replace_canonical_authority_validator(
+    monkeypatch, tmp_path: Path
+) -> None:
+    product_root = tmp_path / "product"
+    runtime_root = tmp_path / "runtime_authority"
+    match_dir = runtime_root / runner.ACTIVE_MATCH_RELATIVE_PATH
+    out_dir = tmp_path / "out"
+    product_root.mkdir(parents=True)
+    match_dir.mkdir(parents=True)
+    out_dir.mkdir(parents=True)
+
+    class GitResult:
+        returncode = 0
+        stdout = "deadbeef\n"
+        stderr = ""
+
+    monkeypatch.setattr(runner.subprocess, "run", lambda *args, **kwargs: GitResult())
+    original = runner.canonical_runner.full_spine_module.validate_active_match_authority
+
+    def fake_main():
+        assert (
+            runner.canonical_runner.full_spine_module.validate_active_match_authority
+            is original
+        )
+        return 0
+
+    monkeypatch.setattr(runner.canonical_runner, "main", fake_main)
+
+    result = runner._run_canonical_full_spine(
+        match_dir=match_dir,
+        out_dir=out_dir,
+        repo_root=product_root,
+        runtime_authority_root=runtime_root,
+        expected_product_commit="deadbeef",
+    )
+    assert result["passed"] is True
+    assert result["canonical_authority_validator_bypassed"] is False
 
 
 def test_commit_mismatch_fails_before_canonical_execution(monkeypatch, tmp_path: Path) -> None:
@@ -92,6 +138,8 @@ def test_commit_mismatch_fails_before_canonical_execution(monkeypatch, tmp_path:
     assert result["passed"] is False
     assert result["returncode"] == 2
     assert result["product_commit_matches_expected"] is False
+    assert result["canonical_execution_root"] == str(runtime_root)
+    assert result["canonical_authority_validator_bypassed"] is False
     assert called["main"] is False
 
 
@@ -103,5 +151,13 @@ def test_runtime_authority_root_is_derived_only_from_canonical_suffix(tmp_path: 
 
 def test_no_sample_match_identity_leak() -> None:
     source = Path("active_match_exact_head_run_v1.py").read_text(encoding="utf-8")
-    for token in ("Sporting", "Galatasaray", "Fenerbahce", "Fenerbahçe", "Roma", "09.09.2026", "10.09.2026"):
+    for token in (
+        "Sporting",
+        "Galatasaray",
+        "Fenerbahce",
+        "Fenerbahçe",
+        "Roma",
+        "09.09.2026",
+        "10.09.2026",
+    ):
         assert token not in source
