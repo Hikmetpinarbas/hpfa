@@ -21,6 +21,8 @@ def _sequence_payload() -> dict:
                 "source_row_order_is_temporal_truth": False,
                 "support": {
                     "visible_success_sequence_refs": ["s1"],
+                    "visible_success_numerator": 1,
+                    "eligible_denominator": 2,
                     "admitted_independent_support_count": 1,
                     "dependency_independence_proven": True,
                     "statistical_independence_proven": True,
@@ -32,6 +34,35 @@ def _sequence_payload() -> dict:
                 "evidence_sufficiency": {
                     "state": "NO_BLOCKING_DIMENSION_VISIBLE_BUT_EMIT_NOT_AUTHORIZED_HERE",
                     "blocking_dimensions": [],
+                    "dimensions": {
+                        "independent_support": {
+                            "admitted_count": 1,
+                            "dependency_independence_proven": True,
+                            "statistical_independence_proven": True,
+                        },
+                        "eligible_case_coverage": {
+                            "eligible_case_count": 2,
+                            "resolved_outcome_case_count": 2,
+                            "unresolved_outcome_case_count": 0,
+                            "accounted_case_count": 2,
+                            "state": "COMPLETE_RESOLVED_CASE_COVERAGE",
+                            "coverage_unit": "FROZEN_ELIGIBLE_CASE",
+                        },
+                        "episode_spread": {
+                            "count": 2,
+                            "state": "OBSERVED",
+                        },
+                        "context_coverage": {"state": "COMPLETE"},
+                        "actor_spread": {
+                            "count": 2,
+                            "single_actor_concentration": False,
+                        },
+                        "challenge_surface": {
+                            "comparable_counterexample_pair_count": 1,
+                            "pair_count_is_independent_evidence_count": False,
+                            "independent_counterevidence_support_count": 0,
+                        },
+                    },
                 },
                 "alternative_explanations": [
                     {"code": "ALT", "meaning": "visible alternative explanation"}
@@ -134,6 +165,8 @@ def test_runtime_materializes_challenge_and_only_lowers_claim_ceiling(tmp_path: 
     }
     decision = result["safe_finding_admission_decisions"][0]
     assert decision["admitted_independent_support_count"] == 1
+    assert decision["evidence_profile_dimensions_validated"] is True
+    assert decision["eligible_denominator"] == 2
     assert decision["decision"] == "DOWNGRADE"
     assert decision["claim_output_allowed"] is False
     assert decision["variant_feature_challenge_refs"]
