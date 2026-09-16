@@ -431,3 +431,119 @@ def build_goal_kick_restart_pass_candidates(
         "true_action_count": "UNKNOWN",
         "production_release": False,
     }
+
+
+def bind_goal_kick_restart_pass_grammar(
+    occurrence_payload: dict[str, Any],
+    action_payload: dict[str, Any],
+    evidence_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Append exact goal-kick semantic occurrence candidates to current occurrence product."""
+    if occurrence_payload.get("status") == "FAIL_CLOSED":
+        return occurrence_payload
+
+    result = build_goal_kick_restart_pass_candidates(action_payload, evidence_payload)
+    goal_candidates = [
+        row
+        for row in result.get("action_occurrence_candidates") or []
+        if isinstance(row, dict)
+    ]
+    existing = [
+        row
+        for row in occurrence_payload.get("action_occurrence_candidates") or []
+        if isinstance(row, dict)
+    ]
+    existing_bundle_ids = {
+        _clean(bundle_id)
+        for row in existing
+        for bundle_id in row.get("supporting_action_bundle_candidate_ids") or []
+        if _clean(bundle_id)
+    }
+
+    admitted: list[dict[str, Any]] = []
+    duplicate_support_count = 0
+    for candidate in goal_candidates:
+        bundle_ids = {
+            _clean(value)
+            for value in candidate.get("supporting_action_bundle_candidate_ids") or []
+            if _clean(value)
+        }
+        if bundle_ids & existing_bundle_ids:
+            duplicate_support_count += 1
+            continue
+        admitted.append(candidate)
+        existing_bundle_ids.update(bundle_ids)
+
+    combined = existing + admitted
+    occurrence_payload["action_occurrence_candidates"] = combined
+    occurrence_payload["action_occurrence_candidate_count"] = len(combined)
+    occurrence_payload["goal_kick_restart_pass_candidate_count"] = len(admitted)
+    occurrence_payload["goal_kick_restart_pass_candidates"] = admitted
+    occurrence_payload["goal_kick_provider_distance_bucket_counts"] = result.get(
+        "provider_distance_bucket_counts"
+    ) or {}
+    occurrence_payload["goal_kick_pass_outcome_counts"] = result.get(
+        "pass_outcome_counts"
+    ) or {}
+    occurrence_payload["goal_kick_rejected_reason_counts"] = result.get(
+        "rejected_reason_counts"
+    ) or {}
+    occurrence_payload["goal_kick_duplicate_support_rejection_count"] = duplicate_support_count
+    occurrence_payload["goal_kick_exact_cross_bundle_semantic_binding_allowed"] = True
+    occurrence_payload["global_cross_bundle_action_grammar_merge_allowed"] = False
+    occurrence_payload["provider_goal_kick_distance_bucket_is_measured_physical_distance"] = False
+    occurrence_payload["provider_goal_kick_distance_bucket_is_tactical_strategy_truth"] = False
+    occurrence_payload["provider_goal_kick_distance_bucket_is_build_up_intention_truth"] = False
+
+    class_counts = Counter()
+    interaction_counts = Counter()
+    for candidate in combined:
+        admission_class = _clean(candidate.get("admission_class"))
+        interaction_type = _clean(candidate.get("interaction_type"))
+        if admission_class:
+            class_counts[admission_class] += 1
+        if interaction_type:
+            interaction_counts[interaction_type] += 1
+    occurrence_payload["admission_class_counts"] = dict(sorted(class_counts.items()))
+    occurrence_payload["interaction_type_counts"] = dict(sorted(interaction_counts.items()))
+
+    extra_cardinality = [
+        row.get("observation_occurrence_cardinality")
+        for row in admitted
+        if isinstance(row.get("observation_occurrence_cardinality"), dict)
+    ]
+    cardinality_records = [
+        row
+        for row in occurrence_payload.get("observation_occurrence_cardinality_records") or []
+        if isinstance(row, dict)
+    ]
+    cardinality_records.extend(extra_cardinality)
+    occurrence_payload["observation_occurrence_cardinality_records"] = cardinality_records
+    occurrence_payload["observation_occurrence_cardinality_record_count"] = len(cardinality_records)
+    state_counts = Counter(
+        _clean(row.get("cardinality_pattern"))
+        for row in cardinality_records
+        if _clean(row.get("cardinality_pattern"))
+    )
+    occurrence_payload["observation_occurrence_cardinality_state_counts"] = dict(
+        sorted(state_counts.items())
+    )
+
+    reviews = list(occurrence_payload.get("review_hits") or [])
+    reviews.extend(result.get("review_hits") or [])
+    if duplicate_support_count:
+        reviews.append("goal_kick_candidate_support_already_represented")
+    occurrence_payload["review_hits"] = sorted(
+        set(_clean(value) for value in reviews if _clean(value))
+    )
+    if occurrence_payload.get("hard_block_hits"):
+        occurrence_payload["status"] = "FAIL_CLOSED"
+        occurrence_payload["module_status"] = "FAIL_CLOSED"
+    elif result.get("review_hits") or duplicate_support_count:
+        occurrence_payload["status"] = "REVIEW_REQUIRED"
+        occurrence_payload["module_status"] = "REVIEW_REQUIRED"
+
+    occurrence_payload["canonical_event_count"] = "UNKNOWN"
+    occurrence_payload["true_action_count"] = "UNKNOWN"
+    occurrence_payload["production_release"] = False
+    return occurrence_payload
