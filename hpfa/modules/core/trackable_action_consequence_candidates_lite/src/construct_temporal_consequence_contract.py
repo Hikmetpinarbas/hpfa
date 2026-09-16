@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from hpfa.modules.core.trackable_action_consequence_candidates_lite.src.terminal_driven_consequence_boundary import (
+    apply_terminal_driven_consequence_boundary,
+)
+
 DIAGNOSTIC_WINDOW_ROLE = "SENSITIVITY_ONLY_NOT_PRODUCTION_CONTRACT"
 CALIBRATION_REQUIRED = "CALIBRATION_REQUIRED"
 UNRESOLVED_CONTRACT_KEY = "UNRESOLVED_CONSTRUCT_CONTRACT_KEY"
@@ -45,14 +49,20 @@ def _contract_key(record: dict[str, Any]) -> str:
 def apply_construct_temporal_contract(payload: dict[str, Any]) -> dict[str, Any]:
     """Make the current global horizon grid explicitly diagnostic-only.
 
-    The existing consequence producer still searches a fixed diagnostic grid. This adapter
-    prevents that grid from being mistaken for a production-authoritative football horizon.
-    It creates no family threshold, does not recalibrate from one match, and does not alter
-    temporal relation admission. Each visible consequence candidate receives a role-aware
-    construct contract key and remains CALIBRATION_REQUIRED until a future, separately
-    admitted construct-specific temporal contract exists.
+    The existing consequence producer still searches a fixed diagnostic grid. Before that
+    grid is labelled, visible terminal support is used only as a bounded search stop: an
+    anchor terminal closes its own continuation, while the first AFTER_CONFIRMED terminal
+    follow-up closes the search after its whole same-time layer. This does not establish
+    terminal type, possession, tactical intent or causality.
+
+    The adapter then prevents the remaining diagnostic grid from being mistaken for a
+    production-authoritative football horizon. It creates no family threshold, does not
+    recalibrate from one match, and does not alter temporal relation admission. Each visible
+    consequence candidate receives a role-aware construct contract key and remains
+    CALIBRATION_REQUIRED until a future, separately admitted construct-specific temporal
+    contract exists.
     """
-    result = dict(payload)
+    result = apply_terminal_driven_consequence_boundary(dict(payload))
     if result.get("status") == "FAIL_CLOSED":
         return result
 
