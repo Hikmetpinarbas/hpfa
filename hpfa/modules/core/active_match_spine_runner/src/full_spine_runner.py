@@ -180,6 +180,75 @@ def _safe_external_call(runner: Callable[..., dict[str, Any]], args: tuple[Any, 
         }
 
 
+def _nonnegative_int(value: Any) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dict[str, Any]:
+    """Expose existing spatial/progression consequence evidence without widening its claim ceiling."""
+    state = sidecar_report.get("state_transition_dynamics")
+    if not isinstance(state, dict):
+        return {
+            "status": "NOT_EVALUATED",
+            "reason": "state_transition_dynamics_not_available",
+            "source_module": "state_transition_dynamics_lite_v1",
+            "provider_progression_semantic_transition_count": None,
+            "adverse_consequence_transition_count": None,
+            "admitted_directional_transition_count": None,
+            "transition_class_counts": {},
+            "zero_count_is_counterevidence": False,
+            "provider_progression_is_measured_displacement_truth": False,
+            "coordinate_is_tracking_truth": False,
+            "causality_truth": False,
+            "production_release": False,
+        }
+
+    transition_counts = state.get("transition_class_counts")
+    if not isinstance(transition_counts, dict):
+        transition_counts = {}
+    source_status = _status(state.get("status"))
+    hard_blocks = state.get("hard_block_hits") if isinstance(state.get("hard_block_hits"), list) else []
+    return {
+        "status": source_status,
+        "reason": "state_transition_dynamics_fail_closed" if source_status == "FAIL_CLOSED" else None,
+        "source_module": str(state.get("module_id") or "state_transition_dynamics_lite_v1"),
+        "match_surface_binding_id": state.get("match_surface_binding_id"),
+        "provider_progression_semantic_transition_count": _nonnegative_int(
+            state.get("provider_progression_semantic_transition_count")
+        ),
+        "adverse_consequence_transition_count": _nonnegative_int(
+            state.get("adverse_consequence_transition_count")
+        ),
+        "admitted_directional_transition_count": _nonnegative_int(
+            state.get("admitted_directional_transition_count")
+        ),
+        "state_transition_dynamics_candidate_count": _nonnegative_int(
+            state.get("state_transition_dynamics_candidate_count")
+        ),
+        "transition_class_counts": dict(sorted((str(k), v) for k, v in transition_counts.items())),
+        "hard_block_hits": [str(item) for item in hard_blocks],
+        "claim_ceiling": state.get("claim_ceiling") or "SEMANTIC_SPATIAL_CONSEQUENCE_ASSOCIATION_ONLY",
+        "safe_meaning": (
+            "Provider-admitted progression/zone/context semantics may be associated with visible consequence candidates."
+        ),
+        "forbidden_inference": (
+            "No measured displacement, tracking geometry, possession truth, tactical pattern, intention, dominance or causality."
+        ),
+        "zero_count_is_counterevidence": False,
+        "provider_progression_is_measured_displacement_truth": False,
+        "coordinate_is_tracking_truth": False,
+        "possession_truth": False,
+        "sequence_truth": False,
+        "tactical_pattern_truth": False,
+        "causality_truth": False,
+        "production_release": False,
+    }
+
+
 def _write_fused_packet_inventory(output_root: Path, packets: list[dict[str, Any]], base_count: int, rich_count: int) -> list[str]:
     json_path = output_root / FUSED_PACKET_JSON
     txt_path = output_root / FUSED_PACKET_TXT
@@ -302,6 +371,8 @@ def run_full_spine(
         if _status(sidecar_report.get("status")) == "REVIEW_REQUIRED":
             review_hits.append("orphan_capability_sidecars_review_required")
 
+    spatial_progression_evidence = _spatial_progression_analyst_evidence(sidecar_report)
+
     packets: list[dict[str, Any]] = []
     base_packet_count = 0
     rich_packet_count = 0
@@ -420,6 +491,7 @@ def run_full_spine(
         "failed_intelligence_chain_count": failed_chain_count,
         "completed_intelligence_chain_count": completed_chain_count,
         "review_required_intelligence_chain_count": review_chain_count,
+        "spatial_progression_evidence": spatial_progression_evidence,
         "first_failed_node": first_failed_node,
         "first_failed_reason_code": first_failed_reason_code,
         "hard_block_hits": hard_blocks,
@@ -445,6 +517,7 @@ def run_full_spine(
             "phase_state_candidate_lane_bound": bool(rich_report.get("phase_state_candidates")),
             "entity_views_bound": bool(entity_views),
             "construct_C01_bound_to_c4": rich_packet_count > 0,
+            "spatial_progression_sidecar_exposed_to_main_spine": spatial_progression_evidence.get("status") != "NOT_EVALUATED",
             "current_c4_producers_executed": c4_chain_executed,
             "current_c4_producers_reused": c4_surface_current,
             "c4_stage_exception_containment_enabled": True,
@@ -461,6 +534,7 @@ def run_full_spine(
             "primitive_metric_count": len(rich_report.get("primitive_metrics") or []),
             "phase_state_candidate_count": len(rich_report.get("phase_state_candidates") or []),
             "packet_level_report_candidates_generated": len(chains),
+            "spatial_progression_evidence": spatial_progression_evidence,
             "counterevidence_preserved_by_current_c4_chain": c4_surface_current,
             "absence_is_counterevidence": False,
             "safe_report_language_only": c4_surface_current,
@@ -499,6 +573,13 @@ def run_full_spine(
         f"rich_construct_packet_count={rich_packet_count}",
         f"intelligence_chain_count={len(chains)}",
         f"completed_intelligence_chain_count={completed_chain_count}",
+        f"spatial_progression_evidence_status={spatial_progression_evidence.get('status')}",
+        f"provider_progression_semantic_transition_count={spatial_progression_evidence.get('provider_progression_semantic_transition_count')}",
+        f"spatial_progression_adverse_consequence_transition_count={spatial_progression_evidence.get('adverse_consequence_transition_count')}",
+        f"spatial_progression_claim_ceiling={spatial_progression_evidence.get('claim_ceiling')}",
+        "spatial_progression_measured_displacement_truth=false",
+        "spatial_progression_coordinate_is_tracking_truth=false",
+        "spatial_progression_zero_count_is_counterevidence=false",
         f"first_failed_node={first_failed_node}",
         f"first_failed_reason_code={first_failed_reason_code}",
         f"hard_block_hits={hard_blocks}",
