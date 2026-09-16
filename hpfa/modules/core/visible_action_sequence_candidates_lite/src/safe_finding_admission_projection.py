@@ -34,12 +34,6 @@ def _nonnegative_int(value: Any) -> int | None:
 
 
 def _validated_alternatives(value: Any) -> tuple[list[dict[str, str]], str | None]:
-    """Accept only the compact non-truth-bearing alternative schema.
-
-    Alternative explanations can satisfy the challenge-surface requirement only when each
-    row is an explicit ``code`` + ``meaning`` observation-level explanation. Arbitrary or
-    truth-bearing fields must not be laundered into a claim-enabled finding.
-    """
     if value is None:
         return [], None
     if not isinstance(value, list):
@@ -59,18 +53,89 @@ def _validated_alternatives(value: Any) -> tuple[list[dict[str, str]], str | Non
     return validated, None
 
 
+def _dependency_burden_profile(
+    handoff: dict[str, Any],
+    *,
+    independent_support: int,
+    independence_proven: bool,
+    statistical_independence_proven: bool,
+) -> tuple[dict[str, Any], list[str]]:
+    """Describe why apparent repetitions cannot yet be counted as independent support.
+
+    This profile creates no new evidence and no score. It only exposes dependency debt
+    already visible in the Safe Finding handoff. Missing reflection/dependency lineage is
+    kept explicitly unresolved rather than silently treated as independent.
+    """
+    where_when = handoff.get("where_when") if isinstance(handoff.get("where_when"), dict) else {}
+    support = handoff.get("support") if isinstance(handoff.get("support"), dict) else {}
+    uncertainty = handoff.get("uncertainty") if isinstance(handoff.get("uncertainty"), dict) else {}
+    alternative_codes = {
+        _clean(row.get("code"))
+        for row in (handoff.get("alternative_explanations") or [])
+        if isinstance(row, dict) and _clean(row.get("code"))
+    }
+    concentration_warnings = _refs(uncertainty.get("concentration_warnings"))
+    shared_anchor_ref = _clean(where_when.get("shared_anchor_time_layer_ref")) or None
+    same_design = handoff.get("same_comparison_design_counterevidence_required") is True
+    shared_anchor_dependency_visible = bool(
+        shared_anchor_ref
+        and (
+            same_design
+            or "SHARED_ANCHOR_DEPENDENCY" in alternative_codes
+            or "SINGLE_SHARED_ANCHOR_CONCENTRATION" in concentration_warnings
+            or "DEPENDENCY_DOMINATED_SHARED_ANCHOR_BRANCHES" in concentration_warnings
+        )
+    )
+
+    if independent_support > 0 and independence_proven and statistical_independence_proven:
+        profile_state = "NO_BLOCKING_DEPENDENCY_BURDEN_VISIBLE"
+        dependency_group_state = "NO_UNRESOLVED_BLOCK_VISIBLE"
+        reflection_state = "NOT_REQUIRED_TO_DOWNGRADE_CURRENT_SUPPORT"
+        reasons: list[str] = []
+    elif shared_anchor_dependency_visible:
+        profile_state = "SHARED_VISIBLE_ANCHOR_DEPENDENCY_DOMINATED"
+        dependency_group_state = "UNRESOLVED_OR_SHARED_DEPENDENCY_PRESENT"
+        reflection_state = "UNRESOLVED_NOT_EXPLICITLY_BOUND"
+        reasons = [
+            "SHARED_ANCHOR_DEPENDENCY_BURDEN",
+            "DEPENDENCY_GROUP_BURDEN_UNRESOLVED",
+            "REFLECTION_GROUP_BURDEN_UNRESOLVED",
+        ]
+    else:
+        profile_state = "DEPENDENCY_BURDEN_UNRESOLVED"
+        dependency_group_state = "UNRESOLVED"
+        reflection_state = "UNRESOLVED_NOT_EXPLICITLY_BOUND"
+        reasons = [
+            "DEPENDENCY_GROUP_BURDEN_UNRESOLVED",
+            "REFLECTION_GROUP_BURDEN_UNRESOLVED",
+        ]
+
+    return {
+        "profile_state": profile_state,
+        "admitted_independent_support_count": independent_support,
+        "dependency_independence_proven": independence_proven,
+        "statistical_independence_proven": statistical_independence_proven,
+        "shared_anchor_dependency_state": (
+            "PRESENT" if shared_anchor_dependency_visible else "NOT_VISIBLE_OR_NOT_APPLICABLE"
+        ),
+        "shared_anchor_time_layer_ref": shared_anchor_ref,
+        "reflection_group_burden_state": reflection_state,
+        "dependency_group_burden_state": dependency_group_state,
+        "aggregate_reconciliation_burden_state": "NOT_IN_CURRENT_BRANCH_COMPARISON_DESIGN",
+        "support_state": _clean(support.get("support_state")) or "UNKNOWN",
+        "dependency_burden_can_authorize_independence": False,
+        "dependency_burden_is_confidence_score": False,
+        "burden_dimensions_compensate_each_other": False,
+        "absence_of_explicit_reflection_burden_means_independence": False,
+        "shared_anchor_count_is_independent_recurrence_count": False,
+    }, reasons
+
+
 def _validated_evidence_profile(
     sufficiency: dict[str, Any],
     support: dict[str, Any],
     counterevidence: dict[str, Any],
 ) -> tuple[dict[str, Any] | None, str | None, list[str]]:
-    """Validate already-computed evidence dimensions and derive non-compensating blocks.
-
-    This gate does not create evidence, scores or thresholds. It only verifies that the
-    upstream profile used for admission is structurally present, internally consistent and
-    still says what the compact handoff says. Missing or contradictory profile data cannot
-    authorize EMIT. Adverse observed states remain separate decision reasons.
-    """
     dimensions = sufficiency.get("dimensions")
     if not isinstance(dimensions, dict):
         return None, "evidence_sufficiency_dimensions_missing", []
@@ -101,12 +166,7 @@ def _validated_evidence_profile(
     resolved_case_count = _nonnegative_int(eligible.get("resolved_outcome_case_count"))
     unresolved_case_count = _nonnegative_int(eligible.get("unresolved_outcome_case_count"))
     accounted_case_count = _nonnegative_int(eligible.get("accounted_case_count"))
-    if None in {
-        eligible_case_count,
-        resolved_case_count,
-        unresolved_case_count,
-        accounted_case_count,
-    }:
+    if None in {eligible_case_count, resolved_case_count, unresolved_case_count, accounted_case_count}:
         return None, "eligible_case_coverage_count_invalid", []
     if accounted_case_count != resolved_case_count + unresolved_case_count:
         return None, "eligible_case_coverage_accounting_mismatch", []
@@ -190,17 +250,6 @@ def _abstain(source_ref: str | None, *reasons: str) -> dict[str, Any]:
 
 
 def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, Any]:
-    """Decide EMIT / DOWNGRADE / ABSTAIN over already-built Safe Finding handoffs.
-
-    This projection is intentionally tiny: it creates no evidence, copies no sequence or
-    counterevidence inventory, and never re-runs discovery. It only references the source
-    handoff and returns a decision plus compact reasons.
-
-    An upstream REVIEW_REQUIRED envelope, or a nominal PASS envelope that still carries
-    unscoped review hits, is not assumed to be row-scoped. Until the upstream producer
-    carries machine-readable review-to-handoff lineage, that review debt can preserve a
-    match-local cue but cannot authorize a professional EMIT.
-    """
     hard_blocks: list[str] = []
     review_hits: list[str] = []
 
@@ -319,6 +368,12 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
             decisions.append(_abstain(source_ref, "uncertainty_truth_lock_breached"))
             continue
 
+        dependency_burden, dependency_burden_reasons = _dependency_burden_profile(
+            handoff,
+            independent_support=independent_support,
+            independence_proven=independence_proven,
+            statistical_independence_proven=statistical_independence_proven,
+        )
         challenge_visible = bool(counter_refs) or bool(alternatives)
         emit_reasons: list[str] = []
         if blocking:
@@ -330,6 +385,8 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
             emit_reasons.append("DEPENDENCY_INDEPENDENCE_NOT_PROVEN")
         if not statistical_independence_proven:
             emit_reasons.append("STATISTICAL_INDEPENDENCE_NOT_PROVEN")
+        if not independence_proven:
+            emit_reasons.extend(dependency_burden_reasons)
         if not challenge_visible:
             emit_reasons.append("CHALLENGE_SURFACE_EMPTY")
         if source_review_unscoped:
@@ -353,6 +410,7 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
             "admitted_independent_support_count": independent_support,
             "dependency_independence_proven": independence_proven,
             "statistical_independence_proven": statistical_independence_proven,
+            "dependency_burden_profile": dependency_burden,
             "comparable_counterexample_visible": bool(counter_refs),
             "withdrawal_condition_present": bool(withdrawals),
             "evidence_profile_dimensions_validated": True,
@@ -365,6 +423,18 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
     if abstained:
         review_hits.append("one_or_more_handoffs_abstained")
 
+    profiled = sum(
+        isinstance(row.get("dependency_burden_profile"), dict)
+        for row in decisions
+        if isinstance(row, dict)
+    )
+    shared_anchor_dominated = sum(
+        (row.get("dependency_burden_profile") or {}).get("profile_state")
+        == "SHARED_VISIBLE_ANCHOR_DEPENDENCY_DOMINATED"
+        for row in decisions
+        if isinstance(row, dict)
+    )
+
     return {
         "status": "REVIEW_REQUIRED" if review_hits else "PASS",
         "safe_finding_admission_decisions": decisions,
@@ -376,6 +446,11 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
         },
         "professional_finding_emitted_count": emitted,
         "claim_output_allowed_count": emitted,
+        "dependency_burden_profiled_decision_count": profiled,
+        "shared_anchor_dependency_dominated_decision_count": shared_anchor_dominated,
+        "dependency_burden_profile_is_non_compensatory": True,
+        "dependency_burden_numeric_score_allowed": False,
+        "dependency_burden_can_authorize_independence": False,
         "decision_rows_copy_evidence_payloads": False,
         "decision_projection_creates_new_evidence": False,
         "decision_projection_reconstructs_sequences": False,
