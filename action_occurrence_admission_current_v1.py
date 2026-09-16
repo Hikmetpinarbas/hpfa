@@ -12,6 +12,9 @@ from hpfa.modules.core.action_occurrence_admission_lite.src.action_grammar_publi
 from hpfa.modules.core.action_occurrence_admission_lite.src.conditional_review_passthrough import (
     build_action_occurrence_admission_with_conditional_review,
 )
+from hpfa.modules.core.action_occurrence_admission_lite.src.goal_kick_restart_pass_grammar import (
+    bind_goal_kick_restart_pass_grammar,
+)
 
 
 def _load(path: Path) -> dict:
@@ -49,6 +52,10 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "interaction_occurrence_candidate_count": 0,
             "intra_actor_action_grammar_candidate_count": 0,
             "intra_actor_action_grammar_candidates": [],
+            "goal_kick_restart_pass_candidate_count": 0,
+            "goal_kick_restart_pass_candidates": [],
+            "goal_kick_provider_distance_bucket_counts": {},
+            "goal_kick_pass_outcome_counts": {},
             "single_action_anchor_occurrence_candidate_count": 0,
             "single_action_anchor_occurrence_candidates": [],
             "single_action_anchor_family_counts": {},
@@ -85,6 +92,8 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "possession_truth": False,
             "phase_truth": False,
             "tactical_truth": False,
+            "provider_goal_kick_distance_bucket_is_measured_physical_distance": False,
+            "provider_goal_kick_distance_bucket_is_tactical_strategy_truth": False,
             "canonical_event_count": "UNKNOWN",
             "true_action_count": "UNKNOWN",
             "production_release": False,
@@ -110,6 +119,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         action_payload,
         evidence_payload,
         registry_payload,
+    )
+    payload = bind_goal_kick_restart_pass_grammar(
+        payload,
+        action_payload,
+        evidence_payload,
     )
     payload["current_relation_status"] = relation_payload.get("status")
     payload["current_taxonomy_status"] = relation_payload.get("current_taxonomy_status")
@@ -150,6 +164,9 @@ def main() -> int:
                 "action_occurrence_candidate_count": payload.get("action_occurrence_candidate_count"),
                 "interaction_occurrence_candidate_count": payload.get("interaction_occurrence_candidate_count", 0),
                 "intra_actor_action_grammar_candidate_count": payload.get("intra_actor_action_grammar_candidate_count", 0),
+                "goal_kick_restart_pass_candidate_count": payload.get("goal_kick_restart_pass_candidate_count", 0),
+                "goal_kick_provider_distance_bucket_counts": payload.get("goal_kick_provider_distance_bucket_counts") or {},
+                "goal_kick_pass_outcome_counts": payload.get("goal_kick_pass_outcome_counts") or {},
                 "single_action_anchor_occurrence_candidate_count": payload.get("single_action_anchor_occurrence_candidate_count", 0),
                 "single_action_anchor_family_counts": payload.get("single_action_anchor_family_counts") or {},
                 "single_action_anchor_source_role_counts": payload.get("single_action_anchor_source_role_counts") or {},
