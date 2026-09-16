@@ -1,6 +1,6 @@
 {
   "registry_id": "action_occurrence_semantic_compatibility_v1",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "status": "REVIEWED_CANDIDATE_RULES_ONLY",
   "purpose": "Precision-first compatibility rules for candidate occurrence reconstruction from already admitted Action Bundle surfaces. Rules create candidate relations or same-actor action-grammar candidates only; they never establish canonical events.",
   "upstream_semantics_binding": {
@@ -141,6 +141,44 @@
         "XLSX aggregate row"
       ],
       "allowed_claim": "Multiple compatible reviewed DRIBBLE annotations inside one exact same-actor Action Bundle may be represented as one DRIBBLE occurrence candidate with outcome/context attributes.",
+      "forbidden_claims": [
+        "canonical event truth",
+        "true action count",
+        "exact physical chronology",
+        "physical player position",
+        "tactical intention",
+        "causality"
+      ]
+    },
+    {
+      "rule_id": "turnover_own_half_semantic_annotation_collapse_exact_v1",
+      "action_family": "TURNOVER",
+      "source_role": "PLAYER_SURFACE_CANDIDATE",
+      "minimum_distinct_semantic_labels": 2,
+      "semantic_labels": {
+        "Lost balls": {
+          "semantic_rule_id": "plvs_v2_lost_balls"
+        },
+        "Lost balls in own half": {
+          "semantic_rule_id": "plvs_v2_lost_balls_in_own_half",
+          "zone_context": "OWN_HALF"
+        }
+      },
+      "required_bundle_conditions": [
+        "same player surface",
+        "same team and actor identity candidates",
+        "same period/start/end annotation core",
+        "same annotation anchor",
+        "same TURNOVER family",
+        "reviewed provider semantic rule bindings"
+      ],
+      "forbidden_merge_authorities": [
+        "same timestamp alone",
+        "source row order",
+        "CSV/XML format agreement as independent vote",
+        "XLSX aggregate row"
+      ],
+      "allowed_claim": "Reviewed Lost balls and Lost balls in own half annotations inside one exact same-actor TURNOVER Action Bundle may be represented as one TURNOVER occurrence candidate carrying an OWN_HALF zone-context qualifier.",
       "forbidden_claims": [
         "canonical event truth",
         "true action count",
