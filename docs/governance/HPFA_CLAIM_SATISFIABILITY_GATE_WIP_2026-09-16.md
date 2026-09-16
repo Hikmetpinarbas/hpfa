@@ -25,9 +25,11 @@ Preserved locks:
 - `true_action_count=UNKNOWN`
 - `production_release=false`
 
-Current exact engineering head after runtime binding/tests:
+Historical implementation head immediately after runtime binding/tests:
 `571fe9cdd00a7875210620da335ca91b0df371d8`
 
-CI for this exact head is running. Physical ACTIVE_MATCH acceptance is still required before runtime closure.
+This SHA is historical provenance only. Current authority is always the live PR `head_sha` observed at execution time. CI and physical ACTIVE_MATCH acceptance must bind to that live exact head.
+
+Physical ACTIVE_MATCH acceptance is still required before runtime closure.
 
 No merge, auto-merge, release or production binding is authorized by this record.
