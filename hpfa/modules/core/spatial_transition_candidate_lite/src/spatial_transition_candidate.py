@@ -15,9 +15,19 @@ TRUE_ACTION_COUNT = "UNKNOWN"
 CLAIM_CEILING = "VISIBLE_SPATIAL_TRANSITION_CANDIDATE_ONLY"
 ALLOWED_DIRECTIONS = {"ATTACK_POS_X", "ATTACK_NEG_X"}
 PROGRESSION_FAMILIES = {"PASS", "CARRY", "DRIBBLE", "CROSS"}
-ATTACKING_ZONE_SEMANTICS = {"OPPONENT_HALF", "FINAL_THIRD", "PENALTY_AREA"}
-DEFENSIVE_ZONE_SEMANTICS = {"OWN_HALF"}
-FRAME_ADMISSION_METHOD = "CROSS_TEAM_PROVIDER_ZONE_COORDINATE_ORDER"
+DEFENSIVE_ANCHOR_ZONE_RULE_IDS = {
+    "plvs_v2_lost_balls_in_own_half",
+}
+ATTACKING_ANCHOR_ZONE_RULE_IDS = {
+    "plvs_v2_ball_recoveries_in_opponent_s_half",
+    "plvs_v2_dribbling_in_the_final_third_successful",
+    "plvs_v2_unsuccessful_dribbles_in_the_final_third",
+}
+DESTINATION_ZONE_RULE_IDS_NOT_CALIBRATION_AUTHORITY = {
+    "plvs_v2_passes_into_the_penalty_box_accurate",
+    "plvs_v2_incomplete_passes_into_the_box",
+}
+FRAME_ADMISSION_METHOD = "CROSS_TEAM_REVIEWED_ANCHOR_ZONE_COORDINATE_ORDER"
 OUTPUTS = {
     "json": "spatial_transition_candidate_lite_v1.json",
     "summary": "spatial_transition_candidate_lite_v1.txt",
@@ -156,14 +166,15 @@ def _occurrence_action_location_cores(
 
 
 def _infer_provider_team_relative_attack_axis(records: list[dict[str, Any]]) -> dict[str, Any]:
-    """Infer only provider-coordinate attack-axis orientation from admitted semantic anchors.
+    """Infer provider attack-axis orientation only from reviewed anchor-locational semantics.
 
-    This does not admit a physical pitch frame. It asks whether provider OWN_HALF anchors and
-    provider OPPONENT_HALF/FINAL_THIRD/PENALTY_AREA anchors are strictly ordered on x for
-    each team, and whether at least two teams exhibit the same ordering. Provider semantic
-    labels are calibration evidence only; they are not promoted to physical/tactical truth.
+    The coordinate x value belongs to the admitted annotation anchor. Therefore a semantic zone may
+    calibrate x only when its reviewed rule describes the anchor's own location. Destination semantics
+    such as "pass into the penalty box" are explicitly excluded because their PENALTY_AREA value
+    describes the target zone, not the visible pos_x annotation anchor. This gate never admits a
+    physical pitch frame or tactical truth.
     """
-    by_team: dict[str, dict[str, list[float]]] = {}
+    by_team: dict[str, dict[str, Any]] = {}
     for row in records:
         if row.get("occurrence_annotation_anchor_location_admitted") is not True:
             continue
@@ -171,14 +182,30 @@ def _infer_provider_team_relative_attack_axis(records: list[dict[str, Any]]) -> 
         team = _clean(row.get("team_identity_candidate_id"))
         if x is None or not team:
             continue
-        zones = {_clean(value) for value in row.get("provider_zone_candidates") or [] if _clean(value)}
-        if not zones:
+        rule_ids = {
+            _clean(value)
+            for value in row.get("provider_semantic_rule_ids") or []
+            if _clean(value)
+        }
+        defensive_rule_hits = sorted(rule_ids & DEFENSIVE_ANCHOR_ZONE_RULE_IDS)
+        attacking_rule_hits = sorted(rule_ids & ATTACKING_ANCHOR_ZONE_RULE_IDS)
+        if not defensive_rule_hits and not attacking_rule_hits:
             continue
-        bucket = by_team.setdefault(team, {"defensive": [], "attacking": []})
-        if zones & DEFENSIVE_ZONE_SEMANTICS:
+        bucket = by_team.setdefault(
+            team,
+            {
+                "defensive": [],
+                "attacking": [],
+                "defensive_rule_ids": set(),
+                "attacking_rule_ids": set(),
+            },
+        )
+        if defensive_rule_hits:
             bucket["defensive"].append(x)
-        if zones & ATTACKING_ZONE_SEMANTICS:
+            bucket["defensive_rule_ids"].update(defensive_rule_hits)
+        if attacking_rule_hits:
             bucket["attacking"].append(x)
+            bucket["attacking_rule_ids"].update(attacking_rule_hits)
 
     team_evidence: dict[str, Any] = {}
     admitted_directions: list[str] = []
@@ -194,6 +221,8 @@ def _infer_provider_team_relative_attack_axis(records: list[dict[str, Any]]) -> 
         team_evidence[team] = {
             "defensive_semantic_anchor_count": len(defensive),
             "attacking_semantic_anchor_count": len(attacking),
+            "defensive_semantic_rule_ids": sorted(values["defensive_rule_ids"]),
+            "attacking_semantic_rule_ids": sorted(values["attacking_rule_ids"]),
             "defensive_x_min": min(defensive) if defensive else None,
             "defensive_x_max": max(defensive) if defensive else None,
             "attacking_x_min": min(attacking) if attacking else None,
@@ -205,37 +234,36 @@ def _infer_provider_team_relative_attack_axis(records: list[dict[str, Any]]) -> 
 
     eligible_team_count = len(admitted_directions)
     unique_directions = sorted(set(admitted_directions))
+    common = {
+        "method": FRAME_ADMISSION_METHOD,
+        "eligible_team_count": eligible_team_count,
+        "team_evidence": team_evidence,
+        "provider_semantic_calibration_only": True,
+        "anchor_zone_semantic_referent_required": True,
+        "destination_zone_semantics_can_admit_attack_axis": False,
+        "excluded_destination_zone_semantic_rule_ids": sorted(
+            DESTINATION_ZONE_RULE_IDS_NOT_CALIBRATION_AUTHORITY
+        ),
+        "absolute_pitch_frame_truth": False,
+        "physical_player_position_truth": False,
+        "tracking_truth": False,
+        "tactical_truth": False,
+    }
     if eligible_team_count >= 2 and len(unique_directions) == 1:
-        return {
+        return common | {
             "state": "ADMITTED",
-            "method": FRAME_ADMISSION_METHOD,
             "attack_direction": unique_directions[0],
-            "eligible_team_count": eligible_team_count,
-            "team_evidence": team_evidence,
-            "provider_semantic_calibration_only": True,
-            "absolute_pitch_frame_truth": False,
-            "physical_player_position_truth": False,
-            "tracking_truth": False,
-            "tactical_truth": False,
         }
 
     reason = (
         "cross_team_direction_conflict"
         if len(unique_directions) > 1
-        else "insufficient_cross_team_strict_zone_coordinate_order"
+        else "insufficient_cross_team_strict_anchor_zone_coordinate_order"
     )
-    return {
+    return common | {
         "state": "REVIEW_REQUIRED",
-        "method": FRAME_ADMISSION_METHOD,
         "attack_direction": None,
-        "eligible_team_count": eligible_team_count,
-        "team_evidence": team_evidence,
         "reason": reason,
-        "provider_semantic_calibration_only": True,
-        "absolute_pitch_frame_truth": False,
-        "physical_player_position_truth": False,
-        "tracking_truth": False,
-        "tactical_truth": False,
     }
 
 
@@ -465,6 +493,11 @@ def build_spatial_transition_candidates(
         "eligible_team_count": 0,
         "team_evidence": {},
         "provider_semantic_calibration_only": True,
+        "anchor_zone_semantic_referent_required": True,
+        "destination_zone_semantics_can_admit_attack_axis": False,
+        "excluded_destination_zone_semantic_rule_ids": sorted(
+            DESTINATION_ZONE_RULE_IDS_NOT_CALIBRATION_AUTHORITY
+        ),
         "absolute_pitch_frame_truth": False,
         "physical_player_position_truth": False,
         "tracking_truth": False,
@@ -533,6 +566,8 @@ def build_spatial_transition_candidates(
         "attack_direction_admission_basis": attack_direction_admission_basis,
         "provider_team_relative_attack_axis_inference": frame_inference,
         "provider_team_relative_attack_axis_state": frame_inference.get("state"),
+        "provider_attack_axis_requires_anchor_zone_semantic_referent": True,
+        "destination_zone_semantics_can_admit_attack_axis": False,
         "provider_semantic_zone_coordinate_order_is_physical_pitch_truth": False,
         "provider_semantic_zone_coordinate_order_is_tactical_truth": False,
         "team_relative_attack_axis_is_absolute_pitch_frame_truth": False,
@@ -581,8 +616,8 @@ def _analyst(payload: dict[str, Any]) -> str:
         f"Provider team-relative attack-axis state: {payload.get('provider_team_relative_attack_axis_state')}",
         f"Attack direction candidate/admission: {payload.get('attack_direction')}",
         f"Coordinate locations fully admitted: {payload.get('spatial_location_admitted_count', 0)}",
-        "SAFE_MEANING: occurrence-bound annotation anchors and cross-team provider zone/coordinate ordering may establish a provider-coordinate attack-axis convention without establishing an absolute physical pitch frame.",
-        "FORBIDDEN_INFERENCE: provider semantic calibration is not tracking, physical player position, absolute pitch truth, start/end displacement, physical speed, line-break geometry, team shape, compactness, pitch control, tactical pattern or causality.",
+        "SAFE_MEANING: occurrence-bound annotation anchors plus reviewed zone semantics whose referent is the action anchor may establish a provider-coordinate attack-axis convention without establishing an absolute physical pitch frame.",
+        "FORBIDDEN_INFERENCE: target/destination zone semantics such as pass-into-box cannot calibrate the visible anchor coordinate; provider semantic calibration is not tracking, physical player position, absolute pitch truth, displacement, physical speed, line-break geometry, team shape, compactness, pitch control, tactical pattern or causality.",
         "ANALYST_ACTION: use admitted provider attack-axis convention only as a bounded spatial calibration cue; require explicit pitch-frame admission before coordinate-derived zone geometry or progression claims.",
         "canonical_event_count=UNKNOWN",
         "production_release=false",
