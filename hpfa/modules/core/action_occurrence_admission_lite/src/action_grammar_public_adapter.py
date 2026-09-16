@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from hpfa.modules.core.action_occurrence_admission_lite.src.goal_kick_restart_pass_grammar import (
+    bind_goal_kick_restart_pass_grammar,
+)
 from hpfa.modules.core.action_occurrence_admission_lite.src.intra_actor_action_grammar import (
     build_intra_actor_action_grammar_candidates,
 )
@@ -23,14 +26,15 @@ def bind_intra_actor_action_grammar(
     evidence_payload: dict[str, Any],
     registry: dict[str, Any],
 ) -> dict[str, Any]:
-    """Extend current occurrence product with same-actor reviewed semantic candidates.
+    """Extend current occurrence product with reviewed same-actor semantic candidates.
 
     Existing two-participant interaction candidates remain untouched. Multi-label Action Grammar
     candidates are added first. A separate, stricter single-action-anchor admission then admits only
     one-label Action Bundles backed by one exact reviewed ACTION_ANCHOR Evidence Atom and not already
-    represented by an existing occurrence. Neither path establishes canonical event or true action
-    truth. Observation-to-occurrence cardinality is then exposed as an audit/admission contract; it
-    never upgrades semantic occurrence candidates to physical-action or canonical-event truth.
+    represented by an existing occurrence. The reviewed goalkeeper goal-kick RESTART+PASS grammar is
+    then bound through its exact same-actor/time/anchor contract. None of these paths establishes
+    canonical event truth or true physical-action count. Observation-to-occurrence cardinality remains
+    an audit/admission contract rather than event truth.
     """
     if occurrence_payload.get("status") == "FAIL_CLOSED":
         return occurrence_payload
@@ -156,6 +160,16 @@ def bind_intra_actor_action_grammar(
     elif (grammar.get("review_hits") or cardinality.get("review_hits")) and occurrence_payload.get("status") != "FAIL_CLOSED":
         occurrence_payload["status"] = "REVIEW_REQUIRED"
         occurrence_payload["module_status"] = "REVIEW_REQUIRED"
+
+    # R6: bind only the explicitly reviewed goalkeeper goal-kick RESTART+PASS
+    # cross-bundle semantic grammar. The helper is exact-core and provider-rule bound;
+    # it cannot use same timestamp, near time/space, row order, or format agreement as
+    # merge authority and cannot promote distance buckets to measured/tactical truth.
+    occurrence_payload = bind_goal_kick_restart_pass_grammar(
+        occurrence_payload,
+        action_payload,
+        evidence_payload,
+    )
 
     occurrence_payload["canonical_event_count"] = "UNKNOWN"
     occurrence_payload["true_action_count"] = "UNKNOWN"
