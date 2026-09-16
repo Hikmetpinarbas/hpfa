@@ -19,6 +19,7 @@ def _handoff(ref: str, *, independent: int, dep: bool, stat: bool, blocking: lis
             "admitted_independent_support_count": independent,
             "dependency_independence_proven": dep,
             "statistical_independence_proven": stat,
+            "eligible_denominator": 2,
         },
         "counterevidence": {
             "comparable_counterexample_refs": [f"counter_{ref}"],
@@ -30,6 +31,32 @@ def _handoff(ref: str, *, independent: int, dep: bool, stat: bool, blocking: lis
                 else "INSUFFICIENT_FOR_PROFESSIONAL_EMIT"
             ),
             "blocking_dimensions": blocking,
+            "dimensions": {
+                "independent_support": {
+                    "admitted_count": independent,
+                    "dependency_independence_proven": dep,
+                    "statistical_independence_proven": stat,
+                },
+                "eligible_case_coverage": {
+                    "eligible_case_count": 2,
+                    "resolved_outcome_case_count": 2,
+                    "unresolved_outcome_case_count": 0,
+                    "accounted_case_count": 2,
+                    "state": "COMPLETE_RESOLVED_CASE_COVERAGE",
+                },
+                "episode_spread": {
+                    "count": 2,
+                    "state": "OBSERVED",
+                },
+                "context_coverage": {"state": "COMPLETE"},
+                "actor_spread": {
+                    "count": 2,
+                    "single_actor_concentration": False,
+                },
+                "challenge_surface": {
+                    "comparable_counterexample_pair_count": 1,
+                },
+            },
         },
         "alternative_explanations": [
             {"code": "ALT", "meaning": "visible alternative explanation"}
@@ -62,7 +89,57 @@ def test_emit_when_all_required_evidence_dimensions_are_admitted() -> None:
     )
     assert out["finding_status_counts"] == {"EMIT": 1, "DOWNGRADE": 0, "ABSTAIN": 0}
     assert out["professional_finding_emitted_count"] == 1
-    assert out["safe_finding_admission_decisions"][0]["claim_output_allowed"] is True
+    row = out["safe_finding_admission_decisions"][0]
+    assert row["claim_output_allowed"] is True
+    assert row["evidence_profile_dimensions_validated"] is True
+    assert row["eligible_denominator"] == 2
+    assert row["unresolved_outcome_case_count"] == 0
+
+
+def test_missing_required_evidence_profile_dimension_abstains() -> None:
+    row = _handoff("sfh_missing_dimension", independent=2, dep=True, stat=True, blocking=[])
+    del row["evidence_sufficiency"]["dimensions"]["eligible_case_coverage"]
+    out = build_safe_finding_admission(_payload([row]))
+    assert out["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 1}
+    decision = out["safe_finding_admission_decisions"][0]
+    assert decision["claim_output_allowed"] is False
+    assert (
+        "evidence_sufficiency_dimension_missing:eligible_case_coverage"
+        in decision["decision_reasons"]
+    )
+
+
+def test_unresolved_eligible_case_burden_downgrades_even_if_blocking_list_is_stale() -> None:
+    row = _handoff("sfh_unresolved", independent=2, dep=True, stat=True, blocking=[])
+    coverage = row["evidence_sufficiency"]["dimensions"]["eligible_case_coverage"]
+    coverage.update(
+        {
+            "resolved_outcome_case_count": 1,
+            "unresolved_outcome_case_count": 1,
+            "accounted_case_count": 2,
+            "state": "COMPLETE_CASE_ACCOUNTING_WITH_UNRESOLVED_OUTCOMES",
+        }
+    )
+    out = build_safe_finding_admission(_payload([row]))
+    assert out["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 1, "ABSTAIN": 0}
+    decision = out["safe_finding_admission_decisions"][0]
+    assert "UNRESOLVED_OUTCOME_BURDEN" in decision["decision_reasons"]
+    assert "OUTCOME_COVERAGE_PARTIAL_OR_UNKNOWN" in decision["decision_reasons"]
+    assert decision["unresolved_outcome_case_count"] == 1
+
+
+def test_context_and_actor_profile_bind_directly_without_blocking_summary() -> None:
+    row = _handoff("sfh_context_actor", independent=2, dep=True, stat=True, blocking=[])
+    row["evidence_sufficiency"]["dimensions"]["context_coverage"]["state"] = "PARTIAL_PERIOD_ONLY"
+    row["evidence_sufficiency"]["dimensions"]["actor_spread"] = {
+        "count": 1,
+        "single_actor_concentration": True,
+    }
+    out = build_safe_finding_admission(_payload([row]))
+    assert out["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 1, "ABSTAIN": 0}
+    decision = out["safe_finding_admission_decisions"][0]
+    assert "CONTEXT_COVERAGE_PARTIAL_OR_UNKNOWN" in decision["decision_reasons"]
+    assert "SINGLE_ACTOR_CONCENTRATION" in decision["decision_reasons"]
 
 
 def test_unscoped_upstream_review_cannot_authorize_emit() -> None:
@@ -126,6 +203,9 @@ def test_abstain_when_safe_finding_contract_is_incomplete() -> None:
 def test_empty_alternative_object_cannot_satisfy_challenge() -> None:
     row = _handoff("sfh_empty_alt", independent=2, dep=True, stat=True, blocking=[])
     row["counterevidence"]["comparable_counterexample_refs"] = []
+    row["evidence_sufficiency"]["dimensions"]["challenge_surface"][
+        "comparable_counterexample_pair_count"
+    ] = 0
     row["alternative_explanations"] = [{}]
     out = build_safe_finding_admission(_payload([row]))
     assert out["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 0, "ABSTAIN": 1}
@@ -169,6 +249,8 @@ def test_projection_does_not_copy_evidence_payloads_or_create_evidence() -> None
     assert out["decision_rows_copy_evidence_payloads"] is False
     assert out["decision_projection_creates_new_evidence"] is False
     assert out["decision_projection_reconstructs_sequences"] is False
+    assert out["evidence_profile_dimensions_required_for_emit"] is True
+    assert out["evidence_profile_dimensions_compensate_each_other"] is False
 
 
 def test_truth_lock_violation_abstains_instead_of_emitting() -> None:
