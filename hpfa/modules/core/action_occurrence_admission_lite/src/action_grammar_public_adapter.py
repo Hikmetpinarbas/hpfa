@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from collections import Counter
 from typing import Any
 
 from hpfa.modules.core.action_occurrence_admission_lite.src.goal_kick_restart_pass_grammar import (
@@ -43,6 +44,49 @@ def _goal_kick_matching_view(action_payload: dict[str, Any]) -> dict[str, Any]:
         if raw_labels:
             bundle["normalized_labels"] = list(raw_labels)
     return local
+
+
+def _reconcile_goal_kick_product_summary(occurrence_payload: dict[str, Any]) -> None:
+    """Make R6 summary fields describe the final occurrence product state.
+
+    The goal-kick binder can be reached more than once by the current composition path.
+    A later idempotent pass may admit zero *new* rows while the already-admitted rows
+    remain present in the product. Summary fields must therefore describe the final
+    candidate surface rather than only the rows newly appended by the latest call.
+
+    This reconciliation creates no evidence and changes no admission decision. It only
+    derives counts from already-admitted semantic occurrence candidates.
+    """
+    effective = [
+        row
+        for row in occurrence_payload.get("action_occurrence_candidates") or []
+        if isinstance(row, dict)
+        and _clean(row.get("interaction_type"))
+        == "GOAL_KICK_RESTART_PASS_SEMANTIC_CANDIDATE"
+    ]
+    occurrence_payload["goal_kick_restart_pass_candidate_count"] = len(effective)
+    occurrence_payload["goal_kick_restart_pass_candidates"] = effective
+    occurrence_payload["goal_kick_provider_distance_bucket_counts"] = dict(
+        sorted(
+            Counter(
+                _clean((row.get("attributes") or {}).get("provider_distance_bucket_candidate"))
+                for row in effective
+                if _clean((row.get("attributes") or {}).get("provider_distance_bucket_candidate"))
+            ).items()
+        )
+    )
+    occurrence_payload["goal_kick_pass_outcome_counts"] = dict(
+        sorted(
+            Counter(
+                _clean((row.get("attributes") or {}).get("pass_outcome_candidate"))
+                for row in effective
+                if _clean((row.get("attributes") or {}).get("pass_outcome_candidate"))
+            ).items()
+        )
+    )
+    occurrence_payload["goal_kick_summary_basis"] = "FINAL_ADMITTED_OCCURRENCE_PRODUCT_STATE"
+    occurrence_payload["goal_kick_summary_creates_new_evidence"] = False
+    occurrence_payload["goal_kick_summary_can_authorize_emit"] = False
 
 
 def bind_intra_actor_action_grammar(
@@ -195,6 +239,7 @@ def bind_intra_actor_action_grammar(
         _goal_kick_matching_view(action_payload),
         evidence_payload,
     )
+    _reconcile_goal_kick_product_summary(occurrence_payload)
     occurrence_payload["goal_kick_raw_label_preferred_for_exact_matching"] = True
     occurrence_payload["goal_kick_normalized_label_is_independent_semantic_support"] = False
 
