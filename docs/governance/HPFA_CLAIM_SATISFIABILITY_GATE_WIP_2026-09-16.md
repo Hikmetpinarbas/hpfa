@@ -25,10 +25,10 @@ Preserved locks:
 - `true_action_count=UNKNOWN`
 - `production_release=false`
 
-Historical implementation head immediately after runtime binding/tests:
+Implementation provenance before documentation-only commits:
 `571fe9cdd00a7875210620da335ca91b0df371d8`
 
-This SHA is historical provenance only. Current authority is always the live PR `head_sha` observed at execution time. CI and physical ACTIVE_MATCH acceptance must bind to that live exact head.
+This SHA is historical implementation provenance only. Current authority is always the live PR `head_sha` observed at execution time. Documentation-only commits do not themselves constitute behavioral acceptance. CI and physical ACTIVE_MATCH acceptance must bind to the exact live code state used for the acceptance claim.
 
 Physical ACTIVE_MATCH acceptance is still required before runtime closure.
 
