@@ -111,6 +111,47 @@ def test_dribble_final_third_label_is_context_not_second_action() -> None:
     assert candidate["attributes"]["distinct_semantic_label_count"] == 2
 
 
+def test_turnover_own_half_label_is_zone_context_on_one_occurrence_candidate() -> None:
+    row = bundle(
+        "turnover_own_half",
+        "TURNOVER",
+        ["Lost balls", "Lost balls in own half"],
+    )
+    result = build_intra_actor_action_grammar_candidates(
+        {"action_bundle_candidates": [row]}, evidence([row]), load_registry()
+    )
+
+    assert result["action_occurrence_candidate_count"] == 1
+    candidate = result["action_occurrence_candidates"][0]
+    assert candidate["admission_class"] == "EXACT_SAME_ACTOR_SEMANTIC_COLLAPSE"
+    assert candidate["primary_family_candidate"] == "TURNOVER"
+    assert candidate["attributes"]["zone_context_candidates"] == ["OWN_HALF"]
+    assert candidate["attributes"]["distinct_semantic_label_count"] == 2
+    assert candidate["provider_semantics_binding_status"] == "PASS"
+    assert candidate["action_occurrence_candidate_is_event_truth"] is False
+    assert candidate["validated_event_identity"] is False
+    assert candidate["canonical_event_count"] == "UNKNOWN"
+    assert candidate["true_action_count"] == "UNKNOWN"
+    assert candidate["probability_output_allowed"] is False
+
+
+def test_turnover_own_half_wrong_provider_binding_is_withheld() -> None:
+    row = bundle(
+        "turnover_own_half_bad_binding",
+        "TURNOVER",
+        ["Lost balls", "Lost balls in own half"],
+    )
+    result = build_intra_actor_action_grammar_candidates(
+        {"action_bundle_candidates": [row]},
+        evidence([row], override_rule_id="wrong_provider_rule"),
+        load_registry(),
+    )
+
+    assert result["action_occurrence_candidate_count"] == 0
+    assert result["rejected_provider_semantics_binding_count"] == 1
+    assert "intra_actor_candidate_rejected_provider_semantics_binding" in result["review_hits"]
+
+
 def test_contradictory_success_failure_annotations_do_not_collapse() -> None:
     row = bundle("pass_conflict", "PASS", ["Passes accurate", "Inaccurate passes"])
     result = build_intra_actor_action_grammar_candidates(
