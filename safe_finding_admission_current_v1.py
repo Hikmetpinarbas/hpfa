@@ -23,6 +23,9 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.puzzle_findin
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_admission_projection import (
     build_safe_finding_admission,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_occurrence_consequence_burden_adapter import (
+    apply_occurrence_consequence_burden_to_admission,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_variant_feature_challenge_adapter import (
     apply_variant_feature_challenge_to_admission,
 )
@@ -283,6 +286,12 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
             challenge_payload,
             process_variant_payload or None,
         )
+        result = apply_occurrence_consequence_burden_to_admission(
+            source_payload,
+            result,
+            process_variant_payload or None,
+            occurrence_consequence_payload or None,
+        )
 
     if source_payload:
         puzzle_finding_payload = build_puzzle_finding_contract(source_payload, result)
@@ -401,6 +410,9 @@ def main() -> int:
         "puzzle_finding_bound_puzzle_ids": result.get("puzzle_finding_bound_puzzle_ids") or [],
         "variant_feature_challenge_consumed": result.get("variant_feature_challenge_consumed"),
         "variant_feature_challenge_materialized": result.get("variant_feature_challenge_materialized"),
+        "occurrence_consequence_observation_burden_consumed": result.get(
+            "occurrence_consequence_observation_burden_consumed"
+        ),
         "process_participation_context_enrichment_consumed": result.get(
             "process_participation_context_enrichment_consumed"
         ),
