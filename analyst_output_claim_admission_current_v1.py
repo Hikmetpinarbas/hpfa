@@ -7,6 +7,9 @@ from pathlib import Path
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.analyst_output_claim_contract_projection import (
     build_analyst_output_claim_contract,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.claim_satisfiability_runtime_binding import (
+    bind_claim_satisfiability,
+)
 
 OUTPUT_NAME = "analyst_output_claim_contract_projection_v1.json"
 
@@ -38,6 +41,7 @@ def runtime_write_outputs(
             "analyst_output_contract_count": 0,
             "professional_emit_allowed": False,
             "professional_emit_allowed_count": 0,
+            "claim_satisfiability_gate_consumed": False,
             "hard_block_hits": ["required_sequence_or_admission_payload_missing_or_invalid"],
             "review_hits": [],
             "canonical_event_count": "UNKNOWN",
@@ -46,6 +50,12 @@ def runtime_write_outputs(
         }
     else:
         result = build_analyst_output_claim_contract(sequence_payload, admission_payload)
+        if result.get("status") != "FAIL_CLOSED":
+            result = bind_claim_satisfiability(
+                sequence_payload,
+                admission_payload,
+                result,
+            )
 
     target = output / OUTPUT_NAME
     target.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
@@ -69,6 +79,8 @@ def main() -> int:
         "safe_finding_admission_decision_counts": result.get("safe_finding_admission_decision_counts") or {},
         "professional_emit_allowed": result.get("professional_emit_allowed"),
         "professional_emit_allowed_count": result.get("professional_emit_allowed_count"),
+        "claim_satisfiability_gate_consumed": result.get("claim_satisfiability_gate_consumed") is True,
+        "claim_satisfiability_gate_state_counts": result.get("claim_satisfiability_gate_state_counts") or {},
         "hard_block_hits": result.get("hard_block_hits") or [],
         "review_hits": result.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",
