@@ -8,6 +8,9 @@ import trackable_action_trace_candidates_current_v1 as current_trace
 from hpfa.modules.core.trackable_action_consequence_candidates_lite.src import (
     trackable_action_consequence_candidates as consequence,
 )
+from hpfa.modules.core.trackable_action_consequence_candidates_lite.src.construct_temporal_consequence_contract import (
+    apply_construct_temporal_contract,
+)
 
 
 def _load(path: Path) -> dict:
@@ -68,6 +71,11 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "team_response_is_tactical_truth": False,
             "sequence_link_allowed": False,
             "occurrence_binding_is_event_truth": False,
+            "global_window_is_production_temporal_contract": False,
+            "construct_specific_temporal_contract_required": True,
+            "construct_specific_temporal_contract_state": "UNAVAILABLE_FAIL_CLOSED",
+            "production_temporal_window_thresholds_admitted": False,
+            "single_match_observed_latency_can_set_production_threshold": False,
             "event_instance_count": 0,
             "claim_allowed": False,
             "canonical_event_count": "UNKNOWN",
@@ -81,6 +89,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         trace_payload,
         evidence_payload,
     )
+    payload = apply_construct_temporal_contract(payload)
 
     trace_by_id = {
         str(row.get("trackable_action_trace_candidate_id")): row
@@ -177,6 +186,9 @@ def main() -> int:
         "classified_consequence_candidate_count": payload.get("classified_consequence_candidate_count"),
         "review_required_consequence_candidate_count": payload.get("review_required_consequence_candidate_count"),
         "primary_consequence_candidate_counts": payload.get("primary_consequence_candidate_counts") or {},
+        "construct_specific_temporal_contract_state": payload.get("construct_specific_temporal_contract_state"),
+        "construct_temporal_contract_key_count": payload.get("construct_temporal_contract_key_count", 0),
+        "production_temporal_window_thresholds_admitted": payload.get("production_temporal_window_thresholds_admitted", False),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",
