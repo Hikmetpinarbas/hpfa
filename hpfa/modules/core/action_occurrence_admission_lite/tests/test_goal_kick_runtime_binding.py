@@ -72,6 +72,15 @@ def _base_occurrence() -> dict:
     }
 
 
+def _run(action: dict, evidence: dict) -> dict:
+    return bind_intra_actor_action_grammar(
+        _base_occurrence(),
+        action,
+        evidence,
+        load_registry(),
+    )
+
+
 def test_public_runtime_binds_exact_goal_kick_restart_pass_candidate() -> None:
     action = {
         "action_bundle_candidates": [
@@ -92,12 +101,7 @@ def test_public_runtime_binds_exact_goal_kick_restart_pass_candidate() -> None:
         ]
     }
 
-    result = bind_intra_actor_action_grammar(
-        _base_occurrence(),
-        action,
-        evidence,
-        load_registry(),
-    )
+    result = _run(action, evidence)
 
     assert result["goal_kick_restart_pass_candidate_count"] == 1
     assert result["action_occurrence_candidate_count"] == 1
@@ -122,3 +126,40 @@ def test_public_runtime_binds_exact_goal_kick_restart_pass_candidate() -> None:
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["true_action_count"] == "UNKNOWN"
     assert result["production_release"] is False
+
+
+def test_real_provider_normalized_goal_kick_alias_does_not_create_false_extra_label() -> None:
+    restart = _bundle(
+        "restart_bundle",
+        "RESTART",
+        ["goal kicks", "goal kicks long (40+ m)"],
+        ["e_goal", "e_long"],
+    )
+    restart["normalized_labels"] = ["goal kicks", "goal kicks long 40 m"]
+    pass_bundle = _bundle(
+        "pass_bundle",
+        "PASS",
+        ["long passes", "passes accurate"],
+        ["e_long_pass", "e_pass"],
+    )
+    action = {"action_bundle_candidates": [pass_bundle, restart]}
+    evidence = {
+        "evidence_atoms": [
+            _atom("e_goal", "plvs_v2_goal_kicks_gk_surface"),
+            _atom("e_long", "plvs_v2_goal_kicks_long_gk_surface"),
+            _atom("e_long_pass", "plvs_v2_long_passes"),
+            _atom("e_pass", "plvs_v2_passes_accurate"),
+        ]
+    }
+
+    result = _run(action, evidence)
+
+    assert result["goal_kick_restart_pass_candidate_count"] == 1
+    assert result["goal_kick_provider_distance_bucket_counts"] == {"LONG": 1}
+    assert result["goal_kick_pass_outcome_counts"] == {"SUCCESS": 1}
+    assert result["goal_kick_raw_label_preferred_for_exact_matching"] is True
+    assert result["goal_kick_normalized_label_is_independent_semantic_support"] is False
+    row = result["goal_kick_restart_pass_candidates"][0]
+    assert row["attributes"]["provider_distance_bucket_is_measured_physical_distance"] is False
+    assert row["attributes"]["provider_distance_bucket_is_tactical_strategy_truth"] is False
+    assert row["independent_support_vote_count"] == 0
