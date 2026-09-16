@@ -63,6 +63,12 @@ def _run_canonical_full_spine(
     runtime_authority_root: Path,
     expected_product_commit: str,
 ) -> dict[str, Any]:
+    """Run exact product code with the canonical runtime authority binding.
+
+    Product code root and execution/runtime authority root are separate concepts. The
+    canonical runner receives the physical runtime authority root through its public
+    --execution-root contract. No authority-validator monkey-patch or bypass is allowed.
+    """
     product_commit = _git_head(repo_root)
     expected = str(expected_product_commit or "").strip()
     command = [
@@ -73,35 +79,35 @@ def _run_canonical_full_spine(
         str(out_dir),
         "--full-spine",
         "--execution-root",
-        str(repo_root),
+        str(runtime_authority_root),
     ]
 
+    base = {
+        "command": command,
+        "product_code_root": str(repo_root),
+        "product_execution_root": str(repo_root),
+        "canonical_execution_root": str(runtime_authority_root),
+        "runtime_authority_root": str(runtime_authority_root),
+        "product_commit": product_commit,
+        "expected_product_commit": expected or None,
+        "canonical_authority_validator_bypassed": False,
+        "exact_head_authority_separation_enforced": True,
+    }
     if not expected or product_commit != expected:
         return {
-            "command": command,
+            **base,
             "returncode": 2,
             "passed": False,
             "stdout": "",
             "stderr": "product_commit_mismatch_or_unavailable",
-            "product_execution_root": str(repo_root),
-            "runtime_authority_root": str(runtime_authority_root),
-            "product_commit": product_commit,
-            "expected_product_commit": expected or None,
             "product_commit_matches_expected": False,
-            "exact_head_authority_separation_enforced": True,
         }
 
-    original_validate = canonical_runner.full_spine_module.validate_active_match_authority
     original_argv = list(sys.argv)
     stdout = io.StringIO()
     stderr = io.StringIO()
-
-    def validate_runtime_authority(path: str | Path, _product_execution_root: str | Path) -> Path:
-        return original_validate(path, runtime_authority_root)
-
     returncode = 2
     try:
-        canonical_runner.full_spine_module.validate_active_match_authority = validate_runtime_authority
         sys.argv = command[1:]
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             try:
@@ -113,30 +119,19 @@ def _run_canonical_full_spine(
         stderr.write(f"canonical_full_spine_exception:{type(exc).__name__}")
         returncode = 2
     finally:
-        canonical_runner.full_spine_module.validate_active_match_authority = original_validate
         sys.argv = original_argv
 
     return {
-        "command": command,
+        **base,
         "returncode": returncode,
         "passed": returncode == 0,
         "stdout": stdout.getvalue().strip(),
         "stderr": stderr.getvalue().strip(),
-        "product_execution_root": str(repo_root),
-        "runtime_authority_root": str(runtime_authority_root),
-        "product_commit": product_commit,
-        "expected_product_commit": expected,
         "product_commit_matches_expected": True,
-        "exact_head_authority_separation_enforced": True,
     }
 
 
 def _run_post_sequence_admission(out_dir: Path) -> dict[str, Any]:
-    """Run only the two compact post-sequence decision gears.
-
-    These gears consume the already-produced sequence artifact. They do not rebuild
-    sequence/counterevidence or create new evidence.
-    """
     sequence_path = out_dir / SEQUENCE_JSON
     if not sequence_path.is_file():
         return {
@@ -145,7 +140,6 @@ def _run_post_sequence_admission(out_dir: Path) -> dict[str, Any]:
             "safe_finding_admission": {},
             "analyst_output_claim": {},
         }
-
     try:
         admission = safe_finding_runner.runtime_write_outputs(sequence_path, out_dir)
     except Exception as exc:
@@ -155,7 +149,6 @@ def _run_post_sequence_admission(out_dir: Path) -> dict[str, Any]:
             "safe_finding_admission": {},
             "analyst_output_claim": {},
         }
-
     if admission.get("status") == "FAIL_CLOSED":
         return {
             "status": "FAIL_CLOSED",
@@ -166,11 +159,7 @@ def _run_post_sequence_admission(out_dir: Path) -> dict[str, Any]:
 
     admission_path = out_dir / SAFE_FINDING_ADMISSION_JSON
     try:
-        claim = claim_admission_runner.runtime_write_outputs(
-            sequence_path,
-            admission_path,
-            out_dir,
-        )
+        claim = claim_admission_runner.runtime_write_outputs(sequence_path, admission_path, out_dir)
     except Exception as exc:
         return {
             "status": "FAIL_CLOSED",
@@ -178,7 +167,6 @@ def _run_post_sequence_admission(out_dir: Path) -> dict[str, Any]:
             "safe_finding_admission": admission,
             "analyst_output_claim": {},
         }
-
     if claim.get("status") == "FAIL_CLOSED":
         return {
             "status": "FAIL_CLOSED",
@@ -186,7 +174,6 @@ def _run_post_sequence_admission(out_dir: Path) -> dict[str, Any]:
             "safe_finding_admission": admission,
             "analyst_output_claim": claim,
         }
-
     return {
         "status": "PASS",
         "reason": None,
@@ -233,11 +220,6 @@ def _admission_gated_full_spine_for_user_outputs(
     sequence: dict[str, Any],
     post_sequence: dict[str, Any],
 ) -> dict[str, Any]:
-    """Replace legacy C4 report sentences with explicitly admitted Safe Findings only.
-
-    This is an output projection. It creates no evidence, does not rebuild sequence
-    intelligence, and never strengthens the upstream claim ceiling.
-    """
     admission = post_sequence.get("safe_finding_admission") or {}
     claim = post_sequence.get("analyst_output_claim") or {}
     if post_sequence.get("status") != "PASS":
@@ -312,9 +294,7 @@ def _admission_gated_full_spine_for_user_outputs(
         {
             "source_safe_finding_handoff_ref": ref,
             "professional_finding_admission": "EMIT",
-            "safe_sentence": {
-                "safe_sentence_candidate_tr": safe_meaning,
-            },
+            "safe_sentence": {"safe_sentence_candidate_tr": safe_meaning},
         }
         for ref, safe_meaning in allowed
     ]
@@ -336,10 +316,7 @@ def _admission_gated_full_spine_for_user_outputs(
         if str(value or "").strip()
     ]
     current_artifacts.extend(
-        [
-            str(out_dir / SAFE_FINDING_ADMISSION_JSON),
-            str(out_dir / ANALYST_OUTPUT_CLAIM_JSON),
-        ]
+        [str(out_dir / SAFE_FINDING_ADMISSION_JSON), str(out_dir / ANALYST_OUTPUT_CLAIM_JSON)]
     )
     gated["current_invocation_artifacts"] = sorted(set(current_artifacts))
     return {
@@ -371,12 +348,8 @@ def _rewrite_standard_user_outputs_after_admission(
             "outputs": {},
             "admitted_professional_finding_output_count": 0,
         }
-
     try:
-        outputs = canonical_runner.write_standard_user_outputs(
-            out_dir,
-            gated["full_spine"],
-        )
+        outputs = canonical_runner.write_standard_user_outputs(out_dir, gated["full_spine"])
     except Exception as exc:
         return {
             "status": "FAIL_CLOSED",
@@ -390,11 +363,7 @@ def _rewrite_standard_user_outputs_after_admission(
         "bundle_manifest": outputs.get("bundle_manifest"),
         "bundle_zip": outputs.get("bundle_zip"),
     }
-    missing = [
-        key
-        for key, value in required.items()
-        if not value or not Path(str(value)).is_file()
-    ]
+    missing = [key for key, value in required.items() if not value or not Path(str(value)).is_file()]
     if missing:
         return {
             "status": "FAIL_CLOSED",
@@ -402,7 +371,6 @@ def _rewrite_standard_user_outputs_after_admission(
             "outputs": outputs,
             "admitted_professional_finding_output_count": 0,
         }
-
     return {
         "status": "PASS",
         "reason": None,
@@ -422,7 +390,10 @@ def _rewrite_standard_user_outputs_after_admission(
 def main() -> int:
     repo_root = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(
-        description="Run the canonical HPFA ACTIVE_MATCH full spine from an exact product checkout while preserving the separate runtime authority root."
+        description=(
+            "Run the canonical HPFA ACTIVE_MATCH full spine from an exact product checkout "
+            "while preserving the separate runtime authority root."
+        )
     )
     parser.add_argument("--match-dir", required=True)
     parser.add_argument("--out-dir", required=True)
@@ -459,7 +430,6 @@ def main() -> int:
         runtime_authority_root=runtime_authority_root,
         expected_product_commit=args.expected_product_commit,
     )
-
     full_spine = _load(out_dir / FULL_SPINE_JSON)
     sequence = _load(out_dir / SEQUENCE_JSON)
     post_sequence = (
@@ -477,16 +447,22 @@ def main() -> int:
 
     authority_separation_valid = (
         canonical.get("exact_head_authority_separation_enforced") is True
-        and canonical.get("product_execution_root") == str(repo_root)
+        and canonical.get("canonical_authority_validator_bypassed") is False
+        and canonical.get("product_code_root") == str(repo_root)
+        and canonical.get("canonical_execution_root") == str(runtime_authority_root)
         and canonical.get("runtime_authority_root") == str(runtime_authority_root)
         and repo_root != runtime_authority_root
     )
     exact_product_commit_verified = canonical.get("product_commit_matches_expected") is True
-    post_sequence_admission_ready = _post_sequence_admission_ready(
-        out_dir=out_dir,
-        sequence=sequence,
-        post_sequence=post_sequence,
-    ) if sequence else False
+    post_sequence_admission_ready = (
+        _post_sequence_admission_ready(
+            out_dir=out_dir,
+            sequence=sequence,
+            post_sequence=post_sequence,
+        )
+        if sequence
+        else False
+    )
     current_sequence = _load(out_dir / SEQUENCE_JSON)
     user_output_sequence = current_sequence if current_sequence else sequence
     user_output_gate = (
@@ -527,6 +503,10 @@ def main() -> int:
         "parallel_runtime_engine_created": False,
         "product_code_root": str(repo_root),
         "runtime_authority_root": str(runtime_authority_root),
+        "canonical_execution_root": canonical.get("canonical_execution_root"),
+        "canonical_authority_validator_bypassed": canonical.get(
+            "canonical_authority_validator_bypassed"
+        ),
         "product_code_root_equals_runtime_authority_root": repo_root == runtime_authority_root,
         "product_runtime_authority_separation_valid": authority_separation_valid,
         "product_code_commit": canonical.get("product_commit"),
@@ -536,29 +516,63 @@ def main() -> int:
         "canonical_full_spine_status": full_spine.get("status"),
         "canonical_full_spine_decision": full_spine.get("decision"),
         "sequence_status": user_output_sequence.get("status"),
-        "primary_sequence_projection_mode": user_output_sequence.get("primary_sequence_projection_mode"),
-        "occurrence_temporal_sequence_candidate_count": int(user_output_sequence.get("occurrence_temporal_sequence_candidate_count") or 0),
-        "partial_order_occurrence_variant_count": int(user_output_sequence.get("partial_order_occurrence_variant_count") or 0),
-        "dependency_aware_partial_order_similarity_pair_count": int(user_output_sequence.get("dependency_aware_partial_order_similarity_pair_count") or 0),
-        "recurrence_candidate_eligible_pair_count": int(user_output_sequence.get("recurrence_candidate_eligible_pair_count") or 0),
-        "anchor_centered_sequence_branch_map_count": int(user_output_sequence.get("anchor_centered_sequence_branch_map_count") or 0),
-        "first_supported_branch_divergence_candidate_count": int(user_output_sequence.get("first_supported_branch_divergence_candidate_count") or 0),
-        "comparison_eligible_outcome_record_count": int(user_output_sequence.get("comparison_eligible_outcome_record_count") or 0),
-        "comparable_outcome_counterevidence_record_count": int(user_output_sequence.get("comparable_outcome_counterevidence_record_count") or 0),
-        "comparable_outcome_contrast_state_counts": dict(user_output_sequence.get("comparable_outcome_contrast_state_counts") or {}),
-        "comparable_counterevidence_candidate_count": int(user_output_sequence.get("comparable_counterevidence_candidate_count") or 0),
-        "counterevidence_independent_support_count": int(user_output_sequence.get("counterevidence_independent_support_count") or 0),
-        "safe_finding_handoff_candidate_count": int(user_output_sequence.get("safe_finding_handoff_candidate_count") or 0),
+        "primary_sequence_projection_mode": user_output_sequence.get(
+            "primary_sequence_projection_mode"
+        ),
+        "occurrence_temporal_sequence_candidate_count": int(
+            user_output_sequence.get("occurrence_temporal_sequence_candidate_count") or 0
+        ),
+        "partial_order_occurrence_variant_count": int(
+            user_output_sequence.get("partial_order_occurrence_variant_count") or 0
+        ),
+        "dependency_aware_partial_order_similarity_pair_count": int(
+            user_output_sequence.get("dependency_aware_partial_order_similarity_pair_count") or 0
+        ),
+        "recurrence_candidate_eligible_pair_count": int(
+            user_output_sequence.get("recurrence_candidate_eligible_pair_count") or 0
+        ),
+        "anchor_centered_sequence_branch_map_count": int(
+            user_output_sequence.get("anchor_centered_sequence_branch_map_count") or 0
+        ),
+        "first_supported_branch_divergence_candidate_count": int(
+            user_output_sequence.get("first_supported_branch_divergence_candidate_count") or 0
+        ),
+        "comparison_eligible_outcome_record_count": int(
+            user_output_sequence.get("comparison_eligible_outcome_record_count") or 0
+        ),
+        "comparable_outcome_counterevidence_record_count": int(
+            user_output_sequence.get("comparable_outcome_counterevidence_record_count") or 0
+        ),
+        "comparable_outcome_contrast_state_counts": dict(
+            user_output_sequence.get("comparable_outcome_contrast_state_counts") or {}
+        ),
+        "comparable_counterevidence_candidate_count": int(
+            user_output_sequence.get("comparable_counterevidence_candidate_count") or 0
+        ),
+        "counterevidence_independent_support_count": int(
+            user_output_sequence.get("counterevidence_independent_support_count") or 0
+        ),
+        "safe_finding_handoff_candidate_count": int(
+            user_output_sequence.get("safe_finding_handoff_candidate_count") or 0
+        ),
         "safe_finding_admission_status": admission.get("status"),
-        "safe_finding_admission_decision_count": int(admission.get("safe_finding_admission_decision_count") or 0),
+        "safe_finding_admission_decision_count": int(
+            admission.get("safe_finding_admission_decision_count") or 0
+        ),
         "safe_finding_admission_decision_counts": dict(admission.get("finding_status_counts") or {}),
         "analyst_output_claim_status": claim.get("status"),
-        "analyst_output_claim_contract_count": int(claim.get("analyst_output_contract_count") or 0),
-        "safe_finding_admission_consumed_by_claim_contract": claim.get("safe_finding_admission_consumed") is True,
+        "analyst_output_claim_contract_count": int(
+            claim.get("analyst_output_contract_count") or 0
+        ),
+        "safe_finding_admission_consumed_by_claim_contract": (
+            claim.get("safe_finding_admission_consumed") is True
+        ),
         "post_sequence_admission_ready": post_sequence_admission_ready,
         "analyst_user_output_admission_gate_status": user_output_gate.get("status"),
         "analyst_user_output_admission_gate_reason": user_output_gate.get("reason"),
-        "analyst_report_admission_gated": user_output_gate.get("analyst_report_admission_gated") is True,
+        "analyst_report_admission_gated": user_output_gate.get(
+            "analyst_report_admission_gated"
+        ) is True,
         "admitted_professional_finding_output_count": int(
             user_output_gate.get("admitted_professional_finding_output_count") or 0
         ),
@@ -571,8 +585,12 @@ def main() -> int:
         "bundle_includes_analyst_output_claim": user_output_gate.get(
             "bundle_includes_analyst_output_claim"
         ) is True,
-        "professional_finding_emitted_count": int(admission.get("professional_finding_emitted_count") or 0),
-        "professional_emit_allowed_count": int(claim.get("professional_emit_allowed_count") or 0),
+        "professional_finding_emitted_count": int(
+            admission.get("professional_finding_emitted_count") or 0
+        ),
+        "professional_emit_allowed_count": int(
+            claim.get("professional_emit_allowed_count") or 0
+        ),
         "professional_emit_allowed": claim.get("professional_emit_allowed") is True,
         "counterexample_pair_count_is_independent_evidence_count": False,
         "provider_success_is_tactical_success_truth": False,
