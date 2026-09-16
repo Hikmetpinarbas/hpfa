@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from hpfa.modules.core.action_occurrence_admission_lite.src.goal_kick_restart_pass_grammar import (
@@ -18,6 +19,30 @@ from hpfa.modules.core.action_occurrence_admission_lite.src.single_action_anchor
 
 def _clean(value: Any) -> str:
     return " ".join(("" if value is None else str(value)).split()).strip()
+
+
+def _goal_kick_matching_view(action_payload: dict[str, Any]) -> dict[str, Any]:
+    """Build a local label view for exact goalkeeper goal-kick grammar matching.
+
+    Real provider surfaces may carry a raw label such as ``goal kicks long (40+ m)``
+    plus a punctuation-stripped normalized alias such as ``goal kicks long 40 m``.
+    Those are two spellings of the same reviewed observation, not two independent
+    semantic labels. Goal-kick exact matching therefore uses raw provider labels when
+    present and falls back to normalized labels only when raw labels are absent.
+
+    This local view never mutates upstream Action Bundle truth; reviewed Evidence Atom
+    semantic-rule IDs remain mandatory authority for admission.
+    """
+    local = copy.deepcopy(action_payload)
+    for bundle in local.get("action_bundle_candidates") or []:
+        if not isinstance(bundle, dict):
+            continue
+        if _clean(bundle.get("source_role")) != "GOALKEEPER_SURFACE_CANDIDATE":
+            continue
+        raw_labels = [_clean(value) for value in bundle.get("raw_labels") or [] if _clean(value)]
+        if raw_labels:
+            bundle["normalized_labels"] = list(raw_labels)
+    return local
 
 
 def bind_intra_actor_action_grammar(
@@ -162,14 +187,16 @@ def bind_intra_actor_action_grammar(
         occurrence_payload["module_status"] = "REVIEW_REQUIRED"
 
     # R6: bind only the explicitly reviewed goalkeeper goal-kick RESTART+PASS
-    # cross-bundle semantic grammar. The helper is exact-core and provider-rule bound;
-    # it cannot use same timestamp, near time/space, row order, or format agreement as
-    # merge authority and cannot promote distance buckets to measured/tactical truth.
+    # cross-bundle semantic grammar. Real provider bundles can carry a raw label and
+    # its normalized spelling simultaneously; the local view prevents that alias from
+    # masquerading as a second semantic label while preserving reviewed rule-ID checks.
     occurrence_payload = bind_goal_kick_restart_pass_grammar(
         occurrence_payload,
-        action_payload,
+        _goal_kick_matching_view(action_payload),
         evidence_payload,
     )
+    occurrence_payload["goal_kick_raw_label_preferred_for_exact_matching"] = True
+    occurrence_payload["goal_kick_normalized_label_is_independent_semantic_support"] = False
 
     occurrence_payload["canonical_event_count"] = "UNKNOWN"
     occurrence_payload["true_action_count"] = "UNKNOWN"
