@@ -15,6 +15,9 @@ TRUE_ACTION_COUNT = "UNKNOWN"
 CLAIM_CEILING = "VISIBLE_SPATIAL_TRANSITION_CANDIDATE_ONLY"
 ALLOWED_DIRECTIONS = {"ATTACK_POS_X", "ATTACK_NEG_X"}
 PROGRESSION_FAMILIES = {"PASS", "CARRY", "DRIBBLE", "CROSS"}
+ATTACKING_ZONE_SEMANTICS = {"OPPONENT_HALF", "FINAL_THIRD", "PENALTY_AREA"}
+DEFENSIVE_ZONE_SEMANTICS = {"OWN_HALF"}
+FRAME_ADMISSION_METHOD = "CROSS_TEAM_PROVIDER_ZONE_COORDINATE_ORDER"
 OUTPUTS = {
     "json": "spatial_transition_candidate_lite_v1.json",
     "summary": "spatial_transition_candidate_lite_v1.txt",
@@ -152,6 +155,145 @@ def _occurrence_action_location_cores(
     return cores
 
 
+def _infer_provider_team_relative_attack_axis(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Infer only provider-coordinate attack-axis orientation from admitted semantic anchors.
+
+    This does not admit a physical pitch frame. It asks whether provider OWN_HALF anchors and
+    provider OPPONENT_HALF/FINAL_THIRD/PENALTY_AREA anchors are strictly ordered on x for
+    each team, and whether at least two teams exhibit the same ordering. Provider semantic
+    labels are calibration evidence only; they are not promoted to physical/tactical truth.
+    """
+    by_team: dict[str, dict[str, list[float]]] = {}
+    for row in records:
+        if row.get("occurrence_annotation_anchor_location_admitted") is not True:
+            continue
+        x = _number(row.get("provider_coordinate_anchor_x_candidate"))
+        team = _clean(row.get("team_identity_candidate_id"))
+        if x is None or not team:
+            continue
+        zones = {_clean(value) for value in row.get("provider_zone_candidates") or [] if _clean(value)}
+        if not zones:
+            continue
+        bucket = by_team.setdefault(team, {"defensive": [], "attacking": []})
+        if zones & DEFENSIVE_ZONE_SEMANTICS:
+            bucket["defensive"].append(x)
+        if zones & ATTACKING_ZONE_SEMANTICS:
+            bucket["attacking"].append(x)
+
+    team_evidence: dict[str, Any] = {}
+    admitted_directions: list[str] = []
+    for team, values in sorted(by_team.items()):
+        defensive = values["defensive"]
+        attacking = values["attacking"]
+        direction = None
+        if defensive and attacking:
+            if max(defensive) < min(attacking):
+                direction = "ATTACK_POS_X"
+            elif min(defensive) > max(attacking):
+                direction = "ATTACK_NEG_X"
+        team_evidence[team] = {
+            "defensive_semantic_anchor_count": len(defensive),
+            "attacking_semantic_anchor_count": len(attacking),
+            "defensive_x_min": min(defensive) if defensive else None,
+            "defensive_x_max": max(defensive) if defensive else None,
+            "attacking_x_min": min(attacking) if attacking else None,
+            "attacking_x_max": max(attacking) if attacking else None,
+            "strict_order_direction_candidate": direction,
+        }
+        if direction:
+            admitted_directions.append(direction)
+
+    eligible_team_count = len(admitted_directions)
+    unique_directions = sorted(set(admitted_directions))
+    if eligible_team_count >= 2 and len(unique_directions) == 1:
+        return {
+            "state": "ADMITTED",
+            "method": FRAME_ADMISSION_METHOD,
+            "attack_direction": unique_directions[0],
+            "eligible_team_count": eligible_team_count,
+            "team_evidence": team_evidence,
+            "provider_semantic_calibration_only": True,
+            "absolute_pitch_frame_truth": False,
+            "physical_player_position_truth": False,
+            "tracking_truth": False,
+            "tactical_truth": False,
+        }
+
+    reason = (
+        "cross_team_direction_conflict"
+        if len(unique_directions) > 1
+        else "insufficient_cross_team_strict_zone_coordinate_order"
+    )
+    return {
+        "state": "REVIEW_REQUIRED",
+        "method": FRAME_ADMISSION_METHOD,
+        "attack_direction": None,
+        "eligible_team_count": eligible_team_count,
+        "team_evidence": team_evidence,
+        "reason": reason,
+        "provider_semantic_calibration_only": True,
+        "absolute_pitch_frame_truth": False,
+        "physical_player_position_truth": False,
+        "tracking_truth": False,
+        "tactical_truth": False,
+    }
+
+
+def _apply_geometry(
+    records: list[dict[str, Any]],
+    *,
+    pitch_frame: str,
+    direction_state: str,
+    attack_direction: str,
+    third_boundaries: Any,
+    reviews: list[str],
+) -> None:
+    spatial_direction_ready = direction_state == "ATTACK_DIRECTION_ADMITTED" and attack_direction in ALLOWED_DIRECTIONS
+    thirds = third_boundaries if isinstance(third_boundaries, list) else []
+    thirds_valid = len(thirds) == 2 and all(_number(value) is not None for value in thirds)
+
+    for row in records:
+        action_location_admitted = bool(row.get("action_location_semantics_admitted"))
+        coordinate_present = bool(row.get("coordinate_anchor_present"))
+        x = _number(row.get("provider_coordinate_anchor_x_candidate"))
+        spatial_ready = (
+            action_location_admitted
+            and coordinate_present
+            and x is not None
+            and pitch_frame == "PITCH_FRAME_ADMITTED"
+            and spatial_direction_ready
+        )
+
+        normalized_x = None
+        coordinate_zone = None
+        if spatial_ready:
+            normalized_x = x if attack_direction == "ATTACK_POS_X" else -x
+            if thirds_valid:
+                low, high = sorted(float(value) for value in thirds)
+                if normalized_x < low:
+                    coordinate_zone = "DEFENSIVE_THIRD_LOCATION_CANDIDATE"
+                elif normalized_x < high:
+                    coordinate_zone = "MIDDLE_THIRD_LOCATION_CANDIDATE"
+                else:
+                    coordinate_zone = "FINAL_THIRD_LOCATION_CANDIDATE"
+            else:
+                reviews.append("third_boundaries_not_admitted")
+
+        if spatial_ready:
+            spatial_admission_state = "ADMITTED_LOCATION_ONLY"
+        elif row.get("occurrence_annotation_anchor_location_admitted") is True:
+            spatial_admission_state = "ANNOTATION_ANCHOR_LOCATION_ADMITTED"
+        elif action_location_admitted and coordinate_present:
+            spatial_admission_state = "ACTION_LOCATION_SEMANTICS_ADMITTED"
+        else:
+            spatial_admission_state = "PROVIDER_SPATIAL_CONTEXT_CANDIDATE_ONLY"
+
+        row["attack_normalized_x_candidate"] = normalized_x
+        row["coordinate_derived_zone_candidate"] = coordinate_zone
+        row["spatial_admission_state"] = spatial_admission_state
+        row["coordinate_is_action_location_truth"] = spatial_ready
+
+
 def build_spatial_transition_candidates(
     trace_payload: dict[str, Any],
     evidence_payload: dict[str, Any],
@@ -188,10 +330,7 @@ def build_spatial_transition_candidates(
     direction_state = _clean(spatial_admission.get("direction_normalization_state")) or "UNKNOWN"
     attack_direction = _clean(spatial_admission.get("attack_direction"))
     explicit_action_location_admission = coordinate_semantics == "ACTION_LOCATION_ADMITTED"
-    if pitch_frame != "PITCH_FRAME_ADMITTED":
-        reviews.append("pitch_frame_not_admitted")
-    if direction_state != "ATTACK_DIRECTION_ADMITTED" or attack_direction not in ALLOWED_DIRECTIONS:
-        reviews.append("attack_direction_not_admitted")
+    explicit_direction_admission = direction_state == "ATTACK_DIRECTION_ADMITTED" and attack_direction in ALLOWED_DIRECTIONS
 
     traces = trace_payload.get("trackable_action_trace_candidates") or []
     atoms = evidence_payload.get("evidence_atoms") or []
@@ -246,7 +385,7 @@ def build_spatial_transition_candidates(
 
             x = _number(trace.get("pos_x_candidate"))
             y = _number(trace.get("pos_y_candidate"))
-            families = sorted({_clean(v) for v in trace.get("action_family_candidates") or [] if _clean(v)})
+            families = sorted({_clean(value) for value in trace.get("action_family_candidates") or [] if _clean(value)})
             coordinate_present = trace.get("coordinate_evidence_status") == "COORDINATE_PRESENT" and x is not None and y is not None
             occurrence_action_location_admitted = (
                 coordinate_present
@@ -256,28 +395,6 @@ def build_spatial_transition_candidates(
                 coordinate_present
                 and (explicit_action_location_admission or occurrence_action_location_admitted)
             )
-            spatial_ready = (
-                action_location_admitted
-                and pitch_frame == "PITCH_FRAME_ADMITTED"
-                and direction_state == "ATTACK_DIRECTION_ADMITTED"
-                and attack_direction in ALLOWED_DIRECTIONS
-            )
-
-            normalized_x = None
-            coordinate_zone = None
-            if spatial_ready:
-                normalized_x = x if attack_direction == "ATTACK_POS_X" else -x
-                thirds = spatial_admission.get("third_boundaries") or []
-                if isinstance(thirds, list) and len(thirds) == 2 and all(_number(v) is not None for v in thirds):
-                    low, high = sorted(float(v) for v in thirds)
-                    if normalized_x < low:
-                        coordinate_zone = "DEFENSIVE_THIRD_LOCATION_CANDIDATE"
-                    elif normalized_x < high:
-                        coordinate_zone = "MIDDLE_THIRD_LOCATION_CANDIDATE"
-                    else:
-                        coordinate_zone = "FINAL_THIRD_LOCATION_CANDIDATE"
-                else:
-                    reviews.append("third_boundaries_not_admitted")
 
             zone_candidates = _semantic_values(support_atoms, "zone_candidate")
             progression_candidates = _semantic_values(support_atoms, "progression_candidate")
@@ -297,15 +414,6 @@ def build_spatial_transition_candidates(
                 or relation_candidates
             )
             progression_family_visible = bool(PROGRESSION_FAMILIES & set(families))
-
-            if spatial_ready:
-                spatial_admission_state = "ADMITTED_LOCATION_ONLY"
-            elif occurrence_action_location_admitted:
-                spatial_admission_state = "ANNOTATION_ANCHOR_LOCATION_ADMITTED"
-            elif explicit_action_location_admission and coordinate_present:
-                spatial_admission_state = "ACTION_LOCATION_SEMANTICS_ADMITTED"
-            else:
-                spatial_admission_state = "PROVIDER_SPATIAL_CONTEXT_CANDIDATE_ONLY"
 
             records.append({
                 "spatial_transition_candidate_id": "stc_" + _digest(binding, trace_id)[:24],
@@ -330,16 +438,16 @@ def build_spatial_transition_candidates(
                 "coordinate_anchor_present": coordinate_present,
                 "occurrence_annotation_anchor_location_admitted": occurrence_action_location_admitted,
                 "action_location_semantics_admitted": action_location_admitted,
-                "attack_normalized_x_candidate": normalized_x,
-                "coordinate_derived_zone_candidate": coordinate_zone,
+                "attack_normalized_x_candidate": None,
+                "coordinate_derived_zone_candidate": None,
                 "progression_family_visible": progression_family_visible,
-                "spatial_admission_state": spatial_admission_state,
+                "spatial_admission_state": "PROVIDER_SPATIAL_CONTEXT_CANDIDATE_ONLY",
                 "displacement_candidate": None,
                 "net_progression_candidate": None,
                 "vertical_progress_rate_candidate": None,
                 "line_break_candidate": None,
                 "physical_speed_candidate": None,
-                "coordinate_is_action_location_truth": spatial_ready,
+                "coordinate_is_action_location_truth": False,
                 "coordinate_is_admitted_annotation_anchor_location": occurrence_action_location_admitted,
                 "annotation_anchor_is_physical_player_position_truth": False,
                 "single_location_is_displacement_truth": False,
@@ -350,9 +458,40 @@ def build_spatial_transition_candidates(
                 "claim_ceiling": CLAIM_CEILING,
             })
 
-    coordinate_anchor_count = sum(bool(r.get("coordinate_anchor_present")) for r in records)
-    action_location_admitted_count = sum(bool(r.get("action_location_semantics_admitted")) for r in records)
-    occurrence_anchor_admitted_count = sum(bool(r.get("occurrence_annotation_anchor_location_admitted")) for r in records)
+    frame_inference = {
+        "state": "NOT_EVALUATED_EXPLICIT_DIRECTION_ADMISSION",
+        "method": FRAME_ADMISSION_METHOD,
+        "attack_direction": attack_direction or None,
+        "eligible_team_count": 0,
+        "team_evidence": {},
+        "provider_semantic_calibration_only": True,
+        "absolute_pitch_frame_truth": False,
+        "physical_player_position_truth": False,
+        "tracking_truth": False,
+        "tactical_truth": False,
+    }
+    attack_direction_admission_basis = (
+        "EXPLICIT_SPATIAL_ADMISSION_CONTRACT" if explicit_direction_admission else None
+    )
+    if not blocks and not explicit_direction_admission:
+        frame_inference = _infer_provider_team_relative_attack_axis(records)
+        if frame_inference.get("state") == "ADMITTED":
+            direction_state = "ATTACK_DIRECTION_ADMITTED"
+            attack_direction = _clean(frame_inference.get("attack_direction"))
+            attack_direction_admission_basis = FRAME_ADMISSION_METHOD
+
+    _apply_geometry(
+        records,
+        pitch_frame=pitch_frame,
+        direction_state=direction_state,
+        attack_direction=attack_direction,
+        third_boundaries=spatial_admission.get("third_boundaries"),
+        reviews=reviews,
+    )
+
+    coordinate_anchor_count = sum(bool(row.get("coordinate_anchor_present")) for row in records)
+    action_location_admitted_count = sum(bool(row.get("action_location_semantics_admitted")) for row in records)
+    occurrence_anchor_admitted_count = sum(bool(row.get("occurrence_annotation_anchor_location_admitted")) for row in records)
     if not blocks and not explicit_action_location_admission:
         if coordinate_anchor_count and action_location_admitted_count == coordinate_anchor_count:
             coordinate_semantics = "ANNOTATION_ANCHOR_LOCATION_ADMITTED"
@@ -361,6 +500,11 @@ def build_spatial_transition_candidates(
             reviews.append("action_location_semantics_partially_admitted")
         else:
             reviews.append("action_location_semantics_not_admitted")
+
+    if pitch_frame != "PITCH_FRAME_ADMITTED":
+        reviews.append("pitch_frame_not_admitted")
+    if direction_state != "ATTACK_DIRECTION_ADMITTED" or attack_direction not in ALLOWED_DIRECTIONS:
+        reviews.append("attack_direction_not_admitted")
 
     blocks = sorted(set(blocks))
     reviews = sorted(set(reviews))
@@ -374,18 +518,24 @@ def build_spatial_transition_candidates(
         "match_surface_binding_id": binding or None,
         "spatial_transition_candidates": records,
         "spatial_transition_candidate_count": len(records),
-        "provider_semantic_spatial_context_visible_count": sum(bool(r.get("provider_semantic_spatial_context_visible")) for r in records),
+        "provider_semantic_spatial_context_visible_count": sum(bool(row.get("provider_semantic_spatial_context_visible")) for row in records),
         "coordinate_anchor_present_count": coordinate_anchor_count,
         "action_location_semantics_admitted_count": action_location_admitted_count,
         "occurrence_annotation_anchor_location_admitted_count": occurrence_anchor_admitted_count,
-        "spatial_location_admitted_count": sum(r.get("spatial_admission_state") == "ADMITTED_LOCATION_ONLY" for r in records),
-        "progression_family_visible_count": sum(bool(r.get("progression_family_visible")) for r in records),
+        "spatial_location_admitted_count": sum(row.get("spatial_admission_state") == "ADMITTED_LOCATION_ONLY" for row in records),
+        "progression_family_visible_count": sum(bool(row.get("progression_family_visible")) for row in records),
         "hard_block_hits": blocks,
         "review_hits": reviews,
         "coordinate_semantics_state": coordinate_semantics,
         "pitch_frame_state": pitch_frame,
         "direction_normalization_state": direction_state,
         "attack_direction": attack_direction or None,
+        "attack_direction_admission_basis": attack_direction_admission_basis,
+        "provider_team_relative_attack_axis_inference": frame_inference,
+        "provider_team_relative_attack_axis_state": frame_inference.get("state"),
+        "provider_semantic_zone_coordinate_order_is_physical_pitch_truth": False,
+        "provider_semantic_zone_coordinate_order_is_tactical_truth": False,
+        "team_relative_attack_axis_is_absolute_pitch_frame_truth": False,
         "occurrence_annotation_anchor_admission_is_physical_position_truth": False,
         "occurrence_annotation_anchor_admission_is_tracking_truth": False,
         "provider_semantics_can_enrich_without_geometry_truth": True,
@@ -409,6 +559,9 @@ def _summary(payload: dict[str, Any]) -> str:
         f"coordinate_anchor_present_count={payload.get('coordinate_anchor_present_count')}",
         f"action_location_semantics_admitted_count={payload.get('action_location_semantics_admitted_count')}",
         f"occurrence_annotation_anchor_location_admitted_count={payload.get('occurrence_annotation_anchor_location_admitted_count')}",
+        f"provider_team_relative_attack_axis_state={payload.get('provider_team_relative_attack_axis_state')}",
+        f"attack_direction={payload.get('attack_direction')}",
+        f"attack_direction_admission_basis={payload.get('attack_direction_admission_basis')}",
         f"spatial_location_admitted_count={payload.get('spatial_location_admitted_count')}",
         f"review_hits={payload.get('review_hits')}",
         f"hard_block_hits={payload.get('hard_block_hits')}",
@@ -425,10 +578,12 @@ def _analyst(payload: dict[str, Any]) -> str:
         f"Provider-semantic spatial/context candidates visible: {payload.get('provider_semantic_spatial_context_visible_count', 0)}",
         f"Coordinate anchors visible: {payload.get('coordinate_anchor_present_count', 0)}",
         f"Occurrence-bound annotation-anchor locations admitted: {payload.get('occurrence_annotation_anchor_location_admitted_count', 0)}",
+        f"Provider team-relative attack-axis state: {payload.get('provider_team_relative_attack_axis_state')}",
+        f"Attack direction candidate/admission: {payload.get('attack_direction')}",
         f"Coordinate locations fully admitted: {payload.get('spatial_location_admitted_count', 0)}",
-        "SAFE_MEANING: an occurrence-bound annotation anchor can establish that a visible coordinate pair belongs to that admitted occurrence candidate without establishing physical player position, pitch frame or attack direction.",
-        "FORBIDDEN_INFERENCE: one pos_x/pos_y annotation anchor is not tracking, physical player position, start/end displacement, physical speed, line-break geometry, team shape, compactness or pitch control.",
-        "ANALYST_ACTION: use admitted annotation anchors for occurrence-local evidence drill-down; require explicit pitch-frame and attack-direction admission before geometric progression claims.",
+        "SAFE_MEANING: occurrence-bound annotation anchors and cross-team provider zone/coordinate ordering may establish a provider-coordinate attack-axis convention without establishing an absolute physical pitch frame.",
+        "FORBIDDEN_INFERENCE: provider semantic calibration is not tracking, physical player position, absolute pitch truth, start/end displacement, physical speed, line-break geometry, team shape, compactness, pitch control, tactical pattern or causality.",
+        "ANALYST_ACTION: use admitted provider attack-axis convention only as a bounded spatial calibration cue; require explicit pitch-frame admission before coordinate-derived zone geometry or progression claims.",
         "canonical_event_count=UNKNOWN",
         "production_release=false",
     ]
@@ -466,6 +621,8 @@ def main() -> int:
         "coordinate_anchor_present_count": payload.get("coordinate_anchor_present_count"),
         "action_location_semantics_admitted_count": payload.get("action_location_semantics_admitted_count"),
         "occurrence_annotation_anchor_location_admitted_count": payload.get("occurrence_annotation_anchor_location_admitted_count"),
+        "provider_team_relative_attack_axis_state": payload.get("provider_team_relative_attack_axis_state"),
+        "attack_direction": payload.get("attack_direction"),
         "spatial_location_admitted_count": payload.get("spatial_location_admitted_count"),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "canonical_event_count": "UNKNOWN",
