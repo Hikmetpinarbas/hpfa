@@ -1,7 +1,9 @@
 {
-  "version": "v1.2.0",
+  "version": "v1.3.0",
   "algo": "sha256",
   "files": {
-    "hpfa/canon/possession_state_machine.md": "6ca3385a5b45c2152475dbb175df2a08b2b67f026b2b34308b9682ee1c964a26"
+    "hpfa/canon/possession_state_machine.md": "6ca3385a5b45c2152475dbb175df2a08b2b67f026b2b34308b9682ee1c964a26",
+    "hpfa/canon/hsr_ring5_context.md": "feeb97a3ceced7daadfa00c0f156cb38351184f8a60c3c40f906ffcb481eaa35",
+    "hpfa/canon/nas.md": "f38853cca9a4130b05d1ad8529c2398a9ae829258d99a3dcfde035bda09be336"
   }
 }
