@@ -97,9 +97,23 @@ MONITOR=""
 CHILD=""
 log "SEQUENCE_RETURN_CODE=$SEQUENCE_RC"
 
+CONTEXT_RC=99
+if [ "$SEQUENCE_RC" -eq 0 ]; then
+  log "CHECKPOINT=PRE_CURRENT_INVOCATION_CONTEXT_SURFACES"
+  python -u "$SRC/active_match_exact_head_run_v1.py" \
+    --match-dir "$RUNTIME" \
+    --out-dir "$WORK" \
+    --expected-product-commit "$EXPECTED_SHA" \
+    >> "$LOG" 2>&1
+  CONTEXT_RC=$?
+  log "CURRENT_INVOCATION_CONTEXT_RETURN_CODE=$CONTEXT_RC"
+else
+  log "CURRENT_INVOCATION_CONTEXT_SKIPPED=SEQUENCE_NONZERO"
+fi
+
 SAFE_RC=99
 CLAIM_RC=99
-if [ "$SEQUENCE_RC" -eq 0 ]; then
+if [ "$SEQUENCE_RC" -eq 0 ] && [ "$CONTEXT_RC" -eq 0 ]; then
   log "CHECKPOINT=PRE_SAFE_FINDING_ADMISSION"
   python -u "$SRC/safe_finding_admission_current_v1.py" \
     --sequence-json "$WORK/visible_action_sequence_candidates_lite_v1.json" \
@@ -108,10 +122,10 @@ if [ "$SEQUENCE_RC" -eq 0 ]; then
   SAFE_RC=$?
   log "SAFE_FINDING_RETURN_CODE=$SAFE_RC"
 else
-  log "SAFE_FINDING_SKIPPED=SEQUENCE_NONZERO"
+  log "SAFE_FINDING_SKIPPED=UPSTREAM_SEQUENCE_OR_CONTEXT_NONZERO"
 fi
 
-if [ "$SEQUENCE_RC" -eq 0 ] && [ "$SAFE_RC" -eq 0 ]; then
+if [ "$SEQUENCE_RC" -eq 0 ] && [ "$CONTEXT_RC" -eq 0 ] && [ "$SAFE_RC" -eq 0 ]; then
   log "CHECKPOINT=PRE_CLAIM_SATISFIABILITY"
   python -u "$SRC/analyst_output_claim_admission_current_v1.py" \
     --sequence-json "$WORK/visible_action_sequence_candidates_lite_v1.json" \
@@ -303,6 +317,7 @@ MANIFEST="$WORK/HPFA_P1_PHONE_MANIFEST_${SHORT}.txt"
   echo "source=$SRC"
   echo "runtime=$RUNTIME"
   echo "sequence_return_code=$SEQUENCE_RC"
+  echo "current_invocation_context_return_code=$CONTEXT_RC"
   echo "safe_finding_return_code=$SAFE_RC"
   echo "claim_satisfiability_return_code=$CLAIM_RC"
   echo "final_return_code=$FINAL_RC"
