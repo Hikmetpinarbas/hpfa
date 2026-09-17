@@ -46,16 +46,16 @@ def _nonempty(value: Any) -> bool:
 
 
 def _source_counter_scenarios(source_contract: dict[str, Any]) -> list[str]:
-    return _strings(
-        source_contract.get("variant_feature_challenge_counter_scenario_candidates")
-        or source_contract.get("counter_scenario_candidates")
+    return sorted(
+        set(_strings(source_contract.get("counter_scenario_candidates")))
+        | set(_strings(source_contract.get("variant_feature_challenge_counter_scenario_candidates")))
     )
 
 
 def _source_withdrawal_conditions(source_contract: dict[str, Any]) -> list[str]:
-    return _strings(
-        source_contract.get("variant_feature_challenge_withdrawal_condition_candidates")
-        or source_contract.get("withdrawal_condition_candidates")
+    return sorted(
+        set(_strings(source_contract.get("withdrawal_condition_candidates")))
+        | set(_strings(source_contract.get("variant_feature_challenge_withdrawal_condition_candidates")))
     )
 
 
@@ -66,6 +66,74 @@ def _subset_or_reason(
     invented_reason: str,
 ) -> list[str]:
     return [invented_reason] if set(rendered) - set(source) else []
+
+
+def build_source_bound_render_contract(source_contract: dict[str, Any] | None) -> dict[str, Any]:
+    """Build one deterministic render contract only from admitted source-contract terms.
+
+    No missing item is inferred. ABSTAIN may expose only an already propagated visible fact.
+    DOWNGRADE/EMIT may request interpretive rendering, but the subsequent completeness guard
+    still decides whether the sentence is renderable.
+    """
+    source = source_contract if isinstance(source_contract, dict) else {}
+    source_ref = str(source.get("analyst_output_contract_id") or "").strip()
+    decision = str(source.get("safe_finding_admission_decision") or "NOT_EVALUATED").strip().upper()
+    claim_scope = str(source.get("claim_scope") or "").strip()
+    what_visible = str(source.get("render_what_visible_text_tr") or "").strip()
+    safe_meaning = str(source.get("render_safe_meaning") or source.get("safe_output_meaning") or "").strip()
+    qualifiers = _strings(source.get("required_qualifiers"))
+    forbidden = _strings(source.get("forbidden_claim_families"))
+    counter_scenarios = _source_counter_scenarios(source)
+    withdrawal_conditions = _source_withdrawal_conditions(source)
+    evidence_refs = _strings(source.get("render_evidence_refs"))
+    counterevidence_refs = _strings(source.get("render_counterevidence_refs"))
+
+    if decision == "ABSTAIN":
+        sentence_type = FACT_ONLY
+        safe_meaning_out = None
+        claim_limiter = None
+    else:
+        sentence_type = INTERPRETIVE
+        safe_meaning_out = safe_meaning or None
+        claim_limiter = "; ".join(qualifiers) if qualifiers else None
+
+    rendered_sentence_tr = what_visible
+    if sentence_type == INTERPRETIVE and what_visible:
+        parts = [what_visible]
+        if safe_meaning_out:
+            parts.append(f"Güvenli anlam: {safe_meaning_out}.")
+        if claim_limiter:
+            parts.append(f"İddia sınırı: {claim_limiter}.")
+        if counter_scenarios:
+            parts.append("Alternatif açıklamalar: " + ", ".join(counter_scenarios) + ".")
+        if withdrawal_conditions:
+            parts.append("Geri çekme koşulları: " + ", ".join(withdrawal_conditions) + ".")
+        rendered_sentence_tr = " ".join(parts)
+
+    return {
+        "source_analyst_output_contract_ref": source_ref or None,
+        "sentence_type": sentence_type,
+        "what_visible": what_visible or None,
+        "safe_meaning": safe_meaning_out,
+        "claim_limiter": claim_limiter,
+        "counter_scenarios": counter_scenarios,
+        "withdrawal_conditions": withdrawal_conditions,
+        "analyst_action": source.get("render_analyst_action"),
+        "claim_scope": claim_scope or None,
+        "required_qualifiers": qualifiers,
+        "forbidden_claim_families": forbidden,
+        "evidence_refs": evidence_refs,
+        "counterevidence_refs": counterevidence_refs,
+        "rendered_sentence_tr": rendered_sentence_tr or None,
+        "render_creates_new_evidence": False,
+        "render_authorizes_emit": False,
+        "professional_emit_allowed": False,
+        "analyst_or_llm_text_is_evidence": False,
+        "absence_is_counterevidence": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
 
 
 def validate_safe_sentence_render(
@@ -224,6 +292,7 @@ def validate_safe_sentence_render(
         "counter_scenarios": rendered_counter_scenarios,
         "withdrawal_conditions": rendered_withdrawal,
         "analyst_action": rendered.get("analyst_action"),
+        "rendered_sentence_tr": rendered.get("rendered_sentence_tr"),
         "render_completeness_state": state,
         "blocking_reasons": sorted(set(blocking)),
         "review_reasons": sorted(set(review)),
