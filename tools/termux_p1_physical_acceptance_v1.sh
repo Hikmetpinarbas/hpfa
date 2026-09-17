@@ -124,6 +124,68 @@ else
   log "CLAIM_SATISFIABILITY_SKIPPED=UPSTREAM_NONZERO"
 fi
 
+LINEAGE_SUMMARY="$WORK/HPFA_LINEAGE_PHYSICAL_SUMMARY_${SHORT}.txt"
+python - "$WORK/analyst_output_claim_contract_projection_v1.json" "$LINEAGE_SUMMARY" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+target = Path(sys.argv[2])
+payload = {}
+if source.is_file():
+    try:
+        value = json.loads(source.read_text(encoding="utf-8"))
+        if isinstance(value, dict):
+            payload = value
+    except (OSError, json.JSONDecodeError):
+        payload = {}
+
+summary = payload.get("derived_lineage_runtime_binding_summary")
+if not isinstance(summary, dict):
+    summary = payload.get("derived_lineage_runtime_binding")
+if not isinstance(summary, dict):
+    summary = {}
+
+def value(key, default="UNKNOWN"):
+    current = summary.get(key, default)
+    if isinstance(current, bool):
+        return "true" if current else "false"
+    return str(current)
+
+rows = [
+    ("derived_lineage_runtime_binding_consumed", payload.get("derived_lineage_runtime_binding_consumed", False)),
+    ("derived_lineage_runtime_binding_status", payload.get("derived_lineage_runtime_binding_status", "NOT_EVALUATED")),
+    ("bounded_occurrence_ancestor_count", value("bounded_occurrence_ancestor_count")),
+    ("shared_occurrence_ancestor_count", value("shared_occurrence_ancestor_count")),
+    ("divergence_with_shared_ancestor_count", value("divergence_with_shared_ancestor_count")),
+    ("divergence_without_shared_ancestor_within_tracked_scope_count", value("divergence_without_shared_ancestor_within_tracked_scope_count")),
+    ("unresolved_divergence_ancestry_count", value("unresolved_divergence_ancestry_count")),
+    ("bounded_ancestry_distinctness_is_independence_proof", value("bounded_ancestry_distinctness_is_independence_proof", False)),
+    ("shared_ancestor_can_add_independent_support", value("shared_ancestor_can_add_independent_support", False)),
+    ("lineage_can_increase_existing_independent_support", value("lineage_can_increase_existing_independent_support", False)),
+    ("lineage_can_authorize_emit", value("lineage_can_authorize_emit", False)),
+    ("lineage_can_strengthen_claim_ceiling", value("lineage_can_strengthen_claim_ceiling", False)),
+    ("lineage_creates_new_evidence", value("lineage_creates_new_evidence", False)),
+    ("canonical_event_count", payload.get("canonical_event_count", "UNKNOWN")),
+    ("true_action_count", payload.get("true_action_count", "UNKNOWN")),
+    ("production_release", payload.get("production_release", False)),
+]
+with target.open("w", encoding="utf-8") as handle:
+    for key, current in rows:
+        if isinstance(current, bool):
+            current = "true" if current else "false"
+        handle.write(f"{key}={current}\n")
+PY
+
+if [ -f "$LINEAGE_SUMMARY" ]; then
+  while IFS= read -r line; do
+    log "LINEAGE_$line"
+  done < "$LINEAGE_SUMMARY"
+else
+  log "LINEAGE_SUMMARY=NOT_CREATED"
+fi
+
 if [ "$SEQUENCE_RC" -eq 137 ] || [ "$SEQUENCE_RC" -eq 9 ]; then
   CLASSIFICATION="PROCESS_KILL_CANDIDATE"
   FINAL_RC="$SEQUENCE_RC"
@@ -152,6 +214,7 @@ MANIFEST="$WORK/HPFA_P1_PHONE_MANIFEST_${SHORT}.txt"
   echo "claim_satisfiability_return_code=$CLAIM_RC"
   echo "final_return_code=$FINAL_RC"
   echo "classification=$CLASSIFICATION"
+  [ -f "$LINEAGE_SUMMARY" ] && cat "$LINEAGE_SUMMARY"
   echo "canonical_event_count=UNKNOWN"
   echo "true_action_count=UNKNOWN"
   echo "production_release=false"
@@ -162,6 +225,7 @@ cp "$LOG" "$WORK/HPFA_P1_PHONE_${SHORT}.txt" 2>/dev/null || true
 FILES=(
   "HPFA_P1_PHONE_MANIFEST_${SHORT}.txt"
   "HPFA_P1_PHONE_${SHORT}.txt"
+  "HPFA_LINEAGE_PHYSICAL_SUMMARY_${SHORT}.txt"
   "action_occurrence_admission_lite_v1.json"
   "trackable_action_trace_candidates_lite_v1.json"
   "trackable_action_consequence_candidates_lite_v1.json"
