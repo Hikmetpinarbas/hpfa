@@ -412,7 +412,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
 
     source_safe, source_safe_states, source_safe_count = _source_bound_safe_sentences(root, full_spine)
     generic_safe, generic_safe_states = _safe_sentences(root, full_spine) if c4_current else ([], {})
-    lines.extend(["", "[5] SAFE FINDING → ANALYST OUTPUT — SOURCE-BOUND RENDER"])
+    lines.extend(["", "[5] SAFE_ARGUMENT_CANDIDATES / SAFE FINDING → ANALYST OUTPUT — SOURCE-BOUND RENDER"])
     lines.append(f"source_bound_render_contract_count={source_safe_count}")
     lines.append(f"source_bound_render_state_counts={json.dumps(source_safe_states, ensure_ascii=False, sort_keys=True)}")
     lines.append(f"generic_c4_render_state_counts={json.dumps(generic_safe_states, ensure_ascii=False, sort_keys=True)}")
