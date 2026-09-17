@@ -79,6 +79,7 @@ def _annotate_shared_ancestor_overlap(
     ancestor_to_divergences: dict[str, set[str]] = defaultdict(set)
     resolved_ids: set[str] = set()
     unresolved_ids: set[str] = set()
+    resolved_ancestry_edge_count = 0
 
     for row in divergence_rows:
         divergence_id = _clean(row.get("first_supported_branch_divergence_id"))
@@ -91,9 +92,13 @@ def _annotate_shared_ancestor_overlap(
             row["shared_ancestor_overlap_state"] = "ANCESTRY_UNRESOLVED_REVIEW_REQUIRED"
             row["shared_ancestor_with_divergence_refs"] = []
             row["shared_ancestor_refs"] = []
+            row["bounded_occurrence_ancestor_ref_count"] = 0
+            row["shared_ancestor_ref_count"] = 0
+            row["structural_multiplicity_is_independent_support"] = False
             row["bounded_ancestry_distinctness_is_independence_proof"] = False
             continue
         resolved_ids.add(divergence_id)
+        resolved_ancestry_edge_count += len(roots)
         for root in roots:
             ancestor_to_divergences[root].add(divergence_id)
 
@@ -124,11 +129,32 @@ def _annotate_shared_ancestor_overlap(
             row["shared_ancestor_overlap_state"] = "NO_SHARED_ANCESTOR_WITHIN_TRACKED_SCOPE"
         row["shared_ancestor_with_divergence_refs"] = sorted(shared_with)
         row["shared_ancestor_refs"] = sorted(shared_refs_for_row)
+        row["bounded_occurrence_ancestor_ref_count"] = len(roots)
+        row["shared_ancestor_ref_count"] = len(shared_refs_for_row)
+        row["structural_multiplicity_is_independent_support"] = False
         row["bounded_ancestry_distinctness_is_independence_proof"] = False
         row["shared_ancestor_can_add_independent_support"] = False
 
+    reused_ancestry_edge_count = sum(
+        max(0, len(divergence_ids) - 1)
+        for divergence_ids in ancestor_to_divergences.values()
+    )
+    if not resolved_ancestry_edge_count:
+        provenance_multiplicity_state = "NO_RESOLVED_ANCESTRY"
+    elif reused_ancestry_edge_count:
+        provenance_multiplicity_state = "ANCESTRY_REUSE_PRESENT"
+    else:
+        provenance_multiplicity_state = "NO_ANCESTRY_REUSE_WITHIN_TRACKED_SCOPE"
+
     return {
+        "resolved_divergence_count": len(resolved_ids),
         "bounded_occurrence_ancestor_count": len(ancestor_to_divergences),
+        "divergence_occurrence_ancestry_edge_count": resolved_ancestry_edge_count,
+        "reused_occurrence_ancestry_edge_count": reused_ancestry_edge_count,
+        "reused_occurrence_ancestry_edge_denominator": resolved_ancestry_edge_count,
+        "provenance_multiplicity_state": provenance_multiplicity_state,
+        "structural_multiplicity_equals_provenance_multiplicity": False,
+        "structural_multiplicity_is_independent_support": False,
         "shared_occurrence_ancestor_count": len(shared_ancestor_refs),
         "divergence_with_shared_ancestor_count": len(divergences_with_overlap),
         "divergence_without_shared_ancestor_within_tracked_scope_count": len(

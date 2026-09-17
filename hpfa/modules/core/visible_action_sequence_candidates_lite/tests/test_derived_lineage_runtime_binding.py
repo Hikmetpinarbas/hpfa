@@ -118,14 +118,25 @@ def test_shared_occurrence_ancestor_is_exposed_without_support_inflation():
 
     assert result["status"] == "PASS"
     summary = result["summary"]
+    assert summary["resolved_divergence_count"] == 2
     assert summary["shared_occurrence_ancestor_count"] == 1
+    assert summary["divergence_occurrence_ancestry_edge_count"] == 3
+    assert summary["reused_occurrence_ancestry_edge_count"] == 1
+    assert summary["reused_occurrence_ancestry_edge_denominator"] == 3
+    assert summary["provenance_multiplicity_state"] == "ANCESTRY_REUSE_PRESENT"
+    assert summary["structural_multiplicity_equals_provenance_multiplicity"] is False
+    assert summary["structural_multiplicity_is_independent_support"] is False
     assert summary["divergence_with_shared_ancestor_count"] == 2
     assert summary["shared_ancestor_can_add_independent_support"] is False
     rows = result["sequence_payload"]["first_supported_branch_divergence_candidates"]
     by_id = {row["first_supported_branch_divergence_id"]: row for row in rows}
     assert by_id["fsbd_root_1"]["shared_ancestor_overlap_state"] == "SHARED_ANCESTOR_OVERLAP"
     assert by_id["fsbd_root_1"]["shared_ancestor_refs"] == ["occ_1"]
+    assert by_id["fsbd_root_1"]["bounded_occurrence_ancestor_ref_count"] == 1
+    assert by_id["fsbd_root_1"]["shared_ancestor_ref_count"] == 1
     assert by_id["fsbd_root_2"]["shared_ancestor_refs"] == ["occ_1"]
+    assert by_id["fsbd_root_2"]["bounded_occurrence_ancestor_ref_count"] == 2
+    assert by_id["fsbd_root_2"]["shared_ancestor_ref_count"] == 1
     assert by_id["fsbd_root_2"]["bounded_ancestry_distinctness_is_independence_proof"] is False
 
 
@@ -145,6 +156,10 @@ def test_distinct_occurrence_ancestry_is_not_independence_proof():
     assert result["status"] == "PASS"
     summary = result["summary"]
     assert summary["shared_occurrence_ancestor_count"] == 0
+    assert summary["divergence_occurrence_ancestry_edge_count"] == 2
+    assert summary["reused_occurrence_ancestry_edge_count"] == 0
+    assert summary["reused_occurrence_ancestry_edge_denominator"] == 2
+    assert summary["provenance_multiplicity_state"] == "NO_ANCESTRY_REUSE_WITHIN_TRACKED_SCOPE"
     assert summary["divergence_without_shared_ancestor_within_tracked_scope_count"] == 2
     assert summary["bounded_ancestry_distinctness_is_independence_proof"] is False
     for row in result["sequence_payload"]["first_supported_branch_divergence_candidates"]:
@@ -160,6 +175,9 @@ def test_missing_occurrence_ancestry_remains_review_required_and_cannot_promote_
 
     assert result["status"] == "REVIEW_REQUIRED"
     assert result["summary"]["unresolved_divergence_ancestry_count"] == 1
+    assert result["summary"]["divergence_occurrence_ancestry_edge_count"] == 0
+    assert result["summary"]["reused_occurrence_ancestry_edge_count"] == 0
+    assert result["summary"]["provenance_multiplicity_state"] == "NO_RESOLVED_ANCESTRY"
     row = result["claim_payload"]["analyst_output_contracts"][0]
     assert row["derived_lineage"]["status"] == "REVIEW_REQUIRED"
     assert row["professional_emit_allowed"] is False
