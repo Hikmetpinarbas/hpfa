@@ -91,8 +91,23 @@ def _counter_sum(cards: list[dict[str, Any]], field: str) -> dict[str, int]:
     return dict(sorted(counter.items()))
 
 
+def _post_sequence_current_artifacts(full_spine: dict[str, Any]) -> list[str]:
+    binding = full_spine.get("variant_feature_challenge_runtime_binding")
+    if not isinstance(binding, dict) or binding.get("post_sequence_admission_finalized") is not True:
+        return []
+    return [
+        str(value)
+        for value in (binding.get("post_sequence_current_invocation_artifacts") or [])
+        if str(value or "").strip()
+    ]
+
+
 def _declared_current(full_spine: dict[str, Any], filename: str) -> bool:
-    return any(Path(str(value)).name == filename for value in (full_spine.get("current_invocation_artifacts") or []))
+    values = [
+        *(full_spine.get("current_invocation_artifacts") or []),
+        *_post_sequence_current_artifacts(full_spine),
+    ]
+    return any(Path(str(value)).name == filename for value in values)
 
 
 def _source_analyst_output_contracts(root: Path, full_spine: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -142,6 +157,7 @@ def _safe_sentence_render_result(
 
 
 def _safe_sentences(root: Path, full_spine: dict[str, Any], limit: int = 12) -> tuple[list[str], dict[str, int]]:
+    """Legacy generic C4 sentence surface, still guarded and never promoted to Safe Finding truth."""
     seen: set[str] = set()
     result: list[str] = []
     state_counts: Counter[str] = Counter()
@@ -171,6 +187,48 @@ def _safe_sentences(root: Path, full_spine: dict[str, Any], limit: int = 12) -> 
         if len(result) >= limit:
             break
     return result, dict(sorted(state_counts.items()))
+
+
+def _source_bound_safe_sentences(
+    root: Path,
+    full_spine: dict[str, Any],
+    limit: int = 12,
+) -> tuple[list[str], dict[str, int], int]:
+    """Render only current-invocation Safe Finding lineage declared by Analyst Output contracts."""
+    if not _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON):
+        return [], {}, 0
+    payload = _load_json(root / ANALYST_OUTPUT_CLAIM_JSON)
+    if not payload or str(payload.get("status") or "").upper() == "FAIL_CLOSED":
+        return [], {}, 0
+
+    rows = [
+        row for row in (payload.get("source_bound_render_contracts") or [])
+        if isinstance(row, dict)
+    ]
+    seen: set[str] = set()
+    sentences: list[str] = []
+    states: Counter[str] = Counter()
+    for row in rows:
+        validation = row.get("render_validation")
+        if not isinstance(validation, dict):
+            states["REVIEW_REQUIRED_SOURCE_CONTRACT_UNRESOLVED"] += 1
+            continue
+        state = str(validation.get("render_completeness_state") or "UNKNOWN")
+        states[state] += 1
+        allowed = validation.get("render_allowed") is True or (
+            validation.get("fallback_allowed") is True
+            and validation.get("fallback_mode") == FACT_ONLY_RENDER
+        )
+        if not allowed:
+            continue
+        text = str(row.get("final_human_sentence_tr") or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        sentences.append(text)
+        if len(sentences) >= limit:
+            break
+    return sentences, dict(sorted(states.items())), len(rows)
 
 
 def _feature_surface_current(full_spine: dict[str, Any]) -> bool:
@@ -352,17 +410,25 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
 
-    safe, safe_render_states = _safe_sentences(root, full_spine) if c4_current else ([], {})
-    lines.extend(["", "[5] SAFE_ARGUMENT_CANDIDATES — MEVCUT C4 BLOKLARI"])
-    lines.append(f"render_completeness_state_counts={json.dumps(safe_render_states, ensure_ascii=False, sort_keys=True)}")
+    source_safe, source_safe_states, source_safe_count = _source_bound_safe_sentences(root, full_spine)
+    generic_safe, generic_safe_states = _safe_sentences(root, full_spine) if c4_current else ([], {})
+    lines.extend(["", "[5] SAFE FINDING → ANALYST OUTPUT — SOURCE-BOUND RENDER"])
+    lines.append(f"source_bound_render_contract_count={source_safe_count}")
+    lines.append(f"source_bound_render_state_counts={json.dumps(source_safe_states, ensure_ascii=False, sort_keys=True)}")
+    lines.append(f"generic_c4_render_state_counts={json.dumps(generic_safe_states, ensure_ascii=False, sort_keys=True)}")
     lines.append("render_creates_new_evidence=false")
     lines.append("render_can_authorize_emit=false")
     lines.append("render_can_strengthen_claim_ceiling=false")
     lines.append("analyst_or_llm_text_is_evidence=false")
-    if safe:
-        lines.extend(f"- {text}" for text in safe)
+    if source_safe:
+        lines.extend(f"- {text}" for text in source_safe)
+    elif source_safe_count:
+        lines.append("- Source-bound Analyst Output contractlari mevcut fakat bu run'da render edilebilir cümle bulunmadi; eksik veya bloklu yorum yayınlanmadi.")
+    elif generic_safe:
+        lines.append("- Source-bound Safe Finding render surface mevcut degil; generic C4 cümleleri yalnız legacy/review surface olarak tutulur ve Safe Finding yerine gecmez.")
+        lines.extend(f"- legacy_review_only: {text}" for text in generic_safe)
     elif c4_current:
-        lines.append("- Complete source-bounded render bulunmadi; eksik interpretive render bloklandi veya mevcutsa FACT_ONLY yuzeye dusuruldu.")
+        lines.append("- Source-bound render mevcut degil; generic C4 interpretive render da güvenli biçimde bloklandi.")
     else:
         lines.append("- Current invocation C4 producer zinciri tamamlanmadi; onceki run argumani kullanilmadi.")
 
@@ -418,7 +484,13 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
 def _declared_current_artifacts(root: Path, full_spine: dict[str, Any]) -> list[Path]:
     declared = full_spine.get("current_invocation_artifacts")
     values = declared if isinstance(declared, list) else []
-    values = [*values, str(root / FULL_SPINE_JSON), str(root / FULL_SPINE_TXT), str(root / ANALYST_REPORT)]
+    values = [
+        *values,
+        *_post_sequence_current_artifacts(full_spine),
+        str(root / FULL_SPINE_JSON),
+        str(root / FULL_SPINE_TXT),
+        str(root / ANALYST_REPORT),
+    ]
     seen: set[str] = set()
     candidates: list[Path] = []
     for raw in values:
@@ -464,6 +536,7 @@ def write_standard_user_outputs(
         "feature_surface_current_invocation": _feature_surface_current(full_spine),
         "rich_multiformat_surface_current_invocation": _rich_surface_current(full_spine),
         "c4_surface_current_invocation": _c4_surface_current(full_spine),
+        "post_sequence_current_invocation_artifact_count": len(_post_sequence_current_artifacts(full_spine)),
         "file_count_before_manifest": len(entries),
         "files": entries,
         "canonical_event_count": "UNKNOWN",
