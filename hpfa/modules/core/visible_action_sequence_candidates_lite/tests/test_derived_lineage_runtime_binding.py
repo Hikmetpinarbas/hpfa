@@ -10,6 +10,11 @@ def _sequence_payload():
         "first_supported_branch_divergence_candidates": [
             {
                 "first_supported_branch_divergence_id": divergence_id,
+                "branch_profiles": [
+                    {
+                        "neighbor_supporting_action_occurrence_candidate_ids": ["occ_1"]
+                    }
+                ],
                 "canonical_event_count": "UNKNOWN",
                 "true_action_count": "UNKNOWN",
                 "production_release": False,
@@ -67,30 +72,98 @@ def _claim_payload():
     }
 
 
-def test_family_views_and_claim_share_one_bounded_root_group():
+def test_family_views_and_claim_share_one_bounded_occurrence_ancestor_group():
     result = bind_derived_lineage(_sequence_payload(), _puzzle_payload(), _claim_payload())
 
     assert result["status"] == "PASS"
     summary = result["summary"]
     assert summary["bounded_lineage_group_count"] == 1
+    assert summary["bounded_occurrence_ancestor_count"] == 1
     assert summary["lineage_group_count_is_admitted_independent_support_count"] is False
+    assert summary["bounded_ancestry_distinctness_is_independence_proof"] is False
     assert summary["lineage_can_increase_existing_independent_support"] is False
     assert summary["lineage_can_authorize_emit"] is False
     assert summary["current_topology"] == (
-        "DIVERGENCE_TO_SAFE_FINDING_THEN_PUZZLE_AND_CLAIM_SIBLING_PROJECTIONS"
+        "BOUNDED_OCCURRENCE_ANCESTOR_TO_DIVERGENCE_TO_SAFE_FINDING_THEN_PUZZLE_AND_CLAIM_SIBLINGS"
     )
 
     findings = result["puzzle_payload"]["puzzle_findings"]
     assert len({row["derived_lineage"]["lineage_group_id"] for row in findings}) == 1
-    assert all(row["derived_lineage"]["root_refs"] == ["fsbd_root_1"] for row in findings)
+    assert all(row["derived_lineage"]["root_refs"] == ["occ_1"] for row in findings)
     assert findings[1]["family_view_shares_source_lineage_root"] is True
     assert findings[2]["family_view_shares_source_lineage_root"] is True
+    assert all(row["shared_ancestor_can_add_independent_support"] is False for row in findings)
 
     claim = result["claim_payload"]["analyst_output_contracts"][0]
-    assert claim["derived_lineage"]["root_refs"] == ["fsbd_root_1"]
+    assert claim["derived_lineage"]["root_refs"] == ["occ_1"]
     assert claim["puzzle_sibling_is_claim_parent"] is False
     assert sorted(claim["puzzle_sibling_refs"]) == sorted(row["puzzle_finding_id"] for row in findings)
     assert claim["professional_emit_allowed"] is False
+
+
+def test_shared_occurrence_ancestor_is_exposed_without_support_inflation():
+    sequence = _sequence_payload()
+    sequence["first_supported_branch_divergence_candidates"].append(
+        {
+            "first_supported_branch_divergence_id": "fsbd_root_2",
+            "branch_profiles": [
+                {
+                    "neighbor_supporting_action_occurrence_candidate_ids": ["occ_1", "occ_2"]
+                }
+            ],
+        }
+    )
+
+    result = bind_derived_lineage(sequence, {}, {})
+
+    assert result["status"] == "PASS"
+    summary = result["summary"]
+    assert summary["shared_occurrence_ancestor_count"] == 1
+    assert summary["divergence_with_shared_ancestor_count"] == 2
+    assert summary["shared_ancestor_can_add_independent_support"] is False
+    rows = result["sequence_payload"]["first_supported_branch_divergence_candidates"]
+    by_id = {row["first_supported_branch_divergence_id"]: row for row in rows}
+    assert by_id["fsbd_root_1"]["shared_ancestor_overlap_state"] == "SHARED_ANCESTOR_OVERLAP"
+    assert by_id["fsbd_root_1"]["shared_ancestor_refs"] == ["occ_1"]
+    assert by_id["fsbd_root_2"]["shared_ancestor_refs"] == ["occ_1"]
+    assert by_id["fsbd_root_2"]["bounded_ancestry_distinctness_is_independence_proof"] is False
+
+
+def test_distinct_occurrence_ancestry_is_not_independence_proof():
+    sequence = _sequence_payload()
+    sequence["first_supported_branch_divergence_candidates"].append(
+        {
+            "first_supported_branch_divergence_id": "fsbd_root_2",
+            "branch_profiles": [
+                {"neighbor_supporting_action_occurrence_candidate_ids": ["occ_2"]}
+            ],
+        }
+    )
+
+    result = bind_derived_lineage(sequence, {}, {})
+
+    assert result["status"] == "PASS"
+    summary = result["summary"]
+    assert summary["shared_occurrence_ancestor_count"] == 0
+    assert summary["divergence_without_shared_ancestor_within_tracked_scope_count"] == 2
+    assert summary["bounded_ancestry_distinctness_is_independence_proof"] is False
+    for row in result["sequence_payload"]["first_supported_branch_divergence_candidates"]:
+        assert row["shared_ancestor_overlap_state"] == "NO_SHARED_ANCESTOR_WITHIN_TRACKED_SCOPE"
+        assert row["bounded_ancestry_distinctness_is_independence_proof"] is False
+
+
+def test_missing_occurrence_ancestry_remains_review_required_and_cannot_promote_claim():
+    sequence = _sequence_payload()
+    sequence["first_supported_branch_divergence_candidates"][0]["branch_profiles"] = []
+
+    result = bind_derived_lineage(sequence, _puzzle_payload(), _claim_payload())
+
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["summary"]["unresolved_divergence_ancestry_count"] == 1
+    row = result["claim_payload"]["analyst_output_contracts"][0]
+    assert row["derived_lineage"]["status"] == "REVIEW_REQUIRED"
+    assert row["professional_emit_allowed"] is False
+    assert row["claim_scope"] == "NO_CLAIM_OUTPUT"
 
 
 def test_missing_handoff_parent_for_claim_fails_closed_to_no_claim_output():
@@ -107,13 +180,17 @@ def test_missing_handoff_parent_for_claim_fails_closed_to_no_claim_output():
     assert row["lineage_can_authorize_emit"] is False
 
 
-def test_root_scope_is_explicitly_not_absolute_evidence_root():
+def test_root_scope_is_explicitly_bounded_occurrence_not_absolute_evidence_root():
     result = bind_derived_lineage(_sequence_payload(), _puzzle_payload(), _claim_payload())
     summary = result["summary"]
     assert summary["root_is_absolute_observation_or_evidence_root"] is False
+    assert summary["root_is_bounded_admitted_occurrence_ancestor"] is True
     for row in result["sequence_payload"]["first_supported_branch_divergence_candidates"]:
-        assert row["derived_lineage"]["root_is_absolute_observation_or_evidence_root"] is False
-        assert row["derived_lineage"]["root_is_current_tracked_derived_chain_root"] is True
+        envelope = row["derived_lineage"]
+        assert envelope["root_is_absolute_observation_or_evidence_root"] is False
+        assert envelope["root_is_current_tracked_derived_chain_root"] is False
+        assert envelope["root_is_bounded_admitted_occurrence_ancestor"] is True
+        assert envelope["occurrence_ancestor_is_event_truth"] is False
 
 
 def test_binding_preserves_truth_locks_and_never_creates_evidence():
@@ -123,3 +200,4 @@ def test_binding_preserves_truth_locks_and_never_creates_evidence():
     assert result["production_release"] is False
     assert result["summary"]["lineage_creates_new_evidence"] is False
     assert result["summary"]["lineage_can_strengthen_claim_ceiling"] is False
+    assert result["summary"]["shared_ancestor_can_add_independent_support"] is False
