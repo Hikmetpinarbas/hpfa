@@ -193,6 +193,92 @@ else
   log "LINEAGE_SUMMARY=NOT_CREATED"
 fi
 
+
+RATE_BOUND_SUMMARY="$WORK/HPFA_RATE_BOUND_PHYSICAL_SUMMARY_${SHORT}.txt"
+python - "$WORK/safe_finding_admission_projection_v1.json" "$RATE_BOUND_SUMMARY" <<'PY'
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+source = Path(sys.argv[1])
+target = Path(sys.argv[2])
+payload = {}
+if source.is_file():
+    try:
+        value = json.loads(source.read_text(encoding="utf-8"))
+        if isinstance(value, dict):
+            payload = value
+    except (OSError, json.JSONDecodeError):
+        payload = {}
+
+decisions = [
+    row for row in (payload.get("safe_finding_admission_decisions") or [])
+    if isinstance(row, dict)
+]
+states = Counter()
+numeric_bound_count = 0
+claim_ceiling_counts = Counter()
+unsafe_flags = Counter()
+for row in decisions:
+    profile = row.get("consequence_observation_burden_profile")
+    if not isinstance(profile, dict):
+        states["BOUND_PROFILE_MISSING"] += 1
+        continue
+    state = str(profile.get("bound_state") or "BOUND_STATE_MISSING")
+    states[state] += 1
+    if isinstance(profile.get("lower_bound"), (int, float)) and isinstance(profile.get("upper_bound"), (int, float)):
+        numeric_bound_count += 1
+    claim_ceiling_counts[str(profile.get("claim_ceiling") or "CLAIM_CEILING_MISSING")] += 1
+    if profile.get("identification_interval_is_confidence_interval") is not False:
+        unsafe_flags["identification_interval_is_confidence_interval_not_false"] += 1
+    if profile.get("rate_bound_can_authorize_emit") is not False:
+        unsafe_flags["rate_bound_can_authorize_emit_not_false"] += 1
+    if profile.get("rate_bound_can_strengthen_claim_ceiling") is not False:
+        unsafe_flags["rate_bound_can_strengthen_claim_ceiling_not_false"] += 1
+    if profile.get("rate_bound_creates_new_evidence") is not False:
+        unsafe_flags["rate_bound_creates_new_evidence_not_false"] += 1
+    if profile.get("rate_bound_is_true_probability") is not False:
+        unsafe_flags["rate_bound_is_true_probability_not_false"] += 1
+    if profile.get("rate_bound_is_population_rate") is not False:
+        unsafe_flags["rate_bound_is_population_rate_not_false"] += 1
+    if profile.get("rate_bound_is_causal_effect") is not False:
+        unsafe_flags["rate_bound_is_causal_effect_not_false"] += 1
+
+rows = [
+    ("partial_identification_rate_bound_consumed", payload.get("partial_identification_rate_bound_consumed", False)),
+    ("safe_finding_admission_decision_count", len(decisions)),
+    ("bound_profile_state_counts", json.dumps(dict(sorted(states.items())), sort_keys=True)),
+    ("numeric_bound_count", numeric_bound_count),
+    ("point_identified_count", states.get("POINT_IDENTIFIED_OBSERVED_RATE", 0)),
+    ("partially_identified_count", states.get("PARTIALLY_IDENTIFIED_VISIBLE_OUTCOME_RATE", 0)),
+    ("bound_unresolved_count", states.get("BOUND_UNRESOLVED", 0)),
+    ("no_opportunity_count", states.get("NO_OPPORTUNITY", 0)),
+    ("not_applicable_count", states.get("NOT_APPLICABLE_NO_MATCHED_PROCESS_VARIANT_LINEAGE", 0)),
+    ("bound_claim_ceiling_counts", json.dumps(dict(sorted(claim_ceiling_counts.items())), sort_keys=True)),
+    ("unsafe_rate_bound_flag_counts", json.dumps(dict(sorted(unsafe_flags.items())), sort_keys=True)),
+    ("partial_identification_rate_bound_can_authorize_emit", payload.get("partial_identification_rate_bound_can_authorize_emit", False)),
+    ("partial_identification_rate_bound_can_strengthen_claim_ceiling", payload.get("partial_identification_rate_bound_can_strengthen_claim_ceiling", False)),
+    ("partial_identification_rate_bound_is_confidence_interval", payload.get("partial_identification_rate_bound_is_confidence_interval", False)),
+    ("canonical_event_count", payload.get("canonical_event_count", "UNKNOWN")),
+    ("true_action_count", payload.get("true_action_count", "UNKNOWN")),
+    ("production_release", payload.get("production_release", False)),
+]
+with target.open("w", encoding="utf-8") as handle:
+    for key, current in rows:
+        if isinstance(current, bool):
+            current = "true" if current else "false"
+        handle.write(f"{key}={current}\n")
+PY
+
+if [ -f "$RATE_BOUND_SUMMARY" ]; then
+  while IFS= read -r line; do
+    log "RATE_BOUND_$line"
+  done < "$RATE_BOUND_SUMMARY"
+else
+  log "RATE_BOUND_SUMMARY=NOT_CREATED"
+fi
+
 if [ "$SEQUENCE_RC" -eq 137 ] || [ "$SEQUENCE_RC" -eq 9 ]; then
   CLASSIFICATION="PROCESS_KILL_CANDIDATE"
   FINAL_RC="$SEQUENCE_RC"
@@ -222,6 +308,7 @@ MANIFEST="$WORK/HPFA_P1_PHONE_MANIFEST_${SHORT}.txt"
   echo "final_return_code=$FINAL_RC"
   echo "classification=$CLASSIFICATION"
   [ -f "$LINEAGE_SUMMARY" ] && cat "$LINEAGE_SUMMARY"
+  [ -f "$RATE_BOUND_SUMMARY" ] && cat "$RATE_BOUND_SUMMARY"
   echo "canonical_event_count=UNKNOWN"
   echo "true_action_count=UNKNOWN"
   echo "production_release=false"
@@ -233,6 +320,7 @@ FILES=(
   "HPFA_P1_PHONE_MANIFEST_${SHORT}.txt"
   "HPFA_P1_PHONE_${SHORT}.txt"
   "HPFA_LINEAGE_PHYSICAL_SUMMARY_${SHORT}.txt"
+  "HPFA_RATE_BOUND_PHYSICAL_SUMMARY_${SHORT}.txt"
   "action_occurrence_admission_lite_v1.json"
   "trackable_action_trace_candidates_lite_v1.json"
   "trackable_action_consequence_candidates_lite_v1.json"
