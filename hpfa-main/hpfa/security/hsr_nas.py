@@ -1,11 +1,23 @@
 """
-HSR Ring — NAS (Negative Action Spiral)
-Fail-closed, deterministic.
+HSR Ring 6 — NAS Early-Warning (in-loop fast-path)
+
+PURPOSE: Per-event, per-team rolling window check that sets `nas_flag` on
+each event as it passes through the HSR pipeline. This is NOT the canonical
+NAS analyzer — it is a lightweight in-loop trigger.
+
+Canonical NAS analysis (sequence detection, zone + time-window chain,
+full NASResult output) lives in hpfa.analytics.nas.NASDetector (SSOT:
+hpfa/canon/nas.md). Use NASDetector for reports and audit.
+
+NASRing exists to annotate events in real-time with a binary flag so
+downstream pipeline stages can react immediately. Its window (default 3)
+must match or be tighter than NASDetector.min_fail_count.
 
 Rule:
-- Same team, within a rolling window of N events (default 3)
-- If all are failed outcomes -> NAS TRIGGER
-- Missing fields -> FAIL-CLOSED
+- Same team, rolling window of N events (default 3)
+- All N outcomes == "fail" -> NAS TRIGGER (nas_flag=True)
+- Missing required fields -> FAIL-CLOSED (ValueError)
+- Inactive states (not CONTROLLED/CONTESTED) -> nas_flag=False, pass through
 """
 from __future__ import annotations
 from collections import deque

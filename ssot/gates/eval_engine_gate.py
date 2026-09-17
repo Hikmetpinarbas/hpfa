@@ -44,7 +44,7 @@ def main():
     ev = stamped.get("evidence", {})
     ah = (ev.get("artifact_sha256") or {})
     for k in ["engine_meta.json", "engine_seq_possessions.json", "engine_xt01_grid.json"]:
-        if not ah.get(k.replace(".json", ".json")) and not ah.get(k):
+        if not ah.get(k.replace(".json", "")) and not ah.get(k):
             findings.append({"rule": "evidence.artifact_hash", "status": "FAIL", "detail": f"missing sha256 for {k}"})
             action = "QUARANTINE"
 

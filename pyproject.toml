@@ -6,7 +6,23 @@ build-backend = "setuptools.build_meta"
 name = "hpfa"
 version = "0.1.0"
 requires-python = ">=3.10"
+# Core packages (canon, adapters, hpfa.*) are pure stdlib — no runtime deps.
+# Vendor code (vendor/hp_engine) requires pandas but is not installed as a package.
 dependencies = []
 
 [tool.setuptools]
-packages = ["canon", "canon.definitions"]
+packages = [
+    "canon",
+    "adapters",
+    "adapters.engine",
+    "hpfa",
+    "hpfa.analytics",
+    "hpfa.canon",
+    "hpfa.core",
+    "hpfa.narrative",
+    "hpfa.security",
+]
+
+[tool.setuptools.package-dir]
+# hpfa package lives under hpfa-main/; root-level packages resolve from ".".
+"hpfa" = "hpfa-main/hpfa"
