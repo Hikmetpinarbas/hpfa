@@ -12,12 +12,16 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.analyst_outpu
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.claim_satisfiability_runtime_binding import (
     bind_claim_satisfiability,
 )
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.derived_lineage_runtime_binding import (
+    bind_derived_lineage,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_sentence_render_completeness import (
     build_source_bound_render_contract,
     validate_safe_sentence_render,
 )
 
 OUTPUT_NAME = "analyst_output_claim_contract_projection_v1.json"
+PUZZLE_FINDING_NAME = "puzzle_finding_contract_projection_v1.json"
 
 
 def _load(path: Path) -> dict:
@@ -26,6 +30,13 @@ def _load(path: Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _write(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _strings(value: Any) -> list[str]:
@@ -183,6 +194,48 @@ def _materialize_source_bound_render_contracts(result: dict[str, Any]) -> dict[s
     return result
 
 
+def _bind_current_lineage(
+    sequence_path: Path,
+    sequence_payload: dict[str, Any],
+    puzzle_path: Path,
+    result: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    puzzle_payload = _load(puzzle_path)
+    binding = bind_derived_lineage(sequence_payload, puzzle_payload, result)
+    bound_sequence = binding.get("sequence_payload") if isinstance(binding.get("sequence_payload"), dict) else sequence_payload
+    bound_puzzle = binding.get("puzzle_payload") if isinstance(binding.get("puzzle_payload"), dict) else puzzle_payload
+    bound_claim = binding.get("claim_payload") if isinstance(binding.get("claim_payload"), dict) else result
+    lineage_status = str(binding.get("status") or "REVIEW_REQUIRED").upper()
+    summary = binding.get("summary") if isinstance(binding.get("summary"), dict) else {}
+
+    bound_claim["derived_lineage_runtime_binding_consumed"] = True
+    bound_claim["derived_lineage_runtime_binding_status"] = lineage_status
+    bound_claim["derived_lineage_runtime_binding_summary"] = summary
+    bound_claim["derived_lineage_binding_creates_new_evidence"] = False
+    bound_claim["derived_lineage_binding_can_authorize_emit"] = False
+    bound_claim["derived_lineage_binding_can_strengthen_claim_ceiling"] = False
+
+    hard_blocks = list(bound_claim.get("hard_block_hits") or [])
+    reviews = list(bound_claim.get("review_hits") or [])
+    if lineage_status == "FAIL_CLOSED":
+        hard_blocks.append("derived_lineage_runtime_binding_fail_closed")
+        bound_claim["status"] = "FAIL_CLOSED"
+    elif lineage_status == "REVIEW_REQUIRED":
+        reviews.append("derived_lineage_runtime_binding_review_required")
+        if bound_claim.get("status") != "FAIL_CLOSED":
+            bound_claim["status"] = "REVIEW_REQUIRED"
+    bound_claim["hard_block_hits"] = sorted(set(str(value) for value in hard_blocks if str(value)))
+    bound_claim["review_hits"] = sorted(set(str(value) for value in reviews if str(value)))
+    bound_claim["canonical_event_count"] = "UNKNOWN"
+    bound_claim["true_action_count"] = "UNKNOWN"
+    bound_claim["production_release"] = False
+
+    _write(sequence_path, bound_sequence)
+    if puzzle_payload or bound_puzzle:
+        _write(puzzle_path, bound_puzzle)
+    return bound_sequence, bound_claim
+
+
 def runtime_write_outputs(
     sequence_json: str | Path,
     admission_json: str | Path,
@@ -192,6 +245,7 @@ def runtime_write_outputs(
     admission_path = Path(admission_json).expanduser().resolve()
     output = Path(out_dir).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
+    puzzle_path = output / PUZZLE_FINDING_NAME
 
     sequence_payload = _load(sequence_path)
     admission_payload = _load(admission_path)
@@ -203,6 +257,8 @@ def runtime_write_outputs(
             "professional_emit_allowed": False,
             "professional_emit_allowed_count": 0,
             "claim_satisfiability_gate_consumed": False,
+            "derived_lineage_runtime_binding_consumed": False,
+            "derived_lineage_runtime_binding_status": "NOT_EVALUATED",
             "render_source_terms_propagated_count": 0,
             "render_source_terms_unresolved_count": 0,
             "source_bound_render_contracts": [],
@@ -231,14 +287,22 @@ def runtime_write_outputs(
                 result,
             )
         if result.get("status") != "FAIL_CLOSED":
+            sequence_payload, result = _bind_current_lineage(
+                sequence_path,
+                sequence_payload,
+                puzzle_path,
+                result,
+            )
+        if result.get("status") != "FAIL_CLOSED":
             result = _propagate_render_source_terms(sequence_payload, result)
             result = _materialize_source_bound_render_contracts(result)
 
     target = output / OUTPUT_NAME
-    target.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    _write(target, result)
     result["output"] = str(target)
     result["source_sequence_json"] = str(sequence_path)
     result["source_admission_json"] = str(admission_path)
+    result["source_puzzle_finding_json"] = str(puzzle_path) if puzzle_path.is_file() else None
     return result
 
 
@@ -250,6 +314,7 @@ def main() -> int:
     args = parser.parse_args()
 
     result = runtime_write_outputs(args.sequence_json, args.admission_json, args.out_dir)
+    lineage_summary = result.get("derived_lineage_runtime_binding_summary") or {}
     print(json.dumps({
         "status": result.get("status"),
         "analyst_output_contract_count": result.get("analyst_output_contract_count"),
@@ -258,6 +323,12 @@ def main() -> int:
         "professional_emit_allowed_count": result.get("professional_emit_allowed_count"),
         "claim_satisfiability_gate_consumed": result.get("claim_satisfiability_gate_consumed") is True,
         "claim_satisfiability_gate_state_counts": result.get("claim_satisfiability_gate_state_counts") or {},
+        "derived_lineage_runtime_binding_consumed": result.get("derived_lineage_runtime_binding_consumed") is True,
+        "derived_lineage_runtime_binding_status": result.get("derived_lineage_runtime_binding_status"),
+        "bounded_occurrence_ancestor_count": lineage_summary.get("bounded_occurrence_ancestor_count"),
+        "shared_occurrence_ancestor_count": lineage_summary.get("shared_occurrence_ancestor_count"),
+        "divergence_with_shared_ancestor_count": lineage_summary.get("divergence_with_shared_ancestor_count"),
+        "unresolved_divergence_ancestry_count": lineage_summary.get("unresolved_divergence_ancestry_count"),
         "render_source_terms_propagated_count": result.get("render_source_terms_propagated_count"),
         "render_source_terms_unresolved_count": result.get("render_source_terms_unresolved_count"),
         "source_bound_render_contract_count": result.get("source_bound_render_contract_count"),
