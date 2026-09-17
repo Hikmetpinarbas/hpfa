@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import post_sequence_admission_finalizer_current_v1 as post_sequence_finalizer
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.variant_feature_challenge_projection import (
     build_variant_feature_challenge_projection,
 )
@@ -22,11 +23,13 @@ def _load(path: Path) -> dict[str, Any]:
 
 
 def materialize_variant_feature_challenge(out_dir: str | Path) -> dict[str, Any]:
-    """Materialize the existing challenge projection from current full-spine artifacts.
+    """Materialize the existing challenge projection and finalize current post-sequence admission.
 
-    This is a binding step only. It does not discover observations, reconstruct sequences,
-    recompute feature deltas, create independent evidence, or authorize a professional
-    finding.
+    This remains a binding/orchestration step only. It does not discover observations,
+    reconstruct sequences, recompute feature deltas, create independent evidence, or
+    authorize a professional finding. The post-sequence finalizer is deliberately run
+    only after the current challenge artifact is materialized so Safe Finding admission
+    and Analyst Output claim contracts consume the same invocation's challenge state.
     """
     output = Path(out_dir).expanduser().resolve(strict=False)
     feature_path = output / FEATURE_DELTA_JSON
@@ -52,6 +55,7 @@ def materialize_variant_feature_challenge(out_dir: str | Path) -> dict[str, Any]
             "reason": "required_current_invocation_input_missing",
             "missing_inputs": sorted(missing),
             "artifact_materialized": False,
+            "post_sequence_admission_finalized": False,
             "projection_creates_new_evidence": False,
             "professional_finding_emit_allowed": False,
             "canonical_event_count": "UNKNOWN",
@@ -67,15 +71,36 @@ def materialize_variant_feature_challenge(out_dir: str | Path) -> dict[str, Any]
         json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+    finalization = post_sequence_finalizer.finalize_post_sequence_admission(output)
+    finalization_status = str(finalization.get("status") or "").upper()
+    status = "FAIL_CLOSED" if finalization_status == "FAIL_CLOSED" else report.get("status")
+
     return {
-        "status": report.get("status"),
+        "status": status,
         "artifact_materialized": True,
         "output": str(target),
         "variant_feature_challenge_record_count": int(
             report.get("variant_feature_challenge_record_count") or 0
         ),
+        "post_sequence_admission_finalized": finalization_status in {"PASS", "REVIEW_REQUIRED"},
+        "post_sequence_admission_status": finalization.get("status"),
+        "post_sequence_admission_reason": finalization.get("reason"),
+        "post_sequence_expected_handoff_count": int(finalization.get("expected_handoff_count") or 0),
+        "post_sequence_admission_count": int(finalization.get("admission_count") or 0),
+        "post_sequence_claim_count": int(finalization.get("claim_count") or 0),
+        "post_sequence_safe_finding_admission_consumed": (
+            finalization.get("safe_finding_admission_consumed") is True
+        ),
+        "post_sequence_current_invocation_artifacts": [
+            str(value)
+            for value in (finalization.get("current_invocation_artifacts") or [])
+            if str(value or "").strip()
+        ],
         "projection_creates_new_evidence": False,
         "difference_rows_are_independent_evidence_votes": False,
+        "post_sequence_finalization_creates_new_evidence": False,
+        "post_sequence_finalization_can_authorize_emit": False,
         "professional_finding_emit_allowed": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
