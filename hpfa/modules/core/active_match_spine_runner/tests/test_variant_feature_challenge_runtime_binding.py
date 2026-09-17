@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import hpfa.modules.core.active_match_spine_runner.src.variant_feature_challenge_runtime_binding as binding_module
 from hpfa.modules.core.active_match_spine_runner.src.variant_feature_challenge_runtime_binding import (
     FEATURE_DELTA_JSON,
     OUTPUT_JSON,
@@ -64,12 +65,43 @@ def _process_variant() -> dict:
     }
 
 
-def test_materializes_existing_challenge_projection_without_claim_inflation(tmp_path: Path) -> None:
+def _write_inputs(tmp_path: Path) -> None:
     (tmp_path / FEATURE_DELTA_JSON).write_text(
         json.dumps(_feature_delta()), encoding="utf-8"
     )
     (tmp_path / PROCESS_VARIANT_JSON).write_text(
         json.dumps(_process_variant()), encoding="utf-8"
+    )
+
+
+def test_materializes_existing_challenge_projection_without_claim_inflation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _write_inputs(tmp_path)
+    calls: list[Path] = []
+
+    def _finalize(out_dir: str | Path) -> dict:
+        calls.append(Path(out_dir))
+        return {
+            "status": "PASS",
+            "expected_handoff_count": 2,
+            "admission_count": 2,
+            "claim_count": 2,
+            "safe_finding_admission_consumed": True,
+            "current_invocation_artifacts": [
+                str(Path(out_dir) / "safe_finding_admission_projection_v1.json"),
+                str(Path(out_dir) / "analyst_output_claim_contract_projection_v1.json"),
+            ],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+
+    monkeypatch.setattr(
+        binding_module.post_sequence_finalizer,
+        "finalize_post_sequence_admission",
+        _finalize,
     )
 
     result = materialize_variant_feature_challenge(tmp_path)
@@ -78,12 +110,46 @@ def test_materializes_existing_challenge_projection_without_claim_inflation(tmp_
     assert result["projection_creates_new_evidence"] is False
     assert result["difference_rows_are_independent_evidence_votes"] is False
     assert result["professional_finding_emit_allowed"] is False
+    assert result["post_sequence_admission_finalized"] is True
+    assert result["post_sequence_admission_status"] == "PASS"
+    assert result["post_sequence_expected_handoff_count"] == 2
+    assert result["post_sequence_admission_count"] == 2
+    assert result["post_sequence_claim_count"] == 2
+    assert result["post_sequence_safe_finding_admission_consumed"] is True
+    assert result["post_sequence_finalization_creates_new_evidence"] is False
+    assert result["post_sequence_finalization_can_authorize_emit"] is False
+    assert calls == [tmp_path.resolve()]
     target = tmp_path / OUTPUT_JSON
     assert target.is_file()
     payload = json.loads(target.read_text(encoding="utf-8"))
     assert payload["variant_feature_challenge_record_count"] == 1
     assert payload["professional_finding_emit_allowed"] is False
     assert payload["feature_absence_is_counterevidence"] is False
+
+
+def test_finalizer_fail_closed_is_not_hidden(tmp_path: Path, monkeypatch) -> None:
+    _write_inputs(tmp_path)
+
+    monkeypatch.setattr(
+        binding_module.post_sequence_finalizer,
+        "finalize_post_sequence_admission",
+        lambda _out: {
+            "status": "FAIL_CLOSED",
+            "reason": "safe_finding_admission_fail_closed",
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        },
+    )
+
+    result = materialize_variant_feature_challenge(tmp_path)
+
+    assert result["artifact_materialized"] is True
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["post_sequence_admission_finalized"] is False
+    assert result["post_sequence_admission_reason"] == "safe_finding_admission_fail_closed"
+    assert result["professional_finding_emit_allowed"] is False
+    assert result["post_sequence_finalization_can_authorize_emit"] is False
 
 
 def test_missing_current_inputs_removes_stale_challenge_artifact(tmp_path: Path) -> None:
@@ -94,4 +160,5 @@ def test_missing_current_inputs_removes_stale_challenge_artifact(tmp_path: Path)
 
     assert result["status"] == "NOT_APPLICABLE_PREREQUISITE_MISSING"
     assert result["artifact_materialized"] is False
+    assert result["post_sequence_admission_finalized"] is False
     assert not stale.exists()
