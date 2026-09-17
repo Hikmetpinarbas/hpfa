@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.analyst_output_claim_contract_projection import (
     build_analyst_output_claim_contract,
@@ -20,6 +21,110 @@ def _load(path: Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _strings(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return sorted({str(item).strip() for item in value if str(item).strip()})
+
+
+def _counter_scenario_details(handoff: dict[str, Any]) -> list[dict[str, str]]:
+    result: list[dict[str, str]] = []
+    for row in handoff.get("alternative_explanations") or []:
+        if not isinstance(row, dict):
+            continue
+        code = str(row.get("code") or "").strip()
+        meaning = str(row.get("meaning") or "").strip()
+        if code or meaning:
+            result.append({"code": code, "meaning": meaning})
+    return result
+
+
+def _visible_fact_text(handoff: dict[str, Any]) -> str | None:
+    visible = handoff.get("what_visible")
+    if not isinstance(visible, dict):
+        return None
+    success = visible.get("success_branch_count")
+    failure = visible.get("failure_branch_count")
+    denominator = visible.get("eligible_outcome_branch_count")
+    if not all(isinstance(value, int) and not isinstance(value, bool) for value in (success, failure, denominator)):
+        return None
+    return (
+        "Bu maçta aynı görünür başlangıçtan çıkan "
+        f"{denominator} uygun vakanın {success} tanesinde SUCCESS, "
+        f"{failure} tanesinde FAILURE sonucu görünür olarak etiketlendi."
+    )
+
+
+def _propagate_render_source_terms(
+    sequence_payload: dict[str, Any],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """Carry existing Safe Finding terms into Analyst Output contracts for rendering.
+
+    This is provenance propagation only. It creates no evidence, counterevidence,
+    counter-scenario, withdrawal condition, interpretation, or EMIT permission.
+    """
+    handoff_by_ref = {
+        str(row.get("safe_finding_handoff_candidate_id") or "").strip(): row
+        for row in (sequence_payload.get("safe_finding_handoff_candidates") or [])
+        if isinstance(row, dict) and str(row.get("safe_finding_handoff_candidate_id") or "").strip()
+    }
+    propagated = 0
+    unresolved = 0
+    for contract in result.get("analyst_output_contracts") or []:
+        if not isinstance(contract, dict):
+            continue
+        source_ref = str(contract.get("source_safe_finding_handoff_ref") or "").strip()
+        handoff = handoff_by_ref.get(source_ref)
+        if not isinstance(handoff, dict):
+            contract["render_source_terms_state"] = "SOURCE_SAFE_FINDING_HANDOFF_UNRESOLVED"
+            unresolved += 1
+            continue
+
+        details = _counter_scenario_details(handoff)
+        core_counter_scenarios = _strings([row.get("code") for row in details])
+        core_withdrawal = _strings(handoff.get("withdrawal_conditions"))
+        support = handoff.get("support") if isinstance(handoff.get("support"), dict) else {}
+        counterevidence = (
+            handoff.get("counterevidence")
+            if isinstance(handoff.get("counterevidence"), dict)
+            else {}
+        )
+        evidence_refs = _strings(support.get("visible_success_sequence_refs"))
+        counterevidence_refs = _strings(
+            [
+                *(counterevidence.get("visible_failure_sequence_refs") or []),
+                *(counterevidence.get("comparable_counterexample_refs") or []),
+            ]
+        )
+
+        contract["render_source_terms_state"] = "SOURCE_SAFE_FINDING_TERMS_PROPAGATED"
+        contract["render_what_visible"] = handoff.get("what_visible")
+        contract["render_what_visible_text_tr"] = _visible_fact_text(handoff)
+        contract["render_safe_meaning"] = handoff.get("safe_meaning")
+        contract["render_source_analyst_summary_tr"] = handoff.get("analyst_summary_tr")
+        contract["render_analyst_action"] = handoff.get("analyst_action")
+        contract["counter_scenario_candidates"] = core_counter_scenarios
+        contract["counter_scenario_details"] = details
+        contract["withdrawal_condition_candidates"] = core_withdrawal
+        contract["render_evidence_refs"] = evidence_refs
+        contract["render_counterevidence_refs"] = counterevidence_refs
+        contract["render_source_terms_create_new_evidence"] = False
+        contract["render_source_terms_create_new_counterevidence"] = False
+        contract["render_source_terms_create_new_counter_scenario"] = False
+        contract["render_source_terms_create_new_withdrawal_condition"] = False
+        contract["render_source_terms_can_authorize_emit"] = False
+        contract["render_source_terms_can_strengthen_claim_ceiling"] = False
+        propagated += 1
+
+    result["render_source_terms_propagated_count"] = propagated
+    result["render_source_terms_unresolved_count"] = unresolved
+    result["render_source_terms_create_new_evidence"] = False
+    result["render_source_terms_can_authorize_emit"] = False
+    result["render_source_terms_can_strengthen_claim_ceiling"] = False
+    return result
 
 
 def runtime_write_outputs(
@@ -42,6 +147,11 @@ def runtime_write_outputs(
             "professional_emit_allowed": False,
             "professional_emit_allowed_count": 0,
             "claim_satisfiability_gate_consumed": False,
+            "render_source_terms_propagated_count": 0,
+            "render_source_terms_unresolved_count": 0,
+            "render_source_terms_create_new_evidence": False,
+            "render_source_terms_can_authorize_emit": False,
+            "render_source_terms_can_strengthen_claim_ceiling": False,
             "hard_block_hits": ["required_sequence_or_admission_payload_missing_or_invalid"],
             "review_hits": [],
             "canonical_event_count": "UNKNOWN",
@@ -56,6 +166,8 @@ def runtime_write_outputs(
                 admission_payload,
                 result,
             )
+        if result.get("status") != "FAIL_CLOSED":
+            result = _propagate_render_source_terms(sequence_payload, result)
 
     target = output / OUTPUT_NAME
     target.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
@@ -81,6 +193,8 @@ def main() -> int:
         "professional_emit_allowed_count": result.get("professional_emit_allowed_count"),
         "claim_satisfiability_gate_consumed": result.get("claim_satisfiability_gate_consumed") is True,
         "claim_satisfiability_gate_state_counts": result.get("claim_satisfiability_gate_state_counts") or {},
+        "render_source_terms_propagated_count": result.get("render_source_terms_propagated_count"),
+        "render_source_terms_unresolved_count": result.get("render_source_terms_unresolved_count"),
         "hard_block_hits": result.get("hard_block_hits") or [],
         "review_hits": result.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",
