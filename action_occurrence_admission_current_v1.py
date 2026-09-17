@@ -12,6 +12,9 @@ from hpfa.modules.core.action_occurrence_admission_lite.src.action_grammar_publi
 from hpfa.modules.core.action_occurrence_admission_lite.src.conditional_review_passthrough import (
     build_action_occurrence_admission_with_conditional_review,
 )
+from hpfa.modules.core.action_occurrence_admission_lite.src.occurrence_object_role_projection import (
+    project_occurrence_object_roles,
+)
 
 
 def _load(path: Path) -> dict:
@@ -46,6 +49,13 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "match_surface_binding_id": relation_payload.get("match_surface_binding_id"),
             "action_occurrence_candidates": [],
             "action_occurrence_candidate_count": 0,
+            "occurrence_object_role_projection": [],
+            "occurrence_object_role_projection_count": 0,
+            "occurrence_object_role_binding_type_counts": {},
+            "occurrence_object_binding_creates_case_identity": False,
+            "occurrence_object_binding_creates_possession_truth": False,
+            "occurrence_object_binding_creates_process_truth": False,
+            "occurrence_object_binding_creates_independent_support": False,
             "interaction_occurrence_candidate_count": 0,
             "intra_actor_action_grammar_candidate_count": 0,
             "intra_actor_action_grammar_candidates": [],
@@ -111,16 +121,13 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         evidence_payload,
         registry_payload,
     )
-    # The public action-grammar adapter already owns the reviewed R6 goal-kick
-    # binding. Do not invoke the goal-kick binder a second time here: a replay
-    # over the unaliased raw payload can erase final-state summary fields even
-    # though the admitted occurrence candidates remain present.
     payload = bind_intra_actor_action_grammar(
         payload,
         action_payload,
         evidence_payload,
         registry_payload,
     )
+    payload = project_occurrence_object_roles(payload)
     payload["current_relation_status"] = relation_payload.get("status")
     payload["current_taxonomy_status"] = relation_payload.get("current_taxonomy_status")
     payload["current_semantic_status"] = relation_payload.get("current_semantic_status")
@@ -158,6 +165,8 @@ def main() -> int:
                 ),
                 "provider_semantics_binding_status": payload.get("provider_semantics_binding_status"),
                 "action_occurrence_candidate_count": payload.get("action_occurrence_candidate_count"),
+                "occurrence_object_role_projection_count": payload.get("occurrence_object_role_projection_count", 0),
+                "occurrence_object_role_binding_type_counts": payload.get("occurrence_object_role_binding_type_counts") or {},
                 "interaction_occurrence_candidate_count": payload.get("interaction_occurrence_candidate_count", 0),
                 "intra_actor_action_grammar_candidate_count": payload.get("intra_actor_action_grammar_candidate_count", 0),
                 "goal_kick_restart_pass_candidate_count": payload.get("goal_kick_restart_pass_candidate_count", 0),
