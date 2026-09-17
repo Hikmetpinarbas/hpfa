@@ -146,6 +146,12 @@ def _full_spine(root: Path, source_rows, generic_safe=None):
     }
 
 
+def _safe_output_section(report: str) -> str:
+    marker = "[5] SAFE_ARGUMENT_CANDIDATES / SAFE FINDING → ANALYST OUTPUT — SOURCE-BOUND RENDER"
+    assert marker in report
+    return report.split(marker, 1)[1].split("[6]", 1)[0]
+
+
 def test_source_bound_complete_sentence_reaches_user_report(tmp_path: Path):
     row = _source_bound_row()
     report = build_analyst_report(tmp_path, _full_spine(tmp_path, [row], _complete_generic_sentence()))
@@ -171,7 +177,7 @@ def test_source_bound_fact_only_fallback_reaches_report_without_interpretation(t
     report = build_analyst_report(tmp_path, _full_spine(tmp_path, [row]))
     assert fact in report
     assert '"FACT_ONLY_RENDER": 1' in report
-    assert "Güvenli anlam:" not in report.split("[5] SAFE FINDING → ANALYST OUTPUT", 1)[1].split("[6]", 1)[0]
+    assert "Güvenli anlam:" not in _safe_output_section(report)
 
 
 def test_generic_c4_sentence_does_not_replace_source_bound_safe_finding(tmp_path: Path):
@@ -194,6 +200,7 @@ def test_unbound_legacy_interpretive_sentence_remains_blocked(tmp_path: Path):
 def test_other_report_surfaces_and_truth_locks_remain_backward_compatible(tmp_path: Path):
     report = build_analyst_report(tmp_path, _full_spine(tmp_path, [_source_bound_row()]))
     assert "[1] WHAT_VISIBLE" in report
+    assert "[5] SAFE_ARGUMENT_CANDIDATES" in report
     assert "[6] ANALYST REVIEW" in report
     assert "canonical_event_count=UNKNOWN" in report
     assert "true_action_count=UNKNOWN" in report
