@@ -10,6 +10,13 @@ assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
+# The current runtime wrapper intentionally rebinds functions on the shared core module.
+# This focused unit test only exercises the pure dependency-topology attachment helper,
+# so restore the historical core functions immediately after import to avoid contaminating
+# other reconciliation tests collected in the same pytest process.
+MODULE.core.norm_field = MODULE._CORE_NORM_FIELD
+MODULE.core.build_reconciliation = MODULE._CORE_BUILD_RECONCILIATION
+
 
 def test_format_dependency_typing_keeps_reflection_and_aggregate_non_independent():
     payload = {
