@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,10 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.analyst_outpu
 )
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.claim_satisfiability_runtime_binding import (
     bind_claim_satisfiability,
+)
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_sentence_render_completeness import (
+    build_source_bound_render_contract,
+    validate_safe_sentence_render,
 )
 
 OUTPUT_NAME = "analyst_output_claim_contract_projection_v1.json"
@@ -127,6 +132,57 @@ def _propagate_render_source_terms(
     return result
 
 
+def _materialize_source_bound_render_contracts(result: dict[str, Any]) -> dict[str, Any]:
+    render_rows: list[dict[str, Any]] = []
+    state_counts: Counter[str] = Counter()
+    rendered_allowed_count = 0
+    fact_only_count = 0
+
+    for source_contract in result.get("analyst_output_contracts") or []:
+        if not isinstance(source_contract, dict):
+            continue
+        rendered = build_source_bound_render_contract(source_contract)
+        validation = validate_safe_sentence_render(source_contract, rendered)
+        state = str(validation.get("render_completeness_state") or "UNKNOWN")
+        state_counts[state] += 1
+        render_allowed = validation.get("render_allowed") is True
+        fallback_allowed = validation.get("fallback_allowed") is True
+        if render_allowed:
+            rendered_allowed_count += 1
+            final_sentence = str(rendered.get("rendered_sentence_tr") or "").strip() or None
+        elif fallback_allowed:
+            fact_only_count += 1
+            final_sentence = str(validation.get("what_visible") or "").strip() or None
+        else:
+            final_sentence = None
+        render_rows.append({
+            "source_analyst_output_contract_ref": source_contract.get("analyst_output_contract_id"),
+            "source_safe_finding_handoff_ref": source_contract.get("source_safe_finding_handoff_ref"),
+            "source_safe_finding_admission_decision": source_contract.get("safe_finding_admission_decision"),
+            "rendered_sentence_contract": rendered,
+            "render_validation": validation,
+            "final_human_sentence_tr": final_sentence,
+            "render_creates_new_evidence": False,
+            "render_can_authorize_emit": False,
+            "render_can_strengthen_claim_ceiling": False,
+            "analyst_or_llm_text_is_evidence": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        })
+
+    result["source_bound_render_contracts"] = render_rows
+    result["source_bound_render_contract_count"] = len(render_rows)
+    result["source_bound_render_state_counts"] = dict(sorted(state_counts.items()))
+    result["source_bound_render_allowed_count"] = rendered_allowed_count
+    result["source_bound_fact_only_fallback_count"] = fact_only_count
+    result["source_bound_render_creates_new_evidence"] = False
+    result["source_bound_render_can_authorize_emit"] = False
+    result["source_bound_render_can_strengthen_claim_ceiling"] = False
+    result["analyst_or_llm_text_is_evidence"] = False
+    return result
+
+
 def runtime_write_outputs(
     sequence_json: str | Path,
     admission_json: str | Path,
@@ -149,9 +205,17 @@ def runtime_write_outputs(
             "claim_satisfiability_gate_consumed": False,
             "render_source_terms_propagated_count": 0,
             "render_source_terms_unresolved_count": 0,
+            "source_bound_render_contracts": [],
+            "source_bound_render_contract_count": 0,
+            "source_bound_render_state_counts": {},
+            "source_bound_render_allowed_count": 0,
+            "source_bound_fact_only_fallback_count": 0,
             "render_source_terms_create_new_evidence": False,
             "render_source_terms_can_authorize_emit": False,
             "render_source_terms_can_strengthen_claim_ceiling": False,
+            "source_bound_render_creates_new_evidence": False,
+            "source_bound_render_can_authorize_emit": False,
+            "source_bound_render_can_strengthen_claim_ceiling": False,
             "hard_block_hits": ["required_sequence_or_admission_payload_missing_or_invalid"],
             "review_hits": [],
             "canonical_event_count": "UNKNOWN",
@@ -168,6 +232,7 @@ def runtime_write_outputs(
             )
         if result.get("status") != "FAIL_CLOSED":
             result = _propagate_render_source_terms(sequence_payload, result)
+            result = _materialize_source_bound_render_contracts(result)
 
     target = output / OUTPUT_NAME
     target.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
@@ -195,6 +260,10 @@ def main() -> int:
         "claim_satisfiability_gate_state_counts": result.get("claim_satisfiability_gate_state_counts") or {},
         "render_source_terms_propagated_count": result.get("render_source_terms_propagated_count"),
         "render_source_terms_unresolved_count": result.get("render_source_terms_unresolved_count"),
+        "source_bound_render_contract_count": result.get("source_bound_render_contract_count"),
+        "source_bound_render_state_counts": result.get("source_bound_render_state_counts") or {},
+        "source_bound_render_allowed_count": result.get("source_bound_render_allowed_count"),
+        "source_bound_fact_only_fallback_count": result.get("source_bound_fact_only_fallback_count"),
         "hard_block_hits": result.get("hard_block_hits") or [],
         "review_hits": result.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",
