@@ -91,17 +91,54 @@ log "CHILD_PID=$CHILD"
 MONITOR=$!
 
 wait "$CHILD"
-RC=$?
+SEQUENCE_RC=$?
 kill "$MONITOR" >/dev/null 2>&1 || true
 MONITOR=""
-log "CHILD_RETURN_CODE=$RC"
+CHILD=""
+log "SEQUENCE_RETURN_CODE=$SEQUENCE_RC"
 
-if [ "$RC" -eq 137 ] || [ "$RC" -eq 9 ]; then
-  CLASSIFICATION="PROCESS_KILL_CANDIDATE"
-elif [ "$RC" -eq 0 ]; then
-  CLASSIFICATION="P1_SEQUENCE_COMPLETED"
+SAFE_RC=99
+CLAIM_RC=99
+if [ "$SEQUENCE_RC" -eq 0 ]; then
+  log "CHECKPOINT=PRE_SAFE_FINDING_ADMISSION"
+  python -u "$SRC/safe_finding_admission_current_v1.py" \
+    --sequence-json "$WORK/visible_action_sequence_candidates_lite_v1.json" \
+    --out-dir "$WORK" \
+    >> "$LOG" 2>&1
+  SAFE_RC=$?
+  log "SAFE_FINDING_RETURN_CODE=$SAFE_RC"
 else
+  log "SAFE_FINDING_SKIPPED=SEQUENCE_NONZERO"
+fi
+
+if [ "$SEQUENCE_RC" -eq 0 ] && [ "$SAFE_RC" -eq 0 ]; then
+  log "CHECKPOINT=PRE_CLAIM_SATISFIABILITY"
+  python -u "$SRC/analyst_output_claim_admission_current_v1.py" \
+    --sequence-json "$WORK/visible_action_sequence_candidates_lite_v1.json" \
+    --admission-json "$WORK/safe_finding_admission_projection_v1.json" \
+    --out-dir "$WORK" \
+    >> "$LOG" 2>&1
+  CLAIM_RC=$?
+  log "CLAIM_SATISFIABILITY_RETURN_CODE=$CLAIM_RC"
+else
+  log "CLAIM_SATISFIABILITY_SKIPPED=UPSTREAM_NONZERO"
+fi
+
+if [ "$SEQUENCE_RC" -eq 137 ] || [ "$SEQUENCE_RC" -eq 9 ]; then
+  CLASSIFICATION="PROCESS_KILL_CANDIDATE"
+  FINAL_RC="$SEQUENCE_RC"
+elif [ "$SEQUENCE_RC" -ne 0 ]; then
   CLASSIFICATION="P1_SEQUENCE_RETURNED_NONZERO"
+  FINAL_RC="$SEQUENCE_RC"
+elif [ "$SAFE_RC" -ne 0 ]; then
+  CLASSIFICATION="SAFE_FINDING_ADMISSION_RETURNED_NONZERO"
+  FINAL_RC="$SAFE_RC"
+elif [ "$CLAIM_RC" -ne 0 ]; then
+  CLASSIFICATION="CLAIM_SATISFIABILITY_RETURNED_NONZERO"
+  FINAL_RC="$CLAIM_RC"
+else
+  CLASSIFICATION="P1_SEQUENCE_SAFE_FINDING_CLAIM_COMPLETED"
+  FINAL_RC=0
 fi
 log "CLASSIFICATION=$CLASSIFICATION"
 
@@ -110,7 +147,10 @@ MANIFEST="$WORK/HPFA_P1_PHONE_MANIFEST_${SHORT}.txt"
   echo "expected_sha=$EXPECTED_SHA"
   echo "source=$SRC"
   echo "runtime=$RUNTIME"
-  echo "child_return_code=$RC"
+  echo "sequence_return_code=$SEQUENCE_RC"
+  echo "safe_finding_return_code=$SAFE_RC"
+  echo "claim_satisfiability_return_code=$CLAIM_RC"
+  echo "final_return_code=$FINAL_RC"
   echo "classification=$CLASSIFICATION"
   echo "canonical_event_count=UNKNOWN"
   echo "true_action_count=UNKNOWN"
@@ -126,7 +166,11 @@ FILES=(
   "trackable_action_trace_candidates_lite_v1.json"
   "trackable_action_consequence_candidates_lite_v1.json"
   "occurrence_consequence_projection_v1.json"
+  "occurrence_state_transition_projection_v1.json"
   "visible_action_sequence_candidates_lite_v1.json"
+  "safe_finding_admission_projection_v1.json"
+  "puzzle_finding_contract_projection_v1.json"
+  "analyst_output_claim_contract_projection_v1.json"
 )
 PRESENT=()
 for name in "${FILES[@]}"; do
@@ -146,4 +190,4 @@ rm -rf "$WORK" >/dev/null 2>&1 || true
 command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock >/dev/null 2>&1 || true
 
 echo "$ARCHIVE"
-exit "$RC"
+exit "$FINAL_RC"
