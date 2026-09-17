@@ -4,6 +4,7 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_sentence
     COMPLETE_BOUNDED_RENDER,
     FACT_ONLY_RENDER,
     INCOMPLETE_INTERPRETIVE_RENDER_BLOCKED,
+    build_source_bound_render_contract,
     validate_safe_sentence_render,
 )
 
@@ -19,6 +20,11 @@ def _source(decision="DOWNGRADE", scope="MATCH_LOCAL_OBSERVED_VARIATION_CUE_ONLY
         "forbidden_claim_families": ["CAUSALITY", "TACTICAL_PATTERN_TRUTH"],
         "variant_feature_challenge_counter_scenario_candidates": ["counter_1"],
         "variant_feature_challenge_withdrawal_condition_candidates": ["withdraw_1"],
+        "counter_scenario_candidates": ["core_counter"],
+        "withdrawal_condition_candidates": ["core_withdraw"],
+        "render_what_visible_text_tr": "Bu maçta aynı görünür başlangıçtan 5 uygun vaka gözlendi.",
+        "render_safe_meaning": "MATCH_LOCAL_SHARED_ANCHOR_VISIBLE_OUTCOME_VARIATION_ONLY",
+        "render_analyst_action": "REVIEW_BRANCH_EXAMPLES",
         "render_evidence_refs": ["e1"],
         "render_counterevidence_refs": ["ce1"],
         "analyst_or_llm_text_is_evidence": False,
@@ -38,8 +44,8 @@ def _render(**overrides):
         "claim_scope": "MATCH_LOCAL_OBSERVED_VARIATION_CUE_ONLY",
         "required_qualifiers": ["MATCH_LOCAL", "OBSERVED_VISIBLE_BRANCHES_ONLY"],
         "forbidden_claim_families": ["CAUSALITY", "TACTICAL_PATTERN_TRUTH"],
-        "counter_scenarios": ["counter_1"],
-        "withdrawal_conditions": ["withdraw_1"],
+        "counter_scenarios": ["core_counter", "counter_1"],
+        "withdrawal_conditions": ["core_withdraw", "withdraw_1"],
         "evidence_refs": ["e1"],
         "counterevidence_refs": ["ce1"],
         "render_creates_new_evidence": False,
@@ -125,8 +131,8 @@ def test_renderer_cannot_invent_evidence_or_safety_components():
         _render(
             evidence_refs=["e1", "invented_evidence"],
             counterevidence_refs=["ce1", "invented_counterevidence"],
-            counter_scenarios=["counter_1", "invented_counter"],
-            withdrawal_conditions=["withdraw_1", "invented_withdrawal"],
+            counter_scenarios=["core_counter", "counter_1", "invented_counter"],
+            withdrawal_conditions=["core_withdraw", "withdraw_1", "invented_withdrawal"],
         ),
     )
     assert "render_invented_evidence_ref" in result["blocking_reasons"]
@@ -153,6 +159,34 @@ def test_fact_only_fallback_is_available_when_interpretive_render_is_incomplete(
     assert result["render_allowed"] is False
     assert result["fallback_allowed"] is True
     assert result["fallback_mode"] == FACT_ONLY_RENDER
+
+
+def test_source_bound_builder_preserves_core_and_challenge_safety_terms():
+    source = _source()
+    rendered = build_source_bound_render_contract(source)
+    result = validate_safe_sentence_render(source, rendered)
+
+    assert rendered["counter_scenarios"] == ["core_counter", "counter_1"]
+    assert rendered["withdrawal_conditions"] == ["core_withdraw", "withdraw_1"]
+    assert rendered["evidence_refs"] == ["e1"]
+    assert rendered["counterevidence_refs"] == ["ce1"]
+    assert rendered["render_creates_new_evidence"] is False
+    assert rendered["render_authorizes_emit"] is False
+    assert result["render_completeness_state"] == COMPLETE_BOUNDED_RENDER
+    assert result["render_allowed"] is True
+    assert "Alternatif açıklamalar:" in rendered["rendered_sentence_tr"]
+    assert "Geri çekme koşulları:" in rendered["rendered_sentence_tr"]
+
+
+def test_source_bound_builder_abstain_downgrades_to_fact_only():
+    source = _source(decision="ABSTAIN", scope="NO_CLAIM_OUTPUT")
+    rendered = build_source_bound_render_contract(source)
+    result = validate_safe_sentence_render(source, rendered)
+
+    assert rendered["sentence_type"] == "FACT_ONLY"
+    assert rendered["safe_meaning"] is None
+    assert result["render_completeness_state"] == FACT_ONLY_RENDER
+    assert result["render_allowed"] is True
 
 
 def test_no_sample_match_identity_leak():
