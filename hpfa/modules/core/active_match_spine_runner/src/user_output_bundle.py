@@ -8,11 +8,16 @@ from pathlib import Path
 from typing import Any
 
 from analyst_mechanism_review import build_mechanism_review_lines
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_sentence_render_completeness import (
+    FACT_ONLY_RENDER,
+    validate_safe_sentence_render,
+)
 
 ANALYST_REPORT = "HPFA_ANALYST_REPORT.txt"
 BUNDLE_MANIFEST = "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"
 BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
 EPISODE_FEATURE_JSON = "episode_feature_vector_lite_v1.json"
+ANALYST_OUTPUT_CLAIM_JSON = "analyst_output_claim_contract_projection_v1.json"
 FULL_SPINE_JSON = "active_match_full_spine_v1.json"
 FULL_SPINE_TXT = "active_match_full_spine_v1.txt"
 
@@ -86,26 +91,86 @@ def _counter_sum(cards: list[dict[str, Any]], field: str) -> dict[str, int]:
     return dict(sorted(counter.items()))
 
 
-def _safe_sentences(full_spine: dict[str, Any], limit: int = 12) -> list[str]:
+def _declared_current(full_spine: dict[str, Any], filename: str) -> bool:
+    return any(Path(str(value)).name == filename for value in (full_spine.get("current_invocation_artifacts") or []))
+
+
+def _source_analyst_output_contracts(root: Path, full_spine: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    if not _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON):
+        return {}
+    payload = _load_json(root / ANALYST_OUTPUT_CLAIM_JSON)
+    if str(payload.get("status") or "").upper() == "FAIL_CLOSED":
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for row in payload.get("analyst_output_contracts") or []:
+        if not isinstance(row, dict):
+            continue
+        ref = str(row.get("analyst_output_contract_id") or "").strip()
+        if ref:
+            result[ref] = row
+    return result
+
+
+def _safe_sentence_render_result(
+    safe: dict[str, Any],
+    source_contracts: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    rendered = safe.get("rendered_sentence_contract")
+    if not isinstance(rendered, dict):
+        rendered = {
+            "source_analyst_output_contract_ref": safe.get("source_analyst_output_contract_ref"),
+            "sentence_type": safe.get("sentence_type") or "INTERPRETIVE",
+            "what_visible": safe.get("what_visible"),
+            "safe_meaning": safe.get("safe_meaning"),
+            "claim_limiter": safe.get("claim_limiter"),
+            "counter_scenarios": safe.get("counter_scenarios") or [],
+            "withdrawal_conditions": safe.get("withdrawal_conditions") or [],
+            "analyst_action": safe.get("analyst_action"),
+            "claim_scope": safe.get("claim_scope"),
+            "required_qualifiers": safe.get("required_qualifiers") or [],
+            "forbidden_claim_families": safe.get("forbidden_claim_families") or [],
+            "evidence_refs": safe.get("evidence_refs") or [],
+            "counterevidence_refs": safe.get("counterevidence_refs") or [],
+            "render_creates_new_evidence": False,
+            "render_authorizes_emit": False,
+            "analyst_or_llm_text_is_evidence": False,
+            "absence_is_counterevidence": False,
+        }
+    source_ref = str(rendered.get("source_analyst_output_contract_ref") or "").strip()
+    source = source_contracts.get(source_ref)
+    return validate_safe_sentence_render(source, rendered)
+
+
+def _safe_sentences(root: Path, full_spine: dict[str, Any], limit: int = 12) -> tuple[list[str], dict[str, int]]:
     seen: set[str] = set()
     result: list[str] = []
+    state_counts: Counter[str] = Counter()
     chains = full_spine.get("intelligence_chains")
     if not isinstance(chains, list):
-        return result
+        return result, {}
+    source_contracts = _source_analyst_output_contracts(root, full_spine)
     for chain in chains:
         if not isinstance(chain, dict):
             continue
         safe = chain.get("safe_sentence")
         if not isinstance(safe, dict):
             continue
-        text = str(safe.get("safe_sentence_candidate_tr") or "").strip()
+        validation = _safe_sentence_render_result(safe, source_contracts)
+        state = str(validation.get("render_completeness_state") or "UNKNOWN")
+        state_counts[state] += 1
+        if validation.get("render_allowed") is True:
+            text = str(safe.get("safe_sentence_candidate_tr") or "").strip()
+        elif validation.get("fallback_allowed") is True and validation.get("fallback_mode") == FACT_ONLY_RENDER:
+            text = str(validation.get("what_visible") or "").strip()
+        else:
+            text = ""
         if not text or text in seen:
             continue
         seen.add(text)
         result.append(text)
         if len(result) >= limit:
             break
-    return result
+    return result, dict(sorted(state_counts.items()))
 
 
 def _feature_surface_current(full_spine: dict[str, Any]) -> bool:
@@ -287,12 +352,17 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
 
-    safe = _safe_sentences(full_spine) if c4_current else []
+    safe, safe_render_states = _safe_sentences(root, full_spine) if c4_current else ([], {})
     lines.extend(["", "[5] SAFE_ARGUMENT_CANDIDATES — MEVCUT C4 BLOKLARI"])
+    lines.append(f"render_completeness_state_counts={json.dumps(safe_render_states, ensure_ascii=False, sort_keys=True)}")
+    lines.append("render_creates_new_evidence=false")
+    lines.append("render_can_authorize_emit=false")
+    lines.append("render_can_strengthen_claim_ceiling=false")
+    lines.append("analyst_or_llm_text_is_evidence=false")
     if safe:
         lines.extend(f"- {text}" for text in safe)
     elif c4_current:
-        lines.append("- Bu run'da yayinlanabilir safe-sentence candidate gorunmedi.")
+        lines.append("- Complete source-bounded render bulunmadi; eksik interpretive render bloklandi veya mevcutsa FACT_ONLY yuzeye dusuruldu.")
     else:
         lines.append("- Current invocation C4 producer zinciri tamamlanmadi; onceki run argumani kullanilmadi.")
 
