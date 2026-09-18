@@ -109,3 +109,76 @@ def test_no_sample_match_identity_leak():
     ).read_text(encoding="utf-8")
     for token in ("Sporting", "Galatasaray", "Fenerbahce", "Fenerbahçe", "Roma", "09.09.2026", "10.09.2026"):
         assert token not in source
+
+
+def _admission_with_numeric_bound(*, unsafe_emit=False):
+    return {
+        "status": "PASS",
+        "safe_finding_admission_decisions": [
+            {
+                "source_safe_finding_handoff_ref": "sfh_test",
+                "decision": "DOWNGRADE",
+                "claim_output_allowed": False,
+                "consequence_observation_burden_profile": {
+                    "bound_state": "PARTIALLY_IDENTIFIED_VISIBLE_OUTCOME_RATE",
+                    "estimand_id": "MATCH_LOCAL_VISIBLE_PROCESS_OUTCOME_RATE",
+                    "eligible_denominator_basis": "UNIQUE_OBSERVABLE_PROCESS_VARIANT_FAMILY_MEMBER_SEQUENCE_REFS",
+                    "resolved_success_n": 4,
+                    "resolved_failure_n": 1,
+                    "unresolved_eligible_n": 2,
+                    "eligible_total_n": 7,
+                    "lower_bound": 4 / 7,
+                    "upper_bound": 6 / 7,
+                    "bound_width": 2 / 7,
+                    "assumption_set_id": "BINARY_VISIBLE_OUTCOME_KNOWN_ELIGIBLE_DENOMINATOR_WORST_CASE_UNRESOLVED_V1",
+                    "denominator_membership_admitted": True,
+                    "target_outcome_semantics_fixed": True,
+                    "matched_process_variant_family_refs": ["family_test"],
+                    "identification_interval_is_confidence_interval": False,
+                    "rate_bound_is_true_probability": False,
+                    "rate_bound_is_population_rate": False,
+                    "rate_bound_is_causal_effect": False,
+                    "rate_bound_can_authorize_emit": unsafe_emit,
+                    "rate_bound_can_strengthen_claim_ceiling": False,
+                    "rate_bound_creates_new_evidence": False,
+                    "claim_ceiling": "MATCH_LOCAL_VISIBLE_OUTCOME_RATE_BOUND_ONLY",
+                },
+            }
+        ],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
+def test_source_bound_numeric_rate_bound_is_projected_without_recomputation():
+    result = build_analyst_output_claim_contract(_payload(), _admission_with_numeric_bound())
+    contract = _contract(result)
+
+    assert result["status"] == "PASS"
+    assert result["partial_identification_rate_bound_projected"] is True
+    assert result["partial_identification_rate_bound_recomputed_downstream"] is False
+    assert contract["rate_bound_binding_state"] == "SOURCE_BOUND_NUMERIC"
+    assert contract["rate_bound_state"] == "PARTIALLY_IDENTIFIED_VISIBLE_OUTCOME_RATE"
+    assert contract["rate_bound_resolved_success_n"] == 4
+    assert contract["rate_bound_resolved_failure_n"] == 1
+    assert contract["rate_bound_unresolved_eligible_n"] == 2
+    assert contract["rate_bound_eligible_total_n"] == 7
+    assert contract["rate_bound_lower"] == 4 / 7
+    assert contract["rate_bound_upper"] == 6 / 7
+    assert contract["rate_bound_width"] == 2 / 7
+    assert contract["rate_bound_matched_process_variant_family_refs"] == ["family_test"]
+    assert contract["rate_bound_is_confidence_interval"] is False
+    assert contract["rate_bound_can_authorize_emit"] is False
+    assert contract["rate_bound_can_strengthen_claim_ceiling"] is False
+    assert contract["rate_bound_creates_new_evidence"] is False
+
+
+def test_unsafe_rate_bound_contract_fails_closed():
+    result = build_analyst_output_claim_contract(
+        _payload(),
+        _admission_with_numeric_bound(unsafe_emit=True),
+    )
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["analyst_output_contract_count"] == 0
+    assert any("unsafe_rate_bound_contract" in value for value in result["hard_block_hits"])

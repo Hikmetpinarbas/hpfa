@@ -5,6 +5,8 @@ from typing import Any
 ANALYST_OUTPUT_CLAIM_SCOPE = "MATCH_LOCAL_OBSERVED_VARIATION_CUE_ONLY"
 ADMITTED_PROFESSIONAL_FINDING_SCOPE = "DEFEASIBLE_MATCH_LOCAL_PROFESSIONAL_FINDING_ONLY"
 NO_CLAIM_SCOPE = "NO_CLAIM_OUTPUT"
+RATE_BOUND_CLAIM_CEILING = "MATCH_LOCAL_VISIBLE_OUTCOME_RATE_BOUND_ONLY"
+RATE_BOUND_NUMERIC_STATES = {"POINT_IDENTIFIED_OBSERVED_RATE", "PARTIALLY_IDENTIFIED_VISIBLE_OUTCOME_RATE"}
 
 FORBIDDEN_CLAIM_FAMILIES = [
     "TRUE_SUCCESS_PROBABILITY",
@@ -211,6 +213,101 @@ def _support_spread_contract(decision_row: dict[str, Any] | None) -> dict[str, A
     }
 
 
+
+def _rate_bound_contract(decision_row: dict[str, Any] | None) -> tuple[dict[str, Any], str | None]:
+    """Project an already-admitted rate bound without recomputing it downstream."""
+    empty = {
+        "rate_bound_binding_state": "NOT_AVAILABLE",
+        "rate_bound_estimand_id": None,
+        "rate_bound_denominator_basis": None,
+        "rate_bound_state": "NOT_AVAILABLE",
+        "rate_bound_resolved_success_n": None,
+        "rate_bound_resolved_failure_n": None,
+        "rate_bound_unresolved_eligible_n": None,
+        "rate_bound_eligible_total_n": None,
+        "rate_bound_lower": None,
+        "rate_bound_upper": None,
+        "rate_bound_width": None,
+        "rate_bound_assumption_set_id": None,
+        "rate_bound_matched_process_variant_family_refs": [],
+        "rate_bound_is_confidence_interval": False,
+        "rate_bound_is_true_probability": False,
+        "rate_bound_is_population_rate": False,
+        "rate_bound_is_causal_effect": False,
+        "rate_bound_can_authorize_emit": False,
+        "rate_bound_can_strengthen_claim_ceiling": False,
+        "rate_bound_creates_new_evidence": False,
+    }
+    if not isinstance(decision_row, dict):
+        return empty, None
+    profile = decision_row.get("consequence_observation_burden_profile")
+    if not isinstance(profile, dict):
+        return empty, None
+
+    state = str(profile.get("bound_state") or "BOUND_UNRESOLVED").strip().upper()
+    family_refs = _compact_refs(profile.get("matched_process_variant_family_refs"))
+    contract = {
+        **empty,
+        "rate_bound_binding_state": "SOURCE_BOUND_NON_NUMERIC",
+        "rate_bound_estimand_id": profile.get("estimand_id"),
+        "rate_bound_denominator_basis": profile.get("eligible_denominator_basis"),
+        "rate_bound_state": state,
+        "rate_bound_resolved_success_n": profile.get("resolved_success_n"),
+        "rate_bound_resolved_failure_n": profile.get("resolved_failure_n"),
+        "rate_bound_unresolved_eligible_n": profile.get("unresolved_eligible_n"),
+        "rate_bound_eligible_total_n": profile.get("eligible_total_n"),
+        "rate_bound_lower": profile.get("lower_bound"),
+        "rate_bound_upper": profile.get("upper_bound"),
+        "rate_bound_width": profile.get("bound_width"),
+        "rate_bound_assumption_set_id": profile.get("assumption_set_id"),
+        "rate_bound_matched_process_variant_family_refs": family_refs,
+    }
+
+    unsafe = (
+        profile.get("identification_interval_is_confidence_interval") is not False
+        or profile.get("rate_bound_is_true_probability") is not False
+        or profile.get("rate_bound_is_population_rate") is not False
+        or profile.get("rate_bound_is_causal_effect") is not False
+        or profile.get("rate_bound_can_authorize_emit") is not False
+        or profile.get("rate_bound_can_strengthen_claim_ceiling") is not False
+        or profile.get("rate_bound_creates_new_evidence") is not False
+    )
+    if unsafe:
+        return contract, "unsafe_rate_bound_contract"
+
+    if state in RATE_BOUND_NUMERIC_STATES:
+        counts = (
+            profile.get("resolved_success_n"),
+            profile.get("resolved_failure_n"),
+            profile.get("unresolved_eligible_n"),
+            profile.get("eligible_total_n"),
+        )
+        if not all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in counts):
+            return contract, "numeric_rate_bound_count_contract_invalid"
+        success_n, failure_n, unresolved_n, total_n = counts
+        if success_n + failure_n + unresolved_n != total_n:
+            return contract, "numeric_rate_bound_denominator_identity_invalid"
+        lower = profile.get("lower_bound")
+        upper = profile.get("upper_bound")
+        width = profile.get("bound_width")
+        if not all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in (lower, upper, width)):
+            return contract, "numeric_rate_bound_value_contract_invalid"
+        if not (0.0 <= float(lower) <= float(upper) <= 1.0):
+            return contract, "numeric_rate_bound_order_invalid"
+        if abs((float(upper) - float(lower)) - float(width)) > 1e-12:
+            return contract, "numeric_rate_bound_width_invalid"
+        if profile.get("denominator_membership_admitted") is not True:
+            return contract, "numeric_rate_bound_denominator_not_admitted"
+        if profile.get("target_outcome_semantics_fixed") is not True:
+            return contract, "numeric_rate_bound_target_semantics_unresolved"
+        if str(profile.get("claim_ceiling") or "") != RATE_BOUND_CLAIM_CEILING:
+            return contract, "numeric_rate_bound_claim_ceiling_invalid"
+        if not family_refs:
+            return contract, "numeric_rate_bound_family_lineage_missing"
+        contract["rate_bound_binding_state"] = "SOURCE_BOUND_NUMERIC"
+    return contract, None
+
+
 def build_analyst_output_claim_contract(
     comparable_outcome_payload: dict[str, Any],
     admission_payload: dict[str, Any] | None = None,
@@ -303,6 +400,9 @@ def build_analyst_output_claim_contract(
 
         challenge_contract = _challenge_contract(decision_row)
         support_spread_contract = _support_spread_contract(decision_row)
+        rate_bound_contract, rate_bound_block = _rate_bound_contract(decision_row)
+        if rate_bound_block:
+            return _fail_closed(f"{rate_bound_block}:{handoff_id}")
         episode_spread_unknown_resolved = (
             support_spread_contract["variant_support_episode_spread_observed"] is True
         )
@@ -327,6 +427,7 @@ def build_analyst_output_claim_contract(
                 "forbidden_claim_families": forbidden,
                 **challenge_contract,
                 **support_spread_contract,
+                **rate_bound_contract,
                 "support_spread_may_be_reported_as_observed_match_local_description": (
                     decision != "ABSTAIN"
                 ),
@@ -371,6 +472,13 @@ def build_analyst_output_claim_contract(
         "variant_support_spread_is_recurrence_truth": False,
         "variant_support_spread_can_increase_support": False,
         "variant_support_spread_can_authorize_emit": False,
+        "partial_identification_rate_bound_projected": any(
+            row.get("rate_bound_binding_state") != "NOT_AVAILABLE" for row in contracts
+        ),
+        "partial_identification_rate_bound_recomputed_downstream": False,
+        "partial_identification_rate_bound_can_authorize_emit": False,
+        "partial_identification_rate_bound_can_strengthen_claim_ceiling": False,
+        "partial_identification_rate_bound_creates_new_evidence": False,
         "late_bound_episode_spread_can_only_resolve_stale_unknown": True,
         "review_required_admission_can_authorize_emit": False,
         "analyst_or_llm_text_is_evidence": False,
@@ -408,6 +516,11 @@ def _fail_closed(reason: str) -> dict[str, Any]:
         "variant_support_spread_is_recurrence_truth": False,
         "variant_support_spread_can_increase_support": False,
         "variant_support_spread_can_authorize_emit": False,
+        "partial_identification_rate_bound_projected": False,
+        "partial_identification_rate_bound_recomputed_downstream": False,
+        "partial_identification_rate_bound_can_authorize_emit": False,
+        "partial_identification_rate_bound_can_strengthen_claim_ceiling": False,
+        "partial_identification_rate_bound_creates_new_evidence": False,
         "late_bound_episode_spread_can_only_resolve_stale_unknown": True,
         "review_required_admission_can_authorize_emit": False,
         "analyst_or_llm_text_is_evidence": False,
