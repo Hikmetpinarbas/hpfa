@@ -373,6 +373,21 @@ def test_c02_shot_specific_context_refines_same_interval_generic_context():
     assert profile["shot_ending_n"] == 2
     assert result["representative_dyad_argument"]["shot_ending_n"] == 2
 
+def test_c02_small_n_contract_exposes_2x2_counts_but_blocks_inference_without_dependency_admission():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+    dyad = result["representative_dyad_argument"]
+    contract = dyad["small_n_association_contract"]
+    assert contract["present_shot_n"] == 2
+    assert contract["present_non_shot_n"] == 0
+    assert contract["absent_shot_n"] == 0
+    assert contract["absent_non_shot_n"] == 2
+    assert contract["exchangeability_admitted"] is False
+    assert contract["dependency_state"] == "UNRESOLVED_MATCH_LOCAL_PROCESS_DEPENDENCE"
+    assert contract["fisher_exact_state"] == "NOT_EVALUATED_DEPENDENCY_UNRESOLVED"
+    assert contract["permutation_state"] == "NOT_EVALUATED_EXCHANGEABILITY_NOT_ADMITTED"
+    assert contract["p_value_is_football_importance"] is False
+
+
 def test_full_spine_runs_sidecars_before_rich_multiformat_lane():
     source = (SRC / "full_spine_runner.py").read_text(encoding="utf-8")
     assert source.index("sidecar_report = run_sidecars(") < source.index("rich_report = run_rich_lane(")

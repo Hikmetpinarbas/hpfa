@@ -482,6 +482,10 @@ def _association_record(
         row for row in process_rows
         if row["shot_present"] and not actor_set.issubset(set(row["actor_ids"]))
     ]
+    no_shot_without = [
+        row for row in process_rows
+        if not row["shot_present"] and not actor_set.issubset(set(row["actor_ids"]))
+    ]
     support_n = len(involved)
     shot_n = len(shot_rows)
     rate = (shot_n / support_n) if support_n else None
@@ -517,6 +521,18 @@ def _association_record(
         "shot_process_refs": [row["process_ref"] for row in shot_rows],
         "counterexample_involved_without_shot_refs": [row["process_ref"] for row in no_shot_rows],
         "counterexample_shot_without_association_refs": [row["process_ref"] for row in shot_without],
+        "small_n_association_contract": {
+            "observation_unit": "ADMITTED_PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
+            "present_shot_n": shot_n,
+            "present_non_shot_n": len(no_shot_rows),
+            "absent_shot_n": len(shot_without),
+            "absent_non_shot_n": len(no_shot_without),
+            "exchangeability_admitted": False,
+            "dependency_state": "UNRESOLVED_MATCH_LOCAL_PROCESS_DEPENDENCE",
+            "fisher_exact_state": "NOT_EVALUATED_DEPENDENCY_UNRESOLVED",
+            "permutation_state": "NOT_EVALUATED_EXCHANGEABILITY_NOT_ADMITTED",
+            "p_value_is_football_importance": False,
+        },
         "xlsx_actor_context": xlsx_context,
         "xlsx_enriched_actor_count": len(xlsx_context),
         "association_is_causal_player_credit": False,
