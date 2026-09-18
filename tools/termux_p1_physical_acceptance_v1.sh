@@ -114,11 +114,31 @@ fi
 SAFE_RC=99
 CLAIM_RC=99
 if [ "$SEQUENCE_RC" -eq 0 ] && [ "$CONTEXT_RC" -eq 0 ]; then
-  log "CHECKPOINT=PRE_SAFE_FINDING_ADMISSION"
-  python -u "$SRC/safe_finding_admission_current_v1.py" \
-    --sequence-json "$WORK/visible_action_sequence_candidates_lite_v1.json" \
-    --out-dir "$WORK" \
-    >> "$LOG" 2>&1
+  log "CHECKPOINT=VERIFY_SAFE_FINDING_CURRENT_INVOCATION_ARTIFACT"
+  python - "$WORK/safe_finding_admission_projection_v1.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    raise SystemExit(2)
+if not isinstance(payload, dict):
+    raise SystemExit(2)
+if payload.get("status") == "FAIL_CLOSED":
+    raise SystemExit(2)
+if payload.get("process_context_stale_process_variant_surface_reused") is True:
+    raise SystemExit(2)
+if payload.get("canonical_event_count") != "UNKNOWN":
+    raise SystemExit(2)
+if payload.get("true_action_count") != "UNKNOWN":
+    raise SystemExit(2)
+if payload.get("production_release") is not False:
+    raise SystemExit(2)
+raise SystemExit(0)
+PY
   SAFE_RC=$?
   log "SAFE_FINDING_RETURN_CODE=$SAFE_RC"
 else
@@ -126,12 +146,31 @@ else
 fi
 
 if [ "$SEQUENCE_RC" -eq 0 ] && [ "$CONTEXT_RC" -eq 0 ] && [ "$SAFE_RC" -eq 0 ]; then
-  log "CHECKPOINT=PRE_CLAIM_SATISFIABILITY"
-  python -u "$SRC/analyst_output_claim_admission_current_v1.py" \
-    --sequence-json "$WORK/visible_action_sequence_candidates_lite_v1.json" \
-    --admission-json "$WORK/safe_finding_admission_projection_v1.json" \
-    --out-dir "$WORK" \
-    >> "$LOG" 2>&1
+  log "CHECKPOINT=VERIFY_CLAIM_SATISFIABILITY_CURRENT_INVOCATION_ARTIFACT"
+  python - "$WORK/analyst_output_claim_contract_projection_v1.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    raise SystemExit(2)
+if not isinstance(payload, dict):
+    raise SystemExit(2)
+if payload.get("status") == "FAIL_CLOSED":
+    raise SystemExit(2)
+if payload.get("safe_finding_admission_consumed") is not True:
+    raise SystemExit(2)
+if payload.get("canonical_event_count") != "UNKNOWN":
+    raise SystemExit(2)
+if payload.get("true_action_count") != "UNKNOWN":
+    raise SystemExit(2)
+if payload.get("production_release") is not False:
+    raise SystemExit(2)
+raise SystemExit(0)
+PY
   CLAIM_RC=$?
   log "CLAIM_SATISFIABILITY_RETURN_CODE=$CLAIM_RC"
 else
