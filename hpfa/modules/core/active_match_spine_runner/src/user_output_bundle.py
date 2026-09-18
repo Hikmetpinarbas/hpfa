@@ -442,8 +442,10 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 f"{baseline_shot_n}/{eligible_n} süreç şutla bitti ({base_text}). "
                 f"{names} bulunan {support_n} süreçte {shot_n} şutla bitiş görüldü "
                 f"({rate_text}; maç-içi lift={lift_text}). "
-                f"Şut anotasyonu görülmeyen birlikte-görülme={int(candidate.get('non_shot_n') or 0)} "
-                "(resolved non-shot olarak yorumlanmaz); "
+                f"Hedef anotasyonu görülmeyen birlikte-görülme={int(candidate.get('not_target_annotated_n') or 0)} "
+                "(resolved non-shot değildir); "
+                f"coverage={((candidate.get('observation_capability_coverage_profile') or {}).get('coverage_state') or 'UNRESOLVED')}; "
+                f"negative_claim={((candidate.get('observation_capability_coverage_profile') or {}).get('negative_claim_admission_state') or 'UNRESOLVED')}; "
                 f"XLSX oyuncu bağlamı eşleşen kişi={int(candidate.get('xlsx_enriched_actor_count') or 0)}. "
                 "Bu, admitted process/occurrence incelemesine öncelik veren maç-içi process ilişkisi adayidir."
             )

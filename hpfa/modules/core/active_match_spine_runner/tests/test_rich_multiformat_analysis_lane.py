@@ -391,6 +391,33 @@ def test_c02_small_n_contract_does_not_coerce_not_target_annotation_into_resolve
     assert contract["p_value_is_football_importance"] is False
 
 
+def test_c02_observation_capability_profile_distinguishes_annotation_absence_from_resolved_negative():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+    dyad = result["representative_dyad_argument"]
+    profile = dyad["observation_capability_coverage_profile"]
+
+    assert profile["required_capabilities"][-1] == "TARGET_OUTCOME_NEGATIVE_RESOLUTION"
+    assert profile["missing_required_capabilities"] == ["TARGET_OUTCOME_NEGATIVE_RESOLUTION"]
+    assert profile["capability_state"] == "PARTIALLY_ADMITTED"
+    assert profile["coverage_state"] == "PARTIALLY_OBSERVABLE"
+    assert profile["negative_claim_admission_state"] == "BLOCKED_NEGATIVE_OUTCOME_NOT_RESOLVABLE"
+    assert profile["not_target_annotation_is_negative_outcome_truth"] is False
+    assert dyad["not_target_annotated_is_resolved_non_target"] is False
+    assert dyad["opportunity_normalized_evidence_anatomy"]["resolved_non_target_n"] is None
+
+
+def test_c02_canonical_not_target_fields_preserve_legacy_alias_without_semantic_upgrade():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+    actor = next(row for row in result["actor_argument_candidates"] if row["actor_identity_candidate_ids"] == ["actor_kerem"])
+
+    assert actor["not_target_annotated_n"] == actor["non_shot_n"]
+    assert actor["baseline_not_target_annotated_n"] == actor["baseline_non_shot_n"]
+    assert actor["involved_without_target_annotation_refs"] == actor["counterexample_involved_without_shot_refs"]
+    assert actor["legacy_non_shot_fields_deprecation_state"] == "DEPRECATED_COMPATIBILITY_ONLY"
+    assert actor["legacy_non_shot_fields_are_resolved_non_target"] is False
+    assert actor["baseline_not_target_annotated_is_resolved_non_target"] is False
+
+
 def test_c02_epistemic_review_contract_preserves_claim_ceiling_and_exposes_review_actions():
     result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
     dyad = result["representative_dyad_argument"]

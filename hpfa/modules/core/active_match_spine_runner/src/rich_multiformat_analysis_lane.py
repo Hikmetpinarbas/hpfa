@@ -509,6 +509,40 @@ def _association_epistemic_review_contract(
     }
 
 
+def _c02_observation_capability_profile() -> dict[str, Any]:
+    """Describe what the current C02 source can and cannot resolve for its target outcome."""
+    required = [
+        "PROCESS_CONTEXT_INTERVAL",
+        "PROCESS_PARTICIPATION",
+        "TARGET_OUTCOME_POSITIVE_ANNOTATION",
+        "TARGET_OUTCOME_NEGATIVE_RESOLUTION",
+    ]
+    admitted = [
+        "PROCESS_CONTEXT_INTERVAL",
+        "PROCESS_PARTICIPATION",
+        "TARGET_OUTCOME_POSITIVE_ANNOTATION",
+    ]
+    missing = ["TARGET_OUTCOME_NEGATIVE_RESOLUTION"]
+    return {
+        "profile_version": "C02_OBSERVATION_CAPABILITY_COVERAGE_V1",
+        "applicability_state": "ELIGIBLE",
+        "required_capabilities": required,
+        "admitted_capabilities": admitted,
+        "missing_required_capabilities": missing,
+        "capability_state": "PARTIALLY_ADMITTED",
+        "observation_window_state": "UNRESOLVED_FOR_TARGET_NEGATIVE_RESOLUTION",
+        "instance_observation_state": "PARTIALLY_OBSERVED",
+        "coverage_state": "PARTIALLY_OBSERVABLE",
+        "negative_claim_admission_state": "BLOCKED_NEGATIVE_OUTCOME_NOT_RESOLVABLE",
+        "not_target_annotation_is_negative_outcome_truth": False,
+        "absence_is_counterevidence": False,
+        "creates_new_evidence": False,
+        "can_authorize_emit": False,
+        "can_strengthen_claim_ceiling": False,
+        "claim_ceiling": "MATCH_LOCAL_OBSERVATION_CAPABILITY_AND_COVERAGE_DESCRIPTION_ONLY",
+    }
+
+
 def _association_record(
     *,
     association_type: str,
@@ -557,6 +591,11 @@ def _association_record(
         "actor_labels": labels,
         "support_n": support_n,
         "shot_ending_n": shot_n,
+        "not_target_annotated_n": len(no_shot_rows),
+        "involved_without_target_annotation_refs": [row["process_ref"] for row in no_shot_rows],
+        "not_target_annotated_is_resolved_non_target": False,
+        "legacy_non_shot_fields_deprecation_state": "DEPRECATED_COMPATIBILITY_ONLY",
+        "legacy_non_shot_fields_are_resolved_non_target": False,
         "non_shot_n": len(no_shot_rows),
         "conditional_shot_frequency": rate,
         "match_local_baseline_shot_frequency": baseline,
@@ -595,6 +634,7 @@ def _association_record(
             "episode_spread_is_independence_proof": False,
             "lineage_group_n_is_effective_sample_size": False,
         },
+        "observation_capability_coverage_profile": _c02_observation_capability_profile(),
         "epistemic_review_contract": _association_epistemic_review_contract(
             shot_rows=shot_rows,
             not_target_rows=no_shot_rows,
@@ -733,6 +773,8 @@ def _construct_c02(
             out["process_family_candidate"] = family
             out["eligible_process_n"] = eligible_n
             out["baseline_shot_ending_n"] = shot_n
+            out["baseline_not_target_annotated_n"] = eligible_n - shot_n
+            out["baseline_not_target_annotated_is_resolved_non_target"] = False
             out["baseline_non_shot_n"] = eligible_n - shot_n
             anatomy = out.get("opportunity_normalized_evidence_anatomy")
             if isinstance(anatomy, dict):
@@ -753,8 +795,13 @@ def _construct_c02(
             "process_family_candidate": family,
             "eligible_process_n": eligible_n,
             "shot_ending_n": shot_n,
+            "not_target_annotated_n": eligible_n - shot_n,
+            "not_target_annotated_is_resolved_non_target": False,
+            "legacy_non_shot_fields_deprecation_state": "DEPRECATED_COMPATIBILITY_ONLY",
+            "legacy_non_shot_fields_are_resolved_non_target": False,
             "non_shot_n": eligible_n - shot_n,
             "shot_ending_frequency": shot_n / eligible_n,
+            "observation_capability_coverage_profile": _c02_observation_capability_profile(),
             "process_refs": [row["process_ref"] for row in process_rows],
             "actor_candidate_count": len(actor_candidates),
             "dyad_candidate_count": len(dyad_candidates),
@@ -791,6 +838,7 @@ def _construct_c02(
         "xlsx_actor_binding_count": len(actor_bindings),
         "xlsx_binding_review_hits": binding_reviews,
         "process_participation_consumed": bool(raw),
+        "observation_capability_coverage_profile": _c02_observation_capability_profile(),
         "unit_of_analysis": "ADMITTED_PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
         "association_statistics": [
             "SUPPORT_N",
