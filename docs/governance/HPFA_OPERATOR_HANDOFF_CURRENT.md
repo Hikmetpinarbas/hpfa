@@ -1,215 +1,277 @@
 # HPFA OPERATOR HANDOFF — CURRENT
 
-Updated: 2026-08-19 12:10 TRT
+Updated: 2026-09-15 TRT
 Record role: CURRENT_OPERATOR_HANDOFF
 Product repo: `Hikmetpinarbas/hpfa`
 Runtime authority: `runtime/active_single_match/current`
 
 ## 0. NEW OPERATOR — READ THIS FIRST
 
-This file exists so a new operator can continue HPFA without asking the user to reconstruct prior work.
-
 Mandatory startup sequence:
 1. Read `docs/governance/HPFA_MASTER_PROJECT_DIRECTIVE_SHORT_CURRENT.md`.
 2. Read this file completely.
-3. Read the Google Drive document `HPFA ANA REPO — CANLI İŞ TAKİP VE DURUM KAYDI` for the long historical/operator ledger.
-4. Re-fetch GitHub current main and current PR heads before any write.
-5. Verify `runtime/active_single_match/current` before any ACTIVE_MATCH claim.
-6. Historical runtime evidence never transfers automatically to a new head or a new match.
-7. Do not ask the user to repeat project history already recorded here unless a material ambiguity remains after verification.
+3. Re-fetch GitHub current main and current development frontier before every write.
+4. Verify `runtime/active_single_match/current` before any ACTIVE_MATCH claim.
+5. Historical runtime evidence never transfers automatically to a new head or match.
+6. Do not ask the user to reconstruct recorded project history.
 
 ## 1. IMMUTABLE OPERATING RULES
 
 - `hpfa` is the only executable product repo.
 - HP-Motor / HP-Engine / HP-PROJELERI are donors only: `ADAPT_NOT_COPY`.
-- Google Drive / Dropbox / PDFs / archives / academic sources are `REFERENCE_ONLY` or `DONOR_SUPPORT` and never override ACTIVE_MATCH.
-- Runtime truth exists only at `runtime/active_single_match/current`.
+- Google Drive / Dropbox / PDFs / archives / academic sources are SUPPORT/HISTORICAL and never override ACTIVE_MATCH.
+- `EVENT ⊂ ZFGV`; event is one observation family, not the observation universe.
 - CSV/XML/XLSX visible rows are not canonical events.
 - `canonical_event_count=UNKNOWN`.
+- `true_action_count=UNKNOWN`.
 - `production_release=false`.
 - PASS != RELEASE; CI SUCCESS != ACTIVE_MATCH evidence; MERGED != PRODUCTION_RELEASE.
 - Same-content reflections must not be double-counted.
-- Product code must remain match-agnostic and preserve `test_no_sample_match_identity_leak`.
-- No nested phone output directories.
-- No merge/release/production decision without explicit user approval.
-- External runtime dependencies are disfavoured: HPFA should own deterministic internal implementations where practical. Do not silently introduce external model/API/network dependencies.
+- Product code must remain match-agnostic.
+- No merge/release/production decision without explicit exact-head user approval.
+- Existing producers/contracts/tests must be rehabilitated before any parallel engine is opened.
 
-## 2. CURRENT ACTIVE_MATCH
+## 2. CANONICAL OBSERVATION MODEL
 
-Current runtime match:
-`Genclerbirligi Ankara 2-1 Fenerbahce — 15.08.2026`
+HPFA operates on Zenginleştirilmiş Futbol Gözlem Verisi (ZFGV).
 
-Current visible package: 8 files.
-Expected role surfaces after content-based resolution:
-- PLAYER: CSV + XML + XLSX = 3
-- GOALKEEPER: CSV + XML + XLSX = 3
-- TEAM: CSV + XML = 2
+Observation families:
+- ACTION/EVENT
+- ENTITY/ACTOR
+- TEMPORAL
+- SPATIAL
+- OUTCOME/QUALIFIER
+- RELATIONAL
+- PROCESS/PARTICIPATION
+- AGGREGATE/TABULAR
+- EXTERNAL CONTEXT
+- TRACKING/VIDEO only when admitted
+- HPFA-DERIVED INTELLIGENCE
 
-All current-match counts must be recomputed from this runtime. Do not reuse old Australia–Turkey / previous-match counts.
+Construct admission is capability-specific:
 
-## 3. CURRENT OPEN PRODUCT LINEAGE
+`CONSTRUCT → REQUIRED OBSERVATION CAPABILITIES → ADMITTED CAPABILITIES → OPTIONAL CAPABILITIES → FORBIDDEN WITHOUT → CLAIM CEILING → ADMISSION DECISION`
 
-### PR #256 — Content-Based Source Role Resolution V1
-Branch: `work/content-source-role-resolution-v1`
-Exact validated head: `ac89fba962ae948d5807d85cb451b2f9813b3724`
-State: OPEN / DRAFT / MERGEABLE / NOT_MERGED / NOT_PRODUCTION.
+Missing required capability: FAIL_CLOSED / DOWNGRADE.
+Missing optional capability: DEGRADED.
+Legacy binary compatibility metadata may remain only for compatibility/regression lineage; it must never be product admission authority.
 
-ACTIVE_MATCH exact-head evidence:
-- supported files: 8/8
-- admitted role files: 8/8
-- unresolved roles: 0
-- GOALKEEPER_SURFACE_CANDIDATE=3
-- PLAYER_SURFACE_CANDIDATE=3
-- TEAM_SURFACE_CANDIDATE=2
-- hard blocks: 0
-- filename support used for admission: false for all 8 files
+Truth locks:
+- ROW != EVENT TRUTH
+- EVENT != WHOLE OBSERVATION UNIVERSE
+- PROVIDER LABEL != PHYSICAL/TACTICAL TRUTH
+- AGGREGATE != ACTION IDENTITY
+- MULTIFORMAT != INDEPENDENT EVIDENCE
+- SAME TIMESTAMP != TOTAL ORDER
+- COORDINATE != TRACKING
+- PROCESS LABEL != COACH INTENTION
+- RECURRENCE != CAUSALITY
+- MODEL OUTPUT != FACT
+- LLM TEXT != EVIDENCE
+- ABSENCE != COUNTEREVIDENCE
 
-Safe meaning: filenames are no longer required to decide PLAYER/TEAM/GOALKEEPER candidate roles. This is role-candidate evidence, not validated identity/event truth.
+## 3. CURRENT DEVELOPMENT FRONTIER
 
-Known non-blocking cleanup: a successfully admitted PLAYER surface can still retain the intermediate reason token `CONTENT_ROLE_EVIDENCE_INSUFFICIENT`; reason-provenance cleanup remains desirable.
+Repository: `Hikmetpinarbas/hpfa`
+Current development PR: `#359 — ZFGV: Action Grammar synced to current frontier`
+Current development head: `FRESH_VERIFY_REQUIRED`.
+Last exact physical ACTIVE_MATCH acceptance head: `b0dc4dc97f1c03ab766b61826e5ec92279807ae4`.
+State: OPEN / DRAFT / UNMERGED / NOT_PRODUCTION unless freshly verified otherwise.
 
-### PR #254 — Row Nucleus lineage candidates V1
-Branch: `work/reconstruct-row-nucleus-research-hardened-v1`
-Head: `2a7084fbb193a3925e1a87cc9691629d0739b031`
-State: OPEN / DRAFT / MERGEABLE / NOT_MERGED / NOT_PRODUCTION.
+Do not store a live PR head SHA as static authority in this handoff. Re-fetch before every write/current-state claim.
 
-Important: the PR body contains ACTIVE_MATCH evidence from the previous match. Treat that runtime evidence as HISTORICAL MATCH-LOCAL SUPPORT only. Current-match role handling must flow through #256 before fresh downstream revalidation.
+## 4. FULL SYSTEM MATCH DIAGNOSTIC — CLOSED WIP
 
-### PR #253 — Reflection lineage resolver
-Historical same-role CSV/XML serialization-lineage resolver. Existing implementation lineage still contains filename-derived source-role assumptions. It must be adapted to consume central content-based role resolution rather than independently re-infer role from filename.
+Closure classification:
+`REVIEW_REQUIRED / FUNCTIONALLY_COMPLETE`
 
-### PR #258 — Statistical Spatial Evidence Lite V1
-Branch: `work/statistical-spatial-evidence-v1`
-Base: #256 branch
-Exact current head: `1c81a2db668046b05b7071aeaeb82bba58c0092f`
-State: OPEN / DRAFT / MERGEABLE / NOT_MERGED / NOT_PRODUCTION.
+Physical ACTIVE_MATCH evidence on `b0dc4dc97f1c03ab766b61826e5ec92279807ae4`:
+- canonical full-spine rc=0
+- diagnostic rc=0
+- hard blocks=0
+- intelligence chains=1961
+- completed=1961
+- failed=0
+- machine/report accounting: 1961=1961 / PASS
+- variant challenge current-run ledger: PASS
+- variant challenge artifact/runtime binding: 467=467
+- Safe Finding current canonical run: NOT_BOUND_CURRENT_RUN
+- claim decisions: NOT_EVALUATED=100; DOWNGRADE=0; EMIT=0; ABSTAIN=0
+- `NOT_EVALUATED != DOWNGRADE`
+- `canonical_event_count=UNKNOWN`
+- `true_action_count=UNKNOWN`
+- `production_release=false`
 
-Engineering:
-- Statistical Spatial Evidence CI: SUCCESS
-- XLSX Surface Reader CI: SUCCESS
-- native XLSX backend: `HPFA_NATIVE_OOXML_V1`
-- `openpyxl` runtime dependency removed
-- `openpyxl` XLSX-test dependency removed
-- self-contained runtime dependency guard PASS
+Safe meaning: remaining REVIEW_REQUIRED states are product/evidence limitations, not diagnostic-accounting failure.
 
-ACTIVE_MATCH exact-head evidence:
-- status=REVIEW_REQUIRED
-- eligible_coordinate_nucleus_count=7478
-- spatial_distribution_candidate_group_count=6
-- excluded_review_required_nucleus_count=12
-- excluded_missing_coordinate_nucleus_count=0
-- excluded_out_of_frame_nucleus_count=0
-- excluded_missing_team_candidate_nucleus_count=0
-- hard_block_hits=[]
-- review_hits=[`upstream_row_nucleus_review_preserved`]
+## 5. CURRENT-PRODUCT EVENT-ONLY CLOSURE — VERIFIED, BUT NOT REPOSITORY COMPLETENESS
 
-Groups admitted as spatial evidence:
-- PLAYER × 2 team candidates
-- TEAM × 2 team candidates
-- GOALKEEPER × 2 team candidates
+Closure record:
+`docs/governance/HPFA_ZFGV_EVENT_ONLY_CURRENT_PRODUCT_CLOSURE_V1.md`
 
-Safe analyst meaning: current visible coordinate surfaces separate into two team candidates across all three source-role routes. This is row-nucleus coordinate distribution evidence only. It is not attacking-third truth, team-shape truth, dominance truth, pitch-control truth or tactical truth.
+Current audited invariant:
+`CURRENT_VERIFIED_GLOBAL_EVENT_ONLY_AUTHORITY = 0`
 
-Do not assume the 12 current review nuclei are the same administrative labels observed in the previous match. Audit them on the current ACTIVE_MATCH before classifying them.
+This means the audited current product/reference path no longer uses Event-Only as observation universe, product-wide eligibility gate, default admission veto, global routing prerequisite, metric/model ceiling or analyst-output identity.
 
-## 4. CURRENT ANALYST NORTH STAR — ISSUE #257
+It does **not** mean repository-wide migration completeness has been proved.
 
-Issue #257: `Trackable Action Spine V1 — 8 match surfaces into analyst-usable action traces`.
+Therefore both statements are simultaneously valid:
+- `COMPLETE_CURRENT_PRODUCT_SCOPE`
+- `MIGRATION_COVERAGE=INCOMPLETE`
 
-User requirement:
-The 8 files are different surfaces of the same match-action universe, not 8 independent datasets. The product must make a football action traceable across compatible PLAYER / TEAM / GOALKEEPER surfaces while XLSX remains aggregate/support evidence.
+The migration may be called complete only after semantic residual authority and reverse-capability coverage are closed across current and future-current surfaces.
 
-Required chain:
-`content role → serialization lineage → row nucleus → evidence atom → match-local identity → semantic role → multi-label action bundle → cross-role relation → selected action trace → consequence → sequence → repeated pattern → analyst interpretation`
+## 6. CONFIRMED REHABILITATION
 
-This is a foundational step, not the final HPFA goal. It exists so later phase, pattern, rhythm, value and analyst reasoning can be built on a reliable action stream.
+- Current product/governance identity is ZFGV.
+- Metric registry uses `observation_model=ZFGV_V1`.
+- Observation and metric admission are construct/capability-specific.
+- L0 AGGREGATE constructs do not require fake event-family prerequisites.
+- L8 TRACKING/VIDEO constructs do not require fake event-family prerequisites.
+- Genuine L1 ACTION constructs still fail closed when their required ACTION/EVENT semantics are missing.
+- Provider legacy Event-Only metadata cannot veto ZFGV.
+- Evidence Lens Matrix can be construct-specific rather than action-centric.
+- XLSX aggregate evidence can travel without becoming action identity or an independent vote.
+- Metric Fusion, Reasoning Grammar and progression planning are ZFGV-scoped.
+- The legacy `eventonly_metric_allowlist_v1.json` is retained as compatibility lineage only; it has zero product-wide admission/veto authority.
+- Capability Closure Guard prevents positive global Event-Only doctrine from returning.
 
-## 5. CURRENT PRODUCT PRIORITIES
+## 7. LEGITIMATE ACTION/EVENT SUBPATHS — PRESERVE
 
-P0 — Preserve current authority and runtime evidence discipline.
+Do not destroy legitimate event-specific capability while auditing global ontology.
 
-P1 — Integrate #256 content-resolved roles downstream:
-- remove/neutralize #253 filename-role authority;
-- make #253/#254 consume the central role-resolution output;
-- preserve role/conflict provenance;
-- rerun current ACTIVE_MATCH exact-head evidence.
+Verified examples:
+- `tools/hpfa_data_quality_gate_v1.py` feeds the ACTION/EVENT-shaped phase/sequence path. Its event_id/event_type/team/period requirements are scoped to that event/action consumer and are currently classified `LEGITIMATE_EVENT_TERM`, not global ZFGV authority.
+- Primary Event Surface Gate reviews event-derived candidates only; it is not the product-wide surface selector.
+- Event identity, occurrence, temporal relation, consequence and action-sequence producers may require event-shaped evidence when the construct itself requires it.
 
-P2 — Audit the 12 current `REVIEW_REQUIRED` row nuclei from #258. Do not promote or suppress them without current-match evidence.
+The rule is not “event terms = 0”. The rule is “no hidden universal ACTION/EVENT prerequisite for ZFGV”.
 
-P3 — Build/reconstruct the Trackable Action Spine using current product first and historical modules as donors:
-- Evidence Atom (#188 lineage)
-- Match-Local Identity (#190 lineage)
-- Semantic Role / Action Bundle (#192 lineage)
-- Cross-Role Relation (#196 lineage)
-- Selected Action Consequence (#199/#203 lineage)
-- Visible Sequence (#205 lineage)
-All historical runtime counts are non-authoritative until revalidated on current ACTIVE_MATCH.
+## 8. CURRENT WIP — ZFGV MIGRATION COMPLETENESS AUDIT — SEMANTIC RESIDUAL AUTHORITY CLOSURE
 
-P4 — Spatial/statistical layer remains subordinate to the action spine. Existing candidate-safe spatial metrics can be retained, but do not let them bypass action/identity/coordinate gates.
+Priority: HIGH architectural product debt.
+WIP=1.
 
-P5 — Later modelling registry after prerequisites: xT/VAEP, consequence value, survival/competing risks, Bayesian shrinkage, hypothesis tests, KDE/Ripley, temporal graphs, changepoints, entropy/process mining, calibrated uncertainty.
+Objective:
+Prove that no current or future-current generic producer, consumer, router, schema, prompt, plan or runtime pack silently treats ACTION/EVENT-shaped input as a universal prerequisite for the whole ZFGV observation universe.
 
-## 6. RESEARCH / CLAIM CEILING
+This is a semantic authority audit, not a string-cleanup exercise.
 
-Allowed direction: observable event/action chains, regional distributions, consequence, sequence recurrence, candidate pattern evidence, explicit uncertainty/falsifier.
+Until the stop condition is met:
+`MIGRATION_COVERAGE=INCOMPLETE`.
 
-Never promote from event-only data to truth without the missing sensing/evidence:
-- pitch control
-- off-ball structure
-- real team shape/compactness
-- body orientation
-- coach intention
-- fatigue/cognitive state
-- true pressure field
-- true 22-player geometry
-- causal counterfactual percentages without an admitted causal model
+### Required audit axes
 
-Synthetic trajectories / field-flow / advanced physics analogies may be research or visualization candidates only; never observed truth.
+1. **Non-literal semantic global-event assumptions**
+   Search beyond `event-only` / `event_only`: generic event_id/event_type requirements, event-table prerequisites, construct eligibility tied to event-family presence, event-shaped routing defaults, non-event families forced into event schema, tracking absence interpreted as event-only, or L2-L8 capability suppressed by an event flag.
 
-## 7. SOURCE SEARCH ORDER BEFORE CODING
+2. **Reverse capability consumer trace**
+   Trace current consumers for:
+   - ENTITY/ACTOR
+   - TEMPORAL
+   - SPATIAL
+   - RELATIONAL
+   - PROCESS/PARTICIPATION
+   - AGGREGATE/TABULAR
+   - EXTERNAL CONTEXT
+   - TRACKING/VIDEO
+   - HPFA-DERIVED INTELLIGENCE
 
-1. current `hpfa` producer/current open product PR
-2. HP-Motor
-3. HP-Engine
-4. HP-PROJELERI
-5. Google Drive governance/donor library
-6. Dropbox archive/donor library
-7. academic support
-8. Termux discovery/runtime evidence
-9. CODE LAST
+   For each family ask: which current gate/producer/contract/policy can prevent admitted evidence from moving further through the spine, and is that prevention construct-required or a hidden global event assumption?
 
-## 8. HANDOFF CHECKLIST AFTER EVERY MAJOR CHANGE
+3. **Dormant surface authority classification**
+   Classify old PLAN/SPEC/runtime-pack/prompt/policy surfaces as:
+   - CURRENT
+   - COMPATIBILITY
+   - HISTORICAL
+   - UNBOUND
+   - UNKNOWN / REVIEW_REQUIRED
 
-Update this file and the Drive live tracker with:
-- timestamp
-- repo main head
-- development/current PR exact head
-- PR/issue number
-- what changed
-- Engineering Evidence
-- Analyst Evidence
-- solved/not solved
-- current status
-- blocker
-- next safe action
-- ACTIVE_MATCH required? yes/no
-- claim boundary
-- merge/release decision
+4. **Completeness closure**
+   Only when all current/future-current generic paths have an authority classification and no hidden universal event prerequisite remains may `MIGRATION_COVERAGE=COMPLETE` be emitted.
 
-Never overwrite historical evidence as if it were current. Mark superseded/historical states explicitly.
+## 9. CLASSIFICATION VOCABULARY
 
-## 9. ONE-LINE TAKEOVER COMMAND FOR A NEW OPERATOR
+Semantic classification:
+- GLOBAL_ERROR
+- EXECUTABLE_LEGACY_GATE
+- ACTIVE_GOVERNANCE_STALE
+- LEGACY_IDENTIFIER
+- LEGITIMATE_EVENT_TERM
+- PRESERVE_AS_GUARD
+- HISTORICAL
+- NEGATIVE_REGRESSION
+- REVIEW_REQUIRED
 
-User can say:
-`HPFA_OPERATOR_HANDOFF_CURRENT.md ve Drive'daki HPFA ANA REPO — CANLI İŞ TAKİP VE DURUM KAYDI'nı oku; GitHub current head'leri ve ACTIVE_MATCH'i yeniden doğrula; NEXT SAFE ACTION'dan devam et; benden geçmişi tekrar isteme.`
+Authority classification:
+- CURRENT_PRODUCT_AUTHORITY
+- CURRENT_EXECUTABLE
+- CURRENT_CONSUMED_SUPPORT
+- LEGACY_COMPATIBILITY
+- HISTORICAL_ONLY
+- UNBOUND
+- UNKNOWN
 
-## 10. CURRENT NEXT SAFE ACTION
+A literal Event-Only occurrence is not automatically a defect. An Event-Only-free component can still be a defect if it imposes a universal event-shaped prerequisite.
 
-1. Verify #256 and #258 exact heads still match this handoff.
-2. Inspect the 12 current #258 upstream review nuclei on the current ACTIVE_MATCH.
-3. Implement the narrow #256 → #253/#254 role-resolution integration; no filename role authority downstream.
-4. Revalidate #253/#254 on current ACTIVE_MATCH.
-5. Only then continue Evidence Atom → Trackable Action Spine reconstruction.
+## 10. AUDIT ORDER
 
-Current project status:
-`ACTIVE_MATCH_CURRENT_GENCLERBIRLIGI_FENERBAHCE / CONTENT_ROLE_RESOLUTION_ACTIVE_MATCH_PASS / SPATIAL_EVIDENCE_ACTIVE_MATCH_PASS_WITH_UPSTREAM_REVIEW_PRESERVED / TRACKABLE_ACTION_SPINE_NEXT / canonical_event_count=UNKNOWN / production_release=false`
+DATA QUALITY
+→ OBSERVATION CONTRACT
+→ METRIC REGISTRY
+→ METRIC DEFINITION POLICY
+→ PROVIDER METRIC DICTIONARY
+→ METRIC/MODEL ADMISSION
+→ DOWNSTREAM CONSUMERS
+→ TESTS
+→ DORMANT PLAN/SPEC/RUNTIME-PACK SURFACES
+→ ACTIVE_MATCH NEED
+→ ANALYST OUTPUT
+
+For every candidate record:
+FILE / OCCURRENCE / CURRENT_ROLE / CURRENT_CONSUMER / EXECUTABLE_OR_DOC / AUTHORITY_STATUS / CLASSIFICATION / WHY / ZFGV_RISK / REQUIRED_ACTION / DO_NOT_CHANGE_REASON / TEST_IMPACT / RUNTIME_IMPACT / ANALYST_VALUE_IMPACT.
+
+## 11. STOP CONDITION
+
+Do not close on lexical absence.
+
+Closure requires all of the following:
+- current-product global Event-Only authority remains zero;
+- generic executable paths contain no hidden universal ACTION/EVENT prerequisite;
+- every ZFGV family has reverse-consumer coverage;
+- dormant PLAN/SPEC/runtime-pack surfaces that could become future-current are authority-classified;
+- legitimate ACTION/EVENT-specific gates are preserved;
+- legacy compatibility and negative regressions remain non-authoritative;
+- tracking/video claim ceilings remain intact;
+- no unresolved CURRENT / UNKNOWN authority candidate can globally narrow ZFGV.
+
+Only then:
+`MIGRATION_COVERAGE=COMPLETE`.
+
+## 12. NEXT SAFE ACTION
+
+Continue exact-frontier semantic sweep without touching spatial progression yet.
+
+Immediate search targets:
+- generic `required_event_families` / event-family hard requirements;
+- generic `event_id` / `event_type` schema requirements outside ACTION/EVENT-specific consumers;
+- router/admission branches that assume an event table exists before non-event capability can travel;
+- reverse-consumer traces for AGGREGATE/TABULAR, ENTITY/ACTOR, TEMPORAL and SPATIAL first;
+- dormant PLAN/SPEC/runtime packs with possible future-current authority.
+
+CODE LAST.
+Rehabilitate only a proven current/future-current authority defect.
+Use physical ACTIVE_MATCH only if executable runtime behavior materially changes.
+
+Spatial Progression Capability Recovery is `LATER` until this completeness audit closes.
+
+## 13. RELEASE STATE
+
+PR #359 remains OPEN / DRAFT / UNMERGED.
+No merge, auto-merge, release or production binding is authorized without exact-head user approval.
+
+Current locks:
+`canonical_event_count=UNKNOWN`
+`true_action_count=UNKNOWN`
+`production_release=false`

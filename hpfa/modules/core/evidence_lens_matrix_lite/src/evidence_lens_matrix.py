@@ -26,6 +26,25 @@ REQUIRED_LENSES = (
     "contradiction",
 )
 
+ZFGV_LENS_CATALOG = (
+    *REQUIRED_LENSES,
+    "relational",
+    "process",
+    "aggregate",
+    "external_context",
+    "tracking_video",
+    "derived",
+)
+
+PACKET_LENS_RECORD_KEYS = (
+    "input_feature_records",
+    "input_window_records",
+    "input_sequence_records",
+    "input_metric_records",
+    "supporting_signal_records",
+    "contradicting_signal_records",
+)
+
 EXPLICIT_NODE_TYPE_LENSES = {
     "context_ref": "context",
     "contradiction_ref": "contradiction",
@@ -117,6 +136,16 @@ def _upstream_failed(graph: dict[str, Any]) -> bool:
     return str(graph.get("decision") or "").upper().startswith("BLOCK")
 
 
+def _normalize_lenses(value: Any) -> list[str]:
+    return sorted(
+        {str(item).strip().lower() for item in _as_list(value) if str(item).strip()},
+        key=lambda lens: (
+            ZFGV_LENS_CATALOG.index(lens) if lens in ZFGV_LENS_CATALOG else len(ZFGV_LENS_CATALOG),
+            lens,
+        ),
+    )
+
+
 def _node_lenses(node: dict[str, Any]) -> tuple[list[str], list[str]]:
     raw_lenses: list[Any] = []
     raw_lenses.extend(_as_list(node.get("lens")))
@@ -129,10 +158,88 @@ def _node_lenses(node: dict[str, Any]) -> tuple[list[str], list[str]]:
     if explicit:
         raw_lenses.append(explicit)
 
-    normalized = sorted({str(value).strip().lower() for value in raw_lenses if str(value).strip()})
-    known = [lens for lens in normalized if lens in REQUIRED_LENSES]
-    unknown = [lens for lens in normalized if lens not in REQUIRED_LENSES]
+    normalized = _normalize_lenses(raw_lenses)
+    known = [lens for lens in normalized if lens in ZFGV_LENS_CATALOG]
+    unknown = [lens for lens in normalized if lens not in ZFGV_LENS_CATALOG]
     return known, unknown
+
+
+def _lens_requirements(graph: dict[str, Any]) -> tuple[str, list[str], list[str], list[str]]:
+    explicit = "required_lenses" in graph or "optional_lenses" in graph
+    if not explicit:
+        return "LEGACY_FIXED_10", list(REQUIRED_LENSES), [], []
+
+    required = _normalize_lenses(graph.get("required_lenses"))
+    optional = _normalize_lenses(graph.get("optional_lenses"))
+    invalid = sorted({lens for lens in required + optional if lens not in ZFGV_LENS_CATALOG})
+    return "EXPLICIT_ZFGV", required, optional, invalid
+
+
+def _packet_record_ref(record: dict[str, Any], record_key: str, index: int) -> str:
+    for key in ("signal_ref", "ref_id", "signal_id", "metric_id", "feature_id", "window_id", "sequence_id", "id"):
+        value = record.get(key)
+        if value not in [None, ""]:
+            return str(value)
+    return f"{record_key}_{index}"
+
+
+def bind_construct_lens_contract(graph: dict[str, Any], packet: dict[str, Any]) -> dict[str, Any]:
+    """Bind an explicit construct lens manifest and its evidence refs onto a graph.
+
+    Legacy packets without a manifest are returned unchanged so existing action-centric
+    review behaviour remains intact.  Evidence records are never invented: only lens
+    tags explicitly carried by preserved packet records become graph lens evidence.
+    """
+    if "required_lenses" not in packet and "optional_lenses" not in packet:
+        return dict(graph)
+
+    bound = dict(graph)
+    bound["required_lenses"] = list(_as_list(packet.get("required_lenses")))
+    bound["optional_lenses"] = list(_as_list(packet.get("optional_lenses")))
+    nodes = [dict(node) for node in _as_list(graph.get("nodes")) if isinstance(node, dict)]
+    edges = [dict(edge) for edge in _as_list(graph.get("edges")) if isinstance(edge, dict)]
+    graph_id = str(graph.get("graph_id") or MISSING_GRAPH_ID)
+    argument_id = str(graph.get("argument_id") or "")
+    seen_node_ids = {str(node.get("node_id") or "") for node in nodes}
+
+    for record_key in PACKET_LENS_RECORD_KEYS:
+        for index, raw_record in enumerate(_as_list(packet.get(record_key))):
+            if not isinstance(raw_record, dict):
+                continue
+            lenses = _normalize_lenses(_as_list(raw_record.get("lens")) + _as_list(raw_record.get("lenses")))
+            if not lenses:
+                continue
+            ref = _packet_record_ref(raw_record, record_key, index)
+            for lens in lenses:
+                node_id = f"{graph_id}:lens:{record_key}:{index}:{lens}"
+                if node_id in seen_node_ids:
+                    continue
+                seen_node_ids.add(node_id)
+                nodes.append(
+                    {
+                        "node_id": node_id,
+                        "node_type": "lens_evidence_ref",
+                        "source": "composite_evidence_packet_builder_lite_v1",
+                        "payload": {
+                            "lens": lens,
+                            "ref": ref,
+                            "evidence_record_group": record_key,
+                        },
+                    }
+                )
+                if argument_id:
+                    edges.append(
+                        {
+                            "source": node_id,
+                            "target": argument_id,
+                            "relation_type": "LENS_EVIDENCE_FOR_ARGUMENT",
+                        }
+                    )
+
+    bound["nodes"] = nodes
+    bound["edges"] = edges
+    bound["construct_lens_contract_bound"] = True
+    return bound
 
 
 def build_lens_matrix(graph: dict[str, Any]) -> dict[str, Any]:
@@ -149,10 +256,13 @@ def build_lens_matrix(graph: dict[str, Any]) -> dict[str, Any]:
     if normalized.get("claim_ceiling") != UPSTREAM_CLAIM_CEILING:
         missing_fields.append("claim_ceiling")
 
+    requirement_mode, required_lenses, optional_lenses, invalid_manifest_lenses = _lens_requirements(normalized)
+    requirement_overlap = sorted(set(required_lenses).intersection(optional_lenses))
+
     nodes = [node for node in _as_list(normalized.get("nodes")) if isinstance(node, dict)]
     node_ids = [str(node.get("node_id") or "") for node in nodes]
     duplicate_node_ids = sorted({node_id for node_id in node_ids if node_id and node_ids.count(node_id) > 1})
-    lens_refs: dict[str, list[str]] = {lens: [] for lens in REQUIRED_LENSES}
+    lens_refs: dict[str, list[str]] = {lens: [] for lens in ZFGV_LENS_CATALOG}
     unknown_lens_tags: set[str] = set()
     for node in nodes:
         known, unknown = _node_lenses(node)
@@ -172,6 +282,12 @@ def build_lens_matrix(graph: dict[str, Any]) -> dict[str, Any]:
         hard_block_hits.append("duplicate_graph_node_id")
     if unknown_lens_tags:
         hard_block_hits.append("unknown_lens_tag_rejected")
+    if invalid_manifest_lenses:
+        hard_block_hits.append("unknown_required_or_optional_lens_rejected")
+    if requirement_mode == "EXPLICIT_ZFGV" and not required_lenses:
+        hard_block_hits.append("explicit_required_lenses_empty")
+    if requirement_overlap:
+        hard_block_hits.append("required_optional_lens_overlap_rejected")
     if forbidden_upstream_hits:
         hard_block_hits.append("upstream_graph_forbidden_output_attempted")
     if normalized.get("claim_output_allowed") not in [False, None]:
@@ -181,23 +297,42 @@ def build_lens_matrix(graph: dict[str, Any]) -> dict[str, Any]:
     if normalized.get("canonical_event_count") not in [None, "UNKNOWN"]:
         hard_block_hits.append("canonical_event_count_claim_rejected")
 
+    covered_catalog_lenses = [lens for lens in ZFGV_LENS_CATALOG if lens_refs[lens]]
+    if requirement_mode == "LEGACY_FIXED_10":
+        active_lenses = list(REQUIRED_LENSES)
+    else:
+        active_set = set(required_lenses) | set(optional_lenses) | set(covered_catalog_lenses)
+        active_lenses = [lens for lens in ZFGV_LENS_CATALOG if lens in active_set]
+
     lens_rows = [
         {
             "lens": lens,
+            "requirement": (
+                "REQUIRED"
+                if lens in required_lenses
+                else "OPTIONAL"
+                if lens in optional_lenses
+                else "OBSERVED_NOT_DECLARED"
+            ),
             "status": "COVERED" if lens_refs[lens] else "MISSING",
             "evidence_node_refs": lens_refs[lens],
             "evidence_ref_count": len(lens_refs[lens]),
         }
-        for lens in REQUIRED_LENSES
+        for lens in active_lenses
     ]
     covered_lenses = [row["lens"] for row in lens_rows if row["status"] == "COVERED"]
-    missing_lenses = [row["lens"] for row in lens_rows if row["status"] == "MISSING"]
-    coverage_score = len(covered_lenses) / len(REQUIRED_LENSES)
+    missing_required_lenses = [lens for lens in required_lenses if not lens_refs.get(lens)]
+    missing_optional_lenses = [lens for lens in optional_lenses if not lens_refs.get(lens)]
+    missing_lenses = list(missing_required_lenses)
+    covered_required_count = sum(1 for lens in required_lenses if lens_refs.get(lens))
+    coverage_score = covered_required_count / len(required_lenses) if required_lenses else 0.0
+    inventory_coverage_score = len(covered_catalog_lenses) / len(ZFGV_LENS_CATALOG)
 
+    hard_block_hits = sorted(set(hard_block_hits))
     if hard_block_hits:
         status = "FAIL_CLOSED"
         decision = "BLOCK_LENS_MATRIX"
-    elif missing_lenses:
+    elif missing_required_lenses:
         status = "REVIEW_REQUIRED"
         decision = "ROUTE_INCOMPLETE_LENS_COVERAGE_TO_REVIEW"
     else:
@@ -210,18 +345,31 @@ def build_lens_matrix(graph: dict[str, Any]) -> dict[str, Any]:
         "graph_id": graph_id,
         "status": status,
         "decision": decision,
+        "lens_requirement_mode": requirement_mode,
+        "lens_catalog": list(ZFGV_LENS_CATALOG),
+        "required_lenses": required_lenses,
+        "optional_lenses": optional_lenses,
         "lenses": lens_rows,
         "covered_lenses": covered_lenses,
+        "covered_catalog_lenses": covered_catalog_lenses,
         "missing_lenses": missing_lenses,
+        "missing_required_lenses": missing_required_lenses,
+        "missing_optional_lenses": missing_optional_lenses,
         "covered_lens_count": len(covered_lenses),
-        "required_lens_count": len(REQUIRED_LENSES),
+        "required_lens_count": len(required_lenses),
+        "covered_required_lens_count": covered_required_count,
         "coverage_score": coverage_score,
         "coverage_score_meaning": "explicit_lens_inventory_completeness_only",
+        "required_coverage_score_meaning": "required_lens_inventory_completeness_only",
+        "inventory_coverage_score": inventory_coverage_score,
+        "inventory_coverage_score_meaning": "zfgv_lens_catalog_visibility_only",
         "absence_inference_allowed": False,
         "hard_block_hits": hard_block_hits,
         "missing_fields": missing_fields,
         "duplicate_node_ids": duplicate_node_ids,
         "unknown_lens_tags": sorted(unknown_lens_tags),
+        "invalid_manifest_lenses": invalid_manifest_lenses,
+        "requirement_overlap": requirement_overlap,
         "forbidden_upstream_hits": forbidden_upstream_hits,
         "claim_ceiling": LENS_CLAIM_CEILING,
         "upstream_claim_ceiling": normalized.get("claim_ceiling"),
@@ -256,12 +404,13 @@ def build_lens_report(graphs: list[dict[str, Any]]) -> dict[str, Any]:
         "review_count": review_count,
         "blocked_count": blocked_count,
         "matrices": matrices,
+        "lens_catalog": list(ZFGV_LENS_CATALOG),
         "claim_ceiling": LENS_CLAIM_CEILING,
         "claim_output_allowed": False,
         "report_language_allowed": False,
         "absence_inference_allowed": False,
         "canonical_event_count": "UNKNOWN",
-        "claim_boundary": "evidence_lens_coverage_candidate_only_missing_is_not_absence",
+        "claim_boundary": "construct_specific_evidence_lens_coverage_candidate_only_missing_is_not_absence",
     }
 
 
@@ -285,8 +434,8 @@ def write_outputs(graphs: list[dict[str, Any]], out_dir: str | Path) -> dict[str
     for matrix in report["matrices"][:50]:
         lines.append(
             f"- {matrix['matrix_id']} decision={matrix['decision']} "
-            f"coverage_score={matrix['coverage_score']:.2f} "
-            f"missing_lenses={','.join(matrix['missing_lenses'])}"
+            f"mode={matrix['lens_requirement_mode']} coverage_score={matrix['coverage_score']:.2f} "
+            f"missing_required_lenses={','.join(matrix['missing_required_lenses'])}"
         )
     lines.append("")
     (out / OUTPUT_TXT).write_text("\n".join(lines), encoding="utf-8")

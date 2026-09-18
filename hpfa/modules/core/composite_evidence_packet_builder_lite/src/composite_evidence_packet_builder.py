@@ -454,6 +454,10 @@ def build_composite_packet(candidate: dict[str, Any]) -> dict[str, Any]:
         "canonical_event_count": "UNKNOWN",
         **independence,
     }
+    if "required_lenses" in candidate:
+        packet["required_lenses"] = list(_as_list(candidate.get("required_lenses")))
+    if "optional_lenses" in candidate:
+        packet["optional_lenses"] = list(_as_list(candidate.get("optional_lenses")))
     return packet
 
 

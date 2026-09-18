@@ -19,6 +19,7 @@ from rich_construct_metric_governance_guard import assess_rich_construct_candida
 from shared_surface_snapshot_contract import surface_snapshot_id
 from spine_runner import run_spine_check
 from user_output_bundle import snapshot_output_state, write_standard_user_outputs
+from variant_feature_challenge_runtime_binding import materialize_variant_feature_challenge
 
 RICH_OWNED_OUTPUTS = {
     "rich_multiformat_analysis_lattice_v1.json",
@@ -222,6 +223,7 @@ def _bind_metric_governance_construct_gate() -> None:
     if getattr(full_spine_module, "_hpfa_metric_governance_gate_bound", False):
         return
     original_sidecars = full_spine_module.run_sidecars
+    original_rich_lane = full_spine_module.run_rich_lane
     original_packet_builder = full_spine_module.build_composite_packet
     state = {"governance": {}, "construct_blocked": False, "reason": None}
 
@@ -229,6 +231,9 @@ def _bind_metric_governance_construct_gate() -> None:
         state["governance"] = {}
         state["construct_blocked"] = False
         state["reason"] = None
+        # Full-spine now produces sidecars before the rich lane so process-participation
+        # is current-invocation input to C02. Never let a prior rich report be rehydrated.
+        RICH_CONSTRUCT_RUNTIME_STATE["report"] = None
         report = original_sidecars(*args, **kwargs)
         governance = report.get("metric_governance_bridge") if isinstance(report, dict) else None
         governance = governance if isinstance(governance, dict) else {}
@@ -246,7 +251,21 @@ def _bind_metric_governance_construct_gate() -> None:
                 "reason": state["reason"],
             }
         else:
-            report["rich_construct_governance_recheck"] = _rehydrate_governance_admitted_constructs(governance)
+            report["rich_construct_governance_recheck"] = {
+                "evaluated": False,
+                "admitted_count": 0,
+                "review_required_count": 0,
+                "reason": "DEFERRED_UNTIL_CURRENT_RICH_REPORT_EXISTS",
+            }
+        return report
+
+    def governance_aware_rich_lane(*args, **kwargs):
+        report = original_rich_lane(*args, **kwargs)
+        if not isinstance(report, dict):
+            return report
+        recheck = _rehydrate_governance_admitted_constructs(state["governance"])
+        report["rich_construct_governance_recheck"] = recheck
+        _persist_rich_report(report)
         return report
 
     def gated_packet_builder(candidate):
@@ -274,6 +293,7 @@ def _bind_metric_governance_construct_gate() -> None:
         return packet
 
     full_spine_module.run_sidecars = gated_sidecars
+    full_spine_module.run_rich_lane = governance_aware_rich_lane
     full_spine_module.build_composite_packet = gated_packet_builder
     full_spine_module._hpfa_metric_governance_gate_bound = True
 
@@ -285,6 +305,48 @@ def _normalize_current_surface_evidence(result: dict) -> None:
     if "current_context_episode_feature_lane_completed" not in engineering:
         engineering["current_context_episode_feature_lane_completed"] = (
             engineering.get("current_context_episode_feature_lane_reused") is True
+        )
+
+
+def _bind_variant_feature_challenge_runtime(result: dict, out_dir: str | Path) -> dict:
+    binding = materialize_variant_feature_challenge(out_dir)
+    result["variant_feature_challenge_runtime_binding"] = binding
+
+    if binding.get("artifact_materialized") is True:
+        current_artifacts = [
+            str(value)
+            for value in (result.get("current_invocation_artifacts") or [])
+            if str(value or "").strip()
+        ]
+        output = str(binding.get("output") or "").strip()
+        if output:
+            current_artifacts.append(output)
+        result["current_invocation_artifacts"] = sorted(set(current_artifacts))
+
+    engineering = result.get("engineering_evidence")
+    if isinstance(engineering, dict):
+        engineering["variant_feature_challenge_current_invocation_materialized"] = (
+            binding.get("artifact_materialized") is True
+        )
+        engineering["variant_feature_challenge_creates_new_evidence"] = False
+        engineering["variant_feature_challenge_can_authorize_emit"] = False
+
+    status = str(binding.get("status") or "").upper()
+    if status == "FAIL_CLOSED":
+        hits = list(result.get("review_hits") or [])
+        hits.append("variant_feature_challenge_runtime_binding_fail_closed")
+        result["review_hits"] = list(dict.fromkeys(hits))
+        if str(result.get("status") or "").upper() != "FAIL_CLOSED":
+            result["status"] = "REVIEW_REQUIRED"
+    return result
+
+
+def _persist_full_spine_result(out_dir: str | Path, result: dict) -> None:
+    target = Path(out_dir).expanduser().resolve(strict=False) / "active_match_full_spine_v1.json"
+    if target.is_file():
+        target.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
         )
 
 
@@ -328,6 +390,8 @@ def main() -> int:
             execution_root=execution_root,
         )
         _normalize_current_surface_evidence(result)
+        _bind_variant_feature_challenge_runtime(result, args.out_dir)
+        _persist_full_spine_result(args.out_dir, result)
         user_outputs = write_standard_user_outputs(
             args.out_dir,
             result,

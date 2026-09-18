@@ -102,7 +102,7 @@ def test_provider_process_annotation_is_not_tactical_plan_or_off_ball_role():
     assert row["process_annotation_is_tactical_plan_truth"] is False
     assert row["process_annotation_is_coach_intention_truth"] is False
     assert row["process_annotation_is_off_ball_role_truth"] is False
-    assert row["off_ball_observation_state"] == "NOT_OBSERVED_REQUIRES_TRACKING_OR_VIDEO"
+    assert row["off_ball_observation_state"] == "NOT_DIRECTLY_OBSERVED_WITH_CURRENT_EVENT_AGGREGATE_SURFACES"
 
 
 def test_participation_requires_actor_identity_binding():

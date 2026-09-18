@@ -6,38 +6,37 @@ Status: SPEC_ONLY
 
 ## Purpose
 
-Build the smallest useful bridge from event-row evidence to analyst-facing football reading.
+Build the smallest useful bridge from admitted ZFGV evidence to analyst-facing football reading.
 
-Required spine:
+Canonical spine:
 
 ```text
-event -> primitive candidate -> sequence candidate -> context -> behaviour candidate -> repeated pattern -> explanation
+observation -> primitive candidate -> relation/sequence/process candidate -> context -> behaviour hypothesis -> recurrence/variation -> counterevidence -> explanation candidate
 ```
 
-No direct jump from metric to story is allowed.
+ACTION/EVENT is one possible observation family, not the whole reasoning universe.
+
+No direct jump from metric/model output to story is allowed.
 
 ## Scope
 
-This contract starts with Primitive Grammar Lite only.
+This contract starts with primitive candidate reasoning only.
 
-Primitive-only output may emit primitive candidates and primitive explanations. It must not emit behaviour or pattern candidates until sequence/context gates exist and pass.
+Primitive-only output may emit primitive candidates and primitive explanations. It must not emit behaviour or pattern truth until the relevant relation/sequence/process/context gates exist and pass.
 
-Inputs:
+Possible inputs, depending on construct requirements:
 
 - ACTIVE_MATCH identity-compatible runtime
-- canonical_event_lite output when available
-- postmatch_analyst_report_lite output
-- event_window_builder output when available
-- axis_integrity_tagger output when available
-
-Outputs, flat under phone output root:
-
-- reasoning_grammar_spine_lite_v1.json
-- reasoning_grammar_spine_lite_v1.txt
+- admitted ACTION/EVENT evidence when required
+- aggregate/tabular observation when required
+- admitted temporal/spatial/context observations
+- relation/process/participation candidates
+- postmatch analyst evidence surfaces
+- sequence/window outputs when required
 
 ## Primitive Candidates
 
-Allowed initial candidates:
+Allowed initial candidates may include:
 
 - pass_surface_candidate
 - carry_progression_surface_candidate
@@ -46,99 +45,104 @@ Allowed initial candidates:
 - terminal_action_surface_candidate
 - restart_surface_candidate
 - channel_progression_surface_candidate
+- aggregate_metric_surface_candidate
+- relational_candidate
+- process_participation_candidate
 
 ## Evidence Ladder
 
-Every candidate must expose:
-
-- team
-- primitive_candidate
-- evidence_count
-- zone_support
-- channel_support
-- confidence: weak / medium / strong
-- falsifier
-- blocked_claims
+Every candidate must expose the evidence properties relevant to its construct, including provenance/dependency, observation family, identity/context where required, confidence/review state, falsifier or withdrawal condition, and blocked claims.
 
 ## Stage Gate
 
-Primitive Grammar Lite may only produce:
+Primitive Grammar Lite may only produce candidate-level evidence and explanation.
 
-- primitive_candidate
-- primitive_evidence
-- primitive_explanation
+The following remain gated until their own required capabilities are admitted:
 
-The following are gated and must remain blocked in primitive-only runs:
-
-- sequence_candidate
-- behaviour_candidate
-- pattern_candidate
-- identity_candidate
-- match_story
-
-A later module may unlock these terms only after explicit sequence/context/pattern gates are implemented, tested and recorded as ACTIVE_MATCH evidence.
+- sequence truth
+- behaviour truth
+- pattern truth
+- tactical truth
+- causal truth
+- match story claim
 
 ## Overclaim Guard
 
-The following language is rejected for this contract:
+Reject:
 
-- ready for deployment
+- ready for deployment without release evidence
 - football ontology is validated
-- cognitive state is measured
-- pre-motor time is measured from event rows
-- mental decline is measured from event rows
-- next action is predicted as truth
-- Voronoi or pitch-control truth from event-only runtime
-- off-ball structure from event-only runtime
-- coach intention
-- city or culture as runtime evidence
+- cognitive state is measured from match rows
+- pre-motor time or mental decline inferred from ordinary match observations
+- next action predicted as truth
+- Voronoi or pitch-control truth without admitted tracking/geometry authority
+- off-ball structure without admitted tracking/video authority
+- coach intention without appropriate external evidence
+- city/culture as match runtime truth
 
 Allowed replacement language:
 
 - candidate
 - proxy
-- row-level evidence
-- event-surface reading
-- primitive candidate
+- visible/admitted observation indicates
+- action-surface reading
+- aggregate/tabular support
+- relation/process candidate
 - requires later validation
 - evidence-only until claim gate
 
 ## Claim Boundary
 
-Allowed in Primitive Grammar Lite:
+Allowed where supported:
 
-- row-level evidence indicates
+- visible observation indicates
 - action-family volume suggests
-- channel evidence is concentrated in
-- primitive candidate
-- primitive explanation
+- aggregate/tabular support indicates
+- admitted spatial candidate is concentrated in
+- relation/process candidate
+- primitive explanation candidate
 
-Blocked in Primitive Grammar Lite:
+Blocked without the required admitted evidence:
 
-- behaviour candidate
-- pattern candidate
 - tactical truth
 - dominance truth
 - possession truth
 - phase truth
-- sequence truth without sequence gate
+- sequence truth
 - coach intention
 - off-ball structure
+- pitch control
+- causality
+
+## Truth Locks
+
+```text
+ROW != EVENT TRUTH
+EVENT != WHOLE OBSERVATION UNIVERSE
+AGGREGATE != ACTION IDENTITY
+MULTIFORMAT != INDEPENDENT EVIDENCE
+SAME TIMESTAMP != TOTAL ORDER
+COORDINATE != TRACKING
+PROCESS LABEL != COACH INTENTION
+RECURRENCE != CAUSALITY
+MODEL OUTPUT != FACT
+ABSENCE != COUNTEREVIDENCE
+```
 
 ## Minimality Gate
 
-Do not add a metric unless it improves analyst decision quality.
+Do not add a construct unless it improves analyst decision quality and has explicit required observation capabilities, claim ceiling and consumer.
 
 ## Tests
 
-- test_outputs_are_flat_phone_paths
-- test_no_tracking_truth_claims
-- test_no_metric_to_story_jump
-- test_candidates_include_falsifier
-- test_no_sample_match_identity_leak
-- test_overclaim_guard_blocks_deployment_and_cognitive_truth_language
-- test_primitive_only_blocks_behaviour_and_pattern_terms
+- outputs remain inside approved output root
+- no tracking truth claims without tracking/video authority
+- no metric/model-to-story jump
+- candidates include falsifier/withdrawal conditions where applicable
+- no sample match identity leak
+- primitive-only mode blocks behaviour/pattern truth
+- valid non-event ZFGV observation is not rejected merely for lacking ACTION/EVENT identity
 
 ## Release
 
-SPEC_ONLY until implementation, tests, and ACTIVE_MATCH run evidence exist.
+SPEC_ONLY until implementation, tests, and required ACTIVE_MATCH evidence exist.

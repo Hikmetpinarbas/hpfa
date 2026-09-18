@@ -1,0 +1,96 @@
+{
+  "registry_id": "goal_kick_restart_pass_semantic_compatibility_v1",
+  "version": "1.0.0",
+  "status": "REVIEWED_CANDIDATE_RULES_ONLY",
+  "purpose": "Precision-first binding of reviewed goalkeeper-surface goal-kick RESTART annotations and their exact co-located PASS annotations into one semantic occurrence candidate without promoting provider distance classes to measured physical distance or tactical truth.",
+  "provider_semantics_registry_id": "sportsbase_label_semantics_reviewed_v2",
+  "source_role": "GOALKEEPER_SURFACE_CANDIDATE",
+  "required_family_set": ["PASS", "RESTART"],
+  "required_exact_binding_fields": [
+    "match_surface_binding_id",
+    "source_role",
+    "team_identity_candidate_id",
+    "actor_identity_candidate_id",
+    "period_candidate",
+    "start_candidate",
+    "end_candidate",
+    "pos_x_candidate",
+    "pos_y_candidate"
+  ],
+  "allowed_upstream_bundle_status": "REVIEW_REQUIRED",
+  "required_upstream_review_hit": "same_surface_multiple_action_families",
+  "common_restart_label": {
+    "label": "Goal kicks",
+    "semantic_rule_id": "plvs_v2_goal_kicks_gk_surface",
+    "restart_type": "GOAL_KICK"
+  },
+  "distance_patterns": {
+    "SHORT": {
+      "restart_label": "Goal kicks short (0-15 m)",
+      "restart_semantic_rule_id": "plvs_v2_goal_kicks_short_gk_surface",
+      "provider_bucket_text": "0-15 m",
+      "pass_patterns": [
+        {
+          "labels": ["Passes accurate"],
+          "semantic_rule_ids": ["plvs_v2_passes_accurate"],
+          "outcome": "SUCCESS"
+        }
+      ]
+    },
+    "MEDIUM": {
+      "restart_label": "Goal kicks medium (15-40 m)",
+      "restart_semantic_rule_id": "plvs_v2_goal_kicks_medium_gk_surface",
+      "provider_bucket_text": "15-40 m",
+      "pass_patterns": [
+        {
+          "labels": ["Passes accurate"],
+          "semantic_rule_ids": ["plvs_v2_passes_accurate"],
+          "outcome": "SUCCESS"
+        }
+      ]
+    },
+    "LONG": {
+      "restart_label": "Goal kicks long (40+ m)",
+      "restart_semantic_rule_id": "plvs_v2_goal_kicks_long_gk_surface",
+      "provider_bucket_text": "40+ m",
+      "pass_patterns": [
+        {
+          "labels": ["Long passes", "Passes accurate"],
+          "semantic_rule_ids": ["plvs_v2_long_passes", "plvs_v2_passes_accurate"],
+          "outcome": "SUCCESS"
+        },
+        {
+          "labels": ["Incomplete long passes", "Inaccurate passes"],
+          "semantic_rule_ids": ["plvs_v2_incomplete_long_passes", "plvs_v2_inaccurate_passes"],
+          "outcome": "FAILURE"
+        }
+      ]
+    }
+  },
+  "allowed_claim": "The exact reviewed provider annotations support one goalkeeper goal-kick semantic occurrence candidate carrying provider-defined distance-bucket and pass-outcome attributes.",
+  "forbidden_merge_authorities": [
+    "same timestamp alone",
+    "near time",
+    "near coordinate",
+    "source row order",
+    "CSV/XML agreement as independent evidence",
+    "team aggregate goal-kick labels",
+    "XLSX aggregate rows"
+  ],
+  "global_claim_boundary": {
+    "provider_distance_bucket_is_measured_physical_distance": false,
+    "provider_distance_bucket_is_ball_displacement_truth": false,
+    "provider_distance_bucket_is_tactical_strategy_truth": false,
+    "provider_distance_bucket_is_build_up_intention_truth": false,
+    "annotation_anchor_is_physical_player_position": false,
+    "same_timestamp_alone_is_merge_authority": false,
+    "csv_xml_are_independent_support": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN",
+    "physical_action_identity_truth": false,
+    "validated_event_identity": false,
+    "tactical_truth": false,
+    "causal_truth": false,
+    "production_release": false
+  }
+}

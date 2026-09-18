@@ -19,7 +19,7 @@ RESEARCH_HARDENING_VERSION = "R07_R17_R18_R19_R22_R23_v1"
 REQUIRED_METRIC_FIELDS = {
     "metric_id", "metric_name", "metric_family", "construct_target",
     "aggregation_class", "value_type", "unit", "numerator_definition",
-    "observation_window", "entity_scope", "required_event_families",
+    "observation_window", "entity_scope",
     "required_context_fields", "required_observation_layers",
     "required_observation_capabilities", "source_surface_roles",
     "derivation_dependency", "does_not_measure", "forbidden_claims",
@@ -213,6 +213,14 @@ def _validate_metric(
         gaps.append(_gap(metric_id, f"{field}_missing"))
 
     observation = assess_observation_contract(record)
+    required_layers = set(observation.get("required_observation_layers") or [])
+    required_capabilities = set(observation.get("required_observation_capabilities") or [])
+    if (
+        "L1_ACTION_OBSERVATION" in required_layers
+        or "ACTION" in required_capabilities
+    ) and not _non_empty(record.get("required_event_families")):
+        gaps.append(_gap(metric_id, "required_event_families_missing"))
+
     for detail in observation.get("hard_block_hits", []):
         gaps.append(_gap(metric_id, "observation_contract_invalid", detail=detail))
     for detail in observation.get("review_hits", []):

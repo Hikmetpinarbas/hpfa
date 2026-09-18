@@ -13,7 +13,7 @@ from hpfa.modules.core.composite_argument_builder_lite.src.composite_argument_bu
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.defeasible_argument_router_lite.src.defeasible_argument_router import route_argument
 from hpfa.modules.core.evidence_graph_engine_lite.src.evidence_graph_engine import build_evidence_graph
-from hpfa.modules.core.evidence_lens_matrix_lite.src.evidence_lens_matrix import build_lens_matrix
+from hpfa.modules.core.evidence_lens_matrix_lite.src.evidence_lens_matrix import bind_construct_lens_contract, build_lens_matrix
 from hpfa.modules.core.final_report_assembly_gate_lite.src.final_report_assembly_gate import evaluate_assembly_item
 from hpfa.modules.core.multi_signal_evidence_fusion_lite.src.multi_signal_evidence_fusion import fuse_packet
 from hpfa.modules.core.report_output_contract_lite.src.report_output_contract import evaluate_report_block
@@ -141,6 +141,8 @@ def run_intelligence_chain(packet: dict[str, Any], stage_overrides: dict[str, Ca
             output = producer(chain[input_stage])
             if not isinstance(output, dict):
                 raise TypeError("stage_output_must_be_dict")
+            if stage_name == "graph":
+                output = bind_construct_lens_contract(output, packet)
         except Exception as exc:
             chain[stage_name] = _stage_failure(stage_name, exc)
             if stage_name != "lens":
@@ -176,6 +178,120 @@ def _safe_external_call(runner: Callable[..., dict[str, Any]], args: tuple[Any, 
             "true_action_count": "UNKNOWN",
             "production_release": False,
         }
+
+
+def _nonnegative_int(value: Any) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dict[str, Any]:
+    """Expose existing spatial/progression evidence without widening its claim ceiling."""
+    state = sidecar_report.get("state_transition_dynamics")
+    spatial = sidecar_report.get("spatial_transition_candidate")
+    if not isinstance(state, dict):
+        return {
+            "status": "NOT_EVALUATED",
+            "reason": "state_transition_dynamics_not_available",
+            "source_module": "state_transition_dynamics_lite_v1",
+            "spatial_source_module": (
+                str(spatial.get("module_id"))
+                if isinstance(spatial, dict) and spatial.get("module_id")
+                else "spatial_transition_candidate_lite_v1"
+            ),
+            "provider_progression_semantic_transition_count": None,
+            "adverse_consequence_transition_count": None,
+            "admitted_directional_transition_count": None,
+            "transition_class_counts": {},
+            "coordinate_anchor_present_count": None,
+            "action_location_semantics_admitted_count": None,
+            "occurrence_annotation_anchor_location_admitted_count": None,
+            "spatial_location_admitted_count": None,
+            "coordinate_semantics_state": "NOT_EVALUATED",
+            "provider_team_relative_attack_axis_state": "NOT_EVALUATED",
+            "attack_direction": None,
+            "attack_direction_admission_basis": None,
+            "pitch_frame_state": "NOT_EVALUATED",
+            "direction_normalization_state": "NOT_EVALUATED",
+            "zero_count_is_counterevidence": False,
+            "provider_progression_is_measured_displacement_truth": False,
+            "coordinate_is_tracking_truth": False,
+            "occurrence_annotation_anchor_is_physical_position_truth": False,
+            "team_relative_attack_axis_is_absolute_pitch_frame_truth": False,
+            "causality_truth": False,
+            "production_release": False,
+        }
+
+    spatial = spatial if isinstance(spatial, dict) else {}
+    transition_counts = state.get("transition_class_counts")
+    if not isinstance(transition_counts, dict):
+        transition_counts = {}
+    source_status = _status(state.get("status"))
+    state_blocks = state.get("hard_block_hits") if isinstance(state.get("hard_block_hits"), list) else []
+    spatial_blocks = spatial.get("hard_block_hits") if isinstance(spatial.get("hard_block_hits"), list) else []
+    hard_blocks = _dedupe_preserve_order([str(item) for item in [*state_blocks, *spatial_blocks]])
+    return {
+        "status": source_status,
+        "reason": "state_transition_dynamics_fail_closed" if source_status == "FAIL_CLOSED" else None,
+        "source_module": str(state.get("module_id") or "state_transition_dynamics_lite_v1"),
+        "spatial_source_module": str(spatial.get("module_id") or "spatial_transition_candidate_lite_v1"),
+        "match_surface_binding_id": state.get("match_surface_binding_id"),
+        "provider_progression_semantic_transition_count": _nonnegative_int(
+            state.get("provider_progression_semantic_transition_count")
+        ),
+        "adverse_consequence_transition_count": _nonnegative_int(
+            state.get("adverse_consequence_transition_count")
+        ),
+        "admitted_directional_transition_count": _nonnegative_int(
+            state.get("admitted_directional_transition_count")
+        ),
+        "state_transition_dynamics_candidate_count": _nonnegative_int(
+            state.get("state_transition_dynamics_candidate_count")
+        ),
+        "transition_class_counts": dict(sorted((str(k), v) for k, v in transition_counts.items())),
+        "coordinate_anchor_present_count": _nonnegative_int(spatial.get("coordinate_anchor_present_count")),
+        "action_location_semantics_admitted_count": _nonnegative_int(
+            spatial.get("action_location_semantics_admitted_count")
+        ),
+        "occurrence_annotation_anchor_location_admitted_count": _nonnegative_int(
+            spatial.get("occurrence_annotation_anchor_location_admitted_count")
+        ),
+        "spatial_location_admitted_count": _nonnegative_int(spatial.get("spatial_location_admitted_count")),
+        "coordinate_semantics_state": _status(spatial.get("coordinate_semantics_state")) if spatial else "NOT_EVALUATED",
+        "provider_team_relative_attack_axis_state": (
+            _status(spatial.get("provider_team_relative_attack_axis_state")) if spatial else "NOT_EVALUATED"
+        ),
+        "attack_direction": str(spatial.get("attack_direction") or "").strip() or None,
+        "attack_direction_admission_basis": (
+            str(spatial.get("attack_direction_admission_basis") or "").strip() or None
+        ),
+        "pitch_frame_state": _status(spatial.get("pitch_frame_state")) if spatial else "NOT_EVALUATED",
+        "direction_normalization_state": (
+            _status(spatial.get("direction_normalization_state")) if spatial else "NOT_EVALUATED"
+        ),
+        "hard_block_hits": hard_blocks,
+        "claim_ceiling": state.get("claim_ceiling") or "SEMANTIC_SPATIAL_CONSEQUENCE_ASSOCIATION_ONLY",
+        "safe_meaning": (
+            "Occurrence-bound annotation-anchor location admission and a provider-coordinate attack-axis convention may be surfaced alongside visible semantic spatial/consequence associations."
+        ),
+        "forbidden_inference": (
+            "No absolute pitch frame, physical player position, measured displacement, tracking geometry, possession truth, tactical pattern, intention, dominance or causality."
+        ),
+        "zero_count_is_counterevidence": False,
+        "provider_progression_is_measured_displacement_truth": False,
+        "coordinate_is_tracking_truth": False,
+        "occurrence_annotation_anchor_is_physical_position_truth": False,
+        "team_relative_attack_axis_is_absolute_pitch_frame_truth": False,
+        "provider_semantic_zone_coordinate_order_is_tactical_truth": False,
+        "possession_truth": False,
+        "sequence_truth": False,
+        "tactical_pattern_truth": False,
+        "causality_truth": False,
+        "production_release": False,
+    }
 
 
 def _write_fused_packet_inventory(output_root: Path, packets: list[dict[str, Any]], base_count: int, rich_count: int) -> list[str]:
@@ -272,33 +388,44 @@ def run_full_spine(
     }
     expected_snapshot_id = str(bridge_report.get("input_surface_snapshot_id") or "")
     if not hard_blocks and expected_snapshot_id:
-        try:
-            rich_report = run_rich_lane(
-                active_match_path,
-                output_root,
-                expected_snapshot_id=expected_snapshot_id,
-                match_surface_binding_id=bridge_report.get("match_surface_binding_id"),
-            )
-        except Exception as exc:
-            rich_report = {
-                "status": "FAIL_CLOSED",
-                "hard_block_hits": [f"rich_multiformat_lane_exception:{type(exc).__name__}"],
-                "current_invocation_artifacts": [],
-            }
-        rich_status = _status(rich_report.get("status"))
-        if rich_status == "FAIL_CLOSED":
-            hard_blocks.append("rich_multiformat_analysis_lane_fail_closed")
-            first_failed_node = first_failed_node or "rich_multiformat_analysis_lane"
-            reasons = rich_report.get("hard_block_hits") or []
-            first_failed_reason_code = first_failed_reason_code or (
-                str(reasons[0]) if isinstance(reasons, list) and reasons else "rich_multiformat_analysis_lane_fail_closed"
-            )
-        elif rich_status == "REVIEW_REQUIRED":
-            review_hits.append("rich_multiformat_analysis_lane_review_required")
-
         sidecar_report = run_sidecars(active_match_path, output_root, Path(__file__).resolve().parents[5])
-        if _status(sidecar_report.get("status")) == "REVIEW_REQUIRED":
+        sidecar_status = _status(sidecar_report.get("status"))
+        if sidecar_status == "FAIL_CLOSED":
+            hard_blocks.append("orphan_capability_sidecars_fail_closed")
+            first_failed_node = first_failed_node or "orphan_capability_sidecars"
+            reasons = sidecar_report.get("hard_block_hits") or []
+            first_failed_reason_code = first_failed_reason_code or (
+                str(reasons[0]) if isinstance(reasons, list) and reasons else "orphan_capability_sidecars_fail_closed"
+            )
+        elif sidecar_status == "REVIEW_REQUIRED":
             review_hits.append("orphan_capability_sidecars_review_required")
+
+        if not hard_blocks:
+            try:
+                rich_report = run_rich_lane(
+                    active_match_path,
+                    output_root,
+                    expected_snapshot_id=expected_snapshot_id,
+                    match_surface_binding_id=bridge_report.get("match_surface_binding_id"),
+                )
+            except Exception as exc:
+                rich_report = {
+                    "status": "FAIL_CLOSED",
+                    "hard_block_hits": [f"rich_multiformat_lane_exception:{type(exc).__name__}"],
+                    "current_invocation_artifacts": [],
+                }
+            rich_status = _status(rich_report.get("status"))
+            if rich_status == "FAIL_CLOSED":
+                hard_blocks.append("rich_multiformat_analysis_lane_fail_closed")
+                first_failed_node = first_failed_node or "rich_multiformat_analysis_lane"
+                reasons = rich_report.get("hard_block_hits") or []
+                first_failed_reason_code = first_failed_reason_code or (
+                    str(reasons[0]) if isinstance(reasons, list) and reasons else "rich_multiformat_analysis_lane_fail_closed"
+                )
+            elif rich_status == "REVIEW_REQUIRED":
+                review_hits.append("rich_multiformat_analysis_lane_review_required")
+
+    spatial_progression_evidence = _spatial_progression_analyst_evidence(sidecar_report)
 
     packets: list[dict[str, Any]] = []
     base_packet_count = 0
@@ -418,6 +545,7 @@ def run_full_spine(
         "failed_intelligence_chain_count": failed_chain_count,
         "completed_intelligence_chain_count": completed_chain_count,
         "review_required_intelligence_chain_count": review_chain_count,
+        "spatial_progression_evidence": spatial_progression_evidence,
         "first_failed_node": first_failed_node,
         "first_failed_reason_code": first_failed_reason_code,
         "hard_block_hits": hard_blocks,
@@ -443,6 +571,7 @@ def run_full_spine(
             "phase_state_candidate_lane_bound": bool(rich_report.get("phase_state_candidates")),
             "entity_views_bound": bool(entity_views),
             "construct_C01_bound_to_c4": rich_packet_count > 0,
+            "spatial_progression_sidecar_exposed_to_main_spine": spatial_progression_evidence.get("status") != "NOT_EVALUATED",
             "current_c4_producers_executed": c4_chain_executed,
             "current_c4_producers_reused": c4_surface_current,
             "c4_stage_exception_containment_enabled": True,
@@ -459,6 +588,7 @@ def run_full_spine(
             "primitive_metric_count": len(rich_report.get("primitive_metrics") or []),
             "phase_state_candidate_count": len(rich_report.get("phase_state_candidates") or []),
             "packet_level_report_candidates_generated": len(chains),
+            "spatial_progression_evidence": spatial_progression_evidence,
             "counterevidence_preserved_by_current_c4_chain": c4_surface_current,
             "absence_is_counterevidence": False,
             "safe_report_language_only": c4_surface_current,
@@ -497,6 +627,21 @@ def run_full_spine(
         f"rich_construct_packet_count={rich_packet_count}",
         f"intelligence_chain_count={len(chains)}",
         f"completed_intelligence_chain_count={completed_chain_count}",
+        f"spatial_progression_evidence_status={spatial_progression_evidence.get('status')}",
+        f"spatial_coordinate_anchor_present_count={spatial_progression_evidence.get('coordinate_anchor_present_count')}",
+        f"spatial_action_location_semantics_admitted_count={spatial_progression_evidence.get('action_location_semantics_admitted_count')}",
+        f"spatial_occurrence_annotation_anchor_location_admitted_count={spatial_progression_evidence.get('occurrence_annotation_anchor_location_admitted_count')}",
+        f"spatial_provider_team_relative_attack_axis_state={spatial_progression_evidence.get('provider_team_relative_attack_axis_state')}",
+        f"spatial_attack_direction={spatial_progression_evidence.get('attack_direction')}",
+        f"spatial_attack_direction_admission_basis={spatial_progression_evidence.get('attack_direction_admission_basis')}",
+        f"spatial_pitch_frame_state={spatial_progression_evidence.get('pitch_frame_state')}",
+        f"spatial_location_admitted_count={spatial_progression_evidence.get('spatial_location_admitted_count')}",
+        f"provider_progression_semantic_transition_count={spatial_progression_evidence.get('provider_progression_semantic_transition_count')}",
+        f"spatial_progression_adverse_consequence_transition_count={spatial_progression_evidence.get('adverse_consequence_transition_count')}",
+        f"spatial_progression_claim_ceiling={spatial_progression_evidence.get('claim_ceiling')}",
+        "spatial_progression_measured_displacement_truth=false",
+        "spatial_progression_coordinate_is_tracking_truth=false",
+        "spatial_progression_zero_count_is_counterevidence=false",
         f"first_failed_node={first_failed_node}",
         f"first_failed_reason_code={first_failed_reason_code}",
         f"hard_block_hits={hard_blocks}",

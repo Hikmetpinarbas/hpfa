@@ -1,6 +1,6 @@
 {
   "module_id": "trackable_action_consequence_candidates_lite_v1",
-  "version": "1.2.0-zfgv-temporal-admission",
+  "version": "1.3.0-construct-temporal-contract-gate",
   "input_modules": {
     "trackable_action_trace": "trackable_action_trace_candidates_lite_v1",
     "evidence_atoms": "evidence_atom_inventory_lite_v1",
@@ -51,8 +51,8 @@
     "directional_consequence_link_requires_explicit_temporal_relation_admission": true,
     "missing_temporal_semantics_default": "ORDER_INDETERMINATE",
     "provenance_only_order_may_emit_directional_follow_up": false,
-    "current_positive_time_window_role": "PROVENANCE_WINDOW_CANDIDATE_ONLY_UNTIL_TEMPORAL_BINDING",
-    "rehabilitation_state": "REVIEW_REQUIRED_UNTIL_EXECUTABLE_TEMPORAL_BINDING"
+    "current_positive_time_window_role": "DIAGNOSTIC_SENSITIVITY_GRID_ONLY_NOT_PRODUCTION_TEMPORAL_CONTRACT",
+    "rehabilitation_state": "CONSTRUCT_SPECIFIC_TEMPORAL_CONTRACT_CALIBRATION_REQUIRED"
   },
   "timeline_rules": {
     "same_period_only": true,
@@ -63,7 +63,34 @@
     "source_row_order_is_temporal_truth": false,
     "window_seconds": [5.0, 8.0, 12.0],
     "max_follow_up_time_layers": 3,
-    "window_role_until_temporal_binding": "PRESENTATION_OR_PROVENANCE_WINDOW_CANDIDATE_ONLY"
+    "window_role": "SENSITIVITY_ONLY_NOT_PRODUCTION_CONTRACT",
+    "global_window_is_production_temporal_contract": false,
+    "diagnostic_window_can_authorize_claim": false,
+    "diagnostic_window_can_authorize_professional_finding": false
+  },
+  "construct_temporal_consequence_contract": {
+    "construct_specific_temporal_contract_required": true,
+    "current_state": "CALIBRATION_REQUIRED",
+    "contract_key_basis": [
+      "source_role",
+      "anchor_action_family_candidates"
+    ],
+    "source_role_separates_goalkeeper_and_outfield_action_surfaces": true,
+    "production_temporal_window_thresholds_admitted": false,
+    "single_match_observed_latency_can_set_production_threshold": false,
+    "single_match_latency_is_calibration_evidence_only": true,
+    "missing_construct_contract_default": "REVIEW_REQUIRED",
+    "diagnostic_grid_may_delete_visible_evidence": false,
+    "diagnostic_grid_may_increase_claim_ceiling": false,
+    "future_contract_must_define": [
+      "eligible_follow_up_semantics",
+      "terminal_stop_semantics",
+      "censoring_requirements",
+      "calibration_basis",
+      "claim_ceiling"
+    ],
+    "arbitrary_family_thresholds_forbidden": true,
+    "per_match_outcome_maximizing_horizon_selection_forbidden": true
   },
   "support_rules": {
     "allowed_atom_classes": ["DERIVED_CONSEQUENCE_ATOM", "TERMINAL_OUTCOME_ATOM"],
@@ -99,7 +126,8 @@
     "mixed_team_same_time_first_follow_up_layer": "REVIEW_REQUIRED",
     "missing_team_visible_follow_up": "REVIEW_REQUIRED",
     "numeric_time_without_temporal_admission": "REVIEW_REQUIRED",
-    "provenance_order_only_directional_follow_up": "FAIL_CLOSED"
+    "provenance_order_only_directional_follow_up": "FAIL_CLOSED",
+    "construct_specific_temporal_contract_not_calibrated": "REVIEW_REQUIRED"
   },
   "claim_boundary": {
     "consequence_candidate_is_causal_truth": false,
@@ -109,6 +137,7 @@
     "window_is_sequence_truth": false,
     "positive_numeric_delta_is_football_chronology_truth": false,
     "team_response_is_tactical_truth": false,
+    "diagnostic_window_is_production_temporal_truth": false,
     "sequence_link_allowed": false,
     "event_instance_count": 0,
     "canonical_event_count": "UNKNOWN",

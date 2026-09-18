@@ -83,3 +83,49 @@ def test_runtime_allows_definition_bound_xlsx_metric_without_truth_promotion(mon
     assert admission["construct_truth"] is False
     assert admission["aggregate_equivalence_truth"] is False
     assert admission["same_provider_multiformat_is_independent_support"] is False
+
+
+def test_runtime_rehydrates_current_rich_construct_after_sidecars_run_first(monkeypatch):
+    entrypoint = _load_entrypoint()
+
+    monkeypatch.setattr(entrypoint.full_spine_module, "run_sidecars", lambda *_a, **_k: _sidecar_report())
+    monkeypatch.setattr(
+        entrypoint.full_spine_module,
+        "run_rich_lane",
+        lambda *_a, **_k: {
+            "status": "REVIEW_REQUIRED",
+            "constructs": {
+                "C01": {
+                    "status": "REVIEW_REQUIRED",
+                    "review_reason": "aggregate_pair_scope_aligned_same_provider_support_non_independent",
+                    "construct_truth": False,
+                }
+            },
+            "c4_packet_candidates": [_candidate("Passes accurate, %")],
+            "review_hits": ["C01_progression_terminal_construct_review_required"],
+            "hard_block_hits": [],
+            "outputs": {},
+        },
+    )
+    monkeypatch.setattr(
+        entrypoint.full_spine_module,
+        "build_composite_packet",
+        lambda candidate: {"status": "SMOKE_PASS", "candidate": candidate},
+    )
+
+    entrypoint.RICH_CONSTRUCT_RUNTIME_STATE["report"] = None
+    entrypoint.full_spine_module._hpfa_construct_admission_gate_bound = False
+    entrypoint.full_spine_module._hpfa_metric_governance_gate_bound = False
+
+    entrypoint._bind_construct_admission_gate()
+    entrypoint._bind_metric_governance_construct_gate()
+
+    sidecars = entrypoint.full_spine_module.run_sidecars(None, None, None)
+    assert sidecars["rich_construct_governance_recheck"]["evaluated"] is False
+
+    rich = entrypoint.full_spine_module.run_rich_lane(None, None)
+    assert rich["rich_construct_governance_recheck"]["evaluated"] is True
+    assert rich["rich_construct_governance_recheck"]["admitted_count"] == 1
+    assert len(rich["c4_packet_candidates"]) == 1
+    assert rich["constructs"]["C01"]["c4_admission_status"] == "ADMITTED"
+    assert rich["construct_c4_promotion_state"] == "ADMITTED_BY_METRIC_GOVERNANCE"
