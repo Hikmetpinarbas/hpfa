@@ -122,6 +122,57 @@ def _challenge_contract(decision_row: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _typed_defeat_output_contract(decision_row: dict[str, Any] | None) -> tuple[dict[str, Any], str | None]:
+    empty = {
+        "typed_defeat_binding_state": "NOT_AVAILABLE",
+        "typed_defeat_observed_state": "NOT_AVAILABLE",
+        "typed_defeat_observed_type": "NOT_APPLICABLE",
+        "typed_defeat_target_component_type": None,
+        "typed_defeat_target_component_ref": None,
+        "typed_defeat_source_counterevidence_refs": [],
+        "typed_withdrawal_rules": [],
+        "typed_withdrawal_rule_count": 0,
+        "typed_defeat_can_authorize_emit": False,
+        "typed_defeat_can_strengthen_claim_ceiling": False,
+        "typed_defeat_creates_new_evidence": False,
+        "typed_defeat_is_causal_refutation": False,
+        "typed_defeat_is_independent_support": False,
+        "typed_withdrawal_effect_can_strengthen_claim": False,
+    }
+    if not isinstance(decision_row, dict):
+        return empty, None
+    profile = decision_row.get("typed_defeat_profile")
+    if not isinstance(profile, dict):
+        return empty, None
+    unsafe = (
+        profile.get("defeat_can_authorize_emit") is not False
+        or profile.get("defeat_can_strengthen_claim_ceiling") is not False
+        or profile.get("defeat_creates_new_evidence") is not False
+        or profile.get("defeat_is_causal_refutation") is not False
+        or profile.get("defeat_is_independent_support") is not False
+        or profile.get("withdrawal_effect_can_strengthen_claim") is not False
+    )
+    if unsafe:
+        return empty, "unsafe_typed_defeat_contract"
+    rules = profile.get("conditional_withdrawal_rules")
+    if not isinstance(rules, list):
+        return empty, "typed_withdrawal_rules_missing"
+    out = {
+        **empty,
+        "typed_defeat_binding_state": str(profile.get("binding_state") or "SOURCE_BOUND_TYPED_DEFEAT_CONTRACT"),
+        "typed_defeat_observed_state": str(profile.get("observed_defeat_state") or "UNRESOLVED"),
+        "typed_defeat_observed_type": str(profile.get("observed_defeat_type") or "DEFEAT_TYPE_UNRESOLVED"),
+        "typed_defeat_target_component_type": profile.get("observed_target_component_type"),
+        "typed_defeat_target_component_ref": profile.get("observed_target_component_ref"),
+        "typed_defeat_source_counterevidence_refs": _compact_refs(
+            profile.get("observed_source_counterevidence_refs")
+        ),
+        "typed_withdrawal_rules": [dict(row) for row in rules if isinstance(row, dict)],
+        "typed_withdrawal_rule_count": len([row for row in rules if isinstance(row, dict)]),
+    }
+    return out, None
+
+
 def _support_spread_contract(decision_row: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(decision_row, dict):
         return {
@@ -400,6 +451,9 @@ def build_analyst_output_claim_contract(
 
         challenge_contract = _challenge_contract(decision_row)
         support_spread_contract = _support_spread_contract(decision_row)
+        typed_defeat_contract, typed_defeat_block = _typed_defeat_output_contract(decision_row)
+        if typed_defeat_block:
+            return _fail_closed(f"{typed_defeat_block}:{handoff_id}")
         rate_bound_contract, rate_bound_block = _rate_bound_contract(decision_row)
         if rate_bound_block:
             return _fail_closed(f"{rate_bound_block}:{handoff_id}")
@@ -427,6 +481,7 @@ def build_analyst_output_claim_contract(
                 "forbidden_claim_families": forbidden,
                 **challenge_contract,
                 **support_spread_contract,
+                **typed_defeat_contract,
                 **rate_bound_contract,
                 "support_spread_may_be_reported_as_observed_match_local_description": (
                     decision != "ABSTAIN"
@@ -472,6 +527,12 @@ def build_analyst_output_claim_contract(
         "variant_support_spread_is_recurrence_truth": False,
         "variant_support_spread_can_increase_support": False,
         "variant_support_spread_can_authorize_emit": False,
+        "typed_defeat_contract_projected": any(
+            row.get("typed_defeat_binding_state") != "NOT_AVAILABLE" for row in contracts
+        ),
+        "typed_defeat_can_authorize_emit": False,
+        "typed_defeat_can_strengthen_claim_ceiling": False,
+        "typed_defeat_creates_new_evidence": False,
         "partial_identification_rate_bound_projected": any(
             row.get("rate_bound_binding_state") != "NOT_AVAILABLE" for row in contracts
         ),

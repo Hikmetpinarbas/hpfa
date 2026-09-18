@@ -7,6 +7,15 @@ CLAIM_CEILING_EMIT = "DEFEASIBLE_MATCH_LOCAL_PROFESSIONAL_FINDING_ONLY"
 CLAIM_CEILING_DOWNGRADE = "MATCH_LOCAL_SAFE_FINDING_CUE_ONLY"
 CLAIM_CEILING_ABSTAIN = "NO_CLAIM_OUTPUT"
 _ALLOWED_ALTERNATIVE_KEYS = {"code", "meaning"}
+_ALLOWED_DEFEAT_TYPES = {"REBUT", "UNDERCUT", "UNDERMINE", "DEFEAT_TYPE_UNRESOLVED", "NOT_APPLICABLE"}
+_ALLOWED_WITHDRAWAL_EFFECTS = {"PRESERVE", "DOWNGRADE", "ABSTAIN", "REVIEW_REQUIRED"}
+_ALLOWED_TARGET_COMPONENT_TYPES = {
+    "CONCLUSION",
+    "INFERENCE_WARRANT",
+    "SUPPORTING_PREMISE",
+    "CHALLENGE_BINDING_WARRANT",
+    "UNRESOLVED",
+}
 _REQUIRED_EVIDENCE_DIMENSIONS = {
     "independent_support",
     "eligible_case_coverage",
@@ -51,6 +60,95 @@ def _validated_alternatives(value: Any) -> tuple[list[dict[str, str]], str | Non
             return [], "alternative_explanation_incomplete"
         validated.append({"code": code, "meaning": meaning})
     return validated, None
+
+
+def _validated_typed_defeat_contract(value: Any) -> tuple[dict[str, Any], str | None]:
+    if value is None:
+        return {
+            "binding_state": "NOT_AVAILABLE",
+            "observed_defeat_state": "NOT_AVAILABLE",
+            "observed_defeat_type": "NOT_APPLICABLE",
+            "observed_source_counterevidence_refs": [],
+            "conditional_withdrawal_rules": [],
+            "conditional_withdrawal_rule_count": 0,
+            "defeat_can_authorize_emit": False,
+            "defeat_can_strengthen_claim_ceiling": False,
+            "defeat_creates_new_evidence": False,
+            "defeat_is_causal_refutation": False,
+            "defeat_is_independent_support": False,
+            "withdrawal_effect_can_strengthen_claim": False,
+        }, None
+    if not isinstance(value, dict):
+        return {}, "typed_defeat_contract_invalid"
+    for key in (
+        "defeat_can_authorize_emit",
+        "defeat_can_strengthen_claim_ceiling",
+        "defeat_creates_new_evidence",
+        "defeat_is_causal_refutation",
+        "defeat_is_independent_support",
+        "withdrawal_effect_can_strengthen_claim",
+        "rebut_without_explicit_target_allowed",
+    ):
+        if value.get(key) is not False:
+            return {}, f"typed_defeat_truth_lock_breached:{key}"
+
+    observed_type = _clean(value.get("observed_defeat_type")).upper()
+    observed_state = _clean(value.get("observed_defeat_state")).upper()
+    target_type = _clean(value.get("observed_target_component_type")).upper()
+    target_ref = _clean(value.get("observed_target_component_ref"))
+    refs = _refs(value.get("observed_source_counterevidence_refs"))
+    if observed_type not in _ALLOWED_DEFEAT_TYPES:
+        return {}, "typed_defeat_type_unrecognized"
+    if observed_type in {"REBUT", "UNDERCUT", "UNDERMINE"}:
+        if target_type not in _ALLOWED_TARGET_COMPONENT_TYPES - {"UNRESOLVED"} or not target_ref:
+            return {}, "typed_defeat_explicit_target_missing"
+    if observed_type == "DEFEAT_TYPE_UNRESOLVED" and (target_type or target_ref):
+        return {}, "typed_defeat_unresolved_target_must_remain_empty"
+
+    rules = value.get("conditional_withdrawal_rules")
+    if not isinstance(rules, list):
+        return {}, "typed_withdrawal_rules_invalid"
+    validated_rules: list[dict[str, Any]] = []
+    for row in rules:
+        if not isinstance(row, dict):
+            return {}, "typed_withdrawal_rule_not_object"
+        condition = _clean(row.get("condition_code"))
+        defeat_type = _clean(row.get("defeat_type")).upper()
+        component_type = _clean(row.get("target_component_type")).upper()
+        component_ref = _clean(row.get("target_component_ref")) or None
+        effect = _clean(row.get("withdrawal_effect")).upper()
+        if not condition or defeat_type not in _ALLOWED_DEFEAT_TYPES:
+            return {}, "typed_withdrawal_rule_incomplete"
+        if component_type not in _ALLOWED_TARGET_COMPONENT_TYPES:
+            return {}, "typed_withdrawal_target_type_unrecognized"
+        if effect not in _ALLOWED_WITHDRAWAL_EFFECTS:
+            return {}, "typed_withdrawal_effect_unrecognized"
+        if defeat_type in {"REBUT", "UNDERCUT", "UNDERMINE"} and not component_ref:
+            return {}, "typed_withdrawal_target_ref_missing"
+        validated_rules.append({
+            "condition_code": condition,
+            "defeat_type": defeat_type,
+            "target_component_type": component_type,
+            "target_component_ref": component_ref,
+            "withdrawal_effect": effect,
+        })
+
+    return {
+        "binding_state": "SOURCE_BOUND_TYPED_DEFEAT_CONTRACT",
+        "observed_defeat_state": observed_state or "UNRESOLVED",
+        "observed_defeat_type": observed_type,
+        "observed_target_component_type": target_type or None,
+        "observed_target_component_ref": target_ref or None,
+        "observed_source_counterevidence_refs": refs,
+        "conditional_withdrawal_rules": validated_rules,
+        "conditional_withdrawal_rule_count": len(validated_rules),
+        "defeat_can_authorize_emit": False,
+        "defeat_can_strengthen_claim_ceiling": False,
+        "defeat_creates_new_evidence": False,
+        "defeat_is_causal_refutation": False,
+        "defeat_is_independent_support": False,
+        "withdrawal_effect_can_strengthen_claim": False,
+    }, None
 
 
 def _dependency_burden_profile(
@@ -330,6 +428,9 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
         counter_refs = _refs(counterevidence.get("comparable_counterexample_refs"))
         alternatives, alternatives_error = _validated_alternatives(handoff.get("alternative_explanations"))
         withdrawals = _refs(handoff.get("withdrawal_conditions"))
+        typed_defeat_profile, typed_defeat_error = _validated_typed_defeat_contract(
+            handoff.get("typed_defeat_contract")
+        )
         forbidden = _refs(handoff.get("forbidden_inference"))
         safe_meaning = _clean(handoff.get("safe_meaning"))
 
@@ -352,6 +453,9 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
             continue
         if alternatives_error:
             decisions.append(_abstain(source_ref, alternatives_error))
+            continue
+        if typed_defeat_error:
+            decisions.append(_abstain(source_ref, typed_defeat_error))
             continue
 
         uncertainty = handoff.get("uncertainty")
@@ -391,6 +495,8 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
             emit_reasons.append("CHALLENGE_SURFACE_EMPTY")
         if source_review_unscoped:
             emit_reasons.append("UPSTREAM_COUNTEREVIDENCE_REVIEW_UNSCOPED")
+        if typed_defeat_profile.get("observed_defeat_type") == "DEFEAT_TYPE_UNRESOLVED":
+            emit_reasons.append("TYPED_DEFEAT_TARGET_UNRESOLVED")
 
         if not emit_reasons:
             decision = "EMIT"
@@ -413,6 +519,13 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
             "dependency_burden_profile": dependency_burden,
             "comparable_counterexample_visible": bool(counter_refs),
             "withdrawal_condition_present": bool(withdrawals),
+            "typed_defeat_profile": typed_defeat_profile,
+            "typed_defeat_target_unresolved": (
+                typed_defeat_profile.get("observed_defeat_type") == "DEFEAT_TYPE_UNRESOLVED"
+            ),
+            "typed_defeat_can_authorize_emit": False,
+            "typed_defeat_can_strengthen_claim_ceiling": False,
+            "typed_defeat_creates_new_evidence": False,
             "evidence_profile_dimensions_validated": True,
             **(evidence_profile or {}),
         })

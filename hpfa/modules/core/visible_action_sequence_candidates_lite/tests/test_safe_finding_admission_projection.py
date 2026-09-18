@@ -267,3 +267,72 @@ def test_global_truth_claim_fails_closed() -> None:
     out = build_safe_finding_admission(payload)
     assert out["status"] == "FAIL_CLOSED"
     assert out["safe_finding_admission_decisions"] == []
+
+
+def test_unresolved_typed_defeat_target_cannot_authorize_emit():
+    row = _handoff("sfh_typed_unresolved", independent=2, dep=True, stat=True, blocking=[])
+    row["typed_defeat_contract"] = {
+        "observed_defeat_state": "UNRESOLVED_NO_EXPLICIT_CLAIM_COMPONENT_TARGET",
+        "observed_defeat_type": "DEFEAT_TYPE_UNRESOLVED",
+        "observed_target_component_type": None,
+        "observed_target_component_ref": None,
+        "observed_source_counterevidence_refs": ["counter_sfh_typed_unresolved"],
+        "conditional_withdrawal_rules": [
+            {
+                "condition_code": "WITHDRAW_IF_BINDING_INVALIDATED",
+                "defeat_type": "UNDERCUT",
+                "target_component_type": "INFERENCE_WARRANT",
+                "target_component_ref": "sfh_typed_unresolved",
+                "withdrawal_effect": "ABSTAIN",
+            }
+        ],
+        "defeat_is_causal_refutation": False,
+        "defeat_is_independent_support": False,
+        "defeat_creates_new_evidence": False,
+        "defeat_can_authorize_emit": False,
+        "defeat_can_strengthen_claim_ceiling": False,
+        "withdrawal_effect_can_strengthen_claim": False,
+        "rebut_without_explicit_target_allowed": False,
+    }
+    out = build_safe_finding_admission(_payload([row]))
+    decision = out["safe_finding_admission_decisions"][0]
+
+    assert decision["decision"] == "DOWNGRADE"
+    assert decision["claim_output_allowed"] is False
+    assert "TYPED_DEFEAT_TARGET_UNRESOLVED" in decision["decision_reasons"]
+    assert decision["typed_defeat_profile"]["observed_defeat_type"] == "DEFEAT_TYPE_UNRESOLVED"
+    assert decision["typed_defeat_can_authorize_emit"] is False
+    assert decision["typed_defeat_can_strengthen_claim_ceiling"] is False
+
+
+def test_typed_withdrawal_effect_cannot_strengthen_claim():
+    row = _handoff("sfh_typed_bad_effect", independent=2, dep=True, stat=True, blocking=[])
+    row["typed_defeat_contract"] = {
+        "observed_defeat_state": "NOT_APPLICABLE_NO_OBSERVED_COUNTEREXAMPLE",
+        "observed_defeat_type": "NOT_APPLICABLE",
+        "observed_target_component_type": None,
+        "observed_target_component_ref": None,
+        "observed_source_counterevidence_refs": [],
+        "conditional_withdrawal_rules": [
+            {
+                "condition_code": "WITHDRAW_IF_BINDING_INVALIDATED",
+                "defeat_type": "UNDERCUT",
+                "target_component_type": "INFERENCE_WARRANT",
+                "target_component_ref": "sfh_typed_bad_effect",
+                "withdrawal_effect": "STRENGTHEN",
+            }
+        ],
+        "defeat_is_causal_refutation": False,
+        "defeat_is_independent_support": False,
+        "defeat_creates_new_evidence": False,
+        "defeat_can_authorize_emit": False,
+        "defeat_can_strengthen_claim_ceiling": False,
+        "withdrawal_effect_can_strengthen_claim": False,
+        "rebut_without_explicit_target_allowed": False,
+    }
+    out = build_safe_finding_admission(_payload([row]))
+    decision = out["safe_finding_admission_decisions"][0]
+
+    assert decision["decision"] == "ABSTAIN"
+    assert decision["claim_output_allowed"] is False
+    assert "typed_withdrawal_effect_unrecognized" in decision["decision_reasons"]

@@ -182,3 +182,53 @@ def test_unsafe_rate_bound_contract_fails_closed():
     assert result["status"] == "FAIL_CLOSED"
     assert result["analyst_output_contract_count"] == 0
     assert any("unsafe_rate_bound_contract" in value for value in result["hard_block_hits"])
+
+
+def test_typed_defeat_profile_is_projected_without_claim_strengthening():
+    admission = {
+        "status": "REVIEW_REQUIRED",
+        "safe_finding_admission_decisions": [
+            {
+                "source_safe_finding_handoff_ref": "sfh_test",
+                "decision": "DOWNGRADE",
+                "claim_output_allowed": False,
+                "typed_defeat_profile": {
+                    "binding_state": "SOURCE_BOUND_TYPED_DEFEAT_CONTRACT",
+                    "observed_defeat_state": "UNRESOLVED_NO_EXPLICIT_CLAIM_COMPONENT_TARGET",
+                    "observed_defeat_type": "DEFEAT_TYPE_UNRESOLVED",
+                    "observed_target_component_type": None,
+                    "observed_target_component_ref": None,
+                    "observed_source_counterevidence_refs": ["counter_1"],
+                    "conditional_withdrawal_rules": [
+                        {
+                            "condition_code": "WITHDRAW_IF_BINDING_INVALIDATED",
+                            "defeat_type": "UNDERCUT",
+                            "target_component_type": "INFERENCE_WARRANT",
+                            "target_component_ref": "sfh_test",
+                            "withdrawal_effect": "ABSTAIN",
+                        }
+                    ],
+                    "defeat_can_authorize_emit": False,
+                    "defeat_can_strengthen_claim_ceiling": False,
+                    "defeat_creates_new_evidence": False,
+                    "defeat_is_causal_refutation": False,
+                    "defeat_is_independent_support": False,
+                    "withdrawal_effect_can_strengthen_claim": False,
+                },
+            }
+        ],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+    result = build_analyst_output_claim_contract(_payload(), admission)
+    contract = _contract(result)
+
+    assert contract["typed_defeat_binding_state"] == "SOURCE_BOUND_TYPED_DEFEAT_CONTRACT"
+    assert contract["typed_defeat_observed_type"] == "DEFEAT_TYPE_UNRESOLVED"
+    assert contract["typed_defeat_source_counterevidence_refs"] == ["counter_1"]
+    assert contract["typed_withdrawal_rule_count"] == 1
+    assert contract["typed_defeat_can_authorize_emit"] is False
+    assert contract["typed_defeat_can_strengthen_claim_ceiling"] is False
+    assert contract["typed_defeat_creates_new_evidence"] is False
+    assert result["typed_defeat_contract_projected"] is True

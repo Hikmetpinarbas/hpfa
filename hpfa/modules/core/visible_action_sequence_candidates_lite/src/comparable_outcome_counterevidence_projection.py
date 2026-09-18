@@ -373,6 +373,97 @@ def _evidence_sufficiency_profile(
     }
 
 
+def _typed_defeat_contract(
+    *,
+    handoff_id: str,
+    divergence_id: str,
+    comparable_set_id: str,
+    challenge_refs: list[str],
+    withdrawal_conditions: list[str],
+) -> dict[str, Any]:
+    """Expose attack-target debt and typed conditional withdrawal rules.
+
+    Observed counterexamples are not automatically REBUT attacks because the current
+    Safe Finding conclusion is itself a bounded variation cue. Without an explicit
+    target claim component, the active defeat type remains unresolved.
+    """
+    target_for_premise = divergence_id or handoff_id
+    target_for_warrant = comparable_set_id or divergence_id or handoff_id
+    rule_specs = {
+        "WITHDRAW_IF_SHARED_ANCHOR_ADMISSION_INVALIDATED": (
+            "UNDERMINE",
+            "SUPPORTING_PREMISE",
+            target_for_premise,
+            "ABSTAIN",
+        ),
+        "WITHDRAW_IF_OUTCOME_SEMANTIC_BINDING_INVALIDATED": (
+            "UNDERMINE",
+            "SUPPORTING_PREMISE",
+            target_for_premise,
+            "ABSTAIN",
+        ),
+        "WITHDRAW_IF_COMPARISON_ELIGIBILITY_INVALIDATED": (
+            "UNDERCUT",
+            "INFERENCE_WARRANT",
+            target_for_warrant,
+            "ABSTAIN",
+        ),
+        "WITHDRAW_IF_SAME_DESIGN_COUNTEREVIDENCE_BINDING_INVALIDATED": (
+            "UNDERCUT",
+            "CHALLENGE_BINDING_WARRANT",
+            target_for_warrant,
+            "REVIEW_REQUIRED",
+        ),
+        "WITHDRAW_IF_COMPARABLE_COUNTEREXAMPLE_BINDING_DISAPPEARS": (
+            "UNDERCUT",
+            "CHALLENGE_BINDING_WARRANT",
+            handoff_id,
+            "REVIEW_REQUIRED",
+        ),
+    }
+    rules: list[dict[str, Any]] = []
+    for condition in withdrawal_conditions:
+        spec = rule_specs.get(condition)
+        if not spec:
+            rules.append({
+                "condition_code": condition,
+                "defeat_type": "DEFEAT_TYPE_UNRESOLVED",
+                "target_component_type": "UNRESOLVED",
+                "target_component_ref": None,
+                "withdrawal_effect": "REVIEW_REQUIRED",
+            })
+            continue
+        defeat_type, component_type, component_ref, effect = spec
+        rules.append({
+            "condition_code": condition,
+            "defeat_type": defeat_type,
+            "target_component_type": component_type,
+            "target_component_ref": component_ref,
+            "withdrawal_effect": effect,
+        })
+
+    observed_state = (
+        "UNRESOLVED_NO_EXPLICIT_CLAIM_COMPONENT_TARGET"
+        if challenge_refs
+        else "NOT_APPLICABLE_NO_OBSERVED_COUNTEREXAMPLE"
+    )
+    return {
+        "observed_defeat_state": observed_state,
+        "observed_defeat_type": "DEFEAT_TYPE_UNRESOLVED" if challenge_refs else "NOT_APPLICABLE",
+        "observed_target_component_type": None,
+        "observed_target_component_ref": None,
+        "observed_source_counterevidence_refs": sorted(set(challenge_refs)),
+        "conditional_withdrawal_rules": rules,
+        "defeat_is_causal_refutation": False,
+        "defeat_is_independent_support": False,
+        "defeat_creates_new_evidence": False,
+        "defeat_can_authorize_emit": False,
+        "defeat_can_strengthen_claim_ceiling": False,
+        "withdrawal_effect_can_strengthen_claim": False,
+        "rebut_without_explicit_target_allowed": False,
+    }
+
+
 def _safe_finding_handoff_candidates(
     sequence_payload: dict[str, Any],
     legacy_records: list[dict[str, Any]],
@@ -517,6 +608,23 @@ def _safe_finding_handoff_candidates(
             challenge_refs,
             variation_refs,
         )[:24]
+        withdrawal_conditions = [
+            "WITHDRAW_IF_SHARED_ANCHOR_ADMISSION_INVALIDATED",
+            "WITHDRAW_IF_OUTCOME_SEMANTIC_BINDING_INVALIDATED",
+            "WITHDRAW_IF_COMPARISON_ELIGIBILITY_INVALIDATED",
+        ] + (
+            ["WITHDRAW_IF_SAME_DESIGN_COUNTEREVIDENCE_BINDING_INVALIDATED"]
+            if same_design
+            else ["WITHDRAW_IF_COMPARABLE_COUNTEREXAMPLE_BINDING_DISAPPEARS"]
+        )
+        typed_defeat_contract = _typed_defeat_contract(
+            handoff_id=handoff_id,
+            divergence_id=divergence_id,
+            comparable_set_id=comparable_set_id,
+            challenge_refs=challenge_refs,
+            withdrawal_conditions=withdrawal_conditions,
+        )
+
         handoffs.append({
             "safe_finding_handoff_candidate_id": handoff_id,
             "source_first_supported_branch_divergence_ref": divergence_id,
@@ -603,16 +711,8 @@ def _safe_finding_handoff_candidates(
                 "binomial_interval_allowed": False,
                 "shrinkage_allowed": False,
             },
-            "withdrawal_conditions": [
-                "WITHDRAW_IF_SHARED_ANCHOR_ADMISSION_INVALIDATED",
-                "WITHDRAW_IF_OUTCOME_SEMANTIC_BINDING_INVALIDATED",
-                "WITHDRAW_IF_COMPARISON_ELIGIBILITY_INVALIDATED",
-            ]
-            + (
-                ["WITHDRAW_IF_SAME_DESIGN_COUNTEREVIDENCE_BINDING_INVALIDATED"]
-                if same_design
-                else ["WITHDRAW_IF_COMPARABLE_COUNTEREXAMPLE_BINDING_DISAPPEARS"]
-            ),
+            "withdrawal_conditions": withdrawal_conditions,
+            "typed_defeat_contract": typed_defeat_contract,
             "analyst_action": "REVIEW_BRANCH_EXAMPLES_AND_USE_ONLY_AS_MATCH_LOCAL_VARIATION_CUE",
             "analyst_summary_tr": (
                 f"Aynı görünür başlangıçtan çıkan {denominator} uygun vakanın {numerator}'sinde SUCCESS, "

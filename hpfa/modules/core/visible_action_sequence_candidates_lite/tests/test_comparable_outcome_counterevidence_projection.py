@@ -242,3 +242,23 @@ def test_no_sample_match_identity_leak():
     ).read_text(encoding="utf-8")
     for token in ("Sporting", "Galatasaray", "Fenerbahce", "Roma", "10.09.2026"):
         assert token not in source
+
+
+def test_safe_finding_handoff_exposes_unresolved_observed_defeat_and_typed_withdrawal_rules():
+    result = build_comparable_outcome_counterevidence(_payload())
+    assert result["safe_finding_handoff_candidate_count"] == 1
+    handoff = result["safe_finding_handoff_candidates"][0]
+    contract = handoff["typed_defeat_contract"]
+
+    assert contract["observed_defeat_type"] == "DEFEAT_TYPE_UNRESOLVED"
+    assert contract["observed_target_component_ref"] is None
+    assert contract["rebut_without_explicit_target_allowed"] is False
+    assert contract["defeat_is_causal_refutation"] is False
+    assert contract["defeat_can_authorize_emit"] is False
+    assert contract["defeat_can_strengthen_claim_ceiling"] is False
+    assert contract["defeat_creates_new_evidence"] is False
+
+    rules = {row["condition_code"]: row for row in contract["conditional_withdrawal_rules"]}
+    assert rules["WITHDRAW_IF_SHARED_ANCHOR_ADMISSION_INVALIDATED"]["defeat_type"] == "UNDERMINE"
+    assert rules["WITHDRAW_IF_COMPARISON_ELIGIBILITY_INVALIDATED"]["defeat_type"] == "UNDERCUT"
+    assert all(row["withdrawal_effect"] in {"ABSTAIN", "REVIEW_REQUIRED"} for row in rules.values())
