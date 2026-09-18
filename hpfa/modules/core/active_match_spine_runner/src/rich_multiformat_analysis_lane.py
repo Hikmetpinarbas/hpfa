@@ -521,16 +521,50 @@ def _association_record(
         "shot_process_refs": [row["process_ref"] for row in shot_rows],
         "counterexample_involved_without_shot_refs": [row["process_ref"] for row in no_shot_rows],
         "counterexample_shot_without_association_refs": [row["process_ref"] for row in shot_without],
+        "opportunity_normalized_evidence_anatomy": {
+            "comparison_design_ref": "C02_PROCESS_FAMILY_OUTCOME_BLIND_ELIGIBILITY_V1",
+            "target_outcome_semantic": "PROVIDER_REVIEWED_SHOT_PRESENT_ANNOTATION_CANDIDATE",
+            "denominator_state": "FAMILY_ELIGIBLE_PROCESS_N_FROZEN_BEFORE_OUTCOME_READ",
+            "family_eligible_process_n": None,
+            "association_involvement_n": support_n,
+            "resolved_target_n": shot_n,
+            "resolved_non_target_n": None,
+            "unresolved_outcome_n": None,
+            "right_censored_n": None,
+            "identification_state": "OUTCOME_RESOLUTION_CAPABILITY_NOT_AVAILABLE",
+            "lower_bound": None,
+            "upper_bound": None,
+            "identification_source_ref": None,
+            "bound_transfer_state": "BOUND_NOT_TRANSFERABLE_TO_THIS_PROFILE",
+            "supporting_episode_refs": sorted({
+                str(row.get("episode_ref")) for row in involved if row.get("episode_ref")
+            }),
+            "supporting_episode_n": len({
+                str(row.get("episode_ref")) for row in involved if row.get("episode_ref")
+            }),
+            "dependency_state": "UNRESOLVED_MATCH_LOCAL_PROCESS_DEPENDENCE",
+            "bounded_lineage_group_refs": [],
+            "lineage_group_n": None,
+            "not_target_annotated_involvement_refs": [row["process_ref"] for row in no_shot_rows],
+            "counterexample_involved_without_target_refs": [],
+            "counterexample_target_without_association_refs": [row["process_ref"] for row in shot_without],
+            "episode_spread_is_independence_proof": False,
+            "lineage_group_n_is_effective_sample_size": False,
+        },
         "small_n_association_contract": {
             "observation_unit": "ADMITTED_PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
-            "present_shot_n": shot_n,
-            "present_non_shot_n": len(no_shot_rows),
-            "absent_shot_n": len(shot_without),
-            "absent_non_shot_n": len(no_shot_without),
+            "target_outcome_semantic": "PROVIDER_REVIEWED_SHOT_PRESENT_ANNOTATION_CANDIDATE",
+            "present_target_annotated_n": shot_n,
+            "present_not_target_annotated_n": len(no_shot_rows),
+            "absent_target_annotated_n": len(shot_without),
+            "absent_not_target_annotated_n": len(no_shot_without),
+            "present_non_shot_n": None,
+            "absent_non_shot_n": None,
+            "outcome_resolution_state": "OUTCOME_RESOLUTION_CAPABILITY_NOT_AVAILABLE",
             "exchangeability_admitted": False,
             "dependency_state": "UNRESOLVED_MATCH_LOCAL_PROCESS_DEPENDENCE",
-            "fisher_exact_state": "NOT_EVALUATED_DEPENDENCY_UNRESOLVED",
-            "permutation_state": "NOT_EVALUATED_EXCHANGEABILITY_NOT_ADMITTED",
+            "fisher_exact_state": "NOT_EVALUATED_OUTCOME_RESOLUTION_UNAVAILABLE",
+            "permutation_state": "NOT_EVALUATED_OUTCOME_RESOLUTION_AND_EXCHANGEABILITY_UNAVAILABLE",
             "p_value_is_football_importance": False,
         },
         "xlsx_actor_context": xlsx_context,
@@ -651,6 +685,12 @@ def _construct_c02(
             out["eligible_process_n"] = eligible_n
             out["baseline_shot_ending_n"] = shot_n
             out["baseline_non_shot_n"] = eligible_n - shot_n
+            anatomy = out.get("opportunity_normalized_evidence_anatomy")
+            if isinstance(anatomy, dict):
+                anatomy["family_eligible_process_n"] = eligible_n
+            small_n = out.get("small_n_association_contract")
+            if isinstance(small_n, dict):
+                small_n["family_eligible_process_n"] = eligible_n
             return out
 
         actor_candidates = [decorate(row) for row in actor_candidates]

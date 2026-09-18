@@ -373,19 +373,41 @@ def test_c02_shot_specific_context_refines_same_interval_generic_context():
     assert profile["shot_ending_n"] == 2
     assert result["representative_dyad_argument"]["shot_ending_n"] == 2
 
-def test_c02_small_n_contract_exposes_2x2_counts_but_blocks_inference_without_dependency_admission():
+def test_c02_small_n_contract_does_not_coerce_not_target_annotation_into_resolved_non_shot():
     result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
     dyad = result["representative_dyad_argument"]
     contract = dyad["small_n_association_contract"]
-    assert contract["present_shot_n"] == 2
-    assert contract["present_non_shot_n"] == 0
-    assert contract["absent_shot_n"] == 0
-    assert contract["absent_non_shot_n"] == 2
+    assert contract["present_target_annotated_n"] == 2
+    assert contract["present_not_target_annotated_n"] == 0
+    assert contract["absent_target_annotated_n"] == 0
+    assert contract["absent_not_target_annotated_n"] == 2
+    assert contract["present_non_shot_n"] is None
+    assert contract["absent_non_shot_n"] is None
+    assert contract["outcome_resolution_state"] == "OUTCOME_RESOLUTION_CAPABILITY_NOT_AVAILABLE"
     assert contract["exchangeability_admitted"] is False
     assert contract["dependency_state"] == "UNRESOLVED_MATCH_LOCAL_PROCESS_DEPENDENCE"
-    assert contract["fisher_exact_state"] == "NOT_EVALUATED_DEPENDENCY_UNRESOLVED"
-    assert contract["permutation_state"] == "NOT_EVALUATED_EXCHANGEABILITY_NOT_ADMITTED"
+    assert contract["fisher_exact_state"] == "NOT_EVALUATED_OUTCOME_RESOLUTION_UNAVAILABLE"
+    assert contract["permutation_state"] == "NOT_EVALUATED_OUTCOME_RESOLUTION_AND_EXCHANGEABILITY_UNAVAILABLE"
     assert contract["p_value_is_football_importance"] is False
+
+
+def test_c02_opportunity_normalized_evidence_anatomy_freezes_denominator_and_preserves_episode_spread():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+    dyad = result["representative_dyad_argument"]
+    anatomy = dyad["opportunity_normalized_evidence_anatomy"]
+    assert anatomy["comparison_design_ref"] == "C02_PROCESS_FAMILY_OUTCOME_BLIND_ELIGIBILITY_V1"
+    assert anatomy["denominator_state"] == "FAMILY_ELIGIBLE_PROCESS_N_FROZEN_BEFORE_OUTCOME_READ"
+    assert anatomy["family_eligible_process_n"] == 4
+    assert anatomy["association_involvement_n"] == 2
+    assert anatomy["resolved_target_n"] == 2
+    assert anatomy["resolved_non_target_n"] is None
+    assert anatomy["unresolved_outcome_n"] is None
+    assert anatomy["identification_state"] == "OUTCOME_RESOLUTION_CAPABILITY_NOT_AVAILABLE"
+    assert anatomy["bound_transfer_state"] == "BOUND_NOT_TRANSFERABLE_TO_THIS_PROFILE"
+    assert anatomy["supporting_episode_n"] == 2
+    assert anatomy["episode_spread_is_independence_proof"] is False
+    assert anatomy["lineage_group_n_is_effective_sample_size"] is False
+    assert anatomy["counterexample_involved_without_target_refs"] == []
 
 
 def test_full_spine_runs_sidecars_before_rich_multiformat_lane():

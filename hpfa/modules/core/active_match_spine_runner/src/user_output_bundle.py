@@ -434,7 +434,8 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 f"{baseline_shot_n}/{eligible_n} süreç şutla bitti ({base_text}). "
                 f"{names} bulunan {support_n} süreçte {shot_n} şutla bitiş görüldü "
                 f"({rate_text}; maç-içi lift={lift_text}). "
-                f"Şutla bitmeyen birlikte-görülme={int(candidate.get('non_shot_n') or 0)}; "
+                f"Şut anotasyonu görülmeyen birlikte-görülme={int(candidate.get('non_shot_n') or 0)} "
+                "(resolved non-shot olarak yorumlanmaz); "
                 f"XLSX oyuncu bağlamı eşleşen kişi={int(candidate.get('xlsx_enriched_actor_count') or 0)}. "
                 "Bu, video/episode incelemesine öncelik veren maç-içi process ilişkisi adayidir."
             )
