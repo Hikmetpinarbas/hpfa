@@ -37,3 +37,9 @@ def test_rate_bound_physical_harness_does_not_validate_admission_after_context_f
     assert '[ "$SEQUENCE_RC" -eq 0 ] && [ "$CONTEXT_RC" -eq 0 ]' in text
     assert "SAFE_FINDING_SKIPPED=UPSTREAM_SEQUENCE_OR_CONTEXT_NONZERO" in text
     assert "current_invocation_context_return_code=$CONTEXT_RC" in text
+
+
+def test_physical_harness_archives_analyst_report_for_aday029_runtime_review() -> None:
+    text = HARNESS.read_text(encoding="utf-8")
+    assert '"HPFA_ANALYST_REPORT.txt"' in text
+    assert '"analyst_output_claim_contract_projection_v1.json"' in text

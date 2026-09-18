@@ -384,6 +384,7 @@ FILES=(
   "safe_finding_admission_projection_v1.json"
   "puzzle_finding_contract_projection_v1.json"
   "analyst_output_claim_contract_projection_v1.json"
+  "HPFA_ANALYST_REPORT.txt"
 )
 PRESENT=()
 for name in "${FILES[@]}"; do
