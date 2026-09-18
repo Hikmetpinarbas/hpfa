@@ -347,6 +347,32 @@ def test_c02_process_association_survives_without_xlsx_enrichment():
     assert dyad["claim_ceiling"] == "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY"
 
 
+
+def test_c02_real_aggregate_role_can_bind_unique_xlsx_player_row():
+    rows = _c02_xlsx_rows()
+    for row in rows:
+        row["source_role"] = "AGGREGATE_OR_TABULAR_SURFACE_CANDIDATE"
+    result = _construct_c02(rows, _c02_identity(), _c02_process_payload())
+    assert result["xlsx_actor_binding_count"] == 2
+    assert result["representative_dyad_argument"]["xlsx_enriched_actor_count"] == 2
+
+
+def test_c02_shot_specific_context_refines_same_interval_generic_context():
+    payload = _c02_process_payload()
+    generic = next(
+        row for row in payload["process_participation_candidates"]
+        if row["semantic_role"] == "CONTEXT_INTERVAL" and row["shot_present_annotation_candidate"] is True
+    )
+    generic["shot_present_annotation_candidate"] = False
+    refined = dict(generic)
+    refined["process_participation_candidate_id"] = generic["process_participation_candidate_id"] + "_shot"
+    refined["shot_present_annotation_candidate"] = True
+    payload["process_participation_candidates"].append(refined)
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), payload)
+    profile = next(row for row in result["process_family_profiles"] if row["process_family_candidate"] == "POSITIONAL_ATTACKS")
+    assert profile["shot_ending_n"] == 2
+    assert result["representative_dyad_argument"]["shot_ending_n"] == 2
+
 def test_full_spine_runs_sidecars_before_rich_multiformat_lane():
     source = (SRC / "full_spine_runner.py").read_text(encoding="utf-8")
     assert source.index("sidecar_report = run_sidecars(") < source.index("rich_report = run_rich_lane(")

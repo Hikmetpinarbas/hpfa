@@ -367,10 +367,9 @@ def _actor_xlsx_bindings(
     reviews: list[str] = []
     xlsx_by_name: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
-        role = str(row.get("source_role") or "").upper()
         identity = row.get("identity_candidates") or {}
         raw_player = identity.get("player_raw_candidate")
-        if "PLAYER" not in role or raw_player in (None, ""):
+        if raw_player in (None, ""):
             continue
         key = _normalize_identity_text(raw_player)
         if key:
@@ -553,7 +552,12 @@ def _construct_c02(
         key = _process_interval_key(row)
         role = str(row.get("semantic_role") or "")
         if role == "CONTEXT_INTERVAL":
-            contexts.setdefault(key, row)
+            existing = contexts.get(key)
+            if existing is None or (
+                existing.get("shot_present_annotation_candidate") is not True
+                and row.get("shot_present_annotation_candidate") is True
+            ):
+                contexts[key] = row
         elif role == "PARTICIPATION_INTERVAL":
             actor_id = str(row.get("actor_identity_candidate_id") or "").strip()
             if actor_id:
