@@ -465,6 +465,48 @@ def _process_interval_key(row: dict[str, Any]) -> tuple[str, str, str, str, str]
     )
 
 
+def _association_epistemic_review_contract(
+    *,
+    shot_rows: list[dict[str, Any]],
+    not_target_rows: list[dict[str, Any]],
+    shot_without: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Project review instructions from admitted association evidence without creating evidence."""
+    return {
+        "contract_version": "C02_ASSOCIATION_EPISTEMIC_REVIEW_V1",
+        "creates_new_evidence": False,
+        "can_authorize_emit": False,
+        "can_strengthen_claim_ceiling": False,
+        "alternative_explanations": [
+            "shared_process_participation_or_role_exposure",
+            "score_state_or_opponent_mode_not_resolved_here",
+            "provider_annotation_coverage_or_semantic_resolution_may_shift_target_counts",
+            "match_local_process_dependence_may_reduce_effective_support",
+        ],
+        "falsifier_conditions": [
+            "target_outcome_semantic_withdrawn_or_reclassified",
+            "actor_or_dyad_identity_binding_invalidated",
+            "outcome_resolution_materially_changes_target_or_non_target_counts",
+            "dependency_resolution_collapses_support_into_shared_lineage",
+        ],
+        "withdrawal_conditions": [
+            "comparison_eligibility_is_no_longer_outcome_blind",
+            "supporting_process_reference_is_invalidated",
+            "target_outcome_semantic_is_not_admitted",
+            "association_identity_binding_is_not_admitted",
+        ],
+        "review_target_refs": [row["process_ref"] for row in shot_rows],
+        "review_not_target_annotated_refs": [row["process_ref"] for row in not_target_rows],
+        "review_target_without_association_refs": [row["process_ref"] for row in shot_without],
+        "analyst_action": (
+            "Review target-annotated, target-without-association, and not-target-annotated "
+            "process refs against video or other admitted external evidence before any "
+            "player-quality, causal, tactical-plan, or mechanism interpretation."
+        ),
+        "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+    }
+
+
 def _association_record(
     *,
     association_type: str,
@@ -551,6 +593,11 @@ def _association_record(
             "episode_spread_is_independence_proof": False,
             "lineage_group_n_is_effective_sample_size": False,
         },
+        "epistemic_review_contract": _association_epistemic_review_contract(
+            shot_rows=shot_rows,
+            not_target_rows=no_shot_rows,
+            shot_without=shot_without,
+        ),
         "small_n_association_contract": {
             "observation_unit": "ADMITTED_PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
             "target_outcome_semantic": "PROVIDER_REVIEWED_SHOT_PRESENT_ANNOTATION_CANDIDATE",
@@ -753,6 +800,9 @@ def _construct_c02(
         "player_participation_is_causal_credit": False,
         "xlsx_aggregate_is_action_identity": False,
         "association_candidate_is_independent_support": False,
+        "epistemic_review_contract_version": "C02_ASSOCIATION_EPISTEMIC_REVIEW_V1",
+        "epistemic_review_contract_creates_new_evidence": False,
+        "epistemic_review_contract_can_authorize_emit": False,
         "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
         "c4_bridge_state": "DEFERRED_UNTIL_PROCESS_ASSOCIATION_ARGUMENT_FAMILY_IS_EXPLICITLY_ADMITTED",
     }

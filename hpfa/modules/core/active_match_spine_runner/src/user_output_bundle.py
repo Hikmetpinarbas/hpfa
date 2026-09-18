@@ -439,6 +439,13 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 f"XLSX oyuncu bağlamı eşleşen kişi={int(candidate.get('xlsx_enriched_actor_count') or 0)}. "
                 "Bu, video/episode incelemesine öncelik veren maç-içi process ilişkisi adayidir."
             )
+            review = candidate.get("epistemic_review_contract") or {}
+            if isinstance(review, dict) and review.get("analyst_action"):
+                lines.append(
+                    f"  inceleme_yonergesi ({label}): {review.get('analyst_action')} "
+                    f"withdrawal_conditions={review.get('withdrawal_conditions') or []}; "
+                    "review_contract_creates_new_evidence=false; review_contract_can_authorize_emit=false."
+                )
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
 

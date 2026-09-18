@@ -391,6 +391,26 @@ def test_c02_small_n_contract_does_not_coerce_not_target_annotation_into_resolve
     assert contract["p_value_is_football_importance"] is False
 
 
+def test_c02_epistemic_review_contract_preserves_claim_ceiling_and_exposes_review_actions():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+    dyad = result["representative_dyad_argument"]
+    review = dyad["epistemic_review_contract"]
+
+    assert review["contract_version"] == "C02_ASSOCIATION_EPISTEMIC_REVIEW_V1"
+    assert review["creates_new_evidence"] is False
+    assert review["can_authorize_emit"] is False
+    assert review["can_strengthen_claim_ceiling"] is False
+    assert review["claim_ceiling"] == dyad["claim_ceiling"]
+    assert review["review_target_refs"] == dyad["shot_process_refs"]
+    assert review["review_target_without_association_refs"] == dyad["counterexample_shot_without_association_refs"]
+    assert review["review_not_target_annotated_refs"] == dyad["counterexample_involved_without_shot_refs"]
+    assert "video or other admitted external evidence" in review["analyst_action"]
+    assert "match_local_process_dependence_may_reduce_effective_support" in review["alternative_explanations"]
+    assert "dependency_resolution_collapses_support_into_shared_lineage" in review["falsifier_conditions"]
+    assert result["epistemic_review_contract_creates_new_evidence"] is False
+    assert result["epistemic_review_contract_can_authorize_emit"] is False
+
+
 def test_c02_opportunity_normalized_evidence_anatomy_freezes_denominator_and_preserves_episode_spread():
     result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
     dyad = result["representative_dyad_argument"]
