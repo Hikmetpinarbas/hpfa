@@ -4,11 +4,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from mechanism_story_review_selector import build_mechanism_story_review_shortlist
+
 FEATURE_DELTA_JSON = "grammar_stable_variant_feature_delta_projection_v1.json"
 IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 OCCURRENCE_CONSEQUENCE_JSON = "occurrence_consequence_projection_v1.json"
 SEQUENCE_JSON = "visible_action_sequence_candidates_lite_v1.json"
 PROCESS_VARIANT_JSON = "observable_process_variant_binding_projection_v1.json"
+ANALYST_OUTPUT_CLAIM_JSON = "analyst_output_claim_contract_projection_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -20,7 +23,11 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 def _declared_current(full_spine: dict[str, Any], filename: str) -> bool:
-    for value in full_spine.get("current_invocation_artifacts") or []:
+    values = list(full_spine.get("current_invocation_artifacts") or [])
+    binding = full_spine.get("variant_feature_challenge_runtime_binding")
+    if isinstance(binding, dict) and binding.get("post_sequence_admission_finalized") is True:
+        values.extend(binding.get("post_sequence_current_invocation_artifacts") or [])
+    for value in values:
         if Path(str(value)).name == filename:
             return True
     return False
@@ -435,14 +442,52 @@ def build_mechanism_review_lines(
     if not records:
         return ["- Bu run'da grammar-stable visible-outcome variation ailesi gorunmedi."]
 
+    analyst_output_payload = (
+        _load_json(root / ANALYST_OUTPUT_CLAIM_JSON)
+        if _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON)
+        else {}
+    )
+    shortlist = build_mechanism_story_review_shortlist(
+        payload,
+        analyst_output_claim_payload=analyst_output_payload or None,
+        limit=5,
+    )
+
     lines = [
         "Bu bolum YAYINLANABILIR BULGU degildir; analyst-review mekanizma adayidir.",
+        f"story_shortlist_status={shortlist.get('status')}",
+        f"story_shortlist_count={int(shortlist.get('shortlist_count') or 0)}",
+        f"story_bounded_review_only_count={int(shortlist.get('bounded_review_only_count') or 0)}",
+        "story_selection_is_truth_ranking=false",
+        "story_selection_is_confidence_score=false",
+        "story_selection_can_authorize_emit=false",
         "Adaylar siralanmamistir. Oranlar gercek basari olasiligi degildir ve causality/tactical-plan kaniti sayilmaz.",
         *_occurrence_spine_lines(root, full_spine),
         "information_value_guard=actor identity yalniz locator; same-team continuation/opponent handover outcome-adjacent descriptive consequence; process-context farki review adayi olabilir ama mekanizma/taktik/neden truth degildir.",
         "source_provenance_guard=provider-reviewed annotation direct admitted observation degildir; derived context physical/tracking truth degildir; unresolved source role yorumlama izni vermez.",
         "locator_semantics=FIRST_SUCCESSOR_AFTER_SHARED_VISIBLE_ANCHOR_NOT_PROVEN_FIRST_DIVERGENCE",
     ]
+    for row in shortlist.get("shortlist") or []:
+        if not isinstance(row, dict):
+            continue
+        eligibility = str(row.get("story_eligibility_state") or "UNRESOLVED")
+        family_ref = str(row.get("source_process_variant_family_ref") or "UNRESOLVED")
+        lower = row.get("rate_bound_lower")
+        upper = row.get("rate_bound_upper")
+        if eligibility == "BOUND_AWARE_REVIEW_ONLY" and lower is not None and upper is not None:
+            lines.append(
+                "story_review_shortlist: "
+                f"family={family_ref} eligibility={eligibility} "
+                f"visible_outcome_rate_bound={float(lower):.6f}-{float(upper):.6f} "
+                "confidence_interval=false probability=false emit=false"
+            )
+        else:
+            lines.append(
+                "story_review_shortlist: "
+                f"family={family_ref} eligibility={eligibility} "
+                "emit=false truth_ranking=false"
+            )
+
     for index, record in enumerate(records, start=1):
         team_ids = [str(value) for value in (record.get("team_identity_candidate_ids") or []) if str(value)]
         team = ", ".join(teams.get(value, value) for value in team_ids) or "UNRESOLVED_TEAM"

@@ -40,6 +40,7 @@ def _write_payloads(tmp_path: Path) -> None:
         "status": "REVIEW_REQUIRED",
         "grammar_stable_variant_feature_delta_records": [
             {
+                "grammar_stable_variant_feature_delta_id": "gsvfd_1",
                 "source_process_variant_family_ref": "family_1",
                 "team_identity_candidate_ids": ["team_1"],
                 "period_candidates": ["1"],
@@ -312,3 +313,57 @@ def test_standard_report_contains_role_separated_review_without_promoting_emit(t
     assert "event-only" not in text
     assert "canonical_event_count=UNKNOWN" in text
     assert "production_release=false" in text
+
+
+def test_bound_aware_story_review_is_runtime_visible_without_probability_promotion(tmp_path: Path) -> None:
+    _write_payloads(tmp_path)
+    delta_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
+    delta = json.loads(delta_path.read_text(encoding="utf-8"))
+    delta["grammar_stable_variant_feature_delta_records"][0]["right_censored_variant_count"] = 2
+    delta_path.write_text(json.dumps(delta), encoding="utf-8")
+
+    analyst_output = {
+        "status": "REVIEW_REQUIRED",
+        "analyst_output_contracts": [
+            {
+                "analyst_output_contract_id": "aoc_sfh_1",
+                "rate_bound_binding_state": "SOURCE_BOUND_NUMERIC",
+                "rate_bound_state": "PARTIALLY_IDENTIFIED_VISIBLE_OUTCOME_RATE",
+                "rate_bound_estimand_id": "MATCH_LOCAL_VISIBLE_PROCESS_OUTCOME_RATE",
+                "rate_bound_denominator_basis": "UNIQUE_OBSERVABLE_PROCESS_VARIANT_FAMILY_MEMBER_SEQUENCE_REFS",
+                "rate_bound_resolved_success_n": 4,
+                "rate_bound_resolved_failure_n": 1,
+                "rate_bound_unresolved_eligible_n": 2,
+                "rate_bound_eligible_total_n": 7,
+                "rate_bound_lower": 4 / 7,
+                "rate_bound_upper": 6 / 7,
+                "rate_bound_width": 2 / 7,
+                "rate_bound_assumption_set_id": "BINARY_VISIBLE_OUTCOME_KNOWN_ELIGIBLE_DENOMINATOR_WORST_CASE_UNRESOLVED_V1",
+                "rate_bound_matched_process_variant_family_refs": ["family_1"],
+                "rate_bound_can_authorize_emit": False,
+                "rate_bound_can_strengthen_claim_ceiling": False,
+            }
+        ],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+    claim_path = tmp_path / "analyst_output_claim_contract_projection_v1.json"
+    claim_path.write_text(json.dumps(analyst_output), encoding="utf-8")
+
+    spine = _full_spine(tmp_path)
+    spine["variant_feature_challenge_runtime_binding"] = {
+        "post_sequence_admission_finalized": True,
+        "post_sequence_current_invocation_artifacts": [str(claim_path)],
+    }
+    text = "\n".join(build_mechanism_review_lines(tmp_path, spine))
+
+    assert "story_shortlist_status=PASS" in text
+    assert "story_shortlist_count=1" in text
+    assert "story_bounded_review_only_count=1" in text
+    assert "family=family_1 eligibility=BOUND_AWARE_REVIEW_ONLY" in text
+    assert "visible_outcome_rate_bound=0.571429-0.857143" in text
+    assert "confidence_interval=false probability=false emit=false" in text
+    assert "story_selection_is_truth_ranking=false" in text
+    assert "story_selection_is_confidence_score=false" in text
+    assert "story_selection_can_authorize_emit=false" in text
