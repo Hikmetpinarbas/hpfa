@@ -547,3 +547,11 @@ def test_c03_filters_occurrences_to_exact_team_period_and_process_interval():
     assert signature["layers"][0]["occurrence_ids"] == ["inside"]
     assert signature["source_row_order_is_temporal_truth"] is False
     assert signature["annotation_anchor_path_coverage_state"] == "PARTIAL_OR_AMBIGUOUS"
+
+
+def test_c03_is_projected_into_human_analyst_report_without_physical_path_promotion():
+    source = (SRC / "user_output_bundle.py").read_text(encoding="utf-8")
+    assert "C03_process_development_signature_count" in source
+    assert "SUREC GELISIM IMZASI ADAYI" in source
+    assert "annotation-anchor yolu fiziksel top/oyuncu" in source
+    assert "video/episode incelemesine" not in source

@@ -393,6 +393,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     if rich_current:
         c01 = (rich.get("constructs") or {}).get("C01") or {}
         c02 = (rich.get("constructs") or {}).get("C02") or {}
+        c03 = (rich.get("constructs") or {}).get("C03") or {}
         lines.extend([
             f"primitive_metric_count={len(rich.get('primitive_metrics') or [])}",
             f"phase_state_candidate_count={len(rich.get('phase_state_candidates') or [])}",
@@ -409,6 +410,8 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             f"C02_construct_status={c02.get('status')}",
             f"C02_argument_candidate_count={c02.get('argument_candidate_count')}",
             f"C02_xlsx_actor_binding_count={c02.get('xlsx_actor_binding_count')}",
+            f"C03_construct_status={c03.get('status')}",
+            f"C03_process_development_signature_count={c03.get('signature_count')}",
             "construct_candidate_is_metric_truth=false",
         ])
         for label, candidate in (
@@ -437,7 +440,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 f"Şut anotasyonu görülmeyen birlikte-görülme={int(candidate.get('non_shot_n') or 0)} "
                 "(resolved non-shot olarak yorumlanmaz); "
                 f"XLSX oyuncu bağlamı eşleşen kişi={int(candidate.get('xlsx_enriched_actor_count') or 0)}. "
-                "Bu, video/episode incelemesine öncelik veren maç-içi process ilişkisi adayidir."
+                "Bu, admitted process/occurrence incelemesine öncelik veren maç-içi process ilişkisi adayidir."
             )
             review = candidate.get("epistemic_review_contract") or {}
             if isinstance(review, dict) and review.get("analyst_action"):
@@ -446,6 +449,30 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                     f"withdrawal_conditions={review.get('withdrawal_conditions') or []}; "
                     "review_contract_creates_new_evidence=false; review_contract_can_authorize_emit=false."
                 )
+        c03_rows = [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
+        if c03_rows:
+            representative = max(
+                c03_rows,
+                key=lambda row: (
+                    int(row.get("visible_occurrence_n") or 0),
+                    int(row.get("temporal_layer_n") or 0),
+                ),
+            )
+            family = str(representative.get("process_family_candidate") or "process").replace("_", " ")
+            duration = representative.get("process_interval_duration_candidate")
+            duration_text = f"{float(duration):.1f}s" if isinstance(duration, (int, float)) else "N/A"
+            anchor_sum = representative.get("annotation_anchor_segment_distance_sum_provider_units_candidate")
+            anchor_text = f"{float(anchor_sum):.2f} provider-unit" if isinstance(anchor_sum, (int, float)) else "N/A"
+            lines.append(
+                f"- SUREC GELISIM IMZASI ADAYI: {family}; provider process araligi={duration_text}; "
+                f"gorunur occurrence={int(representative.get('visible_occurrence_n') or 0)}; "
+                f"zamansal katman={int(representative.get('temporal_layer_n') or 0)}; "
+                f"annotation-anchor segment={int(representative.get('annotation_anchor_segment_n') or 0)}; "
+                f"anchor kapsami={representative.get('annotation_anchor_path_coverage_state')}; "
+                f"anchor-mesafe-toplami={anchor_text}. "
+                "Ayni timestamp icinde total order kurulmaz; annotation-anchor yolu fiziksel top/oyuncu "
+                "trajektorisi, fiziksel mesafe veya hiz degildir."
+            )
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
 
