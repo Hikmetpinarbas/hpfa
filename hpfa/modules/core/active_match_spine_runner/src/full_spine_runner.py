@@ -388,33 +388,42 @@ def run_full_spine(
     }
     expected_snapshot_id = str(bridge_report.get("input_surface_snapshot_id") or "")
     if not hard_blocks and expected_snapshot_id:
-        try:
-            rich_report = run_rich_lane(
-                active_match_path,
-                output_root,
-                expected_snapshot_id=expected_snapshot_id,
-                match_surface_binding_id=bridge_report.get("match_surface_binding_id"),
-            )
-        except Exception as exc:
-            rich_report = {
-                "status": "FAIL_CLOSED",
-                "hard_block_hits": [f"rich_multiformat_lane_exception:{type(exc).__name__}"],
-                "current_invocation_artifacts": [],
-            }
-        rich_status = _status(rich_report.get("status"))
-        if rich_status == "FAIL_CLOSED":
-            hard_blocks.append("rich_multiformat_analysis_lane_fail_closed")
-            first_failed_node = first_failed_node or "rich_multiformat_analysis_lane"
-            reasons = rich_report.get("hard_block_hits") or []
-            first_failed_reason_code = first_failed_reason_code or (
-                str(reasons[0]) if isinstance(reasons, list) and reasons else "rich_multiformat_analysis_lane_fail_closed"
-            )
-        elif rich_status == "REVIEW_REQUIRED":
-            review_hits.append("rich_multiformat_analysis_lane_review_required")
-
         sidecar_report = run_sidecars(active_match_path, output_root, Path(__file__).resolve().parents[5])
-        if _status(sidecar_report.get("status")) == "REVIEW_REQUIRED":
+        sidecar_status = _status(sidecar_report.get("status"))
+        if sidecar_status == "FAIL_CLOSED":
+            hard_blocks.append("orphan_capability_sidecars_fail_closed")
+            first_failed_node = first_failed_node or "orphan_capability_sidecars"
+            reasons = sidecar_report.get("hard_block_hits") or []
+            first_failed_reason_code = first_failed_reason_code or (
+                str(reasons[0]) if isinstance(reasons, list) and reasons else "orphan_capability_sidecars_fail_closed"
+            )
+        elif sidecar_status == "REVIEW_REQUIRED":
             review_hits.append("orphan_capability_sidecars_review_required")
+
+        if not hard_blocks:
+            try:
+                rich_report = run_rich_lane(
+                    active_match_path,
+                    output_root,
+                    expected_snapshot_id=expected_snapshot_id,
+                    match_surface_binding_id=bridge_report.get("match_surface_binding_id"),
+                )
+            except Exception as exc:
+                rich_report = {
+                    "status": "FAIL_CLOSED",
+                    "hard_block_hits": [f"rich_multiformat_lane_exception:{type(exc).__name__}"],
+                    "current_invocation_artifacts": [],
+                }
+            rich_status = _status(rich_report.get("status"))
+            if rich_status == "FAIL_CLOSED":
+                hard_blocks.append("rich_multiformat_analysis_lane_fail_closed")
+                first_failed_node = first_failed_node or "rich_multiformat_analysis_lane"
+                reasons = rich_report.get("hard_block_hits") or []
+                first_failed_reason_code = first_failed_reason_code or (
+                    str(reasons[0]) if isinstance(reasons, list) and reasons else "rich_multiformat_analysis_lane_fail_closed"
+                )
+            elif rich_status == "REVIEW_REQUIRED":
+                review_hits.append("rich_multiformat_analysis_lane_review_required")
 
     spatial_progression_evidence = _spatial_progression_analyst_evidence(sidecar_report)
 

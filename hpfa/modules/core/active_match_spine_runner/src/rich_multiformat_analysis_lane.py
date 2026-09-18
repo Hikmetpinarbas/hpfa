@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import unicodedata
 from collections import Counter, defaultdict
+from itertools import combinations
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +21,8 @@ XLSX_AUDIT_TXT = "xlsx_surface_audit_lite_v1.txt"
 XLSX_AUDIT_ANALYST = "xlsx_surface_analyst_audit_lite_v1.txt"
 XLSX_PROJECTION_JSON = "xlsx_entity_metric_row_projection_lite_v1.json"
 XLSX_PROJECTION_TXT = "xlsx_entity_metric_row_projection_lite_v1.txt"
+IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
+PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -340,9 +345,364 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
     }
 
 
+
+def _normalize_identity_text(value: Any) -> str:
+    text = unicodedata.normalize("NFKD", " ".join(str(value or "").split()).casefold())
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", text)).strip("_")
+
+
+def _display_subject(value: Any) -> str:
+    text = " ".join(str(value or "").split()).strip()
+    text = re.sub(r"^\d+\.\s+", "", text)
+    text = re.sub(r"\s+\(\d+\)$", "", text)
+    return text or "UNKNOWN"
+
+
+def _actor_xlsx_bindings(
+    rows: list[dict[str, Any]],
+    identity_payload: dict[str, Any],
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Bind match-local actor candidates to one unique XLSX player row by normalized name."""
+    reviews: list[str] = []
+    xlsx_by_name: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        role = str(row.get("source_role") or "").upper()
+        identity = row.get("identity_candidates") or {}
+        raw_player = identity.get("player_raw_candidate")
+        if "PLAYER" not in role or raw_player in (None, ""):
+            continue
+        key = _normalize_identity_text(raw_player)
+        if key:
+            xlsx_by_name[key].append(row)
+
+    actors = [
+        row for row in (identity_payload.get("actor_identity_candidates") or [])
+        if isinstance(row, dict)
+        and str(row.get("decision_state") or "") == "ACTOR_IDENTITY_CANDIDATE_BOUND"
+        and row.get("actor_identity_candidate_id")
+        and row.get("actor_normalized_key")
+    ]
+    actor_key_counts = Counter(str(row.get("actor_normalized_key") or "") for row in actors)
+    teams = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (identity_payload.get("team_identity_candidates") or [])
+        if isinstance(row, dict) and row.get("team_identity_candidate_id")
+    }
+    bindings: dict[str, dict[str, Any]] = {}
+    for actor in actors:
+        actor_id = str(actor.get("actor_identity_candidate_id"))
+        actor_key = str(actor.get("actor_normalized_key"))
+        if actor_key_counts[actor_key] != 1:
+            reviews.append(f"xlsx_actor_name_ambiguous_in_match:{actor_key}")
+            continue
+        xlsx_rows = xlsx_by_name.get(actor_key, [])
+        if len(xlsx_rows) != 1:
+            if len(xlsx_rows) > 1:
+                reviews.append(f"xlsx_player_row_ambiguous:{actor_key}")
+            continue
+        xlsx_row = xlsx_rows[0]
+        xlsx_team = _normalize_identity_text((xlsx_row.get("identity_candidates") or {}).get("team_raw_candidate"))
+        actor_team_key = str(actor.get("team_normalized_key") or "")
+        if xlsx_team and actor_team_key and xlsx_team != actor_team_key:
+            reviews.append(f"xlsx_actor_team_mismatch:{actor_key}")
+            continue
+        team = teams.get(str(actor.get("team_identity_candidate_id") or "")) or {}
+        aliases = list(actor.get("actor_aliases_raw") or [])
+        team_aliases = list(team.get("team_aliases_raw") or [])
+        bindings[actor_id] = {
+            "actor_identity_candidate_id": actor_id,
+            "actor_label": _display_subject(aliases[0] if aliases else actor_key),
+            "team_identity_candidate_id": actor.get("team_identity_candidate_id"),
+            "team_label": _display_subject(team_aliases[0] if team_aliases else actor_team_key),
+            "xlsx_row_projection_id": xlsx_row.get("row_projection_id"),
+            "xlsx_row": xlsx_row,
+            "binding_state": "MATCH_LOCAL_UNIQUE_NAME_XLSX_ROW_CANDIDATE_BOUND",
+            "validated_global_player_identity": False,
+            "xlsx_row_is_action_identity": False,
+        }
+    return bindings, sorted(set(reviews))
+
+
+def _selected_xlsx_metric_context(row: dict[str, Any]) -> list[dict[str, Any]]:
+    terms = (
+        "progressive pass",
+        "final third entr",
+        "passes into the penalty box",
+        "open passes received in the final third",
+        "actions in opponent",
+        "chances created",
+        "xa",
+        "xg",
+    )
+    result: list[dict[str, Any]] = []
+    for key, metric in (row.get("metric_values") or {}).items():
+        if not isinstance(metric, dict) or metric.get("value_status") != "OBSERVED":
+            continue
+        haystack = f"{key} {metric.get('raw_metric_label') or ''}".casefold().replace("_", " ")
+        if not any(term in haystack for term in terms):
+            continue
+        result.append({
+            "metric_key": str(key),
+            "raw_metric_label": metric.get("raw_metric_label"),
+            "raw_value": metric.get("raw_value"),
+            "row_projection_id": row.get("row_projection_id"),
+            "source_surface": "xlsx_entity_metric_row_projection_lite_v1",
+            "independent_support_vote": False,
+            "metric_truth": False,
+        })
+        if len(result) >= 8:
+            break
+    return result
+
+
+def _process_interval_key(row: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    return (
+        str(row.get("team_identity_candidate_id") or ""),
+        str(row.get("process_family_candidate") or ""),
+        str(row.get("period_candidate") or ""),
+        str(row.get("start_candidate") or ""),
+        str(row.get("end_candidate") or ""),
+    )
+
+
+def _association_record(
+    *,
+    association_type: str,
+    actor_ids: tuple[str, ...],
+    process_rows: list[dict[str, Any]],
+    baseline_shot_n: int,
+    baseline_n: int,
+    actor_bindings: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    actor_set = set(actor_ids)
+    involved = [row for row in process_rows if actor_set.issubset(set(row["actor_ids"]))]
+    shot_rows = [row for row in involved if row["shot_present"]]
+    no_shot_rows = [row for row in involved if not row["shot_present"]]
+    shot_without = [
+        row for row in process_rows
+        if row["shot_present"] and not actor_set.issubset(set(row["actor_ids"]))
+    ]
+    support_n = len(involved)
+    shot_n = len(shot_rows)
+    rate = (shot_n / support_n) if support_n else None
+    baseline = (baseline_shot_n / baseline_n) if baseline_n else None
+    lift = (rate / baseline) if rate is not None and baseline not in (None, 0) else None
+    bound = [actor_bindings.get(actor_id) for actor_id in actor_ids]
+    labels = [
+        (item or {}).get("actor_label") or actor_id
+        for actor_id, item in zip(actor_ids, bound)
+    ]
+    xlsx_context = []
+    for actor_id, item in zip(actor_ids, bound):
+        if not item:
+            continue
+        xlsx_context.append({
+            "actor_identity_candidate_id": actor_id,
+            "actor_label": item.get("actor_label"),
+            "xlsx_binding_state": item.get("binding_state"),
+            "xlsx_row_projection_id": item.get("xlsx_row_projection_id"),
+            "metrics": _selected_xlsx_metric_context(item.get("xlsx_row") or {}),
+        })
+    return {
+        "association_type": association_type,
+        "actor_identity_candidate_ids": list(actor_ids),
+        "actor_labels": labels,
+        "support_n": support_n,
+        "shot_ending_n": shot_n,
+        "non_shot_n": len(no_shot_rows),
+        "conditional_shot_frequency": rate,
+        "match_local_baseline_shot_frequency": baseline,
+        "match_local_lift": lift,
+        "process_refs": [row["process_ref"] for row in involved],
+        "shot_process_refs": [row["process_ref"] for row in shot_rows],
+        "counterexample_involved_without_shot_refs": [row["process_ref"] for row in no_shot_rows],
+        "counterexample_shot_without_association_refs": [row["process_ref"] for row in shot_without],
+        "xlsx_actor_context": xlsx_context,
+        "xlsx_enriched_actor_count": len(xlsx_context),
+        "association_is_causal_player_credit": False,
+        "association_is_independent_evidence_vote": False,
+        "lift_is_probability": False,
+        "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+    }
+
+
+def _construct_c02(
+    rows: list[dict[str, Any]],
+    identity_payload: dict[str, Any],
+    process_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Compose process participation + visible shot outcome + XLSX aggregate context."""
+    if str(process_payload.get("status") or "").upper() == "FAIL_CLOSED":
+        return {
+            "construct_id": "C02_PROCESS_PARTICIPANT_OUTCOME_ASSOCIATION",
+            "status": "REVIEW_REQUIRED",
+            "review_reason": "process_participation_upstream_fail_closed",
+            "argument_candidates": [],
+            "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+        }
+
+    actor_bindings, binding_reviews = _actor_xlsx_bindings(rows, identity_payload)
+    raw = [
+        row for row in (process_payload.get("process_participation_candidates") or [])
+        if isinstance(row, dict)
+    ]
+    contexts: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
+    participants: dict[tuple[str, str, str, str, str], set[str]] = defaultdict(set)
+    for row in raw:
+        key = _process_interval_key(row)
+        role = str(row.get("semantic_role") or "")
+        if role == "CONTEXT_INTERVAL":
+            contexts.setdefault(key, row)
+        elif role == "PARTICIPATION_INTERVAL":
+            actor_id = str(row.get("actor_identity_candidate_id") or "").strip()
+            if actor_id:
+                participants[key].add(actor_id)
+
+    family_rows: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for key, context in contexts.items():
+        team_id, family, _, _, _ = key
+        if not team_id or not family:
+            continue
+        family_rows[(team_id, family)].append({
+            "process_ref": str(context.get("process_participation_candidate_id") or ""),
+            "episode_ref": context.get("episode_candidate_id"),
+            "shot_present": context.get("shot_present_annotation_candidate") is True,
+            "actor_ids": sorted(participants.get(key, set())),
+            "period_candidate": context.get("period_candidate"),
+            "start_candidate": context.get("start_candidate"),
+            "end_candidate": context.get("end_candidate"),
+        })
+
+    family_profiles: list[dict[str, Any]] = []
+    all_actor_candidates: list[dict[str, Any]] = []
+    all_dyad_candidates: list[dict[str, Any]] = []
+    identity_actors = {
+        str(row.get("actor_identity_candidate_id") or ""): row
+        for row in (identity_payload.get("actor_identity_candidates") or [])
+        if isinstance(row, dict) and row.get("actor_identity_candidate_id")
+    }
+    identity_teams = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (identity_payload.get("team_identity_candidates") or [])
+        if isinstance(row, dict) and row.get("team_identity_candidate_id")
+    }
+
+    for (team_id, family), process_rows in sorted(family_rows.items()):
+        eligible_n = len(process_rows)
+        shot_n = sum(row["shot_present"] for row in process_rows)
+        if not eligible_n:
+            continue
+        actor_ids = sorted({actor for row in process_rows for actor in row["actor_ids"]})
+        actor_candidates = [
+            _association_record(
+                association_type="ACTOR",
+                actor_ids=(actor_id,),
+                process_rows=process_rows,
+                baseline_shot_n=shot_n,
+                baseline_n=eligible_n,
+                actor_bindings=actor_bindings,
+            )
+            for actor_id in actor_ids
+        ]
+        dyad_ids = sorted({
+            tuple(pair)
+            for row in process_rows
+            for pair in combinations(sorted(row["actor_ids"]), 2)
+        })
+        dyad_candidates = [
+            _association_record(
+                association_type="DYAD",
+                actor_ids=pair,
+                process_rows=process_rows,
+                baseline_shot_n=shot_n,
+                baseline_n=eligible_n,
+                actor_bindings=actor_bindings,
+            )
+            for pair in dyad_ids
+        ]
+        actor_candidates = [row for row in actor_candidates if row["support_n"] > 0]
+        dyad_candidates = [row for row in dyad_candidates if row["support_n"] > 0]
+
+        def decorate(candidate: dict[str, Any]) -> dict[str, Any]:
+            out = dict(candidate)
+            out["team_identity_candidate_id"] = team_id
+            out["process_family_candidate"] = family
+            out["eligible_process_n"] = eligible_n
+            out["baseline_shot_ending_n"] = shot_n
+            out["baseline_non_shot_n"] = eligible_n - shot_n
+            return out
+
+        actor_candidates = [decorate(row) for row in actor_candidates]
+        dyad_candidates = [decorate(row) for row in dyad_candidates]
+        all_actor_candidates.extend(actor_candidates)
+        all_dyad_candidates.extend(dyad_candidates)
+        team = identity_teams.get(team_id) or {}
+        family_profiles.append({
+            "team_identity_candidate_id": team_id,
+            "team_label": _display_subject((team.get("team_aliases_raw") or [team_id])[0]),
+            "process_family_candidate": family,
+            "eligible_process_n": eligible_n,
+            "shot_ending_n": shot_n,
+            "non_shot_n": eligible_n - shot_n,
+            "shot_ending_frequency": shot_n / eligible_n,
+            "process_refs": [row["process_ref"] for row in process_rows],
+            "actor_candidate_count": len(actor_candidates),
+            "dyad_candidate_count": len(dyad_candidates),
+        })
+
+    def priority(row: dict[str, Any]) -> tuple[Any, ...]:
+        lift = row.get("match_local_lift")
+        return (
+            -int(row.get("shot_ending_n") or 0),
+            -int(row.get("support_n") or 0),
+            -(float(lift) if isinstance(lift, (int, float)) else -1.0),
+            tuple(str(value) for value in row.get("actor_labels") or []),
+        )
+
+    all_actor_candidates.sort(key=priority)
+    all_dyad_candidates.sort(key=priority)
+    representative_actor = all_actor_candidates[0] if all_actor_candidates else None
+    representative_dyad = all_dyad_candidates[0] if all_dyad_candidates else None
+
+    return {
+        "construct_id": "C02_PROCESS_PARTICIPANT_OUTCOME_ASSOCIATION",
+        "status": "REVIEW_REQUIRED" if family_profiles else "NOT_APPLICABLE",
+        "review_reason": (
+            "match_local_process_outcome_association_candidates_available"
+            if family_profiles
+            else "process_context_intervals_not_available"
+        ),
+        "process_family_profiles": family_profiles,
+        "actor_argument_candidates": all_actor_candidates,
+        "dyad_argument_candidates": all_dyad_candidates,
+        "argument_candidate_count": len(all_actor_candidates) + len(all_dyad_candidates),
+        "representative_actor_argument": representative_actor,
+        "representative_dyad_argument": representative_dyad,
+        "xlsx_actor_binding_count": len(actor_bindings),
+        "xlsx_binding_review_hits": binding_reviews,
+        "process_participation_consumed": bool(raw),
+        "unit_of_analysis": "ADMITTED_PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
+        "association_statistics": [
+            "SUPPORT_N",
+            "CONDITIONAL_SHOT_FREQUENCY",
+            "MATCH_LOCAL_BASELINE_SHOT_FREQUENCY",
+            "MATCH_LOCAL_LIFT",
+        ],
+        "correlation_is_causality": False,
+        "player_participation_is_causal_credit": False,
+        "xlsx_aggregate_is_action_identity": False,
+        "association_candidate_is_independent_support": False,
+        "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+        "c4_bridge_state": "DEFERRED_UNTIL_PROCESS_ASSOCIATION_ARGUMENT_FAMILY_IS_EXPLICITLY_ADMITTED",
+    }
+
+
+
 def _render_txt(payload: dict[str, Any]) -> str:
     entity = payload.get("entity_views") or {}
     c01 = payload.get("constructs", {}).get("C01") or {}
+    c02 = payload.get("constructs", {}).get("C02") or {}
     lines = [
         "HPFA RICH MULTIFORMAT ANALYSIS LATTICE V1",
         "==========================================",
@@ -362,6 +722,10 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"C01_comparable_scope_pair_count={c01.get('comparable_scope_pair_count')}",
         f"C01_visible_shot_candidate_count={c01.get('visible_shot_candidate_count')}",
         f"C01_review_reason={c01.get('review_reason')}",
+        f"C02_status={c02.get('status')}",
+        f"C02_argument_candidate_count={c02.get('argument_candidate_count')}",
+        f"C02_xlsx_actor_binding_count={c02.get('xlsx_actor_binding_count')}",
+        f"C02_review_reason={c02.get('review_reason')}",
         f"hard_block_hits={payload.get('hard_block_hits') or []}",
         f"review_hits={payload.get('review_hits') or []}",
         "canonical_event_count=UNKNOWN",
@@ -430,6 +794,12 @@ def run_rich_lane(
     if c01.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C01_progression_terminal_construct_review_required")
 
+    identity_payload = _load_json(output / IDENTITY_JSON)
+    process_participation_payload = _load_json(output / PROCESS_PARTICIPATION_JSON)
+    c02 = _construct_c02(rows, identity_payload, process_participation_payload)
+    if c02.get("status") == "REVIEW_REQUIRED":
+        review_hits.append("C02_process_participant_outcome_association_review_available")
+
     packet_candidates = [c01["packet_candidate"]] if c01.get("packet_candidate") else []
     status = "FAIL_CLOSED" if hard_blocks else "REVIEW_REQUIRED" if review_hits else "SMOKE_PASS"
     payload = {
@@ -446,7 +816,7 @@ def run_rich_lane(
         "xlsx_surface_audit": xlsx_audit,
         "xlsx_entity_metric_projection": projection,
         "primitive_metrics": primitives,
-        "constructs": {"C01": c01},
+        "constructs": {"C01": c01, "C02": c02},
         "phase_state_candidates": phase_states,
         "analysis_lattice": {
             "MICRO": {
@@ -463,7 +833,10 @@ def run_rich_lane(
                 "team_view_candidates": entity_views.get("team_view_candidates"),
                 "action_family_candidate_counts": features.get("eligible_action_family_candidate_counts") or {},
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
-                "constructs": {"C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "comparable_scope_pairs", "packet_candidate"}}},
+                "constructs": {
+                    "C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "comparable_scope_pairs", "packet_candidate"}},
+                    "C02": {key: value for key, value in c02.items() if key not in {"actor_argument_candidates", "dyad_argument_candidates", "process_family_profiles"}},
+                },
             },
         },
         "entity_views": entity_views,

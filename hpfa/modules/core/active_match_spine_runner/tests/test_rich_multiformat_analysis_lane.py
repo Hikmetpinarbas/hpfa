@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _phase_state_candidates
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _phase_state_candidates
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -209,3 +209,144 @@ def test_c01_scope_alignment_does_not_promote_same_provider_aggregate_to_indepen
     assert packet["independent_support_count"] == 0
     assert chain["fusion"]["independent_support_count"] == 0
     assert construct["aggregate_support_is_independent_vote"] is False
+
+
+def _c02_identity():
+    return {
+        "module_id": "match_local_identity_candidates_lite_v1",
+        "actor_identity_candidates": [
+            {
+                "actor_identity_candidate_id": "actor_kerem",
+                "team_identity_candidate_id": "team_fener",
+                "team_normalized_key": "fenerbahce",
+                "actor_normalized_key": "kerem_akturkoglu",
+                "actor_aliases_raw": ["7. Kerem Akturkoglu (737292)"],
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            },
+            {
+                "actor_identity_candidate_id": "actor_guendouzi",
+                "team_identity_candidate_id": "team_fener",
+                "team_normalized_key": "fenerbahce",
+                "actor_normalized_key": "matteo_guendouzi",
+                "actor_aliases_raw": ["6. Matteo Guendouzi (562671)"],
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            },
+        ],
+        "team_identity_candidates": [
+            {
+                "team_identity_candidate_id": "team_fener",
+                "team_normalized_key": "fenerbahce",
+                "team_aliases_raw": ["Fenerbahce (27041)"],
+                "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND",
+            }
+        ],
+    }
+
+
+def _c02_xlsx_rows():
+    return [
+        {
+            "row_projection_id": "xrp_kerem",
+            "source_role": "PLAYER_SURFACE_CANDIDATE",
+            "identity_candidates": {"player_raw_candidate": "Kerem Akturkoglu", "team_raw_candidate": None},
+            "metric_values": {
+                "progressive_passes": {"raw_metric_label": "Progressive passes", "raw_value": 3, "value_status": "OBSERVED"},
+                "xa": {"raw_metric_label": "xA", "raw_value": 0.85, "value_status": "OBSERVED"},
+            },
+        },
+        {
+            "row_projection_id": "xrp_guendouzi",
+            "source_role": "PLAYER_SURFACE_CANDIDATE",
+            "identity_candidates": {"player_raw_candidate": "Matteo Guendouzi", "team_raw_candidate": None},
+            "metric_values": {
+                "progressive_passes": {"raw_metric_label": "Progressive passes", "raw_value": 11, "value_status": "OBSERVED"},
+                "xa": {"raw_metric_label": "xA", "raw_value": 0.37, "value_status": "OBSERVED"},
+            },
+        },
+    ]
+
+
+def _c02_process_payload():
+    rows = []
+    # Four positional attacks: two shot-ending. Kerem+Guendouzi together in two, both shot-ending.
+    specs = [
+        ("10", "20", True, ["actor_kerem", "actor_guendouzi"]),
+        ("30", "40", True, ["actor_kerem", "actor_guendouzi"]),
+        ("50", "60", False, ["actor_kerem"]),
+        ("70", "80", False, ["actor_guendouzi"]),
+    ]
+    for idx, (start, end, shot, actors) in enumerate(specs, start=1):
+        common = {
+            "team_identity_candidate_id": "team_fener",
+            "process_family_candidate": "POSITIONAL_ATTACKS",
+            "period_candidate": "1",
+            "start_candidate": start,
+            "end_candidate": end,
+            "episode_candidate_id": f"ep_{idx}",
+            "shot_present_annotation_candidate": shot,
+        }
+        rows.append({
+            **common,
+            "process_participation_candidate_id": f"context_{idx}",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "actor_identity_candidate_id": None,
+        })
+        for actor in actors:
+            rows.append({
+                **common,
+                "process_participation_candidate_id": f"participant_{idx}_{actor}",
+                "semantic_role": "PARTICIPATION_INTERVAL",
+                "actor_identity_candidate_id": actor,
+            })
+    return {
+        "module_id": "analyst_episode_process_participation_projection_v1",
+        "status": "PASS",
+        "process_participation_candidates": rows,
+    }
+
+
+def test_c02_combines_process_participation_outcome_and_xlsx_context():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["process_participation_consumed"] is True
+    assert result["xlsx_actor_binding_count"] == 2
+    dyad = result["representative_dyad_argument"]
+    assert dyad["actor_labels"] == ["Matteo Guendouzi", "Kerem Akturkoglu"] or set(dyad["actor_labels"]) == {"Matteo Guendouzi", "Kerem Akturkoglu"}
+    assert dyad["support_n"] == 2
+    assert dyad["shot_ending_n"] == 2
+    assert dyad["eligible_process_n"] == 4
+    assert dyad["baseline_shot_ending_n"] == 2
+    assert dyad["conditional_shot_frequency"] == 1.0
+    assert dyad["match_local_baseline_shot_frequency"] == 0.5
+    assert dyad["match_local_lift"] == 2.0
+    assert dyad["xlsx_enriched_actor_count"] == 2
+    assert dyad["association_is_causal_player_credit"] is False
+    assert dyad["association_is_independent_evidence_vote"] is False
+
+
+def test_c02_does_not_cross_bind_ambiguous_xlsx_player_rows():
+    rows = _c02_xlsx_rows()
+    rows.append(dict(rows[0], row_projection_id="xrp_kerem_duplicate"))
+    result = _construct_c02(rows, _c02_identity(), _c02_process_payload())
+
+    dyad = result["representative_dyad_argument"]
+    assert result["xlsx_actor_binding_count"] == 1
+    assert dyad["xlsx_enriched_actor_count"] == 1
+    assert any("xlsx_player_row_ambiguous:kerem_akturkoglu" in hit for hit in result["xlsx_binding_review_hits"])
+
+
+def test_c02_process_association_survives_without_xlsx_enrichment():
+    result = _construct_c02([], _c02_identity(), _c02_process_payload())
+
+    dyad = result["representative_dyad_argument"]
+    assert result["xlsx_actor_binding_count"] == 0
+    assert dyad["support_n"] == 2
+    assert dyad["shot_ending_n"] == 2
+    assert dyad["xlsx_enriched_actor_count"] == 0
+    assert dyad["claim_ceiling"] == "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY"
+
+
+def test_full_spine_runs_sidecars_before_rich_multiformat_lane():
+    source = (SRC / "full_spine_runner.py").read_text(encoding="utf-8")
+    assert source.index("sidecar_report = run_sidecars(") < source.index("rich_report = run_rich_lane(")

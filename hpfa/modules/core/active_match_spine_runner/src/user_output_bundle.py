@@ -392,6 +392,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     lines.extend(["", "[4] METRIC / CONSTRUCT / OYUN-KATMANI"])
     if rich_current:
         c01 = (rich.get("constructs") or {}).get("C01") or {}
+        c02 = (rich.get("constructs") or {}).get("C02") or {}
         lines.extend([
             f"primitive_metric_count={len(rich.get('primitive_metrics') or [])}",
             f"phase_state_candidate_count={len(rich.get('phase_state_candidates') or [])}",
@@ -405,8 +406,38 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             f"C01_visible_shot_candidate_count={c01.get('visible_shot_candidate_count')}",
             f"C01_review_reason={c01.get('review_reason')}",
             "phase_state_candidates_are_phase_truth=false",
+            f"C02_construct_status={c02.get('status')}",
+            f"C02_argument_candidate_count={c02.get('argument_candidate_count')}",
+            f"C02_xlsx_actor_binding_count={c02.get('xlsx_actor_binding_count')}",
             "construct_candidate_is_metric_truth=false",
         ])
+        for label, candidate in (
+            ("oyuncu", c02.get("representative_actor_argument")),
+            ("ikili", c02.get("representative_dyad_argument")),
+        ):
+            if not isinstance(candidate, dict):
+                continue
+            names = " + ".join(str(value) for value in (candidate.get("actor_labels") or []))
+            support_n = int(candidate.get("support_n") or 0)
+            shot_n = int(candidate.get("shot_ending_n") or 0)
+            eligible_n = int(candidate.get("eligible_process_n") or 0)
+            baseline_shot_n = int(candidate.get("baseline_shot_ending_n") or 0)
+            rate = candidate.get("conditional_shot_frequency")
+            baseline = candidate.get("match_local_baseline_shot_frequency")
+            lift = candidate.get("match_local_lift")
+            family = str(candidate.get("process_family_candidate") or "process").replace("_", " ")
+            rate_text = f"%{100 * float(rate):.1f}" if isinstance(rate, (int, float)) else "N/A"
+            base_text = f"%{100 * float(baseline):.1f}" if isinstance(baseline, (int, float)) else "N/A"
+            lift_text = f"{float(lift):.2f}x" if isinstance(lift, (int, float)) else "N/A"
+            lines.append(
+                f"- POZITIF FUTBOL ARGUMANI ADAYI ({label}): {family} ailesinde genel olarak "
+                f"{baseline_shot_n}/{eligible_n} süreç şutla bitti ({base_text}). "
+                f"{names} bulunan {support_n} süreçte {shot_n} şutla bitiş görüldü "
+                f"({rate_text}; maç-içi lift={lift_text}). "
+                f"Şutla bitmeyen birlikte-görülme={int(candidate.get('non_shot_n') or 0)}; "
+                f"XLSX oyuncu bağlamı eşleşen kişi={int(candidate.get('xlsx_enriched_actor_count') or 0)}. "
+                "Bu, video/episode incelemesine öncelik veren maç-içi process ilişkisi adayidir."
+            )
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
 
