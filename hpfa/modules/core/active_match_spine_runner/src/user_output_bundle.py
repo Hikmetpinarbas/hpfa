@@ -394,6 +394,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         c01 = (rich.get("constructs") or {}).get("C01") or {}
         c02 = (rich.get("constructs") or {}).get("C02") or {}
         c03 = (rich.get("constructs") or {}).get("C03") or {}
+        c04 = (rich.get("constructs") or {}).get("C04") or {}
         lines.extend([
             f"primitive_metric_count={len(rich.get('primitive_metrics') or [])}",
             f"phase_state_candidate_count={len(rich.get('phase_state_candidates') or [])}",
@@ -412,6 +413,10 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             f"C02_xlsx_actor_binding_count={c02.get('xlsx_actor_binding_count')}",
             f"C03_construct_status={c03.get('status')}",
             f"C03_process_development_signature_count={c03.get('signature_count')}",
+            f"C04_construct_status={c04.get('status')}",
+            f"C04_closed_composition_profile_count={c04.get('closed_composition_profile_count')}",
+            f"C04_model_context_residual_profile_count={c04.get('model_context_residual_profile_count')}",
+            f"C04_family_closure_audit={json.dumps(c04.get('family_closure_audit') or {}, ensure_ascii=False, sort_keys=True)}",
             "construct_candidate_is_metric_truth=false",
         ])
         for label, candidate in (
@@ -472,6 +477,26 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 f"anchor-mesafe-toplami={anchor_text}. "
                 "Ayni timestamp icinde total order kurulmaz; annotation-anchor yolu fiziksel top/oyuncu "
                 "trajektorisi, fiziksel mesafe veya hiz degildir."
+            )
+        closed_compositions = [
+            row for row in (c04.get("composition_profiles") or [])
+            if isinstance(row, dict) and row.get("closure_state") == "IDENTITY_OBSERVED_WITHIN_TOLERANCE"
+        ]
+        for family_id in (
+            "FINAL_THIRD_ENTRY_MODE_COMPOSITION",
+            "BALL_LOSS_MODE_COMPOSITION",
+            "RECEPTION_DEPTH_COMPOSITION",
+        ):
+            family_rows = [row for row in closed_compositions if row.get("family_id") == family_id]
+            if not family_rows:
+                continue
+            representative = max(family_rows, key=lambda row: float(row.get("total_value") or 0))
+            components = representative.get("component_values") or {}
+            shares = representative.get("composition_shares") or {}
+            lines.append(
+                f"- XLSX BILESIM ADAYI: {family_id}; entity={representative.get('entity_candidate')}; "
+                f"toplam={representative.get('total_value')}; components={components}; shares={shares}. "
+                "Toplam hacim ayri eksendir; bilesim yeni bagimsiz kanit veya oyuncu-kalite skoru degildir."
             )
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")

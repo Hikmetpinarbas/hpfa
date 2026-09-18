@@ -1022,11 +1022,128 @@ def _construct_c03(
     }
 
 
+COMPOSITION_FAMILY_SPECS = (
+    ("ACTION_OUTCOME_COMPOSITION", "actions", ("actions_successful", "actions_unsuccessful")),
+    ("CHALLENGE_OUTCOME_COMPOSITION", "challenges", ("challenges_won", "challenges_unsuccessful")),
+    ("FINAL_THIRD_ENTRY_MODE_COMPOSITION", "final_third_entries", ("final_third_entries_through_pass", "final_third_entries_through_carry")),
+    ("BALL_LOSS_MODE_COMPOSITION", "lost_balls", ("lost_balls_after_passes", "individual_ball_losses")),
+    ("RECEPTION_DEPTH_COMPOSITION", "open_passes_received", ("open_passes_received_in_the_first_third", "open_passes_received_in_the_central_third", "open_passes_received_in_the_final_third")),
+    ("SHOT_ORIGIN_COMPOSITION", "shots", ("shots_from_the_penalty_area", "shots_from_outside_the_penalty_area")),
+)
+
+
+def _observed_metric_number(row: dict[str, Any], metric_key: str) -> float | None:
+    metric = (row.get("metric_values") or {}).get(metric_key)
+    if not isinstance(metric, dict) or metric.get("value_status") != "OBSERVED":
+        return None
+    return _as_number(metric.get("raw_value"))
+
+
+def _construct_c04(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Expose algebraically closed XLSX total+composition families without scalar quality scoring."""
+    profiles: list[dict[str, Any]] = []
+    family_audit: dict[str, dict[str, int]] = {
+        family_id: {"eligible_complete_n": 0, "closed_n": 0, "mismatch_n": 0}
+        for family_id, _, _ in COMPOSITION_FAMILY_SPECS
+    }
+    residual_profiles: list[dict[str, Any]] = []
+    tolerance = 1e-6
+
+    for row in rows:
+        identity = row.get("identity_candidates") or {}
+        row_id = str(row.get("row_projection_id") or "").strip()
+        if not row_id:
+            continue
+        entity = identity.get("player_raw_candidate") or identity.get("team_raw_candidate")
+        for family_id, total_key, component_keys in COMPOSITION_FAMILY_SPECS:
+            total = _observed_metric_number(row, total_key)
+            components = {key: _observed_metric_number(row, key) for key in component_keys}
+            if total is None or any(value is None for value in components.values()):
+                continue
+            family_audit[family_id]["eligible_complete_n"] += 1
+            component_sum = sum(float(value) for value in components.values() if value is not None)
+            delta = total - component_sum
+            closed = abs(delta) <= tolerance
+            family_audit[family_id]["closed_n" if closed else "mismatch_n"] += 1
+            shares = None
+            balance = None
+            if closed and total > 0:
+                shares = {key: float(value) / total for key, value in components.items() if value is not None}
+                if len(component_keys) == 2:
+                    first, second = component_keys
+                    balance = (float(components[first]) - float(components[second])) / total
+            profiles.append({
+                "composition_profile_id": "xcp_" + hashlib.sha256(
+                    f"{row_id}|{family_id}".encode("utf-8")
+                ).hexdigest()[:24],
+                "row_projection_id": row_id,
+                "entity_candidate": entity,
+                "player_candidate": identity.get("player_raw_candidate"),
+                "team_candidate": identity.get("team_raw_candidate"),
+                "family_id": family_id,
+                "total_metric_key": total_key,
+                "component_metric_keys": list(component_keys),
+                "total_value": total,
+                "component_values": components,
+                "component_sum": component_sum,
+                "closure_delta": delta,
+                "closure_state": "IDENTITY_OBSERVED_WITHIN_TOLERANCE" if closed else "DEFINITION_OR_DATA_MISMATCH_REVIEW",
+                "composition_shares": shares,
+                "component_balance_index_candidate": balance,
+                "component_balance_has_quality_direction": False,
+                "total_exposure_preserved_separately": True,
+                "percentage_columns_are_independent_indicators": False,
+                "derived_composition_adds_independent_evidence": False,
+                "aggregate_row_is_action_identity": False,
+                "claim_ceiling": "MATCH_LOCAL_XLSX_AGGREGATE_COMPOSITION_DESCRIPTION_ONLY",
+            })
+
+        xgt = _observed_metric_number(row, "xgt_xg_while_player_is_on_the_pitch")
+        xgopp = _observed_metric_number(row, "xgopp_opponent_s_xg_while_player_is_on_the_pitch")
+        nxg = _observed_metric_number(row, "nxg_net_xg_difference_between_xgt_and_xgopp")
+        if None not in (xgt, xgopp, nxg):
+            expected = float(xgt) - float(xgopp)
+            delta = float(nxg) - expected
+            residual_profiles.append({
+                "residual_profile_id": "xrp_ctx_" + hashlib.sha256(row_id.encode("utf-8")).hexdigest()[:24],
+                "row_projection_id": row_id,
+                "entity_candidate": entity,
+                "xgt": xgt,
+                "xgopp": xgopp,
+                "nxg_observed": nxg,
+                "nxg_recomputed": expected,
+                "closure_delta": delta,
+                "closure_state": "IDENTITY_OBSERVED_WITHIN_TOLERANCE" if abs(delta) <= tolerance else "DEFINITION_OR_DATA_MISMATCH_REVIEW",
+                "provider_model_output_context_only": True,
+                "player_causal_contribution_truth": False,
+                "player_quality_truth": False,
+                "claim_ceiling": "PROVIDER_MODEL_MATCH_CONTEXT_RESIDUAL_ONLY",
+            })
+
+    closed_profiles = [row for row in profiles if row["closure_state"] == "IDENTITY_OBSERVED_WITHIN_TOLERANCE"]
+    return {
+        "construct_id": "C04_XLSX_COMPOSITION_TOTAL_INTELLIGENCE",
+        "status": "REVIEW_REQUIRED" if profiles or residual_profiles else "NOT_APPLICABLE",
+        "composition_profile_count": len(profiles),
+        "closed_composition_profile_count": len(closed_profiles),
+        "composition_profiles": profiles,
+        "family_closure_audit": family_audit,
+        "model_context_residual_profile_count": len(residual_profiles),
+        "model_context_residual_profiles": residual_profiles,
+        "total_exposure_and_composition_are_separate_axes": True,
+        "no_scalar_player_quality_score_created": True,
+        "aggregate_is_not_action_identity": True,
+        "composition_is_not_independent_evidence": True,
+        "claim_ceiling": "MATCH_LOCAL_XLSX_AGGREGATE_COMPOSITION_AND_MODEL_CONTEXT_DESCRIPTION_ONLY",
+    }
+
+
 def _render_txt(payload: dict[str, Any]) -> str:
     entity = payload.get("entity_views") or {}
     c01 = payload.get("constructs", {}).get("C01") or {}
     c02 = payload.get("constructs", {}).get("C02") or {}
     c03 = payload.get("constructs", {}).get("C03") or {}
+    c04 = payload.get("constructs", {}).get("C04") or {}
     lines = [
         "HPFA RICH MULTIFORMAT ANALYSIS LATTICE V1",
         "==========================================",
@@ -1052,6 +1169,9 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"C02_review_reason={c02.get('review_reason')}",
         f"C03_status={c03.get('status')}",
         f"C03_signature_count={c03.get('signature_count')}",
+        f"C04_status={c04.get('status')}",
+        f"C04_closed_composition_profile_count={c04.get('closed_composition_profile_count')}",
+        f"C04_model_context_residual_profile_count={c04.get('model_context_residual_profile_count')}",
         f"hard_block_hits={payload.get('hard_block_hits') or []}",
         f"review_hits={payload.get('review_hits') or []}",
         "canonical_event_count=UNKNOWN",
@@ -1132,6 +1252,10 @@ def run_rich_lane(
     if c03.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C03_process_development_signature_review_available")
 
+    c04 = _construct_c04(rows)
+    if c04.get("status") == "REVIEW_REQUIRED":
+        review_hits.append("C04_xlsx_composition_total_intelligence_review_available")
+
     packet_candidates = [c01["packet_candidate"]] if c01.get("packet_candidate") else []
     status = "FAIL_CLOSED" if hard_blocks else "REVIEW_REQUIRED" if review_hits else "SMOKE_PASS"
     payload = {
@@ -1148,7 +1272,7 @@ def run_rich_lane(
         "xlsx_surface_audit": xlsx_audit,
         "xlsx_entity_metric_projection": projection,
         "primitive_metrics": primitives,
-        "constructs": {"C01": c01, "C02": c02, "C03": c03},
+        "constructs": {"C01": c01, "C02": c02, "C03": c03, "C04": c04},
         "phase_state_candidates": phase_states,
         "analysis_lattice": {
             "MICRO": {
@@ -1170,6 +1294,7 @@ def run_rich_lane(
                     "C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "comparable_scope_pairs", "packet_candidate"}},
                     "C02": {key: value for key, value in c02.items() if key not in {"actor_argument_candidates", "dyad_argument_candidates", "process_family_profiles"}},
                     "C03": {key: value for key, value in c03.items() if key != "signatures"},
+                    "C04": {key: value for key, value in c04.items() if key not in {"composition_profiles", "model_context_residual_profiles"}},
                 },
             },
         },

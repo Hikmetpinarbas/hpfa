@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _phase_state_candidates
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _phase_state_candidates
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -555,3 +555,87 @@ def test_c03_is_projected_into_human_analyst_report_without_physical_path_promot
     assert "SUREC GELISIM IMZASI ADAYI" in source
     assert "annotation-anchor yolu fiziksel top/oyuncu" in source
     assert "video/episode incelemesine" not in source
+
+
+def _xlsx_metric(raw_label, raw_value):
+    return {"raw_metric_label": raw_label, "raw_value": raw_value, "value_status": "OBSERVED"}
+
+
+def test_c04_preserves_total_exposure_and_derives_only_closed_compositions():
+    row = {
+        "row_projection_id": "xrp_player_1",
+        "identity_candidates": {"player_raw_candidate": "P1", "team_raw_candidate": "T1"},
+        "metric_values": {
+            "actions": _xlsx_metric("Actions", 10),
+            "actions_successful": _xlsx_metric("Actions successful", 7),
+            "actions_unsuccessful": _xlsx_metric("Actions unsuccessful", 3),
+            "challenges": _xlsx_metric("Challenges", 8),
+            "challenges_won": _xlsx_metric("Challenges won", 5),
+            "challenges_unsuccessful": _xlsx_metric("Challenges unsuccessful", 3),
+            "final_third_entries": _xlsx_metric("Final third entries", 4),
+            "final_third_entries_through_pass": _xlsx_metric("Final third entries through pass", 3),
+            "final_third_entries_through_carry": _xlsx_metric("Final third entries through carry", 1),
+            "lost_balls": _xlsx_metric("Lost balls", 5),
+            "lost_balls_after_passes": _xlsx_metric("Lost balls after passes", 2),
+            "individual_ball_losses": _xlsx_metric("Individual ball losses", 3),
+            "open_passes_received": _xlsx_metric("Open passes received", 10),
+            "open_passes_received_in_the_first_third": _xlsx_metric("Open passes received in the first third", 2),
+            "open_passes_received_in_the_central_third": _xlsx_metric("Open passes received in the central third", 5),
+            "open_passes_received_in_the_final_third": _xlsx_metric("Open passes received in the final third", 3),
+            "shots": _xlsx_metric("Shots", 4),
+            "shots_from_the_penalty_area": _xlsx_metric("Shots from the penalty area", 3),
+            "shots_from_outside_the_penalty_area": _xlsx_metric("Shots from outside the penalty area", 1),
+            "xgt_xg_while_player_is_on_the_pitch": _xlsx_metric("xGT", 2.5),
+            "xgopp_opponent_s_xg_while_player_is_on_the_pitch": _xlsx_metric("xGOPP", 1.0),
+            "nxg_net_xg_difference_between_xgt_and_xgopp": _xlsx_metric("NxG", 1.5),
+        },
+    }
+    result = _construct_c04([row])
+    assert result["closed_composition_profile_count"] == 6
+    entry = next(p for p in result["composition_profiles"] if p["family_id"] == "FINAL_THIRD_ENTRY_MODE_COMPOSITION")
+    assert entry["total_value"] == 4
+    assert entry["composition_shares"]["final_third_entries_through_pass"] == 0.75
+    assert entry["composition_shares"]["final_third_entries_through_carry"] == 0.25
+    assert entry["total_exposure_preserved_separately"] is True
+    assert entry["derived_composition_adds_independent_evidence"] is False
+    assert entry["component_balance_has_quality_direction"] is False
+    residual = result["model_context_residual_profiles"][0]
+    assert residual["nxg_recomputed"] == 1.5
+    assert residual["provider_model_output_context_only"] is True
+    assert residual["player_causal_contribution_truth"] is False
+    assert result["no_scalar_player_quality_score_created"] is True
+
+
+def test_c04_mismatch_and_missing_components_are_not_forced_into_composition_truth():
+    rows = [
+        {
+            "row_projection_id": "xrp_bad",
+            "identity_candidates": {"player_raw_candidate": "P1"},
+            "metric_values": {
+                "actions": _xlsx_metric("Actions", 10),
+                "actions_successful": _xlsx_metric("Actions successful", 8),
+                "actions_unsuccessful": _xlsx_metric("Actions unsuccessful", 3),
+            },
+        },
+        {
+            "row_projection_id": "xrp_missing",
+            "identity_candidates": {"player_raw_candidate": "P2"},
+            "metric_values": {
+                "actions": _xlsx_metric("Actions", 10),
+                "actions_successful": _xlsx_metric("Actions successful", 8),
+            },
+        },
+    ]
+    result = _construct_c04(rows)
+    assert result["composition_profile_count"] == 1
+    profile = result["composition_profiles"][0]
+    assert profile["closure_state"] == "DEFINITION_OR_DATA_MISMATCH_REVIEW"
+    assert profile["composition_shares"] is None
+    assert result["family_closure_audit"]["ACTION_OUTCOME_COMPOSITION"]["mismatch_n"] == 1
+
+
+def test_c04_is_projected_into_analyst_report_as_total_plus_composition_not_quality_score():
+    source = (SRC / "user_output_bundle.py").read_text(encoding="utf-8")
+    assert "C04_closed_composition_profile_count" in source
+    assert "XLSX BILESIM ADAYI" in source
+    assert "Toplam hacim ayri eksendir" in source
