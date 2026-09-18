@@ -223,6 +223,7 @@ def _bind_metric_governance_construct_gate() -> None:
     if getattr(full_spine_module, "_hpfa_metric_governance_gate_bound", False):
         return
     original_sidecars = full_spine_module.run_sidecars
+    original_rich_lane = full_spine_module.run_rich_lane
     original_packet_builder = full_spine_module.build_composite_packet
     state = {"governance": {}, "construct_blocked": False, "reason": None}
 
@@ -230,6 +231,9 @@ def _bind_metric_governance_construct_gate() -> None:
         state["governance"] = {}
         state["construct_blocked"] = False
         state["reason"] = None
+        # Full-spine now produces sidecars before the rich lane so process-participation
+        # is current-invocation input to C02. Never let a prior rich report be rehydrated.
+        RICH_CONSTRUCT_RUNTIME_STATE["report"] = None
         report = original_sidecars(*args, **kwargs)
         governance = report.get("metric_governance_bridge") if isinstance(report, dict) else None
         governance = governance if isinstance(governance, dict) else {}
@@ -247,7 +251,21 @@ def _bind_metric_governance_construct_gate() -> None:
                 "reason": state["reason"],
             }
         else:
-            report["rich_construct_governance_recheck"] = _rehydrate_governance_admitted_constructs(governance)
+            report["rich_construct_governance_recheck"] = {
+                "evaluated": False,
+                "admitted_count": 0,
+                "review_required_count": 0,
+                "reason": "DEFERRED_UNTIL_CURRENT_RICH_REPORT_EXISTS",
+            }
+        return report
+
+    def governance_aware_rich_lane(*args, **kwargs):
+        report = original_rich_lane(*args, **kwargs)
+        if not isinstance(report, dict):
+            return report
+        recheck = _rehydrate_governance_admitted_constructs(state["governance"])
+        report["rich_construct_governance_recheck"] = recheck
+        _persist_rich_report(report)
         return report
 
     def gated_packet_builder(candidate):
@@ -275,6 +293,7 @@ def _bind_metric_governance_construct_gate() -> None:
         return packet
 
     full_spine_module.run_sidecars = gated_sidecars
+    full_spine_module.run_rich_lane = governance_aware_rich_lane
     full_spine_module.build_composite_packet = gated_packet_builder
     full_spine_module._hpfa_metric_governance_gate_bound = True
 
