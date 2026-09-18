@@ -23,6 +23,8 @@ XLSX_PROJECTION_JSON = "xlsx_entity_metric_row_projection_lite_v1.json"
 XLSX_PROJECTION_TXT = "xlsx_entity_metric_row_projection_lite_v1.txt"
 IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
+OCCURRENCE_STATE_TRANSITION_JSON = "occurrence_state_transition_projection_v1.json"
+SPATIAL_TRANSITION_JSON = "spatial_transition_candidate_lite_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -500,8 +502,8 @@ def _association_epistemic_review_contract(
         "review_target_without_association_refs": [row["process_ref"] for row in shot_without],
         "analyst_action": (
             "Review target-annotated, target-without-association, and not-target-annotated "
-            "process refs against video or other admitted external evidence before any "
-            "player-quality, causal, tactical-plan, or mechanism interpretation."
+            "process refs against admitted current surfaces or other admissible evidence before any "
+            "player-quality, causal, tactical-plan, or physical-mechanism interpretation."
         ),
         "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
     }
@@ -809,10 +811,222 @@ def _construct_c02(
 
 
 
+def _as_number(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _construct_c03(
+    process_payload: dict[str, Any],
+    occurrence_transition_payload: dict[str, Any],
+    spatial_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Compose process intervals with admitted occurrence layers and annotation-anchor path candidates."""
+    process_rows = [
+        row for row in (process_payload.get("process_participation_candidates") or [])
+        if isinstance(row, dict) and row.get("semantic_role") == "CONTEXT_INTERVAL"
+    ]
+    occurrence_rows = [
+        row for row in (occurrence_transition_payload.get("occurrence_state_transition_projections") or [])
+        if isinstance(row, dict)
+    ]
+    spatial_rows = [
+        row for row in (spatial_payload.get("spatial_transition_candidates") or [])
+        if isinstance(row, dict)
+    ]
+    spatial_by_id = {
+        str(row.get("spatial_transition_candidate_id")): row
+        for row in spatial_rows
+        if row.get("spatial_transition_candidate_id")
+    }
+    signatures: list[dict[str, Any]] = []
+
+    for process in process_rows:
+        start = _as_number(process.get("start_candidate"))
+        end = _as_number(process.get("end_candidate"))
+        if start is None or end is None or end < start:
+            continue
+        team_id = str(process.get("team_identity_candidate_id") or "")
+        period = str(process.get("period_candidate") or "")
+
+        matched: list[tuple[float, dict[str, Any]]] = []
+        for occurrence in occurrence_rows:
+            teams = {str(v) for v in (occurrence.get("team_identity_candidate_ids") or [])}
+            periods = {str(v) for v in (occurrence.get("period_candidates") or [])}
+            times = sorted({
+                value for value in (_as_number(v) for v in (occurrence.get("start_candidates") or []))
+                if value is not None
+            })
+            if team_id and team_id not in teams:
+                continue
+            if period and period not in periods:
+                continue
+            for timestamp in times:
+                if start <= timestamp <= end:
+                    matched.append((timestamp, occurrence))
+                    break
+
+        layer_map: dict[float, list[dict[str, Any]]] = defaultdict(list)
+        for timestamp, occurrence in matched:
+            layer_map[timestamp].append(occurrence)
+
+        layers: list[dict[str, Any]] = []
+        for timestamp in sorted(layer_map):
+            rows = layer_map[timestamp]
+            anchor_pairs: set[tuple[float, float]] = set()
+            spatial_ids: set[str] = set()
+            zones: set[str] = set()
+            for occurrence in rows:
+                for sid in occurrence.get("supporting_spatial_transition_candidate_ids") or []:
+                    sid_text = str(sid)
+                    spatial = spatial_by_id.get(sid_text)
+                    if spatial is None:
+                        continue
+                    spatial_ids.add(sid_text)
+                    zones.update(str(v) for v in (spatial.get("provider_zone_candidates") or []) if v)
+                    if not spatial.get("occurrence_annotation_anchor_location_admitted"):
+                        continue
+                    x = _as_number(spatial.get("provider_coordinate_anchor_x_candidate"))
+                    y = _as_number(spatial.get("provider_coordinate_anchor_y_candidate"))
+                    if x is not None and y is not None:
+                        anchor_pairs.add((x, y))
+            layers.append({
+                "timestamp_candidate": timestamp,
+                "occurrence_ids": sorted({
+                    str(row.get("action_occurrence_candidate_id"))
+                    for row in rows if row.get("action_occurrence_candidate_id")
+                }),
+                "action_family_candidates": sorted({
+                    str(value)
+                    for row in rows
+                    for value in (row.get("action_family_candidates") or [])
+                    if value
+                }),
+                "actor_identity_candidate_ids": sorted({
+                    str(value)
+                    for row in rows
+                    for value in (row.get("actor_identity_candidate_ids") or [])
+                    if value
+                }),
+                "transition_class_candidates": sorted({
+                    str(value)
+                    for row in rows
+                    for value in (row.get("transition_class_candidates") or [])
+                    if value
+                }),
+                "provider_outcome_candidates": sorted({
+                    str(value)
+                    for row in rows
+                    for value in (row.get("provider_outcome_candidates") or [])
+                    if value
+                }),
+                "provider_zone_candidates": sorted(zones),
+                "supporting_spatial_transition_candidate_ids": sorted(spatial_ids),
+                "admitted_annotation_anchor_candidates": [
+                    {"x": x, "y": y} for x, y in sorted(anchor_pairs)
+                ],
+                "same_timestamp_internal_ordering_allowed": False,
+            })
+
+        segments: list[dict[str, Any]] = []
+        for left, right in zip(layers, layers[1:]):
+            left_anchors = left["admitted_annotation_anchor_candidates"]
+            right_anchors = right["admitted_annotation_anchor_candidates"]
+            if len(left_anchors) != 1 or len(right_anchors) != 1:
+                continue
+            ax, ay = left_anchors[0]["x"], left_anchors[0]["y"]
+            bx, by = right_anchors[0]["x"], right_anchors[0]["y"]
+            dx, dy = bx - ax, by - ay
+            segments.append({
+                "from_timestamp_candidate": left["timestamp_candidate"],
+                "to_timestamp_candidate": right["timestamp_candidate"],
+                "delta_x_provider_coordinate_candidate": dx,
+                "delta_y_provider_coordinate_candidate": dy,
+                "annotation_anchor_distance_provider_units_candidate": (dx * dx + dy * dy) ** 0.5,
+                "physical_distance_truth": False,
+                "physical_speed_truth": False,
+            })
+
+        complete_path = bool(layers) and len(segments) == max(0, len(layers) - 1) and all(
+            len(layer["admitted_annotation_anchor_candidates"]) == 1 for layer in layers
+        )
+        cumulative = sum(
+            segment["annotation_anchor_distance_provider_units_candidate"] for segment in segments
+        )
+        net = None
+        directness = None
+        if complete_path and len(layers) >= 2:
+            first = layers[0]["admitted_annotation_anchor_candidates"][0]
+            last = layers[-1]["admitted_annotation_anchor_candidates"][0]
+            dx, dy = last["x"] - first["x"], last["y"] - first["y"]
+            net = (dx * dx + dy * dy) ** 0.5
+            if cumulative > 0:
+                directness = net / cumulative
+
+        signatures.append({
+            "process_development_signature_id": "pds_" + hashlib.sha256(
+                "|".join([
+                    str(process.get("process_participation_candidate_id") or ""),
+                    team_id, period, str(start), str(end),
+                ]).encode("utf-8")
+            ).hexdigest()[:24],
+            "process_ref": process.get("process_participation_candidate_id"),
+            "process_family_candidate": process.get("process_family_candidate"),
+            "team_identity_candidate_id": process.get("team_identity_candidate_id"),
+            "period_candidate": process.get("period_candidate"),
+            "process_start_candidate": start,
+            "process_end_candidate": end,
+            "process_interval_duration_candidate": end - start,
+            "process_duration_basis": "PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
+            "shot_present_annotation_candidate": process.get("shot_present_annotation_candidate") is True,
+            "visible_occurrence_n": len({row.get("action_occurrence_candidate_id") for _, row in matched if row.get("action_occurrence_candidate_id")}),
+            "temporal_layer_n": len(layers),
+            "same_timestamp_internal_ordering_allowed": False,
+            "source_row_order_is_temporal_truth": False,
+            "layers": layers,
+            "annotation_anchor_segments": segments,
+            "annotation_anchor_segment_n": len(segments),
+            "annotation_anchor_path_coverage_state": (
+                "COMPLETE_CONSECUTIVE_SINGLE_ANCHOR"
+                if complete_path and len(layers) >= 2
+                else "PARTIAL_OR_AMBIGUOUS"
+            ),
+            "annotation_anchor_segment_distance_sum_provider_units_candidate": cumulative if segments else None,
+            "annotation_anchor_net_displacement_provider_units_candidate": net,
+            "annotation_anchor_path_directness_candidate": directness,
+            "annotation_anchor_path_is_physical_trajectory": False,
+            "annotation_anchor_distance_is_physical_travel_distance": False,
+            "process_interval_duration_is_generic_action_duration": False,
+            "tracking_truth": False,
+            "video_truth": False,
+            "team_shape_truth": False,
+            "off_ball_geometry_truth": False,
+            "coach_intention_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DEVELOPMENT_SIGNATURE_CANDIDATE_ONLY",
+        })
+
+    return {
+        "construct_id": "C03_PROCESS_DEVELOPMENT_SIGNATURE",
+        "status": "REVIEW_REQUIRED" if signatures else "NOT_APPLICABLE",
+        "signature_count": len(signatures),
+        "signatures": signatures,
+        "unit_of_analysis": "ADMITTED_PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
+        "same_timestamp_internal_ordering_allowed": False,
+        "source_row_order_is_temporal_truth": False,
+        "coordinate_path_is_tracking_truth": False,
+        "physical_speed_claim_allowed": False,
+        "off_ball_geometry_claim_allowed": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DEVELOPMENT_SIGNATURE_CANDIDATE_ONLY",
+    }
+
+
 def _render_txt(payload: dict[str, Any]) -> str:
     entity = payload.get("entity_views") or {}
     c01 = payload.get("constructs", {}).get("C01") or {}
     c02 = payload.get("constructs", {}).get("C02") or {}
+    c03 = payload.get("constructs", {}).get("C03") or {}
     lines = [
         "HPFA RICH MULTIFORMAT ANALYSIS LATTICE V1",
         "==========================================",
@@ -836,6 +1050,8 @@ def _render_txt(payload: dict[str, Any]) -> str:
         f"C02_argument_candidate_count={c02.get('argument_candidate_count')}",
         f"C02_xlsx_actor_binding_count={c02.get('xlsx_actor_binding_count')}",
         f"C02_review_reason={c02.get('review_reason')}",
+        f"C03_status={c03.get('status')}",
+        f"C03_signature_count={c03.get('signature_count')}",
         f"hard_block_hits={payload.get('hard_block_hits') or []}",
         f"review_hits={payload.get('review_hits') or []}",
         "canonical_event_count=UNKNOWN",
@@ -910,6 +1126,12 @@ def run_rich_lane(
     if c02.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C02_process_participant_outcome_association_review_available")
 
+    occurrence_transition_payload = _load_json(output / OCCURRENCE_STATE_TRANSITION_JSON)
+    spatial_transition_payload = _load_json(output / SPATIAL_TRANSITION_JSON)
+    c03 = _construct_c03(process_participation_payload, occurrence_transition_payload, spatial_transition_payload)
+    if c03.get("status") == "REVIEW_REQUIRED":
+        review_hits.append("C03_process_development_signature_review_available")
+
     packet_candidates = [c01["packet_candidate"]] if c01.get("packet_candidate") else []
     status = "FAIL_CLOSED" if hard_blocks else "REVIEW_REQUIRED" if review_hits else "SMOKE_PASS"
     payload = {
@@ -926,7 +1148,7 @@ def run_rich_lane(
         "xlsx_surface_audit": xlsx_audit,
         "xlsx_entity_metric_projection": projection,
         "primitive_metrics": primitives,
-        "constructs": {"C01": c01, "C02": c02},
+        "constructs": {"C01": c01, "C02": c02, "C03": c03},
         "phase_state_candidates": phase_states,
         "analysis_lattice": {
             "MICRO": {
@@ -938,6 +1160,7 @@ def run_rich_lane(
                 "episode_feature_vectors": features.get("episode_feature_vectors") or [],
                 "phase_state_candidates": phase_states,
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
+                "process_development_signatures": c03.get("signatures") or [],
             },
             "MACRO": {
                 "team_view_candidates": entity_views.get("team_view_candidates"),
@@ -946,6 +1169,7 @@ def run_rich_lane(
                 "constructs": {
                     "C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "comparable_scope_pairs", "packet_candidate"}},
                     "C02": {key: value for key, value in c02.items() if key not in {"actor_argument_candidates", "dyad_argument_candidates", "process_family_profiles"}},
+                    "C03": {key: value for key, value in c03.items() if key != "signatures"},
                 },
             },
         },

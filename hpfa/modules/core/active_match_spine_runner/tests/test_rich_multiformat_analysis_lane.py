@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _phase_state_candidates
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _phase_state_candidates
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -404,7 +404,7 @@ def test_c02_epistemic_review_contract_preserves_claim_ceiling_and_exposes_revie
     assert review["review_target_refs"] == dyad["shot_process_refs"]
     assert review["review_target_without_association_refs"] == dyad["counterexample_shot_without_association_refs"]
     assert review["review_not_target_annotated_refs"] == dyad["counterexample_involved_without_shot_refs"]
-    assert "video or other admitted external evidence" in review["analyst_action"]
+    assert "admitted current surfaces or other admissible evidence" in review["analyst_action"]
     assert "match_local_process_dependence_may_reduce_effective_support" in review["alternative_explanations"]
     assert "dependency_resolution_collapses_support_into_shared_lineage" in review["falsifier_conditions"]
     assert result["epistemic_review_contract_creates_new_evidence"] is False
@@ -433,3 +433,117 @@ def test_c02_opportunity_normalized_evidence_anatomy_freezes_denominator_and_pre
 def test_full_spine_runs_sidecars_before_rich_multiformat_lane():
     source = (SRC / "full_spine_runner.py").read_text(encoding="utf-8")
     assert source.index("sidecar_report = run_sidecars(") < source.index("rich_report = run_rich_lane(")
+
+
+def test_c03_builds_partial_order_process_development_and_anchor_path_without_tracking_claims():
+    process = {
+        "process_participation_candidates": [{
+            "process_participation_candidate_id": "context_1",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": "10",
+            "end_candidate": "30",
+            "shot_present_annotation_candidate": True,
+        }]
+    }
+    occurrences = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "occ_1",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["12"],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_1"],
+                "transition_class_candidates": ["VISIBLE_CONTINUATION_CANDIDATE"],
+                "provider_outcome_candidates": ["SUCCESS"],
+                "supporting_spatial_transition_candidate_ids": ["sp_1"],
+            },
+            {
+                "action_occurrence_candidate_id": "occ_2",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["20"],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_2"],
+                "transition_class_candidates": ["VISIBLE_CONTINUATION_CANDIDATE"],
+                "provider_outcome_candidates": ["SUCCESS"],
+                "supporting_spatial_transition_candidate_ids": ["sp_2"],
+            },
+            {
+                "action_occurrence_candidate_id": "occ_3",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["20"],
+                "action_family_candidates": ["CARRY"],
+                "actor_identity_candidate_ids": ["actor_2"],
+                "transition_class_candidates": ["VISIBLE_CONTINUATION_CANDIDATE"],
+                "provider_outcome_candidates": [],
+                "supporting_spatial_transition_candidate_ids": ["sp_2"],
+            },
+        ]
+    }
+    spatial = {
+        "spatial_transition_candidates": [
+            {
+                "spatial_transition_candidate_id": "sp_1",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 20.0,
+                "provider_coordinate_anchor_y_candidate": 30.0,
+                "provider_zone_candidates": ["MIDDLE_THIRD"],
+            },
+            {
+                "spatial_transition_candidate_id": "sp_2",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 50.0,
+                "provider_coordinate_anchor_y_candidate": 40.0,
+                "provider_zone_candidates": ["FINAL_THIRD"],
+            },
+        ]
+    }
+    result = _construct_c03(process, occurrences, spatial)
+    signature = result["signatures"][0]
+    assert signature["process_interval_duration_candidate"] == 20.0
+    assert signature["process_duration_basis"] == "PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL"
+    assert signature["process_interval_duration_is_generic_action_duration"] is False
+    assert signature["temporal_layer_n"] == 2
+    assert signature["layers"][1]["occurrence_ids"] == ["occ_2", "occ_3"]
+    assert signature["layers"][1]["action_family_candidates"] == ["CARRY", "PASS"]
+    assert signature["layers"][1]["same_timestamp_internal_ordering_allowed"] is False
+    assert signature["annotation_anchor_path_coverage_state"] == "COMPLETE_CONSECUTIVE_SINGLE_ANCHOR"
+    assert signature["annotation_anchor_segment_n"] == 1
+    assert round(signature["annotation_anchor_segment_distance_sum_provider_units_candidate"], 6) == round((1000) ** 0.5, 6)
+    assert signature["annotation_anchor_path_is_physical_trajectory"] is False
+    assert signature["annotation_anchor_distance_is_physical_travel_distance"] is False
+    assert signature["tracking_truth"] is False
+    assert result["physical_speed_claim_allowed"] is False
+
+
+def test_c03_filters_occurrences_to_exact_team_period_and_process_interval():
+    process = {
+        "process_participation_candidates": [{
+            "process_participation_candidate_id": "context_1",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": "10",
+            "end_candidate": "20",
+        }]
+    }
+    occurrences = {
+        "occurrence_state_transition_projections": [
+            {"action_occurrence_candidate_id": "inside", "team_identity_candidate_ids": ["team_a"], "period_candidates": ["1"], "start_candidates": ["15"], "action_family_candidates": ["PASS"], "supporting_spatial_transition_candidate_ids": []},
+            {"action_occurrence_candidate_id": "outside_time", "team_identity_candidate_ids": ["team_a"], "period_candidates": ["1"], "start_candidates": ["25"], "action_family_candidates": ["SHOT"], "supporting_spatial_transition_candidate_ids": []},
+            {"action_occurrence_candidate_id": "other_team", "team_identity_candidate_ids": ["team_b"], "period_candidates": ["1"], "start_candidates": ["15"], "action_family_candidates": ["SHOT"], "supporting_spatial_transition_candidate_ids": []},
+            {"action_occurrence_candidate_id": "other_period", "team_identity_candidate_ids": ["team_a"], "period_candidates": ["2"], "start_candidates": ["15"], "action_family_candidates": ["SHOT"], "supporting_spatial_transition_candidate_ids": []},
+        ]
+    }
+    result = _construct_c03(process, occurrences, {"spatial_transition_candidates": []})
+    signature = result["signatures"][0]
+    assert signature["visible_occurrence_n"] == 1
+    assert signature["layers"][0]["occurrence_ids"] == ["inside"]
+    assert signature["source_row_order_is_temporal_truth"] is False
+    assert signature["annotation_anchor_path_coverage_state"] == "PARTIAL_OR_AMBIGUOUS"

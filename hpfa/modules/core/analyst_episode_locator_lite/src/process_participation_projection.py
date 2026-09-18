@@ -12,7 +12,7 @@ EPISODE_MODULE_ID = "analyst_episode_locator_lite_v1"
 CANONICAL_EVENT_COUNT = "UNKNOWN"
 TRUE_ACTION_COUNT = "UNKNOWN"
 CLAIM_CEILING = "OBSERVED_PROCESS_PARTICIPATION_WITHIN_DEFINED_ELIGIBLE_PROCESS_UNIVERSE"
-OFF_BALL_OBSERVATION_STATE = "NOT_OBSERVED_REQUIRES_TRACKING_OR_VIDEO"
+OFF_BALL_OBSERVATION_STATE = "NOT_DIRECTLY_OBSERVED_WITH_CURRENT_EVENT_AGGREGATE_SURFACES"
 OUTPUTS = {
     "json": "analyst_episode_process_participation_projection_v1.json",
     "summary": "analyst_episode_process_participation_projection_v1.txt",
@@ -333,11 +333,11 @@ def _analyst(payload: dict[str, Any]) -> str:
         "SUPPORT: evidence atom + reviewed provider semantic rule + match-local identity binding + episode row-nucleus membership.",
         "DENOMINATOR: any participation percentage or count is valid only inside the explicitly defined provider-annotation process universe; it is not automatically the whole attacking game.",
         "EXPOSURE: being on the pitch during a process is exposure/context only unless a separate admitted on-field opportunity surface proves it; exposure is not contribution.",
-        "OFF_BALL: event/annotation evidence does not observe space-creating runs, pinning, decoys, support positioning, marking or other off-ball mechanisms; tracking/video is required.",
+        "OFF_BALL: current event/annotation/aggregate surfaces do not directly observe physical off-ball mechanisms such as space-creating runs, pinning, decoys, support positioning or marking; bounded relational/context proxies must remain explicitly non-physical.",
         "COUNTEREVIDENCE: no recorded action or missing annotation does not prove no contribution and is not counterevidence.",
         "SAFE_MEANING: a player is directly observed/annotated as participating in a provider-defined process family within a defined eligible annotation universe.",
         "FORBIDDEN_INFERENCE: participation is not total contribution, on-field exposure is not off-ball contribution, predictive/model association is not physical mechanism or causal player impact.",
-        "ANALYST_ACTION: state the eligible process universe explicitly, separate direct participation from mere exposure, and use tracking/video before making off-ball mechanism claims.",
+        "ANALYST_ACTION: state the eligible process universe explicitly, separate direct participation from mere exposure, and keep any event/aggregate off-ball proxy below physical-mechanism truth.",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "production_release=false",
