@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 ARCHROOT="$HOME/HP_ARCHIVES/_HP_CLEANUP_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$ARCHROOT"
 

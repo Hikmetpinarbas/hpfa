@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 REPO="$HOME/hpfa"
 PACK="$HOME/HP_ARCHIVES/_PACKED"
 DIAG="$REPO/_diag"

@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 OUTROOT="$HOME/hpfa/_out"
 ARCHROOT="$HOME/HP_ARCHIVES/_OUT_ARCHIVE"
 KEEP_N="${KEEP_N:-12}"          # son N run kalsın (default 12)

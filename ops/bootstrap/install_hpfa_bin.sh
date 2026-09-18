@@ -1,14 +1,13 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 BIN="$HOME/bin"
 CFG="$HOME/.config/hpfa"
 
 mkdir -p "$BIN" "$CFG"
 
 cat > "$BIN/hpfa-set-primary" <<'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 D="${1:-}"
@@ -25,7 +24,7 @@ echo "[OK] PRIMARY_DIR=$D"
 EOF
 
 cat > "$BIN/hpfa-run" <<'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 ENVF="$HOME/.config/hpfa/primary.env"

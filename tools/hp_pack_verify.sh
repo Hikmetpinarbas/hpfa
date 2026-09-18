@@ -1,4 +1,4 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 P="${1:-$HOME/HP_ARCHIVES/_PACKED}"

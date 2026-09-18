@@ -1,4 +1,4 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 PY="${PY:-/data/data/com.termux/files/home/hpfa/.venv/bin/python}"

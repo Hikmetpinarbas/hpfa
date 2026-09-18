@@ -1,4 +1,4 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 export PYTHONPATH="$PWD"
 python -m py_compile hpfa/narrative/forensic_guard.py

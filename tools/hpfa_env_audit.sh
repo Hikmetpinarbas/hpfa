@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 VENV_PY="$HOME/hpfa/.venv/bin/python"
 
 HPFA_EXPECT_PREFIX="$HOME/HPFA_MASTER/base/hpfa-monorepo/src/hpfa/"

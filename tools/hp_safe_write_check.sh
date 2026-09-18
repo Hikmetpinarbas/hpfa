@@ -1,4 +1,4 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 F="${1:?usage: hp_safe_write_check.sh /path/to/file.(py|sh)}"

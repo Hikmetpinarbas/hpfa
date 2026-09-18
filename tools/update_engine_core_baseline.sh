@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 DIAG="$HOME/hpfa/_diag"
 BASE="$DIAG/engine_artifacts.CORE.BASELINE.json"
 

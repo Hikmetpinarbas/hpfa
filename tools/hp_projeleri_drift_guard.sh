@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 CUR="$HOME/hpfa/_diag/hp_projeleri_inventory.tsv"
 BASE="$HOME/hpfa/_diag/hp_projeleri_inventory.BASELINE.sig"
 

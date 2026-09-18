@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 PROJ="$HOME/HP_PROJELERI"
 KEEP_MOTOR="$PROJ/HP-Motor-main"
 INV="$HOME/hpfa/_diag/hp_projeleri_inventory.tsv"

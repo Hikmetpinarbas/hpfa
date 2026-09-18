@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 ARCH="${ARCH:-$HOME/HP_ARCHIVES/_HP_ARCHIVE_20260216_114142}"
 
 MODE="${1:-dry}"   # dry | apply

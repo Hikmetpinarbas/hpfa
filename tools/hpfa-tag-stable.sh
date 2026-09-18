@@ -1,4 +1,4 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 cd "${HPFA_REPO:-$HOME/hpfa}" || exit 2

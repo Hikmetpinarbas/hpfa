@@ -1,4 +1,4 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 SSOT="${1:?SSOT motor root path required (e.g. ~/hpfa/_ssot/motor)}"

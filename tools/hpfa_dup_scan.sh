@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 
 # Allowed "active" roots (only these should be used at runtime)
 ALLOW_HPFA="$HOME/HPFA_MASTER/base/hpfa-monorepo/src/hpfa"

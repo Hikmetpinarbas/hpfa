@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 OUT="$HOME/hpfa/_out"
 ARCH_ROOT="$HOME/HP_ARCHIVES/_OUT_ARCHIVE"
 

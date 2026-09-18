@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 TS="$(date +%Y%m%d_%H%M%S)"
 ADIR="$HOME/HP_ARCHIVES/_HP_ARCHIVE_$TS"
 MAN="$ADIR/manifest.tsv"

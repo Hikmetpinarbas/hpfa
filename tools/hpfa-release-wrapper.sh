@@ -1,3 +1,3 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 exec "$HOME/hpfa/tools/hpfa-release.sh" "$@"

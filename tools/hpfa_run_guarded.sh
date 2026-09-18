@@ -1,7 +1,6 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-HOME="/data/data/com.termux/files/home"
 OUTROOT="$HOME/hpfa/_out"
 VENV_PY="$HOME/hpfa/.venv/bin/python"
 
