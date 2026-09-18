@@ -4,7 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from mechanism_story_review_selector import build_mechanism_story_review_shortlist
+try:
+    from .mechanism_story_review_selector import build_mechanism_story_review_shortlist
+except ImportError:  # compatibility for direct src-path test/runtime imports
+    from mechanism_story_review_selector import build_mechanism_story_review_shortlist
 
 FEATURE_DELTA_JSON = "grammar_stable_variant_feature_delta_projection_v1.json"
 IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
