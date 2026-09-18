@@ -476,9 +476,18 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 f"zamansal katman={int(representative.get('temporal_layer_n') or 0)}; "
                 f"annotation-anchor segment={int(representative.get('annotation_anchor_segment_n') or 0)}; "
                 f"anchor kapsami={representative.get('annotation_anchor_path_coverage_state')}; "
-                f"anchor-mesafe-toplami={anchor_text}. "
+                f"anchor-mesafe-toplami={anchor_text}; "
+                f"actor-spread={int(representative.get('unique_actor_candidate_n') or 0)}; "
+                f"start-zone={representative.get('process_start_zone_candidates') or []}; "
+                f"end-zone={representative.get('process_end_zone_candidates') or []}; "
+                f"action-mix={representative.get('action_family_layer_counts') or {}}; "
+                f"pass-carry-mix={representative.get('pass_carry_layer_mix') or {}}; "
+                f"loss-visible={bool(representative.get('visible_loss_transition_candidate_present'))}; "
+                f"recovery-visible={bool(representative.get('visible_recovery_transition_candidate_present'))}; "
+                f"terminal-visible={bool(representative.get('visible_terminal_annotation_candidate_present'))}. "
                 "Ayni timestamp icinde total order kurulmaz; annotation-anchor yolu fiziksel top/oyuncu "
-                "trajektorisi, fiziksel mesafe veya hiz degildir."
+                "trajektorisi degildir; bu morfoloji temporal-layer ozetidir ve fiziksel mesafe, hiz, possession truth "
+                "veya taktik plan truth degildir."
             )
         closed_compositions = [
             row for row in (c04.get("composition_profiles") or [])

@@ -1013,6 +1013,39 @@ def _construct_c03(
             if cumulative > 0:
                 directness = net / cumulative
 
+        action_family_layer_counts: Counter[str] = Counter()
+        unique_actor_ids: set[str] = set()
+        zone_layer_path_candidates: list[list[str]] = []
+        transition_classes: set[str] = set()
+        provider_outcomes: set[str] = set()
+        for layer in layers:
+            for family_value in layer.get("action_family_candidates") or []:
+                action_family_layer_counts[str(family_value)] += 1
+            unique_actor_ids.update(str(value) for value in (layer.get("actor_identity_candidate_ids") or []) if value)
+            zone_layer_path_candidates.append([
+                str(value) for value in (layer.get("provider_zone_candidates") or []) if value
+            ])
+            transition_classes.update(
+                str(value) for value in (layer.get("transition_class_candidates") or []) if value
+            )
+            provider_outcomes.update(
+                str(value) for value in (layer.get("provider_outcome_candidates") or []) if value
+            )
+        start_zone_candidates = zone_layer_path_candidates[0] if zone_layer_path_candidates else []
+        end_zone_candidates = zone_layer_path_candidates[-1] if zone_layer_path_candidates else []
+        pass_layer_n = int(action_family_layer_counts.get("PASS", 0))
+        carry_layer_n = int(action_family_layer_counts.get("CARRY", 0))
+        pass_carry_total = pass_layer_n + carry_layer_n
+        pass_carry_mix = {
+            "pass_layer_n": pass_layer_n,
+            "carry_layer_n": carry_layer_n,
+            "eligible_pass_carry_family_layer_n": pass_carry_total,
+            "pass_share_candidate": (pass_layer_n / pass_carry_total) if pass_carry_total else None,
+            "carry_share_candidate": (carry_layer_n / pass_carry_total) if pass_carry_total else None,
+            "denominator_basis": "ACTION_FAMILY_PRESENCE_PER_TEMPORAL_LAYER",
+            "physical_touch_count_truth": False,
+        }
+
         signatures.append({
             "process_development_signature_id": "pds_" + hashlib.sha256(
                 "|".join([
@@ -1031,6 +1064,21 @@ def _construct_c03(
             "shot_present_annotation_candidate": process.get("shot_present_annotation_candidate") is True,
             "visible_occurrence_n": len({row.get("action_occurrence_candidate_id") for _, row in matched if row.get("action_occurrence_candidate_id")}),
             "temporal_layer_n": len(layers),
+            "unique_actor_candidate_n": len(unique_actor_ids),
+            "unique_actor_identity_candidate_ids": sorted(unique_actor_ids),
+            "action_family_layer_counts": dict(sorted(action_family_layer_counts.items())),
+            "pass_carry_layer_mix": pass_carry_mix,
+            "process_start_zone_candidates": start_zone_candidates,
+            "process_end_zone_candidates": end_zone_candidates,
+            "zone_layer_path_candidates": zone_layer_path_candidates,
+            "transition_class_candidates_observed": sorted(transition_classes),
+            "provider_outcome_candidates_observed": sorted(provider_outcomes),
+            "visible_loss_transition_candidate_present": any("LOSS" in value.upper() for value in transition_classes),
+            "visible_recovery_transition_candidate_present": any(
+                "RECOVERY" in value.upper() or "REGAIN" in value.upper() for value in transition_classes
+            ),
+            "visible_terminal_annotation_candidate_present": process.get("shot_present_annotation_candidate") is True,
+            "process_morphology_basis": "ADMITTED_TEMPORAL_LAYER_SUMMARY_NOT_PHYSICAL_TRAJECTORY_OR_PHASE_TRUTH",
             "same_timestamp_internal_ordering_allowed": False,
             "source_row_order_is_temporal_truth": False,
             "layers": layers,
@@ -1064,6 +1112,9 @@ def _construct_c03(
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
         "coordinate_path_is_tracking_truth": False,
+        "process_morphology_is_phase_truth": False,
+        "process_morphology_is_possession_truth": False,
+        "process_morphology_is_tactical_plan_truth": False,
         "physical_speed_claim_allowed": False,
         "off_ball_geometry_claim_allowed": False,
         "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DEVELOPMENT_SIGNATURE_CANDIDATE_ONLY",

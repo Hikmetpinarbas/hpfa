@@ -544,7 +544,20 @@ def test_c03_builds_partial_order_process_development_and_anchor_path_without_tr
     assert round(signature["annotation_anchor_segment_distance_sum_provider_units_candidate"], 6) == round((1000) ** 0.5, 6)
     assert signature["annotation_anchor_path_is_physical_trajectory"] is False
     assert signature["annotation_anchor_distance_is_physical_travel_distance"] is False
+    assert signature["unique_actor_candidate_n"] == 2
+    assert signature["action_family_layer_counts"] == {"CARRY": 1, "PASS": 2}
+    assert signature["pass_carry_layer_mix"]["pass_layer_n"] == 2
+    assert signature["pass_carry_layer_mix"]["carry_layer_n"] == 1
+    assert signature["pass_carry_layer_mix"]["physical_touch_count_truth"] is False
+    assert signature["process_start_zone_candidates"] == ["MIDDLE_THIRD"]
+    assert signature["process_end_zone_candidates"] == ["FINAL_THIRD"]
+    assert signature["zone_layer_path_candidates"] == [["MIDDLE_THIRD"], ["FINAL_THIRD"]]
+    assert signature["visible_terminal_annotation_candidate_present"] is True
+    assert signature["process_morphology_basis"] == "ADMITTED_TEMPORAL_LAYER_SUMMARY_NOT_PHYSICAL_TRAJECTORY_OR_PHASE_TRUTH"
     assert signature["tracking_truth"] is False
+    assert result["process_morphology_is_phase_truth"] is False
+    assert result["process_morphology_is_possession_truth"] is False
+    assert result["process_morphology_is_tactical_plan_truth"] is False
     assert result["physical_speed_claim_allowed"] is False
 
 
