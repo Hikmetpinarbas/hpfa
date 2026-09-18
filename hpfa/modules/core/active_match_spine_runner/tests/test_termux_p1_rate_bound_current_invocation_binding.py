@@ -43,3 +43,10 @@ def test_physical_harness_archives_analyst_report_for_aday029_runtime_review() -
     text = HARNESS.read_text(encoding="utf-8")
     assert '"HPFA_ANALYST_REPORT.txt"' in text
     assert '"analyst_output_claim_contract_projection_v1.json"' in text
+
+
+def test_physical_harness_archives_multisurface_argument_artifacts() -> None:
+    text = HARNESS.read_text(encoding="utf-8")
+    assert '"rich_multiformat_analysis_lattice_v1.json"' in text
+    assert '"active_match_full_spine_v1.json"' in text
+    assert '"HPFA_ANALYST_REPORT.txt"' in text
