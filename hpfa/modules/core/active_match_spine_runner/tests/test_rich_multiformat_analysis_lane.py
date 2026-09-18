@@ -561,6 +561,56 @@ def test_c03_builds_partial_order_process_development_and_anchor_path_without_tr
     assert result["physical_speed_claim_allowed"] is False
 
 
+def test_c03_loss_and_recovery_visibility_uses_explicit_consequence_semantics():
+    process = {
+        "process_participation_candidates": [{
+            "process_participation_candidate_id": "context_consequence",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": "10",
+            "end_candidate": "30",
+        }]
+    }
+    occurrences = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "occ_recovery",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["12"],
+                "action_family_candidates": ["RECOVERY"],
+                "actor_identity_candidate_ids": ["actor_1"],
+                "transition_class_candidates": ["VISIBLE_DIRECTIONAL_CONSEQUENCE_TRANSITION_CANDIDATE"],
+                "primary_consequence_candidates": ["RECOVERY_RESPONSE_AFTER_BREAKDOWN_CANDIDATE"],
+                "supporting_spatial_transition_candidate_ids": [],
+            },
+            {
+                "action_occurrence_candidate_id": "occ_loss",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["20"],
+                "action_family_candidates": ["TURNOVER"],
+                "actor_identity_candidate_ids": ["actor_2"],
+                "transition_class_candidates": ["VISIBLE_DIRECTIONAL_CONSEQUENCE_TRANSITION_CANDIDATE"],
+                "primary_consequence_candidates": ["OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE"],
+                "supporting_spatial_transition_candidate_ids": [],
+            },
+        ]
+    }
+    result = _construct_c03(process, occurrences, {"spatial_transition_candidates": []})
+    signature = result["signatures"][0]
+
+    assert signature["visible_recovery_transition_candidate_present"] is True
+    assert signature["visible_loss_transition_candidate_present"] is True
+    assert signature["primary_consequence_candidates_observed"] == [
+        "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE",
+        "RECOVERY_RESPONSE_AFTER_BREAKDOWN_CANDIDATE",
+    ]
+    assert signature["loss_recovery_visibility_basis"] == "EXPLICIT_ADMITTED_PRIMARY_CONSEQUENCE_CANDIDATES"
+
+
 def test_c03_filters_occurrences_to_exact_team_period_and_process_interval():
     process = {
         "process_participation_candidates": [{

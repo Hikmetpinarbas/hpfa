@@ -970,6 +970,12 @@ def _construct_c03(
                     for value in (row.get("provider_outcome_candidates") or [])
                     if value
                 }),
+                "primary_consequence_candidates": sorted({
+                    str(value)
+                    for row in rows
+                    for value in (row.get("primary_consequence_candidates") or [])
+                    if value
+                }),
                 "provider_zone_candidates": sorted(zones),
                 "supporting_spatial_transition_candidate_ids": sorted(spatial_ids),
                 "admitted_annotation_anchor_candidates": [
@@ -1018,6 +1024,7 @@ def _construct_c03(
         zone_layer_path_candidates: list[list[str]] = []
         transition_classes: set[str] = set()
         provider_outcomes: set[str] = set()
+        primary_consequences: set[str] = set()
         for layer in layers:
             for family_value in layer.get("action_family_candidates") or []:
                 action_family_layer_counts[str(family_value)] += 1
@@ -1030,6 +1037,9 @@ def _construct_c03(
             )
             provider_outcomes.update(
                 str(value) for value in (layer.get("provider_outcome_candidates") or []) if value
+            )
+            primary_consequences.update(
+                str(value) for value in (layer.get("primary_consequence_candidates") or []) if value
             )
         start_zone_candidates = zone_layer_path_candidates[0] if zone_layer_path_candidates else []
         end_zone_candidates = zone_layer_path_candidates[-1] if zone_layer_path_candidates else []
@@ -1073,10 +1083,16 @@ def _construct_c03(
             "zone_layer_path_candidates": zone_layer_path_candidates,
             "transition_class_candidates_observed": sorted(transition_classes),
             "provider_outcome_candidates_observed": sorted(provider_outcomes),
-            "visible_loss_transition_candidate_present": any("LOSS" in value.upper() for value in transition_classes),
-            "visible_recovery_transition_candidate_present": any(
-                "RECOVERY" in value.upper() or "REGAIN" in value.upper() for value in transition_classes
-            ),
+            "primary_consequence_candidates_observed": sorted(primary_consequences),
+            "visible_loss_transition_candidate_present": bool(primary_consequences & {
+                "OPPONENT_HANDOVER_CANDIDATE",
+                "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE",
+            }),
+            "visible_recovery_transition_candidate_present": bool(primary_consequences & {
+                "RECOVERY_RESPONSE_AFTER_BREAKDOWN_CANDIDATE",
+                "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE",
+            }),
+            "loss_recovery_visibility_basis": "EXPLICIT_ADMITTED_PRIMARY_CONSEQUENCE_CANDIDATES",
             "visible_terminal_annotation_candidate_present": process.get("shot_present_annotation_candidate") is True,
             "process_morphology_basis": "ADMITTED_TEMPORAL_LAYER_SUMMARY_NOT_PHYSICAL_TRAJECTORY_OR_PHASE_TRUTH",
             "same_timestamp_internal_ordering_allowed": False,
