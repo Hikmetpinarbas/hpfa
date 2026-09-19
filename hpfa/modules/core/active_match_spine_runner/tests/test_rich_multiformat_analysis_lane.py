@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _phase_state_candidates
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _phase_state_candidates, _football_ontology_contract
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -729,3 +729,30 @@ def test_c04_is_projected_into_analyst_report_as_total_plus_composition_not_qual
     assert "C04_closed_composition_profile_count" in source
     assert "XLSX BILESIM ADAYI" in source
     assert "Toplam hacim ayri eksendir" in source
+
+
+def test_canonical_six_phase_ontology_separates_phase_from_evaluation() -> None:
+    contract = _football_ontology_contract()
+    assert contract["canonical_six_phases"] == [
+        "ESTABLISHED_ATTACK",
+        "ATTACKING_TRANSITION",
+        "ATTACKING_SET_PIECE",
+        "ESTABLISHED_DEFENCE",
+        "DEFENSIVE_TRANSITION",
+        "DEFENSIVE_SET_PIECE",
+    ]
+    assert contract["phase_is_evaluation"] is False
+    assert contract["phase_is_outcome"] is False
+    assert contract["success_failure_is_phase"] is False
+    assert contract["efficiency_inefficiency_is_phase"] is False
+    assert contract["set_piece_is_open_play_subtype"] is False
+    assert "OPPONENT" in contract["observation_dimensions"]
+    assert "TWO_TEAM_INTERACTION" in contract["scale_axis"]
+
+
+def test_activity_state_candidates_do_not_claim_phase_admission() -> None:
+    payload = {"episode_feature_vectors": [{"shot_candidate_count": 1, "action_family_counts": {"PASS": 2}}]}
+    candidate = _phase_state_candidates(payload)[0]
+    assert candidate["activity_labels_are_phase_labels"] is False
+    assert candidate["phase_admission_status"] == "NOT_EVALUATED"
+    assert candidate["phase_truth"] is False

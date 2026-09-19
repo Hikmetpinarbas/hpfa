@@ -151,6 +151,50 @@ def _primitive_metrics(features: dict[str, Any], entity_views: dict[str, Any]) -
     return values
 
 
+CANONICAL_SIX_PHASES = (
+    "ESTABLISHED_ATTACK",
+    "ATTACKING_TRANSITION",
+    "ATTACKING_SET_PIECE",
+    "ESTABLISHED_DEFENCE",
+    "DEFENSIVE_TRANSITION",
+    "DEFENSIVE_SET_PIECE",
+)
+
+
+def _football_ontology_contract() -> dict[str, Any]:
+    return {
+        "canonical_six_phases": list(CANONICAL_SIX_PHASES),
+        "phase_is_evaluation": False,
+        "phase_is_outcome": False,
+        "success_failure_is_phase": False,
+        "efficiency_inefficiency_is_phase": False,
+        "set_piece_is_open_play_subtype": False,
+        "attacking_set_piece_reciprocal_phase": "DEFENSIVE_SET_PIECE",
+        "defensive_set_piece_reciprocal_phase": "ATTACKING_SET_PIECE",
+        "observation_dimensions": [
+            "ACTOR", "ACTION", "TIME", "SPACE", "ZONE", "ROLE", "RELATION",
+            "TEAM", "OPPONENT", "PROCESS", "PHASE", "CONSEQUENCE", "CONTEXT",
+        ],
+        "scale_axis": [
+            "ACTION", "INDIVIDUAL", "DYAD_TRIAD", "FUNCTIONAL_GROUP",
+            "TEAM", "TWO_TEAM_INTERACTION", "MATCH",
+        ],
+        "evaluation_dimensions": [
+            "OUTCOME", "SUCCESS_FAILURE", "EFFICIENCY_INEFFICIENCY",
+            "RECURRENCE", "VARIATION", "DEVIATION",
+        ],
+        "truth_locks": [
+            "ACTIVITY_LABEL_IS_NOT_PHASE_TRUTH",
+            "PHASE_IS_NOT_SUCCESS_FAILURE",
+            "PHASE_IS_NOT_EFFICIENCY",
+            "POSITION_IS_NOT_OBSERVED_FUNCTIONAL_ROLE",
+            "SAME_TIMESTAMP_IS_NOT_REACTION_ORDER",
+            "COORDINATE_IS_NOT_TRACKING",
+        ],
+        "claim_ceiling": "ONTOLOGY_CONTRACT_ONLY_PHASE_REQUIRES_SEPARATE_ADMISSION",
+    }
+
+
 def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     cards = features.get("episode_feature_vectors") or []
@@ -190,6 +234,8 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
                 "final_third_action_candidate_count": final_third,
                 "pass_candidate_count": passes,
             },
+            "activity_labels_are_phase_labels": False,
+            "phase_admission_status": "NOT_EVALUATED",
             "phase_truth": False,
             "possession_truth": False,
             "tactical_truth": False,
@@ -1523,6 +1569,7 @@ def run_rich_lane(
         "xlsx_surface_audit": xlsx_audit,
         "xlsx_entity_metric_projection": projection,
         "primitive_metrics": primitives,
+        "football_ontology_contract": _football_ontology_contract(),
         "constructs": {"C01": c01, "C02": c02, "C03": c03, "C04": c04},
         "phase_state_candidates": phase_states,
         "analysis_lattice": {
