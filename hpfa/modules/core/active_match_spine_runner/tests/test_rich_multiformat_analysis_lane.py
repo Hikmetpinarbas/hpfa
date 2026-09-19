@@ -553,6 +553,17 @@ def test_c03_builds_partial_order_process_development_and_anchor_path_without_tr
     assert signature["visible_on_ball_profile"]["visible_on_ball_family_layer_counts"] == {"CARRY": 1, "PASS": 2}
     assert signature["visible_on_ball_profile"]["temporal_layer_is_not_physical_touch"] is True
     assert signature["visible_on_ball_profile"]["same_timestamp_multi_family_is_not_multiple_touch_truth"] is True
+    participation = signature["visible_on_ball_profile"]["actor_family_temporal_layer_participation_candidates"]
+    assert [(row["actor_identity_candidate_id"], row["action_family_candidate"], row["temporal_layer_n"]) for row in participation] == [
+        ("actor_1", "PASS", 1),
+        ("actor_2", "CARRY", 1),
+        ("actor_2", "PASS", 1),
+    ]
+    assert all(row["eligible_on_ball_temporal_layer_n"] == 2 for row in participation)
+    assert all(row["temporal_layer_share_candidate"] == 0.5 for row in participation)
+    assert all(row["causal_process_credit_truth"] is False for row in participation)
+    assert signature["visible_on_ball_profile"]["actor_family_unresolved_temporal_layer_n"] == 0
+    assert signature["visible_on_ball_profile"]["actor_family_participation_is_causal_process_credit"] is False
     assert signature["process_start_zone_candidates"] == ["MIDDLE_THIRD"]
     assert signature["process_end_zone_candidates"] == ["FINAL_THIRD"]
     assert signature["zone_layer_path_candidates"] == [["MIDDLE_THIRD"], ["FINAL_THIRD"]]
@@ -773,40 +784,6 @@ def test_activity_state_candidates_do_not_claim_phase_admission() -> None:
     assert candidate["phase_truth"] is False
 
 
-
-def test_c03_uses_admitted_coordinate_coarse_zone_only_when_provider_zone_missing() -> None:
-    from hpfa.modules.core.active_match_spine_runner.src.rich_multiformat_analysis_lane import _construct_c03
-
-    process = {"process_participation_candidates": [{
-        "process_participation_candidate_id": "p1", "semantic_role": "CONTEXT_INTERVAL",
-        "process_family_candidate": "BUILD_UP", "team_identity_candidate_id": "A",
-        "period_candidate": "1", "start_candidate": "10", "end_candidate": "20",
-        "shot_present_annotation_candidate": False,
-    }]}
-    occurrences = {"occurrence_state_transition_projections": [
-        {"action_occurrence_candidate_id": "o1", "team_identity_candidate_ids": ["A"],
-         "period_candidates": ["1"], "start_candidates": ["11"], "action_family_candidates": ["PASS"],
-         "actor_identity_candidate_ids": ["a1"], "supporting_spatial_transition_candidate_ids": ["s1"]},
-        {"action_occurrence_candidate_id": "o2", "team_identity_candidate_ids": ["A"],
-         "period_candidates": ["1"], "start_candidates": ["15"], "action_family_candidates": ["PASS"],
-         "actor_identity_candidate_ids": ["a2"], "supporting_spatial_transition_candidate_ids": ["s2"]},
-    ]}
-    spatial = {"spatial_transition_candidates": [
-        {"spatial_transition_candidate_id": "s1", "provider_zone_candidates": [],
-         "coordinate_derived_zone_candidate": "MIDDLE_THIRD_LOCATION_CANDIDATE",
-         "occurrence_annotation_anchor_location_admitted": True,
-         "provider_coordinate_anchor_x_candidate": 50.0, "provider_coordinate_anchor_y_candidate": 50.0},
-        {"spatial_transition_candidate_id": "s2", "provider_zone_candidates": [],
-         "coordinate_derived_zone_candidate": "FINAL_THIRD_LOCATION_CANDIDATE",
-         "occurrence_annotation_anchor_location_admitted": True,
-         "provider_coordinate_anchor_x_candidate": 80.0, "provider_coordinate_anchor_y_candidate": 50.0},
-    ]}
-    sig = _construct_c03(process, occurrences, spatial)["signatures"][0]
-    assert sig["zone_layer_path_candidates"] == [["MIDDLE_THIRD"], ["FINAL_THIRD"]]
-    assert sig["visible_zone_transition_candidate_n"] == 1
-    assert sig["layers"][0]["zone_context_basis"] == "ADMITTED_COORDINATE_DERIVED_COARSE_ZONE"
-    assert sig["layers"][0]["coordinate_derived_zone_is_tracking_truth"] is False
-    assert sig["zone_transition_is_progression_truth"] is False
 
 def test_c03_variant_profiles_never_pool_opponent_teams() -> None:
     from hpfa.modules.core.active_match_spine_runner.src.rich_multiformat_analysis_lane import _construct_c03

@@ -1060,7 +1060,6 @@ def _construct_c03(
             anchor_pairs: set[tuple[float, float]] = set()
             spatial_ids: set[str] = set()
             zones: set[str] = set()
-            coordinate_zones: set[str] = set()
             for occurrence in rows:
                 for sid in occurrence.get("supporting_spatial_transition_candidate_ids") or []:
                     sid_text = str(sid)
@@ -1069,9 +1068,6 @@ def _construct_c03(
                         continue
                     spatial_ids.add(sid_text)
                     zones.update(str(v) for v in (spatial.get("provider_zone_candidates") or []) if v)
-                    coordinate_zone = str(spatial.get("coordinate_derived_zone_candidate") or "")
-                    if coordinate_zone.endswith("_LOCATION_CANDIDATE"):
-                        coordinate_zones.add(coordinate_zone.removesuffix("_LOCATION_CANDIDATE"))
                     if not spatial.get("occurrence_annotation_anchor_location_admitted"):
                         continue
                     x = _as_number(spatial.get("provider_coordinate_anchor_x_candidate"))
@@ -1115,14 +1111,6 @@ def _construct_c03(
                     if value
                 }),
                 "provider_zone_candidates": sorted(zones),
-                "coordinate_derived_zone_candidates": sorted(coordinate_zones),
-                "zone_context_candidates": sorted(zones) if zones else sorted(coordinate_zones),
-                "zone_context_basis": (
-                    "PROVIDER_ZONE_SEMANTIC"
-                    if zones
-                    else ("ADMITTED_COORDINATE_DERIVED_COARSE_ZONE" if coordinate_zones else "UNRESOLVED")
-                ),
-                "coordinate_derived_zone_is_tracking_truth": False,
                 "supporting_spatial_transition_candidate_ids": sorted(spatial_ids),
                 "admitted_annotation_anchor_candidates": [
                     {"x": x, "y": y} for x, y in sorted(anchor_pairs)
@@ -1176,7 +1164,7 @@ def _construct_c03(
                 action_family_layer_counts[str(family_value)] += 1
             unique_actor_ids.update(str(value) for value in (layer.get("actor_identity_candidate_ids") or []) if value)
             zone_layer_path_candidates.append([
-                str(value) for value in (layer.get("zone_context_candidates") or []) if value
+                str(value) for value in (layer.get("provider_zone_candidates") or []) if value
             ])
             transition_classes.update(
                 str(value) for value in (layer.get("transition_class_candidates") or []) if value
@@ -1191,8 +1179,8 @@ def _construct_c03(
         end_zone_candidates = zone_layer_path_candidates[-1] if zone_layer_path_candidates else []
         zone_transition_candidates = []
         for left_layer, right_layer in zip(layers, layers[1:]):
-            left_zones = [str(v) for v in (left_layer.get("zone_context_candidates") or []) if v]
-            right_zones = [str(v) for v in (right_layer.get("zone_context_candidates") or []) if v]
+            left_zones = [str(v) for v in (left_layer.get("provider_zone_candidates") or []) if v]
+            right_zones = [str(v) for v in (right_layer.get("provider_zone_candidates") or []) if v]
             if len(left_zones) != 1 or len(right_zones) != 1:
                 continue
             if left_zones[0] == right_zones[0]:
@@ -1230,6 +1218,28 @@ def _construct_c03(
             for family in sorted(on_ball_families)
             if action_family_layer_counts.get(family, 0)
         }
+        actor_family_layer_counts: Counter[tuple[str, str]] = Counter()
+        unresolved_actor_family_layer_n = 0
+        for layer in on_ball_layers:
+            layer_pairs: set[tuple[str, str]] = set()
+            layer_unresolved = False
+            for occurrence_id in layer.get("occurrence_ids") or []:
+                occurrence_rows = [
+                    row for _, row in matched
+                    if str(row.get("action_occurrence_candidate_id") or "") == str(occurrence_id)
+                ]
+                for occurrence_row in occurrence_rows:
+                    actors = [str(value) for value in (occurrence_row.get("actor_identity_candidate_ids") or []) if value]
+                    families = [str(value) for value in (occurrence_row.get("action_family_candidates") or []) if value and str(value) in on_ball_families]
+                    if len(actors) == 1 and len(families) == 1:
+                        layer_pairs.add((actors[0], families[0]))
+                    elif actors or families:
+                        layer_unresolved = True
+            for pair in layer_pairs:
+                actor_family_layer_counts[pair] += 1
+            if layer_unresolved:
+                unresolved_actor_family_layer_n += 1
+
         on_ball_profile = {
             "visible_on_ball_temporal_layer_n": len(on_ball_layers),
             "visible_on_ball_family_layer_counts": on_ball_family_layer_counts,
@@ -1239,6 +1249,21 @@ def _construct_c03(
                 for actor_id in (layer.get("actor_identity_candidate_ids") or [])
                 if actor_id
             }),
+            "actor_family_temporal_layer_participation_candidates": [
+                {
+                    "actor_identity_candidate_id": actor_id,
+                    "action_family_candidate": family,
+                    "temporal_layer_n": count,
+                    "eligible_on_ball_temporal_layer_n": len(on_ball_layers),
+                    "temporal_layer_share_candidate": (count / len(on_ball_layers)) if on_ball_layers else None,
+                    "causal_process_credit_truth": False,
+                    "physical_touch_count_truth": False,
+                }
+                for (actor_id, family), count in sorted(actor_family_layer_counts.items())
+            ],
+            "actor_family_unresolved_temporal_layer_n": unresolved_actor_family_layer_n,
+            "actor_family_binding_basis": "UNAMBIGUOUS_OCCURRENCE_LEVEL_ACTOR_AND_ON_BALL_FAMILY_WITH_TEMPORAL_LAYER_DEDUP",
+            "actor_family_participation_is_causal_process_credit": False,
             "eligible_family_basis": sorted(on_ball_families),
             "same_timestamp_multi_family_is_not_multiple_touch_truth": True,
             "temporal_layer_is_not_physical_touch": True,
