@@ -556,6 +556,11 @@ def test_c03_builds_partial_order_process_development_and_anchor_path_without_tr
     assert signature["process_start_zone_candidates"] == ["MIDDLE_THIRD"]
     assert signature["process_end_zone_candidates"] == ["FINAL_THIRD"]
     assert signature["zone_layer_path_candidates"] == [["MIDDLE_THIRD"], ["FINAL_THIRD"]]
+    assert signature["visible_zone_transition_candidate_n"] == 1
+    assert signature["visible_zone_transition_candidates"][0]["from_zone_candidate"] == "MIDDLE_THIRD"
+    assert signature["visible_zone_transition_candidates"][0]["to_zone_candidate"] == "FINAL_THIRD"
+    assert signature["visible_zone_transition_candidates"][0]["progression_truth"] is False
+    assert signature["visible_zone_transition_candidates"][0]["line_break_truth"] is False
     assert signature["visible_terminal_annotation_candidate_present"] is True
     assert signature["process_morphology_basis"] == "ADMITTED_TEMPORAL_LAYER_SUMMARY_NOT_PHYSICAL_TRAJECTORY_OR_PHASE_TRUTH"
     assert signature["tracking_truth"] is False

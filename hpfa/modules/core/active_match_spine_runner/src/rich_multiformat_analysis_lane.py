@@ -1177,6 +1177,24 @@ def _construct_c03(
             )
         start_zone_candidates = zone_layer_path_candidates[0] if zone_layer_path_candidates else []
         end_zone_candidates = zone_layer_path_candidates[-1] if zone_layer_path_candidates else []
+        zone_transition_candidates = []
+        for left_layer, right_layer in zip(layers, layers[1:]):
+            left_zones = [str(v) for v in (left_layer.get("provider_zone_candidates") or []) if v]
+            right_zones = [str(v) for v in (right_layer.get("provider_zone_candidates") or []) if v]
+            if len(left_zones) != 1 or len(right_zones) != 1:
+                continue
+            if left_zones[0] == right_zones[0]:
+                continue
+            zone_transition_candidates.append({
+                "from_zone_candidate": left_zones[0],
+                "to_zone_candidate": right_zones[0],
+                "from_timestamp_candidate": left_layer.get("timestamp_candidate"),
+                "to_timestamp_candidate": right_layer.get("timestamp_candidate"),
+                "ordering_basis": "STRICTLY_ORDERED_TEMPORAL_LAYERS",
+                "progression_truth": False,
+                "line_break_truth": False,
+                "physical_ball_path_truth": False,
+            })
         pass_layer_n = int(action_family_layer_counts.get("PASS", 0))
         carry_layer_n = int(action_family_layer_counts.get("CARRY", 0))
         pass_carry_total = pass_layer_n + carry_layer_n
@@ -1243,6 +1261,10 @@ def _construct_c03(
             "process_start_zone_candidates": start_zone_candidates,
             "process_end_zone_candidates": end_zone_candidates,
             "zone_layer_path_candidates": zone_layer_path_candidates,
+            "visible_zone_transition_candidate_n": len(zone_transition_candidates),
+            "visible_zone_transition_candidates": zone_transition_candidates,
+            "zone_transition_is_progression_truth": False,
+            "zone_transition_is_line_break_truth": False,
             "transition_class_candidates_observed": sorted(transition_classes),
             "provider_outcome_candidates_observed": sorted(provider_outcomes),
             "primary_consequence_candidates_observed": sorted(primary_consequences),
