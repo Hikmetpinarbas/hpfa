@@ -34,6 +34,8 @@ def _admission(decision: str = "EMIT") -> dict:
                 "admitted_independent_support_count": 2,
                 "dependency_independence_proven": True,
                 "statistical_independence_proven": True,
+                "episode_spread_state": "UNKNOWN",
+                "episode_spread_count": "UNKNOWN",
             }
         ],
         "safe_finding_admission_decision_count": 1,
@@ -58,6 +60,10 @@ def _process_variant() -> dict:
         "observable_process_variant_families": [
             {
                 "observable_process_variant_family_id": "family_1",
+                "visible_episode_spread_count": 2,
+                "visible_episode_spread_state": "MULTIPLE_VISIBLE_EPISODE_CANDIDATES",
+                "success_visible_episode_spread_count": 1,
+                "failure_visible_episode_spread_count": 1,
                 "member_records": [
                     {
                         "sequence_ref": "s1",
@@ -120,6 +126,26 @@ def test_partial_matched_challenge_downgrades_emit_without_changing_support() ->
     assert row["variant_feature_challenge_refs"] == ["vfc_1"]
     assert out["variant_feature_challenge_can_increase_support"] is False
     assert out["variant_feature_challenge_can_authorize_emit"] is False
+
+
+def test_late_bound_episode_spread_resolves_stale_unknown_without_support_inflation() -> None:
+    out = apply_variant_feature_challenge_to_admission(
+        _sequence(),
+        _admission("DOWNGRADE"),
+        _challenge(partial=False, dep=True, stat=True),
+        _process_variant(),
+    )
+    row = out["safe_finding_admission_decisions"][0]
+    assert row["episode_spread_state"] == "OBSERVED_LATE_BOUND_VARIANT_FAMILY_SPREAD"
+    assert row["episode_spread_count"] == 2
+    assert row["episode_spread_source"] == "OBSERVABLE_PROCESS_VARIANT_FAMILY_LINEAGE"
+    assert row["episode_spread_late_bound"] is True
+    assert row["episode_spread_can_increase_support"] is False
+    assert row["episode_spread_is_independent_support"] is False
+    assert row["episode_spread_is_recurrence_truth"] is False
+    assert row["admitted_independent_support_count"] == 2
+    assert "EPISODE_SPREAD_UNKNOWN" not in row["decision_reasons"]
+    assert row["decision"] == "DOWNGRADE"
 
 
 def test_unproven_challenge_independence_downgrades_emit() -> None:
