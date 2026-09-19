@@ -762,3 +762,48 @@ def test_activity_state_candidates_do_not_claim_phase_admission() -> None:
     assert candidate["activity_labels_are_phase_labels"] is False
     assert candidate["phase_admission_status"] == "NOT_EVALUATED"
     assert candidate["phase_truth"] is False
+
+
+
+def test_c03_variant_profiles_never_pool_opponent_teams() -> None:
+    from hpfa.modules.core.active_match_spine_runner.src.rich_multiformat_analysis_lane import _construct_c03
+
+    processes = []
+    occurrences = []
+    for team, base in (("A", 10.0), ("B", 30.0)):
+        for suffix, shot, offset in (("shot", True, 0.0), ("no", False, 10.0)):
+            pid = f"{team}_{suffix}"
+            start = base + offset
+            processes.append({
+                "process_participation_candidate_id": pid,
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "BUILD_UP",
+                "team_identity_candidate_id": team,
+                "period_candidate": "1",
+                "start_candidate": start,
+                "end_candidate": start + 5.0,
+                "shot_present_annotation_candidate": shot,
+            })
+            occurrences.append({
+                "action_occurrence_candidate_id": "occ_" + pid,
+                "team_identity_candidate_ids": [team],
+                "period_candidates": ["1"],
+                "start_candidates": [start + 1.0],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_" + team],
+                "transition_class_candidates": [],
+                "provider_outcome_candidates": [],
+                "primary_consequence_candidates": [],
+                "supporting_spatial_transition_candidate_ids": [],
+            })
+
+    result = _construct_c03(
+        {"process_participation_candidates": processes},
+        {"occurrence_state_transition_projections": occurrences},
+        {"spatial_transition_candidates": []},
+    )
+    profiles = result["variant_context_profiles"]
+    assert len(profiles) == 2
+    assert {row["team_identity_candidate_id"] for row in profiles} == {"A", "B"}
+    assert all(row["eligible_process_n"] == 2 for row in profiles)
+    assert all(row["cross_team_variant_pooling_allowed"] is False for row in profiles)

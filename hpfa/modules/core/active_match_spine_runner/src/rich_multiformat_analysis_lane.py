@@ -1323,11 +1323,14 @@ def _construct_c03(
             })
 
     variant_context_profiles: list[dict[str, Any]] = []
-    by_family: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    by_team_family_variant: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for signature in signatures:
-        by_family[str(signature.get("process_family_candidate") or "UNKNOWN")].append(signature)
+        team_id = str(signature.get("team_identity_candidate_id") or "")
+        family_id = str(signature.get("process_family_candidate") or "UNKNOWN")
+        if team_id:
+            by_team_family_variant[(team_id, family_id)].append(signature)
 
-    for family_id, family_rows in sorted(by_family.items()):
+    for (team_id, family_id), family_rows in sorted(by_team_family_variant.items()):
         shot_rows = [row for row in family_rows if row.get("shot_present_annotation_candidate") is True]
         non_shot_rows = [row for row in family_rows if row.get("shot_present_annotation_candidate") is not True]
         if not shot_rows or not non_shot_rows:
@@ -1344,14 +1347,9 @@ def _construct_c03(
             return (sum(observed) / len(observed)) if observed else None
 
         shot_n, non_shot_n = len(shot_rows), len(non_shot_rows)
-        team_ids = sorted({
-            str(row.get("team_identity_candidate_id") or "")
-            for row in family_rows
-            if row.get("team_identity_candidate_id")
-        })
         variant_context_profiles.append({
+            "team_identity_candidate_id": team_id,
             "process_family_candidate": family_id,
-            "team_identity_candidate_ids": team_ids,
             "shot_ending_process_n": shot_n,
             "non_shot_process_n": non_shot_n,
             "eligible_process_n": len(family_rows),
@@ -1370,6 +1368,8 @@ def _construct_c03(
             "non_shot_visible_loss_n": sum(bool(row.get("visible_loss_transition_candidate_present")) for row in non_shot_rows),
             "shot_ending_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in shot_rows),
             "non_shot_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in non_shot_rows),
+            "comparison_basis": "SAME_TEAM_SAME_PROCESS_FAMILY_SHOT_ENDING_VS_NON_SHOT_VISIBLE_VARIANTS",
+            "cross_team_variant_pooling_allowed": False,
             "comparison_is_descriptive_not_causal": True,
             "shot_ending_is_success_truth": False,
             "non_shot_is_failure_truth": False,
