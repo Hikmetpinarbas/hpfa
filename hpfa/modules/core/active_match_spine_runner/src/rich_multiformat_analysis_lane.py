@@ -1119,6 +1119,75 @@ def _construct_c03(
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DEVELOPMENT_SIGNATURE_CANDIDATE_ONLY",
         })
 
+    team_process_profiles: list[dict[str, Any]] = []
+    by_team_family: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for signature in signatures:
+        team_id = str(signature.get("team_identity_candidate_id") or "")
+        family_id = str(signature.get("process_family_candidate") or "UNKNOWN")
+        if team_id:
+            by_team_family[(team_id, family_id)].append(signature)
+
+    for (team_id, family_id), team_rows in sorted(by_team_family.items()):
+        shot_n = sum(row.get("shot_present_annotation_candidate") is True for row in team_rows)
+        loss_n = sum(bool(row.get("visible_loss_transition_candidate_present")) for row in team_rows)
+        recovery_n = sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in team_rows)
+        actor_values = [
+            int(row.get("unique_actor_candidate_n") or 0)
+            for row in team_rows
+            if row.get("unique_actor_candidate_n") is not None
+        ]
+        layer_values = [
+            int(row.get("temporal_layer_n") or 0)
+            for row in team_rows
+            if row.get("temporal_layer_n") is not None
+        ]
+        team_process_profiles.append({
+            "team_identity_candidate_id": team_id,
+            "process_family_candidate": family_id,
+            "eligible_process_n": len(team_rows),
+            "shot_ending_process_n": shot_n,
+            "shot_ending_share_candidate": shot_n / len(team_rows),
+            "visible_loss_process_n": loss_n,
+            "visible_loss_share_candidate": loss_n / len(team_rows),
+            "visible_recovery_process_n": recovery_n,
+            "visible_recovery_share_candidate": recovery_n / len(team_rows),
+            "mean_actor_spread_candidate": (sum(actor_values) / len(actor_values)) if actor_values else None,
+            "mean_temporal_layer_n": (sum(layer_values) / len(layer_values)) if layer_values else None,
+            "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
+            "profile_is_team_quality_truth": False,
+            "profile_is_opponent_response_truth": False,
+            "profile_is_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_TEAM_PROCESS_PROFILE_CANDIDATE_ONLY",
+        })
+
+    team_ids = sorted({str(row.get("team_identity_candidate_id") or "") for row in signatures if row.get("team_identity_candidate_id")})
+    reciprocal_team_process_comparisons: list[dict[str, Any]] = []
+    if len(team_ids) == 2:
+        team_a, team_b = team_ids
+        families = sorted({str(row.get("process_family_candidate") or "UNKNOWN") for row in signatures})
+        profile_index = {
+            (row["team_identity_candidate_id"], row["process_family_candidate"]): row
+            for row in team_process_profiles
+        }
+        for family_id in families:
+            a = profile_index.get((team_a, family_id))
+            b = profile_index.get((team_b, family_id))
+            if not a or not b:
+                continue
+            reciprocal_team_process_comparisons.append({
+                "process_family_candidate": family_id,
+                "team_a_identity_candidate_id": team_a,
+                "team_b_identity_candidate_id": team_b,
+                "team_a_profile": a,
+                "team_b_profile": b,
+                "comparison_basis": "SAME_MATCH_SAME_PROCESS_FAMILY_DESCRIPTIVE_PROFILE",
+                "difference_is_opponent_response_truth": False,
+                "difference_is_tactical_superiority_truth": False,
+                "difference_is_causal_truth": False,
+                "independent_support_created": False,
+                "claim_ceiling": "MATCH_LOCAL_RECIPROCAL_TEAM_PROCESS_COMPARISON_CANDIDATE_ONLY",
+            })
+
     variant_context_profiles: list[dict[str, Any]] = []
     by_family: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for signature in signatures:
@@ -1180,6 +1249,12 @@ def _construct_c03(
         "status": "REVIEW_REQUIRED" if signatures else "NOT_APPLICABLE",
         "signature_count": len(signatures),
         "signatures": signatures,
+        "team_process_profile_count": len(team_process_profiles),
+        "team_process_profiles": team_process_profiles,
+        "reciprocal_team_process_comparison_count": len(reciprocal_team_process_comparisons),
+        "reciprocal_team_process_comparisons": reciprocal_team_process_comparisons,
+        "team_process_profiles_create_independent_support": False,
+        "reciprocal_team_process_comparison_is_opponent_response_truth": False,
         "variant_context_profile_count": len(variant_context_profiles),
         "variant_context_profiles": variant_context_profiles,
         "variant_context_comparison_creates_independent_support": False,

@@ -270,6 +270,56 @@ def build_occurrence_state_transition_projection(
     if len(records) != expected_occurrence_count and not hard_blocks:
         hard_blocks.append("occurrence_state_projection_count_mismatch")
         records = []
+    team_occurrence_profiles: list[dict[str, Any]] = []
+    by_team: dict[str, list[dict[str, Any]]] = {}
+    for row in records:
+        team_ids = sorted({str(value) for value in (row.get("team_identity_candidate_ids") or []) if value})
+        if len(team_ids) != 1:
+            continue
+        by_team.setdefault(team_ids[0], []).append(row)
+    for team_id, team_rows in sorted(by_team.items()):
+        family_counts: dict[str, int] = {}
+        consequence_counts: dict[str, int] = {}
+        transition_counts: dict[str, int] = {}
+        actor_ids: set[str] = set()
+        for row in team_rows:
+            actor_ids.update(str(value) for value in (row.get("actor_identity_candidate_ids") or []) if value)
+            for value in row.get("action_family_candidates") or []:
+                key = str(value); family_counts[key] = family_counts.get(key, 0) + 1
+            for value in row.get("primary_consequence_candidates") or []:
+                key = str(value); consequence_counts[key] = consequence_counts.get(key, 0) + 1
+            for value in row.get("transition_class_candidates") or []:
+                key = str(value); transition_counts[key] = transition_counts.get(key, 0) + 1
+        team_occurrence_profiles.append({
+            "team_identity_candidate_id": team_id,
+            "visible_occurrence_candidate_n": len(team_rows),
+            "unique_actor_candidate_n": len(actor_ids),
+            "action_family_candidate_counts": dict(sorted(family_counts.items())),
+            "primary_consequence_candidate_counts": dict(sorted(consequence_counts.items())),
+            "transition_class_candidate_counts": dict(sorted(transition_counts.items())),
+            "unit_of_analysis": "MATCH_LOCAL_ACTION_OCCURRENCE_CANDIDATE",
+            "profile_is_team_quality_truth": False,
+            "profile_is_possession_truth": False,
+            "profile_is_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_TEAM_OCCURRENCE_PROFILE_CANDIDATE_ONLY",
+        })
+    team_ids = sorted(by_team)
+    reciprocal_team_occurrence_comparison = None
+    if len(team_ids) == 2:
+        profile_by_team = {row["team_identity_candidate_id"]: row for row in team_occurrence_profiles}
+        reciprocal_team_occurrence_comparison = {
+            "team_a_identity_candidate_id": team_ids[0],
+            "team_b_identity_candidate_id": team_ids[1],
+            "team_a_profile": profile_by_team[team_ids[0]],
+            "team_b_profile": profile_by_team[team_ids[1]],
+            "comparison_basis": "SAME_MATCH_VISIBLE_ACTION_OCCURRENCE_CANDIDATES",
+            "difference_is_opponent_response_truth": False,
+            "difference_is_tactical_superiority_truth": False,
+            "difference_is_causal_truth": False,
+            "independent_support_created": False,
+            "claim_ceiling": "MATCH_LOCAL_RECIPROCAL_TEAM_OCCURRENCE_COMPARISON_CANDIDATE_ONLY",
+        }
+
     review_count = sum(row.get("record_status") == "REVIEW_REQUIRED" for row in records)
     if review_count:
         review_hits.append("occurrence_state_transition_projection_review_required")
@@ -288,6 +338,11 @@ def build_occurrence_state_transition_projection(
         "occurrence_state_transition_projection_count": len(records),
         "review_required_occurrence_state_transition_count": review_count,
         "occurrence_state_transition_projections": records,
+        "team_occurrence_profile_count": len(team_occurrence_profiles),
+        "team_occurrence_profiles": team_occurrence_profiles,
+        "reciprocal_team_occurrence_comparison": reciprocal_team_occurrence_comparison,
+        "team_occurrence_profiles_create_independent_support": False,
+        "reciprocal_team_occurrence_comparison_is_opponent_response_truth": False,
         "legacy_trace_records_are_support_evidence_not_action_universe": True,
         "occurrence_projection_is_primary_action_member_candidate_surface": True,
         "state_transition_truth": False,
