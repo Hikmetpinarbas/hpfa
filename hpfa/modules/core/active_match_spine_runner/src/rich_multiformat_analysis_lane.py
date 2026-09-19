@@ -62,6 +62,37 @@ def _flatten_projection(projection: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+_GOALKEEPER_SCHEMA_SIGNALS = frozenset({
+    "shots_faced",
+    "shots_on_target_faced",
+    "shots_saved",
+    "goals_conceded",
+    "sweeping_actions",
+    "penalties_saved",
+})
+
+
+def _xlsx_entity_role_candidate(row: dict[str, Any]) -> str:
+    role = str(row.get("source_role") or "").upper()
+    if "GOALKEEPER" in role:
+        return "GOALKEEPER"
+    if "TEAM" in role:
+        return "TEAM"
+    metric_keys = {
+        str(key).strip().casefold()
+        for key in (row.get("metric_values") or {})
+        if str(key).strip()
+    }
+    if metric_keys.intersection(_GOALKEEPER_SCHEMA_SIGNALS):
+        return "GOALKEEPER"
+    identity = row.get("identity_candidates") or {}
+    if identity.get("player_raw_candidate") not in (None, ""):
+        return "PLAYER"
+    if identity.get("team_raw_candidate") not in (None, ""):
+        return "TEAM"
+    return "UNRESOLVED"
+
+
 def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
     players: list[dict[str, Any]] = []
     teams: list[dict[str, Any]] = []
@@ -89,12 +120,13 @@ def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "validated_identity": False,
             "metric_truth": False,
         }
-        role = str(row.get("source_role") or "").upper()
-        if "GOALKEEPER" in role:
+        entity_role = _xlsx_entity_role_candidate(row)
+        compact["entity_role_candidate"] = entity_role
+        if entity_role == "GOALKEEPER":
             goalkeepers.append(compact)
-        elif identity.get("player_raw_candidate") not in (None, ""):
+        elif entity_role == "PLAYER":
             players.append(compact)
-        elif identity.get("team_raw_candidate") not in (None, "") or "TEAM" in role:
+        elif entity_role == "TEAM":
             teams.append(compact)
     return {
         "player_view_candidates": players,

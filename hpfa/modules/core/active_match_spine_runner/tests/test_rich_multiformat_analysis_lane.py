@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _phase_state_candidates, _football_ontology_contract
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -882,3 +882,31 @@ def test_c03_preserves_full_occurrence_pool_across_multiple_processes():
     assert by_ref["context_2"]["visible_occurrence_n"] == 1
     assert by_ref["context_1"]["visible_on_ball_profile"]["visible_on_ball_temporal_layer_n"] == 1
     assert by_ref["context_2"]["visible_on_ball_profile"]["visible_on_ball_temporal_layer_n"] == 1
+
+
+def test_entity_views_infers_goalkeeper_from_schema_not_filename_or_person_name():
+    rows = [
+        {
+            "row_projection_id": "gk1",
+            "source_role": "AGGREGATE_OR_TABULAR_SURFACE_CANDIDATE",
+            "identity_candidates": {"player_raw_candidate": "Example A"},
+            "metric_values": {
+                "shots_faced": {"value_status": "OBSERVED", "raw_value": 4},
+                "shots_saved": {"value_status": "OBSERVED", "raw_value": 3},
+            },
+        },
+        {
+            "row_projection_id": "p1",
+            "source_role": "AGGREGATE_OR_TABULAR_SURFACE_CANDIDATE",
+            "identity_candidates": {"player_raw_candidate": "Example B"},
+            "metric_values": {
+                "passes": {"value_status": "OBSERVED", "raw_value": 20},
+                "shots": {"value_status": "OBSERVED", "raw_value": 2},
+            },
+        },
+    ]
+    views = _entity_views(rows)
+    assert len(views["goalkeeper_view_candidates"]) == 1
+    assert len(views["player_view_candidates"]) == 1
+    assert views["goalkeeper_view_candidates"][0]["entity_role_candidate"] == "GOALKEEPER"
+    assert views["player_view_candidates"][0]["entity_role_candidate"] == "PLAYER"
