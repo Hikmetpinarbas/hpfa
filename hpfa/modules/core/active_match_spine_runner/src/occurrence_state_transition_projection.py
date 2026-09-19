@@ -320,6 +320,48 @@ def build_occurrence_state_transition_projection(
             "claim_ceiling": "MATCH_LOCAL_RECIPROCAL_TEAM_OCCURRENCE_COMPARISON_CANDIDATE_ONLY",
         }
 
+    cross_team_counterpart_candidates: list[dict[str, Any]] = []
+    if len(team_ids) == 2:
+        left_team, right_team = team_ids
+        def occurrence_time(row: dict[str, Any]) -> tuple[str, float] | None:
+            periods = sorted({str(value) for value in (row.get("period_candidates") or []) if value})
+            times = sorted({
+                float(value)
+                for value in (row.get("start_candidates") or [])
+                if value not in (None, "")
+            })
+            if len(periods) != 1 or len(times) != 1:
+                return None
+            return periods[0], times[0]
+        indexed: dict[tuple[str, float], dict[str, list[dict[str, Any]]]] = {}
+        for row in records:
+            teams = sorted({str(value) for value in (row.get("team_identity_candidate_ids") or []) if value})
+            stamp = occurrence_time(row)
+            if len(teams) != 1 or stamp is None:
+                continue
+            indexed.setdefault(stamp, {}).setdefault(teams[0], []).append(row)
+        for (period, timestamp), sides in sorted(indexed.items()):
+            left_rows = sides.get(left_team) or []
+            right_rows = sides.get(right_team) or []
+            if not left_rows or not right_rows:
+                continue
+            cross_team_counterpart_candidates.append({
+                "period_candidate": period,
+                "timestamp_candidate": timestamp,
+                "team_a_identity_candidate_id": left_team,
+                "team_b_identity_candidate_id": right_team,
+                "team_a_occurrence_ids": sorted(str(row.get("action_occurrence_candidate_id")) for row in left_rows if row.get("action_occurrence_candidate_id")),
+                "team_b_occurrence_ids": sorted(str(row.get("action_occurrence_candidate_id")) for row in right_rows if row.get("action_occurrence_candidate_id")),
+                "team_a_action_family_candidates": sorted({str(value) for row in left_rows for value in (row.get("action_family_candidates") or []) if value}),
+                "team_b_action_family_candidates": sorted({str(value) for row in right_rows for value in (row.get("action_family_candidates") or []) if value}),
+                "relation_basis": "SAME_PERIOD_EXACT_PROVIDER_TIMESTAMP_CROSS_TEAM_COUNTERPART_CANDIDATE",
+                "same_timestamp_is_total_order": False,
+                "counterpart_is_reaction_truth": False,
+                "counterpart_is_causal_truth": False,
+                "counterpart_is_independent_support": False,
+                "claim_ceiling": "MATCH_LOCAL_CROSS_TEAM_SAME_TIME_COUNTERPART_CANDIDATE_ONLY",
+            })
+
     review_count = sum(row.get("record_status") == "REVIEW_REQUIRED" for row in records)
     if review_count:
         review_hits.append("occurrence_state_transition_projection_review_required")
@@ -343,6 +385,10 @@ def build_occurrence_state_transition_projection(
         "reciprocal_team_occurrence_comparison": reciprocal_team_occurrence_comparison,
         "team_occurrence_profiles_create_independent_support": False,
         "reciprocal_team_occurrence_comparison_is_opponent_response_truth": False,
+        "cross_team_counterpart_candidate_count": len(cross_team_counterpart_candidates),
+        "cross_team_counterpart_candidates": cross_team_counterpart_candidates,
+        "cross_team_counterpart_same_timestamp_is_total_order": False,
+        "cross_team_counterpart_is_reaction_truth": False,
         "legacy_trace_records_are_support_evidence_not_action_universe": True,
         "occurrence_projection_is_primary_action_member_candidate_surface": True,
         "state_transition_truth": False,
