@@ -496,9 +496,34 @@ def build_mechanism_review_lines(
         for row in (shortlist.get("shortlist") or [])
         if isinstance(row, dict) and row.get("source_mechanism_review_ref")
     }
+    shortlisted_signatures = {
+        (
+            tuple(str(v) for v in (row.get("team_identity_candidate_ids") or [])),
+            tuple(str(v) for v in (row.get("period_candidates") or [])),
+            tuple(str(v) for v in (row.get("grammar_signature_tokens") or [])),
+            int(row.get("resolved_variant_count") or 0),
+            int(row.get("success_resolved_variant_count") or 0),
+            int(row.get("failure_resolved_variant_count") or 0),
+        )
+        for row in (shortlist.get("shortlist") or [])
+        if isinstance(row, dict) and not row.get("source_mechanism_review_ref")
+    }
     review_records = [
         record for record in records
-        if str(record.get("grammar_stable_variant_feature_delta_id") or "") in shortlisted_refs
+        if (
+            str(record.get("grammar_stable_variant_feature_delta_id") or "") in shortlisted_refs
+            or (
+                not record.get("grammar_stable_variant_feature_delta_id")
+                and (
+                    tuple(str(v) for v in (record.get("team_identity_candidate_ids") or [])),
+                    tuple(str(v) for v in (record.get("period_candidates") or [])),
+                    tuple(str(v) for v in (record.get("grammar_signature_tokens") or [])),
+                    int(record.get("resolved_variant_count") or 0),
+                    int(record.get("success_resolved_variant_count") or 0),
+                    int(record.get("failure_resolved_variant_count") or 0),
+                ) in shortlisted_signatures
+            )
+        )
     ]
     lines.append(
         f"story_detail_render_count={len(review_records)} source_candidate_count={len(records)}"
