@@ -204,12 +204,28 @@ def _football_ontology_contract() -> dict[str, Any]:
             "functional_role_requires_observed_task_distribution": True,
             "functional_role_is_match_contextual": True,
             "role_label_is_not_coach_intention": True,
+            "event_only_role_evidence_dimensions": [
+                "ACTION_FAMILY_DISTRIBUTION",
+                "ZONE_DISTRIBUTION",
+                "PROCESS_PARTICIPATION",
+                "RELATION_PARTICIPATION",
+                "TEAM_SHARE_CONTEXT",
+            ],
+            "single_match_role_output": "FUNCTIONAL_ROLE_CANDIDATE_ONLY",
+            "season_role_classifier_truth": False,
         },
         "opponent_interaction_contract": {
             "same_time_counterpart_is_not_reaction_truth": True,
             "reaction_requires_admitted_order_or_visible_consequence_chain": True,
             "team_a_action_should_be_read_against_team_b_response_when_observable": True,
             "reciprocal_phase_pairing_required": True,
+            "interaction_chain": [
+                "TEAM_A_ACTION",
+                "TEAM_B_VISIBLE_RESPONSE",
+                "TEAM_A_COUNTER_RESPONSE_IF_OBSERVED",
+                "VISIBLE_CONSEQUENCE",
+            ],
+            "no_visible_response_is_not_no_response_truth": True,
         },
         "truth_locks": [
             "ACTIVITY_LABEL_IS_NOT_PHASE_TRUTH",
