@@ -76,13 +76,16 @@ def materialize_variant_feature_challenge(out_dir: str | Path) -> dict[str, Any]
     finalization_status = str(finalization.get("status") or "").upper()
     status = "FAIL_CLOSED" if finalization_status == "FAIL_CLOSED" else report.get("status")
 
+    final_report = _load(target) if target.is_file() else {}
+    final_challenge_count = int(final_report.get("variant_feature_challenge_record_count") if final_report else report.get("variant_feature_challenge_record_count") or 0)
+
     return {
         "status": status,
         "artifact_materialized": True,
         "output": str(target),
-        "variant_feature_challenge_record_count": int(
-            report.get("variant_feature_challenge_record_count") or 0
-        ),
+        "variant_feature_challenge_record_count": final_challenge_count,
+        "pre_finalization_variant_feature_challenge_record_count": int(report.get("variant_feature_challenge_record_count") or 0),
+        "final_artifact_accounting_bound": bool(final_report),
         "post_sequence_admission_finalized": finalization_status in {"PASS", "REVIEW_REQUIRED"},
         "post_sequence_admission_status": finalization.get("status"),
         "post_sequence_admission_reason": finalization.get("reason"),

@@ -127,6 +127,25 @@ def test_materializes_existing_challenge_projection_without_claim_inflation(
     assert payload["feature_absence_is_counterevidence"] is False
 
 
+def test_runtime_accounting_uses_post_finalizer_challenge_artifact(tmp_path: Path, monkeypatch) -> None:
+    _write_inputs(tmp_path)
+
+    def _finalize(out_dir: str | Path) -> dict:
+        target = Path(out_dir) / OUTPUT_JSON
+        payload = json.loads(target.read_text(encoding="utf-8"))
+        payload["variant_feature_challenge_records"].append(dict(payload["variant_feature_challenge_records"][0]))
+        payload["variant_feature_challenge_record_count"] = 2
+        target.write_text(json.dumps(payload), encoding="utf-8")
+        return {"status": "PASS", "expected_handoff_count": 0, "admission_count": 0, "claim_count": 0, "safe_finding_admission_consumed": True, "current_invocation_artifacts": []}
+
+    monkeypatch.setattr(binding_module.post_sequence_finalizer, "finalize_post_sequence_admission", _finalize)
+    result = materialize_variant_feature_challenge(tmp_path)
+
+    assert result["pre_finalization_variant_feature_challenge_record_count"] == 1
+    assert result["variant_feature_challenge_record_count"] == 2
+    assert result["final_artifact_accounting_bound"] is True
+
+
 def test_finalizer_fail_closed_is_not_hidden(tmp_path: Path, monkeypatch) -> None:
     _write_inputs(tmp_path)
 
