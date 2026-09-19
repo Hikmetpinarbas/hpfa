@@ -1190,6 +1190,33 @@ def _construct_c03(
             "physical_touch_count_truth": False,
         }
 
+        on_ball_families = {"PASS", "CARRY", "DRIBBLE", "SHOT", "RESTART"}
+        on_ball_layers = [
+            layer for layer in layers
+            if on_ball_families.intersection(set(layer.get("action_family_candidates") or []))
+        ]
+        on_ball_family_layer_counts = {
+            family: int(action_family_layer_counts.get(family, 0))
+            for family in sorted(on_ball_families)
+            if action_family_layer_counts.get(family, 0)
+        }
+        on_ball_profile = {
+            "visible_on_ball_temporal_layer_n": len(on_ball_layers),
+            "visible_on_ball_family_layer_counts": on_ball_family_layer_counts,
+            "visible_on_ball_actor_candidate_n": len({
+                str(actor_id)
+                for layer in on_ball_layers
+                for actor_id in (layer.get("actor_identity_candidate_ids") or [])
+                if actor_id
+            }),
+            "eligible_family_basis": sorted(on_ball_families),
+            "same_timestamp_multi_family_is_not_multiple_touch_truth": True,
+            "temporal_layer_is_not_physical_touch": True,
+            "event_coordinate_is_not_ball_trajectory": True,
+            "absence_of_family_is_not_absence_of_physical_action": True,
+            "claim_ceiling": "VISIBLE_ON_BALL_EVENT_FAMILY_PROFILE_CANDIDATE_ONLY",
+        }
+
         signatures.append({
             "process_development_signature_id": "pds_" + hashlib.sha256(
                 "|".join([
@@ -1212,6 +1239,7 @@ def _construct_c03(
             "unique_actor_identity_candidate_ids": sorted(unique_actor_ids),
             "action_family_layer_counts": dict(sorted(action_family_layer_counts.items())),
             "pass_carry_layer_mix": pass_carry_mix,
+            "visible_on_ball_profile": on_ball_profile,
             "process_start_zone_candidates": start_zone_candidates,
             "process_end_zone_candidates": end_zone_candidates,
             "zone_layer_path_candidates": zone_layer_path_candidates,

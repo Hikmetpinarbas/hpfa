@@ -549,6 +549,10 @@ def test_c03_builds_partial_order_process_development_and_anchor_path_without_tr
     assert signature["pass_carry_layer_mix"]["pass_layer_n"] == 2
     assert signature["pass_carry_layer_mix"]["carry_layer_n"] == 1
     assert signature["pass_carry_layer_mix"]["physical_touch_count_truth"] is False
+    assert signature["visible_on_ball_profile"]["visible_on_ball_temporal_layer_n"] == 2
+    assert signature["visible_on_ball_profile"]["visible_on_ball_family_layer_counts"] == {"CARRY": 1, "PASS": 2}
+    assert signature["visible_on_ball_profile"]["temporal_layer_is_not_physical_touch"] is True
+    assert signature["visible_on_ball_profile"]["same_timestamp_multi_family_is_not_multiple_touch_truth"] is True
     assert signature["process_start_zone_candidates"] == ["MIDDLE_THIRD"]
     assert signature["process_end_zone_candidates"] == ["FINAL_THIRD"]
     assert signature["zone_layer_path_candidates"] == [["MIDDLE_THIRD"], ["FINAL_THIRD"]]
