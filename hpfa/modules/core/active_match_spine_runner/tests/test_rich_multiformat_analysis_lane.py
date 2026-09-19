@@ -827,3 +827,58 @@ def test_c03_variant_profiles_never_pool_opponent_teams() -> None:
     assert {row["team_identity_candidate_id"] for row in profiles} == {"A", "B"}
     assert all(row["eligible_process_n"] == 2 for row in profiles)
     assert all(row["cross_team_variant_pooling_allowed"] is False for row in profiles)
+
+
+def test_c03_preserves_full_occurrence_pool_across_multiple_processes():
+    process = {
+        "process_participation_candidates": [
+            {
+                "process_participation_candidate_id": "context_1",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "start_candidate": "10",
+                "end_candidate": "20",
+                "shot_present_annotation_candidate": False,
+            },
+            {
+                "process_participation_candidate_id": "context_2",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "team_identity_candidate_id": "team_b",
+                "period_candidate": "1",
+                "start_candidate": "30",
+                "end_candidate": "40",
+                "shot_present_annotation_candidate": False,
+            },
+        ]
+    }
+    occurrences = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "occ_a",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["15"],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_a"],
+                "supporting_spatial_transition_candidate_ids": [],
+            },
+            {
+                "action_occurrence_candidate_id": "occ_b",
+                "team_identity_candidate_ids": ["team_b"],
+                "period_candidates": ["1"],
+                "start_candidates": ["35"],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_b"],
+                "supporting_spatial_transition_candidate_ids": [],
+            },
+        ]
+    }
+    result = _construct_c03(process, occurrences, {"spatial_transition_candidates": []})
+    by_ref = {row["process_ref"]: row for row in result["signatures"]}
+    assert by_ref["context_1"]["visible_occurrence_n"] == 1
+    assert by_ref["context_2"]["visible_occurrence_n"] == 1
+    assert by_ref["context_1"]["visible_on_ball_profile"]["visible_on_ball_temporal_layer_n"] == 1
+    assert by_ref["context_2"]["visible_on_ball_profile"]["visible_on_ball_temporal_layer_n"] == 1

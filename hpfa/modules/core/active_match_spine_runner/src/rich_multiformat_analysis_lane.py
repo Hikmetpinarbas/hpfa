@@ -1224,11 +1224,11 @@ def _construct_c03(
             layer_pairs: set[tuple[str, str]] = set()
             layer_unresolved = False
             for occurrence_id in layer.get("occurrence_ids") or []:
-                occurrence_rows = [
+                matched_occurrence_rows = [
                     row for _, row in matched
                     if str(row.get("action_occurrence_candidate_id") or "") == str(occurrence_id)
                 ]
-                for occurrence_row in occurrence_rows:
+                for occurrence_row in matched_occurrence_rows:
                     actors = [str(value) for value in (occurrence_row.get("actor_identity_candidate_ids") or []) if value]
                     families = [str(value) for value in (occurrence_row.get("action_family_candidates") or []) if value and str(value) in on_ball_families]
                     if len(actors) == 1 and len(families) == 1:
