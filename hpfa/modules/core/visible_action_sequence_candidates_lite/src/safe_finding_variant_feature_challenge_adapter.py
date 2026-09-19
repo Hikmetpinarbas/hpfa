@@ -415,6 +415,14 @@ def apply_variant_feature_challenge_to_admission(
         reasons = set(_refs(row.get("decision_reasons")))
         if binding["episode_spread_observed"]:
             reasons.discard("EPISODE_SPREAD_UNKNOWN")
+            if _clean(row.get("episode_spread_state")).upper() == "UNKNOWN":
+                row["episode_spread_state"] = "OBSERVED_LATE_BOUND_VARIANT_FAMILY_SPREAD"
+                row["episode_spread_count"] = int(binding["episode_spread_max_visible_count"] or 0)
+                row["episode_spread_source"] = "OBSERVABLE_PROCESS_VARIANT_FAMILY_LINEAGE"
+                row["episode_spread_late_bound"] = True
+                row["episode_spread_can_increase_support"] = False
+                row["episode_spread_is_independent_support"] = False
+                row["episode_spread_is_recurrence_truth"] = False
         state = binding["state"]
         challenge_downgrade_reasons: list[str] = []
         if state == "UNAVAILABLE_REVIEW_REQUIRED":

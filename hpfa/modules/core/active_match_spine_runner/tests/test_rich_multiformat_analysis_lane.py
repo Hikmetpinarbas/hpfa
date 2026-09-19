@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _phase_state_candidates
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _phase_state_candidates, _football_ontology_contract
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -549,9 +549,29 @@ def test_c03_builds_partial_order_process_development_and_anchor_path_without_tr
     assert signature["pass_carry_layer_mix"]["pass_layer_n"] == 2
     assert signature["pass_carry_layer_mix"]["carry_layer_n"] == 1
     assert signature["pass_carry_layer_mix"]["physical_touch_count_truth"] is False
+    assert signature["visible_on_ball_profile"]["visible_on_ball_temporal_layer_n"] == 2
+    assert signature["visible_on_ball_profile"]["visible_on_ball_family_layer_counts"] == {"CARRY": 1, "PASS": 2}
+    assert signature["visible_on_ball_profile"]["temporal_layer_is_not_physical_touch"] is True
+    assert signature["visible_on_ball_profile"]["same_timestamp_multi_family_is_not_multiple_touch_truth"] is True
+    participation = signature["visible_on_ball_profile"]["actor_family_temporal_layer_participation_candidates"]
+    assert [(row["actor_identity_candidate_id"], row["action_family_candidate"], row["temporal_layer_n"]) for row in participation] == [
+        ("actor_1", "PASS", 1),
+        ("actor_2", "CARRY", 1),
+        ("actor_2", "PASS", 1),
+    ]
+    assert all(row["eligible_on_ball_temporal_layer_n"] == 2 for row in participation)
+    assert all(row["temporal_layer_share_candidate"] == 0.5 for row in participation)
+    assert all(row["causal_process_credit_truth"] is False for row in participation)
+    assert signature["visible_on_ball_profile"]["actor_family_unresolved_temporal_layer_n"] == 0
+    assert signature["visible_on_ball_profile"]["actor_family_participation_is_causal_process_credit"] is False
     assert signature["process_start_zone_candidates"] == ["MIDDLE_THIRD"]
     assert signature["process_end_zone_candidates"] == ["FINAL_THIRD"]
     assert signature["zone_layer_path_candidates"] == [["MIDDLE_THIRD"], ["FINAL_THIRD"]]
+    assert signature["visible_zone_transition_candidate_n"] == 1
+    assert signature["visible_zone_transition_candidates"][0]["from_zone_candidate"] == "MIDDLE_THIRD"
+    assert signature["visible_zone_transition_candidates"][0]["to_zone_candidate"] == "FINAL_THIRD"
+    assert signature["visible_zone_transition_candidates"][0]["progression_truth"] is False
+    assert signature["visible_zone_transition_candidates"][0]["line_break_truth"] is False
     assert signature["visible_terminal_annotation_candidate_present"] is True
     assert signature["process_morphology_basis"] == "ADMITTED_TEMPORAL_LAYER_SUMMARY_NOT_PHYSICAL_TRAJECTORY_OR_PHASE_TRUTH"
     assert signature["tracking_truth"] is False
@@ -729,3 +749,81 @@ def test_c04_is_projected_into_analyst_report_as_total_plus_composition_not_qual
     assert "C04_closed_composition_profile_count" in source
     assert "XLSX BILESIM ADAYI" in source
     assert "Toplam hacim ayri eksendir" in source
+
+
+def test_canonical_six_phase_ontology_separates_phase_from_evaluation() -> None:
+    contract = _football_ontology_contract()
+    assert contract["canonical_six_phases"] == [
+        "ESTABLISHED_ATTACK",
+        "ATTACKING_TRANSITION",
+        "ATTACKING_SET_PIECE",
+        "ESTABLISHED_DEFENCE",
+        "DEFENSIVE_TRANSITION",
+        "DEFENSIVE_SET_PIECE",
+    ]
+    assert contract["phase_is_evaluation"] is False
+    assert contract["phase_is_outcome"] is False
+    assert contract["success_failure_is_phase"] is False
+    assert contract["efficiency_inefficiency_is_phase"] is False
+    assert contract["set_piece_is_open_play_subtype"] is False
+    assert "OPPONENT" in contract["observation_dimensions"]
+    assert "TWO_TEAM_INTERACTION" in contract["scale_axis"]
+    donor = contract["external_donor_adaptation_contract"]
+    assert donor["provider_normalization"]["normalize_at_boundary_not_inside_constructs"] is True
+    assert donor["provider_normalization"]["coordinate_system_requires_explicit_admission"] is True
+    assert donor["action_state_consequence"]["action_value_model_is_not_observation_truth"] is True
+    assert donor["tracking_boundary"]["event_coordinate_is_not_tracking"] is True
+    assert donor["tracking_boundary"]["pitch_control_requires_tracking_or_equivalent_spatiotemporal_observation"] is True
+
+
+def test_activity_state_candidates_do_not_claim_phase_admission() -> None:
+    payload = {"episode_feature_vectors": [{"shot_candidate_count": 1, "action_family_counts": {"PASS": 2}}]}
+    candidate = _phase_state_candidates(payload)[0]
+    assert candidate["activity_labels_are_phase_labels"] is False
+    assert candidate["phase_admission_status"] == "NOT_EVALUATED"
+    assert candidate["phase_truth"] is False
+
+
+
+def test_c03_variant_profiles_never_pool_opponent_teams() -> None:
+    from hpfa.modules.core.active_match_spine_runner.src.rich_multiformat_analysis_lane import _construct_c03
+
+    processes = []
+    occurrences = []
+    for team, base in (("A", 10.0), ("B", 30.0)):
+        for suffix, shot, offset in (("shot", True, 0.0), ("no", False, 10.0)):
+            pid = f"{team}_{suffix}"
+            start = base + offset
+            processes.append({
+                "process_participation_candidate_id": pid,
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "BUILD_UP",
+                "team_identity_candidate_id": team,
+                "period_candidate": "1",
+                "start_candidate": start,
+                "end_candidate": start + 5.0,
+                "shot_present_annotation_candidate": shot,
+            })
+            occurrences.append({
+                "action_occurrence_candidate_id": "occ_" + pid,
+                "team_identity_candidate_ids": [team],
+                "period_candidates": ["1"],
+                "start_candidates": [start + 1.0],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_" + team],
+                "transition_class_candidates": [],
+                "provider_outcome_candidates": [],
+                "primary_consequence_candidates": [],
+                "supporting_spatial_transition_candidate_ids": [],
+            })
+
+    result = _construct_c03(
+        {"process_participation_candidates": processes},
+        {"occurrence_state_transition_projections": occurrences},
+        {"spatial_transition_candidates": []},
+    )
+    profiles = result["variant_context_profiles"]
+    assert len(profiles) == 2
+    assert {row["team_identity_candidate_id"] for row in profiles} == {"A", "B"}
+    assert all(row["eligible_process_n"] == 2 for row in profiles)
+    assert all(row["cross_team_variant_pooling_allowed"] is False for row in profiles)

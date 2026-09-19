@@ -151,6 +151,138 @@ def _primitive_metrics(features: dict[str, Any], entity_views: dict[str, Any]) -
     return values
 
 
+CANONICAL_SIX_PHASES = (
+    "ESTABLISHED_ATTACK",
+    "ATTACKING_TRANSITION",
+    "ATTACKING_SET_PIECE",
+    "ESTABLISHED_DEFENCE",
+    "DEFENSIVE_TRANSITION",
+    "DEFENSIVE_SET_PIECE",
+)
+
+
+def _football_ontology_contract() -> dict[str, Any]:
+    return {
+        "canonical_six_phases": list(CANONICAL_SIX_PHASES),
+        "phase_is_evaluation": False,
+        "phase_is_outcome": False,
+        "success_failure_is_phase": False,
+        "efficiency_inefficiency_is_phase": False,
+        "set_piece_is_open_play_subtype": False,
+        "attacking_set_piece_reciprocal_phase": "DEFENSIVE_SET_PIECE",
+        "defensive_set_piece_reciprocal_phase": "ATTACKING_SET_PIECE",
+        "observation_dimensions": [
+            "ACTOR", "ACTION", "TIME", "SPACE", "ZONE", "ROLE", "RELATION",
+            "TEAM", "OPPONENT", "PROCESS", "PHASE", "CONSEQUENCE", "CONTEXT",
+        ],
+        "scale_axis": [
+            "ACTION", "INDIVIDUAL", "DYAD_TRIAD", "FUNCTIONAL_GROUP",
+            "TEAM", "TWO_TEAM_INTERACTION", "MATCH",
+        ],
+        "evaluation_dimensions": [
+            "OUTCOME", "SUCCESS_FAILURE", "EFFICIENCY_INEFFICIENCY",
+            "RECURRENCE", "VARIATION", "DEVIATION",
+        ],
+        "restart_phase_contract": {
+            "restart_types": [
+                "CORNER_KICK", "FREE_KICK", "THROW_IN", "PENALTY_KICK",
+                "GOAL_KICK", "KICK_OFF", "OTHER_RESTART",
+            ],
+            "attacking_phase": "ATTACKING_SET_PIECE",
+            "defending_phase": "DEFENSIVE_SET_PIECE",
+            "restart_event_is_not_phase": True,
+            "restart_type_is_not_routine_truth": True,
+            "delivery_is_not_full_set_piece_process": True,
+            "set_piece_process_requires_visible_continuation": True,
+            "second_action_requires_observed_followup": True,
+            "routine_design_requires_tracking_or_video": True,
+            "marking_scheme_requires_tracking_or_video": True,
+            "off_ball_movement_requires_tracking_or_video": True,
+        },
+        "role_contract": {
+            "provider_position_is_not_functional_role_truth": True,
+            "functional_role_requires_observed_task_distribution": True,
+            "functional_role_is_match_contextual": True,
+            "role_label_is_not_coach_intention": True,
+            "event_only_role_evidence_dimensions": [
+                "ACTION_FAMILY_DISTRIBUTION",
+                "ZONE_DISTRIBUTION",
+                "PROCESS_PARTICIPATION",
+                "RELATION_PARTICIPATION",
+                "TEAM_SHARE_CONTEXT",
+            ],
+            "single_match_role_output": "FUNCTIONAL_ROLE_CANDIDATE_ONLY",
+            "season_role_classifier_truth": False,
+        },
+        "opponent_interaction_contract": {
+            "same_time_counterpart_is_not_reaction_truth": True,
+            "reaction_requires_admitted_order_or_visible_consequence_chain": True,
+            "team_a_action_should_be_read_against_team_b_response_when_observable": True,
+            "reciprocal_phase_pairing_required": True,
+            "interaction_chain": [
+                "TEAM_A_ACTION",
+                "TEAM_B_VISIBLE_RESPONSE",
+                "TEAM_A_COUNTER_RESPONSE_IF_OBSERVED",
+                "VISIBLE_CONSEQUENCE",
+            ],
+            "no_visible_response_is_not_no_response_truth": True,
+        },
+        "external_donor_adaptation_contract": {
+            "provider_normalization": {
+                "reference_projects": ["PySport/kloppy", "ML-KULeuven/socceraction"],
+                "provider_schema_is_not_canonical_football_truth": True,
+                "normalize_at_boundary_not_inside_constructs": True,
+                "coordinate_system_requires_explicit_admission": True,
+                "orientation_requires_explicit_admission": True,
+                "provider_event_type_requires_semantic_mapping": True,
+            },
+            "action_state_consequence": {
+                "reference_projects": ["ML-KULeuven/socceraction", "statsbomb/open-data"],
+                "action_value_model_is_not_observation_truth": True,
+                "model_output_requires_model_source_version": True,
+                "state_transition_requires_admitted_action_identity": True,
+                "visible_consequence_preferred_over_inferred_intention": True,
+            },
+            "tracking_boundary": {
+                "reference_projects": ["metrica-sports/sample-data", "SkillCorner/opendata", "Friends-of-Tracking-Data-FoTD/LaurieOnTracking"],
+                "tracking_is_optional_not_required_dependency": True,
+                "event_coordinate_is_not_tracking": True,
+                "pitch_control_requires_tracking_or_equivalent_spatiotemporal_observation": True,
+                "velocity_acceleration_requires_tracking_or_equivalent_spatiotemporal_observation": True,
+                "team_shape_compactness_requires_tracking_or_video": True,
+            },
+            "adoption_policy": "ADAPT_IDEA_NOT_CODE_UNLESS_LICENSE_AND_PRODUCT_GAP_ARE_EXPLICITLY_ADMITTED",
+        },
+        "metric_argument_contract": {
+            "opaque_single_score_allowed": False,
+            "construct_axes_remain_separate": True,
+            "eligible_denominator_required_for_rate_claim": True,
+            "aggregate_decomposition_is_not_independent_support": True,
+            "micro_macro_reconciliation_requires_estimand_alignment": True,
+            "progression_argument_axes": [
+                "VOLUME",
+                "EXECUTION",
+                "SPATIAL_ROUTE",
+                "SEQUENCE_CONTINUATION",
+                "VISIBLE_CONSEQUENCE",
+                "REPEATABILITY",
+                "OPPONENT_RESPONSE",
+                "FAILURE_COST",
+            ],
+            "context_ratios_are_not_conditional_conversion_without_sequence_identity": True,
+        },
+        "truth_locks": [
+            "ACTIVITY_LABEL_IS_NOT_PHASE_TRUTH",
+            "PHASE_IS_NOT_SUCCESS_FAILURE",
+            "PHASE_IS_NOT_EFFICIENCY",
+            "POSITION_IS_NOT_OBSERVED_FUNCTIONAL_ROLE",
+            "SAME_TIMESTAMP_IS_NOT_REACTION_ORDER",
+            "COORDINATE_IS_NOT_TRACKING",
+        ],
+        "claim_ceiling": "ONTOLOGY_CONTRACT_ONLY_PHASE_REQUIRES_SEPARATE_ADMISSION",
+    }
+
+
 def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     cards = features.get("episode_feature_vectors") or []
@@ -190,6 +322,8 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
                 "final_third_action_candidate_count": final_third,
                 "pass_candidate_count": passes,
             },
+            "activity_labels_are_phase_labels": False,
+            "phase_admission_status": "NOT_EVALUATED",
             "phase_truth": False,
             "possession_truth": False,
             "tactical_truth": False,
@@ -1043,6 +1177,24 @@ def _construct_c03(
             )
         start_zone_candidates = zone_layer_path_candidates[0] if zone_layer_path_candidates else []
         end_zone_candidates = zone_layer_path_candidates[-1] if zone_layer_path_candidates else []
+        zone_transition_candidates = []
+        for left_layer, right_layer in zip(layers, layers[1:]):
+            left_zones = [str(v) for v in (left_layer.get("provider_zone_candidates") or []) if v]
+            right_zones = [str(v) for v in (right_layer.get("provider_zone_candidates") or []) if v]
+            if len(left_zones) != 1 or len(right_zones) != 1:
+                continue
+            if left_zones[0] == right_zones[0]:
+                continue
+            zone_transition_candidates.append({
+                "from_zone_candidate": left_zones[0],
+                "to_zone_candidate": right_zones[0],
+                "from_timestamp_candidate": left_layer.get("timestamp_candidate"),
+                "to_timestamp_candidate": right_layer.get("timestamp_candidate"),
+                "ordering_basis": "STRICTLY_ORDERED_TEMPORAL_LAYERS",
+                "progression_truth": False,
+                "line_break_truth": False,
+                "physical_ball_path_truth": False,
+            })
         pass_layer_n = int(action_family_layer_counts.get("PASS", 0))
         carry_layer_n = int(action_family_layer_counts.get("CARRY", 0))
         pass_carry_total = pass_layer_n + carry_layer_n
@@ -1054,6 +1206,70 @@ def _construct_c03(
             "carry_share_candidate": (carry_layer_n / pass_carry_total) if pass_carry_total else None,
             "denominator_basis": "ACTION_FAMILY_PRESENCE_PER_TEMPORAL_LAYER",
             "physical_touch_count_truth": False,
+        }
+
+        on_ball_families = {"PASS", "CARRY", "DRIBBLE", "SHOT", "RESTART"}
+        on_ball_layers = [
+            layer for layer in layers
+            if on_ball_families.intersection(set(layer.get("action_family_candidates") or []))
+        ]
+        on_ball_family_layer_counts = {
+            family: int(action_family_layer_counts.get(family, 0))
+            for family in sorted(on_ball_families)
+            if action_family_layer_counts.get(family, 0)
+        }
+        actor_family_layer_counts: Counter[tuple[str, str]] = Counter()
+        unresolved_actor_family_layer_n = 0
+        for layer in on_ball_layers:
+            layer_pairs: set[tuple[str, str]] = set()
+            layer_unresolved = False
+            for occurrence_id in layer.get("occurrence_ids") or []:
+                occurrence_rows = [
+                    row for _, row in matched
+                    if str(row.get("action_occurrence_candidate_id") or "") == str(occurrence_id)
+                ]
+                for occurrence_row in occurrence_rows:
+                    actors = [str(value) for value in (occurrence_row.get("actor_identity_candidate_ids") or []) if value]
+                    families = [str(value) for value in (occurrence_row.get("action_family_candidates") or []) if value and str(value) in on_ball_families]
+                    if len(actors) == 1 and len(families) == 1:
+                        layer_pairs.add((actors[0], families[0]))
+                    elif actors or families:
+                        layer_unresolved = True
+            for pair in layer_pairs:
+                actor_family_layer_counts[pair] += 1
+            if layer_unresolved:
+                unresolved_actor_family_layer_n += 1
+
+        on_ball_profile = {
+            "visible_on_ball_temporal_layer_n": len(on_ball_layers),
+            "visible_on_ball_family_layer_counts": on_ball_family_layer_counts,
+            "visible_on_ball_actor_candidate_n": len({
+                str(actor_id)
+                for layer in on_ball_layers
+                for actor_id in (layer.get("actor_identity_candidate_ids") or [])
+                if actor_id
+            }),
+            "actor_family_temporal_layer_participation_candidates": [
+                {
+                    "actor_identity_candidate_id": actor_id,
+                    "action_family_candidate": family,
+                    "temporal_layer_n": count,
+                    "eligible_on_ball_temporal_layer_n": len(on_ball_layers),
+                    "temporal_layer_share_candidate": (count / len(on_ball_layers)) if on_ball_layers else None,
+                    "causal_process_credit_truth": False,
+                    "physical_touch_count_truth": False,
+                }
+                for (actor_id, family), count in sorted(actor_family_layer_counts.items())
+            ],
+            "actor_family_unresolved_temporal_layer_n": unresolved_actor_family_layer_n,
+            "actor_family_binding_basis": "UNAMBIGUOUS_OCCURRENCE_LEVEL_ACTOR_AND_ON_BALL_FAMILY_WITH_TEMPORAL_LAYER_DEDUP",
+            "actor_family_participation_is_causal_process_credit": False,
+            "eligible_family_basis": sorted(on_ball_families),
+            "same_timestamp_multi_family_is_not_multiple_touch_truth": True,
+            "temporal_layer_is_not_physical_touch": True,
+            "event_coordinate_is_not_ball_trajectory": True,
+            "absence_of_family_is_not_absence_of_physical_action": True,
+            "claim_ceiling": "VISIBLE_ON_BALL_EVENT_FAMILY_PROFILE_CANDIDATE_ONLY",
         }
 
         signatures.append({
@@ -1078,9 +1294,14 @@ def _construct_c03(
             "unique_actor_identity_candidate_ids": sorted(unique_actor_ids),
             "action_family_layer_counts": dict(sorted(action_family_layer_counts.items())),
             "pass_carry_layer_mix": pass_carry_mix,
+            "visible_on_ball_profile": on_ball_profile,
             "process_start_zone_candidates": start_zone_candidates,
             "process_end_zone_candidates": end_zone_candidates,
             "zone_layer_path_candidates": zone_layer_path_candidates,
+            "visible_zone_transition_candidate_n": len(zone_transition_candidates),
+            "visible_zone_transition_candidates": zone_transition_candidates,
+            "zone_transition_is_progression_truth": False,
+            "zone_transition_is_line_break_truth": False,
             "transition_class_candidates_observed": sorted(transition_classes),
             "provider_outcome_candidates_observed": sorted(provider_outcomes),
             "primary_consequence_candidates_observed": sorted(primary_consequences),
@@ -1119,11 +1340,147 @@ def _construct_c03(
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DEVELOPMENT_SIGNATURE_CANDIDATE_ONLY",
         })
 
+    team_process_profiles: list[dict[str, Any]] = []
+    by_team_family: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for signature in signatures:
+        team_id = str(signature.get("team_identity_candidate_id") or "")
+        family_id = str(signature.get("process_family_candidate") or "UNKNOWN")
+        if team_id:
+            by_team_family[(team_id, family_id)].append(signature)
+
+    for (team_id, family_id), team_rows in sorted(by_team_family.items()):
+        shot_n = sum(row.get("shot_present_annotation_candidate") is True for row in team_rows)
+        loss_n = sum(bool(row.get("visible_loss_transition_candidate_present")) for row in team_rows)
+        recovery_n = sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in team_rows)
+        actor_values = [
+            int(row.get("unique_actor_candidate_n") or 0)
+            for row in team_rows
+            if row.get("unique_actor_candidate_n") is not None
+        ]
+        layer_values = [
+            int(row.get("temporal_layer_n") or 0)
+            for row in team_rows
+            if row.get("temporal_layer_n") is not None
+        ]
+        team_process_profiles.append({
+            "team_identity_candidate_id": team_id,
+            "process_family_candidate": family_id,
+            "eligible_process_n": len(team_rows),
+            "shot_ending_process_n": shot_n,
+            "shot_ending_share_candidate": shot_n / len(team_rows),
+            "visible_loss_process_n": loss_n,
+            "visible_loss_share_candidate": loss_n / len(team_rows),
+            "visible_recovery_process_n": recovery_n,
+            "visible_recovery_share_candidate": recovery_n / len(team_rows),
+            "mean_actor_spread_candidate": (sum(actor_values) / len(actor_values)) if actor_values else None,
+            "mean_temporal_layer_n": (sum(layer_values) / len(layer_values)) if layer_values else None,
+            "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
+            "profile_is_team_quality_truth": False,
+            "profile_is_opponent_response_truth": False,
+            "profile_is_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_TEAM_PROCESS_PROFILE_CANDIDATE_ONLY",
+        })
+
+    team_ids = sorted({str(row.get("team_identity_candidate_id") or "") for row in signatures if row.get("team_identity_candidate_id")})
+    reciprocal_team_process_comparisons: list[dict[str, Any]] = []
+    if len(team_ids) == 2:
+        team_a, team_b = team_ids
+        families = sorted({str(row.get("process_family_candidate") or "UNKNOWN") for row in signatures})
+        profile_index = {
+            (row["team_identity_candidate_id"], row["process_family_candidate"]): row
+            for row in team_process_profiles
+        }
+        for family_id in families:
+            a = profile_index.get((team_a, family_id))
+            b = profile_index.get((team_b, family_id))
+            if not a or not b:
+                continue
+            reciprocal_team_process_comparisons.append({
+                "process_family_candidate": family_id,
+                "team_a_identity_candidate_id": team_a,
+                "team_b_identity_candidate_id": team_b,
+                "team_a_profile": a,
+                "team_b_profile": b,
+                "comparison_basis": "SAME_MATCH_SAME_PROCESS_FAMILY_DESCRIPTIVE_PROFILE",
+                "difference_is_opponent_response_truth": False,
+                "difference_is_tactical_superiority_truth": False,
+                "difference_is_causal_truth": False,
+                "independent_support_created": False,
+                "claim_ceiling": "MATCH_LOCAL_RECIPROCAL_TEAM_PROCESS_COMPARISON_CANDIDATE_ONLY",
+            })
+
+    variant_context_profiles: list[dict[str, Any]] = []
+    by_team_family_variant: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for signature in signatures:
+        team_id = str(signature.get("team_identity_candidate_id") or "")
+        family_id = str(signature.get("process_family_candidate") or "UNKNOWN")
+        if team_id:
+            by_team_family_variant[(team_id, family_id)].append(signature)
+
+    for (team_id, family_id), family_rows in sorted(by_team_family_variant.items()):
+        shot_rows = [row for row in family_rows if row.get("shot_present_annotation_candidate") is True]
+        non_shot_rows = [row for row in family_rows if row.get("shot_present_annotation_candidate") is not True]
+        if not shot_rows or not non_shot_rows:
+            continue
+
+        def _mean(rows: list[dict[str, Any]], key: str) -> float | None:
+            values = [_as_number(row.get(key)) for row in rows]
+            observed = [value for value in values if value is not None]
+            return (sum(observed) / len(observed)) if observed else None
+
+        def _mix_mean(rows: list[dict[str, Any]], key: str) -> float | None:
+            values = [_as_number((row.get("pass_carry_layer_mix") or {}).get(key)) for row in rows]
+            observed = [value for value in values if value is not None]
+            return (sum(observed) / len(observed)) if observed else None
+
+        shot_n, non_shot_n = len(shot_rows), len(non_shot_rows)
+        variant_context_profiles.append({
+            "team_identity_candidate_id": team_id,
+            "process_family_candidate": family_id,
+            "shot_ending_process_n": shot_n,
+            "non_shot_process_n": non_shot_n,
+            "eligible_process_n": len(family_rows),
+            "shot_ending_share_candidate": shot_n / len(family_rows),
+            "shot_ending_mean_duration_candidate": _mean(shot_rows, "process_interval_duration_candidate"),
+            "non_shot_mean_duration_candidate": _mean(non_shot_rows, "process_interval_duration_candidate"),
+            "shot_ending_mean_actor_spread_candidate": _mean(shot_rows, "unique_actor_candidate_n"),
+            "non_shot_mean_actor_spread_candidate": _mean(non_shot_rows, "unique_actor_candidate_n"),
+            "shot_ending_mean_temporal_layer_n": _mean(shot_rows, "temporal_layer_n"),
+            "non_shot_mean_temporal_layer_n": _mean(non_shot_rows, "temporal_layer_n"),
+            "shot_ending_mean_pass_share_candidate": _mix_mean(shot_rows, "pass_share_candidate"),
+            "non_shot_mean_pass_share_candidate": _mix_mean(non_shot_rows, "pass_share_candidate"),
+            "shot_ending_mean_carry_share_candidate": _mix_mean(shot_rows, "carry_share_candidate"),
+            "non_shot_mean_carry_share_candidate": _mix_mean(non_shot_rows, "carry_share_candidate"),
+            "shot_ending_visible_loss_n": sum(bool(row.get("visible_loss_transition_candidate_present")) for row in shot_rows),
+            "non_shot_visible_loss_n": sum(bool(row.get("visible_loss_transition_candidate_present")) for row in non_shot_rows),
+            "shot_ending_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in shot_rows),
+            "non_shot_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in non_shot_rows),
+            "comparison_basis": "SAME_TEAM_SAME_PROCESS_FAMILY_SHOT_ENDING_VS_NON_SHOT_VISIBLE_VARIANTS",
+            "cross_team_variant_pooling_allowed": False,
+            "comparison_is_descriptive_not_causal": True,
+            "shot_ending_is_success_truth": False,
+            "non_shot_is_failure_truth": False,
+            "difference_is_tactical_mechanism_truth": False,
+            "independent_support_created": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_VARIANT_CONTEXT_DESCRIPTION_ONLY",
+        })
+
     return {
         "construct_id": "C03_PROCESS_DEVELOPMENT_SIGNATURE",
         "status": "REVIEW_REQUIRED" if signatures else "NOT_APPLICABLE",
         "signature_count": len(signatures),
         "signatures": signatures,
+        "team_process_profile_count": len(team_process_profiles),
+        "team_process_profiles": team_process_profiles,
+        "reciprocal_team_process_comparison_count": len(reciprocal_team_process_comparisons),
+        "reciprocal_team_process_comparisons": reciprocal_team_process_comparisons,
+        "team_process_profiles_create_independent_support": False,
+        "reciprocal_team_process_comparison_is_opponent_response_truth": False,
+        "variant_context_profile_count": len(variant_context_profiles),
+        "variant_context_profiles": variant_context_profiles,
+        "variant_context_comparison_creates_independent_support": False,
+        "variant_context_shot_ending_is_success_truth": False,
+        "variant_context_non_shot_is_failure_truth": False,
         "unit_of_analysis": "ADMITTED_PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
@@ -1387,6 +1744,7 @@ def run_rich_lane(
         "xlsx_surface_audit": xlsx_audit,
         "xlsx_entity_metric_projection": projection,
         "primitive_metrics": primitives,
+        "football_ontology_contract": _football_ontology_contract(),
         "constructs": {"C01": c01, "C02": c02, "C03": c03, "C04": c04},
         "phase_state_candidates": phase_states,
         "analysis_lattice": {

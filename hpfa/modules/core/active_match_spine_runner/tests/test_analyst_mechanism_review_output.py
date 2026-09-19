@@ -367,3 +367,5 @@ def test_bound_aware_story_review_is_runtime_visible_without_probability_promoti
     assert "story_selection_is_truth_ranking=false" in text
     assert "story_selection_is_confidence_score=false" in text
     assert "story_selection_can_authorize_emit=false" in text
+    assert "story_detail_render_count=1 source_candidate_count=1" in text
+    assert "story_detail_render_scope=SHORTLIST_ONLY_ATTENTION_COMPRESSION_NOT_EVIDENCE_REMOVAL" in text
