@@ -1141,8 +1141,14 @@ def _construct_c03(
             return (sum(observed) / len(observed)) if observed else None
 
         shot_n, non_shot_n = len(shot_rows), len(non_shot_rows)
+        team_ids = sorted({
+            str(row.get("team_identity_candidate_id") or "")
+            for row in family_rows
+            if row.get("team_identity_candidate_id")
+        })
         variant_context_profiles.append({
             "process_family_candidate": family_id,
+            "team_identity_candidate_ids": team_ids,
             "shot_ending_process_n": shot_n,
             "non_shot_process_n": non_shot_n,
             "eligible_process_n": len(family_rows),
