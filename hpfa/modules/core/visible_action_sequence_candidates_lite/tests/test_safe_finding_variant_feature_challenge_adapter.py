@@ -62,6 +62,8 @@ def _process_variant() -> dict:
                 "observable_process_variant_family_id": "family_1",
                 "visible_episode_spread_count": 2,
                 "visible_episode_spread_state": "MULTIPLE_VISIBLE_EPISODE_CANDIDATES",
+                "occurrence_disjoint_support_cluster_count": 2,
+                "occurrence_disjoint_support_cluster_state": "MULTIPLE_OCCURRENCE_DISJOINT_SUPPORT_CLUSTERS_VISIBLE",
                 "success_visible_episode_spread_count": 1,
                 "failure_visible_episode_spread_count": 1,
                 "member_records": [
@@ -143,6 +145,11 @@ def test_late_bound_episode_spread_resolves_stale_unknown_without_support_inflat
     assert row["episode_spread_can_increase_support"] is False
     assert row["episode_spread_is_independent_support"] is False
     assert row["episode_spread_is_recurrence_truth"] is False
+    assert row["variant_support_spread_separation_state"] == (
+        "MULTI_EPISODE_OCCURRENCE_DISJOINT_SEPARATION_VISIBLE_INDEPENDENCE_UNPROVEN"
+    )
+    assert row["variant_support_spread_is_independent_support"] is False
+    assert row["variant_support_spread_is_recurrence_truth"] is False
     assert row["admitted_independent_support_count"] == 2
     assert "EPISODE_SPREAD_UNKNOWN" not in row["decision_reasons"]
     assert row["decision"] == "DOWNGRADE"

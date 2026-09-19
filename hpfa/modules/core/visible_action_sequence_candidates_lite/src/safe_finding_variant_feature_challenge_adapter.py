@@ -202,6 +202,7 @@ def _binding_for_handoff(
         "episode_spread_observed": False,
         "episode_spread_max_visible_count": 0,
         "episode_spread_resolution_state": "UNRESOLVED",
+        "support_spread_separation_state": "UNRESOLVED",
         "support_spread_is_independent_support": False,
         "support_spread_is_recurrence_truth": False,
     }
@@ -240,6 +241,20 @@ def _binding_for_handoff(
         for profile in spread_profiles
     )
     episode_summary = _episode_spread_summary(spread_profiles)
+    if multi_cluster_visible and multi_episode_visible:
+        support_spread_separation_state = (
+            "MULTI_EPISODE_OCCURRENCE_DISJOINT_SEPARATION_VISIBLE_INDEPENDENCE_UNPROVEN"
+        )
+    elif multi_cluster_visible:
+        support_spread_separation_state = (
+            "MULTI_OCCURRENCE_DISJOINT_SEPARATION_VISIBLE_EPISODE_SPREAD_NOT_ESTABLISHED"
+        )
+    elif multi_episode_visible:
+        support_spread_separation_state = (
+            "MULTI_EPISODE_SPREAD_VISIBLE_OCCURRENCE_SEPARATION_NOT_ESTABLISHED"
+        )
+    else:
+        support_spread_separation_state = "NO_MULTI_SURFACE_SEPARATION_VISIBLE"
 
     rows_by_family: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in challenge_payload.get("variant_feature_challenge_records") or []:
@@ -261,6 +276,7 @@ def _binding_for_handoff(
             "episode_spread_observed": episode_summary["observed"],
             "episode_spread_max_visible_count": episode_summary["max_visible_episode_spread_count"],
             "episode_spread_resolution_state": episode_summary["resolution_state"],
+            "support_spread_separation_state": support_spread_separation_state,
         }
 
     challenge_refs = sorted(
@@ -317,6 +333,7 @@ def _binding_for_handoff(
         "episode_spread_observed": episode_summary["observed"],
         "episode_spread_max_visible_count": episode_summary["max_visible_episode_spread_count"],
         "episode_spread_resolution_state": episode_summary["resolution_state"],
+        "support_spread_separation_state": support_spread_separation_state,
         "support_spread_is_independent_support": False,
         "support_spread_is_recurrence_truth": False,
     }
@@ -403,6 +420,9 @@ def apply_variant_feature_challenge_to_admission(
         )
         row["variant_support_episode_spread_resolution_state"] = _clean(
             binding["episode_spread_resolution_state"]
+        ) or "UNRESOLVED"
+        row["variant_support_spread_separation_state"] = _clean(
+            binding["support_spread_separation_state"]
         ) or "UNRESOLVED"
         row["variant_support_episode_spread_resolves_upstream_unknown"] = bool(
             binding["episode_spread_observed"]
