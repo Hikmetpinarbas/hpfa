@@ -1060,6 +1060,7 @@ def _construct_c03(
             anchor_pairs: set[tuple[float, float]] = set()
             spatial_ids: set[str] = set()
             zones: set[str] = set()
+            coordinate_zones: set[str] = set()
             for occurrence in rows:
                 for sid in occurrence.get("supporting_spatial_transition_candidate_ids") or []:
                     sid_text = str(sid)
@@ -1068,6 +1069,9 @@ def _construct_c03(
                         continue
                     spatial_ids.add(sid_text)
                     zones.update(str(v) for v in (spatial.get("provider_zone_candidates") or []) if v)
+                    coordinate_zone = str(spatial.get("coordinate_derived_zone_candidate") or "")
+                    if coordinate_zone.endswith("_LOCATION_CANDIDATE"):
+                        coordinate_zones.add(coordinate_zone.removesuffix("_LOCATION_CANDIDATE"))
                     if not spatial.get("occurrence_annotation_anchor_location_admitted"):
                         continue
                     x = _as_number(spatial.get("provider_coordinate_anchor_x_candidate"))
@@ -1111,6 +1115,14 @@ def _construct_c03(
                     if value
                 }),
                 "provider_zone_candidates": sorted(zones),
+                "coordinate_derived_zone_candidates": sorted(coordinate_zones),
+                "zone_context_candidates": sorted(zones) if zones else sorted(coordinate_zones),
+                "zone_context_basis": (
+                    "PROVIDER_ZONE_SEMANTIC"
+                    if zones
+                    else ("ADMITTED_COORDINATE_DERIVED_COARSE_ZONE" if coordinate_zones else "UNRESOLVED")
+                ),
+                "coordinate_derived_zone_is_tracking_truth": False,
                 "supporting_spatial_transition_candidate_ids": sorted(spatial_ids),
                 "admitted_annotation_anchor_candidates": [
                     {"x": x, "y": y} for x, y in sorted(anchor_pairs)
@@ -1164,7 +1176,7 @@ def _construct_c03(
                 action_family_layer_counts[str(family_value)] += 1
             unique_actor_ids.update(str(value) for value in (layer.get("actor_identity_candidate_ids") or []) if value)
             zone_layer_path_candidates.append([
-                str(value) for value in (layer.get("provider_zone_candidates") or []) if value
+                str(value) for value in (layer.get("zone_context_candidates") or []) if value
             ])
             transition_classes.update(
                 str(value) for value in (layer.get("transition_class_candidates") or []) if value
@@ -1179,8 +1191,8 @@ def _construct_c03(
         end_zone_candidates = zone_layer_path_candidates[-1] if zone_layer_path_candidates else []
         zone_transition_candidates = []
         for left_layer, right_layer in zip(layers, layers[1:]):
-            left_zones = [str(v) for v in (left_layer.get("provider_zone_candidates") or []) if v]
-            right_zones = [str(v) for v in (right_layer.get("provider_zone_candidates") or []) if v]
+            left_zones = [str(v) for v in (left_layer.get("zone_context_candidates") or []) if v]
+            right_zones = [str(v) for v in (right_layer.get("zone_context_candidates") or []) if v]
             if len(left_zones) != 1 or len(right_zones) != 1:
                 continue
             if left_zones[0] == right_zones[0]:
