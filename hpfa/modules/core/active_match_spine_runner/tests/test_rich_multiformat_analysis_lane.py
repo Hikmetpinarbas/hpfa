@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _snapshot
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -759,3 +759,14 @@ def test_entity_views_infers_goalkeeper_from_schema_not_filename_or_person_name(
     assert len(views["player_view_candidates"]) == 1
     assert views["goalkeeper_view_candidates"][0]["entity_role_candidate"] == "GOALKEEPER"
     assert views["player_view_candidates"][0]["entity_role_candidate"] == "PLAYER"
+
+
+def test_rich_lane_snapshot_uses_canonical_shared_surface_contract(tmp_path):
+    from hpfa.modules.core.active_match_spine_runner.src.shared_surface_snapshot_contract import surface_snapshot_id
+
+    (tmp_path / "surface.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (nested / "surface.xml").write_text("<x>1</x>", encoding="utf-8")
+
+    assert _snapshot(tmp_path) == surface_snapshot_id(tmp_path)
