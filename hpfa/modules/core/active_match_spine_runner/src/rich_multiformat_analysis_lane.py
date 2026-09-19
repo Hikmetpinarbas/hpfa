@@ -1119,11 +1119,66 @@ def _construct_c03(
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DEVELOPMENT_SIGNATURE_CANDIDATE_ONLY",
         })
 
+    variant_context_profiles: list[dict[str, Any]] = []
+    by_family: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for signature in signatures:
+        by_family[str(signature.get("process_family_candidate") or "UNKNOWN")].append(signature)
+
+    for family_id, family_rows in sorted(by_family.items()):
+        shot_rows = [row for row in family_rows if row.get("shot_present_annotation_candidate") is True]
+        non_shot_rows = [row for row in family_rows if row.get("shot_present_annotation_candidate") is not True]
+        if not shot_rows or not non_shot_rows:
+            continue
+
+        def _mean(rows: list[dict[str, Any]], key: str) -> float | None:
+            values = [_as_number(row.get(key)) for row in rows]
+            observed = [value for value in values if value is not None]
+            return (sum(observed) / len(observed)) if observed else None
+
+        def _mix_mean(rows: list[dict[str, Any]], key: str) -> float | None:
+            values = [_as_number((row.get("pass_carry_layer_mix") or {}).get(key)) for row in rows]
+            observed = [value for value in values if value is not None]
+            return (sum(observed) / len(observed)) if observed else None
+
+        shot_n, non_shot_n = len(shot_rows), len(non_shot_rows)
+        variant_context_profiles.append({
+            "process_family_candidate": family_id,
+            "shot_ending_process_n": shot_n,
+            "non_shot_process_n": non_shot_n,
+            "eligible_process_n": len(family_rows),
+            "shot_ending_share_candidate": shot_n / len(family_rows),
+            "shot_ending_mean_duration_candidate": _mean(shot_rows, "process_interval_duration_candidate"),
+            "non_shot_mean_duration_candidate": _mean(non_shot_rows, "process_interval_duration_candidate"),
+            "shot_ending_mean_actor_spread_candidate": _mean(shot_rows, "unique_actor_candidate_n"),
+            "non_shot_mean_actor_spread_candidate": _mean(non_shot_rows, "unique_actor_candidate_n"),
+            "shot_ending_mean_temporal_layer_n": _mean(shot_rows, "temporal_layer_n"),
+            "non_shot_mean_temporal_layer_n": _mean(non_shot_rows, "temporal_layer_n"),
+            "shot_ending_mean_pass_share_candidate": _mix_mean(shot_rows, "pass_share_candidate"),
+            "non_shot_mean_pass_share_candidate": _mix_mean(non_shot_rows, "pass_share_candidate"),
+            "shot_ending_mean_carry_share_candidate": _mix_mean(shot_rows, "carry_share_candidate"),
+            "non_shot_mean_carry_share_candidate": _mix_mean(non_shot_rows, "carry_share_candidate"),
+            "shot_ending_visible_loss_n": sum(bool(row.get("visible_loss_transition_candidate_present")) for row in shot_rows),
+            "non_shot_visible_loss_n": sum(bool(row.get("visible_loss_transition_candidate_present")) for row in non_shot_rows),
+            "shot_ending_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in shot_rows),
+            "non_shot_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in non_shot_rows),
+            "comparison_is_descriptive_not_causal": True,
+            "shot_ending_is_success_truth": False,
+            "non_shot_is_failure_truth": False,
+            "difference_is_tactical_mechanism_truth": False,
+            "independent_support_created": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_VARIANT_CONTEXT_DESCRIPTION_ONLY",
+        })
+
     return {
         "construct_id": "C03_PROCESS_DEVELOPMENT_SIGNATURE",
         "status": "REVIEW_REQUIRED" if signatures else "NOT_APPLICABLE",
         "signature_count": len(signatures),
         "signatures": signatures,
+        "variant_context_profile_count": len(variant_context_profiles),
+        "variant_context_profiles": variant_context_profiles,
+        "variant_context_comparison_creates_independent_support": False,
+        "variant_context_shot_ending_is_success_truth": False,
+        "variant_context_non_shot_is_failure_truth": False,
         "unit_of_analysis": "ADMITTED_PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
