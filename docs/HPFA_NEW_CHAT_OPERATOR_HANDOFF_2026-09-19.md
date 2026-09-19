@@ -393,3 +393,299 @@ Saha + Top + Zaman + Oyuncu + Takım + Rakip + Occurrence + Relation + Process +
 
 The new operator should begin by saying internally:
 **“I inherit the current HPFA frontier. I will verify freshness, preserve truth locks, resolve the observation-flow anomaly, and continue multidimensional match-reconstruction research to saturation without creating a parallel engine.”**
+
+
+## 25. POTENTIAL CODE ADAPTATION BACKLOG FROM RESEARCH — DO NOT BLINDLY IMPLEMENT
+This section preserves research-derived ideas that may eventually deserve code in existing HPFA owners. It is a **candidate capability backlog**, not permission to create modules. Before implementation every item must pass /FRESH → current-owner false-gap audit → observation contract → truth locks → test design → analyst-gain test. Prefer rehabilitation of existing producers.
+
+### Tier A — highest prospective product gain after the 151→1 anomaly is resolved
+
+#### A1. Admitted Match State Projection
+Purpose: create a reusable event-derived state representation so replay layers do not invent separate definitions.
+Candidate state fields: admitted time/period, team, actor candidate, action family, admitted spatial projection(s), process/phase context, relation context, visible consequence context, game context, uncertainty/dependency refs.
+Scientific donors: socceraction game states, Markov/semi-Markov literature, point-process literature.
+Must NOT imply: physical team shape, off-ball configuration, player intention.
+Likely owner: existing occurrence/state-transition projection + C03 process layer.
+Gain: gives every later temporal/spatial/network/process lens the same governed state spine.
+
+#### A2. Observable State Transition Ledger
+Purpose: materialize admitted S_t → occurrence/relation → S_t+1 transitions with chronology status.
+Include CONFIRMED_ORDER / SAME_TIME_AMBIGUOUS / UNRESOLVED_ORDER.
+Do not force array/list order into chronology.
+Potential outputs: transition counts, conditional continuation candidates, transition entropy candidates, process entry/exit states.
+Gain: turns replay from event list into governed state change.
+
+#### A3. Process Lifetime / Residence-Time Profile
+Purpose: distinguish identical spatial/action routes that live for different durations.
+Inputs: provider-reviewed temporal semantics and/or derived inter-event intervals; process boundaries.
+Potential measures: elapsed process time, admitted state residence, continuation time, right-censoring, breakdown time.
+Scientific donors: semi-Markov, survival analysis.
+Truth locks: provider duration semantics first; duration != possession time/pass-flight/physical movement unless explicitly admitted.
+Gain: rhythm and process persistence.
+
+#### A4. Process Survival / Breakdown / Competing Outcome Lens
+Purpose: treat continuation, visible breakdown, shot-ending, loss, handover and unresolved/censored endings correctly rather than binary success/failure.
+Candidate mechanics: Kaplan-Meier-like descriptive survival only when observation unit valid; hazard/competing-risk methods only after assumptions pass.
+Never convert NO_VISIBLE_FOLLOWUP into failure.
+Gain: where/how processes remain alive and how they terminate.
+
+#### A5. Process Variant Grammar
+Purpose: reconstruct comparable process families and successful/failed/deviant/unresolved variants from admitted traces.
+Scientific donors: process mining, sequence/tactic discovery.
+Potential fields: entry state, ordered action/relation signature, spatial route signature, actors, opponent interventions, exit/consequence, censoring, recurrence refs.
+Truth lock: recurring pattern != coach intention/tactic truth.
+Likely owner: existing occurrence/process/variant producers; no new process engine.
+Gain: mechanism-level postmatch explanation.
+
+#### A6. Opponent Response / Counter-Response Binding
+Purpose: explicitly bind Team A process occurrence → admitted later Team B intervention/response → admitted later Team A counter-response → consequence.
+Same timestamp counterpart must remain counterpart/co-occurrence, not reaction.
+Gain: converts one-team replay into coupled two-team football interaction.
+
+#### A7. Micro↔Macro Reconciliation Ledger
+Purpose: connect event/process-derived quantities to XLSX aggregates without forcing equality.
+Statuses: EXACT_RECONCILED / PARTIAL / DIFFERENT_ESTIMAND / UNRESOLVED_DENOMINATOR / PROVIDER_ONLY_AGGREGATE / NOT_OBSERVABLE_FROM_EVENTS.
+Candidate families: long pass, progression, final-third/box access, creation/shot, loss/recovery, actor participation.
+Gain: explains aggregate match profile from observable mechanisms and exposes estimand gaps.
+
+### Tier B — high-value once identity/time/space contracts are admitted
+
+#### B1. Multi-Resolution Pitch Projection
+Purpose: project each admitted coordinate into multiple declared spatial resolutions: thirds, lanes/corridors, coarse grid, fine grid, process-specific regions where justified.
+All projections retain the same underlying observation/dependency ID.
+Do NOT count projections as independent evidence.
+Need orientation/coordinate-system admission before interpretation.
+Gain: lets the same process be read at tactical and statistical spatial scales.
+
+#### B2. Actor-Space-Action Participation Cube
+Purpose: player × admitted zone × action family × process participation.
+Potential outputs: actor-zone participation, actor-family-zone distribution, process-stage involvement, team-share context.
+Do NOT call this physical influence, occupation or true role.
+Gain: single-match functional-role candidates and player contribution without causal ownership.
+
+#### B3. Admitted Ball-Connection Relation Network
+Purpose: passer/receiver and grid-to-grid relation only after Pass ID/receiver identity is validated.
+Potential layers: player↔player, grid↔grid, player↔grid, process-conditioned connection.
+Reflection dedup mandatory.
+Gain: connection structure rather than raw pass totals.
+
+#### B4. Temporal / Multilayer Relation State
+Purpose: avoid one 90-minute static network. Build relation states over admitted endogenous or governed windows.
+Potential comparison: connection appearance/disappearance, alternate route emergence, opponent-conditioned changes.
+Scientific donors: temporal/multilayer networks, dynamic community methods.
+Truth lock: network centrality != tactical importance/causal value.
+Gain: how connection structure changes through match processes.
+
+#### B5. Micro-Relation Motif Registry
+Purpose: recurring small relation structures such as A→B→C or grid/action motifs.
+Candidate motif types: actor, grid, actor×grid, action-family, process motifs.
+Need dependency-aware recurrence counts.
+Do NOT automatically label triangle/combination/tactical routine.
+Gain: repeated micro-mechanisms.
+
+#### B6. Observable State Recurrence / Variation / Deviation
+Purpose: separate:
+RECURRENCE = comparable state/process returns;
+VARIATION = comparable start, different continuation;
+DEVIATION = departure from dominant admitted process path;
+CONSEQUENCE_DIVERGENCE = comparable start, different visible consequence.
+Need explicit state-distance/similarity contract.
+Gain: repeated patterns with counterexamples, not storytelling from one sequence.
+
+#### B7. Endogenous Match Segmentation / Regime Shift
+Purpose: detect evidence-supported changes in event/process/relation/spatial distributions rather than only fixed 15-minute bins.
+Candidate methods: change-point/PELT after assumptions and minimum sample checks; distribution/network change statistics.
+Do NOT infer coach intervention or tactical switch from a statistical regime change.
+Gain: find when observable match behaviour actually changes.
+
+#### B8. Observable Process Memory
+Purpose: test whether current state alone sufficiently describes next-state distribution or whether prior states materially change it.
+Potential tools: lag-conditioned transition comparison, conditional entropy/MI with sample/dependency controls.
+Do NOT call memory causal.
+Gain: choose state depth empirically instead of blindly using last-N actions.
+
+### Tier C — information/distribution/value lenses; model outputs only
+
+#### C1. On-Ball Spatial / Route / Connection Diversity
+Purpose: use Shannon/Rényi-type diversity only with explicit eligible population.
+Examples:
+p_i = admitted eligible on-ball occurrences by grid;
+p_i = admitted process routes;
+p_i = receivers/connections.
+H=-Σp_i log p_i remains Shannon entropy.
+Entropy != chaos, unpredictability, quality or tactical superiority.
+Gain: distinguish concentrated vs distributed observable use.
+
+#### C2. Conditional Entropy / Mutual Information Lens
+Purpose: quantify whether knowing zone/action/process/opponent-response reduces uncertainty in continuation/outcome.
+Need robust sample and dependency treatment; potentially permutation/null tests only if exchangeability defensible.
+MI != causality.
+Gain: identify informative match-state dimensions.
+
+#### C3. Distribution Shift / Optimal Transport Candidate
+Purpose: compare spatial/action/process distributions across periods, teams, variants or regimes.
+Potential methods: Wasserstein/earth-mover distance where metric space is admitted; otherwise categorical divergence.
+Coordinate scale/orientation and eligible population must align.
+Gain: measure *how* observable play distribution moved, not only whether means changed.
+
+#### C4. Observable Threat-State Change / Threat Pulse
+Purpose: represent process-level state-value rise/fall/persistence/peak/collapse without claiming dominance.
+Possible donor principles: xT grid-state valuation, VAEP before/after valuation, Opta-style temporal danger concepts.
+Any learned value requires source/version/training/calibration/domain-transfer governance.
+Prefer deterministic observable consequence ladder if model adds no defensible gain.
+Gain: attack development trajectory, not one final score.
+
+#### C5. Observable Opportunity Set vs Realized Branch
+Purpose: for comparable admitted states, catalogue actually observed alternative continuations and their visible consequences.
+Never claim unrealized branch was perceived/available physically or that chosen branch was wrong.
+Gain: evidence-grounded “what other observed continuations existed from comparable states?”
+
+#### C6. Conditional Outcome Structure / Bayesian Lens
+Purpose: model conditional visible outcome distributions by admitted context, e.g. recovery zone × next action family × game context.
+Bayesian networks/posteriors are models, not causal truth.
+Prior, likelihood, dependency and sample burden must be explicit.
+Gain: replace crude raw percentages with contextual outcome structure.
+
+#### C7. Evidence Belief Revision — research only until dependency model is defensible
+Purpose: update support for a football hypothesis as independent/dependent/counter/unresolved evidence arrives.
+Do not generate decorative posterior probabilities.
+Candidate use may remain qualitative/interval-based if prior or independence cannot be justified.
+Gain: disciplined accumulation of evidence and counterevidence.
+
+### Tier D — tracking-derived research salvage candidates; never use tracking names
+
+#### D1. Visible Zone Access Resistance
+Observed entries/progressions into admitted zones conditioned on visible opponent interventions and continuations.
+NOT pitch control.
+
+#### D2. Visible Disruption Response
+Time/space/action relation between an admitted attacking process and subsequent admitted opponent intervention.
+NOT pressure geometry/counterpress intensity.
+
+#### D3. Observed Action Reach
+Spatial/process footprint of admitted actor actions.
+NOT influence field, coverage radius or off-ball reach.
+
+#### D4. Observed Functional Structure
+Player×zone×action×relation×process distributions.
+NOT true formation shape, compactness or off-ball structure.
+
+#### D5. Observed Zone Utilisation
+Distribution of recorded eligible actions/processes by zone.
+NOT occupation or space control.
+
+### Tier E — robustness / uncertainty mechanisms
+
+#### E1. State Similarity Contract
+Needed before recurrence/opportunity-set/nearest-state work.
+Define which dimensions are exact, categorical-compatible, metric-distance, missing/unresolved, and how dependency is handled.
+No opaque weighted similarity score without football construct justification.
+
+#### E2. Censoring / Outcome-Observability Ledger
+Track resolved, unresolved, right-censored, excluded and not-observable process outcomes separately.
+Gain: prevents unresolved burden from becoming false failure.
+
+#### E3. Dependency-Aware Support Ledger
+Track same occurrence, same semantic nucleus, CSV/XML reflection, aggregate decomposition and shared process anchors.
+Gain: prevents high coverage from masquerading as independent support.
+
+#### E4. Counterexample Pairing
+Find comparable admitted process/state examples with divergent visible outcomes.
+Need comparability contract and dependency check.
+Gain: stronger counterevidence and withdrawal conditions.
+
+#### E5. Uncertain Conformance / Object-Centric Process Research
+Research whether process mining with uncertain event order/identity and object-centric logs can represent actor/team/ball/process relations without forcing one flat case ID.
+Potentially useful because HPFA has same-time ambiguity, multiple actors/surfaces and overlapping processes.
+ADAPT_LATER/EXPERIMENT until clear current-owner gain.
+
+## 26. Formula families to preserve for later admission
+Do not implement because formula exists; each needs a football estimand.
+
+### Transition probability
+P_ij = P(S_{t+1}=j | S_t=i)
+Use only with admitted state definition and denominator.
+
+### Semi-Markov transition/lifetime
+Q_ij(t) = P(next state=j, sojourn time ≤ t | current state=i)
+Useful for destination + state lifetime.
+
+### Shannon entropy
+H(X) = -Σ p(x) log p(x)
+Only named football construct after X and eligible population are defined.
+
+### Conditional entropy
+H(Y|X) = -Σ p(x,y) log p(y|x)
+Potential state-information lens.
+
+### Mutual information
+I(X;Y) = Σ p(x,y) log[p(x,y)/(p(x)p(y))]
+Association/information only; not causal.
+
+### Survival
+S(t)=P(T>t), hazard h(t) conceptually conditional event rate among still-at-risk processes.
+Must define risk set, event type, censoring.
+
+### Competing risks
+Separate visible termination types rather than treating all non-continuation as one failure.
+Need cause-specific observation contract.
+
+### Recurrence
+R_ij = 1[d(S_i,S_j) ≤ ε]
+Requires defensible state distance and threshold; sensitivity analysis preferred.
+
+### Wasserstein / earth-mover distance
+Candidate for admitted metric spatial distributions. Do not use if coordinate geometry is not admitted/comparable.
+
+### Bayesian update
+p(θ|D) ∝ p(D|θ)p(θ)
+No posterior without defensible prior/likelihood/dependency model.
+
+### Change point
+Model-specific; no universal formula should be hard-coded. Require minimum support and stable observable dimensions.
+
+## 27. Research-to-code decision table
+Use this order, not a mass implementation sprint:
+1. RESOLVE FIRST: 151→1 observation-flow anomaly.
+2. ADAPT_NOW candidate after false-gap audit: common Admitted Match State Projection.
+3. ADAPT_NOW candidate: state-transition ledger with chronology ambiguity.
+4. ADAPT_NOW/EXPERIMENT: process lifetime + censoring, only after XML/time semantics verification.
+5. ADAPT_NOW candidate: opponent response/counter-response binding if team identity and chronology are admitted.
+6. ADAPT_NOW candidate: micro↔macro reconciliation ledger around existing XLSX decomposition owners.
+7. EXPERIMENT: multi-resolution pitch projection after spatial admission.
+8. EXPERIMENT: actor-space-action participation and admitted pass relation network after Pass ID semantics.
+9. EXPERIMENT: process recurrence/variant grammar and counterexample pairing.
+10. ADAPT_LATER/EXPERIMENT: endogenous regime segmentation, temporal/multilayer networks, process memory.
+11. RESEARCH_REQUIRED: survival/competing-risk inferential models, Bayesian belief revision, MI, optimal transport, object-centric process mining.
+12. MODEL_GOVERNED_ONLY: xT/VAEP/threat-value models.
+13. REJECT if it merely renames tracking truth, creates a parallel engine, adds an opaque score, or has no portable analyst gain.
+
+## 28. Research gaps that MUST continue in next chat
+The following were identified but not yet researched to saturation:
+- Bayesian state-space and evidence-revision methods under dependent observations.
+- Semi-Markov vs higher-order Markov choice for event-derived football state.
+- Marked temporal point processes and self-/mutual-excitation: whether they add match-reading value without causal overclaim.
+- Survival/competing risks with overlapping football processes and right-censoring.
+- Object-centric process mining for ball/team/player/process objects and uncertain event order.
+- Uncertain conformance checking for provider ambiguity.
+- Dynamic/multilayer graph comparison and graph-distance methods.
+- Motif significance under dependent sequence observations.
+- Change-point detection with small single-match samples.
+- Conditional entropy/MI bias correction and valid nulls for single-match data.
+- Optimal transport/Wasserstein with pitch grids and categorical process distributions.
+- Adaptive/multi-resolution pitch partitioning without data dredging.
+- Functional-role inference from event distributions without position/formation overclaim.
+- Set-piece process grammar and restart anchoring.
+- Observable opportunity sets and comparable-state matching.
+- Micro↔macro estimand reconciliation with provider-defined aggregates.
+- Robust uncertainty communication to Safe Finding/analyst output.
+
+## 29. Non-negotiable implementation principle
+The backlog above is NOT a roadmap to create 30 modules.
+The unit of value is **unique football capability**.
+Several ideas should often collapse into one existing owner:
+state + transition + lifetime can share the state/process owner;
+network + motifs + actor-space can share admitted relation representations;
+entropy + MI + distribution shift can share governed descriptive-feature infrastructure;
+survival + competing risks can share outcome-observability/censoring contracts.
+REHABILITATE_BEFORE_PARALLEL_ENGINE always wins.
