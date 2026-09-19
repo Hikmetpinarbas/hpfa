@@ -227,6 +227,32 @@ def _football_ontology_contract() -> dict[str, Any]:
             ],
             "no_visible_response_is_not_no_response_truth": True,
         },
+        "external_donor_adaptation_contract": {
+            "provider_normalization": {
+                "reference_projects": ["PySport/kloppy", "ML-KULeuven/socceraction"],
+                "provider_schema_is_not_canonical_football_truth": True,
+                "normalize_at_boundary_not_inside_constructs": True,
+                "coordinate_system_requires_explicit_admission": True,
+                "orientation_requires_explicit_admission": True,
+                "provider_event_type_requires_semantic_mapping": True,
+            },
+            "action_state_consequence": {
+                "reference_projects": ["ML-KULeuven/socceraction", "statsbomb/open-data"],
+                "action_value_model_is_not_observation_truth": True,
+                "model_output_requires_model_source_version": True,
+                "state_transition_requires_admitted_action_identity": True,
+                "visible_consequence_preferred_over_inferred_intention": True,
+            },
+            "tracking_boundary": {
+                "reference_projects": ["metrica-sports/sample-data", "SkillCorner/opendata", "Friends-of-Tracking-Data-FoTD/LaurieOnTracking"],
+                "tracking_is_optional_not_required_dependency": True,
+                "event_coordinate_is_not_tracking": True,
+                "pitch_control_requires_tracking_or_equivalent_spatiotemporal_observation": True,
+                "velocity_acceleration_requires_tracking_or_equivalent_spatiotemporal_observation": True,
+                "team_shape_compactness_requires_tracking_or_video": True,
+            },
+            "adoption_policy": "ADAPT_IDEA_NOT_CODE_UNLESS_LICENSE_AND_PRODUCT_GAP_ARE_EXPLICITLY_ADMITTED",
+        },
         "metric_argument_contract": {
             "opaque_single_score_allowed": False,
             "construct_axes_remain_separate": True,

@@ -748,6 +748,12 @@ def test_canonical_six_phase_ontology_separates_phase_from_evaluation() -> None:
     assert contract["set_piece_is_open_play_subtype"] is False
     assert "OPPONENT" in contract["observation_dimensions"]
     assert "TWO_TEAM_INTERACTION" in contract["scale_axis"]
+    donor = contract["external_donor_adaptation_contract"]
+    assert donor["provider_normalization"]["normalize_at_boundary_not_inside_constructs"] is True
+    assert donor["provider_normalization"]["coordinate_system_requires_explicit_admission"] is True
+    assert donor["action_state_consequence"]["action_value_model_is_not_observation_truth"] is True
+    assert donor["tracking_boundary"]["event_coordinate_is_not_tracking"] is True
+    assert donor["tracking_boundary"]["pitch_control_requires_tracking_or_equivalent_spatiotemporal_observation"] is True
 
 
 def test_activity_state_candidates_do_not_claim_phase_admission() -> None:
