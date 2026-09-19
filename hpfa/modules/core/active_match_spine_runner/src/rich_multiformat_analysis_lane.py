@@ -12,6 +12,7 @@ from typing import Any
 from hpfa.modules.core.multiformat_file_inventory_lite.src import multiformat_file_inventory as inventory
 from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader import native_reader as xlsx
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import build_projection
+from hpfa.modules.core.active_match_spine_runner.src.shared_surface_snapshot_contract import surface_snapshot_id
 
 MODULE_ID = "rich_multiformat_analysis_lattice_v1"
 OUTPUT_JSON = "rich_multiformat_analysis_lattice_v1.json"
@@ -35,21 +36,8 @@ def _load_json(path: Path) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _hash_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _snapshot(root: Path) -> str:
-    records = []
-    if root.is_dir():
-        for path in sorted(root.rglob("*"), key=lambda item: item.as_posix().casefold()):
-            if path.is_file():
-                records.append((path.relative_to(root).as_posix(), path.stat().st_size, _hash_file(path)))
-    return hashlib.sha256(json.dumps(records, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+    return surface_snapshot_id(root)
 
 
 def _flatten_projection(projection: dict[str, Any]) -> list[dict[str, Any]]:
@@ -60,6 +48,26 @@ def _flatten_projection(projection: dict[str, Any]) -> list[dict[str, Any]]:
         for row in sheet.get("rows", []) or []
         if isinstance(row, dict)
     ]
+
+
+_GOALKEEPER_SCHEMA_SIGNALS = frozenset({"shots_faced", "shots_on_target_faced", "shots_saved", "goals_conceded", "sweeping_actions", "penalties_saved"})
+
+def _xlsx_entity_role_candidate(row: dict[str, Any]) -> str:
+    # Infer aggregate entity role from schema/content, never filenames or names.
+    role = str(row.get("source_role") or "").upper()
+    if "GOALKEEPER" in role:
+        return "GOALKEEPER"
+    if "TEAM" in role:
+        return "TEAM"
+    metric_keys = {str(key).strip().casefold() for key in (row.get("metric_values") or {}) if str(key).strip()}
+    if metric_keys.intersection(_GOALKEEPER_SCHEMA_SIGNALS):
+        return "GOALKEEPER"
+    identity = row.get("identity_candidates") or {}
+    if identity.get("player_raw_candidate") not in (None, ""):
+        return "PLAYER"
+    if identity.get("team_raw_candidate") not in (None, ""):
+        return "TEAM"
+    return "UNRESOLVED"
 
 
 def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -89,12 +97,13 @@ def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "validated_identity": False,
             "metric_truth": False,
         }
-        role = str(row.get("source_role") or "").upper()
-        if "GOALKEEPER" in role:
+        entity_role = _xlsx_entity_role_candidate(row)
+        compact["entity_role_candidate"] = entity_role
+        if entity_role == "GOALKEEPER":
             goalkeepers.append(compact)
-        elif identity.get("player_raw_candidate") not in (None, ""):
+        elif entity_role == "PLAYER":
             players.append(compact)
-        elif identity.get("team_raw_candidate") not in (None, "") or "TEAM" in role:
+        elif entity_role == "TEAM":
             teams.append(compact)
     return {
         "player_view_candidates": players,
