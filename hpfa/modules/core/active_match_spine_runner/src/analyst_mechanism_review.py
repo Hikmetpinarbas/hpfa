@@ -491,7 +491,23 @@ def build_mechanism_review_lines(
                 "emit=false truth_ranking=false"
             )
 
-    for index, record in enumerate(records, start=1):
+    shortlisted_refs = {
+        str(row.get("source_mechanism_review_ref") or "")
+        for row in (shortlist.get("shortlist") or [])
+        if isinstance(row, dict) and row.get("source_mechanism_review_ref")
+    }
+    review_records = [
+        record for record in records
+        if str(record.get("grammar_stable_variant_feature_delta_id") or "") in shortlisted_refs
+    ]
+    lines.append(
+        f"story_detail_render_count={len(review_records)} source_candidate_count={len(records)}"
+    )
+    lines.append(
+        "story_detail_render_scope=SHORTLIST_ONLY_ATTENTION_COMPRESSION_NOT_EVIDENCE_REMOVAL"
+    )
+
+    for index, record in enumerate(review_records, start=1):
         team_ids = [str(value) for value in (record.get("team_identity_candidate_ids") or []) if str(value)]
         team = ", ".join(teams.get(value, value) for value in team_ids) or "UNRESOLVED_TEAM"
         periods = ",".join(str(value) for value in (record.get("period_candidates") or [])) or "UNKNOWN"
