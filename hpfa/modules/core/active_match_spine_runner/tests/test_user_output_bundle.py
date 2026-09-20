@@ -241,6 +241,76 @@ def test_human_reports_render_team_process_and_mechanism_in_football_language(tm
     assert "Evidence note:" in en
 
 
+
+def test_human_report_exposes_visible_same_team_vs_handover_split_without_causal_claim(tmp_path):
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    feature_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
+    identity_path.write_text(json.dumps({"team_identity_candidates": [{"team_identity_candidate_id": "team_1", "team_normalized_key": "galatasaray"}]}), encoding="utf-8")
+    feature_path.write_text(json.dumps({
+        "status": "PASS",
+        "grammar_stable_variant_feature_delta_records": [{
+            "grammar_stable_variant_feature_delta_id": "m_split",
+            "source_process_variant_family_ref": "family_split",
+            "team_identity_candidate_ids": ["team_1"],
+            "period_candidates": ["2"],
+            "grammar_signature_tokens": ["LAYER[PASS]", "LAYER[PASS]"],
+            "resolved_variant_count": 284,
+            "success_resolved_variant_count": 277,
+            "failure_resolved_variant_count": 7,
+            "right_censored_variant_count": 0,
+            "first_supported_consequence_difference_layer_candidate": 1,
+            "consequence_feature_difference_candidates": [
+                {"feature_token": "LAYER[1]::primary_consequence_candidates:SAME_TEAM_CONTINUATION_CANDIDATE", "partial_order_layer_index": 1, "success_visible_numerator": 252, "success_eligible_denominator": 277, "failure_visible_numerator": 0, "failure_eligible_denominator": 7, "descriptive_rate_delta_success_minus_failure": 0.91},
+                {"feature_token": "LAYER[1]::primary_consequence_candidates:OPPONENT_HANDOVER_CANDIDATE", "partial_order_layer_index": 1, "success_visible_numerator": 12, "success_eligible_denominator": 277, "failure_visible_numerator": 7, "failure_eligible_denominator": 7, "descriptive_rate_delta_success_minus_failure": -0.96},
+            ],
+            "visible_episode_spread_count": 16,
+            "occurrence_disjoint_support_cluster_count": 33,
+            "success_failure_supported_branch_divergence_count": 6,
+        }]
+    }), encoding="utf-8")
+    spine = _full_spine(current_artifacts=[str(identity_path), str(feature_path)])
+    tr = build_human_analyst_report_tr(tmp_path, spine)
+    en = build_human_analyst_report_en(tmp_path, spine)
+    assert "252/277 tanesinde aynı takım devamı" in tr
+    assert "7/7 tanesinde rakibe geçiş" in tr
+    assert "sonucu açıklayan neden değil" in tr
+    assert "same-team continuation appears in 252/277" in en
+    assert "opponent handover appears in 7/7" in en
+    assert "not an explanation of cause" in en
+
+
+def test_single_episode_mechanism_candidate_is_rendered_as_limited_comparison(tmp_path):
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    feature_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
+    identity_path.write_text(json.dumps({"team_identity_candidates": [{"team_identity_candidate_id": "team_1", "team_normalized_key": "trabzonspor"}]}), encoding="utf-8")
+    feature_path.write_text(json.dumps({
+        "status": "PASS",
+        "grammar_stable_variant_feature_delta_records": [{
+            "grammar_stable_variant_feature_delta_id": "m_single",
+            "source_process_variant_family_ref": "family_single",
+            "team_identity_candidate_ids": ["team_1"],
+            "period_candidates": ["1"],
+            "grammar_signature_tokens": ["LAYER[DUEL]", "LAYER[PASS]"],
+            "resolved_variant_count": 2,
+            "success_resolved_variant_count": 1,
+            "failure_resolved_variant_count": 1,
+            "right_censored_variant_count": 0,
+            "first_supported_consequence_difference_layer_candidate": 1,
+            "consequence_feature_difference_candidates": [
+                {"feature_token": "LAYER[1]::primary_consequence_candidates:SAME_TEAM_CONTINUATION_CANDIDATE", "partial_order_layer_index": 1, "success_visible_numerator": 1, "success_eligible_denominator": 1, "failure_visible_numerator": 0, "failure_eligible_denominator": 1, "descriptive_rate_delta_success_minus_failure": 1.0},
+                {"feature_token": "LAYER[1]::primary_consequence_candidates:OPPONENT_HANDOVER_CANDIDATE", "partial_order_layer_index": 1, "success_visible_numerator": 0, "success_eligible_denominator": 1, "failure_visible_numerator": 1, "failure_eligible_denominator": 1, "descriptive_rate_delta_success_minus_failure": -1.0},
+            ],
+            "visible_episode_spread_count": 1,
+            "occurrence_disjoint_support_cluster_count": 1,
+            "success_failure_supported_branch_divergence_count": 1,
+        }]
+    }), encoding="utf-8")
+    spine = _full_spine(current_artifacts=[str(identity_path), str(feature_path)])
+    tr = build_human_analyst_report_tr(tmp_path, spine)
+    assert "Sınırlı karşılaştırma 1:" in tr
+    assert "ana mekanizma olarak yorumlanmamalıdır" in tr
+    assert "1/1 tanesinde aynı takım devamı" not in tr
+
 def test_fail_closed_report_does_not_consume_stale_feature_artifact(tmp_path):
     (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
         json.dumps(_feature_payload()), encoding="utf-8"

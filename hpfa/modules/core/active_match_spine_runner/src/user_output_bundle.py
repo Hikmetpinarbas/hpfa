@@ -472,6 +472,39 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
     return cards
 
 
+def _mechanism_visible_split_sentence(record: dict[str, Any], language: str) -> str:
+    rows = [row for row in (record.get("consequence_feature_difference_candidates") or []) if isinstance(row, dict)]
+    def pick(token_suffix: str):
+        candidates = [row for row in rows if str(row.get("feature_token") or "").endswith(token_suffix)]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda row: (row.get("partial_order_layer_index") is not None, abs(float(row.get("descriptive_rate_delta_success_minus_failure") or 0.0))))
+
+    same = pick("primary_consequence_candidates:SAME_TEAM_CONTINUATION_CANDIDATE")
+    handover = pick("primary_consequence_candidates:OPPONENT_HANDOVER_CANDIDATE")
+    if not same or not handover:
+        return ""
+    ss = int(same.get("success_visible_numerator") or 0)
+    sd = int(same.get("success_eligible_denominator") or 0)
+    sfd = int(same.get("failure_eligible_denominator") or 0)
+    hd = int(handover.get("success_eligible_denominator") or 0)
+    hf = int(handover.get("failure_visible_numerator") or 0)
+    hfd = int(handover.get("failure_eligible_denominator") or 0)
+    if sd <= 0 or sfd <= 0 or hd <= 0 or hfd <= 0:
+        return ""
+    if language == "tr":
+        return (
+            f" Görünür ayrışma: olumlu sonuçlara bağlı varyantların {ss}/{sd} tanesinde aynı takım devamı, "
+            f"olumsuz sonuçlara bağlı varyantların {hf}/{hfd} tanesinde rakibe geçiş görülüyor. "
+            "Bu, sonucu açıklayan neden değil; aynı başlangıçtan sonra görülen sonuç ayrımıdır."
+        )
+    return (
+        f" Visible split: same-team continuation appears in {ss}/{sd} variants linked to positive visible outcomes, "
+        f"while opponent handover appears in {hf}/{hfd} variants linked to negative visible outcomes. "
+        "This is an observed outcome split, not an explanation of cause."
+    )
+
+
 def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     if not _declared_current(full_spine, FEATURE_DELTA_JSON):
         return []
@@ -489,6 +522,11 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         limit=5,
     )
     teams = _human_team_labels(identity)
+    source_records = {
+        str(record.get("grammar_stable_variant_feature_delta_id") or ""): record
+        for record in (payload.get("grammar_stable_variant_feature_delta_records") or [])
+        if isinstance(record, dict)
+    }
     cards: list[str] = []
     for idx, row in enumerate(shortlist.get("shortlist") or [], start=1):
         if not isinstance(row, dict):
@@ -502,12 +540,20 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         failure = int(row.get("failure_resolved_variant_count") or 0)
         spread = int(row.get("visible_episode_spread_count") or 0)
         clusters = int(row.get("occurrence_disjoint_support_cluster_count") or 0)
+        support_state = str(row.get("review_support_state") or "")
+        single_episode_only = support_state.startswith("SINGLE_EPISODE_")
+        source_record = source_records.get(str(row.get("source_mechanism_review_ref") or ""), {})
         if language == "tr":
+            prefix = "Sınırlı karşılaştırma" if single_episode_only else "İnceleme noktası"
             football = (
-                f"İnceleme noktası {idx}: {team}, {periods}. {grammar} bağlantısı maçın {spread} farklı bölümünde tekrar görülüyor. "
+                f"{prefix} {idx}: {team}, {periods}. {grammar} bağlantısı maçın {spread} farklı bölümünde tekrar görülüyor. "
                 "Bu bağlantının karşılaştırılabilir varyantları hem olumlu hem olumsuz görünür sonuçlara gidiyor. "
                 "Analist için asıl soru, aynı başlangıçtan sonra hangi aksiyon veya bağlam değişiminin sonuçları ayırdığı."
             )
+            if single_episode_only:
+                football += " Bu karşılaştırma tek görünür maç bölümünde yoğunlaştığı için ana mekanizma olarak yorumlanmamalıdır."
+            else:
+                football += _mechanism_visible_split_sentence(source_record, language)
             evidence = (
                 f"Kanıt notu: karşılaştırma yüzeyinde {resolved} çözümlenmiş varyant kaydı var; "
                 f"{success} olumlu ve {failure} olumsuz görünür sonuca bağlı. "
@@ -515,11 +561,16 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 "Neden, antrenör planı ve başarı olasılığı çıkarılamaz."
             )
         else:
+            prefix = "Limited comparison" if single_episode_only else "Review point"
             football = (
-                f"Review point {idx}: {team}, {periods}. The {grammar} connection recurs across {spread} distinct match segments. "
+                f"{prefix} {idx}: {team}, {periods}. The {grammar} connection recurs across {spread} distinct match segments. "
                 "Comparable variants of the same visible start lead to both positive and negative visible outcomes. "
                 "The analyst question is which subsequent action or context change separates those outcomes."
             )
+            if single_episode_only:
+                football += " This comparison is concentrated in one visible match segment and should not be treated as a main mechanism."
+            else:
+                football += _mechanism_visible_split_sentence(source_record, language)
             evidence = (
                 f"Evidence note: the comparison surface contains {resolved} resolved variant records; "
                 f"{success} are linked to positive and {failure} to negative visible outcomes. "
