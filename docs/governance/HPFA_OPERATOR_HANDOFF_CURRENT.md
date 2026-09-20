@@ -5,6 +5,23 @@ Record role: CURRENT_OPERATOR_HANDOFF
 Product repo: `Hikmetpinarbas/hpfa`
 Runtime authority: `runtime/active_single_match/current`
 
+## HANDOFF SNAPSHOT POINTER — 2026-09-20
+
+New operator snapshot:
+`docs/governance/HPFA_NEW_OPERATOR_HANDOFF_2026-09-20.md`
+
+Snapshot head recorded there:
+`239d9a18f5dc95984caf3cc84b5e37b1d0f253fb`
+
+That SHA is a historical handoff snapshot, not permanent authority. Fresh verification remains mandatory.
+
+At snapshot creation:
+- PR #364 was OPEN / DRAFT / UNMERGED.
+- all 9 current GitHub workflows on the snapshot head were SUCCESS.
+- last physically accepted exact head was `7f99895506c134d8a29cf398b41f9776b90211d4`.
+- that physical run produced `79 DOWNGRADE / 0 EMIT`.
+- current-head physical acceptance was still required.
+
 ## 0. NEW OPERATOR — READ THIS FIRST
 
 Mandatory startup sequence:
