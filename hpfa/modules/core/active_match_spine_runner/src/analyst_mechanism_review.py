@@ -636,6 +636,52 @@ def build_mechanism_review_lines(
             "Actor farkini oyuncu kalitesi/mekanizma; continuation-handover farkini neden/taktik plan; provider labelini fiziksel futbol truth olarak yorumlama."
         )
 
+    grammar_context_groups: dict[tuple[str, ...], list[dict[str, Any]]] = {}
+    for record in review_records:
+        grammar_key = tuple(str(value) for value in (record.get("grammar_signature_tokens") or []))
+        if not grammar_key:
+            continue
+        grammar_context_groups.setdefault(grammar_key, []).append(record)
+    for grammar_key, context_records in sorted(grammar_context_groups.items()):
+        context_keys = {
+            (
+                tuple(str(v) for v in (record.get("team_identity_candidate_ids") or [])),
+                tuple(str(v) for v in (record.get("period_candidates") or [])),
+            )
+            for record in context_records
+        }
+        if len(context_keys) < 2:
+            continue
+        lines.append(
+            "same_grammar_context_comparison: "
+            f"grammar={_grammar_label(list(grammar_key))} contexts={len(context_keys)} "
+            "semantics=MATCH_LOCAL_VISIBLE_CONTEXT_COMPARISON_ONLY "
+            "tactical_change=false team_quality=false causality=false significance=false"
+        )
+        for record in sorted(
+            context_records,
+            key=lambda row: (
+                tuple(str(v) for v in (row.get("team_identity_candidate_ids") or [])),
+                tuple(str(v) for v in (row.get("period_candidates") or [])),
+            ),
+        ):
+            team_ids = [
+                str(value) for value in (record.get("team_identity_candidate_ids") or []) if str(value)
+            ]
+            team = ", ".join(teams.get(value, value) for value in team_ids) or "UNRESOLVED_TEAM"
+            periods = ",".join(str(value) for value in (record.get("period_candidates") or [])) or "UNKNOWN"
+            lines.append(
+                "  same_grammar_context: "
+                f"team={team} period={periods} "
+                f"resolved={int(record.get('resolved_variant_count') or 0)} "
+                f"success_visible={int(record.get('success_resolved_variant_count') or 0)} "
+                f"failure_visible={int(record.get('failure_resolved_variant_count') or 0)} "
+                f"visible_episode_spread={int(record.get('visible_episode_spread_count') or 0)} "
+                f"occurrence_disjoint_clusters={int(record.get('occurrence_disjoint_support_cluster_count') or 0)} "
+                f"success_failure_divergence={int(record.get('success_failure_supported_branch_divergence_count') or 0)} "
+                "independent_support=false recurrence_truth=false"
+            )
+
     lines.extend([
         "analyst_action=VIDEO_OR_MATCH_REVIEW_OF_CONTEXT_ENRICHED_VISIBLE_DIFFERENCE_CANDIDATES",
         "claim_ceiling=ANALYST_REVIEW_MECHANISM_CANDIDATE_ONLY",

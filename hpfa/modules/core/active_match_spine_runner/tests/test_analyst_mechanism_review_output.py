@@ -369,3 +369,41 @@ def test_bound_aware_story_review_is_runtime_visible_without_probability_promoti
     assert "story_selection_can_authorize_emit=false" in text
     assert "story_detail_render_count=1 source_candidate_count=1" in text
     assert "story_detail_render_scope=SHORTLIST_ONLY_ATTENTION_COMPRESSION_NOT_EVIDENCE_REMOVAL" in text
+
+
+def test_same_grammar_contexts_are_compared_without_tactical_promotion(tmp_path: Path) -> None:
+    _write_payloads(tmp_path)
+    delta_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
+    delta = json.loads(delta_path.read_text(encoding="utf-8"))
+    first = delta["grammar_stable_variant_feature_delta_records"][0]
+    first["visible_episode_spread_count"] = 3
+    first["occurrence_disjoint_support_cluster_count"] = 4
+    first["success_failure_supported_branch_divergence_count"] = 1
+    second = json.loads(json.dumps(first))
+    second["grammar_stable_variant_feature_delta_id"] = "gsvfd_2"
+    second["source_process_variant_family_ref"] = "family_2"
+    second["team_identity_candidate_ids"] = ["team_2"]
+    second["period_candidates"] = ["2"]
+    second["resolved_variant_count"] = 8
+    second["success_resolved_variant_count"] = 6
+    second["failure_resolved_variant_count"] = 2
+    second["visible_episode_spread_count"] = 2
+    second["occurrence_disjoint_support_cluster_count"] = 2
+    second["success_failure_supported_branch_divergence_count"] = 2
+    delta["grammar_stable_variant_feature_delta_records"].append(second)
+    delta_path.write_text(json.dumps(delta), encoding="utf-8")
+
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    identity["team_identity_candidates"].append(
+        {"team_identity_candidate_id": "team_2", "team_normalized_key": "team_beta"}
+    )
+    identity_path.write_text(json.dumps(identity), encoding="utf-8")
+
+    text = "\n".join(build_mechanism_review_lines(tmp_path, _full_spine(tmp_path)))
+    assert "same_grammar_context_comparison: grammar=PASS -> PASS contexts=2" in text
+    assert "semantics=MATCH_LOCAL_VISIBLE_CONTEXT_COMPARISON_ONLY" in text
+    assert "tactical_change=false team_quality=false causality=false significance=false" in text
+    assert "same_grammar_context: team=Team Alpha period=1 resolved=10 success_visible=7 failure_visible=3" in text
+    assert "same_grammar_context: team=Team Beta period=2 resolved=8 success_visible=6 failure_visible=2" in text
+    assert "independent_support=false recurrence_truth=false" in text
