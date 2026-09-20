@@ -486,6 +486,28 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                     "Bunlar possession sayisi veya basari orani degildir; ayni process birden fazla consequence tasiyabilir. "
                     "Profil match-local descriptive candidate'tir; takim kalitesi, taktik ustunluk, opponent-response truth veya causality degildir."
                 )
+            for profile in sorted(
+                c03_team_profiles,
+                key=lambda row: (
+                    team_labels.get(str(row.get("team_identity_candidate_id") or ""), str(row.get("team_identity_candidate_id") or "")),
+                    str(row.get("process_family_candidate") or ""),
+                ),
+            ):
+                team_id = str(profile.get("team_identity_candidate_id") or "")
+                team_name = team_labels.get(team_id, team_id or "UNKNOWN_TEAM")
+                family_name = str(profile.get("process_family_candidate") or "UNRESOLVED_PROCESS").replace("_CANDIDATE", "").replace("_", " ").lower()
+                eligible = int(profile.get("eligible_process_n") or 0)
+                shot = int(profile.get("shot_ending_process_n") or 0)
+                loss = int(profile.get("visible_loss_process_n") or 0)
+                recovery = int(profile.get("visible_recovery_process_n") or 0)
+                lines.append(
+                    f"  - SUREC AILE PROFILI: {team_name}; {family_name}; denominator={eligible} admitted process; "
+                    f"loss-visible={loss}/{eligible}; recovery-visible={recovery}/{eligible}; "
+                    f"shot-terminal={shot}/{eligible}; actor-spread-mean={float(profile.get('mean_actor_spread_candidate') or 0):.2f}; "
+                    f"temporal-layer-mean={float(profile.get('mean_temporal_layer_n') or 0):.2f}. "
+                    "Bu family profile ayni family icindeki gorunur consequence dagilimini ozetler; possession, efficacy, tactical superiority, "
+                    "opponent-response truth, independence veya causality kaniti degildir."
+                )
         c03_rows = [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
         if c03_rows:
             representative = max(
