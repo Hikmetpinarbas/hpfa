@@ -402,6 +402,117 @@ def _process_state(primary_candidates: list[str]) -> str:
     return "PROCESS_STATE_UNRESOLVED"
 
 
+def _recovery_first_admitted_followup_profile(
+    *,
+    anchor_action_families: set[str],
+    anchor_team_ids: set[str],
+    admitted_after_ids: list[str],
+    visible_follow_up_ids: list[str],
+    trace_by_id: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    applicable = bool(anchor_action_families & {"RECOVERY", "INTERCEPTION"})
+    base = {
+        "recovery_first_admitted_followup_applicable": applicable,
+        "recovery_first_admitted_followup_state": "NOT_APPLICABLE",
+        "recovery_first_admitted_followup_trace_ids": [],
+        "recovery_first_admitted_followup_start_candidate": None,
+        "recovery_first_admitted_followup_team_identity_candidate_ids": [],
+        "recovery_first_admitted_followup_action_family_candidates": [],
+        "recovery_first_admitted_followup_normalized_labels": [],
+        "recovery_first_admitted_followup_provider_semantic_candidates": [],
+        "recovery_first_admitted_followup_is_control_truth": False,
+        "recovery_first_admitted_followup_is_progression_truth": False,
+        "recovery_first_admitted_followup_is_possession_truth": False,
+        "recovery_first_admitted_followup_is_causal_consequence_truth": False,
+        "recovery_first_admitted_followup_same_timestamp_internal_ordering_allowed": False,
+    }
+    if not applicable:
+        return base
+
+    if len(anchor_team_ids) != 1:
+        base["recovery_first_admitted_followup_state"] = "ORDER_UNRESOLVED"
+        return base
+    anchor_team = next(iter(anchor_team_ids))
+
+    admitted_traces = [trace_by_id[trace_id] for trace_id in admitted_after_ids if trace_id in trace_by_id]
+    if not admitted_traces:
+        base["recovery_first_admitted_followup_state"] = (
+            "ORDER_UNRESOLVED" if visible_follow_up_ids else "NO_ADMITTED_FOLLOWUP"
+        )
+        return base
+
+    starts = [
+        _number(trace.get("start_candidate"))
+        for trace in admitted_traces
+        if _number(trace.get("start_candidate")) is not None
+    ]
+    if not starts:
+        base["recovery_first_admitted_followup_state"] = "ORDER_UNRESOLVED"
+        return base
+    first_start = min(starts)
+    first_layer = [
+        trace
+        for trace in admitted_traces
+        if _number(trace.get("start_candidate")) == first_start
+    ]
+    first_trace_ids = sorted({
+        _text(trace.get("trackable_action_trace_candidate_id"))
+        for trace in first_layer
+        if _text(trace.get("trackable_action_trace_candidate_id"))
+    })
+    teams = {
+        _text(trace.get("team_identity_candidate_id"))
+        for trace in first_layer
+        if _text(trace.get("team_identity_candidate_id"))
+    }
+    missing_team = any(not _text(trace.get("team_identity_candidate_id")) for trace in first_layer)
+    families = {
+        _text(value)
+        for trace in first_layer
+        for value in (trace.get("action_family_candidates") or [])
+        if _text(value)
+    }
+    labels = {
+        _text(value).casefold()
+        for trace in first_layer
+        for value in (trace.get("normalized_labels") or [])
+        if _text(value)
+    }
+    provider_candidates: set[str] = set()
+    if any("progressive" in label and "pass" in label for label in labels):
+        provider_candidates.add("PROVIDER_PROGRESSIVE_PASS_VISIBLE_CANDIDATE")
+    if any("forward" in label and "pass" in label for label in labels):
+        provider_candidates.add("PROVIDER_FORWARD_PASS_VISIBLE_CANDIDATE")
+    if any("pass" in label and "accurate" in label and "inaccurate" not in label for label in labels):
+        provider_candidates.add("PROVIDER_ACCURATE_PASS_VISIBLE_CANDIDATE")
+
+    has_same = anchor_team in teams
+    has_opponent = any(team != anchor_team for team in teams)
+    if missing_team or not teams or (has_same and has_opponent):
+        state = "ORDER_UNRESOLVED"
+    elif has_same:
+        state = (
+            "RELOSS_VISIBLE_CANDIDATE"
+            if families & {"TURNOVER", "CONTROL_ERROR"}
+            else "CONTINUATION_ADMITTED"
+        )
+    elif has_opponent:
+        state = "OPPONENT_CONTINUATION_VISIBLE_CANDIDATE"
+    else:
+        state = "OTHER_VISIBLE_CANDIDATE"
+
+    base.update({
+        "recovery_first_admitted_followup_state": state,
+        "recovery_first_admitted_followup_trace_ids": first_trace_ids,
+        "recovery_first_admitted_followup_start_candidate": first_start,
+        "recovery_first_admitted_followup_team_identity_candidate_ids": sorted(teams),
+        "recovery_first_admitted_followup_action_family_candidates": sorted(families),
+        "recovery_first_admitted_followup_normalized_labels": sorted(labels),
+        "recovery_first_admitted_followup_provider_semantic_candidates": sorted(provider_candidates),
+    })
+    return base
+
+
 def build_occurrence_consequence_projection(
     trace_payload: dict[str, Any],
     consequence_payload: dict[str, Any],
@@ -617,6 +728,13 @@ def build_occurrence_consequence_projection(
         )
         terminal_status, terminal_type = _terminal_state(terminal_support)
         process_status = _process_state(primary_candidates)
+        recovery_first_followup = _recovery_first_admitted_followup_profile(
+            anchor_action_families=action_families,
+            anchor_team_ids=team_ids,
+            admitted_after_ids=admitted_after_ids,
+            visible_follow_up_ids=visible_follow_up_ids,
+            trace_by_id=trace_by_id,
+        )
 
         if visible:
             visible_count += 1
@@ -678,6 +796,7 @@ def build_occurrence_consequence_projection(
                 "ensuing_support_relation_basis": "ADMITTED_AFTER_FOLLOW_UP_TRACE_ONLY",
                 "followup_observation_status": followup_status,
                 "process_continuation_status": process_status,
+                **recovery_first_followup,
                 "terminal_status": terminal_status,
                 "terminal_type": terminal_type,
                 "observation_status": observation_status,
@@ -727,6 +846,18 @@ def build_occurrence_consequence_projection(
 
     expected_occurrence_count = int(trace_payload.get("current_occurrence_candidate_count") or 0)
     projection_count = len(records)
+    recovery_records = [
+        row for row in records
+        if row.get("recovery_first_admitted_followup_applicable") is True
+    ]
+    recovery_first_followup_state_counts = Counter(
+        row.get("recovery_first_admitted_followup_state") for row in recovery_records
+    )
+    recovery_provider_semantic_candidate_counts = Counter(
+        candidate
+        for row in recovery_records
+        for candidate in (row.get("recovery_first_admitted_followup_provider_semantic_candidates") or [])
+    )
     hard_blocks: list[str] = []
     review_hits: list[str] = list(boundary_reviews)
     if expected_occurrence_count and projection_count != expected_occurrence_count:
@@ -812,6 +943,15 @@ def build_occurrence_consequence_projection(
         "source_legacy_consequence_candidate_count": consequence_payload.get("trackable_action_consequence_candidate_count", 0),
         "source_action_occurrence_candidate_count": expected_occurrence_count,
         "occurrence_consequence_projection_count": projection_count,
+        "recovery_first_admitted_followup_occurrence_count": len(recovery_records),
+        "recovery_first_admitted_followup_state_counts": dict(sorted(recovery_first_followup_state_counts.items())),
+        "recovery_first_admitted_followup_provider_semantic_candidate_counts": dict(
+            sorted(recovery_provider_semantic_candidate_counts.items())
+        ),
+        "recovery_first_admitted_followup_is_control_truth": False,
+        "recovery_first_admitted_followup_is_progression_truth": False,
+        "recovery_first_admitted_followup_is_possession_truth": False,
+        "recovery_first_admitted_followup_is_causal_consequence_truth": False,
         "occurrence_with_visible_consequence_support_count": visible_count,
         "review_required_occurrence_projection_count": review_count,
         "occurrence_without_consequence_record_count": no_consequence_record_count,
