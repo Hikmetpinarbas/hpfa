@@ -1646,6 +1646,57 @@ def _construct_c03(
                 source_team_id = team_id if perspective == "ATTACK" else opponent_id
                 profile = profile_index.get((source_team_id, family_id))
                 observed = isinstance(profile, dict)
+                source_rows = by_team_family.get((source_team_id, family_id), [])
+
+                def _mean_signature(key: str) -> float | None:
+                    values = [_as_number(row.get(key)) for row in source_rows]
+                    observed_values = [value for value in values if value is not None]
+                    return (sum(observed_values) / len(observed_values)) if observed_values else None
+
+                start_zone_counts: Counter[str] = Counter()
+                end_zone_counts: Counter[str] = Counter()
+                for signature in source_rows:
+                    start_zones = [str(v) for v in (signature.get("process_start_zone_candidates") or []) if v]
+                    end_zones = [str(v) for v in (signature.get("process_end_zone_candidates") or []) if v]
+                    if len(start_zones) == 1:
+                        start_zone_counts[start_zones[0]] += 1
+                    if len(end_zones) == 1:
+                        end_zone_counts[end_zones[0]] += 1
+
+                shot_rows = [row for row in source_rows if row.get("shot_present_annotation_candidate") is True]
+                non_shot_rows = [row for row in source_rows if row.get("shot_present_annotation_candidate") is not True]
+                loss_rows = [row for row in source_rows if row.get("visible_loss_transition_candidate_present")]
+
+                def _representative(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+                    if not rows:
+                        return None
+                    row = max(
+                        rows,
+                        key=lambda item: (
+                            int(item.get("temporal_layer_n") or 0),
+                            int(item.get("unique_actor_candidate_n") or 0),
+                            float(item.get("process_interval_duration_candidate") or 0.0),
+                        ),
+                    )
+                    return {
+                        "process_development_signature_id": row.get("process_development_signature_id"),
+                        "period_candidate": row.get("period_candidate"),
+                        "process_start_candidate": row.get("process_start_candidate"),
+                        "process_end_candidate": row.get("process_end_candidate"),
+                        "duration_candidate": row.get("process_interval_duration_candidate"),
+                        "temporal_layer_n": row.get("temporal_layer_n"),
+                        "unique_actor_candidate_n": row.get("unique_actor_candidate_n"),
+                        "start_zone_candidates": row.get("process_start_zone_candidates") or [],
+                        "end_zone_candidates": row.get("process_end_zone_candidates") or [],
+                        "action_family_layer_counts": row.get("action_family_layer_counts") or {},
+                        "pass_carry_layer_mix": row.get("pass_carry_layer_mix") or {},
+                        "visible_zone_transition_candidate_n": row.get("visible_zone_transition_candidate_n"),
+                        "visible_loss_transition_candidate_present": bool(row.get("visible_loss_transition_candidate_present")),
+                        "visible_recovery_transition_candidate_present": bool(row.get("visible_recovery_transition_candidate_present")),
+                        "shot_present_annotation_candidate": row.get("shot_present_annotation_candidate") is True,
+                        "replay_is_physical_trajectory_truth": False,
+                    }
+
                 six_phase_team_matrix.append({
                     "team_identity_candidate_id": team_id,
                     "opponent_team_identity_candidate_id": opponent_id,
@@ -1664,6 +1715,20 @@ def _construct_c03(
                     "visible_recovery_share_candidate": profile.get("visible_recovery_share_candidate") if observed else None,
                     "mean_actor_spread_candidate": profile.get("mean_actor_spread_candidate") if observed else None,
                     "mean_temporal_layer_n": profile.get("mean_temporal_layer_n") if observed else None,
+                    "mean_duration_candidate": _mean_signature("process_interval_duration_candidate") if observed else None,
+                    "mean_visible_zone_transition_candidate_n": _mean_signature("visible_zone_transition_candidate_n") if observed else None,
+                    "single_start_zone_process_n": sum(start_zone_counts.values()) if observed else None,
+                    "single_start_zone_distribution": dict(sorted(start_zone_counts.items())) if observed else {},
+                    "single_end_zone_process_n": sum(end_zone_counts.values()) if observed else None,
+                    "single_end_zone_distribution": dict(sorted(end_zone_counts.items())) if observed else {},
+                    "shot_variant_n": len(shot_rows) if observed else None,
+                    "non_shot_variant_n": len(non_shot_rows) if observed else None,
+                    "loss_variant_n": len(loss_rows) if observed else None,
+                    "representative_shot_process": _representative(shot_rows) if observed else None,
+                    "representative_non_shot_process": _representative(non_shot_rows) if observed else None,
+                    "representative_loss_process": _representative(loss_rows) if observed else None,
+                    "anatomy_basis": "ADMITTED_MATCH_LOCAL_PROCESS_DEVELOPMENT_SIGNATURES",
+                    "anatomy_is_physical_trajectory_truth": False,
                     "metric_semantics": (
                         "OWN_VISIBLE_PROCESS_PROFILE" if perspective == "ATTACK"
                         else "OPPONENT_VISIBLE_PROCESS_EXPOSURE_PROFILE"

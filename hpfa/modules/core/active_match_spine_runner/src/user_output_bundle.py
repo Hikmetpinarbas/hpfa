@@ -499,6 +499,60 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
     return cards
 
 
+def _top_distribution_item(values: Any) -> tuple[str, int] | None:
+    if not isinstance(values, dict) or not values:
+        return None
+    rows = []
+    for key, value in values.items():
+        try:
+            rows.append((str(key), int(value)))
+        except (TypeError, ValueError):
+            continue
+    return max(rows, key=lambda item: (item[1], item[0])) if rows else None
+
+
+def _phase_anatomy_sentence(row: dict[str, Any], language: str) -> str:
+    duration = row.get("mean_duration_candidate")
+    actors = row.get("mean_actor_spread_candidate")
+    layers = row.get("mean_temporal_layer_n")
+    zone_transitions = row.get("mean_visible_zone_transition_candidate_n")
+    start = _top_distribution_item(row.get("single_start_zone_distribution"))
+    end = _top_distribution_item(row.get("single_end_zone_distribution"))
+    parts = []
+    if isinstance(duration, (int, float)):
+        parts.append(f"ort. süre {duration:.1f} sn" if language == "tr" else f"mean duration {duration:.1f}s")
+    if isinstance(actors, (int, float)):
+        parts.append(f"ort. görünür oyuncu yayılımı {actors:.1f}" if language == "tr" else f"mean visible actor spread {actors:.1f}")
+    if isinstance(layers, (int, float)):
+        parts.append(f"ort. zaman katmanı {layers:.1f}" if language == "tr" else f"mean temporal layers {layers:.1f}")
+    if isinstance(zone_transitions, (int, float)):
+        parts.append(f"ort. görünür bölge geçişi {zone_transitions:.1f}" if language == "tr" else f"mean visible zone transitions {zone_transitions:.1f}")
+    if start:
+        parts.append(f"en sık tekil başlangıç bölgesi {start[0]} ({start[1]})" if language == "tr" else f"top single start zone {start[0]} ({start[1]})")
+    if end:
+        parts.append(f"en sık tekil bitiş bölgesi {end[0]} ({end[1]})" if language == "tr" else f"top single end zone {end[0]} ({end[1]})")
+    return "; ".join(parts)
+
+
+def _representative_replay_sentence(row: dict[str, Any], language: str) -> str:
+    rep = row.get("representative_shot_process")
+    if not isinstance(rep, dict):
+        rep = row.get("representative_loss_process")
+    if not isinstance(rep, dict):
+        return ""
+    start = _fmt_time(rep.get("process_start_candidate"))
+    end = _fmt_time(rep.get("process_end_candidate"))
+    start_zones = ", ".join(str(v) for v in (rep.get("start_zone_candidates") or [])) or "UNKNOWN"
+    end_zones = ", ".join(str(v) for v in (rep.get("end_zone_candidates") or [])) or "UNKNOWN"
+    layers = int(rep.get("temporal_layer_n") or 0)
+    actors = int(rep.get("unique_actor_candidate_n") or 0)
+    if language == "tr":
+        kind = "şut bağlantılı örnek" if rep.get("shot_present_annotation_candidate") is True else "kayıp bağlantılı örnek"
+        return f"Örnek replay: {kind} {start}-{end}, {start_zones} → {end_zones}, {layers} zaman katmanı, {actors} görünür oyuncu."
+    kind = "shot-linked example" if rep.get("shot_present_annotation_candidate") is True else "loss-linked example"
+    return f"Example replay: {kind} {start}-{end}, {start_zones} → {end_zones}, {layers} temporal layers, {actors} visible actors."
+
+
 def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     c03 = (rich.get("constructs") or {}).get("C03") or {}
     matrix = [row for row in (c03.get("six_phase_team_matrix") or []) if isinstance(row, dict)]
@@ -544,24 +598,42 @@ def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any],
             perspective = str(row.get("perspective") or "")
             if language == "tr":
                 if perspective == "ATTACK":
-                    cards.append(
-                        f"{phase}: {process_n} görünür süreç; {shot_n} şut bağlantılı son bölüm, "                        f"{loss_n} görünür top kaybı, {recovery_n} görünür top kazanımı."
+                    base = (
+                        f"{phase}: {process_n} görünür süreç; {shot_n} şut bağlantılı son bölüm, "
+                        f"{loss_n} görünür top kaybı, {recovery_n} görünür top kazanımı."
                     )
+                    anatomy = _phase_anatomy_sentence(row, language)
+                    replay = _representative_replay_sentence(row, language)
+                    cards.append(" ".join(part for part in (base, anatomy, replay) if part))
                 else:
                     source_family = _football_family_label(row.get("source_process_family_candidate"), language)
-                    cards.append(
-                        f"{phase}: {opp_name} tarafından kurulan {process_n} {source_family} sürecine karşı görünür savunma maruziyeti; "                        f"rakibin {shot_n} süreci şut bağlantılı sona, {loss_n} süreci görünür top kaybına, "                        f"{recovery_n} süreci görünür top kazanımına bağlandı."
+                    base = (
+                        f"{phase}: {opp_name} tarafından kurulan {process_n} {source_family} sürecine karşı görünür savunma maruziyeti; "
+                        f"rakibin {shot_n} süreci şut bağlantılı sona, {loss_n} süreci görünür top kaybına, "
+                        f"{recovery_n} süreci görünür top kazanımına bağlandı."
                     )
+                    anatomy = _phase_anatomy_sentence(row, language)
+                    replay = _representative_replay_sentence(row, language)
+                    cards.append(" ".join(part for part in (base, anatomy, replay) if part))
             else:
                 if perspective == "ATTACK":
-                    cards.append(
-                        f"{phase}: {process_n} visible processes; {shot_n} shot-linked terminal segments, "                        f"{loss_n} visible losses, {recovery_n} visible recoveries."
+                    base = (
+                        f"{phase}: {process_n} visible processes; {shot_n} shot-linked terminal segments, "
+                        f"{loss_n} visible losses, {recovery_n} visible recoveries."
                     )
+                    anatomy = _phase_anatomy_sentence(row, language)
+                    replay = _representative_replay_sentence(row, language)
+                    cards.append(" ".join(part for part in (base, anatomy, replay) if part))
                 else:
                     source_family = _football_family_label(row.get("source_process_family_candidate"), language)
-                    cards.append(
-                        f"{phase}: visible defensive exposure against {process_n} {opp_name} {source_family} processes; "                        f"{shot_n} opponent processes reached a shot-linked terminal segment, {loss_n} a visible loss, "                        f"and {recovery_n} a visible recovery."
+                    base = (
+                        f"{phase}: visible defensive exposure against {process_n} {opp_name} {source_family} processes; "
+                        f"{shot_n} opponent processes reached a shot-linked terminal segment, {loss_n} a visible loss, "
+                        f"and {recovery_n} a visible recovery."
                     )
+                    anatomy = _phase_anatomy_sentence(row, language)
+                    replay = _representative_replay_sentence(row, language)
+                    cards.append(" ".join(part for part in (base, anatomy, replay) if part))
         if language == "tr":
             cards.append(
                 "Kanıt notu: 12 yön sabit analiz yuvasıdır; savunma satırları rakibin görünür hücum sürecini savunma maruziyeti olarak ters yönden okur. "                "Rakibin kaybı zorlanmış top kaybı, rakibin şut çekmemesi şut önleme, bu faz yuvaları da tracking/video olmadan fiziksel savunma şekli gerçeği değildir."

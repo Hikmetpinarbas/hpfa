@@ -886,6 +886,12 @@ def test_c03_builds_twelve_direction_six_phase_team_matrix() -> None:
     assert a_def["source_process_family_candidate"] == "POSITIONAL_ATTACK_CANDIDATE"
     assert a_def["metric_semantics"] == "OPPONENT_VISIBLE_PROCESS_EXPOSURE_PROFILE"
     assert a_def["opponent_visible_loss_is_forced_turnover_truth"] is False
+    assert a_def["mean_duration_candidate"] == 5.0
+    assert a_def["shot_variant_n"] == 1
+    assert a_def["non_shot_variant_n"] == 0
+    assert isinstance(a_def["representative_shot_process"], dict)
+    assert a_def["representative_shot_process"]["replay_is_physical_trajectory_truth"] is False
+    assert a_def["anatomy_is_physical_trajectory_truth"] is False
     assert result["six_phase_team_matrix_is_phase_truth"] is False
 
 
