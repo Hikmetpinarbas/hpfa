@@ -9,6 +9,7 @@ from typing import Any
 
 from analyst_mechanism_review import build_mechanism_review_lines
 from mechanism_story_review_selector import build_mechanism_story_review_shortlist
+
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_sentence_render_completeness import (
     FACT_ONLY_RENDER,
     validate_safe_sentence_render,
@@ -67,7 +68,7 @@ def _fmt_time(value: Any) -> str:
     if seconds < 0:
         return "UNKNOWN"
     minutes = int(seconds // 60)
-    secs = int(round(seconds - minutes * 60))
+    secs = round(seconds - minutes * 60)
     if secs == 60:
         minutes += 1
         secs = 0
@@ -324,6 +325,8 @@ def _football_family_label(value: Any, language: str) -> str:
     key = str(value or "").strip().replace("_CANDIDATE", "")
     labels_tr = {
         "POSITIONAL_ATTACK": "yerleşik hücum",
+        "COUNTERATTACK": "kontra atak",
+        "SET_PIECE_ATTACK": "duran top hücumu",
         "TRANSITION_ATTACK": "geçiş hücumu",
         "CIRCULATION": "top dolaşımı",
         "LOSS_TRANSITION": "top kaybı sonrası geçiş",
@@ -333,6 +336,8 @@ def _football_family_label(value: Any, language: str) -> str:
     }
     labels_en = {
         "POSITIONAL_ATTACK": "positional attack",
+        "COUNTERATTACK": "counterattack",
+        "SET_PIECE_ATTACK": "set-piece attack",
         "TRANSITION_ATTACK": "attacking transition",
         "CIRCULATION": "circulation",
         "LOSS_TRANSITION": "post-loss transition",
@@ -472,6 +477,58 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
     return cards
 
 
+def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
+    c03 = (rich.get("constructs") or {}).get("C03") or {}
+    profiles = [row for row in (c03.get("team_process_profiles") or []) if isinstance(row, dict)]
+    teams = _human_team_labels(identity)
+    team_ids = sorted({str(row.get("team_identity_candidate_id") or "") for row in profiles if str(row.get("team_identity_candidate_id") or "")})
+    if len(team_ids) != 2:
+        return []
+    by_key = {
+        (str(row.get("team_identity_candidate_id") or ""), str(row.get("process_family_candidate") or "")): row
+        for row in profiles
+    }
+    families = [
+        "POSITIONAL_ATTACK_CANDIDATE",
+        "COUNTERATTACK_CANDIDATE",
+        "SET_PIECE_ATTACK_CANDIDATE",
+    ]
+    cards: list[str] = []
+    for team_id in team_ids:
+        opp_id = team_ids[1] if team_id == team_ids[0] else team_ids[0]
+        team_name = teams.get(team_id, team_id)
+        opp_name = teams.get(opp_id, opp_id)
+        for family in families:
+            own = by_key.get((team_id, family))
+            opp = by_key.get((opp_id, family))
+            if not own or not opp:
+                continue
+            own_n = int(own.get("eligible_process_n") or 0)
+            own_shot = int(own.get("shot_ending_process_n") or 0)
+            own_loss = int(own.get("visible_loss_process_n") or 0)
+            opp_n = int(opp.get("eligible_process_n") or 0)
+            opp_shot = int(opp.get("shot_ending_process_n") or 0)
+            family_name = _football_family_label(family, language)
+            if language == "tr":
+                cards.append(
+                    f"{team_name} — {family_name}: hücum yüzeyinde {own_n} görünür süreç var; "                    f"{own_shot} tanesi şutla bağlantılı son bölüme, {own_loss} tanesi görünür top kaybına bağlanıyor. "                    f"Savunma maruziyeti tarafında {opp_name} aynı ailede {opp_n} süreç kurdu ve {opp_shot} tanesi şutla bağlantılı sona ulaştı."
+                )
+            else:
+                cards.append(
+                    f"{team_name} — {family_name}: the attacking surface contains {own_n} visible processes; "                    f"{own_shot} are linked to a shot-ending terminal segment and {own_loss} to a visible loss. "                    f"On the defensive-exposure side, {opp_name} produced {opp_n} processes in the same family, with {opp_shot} linked to a shot-ending terminal segment."
+                )
+    if cards:
+        if language == "tr":
+            cards.append(
+                "Kanıt notu: Bu bölüm hücum üretimi ile rakibin aynı süreç ailesindeki görünür üretimini karşı karşıya koyar. "                "Rakibin şut üretememesi otomatik olarak savunma başarısı, baskı başarısı veya nedensel savunma etkisi değildir."
+            )
+        else:
+            cards.append(
+                "Evidence note: this section places attacking production beside the opponent's visible production in the same process family. "                "An opponent process without a shot is not automatically defensive success, pressing success, or causal defensive impact."
+            )
+    return cards
+
+
 def _mechanism_visible_split_sentence(record: dict[str, Any], language: str) -> str:
     rows = [row for row in (record.get("consequence_feature_difference_candidates") or []) if isinstance(row, dict)]
     def pick(token_suffix: str):
@@ -601,8 +658,6 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
         lift = candidate.get("descriptive_lift")
         eligible_spread = int(candidate.get("eligible_episode_spread") or 0)
         positive_spread = int(candidate.get("positive_episode_spread") or 0)
-        pool_n = int(candidate.get("selection_candidate_pool_n") or 0)
-        rank = int(candidate.get("selection_rank") or 0)
         if language == "tr":
             label = "Oyuncu" if entity_type == "PLAYER" else "İkili"
             football = (
@@ -666,6 +721,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "tr") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
+    contest_cards = _human_process_contest_cards(rich, identity, "tr") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "tr")
     lines = [
         "HPFA MAÇ ANALİZİ — TÜRKÇE ANALİST RAPORU",
@@ -684,14 +740,19 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- Bu maçta bu başlık için güvenli biçimde raporlanabilir current-run aday yok.")
-    lines.extend(["", "[3] AYNI HÜCUM BAŞLANGICININ AYRIŞAN SONUÇLARI"])
+    lines.extend(["", "[3] HÜCUM × SAVUNMA SÜREÇ ÇARPIŞMASI"])
+    if contest_cards:
+        lines.extend(f"- {line}" for line in contest_cards)
+    else:
+        lines.append("- Bu maçta iki takım için karşılaştırılabilir süreç çarpışma yüzeyi üretilemedi.")
+    lines.extend(["", "[4] AYNI HÜCUM BAŞLANGICININ AYRIŞAN SONUÇLARI"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde kısa listeye alınmış mekanizma adayı yok.")
     lines.extend([
         "",
-        "[4] NE SÖYLEYEBİLİRİZ / NE SÖYLEYEMEYİZ?",
+        "[5] NE SÖYLEYEBİLİRİZ / NE SÖYLEYEMEYİZ?",
         "- Görünür birlikte-oluş, oyuncu katkısı veya nedensel etki değildir.",
         "- Şut kaydı görülmeyen süreç otomatik olarak başarısız hücum sayılmaz.",
         "- Sıralama, yalnız analistin hangi örneklere önce bakacağını belirleyen maç içi dikkat sırasıdır.",
@@ -710,6 +771,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "en") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
+    contest_cards = _human_process_contest_cards(rich, identity, "en") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "en")
     lines = [
         "HPFA MATCH ANALYSIS — ENGLISH ANALYST REPORT",
@@ -728,14 +790,19 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- No current-run candidate can be reported safely under this heading.")
-    lines.extend(["", "[3] DIVERGING OUTCOMES FROM THE SAME ATTACKING START"])
+    lines.extend(["", "[3] ATTACK × DEFENCE PROCESS CONTEST"])
+    if contest_cards:
+        lines.extend(f"- {line}" for line in contest_cards)
+    else:
+        lines.append("- No comparable two-team process contest surface is available for this run.")
+    lines.extend(["", "[4] DIVERGING OUTCOMES FROM THE SAME ATTACKING START"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- No mechanism candidate was safely shortlisted in this run.")
     lines.extend([
         "",
-        "[4] CLAIM BOUNDARY",
+        "[5] CLAIM BOUNDARY",
         "- Visible co-occurrence is not player contribution or causal effect.",
         "- A process without a visible shot annotation is not automatically a failed attack.",
         "- Ranking is a match-local analyst-attention order, not a stable player ranking.",

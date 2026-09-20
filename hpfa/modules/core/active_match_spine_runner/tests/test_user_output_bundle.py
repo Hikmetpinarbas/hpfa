@@ -13,13 +13,13 @@ if str(SRC) not in sys.path:
 import user_output_bundle
 from user_output_bundle import (
     ANALYST_REPORT,
-    ANALYST_REPORT_TR,
     ANALYST_REPORT_EN,
+    ANALYST_REPORT_TR,
     BUNDLE_MANIFEST,
     BUNDLE_ZIP,
     build_analyst_report,
-    build_human_analyst_report_tr,
     build_human_analyst_report_en,
+    build_human_analyst_report_tr,
     snapshot_output_state,
     write_standard_user_outputs,
 )
@@ -110,6 +110,44 @@ def test_analyst_report_uses_current_episode_surface(tmp_path):
     assert "feature_surface_current_invocation=true" in text
     assert "canonical_event_count=UNKNOWN" in text
     assert "production_release=false" in text
+
+
+def test_process_contest_cards_put_attack_and_opponent_exposure_on_same_surface():
+    rich = {
+        "constructs": {
+            "C03": {
+                "team_process_profiles": [
+                    {
+                        "team_identity_candidate_id": "team_a",
+                        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                        "eligible_process_n": 12,
+                        "shot_ending_process_n": 3,
+                        "visible_loss_process_n": 5,
+                    },
+                    {
+                        "team_identity_candidate_id": "team_b",
+                        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                        "eligible_process_n": 9,
+                        "shot_ending_process_n": 1,
+                        "visible_loss_process_n": 4,
+                    },
+                ]
+            }
+        }
+    }
+    identity = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha"},
+            {"team_identity_candidate_id": "team_b", "team_normalized_key": "beta"},
+        ]
+    }
+    cards = user_output_bundle._human_process_contest_cards(rich, identity, "tr")
+    text = "\n".join(cards)
+    assert "Alpha — yerleşik hücum" in text
+    assert "12 görünür süreç" in text
+    assert "savunma maruziyeti tarafında beta" in text.casefold()
+    assert "9 süreç kurdu" in text
+    assert "otomatik olarak savunma başarısı" in text
 
 
 def test_human_reports_use_football_language_and_keep_evidence_note_separate():
