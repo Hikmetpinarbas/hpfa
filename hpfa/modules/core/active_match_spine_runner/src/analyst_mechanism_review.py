@@ -636,12 +636,25 @@ def build_mechanism_review_lines(
             "Actor farkini oyuncu kalitesi/mekanizma; continuation-handover farkini neden/taktik plan; provider labelini fiziksel futbol truth olarak yorumlama."
         )
 
+    record_by_ref = {
+        str(record.get("grammar_stable_variant_feature_delta_id") or ""): record
+        for record in records
+        if record.get("grammar_stable_variant_feature_delta_id")
+    }
     grammar_context_groups: dict[tuple[str, ...], list[dict[str, Any]]] = {}
-    for record in review_records:
-        grammar_key = tuple(str(value) for value in (record.get("grammar_signature_tokens") or []))
+    for selected_row in shortlist.get("shortlist") or []:
+        if not isinstance(selected_row, dict):
+            continue
+        grammar_key = tuple(str(value) for value in (selected_row.get("grammar_signature_tokens") or []))
         if not grammar_key:
             continue
-        grammar_context_groups.setdefault(grammar_key, []).append(record)
+        companions = [
+            record_by_ref[ref]
+            for ref in (selected_row.get("same_grammar_context_review_refs") or [])
+            if ref in record_by_ref
+        ]
+        if companions:
+            grammar_context_groups[grammar_key] = companions
     for grammar_key, context_records in sorted(grammar_context_groups.items()):
         context_keys = {
             (
@@ -654,8 +667,8 @@ def build_mechanism_review_lines(
             continue
         lines.append(
             "same_grammar_context_comparison: "
-            f"grammar={_grammar_label(list(grammar_key))} shortlisted_contexts={len(context_keys)} "
-            "scope=SHORTLIST_ONLY_ATTENTION_COMPRESSION_NOT_ALL_MATCH_CONTEXTS "
+            f"grammar={_grammar_label(list(grammar_key))} eligible_contexts={len(context_keys)} "
+            "scope=SELECTED_GRAMMAR_ELIGIBLE_CONTEXTS_NOT_ALL_MATCH_CONTEXTS "
             "semantics=MATCH_LOCAL_VISIBLE_CONTEXT_COMPARISON_ONLY "
             "tactical_change=false team_quality=false causality=false significance=false"
         )

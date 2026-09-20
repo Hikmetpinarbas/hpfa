@@ -49,6 +49,23 @@ def test_selector_prefers_rich_candidates_and_preserves_diversity_without_truth_
     assert result["analyst_relevance_state"] == "UNRESOLVED_NO_EXPLICIT_ANALYST_QUESTION"
 
 
+
+def test_selector_uses_one_attention_slot_per_grammar_across_team_period_contexts():
+    payload = {
+        "grammar_stable_variant_feature_delta_records": [
+            _row("a", "T1", "1", ["LAYER[PASS]", "LAYER[PASS]"]),
+            _row("b", "T2", "2", ["LAYER[PASS]", "LAYER[PASS]"]),
+            _row("c", "T1", "2", ["LAYER[RECOVERY]", "LAYER[PASS]"]),
+        ]
+    }
+    result = build_mechanism_story_review_shortlist(payload, limit=5)
+
+    assert result["shortlist_count"] == 2
+    assert [row["source_mechanism_review_ref"] for row in result["shortlist"]] == ["a", "c"]
+    assert result["diversity_basis"] == "UNIQUE_GRAMMAR_SIGNATURE_ATTENTION_SLOT"
+    assert result["same_grammar_contexts_are_separate_comparison_not_extra_mechanism_slots"] is True
+
+
 def test_selector_blocks_censored_or_single_outcome_candidates():
     blocked = _row("blocked", "T1", "1", ["LAYER[PASS]"], censored=1)
     one_sided = _row("one", "T2", "1", ["LAYER[PASS]"])

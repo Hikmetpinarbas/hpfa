@@ -117,11 +117,8 @@ def _review_support_state(record: dict[str, Any]) -> str:
     return "DIVERGENCE_SUPPORT_UNRESOLVED"
 
 
-def _diversity_key(record: dict[str, Any]) -> tuple[str, str, tuple[str, ...]]:
-    team = ",".join(sorted(str(v) for v in (record.get("team_identity_candidate_ids") or [])))
-    period = ",".join(sorted(str(v) for v in (record.get("period_candidates") or [])))
-    grammar = tuple(str(v) for v in (record.get("grammar_signature_tokens") or []))
-    return team, period, grammar
+def _diversity_key(record: dict[str, Any]) -> tuple[str, ...]:
+    return tuple(str(v) for v in (record.get("grammar_signature_tokens") or []))
 
 
 def build_mechanism_story_review_shortlist(
@@ -183,7 +180,7 @@ def build_mechanism_story_review_shortlist(
     decorated.sort(key=lambda item: (item[0], item[1], item[2]))
 
     selected: list[dict[str, Any]] = []
-    seen_diversity: set[tuple[str, str, tuple[str, ...]]] = set()
+    seen_diversity: set[tuple[str, ...]] = set()
     for _, _, _, row in decorated:
         eligibility = _eligibility_state(row, bounds)
         band = _priority_band(row, bounds)
@@ -256,6 +253,32 @@ def build_mechanism_story_review_shortlist(
         if len(selected) >= limit:
             break
 
+    for selected_row in selected:
+        selected_grammar = tuple(str(v) for v in (selected_row.get("grammar_signature_tokens") or []))
+        context_refs: list[str] = []
+        seen_contexts: set[tuple[tuple[str, ...], tuple[str, ...]]] = set()
+        for _, _, _, candidate in decorated:
+            if _eligibility_state(candidate, bounds).startswith("BLOCKED_"):
+                continue
+            grammar = tuple(str(v) for v in (candidate.get("grammar_signature_tokens") or []))
+            if grammar != selected_grammar:
+                continue
+            context_key = (
+                tuple(sorted(str(v) for v in (candidate.get("team_identity_candidate_ids") or []))),
+                tuple(sorted(str(v) for v in (candidate.get("period_candidates") or []))),
+            )
+            if context_key in seen_contexts:
+                continue
+            seen_contexts.add(context_key)
+            ref = str(candidate.get("grammar_stable_variant_feature_delta_id") or "").strip()
+            if ref:
+                context_refs.append(ref)
+        selected_row["same_grammar_context_review_refs"] = context_refs
+        selected_row["same_grammar_context_review_ref_count"] = len(context_refs)
+        selected_row["same_grammar_context_review_scope"] = (
+            "ONE_ATTENTION_REPRESENTATIVE_PER_TEAM_PERIOD_CONTEXT"
+        )
+
     return {
         "status": "PASS" if selected else "REVIEW_REQUIRED",
         "reason": None if selected else "no_eligible_mechanism_review_candidates",
@@ -266,6 +289,8 @@ def build_mechanism_story_review_shortlist(
             row.get("story_eligibility_state") == "BOUND_AWARE_REVIEW_ONLY" for row in selected
         ),
         "diversity_deduplication_applied": True,
+        "diversity_basis": "UNIQUE_GRAMMAR_SIGNATURE_ATTENTION_SLOT",
+        "same_grammar_contexts_are_separate_comparison_not_extra_mechanism_slots": True,
         "review_support_attention_compression_applied": True,
         "review_support_attention_order_is_truth_ranking": False,
         "episode_spread_count_is_independent_support_count": False,
