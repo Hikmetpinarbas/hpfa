@@ -430,6 +430,8 @@ def run_full_spine(
     packets: list[dict[str, Any]] = []
     base_packet_count = 0
     rich_packet_count = 0
+    c01_rich_packet_admitted = False
+    c02_rich_packet_admitted_count = 0
     fused_packet_artifacts: list[str] = []
     if not hard_blocks:
         try:
@@ -456,12 +458,17 @@ def run_full_spine(
         for candidate in rich_report.get("c4_packet_candidates") or []:
             if not isinstance(candidate, dict):
                 continue
+            source_construct_id = str(candidate.get("source_construct_id") or "")
             packet = build_composite_packet(candidate)
             if packet.get("hard_block_hits"):
                 review_hits.append("rich_construct_packet_not_admitted")
                 continue
             packets.append(packet)
             rich_packet_count += 1
+            if source_construct_id == "C01_PROGRESSION_VOLUME_VS_TERMINAL_CONVERSION":
+                c01_rich_packet_admitted = True
+            elif source_construct_id == "C02_PROCESS_PARTICIPANT_OUTCOME_ASSOCIATION":
+                c02_rich_packet_admitted_count += 1
 
         if not hard_blocks:
             fused_packet_artifacts = _write_fused_packet_inventory(
@@ -570,7 +577,9 @@ def run_full_spine(
             "micro_mezzo_macro_lattice_bound": bool(rich_report.get("analysis_lattice")),
             "phase_state_candidate_lane_bound": bool(rich_report.get("phase_state_candidates")),
             "entity_views_bound": bool(entity_views),
-            "construct_C01_bound_to_c4": rich_packet_count > 0,
+            "construct_C01_bound_to_c4": c01_rich_packet_admitted,
+            "construct_C02_bound_to_c4": c02_rich_packet_admitted_count > 0,
+            "construct_C02_bound_packet_count": c02_rich_packet_admitted_count,
             "spatial_progression_sidecar_exposed_to_main_spine": spatial_progression_evidence.get("status") != "NOT_EVALUATED",
             "current_c4_producers_executed": c4_chain_executed,
             "current_c4_producers_reused": c4_surface_current,
