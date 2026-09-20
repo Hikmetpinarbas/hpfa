@@ -1626,6 +1626,57 @@ def _construct_c03(
                 "claim_ceiling": "MATCH_LOCAL_RECIPROCAL_TEAM_PROCESS_COMPARISON_CANDIDATE_ONLY",
             })
 
+    six_phase_team_matrix: list[dict[str, Any]] = []
+    if len(team_ids) == 2:
+        profile_index = {
+            (row["team_identity_candidate_id"], row["process_family_candidate"]): row
+            for row in team_process_profiles
+        }
+        phase_specs = (
+            ("ESTABLISHED_ATTACK", "ATTACK", "POSITIONAL_ATTACK_CANDIDATE", "ESTABLISHED_DEFENCE"),
+            ("ATTACKING_TRANSITION", "ATTACK", "COUNTERATTACK_CANDIDATE", "DEFENSIVE_TRANSITION"),
+            ("ATTACKING_SET_PIECE", "ATTACK", "SET_PIECE_ATTACK_CANDIDATE", "DEFENSIVE_SET_PIECE"),
+            ("ESTABLISHED_DEFENCE", "DEFENCE", "POSITIONAL_ATTACK_CANDIDATE", "ESTABLISHED_ATTACK"),
+            ("DEFENSIVE_TRANSITION", "DEFENCE", "COUNTERATTACK_CANDIDATE", "ATTACKING_TRANSITION"),
+            ("DEFENSIVE_SET_PIECE", "DEFENCE", "SET_PIECE_ATTACK_CANDIDATE", "ATTACKING_SET_PIECE"),
+        )
+        for team_id in team_ids:
+            opponent_id = team_ids[1] if team_id == team_ids[0] else team_ids[0]
+            for phase_slot, perspective, family_id, reciprocal_slot in phase_specs:
+                source_team_id = team_id if perspective == "ATTACK" else opponent_id
+                profile = profile_index.get((source_team_id, family_id))
+                observed = isinstance(profile, dict)
+                six_phase_team_matrix.append({
+                    "team_identity_candidate_id": team_id,
+                    "opponent_team_identity_candidate_id": opponent_id,
+                    "canonical_phase_slot": phase_slot,
+                    "reciprocal_phase_slot": reciprocal_slot,
+                    "perspective": perspective,
+                    "source_process_family_candidate": family_id,
+                    "source_process_profile_team_identity_candidate_id": source_team_id,
+                    "observation_state": "VISIBLE_PROCESS_PROFILE_AVAILABLE" if observed else "UNOBSERVABLE_WITH_CURRENT_DATA",
+                    "eligible_process_n": int(profile.get("eligible_process_n") or 0) if observed else None,
+                    "shot_ending_process_n": int(profile.get("shot_ending_process_n") or 0) if observed else None,
+                    "visible_loss_process_n": int(profile.get("visible_loss_process_n") or 0) if observed else None,
+                    "visible_recovery_process_n": int(profile.get("visible_recovery_process_n") or 0) if observed else None,
+                    "shot_ending_share_candidate": profile.get("shot_ending_share_candidate") if observed else None,
+                    "visible_loss_share_candidate": profile.get("visible_loss_share_candidate") if observed else None,
+                    "visible_recovery_share_candidate": profile.get("visible_recovery_share_candidate") if observed else None,
+                    "mean_actor_spread_candidate": profile.get("mean_actor_spread_candidate") if observed else None,
+                    "mean_temporal_layer_n": profile.get("mean_temporal_layer_n") if observed else None,
+                    "metric_semantics": (
+                        "OWN_VISIBLE_PROCESS_PROFILE" if perspective == "ATTACK"
+                        else "OPPONENT_VISIBLE_PROCESS_EXPOSURE_PROFILE"
+                    ),
+                    "defensive_exposure_is_defensive_success_truth": False,
+                    "opponent_visible_loss_is_forced_turnover_truth": False,
+                    "opponent_non_shot_is_shot_prevention_truth": False,
+                    "phase_slot_is_observed_phase_truth": False,
+                    "phase_admission_status": "NOT_EVALUATED",
+                    "independent_support_created": False,
+                    "claim_ceiling": "MATCH_LOCAL_SIX_PHASE_DIRECTIONAL_PROCESS_SURFACE_ONLY",
+                })
+
     variant_context_profiles: list[dict[str, Any]] = []
     by_team_family_variant: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for signature in signatures:
@@ -1691,6 +1742,14 @@ def _construct_c03(
         "team_process_profiles": team_process_profiles,
         "reciprocal_team_process_comparison_count": len(reciprocal_team_process_comparisons),
         "reciprocal_team_process_comparisons": reciprocal_team_process_comparisons,
+        "six_phase_team_matrix_expected_direction_count": 12 if len(team_ids) == 2 else 0,
+        "six_phase_team_matrix_direction_count": len(six_phase_team_matrix),
+        "six_phase_team_matrix_visible_direction_count": sum(
+            row.get("observation_state") == "VISIBLE_PROCESS_PROFILE_AVAILABLE" for row in six_phase_team_matrix
+        ),
+        "six_phase_team_matrix": six_phase_team_matrix,
+        "six_phase_team_matrix_is_phase_truth": False,
+        "six_phase_team_matrix_is_tactical_superiority_truth": False,
         "team_process_profiles_create_independent_support": False,
         "reciprocal_team_process_comparison_is_opponent_response_truth": False,
         "variant_context_profile_count": len(variant_context_profiles),

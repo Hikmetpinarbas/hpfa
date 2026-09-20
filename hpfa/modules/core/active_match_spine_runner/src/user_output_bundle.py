@@ -349,6 +349,28 @@ def _football_family_label(value: Any, language: str) -> str:
     return table.get(key, key.replace("_", " ").lower() or ("süreç" if language == "tr" else "process"))
 
 
+def _six_phase_label(value: Any, language: str) -> str:
+    key = str(value or "").strip()
+    labels_tr = {
+        "ESTABLISHED_ATTACK": "yerleşik hücum",
+        "ATTACKING_TRANSITION": "geçiş hücumu",
+        "ATTACKING_SET_PIECE": "duran top hücumu",
+        "ESTABLISHED_DEFENCE": "yerleşik savunma",
+        "DEFENSIVE_TRANSITION": "geçiş savunması",
+        "DEFENSIVE_SET_PIECE": "duran top savunması",
+    }
+    labels_en = {
+        "ESTABLISHED_ATTACK": "established attack",
+        "ATTACKING_TRANSITION": "attacking transition",
+        "ATTACKING_SET_PIECE": "attacking set piece",
+        "ESTABLISHED_DEFENCE": "established defence",
+        "DEFENSIVE_TRANSITION": "defensive transition",
+        "DEFENSIVE_SET_PIECE": "defensive set piece",
+    }
+    table = labels_tr if language == "tr" else labels_en
+    return table.get(key, key.replace("_", " ").lower() or ("faz" if language == "tr" else "phase"))
+
+
 def _human_team_labels(identity: dict[str, Any]) -> dict[str, str]:
     result: dict[str, str] = {}
     for row in identity.get("team_identity_candidates") or []:
@@ -479,8 +501,78 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
 
 def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     c03 = (rich.get("constructs") or {}).get("C03") or {}
-    profiles = [row for row in (c03.get("team_process_profiles") or []) if isinstance(row, dict)]
+    matrix = [row for row in (c03.get("six_phase_team_matrix") or []) if isinstance(row, dict)]
     teams = _human_team_labels(identity)
+    if matrix:
+        phase_order = {
+            "ESTABLISHED_ATTACK": 0,
+            "ATTACKING_TRANSITION": 1,
+            "ATTACKING_SET_PIECE": 2,
+            "ESTABLISHED_DEFENCE": 3,
+            "DEFENSIVE_TRANSITION": 4,
+            "DEFENSIVE_SET_PIECE": 5,
+        }
+        rows = sorted(
+            matrix,
+            key=lambda row: (
+                teams.get(str(row.get("team_identity_candidate_id") or ""), str(row.get("team_identity_candidate_id") or "")),
+                phase_order.get(str(row.get("canonical_phase_slot") or ""), 99),
+            ),
+        )
+        cards: list[str] = []
+        current_team = None
+        for row in rows:
+            team_id = str(row.get("team_identity_candidate_id") or "")
+            opp_id = str(row.get("opponent_team_identity_candidate_id") or "")
+            team_name = teams.get(team_id, team_id)
+            opp_name = teams.get(opp_id, opp_id)
+            if team_name != current_team:
+                cards.append(f"{team_name} — 6 faz" if language == "tr" else f"{team_name} — six phases")
+                current_team = team_name
+            phase = _six_phase_label(row.get("canonical_phase_slot"), language)
+            state = str(row.get("observation_state") or "")
+            if state != "VISIBLE_PROCESS_PROFILE_AVAILABLE":
+                cards.append(
+                    f"{phase}: mevcut veride değerlendirilemedi." if language == "tr"
+                    else f"{phase}: not observable with current data."
+                )
+                continue
+            process_n = int(row.get("eligible_process_n") or 0)
+            shot_n = int(row.get("shot_ending_process_n") or 0)
+            loss_n = int(row.get("visible_loss_process_n") or 0)
+            recovery_n = int(row.get("visible_recovery_process_n") or 0)
+            perspective = str(row.get("perspective") or "")
+            if language == "tr":
+                if perspective == "ATTACK":
+                    cards.append(
+                        f"{phase}: {process_n} görünür süreç; {shot_n} şut bağlantılı son bölüm, "                        f"{loss_n} görünür top kaybı, {recovery_n} görünür top kazanımı."
+                    )
+                else:
+                    source_family = _football_family_label(row.get("source_process_family_candidate"), language)
+                    cards.append(
+                        f"{phase}: {opp_name} tarafından kurulan {process_n} {source_family} sürecine karşı görünür savunma maruziyeti; "                        f"rakibin {shot_n} süreci şut bağlantılı sona, {loss_n} süreci görünür top kaybına, "                        f"{recovery_n} süreci görünür top kazanımına bağlandı."
+                    )
+            else:
+                if perspective == "ATTACK":
+                    cards.append(
+                        f"{phase}: {process_n} visible processes; {shot_n} shot-linked terminal segments, "                        f"{loss_n} visible losses, {recovery_n} visible recoveries."
+                    )
+                else:
+                    source_family = _football_family_label(row.get("source_process_family_candidate"), language)
+                    cards.append(
+                        f"{phase}: visible defensive exposure against {process_n} {opp_name} {source_family} processes; "                        f"{shot_n} opponent processes reached a shot-linked terminal segment, {loss_n} a visible loss, "                        f"and {recovery_n} a visible recovery."
+                    )
+        if language == "tr":
+            cards.append(
+                "Kanıt notu: 12 yön sabit analiz yuvasıdır; savunma satırları rakibin görünür hücum sürecini savunma maruziyeti olarak ters yönden okur. "                "Rakibin kaybı zorlanmış top kaybı, rakibin şut çekmemesi şut önleme, bu faz yuvaları da tracking/video olmadan fiziksel savunma şekli gerçeği değildir."
+            )
+        else:
+            cards.append(
+                "Evidence note: the 12 directions are fixed analysis slots. Defensive rows read the opponent's visible attacking process as defensive exposure. "                "Opponent loss is not automatically a forced turnover, lack of a shot is not automatically shot prevention, and these phase slots are not physical team-shape truth without tracking/video."
+            )
+        return cards
+
+    profiles = [row for row in (c03.get("team_process_profiles") or []) if isinstance(row, dict)]
     team_ids = sorted({str(row.get("team_identity_candidate_id") or "") for row in profiles if str(row.get("team_identity_candidate_id") or "")})
     if len(team_ids) != 2:
         return []
@@ -518,14 +610,11 @@ def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any],
                     f"{team_name} — {family_name}: the attacking surface contains {own_n} visible processes; "                    f"{own_shot} are linked to a shot-ending terminal segment and {own_loss} to a visible loss. "                    f"On the defensive-exposure side, {opp_name} produced {opp_n} processes in the same family, with {opp_shot} linked to a shot-ending terminal segment."
                 )
     if cards:
-        if language == "tr":
-            cards.append(
-                "Kanıt notu: Bu bölüm hücum üretimi ile rakibin aynı süreç ailesindeki görünür üretimini karşı karşıya koyar. "                "Rakibin şut üretememesi otomatik olarak savunma başarısı, baskı başarısı veya nedensel savunma etkisi değildir."
-            )
-        else:
-            cards.append(
-                "Evidence note: this section places attacking production beside the opponent's visible production in the same process family. "                "An opponent process without a shot is not automatically defensive success, pressing success, or causal defensive impact."
-            )
+        cards.append(
+            "Kanıt notu: Rakibin şut üretememesi otomatik olarak savunma başarısı değildir."
+            if language == "tr" else
+            "Evidence note: an opponent process without a shot is not automatically defensive success."
+        )
     return cards
 
 
@@ -740,7 +829,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- Bu maçta bu başlık için güvenli biçimde raporlanabilir current-run aday yok.")
-    lines.extend(["", "[3] HÜCUM × SAVUNMA SÜREÇ ÇARPIŞMASI"])
+    lines.extend(["", "[3] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:
@@ -790,7 +879,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- No current-run candidate can be reported safely under this heading.")
-    lines.extend(["", "[3] ATTACK × DEFENCE PROCESS CONTEST"])
+    lines.extend(["", "[3] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:

@@ -150,6 +150,44 @@ def test_process_contest_cards_put_attack_and_opponent_exposure_on_same_surface(
     assert "otomatik olarak savunma başarısı" in text
 
 
+def test_six_phase_matrix_renders_all_twelve_direction_slots():
+    rows = []
+    phases = [
+        ("ESTABLISHED_ATTACK", "ATTACK", "POSITIONAL_ATTACK_CANDIDATE"),
+        ("ATTACKING_TRANSITION", "ATTACK", "COUNTERATTACK_CANDIDATE"),
+        ("ATTACKING_SET_PIECE", "ATTACK", "SET_PIECE_ATTACK_CANDIDATE"),
+        ("ESTABLISHED_DEFENCE", "DEFENCE", "POSITIONAL_ATTACK_CANDIDATE"),
+        ("DEFENSIVE_TRANSITION", "DEFENCE", "COUNTERATTACK_CANDIDATE"),
+        ("DEFENSIVE_SET_PIECE", "DEFENCE", "SET_PIECE_ATTACK_CANDIDATE"),
+    ]
+    for team, opp in (("team_a", "team_b"), ("team_b", "team_a")):
+        for phase, perspective, family in phases:
+            rows.append({
+                "team_identity_candidate_id": team,
+                "opponent_team_identity_candidate_id": opp,
+                "canonical_phase_slot": phase,
+                "perspective": perspective,
+                "source_process_family_candidate": family,
+                "observation_state": "VISIBLE_PROCESS_PROFILE_AVAILABLE",
+                "eligible_process_n": 10,
+                "shot_ending_process_n": 2,
+                "visible_loss_process_n": 4,
+                "visible_recovery_process_n": 1,
+            })
+    rich = {"constructs": {"C03": {"six_phase_team_matrix": rows}}}
+    identity = {"team_identity_candidates": [
+        {"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha"},
+        {"team_identity_candidate_id": "team_b", "team_normalized_key": "beta"},
+    ]}
+    cards = user_output_bundle._human_process_contest_cards(rich, identity, "tr")
+    text = "\n".join(cards)
+    assert "Alpha — 6 faz" in text
+    assert "Beta — 6 faz" in text
+    for label in ("yerleşik hücum", "geçiş hücumu", "duran top hücumu", "yerleşik savunma", "geçiş savunması", "duran top savunması"):
+        assert text.count(label + ":") == 2
+    assert "zorlanmış top kaybı" in text
+
+
 def test_human_reports_use_football_language_and_keep_evidence_note_separate():
     rich = {
         "status": "REVIEW_REQUIRED",

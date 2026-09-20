@@ -847,6 +847,48 @@ def test_activity_state_candidates_do_not_claim_phase_admission() -> None:
 
 
 
+def test_c03_builds_twelve_direction_six_phase_team_matrix() -> None:
+    processes = []
+    families = (
+        "POSITIONAL_ATTACK_CANDIDATE",
+        "COUNTERATTACK_CANDIDATE",
+        "SET_PIECE_ATTACK_CANDIDATE",
+    )
+    cursor = 10.0
+    for team in ("A", "B"):
+        for family in families:
+            processes.append({
+                "process_participation_candidate_id": f"{team}_{family}",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": family,
+                "team_identity_candidate_id": team,
+                "period_candidate": "1",
+                "start_candidate": cursor,
+                "end_candidate": cursor + 5.0,
+                "shot_present_annotation_candidate": family == "POSITIONAL_ATTACK_CANDIDATE",
+            })
+            cursor += 10.0
+    result = _construct_c03(
+        {"process_participation_candidates": processes},
+        {"occurrence_state_transition_projections": []},
+        {"spatial_transition_candidates": []},
+    )
+    assert result["six_phase_team_matrix_expected_direction_count"] == 12
+    assert result["six_phase_team_matrix_direction_count"] == 12
+    assert result["six_phase_team_matrix_visible_direction_count"] == 12
+    rows = result["six_phase_team_matrix"]
+    a_def = next(
+        row for row in rows
+        if row["team_identity_candidate_id"] == "A"
+        and row["canonical_phase_slot"] == "ESTABLISHED_DEFENCE"
+    )
+    assert a_def["source_process_profile_team_identity_candidate_id"] == "B"
+    assert a_def["source_process_family_candidate"] == "POSITIONAL_ATTACK_CANDIDATE"
+    assert a_def["metric_semantics"] == "OPPONENT_VISIBLE_PROCESS_EXPOSURE_PROFILE"
+    assert a_def["opponent_visible_loss_is_forced_turnover_truth"] is False
+    assert result["six_phase_team_matrix_is_phase_truth"] is False
+
+
 def test_c03_variant_profiles_never_pool_opponent_teams() -> None:
     from hpfa.modules.core.active_match_spine_runner.src.rich_multiformat_analysis_lane import _construct_c03
 
