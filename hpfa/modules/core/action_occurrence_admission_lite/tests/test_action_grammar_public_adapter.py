@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from hpfa.modules.core.action_occurrence_admission_lite.src.action_grammar_public_adapter import (
     bind_intra_actor_action_grammar,
+    load_canonical_football_grammar_registry,
+    resolve_canonical_football_concept,
 )
 from hpfa.modules.core.action_occurrence_admission_lite.src.action_occurrence_admission import (
     load_registry,
@@ -102,3 +104,19 @@ def test_public_adapter_repairs_false_pass_when_existing_candidate_semantics_wer
     assert result["candidate_rejected_provider_semantics_binding_count"] == 1
     assert result["provider_semantics_binding_status"] == "REVIEW_REQUIRED"
     assert "candidate_rejected_provider_semantics_binding" in result["review_hits"]
+
+
+def test_public_adapter_exposes_provider_independent_canonical_grammar() -> None:
+    payload = load_canonical_football_grammar_registry()
+    assert payload["registry_id"] == "hpfa_football_action_process_grammar_v1"
+    assert payload["provider_binding_policy"]["provider_label_is_canonical_truth"] is False
+    assert payload["production_release"] is False
+
+
+def test_public_adapter_resolves_ids_and_declared_aliases_without_fuzzy_provider_mapping() -> None:
+    assert resolve_canonical_football_concept("PASS")["class"] == "ACTION"
+    dribble = resolve_canonical_football_concept("DRIBBLE")
+    assert dribble["id"] == "DRIBBLE_TAKE_ON"
+    turnover = resolve_canonical_football_concept("TURNOVER")
+    assert turnover["id"] == "TURNOVER_LOSS"
+    assert resolve_canonical_football_concept("Passes accurate") is None

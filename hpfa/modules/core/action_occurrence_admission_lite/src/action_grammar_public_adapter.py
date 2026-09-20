@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import json
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 from hpfa.modules.core.action_occurrence_admission_lite.src.goal_kick_restart_pass_grammar import (
@@ -20,6 +22,48 @@ from hpfa.modules.core.action_occurrence_admission_lite.src.single_action_anchor
 
 def _clean(value: Any) -> str:
     return " ".join(("" if value is None else str(value)).split()).strip()
+
+
+CANONICAL_FOOTBALL_GRAMMAR_PATH = (
+    Path(__file__).resolve().parents[5] / "canon" / "football_action_process_grammar_v1.json"
+)
+
+
+def load_canonical_football_grammar_registry() -> dict[str, Any]:
+    """Load the provider-independent HPFA football grammar registry.
+
+    This registry is semantic reference authority only. Loading or resolving a
+    concept never admits an occurrence, never creates event identity, and never
+    raises a metric/model output to football truth.
+    """
+    payload = json.loads(CANONICAL_FOOTBALL_GRAMMAR_PATH.read_text(encoding="utf-8"))
+    if payload.get("registry_id") != "hpfa_football_action_process_grammar_v1":
+        raise ValueError("unexpected_canonical_football_grammar_registry")
+    return payload
+
+
+def resolve_canonical_football_concept(value: Any) -> dict[str, Any] | None:
+    """Resolve a canonical ID or declared alias to one grammar concept.
+
+    Provider raw labels must first pass their provider semantic mapping layer; this
+    resolver is intentionally not a fuzzy provider-label normalizer.
+    """
+    token = _clean(value).upper()
+    if not token:
+        return None
+    matches: list[dict[str, Any]] = []
+    for row in load_canonical_football_grammar_registry().get("entries") or []:
+        if not isinstance(row, dict):
+            continue
+        identifiers = {_clean(row.get("id")).upper()}
+        identifiers.update(_clean(v).upper() for v in (row.get("aliases") or []) if _clean(v))
+        if token in identifiers:
+            matches.append(row)
+    if not matches:
+        return None
+    if len(matches) != 1:
+        raise ValueError(f"ambiguous_canonical_football_concept:{token}")
+    return copy.deepcopy(matches[0])
 
 
 def _goal_kick_matching_view(action_payload: dict[str, Any]) -> dict[str, Any]:
@@ -207,7 +251,7 @@ def bind_intra_actor_action_grammar(
 
     hard_blocks = list(occurrence_payload.get("hard_block_hits") or [])
     hard_blocks.extend(cardinality.get("hard_block_hits") or [])
-    occurrence_payload["hard_block_hits"] = sorted(set(_clean(value) for value in hard_blocks if _clean(value)))
+    occurrence_payload["hard_block_hits"] = sorted({_clean(value) for value in hard_blocks if _clean(value)})
 
     reviews = list(occurrence_payload.get("review_hits") or [])
     reviews.extend(grammar.get("review_hits") or [])
@@ -222,7 +266,7 @@ def bind_intra_actor_action_grammar(
     else:
         occurrence_payload["provider_semantics_binding_status"] = "PASS"
 
-    occurrence_payload["review_hits"] = sorted(set(_clean(value) for value in reviews if _clean(value)))
+    occurrence_payload["review_hits"] = sorted({_clean(value) for value in reviews if _clean(value)})
     if occurrence_payload["hard_block_hits"]:
         occurrence_payload["status"] = "FAIL_CLOSED"
         occurrence_payload["module_status"] = "FAIL_CLOSED"
