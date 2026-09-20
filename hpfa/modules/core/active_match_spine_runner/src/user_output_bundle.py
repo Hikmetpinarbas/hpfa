@@ -550,17 +550,40 @@ def _phase_motif_sentence(row: dict[str, Any], language: str) -> str:
     length_bucket = str(morphology.get("length_bucket") or "UNKNOWN")
     style = str(morphology.get("pass_carry_style") or "UNKNOWN")
     route_hint = str(morphology.get("route_hint") or "UNKNOWN")
+    divergence = top.get("representative_first_supported_grammar_divergence")
+    divergence_text = ""
+    if isinstance(divergence, dict):
+        first = divergence.get("first_supported_grammar_divergence") or {}
+        op = str(first.get("operation") or "")
+        left_token = str(first.get("left_token") or "∅")
+        right_token = str(first.get("right_token") or "∅")
+        left_context = str(divergence.get("left_variant_context") or "UNKNOWN")
+        right_context = str(divergence.get("right_variant_context") or "UNKNOWN")
+        if op:
+            if language == "tr":
+                divergence_text = (
+                    f" İlk destekli grammar ayrışması: {left_context} ↔ {right_context}; "
+                    f"{op}, {left_token} ↔ {right_token}. Bu nedensel kırılma veya taktik hata gerçeği değildir."
+                )
+            else:
+                divergence_text = (
+                    f" First supported grammar divergence: {left_context} ↔ {right_context}; "
+                    f"{op}, {left_token} ↔ {right_token}. This is not causal-breakpoint or tactical-error truth."
+                )
     if language == "tr":
         return (
             f"Tekrarlayan motifler: {motif_n} aile, {covered} süreç kapsıyor. En sık motif {member_n} örnek; "
             f"{length_bucket}, {action_presence}, {style}, rota ipucu {route_hint}; "
             f"varyantlar: {shot_n} şut bağlantılı, {loss_n} görünür kayıp, {recovery_n} görünür recovery."
+            + divergence_text
         )
     return (
         f"Recurring motifs: {motif_n} families covering {covered} processes. Top motif has {member_n} examples; "
         f"{length_bucket}, {action_presence}, {style}, route hint {route_hint}; "
         f"variants: {shot_n} shot-linked, {loss_n} visible loss, {recovery_n} visible recovery."
+        + divergence_text
     )
+
 
 
 def _representative_replay_sentence(row: dict[str, Any], language: str) -> str:

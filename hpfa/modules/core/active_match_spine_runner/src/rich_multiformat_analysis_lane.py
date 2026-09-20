@@ -12,6 +12,7 @@ from typing import Any
 from hpfa.modules.core.multiformat_file_inventory_lite.src import multiformat_file_inventory as inventory
 from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader import native_reader as xlsx
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import build_projection
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_sequence_grammar_alignment_projection import build_supported_sequence_grammar_alignment
 
 MODULE_ID = "rich_multiformat_analysis_lattice_v1"
 OUTPUT_JSON = "rich_multiformat_analysis_lattice_v1.json"
@@ -1630,6 +1631,115 @@ def _construct_c03(
         motif_id = "pmf_" + hashlib.sha256(
             f"{team_id}|{family_id}|{morphology_key}".encode()
         ).hexdigest()[:24]
+
+        def _variant_context(row: dict[str, Any]) -> str:
+            shot = row.get("shot_present_annotation_candidate") is True
+            loss = bool(row.get("visible_loss_transition_candidate_present"))
+            recovery = bool(row.get("visible_recovery_transition_candidate_present"))
+            if shot and loss:
+                return "SHOT_AND_LOSS_VISIBLE"
+            if shot:
+                return "SHOT_LINKED"
+            if loss:
+                return "LOSS_LINKED"
+            if recovery:
+                return "RECOVERY_LINKED"
+            return "OTHER_VISIBLE"
+
+        synthetic_variants = []
+        variant_context_by_id: dict[str, str] = {}
+        for row in rows:
+            variant_id = str(row.get("process_development_signature_id") or "")
+            if not variant_id:
+                continue
+            layer_refs = [f"{variant_id}:L{idx}" for idx, _ in enumerate(row.get("layers") or [])]
+            node_records = []
+            for idx, layer in enumerate(row.get("layers") or []):
+                node_records.append({
+                    "time_layer_ref": layer_refs[idx],
+                    "action_family_candidates": [str(v) for v in (layer.get("action_family_candidates") or []) if v],
+                })
+            edge_relations = [
+                {
+                    "from_time_layer_ref": layer_refs[idx],
+                    "to_time_layer_ref": layer_refs[idx + 1],
+                    "relation": "BEFORE_CONFIRMED",
+                }
+                for idx in range(max(0, len(layer_refs) - 1))
+            ]
+            synthetic_variants.append({
+                "partial_order_occurrence_variant_id": variant_id,
+                "time_layer_refs": layer_refs,
+                "node_records": node_records,
+                "edge_relations": edge_relations,
+            })
+            variant_context_by_id[variant_id] = _variant_context(row)
+
+        synthetic_pairs = []
+        for left, right in combinations(synthetic_variants, 2):
+            left_id = str(left.get("partial_order_occurrence_variant_id") or "")
+            right_id = str(right.get("partial_order_occurrence_variant_id") or "")
+            left_context = variant_context_by_id.get(left_id, "OTHER_VISIBLE")
+            right_context = variant_context_by_id.get(right_id, "OTHER_VISIBLE")
+            if left_context == right_context:
+                continue
+            synthetic_pairs.append({
+                "partial_order_similarity_pair_id": "motif_pair_" + hashlib.sha256(
+                    f"{motif_id}|{left_id}|{right_id}".encode()
+                ).hexdigest()[:24],
+                "left_variant_ref": left_id,
+                "right_variant_ref": right_id,
+                "comparison_eligible": True,
+                "comparison_eligibility_state": "SAME_OUTCOME_INDEPENDENT_MOTIF_DIFFERENT_VISIBLE_VARIANT_CONTEXT",
+                "outcome_used_in_similarity_decision": False,
+            })
+
+        divergence_alignment = None
+        divergence_candidates = []
+        if len(synthetic_variants) >= 2 and synthetic_pairs:
+            alignment_report = build_supported_sequence_grammar_alignment({
+                "partial_order_occurrence_variants": synthetic_variants,
+                "dependency_aware_partial_order_similarity_pairs": synthetic_pairs,
+                "dependency_aware_partial_order_similarity_status": "PASS",
+                "outcome_used_in_similarity_decision": False,
+                "same_timestamp_internal_ordering_allowed": False,
+                "source_row_order_is_temporal_truth": False,
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            })
+            divergence_candidates = [
+                row for row in (alignment_report.get("supported_sequence_grammar_alignments") or [])
+                if isinstance(row, dict) and row.get("first_supported_grammar_divergence") is not None
+            ]
+            if divergence_candidates:
+                divergence_candidates.sort(key=lambda row: (
+                    float(row.get("grammar_edit_distance_normalized") or 999.0),
+                    -float(row.get("common_core_symmetric_coverage") or 0.0),
+                    str(row.get("supported_sequence_grammar_alignment_id") or ""),
+                ))
+                chosen = divergence_candidates[0]
+                left_id = str(chosen.get("left_variant_ref") or "")
+                right_id = str(chosen.get("right_variant_ref") or "")
+                divergence_alignment = {
+                    "alignment_ref": chosen.get("supported_sequence_grammar_alignment_id"),
+                    "left_process_development_signature_id": left_id,
+                    "right_process_development_signature_id": right_id,
+                    "left_variant_context": variant_context_by_id.get(left_id),
+                    "right_variant_context": variant_context_by_id.get(right_id),
+                    "supported_common_core_tokens": chosen.get("supported_common_core_tokens") or [],
+                    "supported_common_core_layer_count": chosen.get("supported_common_core_layer_count"),
+                    "common_core_symmetric_coverage": chosen.get("common_core_symmetric_coverage"),
+                    "grammar_edit_distance": chosen.get("grammar_edit_distance"),
+                    "grammar_edit_distance_normalized": chosen.get("grammar_edit_distance_normalized"),
+                    "first_supported_grammar_divergence": chosen.get("first_supported_grammar_divergence"),
+                    "contrast_pair_selected_within_outcome_independent_motif": True,
+                    "contrast_pair_outcome_context_is_not_similarity_basis": True,
+                    "first_divergence_is_causal_breakpoint_truth": False,
+                    "first_divergence_is_tactical_failure_truth": False,
+                    "claim_ceiling": "MATCH_LOCAL_VISIBLE_GRAMMAR_DIVERGENCE_CANDIDATE_ONLY",
+                }
+
         process_motif_family_candidates.append({
             "process_motif_family_candidate_id": motif_id,
             "team_identity_candidate_id": team_id,
@@ -1652,6 +1762,9 @@ def _construct_c03(
             "representative_end_zone_candidates": representative.get("process_end_zone_candidates") or [],
             "outcome_fields_participate_in_motif_identity": False,
             "same_motif_outcomes_are_variant_context_only": True,
+            "member_variant_context_counts": dict(sorted(Counter(variant_context_by_id.values()).items())),
+            "divergent_variant_contrast_pair_candidate_n": len(divergence_candidates),
+            "representative_first_supported_grammar_divergence": divergence_alignment,
             "motif_similarity_basis": "EXACT_MATCH_ON_OUTCOME_INDEPENDENT_VISIBLE_MORPHOLOGY_SIGNATURE",
             "motif_is_tactical_pattern_truth": False,
             "motif_is_coach_intention_truth": False,

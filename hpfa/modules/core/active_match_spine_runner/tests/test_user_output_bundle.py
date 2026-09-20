@@ -213,6 +213,39 @@ def test_phase_motif_sentence_exposes_recurrence_without_calling_it_tactical_tru
     assert "3 görünür kayıp" in text
 
 
+def test_phase_motif_sentence_surfaces_first_supported_divergence_safely():
+    row = {
+        "recurring_process_motif_family_count": 1,
+        "recurring_process_motif_covered_process_n": 4,
+        "top_recurring_process_motifs": [{
+            "member_process_n": 4,
+            "shot_variant_n": 1,
+            "visible_loss_variant_n": 2,
+            "visible_recovery_variant_n": 0,
+            "morphology_signature": {
+                "length_bucket": "MEDIUM_3_5_LAYERS",
+                "action_family_presence": ["PASS", "CARRY"],
+                "pass_carry_style": "MIXED_PASS_CARRY",
+                "route_hint": "NO_UNAMBIGUOUS_ROUTE_HINT",
+            },
+            "representative_first_supported_grammar_divergence": {
+                "left_variant_context": "SHOT_LINKED",
+                "right_variant_context": "LOSS_LINKED",
+                "first_supported_grammar_divergence": {
+                    "operation": "SUBSTITUTE",
+                    "left_token": "LAYER[PASS]",
+                    "right_token": "LAYER[CARRY]",
+                },
+            },
+        }],
+    }
+    text = user_output_bundle._phase_motif_sentence(row, "tr")
+    assert "İlk destekli grammar ayrışması" in text
+    assert "SHOT_LINKED ↔ LOSS_LINKED" in text
+    assert "LAYER[PASS] ↔ LAYER[CARRY]" in text
+    assert "nedensel kırılma" in text
+
+
 def test_human_reports_use_football_language_and_keep_evidence_note_separate():
     rich = {
         "status": "REVIEW_REQUIRED",
