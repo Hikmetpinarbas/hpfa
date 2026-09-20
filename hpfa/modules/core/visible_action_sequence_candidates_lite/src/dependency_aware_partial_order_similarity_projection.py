@@ -311,6 +311,18 @@ def _comparison_contract(payload: dict[str, Any]) -> tuple[dict[str, Any], list[
     }
     if not any("outcome" in value.lower() or "consequence" in value.lower() for value in forbidden):
         reviews.append("comparison_question_outcome_leakage_dimension_not_declared")
+    forbidden_exact = sorted(forbidden & exact)
+    forbidden_coarsened = sorted(forbidden & coarsened)
+    if forbidden_exact:
+        blocks.append(
+            "comparison_question_forbidden_leakage_exact_match_overlap:"
+            + ",".join(forbidden_exact)
+        )
+    if forbidden_coarsened:
+        blocks.append(
+            "comparison_question_forbidden_leakage_coarsened_match_overlap:"
+            + ",".join(forbidden_coarsened)
+        )
     return contract, blocks, reviews
 
 

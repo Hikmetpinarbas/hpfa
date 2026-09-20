@@ -262,6 +262,43 @@ def test_test_dimension_cannot_also_be_required_exact_match():
     assert "comparison_question_test_dimension_exact_match_overlap" in result["hard_block_hits"]
 
 
+def test_forbidden_outcome_leakage_cannot_be_exact_match_key():
+    payload = _payload(_variant("a"), _variant("b"))
+    contract = _period_test_contract()
+    contract["required_exact_dimensions"] = [
+        "team",
+        "partial_order_structure",
+        "outcome_signature",
+    ]
+    payload["process_comparison_question_contract"] = contract
+
+    result = build_dependency_aware_partial_order_similarity(payload)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["process_comparison_question_contract_status"] == "FAIL_CLOSED"
+    assert result["process_comparable_set_count"] == 0
+    assert (
+        "comparison_question_forbidden_leakage_exact_match_overlap:outcome_signature"
+        in result["hard_block_hits"]
+    )
+
+
+def test_forbidden_outcome_leakage_cannot_be_coarsened_match_key():
+    payload = _payload(_variant("a"), _variant("b"))
+    contract = _period_test_contract()
+    contract["required_coarsened_dimensions"] = ["terminal_consequence"]
+    payload["process_comparison_question_contract"] = contract
+
+    result = build_dependency_aware_partial_order_similarity(payload)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["process_comparable_set_count"] == 0
+    assert (
+        "comparison_question_forbidden_leakage_coarsened_match_overlap:terminal_consequence"
+        in result["hard_block_hits"]
+    )
+
+
 def test_missing_period_context_is_reviewed_and_not_materialized():
     result = build_dependency_aware_partial_order_similarity(
         _payload(_variant("a", period=None), _variant("b", period="2"))
