@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from analyst_mechanism_review import build_mechanism_review_lines
+from mechanism_story_review_selector import build_mechanism_story_review_shortlist
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_sentence_render_completeness import (
     FACT_ONLY_RENDER,
     validate_safe_sentence_render,
@@ -23,6 +24,7 @@ ANALYST_OUTPUT_CLAIM_JSON = "analyst_output_claim_contract_projection_v1.json"
 FULL_SPINE_JSON = "active_match_full_spine_v1.json"
 FULL_SPINE_TXT = "active_match_full_spine_v1.txt"
 IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
+FEATURE_DELTA_JSON = "grammar_stable_variant_feature_delta_projection_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -307,6 +309,212 @@ def _human_ratio(numerator: Any, denominator: Any) -> str:
         return "N/A"
 
 
+def _football_family_label(value: Any, language: str) -> str:
+    key = str(value or "").strip().replace("_CANDIDATE", "")
+    labels_tr = {
+        "POSITIONAL_ATTACK": "yerleşik hücum",
+        "TRANSITION_ATTACK": "geçiş hücumu",
+        "CIRCULATION": "top dolaşımı",
+        "LOSS_TRANSITION": "top kaybı sonrası geçiş",
+        "RECOVERY_TRANSITION": "top kazanımı sonrası geçiş",
+        "TERMINAL": "hücumun son aksiyon bölümü",
+        "RESTART": "duran top / yeniden başlatma",
+    }
+    labels_en = {
+        "POSITIONAL_ATTACK": "positional attack",
+        "TRANSITION_ATTACK": "attacking transition",
+        "CIRCULATION": "circulation",
+        "LOSS_TRANSITION": "post-loss transition",
+        "RECOVERY_TRANSITION": "post-recovery transition",
+        "TERMINAL": "terminal attacking phase",
+        "RESTART": "restart",
+    }
+    table = labels_tr if language == "tr" else labels_en
+    return table.get(key, key.replace("_", " ").lower() or ("süreç" if language == "tr" else "process"))
+
+
+def _human_team_labels(identity: dict[str, Any]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for row in identity.get("team_identity_candidates") or []:
+        if not isinstance(row, dict):
+            continue
+        ref = str(row.get("team_identity_candidate_id") or "").strip()
+        raw = (
+            row.get("team_aliases_raw", [None])[0]
+            if isinstance(row.get("team_aliases_raw"), list) and row.get("team_aliases_raw")
+            else None
+        )
+        label = str(raw or row.get("team_normalized_key") or ref or "UNKNOWN_TEAM").strip()
+        if ref:
+            result[ref] = label
+    return result
+
+
+def _action_human(value: str, language: str) -> str:
+    key = value.strip().upper()
+    tr = {
+        "PASS": "pas",
+        "CARRY": "topla taşıma",
+        "DUEL": "ikili mücadele",
+        "RECOVERY": "top kazanımı",
+        "RESTART": "oyunu yeniden başlatma",
+        "DRIBBLE": "adam geçme",
+        "SHOT": "şut",
+        "TURNOVER": "top kaybı",
+        "TACKLE": "müdahale",
+        "INTERCEPTION": "pas arası",
+        "CROSS": "orta",
+        "FOUL": "faul",
+        "CLEARANCE": "uzaklaştırma",
+        "GOALKEEPER_ACTION": "kaleci aksiyonu",
+    }
+    en = {
+        "PASS": "pass",
+        "CARRY": "carry",
+        "DUEL": "duel",
+        "RECOVERY": "recovery",
+        "RESTART": "restart",
+        "DRIBBLE": "dribble",
+        "SHOT": "shot",
+        "TURNOVER": "turnover",
+        "TACKLE": "tackle",
+        "INTERCEPTION": "interception",
+        "CROSS": "cross",
+        "FOUL": "foul",
+        "CLEARANCE": "clearance",
+        "GOALKEEPER_ACTION": "goalkeeper action",
+    }
+    table = tr if language == "tr" else en
+    return table.get(key, key.replace("_", " ").lower())
+
+
+def _period_human(value: Any, language: str) -> str:
+    text = str(value or "").strip()
+    if language == "tr":
+        return {"1": "1. devre", "2": "2. devre"}.get(text, f"dönem {text}" if text else "dönem çözümlenmedi")
+    return {"1": "first half", "2": "second half"}.get(text, f"period {text}" if text else "period unresolved")
+
+
+def _grammar_human(tokens: list[Any], language: str) -> str:
+    parts: list[str] = []
+    for raw in tokens:
+        token = str(raw or "").strip()
+        if not token:
+            continue
+        if token.startswith("LAYER[") and token.endswith("]"):
+            body = token[6:-1]
+            actions = [_action_human(part, language) for part in body.split("|") if part]
+            if len(actions) > 1:
+                joined = " + ".join(actions)
+                parts.append(
+                    f"{joined} (aynı zaman damgası; aralarındaki sıra bilinmiyor)"
+                    if language == "tr"
+                    else f"{joined} (same timestamp; internal order unresolved)"
+                )
+            elif actions:
+                parts.append(actions[0])
+        else:
+            parts.append(_action_human(token, language))
+    return " → ".join(parts) if parts else ("aksiyon zinciri çözümlenmedi" if language == "tr" else "action chain unresolved")
+
+
+def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
+    c03 = (rich.get("constructs") or {}).get("C03") or {}
+    profiles = [row for row in (c03.get("team_process_profiles") or []) if isinstance(row, dict)]
+    if not profiles:
+        return []
+    teams = _human_team_labels(identity)
+    by_team: dict[str, dict[str, int]] = {}
+    for row in profiles:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if not team_id:
+            continue
+        bucket = by_team.setdefault(team_id, {"eligible": 0, "shot": 0, "loss": 0, "recovery": 0})
+        bucket["eligible"] += int(row.get("eligible_process_n") or 0)
+        bucket["shot"] += int(row.get("shot_ending_process_n") or 0)
+        bucket["loss"] += int(row.get("visible_loss_process_n") or 0)
+        bucket["recovery"] += int(row.get("visible_recovery_process_n") or 0)
+    cards: list[str] = []
+    for team_id, values in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
+        name = teams.get(team_id, team_id)
+        if language == "tr":
+            football = (
+                f"{name}: Sistem bu maçta {values['eligible']} görünür oyun sürecini takım bağlamına bağlayabildi. "
+                f"Bunların {values['loss']} tanesinde top kaybı, {values['recovery']} tanesinde top kazanımı ve "
+                f"{values['shot']} tanesinde şutla bağlantılı bir son bölüm görüldü."
+            )
+            evidence = (
+                "Kanıt notu: Aynı süreç birden fazla görünür sonucu taşıyabilir; bu sayılar hücum/possession sayısı "
+                "veya başarı oranı değildir. Takım kalitesi, taktik üstünlük ve nedensellik sonucu çıkarılamaz."
+            )
+        else:
+            football = (
+                f"{name}: The system linked {values['eligible']} visible match processes to this team. "
+                f"A visible loss occurred in {values['loss']}, a recovery in {values['recovery']}, and "
+                f"a shot-linked terminal state in {values['shot']}."
+            )
+            evidence = (
+                "Evidence note: One process may carry more than one visible consequence. These are not possession counts "
+                "or success rates, and they do not establish team quality, tactical superiority, or causality."
+            )
+        cards.extend([football, evidence])
+    return cards
+
+
+def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
+    if not _declared_current(full_spine, FEATURE_DELTA_JSON):
+        return []
+    payload = _load_json(root / FEATURE_DELTA_JSON)
+    if not payload or str(payload.get("status") or "").upper() == "FAIL_CLOSED":
+        return []
+    analyst_output = (
+        _load_json(root / ANALYST_OUTPUT_CLAIM_JSON)
+        if _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON)
+        else {}
+    )
+    shortlist = build_mechanism_story_review_shortlist(
+        payload,
+        analyst_output_claim_payload=analyst_output or None,
+        limit=5,
+    )
+    teams = _human_team_labels(identity)
+    cards: list[str] = []
+    for idx, row in enumerate(shortlist.get("shortlist") or [], start=1):
+        if not isinstance(row, dict):
+            continue
+        team_ids = [str(v) for v in (row.get("team_identity_candidate_ids") or []) if str(v)]
+        team = ", ".join(teams.get(ref, ref) for ref in team_ids) or ("Takım çözümlenmedi" if language == "tr" else "Team unresolved")
+        periods = ", ".join(_period_human(v, language) for v in (row.get("period_candidates") or [])) or _period_human(None, language)
+        grammar = _grammar_human(list(row.get("grammar_signature_tokens") or []), language)
+        resolved = int(row.get("resolved_variant_count") or 0)
+        success = int(row.get("success_resolved_variant_count") or 0)
+        failure = int(row.get("failure_resolved_variant_count") or 0)
+        spread = int(row.get("visible_episode_spread_count") or 0)
+        clusters = int(row.get("occurrence_disjoint_support_cluster_count") or 0)
+        if language == "tr":
+            football = (
+                f"Mekanizma adayı {idx}: {team}, {periods}. {grammar} biçimindeki görünür aksiyon zincirinin "
+                f"{resolved} karşılaştırılabilir örneği var; {success} örnek olumlu, {failure} örnek olumsuz görünür sonuca bağlanıyor. "
+                "Aynı aksiyon dizisinin farklı sonuçlara gidebilmesi, başarılı ve başarısız varyantların nerede ayrıştığını maçtan yeniden kontrol etmeye değer kılıyor."
+            )
+            evidence = (
+                f"Kanıt notu: örnekler {spread} farklı maç bölümüne yayılıyor ve {clusters} birbirinden ayrı görünür aksiyon kümesi içeriyor. "
+                "Bu sayılar bağımsız kanıt veya tekrar eden taktik kanıtı değildir; neden, antrenör planı ve başarı olasılığı çıkarılamaz."
+            )
+        else:
+            football = (
+                f"Mechanism candidate {idx}: {team}, {periods}. The visible {grammar} action chain has "
+                f"{resolved} comparable instances: {success} linked to a positive visible outcome and {failure} to a negative one. "
+                "Because the same visible action grammar can lead to different outcomes, the useful analyst question is where the successful and unsuccessful variants begin to diverge."
+            )
+            evidence = (
+                f"Evidence note: the examples span {spread} distinct visible match segments and {clusters} occurrence-disjoint support clusters. "
+                "These are not independent evidence counts or proof of a recurring tactic; they do not establish cause, coaching intention, or success probability."
+            )
+        cards.extend([football, evidence])
+    return cards
+
+
 def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
     c02 = (rich.get("constructs") or {}).get("C02") or {}
     rows = [
@@ -318,7 +526,7 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
         if not isinstance(candidate, dict):
             continue
         names = " + ".join(str(value) for value in (candidate.get("actor_labels") or [])) or "UNKNOWN"
-        family = str(candidate.get("process_family_candidate") or "process").replace("_CANDIDATE", "").replace("_", " ").lower()
+        family = _football_family_label(candidate.get("process_family_candidate"), language)
         eligible_n = int(candidate.get("eligible_n") or candidate.get("support_n") or 0)
         positive_k = int(candidate.get("visible_target_annotation_k") or candidate.get("shot_ending_n") or 0)
         unresolved_u = int(candidate.get("target_outcome_unresolved_u") or candidate.get("not_target_annotated_n") or 0)
@@ -346,14 +554,14 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
                 "şutun sebebinin bu oyuncu/ikili olduğunu göstermez."
             )
             evidence = (
-                f"Kanıt notu: {_human_ratio(positive_k, eligible_n)} görünür pozitif kayıt; "
-                f"{unresolved_u} süreçte hedef sonuç çözümlenmemiş; eligible episode yayılımı={eligible_spread}, "
-                f"pozitif episode yayılımı={positive_spread}"
+                f"Kanıt notu: {eligible_n} örneğin {positive_k} tanesinde görünür şut bağlantısı var; "
+                f"{unresolved_u} örnekte hedef sonuç çözümlenmiş değil. Oyuncu/ikili bu hücum tipinde "
+                f"{eligible_spread} farklı maç bölümünde görülüyor; şut bağlantısı {positive_spread} farklı bölümde görülüyor"
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; maç içi betimleyici oran karşılaştırması={float(lift):.2f}x"
             if pool_n:
-                evidence += f"; {pool_n} aday arasındaki post-hoc dikkat sırası={rank}"
+                evidence += f"; maç içi {pool_n} adaylık taramada inceleme sırası={rank}"
             evidence += ". Bu bir katkı skoru, nedensel etki, oyuncu kalitesi veya gelecek tahmini değildir."
         else:
             label = "Player" if entity_type == "PLAYER" else "Pair"
@@ -370,14 +578,14 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
                 " This is a useful analyst-review signal, but it does not show that the player or pair caused the shot outcome."
             )
             evidence = (
-                f"Evidence note: {_human_ratio(positive_k, eligible_n)} visible positive annotations; "
-                f"{unresolved_u} unresolved target outcomes; eligible episode spread={eligible_spread}, "
-                f"positive episode spread={positive_spread}"
+                f"Evidence note: {positive_k} of {eligible_n} examples carry a visible shot link; "
+                f"{unresolved_u} target outcomes remain unresolved. The player/pair appears across "
+                f"{eligible_spread} distinct match segments, with a shot link in {positive_spread} of them"
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; match-local descriptive ratio={float(lift):.2f}x"
             if pool_n:
-                evidence += f"; post-hoc attention rank={rank} of {pool_n} candidates"
+                evidence += f"; analyst-review rank={rank} in a match-local pool of {pool_n} candidates"
             evidence += ". This is not a contribution score, causal effect, player-quality estimate, or forecast."
         cards.extend([football, evidence])
     return cards
@@ -388,26 +596,40 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     rich_current = _rich_surface_current(full_spine)
     rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
     rich = rich if isinstance(rich, dict) else {}
+    identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
+    c02_cards = _human_c02_cards(rich, "tr") if rich_current else []
+    team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
+    mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "tr")
     lines = [
         "HPFA MAÇ ANALİZİ — TÜRKÇE ANALİST RAPORU",
         "========================================",
         "",
         "Bu rapor futbol diliyle yazılmış analist yüzeyidir. Teknik kanıt ayrıntıları ayrı 'Kanıt notu' satırlarında tutulur.",
         "",
-        "[1] OYUNCU / İKİLİ × HÜCUM SONUCU",
+        "[1] MAÇIN GÖRÜNÜR SÜREÇ PROFİLİ",
     ]
-    cards = _human_c02_cards(rich, "tr") if rich_current else []
-    if cards:
-        lines.extend(f"- {line}" for line in cards)
+    if team_cards:
+        lines.extend(f"- {line}" for line in team_cards)
+    else:
+        lines.append("- Bu maçta takım süreç profili güvenli biçimde üretilemedi.")
+    lines.extend(["", "[2] OYUNCU / İKİLİ × HÜCUM SONUCU"])
+    if c02_cards:
+        lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- Bu maçta bu başlık için güvenli biçimde raporlanabilir current-run aday yok.")
+    lines.extend(["", "[3] İNCELENMEYE DEĞER MEKANİZMA ADAYLARI"])
+    if mechanism_cards:
+        lines.extend(f"- {line}" for line in mechanism_cards)
+    else:
+        lines.append("- Bu maçta güvenli biçimde kısa listeye alınmış mekanizma adayı yok.")
     lines.extend([
         "",
-        "[2] SINIR",
+        "[4] NE SÖYLEYEBİLİRİZ / NE SÖYLEYEMEYİZ?",
         "- Görünür birlikte-oluş, oyuncu katkısı veya nedensel etki değildir.",
         "- Şut kaydı görülmeyen süreç otomatik olarak başarısız hücum sayılmaz.",
         "- Sıralama, yalnız analistin hangi örneklere önce bakacağını belirleyen maç içi dikkat sırasıdır.",
-        "- Bu rapor tracking/video olmadan baskı geometrisi, takım şekli, oyuncu niyeti veya antrenör planı iddiası üretmez.",
+        "- Aynı aksiyon zincirinin tekrarı, tek başına taktik plan veya antrenör niyeti kanıtı değildir.",
+        "- Tracking/video olmadan baskı geometrisi, takım şekli, kompaktlık, gerçek hız veya oyuncu niyeti iddiası üretilmez.",
         "",
     ])
     return "\n".join(lines)
@@ -418,30 +640,43 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     rich_current = _rich_surface_current(full_spine)
     rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
     rich = rich if isinstance(rich, dict) else {}
+    identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
+    c02_cards = _human_c02_cards(rich, "en") if rich_current else []
+    team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
+    mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "en")
     lines = [
         "HPFA MATCH ANALYSIS — ENGLISH ANALYST REPORT",
         "===========================================",
         "",
         "This is the analyst-facing football report. Technical evidence limits are kept in separate 'Evidence note' lines.",
         "",
-        "[1] PLAYER / PAIR × ATTACK OUTCOME",
+        "[1] VISIBLE MATCH PROCESS PROFILE",
     ]
-    cards = _human_c02_cards(rich, "en") if rich_current else []
-    if cards:
-        lines.extend(f"- {line}" for line in cards)
+    if team_cards:
+        lines.extend(f"- {line}" for line in team_cards)
+    else:
+        lines.append("- No safe current-run team process profile is available.")
+    lines.extend(["", "[2] PLAYER / PAIR × ATTACK OUTCOME"])
+    if c02_cards:
+        lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- No current-run candidate can be reported safely under this heading.")
+    lines.extend(["", "[3] MECHANISM CANDIDATES FOR ANALYST REVIEW"])
+    if mechanism_cards:
+        lines.extend(f"- {line}" for line in mechanism_cards)
+    else:
+        lines.append("- No mechanism candidate was safely shortlisted in this run.")
     lines.extend([
         "",
-        "[2] CLAIM BOUNDARY",
+        "[4] CLAIM BOUNDARY",
         "- Visible co-occurrence is not player contribution or causal effect.",
         "- A process without a visible shot annotation is not automatically a failed attack.",
         "- Ranking is a match-local analyst-attention order, not a stable player ranking.",
-        "- Without tracking/video, this report does not claim true pressure geometry, team shape, player intent, or coaching intention.",
+        "- Repeated visible action grammar is not, by itself, proof of a tactical plan or coaching intention.",
+        "- Without tracking/video, this report does not claim true pressure geometry, team shape, compactness, true speed, or player intent.",
         "",
     ])
     return "\n".join(lines)
-
 
 def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) -> str:
     root = Path(output_root)

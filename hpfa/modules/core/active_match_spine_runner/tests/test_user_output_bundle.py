@@ -154,7 +154,88 @@ def test_human_reports_use_football_language_and_keep_evidence_note_separate():
     assert "36 instances" in en
     assert "7 of those instances" in en
     assert "Evidence note:" in en
-    assert "post-hoc attention rank=1 of 75 candidates" in en
+    assert "analyst-review rank=1 in a match-local pool of 75 candidates" in en
+
+
+def test_human_reports_render_team_process_and_mechanism_in_football_language(tmp_path):
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    feature_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
+    identity_path.write_text(
+        json.dumps(
+            {
+                "team_identity_candidates": [
+                    {
+                        "team_identity_candidate_id": "team_1",
+                        "team_normalized_key": "galatasaray",
+                        "team_aliases_raw": ["Galatasaray"],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    feature_path.write_text(
+        json.dumps(
+            {
+                "status": "PASS",
+                "grammar_stable_variant_feature_delta_records": [
+                    {
+                        "grammar_stable_variant_feature_delta_id": "m1",
+                        "source_process_variant_family_ref": "family_1",
+                        "team_identity_candidate_ids": ["team_1"],
+                        "period_candidates": ["1"],
+                        "grammar_signature_tokens": ["LAYER[PASS]", "LAYER[PASS]"],
+                        "resolved_variant_count": 4,
+                        "success_resolved_variant_count": 3,
+                        "failure_resolved_variant_count": 1,
+                        "right_censored_variant_count": 0,
+                        "first_supported_consequence_difference_layer_candidate": 1,
+                        "consequence_feature_difference_candidates": [{"feature_token": "x"}],
+                        "visible_episode_spread_count": 2,
+                        "occurrence_disjoint_support_cluster_count": 2,
+                        "success_failure_supported_branch_divergence_count": 1,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rich = {
+        "status": "REVIEW_REQUIRED",
+        "constructs": {
+            "C02": {"representative_actor_argument": None, "representative_dyad_argument": None},
+            "C03": {
+                "team_process_profiles": [
+                    {
+                        "team_identity_candidate_id": "team_1",
+                        "eligible_process_n": 12,
+                        "visible_loss_process_n": 5,
+                        "visible_recovery_process_n": 3,
+                        "shot_ending_process_n": 2,
+                    }
+                ]
+            },
+        },
+    }
+    spine = _full_spine(current_artifacts=[str(identity_path), str(feature_path)])
+    spine["rich_multiformat_analysis_lattice"] = rich
+    spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+
+    tr = build_human_analyst_report_tr(tmp_path, spine)
+    en = build_human_analyst_report_en(tmp_path, spine)
+
+    assert "Galatasaray: Sistem bu maçta 12 görünür oyun sürecini" in tr
+    assert "Mekanizma adayı 1: Galatasaray, 1. devre. pas → pas" in tr
+    assert "başarılı ve başarısız varyantların nerede ayrıştığını" in tr
+    assert "Kanıt notu:" in tr
+    assert "independent_support=" not in tr
+    assert "grammar_signature_tokens" not in tr
+
+    assert "Galatasaray: The system linked 12 visible match processes" in en
+    assert "Mechanism candidate 1: Galatasaray, first half. The visible pass → pass action chain" in en
+    assert "successful and unsuccessful variants begin to diverge" in en
+    assert "Evidence note:" in en
 
 
 def test_fail_closed_report_does_not_consume_stale_feature_artifact(tmp_path):
