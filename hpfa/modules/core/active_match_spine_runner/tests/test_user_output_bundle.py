@@ -154,7 +154,8 @@ def test_human_reports_use_football_language_and_keep_evidence_note_separate():
     assert "36 instances" in en
     assert "7 of those instances" in en
     assert "Evidence note:" in en
-    assert "analyst-review rank=1 in a match-local pool of 75 candidates" in en
+    assert "match-local descriptive ratio=" in en
+    assert "match-local pool" not in en
 
 
 def test_human_reports_render_team_process_and_mechanism_in_football_language(tmp_path):
@@ -226,15 +227,17 @@ def test_human_reports_render_team_process_and_mechanism_in_football_language(tm
     en = build_human_analyst_report_en(tmp_path, spine)
 
     assert "Galatasaray: Sistem bu maçta 12 görünür oyun sürecini" in tr
-    assert "Mekanizma adayı 1: Galatasaray, 1. devre. pas → pas" in tr
-    assert "başarılı ve başarısız varyantların nerede ayrıştığını" in tr
+    assert "İnceleme noktası 1: Galatasaray, 1. devre. pas → pas bağlantısı" in tr
+    assert "hangi aksiyon veya bağlam değişiminin sonuçları ayırdığı" in tr
+    assert "MEKANİZMA ADAYLARI" not in tr
     assert "Kanıt notu:" in tr
     assert "independent_support=" not in tr
     assert "grammar_signature_tokens" not in tr
 
     assert "Galatasaray: The system linked 12 visible match processes" in en
-    assert "Mechanism candidate 1: Galatasaray, first half. The visible pass → pass action chain" in en
-    assert "successful and unsuccessful variants begin to diverge" in en
+    assert "Review point 1: Galatasaray, first half. The pass → pass connection" in en
+    assert "which subsequent action or context change separates those outcomes" in en
+    assert "MECHANISM CANDIDATES" not in en
     assert "Evidence note:" in en
 
 

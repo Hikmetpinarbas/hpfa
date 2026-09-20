@@ -504,23 +504,27 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         clusters = int(row.get("occurrence_disjoint_support_cluster_count") or 0)
         if language == "tr":
             football = (
-                f"Mekanizma adayı {idx}: {team}, {periods}. {grammar} biçimindeki görünür aksiyon zincirinin "
-                f"{resolved} karşılaştırılabilir örneği var; {success} örnek olumlu, {failure} örnek olumsuz görünür sonuca bağlanıyor. "
-                "Aynı aksiyon dizisinin farklı sonuçlara gidebilmesi, başarılı ve başarısız varyantların nerede ayrıştığını maçtan yeniden kontrol etmeye değer kılıyor."
+                f"İnceleme noktası {idx}: {team}, {periods}. {grammar} bağlantısı maçın {spread} farklı bölümünde tekrar görülüyor. "
+                "Bu bağlantının karşılaştırılabilir varyantları hem olumlu hem olumsuz görünür sonuçlara gidiyor. "
+                "Analist için asıl soru, aynı başlangıçtan sonra hangi aksiyon veya bağlam değişiminin sonuçları ayırdığı."
             )
             evidence = (
-                f"Kanıt notu: örnekler {spread} farklı maç bölümüne yayılıyor ve {clusters} birbirinden ayrı görünür aksiyon kümesi içeriyor. "
-                "Bu sayılar bağımsız kanıt veya tekrar eden taktik kanıtı değildir; neden, antrenör planı ve başarı olasılığı çıkarılamaz."
+                f"Kanıt notu: karşılaştırma yüzeyinde {resolved} çözümlenmiş varyant kaydı var; "
+                f"{success} olumlu ve {failure} olumsuz görünür sonuca bağlı. "
+                f"Bu kayıtlar {clusters} birbirinden ayrı görünür aksiyon kümesine dayanıyor; bağımsız kanıt sayısı değildir. "
+                "Neden, antrenör planı ve başarı olasılığı çıkarılamaz."
             )
         else:
             football = (
-                f"Mechanism candidate {idx}: {team}, {periods}. The visible {grammar} action chain has "
-                f"{resolved} comparable instances: {success} linked to a positive visible outcome and {failure} to a negative one. "
-                "Because the same visible action grammar can lead to different outcomes, the useful analyst question is where the successful and unsuccessful variants begin to diverge."
+                f"Review point {idx}: {team}, {periods}. The {grammar} connection recurs across {spread} distinct match segments. "
+                "Comparable variants of the same visible start lead to both positive and negative visible outcomes. "
+                "The analyst question is which subsequent action or context change separates those outcomes."
             )
             evidence = (
-                f"Evidence note: the examples span {spread} distinct visible match segments and {clusters} occurrence-disjoint support clusters. "
-                "These are not independent evidence counts or proof of a recurring tactic; they do not establish cause, coaching intention, or success probability."
+                f"Evidence note: the comparison surface contains {resolved} resolved variant records; "
+                f"{success} are linked to positive and {failure} to negative visible outcomes. "
+                f"They rest on {clusters} distinct visible action clusters, not {clusters} independent pieces of evidence. "
+                "They do not establish cause, coaching intention, or success probability."
             )
         cards.extend([football, evidence])
     return cards
@@ -576,8 +580,6 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; maç içi betimleyici oran karşılaştırması={float(lift):.2f}x"
-            if pool_n:
-                evidence += f"; maç içi {pool_n} adaylık taramada inceleme sırası={rank}"
             evidence += ". Bu bir katkı skoru, nedensel etki, oyuncu kalitesi veya gelecek tahmini değildir."
         else:
             label = "Player" if entity_type == "PLAYER" else "Pair"
@@ -600,8 +602,6 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; match-local descriptive ratio={float(lift):.2f}x"
-            if pool_n:
-                evidence += f"; analyst-review rank={rank} in a match-local pool of {pool_n} candidates"
             evidence += ". This is not a contribution score, causal effect, player-quality estimate, or forecast."
         cards.extend([football, evidence])
     return cards
@@ -633,7 +633,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- Bu maçta bu başlık için güvenli biçimde raporlanabilir current-run aday yok.")
-    lines.extend(["", "[3] İNCELENMEYE DEĞER MEKANİZMA ADAYLARI"])
+    lines.extend(["", "[3] AYNI HÜCUM BAŞLANGICININ AYRIŞAN SONUÇLARI"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
@@ -677,7 +677,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- No current-run candidate can be reported safely under this heading.")
-    lines.extend(["", "[3] MECHANISM CANDIDATES FOR ANALYST REVIEW"])
+    lines.extend(["", "[3] DIVERGING OUTCOMES FROM THE SAME ATTACKING START"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
