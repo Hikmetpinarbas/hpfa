@@ -401,7 +401,8 @@ def test_same_grammar_contexts_are_compared_without_tactical_promotion(tmp_path:
     identity_path.write_text(json.dumps(identity), encoding="utf-8")
 
     text = "\n".join(build_mechanism_review_lines(tmp_path, _full_spine(tmp_path)))
-    assert "same_grammar_context_comparison: grammar=PASS -> PASS contexts=2" in text
+    assert "same_grammar_context_comparison: grammar=PASS -> PASS shortlisted_contexts=2" in text
+    assert "scope=SHORTLIST_ONLY_ATTENTION_COMPRESSION_NOT_ALL_MATCH_CONTEXTS" in text
     assert "semantics=MATCH_LOCAL_VISIBLE_CONTEXT_COMPARISON_ONLY" in text
     assert "tactical_change=false team_quality=false causality=false significance=false" in text
     assert "same_grammar_context: team=Team Alpha period=1 resolved=10 success_visible=7 failure_visible=3" in text

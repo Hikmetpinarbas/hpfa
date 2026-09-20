@@ -654,7 +654,8 @@ def build_mechanism_review_lines(
             continue
         lines.append(
             "same_grammar_context_comparison: "
-            f"grammar={_grammar_label(list(grammar_key))} contexts={len(context_keys)} "
+            f"grammar={_grammar_label(list(grammar_key))} shortlisted_contexts={len(context_keys)} "
+            "scope=SHORTLIST_ONLY_ATTENTION_COMPRESSION_NOT_ALL_MATCH_CONTEXTS "
             "semantics=MATCH_LOCAL_VISIBLE_CONTEXT_COMPARISON_ONLY "
             "tactical_change=false team_quality=false causality=false significance=false"
         )
