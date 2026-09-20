@@ -344,7 +344,7 @@ def test_c02_process_association_survives_without_xlsx_enrichment():
     assert dyad["support_n"] == 2
     assert dyad["shot_ending_n"] == 2
     assert dyad["xlsx_enriched_actor_count"] == 0
-    assert dyad["claim_ceiling"] == "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY"
+    assert dyad["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY"
 
 
 
@@ -436,6 +436,43 @@ def test_c02_epistemic_review_contract_preserves_claim_ceiling_and_exposes_revie
     assert "dependency_resolution_collapses_support_into_shared_lineage" in review["falsifier_conditions"]
     assert result["epistemic_review_contract_creates_new_evidence"] is False
     assert result["epistemic_review_contract_can_authorize_emit"] is False
+
+
+def test_c02_descriptive_profile_separates_visible_annotation_from_resolved_outcome_and_selection_truth():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+    dyad = result["representative_dyad_argument"]
+    assert dyad["eligible_n"] == dyad["support_n"] == 2
+    assert dyad["visible_target_annotation_k"] == dyad["shot_ending_n"] == 2
+    assert dyad["target_outcome_unresolved_u"] == 0
+    assert dyad["observed_visible_target_annotation_frequency"] == 1.0
+    assert dyad["observed_rate_semantics"] == "VISIBLE_TARGET_ANNOTATION_FREQUENCY_NOT_RESOLVED_OUTCOME_RATE"
+    assert dyad["descriptive_lift"] == 2.0
+    assert dyad["descriptive_lift_semantics"] == "VISIBLE_ANNOTATION_FREQUENCY_RATIO_MATCH_LOCAL_NOT_EFFECT_SIZE"
+    assert dyad["eligible_episode_spread"] == 2
+    assert dyad["positive_episode_spread"] == 2
+    assert dyad["eligible_episode_spread_is_independence_proof"] is False
+    assert dyad["positive_episode_spread_is_independence_proof"] is False
+    assert dyad["selection_is_posthoc_attention_ranking"] is True
+    assert dyad["selection_is_stable_signal"] is False
+    assert dyad["no_p_value_eliminates_selection_multiplicity_risk"] is False
+    assert dyad["outcome_must_not_define_its_own_eligible_denominator"] is True
+    assert dyad["minimum_support_threshold_is_evidence_strength_truth"] is False
+    assert dyad["shrunk_rate_is_observed_rate"] is False
+    assert dyad["exact_computation_is_valid_football_inference"] is False
+    assert dyad["cluster_aware_is_assumption_free"] is False
+    assert dyad["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY"
+
+
+def test_c02_selection_scope_exposes_candidate_pool_and_posthoc_ranking():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+    actor = result["representative_actor_argument"]
+    dyad = result["representative_dyad_argument"]
+    assert actor["selection_scope"] == "ALL_C02_ACTOR_CANDIDATES_CURRENT_MATCH"
+    assert actor["selection_candidate_pool_n"] == result["selection_scope_actor_candidate_count"]
+    assert dyad["selection_scope"] == "ALL_C02_DYAD_CANDIDATES_CURRENT_MATCH"
+    assert dyad["selection_candidate_pool_n"] == result["selection_scope_dyad_candidate_count"]
+    assert result["no_p_value_eliminates_selection_multiplicity_risk"] is False
+    assert result["ranked_extreme_is_stable_signal"] is False
 
 
 def test_c02_opportunity_normalized_evidence_anatomy_freezes_denominator_and_preserves_episode_spread():

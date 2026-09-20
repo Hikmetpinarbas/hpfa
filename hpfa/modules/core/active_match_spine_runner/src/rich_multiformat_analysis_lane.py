@@ -671,7 +671,7 @@ def _association_epistemic_review_contract(
             "process refs against admitted current surfaces or other admissible evidence before any "
             "player-quality, causal, tactical-plan, or physical-mechanism interpretation."
         ),
-        "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY",
     }
 
 
@@ -732,9 +732,16 @@ def _association_record(
     ]
     support_n = len(involved)
     shot_n = len(shot_rows)
+    unresolved_n = len(no_shot_rows)
     rate = (shot_n / support_n) if support_n else None
     baseline = (baseline_shot_n / baseline_n) if baseline_n else None
     lift = (rate / baseline) if rate is not None and baseline not in (None, 0) else None
+    eligible_episode_refs = sorted({
+        str(row.get("episode_ref")) for row in involved if row.get("episode_ref")
+    })
+    positive_episode_refs = sorted({
+        str(row.get("episode_ref")) for row in shot_rows if row.get("episode_ref")
+    })
     bound = [actor_bindings.get(actor_id) for actor_id in actor_ids]
     labels = [
         (item or {}).get("actor_label") or actor_id
@@ -756,7 +763,12 @@ def _association_record(
         "actor_identity_candidate_ids": list(actor_ids),
         "actor_labels": labels,
         "support_n": support_n,
+        "eligible_n": support_n,
         "shot_ending_n": shot_n,
+        "visible_target_annotation_k": shot_n,
+        "target_outcome_unresolved_u": unresolved_n,
+        "observed_visible_target_annotation_frequency": rate,
+        "observed_rate_semantics": "VISIBLE_TARGET_ANNOTATION_FREQUENCY_NOT_RESOLVED_OUTCOME_RATE",
         "not_target_annotated_n": len(no_shot_rows),
         "involved_without_target_annotation_refs": [row["process_ref"] for row in no_shot_rows],
         "not_target_annotated_is_resolved_non_target": False,
@@ -764,8 +776,18 @@ def _association_record(
         "legacy_non_shot_fields_are_resolved_non_target": False,
         "non_shot_n": len(no_shot_rows),
         "conditional_shot_frequency": rate,
+        "conditional_shot_frequency_semantics": "LEGACY_ALIAS_VISIBLE_TARGET_ANNOTATION_FREQUENCY",
         "match_local_baseline_shot_frequency": baseline,
+        "baseline_frequency_semantics": "VISIBLE_TARGET_ANNOTATION_FREQUENCY_AMONG_FAMILY_ELIGIBLE_UNITS",
         "match_local_lift": lift,
+        "descriptive_lift": lift,
+        "descriptive_lift_semantics": "VISIBLE_ANNOTATION_FREQUENCY_RATIO_MATCH_LOCAL_NOT_EFFECT_SIZE",
+        "eligible_episode_refs": eligible_episode_refs,
+        "eligible_episode_spread": len(eligible_episode_refs),
+        "positive_episode_refs": positive_episode_refs,
+        "positive_episode_spread": len(positive_episode_refs),
+        "eligible_episode_spread_is_independence_proof": False,
+        "positive_episode_spread_is_independence_proof": False,
         "process_refs": [row["process_ref"] for row in involved],
         "shot_process_refs": [row["process_ref"] for row in shot_rows],
         "counterexample_involved_without_shot_refs": [row["process_ref"] for row in no_shot_rows],
@@ -827,7 +849,14 @@ def _association_record(
         "association_is_causal_player_credit": False,
         "association_is_independent_evidence_vote": False,
         "lift_is_probability": False,
-        "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+        "outcome_must_not_define_its_own_eligible_denominator": True,
+        "minimum_support_threshold_is_evidence_strength_truth": False,
+        "shrunk_rate_is_observed_rate": False,
+        "no_p_value_eliminates_selection_multiplicity_risk": False,
+        "ranked_extreme_is_stable_signal": False,
+        "exact_computation_is_valid_football_inference": False,
+        "cluster_aware_is_assumption_free": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY",
     }
 
 
@@ -843,7 +872,7 @@ def _construct_c02(
             "status": "REVIEW_REQUIRED",
             "review_reason": "process_participation_upstream_fail_closed",
             "argument_candidates": [],
-            "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY",
         }
 
     actor_bindings, binding_reviews = _actor_xlsx_bindings(rows, identity_payload)
@@ -984,6 +1013,20 @@ def _construct_c02(
 
     all_actor_candidates.sort(key=priority)
     all_dyad_candidates.sort(key=priority)
+    for rank, row in enumerate(all_actor_candidates, start=1):
+        row["selection_scope"] = "ALL_C02_ACTOR_CANDIDATES_CURRENT_MATCH"
+        row["selection_candidate_pool_n"] = len(all_actor_candidates)
+        row["selection_rank"] = rank
+        row["selection_is_posthoc_attention_ranking"] = True
+        row["selection_is_stable_signal"] = False
+        row["no_p_value_eliminates_selection_multiplicity_risk"] = False
+    for rank, row in enumerate(all_dyad_candidates, start=1):
+        row["selection_scope"] = "ALL_C02_DYAD_CANDIDATES_CURRENT_MATCH"
+        row["selection_candidate_pool_n"] = len(all_dyad_candidates)
+        row["selection_rank"] = rank
+        row["selection_is_posthoc_attention_ranking"] = True
+        row["selection_is_stable_signal"] = False
+        row["no_p_value_eliminates_selection_multiplicity_risk"] = False
     representative_actor = all_actor_candidates[0] if all_actor_candidates else None
     representative_dyad = all_dyad_candidates[0] if all_dyad_candidates else None
 
@@ -1019,7 +1062,17 @@ def _construct_c02(
         "epistemic_review_contract_version": "C02_ASSOCIATION_EPISTEMIC_REVIEW_V1",
         "epistemic_review_contract_creates_new_evidence": False,
         "epistemic_review_contract_can_authorize_emit": False,
-        "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+        "selection_scope_actor_candidate_count": len(all_actor_candidates),
+        "selection_scope_dyad_candidate_count": len(all_dyad_candidates),
+        "selection_is_posthoc_attention_ranking": True,
+        "no_p_value_eliminates_selection_multiplicity_risk": False,
+        "ranked_extreme_is_stable_signal": False,
+        "outcome_must_not_define_its_own_eligible_denominator": True,
+        "minimum_support_threshold_is_evidence_strength_truth": False,
+        "shrunk_rate_is_observed_rate": False,
+        "exact_computation_is_valid_football_inference": False,
+        "cluster_aware_is_assumption_free": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY",
         "c4_bridge_state": "DEFERRED_UNTIL_PROCESS_ASSOCIATION_ARGUMENT_FAMILY_IS_EXPLICITLY_ADMITTED",
     }
 

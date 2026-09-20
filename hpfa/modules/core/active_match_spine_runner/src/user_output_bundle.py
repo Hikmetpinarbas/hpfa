@@ -448,15 +448,15 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             lift_text = f"{float(lift):.2f}x" if isinstance(lift, (int, float)) else "N/A"
             lines.append(
                 f"- POZITIF FUTBOL ARGUMANI ADAYI ({label}): {family} ailesinde genel olarak "
-                f"{baseline_shot_n}/{eligible_n} süreç şutla bitti ({base_text}). "
-                f"{names} bulunan {support_n} süreçte {shot_n} şutla bitiş görüldü "
-                f"({rate_text}; maç-içi lift={lift_text}). "
+                f"{baseline_shot_n}/{eligible_n} süreçte görünür shot-present anotasyonu vardı ({base_text}). "
+                f"{names} bulunan {support_n} eligible süreçte {shot_n} görünür shot-present anotasyonu görüldü "
+                f"({rate_text}; descriptive maç-içi lift={lift_text}). "
                 f"Hedef anotasyonu görülmeyen birlikte-görülme={int(candidate.get('not_target_annotated_n') or 0)} "
                 "(resolved non-shot değildir); "
                 f"coverage={((candidate.get('observation_capability_coverage_profile') or {}).get('coverage_state') or 'UNRESOLVED')}; "
                 f"negative_claim={((candidate.get('observation_capability_coverage_profile') or {}).get('negative_claim_admission_state') or 'UNRESOLVED')}; "
                 f"XLSX oyuncu bağlamı eşleşen kişi={int(candidate.get('xlsx_enriched_actor_count') or 0)}. "
-                "Bu, admitted process/occurrence incelemesine öncelik veren maç-içi process ilişkisi adayidir."
+                "Bu, admitted process/occurrence incelemesine öncelik veren maç-içi görünür association adayidir; resolved shot outcome rate, causal credit veya stable signal değildir."
             )
             review = candidate.get("epistemic_review_contract") or {}
             if isinstance(review, dict) and review.get("analyst_action"):
