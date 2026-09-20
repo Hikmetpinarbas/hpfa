@@ -492,6 +492,19 @@ def build_grammar_stable_variant_feature_delta(
             "grammar_signature_tokens": list(family.get("grammar_signature_tokens") or []),
             "team_identity_candidate_ids": list(family.get("team_identity_candidate_ids") or []),
             "period_candidates": list(family.get("period_candidates") or []),
+            "visible_episode_spread_count": int(family.get("visible_episode_spread_count") or 0),
+            "success_visible_episode_spread_count": int(
+                family.get("success_visible_episode_spread_count") or 0
+            ),
+            "failure_visible_episode_spread_count": int(
+                family.get("failure_visible_episode_spread_count") or 0
+            ),
+            "occurrence_disjoint_support_cluster_count": int(
+                family.get("occurrence_disjoint_support_cluster_count") or 0
+            ),
+            "episode_spread_count_is_independent_support_count": False,
+            "episode_spread_is_recurrence_truth": False,
+            "occurrence_disjoint_cluster_count_is_independent_support_count": False,
             "success_resolved_variant_count": success_count,
             "failure_resolved_variant_count": failure_count,
             "resolved_variant_count": len(profiles),

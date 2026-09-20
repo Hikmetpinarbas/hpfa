@@ -556,6 +556,17 @@ def build_mechanism_review_lines(
         lines.append(
             f"  first_visible_difference: context_layer={first_context_layer} consequence_layer={first_consequence_layer}"
         )
+        review_support_state = str(record.get("review_support_state") or "").strip()
+        visible_episode_spread = int(record.get("visible_episode_spread_count") or 0)
+        occurrence_disjoint_clusters = int(record.get("occurrence_disjoint_support_cluster_count") or 0)
+        if review_support_state or visible_episode_spread or occurrence_disjoint_clusters:
+            lines.append(
+                "  review_support_scope: "
+                f"state={review_support_state or 'UNRESOLVED'} "
+                f"visible_episode_spread={visible_episode_spread} "
+                f"occurrence_disjoint_clusters={occurrence_disjoint_clusters} "
+                "independent_support=false recurrence_truth=false attention_compression_only=true"
+            )
         divergence_refs = [
             str(value)
             for value in (record.get("supported_branch_divergence_refs") or [])

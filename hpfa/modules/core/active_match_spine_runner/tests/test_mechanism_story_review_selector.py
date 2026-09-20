@@ -154,3 +154,34 @@ def test_selector_rejects_ambiguous_conflicting_bounds_for_same_family():
 
     assert result["status"] == "REVIEW_REQUIRED"
     assert result["shortlist_count"] == 0
+
+
+def test_selector_attention_prefers_multi_episode_divergence_without_truth_ranking():
+    single = _row("a_single", "T1", "1", ["LAYER[PASS]", "LAYER[PASS]"])
+    single.update({
+        "visible_episode_spread_count": 1,
+        "occurrence_disjoint_support_cluster_count": 1,
+        "supported_branch_divergence_binding_count": 2,
+        "success_failure_supported_branch_divergence_count": 1,
+    })
+    multi = _row("z_multi", "T2", "1", ["LAYER[CARRY]", "LAYER[PASS]"])
+    multi.update({
+        "visible_episode_spread_count": 4,
+        "success_visible_episode_spread_count": 4,
+        "failure_visible_episode_spread_count": 2,
+        "occurrence_disjoint_support_cluster_count": 4,
+        "supported_branch_divergence_binding_count": 3,
+        "success_failure_supported_branch_divergence_count": 1,
+    })
+    result = build_mechanism_story_review_shortlist(
+        {"grammar_stable_variant_feature_delta_records": [single, multi]},
+        limit=1,
+    )
+    assert result["shortlist"][0]["source_mechanism_review_ref"] == "z_multi"
+    row = result["shortlist"][0]
+    assert row["review_support_state"] == (
+        "MULTI_EPISODE_OCCURRENCE_DISJOINT_SUCCESS_FAILURE_DIVERGENCE_VISIBLE"
+    )
+    assert row["review_support_state_is_truth_ranking"] is False
+    assert row["episode_spread_count_is_independent_support_count"] is False
+    assert result["review_support_attention_order_is_truth_ranking"] is False

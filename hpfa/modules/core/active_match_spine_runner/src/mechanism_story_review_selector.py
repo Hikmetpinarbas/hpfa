@@ -97,6 +97,26 @@ def _priority_band(record: dict[str, Any], bound_by_family: dict[str, dict[str, 
     return "P2_SUPPORTING_CONTEXT"
 
 
+def _review_support_state(record: dict[str, Any]) -> str:
+    episode_spread = int(record.get("visible_episode_spread_count") or 0)
+    occurrence_clusters = int(record.get("occurrence_disjoint_support_cluster_count") or 0)
+    divergence_count = int(record.get("supported_branch_divergence_binding_count") or 0)
+    success_failure_divergence_count = int(
+        record.get("success_failure_supported_branch_divergence_count") or 0
+    )
+    if episode_spread >= 2 and occurrence_clusters >= 2 and success_failure_divergence_count > 0:
+        return "MULTI_EPISODE_OCCURRENCE_DISJOINT_SUCCESS_FAILURE_DIVERGENCE_VISIBLE"
+    if episode_spread >= 2 and success_failure_divergence_count > 0:
+        return "MULTI_EPISODE_SUCCESS_FAILURE_DIVERGENCE_VISIBLE"
+    if episode_spread >= 2 and divergence_count > 0:
+        return "MULTI_EPISODE_DIVERGENCE_VISIBLE_NO_SUCCESS_FAILURE_CONTRAST"
+    if success_failure_divergence_count > 0:
+        return "SINGLE_EPISODE_SUCCESS_FAILURE_DIVERGENCE_VISIBLE"
+    if divergence_count > 0:
+        return "SINGLE_EPISODE_DIVERGENCE_VISIBLE_NO_SUCCESS_FAILURE_CONTRAST"
+    return "DIVERGENCE_SUPPORT_UNRESOLVED"
+
+
 def _diversity_key(record: dict[str, Any]) -> tuple[str, str, tuple[str, ...]]:
     team = ",".join(sorted(str(v) for v in (record.get("team_identity_candidate_ids") or [])))
     period = ",".join(sorted(str(v) for v in (record.get("period_candidates") or [])))
@@ -146,16 +166,25 @@ def build_mechanism_story_review_shortlist(
         "BLOCKED_CENSORING_UNBOUNDED": 4,
         "BLOCKED_INSUFFICIENT_RESOLVED_OUTCOMES": 5,
     }
-    decorated: list[tuple[int, str, dict[str, Any]]] = []
+    support_order = {
+        "MULTI_EPISODE_OCCURRENCE_DISJOINT_SUCCESS_FAILURE_DIVERGENCE_VISIBLE": 0,
+        "MULTI_EPISODE_SUCCESS_FAILURE_DIVERGENCE_VISIBLE": 1,
+        "MULTI_EPISODE_DIVERGENCE_VISIBLE_NO_SUCCESS_FAILURE_CONTRAST": 2,
+        "SINGLE_EPISODE_SUCCESS_FAILURE_DIVERGENCE_VISIBLE": 3,
+        "SINGLE_EPISODE_DIVERGENCE_VISIBLE_NO_SUCCESS_FAILURE_CONTRAST": 4,
+        "DIVERGENCE_SUPPORT_UNRESOLVED": 5,
+    }
+    decorated: list[tuple[int, int, str, dict[str, Any]]] = []
     for row in records:
         band = _priority_band(row, bounds)
+        support_state = _review_support_state(row)
         candidate_id = str(row.get("grammar_stable_variant_feature_delta_id") or "")
-        decorated.append((band_order[band], candidate_id, row))
-    decorated.sort(key=lambda item: (item[0], item[1]))
+        decorated.append((band_order[band], support_order[support_state], candidate_id, row))
+    decorated.sort(key=lambda item: (item[0], item[1], item[2]))
 
     selected: list[dict[str, Any]] = []
     seen_diversity: set[tuple[str, str, tuple[str, ...]]] = set()
-    for _, _, row in decorated:
+    for _, _, _, row in decorated:
         eligibility = _eligibility_state(row, bounds)
         band = _priority_band(row, bounds)
         if eligibility.startswith("BLOCKED_"):
@@ -193,6 +222,26 @@ def build_mechanism_story_review_shortlist(
             ),
             "process_context_difference_visible": _has_process_context(row),
             "consequence_difference_visible": _has_consequence_difference(row),
+            "review_support_state": _review_support_state(row),
+            "visible_episode_spread_count": int(row.get("visible_episode_spread_count") or 0),
+            "success_visible_episode_spread_count": int(
+                row.get("success_visible_episode_spread_count") or 0
+            ),
+            "failure_visible_episode_spread_count": int(
+                row.get("failure_visible_episode_spread_count") or 0
+            ),
+            "occurrence_disjoint_support_cluster_count": int(
+                row.get("occurrence_disjoint_support_cluster_count") or 0
+            ),
+            "supported_branch_divergence_binding_count": int(
+                row.get("supported_branch_divergence_binding_count") or 0
+            ),
+            "success_failure_supported_branch_divergence_count": int(
+                row.get("success_failure_supported_branch_divergence_count") or 0
+            ),
+            "episode_spread_count_is_independent_support_count": False,
+            "occurrence_disjoint_cluster_count_is_independent_support_count": False,
+            "review_support_state_is_truth_ranking": False,
             "dependency_independence_proven": row.get("dependency_independence_proven") is True,
             "statistical_independence_proven": row.get("statistical_independence_proven") is True,
             "analyst_relevance_state": "UNRESOLVED_NO_EXPLICIT_ANALYST_QUESTION",
@@ -217,6 +266,10 @@ def build_mechanism_story_review_shortlist(
             row.get("story_eligibility_state") == "BOUND_AWARE_REVIEW_ONLY" for row in selected
         ),
         "diversity_deduplication_applied": True,
+        "review_support_attention_compression_applied": True,
+        "review_support_attention_order_is_truth_ranking": False,
+        "episode_spread_count_is_independent_support_count": False,
+        "occurrence_disjoint_cluster_count_is_independent_support_count": False,
         "analyst_relevance_state": "UNRESOLVED_NO_EXPLICIT_ANALYST_QUESTION",
         "selection_is_truth_ranking": False,
         "selection_is_confidence_score": False,
