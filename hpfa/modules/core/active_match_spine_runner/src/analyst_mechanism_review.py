@@ -616,6 +616,10 @@ def build_mechanism_review_lines(
         focus_actor_ref = _focus_actor_ref(actor_locator)
         lines.append("  mechanism_context_review_focus: " + _render_context_focus(context_focus))
         lines.append("  mechanism_context_source: " + _render_context_source(context_focus))
+        provider_cue = _select_provider_semantic_review_cue(record)
+        lines.append("  provider_semantic_context_review_cue: " + _render_provider_semantic_review_cue(provider_cue))
+        lines.append("  provider_semantic_context_source: " + _render_provider_semantic_source(provider_cue))
+        lines.append("  provider_semantic_context_guard: " + _render_provider_semantic_guard(provider_cue))
         lines.append("  actor_locator_only: " + _render_actor_locator(actor_locator, actors))
         locators = _clip_locator_lines(
             record,
@@ -817,80 +821,4 @@ def build_mechanism_review_lines(
     output_root: str | Path,
     full_spine: dict[str, Any],
 ) -> list[str]:
-    lines = _BASE_BUILD_MECHANISM_REVIEW_LINES(output_root, full_spine)
-    root = Path(output_root)
-    if not _declared_current(full_spine, FEATURE_DELTA_JSON):
-        return lines
-    payload = _load_json(root / FEATURE_DELTA_JSON)
-    if not payload or str(payload.get("status") or "").upper() == "FAIL_CLOSED":
-        return lines
-    records = [
-        row for row in (payload.get("grammar_stable_variant_feature_delta_records") or [])
-        if isinstance(row, dict)
-    ]
-    if not records:
-        return lines
-
-    analyst_output_payload = (
-        _load_json(root / ANALYST_OUTPUT_CLAIM_JSON)
-        if _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON)
-        else {}
-    )
-    shortlist = build_mechanism_story_review_shortlist(
-        payload,
-        analyst_output_claim_payload=analyst_output_payload or None,
-        limit=5,
-    )
-    record_by_ref = {
-        str(record.get("grammar_stable_variant_feature_delta_id") or ""): record
-        for record in records
-        if record.get("grammar_stable_variant_feature_delta_id")
-    }
-    shortlisted_records: list[dict[str, Any]] = []
-    for row in shortlist.get("shortlist") or []:
-        if not isinstance(row, dict):
-            continue
-        ref = str(row.get("source_mechanism_review_ref") or "")
-        if ref and ref in record_by_ref:
-            shortlisted_records.append(record_by_ref[ref])
-            continue
-        signature = (
-            tuple(str(v) for v in (row.get("team_identity_candidate_ids") or [])),
-            tuple(str(v) for v in (row.get("period_candidates") or [])),
-            tuple(str(v) for v in (row.get("grammar_signature_tokens") or [])),
-            int(row.get("resolved_variant_count") or 0),
-            int(row.get("success_resolved_variant_count") or 0),
-            int(row.get("failure_resolved_variant_count") or 0),
-        )
-        for record in records:
-            candidate_signature = (
-                tuple(str(v) for v in (record.get("team_identity_candidate_ids") or [])),
-                tuple(str(v) for v in (record.get("period_candidates") or [])),
-                tuple(str(v) for v in (record.get("grammar_signature_tokens") or [])),
-                int(record.get("resolved_variant_count") or 0),
-                int(record.get("success_resolved_variant_count") or 0),
-                int(record.get("failure_resolved_variant_count") or 0),
-            )
-            if candidate_signature == signature:
-                shortlisted_records.append(record)
-                break
-    cue_by_index = {
-        index: _select_provider_semantic_review_cue(record)
-        for index, record in enumerate(shortlisted_records, start=1)
-    }
-    result: list[str] = []
-    current_index: int | None = None
-    for line in lines:
-        stripped = line.lstrip()
-        if stripped.startswith("- M") and " | " in stripped:
-            try:
-                current_index = int(stripped.split(" | ", 1)[0].replace("- M", ""))
-            except ValueError:
-                current_index = None
-        result.append(line)
-        if line.startswith("  mechanism_context_source:") and current_index in cue_by_index:
-            cue = cue_by_index[current_index]
-            result.append("  provider_semantic_context_review_cue: " + _render_provider_semantic_review_cue(cue))
-            result.append("  provider_semantic_context_source: " + _render_provider_semantic_source(cue))
-            result.append("  provider_semantic_context_guard: " + _render_provider_semantic_guard(cue))
-    return result
+    return _BASE_BUILD_MECHANISM_REVIEW_LINES(output_root, full_spine)
