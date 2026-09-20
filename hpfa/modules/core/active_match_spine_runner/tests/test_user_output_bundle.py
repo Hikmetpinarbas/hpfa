@@ -188,6 +188,31 @@ def test_six_phase_matrix_renders_all_twelve_direction_slots():
     assert "zorlanmış top kaybı" in text
 
 
+def test_phase_motif_sentence_exposes_recurrence_without_calling_it_tactical_truth():
+    row = {
+        "recurring_process_motif_family_count": 3,
+        "recurring_process_motif_covered_process_n": 12,
+        "top_recurring_process_motifs": [{
+            "member_process_n": 6,
+            "shot_variant_n": 2,
+            "visible_loss_variant_n": 3,
+            "visible_recovery_variant_n": 1,
+            "morphology_signature": {
+                "length_bucket": "MEDIUM_3_5_LAYERS",
+                "action_family_presence": ["PASS", "CARRY"],
+                "pass_carry_style": "MIXED_PASS_CARRY",
+                "route_hint": "MIDDLE_THIRD->FINAL_THIRD",
+            },
+        }],
+    }
+    text = user_output_bundle._phase_motif_sentence(row, "tr")
+    assert "3 aile" in text
+    assert "12 süreç" in text
+    assert "En sık motif 6 örnek" in text
+    assert "2 şut bağlantılı" in text
+    assert "3 görünür kayıp" in text
+
+
 def test_human_reports_use_football_language_and_keep_evidence_note_separate():
     rich = {
         "status": "REVIEW_REQUIRED",

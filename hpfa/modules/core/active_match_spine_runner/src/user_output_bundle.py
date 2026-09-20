@@ -534,6 +534,35 @@ def _phase_anatomy_sentence(row: dict[str, Any], language: str) -> str:
     return "; ".join(parts)
 
 
+def _phase_motif_sentence(row: dict[str, Any], language: str) -> str:
+    motif_n = int(row.get("recurring_process_motif_family_count") or 0)
+    covered = int(row.get("recurring_process_motif_covered_process_n") or 0)
+    motifs = [m for m in (row.get("top_recurring_process_motifs") or []) if isinstance(m, dict)]
+    if motif_n <= 0 or not motifs:
+        return ""
+    top = motifs[0]
+    morphology = top.get("morphology_signature") or {}
+    member_n = int(top.get("member_process_n") or 0)
+    shot_n = int(top.get("shot_variant_n") or 0)
+    loss_n = int(top.get("visible_loss_variant_n") or 0)
+    recovery_n = int(top.get("visible_recovery_variant_n") or 0)
+    action_presence = "+".join(str(v) for v in (morphology.get("action_family_presence") or [])) or "NO_ACTION_FAMILY"
+    length_bucket = str(morphology.get("length_bucket") or "UNKNOWN")
+    style = str(morphology.get("pass_carry_style") or "UNKNOWN")
+    route_hint = str(morphology.get("route_hint") or "UNKNOWN")
+    if language == "tr":
+        return (
+            f"Tekrarlayan motifler: {motif_n} aile, {covered} süreç kapsıyor. En sık motif {member_n} örnek; "
+            f"{length_bucket}, {action_presence}, {style}, rota ipucu {route_hint}; "
+            f"varyantlar: {shot_n} şut bağlantılı, {loss_n} görünür kayıp, {recovery_n} görünür recovery."
+        )
+    return (
+        f"Recurring motifs: {motif_n} families covering {covered} processes. Top motif has {member_n} examples; "
+        f"{length_bucket}, {action_presence}, {style}, route hint {route_hint}; "
+        f"variants: {shot_n} shot-linked, {loss_n} visible loss, {recovery_n} visible recovery."
+    )
+
+
 def _representative_replay_sentence(row: dict[str, Any], language: str) -> str:
     rep = row.get("representative_shot_process")
     if not isinstance(rep, dict):
@@ -603,8 +632,9 @@ def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any],
                         f"{loss_n} görünür top kaybı, {recovery_n} görünür top kazanımı."
                     )
                     anatomy = _phase_anatomy_sentence(row, language)
+                    motif = _phase_motif_sentence(row, language)
                     replay = _representative_replay_sentence(row, language)
-                    cards.append(" ".join(part for part in (base, anatomy, replay) if part))
+                    cards.append(" ".join(part for part in (base, anatomy, motif, replay) if part))
                 else:
                     source_family = _football_family_label(row.get("source_process_family_candidate"), language)
                     base = (
@@ -613,8 +643,9 @@ def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any],
                         f"{recovery_n} süreci görünür top kazanımına bağlandı."
                     )
                     anatomy = _phase_anatomy_sentence(row, language)
+                    motif = _phase_motif_sentence(row, language)
                     replay = _representative_replay_sentence(row, language)
-                    cards.append(" ".join(part for part in (base, anatomy, replay) if part))
+                    cards.append(" ".join(part for part in (base, anatomy, motif, replay) if part))
             else:
                 if perspective == "ATTACK":
                     base = (
@@ -622,8 +653,9 @@ def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any],
                         f"{loss_n} visible losses, {recovery_n} visible recoveries."
                     )
                     anatomy = _phase_anatomy_sentence(row, language)
+                    motif = _phase_motif_sentence(row, language)
                     replay = _representative_replay_sentence(row, language)
-                    cards.append(" ".join(part for part in (base, anatomy, replay) if part))
+                    cards.append(" ".join(part for part in (base, anatomy, motif, replay) if part))
                 else:
                     source_family = _football_family_label(row.get("source_process_family_candidate"), language)
                     base = (
@@ -632,8 +664,9 @@ def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any],
                         f"and {recovery_n} a visible recovery."
                     )
                     anatomy = _phase_anatomy_sentence(row, language)
+                    motif = _phase_motif_sentence(row, language)
                     replay = _representative_replay_sentence(row, language)
-                    cards.append(" ".join(part for part in (base, anatomy, replay) if part))
+                    cards.append(" ".join(part for part in (base, anatomy, motif, replay) if part))
         if language == "tr":
             cards.append(
                 "Kanıt notu: 12 yön sabit analiz yuvasıdır; savunma satırları rakibin görünür hücum sürecini savunma maruziyeti olarak ters yönden okur. "                "Rakibin kaybı zorlanmış top kaybı, rakibin şut çekmemesi şut önleme, bu faz yuvaları da tracking/video olmadan fiziksel savunma şekli gerçeği değildir."

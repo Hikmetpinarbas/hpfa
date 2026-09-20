@@ -895,6 +895,89 @@ def test_c03_builds_twelve_direction_six_phase_team_matrix() -> None:
     assert result["six_phase_team_matrix_is_phase_truth"] is False
 
 
+def test_c03_motif_identity_is_outcome_independent_and_keeps_variants_together() -> None:
+    processes = [
+        {
+            "process_participation_candidate_id": "p_shot",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 10.0,
+            "end_candidate": 15.0,
+            "shot_present_annotation_candidate": True,
+        },
+        {
+            "process_participation_candidate_id": "p_loss",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 20.0,
+            "end_candidate": 25.0,
+            "shot_present_annotation_candidate": False,
+        },
+        {
+            "process_participation_candidate_id": "p_carry",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 30.0,
+            "end_candidate": 35.0,
+            "shot_present_annotation_candidate": False,
+        },
+    ]
+    occurrences = [
+        {
+            "action_occurrence_candidate_id": "o_shot",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [12.0],
+            "action_family_candidates": ["PASS"],
+            "actor_identity_candidate_ids": ["a1"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+        {
+            "action_occurrence_candidate_id": "o_loss",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [22.0],
+            "action_family_candidates": ["PASS"],
+            "actor_identity_candidate_ids": ["a2"],
+            "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+        {
+            "action_occurrence_candidate_id": "o_carry",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [32.0],
+            "action_family_candidates": ["CARRY"],
+            "actor_identity_candidate_ids": ["a3"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+    ]
+    result = _construct_c03(
+        {"process_participation_candidates": processes},
+        {"occurrence_state_transition_projections": occurrences},
+        {"spatial_transition_candidates": []},
+    )
+    motifs = result["process_motif_family_candidates"]
+    recurring = [row for row in motifs if row["recurring_motif_candidate"]]
+    assert len(recurring) == 1
+    motif = recurring[0]
+    assert motif["member_process_n"] == 2
+    assert motif["shot_variant_n"] == 1
+    assert motif["non_shot_variant_n"] == 1
+    assert motif["visible_loss_variant_n"] == 1
+    assert motif["outcome_fields_participate_in_motif_identity"] is False
+    assert motif["same_motif_outcomes_are_variant_context_only"] is True
+    assert result["process_motif_identity_uses_outcome"] is False
+
+
 def test_c03_variant_profiles_never_pool_opponent_teams() -> None:
     from hpfa.modules.core.active_match_spine_runner.src.rich_multiformat_analysis_lane import _construct_c03
 

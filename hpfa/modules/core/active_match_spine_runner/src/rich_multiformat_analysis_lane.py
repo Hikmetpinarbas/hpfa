@@ -1557,6 +1557,117 @@ def _construct_c03(
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DEVELOPMENT_SIGNATURE_CANDIDATE_ONLY",
         })
 
+    process_motif_family_candidates: list[dict[str, Any]] = []
+    motif_members: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+
+    def _motif_length_bucket(value: Any) -> str:
+        n = int(value or 0)
+        if n <= 2:
+            return "SHORT_0_2_LAYERS"
+        if n <= 5:
+            return "MEDIUM_3_5_LAYERS"
+        return "LONG_6_PLUS_LAYERS"
+
+    def _motif_pass_carry_style(signature: dict[str, Any]) -> str:
+        value = _as_number((signature.get("pass_carry_layer_mix") or {}).get("pass_share_candidate"))
+        if value is None:
+            return "NO_PASS_CARRY_BASIS"
+        if value >= 0.85:
+            return "PASS_DOMINANT"
+        if value >= 0.50:
+            return "MIXED_PASS_CARRY"
+        return "CARRY_DOMINANT"
+
+    def _motif_action_presence(signature: dict[str, Any]) -> tuple[str, ...]:
+        excluded = {"SHOT", "GOAL", "TURNOVER", "RECOVERY"}
+        return tuple(sorted(
+            str(family)
+            for family, count in (signature.get("action_family_layer_counts") or {}).items()
+            if count and str(family) not in excluded
+        ))
+
+    def _motif_route_hint(signature: dict[str, Any]) -> str:
+        starts = [str(v) for v in (signature.get("process_start_zone_candidates") or []) if v]
+        ends = [str(v) for v in (signature.get("process_end_zone_candidates") or []) if v]
+        if len(starts) == 1 and len(ends) == 1:
+            return f"{starts[0]}->{ends[0]}"
+        return "NO_UNAMBIGUOUS_ROUTE_HINT"
+
+    for signature in signatures:
+        team_id = str(signature.get("team_identity_candidate_id") or "")
+        family_id = str(signature.get("process_family_candidate") or "UNKNOWN")
+        if not team_id:
+            continue
+        morphology = {
+            "length_bucket": _motif_length_bucket(signature.get("temporal_layer_n")),
+            "action_family_presence": list(_motif_action_presence(signature)),
+            "pass_carry_style": _motif_pass_carry_style(signature),
+            "route_hint": _motif_route_hint(signature),
+        }
+        morphology_key = json.dumps(morphology, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+        motif_members[(team_id, family_id, morphology_key)].append(signature)
+
+    for (team_id, family_id, morphology_key), rows in sorted(motif_members.items()):
+        morphology = json.loads(morphology_key)
+        shot_n = sum(row.get("shot_present_annotation_candidate") is True for row in rows)
+        loss_n = sum(bool(row.get("visible_loss_transition_candidate_present")) for row in rows)
+        recovery_n = sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in rows)
+        periods = sorted({str(row.get("period_candidate") or "") for row in rows if row.get("period_candidate")})
+        durations = [_as_number(row.get("process_interval_duration_candidate")) for row in rows]
+        durations = [v for v in durations if v is not None]
+        actor_spreads = [_as_number(row.get("unique_actor_candidate_n")) for row in rows]
+        actor_spreads = [v for v in actor_spreads if v is not None]
+        temporal_layers = [_as_number(row.get("temporal_layer_n")) for row in rows]
+        temporal_layers = [v for v in temporal_layers if v is not None]
+        representative = max(
+            rows,
+            key=lambda row: (
+                int(row.get("temporal_layer_n") or 0),
+                int(row.get("unique_actor_candidate_n") or 0),
+                float(row.get("process_interval_duration_candidate") or 0.0),
+            ),
+        )
+        motif_id = "pmf_" + hashlib.sha256(
+            f"{team_id}|{family_id}|{morphology_key}".encode()
+        ).hexdigest()[:24]
+        process_motif_family_candidates.append({
+            "process_motif_family_candidate_id": motif_id,
+            "team_identity_candidate_id": team_id,
+            "process_family_candidate": family_id,
+            "morphology_signature": morphology,
+            "member_process_n": len(rows),
+            "recurring_motif_candidate": len(rows) >= 2,
+            "period_spread_candidates": periods,
+            "shot_variant_n": shot_n,
+            "non_shot_variant_n": len(rows) - shot_n,
+            "visible_loss_variant_n": loss_n,
+            "visible_recovery_variant_n": recovery_n,
+            "mean_duration_candidate": (sum(durations) / len(durations)) if durations else None,
+            "mean_actor_spread_candidate": (sum(actor_spreads) / len(actor_spreads)) if actor_spreads else None,
+            "mean_temporal_layer_n": (sum(temporal_layers) / len(temporal_layers)) if temporal_layers else None,
+            "representative_process_development_signature_id": representative.get("process_development_signature_id"),
+            "representative_process_start_candidate": representative.get("process_start_candidate"),
+            "representative_process_end_candidate": representative.get("process_end_candidate"),
+            "representative_start_zone_candidates": representative.get("process_start_zone_candidates") or [],
+            "representative_end_zone_candidates": representative.get("process_end_zone_candidates") or [],
+            "outcome_fields_participate_in_motif_identity": False,
+            "same_motif_outcomes_are_variant_context_only": True,
+            "motif_similarity_basis": "EXACT_MATCH_ON_OUTCOME_INDEPENDENT_VISIBLE_MORPHOLOGY_SIGNATURE",
+            "motif_is_tactical_pattern_truth": False,
+            "motif_is_coach_intention_truth": False,
+            "motif_is_physical_trajectory_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_RECURRING_VISIBLE_PROCESS_MOTIF_CANDIDATE_ONLY",
+        })
+
+    motif_index: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for motif in process_motif_family_candidates:
+        motif_index[(
+            str(motif.get("team_identity_candidate_id") or ""),
+            str(motif.get("process_family_candidate") or ""),
+        )].append(motif)
+    for rows in motif_index.values():
+        rows.sort(key=lambda row: (-int(row.get("member_process_n") or 0), str(row.get("process_motif_family_candidate_id") or "")))
+
     team_process_profiles: list[dict[str, Any]] = []
     by_team_family: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for signature in signatures:
@@ -1729,6 +1840,18 @@ def _construct_c03(
                     "representative_loss_process": _representative(loss_rows) if observed else None,
                     "anatomy_basis": "ADMITTED_MATCH_LOCAL_PROCESS_DEVELOPMENT_SIGNATURES",
                     "anatomy_is_physical_trajectory_truth": False,
+                    "recurring_process_motif_family_count": sum(
+                        bool(row.get("recurring_motif_candidate")) for row in motif_index.get((source_team_id, family_id), [])
+                    ),
+                    "recurring_process_motif_covered_process_n": sum(
+                        int(row.get("member_process_n") or 0)
+                        for row in motif_index.get((source_team_id, family_id), [])
+                        if row.get("recurring_motif_candidate")
+                    ),
+                    "top_recurring_process_motifs": [
+                        dict(row) for row in motif_index.get((source_team_id, family_id), [])
+                        if row.get("recurring_motif_candidate")
+                    ][:3],
                     "metric_semantics": (
                         "OWN_VISIBLE_PROCESS_PROFILE" if perspective == "ATTACK"
                         else "OPPONENT_VISIBLE_PROCESS_EXPOSURE_PROFILE"
@@ -1803,6 +1926,17 @@ def _construct_c03(
         "status": "REVIEW_REQUIRED" if signatures else "NOT_APPLICABLE",
         "signature_count": len(signatures),
         "signatures": signatures,
+        "process_motif_family_candidate_count": len(process_motif_family_candidates),
+        "recurring_process_motif_family_candidate_count": sum(
+            bool(row.get("recurring_motif_candidate")) for row in process_motif_family_candidates
+        ),
+        "recurring_process_motif_covered_process_n": sum(
+            int(row.get("member_process_n") or 0)
+            for row in process_motif_family_candidates
+            if row.get("recurring_motif_candidate")
+        ),
+        "process_motif_family_candidates": process_motif_family_candidates,
+        "process_motif_identity_uses_outcome": False,
         "team_process_profile_count": len(team_process_profiles),
         "team_process_profiles": team_process_profiles,
         "reciprocal_team_process_comparison_count": len(reciprocal_team_process_comparisons),
