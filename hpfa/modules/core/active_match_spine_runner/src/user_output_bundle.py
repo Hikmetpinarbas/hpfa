@@ -20,6 +20,7 @@ EPISODE_FEATURE_JSON = "episode_feature_vector_lite_v1.json"
 ANALYST_OUTPUT_CLAIM_JSON = "analyst_output_claim_contract_projection_v1.json"
 FULL_SPINE_JSON = "active_match_full_spine_v1.json"
 FULL_SPINE_TXT = "active_match_full_spine_v1.txt"
+IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -299,6 +300,14 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     features = _load_json(root / EPISODE_FEATURE_JSON) if feature_current else {}
     rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
     rich = rich if isinstance(rich, dict) else {}
+    identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
+    team_labels = {
+        str(row.get("team_identity_candidate_id") or ""): str(
+            row.get("team_normalized_key") or row.get("team_aliases_raw", [None])[0] or row.get("team_identity_candidate_id") or "UNKNOWN_TEAM"
+        )
+        for row in (identity.get("team_identity_candidates") or [])
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
     cards = features.get("episode_feature_vectors")
     cards = [item for item in cards if isinstance(item, dict)] if isinstance(cards, list) else []
 
@@ -455,6 +464,27 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                     f"  inceleme_yonergesi ({label}): {review.get('analyst_action')} "
                     f"withdrawal_conditions={review.get('withdrawal_conditions') or []}; "
                     "review_contract_creates_new_evidence=false; review_contract_can_authorize_emit=false."
+                )
+        c03_team_profiles = [row for row in (c03.get("team_process_profiles") or []) if isinstance(row, dict)]
+        if c03_team_profiles:
+            by_team: dict[str, dict[str, int]] = {}
+            for profile in c03_team_profiles:
+                team_id = str(profile.get("team_identity_candidate_id") or "")
+                if not team_id:
+                    continue
+                bucket = by_team.setdefault(team_id, {"eligible": 0, "shot": 0, "loss": 0, "recovery": 0})
+                bucket["eligible"] += int(profile.get("eligible_process_n") or 0)
+                bucket["shot"] += int(profile.get("shot_ending_process_n") or 0)
+                bucket["loss"] += int(profile.get("visible_loss_process_n") or 0)
+                bucket["recovery"] += int(profile.get("visible_recovery_process_n") or 0)
+            for team_id, values in sorted(by_team.items(), key=lambda item: team_labels.get(item[0], item[0])):
+                team_name = team_labels.get(team_id, team_id)
+                lines.append(
+                    f"- TAKIM SUREC/CONSEQUENCE PROFILI: {team_name}; admitted process={values['eligible']}; "
+                    f"loss-visible={values['loss']}; recovery-visible={values['recovery']}; "
+                    f"shot-terminal={values['shot']}. "
+                    "Bunlar possession sayisi veya basari orani degildir; ayni process birden fazla consequence tasiyabilir. "
+                    "Profil match-local descriptive candidate'tir; takim kalitesi, taktik ustunluk, opponent-response truth veya causality degildir."
                 )
         c03_rows = [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
         if c03_rows:
