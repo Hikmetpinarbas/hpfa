@@ -470,6 +470,7 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
             "tactical_truth_candidate_admitted": False,
         }
         packet_candidate = {
+            "source_construct_id": "C01_PROGRESSION_VOLUME_VS_TERMINAL_CONVERSION",
             "packet_family": "progression",
             "input_features": [occurrence_ref],
             "input_windows": [],
@@ -860,6 +861,124 @@ def _association_record(
     }
 
 
+def _c02_packet_candidate(candidate: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Bind one C02 analyst-attention profile to the existing governed C4 chain.
+
+    The packet creates no new evidence and deliberately admits no independent support.
+    Absence of a visible target annotation is not promoted to contradiction or resolved
+    negative outcome. The outer packet ceiling stays at the composite-builder contract;
+    the C02-specific ceiling is preserved inside the evidence profile.
+    """
+    if not isinstance(candidate, dict):
+        return None
+    process_refs = sorted({
+        str(value).strip()
+        for value in (candidate.get("process_refs") or [])
+        if str(value).strip()
+    })
+    if len(process_refs) < 2:
+        return None
+
+    positive_refs = {
+        str(value).strip()
+        for value in (candidate.get("shot_process_refs") or [])
+        if str(value).strip()
+    }
+    actor_ids = tuple(str(value) for value in (candidate.get("actor_identity_candidate_ids") or []))
+    association_type = str(candidate.get("association_type") or "UNRESOLVED")
+    team_id = str(candidate.get("team_identity_candidate_id") or "UNKNOWN")
+    family = str(candidate.get("process_family_candidate") or "UNKNOWN")
+    profile_seed = "|".join([association_type, team_id, family, *actor_ids])
+    profile_id = "c02_profile_" + hashlib.sha256(profile_seed.encode("utf-8")).hexdigest()[:24]
+    dependency_group = f"c02:{team_id}:{family}"
+
+    sequence_records = [
+        {
+            "sequence_id": process_ref,
+            "source_surface": "analyst_episode_process_participation_projection_v1",
+            "lenses": ["actor", "process", "outcome", "context"],
+            "visible_target_annotation_candidate": process_ref in positive_refs,
+            "not_target_annotation_is_resolved_non_target": False,
+            "provenance_root": "analyst_episode_process_participation_projection_v1",
+            "dependency_group": dependency_group,
+            "independence_group": None,
+            "independent_support_vote": False,
+        }
+        for process_ref in process_refs
+    ]
+    profile_feature = {
+        "feature_id": profile_id,
+        "source_surface": "rich_multiformat_analysis_lattice_v1",
+        "lenses": ["actor", "process", "outcome", "context", "derived"],
+        "association_type": association_type,
+        "actor_identity_candidate_ids": list(actor_ids),
+        "actor_labels": list(candidate.get("actor_labels") or []),
+        "team_identity_candidate_id": candidate.get("team_identity_candidate_id"),
+        "process_family_candidate": candidate.get("process_family_candidate"),
+        "eligibility_contract": "C02_PROCESS_FAMILY_OUTCOME_BLIND_ELIGIBILITY_V1",
+        "eligible_n": candidate.get("eligible_n"),
+        "visible_target_annotation_k": candidate.get("visible_target_annotation_k"),
+        "target_outcome_unresolved_u": candidate.get("target_outcome_unresolved_u"),
+        "observed_visible_target_annotation_frequency": candidate.get("observed_visible_target_annotation_frequency"),
+        "descriptive_lift": candidate.get("descriptive_lift"),
+        "eligible_episode_spread": candidate.get("eligible_episode_spread"),
+        "positive_episode_spread": candidate.get("positive_episode_spread"),
+        "selection_scope": candidate.get("selection_scope"),
+        "selection_candidate_pool_n": candidate.get("selection_candidate_pool_n"),
+        "selection_rank": candidate.get("selection_rank"),
+        "selection_is_posthoc_attention_ranking": True,
+        "selection_is_stable_signal": False,
+        "association_claim_ceiling": "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY",
+        "association_is_causal_player_credit": False,
+        "target_annotation_absence_is_counterevidence": False,
+        "outcome_must_not_define_its_own_eligible_denominator": True,
+        "no_p_value_eliminates_selection_multiplicity_risk": False,
+        "ranked_extreme_is_stable_signal": False,
+        "provenance_root": "rich_multiformat_analysis_lattice_v1",
+        "dependency_group": dependency_group,
+        "independence_group": None,
+        "independent_support_vote": False,
+    }
+    signal = {
+        "signal_id": profile_id + ":visible_association",
+        "source_surface": "HPFA_DERIVED_FROM_C02_ADMITTED_PROCESS_PARTICIPATION",
+        "evidence_derivation_role": "DESCRIPTIVE_VISIBLE_ASSOCIATION_PROFILE",
+        "evidence_role": "analyst_attention_visible_association_candidate",
+        "relation_type": "SUPPORTS",
+        "source_refs": process_refs,
+        "lenses": ["actor", "process", "outcome", "derived"],
+        "provenance_root": "analyst_episode_process_participation_projection_v1",
+        "dependency_group": dependency_group,
+        "independence_group": None,
+        "independent_support_vote": False,
+        "causal_truth": False,
+        "quality_truth": False,
+        "statistical_significance_truth": False,
+    }
+    return {
+        "source_construct_id": "C02_PROCESS_PARTICIPANT_OUTCOME_ASSOCIATION",
+        "packet_family": "production_consequence",
+        "input_features": [profile_feature],
+        "input_windows": [],
+        "input_sequences": sequence_records,
+        "input_metrics": [],
+        "supporting_signals": [signal],
+        "contradicting_signals": [],
+        "required_lenses": ["actor", "process", "outcome", "context"],
+        "optional_lenses": ["derived", "aggregate", "contradiction", "opponent"],
+        "claim_ceiling": "composite_candidate_only",
+        "blocked_language_families": [
+            "causal_truth",
+            "quality_truth",
+            "tactical_truth",
+            "coach_intention",
+            "future_expectation",
+            "population_effect",
+            "statistical_significance",
+        ],
+    }
+
+
 def _construct_c02(
     rows: list[dict[str, Any]],
     identity_payload: dict[str, Any],
@@ -1029,6 +1148,14 @@ def _construct_c02(
         row["no_p_value_eliminates_selection_multiplicity_risk"] = False
     representative_actor = all_actor_candidates[0] if all_actor_candidates else None
     representative_dyad = all_dyad_candidates[0] if all_dyad_candidates else None
+    packet_candidates = [
+        packet
+        for packet in (
+            _c02_packet_candidate(representative_actor),
+            _c02_packet_candidate(representative_dyad),
+        )
+        if packet is not None
+    ]
 
     return {
         "construct_id": "C02_PROCESS_PARTICIPANT_OUTCOME_ASSOCIATION",
@@ -1044,6 +1171,11 @@ def _construct_c02(
         "argument_candidate_count": len(all_actor_candidates) + len(all_dyad_candidates),
         "representative_actor_argument": representative_actor,
         "representative_dyad_argument": representative_dyad,
+        "packet_candidates": packet_candidates,
+        "packet_candidate_count": len(packet_candidates),
+        "packet_candidates_create_new_evidence": False,
+        "packet_candidates_admit_independent_support": False,
+        "packet_candidates_can_authorize_emit": False,
         "xlsx_actor_binding_count": len(actor_bindings),
         "xlsx_binding_review_hits": binding_reviews,
         "process_participation_consumed": bool(raw),
@@ -1814,6 +1946,9 @@ def run_rich_lane(
         review_hits.append("C04_xlsx_composition_total_intelligence_review_available")
 
     packet_candidates = [c01["packet_candidate"]] if c01.get("packet_candidate") else []
+    packet_candidates.extend(
+        row for row in (c02.get("packet_candidates") or []) if isinstance(row, dict)
+    )
     status = "FAIL_CLOSED" if hard_blocks else "REVIEW_REQUIRED" if review_hits else "SMOKE_PASS"
     payload = {
         "module_id": MODULE_ID,
@@ -1850,7 +1985,7 @@ def run_rich_lane(
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
                 "constructs": {
                     "C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "comparable_scope_pairs", "packet_candidate"}},
-                    "C02": {key: value for key, value in c02.items() if key not in {"actor_argument_candidates", "dyad_argument_candidates", "process_family_profiles"}},
+                    "C02": {key: value for key, value in c02.items() if key not in {"actor_argument_candidates", "dyad_argument_candidates", "process_family_profiles", "packet_candidates"}},
                     "C03": {key: value for key, value in c03.items() if key != "signatures"},
                     "C04": {key: value for key, value in c04.items() if key not in {"composition_profiles", "model_context_residual_profiles"}},
                 },
