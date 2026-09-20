@@ -14,6 +14,8 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_sentence
 )
 
 ANALYST_REPORT = "HPFA_ANALYST_REPORT.txt"
+ANALYST_REPORT_TR = "HPFA_ANALYST_REPORT_TR.txt"
+ANALYST_REPORT_EN = "HPFA_ANALYST_REPORT_EN.txt"
 BUNDLE_MANIFEST = "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"
 BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
 EPISODE_FEATURE_JSON = "episode_feature_vector_lite_v1.json"
@@ -290,6 +292,155 @@ def _representative_entities(rich: dict[str, Any], limit: int = 8) -> list[str]:
         if len(result) >= limit:
             break
     return result
+
+
+def _human_pct(value: Any) -> str:
+    if not isinstance(value, (int, float)):
+        return "N/A"
+    return f"%{100 * float(value):.1f}"
+
+
+def _human_ratio(numerator: Any, denominator: Any) -> str:
+    try:
+        return f"{int(numerator)}/{int(denominator)}"
+    except (TypeError, ValueError):
+        return "N/A"
+
+
+def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
+    c02 = (rich.get("constructs") or {}).get("C02") or {}
+    rows = [
+        ("PLAYER", c02.get("representative_actor_argument")),
+        ("DYAD", c02.get("representative_dyad_argument")),
+    ]
+    cards: list[str] = []
+    for entity_type, candidate in rows:
+        if not isinstance(candidate, dict):
+            continue
+        names = " + ".join(str(value) for value in (candidate.get("actor_labels") or [])) or "UNKNOWN"
+        family = str(candidate.get("process_family_candidate") or "process").replace("_CANDIDATE", "").replace("_", " ").lower()
+        eligible_n = int(candidate.get("eligible_n") or candidate.get("support_n") or 0)
+        positive_k = int(candidate.get("visible_target_annotation_k") or candidate.get("shot_ending_n") or 0)
+        unresolved_u = int(candidate.get("target_outcome_unresolved_u") or candidate.get("not_target_annotated_n") or 0)
+        rate = candidate.get("observed_visible_target_annotation_frequency")
+        baseline = candidate.get("match_local_baseline_shot_frequency")
+        lift = candidate.get("descriptive_lift")
+        eligible_spread = int(candidate.get("eligible_episode_spread") or 0)
+        positive_spread = int(candidate.get("positive_episode_spread") or 0)
+        pool_n = int(candidate.get("selection_candidate_pool_n") or 0)
+        rank = int(candidate.get("selection_rank") or 0)
+        if language == "tr":
+            label = "Oyuncu" if entity_type == "PLAYER" else "İkili"
+            football = (
+                f"{label}: {names}. {names}, bu maçta {family} olarak sınıflanan hücumların "
+                f"{eligible_n} tanesinde sürecin içinde görünüyor. Bu hücumların {positive_k} tanesinde "
+                "şutla bağlantılı görünür bir son aksiyon kaydı var."
+            )
+            if isinstance(baseline, (int, float)) and isinstance(rate, (int, float)):
+                football += (
+                    f" Aynı hücum tipinin maç içindeki genel görünür oranı {_human_pct(baseline)} iken "
+                    f"{names} sahadayken/ikili birlikteyken bu oran {_human_pct(rate)}."
+                )
+            football += (
+                " Bu fark, analistin bu oyuncu/ikiliyi söz konusu hücumlarda özellikle incelemesi için bir işarettir; "
+                "şutun sebebinin bu oyuncu/ikili olduğunu göstermez."
+            )
+            evidence = (
+                f"Kanıt notu: {_human_ratio(positive_k, eligible_n)} görünür pozitif kayıt; "
+                f"{unresolved_u} süreçte hedef sonuç çözümlenmemiş; eligible episode yayılımı={eligible_spread}, "
+                f"pozitif episode yayılımı={positive_spread}"
+            )
+            if isinstance(lift, (int, float)):
+                evidence += f"; maç içi betimleyici oran karşılaştırması={float(lift):.2f}x"
+            if pool_n:
+                evidence += f"; {pool_n} aday arasındaki post-hoc dikkat sırası={rank}"
+            evidence += ". Bu bir katkı skoru, nedensel etki, oyuncu kalitesi veya gelecek tahmini değildir."
+        else:
+            label = "Player" if entity_type == "PLAYER" else "Pair"
+            football = (
+                f"{label}: {names}. {names} appeared in {eligible_n} instances of this match's {family} process family. "
+                f"{positive_k} of those instances were linked to a visible shot-ending annotation."
+            )
+            if isinstance(baseline, (int, float)) and isinstance(rate, (int, float)):
+                football += (
+                    f" The match-local visible rate for the same process family was {_human_pct(baseline)}, "
+                    f"compared with {_human_pct(rate)} when {names} was involved."
+                )
+            football += (
+                " This is a useful analyst-review signal, but it does not show that the player or pair caused the shot outcome."
+            )
+            evidence = (
+                f"Evidence note: {_human_ratio(positive_k, eligible_n)} visible positive annotations; "
+                f"{unresolved_u} unresolved target outcomes; eligible episode spread={eligible_spread}, "
+                f"positive episode spread={positive_spread}"
+            )
+            if isinstance(lift, (int, float)):
+                evidence += f"; match-local descriptive ratio={float(lift):.2f}x"
+            if pool_n:
+                evidence += f"; post-hoc attention rank={rank} of {pool_n} candidates"
+            evidence += ". This is not a contribution score, causal effect, player-quality estimate, or forecast."
+        cards.extend([football, evidence])
+    return cards
+
+
+def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str, Any]) -> str:
+    root = Path(output_root)
+    rich_current = _rich_surface_current(full_spine)
+    rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
+    rich = rich if isinstance(rich, dict) else {}
+    lines = [
+        "HPFA MAÇ ANALİZİ — TÜRKÇE ANALİST RAPORU",
+        "========================================",
+        "",
+        "Bu rapor futbol diliyle yazılmış analist yüzeyidir. Teknik kanıt ayrıntıları ayrı 'Kanıt notu' satırlarında tutulur.",
+        "",
+        "[1] OYUNCU / İKİLİ × HÜCUM SONUCU",
+    ]
+    cards = _human_c02_cards(rich, "tr") if rich_current else []
+    if cards:
+        lines.extend(f"- {line}" for line in cards)
+    else:
+        lines.append("- Bu maçta bu başlık için güvenli biçimde raporlanabilir current-run aday yok.")
+    lines.extend([
+        "",
+        "[2] SINIR",
+        "- Görünür birlikte-oluş, oyuncu katkısı veya nedensel etki değildir.",
+        "- Şut kaydı görülmeyen süreç otomatik olarak başarısız hücum sayılmaz.",
+        "- Sıralama, yalnız analistin hangi örneklere önce bakacağını belirleyen maç içi dikkat sırasıdır.",
+        "- Bu rapor tracking/video olmadan baskı geometrisi, takım şekli, oyuncu niyeti veya antrenör planı iddiası üretmez.",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str, Any]) -> str:
+    root = Path(output_root)
+    rich_current = _rich_surface_current(full_spine)
+    rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
+    rich = rich if isinstance(rich, dict) else {}
+    lines = [
+        "HPFA MATCH ANALYSIS — ENGLISH ANALYST REPORT",
+        "===========================================",
+        "",
+        "This is the analyst-facing football report. Technical evidence limits are kept in separate 'Evidence note' lines.",
+        "",
+        "[1] PLAYER / PAIR × ATTACK OUTCOME",
+    ]
+    cards = _human_c02_cards(rich, "en") if rich_current else []
+    if cards:
+        lines.extend(f"- {line}" for line in cards)
+    else:
+        lines.append("- No current-run candidate can be reported safely under this heading.")
+    lines.extend([
+        "",
+        "[2] CLAIM BOUNDARY",
+        "- Visible co-occurrence is not player contribution or causal effect.",
+        "- A process without a visible shot annotation is not automatically a failed attack.",
+        "- Ranking is a match-local analyst-attention order, not a stable player ranking.",
+        "- Without tracking/video, this report does not claim true pressure geometry, team shape, player intent, or coaching intention.",
+        "",
+    ])
+    return "\n".join(lines)
 
 
 def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) -> str:
@@ -644,6 +795,8 @@ def _declared_current_artifacts(root: Path, full_spine: dict[str, Any]) -> list[
         str(root / FULL_SPINE_JSON),
         str(root / FULL_SPINE_TXT),
         str(root / ANALYST_REPORT),
+        str(root / ANALYST_REPORT_TR),
+        str(root / ANALYST_REPORT_EN),
     ]
     seen: set[str] = set()
     candidates: list[Path] = []
@@ -669,6 +822,8 @@ def write_standard_user_outputs(
     _ = before_state
 
     report_path = root / ANALYST_REPORT
+    report_tr_path = root / ANALYST_REPORT_TR
+    report_en_path = root / ANALYST_REPORT_EN
     manifest_path = root / BUNDLE_MANIFEST
     zip_path = root / BUNDLE_ZIP
     temp_zip_path = root / f".{BUNDLE_ZIP}.tmp"
@@ -676,6 +831,8 @@ def write_standard_user_outputs(
         temp_zip_path.unlink()
 
     report_path.write_text(build_analyst_report(root, full_spine), encoding="utf-8")
+    report_tr_path.write_text(build_human_analyst_report_tr(root, full_spine), encoding="utf-8")
+    report_en_path.write_text(build_human_analyst_report_en(root, full_spine), encoding="utf-8")
     candidates = _declared_current_artifacts(root, full_spine)
     entries = [
         {"name": path.name, "size_bytes": path.stat().st_size, "sha256": _sha256(path)}
@@ -716,6 +873,8 @@ def write_standard_user_outputs(
 
     return {
         "analyst_report": str(report_path),
+        "analyst_report_tr": str(report_tr_path),
+        "analyst_report_en": str(report_en_path),
         "bundle_manifest": str(manifest_path),
         "bundle_zip": str(zip_path),
         "bundle_file_count": len(candidates) + 1,
