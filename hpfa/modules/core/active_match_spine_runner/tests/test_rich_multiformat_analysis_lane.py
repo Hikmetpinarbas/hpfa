@@ -475,6 +475,31 @@ def test_c02_selection_scope_exposes_candidate_pool_and_posthoc_ranking():
     assert result["ranked_extreme_is_stable_signal"] is False
 
 
+def test_c02_exposes_review_only_packet_candidates_without_independence_or_negative_invention():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+    packets = result["packet_candidates"]
+    assert result["packet_candidate_count"] == 2
+    assert result["packet_candidates_create_new_evidence"] is False
+    assert result["packet_candidates_admit_independent_support"] is False
+    assert result["packet_candidates_can_authorize_emit"] is False
+    for packet in packets:
+        assert packet["source_construct_id"] == "C02_PROCESS_PARTICIPANT_OUTCOME_ASSOCIATION"
+        assert packet["packet_family"] == "production_consequence"
+        assert packet["claim_ceiling"] == "composite_candidate_only"
+        assert packet["contradicting_signals"] == []
+        assert len(packet["input_sequences"]) >= 2
+        assert all(row["independent_support_vote"] is False for row in packet["input_sequences"])
+        feature = packet["input_features"][0]
+        assert feature["association_claim_ceiling"] == "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY"
+        assert feature["eligibility_contract"] == "C02_PROCESS_FAMILY_OUTCOME_BLIND_ELIGIBILITY_V1"
+        assert feature["target_annotation_absence_is_counterevidence"] is False
+        assert feature["association_is_causal_player_credit"] is False
+        assert feature["selection_is_posthoc_attention_ranking"] is True
+        assert feature["selection_is_stable_signal"] is False
+        assert packet["supporting_signals"][0]["independent_support_vote"] is False
+        assert packet["supporting_signals"][0]["statistical_significance_truth"] is False
+
+
 def test_c02_opportunity_normalized_evidence_anatomy_freezes_denominator_and_preserves_episode_spread():
     result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
     dyad = result["representative_dyad_argument"]
