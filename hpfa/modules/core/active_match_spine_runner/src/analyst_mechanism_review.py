@@ -496,6 +496,11 @@ def build_mechanism_review_lines(
         for row in (shortlist.get("shortlist") or [])
         if isinstance(row, dict) and row.get("source_mechanism_review_ref")
     }
+    shortlist_support_by_ref = {
+        str(row.get("source_mechanism_review_ref") or ""): row
+        for row in (shortlist.get("shortlist") or [])
+        if isinstance(row, dict) and row.get("source_mechanism_review_ref")
+    }
     shortlisted_signatures = {
         (
             tuple(str(v) for v in (row.get("team_identity_candidate_ids") or [])),
@@ -556,7 +561,14 @@ def build_mechanism_review_lines(
         lines.append(
             f"  first_visible_difference: context_layer={first_context_layer} consequence_layer={first_consequence_layer}"
         )
-        review_support_state = str(record.get("review_support_state") or "").strip()
+        shortlist_support = shortlist_support_by_ref.get(
+            str(record.get("grammar_stable_variant_feature_delta_id") or ""), {}
+        )
+        review_support_state = str(
+            shortlist_support.get("review_support_state")
+            or record.get("review_support_state")
+            or ""
+        ).strip()
         visible_episode_spread = int(record.get("visible_episode_spread_count") or 0)
         occurrence_disjoint_clusters = int(record.get("occurrence_disjoint_support_cluster_count") or 0)
         if review_support_state or visible_episode_spread or occurrence_disjoint_clusters:
