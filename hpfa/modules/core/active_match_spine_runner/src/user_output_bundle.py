@@ -296,10 +296,21 @@ def _representative_entities(rich: dict[str, Any], limit: int = 8) -> list[str]:
     return result
 
 
-def _human_pct(value: Any) -> str:
+def _human_pct(value: Any, language: str = "tr") -> str:
     if not isinstance(value, (int, float)):
         return "N/A"
-    return f"%{100 * float(value):.1f}"
+    number = f"{100 * float(value):.1f}"
+    return f"%{number}" if language == "tr" else f"{number}%"
+
+
+def _display_label(value: Any) -> str:
+    import re
+
+    text = str(value or "").strip()
+    text = re.sub(r"\s*\(\d+\)\s*$", "", text).strip()
+    if text and text == text.lower():
+        text = " ".join(part[:1].upper() + part[1:] for part in text.split())
+    return text or "UNKNOWN"
 
 
 def _human_ratio(numerator: Any, denominator: Any) -> str:
@@ -344,7 +355,7 @@ def _human_team_labels(identity: dict[str, Any]) -> dict[str, str]:
             if isinstance(row.get("team_aliases_raw"), list) and row.get("team_aliases_raw")
             else None
         )
-        label = str(raw or row.get("team_normalized_key") or ref or "UNKNOWN_TEAM").strip()
+        label = _display_label(raw or row.get("team_normalized_key") or ref or "UNKNOWN_TEAM")
         if ref:
             result[ref] = label
     return result
@@ -525,7 +536,7 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
     for entity_type, candidate in rows:
         if not isinstance(candidate, dict):
             continue
-        names = " + ".join(str(value) for value in (candidate.get("actor_labels") or [])) or "UNKNOWN"
+        names = " + ".join(_display_label(value) for value in (candidate.get("actor_labels") or [])) or "UNKNOWN"
         family = _football_family_label(candidate.get("process_family_candidate"), language)
         eligible_n = int(candidate.get("eligible_n") or candidate.get("support_n") or 0)
         positive_k = int(candidate.get("visible_target_annotation_k") or candidate.get("shot_ending_n") or 0)
@@ -545,9 +556,14 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
                 "şutla bağlantılı görünür bir son aksiyon kaydı var."
             )
             if isinstance(baseline, (int, float)) and isinstance(rate, (int, float)):
+                involvement_phrase = (
+                    f"{names} bu hücumlarda yer aldığında"
+                    if entity_type == "PLAYER"
+                    else f"{names} birlikte yer aldığında"
+                )
                 football += (
-                    f" Aynı hücum tipinin maç içindeki genel görünür oranı {_human_pct(baseline)} iken "
-                    f"{names} sahadayken/ikili birlikteyken bu oran {_human_pct(rate)}."
+                    f" Aynı hücum tipinin maç içindeki genel görünür oranı {_human_pct(baseline, language)} iken "
+                    f"{involvement_phrase} oran {_human_pct(rate, language)}."
                 )
             football += (
                 " Bu fark, analistin bu oyuncu/ikiliyi söz konusu hücumlarda özellikle incelemesi için bir işarettir; "
@@ -571,8 +587,8 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
             )
             if isinstance(baseline, (int, float)) and isinstance(rate, (int, float)):
                 football += (
-                    f" The match-local visible rate for the same process family was {_human_pct(baseline)}, "
-                    f"compared with {_human_pct(rate)} when {names} was involved."
+                    f" The match-local visible rate for the same process family was {_human_pct(baseline, language)}, "
+                    f"compared with {_human_pct(rate, language)} when {names} was involved."
                 )
             football += (
                 " This is a useful analyst-review signal, but it does not show that the player or pair caused the shot outcome."
