@@ -155,6 +155,28 @@ def test_late_bound_episode_spread_resolves_stale_unknown_without_support_inflat
     assert row["decision"] == "DOWNGRADE"
 
 
+
+def test_matched_late_bound_challenge_removes_stale_empty_surface_reason_without_promoting_emit() -> None:
+    admission = _admission("DOWNGRADE")
+    admission["safe_finding_admission_decisions"][0]["decision_reasons"] = [
+        "CHALLENGE_SURFACE_EMPTY",
+        "DEPENDENCY_INDEPENDENCE_NOT_PROVEN",
+    ]
+    out = apply_variant_feature_challenge_to_admission(
+        _sequence(),
+        admission,
+        _challenge(partial=False, dep=True, stat=True),
+        _process_variant(),
+    )
+    row = out["safe_finding_admission_decisions"][0]
+    assert "CHALLENGE_SURFACE_EMPTY" not in row["decision_reasons"]
+    assert "DEPENDENCY_INDEPENDENCE_NOT_PROVEN" in row["decision_reasons"]
+    assert row["variant_feature_challenge_binding_state"] == "MATCHED_CHALLENGE_VISIBLE"
+    assert row["decision"] == "DOWNGRADE"
+    assert row["claim_output_allowed"] is False
+    assert out["professional_finding_emitted_count"] == 0
+
+
 def test_unproven_challenge_independence_downgrades_emit() -> None:
     out = apply_variant_feature_challenge_to_admission(
         _sequence(),

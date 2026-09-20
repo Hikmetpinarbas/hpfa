@@ -444,6 +444,8 @@ def apply_variant_feature_challenge_to_admission(
                 row["episode_spread_is_independent_support"] = False
                 row["episode_spread_is_recurrence_truth"] = False
         state = binding["state"]
+        if state == "MATCHED_CHALLENGE_VISIBLE":
+            reasons.discard("CHALLENGE_SURFACE_EMPTY")
         challenge_downgrade_reasons: list[str] = []
         if state == "UNAVAILABLE_REVIEW_REQUIRED":
             challenge_downgrade_reasons.append("VARIANT_FEATURE_CHALLENGE_NOT_AVAILABLE")
