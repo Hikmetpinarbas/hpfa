@@ -556,6 +556,23 @@ def build_mechanism_review_lines(
         lines.append(
             f"  first_visible_difference: context_layer={first_context_layer} consequence_layer={first_consequence_layer}"
         )
+        divergence_refs = [
+            str(value)
+            for value in (record.get("supported_branch_divergence_refs") or [])
+            if str(value)
+        ]
+        success_failure_divergence_refs = [
+            str(value)
+            for value in (record.get("success_failure_supported_branch_divergence_refs") or [])
+            if str(value)
+        ]
+        if divergence_refs:
+            lines.append(
+                "  supported_branch_divergence_trace: "
+                f"bound={len(divergence_refs)} success_failure_visible={len(success_failure_divergence_refs)} "
+                "semantics=FIRST_SUCCESSOR_AFTER_SHARED_VISIBLE_ANCHOR_NOT_PHYSICAL_FIRST_DIVERGENCE "
+                "cause=false tactical_truth=false independent_support=false"
+            )
 
         facts = [
             ("same_team_continuation", "LAYER[1]::primary_consequence_candidates:SAME_TEAM_CONTINUATION_CANDIDATE"),
