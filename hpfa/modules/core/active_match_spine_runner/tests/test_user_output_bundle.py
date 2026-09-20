@@ -13,9 +13,13 @@ if str(SRC) not in sys.path:
 import user_output_bundle
 from user_output_bundle import (
     ANALYST_REPORT,
+    ANALYST_REPORT_TR,
+    ANALYST_REPORT_EN,
     BUNDLE_MANIFEST,
     BUNDLE_ZIP,
     build_analyst_report,
+    build_human_analyst_report_tr,
+    build_human_analyst_report_en,
     snapshot_output_state,
     write_standard_user_outputs,
 )
@@ -108,6 +112,51 @@ def test_analyst_report_uses_current_episode_surface(tmp_path):
     assert "production_release=false" in text
 
 
+def test_human_reports_use_football_language_and_keep_evidence_note_separate():
+    rich = {
+        "status": "REVIEW_REQUIRED",
+        "constructs": {
+            "C02": {
+                "representative_actor_argument": {
+                    "actor_labels": ["Mason Greenwood"],
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "eligible_n": 36,
+                    "visible_target_annotation_k": 7,
+                    "target_outcome_unresolved_u": 29,
+                    "observed_visible_target_annotation_frequency": 7 / 36,
+                    "match_local_baseline_shot_frequency": 10 / 72,
+                    "descriptive_lift": (7 / 36) / (10 / 72),
+                    "eligible_episode_spread": 25,
+                    "positive_episode_spread": 7,
+                    "selection_candidate_pool_n": 75,
+                    "selection_rank": 1,
+                },
+                "representative_dyad_argument": None,
+            }
+        },
+    }
+    spine = _full_spine()
+    spine["rich_multiformat_analysis_lattice"] = rich
+    spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+
+    tr = build_human_analyst_report_tr(".", spine)
+    en = build_human_analyst_report_en(".", spine)
+
+    assert "Greenwood" in tr
+    assert "36 tanesinde" in tr
+    assert "7 tanesinde" in tr
+    assert "Kanıt notu:" in tr
+    assert "admitted" not in tr
+    assert "eligible süreç" not in tr
+    assert "visible shot-present annotation" not in tr
+
+    assert "Greenwood" in en
+    assert "36 instances" in en
+    assert "7 of those instances" in en
+    assert "Evidence note:" in en
+    assert "post-hoc attention rank=1 of 75 candidates" in en
+
+
 def test_fail_closed_report_does_not_consume_stale_feature_artifact(tmp_path):
     (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
         json.dumps(_feature_payload()), encoding="utf-8"
@@ -147,6 +196,8 @@ def test_bundle_uses_producer_write_ledger_even_when_content_unchanged(tmp_path)
         before_state=before,
     )
     assert Path(result["analyst_report"]).name == ANALYST_REPORT
+    assert Path(result["analyst_report_tr"]).name == ANALYST_REPORT_TR
+    assert Path(result["analyst_report_en"]).name == ANALYST_REPORT_EN
     assert Path(result["bundle_zip"]).name == BUNDLE_ZIP
     assert Path(result["bundle_manifest"]).name == BUNDLE_MANIFEST
 
@@ -158,6 +209,8 @@ def test_bundle_uses_producer_write_ledger_even_when_content_unchanged(tmp_path)
     assert "active_match_full_spine_v1.json" in names
     assert "active_match_full_spine_v1.txt" in names
     assert ANALYST_REPORT in names
+    assert ANALYST_REPORT_TR in names
+    assert ANALYST_REPORT_EN in names
     assert BUNDLE_MANIFEST in names
     assert "stale_previous_run.txt" not in names
 
