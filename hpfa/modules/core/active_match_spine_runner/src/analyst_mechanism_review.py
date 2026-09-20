@@ -831,9 +831,52 @@ def build_mechanism_review_lines(
     if not records:
         return lines
 
+    analyst_output_payload = (
+        _load_json(root / ANALYST_OUTPUT_CLAIM_JSON)
+        if _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON)
+        else {}
+    )
+    shortlist = build_mechanism_story_review_shortlist(
+        payload,
+        analyst_output_claim_payload=analyst_output_payload or None,
+        limit=5,
+    )
+    record_by_ref = {
+        str(record.get("grammar_stable_variant_feature_delta_id") or ""): record
+        for record in records
+        if record.get("grammar_stable_variant_feature_delta_id")
+    }
+    shortlisted_records: list[dict[str, Any]] = []
+    for row in shortlist.get("shortlist") or []:
+        if not isinstance(row, dict):
+            continue
+        ref = str(row.get("source_mechanism_review_ref") or "")
+        if ref and ref in record_by_ref:
+            shortlisted_records.append(record_by_ref[ref])
+            continue
+        signature = (
+            tuple(str(v) for v in (row.get("team_identity_candidate_ids") or [])),
+            tuple(str(v) for v in (row.get("period_candidates") or [])),
+            tuple(str(v) for v in (row.get("grammar_signature_tokens") or [])),
+            int(row.get("resolved_variant_count") or 0),
+            int(row.get("success_resolved_variant_count") or 0),
+            int(row.get("failure_resolved_variant_count") or 0),
+        )
+        for record in records:
+            candidate_signature = (
+                tuple(str(v) for v in (record.get("team_identity_candidate_ids") or [])),
+                tuple(str(v) for v in (record.get("period_candidates") or [])),
+                tuple(str(v) for v in (record.get("grammar_signature_tokens") or [])),
+                int(record.get("resolved_variant_count") or 0),
+                int(record.get("success_resolved_variant_count") or 0),
+                int(record.get("failure_resolved_variant_count") or 0),
+            )
+            if candidate_signature == signature:
+                shortlisted_records.append(record)
+                break
     cue_by_index = {
         index: _select_provider_semantic_review_cue(record)
-        for index, record in enumerate(records, start=1)
+        for index, record in enumerate(shortlisted_records, start=1)
     }
     result: list[str] = []
     current_index: int | None = None
