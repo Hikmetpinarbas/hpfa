@@ -37,6 +37,19 @@
         }
       ]
     },
+    "SHORT_0_10": {
+      "distance_candidate": "SHORT",
+      "restart_label": "Goal kicks short (0-10 m.)",
+      "restart_semantic_rule_id": "plvs_v2_goal_kicks_short_0_10_gk_surface",
+      "provider_bucket_text": "0-10 m",
+      "pass_patterns": [
+        {
+          "labels": ["Passes accurate"],
+          "semantic_rule_ids": ["plvs_v2_passes_accurate"],
+          "outcome": "SUCCESS"
+        }
+      ]
+    },
     "MEDIUM": {
       "restart_label": "Goal kicks medium (15-40 m)",
       "restart_semantic_rule_id": "plvs_v2_goal_kicks_medium_gk_surface",
