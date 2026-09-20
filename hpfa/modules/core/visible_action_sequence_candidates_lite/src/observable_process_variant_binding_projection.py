@@ -94,6 +94,83 @@ def _occurrence_disjoint_support_clusters(member_records: list[dict[str, Any]]) 
     return clusters
 
 
+def _family_supported_branch_divergence_bindings(
+    *,
+    family_sequence_refs: set[str],
+    team_refs: set[str],
+    period_refs: set[str],
+    divergence_candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    bindings: list[dict[str, Any]] = []
+    for divergence in divergence_candidates:
+        if divergence.get("divergence_located_without_outcome") is not True:
+            continue
+        if divergence.get("outcome_used_in_divergence_location") is not False:
+            continue
+        divergence_ref = _clean(divergence.get("first_supported_branch_divergence_id"))
+        if not divergence_ref:
+            continue
+        team_ref = _clean(divergence.get("team_identity_candidate_id"))
+        period_ref = _clean(divergence.get("period_candidate"))
+        if team_refs and team_ref not in team_refs:
+            continue
+        if period_refs and period_ref not in period_refs:
+            continue
+
+        branch_overlaps: list[dict[str, Any]] = []
+        overlap_sequence_refs: set[str] = set()
+        visible_outcome_states: set[str] = set()
+        for branch in divergence.get("branch_profiles") or []:
+            if not isinstance(branch, dict):
+                continue
+            branch_sequences = {
+                _clean(value)
+                for value in (branch.get("supporting_visible_sequence_candidate_ids") or [])
+                if _clean(value)
+            }
+            overlap = sorted(family_sequence_refs & branch_sequences)
+            if not overlap:
+                continue
+            outcome_state = _clean(branch.get("branch_outcome_state"))
+            overlap_sequence_refs.update(overlap)
+            if outcome_state:
+                visible_outcome_states.add(outcome_state)
+            branch_overlaps.append({
+                "branch_id": branch.get("branch_id"),
+                "neighbor_time_layer_ref": branch.get("neighbor_time_layer_ref"),
+                "branch_outcome_state": outcome_state or None,
+                "family_member_sequence_overlap_refs": overlap,
+                "family_member_sequence_overlap_count": len(overlap),
+            })
+
+        if not overlap_sequence_refs:
+            continue
+        has_success = "SUCCESS_SEMANTIC_VISIBLE" in visible_outcome_states
+        has_failure = "FAILURE_SEMANTIC_VISIBLE" in visible_outcome_states
+        if has_success and has_failure:
+            contrast_state = "SUCCESS_FAILURE_VISIBLE_WITHIN_FAMILY_SUPPORTED_DIVERGENCE"
+        elif visible_outcome_states:
+            contrast_state = "NO_SUCCESS_FAILURE_CONTRAST_WITHIN_FAMILY_OVERLAP"
+        else:
+            contrast_state = "FAMILY_OVERLAP_OUTCOME_UNRESOLVED"
+
+        bindings.append({
+            "source_first_supported_branch_divergence_ref": divergence_ref,
+            "family_member_sequence_overlap_refs": sorted(overlap_sequence_refs),
+            "family_member_sequence_overlap_count": len(overlap_sequence_refs),
+            "family_branch_overlap_records": branch_overlaps,
+            "family_visible_branch_outcome_states": sorted(visible_outcome_states),
+            "family_supported_divergence_contrast_state": contrast_state,
+            "divergence_level": divergence.get("divergence_level"),
+            "first_supported_divergence_state": divergence.get("first_supported_divergence_state"),
+            "divergence_is_failure_cause_truth": False,
+            "divergence_is_tactical_truth": False,
+            "divergence_binding_is_independent_support_truth": False,
+            "divergence_binding_is_recurrence_truth": False,
+        })
+    return bindings
+
+
 def build_observable_process_variant_binding(
     sequence_payload: dict[str, Any],
     grammar_payload: dict[str, Any],
@@ -119,6 +196,10 @@ def build_observable_process_variant_binding(
         for row in (sequence_payload.get("partial_order_occurrence_variants") or [])
         if isinstance(row, dict) and _clean(row.get("partial_order_occurrence_variant_id"))
     }
+    divergence_candidates = [
+        row for row in (sequence_payload.get("first_supported_branch_divergence_candidates") or [])
+        if isinstance(row, dict)
+    ]
     outcome_records = {
         _clean(row.get("partial_order_similarity_pair_ref")): row
         for row in (sequence_payload.get("comparable_outcome_counterevidence_records") or [])
@@ -349,6 +430,23 @@ def build_observable_process_variant_binding(
         else:
             episode_spread_state = "VISIBLE_EPISODE_SPREAD_UNRESOLVED"
 
+        family_sequence_refs = {
+            _clean(record.get("sequence_ref"))
+            for record in member_records
+            if _clean(record.get("sequence_ref"))
+        }
+        supported_branch_divergence_bindings = _family_supported_branch_divergence_bindings(
+            family_sequence_refs=family_sequence_refs,
+            team_refs=team_refs,
+            period_refs=period_refs,
+            divergence_candidates=divergence_candidates,
+        )
+        success_failure_supported_divergence_count = sum(
+            row.get("family_supported_divergence_contrast_state")
+            == "SUCCESS_FAILURE_VISIBLE_WITHIN_FAMILY_SUPPORTED_DIVERGENCE"
+            for row in supported_branch_divergence_bindings
+        )
+
         families.append({
             "observable_process_variant_family_id": "opvf_" + _digest(
                 sorted(component), grammar_signature
@@ -363,6 +461,12 @@ def build_observable_process_variant_binding(
             "unresolved_visible_outcome_member_refs": sorted(unresolved_members),
             "process_variant_family_state": family_state,
             "same_grammar_visible_outcome_variation_observed": outcome_variation,
+            "supported_branch_divergence_bindings": supported_branch_divergence_bindings,
+            "supported_branch_divergence_binding_count": len(supported_branch_divergence_bindings),
+            "success_failure_supported_branch_divergence_count": success_failure_supported_divergence_count,
+            "supported_branch_divergence_binding_is_failure_cause_truth": False,
+            "supported_branch_divergence_binding_is_tactical_truth": False,
+            "supported_branch_divergence_binding_is_independent_support_truth": False,
             "current_action_family_grammar_discriminates_visible_outcome": (
                 False if outcome_variation else None
             ),
@@ -442,6 +546,16 @@ def build_observable_process_variant_binding(
         ),
         "multi_visible_episode_spread_family_count": (
             sum(1 for row in families if row.get("visible_episode_spread_count", 0) >= 2)
+            if not blocks
+            else 0
+        ),
+        "supported_branch_divergence_bound_family_count": (
+            sum(1 for row in families if row.get("supported_branch_divergence_binding_count", 0) > 0)
+            if not blocks
+            else 0
+        ),
+        "success_failure_supported_branch_divergence_family_count": (
+            sum(1 for row in families if row.get("success_failure_supported_branch_divergence_count", 0) > 0)
             if not blocks
             else 0
         ),
