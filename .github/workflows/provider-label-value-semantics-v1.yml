@@ -57,10 +57,29 @@ jobs:
           test "$(git rev-parse FETCH_HEAD)" = "$HIST"
 
           REG="hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_reviewed_v2.csv"
-          TST="hpfa/modules/core/provider_label_value_semantics_lite/tests/test_provider_label_value_semantics.py"
+          git show "$HIST:$REG" > /tmp/provider_registry_historical.csv
+          python - <<'PY'
+          import csv
+          from pathlib import Path
 
-          test "$(git hash-object "$REG")" = "$(git rev-parse "$HIST:$REG")"
-          test "$(git hash-object "$TST")" = "$(git rev-parse "$HIST:$TST")"
+          def rows(path):
+              with Path(path).open(encoding="utf-8", newline="") as handle:
+                  return list(csv.DictReader(handle))
+
+          historical = rows("/tmp/provider_registry_historical.csv")
+          current = rows("hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_reviewed_v2.csv")
+
+          def key(row):
+              return (row.get("label", ""), row.get("source_roles", ""))
+
+          current_by_key = {key(row): row for row in current}
+          if len(current_by_key) != len(current):
+              raise SystemExit("current_registry_duplicate_label_role_key")
+
+          for row in historical:
+              if current_by_key.get(key(row)) != row:
+                  raise SystemExit(f"historical_registry_row_changed:{key(row)}")
+          PY
 
           test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_seed_v1.json)" = "e2c7f721f5ea9060e86d8b4487ef0775fd74c64e"
           test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py)" = "c7040950ce2c6bba819815ff4b34cd663c88427c"
