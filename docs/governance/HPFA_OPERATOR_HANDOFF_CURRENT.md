@@ -1,6 +1,6 @@
 # HPFA OPERATOR HANDOFF — CURRENT
 
-Updated: 2026-09-15 TRT
+Updated: 2026-09-20 TRT
 Record role: CURRENT_OPERATOR_HANDOFF
 Product repo: `Hikmetpinarbas/hpfa`
 Runtime authority: `runtime/active_single_match/current`
@@ -72,11 +72,28 @@ Truth locks:
 
 ## 3. CURRENT DEVELOPMENT FRONTIER
 
-Repository: `Hikmetpinarbas/hpfa`
-Current development PR: `#359 — ZFGV: Action Grammar synced to current frontier`
-Current development head: `FRESH_VERIFY_REQUIRED`.
-Last exact physical ACTIVE_MATCH acceptance head: `b0dc4dc97f1c03ab766b61826e5ec92279807ae4`.
+Repository: Hikmetpinarbas/hpfa
+Current development PR: #364 — repair/post-sequence-current-ledger-v1
+Current development branch: repair/post-sequence-current-ledger-v1
+Current development head: FRESH_VERIFY_REQUIRED — re-fetch GitHub + Termux before every write.
+Last physically verified exact head before this handoff update: 7f99895506c134d8a29cf398b41f9776b90211d4.
 State: OPEN / DRAFT / UNMERGED / NOT_PRODUCTION unless freshly verified otherwise.
+
+Current product direction:
+MECHANISM CANDIDATE → SAFE FOOTBALL FINDING COMPOSITION → HUMAN ANALYST OUTPUT
+
+Current major completed support work on the #364 line:
+- C02 descriptive association semantics are outcome-denominator safe and capped at MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY.
+- C02 player/dyad analyst-attention profiles are connected to governed composition without creating independent support or causal credit.
+- bilingual analyst-facing outputs exist in Turkish and English.
+- Turkish/English reports now expose team process profiles and mechanism candidates in football language while keeping technical evidence limits in separate notes.
+- recovery first-admitted-followup semantics remain a fixture, not a new parallel WIP.
+- full product core re-audit on 2026-09-20 reached 72/72 core modules with tests and 1898 pytest cases / 0 failures / 0 errors on the audited head before later report-language commits.
+
+Authority correction:
+- PR #359 is a historical/base layer for the current #364 line, not the current interactive WIP.
+- Older PR/issue text may remain useful historical/support evidence, but current product-state authority must be re-established from the current #364 head.
+- Repository/test/runtime are distinct evidence surfaces. NO_ISSUE in one surface means only NO_ISSUE_WITHIN_REVIEWED_SURFACE.
 
 Do not store a live PR head SHA as static authority in this handoff. Re-fetch before every write/current-state claim.
 
@@ -148,48 +165,53 @@ Verified examples:
 
 The rule is not “event terms = 0”. The rule is “no hidden universal ACTION/EVENT prerequisite for ZFGV”.
 
-## 8. CURRENT WIP — ZFGV MIGRATION COMPLETENESS AUDIT — SEMANTIC RESIDUAL AUTHORITY CLOSURE
+## 8. CURRENT WIP — SAFE FOOTBALL FINDING COMPOSITION + BOUNDED REPOSITORY RE-AUDIT
 
-Priority: HIGH architectural product debt.
 WIP=1.
 
-Objective:
-Prove that no current or future-current generic producer, consumer, router, schema, prompt, plan or runtime pack silently treats ACTION/EVENT-shaped input as a universal prerequisite for the whole ZFGV observation universe.
+Primary football objective:
+Convert mechanism/association/process candidates into analyst-meaningful, traceable, claim-safe football findings without promoting descriptive association, recurrence, provider semantics, or model output into tactical/causal truth.
 
-This is a semantic authority audit, not a string-cleanup exercise.
+Current composition fixture:
+- process family / mechanism candidate
+- successful / failed / deviant visible variants
+- consequence
+- counterevidence
+- player/dyad participation where eligible
+- support spread
+- unresolved burden
+- dependency/shared-lineage burden
+- selection scope
+- safe meaning
+- forbidden inference
+- analyst action
+- compression / information gain / truth loss
 
-Until the stop condition is met:
-`MIGRATION_COVERAGE=INCOMPLETE`.
+Current C02 locks:
+- OUTCOME MUST NOT DEFINE ITS OWN ELIGIBLE DENOMINATOR
+- MINIMUM SUPPORT THRESHOLD != EVIDENCE STRENGTH TRUTH
+- SHRUNK RATE != OBSERVED RATE
+- NO P-VALUE != NO MULTIPLICITY RISK
+- RANKED EXTREME != STABLE SIGNAL
+- EXACT COMPUTATION != VALID FOOTBALL INFERENCE
+- CLUSTER-AWARE != ASSUMPTION-FREE
+- C02 claim ceiling: MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY
 
-### Required audit axes
+Explicit non-goals in this WIP:
+- no Fisher/permutation/bootstrap/shrinkage implementation merely because a candidate can be tabulated.
+- no new statistics engine.
+- no new recovery/counterpress engine.
+- no tracking/video dependency.
+- no player causal-credit model.
+- no forced EMIT target.
 
-1. **Non-literal semantic global-event assumptions**
-   Search beyond `event-only` / `event_only`: generic event_id/event_type requirements, event-table prerequisites, construct eligibility tied to event-family presence, event-shaped routing defaults, non-event families forced into event schema, tracking absence interpreted as event-only, or L2-L8 capability suppressed by an event flag.
-
-2. **Reverse capability consumer trace**
-   Trace current consumers for:
-   - ENTITY/ACTOR
-   - TEMPORAL
-   - SPATIAL
-   - RELATIONAL
-   - PROCESS/PARTICIPATION
-   - AGGREGATE/TABULAR
-   - EXTERNAL CONTEXT
-   - TRACKING/VIDEO
-   - HPFA-DERIVED INTELLIGENCE
-
-   For each family ask: which current gate/producer/contract/policy can prevent admitted evidence from moving further through the spine, and is that prevention construct-required or a hidden global event assumption?
-
-3. **Dormant surface authority classification**
-   Classify old PLAN/SPEC/runtime-pack/prompt/policy surfaces as:
-   - CURRENT
-   - COMPATIBILITY
-   - HISTORICAL
-   - UNBOUND
-   - UNKNOWN / REVIEW_REQUIRED
-
-4. **Completeness closure**
-   Only when all current/future-current generic paths have an authority classification and no hidden universal event prerequisite remains may `MIGRATION_COVERAGE=COMPLETE` be emitted.
+Bounded repository re-audit ordered by the user on 2026-09-20 is support work inside the same WIP:
+- verify current product/test/runtime health.
+- classify stale docs/PRs/issues.
+- identify technical debt/hygiene.
+- inspect YelFootballLab only as donor capital.
+- adapt only proven HPFA gaps into existing owners.
+It must not become a second capability frontier.
 
 ## 9. CLASSIFICATION VOCABULARY
 
@@ -251,27 +273,34 @@ Only then:
 
 ## 12. NEXT SAFE ACTION
 
-Continue exact-frontier semantic sweep without touching spatial progression yet.
-
-Immediate search targets:
-- generic `required_event_families` / event-family hard requirements;
-- generic `event_id` / `event_type` schema requirements outside ACTION/EVENT-specific consumers;
-- router/admission branches that assume an event table exists before non-event capability can travel;
-- reverse-consumer traces for AGGREGATE/TABULAR, ENTITY/ACTOR, TEMPORAL and SPATIAL first;
-- dormant PLAN/SPEC/runtime packs with possible future-current authority.
-
-CODE LAST.
-Rehabilitate only a proven current/future-current authority defect.
-Use physical ACTIVE_MATCH only if executable runtime behavior materially changes.
-
-Spatial Progression Capability Recovery is `LATER` until this completeness audit closes.
+1. Re-fetch PR #364 and Termux exact head before any write.
+2. Finish the repository re-audit ledger and classify remaining findings:
+   - CURRENT_PRODUCT_GAP
+   - RELEASE_CONVERGENCE_DEBT
+   - TECHNICAL_DEBT
+   - HYGIENE_ONLY
+   - HISTORICAL/SUPERSEDED
+   - DONOR_ONLY
+3. Physically re-run ACTIVE_MATCH on the exact current head after report-language changes.
+4. Inspect Turkish and English analyst reports as football products, not only as test artifacts.
+5. Return to the single football bottleneck:
+   MECHANISM CANDIDATE → SAFE FOOTBALL FINDING COMPOSITION.
+6. Use YelFootballLab only where a proven current-owner gap exists; ADAPT_NOT_COPY.
+7. No merge/release/production action without explicit user authority.
 
 ## 13. RELEASE STATE
 
-PR #359 remains OPEN / DRAFT / UNMERGED.
+PR #364 is the current OPEN / DRAFT / UNMERGED development lane unless freshly verified otherwise.
+PR #359 is base/historical support, not current WIP authority.
 No merge, auto-merge, release or production binding is authorized without exact-head user approval.
 
+Known release-convergence debt:
+- the current ZFGV stack and origin/main do not presently form a simple natural ancestry chain.
+- several older PR heads are disconnected or diverged from the current #364 history.
+- this is a release/governance problem, not permission to force-push, reset, rebase destructively, or merge blindly.
+- resolve only with an explicit convergence plan and user-approved release decision.
+
 Current locks:
-`canonical_event_count=UNKNOWN`
-`true_action_count=UNKNOWN`
-`production_release=false`
+canonical_event_count=UNKNOWN
+true_action_count=UNKNOWN
+production_release=false
