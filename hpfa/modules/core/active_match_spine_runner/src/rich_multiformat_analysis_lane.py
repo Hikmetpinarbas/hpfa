@@ -941,6 +941,49 @@ def _build_p02_sequence_process_units(
         unit["opponent_response_is_counterattack_truth"] = False
         unit["opponent_response_adds_independent_support"] = False
 
+    response_summary_by_team: dict[str, dict[str, Any]] = {}
+    for unit in units:
+        team_id = str(unit.get("team_identity_candidate_id") or "")
+        if not team_id:
+            continue
+        summary = response_summary_by_team.setdefault(team_id, {
+            "team_identity_candidate_id": team_id,
+            "exact_handover_linked_count": 0,
+            "turnover_process_unit_count": 0,
+            "turnover_handover_linked_count": 0,
+            "turnover_handover_opponent_advanced_access_count": 0,
+            "turnover_handover_opponent_no_advanced_access_count": 0,
+            "turnover_handover_opponent_access_unresolved_count": 0,
+            "turnover_handover_denominator_definition": (
+                "source process units with visible TURNOVER and exact admitted handover response link"
+            ),
+            "turnover_handover_advanced_access_numerator_definition": (
+                "eligible turnover-handover units whose exact linked opponent response has ADVANCED_ACCESS_VISIBLE"
+            ),
+            "handover_is_turnover_truth": False,
+            "opponent_response_is_causal_truth": False,
+            "opponent_advanced_access_is_dangerous_transition_truth": False,
+            "counts_are_independent_support_votes": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_TURNOVER_HANDOVER_RESPONSE_COUNTS_ONLY",
+        })
+        response = unit.get("opponent_response_candidate") or {}
+        exact_link = response.get("status") == "EXACT_HANDOVER_BOUNDARY_LINKED"
+        if exact_link:
+            summary["exact_handover_linked_count"] += 1
+        turnover_visible = int((unit.get("action_family_counts") or {}).get("TURNOVER", 0) or 0) > 0
+        if turnover_visible:
+            summary["turnover_process_unit_count"] += 1
+        if not (turnover_visible and exact_link):
+            continue
+        summary["turnover_handover_linked_count"] += 1
+        response_access = str(response.get("advanced_access_state_candidate") or "UNRESOLVED")
+        if response_access == "ADVANCED_ACCESS_VISIBLE":
+            summary["turnover_handover_opponent_advanced_access_count"] += 1
+        elif response_access == "NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH":
+            summary["turnover_handover_opponent_no_advanced_access_count"] += 1
+        else:
+            summary["turnover_handover_opponent_access_unresolved_count"] += 1
+
     signature_groups: dict[str, list[str]] = defaultdict(list)
     for unit in units:
         signature_groups[str(unit.get("partial_order_process_signature_id") or "")].append(
@@ -964,6 +1007,10 @@ def _build_p02_sequence_process_units(
         "p02_process_unit_candidates": units,
         "partial_order_signature_group_count": len(recurrence_groups),
         "partial_order_signature_groups": recurrence_groups,
+        "opponent_response_summary_by_team": [
+            response_summary_by_team[key]
+            for key in sorted(response_summary_by_team)
+        ],
         "process_unit_source": "visible_action_sequence_candidates_lite_v1",
         "process_unit_is_sequence_truth": False,
         "process_unit_is_possession_truth": False,
