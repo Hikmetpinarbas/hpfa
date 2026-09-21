@@ -166,6 +166,47 @@ def _representative_entities(rich: dict[str, Any], limit: int = 8) -> list[str]:
     return result
 
 
+def _p02_team_name_map(rich: dict[str, Any]) -> dict[str, str]:
+    p02 = rich.get("progression_pool_p02") or {}
+    result: dict[str, str] = {}
+    for item in p02.get("p02_team_pool_items") or []:
+        if not isinstance(item, dict):
+            continue
+        team_id = str(item.get("team_identity_candidate_id") or "")
+        team_candidate = str(item.get("team_candidate") or "").strip()
+        if team_id and team_candidate and team_id not in result:
+            result[team_id] = team_candidate
+    return result
+
+
+def _p02_turnover_response_lines(rich: dict[str, Any]) -> list[str]:
+    p02 = rich.get("progression_pool_p02") or {}
+    process_units = p02.get("process_units") or {}
+    summaries = process_units.get("opponent_response_summary_by_team") or []
+    if not isinstance(summaries, list):
+        return []
+    team_names = _p02_team_name_map(rich)
+    lines: list[str] = []
+    for row in summaries:
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "")
+        team_name = team_names.get(team_id, team_id or "UNRESOLVED_TEAM")
+        denominator = int(row.get("turnover_handover_linked_count") or 0)
+        advanced = int(row.get("turnover_handover_opponent_advanced_access_count") or 0)
+        no_advanced = int(row.get("turnover_handover_opponent_no_advanced_access_count") or 0)
+        unresolved = int(row.get("turnover_handover_opponent_access_unresolved_count") or 0)
+        if denominator <= 0:
+            continue
+        lines.append(
+            f"- {team_name}: gorunur TURNOVER iceren ve exact handover ile rakip response'a baglanan "
+            f"{denominator} process-unit; rakibin ilk gorunur response'unda advanced access={advanced}, "
+            f"no advanced access={no_advanced}, unresolved={unresolved}. "
+            "Bu bag nedensellik, tehlikeli gecis veya taktik ustunluk kaniti degildir."
+        )
+    return lines
+
+
 def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) -> str:
     root = Path(output_root)
     feature_current = _feature_surface_current(full_spine)
@@ -282,6 +323,12 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             "phase_state_candidates_are_phase_truth=false",
             "construct_candidate_is_metric_truth=false",
         ])
+        p02_response_lines = _p02_turnover_response_lines(rich)
+        if p02_response_lines:
+            lines.extend([
+                "turnover_handover_opponent_response:",
+                *p02_response_lines,
+            ])
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
 
@@ -306,7 +353,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         "[7] SAFE_MEANING",
     ])
     if feature_current and rich_current and c4_current:
-        lines.append("Bu rapor current invocation icinde uretilen event-only occurrence/episode yuzeyi, XLSX aggregate row projection, primitive/construct adaylari ve mevcut C4 defeasible argument yuzeyini ayni evidence zincirinde birlestirir.")
+        lines.append("Bu rapor current invocation icinde uretilen ZFGV observation/occurrence/episode/process yuzeyi, XLSX aggregate row projection, primitive/construct adaylari ve mevcut C4 defeasible argument yuzeyini ayni evidence zincirinde birlestirir; EVENT bu gozlem evreninin yalniz bir ailesidir.")
     elif feature_current and rich_current:
         lines.append("Current invocation occurrence/episode ve multiformat aggregate yuzeyi mevcut; C4 tamamlanmadigi icin argument sonucu current evidence olarak yayinlanmadi.")
     elif feature_current:
@@ -320,7 +367,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         "Tracking/video olmadan team shape, defensive line height, compactness, off-ball structure/run, passing options, body orientation, scanning, fatigue/load/speed, true pressure geometry, coach intention, tactical plan, dominance ve causality kanitlanmis sayilmaz.",
         "",
         "[9] CURRENT PRODUCT CEILING",
-        "CSV/XML event-like occurrence ve XLSX aggregate surface artik ayni run'da birlikte tasinir; ayni provider yuzeyleri independent vote degildir.",
+        "CSV/XML admitted observation/occurrence ve XLSX aggregate surface artik ayni run'da birlikte tasinir; ayni provider yuzeyleri independent vote degildir.",
         "C01 ilk construct vertical slice'tir; occurrence-level progression semantics tam admission gecmeden progression truth uretilmez.",
         "Phase/state etiketleri activity candidate'dir; phase truth degildir.",
         "MICRO/MEZZO/MACRO bir evidence-routing lattice'tir; macro claim mikro/mezo evidence'dan kopamaz.",
