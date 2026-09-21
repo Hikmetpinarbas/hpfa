@@ -499,3 +499,98 @@ def test_p02_team_zone_path_does_not_infer_metric_route_or_internal_order():
         assert sig["team_specific_directness_proxy"] is None
         assert all(x["same_timestamp_transition"] is False for x in sig["team_specific_zone_transition_candidates"])
         assert all(x["transition_is_physical_trajectory_truth"] is False for x in sig["team_specific_zone_transition_candidates"])
+
+
+
+def _p02_identities():
+    return {
+        "team_identity_candidates": [
+            {
+                "team_identity_candidate_id": "teamc_A",
+                "team_aliases_raw": ["TEAM_A"],
+                "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND",
+            },
+            {
+                "team_identity_candidate_id": "teamc_B",
+                "team_aliases_raw": ["TEAM_B"],
+                "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND",
+            },
+        ]
+    }
+
+
+def _p02_team_consequence():
+    return {
+        "trackable_action_consequence_candidates": [
+            {
+                "trackable_action_consequence_candidate_id": "tacc_A",
+                "period_candidate": "1",
+                "anchor_start_candidate": "15.0",
+                "team_identity_candidate_id": "teamc_A",
+                "supporting_action_occurrence_candidate_ids": ["aoc_A"],
+                "occurrence_visible_consequence_support": True,
+                "terminal_outcome_support_visible": True,
+                "consequence_signal_candidates": ["OPPONENT_FOLLOW_UP_VISIBLE"],
+            },
+            {
+                "trackable_action_consequence_candidate_id": "tacc_B",
+                "period_candidate": "1",
+                "anchor_start_candidate": "25.0",
+                "team_identity_candidate_id": "teamc_B",
+                "supporting_action_occurrence_candidate_ids": ["aoc_B"],
+                "occurrence_visible_consequence_support": True,
+                "terminal_outcome_support_visible": False,
+                "consequence_signal_candidates": ["SAME_TEAM_FOLLOW_UP_VISIBLE"],
+            },
+        ]
+    }
+
+
+def test_p02_team_consequence_binding_uses_match_local_team_identity():
+    p02 = _progression_pool_p02(
+        _p02_features(),
+        _p02_temporal(),
+        _p02_episode(),
+        _p02_team_consequence(),
+        _p02_semantics(),
+        _p02_identities(),
+    )
+    by_team = {row["team_candidate"]: row for row in p02["p02_team_pool_items"]}
+    a = by_team["TEAM_A"]
+    b = by_team["TEAM_B"]
+    assert a["team_identity_candidate_id"] == "teamc_A"
+    assert b["team_identity_candidate_id"] == "teamc_B"
+    assert a["process_signature_fields"]["team_specific_occurrence_ids"] == ["aoc_A"]
+    assert b["process_signature_fields"]["team_specific_occurrence_ids"] == ["aoc_B"]
+    assert a["process_signature_fields"]["team_specific_opponent_follow_up_occurrence_ids"] == ["aoc_A"]
+    assert b["process_signature_fields"]["team_specific_opponent_follow_up_occurrence_ids"] == []
+
+
+def test_p02_team_consequence_missing_identity_degrades_without_cross_team_guess():
+    p02 = _progression_pool_p02(
+        _p02_features(),
+        _p02_temporal(),
+        _p02_episode(),
+        _p02_team_consequence(),
+        _p02_semantics(),
+        {},
+    )
+    for item in p02["p02_team_pool_items"]:
+        assert item["team_identity_candidate_id"] is None
+        assert item["process_signature_fields"]["team_specific_occurrence_ids"] == []
+        assert "team_identity_candidate_not_bound" in item["unresolved_refs"]
+
+
+def test_p02_team_consequence_does_not_promote_opponent_followup_to_tactical_truth():
+    p02 = _progression_pool_p02(
+        _p02_features(),
+        _p02_temporal(),
+        _p02_episode(),
+        _p02_team_consequence(),
+        _p02_semantics(),
+        _p02_identities(),
+    )
+    team_a = next(row for row in p02["p02_team_pool_items"] if row["team_candidate"] == "TEAM_A")
+    sig = team_a["process_signature_fields"]
+    assert sig["occurrence_consequence_binding_is_causal_truth"] is False
+    assert sig["opponent_follow_up_is_tactical_response_truth"] is False
