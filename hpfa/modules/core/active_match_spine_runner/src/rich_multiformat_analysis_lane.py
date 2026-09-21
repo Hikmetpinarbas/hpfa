@@ -942,6 +942,113 @@ def _recovery_next_process_context(
     }
 
 
+
+def _player_function_metric_dimension(metric_key: str, raw_label: str) -> str | None:
+    text = f"{metric_key} {raw_label}".casefold().replace("_", " ")
+    if any(term in text for term in (
+        "final third entr",
+        "passes into the penalty box",
+        "open passes received in the final third",
+        "open passes received in the opponent",
+        "actions in opponent",
+        "carry",
+        "dribble",
+    )):
+        return "ACCESS"
+    if any(term in text for term in ("chances created", " xa", "expected assists")):
+        return "CREATION"
+    if any(term in text for term in ("shots", "goals", " xg", "expected goals")):
+        return "TERMINAL"
+    if any(term in text for term in (
+        "lost balls",
+        "ball recover",
+        "interception",
+        "tackles",
+        "challenge",
+    )):
+        return "RECOVERY_LOSS"
+    if "progressive pass" in text or "forward pass" in text:
+        return "ACCESS"
+    return None
+
+
+def _player_function_profiles(
+    actor_bindings: dict[str, dict[str, Any]],
+    process_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    process_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    shot_process_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    for row in process_rows:
+        if not isinstance(row, dict) or str(row.get("semantic_role") or "") != "PARTICIPATION_INTERVAL":
+            continue
+        actor_id = str(row.get("actor_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        if not actor_id or not family:
+            continue
+        process_counts[actor_id][family] += 1
+        if row.get("shot_present_annotation_candidate") is True:
+            shot_process_counts[actor_id][family] += 1
+
+    profiles: list[dict[str, Any]] = []
+    for actor_id, binding in sorted(actor_bindings.items()):
+        xlsx_row = binding.get("xlsx_row") or {}
+        dimension_metrics: dict[str, list[dict[str, Any]]] = {
+            "ACCESS": [],
+            "CREATION": [],
+            "TERMINAL": [],
+            "RECOVERY_LOSS": [],
+        }
+        for key, metric in (xlsx_row.get("metric_values") or {}).items():
+            if not isinstance(metric, dict) or metric.get("value_status") != "OBSERVED":
+                continue
+            raw_label = str(metric.get("raw_metric_label") or "")
+            dimension = _player_function_metric_dimension(str(key), raw_label)
+            if dimension is None:
+                continue
+            dimension_metrics[dimension].append({
+                "metric_key": str(key),
+                "raw_metric_label": raw_label,
+                "raw_value": metric.get("raw_value"),
+                "row_projection_id": xlsx_row.get("row_projection_id"),
+                "aggregate_context_only": True,
+                "action_identity_created": False,
+                "independent_support_vote": False,
+            })
+
+        profiles.append({
+            "actor_identity_candidate_id": actor_id,
+            "actor_label": binding.get("actor_label"),
+            "team_identity_candidate_id": binding.get("team_identity_candidate_id"),
+            "team_label": binding.get("team_label"),
+            "xlsx_row_projection_id": binding.get("xlsx_row_projection_id"),
+            "process_participation_counts": dict(sorted(process_counts.get(actor_id, {}).items())),
+            "shot_ending_process_participation_counts": dict(
+                sorted(shot_process_counts.get(actor_id, {}).items())
+            ),
+            "function_dimensions": {
+                "PROCESS": {
+                    "process_participation_counts": dict(sorted(process_counts.get(actor_id, {}).items())),
+                    "shot_ending_process_participation_counts": dict(
+                        sorted(shot_process_counts.get(actor_id, {}).items())
+                    ),
+                },
+                **dimension_metrics,
+            },
+            "dimension_metric_counts": {
+                "PROCESS": len(process_counts.get(actor_id, {})),
+                **{key: len(value) for key, value in dimension_metrics.items()},
+            },
+            "profile_has_any_context": bool(process_counts.get(actor_id)) or any(dimension_metrics.values()),
+            "profile_is_quality_score": False,
+            "profile_is_tactical_role_truth": False,
+            "process_participation_is_causal_credit": False,
+            "xlsx_aggregate_is_action_identity": False,
+            "cross_surface_reflection_is_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_OBSERVED_FUNCTION_PROFILE_ONLY",
+        })
+    return profiles
+
+
 def _process_interval_key(row: dict[str, Any]) -> tuple[str, str, str, str, str]:
     return (
         str(row.get("team_identity_candidate_id") or ""),
@@ -1317,6 +1424,7 @@ def _construct_c02(
         row for row in (process_payload.get("process_participation_candidates") or [])
         if isinstance(row, dict)
     ]
+    player_function_profiles = _player_function_profiles(actor_bindings, raw)
     contexts: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
     participants: dict[tuple[str, str, str, str, str], set[str]] = defaultdict(set)
     for row in raw:
@@ -1495,6 +1603,11 @@ def _construct_c02(
         "packet_candidates_admit_independent_support": False,
         "packet_candidates_can_authorize_emit": False,
         "xlsx_actor_binding_count": len(actor_bindings),
+        "player_function_profile_count": len(player_function_profiles),
+        "player_function_profiles": player_function_profiles,
+        "player_function_profile_dimensions": ["PROCESS", "ACCESS", "CREATION", "TERMINAL", "RECOVERY_LOSS"],
+        "player_function_profile_is_quality_score": False,
+        "player_function_profile_is_tactical_role_truth": False,
         "xlsx_binding_review_hits": binding_reviews,
         "process_participation_consumed": bool(raw),
         "observation_capability_coverage_profile": _c02_observation_capability_profile(),

@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _player_function_profiles
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -51,6 +51,61 @@ def _audit():
 
 
 
+
+
+
+def test_player_function_profiles_keep_dimensions_separate_without_quality_score():
+    bindings = {
+        "actor_1": {
+            "actor_label": "Player 1",
+            "team_identity_candidate_id": "team_1",
+            "team_label": "Team 1",
+            "xlsx_row_projection_id": "xrp_1",
+            "xlsx_row": {
+                "row_projection_id": "xrp_1",
+                "metric_values": {
+                    "final_third_entries": {
+                        "raw_metric_label": "Final third entries",
+                        "raw_value": 5,
+                        "value_status": "OBSERVED",
+                    },
+                    "xa_expected_assists": {
+                        "raw_metric_label": "xA (expected assists)",
+                        "raw_value": 0.4,
+                        "value_status": "OBSERVED",
+                    },
+                    "shots": {
+                        "raw_metric_label": "Shots",
+                        "raw_value": 3,
+                        "value_status": "OBSERVED",
+                    },
+                    "ball_recoveries": {
+                        "raw_metric_label": "Ball recoveries",
+                        "raw_value": 7,
+                        "value_status": "OBSERVED",
+                    },
+                },
+            },
+        }
+    }
+    process = [{
+        "semantic_role": "PARTICIPATION_INTERVAL",
+        "actor_identity_candidate_id": "actor_1",
+        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+        "shot_present_annotation_candidate": True,
+    }]
+    profiles = _player_function_profiles(bindings, process)
+    assert len(profiles) == 1
+    profile = profiles[0]
+    assert profile["process_participation_counts"] == {"POSITIONAL_ATTACK_CANDIDATE": 1}
+    assert profile["shot_ending_process_participation_counts"] == {"POSITIONAL_ATTACK_CANDIDATE": 1}
+    assert profile["dimension_metric_counts"]["ACCESS"] == 1
+    assert profile["dimension_metric_counts"]["CREATION"] == 1
+    assert profile["dimension_metric_counts"]["TERMINAL"] == 1
+    assert profile["dimension_metric_counts"]["RECOVERY_LOSS"] == 1
+    assert profile["profile_is_quality_score"] is False
+    assert profile["profile_is_tactical_role_truth"] is False
+    assert profile["xlsx_aggregate_is_action_identity"] is False
 
 
 def test_goalkeeper_restart_consequence_context_binds_provider_restart_to_visible_consequence():
