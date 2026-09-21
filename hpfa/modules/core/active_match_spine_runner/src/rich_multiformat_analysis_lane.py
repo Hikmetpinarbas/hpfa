@@ -563,9 +563,96 @@ def _comparable_aggregate_pairs(
     return pairs
 
 
+
+
+def _aggregate_metric_value_is_usable(metric: dict[str, Any]) -> bool:
+    if metric.get("value_status") != "OBSERVED":
+        return False
+    value = metric.get("raw_value")
+    if value is None:
+        return False
+    if isinstance(value, str) and value.strip().casefold() in {"", "-", "—", "n/a", "na", "null", "none"}:
+        return False
+    return True
+
+
+def _row_is_goalkeeper_aggregate_candidate(row: dict[str, Any]) -> bool:
+    keys = {
+        str(key).casefold()
+        for key, metric in (row.get("metric_values") or {}).items()
+        if isinstance(metric, dict)
+    }
+    goalkeeper_markers = {
+        "goal_kicks",
+        "shots_faced",
+        "saves",
+        "goals_conceded",
+        "caught_shots",
+        "parried_shots",
+    }
+    return bool(keys & goalkeeper_markers)
+
+
+def _access_terminal_bridge_profiles(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    profiles: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if _row_is_goalkeeper_aggregate_candidate(row):
+            continue
+        identity = row.get("identity_candidates") or {}
+        player = identity.get("player_raw_candidate")
+        team = identity.get("team_raw_candidate")
+        dimensions: dict[str, list[dict[str, Any]]] = {
+            "ACCESS": [],
+            "CREATION": [],
+            "TERMINAL": [],
+        }
+        for key, metric in (row.get("metric_values") or {}).items():
+            if not isinstance(metric, dict) or not _aggregate_metric_value_is_usable(metric):
+                continue
+            raw_label = str(metric.get("raw_metric_label") or "")
+            dimension = _player_function_metric_dimension(str(key), raw_label)
+            if dimension not in dimensions:
+                continue
+            dimensions[dimension].append({
+                "metric_key": str(key),
+                "raw_metric_label": raw_label,
+                "raw_value": metric.get("raw_value"),
+                "aggregate_context_only": True,
+                "independent_support_vote": False,
+                "action_identity_created": False,
+            })
+        if not any(dimensions.values()):
+            continue
+        profiles.append({
+            "row_projection_id": row.get("row_projection_id"),
+            "source_role": row.get("source_role"),
+            "player_candidate": player,
+            "team_candidate": team,
+            "entity_candidate": player or team,
+            "dimensions": dimensions,
+            "dimension_metric_counts": {
+                key: len(value) for key, value in dimensions.items()
+            },
+            "access_and_terminal_both_observed": bool(
+                dimensions["ACCESS"] and dimensions["TERMINAL"]
+            ),
+            "creation_observed": bool(dimensions["CREATION"]),
+            "eligible_denominator_defined_for_conversion_rate": False,
+            "conversion_rate_emitted": False,
+            "profile_is_quality_score": False,
+            "aggregate_context_is_action_identity": False,
+            "cross_surface_reflection_is_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_ACCESS_CREATION_TERMINAL_CONTEXT_ONLY",
+        })
+    return profiles
+
+
 def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict[str, Any]:
     progression = _metric_refs(rows, ("progressive", "progression", "final_third", "final third", "penalty_area", "penalty area", "box"))
     terminal = _metric_refs(rows, ("shot", "xg", "goal", "chance"))
+    bridge_profiles = _access_terminal_bridge_profiles(rows)
     comparable_pairs = _comparable_aggregate_pairs(progression, terminal)
     shot_total = sum(int(card.get("shot_candidate_count") or 0) for card in (features.get("episode_feature_vectors") or []) if isinstance(card, dict))
     occurrence_ref = {
@@ -635,6 +722,14 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
         "progression_metric_refs": progression,
         "terminal_metric_refs": terminal,
         "comparable_scope_pairs": comparable_pairs,
+        "access_creation_terminal_profile_count": len(bridge_profiles),
+        "access_creation_terminal_profiles": bridge_profiles,
+        "access_creation_terminal_profiles_with_access_and_terminal_count": sum(
+            profile.get("access_and_terminal_both_observed") is True
+            for profile in bridge_profiles
+        ),
+        "access_creation_terminal_conversion_rate_emitted": False,
+        "access_creation_terminal_denominator_policy": "NO_RATE_WITHOUT_TRUE_ELIGIBLE_DENOMINATOR",
         "packet_candidate": packet_candidate,
         "review_reason": reason,
         "aggregate_support_is_independent_vote": False,

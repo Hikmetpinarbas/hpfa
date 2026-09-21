@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _access_terminal_bridge_profiles
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -54,6 +54,89 @@ def _audit():
 
 
 
+
+
+
+
+def test_access_terminal_bridge_excludes_goalkeeper_aggregate_and_placeholder_values():
+    rows = [
+        {
+            "row_projection_id": "gk_1",
+            "identity_candidates": {"player_raw_candidate": "Keeper", "team_raw_candidate": "Team"},
+            "metric_values": {
+                "goal_kicks": {
+                    "raw_metric_label": "Goal kicks",
+                    "raw_value": 7,
+                    "value_status": "OBSERVED",
+                },
+                "shots_faced": {
+                    "raw_metric_label": "Shots faced",
+                    "raw_value": 5,
+                    "value_status": "OBSERVED",
+                },
+            },
+        },
+        {
+            "row_projection_id": "p_1",
+            "identity_candidates": {"player_raw_candidate": "Outfield", "team_raw_candidate": "Team"},
+            "metric_values": {
+                "shots": {
+                    "raw_metric_label": "Shots",
+                    "raw_value": 2,
+                    "value_status": "OBSERVED",
+                },
+                "xg": {
+                    "raw_metric_label": "xG",
+                    "raw_value": "-",
+                    "value_status": "OBSERVED",
+                },
+            },
+        },
+    ]
+    profiles = _access_terminal_bridge_profiles(rows)
+    assert len(profiles) == 1
+    assert profiles[0]["entity_candidate"] == "Outfield"
+    assert profiles[0]["dimension_metric_counts"]["TERMINAL"] == 1
+
+
+def test_access_terminal_bridge_profiles_keep_dimensions_without_invalid_conversion_rate():
+    rows = [{
+        "row_projection_id": "xrp_1",
+        "source_role": "PLAYER_AGGREGATE",
+        "identity_candidates": {
+            "player_raw_candidate": "Player 1",
+            "team_raw_candidate": "Team 1",
+        },
+        "metric_values": {
+            "final_third_entries": {
+                "raw_metric_label": "Final third entries",
+                "raw_value": 5,
+                "value_status": "OBSERVED",
+            },
+            "xa_expected_assists": {
+                "raw_metric_label": "xA (expected assists)",
+                "raw_value": 0.3,
+                "value_status": "OBSERVED",
+            },
+            "shots": {
+                "raw_metric_label": "Shots",
+                "raw_value": 2,
+                "value_status": "OBSERVED",
+            },
+        },
+    }]
+    profiles = _access_terminal_bridge_profiles(rows)
+    assert len(profiles) == 1
+    profile = profiles[0]
+    assert profile["dimension_metric_counts"] == {
+        "ACCESS": 1,
+        "CREATION": 1,
+        "TERMINAL": 1,
+    }
+    assert profile["access_and_terminal_both_observed"] is True
+    assert profile["eligible_denominator_defined_for_conversion_rate"] is False
+    assert profile["conversion_rate_emitted"] is False
+    assert profile["profile_is_quality_score"] is False
 
 
 def test_game_state_process_mix_context_normalizes_by_score_state_exposure():
