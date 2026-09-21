@@ -27,6 +27,8 @@ IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
 OCCURRENCE_STATE_TRANSITION_JSON = "occurrence_state_transition_projection_v1.json"
 SPATIAL_TRANSITION_JSON = "spatial_transition_candidate_lite_v1.json"
+OCCURRENCE_CONSEQUENCE_JSON = "occurrence_consequence_projection_v1.json"
+ACTION_OCCURRENCE_JSON = "action_occurrence_admission_lite_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -751,6 +753,193 @@ def _selected_xlsx_metric_context(row: dict[str, Any]) -> list[dict[str, Any]]:
         if len(result) >= 8:
             break
     return result
+
+
+
+
+def _goalkeeper_restart_consequence_context(
+    action_occurrence_payload: dict[str, Any],
+    consequence_payload: dict[str, Any],
+) -> dict[str, Any]:
+    consequence_by_occurrence = {
+        str(row.get("action_occurrence_candidate_id") or ""): row
+        for row in (consequence_payload.get("occurrence_consequence_projections") or [])
+        if isinstance(row, dict) and str(row.get("action_occurrence_candidate_id") or "")
+    }
+    rows: list[dict[str, Any]] = []
+    bucket_counts: Counter[str] = Counter()
+    pass_outcome_counts: Counter[str] = Counter()
+    consequence_counts: Counter[str] = Counter()
+    continuation_counts: Counter[str] = Counter()
+
+    for occurrence in action_occurrence_payload.get("action_occurrence_candidates", []) or []:
+        if not isinstance(occurrence, dict):
+            continue
+        attributes = occurrence.get("attributes") or {}
+        if attributes.get("restart_type_candidate") != "GOAL_KICK":
+            continue
+        occurrence_id = str(occurrence.get("action_occurrence_candidate_id") or "")
+        consequence = consequence_by_occurrence.get(occurrence_id, {})
+        bucket = str(attributes.get("provider_distance_bucket_candidate") or "UNRESOLVED")
+        pass_outcome = str(attributes.get("pass_outcome_candidate") or "UNRESOLVED")
+        primary = sorted({
+            str(value) for value in (consequence.get("primary_consequence_candidates") or [])
+            if str(value)
+        })
+        continuation = str(consequence.get("process_continuation_status") or "UNRESOLVED")
+
+        bucket_counts[bucket] += 1
+        pass_outcome_counts[pass_outcome] += 1
+        consequence_counts.update(primary)
+        continuation_counts[continuation] += 1
+        rows.append({
+            "action_occurrence_candidate_id": occurrence_id,
+            "actor_identity_candidate_id": occurrence.get("actor_identity_candidate_id"),
+            "team_identity_candidate_id": occurrence.get("team_identity_candidate_id"),
+            "provider_distance_bucket_candidate": bucket,
+            "pass_outcome_candidate": pass_outcome,
+            "followup_observation_status": consequence.get("followup_observation_status"),
+            "primary_consequence_candidates": primary,
+            "process_continuation_status": continuation,
+            "admitted_followup_horizon_sensitive": consequence.get("admitted_followup_horizon_sensitive"),
+            "record_status": consequence.get("record_status") or "NOT_AVAILABLE",
+            "provider_distance_bucket_is_measured_physical_distance": False,
+            "provider_distance_bucket_is_tactical_strategy_truth": False,
+            "same_team_continuation_is_possession_truth": False,
+            "visible_consequence_is_causal_truth": False,
+            "creates_independent_support": False,
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "binding_state": "GOALKEEPER_RESTART_TO_VISIBLE_CONSEQUENCE_CONTEXT",
+        "goalkeeper_restart_context_row_count": len(rows),
+        "provider_distance_bucket_counts": dict(sorted(bucket_counts.items())),
+        "pass_outcome_counts": dict(sorted(pass_outcome_counts.items())),
+        "primary_consequence_counts": dict(sorted(consequence_counts.items())),
+        "process_continuation_status_counts": dict(sorted(continuation_counts.items())),
+        "rows": rows,
+        "provider_distance_bucket_is_tactical_strategy_truth": False,
+        "same_team_continuation_is_possession_truth": False,
+        "visible_consequence_is_causal_truth": False,
+        "creates_independent_support": False,
+    }
+
+
+def _recovery_next_process_context(
+    consequence_payload: dict[str, Any],
+    process_participation_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Bind admitted recovery first-followup time to visible provider process intervals."""
+    process_intervals: dict[tuple[str, str, str, float, float], dict[str, Any]] = {}
+    for row in process_participation_payload.get("process_participation_candidates", []) or []:
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        period = str(row.get("period_candidate") or "").strip()
+        start = _float_candidate(row.get("start_candidate"))
+        end = _float_candidate(row.get("end_candidate"))
+        if not team_id or not family or start is None or end is None:
+            continue
+        key = (team_id, family, period, start, end)
+        process_intervals.setdefault(
+            key,
+            {
+                "team_identity_candidate_id": team_id,
+                "process_family_candidate": family,
+                "period_candidate": period,
+                "start_candidate": start,
+                "end_candidate": end,
+                "process_participation_candidate_ids": [],
+                "actor_identity_candidate_ids": [],
+            },
+        )
+        compact = process_intervals[key]
+        ppc_id = str(row.get("process_participation_candidate_id") or "").strip()
+        actor_id = str(row.get("actor_identity_candidate_id") or "").strip()
+        if ppc_id:
+            compact["process_participation_candidate_ids"].append(ppc_id)
+        if actor_id:
+            compact["actor_identity_candidate_ids"].append(actor_id)
+
+    rows: list[dict[str, Any]] = []
+    state_counts: Counter[str] = Counter()
+    family_counts: Counter[str] = Counter()
+    for row in consequence_payload.get("occurrence_consequence_projections", []) or []:
+        if not isinstance(row, dict) or row.get("recovery_first_admitted_followup_applicable") is not True:
+            continue
+        first_start = _float_candidate(row.get("recovery_first_admitted_followup_start_candidate"))
+        followup_teams = {
+            str(value).strip()
+            for value in (row.get("recovery_first_admitted_followup_team_identity_candidate_ids") or [])
+            if str(value).strip()
+        }
+        periods = {
+            str(value).strip()
+            for value in (row.get("period_candidates") or [])
+            if str(value).strip()
+        }
+        process_matches: list[dict[str, Any]] = []
+        if first_start is not None and len(followup_teams) == 1:
+            team_id = next(iter(followup_teams))
+            for (proc_team, family, period, start, end), compact in process_intervals.items():
+                if proc_team != team_id:
+                    continue
+                if periods and period not in periods:
+                    continue
+                if start <= first_start <= end:
+                    process_matches.append({
+                        **compact,
+                        "process_participation_candidate_ids": sorted(set(compact["process_participation_candidate_ids"])),
+                        "actor_identity_candidate_ids": sorted(set(compact["actor_identity_candidate_ids"])),
+                    })
+
+        families = sorted({m["process_family_candidate"] for m in process_matches})
+        if not process_matches:
+            binding_state = "NO_VISIBLE_PROCESS_INTERVAL_MATCH"
+        elif len(families) == 1:
+            binding_state = "SINGLE_VISIBLE_PROCESS_FAMILY_MATCH"
+        else:
+            binding_state = "MULTIPLE_VISIBLE_PROCESS_FAMILIES_REVIEW_REQUIRED"
+
+        state_counts[binding_state] += 1
+        family_counts.update(families)
+        rows.append({
+            "action_occurrence_candidate_id": row.get("action_occurrence_candidate_id"),
+            "team_identity_candidate_ids": row.get("team_identity_candidate_ids") or [],
+            "actor_identity_candidate_ids": row.get("actor_identity_candidate_ids") or [],
+            "recovery_first_admitted_followup_state": row.get("recovery_first_admitted_followup_state"),
+            "first_followup_start_candidate": first_start,
+            "first_followup_action_family_candidates": row.get(
+                "recovery_first_admitted_followup_action_family_candidates"
+            ) or [],
+            "first_followup_provider_semantic_candidates": row.get(
+                "recovery_first_admitted_followup_provider_semantic_candidates"
+            ) or [],
+            "primary_consequence_candidates": row.get("primary_consequence_candidates") or [],
+            "process_continuation_status": row.get("process_continuation_status"),
+            "next_visible_process_family_candidates": families,
+            "next_visible_process_interval_matches": process_matches,
+            "next_process_binding_state": binding_state,
+            "next_process_is_possession_truth": False,
+            "next_process_is_tactical_plan_truth": False,
+            "next_process_is_causal_consequence_truth": False,
+            "creates_independent_support": False,
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "binding_state": "RECOVERY_FIRST_FOLLOWUP_TO_VISIBLE_PROCESS_CONTEXT",
+        "recovery_context_row_count": len(rows),
+        "next_process_binding_state_counts": dict(sorted(state_counts.items())),
+        "next_visible_process_family_counts": dict(sorted(family_counts.items())),
+        "rows": rows,
+        "next_process_is_possession_truth": False,
+        "next_process_is_tactical_plan_truth": False,
+        "next_process_is_causal_consequence_truth": False,
+        "creates_independent_support": False,
+    }
 
 
 def _process_interval_key(row: dict[str, Any]) -> tuple[str, str, str, str, str]:
@@ -2566,6 +2755,16 @@ def run_rich_lane(
         review_hits.append("C02_process_participant_outcome_association_review_available")
 
     occurrence_transition_payload = _load_json(output / OCCURRENCE_STATE_TRANSITION_JSON)
+    occurrence_consequence_payload = _load_json(output / OCCURRENCE_CONSEQUENCE_JSON)
+    action_occurrence_payload = _load_json(output / ACTION_OCCURRENCE_JSON)
+    goalkeeper_restart_consequence_context = _goalkeeper_restart_consequence_context(
+        action_occurrence_payload,
+        occurrence_consequence_payload,
+    )
+    recovery_next_process_context = _recovery_next_process_context(
+        occurrence_consequence_payload,
+        process_participation_payload,
+    )
     spatial_transition_payload = _load_json(output / SPATIAL_TRANSITION_JSON)
     c03 = _construct_c03(process_participation_payload, occurrence_transition_payload, spatial_transition_payload)
     if c03.get("status") == "REVIEW_REQUIRED":
@@ -2598,14 +2797,18 @@ def run_rich_lane(
         "constructs": {"C01": c01, "C02": c02, "C03": c03, "C04": c04},
         "phase_state_candidates": phase_states,
         "game_state_context": game_state_context,
+        "recovery_next_process_context": recovery_next_process_context,
+        "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
         "analysis_lattice": {
             "MICRO": {
                 "player_view_candidates": entity_views.get("player_view_candidates"),
                 "goalkeeper_view_candidates": entity_views.get("goalkeeper_view_candidates"),
+                "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
                 "primitive_metrics": primitives,
             },
             "MEZZO": {
                 "episode_feature_vectors": features.get("episode_feature_vectors") or [],
+                "recovery_next_process_context": recovery_next_process_context,
                 "phase_state_candidates": phase_states,
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
                 "process_development_signatures": c03.get("signatures") or [],

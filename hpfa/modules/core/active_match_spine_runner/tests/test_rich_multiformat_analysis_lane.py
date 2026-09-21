@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -49,6 +49,118 @@ def _audit():
     }
 
 
+
+
+
+
+def test_goalkeeper_restart_consequence_context_binds_provider_restart_to_visible_consequence():
+    action = {
+        "action_occurrence_candidates": [{
+            "action_occurrence_candidate_id": "gk_1",
+            "actor_identity_candidate_id": "keeper_1",
+            "team_identity_candidate_id": "team_a",
+            "attributes": {
+                "restart_type_candidate": "GOAL_KICK",
+                "provider_distance_bucket_candidate": "LONG",
+                "pass_outcome_candidate": "SUCCESS",
+            },
+        }]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "gk_1",
+            "followup_observation_status": "VISIBLE_FOLLOW_UP",
+            "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+            "process_continuation_status": "PROCESS_CONTINUES_VISIBLE_CANDIDATE",
+            "admitted_followup_horizon_sensitive": False,
+            "record_status": "PASS",
+        }]
+    }
+    result = _goalkeeper_restart_consequence_context(action, consequence)
+    assert result["status"] == "PASS"
+    assert result["provider_distance_bucket_counts"] == {"LONG": 1}
+    assert result["pass_outcome_counts"] == {"SUCCESS": 1}
+    assert result["primary_consequence_counts"] == {"SAME_TEAM_CONTINUATION_CANDIDATE": 1}
+    row = result["rows"][0]
+    assert row["provider_distance_bucket_is_tactical_strategy_truth"] is False
+    assert row["same_team_continuation_is_possession_truth"] is False
+    assert row["creates_independent_support"] is False
+
+
+def test_goalkeeper_restart_consequence_context_is_not_available_without_goal_kick_occurrence():
+    result = _goalkeeper_restart_consequence_context(
+        {"action_occurrence_candidates": []},
+        {"occurrence_consequence_projections": []},
+    )
+    assert result["status"] == "NOT_AVAILABLE"
+    assert result["goalkeeper_restart_context_row_count"] == 0
+
+
+def test_recovery_next_process_context_binds_first_followup_to_visible_process_family():
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "occ_recovery_1",
+            "recovery_first_admitted_followup_applicable": True,
+            "recovery_first_admitted_followup_state": "CONTINUATION_ADMITTED",
+            "recovery_first_admitted_followup_start_candidate": 12.0,
+            "recovery_first_admitted_followup_team_identity_candidate_ids": ["team_a"],
+            "recovery_first_admitted_followup_action_family_candidates": ["PASS"],
+            "recovery_first_admitted_followup_provider_semantic_candidates": [
+                "PROVIDER_FORWARD_PASS_VISIBLE_CANDIDATE"
+            ],
+            "period_candidates": ["1"],
+            "team_identity_candidate_ids": ["team_a"],
+            "actor_identity_candidate_ids": ["actor_a"],
+            "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+            "process_continuation_status": "PROCESS_CONTINUES_VISIBLE_CANDIDATE",
+        }]
+    }
+    process = {
+        "process_participation_candidates": [
+            {
+                "process_participation_candidate_id": "ppc_1",
+                "team_identity_candidate_id": "team_a",
+                "actor_identity_candidate_id": "actor_b",
+                "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "10",
+                "end_candidate": "20",
+            },
+            {
+                "process_participation_candidate_id": "ppc_2",
+                "team_identity_candidate_id": "team_a",
+                "actor_identity_candidate_id": "actor_c",
+                "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "10",
+                "end_candidate": "20",
+            },
+        ]
+    }
+    result = _recovery_next_process_context(consequence, process)
+    assert result["status"] == "PASS"
+    assert result["recovery_context_row_count"] == 1
+    row = result["rows"][0]
+    assert row["next_visible_process_family_candidates"] == ["COUNTERATTACK_CANDIDATE"]
+    assert row["next_process_binding_state"] == "SINGLE_VISIBLE_PROCESS_FAMILY_MATCH"
+    assert row["creates_independent_support"] is False
+    assert row["next_process_is_tactical_plan_truth"] is False
+
+
+def test_recovery_next_process_context_keeps_no_process_match_explicit():
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "occ_recovery_2",
+            "recovery_first_admitted_followup_applicable": True,
+            "recovery_first_admitted_followup_state": "CONTINUATION_ADMITTED",
+            "recovery_first_admitted_followup_start_candidate": 50.0,
+            "recovery_first_admitted_followup_team_identity_candidate_ids": ["team_a"],
+            "period_candidates": ["1"],
+        }]
+    }
+    result = _recovery_next_process_context(consequence, {"process_participation_candidates": []})
+    assert result["rows"][0]["next_process_binding_state"] == "NO_VISIBLE_PROCESS_INTERVAL_MATCH"
+    assert result["rows"][0]["next_visible_process_family_candidates"] == []
 
 
 def test_game_state_context_is_match_agnostic_and_deduplicates_reflected_goals(tmp_path):
