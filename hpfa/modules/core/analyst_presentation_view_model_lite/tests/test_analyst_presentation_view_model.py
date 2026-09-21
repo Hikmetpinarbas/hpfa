@@ -266,6 +266,15 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert render_pack["charts"][0]["percentages_emitted"] is False
     assert render_pack["charts"][0]["categories"] == ["1"]
     assert render_pack["charts"][0]["series"][0]["name"] == "time_anchor_count"
+    dashboard = payload["surface_data"]["dashboard_manifest"]
+    assert dashboard["layout_mode"] == "ANALYST_FIRST_RESPONSIVE"
+    assert dashboard["claim_ceiling"] == "PRESENTATION_LAYOUT_ONLY_NO_NEW_EVIDENCE"
+    assert dashboard["visual_language"]["pitch_is_primary_canvas"] is True
+    assert dashboard["visual_language"]["decorative_match_photo_required"] is False
+    field_region = next(item for item in dashboard["regions"] if item["region_id"] == "field_replay")
+    assert field_region["visual_mode"] == "SCHEMATIC_PITCH_WITH_RECORDED_ANCHORS"
+    assert "invented_ball_trajectory" in field_region["blocked_overlays"]
+    assert dashboard["interaction_rules"]["every_claim_card_must_offer_traceback"] is True
     assert graphability["specs"]["comparative_views"]["state"] == "GRAPHABLE"
     assert graphability["specs"]["analyst_report"]["state"] == "GRAPHABLE_AS_COMPANION_ONLY"
     assert payload["interaction_provenance_may_affect_evidence"] is False

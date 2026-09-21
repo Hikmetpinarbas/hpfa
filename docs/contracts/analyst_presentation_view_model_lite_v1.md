@@ -517,3 +517,36 @@ Render contract:
 - frontend may not connect spatial points as trajectory
 
 Each chart retains its claim ceiling and denominator metadata.
+
+## Analyst dashboard manifest
+
+The presentation view-model now emits a dashboard layout manifest.
+
+Reference design principle:
+take the visual composition of a professional match-analysis dashboard, but never copy unsupported football truth.
+
+Primary desktop regions:
+- Match Story header
+- schematic pitch replay canvas
+- Six-Phase matrix
+- match timeline
+- process chain
+- comparison panel
+- truth / limits panel
+- player process drawer
+- evidence drawer
+
+Mobile navigation:
+MATCH_STORY → FIELD_REPLAY → SIX_PHASE → COMPARISONS → PLAYERS → COUNTEREVIDENCE → EVIDENCE
+
+Field replay:
+SCHEMATIC_PITCH_WITH_RECORDED_ANCHORS
+
+Allowed:
+recorded coordinate dots, episode/time labels, action-family labels, team-candidate markers, traceback highlights.
+
+Blocked without stronger evidence:
+invented ball trajectory, invented runs, team-shape polygons, pressure geometry, pitch-control surfaces, off-ball role paths.
+
+Claim ceiling:
+PRESENTATION_LAYOUT_ONLY_NO_NEW_EVIDENCE

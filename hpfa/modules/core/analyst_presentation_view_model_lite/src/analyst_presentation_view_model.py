@@ -1004,6 +1004,145 @@ def _chart_render_pack(comparison_cards: dict[str, Any]) -> dict[str, Any]:
         },
     }
 
+def _dashboard_manifest(
+    match_story: dict[str, Any],
+    six_phase_lens: dict[str, Any],
+    comparison_cards: dict[str, Any],
+    chart_render_pack: dict[str, Any],
+    mechanism_cards: list[dict[str, Any]],
+    player_cards: list[dict[str, Any]],
+    traceback_index: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "dashboard_id": "hpfa_match_analysis_dashboard_v1",
+        "layout_mode": "ANALYST_FIRST_RESPONSIVE",
+        "primary_question": "What happened, where/when is it visible, what can we safely say, and what remains unknown?",
+        "regions": [
+            {
+                "region_id": "match_story_header",
+                "priority": 1,
+                "desktop": "TOP_FULL_WIDTH",
+                "mobile": "TOP_STACK",
+                "content_ref": "surface_data.match_story",
+                "purpose": "3-5 mechanism target only when distinct admitted families exist",
+            },
+            {
+                "region_id": "field_replay",
+                "priority": 2,
+                "desktop": "CENTER_LEFT_LARGE",
+                "mobile": "SECOND_STACK",
+                "content_ref": "surface_data.mechanism_cards[*].where_when + surface_data.observed_replay_cards",
+                "visual_mode": "SCHEMATIC_PITCH_WITH_RECORDED_ANCHORS",
+                "allowed_overlays": [
+                    "recorded_coordinate_anchor_dot",
+                    "episode_time_label",
+                    "action_family_label",
+                    "team_candidate_marker",
+                    "reference_link_highlight",
+                ],
+                "blocked_overlays": [
+                    "invented_ball_trajectory",
+                    "invented_player_run",
+                    "team_shape_polygon",
+                    "pressure_geometry",
+                    "pitch_control_surface",
+                    "off_ball_role_path",
+                ],
+            },
+            {
+                "region_id": "six_phase_matrix",
+                "priority": 3,
+                "desktop": "RIGHT_RAIL_TOP",
+                "mobile": "THIRD_STACK",
+                "content_ref": "surface_data.six_phase_lens",
+                "phase_slots": [item.get("phase") for item in six_phase_lens.get("phases") or []],
+                "display_rule": "SHOW_PROXY_LENS_ONLY_AND_NOT_EVALUATED_EXPLICITLY",
+            },
+            {
+                "region_id": "match_timeline",
+                "priority": 4,
+                "desktop": "CENTER_LEFT_BELOW_FIELD",
+                "mobile": "FOURTH_STACK",
+                "content_ref": "surface_data.observed_replay_cards",
+                "visual_mode": "PARTIAL_ORDER_SAFE_INTERVAL_STRIP",
+                "same_timestamp_total_order_allowed": False,
+            },
+            {
+                "region_id": "process_chain",
+                "priority": 5,
+                "desktop": "BOTTOM_LEFT",
+                "mobile": "FIFTH_STACK",
+                "content_ref": "surface_data.comparison_cards",
+                "visual_mode": "COUNT_AND_CONSEQUENCE_CARDS_ONLY",
+                "note": "No rate/share without explicit eligible denominator.",
+            },
+            {
+                "region_id": "comparison_panel",
+                "priority": 6,
+                "desktop": "BOTTOM_CENTER",
+                "mobile": "SIXTH_STACK",
+                "content_ref": "surface_data.chart_render_pack",
+                "chart_count": chart_render_pack.get("chart_count"),
+                "render_state": chart_render_pack.get("state"),
+            },
+            {
+                "region_id": "truth_limits_panel",
+                "priority": 7,
+                "desktop": "BOTTOM_RIGHT",
+                "mobile": "SEVENTH_STACK",
+                "content_ref": "closed_claims + unavailable_surfaces + graphability",
+                "purpose": "Show what data supports and what current package cannot prove.",
+            },
+            {
+                "region_id": "player_process_drawer",
+                "priority": 8,
+                "desktop": "RIGHT_DRAWER",
+                "mobile": "DRILLDOWN_ROUTE",
+                "content_ref": "surface_data.player_process_cards",
+                "card_count": len(player_cards),
+            },
+            {
+                "region_id": "evidence_drawer",
+                "priority": 9,
+                "desktop": "RIGHT_DRAWER_SECONDARY",
+                "mobile": "DRILLDOWN_ROUTE",
+                "content_ref": "surface_data.traceback_index",
+                "traceback_scope": traceback_index.get("scope"),
+            },
+        ],
+        "mobile_navigation": [
+            "MATCH_STORY",
+            "FIELD_REPLAY",
+            "SIX_PHASE",
+            "COMPARISONS",
+            "PLAYERS",
+            "COUNTEREVIDENCE",
+            "EVIDENCE",
+        ],
+        "desktop_navigation": {
+            "left": ["MATCH_STORY", "FIELD_REPLAY", "TIMELINE"],
+            "right": ["SIX_PHASE", "MECHANISM", "COUNTEREVIDENCE"],
+            "bottom": ["COMPARISONS", "TRUTH_LIMITS"],
+        },
+        "visual_language": {
+            "tone": "PROFESSIONAL_TECHNICAL_STAFF_BROADCAST",
+            "information_density": "HIGH_BUT_PROGRESSIVELY_DISCLOSED",
+            "pitch_is_primary_canvas": True,
+            "decorative_match_photo_required": False,
+            "color_may_encode_epistemic_strength": False,
+            "candidate_proxy_language_must_remain_visible": True,
+        },
+        "interaction_rules": {
+            "tap_or_click_may_filter_view": True,
+            "interaction_may_strengthen_evidence": False,
+            "client_may_create_new_football_semantics": False,
+            "every_claim_card_must_offer_traceback": True,
+        },
+        "claim_ceiling": "PRESENTATION_LAYOUT_ONLY_NO_NEW_EVIDENCE",
+        "mechanism_count": len(mechanism_cards),
+        "match_story_state": match_story.get("state"),
+    }
+
 def _graphability_manifest(
     surfaces: dict[str, Any],
     episode_cards: list[dict[str, Any]],
@@ -1323,6 +1462,15 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
     )
     comparison_cards = _comparison_cards(comparative_views)
     chart_render_pack = _chart_render_pack(comparison_cards)
+    dashboard_manifest = _dashboard_manifest(
+        match_story=match_story,
+        six_phase_lens=six_phase_lens,
+        comparison_cards=comparison_cards,
+        chart_render_pack=chart_render_pack,
+        mechanism_cards=mechanism_cards,
+        player_cards=player_process_cards,
+        traceback_index=traceback_index,
+    )
     report_text = ""
     report_path = root / "HPFA_ANALYST_REPORT.txt"
     if report_available:
@@ -1447,6 +1595,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "comparative_views": comparative_views,
         "comparison_cards": comparison_cards,
         "chart_render_pack": chart_render_pack,
+        "dashboard_manifest": dashboard_manifest,
         "unknown_unobservable_register": {
             "surface_gaps": unavailable,
             "review_hits": list(full.get("review_hits") or []),
