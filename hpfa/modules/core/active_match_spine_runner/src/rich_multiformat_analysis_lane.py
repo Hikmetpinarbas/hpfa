@@ -853,6 +853,12 @@ def _build_p02_sequence_process_units(
             "metric_distance_metres": None,
             "attacking_direction": "NOT_EVALUATED",
             "team_episode_terminal_activity_candidate": terminal_activity,
+            "visible_exit_class_candidate": terminal_activity,
+            "visible_exit_zone_candidate": process_end_zone_candidate,
+            "visible_exit_access_state_candidate": advanced_access_state_candidate,
+            "visible_exit_class_is_failure_truth": False,
+            "visible_exit_class_is_causal_truth": False,
+            "visible_exit_class_is_process_outcome_truth": False,
             "comparison_candidate_ready": False,
             "comparison_not_ready_reasons": [
                 "attacking_direction_not_bound",
