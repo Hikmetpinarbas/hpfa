@@ -451,3 +451,51 @@ def test_p02_team_split_ignores_noneligible_semantic_context():
     )
     by_team = {row["team_candidate"]: row for row in p02["p02_team_pool_items"]}
     assert by_team["TEAM_A"]["visible_observation_summary"]["shot_candidate_count"] == 0
+
+
+
+def _p02_team_path_case():
+    features = _p02_features()
+    features["episode_feature_vectors"][0]["context_refs"] = ["a1", "a2", "a3", "b1", "b2"]
+    semantics = {
+        "context_action_semantic_records": [
+            {"context_id":"a1","action_occurrence_eligible":True,"context_team_candidate":"TEAM_A","provider_action_family_candidate":"PASS","context_zone_candidate":"DEFENSIVE_THIRD","context_channel_candidate":"LEFT_CHANNEL"},
+            {"context_id":"a2","action_occurrence_eligible":True,"context_team_candidate":"TEAM_A","provider_action_family_candidate":"PASS","context_zone_candidate":"MIDDLE_THIRD","context_channel_candidate":"CENTRAL_CHANNEL"},
+            {"context_id":"a3","action_occurrence_eligible":True,"context_team_candidate":"TEAM_A","provider_action_family_candidate":"SHOT","context_zone_candidate":"FINAL_THIRD","context_channel_candidate":"RIGHT_CHANNEL"},
+            {"context_id":"b1","action_occurrence_eligible":True,"context_team_candidate":"TEAM_B","provider_action_family_candidate":"PASS","context_zone_candidate":"MIDDLE_THIRD","context_channel_candidate":"CENTRAL_CHANNEL"},
+            {"context_id":"b2","action_occurrence_eligible":True,"context_team_candidate":"TEAM_B","provider_action_family_candidate":"TURNOVER","context_zone_candidate":"DEFENSIVE_THIRD","context_channel_candidate":"LEFT_CHANNEL"},
+        ]
+    }
+    episode = {
+        "episode_candidates": [{"episode_candidate_id":"aep_generic_001","time_layer_refs":["tl1","tl2","tl3"]}],
+        "episode_time_layer_candidates": [
+            {"episode_time_layer_candidate_id":"tl1","second_candidate":10.0,"context_refs":["a1","b1"],"eligible_action_zone_candidate_counts":{"DEFENSIVE_THIRD":1,"MIDDLE_THIRD":1},"same_time_unordered":True},
+            {"episode_time_layer_candidate_id":"tl2","second_candidate":20.0,"context_refs":["a2","b2"],"eligible_action_zone_candidate_counts":{"MIDDLE_THIRD":1,"DEFENSIVE_THIRD":1},"same_time_unordered":True},
+            {"episode_time_layer_candidate_id":"tl3","second_candidate":30.0,"context_refs":["a3"],"eligible_action_zone_candidate_counts":{"FINAL_THIRD":1},"same_time_unordered":False},
+        ],
+    }
+    return features, episode, semantics
+
+
+def test_p02_team_specific_zone_paths_remain_separate():
+    features, episode, semantics = _p02_team_path_case()
+    p02 = _progression_pool_p02(features, _p02_temporal(), episode, {}, semantics)
+    by_team = {row["team_candidate"]: row for row in p02["p02_team_pool_items"]}
+    a = by_team["TEAM_A"]["process_signature_fields"]
+    b = by_team["TEAM_B"]["process_signature_fields"]
+    assert a["team_specific_zone_station_path"] == ["DEFENSIVE_THIRD", "MIDDLE_THIRD", "FINAL_THIRD"]
+    assert a["team_specific_zone_advancement_steps_candidate"] == 2
+    assert b["team_specific_zone_station_path"] == ["MIDDLE_THIRD", "DEFENSIVE_THIRD"]
+    assert b["team_specific_zone_advancement_steps_candidate"] == -1
+
+
+def test_p02_team_zone_path_does_not_infer_metric_route_or_internal_order():
+    features, episode, semantics = _p02_team_path_case()
+    p02 = _progression_pool_p02(features, _p02_temporal(), episode, {}, semantics)
+    by_team = {row["team_candidate"]: row for row in p02["p02_team_pool_items"]}
+    for item in by_team.values():
+        sig = item["process_signature_fields"]
+        assert sig["team_specific_visible_path_length_proxy"] is None
+        assert sig["team_specific_directness_proxy"] is None
+        assert all(x["same_timestamp_transition"] is False for x in sig["team_specific_zone_transition_candidates"])
+        assert all(x["transition_is_physical_trajectory_truth"] is False for x in sig["team_specific_zone_transition_candidates"])
