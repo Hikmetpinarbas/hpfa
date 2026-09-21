@@ -594,3 +594,137 @@ def test_p02_team_consequence_does_not_promote_opponent_followup_to_tactical_tru
     sig = team_a["process_signature_fields"]
     assert sig["occurrence_consequence_binding_is_causal_truth"] is False
     assert sig["opponent_follow_up_is_tactical_response_truth"] is False
+
+
+
+def _score_state_case():
+    episode = {
+        "episode_time_layer_candidates": [
+            {
+                "episode_time_layer_candidate_id": "tl_goal_a",
+                "period_candidate": "1",
+                "second_candidate": 25.0,
+                "context_refs": ["goal_a_1", "goal_a_reflection"],
+                "same_time_unordered": True,
+            },
+            {
+                "episode_time_layer_candidate_id": "tl_goal_b",
+                "period_candidate": "1",
+                "second_candidate": 50.0,
+                "context_refs": ["goal_b_1", "goal_b_player"],
+                "same_time_unordered": True,
+            },
+        ]
+    }
+    semantics = {
+        "context_action_semantic_records": [
+            {
+                "context_id": "goal_a_1",
+                "row_nucleus_candidate_id": "rn_goal_a_1",
+                "source_role": "TEAM",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "provider_semantic_role_candidate": "TERMINAL_OUTCOME_CANDIDATE",
+                "provider_terminal_outcome_candidate": "GOAL",
+                "provider_downstream_eligibility": "TERMINAL_OUTCOME_ONLY",
+                "context_team_candidate": "TEAM_A",
+            },
+            {
+                "context_id": "goal_a_reflection",
+                "row_nucleus_candidate_id": "rn_goal_a_2",
+                "source_role": "TEAM",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "provider_semantic_role_candidate": "TERMINAL_OUTCOME_CANDIDATE",
+                "provider_terminal_outcome_candidate": "GOAL",
+                "provider_downstream_eligibility": "TERMINAL_OUTCOME_ONLY",
+                "context_team_candidate": "TEAM_A",
+            },
+            {
+                "context_id": "goal_b_1",
+                "row_nucleus_candidate_id": "rn_goal_b_1",
+                "source_role": "TEAM",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "provider_semantic_role_candidate": "TERMINAL_OUTCOME_CANDIDATE",
+                "provider_terminal_outcome_candidate": "GOAL",
+                "provider_downstream_eligibility": "TERMINAL_OUTCOME_ONLY",
+                "context_team_candidate": "TEAM_B",
+            },
+            {
+                "context_id": "goal_b_player",
+                "row_nucleus_candidate_id": "rn_goal_b_player",
+                "source_role": "PLAYER",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "provider_semantic_role_candidate": "TERMINAL_OUTCOME_CANDIDATE",
+                "provider_terminal_outcome_candidate": "GOAL",
+                "provider_downstream_eligibility": "TERMINAL_OUTCOME_ONLY",
+                "context_team_candidate": "TEAM_B",
+            },
+        ]
+    }
+    identities = {
+        "team_identity_candidates": [
+            {
+                "team_identity_candidate_id": "teamc_A",
+                "team_aliases_raw": ["TEAM_A"],
+                "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND",
+            },
+            {
+                "team_identity_candidate_id": "teamc_B",
+                "team_aliases_raw": ["TEAM_B"],
+                "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND",
+            },
+        ]
+    }
+    return episode, semantics, identities
+
+
+def test_score_state_timeline_uses_reviewed_team_goal_outcomes_and_collapses_reflections():
+    episode, semantics, identities = _score_state_case()
+    timeline = _score_state_timeline_candidates(episode, semantics, identities)
+    assert timeline["goal_score_change_candidate_count"] == 2
+    assert timeline["collapsed_goal_reflection_count"] == 1
+    assert timeline["validated_score_truth"] is False
+    assert timeline["source_row_order_is_temporal_truth"] is False
+
+
+def test_team_score_state_before_episode_start_is_team_relative_candidate():
+    episode, semantics, identities = _score_state_case()
+    timeline = _score_state_timeline_candidates(episode, semantics, identities)
+    team_a = _team_score_state_at_episode_start(
+        timeline,
+        team_identity_candidate_id="teamc_A",
+        period_candidate="1",
+        start_second_candidate=40.0,
+    )
+    team_b = _team_score_state_at_episode_start(
+        timeline,
+        team_identity_candidate_id="teamc_B",
+        period_candidate="1",
+        start_second_candidate=40.0,
+    )
+    assert team_a["score_state_candidate"] == "LEADING"
+    assert team_a["team_score_candidate"] == 1
+    assert team_a["opponent_score_candidate"] == 0
+    assert team_b["score_state_candidate"] == "TRAILING"
+
+
+def test_goal_at_exact_episode_start_keeps_score_state_unresolved():
+    episode, semantics, identities = _score_state_case()
+    timeline = _score_state_timeline_candidates(episode, semantics, identities)
+    state = _team_score_state_at_episode_start(
+        timeline,
+        team_identity_candidate_id="teamc_B",
+        period_candidate="1",
+        start_second_candidate=50.0,
+    )
+    assert state["status"] == "CONTEXT_UNRESOLVED"
+    assert state["score_state_candidate"] == "UNRESOLVED"
+
+
+def test_player_goal_surface_does_not_create_score_change():
+    episode, semantics, identities = _score_state_case()
+    timeline = _score_state_timeline_candidates(episode, semantics, identities)
+    assert timeline["goal_score_change_candidate_count"] == 2
+    assert all(
+        "rn_goal_b_player" not in row["supporting_row_nucleus_refs"]
+        for row in timeline["goal_score_change_candidates"]
+    )
