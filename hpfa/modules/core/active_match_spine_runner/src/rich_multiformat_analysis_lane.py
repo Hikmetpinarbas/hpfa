@@ -196,6 +196,7 @@ def _progression_pool_p02(
     temporal: dict[str, Any],
     episode: dict[str, Any] | None = None,
     consequence: dict[str, Any] | None = None,
+    semantics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project current episode/temporal outputs into a claim-bounded P02 pool.
 
@@ -205,6 +206,7 @@ def _progression_pool_p02(
     """
     episode = episode or {}
     consequence = consequence or {}
+    semantics = semantics or {}
     temporal_by_episode = {
         str(row.get("episode_candidate_id")): row
         for row in (temporal.get("temporal_episode_signatures") or [])
@@ -225,8 +227,14 @@ def _progression_pool_p02(
         for row in (consequence.get("trackable_action_consequence_candidates") or [])
         if isinstance(row, dict)
     ]
+    semantic_by_context = {
+        str(row.get("context_id")): row
+        for row in (semantics.get("context_action_semantic_records") or [])
+        if isinstance(row, dict) and row.get("context_id")
+    }
     finding_atoms: list[dict[str, Any]] = []
     pool_items: list[dict[str, Any]] = []
+    team_pool_items: list[dict[str, Any]] = []
     ledger: list[dict[str, Any]] = []
 
     for card in features.get("episode_feature_vectors") or []:
@@ -447,6 +455,95 @@ def _progression_pool_p02(
         if not opponent_follow_up_occurrence_ids:
             unresolved.append("visible_opponent_follow_up_not_resolved_for_episode")
         pool_item_id = f"p02:{episode_id}"
+        team_rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for context_ref in card.get("context_refs") or []:
+            semantic_row = semantic_by_context.get(str(context_ref))
+            if not isinstance(semantic_row, dict):
+                continue
+            if semantic_row.get("action_occurrence_eligible") is not True:
+                continue
+            team_candidate = str(semantic_row.get("context_team_candidate") or "").strip()
+            if team_candidate.casefold() in {"", "unknown", "none", "null", "unknown_team"}:
+                continue
+            team_rows[team_candidate].append(semantic_row)
+
+        for team_candidate, rows_for_team in sorted(team_rows.items()):
+            team_family_counts = Counter(
+                str(row.get("provider_action_family_candidate") or "UNKNOWN")
+                for row in rows_for_team
+            )
+            team_zone_counts = Counter(
+                str(row.get("context_zone_candidate") or "UNKNOWN_ZONE")
+                for row in rows_for_team
+            )
+            team_channel_counts = Counter(
+                str(row.get("context_channel_candidate") or "UNKNOWN_CHANNEL")
+                for row in rows_for_team
+            )
+            team_context_refs = sorted(
+                str(row.get("context_id"))
+                for row in rows_for_team
+                if row.get("context_id")
+            )
+            team_dependency_root = f"episode_team_feature:{episode_id}:{team_candidate}"
+            team_item_id = f"p02_team:{episode_id}:{hashlib.sha256(team_candidate.encode('utf-8')).hexdigest()[:12]}"
+            team_pool_items.append({
+                "pool_item_id": team_item_id,
+                "parent_pool_item_id": pool_item_id,
+                "pool_id": "P02_PROGRESSION",
+                "pool_version": "v1-pilot",
+                "pool_stage": "SPECIALIZED",
+                "team_candidate": team_candidate,
+                "episode_candidate_id": episode_id,
+                "input_finding_atom_ids": atom_ids,
+                "input_context_refs": team_context_refs,
+                "dependency_roots": [dependency_root, team_dependency_root],
+                "football_question_id": "P02_TEAM_VISIBLE_PROGRESSION_PROCESS",
+                "construct_id": "P02_TEAM_PROCESS_SIGNATURE_PARTIAL",
+                "construct_definition": "Team-specific visible progression-relevant composition inside one analyst episode.",
+                "estimand": "team_episode_process_signature_candidate",
+                "eligible_population_definition": "reviewed action-occurrence-eligible semantic contexts assigned to the team inside the episode",
+                "numerator": None,
+                "denominator": len(rows_for_team),
+                "unit": "team_episode_candidate",
+                "scale": "MEZZO",
+                "dimensions": ["TEAM", "TIME", "SPACE", "ACTION", "PROCESS", "CONTEXT"],
+                "visible_observation_summary": {
+                    "eligible_action_candidate_count": len(rows_for_team),
+                    "action_family_counts": dict(sorted(team_family_counts.items())),
+                    "zone_counts": dict(sorted(team_zone_counts.items())),
+                    "channel_counts": dict(sorted(team_channel_counts.items())),
+                    "shot_candidate_count": int(team_family_counts.get("SHOT", 0)),
+                    "turnover_candidate_count": int(team_family_counts.get("TURNOVER", 0)),
+                    "recovery_candidate_count": int(team_family_counts.get("RECOVERY", 0)),
+                },
+                "process_signature_fields": {
+                    "team_specific_zone_station_path": None,
+                    "team_specific_route_evaluability": "NOT_EVALUATED",
+                    "team_specific_start_zone": None,
+                    "team_specific_end_zone": None,
+                    "team_specific_visible_path_length_proxy": None,
+                    "team_specific_directness_proxy": None,
+                },
+                "support_refs": team_context_refs,
+                "counterevidence_refs": [],
+                "dependency_challenge_refs": [],
+                "non_support_refs": [],
+                "unresolved_refs": [
+                    "team_specific_ordered_zone_path_not_bound",
+                    "team_specific_occurrence_consequence_identity_bridge_not_bound",
+                    "game_state_not_bound",
+                ],
+                "comparison_admission_status": "NOT_EVALUATED",
+                "pool_status": "DEGRADED",
+                "downstream_admission": "REVIEW_BOUNDED_POOL_ITEM",
+                "claim_ceiling": "P02_TEAM_EPISODE_DESCRIPTIVE_CANDIDATE_ONLY",
+                "independent_support_vote": False,
+                "team_share_is_possession_or_control_truth": False,
+                "zone_distribution_is_route_truth": False,
+                "production_release": False,
+            })
+
         pool_items.append({
             "pool_item_id": pool_item_id,
             "pool_id": "P02_PROGRESSION",
@@ -608,6 +705,8 @@ def _progression_pool_p02(
         "finding_atom_candidates": finding_atoms,
         "p02_pool_item_count": len(pool_items),
         "p02_pool_items": pool_items,
+        "p02_team_pool_item_count": len(team_pool_items),
+        "p02_team_pool_items": team_pool_items,
         "transformation_ledger_count": len(ledger),
         "transformation_ledger": ledger,
         "comparison_candidates": [],
@@ -786,12 +885,13 @@ def run_rich_lane(
     temporal = _load_json(output / "temporal_episode_signature_lite_v1.json")
     episode = _load_json(output / "analyst_episode_locator_lite_v1.json")
     consequence = _load_json(output / "trackable_action_consequence_candidates_lite_v1.json")
+    semantics = _load_json(output / "context_action_semantics_rebind_lite_v1.json")
     rows = _flatten_projection(projection)
     entity_views = _entity_views(rows)
     primitives = _primitive_metrics(features, entity_views)
     phase_states = _phase_state_candidates(features)
     c01 = _construct_c01(rows, features)
-    p02 = _progression_pool_p02(features, temporal, episode, consequence)
+    p02 = _progression_pool_p02(features, temporal, episode, consequence, semantics)
     if c01.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C01_progression_terminal_construct_review_required")
 
@@ -825,6 +925,7 @@ def run_rich_lane(
                 "phase_state_candidates": phase_states,
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
                 "P02_progression_pool_items": p02.get("p02_pool_items") or [],
+                "P02_progression_team_pool_items": p02.get("p02_team_pool_items") or [],
             },
             "MACRO": {
                 "team_view_candidates": entity_views.get("team_view_candidates"),
@@ -836,6 +937,7 @@ def run_rich_lane(
         "entity_views": entity_views,
         "c4_packet_candidates": packet_candidates,
         "p02_pool_item_count": p02.get("p02_pool_item_count", 0),
+        "p02_team_pool_item_count": p02.get("p02_team_pool_item_count", 0),
         "p02_finding_atom_candidate_count": p02.get("finding_atom_candidate_count", 0),
         "p02_route_metric_evaluable_count": p02.get("route_metric_evaluable_count", 0),
         "p02_route_metric_not_evaluable_count": p02.get("route_metric_not_evaluable_count", 0),
