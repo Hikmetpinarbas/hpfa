@@ -624,6 +624,18 @@ def _typed_defeat_contract(
             target_for_warrant,
             "ABSTAIN",
         ),
+        "WITHDRAW_IF_ELIGIBLE_DENOMINATOR_BINDING_INVALIDATED": (
+            "UNDERCUT",
+            "DENOMINATOR_WARRANT",
+            target_for_warrant,
+            "ABSTAIN",
+        ),
+        "WITHDRAW_IF_OUTCOME_LEAKAGE_DETECTED": (
+            "UNDERCUT",
+            "COMPARISON_DESIGN_WARRANT",
+            target_for_warrant,
+            "ABSTAIN",
+        ),
         "WITHDRAW_IF_SAME_DESIGN_COUNTEREVIDENCE_BINDING_INVALIDATED": (
             "UNDERCUT",
             "CHALLENGE_BINDING_WARRANT",
@@ -677,6 +689,58 @@ def _typed_defeat_contract(
         "defeat_can_strengthen_claim_ceiling": False,
         "withdrawal_effect_can_strengthen_claim": False,
         "rebut_without_explicit_target_allowed": False,
+    }
+
+
+def _falsification_invalidation_contract(
+    *,
+    handoff_id: str,
+    challenge_refs: list[str],
+    denominator: int,
+) -> dict[str, Any]:
+    return {
+        "current_safe_claim_ref": handoff_id,
+        "current_safe_claim_semantics": "MATCH_LOCAL_SHARED_ANCHOR_VISIBLE_OUTCOME_VARIATION_ONLY",
+        "observed_counterevidence_ref_count": len(challenge_refs),
+        "observed_counterevidence_refs": sorted(set(challenge_refs)),
+        "observed_counterevidence_is_falsifier_of_current_safe_claim": False,
+        "observed_counterevidence_reason": (
+            "CURRENT_SAFE_CLAIM_ALREADY_ASSERTS_VISIBLE_VARIATION_NOT_UNIFORM_SUCCESS"
+        ),
+        "falsifier_contract": {
+            "target": "A_MORE_SPECIFIC_STABILITY_OR_UNIFORM_OUTCOME_CLAIM_COMPONENT",
+            "requires_comparison_eligible": True,
+            "requires_resolved_visible_outcome": True,
+            "requires_opposite_observation_to_target_claim": True,
+            "requires_same_construct_and_observation_unit": True,
+            "requires_nonleaking_comparison_dimensions": True,
+            "falsifier_is_counterevidence_candidate": True,
+            "falsifier_is_causal_refutation": False,
+            "falsifier_is_independent_evidence_vote": False,
+        },
+        "invalidator_contract": {
+            "invalidator_reason_codes": [
+                "COMPARISON_ELIGIBILITY_INVALIDATED",
+                "ELIGIBLE_DENOMINATOR_BINDING_INVALIDATED",
+                "OUTCOME_LEAKAGE_DETECTED",
+                "OUTCOME_SEMANTIC_BINDING_INVALIDATED",
+                "SHARED_ANCHOR_ADMISSION_INVALIDATED",
+            ],
+            "invalidator_makes_claim_false": False,
+            "invalidator_is_counterevidence": False,
+            "invalidator_is_failure_observation": False,
+            "invalidator_effect": "CLAIM_NOT_ADMISSIBLE_OR_ABSTAIN",
+        },
+        "eligible_denominator_count": denominator,
+        "eligible_denominator_is_pair_count": False,
+        "absence_is_falsifier": False,
+        "unresolved_is_falsifier": False,
+        "non_support_is_falsifier": False,
+        "dependency_challenge_alone_is_falsifier": False,
+        "dependency_challenge_alone_is_invalidator": False,
+        "falsifier_is_invalidator": False,
+        "invalidator_is_falsifier": False,
+        "claim_ceiling_strengthened": False,
     }
 
 
@@ -828,6 +892,8 @@ def _safe_finding_handoff_candidates(
             "WITHDRAW_IF_SHARED_ANCHOR_ADMISSION_INVALIDATED",
             "WITHDRAW_IF_OUTCOME_SEMANTIC_BINDING_INVALIDATED",
             "WITHDRAW_IF_COMPARISON_ELIGIBILITY_INVALIDATED",
+            "WITHDRAW_IF_ELIGIBLE_DENOMINATOR_BINDING_INVALIDATED",
+            "WITHDRAW_IF_OUTCOME_LEAKAGE_DETECTED",
         ] + (
             ["WITHDRAW_IF_SAME_DESIGN_COUNTEREVIDENCE_BINDING_INVALIDATED"]
             if same_design
@@ -839,6 +905,11 @@ def _safe_finding_handoff_candidates(
             comparable_set_id=comparable_set_id,
             challenge_refs=challenge_refs,
             withdrawal_conditions=withdrawal_conditions,
+        )
+        falsification_invalidation_contract = _falsification_invalidation_contract(
+            handoff_id=handoff_id,
+            challenge_refs=challenge_refs,
+            denominator=denominator,
         )
 
         handoffs.append({
@@ -929,6 +1000,11 @@ def _safe_finding_handoff_candidates(
             },
             "withdrawal_conditions": withdrawal_conditions,
             "typed_defeat_contract": typed_defeat_contract,
+            "falsification_invalidation_contract": falsification_invalidation_contract,
+            "falsifier_is_invalidator": False,
+            "invalidator_is_falsifier": False,
+            "invalidator_is_counterevidence": False,
+            "invalidator_makes_claim_false": False,
             "analyst_action": "REVIEW_BRANCH_EXAMPLES_AND_USE_ONLY_AS_MATCH_LOCAL_VARIATION_CUE",
             "analyst_summary_tr": (
                 f"Aynı görünür başlangıçtan çıkan {denominator} uygun vakanın {numerator}'sinde SUCCESS, "
@@ -1086,6 +1162,11 @@ def build_comparable_outcome_counterevidence(sequence_payload: dict[str, Any]) -
         "professional_finding_emitted_count": 0,
         "safe_finding_handoff_professional_emit_allowed": False,
         "counterexample_pair_count_is_independent_evidence_count": False,
+        "falsification_invalidation_contract_applied": True,
+        "falsifier_is_invalidator": False,
+        "invalidator_is_falsifier": False,
+        "invalidator_is_counterevidence": False,
+        "invalidator_makes_claim_false": False,
         "safe_finding_handoff_claim_ceiling": SAFE_FINDING_HANDOFF_CLAIM_CEILING,
         "evidence_sufficiency_profile_is_non_compensatory": True,
         "evidence_sufficiency_numeric_score_allowed": False,
