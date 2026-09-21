@@ -60,10 +60,24 @@ def _apply_construct_admission_gate(report: dict) -> dict:
     if admitted:
         return report
 
-    withheld = len(report.get("c4_packet_candidates") or [])
-    report["c4_packet_candidates"] = []
+    candidates = [
+        candidate
+        for candidate in (report.get("c4_packet_candidates") or [])
+        if isinstance(candidate, dict)
+    ]
+    preserved_non_c01_candidates = [
+        candidate
+        for candidate in candidates
+        if str(candidate.get("p02_packet_role") or "") == "POPULATION_COLLAPSED_COUNTEREVIDENCE_COMPARISON_PACKET_ONLY"
+        and candidate.get("claim_output_allowed") is False
+        and candidate.get("report_language_allowed") is False
+        and candidate.get("production_release") is False
+    ]
+    withheld = len(candidates) - len(preserved_non_c01_candidates)
+    report["c4_packet_candidates"] = preserved_non_c01_candidates
     report["construct_c4_promotion_withheld_count"] = withheld
-    report["construct_c4_promotion_state"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
+    report["construct_c4_non_c01_preserved_count"] = len(preserved_non_c01_candidates)
+    report["construct_c4_promotion_state"] = "C01_WITHHELD_NON_C01_ADMITTED_CANDIDATES_PRESERVED"
     c01["c4_admission_status"] = "WITHHELD_PENDING_CONSTRUCT_ADMISSION"
     c01["c4_admission_reason"] = c01.get("review_reason") or "explicit_construct_admission_not_available"
     c01["construct_truth"] = False
