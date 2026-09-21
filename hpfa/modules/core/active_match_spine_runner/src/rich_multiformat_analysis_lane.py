@@ -1979,6 +1979,12 @@ def _construct_c03(
     spatial_payload: dict[str, Any],
 ) -> dict[str, Any]:
     """Compose process intervals with admitted occurrence layers and annotation-anchor path candidates."""
+    provider_axis_state = str(spatial_payload.get("provider_team_relative_attack_axis_state") or "")
+    provider_attack_direction = str(spatial_payload.get("attack_direction") or "")
+    provider_axis_admitted = (
+        provider_axis_state == "ADMITTED"
+        and provider_attack_direction in {"ATTACK_POS_X", "ATTACK_NEG_X"}
+    )
     process_rows = [
         row for row in (process_payload.get("process_participation_candidates") or [])
         if isinstance(row, dict) and row.get("semantic_role") == "CONTEXT_INTERVAL"
@@ -2100,14 +2106,30 @@ def _construct_c03(
             ax, ay = left_anchors[0]["x"], left_anchors[0]["y"]
             bx, by = right_anchors[0]["x"], right_anchors[0]["y"]
             dx, dy = bx - ax, by - ay
+            axis_delta = None
+            axis_direction_candidate = "UNRESOLVED"
+            if provider_axis_admitted:
+                axis_delta = dx if provider_attack_direction == "ATTACK_POS_X" else -dx
+                if axis_delta > 0:
+                    axis_direction_candidate = "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE"
+                elif axis_delta < 0:
+                    axis_direction_candidate = "REARWARD_PROVIDER_ATTACK_AXIS_CANDIDATE"
+                else:
+                    axis_direction_candidate = "STABLE_PROVIDER_ATTACK_AXIS_CANDIDATE"
             segments.append({
                 "from_timestamp_candidate": left["timestamp_candidate"],
                 "to_timestamp_candidate": right["timestamp_candidate"],
                 "delta_x_provider_coordinate_candidate": dx,
                 "delta_y_provider_coordinate_candidate": dy,
+                "provider_attack_axis_longitudinal_delta_candidate": axis_delta,
+                "provider_attack_axis_direction_candidate": axis_direction_candidate,
+                "provider_attack_axis_admission_state": provider_axis_state,
+                "provider_attack_direction": provider_attack_direction or None,
                 "annotation_anchor_distance_provider_units_candidate": (dx * dx + dy * dy) ** 0.5,
                 "physical_distance_truth": False,
                 "physical_speed_truth": False,
+                "line_break_truth": False,
+                "ball_trajectory_truth": False,
             })
 
         complete_path = bool(layers) and len(segments) == max(0, len(layers) - 1) and all(
@@ -2245,6 +2267,18 @@ def _construct_c03(
             "claim_ceiling": "VISIBLE_ON_BALL_EVENT_FAMILY_PROFILE_CANDIDATE_ONLY",
         }
 
+
+        axis_deltas = [
+            segment.get("provider_attack_axis_longitudinal_delta_candidate")
+            for segment in segments
+            if isinstance(segment.get("provider_attack_axis_longitudinal_delta_candidate"), (int, float))
+        ]
+        provider_axis_net_longitudinal_delta = sum(axis_deltas) if axis_deltas else None
+        provider_axis_direction_counts = Counter(
+            str(segment.get("provider_attack_axis_direction_candidate") or "UNRESOLVED")
+            for segment in segments
+        )
+
         signatures.append({
             "process_development_signature_id": "pds_" + hashlib.sha256(
                 "|".join([
@@ -2302,6 +2336,14 @@ def _construct_c03(
             "annotation_anchor_segment_distance_sum_provider_units_candidate": cumulative if segments else None,
             "annotation_anchor_net_displacement_provider_units_candidate": net,
             "annotation_anchor_path_directness_candidate": directness,
+            "provider_attack_axis_state": provider_axis_state,
+            "provider_attack_direction": provider_attack_direction or None,
+            "provider_attack_axis_admitted": provider_axis_admitted,
+            "provider_attack_axis_net_longitudinal_delta_candidate": provider_axis_net_longitudinal_delta,
+            "provider_attack_axis_direction_counts": dict(sorted(provider_axis_direction_counts.items())),
+            "provider_attack_axis_delta_is_physical_displacement": False,
+            "provider_attack_axis_direction_is_line_break_truth": False,
+            "provider_attack_axis_direction_is_tactical_progression_truth": False,
             "annotation_anchor_path_is_physical_trajectory": False,
             "annotation_anchor_distance_is_physical_travel_distance": False,
             "process_interval_duration_is_generic_action_duration": False,

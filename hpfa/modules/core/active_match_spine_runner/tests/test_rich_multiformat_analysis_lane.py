@@ -1761,3 +1761,124 @@ def test_c03_morphology_neighborhood_links_near_variant_without_merging_exact_mo
     assert neighbor["similarity_is_causal_equivalence_truth"] is False
     assert neighbor["outcome_participates_in_neighborhood_identity"] is False
     assert neighbor["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_PROCESS_MORPHOLOGY_NEIGHBOR_CANDIDATE_ONLY"
+
+
+def test_c03_uses_admitted_provider_attack_axis_without_physical_progression_truth():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "proc_1",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": "10",
+            "end_candidate": "20",
+            "shot_present_annotation_candidate": False,
+        }]
+    }
+    transitions = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "occ_1",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["11"],
+                "action_family_candidates": ["PASS"],
+                "supporting_spatial_transition_candidate_ids": ["sp_1"],
+            },
+            {
+                "action_occurrence_candidate_id": "occ_2",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["15"],
+                "action_family_candidates": ["PASS"],
+                "supporting_spatial_transition_candidate_ids": ["sp_2"],
+            },
+        ]
+    }
+    spatial = {
+        "provider_team_relative_attack_axis_state": "ADMITTED",
+        "attack_direction": "ATTACK_POS_X",
+        "spatial_transition_candidates": [
+            {
+                "spatial_transition_candidate_id": "sp_1",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 20.0,
+                "provider_coordinate_anchor_y_candidate": 30.0,
+                "provider_zone_candidates": ["OWN_HALF"],
+            },
+            {
+                "spatial_transition_candidate_id": "sp_2",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 60.0,
+                "provider_coordinate_anchor_y_candidate": 32.0,
+                "provider_zone_candidates": ["OPPONENT_HALF"],
+            },
+        ],
+    }
+    result = _construct_c03(process, transitions, spatial)
+    sig = result["signatures"][0]
+    seg = sig["annotation_anchor_segments"][0]
+    assert seg["provider_attack_axis_longitudinal_delta_candidate"] == 40.0
+    assert seg["provider_attack_axis_direction_candidate"] == "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE"
+    assert seg["physical_distance_truth"] is False
+    assert seg["line_break_truth"] is False
+    assert sig["provider_attack_axis_admitted"] is True
+    assert sig["provider_attack_axis_net_longitudinal_delta_candidate"] == 40.0
+    assert sig["provider_attack_axis_direction_is_tactical_progression_truth"] is False
+
+
+def test_c03_keeps_provider_axis_direction_unresolved_when_axis_not_admitted():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "proc_2",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": "10",
+            "end_candidate": "20",
+        }]
+    }
+    transitions = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "occ_1",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["11"],
+                "action_family_candidates": ["PASS"],
+                "supporting_spatial_transition_candidate_ids": ["sp_1"],
+            },
+            {
+                "action_occurrence_candidate_id": "occ_2",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["15"],
+                "action_family_candidates": ["PASS"],
+                "supporting_spatial_transition_candidate_ids": ["sp_2"],
+            },
+        ]
+    }
+    spatial = {
+        "provider_team_relative_attack_axis_state": "REVIEW_REQUIRED",
+        "attack_direction": None,
+        "spatial_transition_candidates": [
+            {
+                "spatial_transition_candidate_id": "sp_1",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 20.0,
+                "provider_coordinate_anchor_y_candidate": 30.0,
+            },
+            {
+                "spatial_transition_candidate_id": "sp_2",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 60.0,
+                "provider_coordinate_anchor_y_candidate": 32.0,
+            },
+        ],
+    }
+    result = _construct_c03(process, transitions, spatial)
+    seg = result["signatures"][0]["annotation_anchor_segments"][0]
+    assert seg["provider_attack_axis_longitudinal_delta_candidate"] is None
+    assert seg["provider_attack_axis_direction_candidate"] == "UNRESOLVED"
