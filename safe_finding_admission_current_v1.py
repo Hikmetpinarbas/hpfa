@@ -45,6 +45,7 @@ OCCURRENCE_CONSEQUENCE_NAME = "occurrence_consequence_projection_v1.json"
 OCCURRENCE_STATE_TRANSITION_NAME = "occurrence_state_transition_projection_v1.json"
 CHALLENGE_NAME = "variant_feature_challenge_projection_v1.json"
 PUZZLE_FINDING_NAME = "puzzle_finding_contract_projection_v1.json"
+RICH_MULTIFORMAT_NAME = "rich_multiformat_analysis_lattice_v1.json"
 
 
 def _load(path: Path) -> dict:
@@ -188,6 +189,7 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
     occurrence_state_transition_path = output / OCCURRENCE_STATE_TRANSITION_NAME
     challenge_path = output / CHALLENGE_NAME
     puzzle_finding_path = output / PUZZLE_FINDING_NAME
+    rich_multiformat_path = output / RICH_MULTIFORMAT_NAME
 
     feature_delta_payload = _load(feature_delta_path)
     process_variant_payload = _load(process_variant_path)
@@ -195,6 +197,7 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
     process_participation_payload = _load(process_participation_path)
     occurrence_consequence_payload = _load(occurrence_consequence_path)
     occurrence_state_transition_payload = _load(occurrence_state_transition_path)
+    rich_multiformat_payload = _load(rich_multiformat_path)
     challenge_payload: dict | None = None
     process_context_counterevidence_recomputed = False
     process_context_counterevidence_fail_closed = False
@@ -333,7 +336,17 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
         )
 
     if source_payload:
-        puzzle_finding_payload = build_puzzle_finding_contract(source_payload, result)
+        if rich_multiformat_payload:
+            puzzle_finding_payload = build_puzzle_finding_contract(
+                source_payload,
+                result,
+                rich_multiformat_payload,
+            )
+        else:
+            puzzle_finding_payload = build_puzzle_finding_contract(
+                source_payload,
+                result,
+            )
     else:
         puzzle_finding_payload = _missing_sequence_puzzle_contract()
     _write(puzzle_finding_path, puzzle_finding_payload)
