@@ -569,6 +569,7 @@ def _build_p02_sequence_process_units(
     trace_payload: dict[str, Any],
     score_timeline: dict[str, Any],
     evidence_payload: dict[str, Any] | None = None,
+    semantics_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project current visible sequences into P02 process-unit candidates.
 
@@ -576,10 +577,16 @@ def _build_p02_sequence_process_units(
     Coordinate geometry remains provider-coordinate proxy, not metres/tracking.
     """
     evidence_payload = evidence_payload or {}
+    semantics_payload = semantics_payload or {}
     atom_by_id = {
         str(row.get("evidence_atom_id")): row
         for row in (evidence_payload.get("evidence_atoms") or [])
         if isinstance(row, dict) and row.get("evidence_atom_id")
+    }
+    semantic_by_nucleus = {
+        str(row.get("row_nucleus_candidate_id")): row
+        for row in (semantics_payload.get("context_action_semantic_records") or [])
+        if isinstance(row, dict) and row.get("row_nucleus_candidate_id")
     }
     trace_by_id = {
         str(row.get("trackable_action_trace_candidate_id")): row
@@ -639,37 +646,54 @@ def _build_p02_sequence_process_units(
 
         semantic_zone_stations: list[dict[str, Any]] = []
         ambiguous_semantic_zone_layer_count = 0
-        for layer_id in sequence.get("time_layer_candidate_ids") or []:
-            layer = layer_by_id.get(str(layer_id))
+        missing_semantic_zone_layer_count = 0
+        sequence_layer_ids = [str(value) for value in (sequence.get("time_layer_candidate_ids") or [])]
+        for layer_id in sequence_layer_ids:
+            layer = layer_by_id.get(layer_id)
             if not isinstance(layer, dict):
+                missing_semantic_zone_layer_count += 1
                 continue
             trace_ids = [
                 str(value)
                 for value in (layer.get("trackable_action_trace_candidate_ids") or [])
                 if str(value).strip()
             ]
-            if len(trace_ids) != 1:
+            if not trace_ids:
+                missing_semantic_zone_layer_count += 1
+                continue
+            zones: set[str] = set()
+            bases: set[str] = set()
+            for trace_id in trace_ids:
+                trace_row = trace_by_id.get(trace_id)
+                if not isinstance(trace_row, dict):
+                    continue
+                for evidence_id in trace_row.get("supporting_evidence_atom_ids") or []:
+                    atom = atom_by_id.get(str(evidence_id))
+                    if not isinstance(atom, dict):
+                        continue
+                    nucleus_id = str(atom.get("row_nucleus_candidate_id") or "")
+                    semantic_row = semantic_by_nucleus.get(nucleus_id)
+                    context_zone = str((semantic_row or {}).get("context_zone_candidate") or "").strip()
+                    if context_zone and context_zone != "UNKNOWN_ZONE":
+                        zones.add(context_zone)
+                        bases.add("CONTEXT_ACTION_SEMANTICS_REBIND_CONTEXT_ZONE_CANDIDATE")
+                        continue
+                    atom_zone = str(atom.get("zone_candidate") or "").strip()
+                    if atom_zone:
+                        zones.add(atom_zone)
+                        bases.add("EVIDENCE_ATOM_SEMANTIC_ZONE_CANDIDATE")
+            if len(zones) == 0:
+                missing_semantic_zone_layer_count += 1
+                continue
+            if len(zones) > 1:
                 ambiguous_semantic_zone_layer_count += 1
-                continue
-            trace_row = trace_by_id.get(trace_ids[0])
-            if not isinstance(trace_row, dict):
-                continue
-            zones = sorted({
-                str(atom_by_id[evidence_id].get("zone_candidate") or "")
-                for evidence_id in (trace_row.get("supporting_evidence_atom_ids") or [])
-                if evidence_id in atom_by_id
-                and str(atom_by_id[evidence_id].get("zone_candidate") or "").strip()
-            })
-            if len(zones) != 1:
-                if len(zones) > 1:
-                    ambiguous_semantic_zone_layer_count += 1
                 continue
             semantic_zone_stations.append({
                 "time_layer_candidate_id": layer.get("visible_action_time_layer_candidate_id"),
-                "trackable_action_trace_candidate_id": trace_ids[0],
+                "trackable_action_trace_candidate_ids": trace_ids,
                 "time_candidate": layer.get("start_candidate"),
-                "semantic_zone_candidate": zones[0],
-                "zone_basis": "EVIDENCE_ATOM_SEMANTIC_ZONE_CANDIDATE",
+                "semantic_zone_candidate": next(iter(zones)),
+                "zone_basis": "+".join(sorted(bases)),
                 "coordinate_zone_truth": False,
                 "same_timestamp_internal_ordering_asserted": False,
             })
@@ -681,6 +705,21 @@ def _build_p02_sequence_process_units(
                 semantic_zone_path.append(zone)
         process_start_zone_candidate = semantic_zone_path[0] if semantic_zone_path else None
         process_end_zone_candidate = semantic_zone_path[-1] if semantic_zone_path else None
+        semantic_zone_layer_coverage_complete = (
+            bool(sequence_layer_ids)
+            and len(semantic_zone_stations) == len(sequence_layer_ids)
+            and ambiguous_semantic_zone_layer_count == 0
+            and missing_semantic_zone_layer_count == 0
+        )
+        advanced_zone_set = {"FINAL_THIRD", "PENALTY_AREA"}
+        if semantic_zone_layer_coverage_complete:
+            advanced_access_state_candidate = (
+                "ADVANCED_ACCESS_VISIBLE"
+                if any(zone in advanced_zone_set for zone in semantic_zone_path)
+                else "NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH"
+            )
+        else:
+            advanced_access_state_candidate = "UNRESOLVED"
 
         coordinate_stations: list[dict[str, Any]] = []
         ambiguous_coordinate_layer_count = 0
@@ -785,6 +824,10 @@ def _build_p02_sequence_process_units(
             "process_end_zone_candidate": process_end_zone_candidate,
             "process_zone_basis": "EVIDENCE_ATOM_SEMANTIC_ZONE_CANDIDATE" if semantic_zone_path else "NOT_EVALUATED",
             "ambiguous_semantic_zone_layer_count": ambiguous_semantic_zone_layer_count,
+            "missing_semantic_zone_layer_count": missing_semantic_zone_layer_count,
+            "semantic_zone_layer_coverage_complete": semantic_zone_layer_coverage_complete,
+            "advanced_access_state_candidate": advanced_access_state_candidate,
+            "advanced_access_state_is_tactical_truth": False,
             "coordinate_station_count": len(coordinate_stations),
             "coordinate_stations": coordinate_stations,
             "ambiguous_coordinate_layer_count": ambiguous_coordinate_layer_count,
@@ -1685,6 +1728,7 @@ def _progression_pool_p02(
         trace,
         score_timeline,
         evidence_atoms,
+        semantics,
     )
     process_unit_comparisons = _build_p02_process_unit_comparison_populations(process_units)
 
