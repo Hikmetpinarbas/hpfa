@@ -1000,7 +1000,8 @@ def _goalkeeper_restart_consequence_context(
         })
 
     return {
-        "status": "PASS" if rows else "NOT_AVAILABLE",        "binding_state": "GOALKEEPER_RESTART_TO_VISIBLE_CONSEQUENCE_CONTEXT",
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "binding_state": "GOALKEEPER_RESTART_TO_VISIBLE_CONSEQUENCE_CONTEXT",
         "goalkeeper_restart_context_row_count": len(rows),
         "provider_distance_bucket_counts": dict(sorted(bucket_counts.items())),
         "pass_outcome_counts": dict(sorted(pass_outcome_counts.items())),
@@ -1999,7 +2000,8 @@ def _association_record(
         "epistemic_review_contract": _association_epistemic_review_contract(
             shot_rows=shot_rows,
             not_target_rows=no_shot_rows,
-            shot_without=shot_without,        ),
+            shot_without=shot_without,
+        ),
         "small_n_association_contract": {
             "observation_unit": "ADMITTED_PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
             "target_outcome_semantic": "PROVIDER_REVIEWED_SHOT_PRESENT_ANNOTATION_CANDIDATE",
@@ -2998,6 +3000,7 @@ def _construct_c03(
         )].append(motif)
     for rows in motif_index.values():
         rows.sort(key=lambda row: (-int(row.get("member_process_n") or 0), str(row.get("process_motif_family_candidate_id") or "")))
+
     process_motif_neighborhood_candidates: list[dict[str, Any]] = []
     singleton_process_motif_with_recurring_neighbor_ids: set[str] = set()
     length_bucket_order = {
