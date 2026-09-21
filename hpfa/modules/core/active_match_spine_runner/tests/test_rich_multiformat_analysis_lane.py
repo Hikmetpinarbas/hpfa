@@ -479,8 +479,11 @@ def test_p02_team_process_stage_profile_preserves_stage_presence_without_inventi
     assert profile["stage_counts"]["KEY_ACTION"] == 1
     assert profile["stage_counts"]["SHOT"] == 1
     assert profile["stage_counts"]["SHOT_ON_TARGET"] == 1
-    assert profile["stage_counts"]["GOAL"] == 1
-    assert profile["deepest_observed_stage_candidate"] == "GOAL"
+    assert "GOAL" not in profile["stage_counts"]
+    assert "CHANCE" not in profile["stage_counts"]
+    assert profile["deepest_observed_stage_candidate"] == "SHOT_ON_TARGET"
+    assert profile["chance_stage_status"] == "NOT_EVALUATED_NO_PROCESS_BOUND_TERMINAL_AUTHORITY"
+    assert profile["goal_stage_status"] == "NOT_EVALUATED_NO_PROCESS_BOUND_TERMINAL_AUTHORITY"
     assert profile["exit_stage_candidate"] == "UNRESOLVED"
     assert profile["ordering_state"] == "PRESENCE_ONLY_NO_TOTAL_ORDER"
     assert profile["terminal_outcomes_do_not_add_action_volume"] is True
