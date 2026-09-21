@@ -1060,6 +1060,55 @@ def test_p02_handover_does_not_guess_nearest_opponent_process():
 
 
 
+def test_p02_turnover_response_summary_uses_explicit_denominator_and_no_causal_promotion():
+    sequence, trace, score_timeline = _sequence_process_unit_case()
+    first = sequence["visible_action_sequence_candidates"][0]
+    first["action_family_counts"]["TURNOVER"] = 1
+    first["end_reason_candidate"] = "TEAM_HANDOVER_BOUNDARY"
+    first["end_boundary_time_candidate"] = 45.0
+    first["next_team_identity_candidate_id"] = "teamc_B"
+    sequence["visible_action_time_layer_candidates"].append({
+        "visible_action_time_layer_candidate_id": "vl5",
+        "start_candidate": 45.0,
+        "trackable_action_trace_candidate_ids": ["tr5"],
+    })
+    trace["trackable_action_trace_candidates"].append({
+        "trackable_action_trace_candidate_id": "tr5",
+        "pos_x_candidate": 30.0,
+        "pos_y_candidate": 20.0,
+        "coordinate_evidence_status": "VISIBLE_COORDINATE_CANDIDATE",
+    })
+    sequence["visible_action_sequence_candidates"].append({
+        "visible_action_sequence_candidate_id": "vasq_2",
+        "team_identity_candidate_id": "teamc_B",
+        "period_candidate": "1",
+        "start_time_candidate": 45.0,
+        "end_time_candidate": 45.0,
+        "end_boundary_time_candidate": 50.0,
+        "duration_candidate_seconds": 0.0,
+        "time_layer_candidate_ids": ["vl5"],
+        "time_layer_count": 1,
+        "trackable_action_trace_candidate_ids": ["tr5"],
+        "trace_candidate_count": 1,
+        "action_family_counts": {"PASS": 1},
+        "consequence_candidate_counts": {},
+        "sequence_record_status": "PASS_SINGLE_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
+        "start_reason_candidate": "AFTER_TEAM_HANDOVER",
+        "end_reason_candidate": "TIME_GAP_BOUNDARY",
+    })
+    out = _build_p02_sequence_process_units(sequence, trace, score_timeline)
+    by_team = {row["team_identity_candidate_id"]: row for row in out["opponent_response_summary_by_team"]}
+    summary = by_team["teamc_A"]
+    assert summary["exact_handover_linked_count"] == 1
+    assert summary["turnover_process_unit_count"] == 1
+    assert summary["turnover_handover_linked_count"] == 1
+    assert summary["turnover_handover_opponent_access_unresolved_count"] == 1
+    assert summary["handover_is_turnover_truth"] is False
+    assert summary["opponent_response_is_causal_truth"] is False
+    assert summary["opponent_advanced_access_is_dangerous_transition_truth"] is False
+    assert summary["counts_are_independent_support_votes"] is False
+
+
 def test_p02_partial_order_signature_preserves_layer_multisets_without_internal_order():
     sequence, trace, score_timeline = _sequence_process_unit_case()
     out = _build_p02_sequence_process_units(sequence, trace, score_timeline)
