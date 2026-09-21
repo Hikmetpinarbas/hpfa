@@ -378,3 +378,61 @@ def test_no_sample_match_identity_leak():
     ).read_text(encoding="utf-8")
     for token in ("Sporting", "Galatasaray", "Fenerbahce", "Roma", "10.09.2026"):
         assert token not in source
+
+
+def test_unregistered_declared_dimension_fails_closed():
+    payload = _payload(_variant("a"), _variant("b"))
+    contract = _period_test_contract()
+    contract["required_exact_dimensions"] = ["team", "partial_order_structure", "score_state"]
+    contract["allowed_test_dimensions"] = ["period"]
+    payload["process_comparison_question_contract"] = contract
+
+    result = build_dependency_aware_partial_order_similarity(payload)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["process_comparable_set_count"] == 0
+    assert "comparison_question_dimension_unregistered:score_state" in result["hard_block_hits"]
+
+
+def test_default_pair_exposes_canonical_comparison_state_without_changing_eligibility():
+    result = build_dependency_aware_partial_order_similarity(_payload(_variant("a"), _variant("b")))
+    pair = _pair(result)
+
+    assert pair["comparison_eligible"] is True
+    assert pair["canonical_comparison_state"] == "ELIGIBLE"
+    assert pair["eligible_for_outcome_attachment"] is True
+    assert result["canonical_comparison_state_counts"]["ELIGIBLE"] == 1
+
+
+def test_comparable_set_freezes_profile_hash_before_outcome_attachment():
+    result = build_dependency_aware_partial_order_similarity(_payload(_variant("a"), _variant("b")))
+    comparable_set = result["process_comparable_sets"][0]
+
+    assert result["comparison_dimension_registry_version"] == "comparison_dimension_registry_v1"
+    assert result["profile_frozen_before_outcome_attachment"] is True
+    assert isinstance(result["question_profile_hash"], str)
+    assert len(result["question_profile_hash"]) == 64
+    assert comparable_set["profile_frozen_before_outcome_attachment"] is True
+    assert comparable_set["question_profile_hash"] == result["question_profile_hash"]
+
+
+def test_materialized_pair_count_is_not_eligible_case_denominator():
+    variants = [_variant(f"v{index}") for index in range(4)]
+    result = build_dependency_aware_partial_order_similarity(_payload(*variants))
+
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 3
+    assert result["process_comparable_sets"][0]["eligible_case_count"] == 4
+    assert result["pair_materialization_count_is_eligible_denominator"] is False
+    assert result["process_comparable_sets"][0]["materialized_pair_count_is_eligible_denominator"] is False
+
+
+def test_dimension_registry_version_mismatch_fails_closed():
+    payload = _payload(_variant("a"), _variant("b"))
+    contract = _period_test_contract()
+    contract["dimension_registry_version"] = "future_registry_v999"
+    payload["process_comparison_question_contract"] = contract
+
+    result = build_dependency_aware_partial_order_similarity(payload)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert "comparison_question_dimension_registry_version_mismatch" in result["hard_block_hits"]
