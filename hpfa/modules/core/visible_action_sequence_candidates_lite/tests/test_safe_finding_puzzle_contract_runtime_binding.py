@@ -169,3 +169,111 @@ def test_context_decomposition_distinguishes_rich_context_from_branch_completene
     )
     assert result["can_change_safe_finding_decision"] is False
     assert result["can_authorize_emit"] is False
+
+
+def test_preoutcome_branch_context_enrichment_binds_game_state_and_provider_process_without_completeness_promotion():
+    source = {
+        "anchor_centered_sequence_branch_maps": [{
+            "comparable_set_id": "bcs_1",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "anchor_time_candidate": 100.0,
+            "anchor_action_family_counts": {"PASS": 1},
+        }],
+        "safe_finding_handoff_candidates": [{
+            "safe_finding_handoff_candidate_id": "sfh_1",
+            "source_comparable_set_id": "bcs_1",
+        }],
+    }
+    admission = {
+        "safe_finding_admission_decisions": [{
+            "source_safe_finding_handoff_ref": "sfh_1",
+            "decision": "ABSTAIN",
+            "claim_output_allowed": False,
+        }]
+    }
+    rich = {
+        "game_state_process_mix_context": {
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "segment_start_second_candidate": 0.0,
+                "segment_end_second_candidate": 200.0,
+                "score_state_candidate": {"Alpha": 1, "Beta": 0},
+            }]
+        }
+    }
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "start_candidate": 90.0,
+            "end_candidate": 120.0,
+        }]
+    }
+    enrichment = runtime._branch_preoutcome_context_enrichment(
+        source, admission, rich, process
+    )
+    profile = enrichment["profiles_by_handoff_ref"]["sfh_1"]
+    assert profile["state"] == "PRE_BRANCH_CONTEXT_ENRICHED_GAME_STATE_AND_PROCESS"
+    assert profile["score_state_candidate"] == {"Alpha": 1, "Beta": 0}
+    assert profile["provider_process_family_candidates"] == [
+        "POSITIONAL_ATTACK_CANDIDATE"
+    ]
+    assert profile["context_is_pre_outcome_only"] is True
+    assert profile["outcome_used_in_context_enrichment"] is False
+    assert profile["consequence_used_in_context_enrichment"] is False
+    assert profile["branch_comparison_context_complete"] is False
+    assert profile["creates_independent_support"] is False
+    assert profile["can_change_safe_finding_decision"] is False
+    assert profile["can_authorize_emit"] is False
+
+
+def test_preoutcome_branch_context_keeps_multiple_process_families_review_required():
+    source = {
+        "anchor_centered_sequence_branch_maps": [{
+            "comparable_set_id": "bcs_2",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "anchor_time_candidate": 100.0,
+            "anchor_action_family_counts": {"PASS": 1},
+        }],
+        "safe_finding_handoff_candidates": [{
+            "safe_finding_handoff_candidate_id": "sfh_2",
+            "source_comparable_set_id": "bcs_2",
+        }],
+    }
+    admission = {
+        "safe_finding_admission_decisions": [{
+            "source_safe_finding_handoff_ref": "sfh_2",
+        }]
+    }
+    process = {
+        "process_participation_candidates": [
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "start_candidate": 90.0,
+                "end_candidate": 120.0,
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+                "start_candidate": 95.0,
+                "end_candidate": 105.0,
+            },
+        ]
+    }
+    enrichment = runtime._branch_preoutcome_context_enrichment(
+        source, admission, {}, process
+    )
+    profile = enrichment["profiles_by_handoff_ref"]["sfh_2"]
+    assert profile["provider_process_binding_state"] == (
+        "MULTIPLE_PROVIDER_PROCESS_FAMILIES_REVIEW_REQUIRED"
+    )
+    assert profile["branch_comparison_context_complete"] is False

@@ -195,3 +195,37 @@ def test_optional_game_state_context_enriches_evolution_without_changing_claim_g
     assert evo["score_state_is_causal_explanation"] is False
     assert evo["creates_independent_support"] is False
     assert result["game_state_conditioning_ready"] is True
+
+
+def test_puzzle_finding_carries_preoutcome_context_without_status_promotion():
+    sequence = _sequence_payload()
+    admission = {
+        "status": "PASS",
+        "production_release": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "safe_finding_admission_decisions": [{
+            "source_safe_finding_handoff_ref": "sfh_test",
+            "decision": "DOWNGRADE",
+            "claim_output_allowed": False,
+            "claim_ceiling": "MATCH_LOCAL_SAFE_FINDING_CUE_ONLY",
+            "branch_preoutcome_context_enrichment": {
+                "state": "PRE_BRANCH_CONTEXT_ENRICHED_GAME_STATE_AND_PROCESS",
+                "branch_comparison_context_complete": False,
+                "score_state_candidate": {"Alpha": 1, "Beta": 0},
+                "provider_process_family_candidates": ["POSITIONAL_ATTACK_CANDIDATE"],
+                "creates_independent_support": False,
+                "can_change_safe_finding_decision": False,
+                "can_authorize_emit": False,
+            },
+        }],
+    }
+    result = build_puzzle_finding_contract(sequence, admission)
+    finding = result["puzzle_findings"][0]
+    assert finding["finding_status"] == "DOWNGRADE"
+    assert finding["claim_output_allowed"] is False
+    ctx = finding["branch_preoutcome_context_enrichment"]
+    assert ctx["branch_comparison_context_complete"] is False
+    assert ctx["creates_independent_support"] is False
+    assert finding["branch_preoutcome_context_enrichment_can_change_finding_status"] is False
+    assert finding["branch_preoutcome_context_enrichment_can_authorize_emit"] is False

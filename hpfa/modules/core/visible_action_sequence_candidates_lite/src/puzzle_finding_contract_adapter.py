@@ -606,6 +606,14 @@ def build_puzzle_finding_contract(
                 statistical_independence_proven,
             )
             base = _bind_game_state_context(base, context_payload)
+            if isinstance(admission_row, dict) and isinstance(
+                admission_row.get("branch_preoutcome_context_enrichment"), dict
+            ):
+                base["branch_preoutcome_context_enrichment"] = copy.deepcopy(
+                    admission_row["branch_preoutcome_context_enrichment"]
+                )
+                base["branch_preoutcome_context_enrichment_can_change_finding_status"] = False
+                base["branch_preoutcome_context_enrichment_can_authorize_emit"] = False
             findings.append(base)
 
             rules, missing_source = _eligible_family_rules(handoff, divergence_by_id)

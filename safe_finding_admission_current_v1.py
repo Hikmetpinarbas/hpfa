@@ -176,6 +176,218 @@ def _missing_sequence_puzzle_contract() -> dict:
 
 
 
+
+def _as_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _branch_preoutcome_context_enrichment(
+    source_payload: dict,
+    admission_payload: dict,
+    rich_multiformat_payload: dict | None,
+    process_participation_payload: dict | None,
+) -> dict:
+    branch_maps = {
+        str(row.get("comparable_set_id") or "").strip(): row
+        for row in (source_payload.get("anchor_centered_sequence_branch_maps") or [])
+        if isinstance(row, dict) and str(row.get("comparable_set_id") or "").strip()
+    }
+    handoffs = {
+        str(row.get("safe_finding_handoff_candidate_id") or "").strip(): row
+        for row in (source_payload.get("safe_finding_handoff_candidates") or [])
+        if isinstance(row, dict)
+        and str(row.get("safe_finding_handoff_candidate_id") or "").strip()
+    }
+
+    rich = rich_multiformat_payload if isinstance(rich_multiformat_payload, dict) else {}
+    game_profiles = (
+        (rich.get("game_state_process_mix_context") or {}).get("profiles") or []
+    )
+
+    process_intervals = []
+    if isinstance(process_participation_payload, dict):
+        for row in process_participation_payload.get("process_participation_candidates") or []:
+            if not isinstance(row, dict):
+                continue
+            if str(row.get("semantic_role") or "") != "CONTEXT_INTERVAL":
+                continue
+            team_id = str(row.get("team_identity_candidate_id") or "").strip()
+            period = str(row.get("period_candidate") or "").strip()
+            family = str(row.get("process_family_candidate") or "").strip()
+            start = _as_float(row.get("start_candidate"))
+            end = _as_float(row.get("end_candidate"))
+            if team_id and period and family and start is not None and end is not None:
+                process_intervals.append(
+                    {
+                        "team_identity_candidate_id": team_id,
+                        "period_candidate": period,
+                        "process_family_candidate": family,
+                        "start_candidate": start,
+                        "end_candidate": end,
+                    }
+                )
+
+    profiles_by_handoff: dict[str, dict] = {}
+    state_counts: dict[str, int] = {}
+
+    for decision in admission_payload.get("safe_finding_admission_decisions") or []:
+        if not isinstance(decision, dict):
+            continue
+        handoff_ref = str(
+            decision.get("source_safe_finding_handoff_ref") or ""
+        ).strip()
+        handoff = handoffs.get(handoff_ref)
+        if not handoff:
+            continue
+        comparable_ref = str(handoff.get("source_comparable_set_id") or "").strip()
+        branch_map = branch_maps.get(comparable_ref)
+        if not branch_map:
+            profiles_by_handoff[handoff_ref] = {
+                "state": "BRANCH_COMPARABLE_SET_NOT_BOUND",
+                "source_comparable_set_id": comparable_ref or None,
+                "branch_comparison_context_complete": False,
+                "creates_new_evidence": False,
+                "creates_independent_support": False,
+                "can_change_safe_finding_decision": False,
+                "can_authorize_emit": False,
+            }
+            state_counts["BRANCH_COMPARABLE_SET_NOT_BOUND"] = (
+                state_counts.get("BRANCH_COMPARABLE_SET_NOT_BOUND", 0) + 1
+            )
+            continue
+
+        team_id = str(branch_map.get("team_identity_candidate_id") or "").strip()
+        period = str(branch_map.get("period_candidate") or "").strip()
+        anchor_time = _as_float(branch_map.get("anchor_time_candidate"))
+        anchor_actions = dict(branch_map.get("anchor_action_family_counts") or {})
+
+        matching_game = []
+        if team_id and anchor_time is not None:
+            for profile in game_profiles:
+                if not isinstance(profile, dict):
+                    continue
+                if str(profile.get("team_identity_candidate_id") or "").strip() != team_id:
+                    continue
+                start = _as_float(profile.get("segment_start_second_candidate"))
+                end = _as_float(profile.get("segment_end_second_candidate"))
+                if start is None or end is None:
+                    continue
+                if start <= anchor_time < end or (start == end == anchor_time):
+                    matching_game.append(profile)
+
+        game_states = {
+            tuple(sorted((profile.get("score_state_candidate") or {}).items()))
+            for profile in matching_game
+        }
+        game_state_unique = len(game_states) == 1 and len(matching_game) >= 1
+        game_state_value = (
+            dict(next(iter(game_states))) if game_state_unique else None
+        )
+        game_binding_state = (
+            "SINGLE_SCORE_STATE_SEGMENT_MATCH"
+            if game_state_unique
+            else (
+                "MULTIPLE_SCORE_STATE_SEGMENTS_REVIEW_REQUIRED"
+                if matching_game
+                else "NO_SCORE_STATE_SEGMENT_MATCH"
+            )
+        )
+
+        process_families = set()
+        if team_id and period and anchor_time is not None:
+            for interval in process_intervals:
+                if interval["team_identity_candidate_id"] != team_id:
+                    continue
+                if interval["period_candidate"] != period:
+                    continue
+                if interval["start_candidate"] <= anchor_time <= interval["end_candidate"]:
+                    process_families.add(interval["process_family_candidate"])
+        process_binding_state = (
+            "SINGLE_PROVIDER_PROCESS_FAMILY_MATCH"
+            if len(process_families) == 1
+            else (
+                "MULTIPLE_PROVIDER_PROCESS_FAMILIES_REVIEW_REQUIRED"
+                if len(process_families) > 1
+                else "NO_PROVIDER_PROCESS_INTERVAL_MATCH"
+            )
+        )
+
+        dimensions = ["TEAM", "PERIOD", "SHARED_VISIBLE_ANCHOR", "ANCHOR_ACTION_FAMILY"]
+        if game_state_unique:
+            dimensions.append("SCORE_STATE")
+        if len(process_families) == 1:
+            dimensions.append("PROVIDER_REVIEWED_PROCESS_FAMILY")
+
+        if game_state_unique and len(process_families) == 1:
+            state = "PRE_BRANCH_CONTEXT_ENRICHED_GAME_STATE_AND_PROCESS"
+        elif game_state_unique or len(process_families) == 1:
+            state = "PRE_BRANCH_CONTEXT_ENRICHED_PARTIAL"
+        else:
+            state = "BASE_SHARED_ANCHOR_CONTEXT_ONLY"
+
+        profile = {
+            "state": state,
+            "source_comparable_set_id": comparable_ref,
+            "team_identity_candidate_id": team_id or None,
+            "period_candidate": period or None,
+            "shared_anchor_time_candidate": anchor_time,
+            "anchor_action_family_counts": anchor_actions,
+            "pre_branch_context_dimensions": dimensions,
+            "game_state_binding_state": game_binding_state,
+            "score_state_candidate": game_state_value,
+            "provider_process_binding_state": process_binding_state,
+            "provider_process_family_candidates": sorted(process_families),
+            "context_is_pre_outcome_only": True,
+            "outcome_used_in_context_enrichment": False,
+            "consequence_used_in_context_enrichment": False,
+            "branch_comparison_context_complete": False,
+            "context_enrichment_can_resolve_global_context_completeness": False,
+            "creates_new_evidence": False,
+            "creates_independent_support": False,
+            "can_change_safe_finding_decision": False,
+            "can_authorize_emit": False,
+        }
+        profiles_by_handoff[handoff_ref] = profile
+        state_counts[state] = state_counts.get(state, 0) + 1
+
+    return {
+        "status": "PASS" if profiles_by_handoff else "NOT_AVAILABLE",
+        "profile_count": len(profiles_by_handoff),
+        "state_counts": dict(sorted(state_counts.items())),
+        "profiles_by_handoff_ref": profiles_by_handoff,
+        "enrichment_is_pre_outcome_only": True,
+        "enrichment_resolves_branch_context_completeness": False,
+        "creates_new_evidence": False,
+        "creates_independent_support": False,
+        "can_change_safe_finding_decision": False,
+        "can_authorize_emit": False,
+    }
+
+
+def _attach_branch_preoutcome_context_to_decisions(
+    admission_payload: dict,
+    enrichment: dict,
+) -> dict:
+    profiles = enrichment.get("profiles_by_handoff_ref") or {}
+    for row in admission_payload.get("safe_finding_admission_decisions") or []:
+        if not isinstance(row, dict):
+            continue
+        ref = str(row.get("source_safe_finding_handoff_ref") or "").strip()
+        if ref in profiles:
+            row["branch_preoutcome_context_enrichment"] = profiles[ref]
+            row["branch_preoutcome_context_enrichment_can_change_decision"] = False
+            row["branch_preoutcome_context_enrichment_can_authorize_emit"] = False
+    admission_payload["branch_preoutcome_context_enrichment"] = {
+        key: value
+        for key, value in enrichment.items()
+        if key != "profiles_by_handoff_ref"
+    }
+    return admission_payload
+
+
 def _context_coverage_decomposition(
     source_payload: dict,
     admission_payload: dict,
@@ -393,6 +605,28 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
             process_variant_payload or None,
             occurrence_consequence_payload or None,
         )
+
+    branch_preoutcome_context_enrichment = _branch_preoutcome_context_enrichment(
+        source_payload,
+        result,
+        rich_multiformat_payload or None,
+        process_participation_payload or None,
+    ) if source_payload else {
+        "status": "NOT_AVAILABLE",
+        "profile_count": 0,
+        "state_counts": {},
+        "profiles_by_handoff_ref": {},
+        "enrichment_is_pre_outcome_only": True,
+        "enrichment_resolves_branch_context_completeness": False,
+        "creates_new_evidence": False,
+        "creates_independent_support": False,
+        "can_change_safe_finding_decision": False,
+        "can_authorize_emit": False,
+    }
+    result = _attach_branch_preoutcome_context_to_decisions(
+        result,
+        branch_preoutcome_context_enrichment,
+    )
 
     if source_payload:
         if rich_multiformat_payload:
