@@ -220,3 +220,75 @@ def test_p02_projection_final_third_activity_is_candidate_not_access_truth():
     assert item["process_signature_fields"]["advanced_access_activity_candidate"] is True
     assert "start_end_zone_transition_not_bound" in item["unresolved_refs"]
     assert item["claim_ceiling"] == "P02_EPISODE_DESCRIPTIVE_CANDIDATE_ONLY"
+
+
+
+def _p02_episode():
+    return {
+        "episode_candidates": [
+            {
+                "episode_candidate_id": "aep_generic_001",
+                "time_layer_refs": ["ael_1", "ael_2", "ael_3", "ael_4"],
+            }
+        ],
+        "episode_time_layer_candidates": [
+            {
+                "episode_time_layer_candidate_id": "ael_1",
+                "second_candidate": 10.0,
+                "eligible_action_zone_candidate_counts": {"DEFENSIVE_THIRD": 2},
+                "same_time_unordered": True,
+            },
+            {
+                "episode_time_layer_candidate_id": "ael_2",
+                "second_candidate": 20.0,
+                "eligible_action_zone_candidate_counts": {"MIDDLE_THIRD": 1},
+                "same_time_unordered": False,
+            },
+            {
+                "episode_time_layer_candidate_id": "ael_3",
+                "second_candidate": 30.0,
+                "eligible_action_zone_candidate_counts": {"MIDDLE_THIRD": 1, "FINAL_THIRD": 1},
+                "same_time_unordered": True,
+            },
+            {
+                "episode_time_layer_candidate_id": "ael_4",
+                "second_candidate": 40.0,
+                "eligible_action_zone_candidate_counts": {"FINAL_THIRD": 2},
+                "same_time_unordered": True,
+            },
+        ],
+    }
+
+
+def test_p02_zone_station_path_uses_only_unique_zone_time_layers():
+    p02 = _progression_pool_p02(_p02_features(), _p02_temporal(), _p02_episode())
+    item = p02["p02_pool_items"][0]
+    signature = item["process_signature_fields"]
+    assert signature["zone_station_path_candidate"] == [
+        "DEFENSIVE_THIRD",
+        "MIDDLE_THIRD",
+        "FINAL_THIRD",
+    ]
+    assert signature["zone_station_count_candidate"] == 3
+    assert signature["start_zone_candidate"] == "DEFENSIVE_THIRD"
+    assert signature["end_zone_candidate"] == "FINAL_THIRD"
+    assert signature["zone_advancement_steps_candidate"] == 2
+    assert len(signature["zone_transition_candidates"]) == 2
+
+
+def test_p02_zone_transition_does_not_assert_internal_same_time_order():
+    episode = _p02_episode()
+    episode["episode_time_layer_candidates"][1]["second_candidate"] = 10.0
+    p02 = _progression_pool_p02(_p02_features(), _p02_temporal(), episode)
+    item = p02["p02_pool_items"][0]
+    transitions = item["process_signature_fields"]["zone_transition_candidates"]
+    assert all(row["same_timestamp_transition"] is False for row in transitions)
+    assert all(row["transition_is_physical_trajectory_truth"] is False for row in transitions)
+
+
+def test_p02_zone_advancement_is_discrete_zone_candidate_not_metric_distance():
+    p02 = _progression_pool_p02(_p02_features(), _p02_temporal(), _p02_episode())
+    item = p02["p02_pool_items"][0]
+    assert item["visible_observation_summary"]["zone_advancement_steps_candidate"] == 2
+    assert item["process_signature_fields"]["net_goalward_progression"] is None
+    assert item["process_signature_fields"]["visible_path_length_proxy"] is None
