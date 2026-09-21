@@ -387,6 +387,18 @@ def run_full_spine(
 
     entity_views = rich_report.get("entity_views") or {}
     constructs = rich_report.get("constructs") or {}
+    c01_construct = constructs.get("C01") or {}
+    c01_bound_to_c4 = (
+        str(c01_construct.get("c4_admission_status") or "").upper() == "ADMITTED"
+        and str(c01_construct.get("status") or "").upper() in {"PASS", "SMOKE_PASS"}
+    )
+    p02_report = rich_report.get("progression_pool_p02") or {}
+    p02_rich_packet_count = sum(
+        1
+        for candidate in (rich_report.get("c4_packet_candidates") or [])
+        if isinstance(candidate, dict)
+        and str(candidate.get("p02_packet_role") or "") == "POPULATION_COLLAPSED_COUNTEREVIDENCE_COMPARISON_PACKET_ONLY"
+    )
     report = {
         "module_id": MODULE_ID,
         "status": status,
@@ -410,7 +422,10 @@ def run_full_spine(
         "player_view_candidate_count": len(entity_views.get("player_view_candidates") or []),
         "team_view_candidate_count": len(entity_views.get("team_view_candidates") or []),
         "goalkeeper_view_candidate_count": len(entity_views.get("goalkeeper_view_candidates") or []),
-        "C01_status": (constructs.get("C01") or {}).get("status"),
+        "C01_status": c01_construct.get("status"),
+        "C01_c4_admission_status": c01_construct.get("c4_admission_status"),
+        "P02_c4_packet_candidate_count": p02_rich_packet_count,
+        "P02_counterevidence_population_count": p02_report.get("p02_counterevidence_population_count"),
         "base_composite_packet_count": base_packet_count,
         "rich_construct_packet_count": rich_packet_count,
         "composite_packet_count": len(chains),
@@ -442,7 +457,8 @@ def run_full_spine(
             "micro_mezzo_macro_lattice_bound": bool(rich_report.get("analysis_lattice")),
             "phase_state_candidate_lane_bound": bool(rich_report.get("phase_state_candidates")),
             "entity_views_bound": bool(entity_views),
-            "construct_C01_bound_to_c4": rich_packet_count > 0,
+            "construct_C01_bound_to_c4": c01_bound_to_c4,
+            "P02_counterevidence_packets_bound_to_c4": p02_rich_packet_count > 0,
             "current_c4_producers_executed": c4_chain_executed,
             "current_c4_producers_reused": c4_surface_current,
             "c4_stage_exception_containment_enabled": True,
@@ -492,7 +508,9 @@ def run_full_spine(
         f"player_view_candidate_count={len(entity_views.get('player_view_candidates') or [])}",
         f"team_view_candidate_count={len(entity_views.get('team_view_candidates') or [])}",
         f"goalkeeper_view_candidate_count={len(entity_views.get('goalkeeper_view_candidates') or [])}",
-        f"C01_status={(constructs.get('C01') or {}).get('status')}",
+        f"C01_status={c01_construct.get('status')}",
+        f"C01_c4_admission_status={c01_construct.get('c4_admission_status')}",
+        f"P02_c4_packet_candidate_count={p02_rich_packet_count}",
         f"base_composite_packet_count={base_packet_count}",
         f"rich_construct_packet_count={rich_packet_count}",
         f"intelligence_chain_count={len(chains)}",
