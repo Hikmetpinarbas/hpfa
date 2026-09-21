@@ -849,6 +849,139 @@ def _build_p02_sequence_process_units(
     }
 
 
+def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]) -> dict[str, Any]:
+    units = [
+        row for row in (process_units.get("p02_process_unit_candidates") or [])
+        if isinstance(row, dict)
+    ]
+    grouped: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    unresolved: list[str] = []
+
+    for unit in units:
+        team_id = str(unit.get("team_identity_candidate_id") or "")
+        period = str(unit.get("period_candidate") or "")
+        score_state = str(unit.get("score_state_candidate") or "")
+        start_zone = str(unit.get("process_start_zone_candidate") or "")
+        if not team_id or not period or score_state not in {"LEVEL", "LEADING", "TRAILING"} or not start_zone:
+            unresolved.append(str(unit.get("p02_process_unit_candidate_id") or ""))
+            continue
+        grouped[(team_id, period, score_state, start_zone)].append(unit)
+
+    populations: list[dict[str, Any]] = []
+    for (team_id, period, score_state, start_zone), members in sorted(grouped.items()):
+        population_id = "p02_pu_pop_" + hashlib.sha256(
+            f"{team_id}|{period}|{score_state}|{start_zone}".encode("utf-8")
+        ).hexdigest()[:20]
+
+        variants: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        terminal_activity_counts: Counter[str] = Counter()
+        end_zone_counts: Counter[str] = Counter()
+        for unit in members:
+            signature_id = str(unit.get("partial_order_process_signature_id") or "NO_SIGNATURE")
+            zone_path = list(unit.get("semantic_zone_path_candidate") or [])
+            variant_seed = json.dumps(
+                {
+                    "partial_order_process_signature_id": signature_id,
+                    "semantic_zone_path_candidate": zone_path,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            variant_id = "p02_variant_" + hashlib.sha256(variant_seed.encode("utf-8")).hexdigest()[:20]
+            variants[variant_id].append(unit)
+            terminal_activity_counts[str(unit.get("team_episode_terminal_activity_candidate") or "UNRESOLVED")] += 1
+            end_zone_counts[str(unit.get("process_end_zone_candidate") or "UNRESOLVED")] += 1
+
+        variant_records: list[dict[str, Any]] = []
+        for variant_id, variant_members in sorted(variants.items()):
+            first = variant_members[0]
+            variant_terminal = Counter(
+                str(row.get("team_episode_terminal_activity_candidate") or "UNRESOLVED")
+                for row in variant_members
+            )
+            variant_end_zones = Counter(
+                str(row.get("process_end_zone_candidate") or "UNRESOLVED")
+                for row in variant_members
+            )
+            variant_records.append({
+                "variant_family_candidate_id": variant_id,
+                "member_process_unit_candidate_ids": sorted(
+                    str(row.get("p02_process_unit_candidate_id") or "")
+                    for row in variant_members
+                    if row.get("p02_process_unit_candidate_id")
+                ),
+                "member_count": len(variant_members),
+                "partial_order_process_signature_id": first.get("partial_order_process_signature_id"),
+                "semantic_zone_path_candidate": list(first.get("semantic_zone_path_candidate") or []),
+                "terminal_activity_distribution": dict(sorted(variant_terminal.items())),
+                "end_zone_distribution": dict(sorted(variant_end_zones.items())),
+                "variant_is_tactical_truth": False,
+                "variant_is_causal_mechanism_truth": False,
+            })
+
+        status = "POPULATION_ELIGIBLE" if len(members) >= 2 else "INSUFFICIENT_COMPARABLE_MEMBERS"
+        visible_divergence = len(variant_records) >= 2 or len(terminal_activity_counts) >= 2 or len(end_zone_counts) >= 2
+        populations.append({
+            "process_unit_comparison_population_id": population_id,
+            "comparison_question_id": "P02_PROCESS_UNIT_ROUTE_VARIANT_COMPARISON",
+            "comparison_unit": "p02_visible_sequence_process_unit_candidate",
+            "exact_dimensions": [
+                "team_identity_candidate_id",
+                "period_candidate",
+                "score_state_candidate",
+                "process_start_zone_candidate",
+            ],
+            "coarsened_dimensions": [],
+            "test_dimensions": [
+                "partial_order_process_signature_id",
+                "semantic_zone_path_candidate",
+                "process_end_zone_candidate",
+                "team_episode_terminal_activity_candidate",
+            ],
+            "forbidden_leakage_dimensions": [
+                "process_end_zone_candidate",
+                "team_episode_terminal_activity_candidate",
+            ],
+            "reference_context": {
+                "team_identity_candidate_id": team_id,
+                "period_candidate": period,
+                "score_state_candidate": score_state,
+                "process_start_zone_candidate": start_zone,
+            },
+            "member_process_unit_candidate_ids": sorted(
+                str(row.get("p02_process_unit_candidate_id") or "")
+                for row in members
+                if row.get("p02_process_unit_candidate_id")
+            ),
+            "member_count": len(members),
+            "status": status,
+            "variant_family_count": len(variant_records),
+            "variant_families": variant_records,
+            "terminal_activity_distribution": dict(sorted(terminal_activity_counts.items())),
+            "end_zone_distribution": dict(sorted(end_zone_counts.items())),
+            "visible_branch_divergence_candidate": visible_divergence,
+            "branch_divergence_is_causality": False,
+            "branch_divergence_is_tactical_truth": False,
+            "outcome_relation_admitted": False,
+            "counterevidence_admission_authority": False,
+            "production_release": False,
+        })
+
+    return {
+        "process_unit_comparison_population_count": len(populations),
+        "eligible_process_unit_comparison_population_count": sum(
+            row.get("status") == "POPULATION_ELIGIBLE" for row in populations
+        ),
+        "unresolved_process_unit_comparison_member_count": len([x for x in unresolved if x]),
+        "unresolved_process_unit_comparison_member_ids": sorted(x for x in unresolved if x),
+        "process_unit_comparison_populations": populations,
+        "counterevidence_candidates": [],
+        "outcome_relation_admission_open": False,
+        "production_release": False,
+    }
+
+
 def _progression_pool_p02(
     features: dict[str, Any],
     temporal: dict[str, Any],
@@ -1553,6 +1686,7 @@ def _progression_pool_p02(
         score_timeline,
         evidence_atoms,
     )
+    process_unit_comparisons = _build_p02_process_unit_comparison_populations(process_units)
 
     return {
         "module_id": "progression_pool_p02_projection_v1",
@@ -1570,6 +1704,7 @@ def _progression_pool_p02(
         "comparison_candidates": [],
         "comparison_populations": comparison_populations,
         "process_units": process_units,
+        "process_unit_comparisons": process_unit_comparisons,
         "route_metric_evaluable_count": 0,
         "route_metric_not_evaluable_count": len(pool_items),
         "invented_semantics_count": 0,
