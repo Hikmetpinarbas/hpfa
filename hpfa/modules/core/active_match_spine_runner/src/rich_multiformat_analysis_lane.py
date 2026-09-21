@@ -1922,6 +1922,59 @@ def _progression_pool_p02(
     )
     process_unit_comparisons = _build_p02_process_unit_comparison_populations(process_units)
 
+    p02_c4_packet_candidates: list[dict[str, Any]] = []
+    for comparison in process_unit_comparisons.get("counterevidence_candidates") or []:
+        if not isinstance(comparison, dict):
+            continue
+        if comparison.get("counterevidence_admission_ready") is not True:
+            continue
+        if str(comparison.get("outcome_relation") or "") != "OPPOSITE":
+            continue
+        reference_sequence = str(comparison.get("reference_provenance_root") or "")
+        candidate_sequence = str(comparison.get("provenance_root") or "")
+        if not reference_sequence or not candidate_sequence or reference_sequence == candidate_sequence:
+            continue
+        packet_seed = f"{comparison.get('signal_id')}|{reference_sequence}|{candidate_sequence}"
+        p02_c4_packet_candidates.append({
+            "packet_id": "p02_cmp_packet_" + hashlib.sha256(packet_seed.encode("utf-8")).hexdigest()[:20],
+            "packet_family": "progression",
+            "input_features": [],
+            "input_windows": [],
+            "input_sequences": [
+                {
+                    "sequence_id": reference_sequence,
+                    "source_surface": "visible_action_sequence_candidates_lite_v1",
+                    "provenance_root": reference_sequence,
+                    "dependency_group": comparison.get("reference_dependency_group"),
+                    "independence_group": comparison.get("reference_independence_group"),
+                    "independent_support_vote": False,
+                },
+                {
+                    "sequence_id": candidate_sequence,
+                    "source_surface": "visible_action_sequence_candidates_lite_v1",
+                    "provenance_root": candidate_sequence,
+                    "dependency_group": comparison.get("dependency_group"),
+                    "independence_group": comparison.get("independence_group"),
+                    "independent_support_vote": False,
+                },
+            ],
+            "input_metrics": [],
+            "supporting_signals": [],
+            "contradicting_signals": [comparison],
+            "claim_ceiling": "composite_candidate_only",
+            "blocked_language_families": [
+                "tactical_truth",
+                "dominance_truth",
+                "control_truth",
+                "coach_intention",
+                "causal_truth",
+            ],
+            "p02_packet_role": "COUNTEREVIDENCE_COMPARISON_PACKET_ONLY",
+            "claim_output_allowed": False,
+            "report_language_allowed": False,
+            "production_release": False,
+        })
+
     comparison_candidates: list[dict[str, Any]] = []
     team_items_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for item in team_pool_items:
@@ -2021,6 +2074,8 @@ def _progression_pool_p02(
         "comparison_populations": comparison_populations,
         "process_units": process_units,
         "process_unit_comparisons": process_unit_comparisons,
+        "p02_c4_packet_candidate_count": len(p02_c4_packet_candidates),
+        "p02_c4_packet_candidates": p02_c4_packet_candidates,
         "route_metric_evaluable_count": 0,
         "route_metric_not_evaluable_count": len(pool_items),
         "invented_semantics_count": 0,
@@ -2198,7 +2253,7 @@ def run_rich_lane(
     consequence = _load_json(output / "trackable_action_consequence_candidates_lite_v1.json")
     semantics = _load_json(output / "context_action_semantics_rebind_lite_v1.json")
     identities = _load_json(output / "match_local_identity_candidates_lite_v1.json")
-    score_state = _score_state_projection(episode, semantics, identities)
+    score_state = _score_state_timeline_candidates(episode, semantics, identities)
     visible_sequence = _load_json(output / "visible_action_sequence_candidates_lite_v1.json")
     trace = _load_json(output / "trackable_action_trace_candidates_lite_v1.json")
     evidence_atoms = _load_json(output / "evidence_atom_inventory_lite_v1.json")
@@ -2222,6 +2277,7 @@ def run_rich_lane(
         review_hits.append("C01_progression_terminal_construct_review_required")
 
     packet_candidates = [c01["packet_candidate"]] if c01.get("packet_candidate") else []
+    packet_candidates.extend(p02.get("p02_c4_packet_candidates") or [])
     status = "FAIL_CLOSED" if hard_blocks else "REVIEW_REQUIRED" if review_hits else "SMOKE_PASS"
     payload = {
         "module_id": MODULE_ID,
@@ -2263,7 +2319,8 @@ def run_rich_lane(
         },
         "entity_views": entity_views,
         "c4_packet_candidates": packet_candidates,
-        "score_state_episode_candidate_count": len(score_state.get("episode_score_states") or []),
+        "score_state_episode_candidate_count": 0,
+        "score_state_goal_change_candidate_count": int(score_state.get("goal_score_change_candidate_count") or 0),
         "p02_pool_item_count": p02.get("p02_pool_item_count", 0),
         "p02_team_pool_item_count": p02.get("p02_team_pool_item_count", 0),
         "p02_process_unit_candidate_count": (p02.get("process_units") or {}).get("p02_process_unit_candidate_count", 0),
