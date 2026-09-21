@@ -173,6 +173,17 @@ def test_intelligence_chain_legacy_declared_contradiction_is_qualifier_bounded()
     assert chain["assembly"]["draft_report_candidate_allowed"] is False
 
 
+def test_intelligence_chain_explicit_counterevidence_remains_review_bounded():
+    """Compatibility guard: only comparison-admitted counterevidence may remain explicit downstream."""
+    chain = run_chain(admitted_counterevidence_candidate())
+    assert chain["fusion"]["contradiction_signal_count"] == 1
+    assert chain["fusion"]["admitted_counterevidence_count"] == 1
+    assert chain["argument"]["contradicting_refs"] == ["counter_admitted_001"]
+    assert chain["route"]["defeasible_state"] == "WEAKENED"
+    assert chain["graph"]["review_required"] is True
+    assert chain["assembly"]["draft_report_candidate_allowed"] is False
+
+
 def test_intelligence_chain_admitted_comparable_counterevidence_weakens_as_contradiction():
     chain = run_chain(admitted_counterevidence_candidate())
 
