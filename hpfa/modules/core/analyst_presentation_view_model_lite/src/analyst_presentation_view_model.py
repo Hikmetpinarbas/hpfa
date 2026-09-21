@@ -115,6 +115,108 @@ def _counterevidence_cards(full: dict[str, Any]) -> list[dict[str, Any]]:
         })
     return cards
 
+def _mechanism_key(argument: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(argument.get("argument_family") or "UNKNOWN_ARGUMENT_FAMILY"),
+        str(argument.get("relation_scope") or "UNKNOWN_RELATION_SCOPE"),
+        str(argument.get("analysis_route") or "UNKNOWN_ANALYSIS_ROUTE"),
+    )
+
+def _mechanism_display_tr(family: str) -> str:
+    labels = {
+        "progression_without_terminal_value": "İlerleme ile terminal değer arasındaki görünür kopukluk adayı",
+    }
+    return labels.get(family, family.replace("_", " "))
+
+def _mechanism_cards(full: dict[str, Any], limit: int = 5) -> list[dict[str, Any]]:
+    groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for chain in full.get("intelligence_chains") or []:
+        if not isinstance(chain, dict):
+            continue
+        argument = chain.get("argument")
+        argument = argument if isinstance(argument, dict) else {}
+        if not argument or argument.get("hard_block_hits"):
+            continue
+        groups.setdefault(_mechanism_key(argument), []).append(chain)
+
+    cards: list[dict[str, Any]] = []
+    for (family, relation_scope, analysis_route), chains in groups.items():
+        state_counts: dict[str, int] = {}
+        context_refs: set[str] = set()
+        supporting_refs: set[str] = set()
+        contradiction_refs: set[str] = set()
+        packet_ids: set[str] = set()
+        counter_counts: dict[str, int] = {}
+        withdrawal_counts: dict[str, int] = {}
+        independence_states: set[str] = set()
+        safe_examples: list[str] = []
+        for chain in chains:
+            argument = chain.get("argument") or {}
+            route = chain.get("route") or {}
+            fusion = chain.get("fusion") or {}
+            safe = chain.get("safe_sentence") or {}
+            state = str(route.get("defeasible_state") or safe.get("defeasible_state") or argument.get("status") or "UNKNOWN")
+            state_counts[state] = state_counts.get(state, 0) + 1
+            context_refs.update(str(x) for x in (argument.get("context_refs") or []) if x)
+            supporting_refs.update(str(x) for x in (argument.get("supporting_refs") or []) if x)
+            contradiction_refs.update(str(x) for x in (route.get("counter_evidence_refs") or argument.get("contradicting_refs") or []) if x)
+            packet_id = fusion.get("packet_id")
+            if packet_id:
+                packet_ids.add(str(packet_id))
+            independence_states.add(str(fusion.get("independence_state") or "UNKNOWN"))
+            for value in argument.get("counter_scenarios") or []:
+                key = str(value)
+                counter_counts[key] = counter_counts.get(key, 0) + 1
+            for value in argument.get("withdrawal_conditions") or []:
+                key = str(value)
+                withdrawal_counts[key] = withdrawal_counts.get(key, 0) + 1
+            text = str(safe.get("safe_sentence_candidate_tr") or "").strip()
+            if text and text not in safe_examples and len(safe_examples) < 3:
+                safe_examples.append(text)
+
+        top_counter = sorted(counter_counts.items(), key=lambda x: (-x[1], x[0]))[:5]
+        top_withdrawal = sorted(withdrawal_counts.items(), key=lambda x: (-x[1], x[0]))[:5]
+        cards.append({
+            "mechanism_candidate_id": f"mechanism:{family}:{relation_scope}:{analysis_route}",
+            "process_family": family,
+            "display_tr": _mechanism_display_tr(family),
+            "relation_scope": relation_scope,
+            "analysis_route": analysis_route,
+            "nominal_chain_count": len(chains),
+            "distinct_packet_count": len(packet_ids),
+            "distinct_context_ref_count": len(context_refs),
+            "distinct_support_ref_count": len(supporting_refs),
+            "explicit_contradiction_ref_count": len(contradiction_refs),
+            "defeasible_state_counts": dict(sorted(state_counts.items())),
+            "independence_states": sorted(independence_states),
+            "counter_scenarios": [{"id": k, "nominal_mentions": v} for k, v in top_counter],
+            "withdrawal_conditions": [{"id": k, "nominal_mentions": v} for k, v in top_withdrawal],
+            "safe_sentence_examples_tr": safe_examples,
+            "selection_basis": "COVERAGE_COMPRESSION_NOT_EVIDENCE_STRENGTH",
+            "nominal_counts_are_independent_support": False,
+            "claim_ceiling": "MECHANISM_FAMILY_PRESENTATION_CANDIDATE_ONLY",
+            "cannot_say": [
+                "causality",
+                "coach_intention",
+                "off_ball_structure",
+                "pressure_geometry",
+                "dominance",
+                "independent_recurrence_strength_without_admitted_independence",
+            ],
+        })
+    cards.sort(key=lambda x: (-int(x["nominal_chain_count"]), str(x["mechanism_candidate_id"])))
+    return cards[:limit]
+
+def _match_story(mechanisms: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "target_mechanism_count": "3-5_WHEN_DISTINCT_ADMITTED_FAMILIES_EXIST",
+        "emitted_mechanism_count": len(mechanisms),
+        "forced_minimum_disabled": True,
+        "selection_basis": "DISTINCT_ADMITTED_MECHANISM_FAMILY_COVERAGE",
+        "cards": mechanisms,
+        "claim_ceiling": "MATCH_STORY_PRESENTATION_CANDIDATE_ONLY",
+    }
+
 def _broadcast_candidates(full: dict[str, Any]) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
@@ -163,6 +265,8 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
     episode_cards = _episode_cards(episode) if episode_available else []
     phase_cards = _phase_cards(full)
     counter_cards = _counterevidence_cards(full)
+    mechanism_cards = _mechanism_cards(full)
+    match_story = _match_story(mechanism_cards)
     broadcast_candidates = _broadcast_candidates(full)
     report_text = ""
     report_path = root / "HPFA_ANALYST_REPORT.txt"
@@ -177,10 +281,10 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "analyst_report_candidate_only",
     )
     surfaces["match_story"] = _surface(
-        "NOT_EVALUATED",
-        [],
-        "No canonical 3-5 mechanism match-story producer is admitted in this presentation contract.",
-        "unavailable_until_admitted_producer",
+        "DEGRADED" if mechanism_cards else "NOT_EVALUATED",
+        ["active_match_full_spine_v1.json"] if mechanism_cards else [],
+        "Distinct admitted mechanism families are compressed without forcing 3-5 output when fewer families exist.",
+        "match_story_presentation_candidate_only",
     )
     surfaces["six_phase_match_view"] = _surface(
         "DEGRADED" if phase_cards else "NOT_EVALUATED",
@@ -190,10 +294,10 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
     )
 
     surfaces["mechanism_cards"] = _surface(
-        "NOT_EVALUATED",
-        [],
-        "Mechanism cards require an admitted mechanism/process producer and counterevidence binding.",
-        "safe_finding_candidate_only",
+        "AVAILABLE" if mechanism_cards else "NOT_EVALUATED",
+        ["active_match_full_spine_v1.json"] if mechanism_cards else [],
+        "Cards group existing argument/mechanism families; nominal counts never become independent support.",
+        "mechanism_family_presentation_candidate_only",
     )
     surfaces["player_process_cards"] = _surface(
         "NOT_EVALUATED",
@@ -248,6 +352,8 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "analyst_report_text": report_text,
         "observed_replay_cards": episode_cards,
         "phase_activity_candidates": phase_cards,
+        "mechanism_cards": mechanism_cards,
+        "match_story": match_story,
         "counterevidence_cards": counter_cards,
         "broadcast_sentence_candidates": broadcast_candidates,
         "unknown_unobservable_register": {

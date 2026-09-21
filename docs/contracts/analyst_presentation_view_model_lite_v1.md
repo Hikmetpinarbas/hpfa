@@ -95,3 +95,46 @@ Minimum:
 
 PASS != RELEASE.
 Mobile application release is not granted by this contract.
+
+## Match Story / Mechanism compression extension
+
+The presentation layer may group current intelligence chains only by an already-admitted upstream tuple:
+
+```text
+argument_family + relation_scope + analysis_route
+```
+
+This grouping is presentation compression, not discovery of a new football mechanism.
+
+The Match Story target is 3–5 distinct mechanism families only when the admitted runtime actually contains that many distinct families.
+A forced minimum is forbidden.
+
+If only one distinct family is admitted, the correct product output is one mechanism card.
+
+Mechanism-card nominal chain counts are navigation/coverage counts only.
+They are not independent recurrence, probability, confidence, evidence strength or causal weight.
+
+Each mechanism card must preserve:
+- upstream process/argument family
+- relation scope
+- analysis route
+- nominal chain count
+- distinct packet/context/support reference counts
+- defeasible state distribution
+- independence states
+- counter-scenarios
+- withdrawal conditions
+- safe-sentence examples
+- explicit cannot-say register
+
+Selection basis:
+
+```text
+COVERAGE_COMPRESSION_NOT_EVIDENCE_STRENGTH
+```
+
+Forbidden:
+- inventing extra mechanism families to reach 3–5
+- treating nominal chain count as independent support
+- ranking mechanism truth strength from UI coverage
+- causal, tactical-intention, off-ball, pressure-geometry or dominance promotion

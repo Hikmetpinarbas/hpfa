@@ -76,13 +76,21 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert payload["surfaces"]["analyst_report"]["state"] == "AVAILABLE"
     assert payload["surfaces"]["observed_replay"]["state"] == "DEGRADED"
     assert payload["surfaces"]["traceback_evidence_drawer"]["state"] == "AVAILABLE"
-    assert payload["surfaces"]["match_story"]["state"] == "NOT_EVALUATED"
+    assert payload["surfaces"]["match_story"]["state"] == "DEGRADED"
+    assert payload["surfaces"]["mechanism_cards"]["state"] == "AVAILABLE"
     assert payload["surfaces"]["six_phase_match_view"]["state"] == "DEGRADED"
     assert payload["surfaces"]["counterevidence_cards"]["state"] == "AVAILABLE"
     assert payload["surfaces"]["broadcast_summary"]["state"] == "DEGRADED"
     assert len(payload["surface_data"]["observed_replay_cards"]) == 1
     assert len(payload["surface_data"]["phase_activity_candidates"]) == 1
     assert len(payload["surface_data"]["counterevidence_cards"]) == 1
+    assert len(payload["surface_data"]["mechanism_cards"]) == 1
+    mechanism = payload["surface_data"]["mechanism_cards"][0]
+    assert mechanism["process_family"] == "progression_without_terminal_value"
+    assert mechanism["nominal_chain_count"] == 1
+    assert mechanism["nominal_counts_are_independent_support"] is False
+    assert payload["surface_data"]["match_story"]["emitted_mechanism_count"] == 1
+    assert payload["surface_data"]["match_story"]["forced_minimum_disabled"] is True
     assert payload["surface_data"]["broadcast_sentence_candidates"] == ["Görünür kanıt aday okumayı destekler."]
     assert payload["interaction_provenance_may_affect_evidence"] is False
     assert payload["client_may_create_new_football_semantics"] is False
