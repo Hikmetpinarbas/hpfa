@@ -388,10 +388,23 @@ def _comparison_admission(signal: Any) -> dict[str, Any]:
             "missing_lineage_fields": sorted(set(incomplete_lineage)),
         }
 
+    independence_status = str(signal.get("independence_admission_status") or "").strip().upper()
+    independence_basis = str(signal.get("independence_admission_basis") or "").strip()
+    if independence_status != "ADMITTED" or not independence_basis:
+        return {
+            "comparison_status": "ELIGIBLE",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "counterevidence_independence_not_admitted",
+            "independence_admission_status": independence_status or "NOT_EVALUATED",
+            "independence_admission_basis_present": bool(independence_basis),
+        }
+
     return {
         "comparison_status": "ELIGIBLE",
         "counterevidence_class": "COUNTEREVIDENCE",
-        "counterevidence_admission_reason": "comparable_opposite_outcome_dependency_separated",
+        "counterevidence_admission_reason": "comparable_opposite_outcome_dependency_and_independence_admitted",
+        "independence_admission_status": "ADMITTED",
+        "independence_admission_basis": independence_basis,
     }
 
 
