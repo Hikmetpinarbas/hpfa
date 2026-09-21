@@ -408,6 +408,83 @@ def _team_score_state_at_episode_start(
     }
 
 
+def _visible_process_stage_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Project reviewed semantic facets into stage presence without inventing chronology."""
+    eligible = [
+        row for row in rows
+        if isinstance(row, dict)
+        and row.get("action_occurrence_eligible") is True
+        and str(row.get("provider_semantics_review_status") or "") == "REVIEWED_CANDIDATE"
+    ]
+
+    def count_where(predicate: Any) -> int:
+        return sum(1 for row in eligible if predicate(row))
+
+    stage_counts = {
+        "PROGRESSION": count_where(
+            lambda row: str(row.get("provider_progression_candidate") or "") == "PROGRESSIVE_CANDIDATE"
+        ),
+        "FINAL_THIRD": count_where(
+            lambda row: "FINAL_THIRD" in {
+                str(row.get("provider_zone_candidate") or ""),
+                str(row.get("context_zone_candidate") or ""),
+            }
+        ),
+        "PENALTY_AREA": count_where(
+            lambda row: "PENALTY_AREA" in {
+                str(row.get("provider_zone_candidate") or ""),
+                str(row.get("context_zone_candidate") or ""),
+            }
+        ),
+        "KEY_ACTION": count_where(
+            lambda row: bool(str(row.get("provider_key_action_candidate") or "").strip())
+        ),
+        "CHANCE": count_where(
+            lambda row: str(row.get("provider_terminal_outcome_candidate") or "") == "CHANCE"
+        ),
+        "SHOT": count_where(
+            lambda row: str(row.get("provider_action_family_candidate") or "") == "SHOT"
+        ),
+        "SHOT_ON_TARGET": count_where(
+            lambda row: str(row.get("provider_shot_result_candidate") or "")
+            in {"ON_TARGET", "SHOT_ON_TARGET", "TARGET"}
+        ),
+        "GOAL": count_where(
+            lambda row: str(row.get("provider_terminal_outcome_candidate") or "") == "GOAL"
+        ),
+    }
+    ladder = [
+        "PROGRESSION",
+        "FINAL_THIRD",
+        "PENALTY_AREA",
+        "KEY_ACTION",
+        "CHANCE",
+        "SHOT",
+        "SHOT_ON_TARGET",
+        "GOAL",
+    ]
+    deepest = next((stage for stage in reversed(ladder) if stage_counts[stage] > 0), None)
+
+    return {
+        "eligible_semantic_row_count": len(eligible),
+        "stage_counts": stage_counts,
+        "stage_presence": {stage: count > 0 for stage, count in stage_counts.items()},
+        "deepest_observed_stage_candidate": deepest,
+        "turnover_visible_count": count_where(
+            lambda row: str(row.get("provider_action_family_candidate") or "") == "TURNOVER"
+        ),
+        "recovery_visible_count": count_where(
+            lambda row: str(row.get("provider_action_family_candidate") or "") == "RECOVERY"
+        ),
+        "exit_stage_candidate": "UNRESOLVED",
+        "ordering_state": "PRESENCE_ONLY_NO_TOTAL_ORDER",
+        "stage_ladder_is_physical_sequence_truth": False,
+        "deepest_stage_is_tactical_quality_truth": False,
+        "provider_zone_semantics_are_tracking_truth": False,
+        "claim_ceiling": "TEAM_EPISODE_VISIBLE_STAGE_PRESENCE_ONLY",
+    }
+
+
 def _build_p02_comparison_populations(team_pool_items: list[dict[str, Any]]) -> dict[str, Any]:
     """Group team P02 child items by exact comparison context without outcome admission."""
     grouped: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
@@ -973,6 +1050,7 @@ def _progression_pool_p02(
                 str(row.get("context_channel_candidate") or "UNKNOWN_CHANNEL")
                 for row in rows_for_team
             )
+            team_stage_profile = _visible_process_stage_profile(rows_for_team)
             team_context_refs = sorted(
                 str(row.get("context_id"))
                 for row in rows_for_team
@@ -1149,6 +1227,7 @@ def _progression_pool_p02(
                     "shot_candidate_count": int(team_family_counts.get("SHOT", 0)),
                     "turnover_candidate_count": int(team_family_counts.get("TURNOVER", 0)),
                     "recovery_candidate_count": int(team_family_counts.get("RECOVERY", 0)),
+                    "process_stage_profile": team_stage_profile,
                 },
                 "process_signature_fields": {
                     "team_specific_zone_station_path": team_compressed_zones,
@@ -1164,6 +1243,7 @@ def _progression_pool_p02(
                     "team_specific_visible_follow_up_occurrence_ids": team_visible_follow_up_ids,
                     "team_specific_terminal_support_occurrence_ids": team_terminal_support_ids,
                     "team_specific_opponent_follow_up_occurrence_ids": team_opponent_follow_up_ids,
+                    "team_specific_process_stage_profile": team_stage_profile,
                     "team_episode_terminal_activity_candidate": team_episode_terminal_activity_candidate,
                     "team_episode_terminal_activity_is_process_outcome_truth": False,
                     "occurrence_consequence_binding_is_causal_truth": False,
