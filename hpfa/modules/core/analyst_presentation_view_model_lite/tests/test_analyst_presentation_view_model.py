@@ -154,6 +154,16 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert traceback["players"]["actor_1"]["trace_candidate_ids"] == ["trace_1"]
     assert traceback["players"]["actor_1"]["consequence_candidate_ids_by_trace"]["trace_1"] == ["consequence_1"]
     assert traceback["players"]["actor_1"]["supporting_evidence_atom_ids"] == ["atom_1"]
+    graphability = payload["surface_data"]["graphability"]
+    assert graphability["policy"] == "EVERY_ANALYST_CONSTRUCT_MUST_DECLARE_GRAPHABILITY"
+    assert graphability["visual_strength_must_not_exceed_evidence_strength"] is True
+    assert graphability["specs"]["match_story"]["state"] == "GRAPHABLE"
+    assert graphability["specs"]["mechanism_cards"]["preferred_representation"] == "STACKED_BAR"
+    assert graphability["specs"]["player_process_cards"]["state"] == "GRAPHABLE"
+    assert graphability["specs"]["observed_replay"]["preferred_representation"] == "INTERVAL_STRIP_WITH_UNORDERED_SAME_TIME_BUNDLES"
+    assert graphability["specs"]["six_phase_match_view"]["data_semantics"] == "phase_activity_candidate_label_frequency_not_phase_truth"
+    assert graphability["specs"]["traceback_evidence_drawer"]["preferred_representation"] == "NODE_LINK_OR_HIERARCHICAL_DRILLDOWN"
+    assert graphability["specs"]["analyst_report"]["state"] == "GRAPHABLE_AS_COMPANION_ONLY"
     assert payload["interaction_provenance_may_affect_evidence"] is False
     assert payload["client_may_create_new_football_semantics"] is False
     assert payload["closed_claims"]["canonical_event_count"] == "UNKNOWN"

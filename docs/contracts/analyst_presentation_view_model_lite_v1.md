@@ -206,3 +206,42 @@ REFERENCE_ID_GRAPH_ONLY_NOT_RAW_ROW_RENDER
 
 This layer does not reinterpret source rows, create new chronology or create football semantics.
 It provides analyst navigation and provenance only.
+
+## Graphability contract
+
+Every analyst-facing construct must explicitly declare one of:
+
+- GRAPHABLE
+- GRAPHABLE_AS_COMPANION_ONLY
+- UNGRAPHABLE_WITH_CURRENT_DATA
+
+No construct may be forced into a misleading chart merely to satisfy visualization coverage.
+
+Global invariant:
+
+```text
+VISUAL_STRENGTH <= EVIDENCE_STRENGTH
+```
+
+Current preferred representations:
+- Match Story -> horizontal bar of nominal chain coverage by distinct admitted mechanism family
+- Mechanism Cards -> stacked bar of defeasible-state distribution
+- Player Process Cards -> grouped/small-multiple bars of recorded action-family candidate counts
+- Observed Replay -> interval strip with unordered same-time bundles
+- Six-Phase Match View -> bar of phase-activity candidate labels, never phase truth
+- Counterevidence -> horizontal bars of nominal counter-scenario / withdrawal-condition mentions
+- Traceback -> node-link or hierarchical drill-down
+- Broadcast Summary -> count badge/bar only after editorial grouping
+- Unknown/Unobservable Register -> bar of epistemic surface states
+- Analyst Report prose -> companion charts only; prose itself is not converted into numeric chart truth
+
+Every graph spec must carry forbidden_visual_inference fields.
+Examples:
+- nominal chain count != evidence strength
+- trace volume != player quality
+- interval != possession truth
+- candidate label != phase truth
+- reference density != truth strength
+- absent counterevidence != support
+
+If the required denominator, temporal order, identity, relation, or observation surface is missing, graphability must downgrade instead of interpolating.

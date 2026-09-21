@@ -414,6 +414,210 @@ def _traceback_index(root: Path, full: dict[str, Any], episode: dict[str, Any], 
         "claim_ceiling": "TRACEBACK_REFERENCE_INDEX_ONLY",
     }
 
+def _count_labels(items: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        values = item.get(key)
+        values = values if isinstance(values, list) else [values] if values not in [None, ""] else []
+        for value in values:
+            label = str(value)
+            counts[label] = counts.get(label, 0) + 1
+    return dict(sorted(counts.items()))
+
+def _graphability_manifest(
+    surfaces: dict[str, Any],
+    episode_cards: list[dict[str, Any]],
+    phase_cards: list[dict[str, Any]],
+    mechanism_cards: list[dict[str, Any]],
+    player_cards: list[dict[str, Any]],
+    counter_cards: list[dict[str, Any]],
+    traceback_index: dict[str, Any],
+    broadcast_candidates: list[str],
+) -> dict[str, Any]:
+    specs: dict[str, Any] = {}
+
+    specs["match_story"] = {
+        "state": "GRAPHABLE" if mechanism_cards else "UNGRAPHABLE_WITH_CURRENT_DATA",
+        "preferred_representation": "HORIZONTAL_BAR",
+        "data_semantics": "nominal_chain_count_by_distinct_mechanism_family",
+        "data": [
+            {
+                "mechanism_candidate_id": card.get("mechanism_candidate_id"),
+                "label": card.get("display_tr"),
+                "nominal_chain_count": card.get("nominal_chain_count"),
+            }
+            for card in mechanism_cards
+        ],
+        "forbidden_visual_inference": [
+            "bar_length_is_evidence_strength",
+            "bar_length_is_independent_recurrence",
+            "bar_length_is_probability",
+        ],
+    }
+
+    specs["mechanism_cards"] = {
+        "state": "GRAPHABLE" if mechanism_cards else "UNGRAPHABLE_WITH_CURRENT_DATA",
+        "preferred_representation": "STACKED_BAR",
+        "data_semantics": "defeasible_state_distribution_within_nominal_chains",
+        "data": [
+            {
+                "mechanism_candidate_id": card.get("mechanism_candidate_id"),
+                "display_tr": card.get("display_tr"),
+                **{str(k): v for k, v in (card.get("defeasible_state_counts") or {}).items()},
+            }
+            for card in mechanism_cards
+        ],
+        "forbidden_visual_inference": [
+            "stack_share_is_probability",
+            "supported_count_is_independent_support_count",
+            "mechanism_is_causal_truth",
+        ],
+    }
+
+    specs["player_process_cards"] = {
+        "state": "GRAPHABLE" if player_cards else "UNGRAPHABLE_WITH_CURRENT_DATA",
+        "preferred_representation": "GROUPED_OR_SMALL_MULTIPLE_BAR",
+        "data_semantics": "recorded_action_family_candidate_counts_by_match_local_actor_candidate",
+        "data": [
+            {
+                "actor_identity_candidate_id": card.get("actor_identity_candidate_id"),
+                "actor_display_candidate": card.get("actor_display_candidate"),
+                "team_normalized_key": card.get("team_normalized_key"),
+                "trace_candidate_count": card.get("trace_candidate_count"),
+                "action_family_candidate_counts": card.get("action_family_candidate_counts") or {},
+            }
+            for card in player_cards
+        ],
+        "forbidden_visual_inference": [
+            "trace_volume_is_player_quality",
+            "trace_volume_is_physical_action_count",
+            "action_family_distribution_is_off_ball_role",
+        ],
+    }
+
+    specs["observed_replay"] = {
+        "state": "GRAPHABLE" if episode_cards else "UNGRAPHABLE_WITH_CURRENT_DATA",
+        "preferred_representation": "INTERVAL_STRIP_WITH_UNORDERED_SAME_TIME_BUNDLES",
+        "data_semantics": "episode_candidate_time_intervals_and_visible_action_family_distribution",
+        "data": [
+            {
+                "episode_candidate_id": card.get("id"),
+                "period_candidate": card.get("period_candidate"),
+                "start_second_candidate": card.get("start_second_candidate"),
+                "end_second_candidate": card.get("end_second_candidate"),
+                "action_family_distribution": card.get("action_family_distribution") or {},
+                "status": card.get("status"),
+            }
+            for card in episode_cards
+        ],
+        "forbidden_visual_inference": [
+            "interval_is_possession_truth",
+            "interval_is_tactical_episode_truth",
+            "same_timestamp_creates_total_order",
+            "connection_line_is_ball_trajectory",
+        ],
+    }
+
+    phase_label_counts = _count_labels(phase_cards, "labels")
+    specs["six_phase_match_view"] = {
+        "state": "GRAPHABLE" if phase_label_counts else "UNGRAPHABLE_WITH_CURRENT_DATA",
+        "preferred_representation": "BAR",
+        "data_semantics": "phase_activity_candidate_label_frequency_not_phase_truth",
+        "data": [{"label": k, "candidate_count": v} for k, v in phase_label_counts.items()],
+        "forbidden_visual_inference": [
+            "candidate_label_is_canonical_six_phase_truth",
+            "frequency_is_time_share_without_duration_denominator",
+            "frequency_is_tactical_dominance",
+        ],
+    }
+
+    counter_counts: dict[str, int] = {}
+    withdrawal_counts: dict[str, int] = {}
+    for card in counter_cards:
+        for value in card.get("counter_scenarios") or []:
+            key = str(value)
+            counter_counts[key] = counter_counts.get(key, 0) + 1
+        for value in card.get("withdrawal_conditions") or []:
+            key = str(value)
+            withdrawal_counts[key] = withdrawal_counts.get(key, 0) + 1
+    specs["counterevidence_cards"] = {
+        "state": "GRAPHABLE" if counter_counts or withdrawal_counts else "UNGRAPHABLE_WITH_CURRENT_DATA",
+        "preferred_representation": "HORIZONTAL_BAR",
+        "data_semantics": "nominal_counter_scenario_and_withdrawal_condition_mentions",
+        "data": {
+            "counter_scenarios": [{"id": k, "nominal_mentions": v} for k, v in sorted(counter_counts.items())],
+            "withdrawal_conditions": [{"id": k, "nominal_mentions": v} for k, v in sorted(withdrawal_counts.items())],
+        },
+        "forbidden_visual_inference": [
+            "nominal_mentions_are_independent_counterevidence",
+            "absence_of_counterevidence_is_support",
+        ],
+    }
+
+    episode_nodes = len(traceback_index.get("episodes") or {})
+    mechanism_nodes = len(traceback_index.get("mechanisms") or {})
+    player_nodes = len(traceback_index.get("players") or {})
+    specs["traceback_evidence_drawer"] = {
+        "state": "GRAPHABLE" if episode_nodes or mechanism_nodes or player_nodes else "UNGRAPHABLE_WITH_CURRENT_DATA",
+        "preferred_representation": "NODE_LINK_OR_HIERARCHICAL_DRILLDOWN",
+        "data_semantics": "reference_graph_navigation_counts",
+        "data": [
+            {"node_family": "episode", "node_count": episode_nodes},
+            {"node_family": "mechanism", "node_count": mechanism_nodes},
+            {"node_family": "player", "node_count": player_nodes},
+        ],
+        "forbidden_visual_inference": [
+            "graph_degree_is_evidence_strength",
+            "reference_density_is_truth_strength",
+            "edge_is_causal_relation",
+        ],
+    }
+
+    specs["broadcast_summary"] = {
+        "state": "GRAPHABLE" if broadcast_candidates else "UNGRAPHABLE_WITH_CURRENT_DATA",
+        "preferred_representation": "COUNT_BADGE_OR_BAR_AFTER_EDITORIAL_GROUPING",
+        "data_semantics": "safe_sentence_candidate_pool_size_only",
+        "data": [{"safe_sentence_candidate_count": len(broadcast_candidates)}],
+        "forbidden_visual_inference": [
+            "candidate_pool_size_is_match_importance",
+            "candidate_pool_size_is_evidence_strength",
+        ],
+    }
+
+    state_counts: dict[str, int] = {}
+    for value in surfaces.values():
+        state = str(value.get("state") or "UNKNOWN")
+        state_counts[state] = state_counts.get(state, 0) + 1
+    specs["unknown_unobservable_register"] = {
+        "state": "GRAPHABLE",
+        "preferred_representation": "BAR",
+        "data_semantics": "analyst_surface_epistemic_state_counts",
+        "data": [{"state": k, "surface_count": v} for k, v in sorted(state_counts.items())],
+        "forbidden_visual_inference": [
+            "available_surface_count_is_product_quality_score",
+            "degraded_surface_count_is football weakness",
+        ],
+    }
+
+    specs["analyst_report"] = {
+        "state": "GRAPHABLE_AS_COMPANION_ONLY",
+        "preferred_representation": "NO_DIRECT_REPORT_PROSE_CHART",
+        "data_semantics": "report prose itself is not chart data; use linked mechanism/player/phase/evidence specs",
+        "data": [],
+        "forbidden_visual_inference": [
+            "natural_language_frequency_is_evidence_strength",
+        ],
+    }
+
+    return {
+        "policy": "EVERY_ANALYST_CONSTRUCT_MUST_DECLARE_GRAPHABILITY",
+        "fallback_state": "UNGRAPHABLE_WITH_CURRENT_DATA",
+        "visual_strength_must_not_exceed_evidence_strength": True,
+        "specs": specs,
+    }
+
 def _closed_claims(full_spine: dict[str, Any]) -> dict[str, Any]:
     return {
         "canonical_event_count": "UNKNOWN",
@@ -547,6 +751,17 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
     else:
         overall = "REVIEW_REQUIRED"
 
+    graphability = _graphability_manifest(
+        surfaces=surfaces,
+        episode_cards=episode_cards,
+        phase_cards=phase_cards,
+        mechanism_cards=mechanism_cards,
+        player_cards=player_process_cards,
+        counter_cards=counter_cards,
+        traceback_index=traceback_index,
+        broadcast_candidates=broadcast_candidates,
+    )
+
     unavailable = {
         key: value["state"]
         for key, value in surfaces.items()
@@ -560,6 +775,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "match_story": match_story,
         "player_process_cards": player_process_cards,
         "traceback_index": traceback_index,
+        "graphability": graphability,
         "counterevidence_cards": counter_cards,
         "broadcast_sentence_candidates": broadcast_candidates,
         "unknown_unobservable_register": {
