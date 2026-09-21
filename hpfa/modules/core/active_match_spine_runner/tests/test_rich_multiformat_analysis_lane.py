@@ -481,14 +481,19 @@ def test_p02_team_process_stage_profile_preserves_stage_presence_without_inventi
     assert profile["stage_counts"]["SHOT_ON_TARGET"] == 1
     assert "GOAL" not in profile["stage_counts"]
     assert "CHANCE" not in profile["stage_counts"]
-    assert profile["deepest_observed_stage_candidate"] == "SHOT_ON_TARGET"
+    assert profile["spatial_access_stage_candidate"] == "PENALTY_AREA"
+    assert profile["terminal_action_stage_candidate"] == "SHOT_ON_TARGET"
     assert profile["chance_stage_status"] == "NOT_EVALUATED_NO_PROCESS_BOUND_TERMINAL_AUTHORITY"
     assert profile["goal_stage_status"] == "NOT_EVALUATED_NO_PROCESS_BOUND_TERMINAL_AUTHORITY"
     assert profile["exit_stage_candidate"] == "UNRESOLVED"
     assert profile["ordering_state"] == "PRESENCE_ONLY_NO_TOTAL_ORDER"
     assert profile["terminal_outcomes_do_not_add_action_volume"] is True
+    assert profile["stage_counts_are_event_counts"] is False
+    assert profile["stage_counts_are_independent_support"] is False
+    assert profile["single_linear_stage_ladder_claimed"] is False
     assert profile["stage_ladder_is_physical_sequence_truth"] is False
-    assert profile["deepest_stage_is_tactical_quality_truth"] is False
+    assert profile["spatial_access_stage_is_tactical_quality_truth"] is False
+    assert profile["terminal_action_stage_is_tactical_quality_truth"] is False
 
 
 def test_p02_team_child_items_do_not_create_independent_support_votes():
