@@ -888,3 +888,31 @@ def test_p02_sequence_terminal_boundary_remains_visible_activity_candidate():
     assert unit["team_episode_terminal_activity_candidate"] == "TERMINAL_SUPPORT_BOUNDARY_VISIBLE"
     assert unit["terminal_activity_is_process_outcome_truth"] is False
     assert unit["comparison_candidate_ready"] is False
+
+
+
+def test_p02_partial_order_signature_preserves_layer_multisets_without_internal_order():
+    sequence, trace, score_timeline = _sequence_process_unit_case()
+    out = _build_p02_sequence_process_units(sequence, trace, score_timeline)
+    unit = out["p02_process_unit_candidates"][0]
+    assert unit["partial_order_process_signature_id"].startswith("p02_posig_")
+    assert len(unit["action_layer_signature"]) == 4
+    assert all(row["same_timestamp_internal_ordering_allowed"] is False for row in unit["action_layer_signature"])
+
+
+def test_p02_recurrence_groups_exact_partial_order_signatures_without_tactical_truth():
+    sequence, trace, score_timeline = _sequence_process_unit_case()
+    duplicate = dict(sequence["visible_action_sequence_candidates"][0])
+    duplicate["visible_action_sequence_candidate_id"] = "vasq_2"
+    duplicate["start_time_candidate"] = 50.0
+    duplicate["end_time_candidate"] = 80.0
+    sequence["visible_action_sequence_candidates"].append(duplicate)
+
+    out = _build_p02_sequence_process_units(sequence, trace, score_timeline)
+    repeated = next(
+        row for row in out["partial_order_signature_groups"]
+        if row["recurrence_status"] == "REPEATED_VISIBLE_SIGNATURE"
+    )
+    assert repeated["member_count"] == 2
+    assert repeated["recurrence_is_causality"] is False
+    assert repeated["recurrence_is_tactical_truth"] is False
