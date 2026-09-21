@@ -246,6 +246,7 @@ def _semantic_record(
         "provider_action_subtype_candidate": classified.get("action_subtype_candidate"),
         "provider_object_action_family_candidate": classified.get("object_action_family_candidate"),
         "provider_progression_candidate": classified.get("progression_candidate"),
+        "provider_zone_candidate": classified.get("zone_candidate"),
         "provider_key_action_candidate": classified.get("key_action_candidate"),
         "provider_terminal_outcome_candidate": classified.get("terminal_outcome_candidate"),
         "provider_card_type_candidate": classified.get("card_type_candidate"),
