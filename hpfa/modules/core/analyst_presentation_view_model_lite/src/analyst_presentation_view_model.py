@@ -229,6 +229,101 @@ def _broadcast_candidates(full: dict[str, Any]) -> list[str]:
             result.append(text)
     return result
 
+def _player_process_cards(root: Path, declared: set[str]) -> list[dict[str, Any]]:
+    identity_name = "match_local_identity_candidates_lite_v1.json"
+    trace_name = "trackable_action_trace_candidates_lite_v1.json"
+    consequence_name = "trackable_action_consequence_candidates_lite_v1.json"
+    required = {identity_name, trace_name, consequence_name}
+    if not required.issubset(declared):
+        return []
+
+    identity = _load(root / identity_name)
+    traces = _load(root / trace_name)
+    consequences = _load(root / consequence_name)
+    actors = {
+        str(item.get("actor_identity_candidate_id")): item
+        for item in (identity.get("actor_identity_candidates") or [])
+        if isinstance(item, dict) and item.get("actor_identity_candidate_id")
+    }
+
+    consequence_by_trace: dict[str, dict[str, Any]] = {}
+    for item in consequences.get("trackable_action_consequence_candidates") or []:
+        if not isinstance(item, dict):
+            continue
+        trace_id = item.get("anchor_trackable_action_trace_candidate_id")
+        if trace_id:
+            consequence_by_trace[str(trace_id)] = item
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for item in traces.get("trackable_action_trace_candidates") or []:
+        if not isinstance(item, dict):
+            continue
+        actor_id = item.get("actor_identity_candidate_id")
+        if not actor_id:
+            continue
+        actor_id = str(actor_id)
+        bucket = grouped.setdefault(actor_id, {
+            "trace_candidate_count": 0,
+            "action_family_candidate_counts": {},
+            "source_role_counts": {},
+            "period_candidate_counts": {},
+            "consequence_candidate_counts": {},
+            "visible_follow_up_support_record_count": 0,
+            "representative_trace_candidate_ids": [],
+        })
+        bucket["trace_candidate_count"] += 1
+        for family in item.get("action_family_candidates") or []:
+            family = str(family)
+            bucket["action_family_candidate_counts"][family] = bucket["action_family_candidate_counts"].get(family, 0) + 1
+        role = str(item.get("source_role") or "UNKNOWN_SOURCE_ROLE")
+        bucket["source_role_counts"][role] = bucket["source_role_counts"].get(role, 0) + 1
+        period = str(item.get("period_candidate") or "UNKNOWN_PERIOD")
+        bucket["period_candidate_counts"][period] = bucket["period_candidate_counts"].get(period, 0) + 1
+        trace_id = str(item.get("trackable_action_trace_candidate_id") or "")
+        if trace_id and len(bucket["representative_trace_candidate_ids"]) < 5:
+            bucket["representative_trace_candidate_ids"].append(trace_id)
+        consequence = consequence_by_trace.get(trace_id)
+        if consequence:
+            primary = str(consequence.get("primary_consequence_candidate") or "UNKNOWN_CONSEQUENCE_CANDIDATE")
+            bucket["consequence_candidate_counts"][primary] = bucket["consequence_candidate_counts"].get(primary, 0) + 1
+            if consequence.get("visible_follow_up_trace_ids"):
+                bucket["visible_follow_up_support_record_count"] += 1
+
+    cards: list[dict[str, Any]] = []
+    for actor_id, counts in grouped.items():
+        actor = actors.get(actor_id, {})
+        aliases = actor.get("actor_aliases_raw") or []
+        display = aliases[0] if aliases else actor.get("actor_normalized_key") or actor_id
+        cards.append({
+            "actor_identity_candidate_id": actor_id,
+            "actor_display_candidate": display,
+            "team_identity_candidate_id": actor.get("team_identity_candidate_id"),
+            "team_normalized_key": actor.get("team_normalized_key"),
+            "identity_scope": actor.get("identity_scope", "MATCH_LOCAL_CANDIDATE_ONLY"),
+            "validated_player_identity": bool(actor.get("validated_player_identity")),
+            "trace_candidate_count": counts["trace_candidate_count"],
+            "action_family_candidate_counts": dict(sorted(counts["action_family_candidate_counts"].items())),
+            "source_role_counts": dict(sorted(counts["source_role_counts"].items())),
+            "period_candidate_counts": dict(sorted(counts["period_candidate_counts"].items())),
+            "consequence_candidate_record_counts": dict(sorted(counts["consequence_candidate_counts"].items())),
+            "visible_follow_up_support_record_count": counts["visible_follow_up_support_record_count"],
+            "representative_trace_candidate_ids": counts["representative_trace_candidate_ids"],
+            "trace_candidate_count_is_physical_action_count": False,
+            "process_participation_is_off_ball_tactical_role": False,
+            "claim_ceiling": "RECORDED_ACTION_PARTICIPATION_CANDIDATE_ONLY",
+            "cannot_say": [
+                "off_ball_tactical_role",
+                "positioning_truth",
+                "pressure_geometry",
+                "physical_load",
+                "speed_or_distance_truth",
+                "coach_intention",
+                "player_quality_from_trace_volume_alone",
+            ],
+        })
+    cards.sort(key=lambda x: (-int(x["trace_candidate_count"]), str(x["actor_identity_candidate_id"])))
+    return cards
+
 def _closed_claims(full_spine: dict[str, Any]) -> dict[str, Any]:
     return {
         "canonical_event_count": "UNKNOWN",
@@ -258,6 +353,9 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         _artifact(root, "active_match_full_spine_v1.json"),
         _artifact(root, "HPFA_ANALYST_REPORT.txt"),
         _artifact(root, "analyst_episode_locator_lite_v1.json", current="analyst_episode_locator_lite_v1.json" in declared),
+        _artifact(root, "match_local_identity_candidates_lite_v1.json", current="match_local_identity_candidates_lite_v1.json" in declared),
+        _artifact(root, "trackable_action_trace_candidates_lite_v1.json", current="trackable_action_trace_candidates_lite_v1.json" in declared),
+        _artifact(root, "trackable_action_consequence_candidates_lite_v1.json", current="trackable_action_consequence_candidates_lite_v1.json" in declared),
     ]
     available = {item["name"] for item in artifacts if item["state"] == "AVAILABLE"}
     episode_available = "analyst_episode_locator_lite_v1.json" in available
@@ -267,6 +365,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
     counter_cards = _counterevidence_cards(full)
     mechanism_cards = _mechanism_cards(full)
     match_story = _match_story(mechanism_cards)
+    player_process_cards = _player_process_cards(root, declared)
     broadcast_candidates = _broadcast_candidates(full)
     report_text = ""
     report_path = root / "HPFA_ANALYST_REPORT.txt"
@@ -300,10 +399,14 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "mechanism_family_presentation_candidate_only",
     )
     surfaces["player_process_cards"] = _surface(
-        "NOT_EVALUATED",
-        [],
-        "Process participation must not be rendered as off-ball tactical role.",
-        "process_participation_candidate_only",
+        "DEGRADED" if player_process_cards else "NOT_EVALUATED",
+        [
+            "match_local_identity_candidates_lite_v1.json",
+            "trackable_action_trace_candidates_lite_v1.json",
+            "trackable_action_consequence_candidates_lite_v1.json",
+        ] if player_process_cards else [],
+        "Recorded-action participation only; trace volume is not physical action count or off-ball tactical role.",
+        "recorded_action_participation_candidate_only",
     )
     surfaces["counterevidence_cards"] = _surface(
         "AVAILABLE" if counter_cards else "NOT_EVALUATED",
@@ -354,6 +457,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "phase_activity_candidates": phase_cards,
         "mechanism_cards": mechanism_cards,
         "match_story": match_story,
+        "player_process_cards": player_process_cards,
         "counterevidence_cards": counter_cards,
         "broadcast_sentence_candidates": broadcast_candidates,
         "unknown_unobservable_register": {

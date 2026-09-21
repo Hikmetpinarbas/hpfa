@@ -138,3 +138,40 @@ Forbidden:
 - treating nominal chain count as independent support
 - ranking mechanism truth strength from UI coverage
 - causal, tactical-intention, off-ball, pressure-geometry or dominance promotion
+
+## Player Process Card extension
+
+Player Process Cards consume only current-invocation:
+- match-local identity candidates
+- trackable action trace candidates
+- trackable action consequence candidates
+
+They represent recorded-action participation, not off-ball tactical role.
+
+Required visible guards:
+- identity_scope=MATCH_LOCAL_CANDIDATE_ONLY unless separately admitted
+- validated_player_identity flag
+- trace_candidate_count_is_physical_action_count=false
+- process_participation_is_off_ball_tactical_role=false
+
+Allowed card content:
+- match-local actor display candidate
+- team identity candidate
+- trace-candidate count
+- action-family candidate distribution
+- source-role distribution
+- period distribution
+- consequence-candidate record distribution
+- count of trace records with visible follow-up support
+- representative trace candidate IDs
+
+Blocked interpretation:
+- player quality from trace volume alone
+- physical action count
+- off-ball tactical role
+- positioning truth
+- pressure geometry
+- workload, speed or distance truth
+- coach intention
+
+The surface remains DEGRADED while identity is match-local candidate only and higher-level admitted process participation is unavailable.

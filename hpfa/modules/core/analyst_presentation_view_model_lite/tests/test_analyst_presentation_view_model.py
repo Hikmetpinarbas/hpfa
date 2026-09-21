@@ -25,6 +25,9 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
             "status": "REVIEW_REQUIRED",
             "current_invocation_artifacts": [
                 str(tmp_path / "analyst_episode_locator_lite_v1.json"),
+                str(tmp_path / "match_local_identity_candidates_lite_v1.json"),
+                str(tmp_path / "trackable_action_trace_candidates_lite_v1.json"),
+                str(tmp_path / "trackable_action_consequence_candidates_lite_v1.json"),
             ],
             "rich_multiformat_analysis_lattice": {
                 "phase_state_candidates": [
@@ -72,6 +75,36 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
             ],
         },
     )
+    _write_json(
+        tmp_path / "match_local_identity_candidates_lite_v1.json",
+        {"actor_identity_candidates": [{
+            "actor_identity_candidate_id": "actor_1",
+            "actor_aliases_raw": ["9. Player One (1)"],
+            "team_identity_candidate_id": "team_1",
+            "team_normalized_key": "team_one",
+            "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+            "validated_player_identity": False,
+        }]},
+    )
+    _write_json(
+        tmp_path / "trackable_action_trace_candidates_lite_v1.json",
+        {"trackable_action_trace_candidates": [{
+            "trackable_action_trace_candidate_id": "trace_1",
+            "actor_identity_candidate_id": "actor_1",
+            "team_identity_candidate_id": "team_1",
+            "action_family_candidates": ["PASS"],
+            "source_role": "PLAYER_SURFACE_CANDIDATE",
+            "period_candidate": "1",
+        }]},
+    )
+    _write_json(
+        tmp_path / "trackable_action_consequence_candidates_lite_v1.json",
+        {"trackable_action_consequence_candidates": [{
+            "anchor_trackable_action_trace_candidate_id": "trace_1",
+            "primary_consequence_candidate": "SAME_TEAM_CONTINUATION_CANDIDATE",
+            "visible_follow_up_trace_ids": ["trace_2"],
+        }]},
+    )
     payload = build_view_model(tmp_path)
     assert payload["surfaces"]["analyst_report"]["state"] == "AVAILABLE"
     assert payload["surfaces"]["observed_replay"]["state"] == "DEGRADED"
@@ -80,11 +113,19 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert payload["surfaces"]["mechanism_cards"]["state"] == "AVAILABLE"
     assert payload["surfaces"]["six_phase_match_view"]["state"] == "DEGRADED"
     assert payload["surfaces"]["counterevidence_cards"]["state"] == "AVAILABLE"
+    assert payload["surfaces"]["player_process_cards"]["state"] == "DEGRADED"
     assert payload["surfaces"]["broadcast_summary"]["state"] == "DEGRADED"
     assert len(payload["surface_data"]["observed_replay_cards"]) == 1
     assert len(payload["surface_data"]["phase_activity_candidates"]) == 1
     assert len(payload["surface_data"]["counterevidence_cards"]) == 1
     assert len(payload["surface_data"]["mechanism_cards"]) == 1
+    assert len(payload["surface_data"]["player_process_cards"]) == 1
+    player = payload["surface_data"]["player_process_cards"][0]
+    assert player["actor_identity_candidate_id"] == "actor_1"
+    assert player["trace_candidate_count"] == 1
+    assert player["action_family_candidate_counts"] == {"PASS": 1}
+    assert player["trace_candidate_count_is_physical_action_count"] is False
+    assert player["process_participation_is_off_ball_tactical_role"] is False
     mechanism = payload["surface_data"]["mechanism_cards"][0]
     assert mechanism["process_family"] == "progression_without_terminal_value"
     assert mechanism["nominal_chain_count"] == 1
