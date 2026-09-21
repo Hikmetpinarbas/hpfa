@@ -178,16 +178,30 @@ def _safe_external_call(runner: Callable[..., dict[str, Any]], args: tuple[Any, 
         }
 
 
-def _write_fused_packet_inventory(output_root: Path, packets: list[dict[str, Any]], base_count: int, rich_count: int) -> list[str]:
+def _write_fused_packet_inventory(
+    output_root: Path,
+    packets: list[dict[str, Any]],
+    base_count: int,
+    rich_count: int,
+    *,
+    auxiliary_counterevidence_packets: list[dict[str, Any]] | None = None,
+    auxiliary_counterevidence_fusions: list[dict[str, Any]] | None = None,
+) -> list[str]:
     json_path = output_root / FUSED_PACKET_JSON
     txt_path = output_root / FUSED_PACKET_TXT
+    auxiliary_counterevidence_packets = auxiliary_counterevidence_packets or []
+    auxiliary_counterevidence_fusions = auxiliary_counterevidence_fusions or []
     payload = {
         "module_id": "active_match_fused_packet_inventory_v1",
         "status": "SMOKE_PASS",
         "base_reconstruction_packet_count": base_count,
         "rich_construct_packet_count": rich_count,
+        "auxiliary_counterevidence_packet_count": len(auxiliary_counterevidence_packets),
+        "auxiliary_counterevidence_fusion_count": len(auxiliary_counterevidence_fusions),
         "fused_packet_count": len(packets),
         "packets": packets,
+        "auxiliary_counterevidence_packets": auxiliary_counterevidence_packets,
+        "auxiliary_counterevidence_fusions": auxiliary_counterevidence_fusions,
         "format_fusion_is_independent_evidence_vote": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
@@ -198,6 +212,8 @@ def _write_fused_packet_inventory(output_root: Path, packets: list[dict[str, Any
         "HPFA ACTIVE_MATCH FUSED PACKET INVENTORY V1",
         f"base_reconstruction_packet_count={base_count}",
         f"rich_construct_packet_count={rich_count}",
+        f"auxiliary_counterevidence_packet_count={len(auxiliary_counterevidence_packets)}",
+        f"auxiliary_counterevidence_fusion_count={len(auxiliary_counterevidence_fusions)}",
         f"fused_packet_count={len(packets)}",
         "format_fusion_is_independent_evidence_vote=false",
         "canonical_event_count=UNKNOWN",
@@ -303,6 +319,8 @@ def run_full_spine(
     packets: list[dict[str, Any]] = []
     base_packet_count = 0
     rich_packet_count = 0
+    auxiliary_counterevidence_packets: list[dict[str, Any]] = []
+    auxiliary_counterevidence_fusions: list[dict[str, Any]] = []
     fused_packet_artifacts: list[str] = []
     if not hard_blocks:
         try:
@@ -333,6 +351,16 @@ def run_full_spine(
             if packet.get("hard_block_hits"):
                 review_hits.append("rich_construct_packet_not_admitted")
                 continue
+
+            p02_role = str(candidate.get("p02_packet_role") or "")
+            if p02_role == "POPULATION_COLLAPSED_COUNTEREVIDENCE_COMPARISON_PACKET_ONLY":
+                auxiliary_counterevidence_packets.append(packet)
+                fusion = fuse_packet(packet)
+                auxiliary_counterevidence_fusions.append(fusion)
+                if _status(fusion.get("status")) in {"REVIEW_REQUIRED", "FAIL_CLOSED"}:
+                    review_hits.append("p02_auxiliary_counterevidence_review_required")
+                continue
+
             packets.append(packet)
             rich_packet_count += 1
 
@@ -342,6 +370,8 @@ def run_full_spine(
                 packets,
                 base_packet_count,
                 rich_packet_count,
+                auxiliary_counterevidence_packets=auxiliary_counterevidence_packets,
+                auxiliary_counterevidence_fusions=auxiliary_counterevidence_fusions,
             )
             for packet in packets:
                 chains.append(run_intelligence_chain(packet))
@@ -393,7 +423,24 @@ def run_full_spine(
         and str(c01_construct.get("status") or "").upper() in {"PASS", "SMOKE_PASS"}
     )
     p02_report = rich_report.get("progression_pool_p02") or {}
-    p02_rich_packet_count = sum(
+    p02_rich_packet_count = len(auxiliary_counterevidence_packets)
+    p02_aux_counterevidence_count = sum(
+        int(fusion.get("admitted_counterevidence_count") or 0)
+        for fusion in auxiliary_counterevidence_fusions
+    )
+    p02_aux_dependency_challenge_count = sum(
+        int(fusion.get("dependency_challenge_count") or 0)
+        for fusion in auxiliary_counterevidence_fusions
+    )
+    p02_aux_non_support_count = sum(
+        int(fusion.get("non_support_count") or 0)
+        for fusion in auxiliary_counterevidence_fusions
+    )
+    p02_aux_unresolved_count = sum(
+        int(fusion.get("unresolved_counterevidence_count") or 0)
+        for fusion in auxiliary_counterevidence_fusions
+    )
+    _unused_p02_rich_packet_count = sum(
         1
         for candidate in (rich_report.get("c4_packet_candidates") or [])
         if isinstance(candidate, dict)
@@ -426,6 +473,12 @@ def run_full_spine(
         "C01_c4_admission_status": c01_construct.get("c4_admission_status"),
         "P02_c4_packet_candidate_count": p02_rich_packet_count,
         "P02_counterevidence_population_count": p02_report.get("p02_counterevidence_population_count"),
+        "P02_auxiliary_counterevidence_packet_count": len(auxiliary_counterevidence_packets),
+        "P02_auxiliary_counterevidence_fusion_count": len(auxiliary_counterevidence_fusions),
+        "P02_admitted_counterevidence_count": p02_aux_counterevidence_count,
+        "P02_dependency_challenge_count": p02_aux_dependency_challenge_count,
+        "P02_non_support_count": p02_aux_non_support_count,
+        "P02_unresolved_counterevidence_count": p02_aux_unresolved_count,
         "base_composite_packet_count": base_packet_count,
         "rich_construct_packet_count": rich_packet_count,
         "composite_packet_count": len(chains),
@@ -459,6 +512,8 @@ def run_full_spine(
             "entity_views_bound": bool(entity_views),
             "construct_C01_bound_to_c4": c01_bound_to_c4,
             "P02_counterevidence_packets_bound_to_c4": p02_rich_packet_count > 0,
+            "P02_counterevidence_packets_are_auxiliary_fusion_only": True,
+            "P02_counterevidence_packets_enter_argument_route": False,
             "current_c4_producers_executed": c4_chain_executed,
             "current_c4_producers_reused": c4_surface_current,
             "c4_stage_exception_containment_enabled": True,
@@ -476,6 +531,8 @@ def run_full_spine(
             "phase_state_candidate_count": len(rich_report.get("phase_state_candidates") or []),
             "packet_level_report_candidates_generated": len(chains),
             "counterevidence_preserved_by_current_c4_chain": c4_surface_current,
+            "P02_auxiliary_counterevidence_preserved": p02_aux_counterevidence_count > 0,
+            "P02_auxiliary_counterevidence_safe_finding_emitted": False,
             "absence_is_counterevidence": False,
             "safe_report_language_only": c4_surface_current,
         },
@@ -511,6 +568,8 @@ def run_full_spine(
         f"C01_status={c01_construct.get('status')}",
         f"C01_c4_admission_status={c01_construct.get('c4_admission_status')}",
         f"P02_c4_packet_candidate_count={p02_rich_packet_count}",
+        f"P02_auxiliary_counterevidence_packet_count={len(auxiliary_counterevidence_packets)}",
+        f"P02_admitted_counterevidence_count={p02_aux_counterevidence_count}",
         f"base_composite_packet_count={base_packet_count}",
         f"rich_construct_packet_count={rich_packet_count}",
         f"intelligence_chain_count={len(chains)}",
