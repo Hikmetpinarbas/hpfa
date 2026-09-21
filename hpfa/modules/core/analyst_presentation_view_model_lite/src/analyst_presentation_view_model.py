@@ -324,6 +324,96 @@ def _player_process_cards(root: Path, declared: set[str]) -> list[dict[str, Any]
     cards.sort(key=lambda x: (-int(x["trace_candidate_count"]), str(x["actor_identity_candidate_id"])))
     return cards
 
+def _traceback_index(root: Path, full: dict[str, Any], episode: dict[str, Any], declared: set[str]) -> dict[str, Any]:
+    episode_index: dict[str, Any] = {}
+    for item in episode.get("episode_candidates") or []:
+        if not isinstance(item, dict) or not item.get("episode_candidate_id"):
+            continue
+        episode_index[str(item["episode_candidate_id"])] = {
+            "context_refs": [str(x) for x in (item.get("context_refs") or [])],
+            "row_nucleus_refs": [str(x) for x in (item.get("row_nucleus_refs") or [])],
+            "action_occurrence_eligible_context_refs": [str(x) for x in (item.get("action_occurrence_eligible_context_refs") or [])],
+            "support_only_context_refs": [str(x) for x in (item.get("support_only_context_refs") or [])],
+            "review_debt_refs": [str(x) for x in (item.get("review_debt_refs") or [])],
+            "source_artifact": "analyst_episode_locator_lite_v1.json",
+        }
+
+    mechanism_index: dict[str, Any] = {}
+    for chain in full.get("intelligence_chains") or []:
+        if not isinstance(chain, dict):
+            continue
+        argument = chain.get("argument") or {}
+        fusion = chain.get("fusion") or {}
+        if not isinstance(argument, dict) or not argument:
+            continue
+        family, relation_scope, analysis_route = _mechanism_key(argument)
+        mechanism_id = f"mechanism:{family}:{relation_scope}:{analysis_route}"
+        entry = mechanism_index.setdefault(mechanism_id, {
+            "argument_ids": [],
+            "packet_ids": [],
+            "context_refs": [],
+            "supporting_refs": [],
+            "contradicting_refs": [],
+            "source_artifact": "active_match_full_spine_v1.json",
+        })
+        for key, source in [
+            ("argument_ids", [argument.get("argument_id")]),
+            ("packet_ids", [fusion.get("packet_id")]),
+            ("context_refs", argument.get("context_refs") or []),
+            ("supporting_refs", argument.get("supporting_refs") or []),
+            ("contradicting_refs", argument.get("contradicting_refs") or []),
+        ]:
+            seen = set(entry[key])
+            for value in source:
+                if value not in [None, ""] and str(value) not in seen:
+                    entry[key].append(str(value))
+                    seen.add(str(value))
+
+    player_index: dict[str, Any] = {}
+    trace_name = "trackable_action_trace_candidates_lite_v1.json"
+    consequence_name = "trackable_action_consequence_candidates_lite_v1.json"
+    if {trace_name, consequence_name}.issubset(declared):
+        traces = _load(root / trace_name)
+        consequences = _load(root / consequence_name)
+        for item in traces.get("trackable_action_trace_candidates") or []:
+            if not isinstance(item, dict) or not item.get("actor_identity_candidate_id"):
+                continue
+            actor_id = str(item["actor_identity_candidate_id"])
+            entry = player_index.setdefault(actor_id, {
+                "trace_candidate_ids": [],
+                "supporting_evidence_atom_ids": [],
+                "source_artifacts": [trace_name, consequence_name],
+            })
+            trace_id = item.get("trackable_action_trace_candidate_id")
+            if trace_id:
+                entry["trace_candidate_ids"].append(str(trace_id))
+            entry["supporting_evidence_atom_ids"].extend(
+                str(x) for x in (item.get("supporting_evidence_atom_ids") or []) if x
+            )
+
+        consequence_map: dict[str, list[str]] = {}
+        for item in consequences.get("trackable_action_consequence_candidates") or []:
+            if not isinstance(item, dict):
+                continue
+            trace_id = item.get("anchor_trackable_action_trace_candidate_id")
+            consequence_id = item.get("trackable_action_consequence_candidate_id")
+            if trace_id and consequence_id:
+                consequence_map.setdefault(str(trace_id), []).append(str(consequence_id))
+        for entry in player_index.values():
+            entry["consequence_candidate_ids_by_trace"] = {
+                trace_id: consequence_map.get(trace_id, [])
+                for trace_id in entry["trace_candidate_ids"]
+            }
+            entry["supporting_evidence_atom_ids"] = sorted(set(entry["supporting_evidence_atom_ids"]))
+
+    return {
+        "scope": "REFERENCE_ID_GRAPH_ONLY_NOT_RAW_ROW_RENDER",
+        "episodes": episode_index,
+        "mechanisms": mechanism_index,
+        "players": player_index,
+        "claim_ceiling": "TRACEBACK_REFERENCE_INDEX_ONLY",
+    }
+
 def _closed_claims(full_spine: dict[str, Any]) -> dict[str, Any]:
     return {
         "canonical_event_count": "UNKNOWN",
@@ -366,6 +456,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
     mechanism_cards = _mechanism_cards(full)
     match_story = _match_story(mechanism_cards)
     player_process_cards = _player_process_cards(root, declared)
+    traceback_index = _traceback_index(root, full, episode, declared)
     broadcast_candidates = _broadcast_candidates(full)
     report_text = ""
     report_path = root / "HPFA_ANALYST_REPORT.txt"
@@ -420,11 +511,21 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "Episode locator can support navigation only; no trajectory, off-ball movement or total-order interpolation.",
         "recorded_actions_only_candidate_navigation",
     )
+    traceback_available = bool(
+        traceback_index.get("episodes")
+        or traceback_index.get("mechanisms")
+        or traceback_index.get("players")
+    )
     surfaces["traceback_evidence_drawer"] = _surface(
-        "AVAILABLE" if full else "MISSING",
-        ["active_match_full_spine_v1.json"] if full else [],
-        "Traceback is artifact-level in V1; observation-level deep links remain a later contract.",
-        "artifact_provenance_only",
+        "AVAILABLE" if traceback_available else "MISSING",
+        [
+            "active_match_full_spine_v1.json",
+            "analyst_episode_locator_lite_v1.json",
+            "trackable_action_trace_candidates_lite_v1.json",
+            "trackable_action_consequence_candidates_lite_v1.json",
+        ] if traceback_available else [],
+        "Reference-ID deep links connect analyst cards back to episode/context/row-nucleus, argument/packet, trace and consequence candidates.",
+        "traceback_reference_index_only",
     )
     surfaces["broadcast_summary"] = _surface(
         "DEGRADED" if broadcast_candidates else "NOT_EVALUATED",
@@ -458,6 +559,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "mechanism_cards": mechanism_cards,
         "match_story": match_story,
         "player_process_cards": player_process_cards,
+        "traceback_index": traceback_index,
         "counterevidence_cards": counter_cards,
         "broadcast_sentence_candidates": broadcast_candidates,
         "unknown_unobservable_register": {

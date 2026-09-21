@@ -175,3 +175,34 @@ Blocked interpretation:
 - coach intention
 
 The surface remains DEGRADED while identity is match-local candidate only and higher-level admitted process participation is unavailable.
+
+## Traceback / Evidence Drawer extension
+
+The presentation layer now exposes a reference-ID traceback graph.
+
+Episode links:
+episode_candidate_id
+→ context refs
+→ row nucleus refs
+→ action-occurrence eligible context refs
+→ support-only / review-debt refs
+
+Mechanism links:
+mechanism candidate
+→ argument ids
+→ packet ids
+→ context refs
+→ supporting refs
+→ contradicting refs
+
+Player links:
+match-local actor candidate
+→ trackable action trace ids
+→ consequence candidate ids
+→ supporting evidence atom ids
+
+Scope:
+REFERENCE_ID_GRAPH_ONLY_NOT_RAW_ROW_RENDER
+
+This layer does not reinterpret source rows, create new chronology or create football semantics.
+It provides analyst navigation and provenance only.

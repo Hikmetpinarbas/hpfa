@@ -46,9 +46,13 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
                         "status": "ARGUMENT_SUPPORTED",
                         "counter_scenarios": ["sample_window_may_understate_terminal_output"],
                         "withdrawal_conditions": ["terminal_action_value_becomes_high_in_same_window"],
+                        "context_refs": ["context_1"],
+                        "supporting_refs": ["support_1"],
+                        "contradicting_refs": [],
                         "claim_ceiling": "argument_candidate_only",
                     },
                     "fusion": {
+                        "packet_id": "packet_1",
                         "contradicting_refs": [],
                         "independence_state": "INDEPENDENCE_NOT_ADMITTED",
                     },
@@ -70,6 +74,11 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
                     "start_second_candidate": 10,
                     "end_second_candidate": 20,
                     "action_family_distribution": {"PASS": 2},
+                    "context_refs": ["ctx_1"],
+                    "row_nucleus_refs": ["row_1"],
+                    "action_occurrence_eligible_context_refs": ["ctx_1"],
+                    "support_only_context_refs": [],
+                    "review_debt_refs": [],
                     "claim_ceiling": "ANALYST_EPISODE_NAVIGATION_CANDIDATE_ONLY",
                 }
             ],
@@ -95,11 +104,13 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
             "action_family_candidates": ["PASS"],
             "source_role": "PLAYER_SURFACE_CANDIDATE",
             "period_candidate": "1",
+            "supporting_evidence_atom_ids": ["atom_1"],
         }]},
     )
     _write_json(
         tmp_path / "trackable_action_consequence_candidates_lite_v1.json",
         {"trackable_action_consequence_candidates": [{
+            "trackable_action_consequence_candidate_id": "consequence_1",
             "anchor_trackable_action_trace_candidate_id": "trace_1",
             "primary_consequence_candidate": "SAME_TEAM_CONTINUATION_CANDIDATE",
             "visible_follow_up_trace_ids": ["trace_2"],
@@ -133,6 +144,16 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert payload["surface_data"]["match_story"]["emitted_mechanism_count"] == 1
     assert payload["surface_data"]["match_story"]["forced_minimum_disabled"] is True
     assert payload["surface_data"]["broadcast_sentence_candidates"] == ["Görünür kanıt aday okumayı destekler."]
+    traceback = payload["surface_data"]["traceback_index"]
+    assert traceback["scope"] == "REFERENCE_ID_GRAPH_ONLY_NOT_RAW_ROW_RENDER"
+    assert traceback["episodes"]["ep_1"]["row_nucleus_refs"] == ["row_1"]
+    mechanism_trace = traceback["mechanisms"]["mechanism:progression_without_terminal_value:UNKNOWN_RELATION_SCOPE:UNKNOWN_ANALYSIS_ROUTE"]
+    assert mechanism_trace["argument_ids"] == ["arg_1"]
+    assert mechanism_trace["packet_ids"] == ["packet_1"]
+    assert mechanism_trace["context_refs"] == ["context_1"]
+    assert traceback["players"]["actor_1"]["trace_candidate_ids"] == ["trace_1"]
+    assert traceback["players"]["actor_1"]["consequence_candidate_ids_by_trace"]["trace_1"] == ["consequence_1"]
+    assert traceback["players"]["actor_1"]["supporting_evidence_atom_ids"] == ["atom_1"]
     assert payload["interaction_provenance_may_affect_evidence"] is False
     assert payload["client_may_create_new_football_semantics"] is False
     assert payload["closed_claims"]["canonical_event_count"] == "UNKNOWN"
