@@ -121,10 +121,108 @@ def _diversity_key(record: dict[str, Any]) -> tuple[str, ...]:
     return tuple(str(v) for v in (record.get("grammar_signature_tokens") or []))
 
 
+def _process_context_binding_by_variant_family(
+    process_variant_payload: dict[str, Any] | None,
+    process_participation_payload: dict[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
+    if not isinstance(process_variant_payload, dict) or not isinstance(process_participation_payload, dict):
+        return {}
+    if str(process_variant_payload.get("status") or "").upper() == "FAIL_CLOSED":
+        return {}
+    if str(process_participation_payload.get("status") or "").upper() == "FAIL_CLOSED":
+        return {}
+
+    context_rows = [
+        row
+        for row in (process_participation_payload.get("process_participation_candidates") or [])
+        if isinstance(row, dict) and row.get("semantic_role") == "CONTEXT_INTERVAL"
+    ]
+    contexts_by_episode: dict[str, list[dict[str, Any]]] = {}
+    for row in context_rows:
+        episode_ref = str(row.get("episode_candidate_id") or "").strip()
+        if episode_ref:
+            contexts_by_episode.setdefault(episode_ref, []).append(row)
+
+    result: dict[str, dict[str, Any]] = {}
+    for family in process_variant_payload.get("observable_process_variant_families") or []:
+        if not isinstance(family, dict):
+            continue
+        family_ref = str(family.get("observable_process_variant_family_id") or "").strip()
+        if not family_ref:
+            continue
+        teams = {str(v) for v in (family.get("team_identity_candidate_ids") or []) if str(v)}
+        periods = {str(v) for v in (family.get("period_candidates") or []) if str(v)}
+        episodes = {str(v) for v in (family.get("visible_episode_candidate_ids") or []) if str(v)}
+
+        family_episode_presence: dict[str, int] = {}
+        ambiguous_episode_count = 0
+        unbound_episode_count = 0
+        bound_episode_count = 0
+        unique_single_family_values: set[str] = set()
+
+        for episode_ref in sorted(episodes):
+            matched = [
+                row
+                for row in contexts_by_episode.get(episode_ref, [])
+                if str(row.get("team_identity_candidate_id") or "") in teams
+                and str(row.get("period_candidate") or "") in periods
+            ]
+            visible_families = {
+                str(row.get("process_family_candidate") or "").strip()
+                for row in matched
+                if str(row.get("process_family_candidate") or "").strip()
+            }
+            if not visible_families:
+                unbound_episode_count += 1
+                continue
+            bound_episode_count += 1
+            for process_family in visible_families:
+                family_episode_presence[process_family] = family_episode_presence.get(process_family, 0) + 1
+            if len(visible_families) == 1:
+                unique_single_family_values.update(visible_families)
+            else:
+                ambiguous_episode_count += 1
+
+        if not episodes:
+            state = "UNRESOLVED_NO_VISIBLE_EPISODE_LINEAGE"
+        elif unbound_episode_count:
+            state = "PARTIAL_PROCESS_CONTEXT_BINDING"
+        elif ambiguous_episode_count:
+            state = "AMBIGUOUS_MULTI_PROCESS_FAMILY_CONTEXT"
+        elif len(unique_single_family_values) == 1:
+            state = "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT"
+        else:
+            state = "MULTI_PROCESS_FAMILY_ACROSS_EPISODES"
+
+        result[family_ref] = {
+            "process_context_binding_state": state,
+            "visible_episode_count": len(episodes),
+            "bound_episode_count": bound_episode_count,
+            "unbound_episode_count": unbound_episode_count,
+            "ambiguous_episode_count": ambiguous_episode_count,
+            "process_family_episode_presence_counts": dict(sorted(family_episode_presence.items())),
+            "single_process_family_candidate": (
+                next(iter(unique_single_family_values))
+                if state == "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT"
+                else None
+            ),
+            "binding_basis": "SAME_VARIANT_FAMILY_EPISODE_PLUS_SAME_TEAM_PLUS_SAME_PERIOD_PROVIDER_REVIEWED_CONTEXT_INTERVAL",
+            "process_family_episode_presence_count_is_independent_support_count": False,
+            "process_context_binding_is_process_identity_truth": False,
+            "process_context_binding_is_tactical_pattern_truth": False,
+            "process_context_binding_is_causal_mechanism_truth": False,
+            "process_context_binding_can_authorize_emit": False,
+            "claim_ceiling": "MATCH_LOCAL_SOURCE_BOUND_PROCESS_CONTEXT_BINDING_CANDIDATE_ONLY",
+        }
+    return result
+
+
 def build_mechanism_story_review_shortlist(
     feature_delta_payload: dict[str, Any],
     *,
     analyst_output_claim_payload: dict[str, Any] | None = None,
+    process_variant_payload: dict[str, Any] | None = None,
+    process_participation_payload: dict[str, Any] | None = None,
     limit: int = 5,
 ) -> dict[str, Any]:
     """Build an analyst-attention shortlist without promoting evidence or truth.
@@ -155,6 +253,10 @@ def build_mechanism_story_review_shortlist(
         }
 
     bounds = _bound_by_family(analyst_output_claim_payload)
+    process_context_by_family = _process_context_binding_by_variant_family(
+        process_variant_payload,
+        process_participation_payload,
+    )
     band_order = {
         "P0_REVIEW_RICH": 0,
         "P1_REVIEWABLE": 1,
@@ -192,6 +294,7 @@ def build_mechanism_story_review_shortlist(
         seen_diversity.add(key)
         family_ref = str(row.get("source_process_variant_family_ref") or "").strip()
         bound = bounds.get(family_ref) if eligibility == "BOUND_AWARE_REVIEW_ONLY" else None
+        process_context_binding = process_context_by_family.get(family_ref, {})
         selected.append({
             "source_mechanism_review_ref": row.get("grammar_stable_variant_feature_delta_id"),
             "source_process_variant_family_ref": row.get("source_process_variant_family_ref"),
@@ -199,6 +302,37 @@ def build_mechanism_story_review_shortlist(
             "story_eligibility_state": eligibility,
             "team_identity_candidate_ids": list(row.get("team_identity_candidate_ids") or []),
             "period_candidates": list(row.get("period_candidates") or []),
+            "process_context_binding_state": process_context_binding.get(
+                "process_context_binding_state", "UNRESOLVED_NO_SOURCE_BOUND_PROCESS_CONTEXT"
+            ),
+            "process_context_visible_episode_count": int(
+                process_context_binding.get("visible_episode_count") or 0
+            ),
+            "process_context_bound_episode_count": int(
+                process_context_binding.get("bound_episode_count") or 0
+            ),
+            "process_context_unbound_episode_count": int(
+                process_context_binding.get("unbound_episode_count") or 0
+            ),
+            "process_context_ambiguous_episode_count": int(
+                process_context_binding.get("ambiguous_episode_count") or 0
+            ),
+            "process_family_episode_presence_counts": dict(
+                process_context_binding.get("process_family_episode_presence_counts") or {}
+            ),
+            "single_process_family_candidate": process_context_binding.get(
+                "single_process_family_candidate"
+            ),
+            "process_context_binding_basis": process_context_binding.get("binding_basis"),
+            "process_family_episode_presence_count_is_independent_support_count": False,
+            "process_context_binding_is_process_identity_truth": False,
+            "process_context_binding_is_tactical_pattern_truth": False,
+            "process_context_binding_is_causal_mechanism_truth": False,
+            "process_context_binding_can_authorize_emit": False,
+            "process_context_binding_claim_ceiling": process_context_binding.get(
+                "claim_ceiling",
+                "MATCH_LOCAL_SOURCE_BOUND_PROCESS_CONTEXT_BINDING_CANDIDATE_ONLY",
+            ),
             "grammar_signature_tokens": list(row.get("grammar_signature_tokens") or []),
             "resolved_variant_count": int(row.get("resolved_variant_count") or 0),
             "success_resolved_variant_count": int(row.get("success_resolved_variant_count") or 0),

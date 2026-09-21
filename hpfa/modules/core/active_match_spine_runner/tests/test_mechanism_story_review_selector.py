@@ -202,3 +202,120 @@ def test_selector_attention_prefers_multi_episode_divergence_without_truth_ranki
     assert row["review_support_state_is_truth_ranking"] is False
     assert row["episode_spread_count_is_independent_support_count"] is False
     assert result["review_support_attention_order_is_truth_ranking"] is False
+
+
+def test_selector_binds_source_process_context_by_same_episode_team_period_without_promoting_truth():
+    row = _row("ctx", "T1", "1", ["LAYER[INTERCEPTION]", "LAYER[PASS]"])
+    row["source_process_variant_family_ref"] = "family_ctx"
+    variant_payload = {
+        "status": "PASS",
+        "observable_process_variant_families": [
+            {
+                "observable_process_variant_family_id": "family_ctx",
+                "team_identity_candidate_ids": ["T1"],
+                "period_candidates": ["1"],
+                "visible_episode_candidate_ids": ["E1", "E2"],
+            }
+        ],
+    }
+    process_payload = {
+        "status": "PASS",
+        "process_participation_candidates": [
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "episode_candidate_id": "E1",
+                "team_identity_candidate_id": "T1",
+                "period_candidate": "1",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "episode_candidate_id": "E2",
+                "team_identity_candidate_id": "T1",
+                "period_candidate": "1",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "episode_candidate_id": "E2",
+                "team_identity_candidate_id": "T2",
+                "period_candidate": "1",
+                "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            },
+        ],
+    }
+
+    result = build_mechanism_story_review_shortlist(
+        {"grammar_stable_variant_feature_delta_records": [row]},
+        process_variant_payload=variant_payload,
+        process_participation_payload=process_payload,
+    )
+
+    selected = result["shortlist"][0]
+    assert selected["process_context_binding_state"] == "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT"
+    assert selected["single_process_family_candidate"] == "POSITIONAL_ATTACK_CANDIDATE"
+    assert selected["process_family_episode_presence_counts"] == {"POSITIONAL_ATTACK_CANDIDATE": 2}
+    assert selected["process_context_visible_episode_count"] == 2
+    assert selected["process_context_bound_episode_count"] == 2
+    assert selected["process_context_ambiguous_episode_count"] == 0
+    assert selected["process_family_episode_presence_count_is_independent_support_count"] is False
+    assert selected["process_context_binding_is_process_identity_truth"] is False
+    assert selected["process_context_binding_is_tactical_pattern_truth"] is False
+    assert selected["process_context_binding_is_causal_mechanism_truth"] is False
+    assert selected["process_context_binding_can_authorize_emit"] is False
+
+
+def test_selector_preserves_multi_process_context_ambiguity_instead_of_forcing_one_family():
+    row = _row("amb", "T1", "2", ["LAYER[PASS]", "LAYER[PASS]"])
+    row["source_process_variant_family_ref"] = "family_amb"
+    variant_payload = {
+        "status": "PASS",
+        "observable_process_variant_families": [
+            {
+                "observable_process_variant_family_id": "family_amb",
+                "team_identity_candidate_ids": ["T1"],
+                "period_candidates": ["2"],
+                "visible_episode_candidate_ids": ["E1", "E2"],
+            }
+        ],
+    }
+    process_payload = {
+        "status": "PASS",
+        "process_participation_candidates": [
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "episode_candidate_id": "E1",
+                "team_identity_candidate_id": "T1",
+                "period_candidate": "2",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "episode_candidate_id": "E2",
+                "team_identity_candidate_id": "T1",
+                "period_candidate": "2",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "episode_candidate_id": "E2",
+                "team_identity_candidate_id": "T1",
+                "period_candidate": "2",
+                "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            },
+        ],
+    }
+
+    result = build_mechanism_story_review_shortlist(
+        {"grammar_stable_variant_feature_delta_records": [row]},
+        process_variant_payload=variant_payload,
+        process_participation_payload=process_payload,
+    )
+    selected = result["shortlist"][0]
+    assert selected["process_context_binding_state"] == "AMBIGUOUS_MULTI_PROCESS_FAMILY_CONTEXT"
+    assert selected["single_process_family_candidate"] is None
+    assert selected["process_context_ambiguous_episode_count"] == 1
+    assert selected["process_family_episode_presence_counts"] == {
+        "COUNTERATTACK_CANDIDATE": 1,
+        "POSITIONAL_ATTACK_CANDIDATE": 2,
+    }

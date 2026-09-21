@@ -14,6 +14,7 @@ IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 OCCURRENCE_CONSEQUENCE_JSON = "occurrence_consequence_projection_v1.json"
 SEQUENCE_JSON = "visible_action_sequence_candidates_lite_v1.json"
 PROCESS_VARIANT_JSON = "observable_process_variant_binding_projection_v1.json"
+PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
 ANALYST_OUTPUT_CLAIM_JSON = "analyst_output_claim_contract_projection_v1.json"
 
 
@@ -436,6 +437,11 @@ def build_mechanism_review_lines(
     process_variant_payload = (
         _load_json(root / PROCESS_VARIANT_JSON) if _declared_current(full_spine, PROCESS_VARIANT_JSON) else {}
     )
+    process_participation_payload = (
+        _load_json(root / PROCESS_PARTICIPATION_JSON)
+        if _declared_current(full_spine, PROCESS_PARTICIPATION_JSON)
+        else {}
+    )
     teams = _team_names(identity)
     actors = _actor_names(identity)
     records = [
@@ -453,6 +459,8 @@ def build_mechanism_review_lines(
     shortlist = build_mechanism_story_review_shortlist(
         payload,
         analyst_output_claim_payload=analyst_output_payload or None,
+        process_variant_payload=process_variant_payload or None,
+        process_participation_payload=process_participation_payload or None,
         limit=5,
     )
 
@@ -579,6 +587,24 @@ def build_mechanism_review_lines(
                 f"occurrence_disjoint_clusters={occurrence_disjoint_clusters} "
                 "independent_support=false recurrence_truth=false attention_compression_only=true"
             )
+        process_context_state = str(
+            shortlist_support.get("process_context_binding_state")
+            or "UNRESOLVED_NO_SOURCE_BOUND_PROCESS_CONTEXT"
+        )
+        process_context_counts = dict(
+            shortlist_support.get("process_family_episode_presence_counts") or {}
+        )
+        lines.append(
+            "  process_context_binding: "
+            f"state={process_context_state} "
+            f"visible_episode_count={int(shortlist_support.get('process_context_visible_episode_count') or 0)} "
+            f"bound_episode_count={int(shortlist_support.get('process_context_bound_episode_count') or 0)} "
+            f"ambiguous_episode_count={int(shortlist_support.get('process_context_ambiguous_episode_count') or 0)} "
+            f"family_episode_presence={json.dumps(process_context_counts, sort_keys=True)} "
+            f"single_family={shortlist_support.get('single_process_family_candidate') or 'NONE'} "
+            "process_identity_truth=false tactical_truth=false causal_truth=false "
+            "independent_support=false emit=false"
+        )
         divergence_refs = [
             str(value)
             for value in (record.get("supported_branch_divergence_refs") or [])

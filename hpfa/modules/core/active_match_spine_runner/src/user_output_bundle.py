@@ -26,6 +26,8 @@ FULL_SPINE_JSON = "active_match_full_spine_v1.json"
 FULL_SPINE_TXT = "active_match_full_spine_v1.txt"
 IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 FEATURE_DELTA_JSON = "grammar_stable_variant_feature_delta_projection_v1.json"
+PROCESS_VARIANT_JSON = "observable_process_variant_binding_projection_v1.json"
+PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -826,9 +828,21 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         if _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON)
         else {}
     )
+    process_variant_payload = (
+        _load_json(root / PROCESS_VARIANT_JSON)
+        if _declared_current(full_spine, PROCESS_VARIANT_JSON)
+        else {}
+    )
+    process_participation_payload = (
+        _load_json(root / PROCESS_PARTICIPATION_JSON)
+        if _declared_current(full_spine, PROCESS_PARTICIPATION_JSON)
+        else {}
+    )
     shortlist = build_mechanism_story_review_shortlist(
         payload,
         analyst_output_claim_payload=analyst_output or None,
+        process_variant_payload=process_variant_payload or None,
+        process_participation_payload=process_participation_payload or None,
         limit=5,
     )
     teams = _human_team_labels(identity)
@@ -864,6 +878,23 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 football += " Bu karşılaştırma tek görünür maç bölümünde yoğunlaştığı için ana mekanizma olarak yorumlanmamalıdır."
             else:
                 football += _mechanism_visible_split_sentence(source_record, language)
+            context_state = str(row.get("process_context_binding_state") or "")
+            context_counts = dict(row.get("process_family_episode_presence_counts") or {})
+            if context_state == "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT":
+                family = _football_family_label(row.get("single_process_family_candidate"), language)
+                football += (
+                    f" Kaynak-bağlı süreç bağlamı: bu varyant ailesinin görünür bölümleri {family} bağlamına bağlanıyor; "
+                    "bu bağ, süreç kimliği veya taktik plan kanıtı değildir."
+                )
+            elif context_counts:
+                context_bits = ", ".join(
+                    f"{_football_family_label(key, language)} {value}/{int(row.get('process_context_visible_episode_count') or 0)} bölüm"
+                    for key, value in sorted(context_counts.items())
+                )
+                football += (
+                    f" Kaynak-bağlı süreç bağlamı tekil değil: {context_bits}. "
+                    "Bu nedenle tek bir süreç ailesi mekanizma etiketi olarak atanmadı."
+                )
             evidence = (
                 f"Kanıt notu: karşılaştırma yüzeyinde {resolved} çözümlenmiş varyant kaydı var; "
                 f"{success} olumlu ve {failure} olumsuz görünür sonuca bağlı. "
@@ -881,6 +912,23 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 football += " This comparison is concentrated in one visible match segment and should not be treated as a main mechanism."
             else:
                 football += _mechanism_visible_split_sentence(source_record, language)
+            context_state = str(row.get("process_context_binding_state") or "")
+            context_counts = dict(row.get("process_family_episode_presence_counts") or {})
+            if context_state == "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT":
+                family = _football_family_label(row.get("single_process_family_candidate"), language)
+                football += (
+                    f" Source-bound process context: the visible segments of this variant family bind to {family}; "
+                    "this does not establish process identity or tactical-plan truth."
+                )
+            elif context_counts:
+                context_bits = ", ".join(
+                    f"{_football_family_label(key, language)} {value}/{int(row.get('process_context_visible_episode_count') or 0)} segments"
+                    for key, value in sorted(context_counts.items())
+                )
+                football += (
+                    f" Source-bound process context is not singular: {context_bits}. "
+                    "No single process family was assigned as the mechanism label."
+                )
             evidence = (
                 f"Evidence note: the comparison surface contains {resolved} resolved variant records; "
                 f"{success} are linked to positive and {failure} to negative visible outcomes. "
