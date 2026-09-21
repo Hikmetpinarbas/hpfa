@@ -808,6 +808,11 @@ def _build_p02_sequence_process_units(
             "duration_candidate_seconds": sequence.get("duration_candidate_seconds"),
             "time_layer_count": sequence.get("time_layer_count"),
             "trace_candidate_count": sequence.get("trace_candidate_count"),
+            "source_trackable_action_trace_candidate_ids": sorted({
+                str(value)
+                for value in (sequence.get("trackable_action_trace_candidate_ids") or [])
+                if str(value).strip()
+            }),
             "action_family_counts": dict(sequence.get("action_family_counts") or {}),
             "action_layer_signature": action_layer_signature,
             "partial_order_process_signature_id": partial_order_process_signature_id,
@@ -889,6 +894,67 @@ def _build_p02_sequence_process_units(
         "metric_distance_available": False,
         "attacking_direction_available": False,
         "production_release": False,
+    }
+
+
+def _p02_evidence_unit_independence(
+    reference: dict[str, Any],
+    candidate: dict[str, Any],
+) -> dict[str, Any]:
+    """Admit evidence-unit independence, not statistical independence."""
+    reference_sequence = str(reference.get("source_visible_action_sequence_candidate_id") or "")
+    candidate_sequence = str(candidate.get("source_visible_action_sequence_candidate_id") or "")
+    reference_traces = {
+        str(value)
+        for value in (reference.get("source_trackable_action_trace_candidate_ids") or [])
+        if str(value).strip()
+    }
+    candidate_traces = {
+        str(value)
+        for value in (candidate.get("source_trackable_action_trace_candidate_ids") or [])
+        if str(value).strip()
+    }
+    try:
+        reference_start = float(reference.get("start_time_candidate"))
+        reference_end = float(reference.get("end_time_candidate"))
+        candidate_start = float(candidate.get("start_time_candidate"))
+        candidate_end = float(candidate.get("end_time_candidate"))
+    except (TypeError, ValueError):
+        return {
+            "status": "NOT_ADMITTED",
+            "basis": "time_interval_not_resolved",
+            "statistical_independence_claimed": False,
+        }
+
+    distinct_sequence_roots = bool(
+        reference_sequence and candidate_sequence and reference_sequence != candidate_sequence
+    )
+    trace_roots_resolved = bool(reference_traces and candidate_traces)
+    disjoint_trace_roots = trace_roots_resolved and reference_traces.isdisjoint(candidate_traces)
+    non_overlapping_time = reference_end < candidate_start or candidate_end < reference_start
+
+    if distinct_sequence_roots and disjoint_trace_roots and non_overlapping_time:
+        return {
+            "status": "ADMITTED",
+            "basis": "distinct_visible_sequence_roots+disjoint_trace_roots+non_overlapping_admitted_time_intervals",
+            "reference_independence_group": reference_sequence,
+            "candidate_independence_group": candidate_sequence,
+            "statistical_independence_claimed": False,
+        }
+
+    reasons: list[str] = []
+    if not distinct_sequence_roots:
+        reasons.append("visible_sequence_root_not_distinct")
+    if not trace_roots_resolved:
+        reasons.append("trace_roots_unresolved")
+    elif not disjoint_trace_roots:
+        reasons.append("trace_roots_overlap")
+    if not non_overlapping_time:
+        reasons.append("admitted_time_intervals_overlap")
+    return {
+        "status": "NOT_ADMITTED",
+        "basis": "+".join(reasons) or "independence_not_admitted",
+        "statistical_independence_claimed": False,
     }
 
 
@@ -990,6 +1056,7 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
                 comparison_id = "p02_cmp_" + hashlib.sha256(
                     f"{population_id}|{reference_id}|{candidate_id}|advanced_access".encode("utf-8")
                 ).hexdigest()[:20]
+                independence = _p02_evidence_unit_independence(reference, candidate)
                 pairwise_candidates.append({
                     "signal_id": comparison_id,
                     "comparison_candidate_id": comparison_id,
@@ -1030,11 +1097,21 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
                     "reference_provenance_root": reference.get("source_visible_action_sequence_candidate_id"),
                     "dependency_group": candidate_id or None,
                     "reference_dependency_group": reference_id or None,
-                    "independence_group": None,
-                    "reference_independence_group": None,
+                    "independence_group": independence.get("candidate_independence_group"),
+                    "reference_independence_group": independence.get("reference_independence_group"),
+                    "independence_admission_status": independence.get("status"),
+                    "independence_admission_basis": independence.get("basis"),
+                    "statistical_independence_claimed": False,
                     "counterevidence_candidate_class": "UPSTREAM_INTENT_ONLY",
-                    "counterevidence_admission_ready": False,
-                    "counterevidence_admission_block_reason": "process_unit_independence_not_admitted",
+                    "counterevidence_admission_ready": (
+                        outcome_relation == "OPPOSITE"
+                        and independence.get("status") == "ADMITTED"
+                    ),
+                    "counterevidence_admission_block_reason": (
+                        None
+                        if outcome_relation == "OPPOSITE" and independence.get("status") == "ADMITTED"
+                        else "process_unit_independence_not_admitted"
+                    ),
                     "claim_ceiling": "P02_COMPARISON_CANDIDATE_ONLY",
                     "production_release": False,
                 })
@@ -1111,7 +1188,9 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
         "counterevidence_candidates": opposite_candidates,
         "counterevidence_candidates_are_admitted_counterevidence": False,
         "outcome_relation_admission_open": True,
-        "independence_admission_open": False,
+        "independence_admission_open": True,
+        "independence_scope": "EVIDENCE_UNIT_LINEAGE_AND_TIME_NON_OVERLAP_ONLY",
+        "statistical_independence_claimed": False,
         "production_release": False,
     }
 
