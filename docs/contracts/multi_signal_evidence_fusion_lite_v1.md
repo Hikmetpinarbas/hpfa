@@ -48,9 +48,15 @@ ABSTAINS
 
 ## Contradiction rule
 
-`CONTRADICTS` is reserved for explicit same-construct or same-window conflict with a declared contradiction basis.
+`CONTRADICTS` is reserved for a comparison-admitted counterexample, not for a declaration alone.
 
-Generic terminal limitation signals such as low shot volume, low box entry, weak terminal action volume or high loss cost should not become contradiction by default. They are `QUALIFIES` unless the upstream packet explicitly declares contradiction basis.
+A contradicting-signal candidate must carry a valid comparison contract: `comparison_question_id`, `comparison_unit`, exact/coarsened dimensions, reference/candidate contexts, reference/candidate outcomes, tested dimensions and forbidden leakage dimensions. The tested outcome may not be used as a matching dimension.
+
+Admission states are `ELIGIBLE`, `CONTEXT_UNRESOLVED`, `CONTEXT_MISMATCH`, `INVALID_COMPARISON_CONTRACT`, and `NOT_EVALUATED`. Typed candidate classes are `COUNTEREVIDENCE`, `DEPENDENCY_CHALLENGE`, `NON_SUPPORT`, and `UNRESOLVED` (with `SUPPORT` reserved for explicit upstream support roles).
+
+Only an `ELIGIBLE` candidate with a resolved opposite outcome and no dependency collision with support-bearing evidence maps to `CONTRADICTS`. Same-root/group evidence maps to `DEPENDENCY_CHALLENGE` and therefore `QUALIFIES`. Missing outcomes remain `UNRESOLVED`. Context mismatch is `NON_SUPPORT`. A legacy `relation_type=CONTRADICTS` or contradiction basis without a comparison contract is downgraded to `QUALIFIES` with `counterevidence_comparability_not_admitted`.
+
+Generic terminal limitation signals such as low shot volume, low box entry, weak terminal action volume or high loss cost remain `QUALIFIES` unless they pass this comparison admission.
 
 ## Upstream identity rule
 
@@ -106,6 +112,9 @@ support relation count
 qualifier relation count
 contradiction relation count
 contextualization relation count
+comparison-status counts
+typed counterevidence-class counts
+counterevidence admission diagnostics
 dependency / independence state preservation
 fusion status candidate
 argument consumer readiness
@@ -164,7 +173,12 @@ test_missing_packet_id_blocks_fusion_identity
 test_fusion_records_signal_sources
 test_fusion_detects_support_relation
 test_low_shot_volume_qualifies_not_contradicts_by_default
-test_explicit_contradiction_requires_basis
+test_legacy_declared_contradiction_without_comparison_contract_downgrades
+test_admitted_comparable_opposite_outcome_contradicts
+test_missing_outcome_is_unresolved_not_contradiction
+test_exact_context_mismatch_is_non_support
+test_outcome_leakage_invalidates_comparison_contract
+test_same_dependency_opposite_outcome_is_dependency_challenge
 test_fusion_does_not_emit_claim_text
 test_fusion_preserves_candidate_only_claim_ceiling
 test_causal_truth_upstream_output_blocks_fusion
