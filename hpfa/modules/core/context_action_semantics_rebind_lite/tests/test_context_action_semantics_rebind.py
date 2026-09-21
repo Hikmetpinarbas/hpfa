@@ -283,3 +283,28 @@ def test_no_sample_match_identity_leak() -> None:
     text = (SRC / "context_action_semantics_rebind.py").read_text(encoding="utf-8")
     forbidden = ["Fenerbahce", "Galatasaray", "Genclerbirligi", "15.08.2026", "World Cup"]
     assert not any(token in text for token in forbidden)
+
+
+
+def test_terminal_outcome_and_card_semantics_are_preserved_without_action_promotion() -> None:
+    mvc, row = _payloads()
+    goal_idx = _append_row(mvc, row, "TEAM", "Goals")
+    card_idx = _append_row(mvc, row, "TEAM", "Yellow cards")
+    progression_idx = _append_row(mvc, row, "TEAM", "Progressive passes accurate")
+    result = build_rebind(mvc, row, repo_root=ROOT)
+
+    goal = _record(result, f"ctx_{goal_idx}")
+    card = _record(result, f"ctx_{card_idx}")
+    progression = _record(result, f"ctx_{progression_idx}")
+
+    assert goal["provider_semantic_role_candidate"] == "TERMINAL_OUTCOME_CANDIDATE"
+    assert goal["provider_terminal_outcome_candidate"] == "GOAL"
+    assert goal["action_occurrence_eligible"] is False
+
+    assert card["provider_semantic_role_candidate"] == "ADMINISTRATIVE_MARKER"
+    assert card["provider_card_type_candidate"] == "YELLOW"
+    assert card["action_occurrence_eligible"] is False
+
+    assert progression["provider_action_family_candidate"] == "PASS"
+    assert progression["provider_progression_candidate"] == "PROGRESSIVE_CANDIDATE"
+    assert progression["action_occurrence_eligible"] is True
