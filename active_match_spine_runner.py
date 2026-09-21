@@ -218,6 +218,8 @@ def main() -> int:
         "analyst_report": user_outputs.get("analyst_report") if user_outputs else None,
         "bundle_zip": user_outputs.get("bundle_zip") if user_outputs else None,
         "bundle_manifest": user_outputs.get("bundle_manifest") if user_outputs else None,
+        "presentation_view_model": user_outputs.get("presentation_view_model") if user_outputs else None,
+        "presentation_status": user_outputs.get("presentation_status") if user_outputs else None,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,

@@ -7,6 +7,11 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from hpfa.modules.core.analyst_presentation_view_model_lite.src.analyst_presentation_view_model import (
+    OUTPUT_JSON as PRESENTATION_VIEW_MODEL,
+    write_view_model,
+)
+
 ANALYST_REPORT = "HPFA_ANALYST_REPORT.txt"
 BUNDLE_MANIFEST = "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"
 BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
@@ -375,7 +380,11 @@ def write_standard_user_outputs(
         temp_zip_path.unlink()
 
     report_path.write_text(build_analyst_report(root, full_spine), encoding="utf-8")
+    presentation = write_view_model(root)
+    presentation_path = root / PRESENTATION_VIEW_MODEL
     candidates = _declared_current_artifacts(root, full_spine)
+    if presentation_path.is_file():
+        candidates = sorted([*candidates, presentation_path], key=lambda item: item.name.casefold())
     entries = [
         {"name": path.name, "size_bytes": path.stat().st_size, "sha256": _sha256(path)}
         for path in candidates
@@ -416,6 +425,8 @@ def write_standard_user_outputs(
         "analyst_report": str(report_path),
         "bundle_manifest": str(manifest_path),
         "bundle_zip": str(zip_path),
+        "presentation_view_model": str(presentation_path),
+        "presentation_status": presentation.get("status"),
         "bundle_file_count": len(candidates) + 1,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",

@@ -157,6 +157,7 @@ def test_bundle_uses_producer_write_ledger_even_when_content_unchanged(tmp_path)
     assert "episode_feature_vector_lite_v1.json" in names
     assert "active_match_full_spine_v1.json" in names
     assert "active_match_full_spine_v1.txt" in names
+    assert "analyst_presentation_view_model_lite_v1.json" in names
     assert ANALYST_REPORT in names
     assert BUNDLE_MANIFEST in names
     assert "stale_previous_run.txt" not in names
