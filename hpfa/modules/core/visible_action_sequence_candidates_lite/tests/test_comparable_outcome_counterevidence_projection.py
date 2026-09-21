@@ -381,3 +381,120 @@ def test_branch_same_branch_different_outcome_is_canonical_counterevidence():
     )
     assert record["same_design_challenge_candidate"] is True
     assert record["independent_evidence_vote_allowed"] is False
+
+
+def test_legacy_evidence_record_binds_to_frozen_comparable_set_case_denominator():
+    payload = _payload()
+    payload["process_comparable_sets"] = [
+        {
+            "comparable_set_id": "set_1",
+            "comparison_question_id": "match_local_structural_recurrence_v1",
+            "member_process_candidate_ids": ["v1", "v2", "v3"],
+            "eligible_case_count": 3,
+            "eligible_denominator_frozen_before_outcome_attachment": True,
+            "materialized_pair_count_is_eligible_denominator": False,
+        }
+    ]
+    result = build_comparable_outcome_counterevidence(payload)
+    record = _record(result)
+
+    assert record["canonical_evidence_observation_unit"] == "COMPARABLE_VARIANT_PAIR_RELATION"
+    assert record["canonical_evidence_target_component"] == (
+        "WITHIN_COMPARABLE_SET_VISIBLE_OUTCOME_CONSISTENCY"
+    )
+    assert record["canonical_evidence_target_comparable_set_id"] == "set_1"
+    assert record["eligible_denominator_binding_state"] == (
+        "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND"
+    )
+    assert record["eligible_denominator_basis"] == "FROZEN_COMPARABLE_SET_ELIGIBLE_CASES"
+    assert record["eligible_denominator_count"] == 3
+    assert record["eligible_denominator_frozen_before_outcome_attachment"] is True
+    assert record["pair_record_is_eligible_denominator"] is False
+    assert record["pair_count_is_eligible_denominator"] is False
+    assert record["eligible_denominator_is_independent_evidence_count"] is False
+    assert result["legacy_denominator_binding_state_counts"] == {
+        "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND": 1
+    }
+    assert result["pair_count_is_eligible_denominator"] is False
+
+
+def test_missing_comparable_set_binding_remains_unresolved_and_does_not_invent_denominator():
+    result = build_comparable_outcome_counterevidence(_payload())
+    record = _record(result)
+
+    assert record["eligible_denominator_binding_state"] == (
+        "COMPARABLE_SET_DENOMINATOR_BINDING_UNRESOLVED"
+    )
+    assert record["canonical_evidence_target_comparable_set_id"] is None
+    assert record["eligible_denominator_count"] is None
+    assert record["pair_count_is_eligible_denominator"] is False
+
+
+def test_branch_evidence_record_binds_to_frozen_branch_case_denominator():
+    payload = _payload()
+    divergence = payload["first_supported_branch_divergence_candidates"][0]
+    divergence["comparable_set_id"] = "set_1"
+    divergence["comparison_question_id"] = "shared_visible_anchor_branch_contrast_v1"
+    divergence["eligible_denominator_frozen_before_divergence_outcome_attachment"] = True
+    divergence["outcome_used_in_divergence_location"] = False
+    divergence["observed_branch_opportunity_eligible_denominator"] = 2
+    divergence["branch_profiles"] = [
+        {
+            "branch_id": "branch_a",
+            "branch_outcome_state": "SUCCESS_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s1"],
+        },
+        {
+            "branch_id": "branch_b",
+            "branch_outcome_state": "FAILURE_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s2"],
+        },
+    ]
+
+    result = build_comparable_outcome_counterevidence(payload)
+    assert result["branch_comparison_counterevidence_record_count"] == 1
+    record = result["branch_comparison_counterevidence_records"][0]
+
+    assert record["canonical_evidence_observation_unit"] == (
+        "SAME_DESIGN_BRANCH_CASE_PAIR_RELATION"
+    )
+    assert record["canonical_evidence_target_comparable_set_id"] == "set_1"
+    assert record["eligible_denominator_binding_state"] == (
+        "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND"
+    )
+    assert record["eligible_denominator_count"] == 2
+    assert record["pair_record_is_eligible_denominator"] is False
+    assert record["pair_count_is_eligible_denominator"] is False
+    assert result["branch_denominator_binding_state_counts"] == {
+        "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND": 1
+    }
+
+
+def test_ambiguous_variant_membership_does_not_bind_pair_to_arbitrary_denominator():
+    payload = _payload()
+    payload["process_comparable_sets"] = [
+        {
+            "comparable_set_id": "set_1",
+            "comparison_question_id": "match_local_structural_recurrence_v1",
+            "member_process_candidate_ids": ["v1", "v2"],
+            "eligible_case_count": 2,
+            "eligible_denominator_frozen_before_outcome_attachment": True,
+            "materialized_pair_count_is_eligible_denominator": False,
+        },
+        {
+            "comparable_set_id": "set_2",
+            "comparison_question_id": "match_local_structural_recurrence_v1",
+            "member_process_candidate_ids": ["v1", "v3"],
+            "eligible_case_count": 2,
+            "eligible_denominator_frozen_before_outcome_attachment": True,
+            "materialized_pair_count_is_eligible_denominator": False,
+        },
+    ]
+    result = build_comparable_outcome_counterevidence(payload)
+    record = _record(result)
+
+    assert record["eligible_denominator_binding_state"] == (
+        "COMPARABLE_SET_MEMBERSHIP_AMBIGUOUS_REVIEW_REQUIRED"
+    )
+    assert record["eligible_denominator_count"] is None
+    assert record["canonical_evidence_target_comparable_set_id"] is None
