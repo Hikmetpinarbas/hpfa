@@ -22,7 +22,7 @@ def _sequence_payload():
 
 
 def _install_common_stubs(monkeypatch):
-    def apply_context(sequence, process, consequence):
+    def apply_context(sequence, process, consequence, occurrence_state_payload=None):
         result = dict(sequence)
         pairs = [dict(row) for row in sequence["dependency_aware_partial_order_similarity_pairs"]]
         pairs[0]["comparison_eligible"] = False
