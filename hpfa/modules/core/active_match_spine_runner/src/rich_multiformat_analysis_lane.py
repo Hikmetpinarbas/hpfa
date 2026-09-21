@@ -13,6 +13,7 @@ from hpfa.modules.core.multiformat_file_inventory_lite.src import multiformat_fi
 from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader import native_reader as xlsx
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import build_projection
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_sequence_grammar_alignment_projection import build_supported_sequence_grammar_alignment
+from hpfa.modules.core.active_match_spine_runner.src.shared_surface_snapshot_contract import surface_snapshot_id
 
 MODULE_ID = "rich_multiformat_analysis_lattice_v1"
 OUTPUT_JSON = "rich_multiformat_analysis_lattice_v1.json"
@@ -36,21 +37,9 @@ def _load_json(path: Path) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _hash_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _snapshot(root: Path) -> str:
-    records = []
-    if root.is_dir():
-        for path in sorted(root.rglob("*"), key=lambda item: item.as_posix().casefold()):
-            if path.is_file():
-                records.append((path.relative_to(root).as_posix(), path.stat().st_size, _hash_file(path)))
-    return hashlib.sha256(json.dumps(records, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+    """Use the canonical shared ACTIVE_MATCH content snapshot contract."""
+    return surface_snapshot_id(root)
 
 
 def _flatten_projection(projection: dict[str, Any]) -> list[dict[str, Any]]:
