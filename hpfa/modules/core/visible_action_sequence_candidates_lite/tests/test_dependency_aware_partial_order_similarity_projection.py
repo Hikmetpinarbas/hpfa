@@ -194,7 +194,7 @@ def test_nonisomorphic_same_histogram_not_exact_match():
     assert result["structural_exact_match_requires_relation_preserving_topology"] is True
 
 
-def test_topology_filter_is_downward_only_and_does_not_create_new_pairs():
+def test_topology_partition_recovers_non_anchor_equivalence_class_without_all_pairs():
     path = _topology_variant("a_path", [(0, 1), (1, 2), (2, 3)])
     star_one = _topology_variant("b_star", [(0, 1), (0, 2), (0, 3)])
     star_two = _topology_variant("c_star", [(0, 1), (0, 2), (0, 3)])
@@ -202,10 +202,45 @@ def test_topology_filter_is_downward_only_and_does_not_create_new_pairs():
     result = build_dependency_aware_partial_order_similarity(_payload(path, star_one, star_two))
 
     assert result["source_all_possible_pair_count"] == 3
-    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 1
+    pair = result["dependency_aware_partial_order_similarity_pairs"][0]
+    assert {pair["left_variant_ref"], pair["right_variant_ref"]} == {"b_star", "c_star"}
     assert result["topology_mismatch_pair_pruned_count"] == 2
+    assert result["topology_partition_precedes_pair_materialization"] is True
+    assert result["topology_partition_can_discover_multiple_equivalence_classes"] is True
     assert result["topology_filter_can_create_new_pair"] is False
-    assert result["topology_filter_only_removes_or_preserves_coarse_prefilter_pairs"] is True
+    assert result["topology_filter_only_removes_or_preserves_coarse_prefilter_pairs"] is False
+    assert result["process_comparable_set_count"] == 1
+    assert result["process_comparable_sets"][0]["eligible_case_count"] == 2
+
+
+def test_topology_partition_emits_separate_homogeneous_comparable_sets_for_two_classes():
+    path_one = _topology_variant("a_path_one", [(0, 1), (1, 2), (2, 3)])
+    path_two = _topology_variant("b_path_two", [(0, 1), (1, 2), (2, 3)])
+    star_one = _topology_variant("c_star_one", [(0, 1), (0, 2), (0, 3)])
+    star_two = _topology_variant("d_star_two", [(0, 1), (0, 2), (0, 3)])
+
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(path_one, path_two, star_one, star_two)
+    )
+
+    assert result["process_comparable_set_count"] == 2
+    assert result["dependency_aware_partial_order_similarity_group_count"] == 2
+    assert sorted(row["eligible_case_count"] for row in result["process_comparable_sets"]) == [2, 2]
+    member_sets = {
+        frozenset(row["member_process_candidate_ids"])
+        for row in result["process_comparable_sets"]
+    }
+    assert frozenset({"a_path_one", "b_path_two"}) in member_sets
+    assert frozenset({"c_star_one", "d_star_two"}) in member_sets
+    assert all(
+        row["comparison_group_is_topology_homogeneous"] is True
+        for row in result["dependency_aware_partial_order_similarity_groups"]
+    )
+    audit = result["pruned_comparison_state_audit"]
+    assert audit["topology_partition_closes_coarse_signature_pair_universe"] is True
+    assert audit["topology_same_class_pair_universe_count"] == 2
+    assert audit["topology_cross_class_mismatch_pair_universe_count"] == 4
 
 
 def test_isomorphic_topology_with_different_layer_refs_remains_exact_match():
@@ -493,7 +528,11 @@ def test_pruned_audit_marks_large_unmaterialized_exact_pairs_as_not_evaluated_no
     assert audit["coarse_signature_pair_universe_count"] == 499500
     assert audit["topology_evaluated_representative_pair_count"] == 999
     assert audit["topology_match_representative_pair_count"] == 999
-    assert audit["topology_not_evaluated_within_coarse_signature_pair_count"] == 498501
+    assert audit["topology_not_directly_evaluated_within_coarse_signature_pair_count"] == 498501
+    assert audit["topology_same_class_pair_universe_count"] == 499500
+    assert audit["topology_cross_class_mismatch_pair_universe_count"] == 0
+    assert audit["topology_partition_accounted_pair_count"] == 499500
+    assert audit["topology_partition_closes_coarse_signature_pair_universe"] is True
     assert audit["not_evaluated_is_context_mismatch"] is False
     assert audit["not_evaluated_is_counterevidence"] is False
 
