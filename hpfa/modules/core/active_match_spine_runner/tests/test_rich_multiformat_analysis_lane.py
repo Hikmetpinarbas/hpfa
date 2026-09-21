@@ -1202,3 +1202,96 @@ def test_p02_same_advanced_access_state_is_same_relation_not_counterevidence():
     })
     assert out["opposite_outcome_comparison_candidate_count"] == 0
     assert out["pairwise_comparison_candidates"][0]["outcome_relation"] == "SAME"
+
+
+
+def _score_state_episode():
+    return {
+        "episode_time_layer_candidates": [
+            {
+                "episode_time_layer_candidate_id": "tl_10",
+                "period_candidate": "1",
+                "second_candidate": 10.0,
+                "context_refs": ["ctx_pre"],
+            },
+            {
+                "episode_time_layer_candidate_id": "tl_20",
+                "period_candidate": "1",
+                "second_candidate": 20.0,
+                "context_refs": ["goal_a"],
+            },
+            {
+                "episode_time_layer_candidate_id": "tl_30",
+                "period_candidate": "1",
+                "second_candidate": 30.0,
+                "context_refs": ["ctx_post"],
+            },
+        ],
+        "episode_candidates": [
+            {"episode_candidate_id": "ep_pre", "period_candidate": "1", "start_second_candidate": 10.0},
+            {"episode_candidate_id": "ep_same", "period_candidate": "1", "start_second_candidate": 20.0},
+            {"episode_candidate_id": "ep_post", "period_candidate": "1", "start_second_candidate": 30.0},
+        ],
+    }
+
+
+def _score_state_semantics():
+    return {
+        "context_action_semantic_records": [
+            {
+                "context_id": "goal_a",
+                "provider_terminal_outcome_candidate": "GOAL",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "provider_downstream_eligibility": "TERMINAL_OUTCOME_ONLY",
+                "context_team_candidate": "TEAM_A",
+            }
+        ]
+    }
+
+
+def test_score_state_projection_before_and_after_admitted_goal():
+    result = _score_state_projection(
+        _score_state_episode(),
+        _score_state_semantics(),
+        _p02_identities(),
+    )
+    by_episode = {row["episode_candidate_id"]: row for row in result["episode_score_states"]}
+    assert by_episode["ep_pre"]["score_by_team_candidate"] == {"teamc_A": 0, "teamc_B": 0}
+    assert by_episode["ep_pre"]["team_score_state_candidates"]["teamc_A"] == "LEVEL"
+    assert by_episode["ep_pre"]["team_score_state_candidates"]["teamc_B"] == "LEVEL"
+    assert by_episode["ep_post"]["score_by_team_candidate"] == {"teamc_A": 1, "teamc_B": 0}
+    assert by_episode["ep_post"]["team_score_state_candidates"]["teamc_A"] == "LEADING"
+    assert by_episode["ep_post"]["team_score_state_candidates"]["teamc_B"] == "TRAILING"
+
+
+def test_score_state_projection_same_start_goal_is_unresolved():
+    result = _score_state_projection(
+        _score_state_episode(),
+        _score_state_semantics(),
+        _p02_identities(),
+    )
+    same = next(row for row in result["episode_score_states"] if row["episode_candidate_id"] == "ep_same")
+    assert same["score_state_status"] == "CONTEXT_UNRESOLVED"
+    assert same["team_score_state_candidates"]["teamc_A"] == "UNRESOLVED_SAME_START_GOAL"
+    assert same["same_start_goal_context_refs"] == ["goal_a"]
+
+
+def test_score_state_projection_does_not_invent_numerical_state():
+    result = _score_state_projection(
+        _score_state_episode(),
+        _score_state_semantics(),
+        _p02_identities(),
+    )
+    assert result["numerical_state_status"] == "NOT_EVALUATED"
+    assert result["red_card_state_change_grammar_admitted"] is False
+    assert result["source_row_order_is_temporal_truth"] is False
+    assert result["same_timestamp_internal_ordering_allowed"] is False
+
+
+def test_score_state_projection_unbound_goal_team_is_degraded_not_guessed():
+    semantics = _score_state_semantics()
+    semantics["context_action_semantic_records"][0]["context_team_candidate"] = "UNKNOWN_TEAM"
+    result = _score_state_projection(_score_state_episode(), semantics, _p02_identities())
+    assert result["status"] == "DEGRADED"
+    assert result["goal_event_count"] == 0
+    assert result["unresolved_goal_context_refs"] == ["goal_a"]
