@@ -150,6 +150,8 @@ def _p02_features():
                 "episode_feature_vector_id": "efv:aep_generic_001",
                 "claim_ceiling": "EPISODE_VISIBLE_FEATURE_CANDIDATES_ONLY",
                 "period_candidate": "1",
+                "start_second_candidate": 10.0,
+                "end_second_candidate": 70.0,
                 "duration_seconds_candidate": 60.0,
                 "eligible_action_candidate_count": 12,
                 "same_time_unordered_layer_count": 2,
