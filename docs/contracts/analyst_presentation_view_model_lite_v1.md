@@ -308,3 +308,100 @@ Graph:
 SIX_SLOT_STATUS_BAR_OR_MATRIX
 
 Any future stronger six-phase representation requires explicit denominator/time/phase admission.
+
+## Mechanism WHERE / WHEN binding extension
+
+Mechanism presentation may bind existing upstream references to time and spatial anchors only through current admitted reference chains.
+
+WHEN source:
+mechanism argument
+→ packet
+→ input_window_records
+→ period_candidate + start_candidate + window ref
+
+WHERE source:
+mechanism argument
+→ packet
+→ input_sequence_records
+→ visible_action_sequence_candidate
+→ trackable_action_trace_candidate_ids
+→ recorded coordinate anchors
+
+No new zone ontology, path or tactical geometry is created.
+
+Graph forms:
+- WHEN -> TIME_ANCHOR_STRIP
+- WHERE -> COORDINATE_ANCHOR_SCATTER
+
+Graph data source-of-truth remains inside:
+surface_data.mechanism_cards[*].where_when
+
+Graphability specs use data_ref pointers rather than duplicating anchor payload.
+
+Hard guards:
+- time anchor != episode duration
+- same timestamp != total order
+- anchor density != mechanism strength
+- anchor coverage != independent recurrence
+- coordinate anchor connection != ball trajectory
+- coordinate distribution != team shape
+- coordinate density != pitch control
+- recorded coordinate != off-ball positioning truth
+- broad spatial/temporal coverage != causal mechanism truth
+
+If WHERE/WHEN anchors cover large portions of the match, the presentation must describe this as broad coverage, not strong recurrence.
+
+Coordinates are normalized to numeric values for graph rendering when parseable.
+Unparseable coordinates are omitted from the graph anchor surface rather than coerced.
+
+## Mobile lazy graph delivery for mechanism WHERE / WHEN
+
+Full WHERE/WHEN anchor arrays are not duplicated inside graphability specs.
+
+The analyst presentation view-model carries:
+- exact time_anchor_count
+- exact spatial_anchor_count
+- period candidates
+- coordinate-evidence-status counts
+- bounded samples (12 time + 12 spatial anchors)
+- lazy graph source contract
+- graph representation contract
+
+Delivery mode:
+LAZY_REFERENCE_JOIN
+
+Full WHEN data is reconstructed on demand from:
+active_match_full_spine_v1.json
+→ intelligence_chains[*].packet.input_window_records
+
+Full WHERE data is reconstructed on demand from:
+packet.input_sequence_records.sequence_id
+→ visible_action_sequence_candidates_lite_v1.json
+→ trackable_action_trace_candidate_ids
+→ trackable_action_trace_candidates_lite_v1.json
+→ pos_x_candidate / pos_y_candidate
+
+This is a delivery optimization only.
+It does not change the evidence spine or claim ceiling.
+
+Real ACTIVE_MATCH acceptance:
+- time anchors: 1003
+- spatial coordinate anchors: 1125
+- coordinate evidence status: COORDINATE_PRESENT for 1125 anchors
+- periods visible: 1 and 2
+- same-timestamp total ordering remains forbidden
+- path_or_trajectory_truth=false
+- coverage_is_independent_recurrence=false
+
+Presentation payload observed before lazy optimization:
+5,121,039 bytes
+
+After lazy optimization:
+2,510,787 bytes (~2.394 MB)
+
+The reduction is approximately half while preserving exact counts, graphability, samples and traceback paths.
+
+Mobile use:
+- initial card render uses summary + sample
+- tap/open WHERE/WHEN graph triggers lazy reference join
+- full evidence remains available without burdening first-frame payload

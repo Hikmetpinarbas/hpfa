@@ -36,6 +36,12 @@ def _sha256(path: Path) -> str:
             h.update(chunk)
     return h.hexdigest()
 
+def _number_or_none(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
 def _artifact(root: Path, name: str, *, current: bool = True) -> dict[str, Any]:
     path = root / name
     if not path.is_file():
@@ -127,6 +133,149 @@ def _mechanism_display_tr(family: str) -> str:
         "progression_without_terminal_value": "İlerleme ile terminal değer arasındaki görünür kopukluk adayı",
     }
     return labels.get(family, family.replace("_", " "))
+
+def _mechanism_where_when(
+    root: Path,
+    full: dict[str, Any],
+    declared: set[str],
+) -> dict[str, Any]:
+    sequence_name = "visible_action_sequence_candidates_lite_v1.json"
+    trace_name = "trackable_action_trace_candidates_lite_v1.json"
+    if not {sequence_name, trace_name}.issubset(declared):
+        return {}
+
+    sequence_payload = _load(root / sequence_name)
+    trace_payload = _load(root / trace_name)
+
+    sequences = {
+        str(item.get("visible_action_sequence_candidate_id")): item
+        for item in (sequence_payload.get("visible_action_sequence_candidates") or [])
+        if isinstance(item, dict) and item.get("visible_action_sequence_candidate_id")
+    }
+    traces = {
+        str(item.get("trackable_action_trace_candidate_id")): item
+        for item in (trace_payload.get("trackable_action_trace_candidates") or [])
+        if isinstance(item, dict) and item.get("trackable_action_trace_candidate_id")
+    }
+
+    out: dict[str, Any] = {}
+    for chain in full.get("intelligence_chains") or []:
+        if not isinstance(chain, dict):
+            continue
+        argument = chain.get("argument") or {}
+        packet = chain.get("packet") or {}
+        if not isinstance(argument, dict) or not isinstance(packet, dict):
+            continue
+        family, relation_scope, analysis_route = _mechanism_key(argument)
+        mechanism_id = f"mechanism:{family}:{relation_scope}:{analysis_route}"
+        entry = out.setdefault(mechanism_id, {
+            "time_anchors": [],
+            "spatial_anchors": [],
+            "source_sequence_candidate_ids": [],
+            "source_window_refs": [],
+            "same_timestamp_internal_ordering_allowed": False,
+            "path_or_trajectory_truth": False,
+            "claim_ceiling": "MECHANISM_WHERE_WHEN_REFERENCE_BINDING_ONLY",
+        })
+
+        seen_windows = {x["window_ref"] for x in entry["time_anchors"]}
+        for window in packet.get("input_window_records") or []:
+            if not isinstance(window, dict):
+                continue
+            ref = str(window.get("ref_id") or window.get("window_id") or "")
+            if not ref or ref in seen_windows:
+                continue
+            entry["time_anchors"].append({
+                "window_ref": ref,
+                "period_candidate": window.get("period_candidate"),
+                "start_second_candidate": _number_or_none(window.get("start_candidate")),
+                "layer_state": window.get("layer_state"),
+            })
+            entry["source_window_refs"].append(ref)
+            seen_windows.add(ref)
+
+        seen_sequences = set(entry["source_sequence_candidate_ids"])
+        seen_spatial = {
+            (x.get("trace_candidate_id"), x.get("pos_x_candidate"), x.get("pos_y_candidate"))
+            for x in entry["spatial_anchors"]
+        }
+        for seq_record in packet.get("input_sequence_records") or []:
+            if not isinstance(seq_record, dict):
+                continue
+            seq_id = str(seq_record.get("sequence_id") or seq_record.get("ref_id") or "")
+            if not seq_id:
+                continue
+            if seq_id not in seen_sequences:
+                entry["source_sequence_candidate_ids"].append(seq_id)
+                seen_sequences.add(seq_id)
+            seq = sequences.get(seq_id) or {}
+            for trace_id in seq.get("trackable_action_trace_candidate_ids") or []:
+                trace = traces.get(str(trace_id)) or {}
+                x = _number_or_none(trace.get("pos_x_candidate"))
+                y = _number_or_none(trace.get("pos_y_candidate"))
+                if x is None or y is None:
+                    continue
+                key = (str(trace_id), x, y)
+                if key in seen_spatial:
+                    continue
+                entry["spatial_anchors"].append({
+                    "trace_candidate_id": str(trace_id),
+                    "period_candidate": trace.get("period_candidate"),
+                    "start_second_candidate": _number_or_none(trace.get("start_candidate")),
+                    "pos_x_candidate": x,
+                    "pos_y_candidate": y,
+                    "team_identity_candidate_id": trace.get("team_identity_candidate_id"),
+                    "actor_identity_candidate_id": trace.get("actor_identity_candidate_id"),
+                    "action_family_candidates": trace.get("action_family_candidates") or [],
+                    "coordinate_evidence_status": trace.get("coordinate_evidence_status"),
+                })
+                seen_spatial.add(key)
+
+    for entry in out.values():
+        entry["time_anchors"].sort(key=lambda x: (
+            str(x.get("period_candidate")),
+            float(x.get("start_second_candidate") or 0.0),
+            str(x.get("window_ref")),
+        ))
+        entry["spatial_anchors"].sort(key=lambda x: (
+            str(x.get("period_candidate")),
+            float(x.get("start_second_candidate") or 0.0),
+            str(x.get("trace_candidate_id")),
+        ))
+        full_time = entry["time_anchors"]
+        full_spatial = entry["spatial_anchors"]
+        entry["time_anchor_count"] = len(full_time)
+        entry["spatial_anchor_count"] = len(full_spatial)
+        entry["period_candidates"] = sorted({
+            str(x.get("period_candidate"))
+            for x in [*full_time, *full_spatial]
+            if x.get("period_candidate") not in [None, ""]
+        })
+        status_counts: dict[str, int] = {}
+        for anchor in full_spatial:
+            status = str(anchor.get("coordinate_evidence_status") or "UNKNOWN")
+            status_counts[status] = status_counts.get(status, 0) + 1
+        entry["coordinate_evidence_status_counts"] = dict(sorted(status_counts.items()))
+        entry["time_anchor_sample"] = full_time[:12]
+        entry["spatial_anchor_sample"] = full_spatial[:12]
+        entry["delivery_mode"] = "LAZY_REFERENCE_JOIN"
+        entry["lazy_graph_sources"] = {
+            "when": {
+                "source_artifact": "active_match_full_spine_v1.json",
+                "join_path": "intelligence_chains[*].packet.input_window_records",
+                "mechanism_join_key": "argument_family+relation_scope+analysis_route",
+            },
+            "where": {
+                "sequence_artifact": "visible_action_sequence_candidates_lite_v1.json",
+                "trace_artifact": "trackable_action_trace_candidates_lite_v1.json",
+                "join_path": "packet.input_sequence_records.sequence_id -> visible_action_sequence_candidate_id -> trackable_action_trace_candidate_ids",
+                "coordinate_fields": ["pos_x_candidate", "pos_y_candidate"],
+            },
+        }
+        entry["coverage_is_independent_recurrence"] = False
+        del entry["time_anchors"]
+        del entry["spatial_anchors"]
+    return out
 
 def _mechanism_cards(full: dict[str, Any], limit: int = 5) -> list[dict[str, Any]]:
     groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
@@ -572,6 +721,47 @@ def _graphability_manifest(
             }
             for card in mechanism_cards
         ],
+        "where_when_graphs": {
+            "when": {
+                "preferred_representation": "TIME_ANCHOR_STRIP",
+                "data_semantics": "context_window_start_anchors_by_period",
+                "delivery_mode": "LAZY_REFERENCE_JOIN",
+                "sample_data_ref": "surface_data.mechanism_cards[*].where_when.time_anchor_sample",
+                "lazy_source_ref": "surface_data.mechanism_cards[*].where_when.lazy_graph_sources.when",
+                "anchor_counts": [
+                    {
+                        "mechanism_candidate_id": card.get("mechanism_candidate_id"),
+                        "time_anchor_count": (card.get("where_when") or {}).get("time_anchor_count", 0),
+                    }
+                    for card in mechanism_cards
+                ],
+                "forbidden_visual_inference": [
+                    "time_anchor_is_episode_duration",
+                    "time_anchor_order_is_total_order_when_same_timestamp",
+                    "time_density_is_mechanism_strength",
+                ],
+            },
+            "where": {
+                "preferred_representation": "COORDINATE_ANCHOR_SCATTER",
+                "data_semantics": "recorded_trace_coordinate_anchors_reached_through_visible_sequence_candidate_membership_refs_not_sequence_truth",
+                "delivery_mode": "LAZY_REFERENCE_JOIN",
+                "sample_data_ref": "surface_data.mechanism_cards[*].where_when.spatial_anchor_sample",
+                "lazy_source_ref": "surface_data.mechanism_cards[*].where_when.lazy_graph_sources.where",
+                "anchor_counts": [
+                    {
+                        "mechanism_candidate_id": card.get("mechanism_candidate_id"),
+                        "spatial_anchor_count": (card.get("where_when") or {}).get("spatial_anchor_count", 0),
+                    }
+                    for card in mechanism_cards
+                ],
+                "forbidden_visual_inference": [
+                    "anchor_connection_is_ball_trajectory",
+                    "anchor_distribution_is_team_shape",
+                    "anchor_density_is_pitch_control",
+                    "anchor_position_is_off_ball_positioning_truth",
+                ],
+            },
+        },
         "forbidden_visual_inference": [
             "stack_share_is_probability",
             "supported_count_is_independent_support_count",
@@ -755,6 +945,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         _artifact(root, "match_local_identity_candidates_lite_v1.json", current="match_local_identity_candidates_lite_v1.json" in declared),
         _artifact(root, "trackable_action_trace_candidates_lite_v1.json", current="trackable_action_trace_candidates_lite_v1.json" in declared),
         _artifact(root, "trackable_action_consequence_candidates_lite_v1.json", current="trackable_action_consequence_candidates_lite_v1.json" in declared),
+        _artifact(root, "visible_action_sequence_candidates_lite_v1.json", current="visible_action_sequence_candidates_lite_v1.json" in declared),
     ]
     available = {item["name"] for item in artifacts if item["state"] == "AVAILABLE"}
     episode_available = "analyst_episode_locator_lite_v1.json" in available
@@ -762,7 +953,14 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
     episode_cards = _episode_cards(episode) if episode_available else []
     phase_cards = _phase_cards(full)
     counter_cards = _counterevidence_cards(full)
+    mechanism_where_when = _mechanism_where_when(root, full, declared)
     mechanism_cards = _mechanism_cards(full)
+    for card in mechanism_cards:
+        card["where_when"] = mechanism_where_when.get(card["mechanism_candidate_id"], {
+            "time_anchors": [],
+            "spatial_anchors": [],
+            "claim_ceiling": "MECHANISM_WHERE_WHEN_REFERENCE_BINDING_ONLY",
+        })
     match_story = _match_story(mechanism_cards)
     player_process_cards = _player_process_cards(root, declared)
     traceback_index = _traceback_index(root, full, episode, declared)
@@ -882,6 +1080,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "phase_activity_candidates": phase_cards,
         "six_phase_lens": six_phase_lens,
         "mechanism_cards": mechanism_cards,
+        "mechanism_where_when": mechanism_where_when,
         "match_story": match_story,
         "player_process_cards": player_process_cards,
         "traceback_index": traceback_index,

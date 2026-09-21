@@ -28,6 +28,7 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
                 str(tmp_path / "match_local_identity_candidates_lite_v1.json"),
                 str(tmp_path / "trackable_action_trace_candidates_lite_v1.json"),
                 str(tmp_path / "trackable_action_consequence_candidates_lite_v1.json"),
+                str(tmp_path / "visible_action_sequence_candidates_lite_v1.json"),
             ],
             "rich_multiformat_analysis_lattice": {
                 "phase_state_candidates": [
@@ -40,6 +41,20 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
             },
             "intelligence_chains": [
                 {
+                    "packet": {
+                        "input_window_records": [{
+                            "ref_id": "window_1",
+                            "window_id": "window_1",
+                            "period_candidate": "1",
+                            "start_candidate": 12.0,
+                            "layer_state": "SINGLE_TEAM_PRIMARY_LAYER",
+                        }],
+                        "input_sequence_records": [{
+                            "ref_id": "sequence_1",
+                            "sequence_id": "sequence_1",
+                            "period_candidate": "1",
+                        }],
+                    },
                     "argument": {
                         "argument_id": "arg_1",
                         "argument_family": "progression_without_terminal_value",
@@ -104,7 +119,22 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
             "action_family_candidates": ["PASS"],
             "source_role": "PLAYER_SURFACE_CANDIDATE",
             "period_candidate": "1",
+            "start_candidate": 12.0,
+            "pos_x_candidate": 44.0,
+            "pos_y_candidate": 37.0,
+            "coordinate_evidence_status": "AVAILABLE",
             "supporting_evidence_atom_ids": ["atom_1"],
+        }]},
+    )
+    _write_json(
+        tmp_path / "visible_action_sequence_candidates_lite_v1.json",
+        {"visible_action_sequence_candidates": [{
+            "visible_action_sequence_candidate_id": "sequence_1",
+            "trackable_action_trace_candidate_ids": ["trace_1"],
+            "period_candidate": "1",
+            "start_time_candidate": 12.0,
+            "end_time_candidate": 14.0,
+            "visible_sequence_candidate_is_sequence_truth": False,
         }]},
     )
     _write_json(
@@ -139,6 +169,20 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert player["process_participation_is_off_ball_tactical_role"] is False
     mechanism = payload["surface_data"]["mechanism_cards"][0]
     assert mechanism["process_family"] == "progression_without_terminal_value"
+    assert mechanism["where_when"]["time_anchor_count"] == 1
+    assert mechanism["where_when"]["spatial_anchor_count"] == 1
+    assert mechanism["where_when"]["time_anchor_sample"] == [{
+        "window_ref": "window_1",
+        "period_candidate": "1",
+        "start_second_candidate": 12.0,
+        "layer_state": "SINGLE_TEAM_PRIMARY_LAYER",
+    }]
+    assert mechanism["where_when"]["spatial_anchor_sample"][0]["trace_candidate_id"] == "trace_1"
+    assert mechanism["where_when"]["spatial_anchor_sample"][0]["pos_x_candidate"] == 44.0
+    assert mechanism["where_when"]["spatial_anchor_sample"][0]["pos_y_candidate"] == 37.0
+    assert mechanism["where_when"]["delivery_mode"] == "LAZY_REFERENCE_JOIN"
+    assert mechanism["where_when"]["coverage_is_independent_recurrence"] is False
+    assert mechanism["where_when"]["path_or_trajectory_truth"] is False
     assert mechanism["nominal_chain_count"] == 1
     assert mechanism["nominal_counts_are_independent_support"] is False
     assert payload["surface_data"]["match_story"]["emitted_mechanism_count"] == 1
@@ -173,6 +217,12 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert graphability["visual_strength_must_not_exceed_evidence_strength"] is True
     assert graphability["specs"]["match_story"]["state"] == "GRAPHABLE"
     assert graphability["specs"]["mechanism_cards"]["preferred_representation"] == "STACKED_BAR"
+    assert graphability["specs"]["mechanism_cards"]["where_when_graphs"]["when"]["preferred_representation"] == "TIME_ANCHOR_STRIP"
+    assert graphability["specs"]["mechanism_cards"]["where_when_graphs"]["when"]["delivery_mode"] == "LAZY_REFERENCE_JOIN"
+    assert graphability["specs"]["mechanism_cards"]["where_when_graphs"]["when"]["sample_data_ref"] == "surface_data.mechanism_cards[*].where_when.time_anchor_sample"
+    assert graphability["specs"]["mechanism_cards"]["where_when_graphs"]["where"]["preferred_representation"] == "COORDINATE_ANCHOR_SCATTER"
+    assert graphability["specs"]["mechanism_cards"]["where_when_graphs"]["where"]["delivery_mode"] == "LAZY_REFERENCE_JOIN"
+    assert graphability["specs"]["mechanism_cards"]["where_when_graphs"]["where"]["sample_data_ref"] == "surface_data.mechanism_cards[*].where_when.spatial_anchor_sample"
     assert graphability["specs"]["player_process_cards"]["state"] == "GRAPHABLE"
     assert graphability["specs"]["observed_replay"]["preferred_representation"] == "INTERVAL_STRIP_WITH_UNORDERED_SAME_TIME_BUNDLES"
     assert graphability["specs"]["six_phase_match_view"]["data_semantics"] == "canonical_six_phase_slots_with_proxy_lens_or_not_evaluated_status"
