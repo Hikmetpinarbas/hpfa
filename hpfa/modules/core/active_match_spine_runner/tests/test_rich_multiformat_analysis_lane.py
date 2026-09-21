@@ -1185,3 +1185,81 @@ def test_entity_views_infers_goalkeeper_from_schema_not_filename_or_person_name(
     assert len(views["player_view_candidates"]) == 1
     assert views["goalkeeper_view_candidates"][0]["entity_role_candidate"] == "GOALKEEPER"
     assert views["player_view_candidates"][0]["entity_role_candidate"] == "PLAYER"
+
+
+def test_c03_builds_nonexclusive_visible_consequence_response_profile() -> None:
+    processes = {
+        "process_participation_candidates": [
+            {
+                "process_participation_candidate_id": "p1",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "start_candidate": 10.0,
+                "end_candidate": 20.0,
+                "shot_present_annotation_candidate": False,
+            },
+            {
+                "process_participation_candidate_id": "p2",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "start_candidate": 30.0,
+                "end_candidate": 40.0,
+                "shot_present_annotation_candidate": False,
+            },
+        ]
+    }
+    occurrences = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "occ_1",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": [12.0],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_a"],
+                "primary_consequence_candidates": [
+                    "OPPONENT_HANDOVER_CANDIDATE",
+                    "SAME_TEAM_CONTINUATION_CANDIDATE",
+                ],
+                "supporting_spatial_transition_candidate_ids": [],
+            },
+            {
+                "action_occurrence_candidate_id": "occ_2",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": [32.0],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_a"],
+                "primary_consequence_candidates": [
+                    "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE",
+                    "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE",
+                    "NO_VISIBLE_FOLLOW_UP_CANDIDATE",
+                ],
+                "supporting_spatial_transition_candidate_ids": [],
+            },
+        ]
+    }
+
+    result = _construct_c03(processes, occurrences, {"spatial_transition_candidates": []})
+    profile = result["team_process_profiles"][0]["visible_consequence_response_profile"]
+    counts = profile["process_presence_counts"]
+
+    assert profile["eligible_process_n"] == 2
+    assert counts["OPPONENT_HANDOVER_CANDIDATE"] == 1
+    assert counts["OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE"] == 1
+    assert counts["SAME_TEAM_CONTINUATION_CANDIDATE"] == 1
+    assert counts["MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE"] == 1
+    assert counts["NO_VISIBLE_FOLLOW_UP_CANDIDATE"] == 1
+    assert profile["categories_are_mutually_exclusive"] is False
+    assert profile["counts_are_process_presence_not_occurrence_volume"] is True
+    assert profile["opponent_handover_is_forced_turnover_truth"] is False
+    assert profile["opponent_takeover_is_pressure_success_truth"] is False
+    assert profile["mixed_team_same_time_is_ordered_response_truth"] is False
+    assert profile["no_visible_followup_is_failure"] is False
+    assert profile["profile_is_opponent_tactical_response_truth"] is False
+    assert profile["profile_is_independent_support"] is False
+    assert profile["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_CONSEQUENCE_RESPONSE_PROFILE_CANDIDATE_ONLY"

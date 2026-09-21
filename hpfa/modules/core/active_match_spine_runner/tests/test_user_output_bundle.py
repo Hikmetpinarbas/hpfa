@@ -573,3 +573,46 @@ def test_atomic_zip_publication_never_exposes_partial_new_bundle(tmp_path, monke
 
     assert old_zip.read_bytes() == before_old
     assert not (tmp_path / f".{BUNDLE_ZIP}.tmp").exists()
+
+
+def test_team_process_cards_expose_visible_consequence_response_without_inflating_meaning():
+    rich = {
+        "constructs": {
+            "C03": {
+                "team_process_profiles": [
+                    {
+                        "team_identity_candidate_id": "team_a",
+                        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                        "eligible_process_n": 10,
+                        "shot_ending_process_n": 2,
+                        "visible_loss_process_n": 4,
+                        "visible_recovery_process_n": 1,
+                        "visible_consequence_response_profile": {
+                            "process_presence_counts": {
+                                "OPPONENT_HANDOVER_CANDIDATE": 5,
+                                "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE": 3,
+                                "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE": 2,
+                                "NO_VISIBLE_FOLLOW_UP_CANDIDATE": 1,
+                            }
+                        },
+                    }
+                ]
+            }
+        }
+    }
+    identity = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha"},
+        ]
+    }
+    cards = user_output_bundle._human_team_process_cards(rich, identity, "tr")
+    text = "\n".join(cards)
+
+    assert "5 süreçte rakibe geçiş" in text
+    assert "3 süreçte breakdown sonrası rakip takeover" in text
+    assert "2 süreçte aynı-zamanlı iki takım belirsizliği" in text
+    assert "1 süreçte görünür follow-up yokluğu" in text
+    assert "Rakibe geçiş zorlanmış top kaybı" in text
+    assert "takeover baskı başarısı" in text
+    assert "follow-up yokluğu başarısızlık değildir" in text
+    assert "rakip planı" in text

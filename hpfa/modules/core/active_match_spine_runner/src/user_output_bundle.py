@@ -467,11 +467,37 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
         team_id = str(row.get("team_identity_candidate_id") or "").strip()
         if not team_id:
             continue
-        bucket = by_team.setdefault(team_id, {"eligible": 0, "shot": 0, "loss": 0, "recovery": 0})
+        bucket = by_team.setdefault(
+            team_id,
+            {
+                "eligible": 0,
+                "shot": 0,
+                "loss": 0,
+                "recovery": 0,
+                "opponent_handover": 0,
+                "opponent_takeover_after_breakdown": 0,
+                "mixed_team_same_time_review": 0,
+                "no_visible_followup": 0,
+            },
+        )
         bucket["eligible"] += int(row.get("eligible_process_n") or 0)
         bucket["shot"] += int(row.get("shot_ending_process_n") or 0)
         bucket["loss"] += int(row.get("visible_loss_process_n") or 0)
         bucket["recovery"] += int(row.get("visible_recovery_process_n") or 0)
+        response_profile = row.get("visible_consequence_response_profile")
+        presence = (
+            response_profile.get("process_presence_counts") or {}
+            if isinstance(response_profile, dict)
+            else {}
+        )
+        bucket["opponent_handover"] += int(presence.get("OPPONENT_HANDOVER_CANDIDATE") or 0)
+        bucket["opponent_takeover_after_breakdown"] += int(
+            presence.get("OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE") or 0
+        )
+        bucket["mixed_team_same_time_review"] += int(
+            presence.get("MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE") or 0
+        )
+        bucket["no_visible_followup"] += int(presence.get("NO_VISIBLE_FOLLOW_UP_CANDIDATE") or 0)
     cards: list[str] = []
     for team_id, values in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
         name = teams.get(team_id, team_id)
@@ -479,21 +505,31 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
             football = (
                 f"{name}: Sistem bu maçta {values['eligible']} görünür oyun sürecini takım bağlamına bağlayabildi. "
                 f"Bunların {values['loss']} tanesinde top kaybı, {values['recovery']} tanesinde top kazanımı ve "
-                f"{values['shot']} tanesinde şutla bağlantılı bir son bölüm görüldü."
+                f"{values['shot']} tanesinde şutla bağlantılı bir son bölüm görüldü. "
+                f"Görünür devam/sonuç yüzeyinde {values['opponent_handover']} süreçte rakibe geçiş, "
+                f"{values['opponent_takeover_after_breakdown']} süreçte breakdown sonrası rakip takeover, "
+                f"{values['mixed_team_same_time_review']} süreçte aynı-zamanlı iki takım belirsizliği ve "
+                f"{values['no_visible_followup']} süreçte görünür follow-up yokluğu kaydedildi."
             )
             evidence = (
-                "Kanıt notu: Aynı süreç birden fazla görünür sonucu taşıyabilir; bu sayılar hücum/possession sayısı "
-                "veya başarı oranı değildir. Takım kalitesi, taktik üstünlük ve nedensellik sonucu çıkarılamaz."
+                "Kanıt notu: Bu consequence-response kategorileri birbirini dışlamaz ve process-presence sayımlarıdır. "
+                "Rakibe geçiş zorlanmış top kaybı, takeover baskı başarısı, follow-up yokluğu başarısızlık değildir. "
+                "Bu sayılar possession/başarı oranı, taktik üstünlük, rakip planı veya nedensellik kanıtlamaz."
             )
         else:
             football = (
                 f"{name}: The system linked {values['eligible']} visible match processes to this team. "
                 f"A visible loss occurred in {values['loss']}, a recovery in {values['recovery']}, and "
-                f"a shot-linked terminal state in {values['shot']}."
+                f"a shot-linked terminal state in {values['shot']}. "
+                f"On the visible consequence-response surface, {values['opponent_handover']} processes contained an opponent handover, "
+                f"{values['opponent_takeover_after_breakdown']} an opponent takeover after breakdown, "
+                f"{values['mixed_team_same_time_review']} a mixed-team same-time review state, and "
+                f"{values['no_visible_followup']} no visible follow-up."
             )
             evidence = (
-                "Evidence note: One process may carry more than one visible consequence. These are not possession counts "
-                "or success rates, and they do not establish team quality, tactical superiority, or causality."
+                "Evidence note: These consequence-response categories are non-exclusive process-presence counts. "
+                "Opponent handover is not a forced turnover, takeover is not pressing success, and no visible follow-up is not failure. "
+                "They do not establish possession, success rate, tactical superiority, opponent plan, or causality."
             )
         cards.extend([football, evidence])
     return cards

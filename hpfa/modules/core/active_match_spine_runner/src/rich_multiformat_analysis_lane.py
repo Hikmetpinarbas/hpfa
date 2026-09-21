@@ -1793,6 +1793,41 @@ def _construct_c03(
         shot_n = sum(row.get("shot_present_annotation_candidate") is True for row in team_rows)
         loss_n = sum(bool(row.get("visible_loss_transition_candidate_present")) for row in team_rows)
         recovery_n = sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in team_rows)
+
+        response_presence_keys = (
+            "OPPONENT_HANDOVER_CANDIDATE",
+            "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE",
+            "SAME_TEAM_CONTINUATION_CANDIDATE",
+            "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE",
+            "NO_VISIBLE_FOLLOW_UP_CANDIDATE",
+            "BREAKDOWN_WITH_UNCERTAIN_VISIBLE_RESPONSE_CANDIDATE",
+        )
+        response_process_presence_counts = {
+            key: sum(
+                key in set(str(v) for v in (row.get("primary_consequence_candidates_observed") or []))
+                for row in team_rows
+            )
+            for key in response_presence_keys
+        }
+        visible_consequence_response_profile = {
+            "eligible_process_n": len(team_rows),
+            "process_presence_counts": dict(sorted(response_process_presence_counts.items())),
+            "process_presence_shares": {
+                key: (count / len(team_rows)) if team_rows else None
+                for key, count in sorted(response_process_presence_counts.items())
+            },
+            "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
+            "counts_are_process_presence_not_occurrence_volume": True,
+            "categories_are_mutually_exclusive": False,
+            "opponent_handover_is_forced_turnover_truth": False,
+            "opponent_takeover_is_pressure_success_truth": False,
+            "same_team_continuation_is_control_truth": False,
+            "mixed_team_same_time_is_ordered_response_truth": False,
+            "no_visible_followup_is_failure": False,
+            "profile_is_opponent_tactical_response_truth": False,
+            "profile_is_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_CONSEQUENCE_RESPONSE_PROFILE_CANDIDATE_ONLY",
+        }
         actor_values = [
             int(row.get("unique_actor_candidate_n") or 0)
             for row in team_rows
@@ -1813,6 +1848,7 @@ def _construct_c03(
             "visible_loss_share_candidate": loss_n / len(team_rows),
             "visible_recovery_process_n": recovery_n,
             "visible_recovery_share_candidate": recovery_n / len(team_rows),
+            "visible_consequence_response_profile": visible_consequence_response_profile,
             "mean_actor_spread_candidate": (sum(actor_values) / len(actor_values)) if actor_values else None,
             "mean_temporal_layer_n": (sum(layer_values) / len(layer_values)) if layer_values else None,
             "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
