@@ -373,3 +373,81 @@ def test_p02_consequence_binding_respects_episode_time_bounds():
     )
     item = p02["p02_pool_items"][0]
     assert "aoc_outside" not in item["process_signature_fields"]["occurrence_ids"]
+
+
+
+def _p02_semantics():
+    return {
+        "context_action_semantic_records": [
+            {
+                "context_id": "ctx_1",
+                "action_occurrence_eligible": True,
+                "context_team_candidate": "TEAM_A",
+                "provider_action_family_candidate": "PASS",
+                "context_zone_candidate": "DEFENSIVE_THIRD",
+                "context_channel_candidate": "LEFT_CHANNEL",
+            },
+            {
+                "context_id": "ctx_2",
+                "action_occurrence_eligible": True,
+                "context_team_candidate": "TEAM_B",
+                "provider_action_family_candidate": "TURNOVER",
+                "context_zone_candidate": "MIDDLE_THIRD",
+                "context_channel_candidate": "CENTRAL_CHANNEL",
+            },
+        ]
+    }
+
+
+def test_p02_team_split_creates_team_specific_child_items():
+    p02 = _progression_pool_p02(
+        _p02_features(),
+        _p02_temporal(),
+        _p02_episode(),
+        _p02_consequence(),
+        _p02_semantics(),
+    )
+    assert p02["p02_team_pool_item_count"] == 2
+    by_team = {row["team_candidate"]: row for row in p02["p02_team_pool_items"]}
+    assert by_team["TEAM_A"]["visible_observation_summary"]["action_family_counts"] == {"PASS": 1}
+    assert by_team["TEAM_B"]["visible_observation_summary"]["action_family_counts"] == {"TURNOVER": 1}
+    assert by_team["TEAM_A"]["visible_observation_summary"]["zone_counts"] == {"DEFENSIVE_THIRD": 1}
+    assert by_team["TEAM_B"]["visible_observation_summary"]["zone_counts"] == {"MIDDLE_THIRD": 1}
+
+
+def test_p02_team_child_items_do_not_create_independent_support_votes():
+    p02 = _progression_pool_p02(
+        _p02_features(),
+        _p02_temporal(),
+        _p02_episode(),
+        _p02_consequence(),
+        _p02_semantics(),
+    )
+    parent = p02["p02_pool_items"][0]
+    for child in p02["p02_team_pool_items"]:
+        assert child["parent_pool_item_id"] == parent["pool_item_id"]
+        assert child["independent_support_vote"] is False
+        assert parent["dependency_roots"][0] in child["dependency_roots"]
+
+
+def test_p02_team_split_ignores_noneligible_semantic_context():
+    semantics = _p02_semantics()
+    semantics["context_action_semantic_records"].append({
+        "context_id": "ctx_3",
+        "action_occurrence_eligible": False,
+        "context_team_candidate": "TEAM_A",
+        "provider_action_family_candidate": "SHOT",
+        "context_zone_candidate": "FINAL_THIRD",
+        "context_channel_candidate": "RIGHT_CHANNEL",
+    })
+    features = _p02_features()
+    features["episode_feature_vectors"][0]["context_refs"].append("ctx_3")
+    p02 = _progression_pool_p02(
+        features,
+        _p02_temporal(),
+        _p02_episode(),
+        _p02_consequence(),
+        semantics,
+    )
+    by_team = {row["team_candidate"]: row for row in p02["p02_team_pool_items"]}
+    assert by_team["TEAM_A"]["visible_observation_summary"]["shot_candidate_count"] == 0
