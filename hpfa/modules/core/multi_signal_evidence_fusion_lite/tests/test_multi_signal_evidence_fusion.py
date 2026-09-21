@@ -62,6 +62,7 @@ def admitted_counterevidence_packet():
             },
             "reference_outcome": "SHOT_ENDING",
             "candidate_outcome": "LOSS",
+            "outcome_relation": "OPPOSITE",
             "provenance_root": "root_candidate",
             "dependency_group": "dep_candidate",
             "independence_group": "ind_candidate",
@@ -182,6 +183,7 @@ def test_outcome_leakage_invalidates_comparison_contract():
 def test_same_resolved_outcome_is_non_support_not_support():
     packet = admitted_counterevidence_packet()
     packet["contradicting_signals"][0]["candidate_outcome"] = "SHOT_ENDING"
+    packet["contradicting_signals"][0]["outcome_relation"] = "SAME"
     record = fuse_packet(packet)
     assert record["contradiction_signal_count"] == 0
     assert record["non_support_count"] == 1
@@ -318,3 +320,22 @@ def test_no_sample_match_identity_leak():
     src = (SRC / "multi_signal_evidence_fusion.py").read_text(encoding="utf-8")
     for token in ["Turkey", "Australia", "Türkiye", "Avustralya", "World Cup", "13.06.2026"]:
         assert token not in src
+
+
+
+def test_different_outcome_values_without_opposite_relation_are_not_counterevidence():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["outcome_relation"] = "INCOMPARABLE"
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    assert record["unresolved_counterevidence_count"] == 1
+
+
+def test_identical_outcome_values_cannot_be_declared_opposite():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["candidate_outcome"] = packet["contradicting_signals"][0]["reference_outcome"]
+    packet["contradicting_signals"][0]["outcome_relation"] = "OPPOSITE"
+    record = fuse_packet(packet)
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "admitted_counter_001")
+    assert row["comparison_status"] == "INVALID_COMPARISON_CONTRACT"
+    assert row["counterevidence_class"] == "UNRESOLVED"
