@@ -8,7 +8,12 @@ if str(ROOT) not in sys.path:
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from rich_multiformat_analysis_lane import _construct_c01, _phase_state_candidates, _progression_pool_p02
+from rich_multiformat_analysis_lane import (
+    _build_p02_comparison_populations,
+    _construct_c01,
+    _phase_state_candidates,
+    _progression_pool_p02,
+)
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -728,3 +733,64 @@ def test_player_goal_surface_does_not_create_score_change():
         "rn_goal_b_player" not in row["supporting_row_nucleus_refs"]
         for row in timeline["goal_score_change_candidates"]
     )
+
+
+
+def _comparison_team_item(item_id: str, *, team_id: str = "teamc_A", period: str = "1", score_state: str = "LEVEL", start_zone: str = "MIDDLE_THIRD"):
+    return {
+        "pool_item_id": item_id,
+        "team_identity_candidate_id": team_id,
+        "episode_candidate_id": f"episode_{item_id}",
+        "game_state": score_state,
+        "comparison_context": {
+            "period_candidate": period,
+            "score_state_candidate": score_state,
+        },
+        "process_signature_fields": {
+            "team_specific_start_zone": start_zone,
+            "team_specific_zone_advancement_steps_candidate": 1,
+            "team_episode_terminal_activity_candidate": "SHOT_ACTIVITY_VISIBLE",
+        },
+    }
+
+
+def test_p02_comparison_population_requires_two_exact_context_members():
+    one = _build_p02_comparison_populations([_comparison_team_item("p1")])
+    assert one["comparison_population_count"] == 1
+    assert one["eligible_comparison_population_count"] == 0
+    assert one["comparison_populations"][0]["status"] == "INSUFFICIENT_COMPARABLE_MEMBERS"
+
+    two = _build_p02_comparison_populations([
+        _comparison_team_item("p1"),
+        _comparison_team_item("p2"),
+    ])
+    assert two["eligible_comparison_population_count"] == 1
+    population = two["comparison_populations"][0]
+    assert population["status"] == "POPULATION_ELIGIBLE"
+    assert population["member_count"] == 2
+    assert population["outcome_admission_authority"] is False
+    assert population["counterevidence_admission_authority"] is False
+
+
+def test_p02_comparison_population_does_not_mix_score_state_or_start_zone():
+    result = _build_p02_comparison_populations([
+        _comparison_team_item("p1", score_state="LEVEL", start_zone="MIDDLE_THIRD"),
+        _comparison_team_item("p2", score_state="TRAILING", start_zone="MIDDLE_THIRD"),
+        _comparison_team_item("p3", score_state="LEVEL", start_zone="DEFENSIVE_THIRD"),
+    ])
+    assert result["comparison_population_count"] == 3
+    assert result["eligible_comparison_population_count"] == 0
+
+
+def test_p02_terminal_activity_candidate_is_not_process_outcome_truth():
+    p02 = _progression_pool_p02(
+        _p02_features(),
+        _p02_temporal(),
+        _p02_episode(),
+        _p02_team_consequence(),
+        _p02_semantics(),
+        _p02_identities(),
+    )
+    for item in p02["p02_team_pool_items"]:
+        sig = item["process_signature_fields"]
+        assert sig["team_episode_terminal_activity_is_process_outcome_truth"] is False
