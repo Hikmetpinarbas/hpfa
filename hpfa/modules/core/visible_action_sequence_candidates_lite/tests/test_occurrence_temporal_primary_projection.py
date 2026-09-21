@@ -143,6 +143,10 @@ def test_similarity_runtime_binding_propagates_comparison_contract_metadata(monk
         "profile_frozen_before_outcome_attachment": True,
         "pair_materialization_count_is_eligible_denominator": False,
         "canonical_comparison_state_counts": {"ELIGIBLE": 1},
+        "pruned_comparison_state_audit": {
+            "audit_scope": "AGGREGATE_NON_MATERIALIZED_COMPARISON_STATE_AUDIT",
+            "pruned_or_unresolved_cases_are_counterevidence": False,
+        },
         "eligible_denominator_frozen_before_outcome_attachment": True,
         "dependency_aware_partial_order_similarity_pairs": [],
         "dependency_aware_partial_order_similarity_pair_count": 0,
@@ -159,4 +163,8 @@ def test_similarity_runtime_binding_propagates_comparison_contract_metadata(monk
     assert result["profile_frozen_before_outcome_attachment"] is True
     assert result["pair_materialization_count_is_eligible_denominator"] is False
     assert result["canonical_comparison_state_counts"] == {"ELIGIBLE": 1}
+    assert result["pruned_comparison_state_audit"]["audit_scope"] == (
+        "AGGREGATE_NON_MATERIALIZED_COMPARISON_STATE_AUDIT"
+    )
+    assert result["pruned_comparison_state_audit"]["pruned_or_unresolved_cases_are_counterevidence"] is False
     assert result["eligible_denominator_frozen_before_outcome_attachment"] is True
