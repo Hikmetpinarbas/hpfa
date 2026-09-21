@@ -252,3 +252,35 @@ Not ACTIVE_MATCH_EVIDENCE_PASS.
 Not PRODUCTION_RELEASE.
 
 PASS != RELEASE.
+
+
+## Evidence-unit independence admission
+
+Counterevidence independence in this contract is **not statistical independence**.
+
+A producer may set:
+
+```text
+independence_admission_status = ADMITTED
+```
+
+only when it can provide an explicit machine-readable basis that the compared evidence units are distinct enough for this scoped comparison.
+
+For P02 process-unit comparisons, the current admitted basis is:
+
+```text
+distinct visible-sequence roots
++ disjoint trackable-action-trace roots
++ non-overlapping admitted time intervals
+```
+
+This supports **evidence-unit lineage independence only**.
+
+It does not prove:
+- exchangeability,
+- statistical independence,
+- causal independence,
+- tactical independence,
+- independent underlying match mechanisms.
+
+If the basis is missing, overlapping, ambiguous or unresolved, the comparison remains `UNRESOLVED` for counterevidence admission.
