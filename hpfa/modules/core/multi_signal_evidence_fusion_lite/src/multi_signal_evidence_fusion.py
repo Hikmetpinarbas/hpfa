@@ -418,7 +418,13 @@ def _signal_relation_records(packet: dict[str, Any]) -> tuple[list[dict[str, Any
         signal_ref = _ref_from_item(signal, "contradicting_signals", idx)
         lineage = _lineage_fields(signal)
         admission = _comparison_admission(signal, packet)
-        diagnostics.append({"signal_ref": signal_ref, **admission})
+        diagnostics.append(
+            {
+                "signal_ref": signal_ref,
+                "declared_contradiction_candidate": _is_explicit_contradiction(signal),
+                **admission,
+            }
+        )
         basis = ""
         if isinstance(signal, dict):
             basis = str(signal.get("contradiction_basis") or signal.get("relation_basis") or "")
@@ -851,7 +857,8 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
         "legacy_unadmitted_contradiction_count": sum(
             1
             for row in counterevidence_diagnostics
-            if row.get("comparison_status") == "NOT_EVALUATED"
+            if row.get("declared_contradiction_candidate") is True
+            and row.get("comparison_status") == "NOT_EVALUATED"
             and row.get("counterevidence_admission_reason") == "counterevidence_comparability_not_admitted"
         ),
         "dependency_ledger": dependency_ledger,
