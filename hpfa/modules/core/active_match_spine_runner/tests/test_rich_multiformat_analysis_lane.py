@@ -1331,3 +1331,161 @@ def test_p02_overlapping_time_intervals_block_independence_admission():
     assert comparison["independence_admission_status"] == "NOT_ADMITTED"
     assert "admitted_time_intervals_overlap" in comparison["independence_admission_basis"]
     assert comparison["counterevidence_admission_ready"] is False
+
+
+
+def _p02_c4_bridge_case():
+    identities = {
+        "team_identity_candidates": [
+            {
+                "team_identity_candidate_id": "teamc_A",
+                "team_aliases_raw": ["TEAM_A"],
+                "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND",
+            },
+            {
+                "team_identity_candidate_id": "teamc_B",
+                "team_aliases_raw": ["TEAM_B"],
+                "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND",
+            },
+        ]
+    }
+    visible_sequence = {
+        "visible_action_time_layer_candidates": [
+            {
+                "visible_action_time_layer_candidate_id": "r1",
+                "start_candidate": 10.0,
+                "trackable_action_trace_candidate_ids": ["tr_r1"],
+                "action_family_counts": {"PASS": 1},
+            },
+            {
+                "visible_action_time_layer_candidate_id": "r2",
+                "start_candidate": 20.0,
+                "trackable_action_trace_candidate_ids": ["tr_r2"],
+                "action_family_counts": {"PASS": 1},
+            },
+            {
+                "visible_action_time_layer_candidate_id": "c1",
+                "start_candidate": 30.0,
+                "trackable_action_trace_candidate_ids": ["tr_c1"],
+                "action_family_counts": {"PASS": 1},
+            },
+            {
+                "visible_action_time_layer_candidate_id": "c2",
+                "start_candidate": 40.0,
+                "trackable_action_trace_candidate_ids": ["tr_c2"],
+                "action_family_counts": {"PASS": 1},
+            },
+        ],
+        "visible_action_sequence_candidates": [
+            {
+                "visible_action_sequence_candidate_id": "vasq_ref",
+                "team_identity_candidate_id": "teamc_A",
+                "period_candidate": "1",
+                "start_time_candidate": 10.0,
+                "end_time_candidate": 20.0,
+                "duration_candidate_seconds": 10.0,
+                "time_layer_candidate_ids": ["r1", "r2"],
+                "time_layer_count": 2,
+                "trackable_action_trace_candidate_ids": ["tr_r1", "tr_r2"],
+                "trace_candidate_count": 2,
+                "action_family_counts": {"PASS": 2},
+                "consequence_candidate_counts": {},
+                "sequence_record_status": "PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
+                "start_reason_candidate": "PERIOD_START",
+                "end_reason_candidate": "TEAM_HANDOVER_BOUNDARY",
+            },
+            {
+                "visible_action_sequence_candidate_id": "vasq_cand",
+                "team_identity_candidate_id": "teamc_A",
+                "period_candidate": "1",
+                "start_time_candidate": 30.0,
+                "end_time_candidate": 40.0,
+                "duration_candidate_seconds": 10.0,
+                "time_layer_candidate_ids": ["c1", "c2"],
+                "time_layer_count": 2,
+                "trackable_action_trace_candidate_ids": ["tr_c1", "tr_c2"],
+                "trace_candidate_count": 2,
+                "action_family_counts": {"PASS": 2},
+                "consequence_candidate_counts": {},
+                "sequence_record_status": "PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
+                "start_reason_candidate": "TIME_GAP_BOUNDARY",
+                "end_reason_candidate": "TEAM_HANDOVER_BOUNDARY",
+            },
+        ],
+    }
+    trace = {
+        "trackable_action_trace_candidates": [
+            {"trackable_action_trace_candidate_id":"tr_r1","supporting_evidence_atom_ids":["ea_r1"]},
+            {"trackable_action_trace_candidate_id":"tr_r2","supporting_evidence_atom_ids":["ea_r2"]},
+            {"trackable_action_trace_candidate_id":"tr_c1","supporting_evidence_atom_ids":["ea_c1"]},
+            {"trackable_action_trace_candidate_id":"tr_c2","supporting_evidence_atom_ids":["ea_c2"]},
+        ]
+    }
+    evidence = {
+        "evidence_atoms": [
+            {"evidence_atom_id":"ea_r1","row_nucleus_candidate_id":"rn_r1"},
+            {"evidence_atom_id":"ea_r2","row_nucleus_candidate_id":"rn_r2"},
+            {"evidence_atom_id":"ea_c1","row_nucleus_candidate_id":"rn_c1"},
+            {"evidence_atom_id":"ea_c2","row_nucleus_candidate_id":"rn_c2"},
+        ]
+    }
+    semantics = {
+        "context_action_semantic_records": [
+            {"row_nucleus_candidate_id":"rn_r1","context_zone_candidate":"OWN_HALF"},
+            {"row_nucleus_candidate_id":"rn_r2","context_zone_candidate":"FINAL_THIRD"},
+            {"row_nucleus_candidate_id":"rn_c1","context_zone_candidate":"OWN_HALF"},
+            {"row_nucleus_candidate_id":"rn_c2","context_zone_candidate":"MIDDLE_THIRD"},
+        ]
+    }
+    return identities, visible_sequence, trace, evidence, semantics
+
+
+def test_p02_independence_admitted_comparison_builds_c4_packet_and_reaches_fusion():
+    identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
+    p02 = _progression_pool_p02(
+        {},
+        {},
+        {},
+        {},
+        semantics,
+        identities,
+        visible_sequence,
+        trace,
+        evidence,
+    )
+    assert p02["p02_c4_packet_candidate_count"] == 1
+    candidate = p02["p02_c4_packet_candidates"][0]
+    packet = build_composite_packet(candidate)
+    assert packet["status"] == "SMOKE_PASS"
+    assert packet["contradicting_signal_count"] == 1
+
+    fusion = fuse_packet(packet)
+    assert fusion["contradiction_signal_count"] == 1
+    assert fusion["admitted_counterevidence_count"] == 1
+    comparison = next(
+        row for row in fusion["relation_records"]
+        if row["relation_type"] == "CONTRADICTS"
+    )
+    assert comparison["counterevidence_class"] == "COUNTEREVIDENCE"
+    assert comparison["independence_admission_status"] == "ADMITTED"
+
+
+def test_p02_c4_packet_is_claim_bounded_and_does_not_invent_support():
+    identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
+    p02 = _progression_pool_p02(
+        {},
+        {},
+        {},
+        {},
+        semantics,
+        identities,
+        visible_sequence,
+        trace,
+        evidence,
+    )
+    candidate = p02["p02_c4_packet_candidates"][0]
+    assert candidate["supporting_signals"] == []
+    assert candidate["claim_ceiling"] == "composite_candidate_only"
+    assert candidate["claim_output_allowed"] is False
+    assert candidate["report_language_allowed"] is False
+    assert candidate["production_release"] is False
