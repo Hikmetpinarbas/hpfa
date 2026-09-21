@@ -1489,3 +1489,32 @@ def test_p02_c4_packet_is_claim_bounded_and_does_not_invent_support():
     assert candidate["claim_output_allowed"] is False
     assert candidate["report_language_allowed"] is False
     assert candidate["production_release"] is False
+
+
+
+def test_p02_acceptance_counters_are_explicit_and_reconciled():
+    identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
+    p02 = _progression_pool_p02(
+        {},
+        {},
+        {},
+        {},
+        semantics,
+        identities,
+        visible_sequence,
+        trace,
+        evidence,
+    )
+    counters = p02["acceptance_counters"]
+    assert counters["p02_process_unit_candidate_count"] == 2
+    assert counters["p02_pairwise_comparison_candidate_count"] == 1
+    assert counters["p02_opposite_outcome_comparison_candidate_count"] == 1
+    assert counters["p02_independence_admitted_comparison_count"] == 1
+    assert counters["p02_independence_not_admitted_comparison_count"] == 0
+    assert counters["p02_c4_packet_candidate_count"] == 1
+    assert counters["p02_semantic_zone_complete_process_unit_count"] == 2
+    assert counters["p02_advanced_access_visible_count"] == 1
+    assert counters["p02_no_advanced_access_visible_count"] == 1
+    assert counters["p02_advanced_access_unresolved_count"] == 0
+    assert counters["p02_invented_semantics_count"] == 0
+    assert counters["p02_lost_atom_count"] == 0
