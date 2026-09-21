@@ -10,6 +10,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 import episode_lane_runner
+import full_spine_runner
 import reconstruction_intelligence_packet_adapter_current_v1 as current_bridge
 from full_spine_runner import _first_failure, run_full_spine, run_intelligence_chain
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
@@ -267,3 +268,153 @@ def test_no_sample_match_identity_leak():
         source = source_path.read_text(encoding="utf-8")
         for token in ["Genclerbirligi", "Fenerbahce", "Sturm Graz", "Heart of Midlothian", "Turkey", "Australia", "15.08.2026", "22.08.2026"]:
             assert token not in source
+
+
+
+def test_p02_counterevidence_only_packet_stops_after_auxiliary_fusion(tmp_path, monkeypatch):
+    execution_root = tmp_path / "checkout"
+    active_match = execution_root / "runtime" / "active_single_match" / "current"
+    active_match.mkdir(parents=True)
+    out_dir = tmp_path / "out"
+
+    base_packet = _packet()
+
+    p02_candidate = {
+        "packet_id": "p02_cmp_packet_fixture",
+        "packet_family": "progression",
+        "input_features": [],
+        "input_windows": [
+            {
+                "window_id": "p02_population_fixture",
+                "source_surface": "P02_PROCESS_UNIT_COMPARISON_POPULATION",
+                "provenance_root": "p02_population_fixture",
+                "dependency_group": "p02_population_fixture",
+                "independent_support_vote": False,
+            }
+        ],
+        "input_sequences": [
+            {
+                "sequence_id": "vasq_ref",
+                "source_surface": "visible_action_sequence_candidates_lite_v1",
+                "provenance_root": "vasq_ref",
+                "dependency_group": "dep_ref",
+                "independence_group": "vasq_ref",
+                "independent_support_vote": False,
+            },
+            {
+                "sequence_id": "vasq_cand",
+                "source_surface": "visible_action_sequence_candidates_lite_v1",
+                "provenance_root": "vasq_cand",
+                "dependency_group": "dep_cand",
+                "independence_group": "vasq_cand",
+                "independent_support_vote": False,
+            },
+        ],
+        "input_metrics": [],
+        "supporting_signals": [],
+        "contradicting_signals": [
+            {
+                "signal_id": "p02_counter_fixture",
+                "relation_type": "CONTRADICTS",
+                "contradiction_basis": "same_context_opposite_advanced_access",
+                "comparison_question_id": "P02_VISIBLE_SEQUENCE_ADVANCED_ACCESS",
+                "comparison_unit": "p02_process_unit_candidate",
+                "exact_dimensions": ["team_identity_candidate_id", "period_candidate", "score_state_candidate", "process_start_zone_candidate"],
+                "coarsened_dimensions": [],
+                "test_dimensions": ["advanced_access_state_candidate"],
+                "forbidden_leakage_dimensions": ["advanced_access_state_candidate"],
+                "reference_context": {
+                    "team_identity_candidate_id": "teamc_A",
+                    "period_candidate": "1",
+                    "score_state_candidate": "LEVEL",
+                    "process_start_zone_candidate": "OWN_HALF",
+                },
+                "candidate_context": {
+                    "team_identity_candidate_id": "teamc_A",
+                    "period_candidate": "1",
+                    "score_state_candidate": "LEVEL",
+                    "process_start_zone_candidate": "OWN_HALF",
+                },
+                "reference_outcome": "ADVANCED_ACCESS_VISIBLE",
+                "candidate_outcome": "NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH",
+                "outcome_relation": "OPPOSITE",
+                "provenance_root": "p02u_cand",
+                "reference_provenance_root": "p02u_ref",
+                "dependency_group": "dep_cand",
+                "reference_dependency_group": "dep_ref",
+                "independence_group": "vasq_cand",
+                "reference_independence_group": "vasq_ref",
+                "independence_admission_status": "ADMITTED",
+                "independence_admission_basis": "distinct_visible_sequence_roots+disjoint_trace_roots+non_overlapping_admitted_time_intervals",
+            }
+        ],
+        "claim_ceiling": "composite_candidate_only",
+        "p02_packet_role": "POPULATION_COLLAPSED_COUNTEREVIDENCE_COMPARISON_PACKET_ONLY",
+        "claim_output_allowed": False,
+        "report_language_allowed": False,
+        "production_release": False,
+    }
+
+    def fake_bridge(_input_dir, output_dir):
+        output = Path(output_dir)
+        output.mkdir(parents=True, exist_ok=True)
+        (output / "composite_evidence_packet_builder_lite_v1.json").write_text(
+            json.dumps({
+                "module_id": "composite_evidence_packet_builder_lite_v1",
+                "status": "SMOKE_PASS",
+                "packet_count": 1,
+                "blocked_packet_count": 0,
+                "packets": [base_packet],
+                "canonical_event_count": "UNKNOWN",
+                "production_release": False,
+            }),
+            encoding="utf-8",
+        )
+        return {
+            "module_id": "reconstruction_intelligence_packet_bridge_current_v1",
+            "status": "SMOKE_PASS",
+            "input_surface_snapshot_id": "snapshot_fixture",
+            "match_surface_binding_id": "msb_fixture",
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+
+    monkeypatch.setattr(
+        full_spine_runner,
+        "run_rich_lane",
+        lambda *_a, **_k: {
+            "status": "REVIEW_REQUIRED",
+            "constructs": {"C01": {"status": "REVIEW_REQUIRED", "c4_admission_status": "WITHHELD_PENDING_CONSTRUCT_ADMISSION"}},
+            "progression_pool_p02": {"p02_counterevidence_population_count": 1},
+            "c4_packet_candidates": [p02_candidate],
+            "current_invocation_artifacts": [],
+        },
+    )
+    monkeypatch.setattr(
+        full_spine_runner,
+        "run_sidecars",
+        lambda *_a, **_k: {"status": "SMOKE_PASS", "current_invocation_artifacts": []},
+    )
+
+    report = run_full_spine(
+        active_match_dir=active_match,
+        out_dir=out_dir,
+        execution_root=execution_root,
+        bridge_runner=fake_bridge,
+        episode_runner=_episode_pass,
+    )
+
+    assert report["status"] == "REVIEW_REQUIRED"
+    assert report["failed_intelligence_chain_count"] == 0
+    assert report["intelligence_chain_count"] == 1
+    assert report["P02_auxiliary_counterevidence_packet_count"] == 1
+    assert report["P02_auxiliary_counterevidence_fusion_count"] == 1
+    assert report["P02_admitted_counterevidence_count"] == 1
+    assert report["engineering_evidence"]["P02_counterevidence_packets_enter_argument_route"] is False
+    assert report["analyst_evidence"]["P02_auxiliary_counterevidence_safe_finding_emitted"] is False
+
+    inventory = json.loads((out_dir / "active_match_fused_packet_inventory_v1.json").read_text(encoding="utf-8"))
+    assert inventory["fused_packet_count"] == 1
+    assert inventory["auxiliary_counterevidence_packet_count"] == 1
+    assert inventory["auxiliary_counterevidence_fusion_count"] == 1
