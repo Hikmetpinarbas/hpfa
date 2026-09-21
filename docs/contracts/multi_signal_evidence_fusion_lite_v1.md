@@ -57,7 +57,8 @@ comparison_status = ELIGIBLE
 counterevidence_class = COUNTEREVIDENCE
 exact comparison dimensions are resolved and matched
 the tested outcome is not leaked into matching dimensions
-reference and candidate outcomes are resolved and opposite
+reference and candidate outcomes are resolved
+outcome_relation is explicitly OPPOSITE
 reference and candidate lineage are dependency-separated
 ```
 
@@ -84,7 +85,10 @@ UNRESOLVED
 
 Important rules:
 
-- same dependency root/group/independence group + opposite outcome => `DEPENDENCY_CHALLENGE`, not independent counterevidence;
+- different outcome labels alone are not counterevidence;
+- `outcome_relation` must be one of `OPPOSITE | SAME | INCOMPARABLE | UNRESOLVED`;
+- only `OPPOSITE` may proceed toward counterevidence admission;
+- same dependency root/group/independence group + OPPOSITE relation => `DEPENDENCY_CHALLENGE`, not independent counterevidence;
 - unresolved outcome => `UNRESOLVED`;
 - exact-context mismatch => `CONTEXT_MISMATCH`;
 - tested outcome leaked into exact/coarsened matching dimensions => `INVALID_COMPARISON_CONTRACT`;
