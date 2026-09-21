@@ -338,6 +338,54 @@ def test_goalkeeper_restart_consequence_context_binds_provider_restart_to_visibl
     assert row["creates_independent_support"] is False
 
 
+
+def test_goalkeeper_restart_context_binds_first_admitted_followup_to_next_process():
+    action = {
+        "action_occurrence_candidates": [{
+            "action_occurrence_candidate_id": "gk_next_1",
+            "actor_identity_candidate_id": "keeper_1",
+            "team_identity_candidate_id": "team_a",
+            "attributes": {
+                "restart_type_candidate": "GOAL_KICK",
+                "provider_distance_bucket_candidate": "LONG",
+                "pass_outcome_candidate": "SUCCESS",
+            },
+        }]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "gk_next_1",
+            "admitted_after_follow_up_trace_ids": ["trace_1"],
+            "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+            "process_continuation_status": "PROCESS_CONTINUES_VISIBLE_CANDIDATE",
+        }]
+    }
+    traces = {
+        "primary_occurrence_trace_candidates": [{
+            "trackable_action_trace_candidate_id": "trace_1",
+            "start_candidate": "15",
+            "period_candidate": "1",
+            "team_identity_candidate_id": "team_a",
+        }]
+    }
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "14",
+            "end_candidate": "22",
+        }]
+    }
+    result = _goalkeeper_restart_consequence_context(action, consequence, traces, process)
+    row = result["rows"][0]
+    assert row["first_admitted_followup_start_candidate"] == 15.0
+    assert row["next_visible_process_family_candidates"] == ["POSITIONAL_ATTACK_CANDIDATE"]
+    assert row["next_process_binding_state"] == "SINGLE_VISIBLE_PROCESS_FAMILY_MATCH"
+    assert row["next_process_is_possession_truth"] is False
+
+
 def test_goalkeeper_restart_consequence_context_is_not_available_without_goal_kick_occurrence():
     result = _goalkeeper_restart_consequence_context(
         {"action_occurrence_candidates": []},

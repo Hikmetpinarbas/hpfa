@@ -1377,6 +1377,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             f"goalkeeper_restart_context_row_count={(rich.get('goalkeeper_restart_consequence_context') or {}).get('goalkeeper_restart_context_row_count')}",
             f"goalkeeper_restart_bucket_counts={json.dumps((rich.get('goalkeeper_restart_consequence_context') or {}).get('provider_distance_bucket_counts') or {}, ensure_ascii=False, sort_keys=True)}",
             f"goalkeeper_restart_primary_consequence_counts={json.dumps((rich.get('goalkeeper_restart_consequence_context') or {}).get('primary_consequence_counts') or {}, ensure_ascii=False, sort_keys=True)}",
+            f"goalkeeper_restart_next_process_family_counts={json.dumps((rich.get('goalkeeper_restart_consequence_context') or {}).get('next_visible_process_family_counts') or {}, ensure_ascii=False, sort_keys=True)}",
             f"set_piece_process_consequence_context_status={(rich.get('set_piece_process_consequence_context') or {}).get('status')}",
             f"set_piece_process_context_row_count={(rich.get('set_piece_process_consequence_context') or {}).get('set_piece_process_context_row_count')}",
             f"set_piece_primary_consequence_counts={json.dumps((rich.get('set_piece_process_consequence_context') or {}).get('primary_consequence_counts') or {}, ensure_ascii=False, sort_keys=True)}",
