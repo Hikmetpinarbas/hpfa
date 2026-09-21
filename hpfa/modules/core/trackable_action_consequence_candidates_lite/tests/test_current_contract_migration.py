@@ -195,3 +195,50 @@ def test_no_sample_match_identity_leak() -> None:
     source = Path("hpfa/modules/core/trackable_action_consequence_candidates_lite/src/trackable_action_consequence_candidates.py").read_text(encoding="utf-8")
     forbidden = ("Genclerbirligi", "Fenerbahce", "15.08.2026", "Galatasaray")
     assert not any(token in source for token in forbidden)
+
+
+def test_visible_consequence_path_preserves_same_time_layer_without_internal_order() -> None:
+    anchor = trace("a", start=10, team="A", family="TURNOVER")
+    b = trace("b", start=14, team="B", actor="b", family="PASS", x=20)
+    c = trace("c", start=14, team="B", actor="c", family="RECOVERY", x=30)
+    d = trace("d", start=18, team="B", actor="d", family="PASS", x=40)
+    result = build([anchor, b, c, d])
+    row = next(r for r in result["trackable_action_consequence_candidates"] if r["anchor_trackable_action_trace_candidate_id"] == "a")
+
+    assert row["visible_consequence_path_signature"] == (
+        "ANCHOR:TURNOVER -> L1:OPPONENT:PASS/RECOVERY -> L2:OPPONENT:PASS"
+    )
+    assert row["visible_consequence_path_layers"][0]["visible_trace_ids"] == ["b", "c"]
+    assert row["visible_consequence_path_layers"][0]["same_time_layer_internal_order_claimed"] is False
+    assert row["visible_consequence_path_is_total_order"] is False
+
+
+def test_recovery_to_pass_pass_path_is_visible_process_candidate_only() -> None:
+    anchor = trace("a", start=10, team="A", family="RECOVERY")
+    b = trace("b", start=14, team="A", actor="b", family="PASS", x=20)
+    c = trace("c", start=18, team="A", actor="c", family="PASS", x=30)
+    result = build([anchor, b, c])
+    row = next(r for r in result["trackable_action_consequence_candidates"] if r["anchor_trackable_action_trace_candidate_id"] == "a")
+
+    assert row["visible_consequence_path_signature"] == (
+        "ANCHOR:RECOVERY -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
+    )
+    assert row["visible_consequence_path_depth"] == 2
+    assert row["visible_consequence_path_is_possession_truth"] is False
+    assert row["visible_consequence_path_is_causal_truth"] is False
+    assert result["visible_consequence_path_signature_counts"][
+        "ANCHOR:RECOVERY -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
+    ] == 1
+
+
+def test_missing_second_layer_stays_explicit_none_not_failure() -> None:
+    anchor = trace("a", start=10, team="A", family="TURNOVER")
+    b = trace("b", start=14, team="B", actor="b", family="PASS", x=20)
+    result = build([anchor, b])
+    row = next(r for r in result["trackable_action_consequence_candidates"] if r["anchor_trackable_action_trace_candidate_id"] == "a")
+
+    assert row["visible_consequence_path_signature"] == (
+        "ANCHOR:TURNOVER -> L1:OPPONENT:PASS -> L2:NONE:NONE"
+    )
+    assert row["visible_consequence_path_depth"] == 1
+    assert row["visible_consequence_path_layers"][1]["team_relation_state"] == "NONE"
