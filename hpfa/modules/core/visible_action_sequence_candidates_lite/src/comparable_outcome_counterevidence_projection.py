@@ -11,6 +11,13 @@ SAFE_FINDING_HANDOFF_CLAIM_CEILING = "DOWNGRADED_MATCH_LOCAL_SAFE_FINDING_HANDOF
 BRANCH_COUNTEREVIDENCE_CLAIM_CEILING = "SAME_DESIGN_BRANCH_VARIATION_AND_CHALLENGE_CANDIDATE_ONLY"
 VISIBLE_OUTCOME_STATES = {"SUCCESS_SEMANTIC_VISIBLE", "FAILURE_SEMANTIC_VISIBLE"}
 BRANCH_QUESTION_ID = "shared_visible_anchor_branch_contrast_v1"
+CANONICAL_EVIDENCE_DIRECTION_CLASSES = {
+    "SUPPORT",
+    "COUNTEREVIDENCE",
+    "NON_SUPPORT",
+    "UNRESOLVED",
+    "NOT_EVALUATED",
+}
 
 
 def _clean(value: Any) -> str:
@@ -69,6 +76,51 @@ def _branch_sequence_refs(divergence: dict[str, Any], outcome_state: str) -> lis
     return sorted(refs)
 
 
+def _explicit_dependency_challenge(pair: dict[str, Any]) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    if int(pair.get("shared_occurrence_candidate_count") or 0) > 0:
+        reasons.append("SHARED_OCCURRENCE_ROOT")
+    if int(pair.get("shared_dependency_group_count") or 0) > 0:
+        reasons.append("SHARED_DEPENDENCY_GROUP")
+    if _clean(pair.get("pair_state")) == "DEPENDENT_SHARED_ORIGIN_VARIANT_PAIR":
+        reasons.append("DEPENDENT_SHARED_ORIGIN_PAIR_STATE")
+    if _clean(pair.get("comparison_eligibility_state")) == "COMPARABLE_FOR_SHARED_ORIGIN_BRANCH_CONTRAST":
+        reasons.append("SHARED_ORIGIN_COMPARISON_DESIGN")
+    return bool(reasons), sorted(set(reasons))
+
+
+def _legacy_evidence_direction(contrast_state: str) -> str:
+    mapping = {
+        "COMPARABLE_SAME_VISIBLE_OUTCOME": "SUPPORT",
+        "COMPARABLE_DIFFERENT_VISIBLE_OUTCOME_COUNTEREXAMPLE_CANDIDATE": "COUNTEREVIDENCE",
+        "COMPARABLE_VISIBLE_OUTCOME_SEMANTIC_UNRESOLVED_REVIEW_REQUIRED": "UNRESOLVED",
+        "COMPARABLE_VARIANT_SEQUENCE_BINDING_MISSING_REVIEW_REQUIRED": "UNRESOLVED",
+        "NOT_APPLICABLE_OR_REVIEW_REQUIRED_COMPARISON": "NOT_EVALUATED",
+    }
+    return mapping.get(contrast_state, "UNRESOLVED")
+
+
+def _branch_evidence_direction(
+    *,
+    same_branch: bool,
+    left_outcome: str | None,
+    right_outcome: str | None,
+) -> tuple[str, str]:
+    if left_outcome is None or right_outcome is None:
+        return "UNRESOLVED", (
+            "WITHIN_BRANCH_VISIBLE_OUTCOME_STABILITY"
+            if same_branch
+            else "BETWEEN_BRANCH_VISIBLE_OUTCOME_DISCRIMINATION"
+        )
+    if same_branch:
+        if left_outcome == right_outcome:
+            return "SUPPORT", "WITHIN_BRANCH_VISIBLE_OUTCOME_STABILITY"
+        return "COUNTEREVIDENCE", "WITHIN_BRANCH_VISIBLE_OUTCOME_STABILITY"
+    if left_outcome == right_outcome:
+        return "NON_SUPPORT", "BETWEEN_BRANCH_VISIBLE_OUTCOME_DISCRIMINATION"
+    return "SUPPORT", "BETWEEN_BRANCH_VISIBLE_OUTCOME_DISCRIMINATION"
+
+
 def _legacy_similarity_records(
     sequence_payload: dict[str, Any],
     sequence_outcomes: dict[str, set[str]],
@@ -108,6 +160,8 @@ def _legacy_similarity_records(
             contrast_state = "COMPARABLE_DIFFERENT_VISIBLE_OUTCOME_COUNTEREXAMPLE_CANDIDATE"
             candidate = True
 
+        evidence_direction = _legacy_evidence_direction(contrast_state)
+        dependency_challenge_present, dependency_challenge_reasons = _explicit_dependency_challenge(pair)
         record_id = "coc_" + _digest(pair_id, left_variant, right_variant, left_outcome, right_outcome)[:24]
         records.append({
             "comparable_outcome_counterevidence_id": record_id,
@@ -122,6 +176,14 @@ def _legacy_similarity_records(
             "left_visible_outcome_state": left_outcome,
             "right_visible_outcome_state": right_outcome,
             "comparable_outcome_contrast_state": contrast_state,
+            "canonical_evidence_direction_class": evidence_direction,
+            "canonical_evidence_target_construct": "STRUCTURAL_RECURRENCE_VISIBLE_OUTCOME_CONSISTENCY",
+            "dependency_challenge_present": dependency_challenge_present,
+            "dependency_challenge_reason_codes": dependency_challenge_reasons,
+            "dependency_challenge_changes_evidence_direction": False,
+            "independent_evidence_vote_allowed": False,
+            "non_support_is_counterevidence": False,
+            "unresolved_is_failure": False,
             "comparable_counterevidence_candidate": candidate,
             "counterevidence_is_independent_support": False,
             "dependency_independence_proven": False,
@@ -204,6 +266,12 @@ def _branch_design_records(
                 challenge = False
                 variation = True
 
+            canonical_evidence_direction, canonical_target_component = _branch_evidence_direction(
+                same_branch=same_branch,
+                left_outcome=left_outcome,
+                right_outcome=right_outcome,
+            )
+
             record_id = "boc_" + _digest(
                 comparable_set_id,
                 divergence_id,
@@ -228,6 +296,15 @@ def _branch_design_records(
                 "left_visible_outcome_state": left_outcome,
                 "right_visible_outcome_state": right_outcome,
                 "branch_comparison_contrast_state": state,
+                "canonical_evidence_direction_class": canonical_evidence_direction,
+                "canonical_evidence_target_construct": "BRANCH_OUTCOME_STABILITY_AND_DISCRIMINATION",
+                "canonical_evidence_target_component": canonical_target_component,
+                "dependency_challenge_present": None,
+                "dependency_challenge_state": "NOT_EVALUATED_IN_BRANCH_RECORD",
+                "dependency_challenge_changes_evidence_direction": False,
+                "independent_evidence_vote_allowed": False,
+                "non_support_is_counterevidence": False,
+                "unresolved_is_failure": False,
                 "same_design_challenge_candidate": challenge,
                 "same_design_variation_candidate": variation,
                 "comparison_eligible": True,
@@ -778,6 +855,12 @@ def build_comparable_outcome_counterevidence(sequence_payload: dict[str, Any]) -
     branch_counts = Counter(
         _clean(row.get("branch_comparison_contrast_state")) for row in branch_records
     )
+    legacy_evidence_direction_counts = Counter(
+        _clean(row.get("canonical_evidence_direction_class")) for row in legacy_records
+    )
+    branch_evidence_direction_counts = Counter(
+        _clean(row.get("canonical_evidence_direction_class")) for row in branch_records
+    )
     return {
         "status": status,
         "comparable_outcome_counterevidence_records": legacy_records if not blocks else [],
@@ -810,6 +893,23 @@ def build_comparable_outcome_counterevidence(sequence_payload: dict[str, Any]) -
             if not blocks
             else 0
         ),
+        "canonical_evidence_classification_applied": True,
+        "canonical_evidence_direction_classes": sorted(CANONICAL_EVIDENCE_DIRECTION_CLASSES),
+        "legacy_canonical_evidence_direction_counts": (
+            dict(sorted(legacy_evidence_direction_counts.items())) if not blocks else {}
+        ),
+        "branch_canonical_evidence_direction_counts": (
+            dict(sorted(branch_evidence_direction_counts.items())) if not blocks else {}
+        ),
+        "legacy_dependency_challenge_record_count": (
+            sum(1 for row in legacy_records if row.get("dependency_challenge_present") is True)
+            if not blocks
+            else 0
+        ),
+        "dependency_challenge_is_evidence_direction": False,
+        "dependency_challenge_changes_evidence_direction": False,
+        "non_support_is_counterevidence": False,
+        "unresolved_is_failure": False,
         "safe_finding_counterevidence_uses_same_comparison_design_when_available": True,
         "eligible_denominator_coverage_unit": "FROZEN_ELIGIBLE_CASE",
         "visible_branch_count_is_case_denominator": False,
