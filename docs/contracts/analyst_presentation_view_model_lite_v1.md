@@ -550,3 +550,43 @@ invented ball trajectory, invented runs, team-shape polygons, pressure geometry,
 
 Claim ceiling:
 PRESENTATION_LAYOUT_ONLY_NO_NEW_EVIDENCE
+
+## HPFA personal visual and cognitive doctrine
+
+The analyst product must reflect the operator's established aesthetic and intellectual references as design principles, not literal collage.
+
+Visual references:
+- Caravaggio -> contrast and attention hierarchy
+- Leonardo da Vinci -> geometry, proportion and mathematical structure
+- Nikola Tesla -> electric energy and dynamic accent
+- Giordano Bruno -> conceptual sharpness
+- Eduardo Galeano -> human-scale football storytelling
+- Raffaello Sanzio -> compositional focus and balance
+- Hieronymus Bosch -> controlled complexity
+- Umberto Eco -> layered meaning and progressive disclosure
+- Samuel Beckett -> restraint, whitespace and tension where information is absent
+
+Do not use literal portraits, old-book decoration, skulls, coils or historical cosplay as the default interface language.
+
+Operator cognition:
+- mechanism over scoreline
+- evidence over rhetoric
+- context over raw count
+- counterevidence before confidence
+- uncertainty visible
+- deep reasoning, simple expression
+- complex systems without false certainty
+
+Avoid:
+- surface-level commentary
+- fan-style judgment
+- empty enthusiasm
+- ornamental complexity
+- unverified claims
+- blind composite scores
+- aesthetic inflation of evidence
+
+Palette:
+dark navy / black base, electric blue primary accent, restrained green for support, restrained amber/red for warning.
+
+Aesthetic quality must improve analyst comprehension without strengthening the underlying football claim.

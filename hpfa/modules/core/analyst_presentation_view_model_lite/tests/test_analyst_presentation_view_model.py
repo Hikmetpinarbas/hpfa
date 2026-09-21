@@ -271,6 +271,14 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert dashboard["claim_ceiling"] == "PRESENTATION_LAYOUT_ONLY_NO_NEW_EVIDENCE"
     assert dashboard["visual_language"]["pitch_is_primary_canvas"] is True
     assert dashboard["visual_language"]["decorative_match_photo_required"] is False
+    doctrine = dashboard["visual_language"]["design_doctrine"]
+    assert doctrine["CARAVAGGIO"].startswith("high_contrast_attention_hierarchy")
+    assert doctrine["LEONARDO_DA_VINCI"].startswith("geometry_proportion")
+    assert doctrine["EDUARDO_GALEANO"].startswith("human_scale_football_storytelling")
+    assert doctrine["UMBERTO_ECO"].startswith("layered_meaning")
+    assert dashboard["visual_language"]["palette_principles"]["primary_accent"] == "electric_blue"
+    assert "mechanism_over_scoreline" in dashboard["operator_cognitive_doctrine"]["core"]
+    assert "aesthetic_inflation_of_evidence" in dashboard["operator_cognitive_doctrine"]["avoid"]
     field_region = next(item for item in dashboard["regions"] if item["region_id"] == "field_replay")
     assert field_region["visual_mode"] == "SCHEMATIC_PITCH_WITH_RECORDED_ANCHORS"
     assert "invented_ball_trajectory" in field_region["blocked_overlays"]
