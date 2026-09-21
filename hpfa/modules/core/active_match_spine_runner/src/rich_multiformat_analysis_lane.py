@@ -827,6 +827,8 @@ def _build_p02_sequence_process_units(
             "sequence_record_status": sequence.get("sequence_record_status"),
             "start_reason_candidate": sequence.get("start_reason_candidate"),
             "end_reason_candidate": end_reason,
+            "end_boundary_time_candidate": sequence.get("end_boundary_time_candidate"),
+            "next_team_identity_candidate_id": sequence.get("next_team_identity_candidate_id"),
             "score_state_candidate": score_state.get("score_state_candidate"),
             "score_state_context": score_state,
             "semantic_zone_station_count": len(semantic_zone_stations),
@@ -876,6 +878,68 @@ def _build_p02_sequence_process_units(
             "true_action_count": "UNKNOWN",
             "production_release": False,
         })
+
+    handover_start_index: dict[tuple[str, float, str], list[dict[str, Any]]] = defaultdict(list)
+    for unit in units:
+        if str(unit.get("start_reason_candidate") or "") != "AFTER_TEAM_HANDOVER":
+            continue
+        team_id = str(unit.get("team_identity_candidate_id") or "")
+        period = str(unit.get("period_candidate") or "")
+        try:
+            start_second = float(unit.get("start_time_candidate"))
+        except (TypeError, ValueError):
+            continue
+        if team_id:
+            handover_start_index[(period, start_second, team_id)].append(unit)
+
+    for unit in units:
+        exit_class = str(unit.get("visible_exit_class_candidate") or "")
+        current_team = str(unit.get("team_identity_candidate_id") or "")
+        next_team = str(unit.get("next_team_identity_candidate_id") or "")
+        response: dict[str, Any] = {
+            "status": "NOT_APPLICABLE_NO_TEAM_HANDOVER",
+            "source_process_unit_candidate_id": None,
+            "team_identity_candidate_id": None,
+            "advanced_access_state_candidate": "NOT_EVALUATED",
+            "process_start_zone_candidate": None,
+            "process_end_zone_candidate": None,
+            "visible_exit_class_candidate": None,
+        }
+        if exit_class == "TEAM_HANDOVER_BOUNDARY_VISIBLE":
+            try:
+                boundary_second = float(unit.get("end_boundary_time_candidate"))
+            except (TypeError, ValueError):
+                boundary_second = None
+            if not next_team or next_team == current_team or boundary_second is None:
+                response["status"] = "UNRESOLVED_HANDOVER_TARGET"
+            else:
+                matches = handover_start_index.get(
+                    (str(unit.get("period_candidate") or ""), boundary_second, next_team),
+                    [],
+                )
+                if len(matches) == 1:
+                    target = matches[0]
+                    response = {
+                        "status": "EXACT_HANDOVER_BOUNDARY_LINKED",
+                        "source_process_unit_candidate_id": target.get("p02_process_unit_candidate_id"),
+                        "source_visible_action_sequence_candidate_id": target.get("source_visible_action_sequence_candidate_id"),
+                        "team_identity_candidate_id": target.get("team_identity_candidate_id"),
+                        "advanced_access_state_candidate": target.get("advanced_access_state_candidate"),
+                        "process_start_zone_candidate": target.get("process_start_zone_candidate"),
+                        "process_end_zone_candidate": target.get("process_end_zone_candidate"),
+                        "visible_exit_class_candidate": target.get("visible_exit_class_candidate"),
+                    }
+                else:
+                    response["status"] = (
+                        "UNRESOLVED_HANDOVER_TARGET"
+                        if not matches
+                        else "AMBIGUOUS_HANDOVER_TARGET"
+                    )
+        unit["opponent_response_candidate"] = response
+        unit["opponent_response_is_causal_truth"] = False
+        unit["opponent_response_is_tactical_response_truth"] = False
+        unit["opponent_response_is_counterattack_truth"] = False
+        unit["opponent_response_adds_independent_support"] = False
 
     signature_groups: dict[str, list[str]] = defaultdict(list)
     for unit in units:
