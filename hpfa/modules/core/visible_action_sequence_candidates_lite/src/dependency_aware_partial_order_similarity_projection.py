@@ -379,6 +379,7 @@ def _candidate_pair_indices(
     variants: list[dict[str, Any]],
     contract: dict[str, Any],
 ) -> tuple[set[tuple[int, int]], list[dict[str, Any]], dict[str, int]]:
+    question_profile_hash = _digest(contract)
     tested = _dimension_set(contract, "allowed_test_dimensions")
     period_is_test = "period" in tested
     groups: dict[tuple[str, str, tuple[Any, ...]], list[int]] = defaultdict(list)
