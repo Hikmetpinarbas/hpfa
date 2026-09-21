@@ -480,6 +480,182 @@ def _build_p02_comparison_populations(team_pool_items: list[dict[str, Any]]) -> 
     }
 
 
+def _build_p02_sequence_process_units(
+    sequence_payload: dict[str, Any],
+    trace_payload: dict[str, Any],
+    score_timeline: dict[str, Any],
+) -> dict[str, Any]:
+    """Project current visible sequences into P02 process-unit candidates.
+
+    Only chronology already admitted by the visible-sequence owner is used.
+    Coordinate geometry remains provider-coordinate proxy, not metres/tracking.
+    """
+    trace_by_id = {
+        str(row.get("trackable_action_trace_candidate_id")): row
+        for row in (trace_payload.get("trackable_action_trace_candidates") or [])
+        if isinstance(row, dict) and row.get("trackable_action_trace_candidate_id")
+    }
+    layer_by_id = {
+        str(row.get("visible_action_time_layer_candidate_id")): row
+        for row in (sequence_payload.get("visible_action_time_layer_candidates") or [])
+        if isinstance(row, dict) and row.get("visible_action_time_layer_candidate_id")
+    }
+
+    units: list[dict[str, Any]] = []
+    for sequence in sequence_payload.get("visible_action_sequence_candidates") or []:
+        if not isinstance(sequence, dict):
+            continue
+        sequence_id = str(sequence.get("visible_action_sequence_candidate_id") or "")
+        team_id = str(sequence.get("team_identity_candidate_id") or "")
+        period = str(sequence.get("period_candidate") or "")
+        if not sequence_id or not team_id:
+            continue
+
+        score_state = _team_score_state_at_episode_start(
+            score_timeline,
+            team_identity_candidate_id=team_id,
+            period_candidate=period,
+            start_second_candidate=sequence.get("start_time_candidate"),
+        )
+
+        coordinate_stations: list[dict[str, Any]] = []
+        ambiguous_coordinate_layer_count = 0
+        missing_coordinate_layer_count = 0
+        for layer_id in sequence.get("time_layer_candidate_ids") or []:
+            layer = layer_by_id.get(str(layer_id))
+            if not isinstance(layer, dict):
+                missing_coordinate_layer_count += 1
+                continue
+            trace_ids = [
+                str(value)
+                for value in (layer.get("trackable_action_trace_candidate_ids") or [])
+                if str(value).strip()
+            ]
+            if len(trace_ids) != 1:
+                ambiguous_coordinate_layer_count += 1
+                continue
+            trace = trace_by_id.get(trace_ids[0])
+            if not isinstance(trace, dict):
+                missing_coordinate_layer_count += 1
+                continue
+            try:
+                x = float(trace.get("pos_x_candidate"))
+                y = float(trace.get("pos_y_candidate"))
+                t = float(layer.get("start_candidate"))
+            except (TypeError, ValueError):
+                missing_coordinate_layer_count += 1
+                continue
+            coordinate_stations.append({
+                "time_layer_candidate_id": layer.get("visible_action_time_layer_candidate_id"),
+                "trackable_action_trace_candidate_id": trace_ids[0],
+                "time_candidate": t,
+                "pos_x_candidate": x,
+                "pos_y_candidate": y,
+                "coordinate_evidence_status": trace.get("coordinate_evidence_status"),
+                "same_timestamp_internal_ordering_asserted": False,
+            })
+
+        path_length = None
+        raw_x_displacement = None
+        raw_y_displacement = None
+        straight_displacement = None
+        geometric_directness = None
+        if len(coordinate_stations) >= 2:
+            segment_lengths: list[float] = []
+            for left, right in zip(coordinate_stations, coordinate_stations[1:]):
+                dx = right["pos_x_candidate"] - left["pos_x_candidate"]
+                dy = right["pos_y_candidate"] - left["pos_y_candidate"]
+                segment_lengths.append((dx * dx + dy * dy) ** 0.5)
+            path_length = round(sum(segment_lengths), 6)
+            raw_x_displacement = round(
+                coordinate_stations[-1]["pos_x_candidate"] - coordinate_stations[0]["pos_x_candidate"], 6
+            )
+            raw_y_displacement = round(
+                coordinate_stations[-1]["pos_y_candidate"] - coordinate_stations[0]["pos_y_candidate"], 6
+            )
+            straight_displacement = round(
+                (raw_x_displacement * raw_x_displacement + raw_y_displacement * raw_y_displacement) ** 0.5,
+                6,
+            )
+            if path_length > 0:
+                geometric_directness = round(straight_displacement / path_length, 6)
+
+        end_reason = str(sequence.get("end_reason_candidate") or "")
+        if end_reason == "TERMINAL_OUTCOME_SUPPORT_BOUNDARY":
+            terminal_activity = "TERMINAL_SUPPORT_BOUNDARY_VISIBLE"
+        elif end_reason == "TEAM_HANDOVER_BOUNDARY":
+            terminal_activity = "TEAM_HANDOVER_BOUNDARY_VISIBLE"
+        elif end_reason == "RESTART_PRIMARY_LAYER_BOUNDARY":
+            terminal_activity = "RESTART_BOUNDARY_VISIBLE"
+        elif end_reason == "TIME_GAP_BOUNDARY":
+            terminal_activity = "TIME_GAP_BOUNDARY_VISIBLE"
+        elif end_reason == "PERIOD_END":
+            terminal_activity = "PERIOD_END_BOUNDARY_VISIBLE"
+        else:
+            terminal_activity = "OTHER_VISIBLE_BOUNDARY_CANDIDATE"
+
+        process_unit_id = "p02_seq_" + hashlib.sha256(sequence_id.encode("utf-8")).hexdigest()[:20]
+        units.append({
+            "p02_process_unit_candidate_id": process_unit_id,
+            "source_visible_action_sequence_candidate_id": sequence_id,
+            "team_identity_candidate_id": team_id,
+            "period_candidate": period,
+            "start_time_candidate": sequence.get("start_time_candidate"),
+            "end_time_candidate": sequence.get("end_time_candidate"),
+            "duration_candidate_seconds": sequence.get("duration_candidate_seconds"),
+            "time_layer_count": sequence.get("time_layer_count"),
+            "trace_candidate_count": sequence.get("trace_candidate_count"),
+            "action_family_counts": dict(sequence.get("action_family_counts") or {}),
+            "consequence_candidate_counts": dict(sequence.get("consequence_candidate_counts") or {}),
+            "sequence_record_status": sequence.get("sequence_record_status"),
+            "start_reason_candidate": sequence.get("start_reason_candidate"),
+            "end_reason_candidate": end_reason,
+            "score_state_candidate": score_state.get("score_state_candidate"),
+            "score_state_context": score_state,
+            "coordinate_station_count": len(coordinate_stations),
+            "coordinate_stations": coordinate_stations,
+            "ambiguous_coordinate_layer_count": ambiguous_coordinate_layer_count,
+            "missing_coordinate_layer_count": missing_coordinate_layer_count,
+            "provider_coordinate_path_length_proxy": path_length,
+            "provider_coordinate_straight_displacement_proxy": straight_displacement,
+            "provider_coordinate_raw_x_displacement": raw_x_displacement,
+            "provider_coordinate_raw_y_displacement": raw_y_displacement,
+            "geometric_directness_proxy": geometric_directness,
+            "goalward_progression": None,
+            "metric_distance_metres": None,
+            "attacking_direction": "NOT_EVALUATED",
+            "team_episode_terminal_activity_candidate": terminal_activity,
+            "comparison_candidate_ready": False,
+            "comparison_not_ready_reasons": [
+                "attacking_direction_not_bound",
+                "process_start_zone_not_bound",
+                "process_terminal_outcome_relation_not_admitted",
+            ],
+            "visible_sequence_candidate_is_sequence_truth": False,
+            "visible_sequence_candidate_is_possession_truth": False,
+            "coordinate_is_tracking": False,
+            "provider_coordinate_path_is_physical_trajectory_truth": False,
+            "terminal_activity_is_process_outcome_truth": False,
+            "independent_support_vote": False,
+            "claim_ceiling": "P02_VISIBLE_SEQUENCE_PROCESS_UNIT_CANDIDATE_ONLY",
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        })
+
+    return {
+        "p02_process_unit_candidate_count": len(units),
+        "p02_process_unit_candidates": units,
+        "process_unit_source": "visible_action_sequence_candidates_lite_v1",
+        "process_unit_is_sequence_truth": False,
+        "process_unit_is_possession_truth": False,
+        "coordinate_path_is_tracking": False,
+        "metric_distance_available": False,
+        "attacking_direction_available": False,
+        "production_release": False,
+    }
+
+
 def _progression_pool_p02(
     features: dict[str, Any],
     temporal: dict[str, Any],
@@ -487,6 +663,8 @@ def _progression_pool_p02(
     consequence: dict[str, Any] | None = None,
     semantics: dict[str, Any] | None = None,
     identities: dict[str, Any] | None = None,
+    visible_sequence: dict[str, Any] | None = None,
+    trace: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project current episode/temporal outputs into a claim-bounded P02 pool.
 
@@ -498,6 +676,8 @@ def _progression_pool_p02(
     consequence = consequence or {}
     semantics = semantics or {}
     identities = identities or {}
+    visible_sequence = visible_sequence or {}
+    trace = trace or {}
     temporal_by_episode = {
         str(row.get("episode_candidate_id")): row
         for row in (temporal.get("temporal_episode_signatures") or [])
@@ -1158,6 +1338,7 @@ def _progression_pool_p02(
         })
 
     comparison_populations = _build_p02_comparison_populations(team_pool_items)
+    process_units = _build_p02_sequence_process_units(visible_sequence, trace, score_timeline)
 
     return {
         "module_id": "progression_pool_p02_projection_v1",
@@ -1174,6 +1355,7 @@ def _progression_pool_p02(
         "transformation_ledger": ledger,
         "comparison_candidates": [],
         "comparison_populations": comparison_populations,
+        "process_units": process_units,
         "route_metric_evaluable_count": 0,
         "route_metric_not_evaluable_count": len(pool_items),
         "invented_semantics_count": 0,
@@ -1351,12 +1533,23 @@ def run_rich_lane(
     consequence = _load_json(output / "trackable_action_consequence_candidates_lite_v1.json")
     semantics = _load_json(output / "context_action_semantics_rebind_lite_v1.json")
     identities = _load_json(output / "match_local_identity_candidates_lite_v1.json")
+    visible_sequence = _load_json(output / "visible_action_sequence_candidates_lite_v1.json")
+    trace = _load_json(output / "trackable_action_trace_candidates_lite_v1.json")
     rows = _flatten_projection(projection)
     entity_views = _entity_views(rows)
     primitives = _primitive_metrics(features, entity_views)
     phase_states = _phase_state_candidates(features)
     c01 = _construct_c01(rows, features)
-    p02 = _progression_pool_p02(features, temporal, episode, consequence, semantics, identities)
+    p02 = _progression_pool_p02(
+        features,
+        temporal,
+        episode,
+        consequence,
+        semantics,
+        identities,
+        visible_sequence,
+        trace,
+    )
     if c01.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C01_progression_terminal_construct_review_required")
 
@@ -1403,6 +1596,7 @@ def run_rich_lane(
         "c4_packet_candidates": packet_candidates,
         "p02_pool_item_count": p02.get("p02_pool_item_count", 0),
         "p02_team_pool_item_count": p02.get("p02_team_pool_item_count", 0),
+        "p02_process_unit_candidate_count": (p02.get("process_units") or {}).get("p02_process_unit_candidate_count", 0),
         "p02_finding_atom_candidate_count": p02.get("finding_atom_candidate_count", 0),
         "p02_route_metric_evaluable_count": p02.get("route_metric_evaluable_count", 0),
         "p02_route_metric_not_evaluable_count": p02.get("route_metric_not_evaluable_count", 0),
