@@ -46,11 +46,53 @@ CONTEXTUALIZES
 ABSTAINS
 ```
 
-## Contradiction rule
+## Counterevidence comparison-admission rule
 
-`CONTRADICTS` is reserved for explicit same-construct or same-window conflict with a declared contradiction basis.
+Upstream `relation_type=CONTRADICTS`, `explicit_contradiction=true` or a `contradiction_basis` is only a contradiction *intent*. It does not authorize a contradiction relation by itself.
 
-Generic terminal limitation signals such as low shot volume, low box entry, weak terminal action volume or high loss cost should not become contradiction by default. They are `QUALIFIES` unless the upstream packet explicitly declares contradiction basis.
+Fusion admits `CONTRADICTS` only when all of the following are satisfied:
+
+```text
+comparison_status = ELIGIBLE
+counterevidence_class = COUNTEREVIDENCE
+exact comparison dimensions are resolved and matched
+the tested outcome is not leaked into matching dimensions
+reference and candidate outcomes are resolved and opposite
+reference and candidate lineage are dependency-separated
+```
+
+Otherwise the signal remains review-bounded as `QUALIFIES`.
+
+Comparison statuses:
+
+```text
+ELIGIBLE
+CONTEXT_UNRESOLVED
+CONTEXT_MISMATCH
+INVALID_COMPARISON_CONTRACT
+NOT_EVALUATED
+```
+
+Counterevidence classes:
+
+```text
+COUNTEREVIDENCE
+DEPENDENCY_CHALLENGE
+NON_SUPPORT
+UNRESOLVED
+```
+
+Important rules:
+
+- same dependency root/group/independence group + opposite outcome => `DEPENDENCY_CHALLENGE`, not independent counterevidence;
+- unresolved outcome => `UNRESOLVED`;
+- exact-context mismatch => `CONTEXT_MISMATCH`;
+- tested outcome leaked into exact/coarsened matching dimensions => `INVALID_COMPARISON_CONTRACT`;
+- same resolved outcome => `NON_SUPPORT`, never automatic support;
+- absence of an eligible counterexample does not strengthen support;
+- legacy declared contradiction without a comparison contract is downgraded with reason `counterevidence_comparability_not_admitted`.
+
+Generic terminal limitation signals such as low shot volume, low box entry, weak terminal action volume or high loss cost remain `QUALIFIES` unless the comparison-admission contract above is satisfied.
 
 ## Upstream identity rule
 
@@ -106,6 +148,13 @@ support relation count
 qualifier relation count
 contradiction relation count
 contextualization relation count
+comparison status counts
+typed counterevidence class counts
+admitted counterevidence count
+dependency challenge count
+non-support count
+unresolved counterevidence count
+counterevidence admission reasons
 dependency / independence state preservation
 fusion status candidate
 argument consumer readiness
@@ -164,7 +213,13 @@ test_missing_packet_id_blocks_fusion_identity
 test_fusion_records_signal_sources
 test_fusion_detects_support_relation
 test_low_shot_volume_qualifies_not_contradicts_by_default
-test_explicit_contradiction_requires_basis
+test_declared_contradiction_without_comparison_contract_downgrades_to_qualifier
+test_admitted_comparable_opposite_outcome_becomes_counterevidence
+test_missing_outcome_is_unresolved_not_contradiction
+test_same_dependency_root_is_dependency_challenge_not_contradiction
+test_exact_context_mismatch_blocks_counterevidence_admission
+test_outcome_leakage_invalidates_comparison_contract
+test_same_resolved_outcome_is_non_support_not_support
 test_fusion_does_not_emit_claim_text
 test_fusion_preserves_candidate_only_claim_ceiling
 test_causal_truth_upstream_output_blocks_fusion
