@@ -81,6 +81,13 @@ def test_process_context_is_applied_before_counterevidence_and_safe_finding(
                 "NON_SUPPORT": 1,
             },
             "legacy_dependency_challenge_record_count": 4,
+            "claim_target_denominator_binding_applied": True,
+            "legacy_denominator_binding_state_counts": {
+                "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND": 6,
+            },
+            "branch_denominator_binding_state_counts": {
+                "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND": 2,
+            },
             "safe_finding_handoff_candidates": [],
             "safe_finding_handoff_candidate_count": 0,
             "safe_finding_handoff_finding_status_counts": {
@@ -118,6 +125,16 @@ def test_process_context_is_applied_before_counterevidence_and_safe_finding(
     }
     assert persisted["branch_canonical_evidence_direction_counts"] == {"NON_SUPPORT": 1}
     assert persisted["legacy_dependency_challenge_record_count"] == 4
+    assert persisted["claim_target_denominator_binding_applied"] is True
+    assert persisted["legacy_denominator_binding_state_counts"] == {
+        "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND": 6,
+    }
+    assert persisted["branch_denominator_binding_state_counts"] == {
+        "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND": 2,
+    }
+    assert persisted["pair_record_is_eligible_denominator"] is False
+    assert persisted["pair_count_is_eligible_denominator"] is False
+    assert persisted["eligible_denominator_is_independent_evidence_count"] is False
     assert persisted["dependency_challenge_is_evidence_direction"] is False
     assert persisted["dependency_challenge_changes_evidence_direction"] is False
     assert persisted["non_support_is_counterevidence"] is False
