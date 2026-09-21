@@ -101,3 +101,32 @@ Defaults:
 canonical_event_count=UNKNOWN
 true_action_count=UNKNOWN
 production_release=false
+
+
+## P02 evidence-unit independence boundary
+
+P02 may emit an independence-admitted comparison candidate only when both process units have:
+
+- distinct visible-action-sequence roots,
+- non-empty and disjoint trackable-action-trace root sets,
+- non-overlapping admitted time intervals,
+- distinct process-unit dependency groups.
+
+The admission scope is:
+
+```text
+EVIDENCE_UNIT_LINEAGE_AND_TIME_NON_OVERLAP_ONLY
+```
+
+This is not statistical independence and must not be interpreted as one.
+
+Shared trace roots, overlapping time intervals, missing trace roots or unresolved sequence identity keep independence `NOT_ADMITTED`.
+
+Only after:
+- exact comparison context is eligible,
+- tested outcome is excluded from matching,
+- outcome_relation is explicitly `OPPOSITE`,
+- dependency roots are distinct,
+- evidence-unit independence is admitted,
+
+may fusion classify the comparison as `COUNTEREVIDENCE`.
