@@ -331,6 +331,18 @@ def _bind_comparable_outcome_counterevidence(payload: dict) -> dict:
     payload["legacy_dependency_challenge_record_count"] = int(
         projection.get("legacy_dependency_challenge_record_count") or 0
     )
+    payload["claim_target_denominator_binding_applied"] = (
+        projection.get("claim_target_denominator_binding_applied") is True
+    )
+    payload["legacy_denominator_binding_state_counts"] = dict(
+        projection.get("legacy_denominator_binding_state_counts") or {}
+    )
+    payload["branch_denominator_binding_state_counts"] = dict(
+        projection.get("branch_denominator_binding_state_counts") or {}
+    )
+    payload["pair_record_is_eligible_denominator"] = False
+    payload["pair_count_is_eligible_denominator"] = False
+    payload["eligible_denominator_is_independent_evidence_count"] = False
     payload["dependency_challenge_is_evidence_direction"] = False
     payload["dependency_challenge_changes_evidence_direction"] = False
     payload["non_support_is_counterevidence"] = False
