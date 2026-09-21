@@ -292,3 +292,82 @@ def test_p02_zone_advancement_is_discrete_zone_candidate_not_metric_distance():
     assert item["visible_observation_summary"]["zone_advancement_steps_candidate"] == 2
     assert item["process_signature_fields"]["net_goalward_progression"] is None
     assert item["process_signature_fields"]["visible_path_length_proxy"] is None
+
+
+
+def _p02_consequence():
+    return {
+        "trackable_action_consequence_candidates": [
+            {
+                "trackable_action_consequence_candidate_id": "tacc_1",
+                "period_candidate": "1",
+                "anchor_start_candidate": "15.0",
+                "supporting_action_occurrence_candidate_ids": ["aoc_1"],
+                "occurrence_visible_consequence_support": True,
+                "visible_follow_up_trace_ids": ["tat_2"],
+                "terminal_outcome_support_visible": False,
+                "consequence_signal_candidates": ["SAME_TEAM_FOLLOW_UP_VISIBLE"],
+            },
+            {
+                "trackable_action_consequence_candidate_id": "tacc_2",
+                "period_candidate": "1",
+                "anchor_start_candidate": "15.0",
+                "supporting_action_occurrence_candidate_ids": ["aoc_1"],
+                "occurrence_visible_consequence_support": True,
+                "visible_follow_up_trace_ids": ["tat_3"],
+                "terminal_outcome_support_visible": True,
+                "consequence_signal_candidates": ["OPPONENT_FOLLOW_UP_VISIBLE"],
+            },
+            {
+                "trackable_action_consequence_candidate_id": "tacc_outside",
+                "period_candidate": "1",
+                "anchor_start_candidate": "90.0",
+                "supporting_action_occurrence_candidate_ids": ["aoc_outside"],
+                "occurrence_visible_consequence_support": True,
+                "consequence_signal_candidates": ["OPPONENT_FOLLOW_UP_VISIBLE"],
+            },
+        ]
+    }
+
+
+def test_p02_consequence_binding_collapses_same_occurrence_root():
+    p02 = _progression_pool_p02(
+        _p02_features(),
+        _p02_temporal(),
+        _p02_episode(),
+        _p02_consequence(),
+    )
+    item = p02["p02_pool_items"][0]
+    summary = item["visible_observation_summary"]
+    signature = item["process_signature_fields"]
+    assert summary["occurrence_bound_consequence_occurrence_count"] == 1
+    assert summary["visible_follow_up_occurrence_count"] == 1
+    assert summary["terminal_support_occurrence_count"] == 1
+    assert summary["opponent_follow_up_visible_occurrence_count"] == 1
+    assert signature["occurrence_ids"] == ["aoc_1"]
+    assert signature["opponent_follow_up_occurrence_ids"] == ["aoc_1"]
+
+
+def test_p02_opponent_followup_is_visible_candidate_not_tactical_response_truth():
+    p02 = _progression_pool_p02(
+        _p02_features(),
+        _p02_temporal(),
+        _p02_episode(),
+        _p02_consequence(),
+    )
+    item = p02["p02_pool_items"][0]
+    signature = item["process_signature_fields"]
+    assert item["opponent_context"] == "VISIBLE_OPPONENT_FOLLOW_UP_CANDIDATE"
+    assert signature["occurrence_consequence_binding_is_causal_truth"] is False
+    assert signature["opponent_follow_up_is_tactical_response_truth"] is False
+
+
+def test_p02_consequence_binding_respects_episode_time_bounds():
+    p02 = _progression_pool_p02(
+        _p02_features(),
+        _p02_temporal(),
+        _p02_episode(),
+        _p02_consequence(),
+    )
+    item = p02["p02_pool_items"][0]
+    assert "aoc_outside" not in item["process_signature_fields"]["occurrence_ids"]
