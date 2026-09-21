@@ -45,7 +45,7 @@ def test_process_context_is_applied_before_counterevidence_and_safe_finding(
         encoding="utf-8",
     )
 
-    def fake_context(payload, process_payload, occurrence_payload):
+    def fake_context(payload, process_payload, occurrence_payload, occurrence_state_payload=None):
         result = dict(payload)
         result["process_comparison_context_consumed"] = True
         result["process_comparison_context_binding_state"] = (
