@@ -971,6 +971,94 @@ def test_p02_sequence_terminal_boundary_remains_visible_activity_candidate():
     assert unit["comparison_candidate_ready"] is False
 
 
+def test_p02_exact_handover_links_first_visible_opponent_process_without_causal_promotion():
+    sequence, trace, score_timeline = _sequence_process_unit_case()
+    first = sequence["visible_action_sequence_candidates"][0]
+    first["end_reason_candidate"] = "TEAM_HANDOVER_BOUNDARY"
+    first["end_boundary_time_candidate"] = 45.0
+    first["next_team_identity_candidate_id"] = "teamc_B"
+    sequence["visible_action_time_layer_candidates"].append({
+        "visible_action_time_layer_candidate_id": "vl5",
+        "start_candidate": 45.0,
+        "trackable_action_trace_candidate_ids": ["tr5"],
+    })
+    trace["trackable_action_trace_candidates"].append({
+        "trackable_action_trace_candidate_id": "tr5",
+        "pos_x_candidate": 30.0,
+        "pos_y_candidate": 20.0,
+        "coordinate_evidence_status": "VISIBLE_COORDINATE_CANDIDATE",
+    })
+    sequence["visible_action_sequence_candidates"].append({
+        "visible_action_sequence_candidate_id": "vasq_2",
+        "team_identity_candidate_id": "teamc_B",
+        "period_candidate": "1",
+        "start_time_candidate": 45.0,
+        "end_time_candidate": 45.0,
+        "end_boundary_time_candidate": 50.0,
+        "duration_candidate_seconds": 0.0,
+        "time_layer_candidate_ids": ["vl5"],
+        "time_layer_count": 1,
+        "trackable_action_trace_candidate_ids": ["tr5"],
+        "trace_candidate_count": 1,
+        "action_family_counts": {"PASS": 1},
+        "consequence_candidate_counts": {},
+        "sequence_record_status": "PASS_SINGLE_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
+        "start_reason_candidate": "AFTER_TEAM_HANDOVER",
+        "end_reason_candidate": "TIME_GAP_BOUNDARY",
+    })
+    out = _build_p02_sequence_process_units(sequence, trace, score_timeline)
+    by_source = {row["source_visible_action_sequence_candidate_id"]: row for row in out["p02_process_unit_candidates"]}
+    source = by_source["vasq_1"]
+    target = by_source["vasq_2"]
+    response = source["opponent_response_candidate"]
+    assert response["status"] == "EXACT_HANDOVER_BOUNDARY_LINKED"
+    assert response["source_process_unit_candidate_id"] == target["p02_process_unit_candidate_id"]
+    assert response["team_identity_candidate_id"] == "teamc_B"
+    assert source["opponent_response_is_causal_truth"] is False
+    assert source["opponent_response_is_tactical_response_truth"] is False
+    assert source["opponent_response_is_counterattack_truth"] is False
+    assert source["opponent_response_adds_independent_support"] is False
+
+
+def test_p02_handover_does_not_guess_nearest_opponent_process():
+    sequence, trace, score_timeline = _sequence_process_unit_case()
+    first = sequence["visible_action_sequence_candidates"][0]
+    first["end_reason_candidate"] = "TEAM_HANDOVER_BOUNDARY"
+    first["end_boundary_time_candidate"] = 45.0
+    first["next_team_identity_candidate_id"] = "teamc_B"
+    sequence["visible_action_time_layer_candidates"].append({
+        "visible_action_time_layer_candidate_id": "vl5",
+        "start_candidate": 46.0,
+        "trackable_action_trace_candidate_ids": ["tr5"],
+    })
+    trace["trackable_action_trace_candidates"].append({
+        "trackable_action_trace_candidate_id": "tr5",
+        "pos_x_candidate": 30.0,
+        "pos_y_candidate": 20.0,
+        "coordinate_evidence_status": "VISIBLE_COORDINATE_CANDIDATE",
+    })
+    sequence["visible_action_sequence_candidates"].append({
+        "visible_action_sequence_candidate_id": "vasq_2",
+        "team_identity_candidate_id": "teamc_B",
+        "period_candidate": "1",
+        "start_time_candidate": 46.0,
+        "end_time_candidate": 46.0,
+        "duration_candidate_seconds": 0.0,
+        "time_layer_candidate_ids": ["vl5"],
+        "time_layer_count": 1,
+        "trackable_action_trace_candidate_ids": ["tr5"],
+        "trace_candidate_count": 1,
+        "action_family_counts": {"PASS": 1},
+        "consequence_candidate_counts": {},
+        "sequence_record_status": "PASS_SINGLE_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
+        "start_reason_candidate": "AFTER_TEAM_HANDOVER",
+        "end_reason_candidate": "TIME_GAP_BOUNDARY",
+    })
+    out = _build_p02_sequence_process_units(sequence, trace, score_timeline)
+    source = next(row for row in out["p02_process_unit_candidates"] if row["source_visible_action_sequence_candidate_id"] == "vasq_1")
+    assert source["opponent_response_candidate"]["status"] == "UNRESOLVED_HANDOVER_TARGET"
+
+
 
 def test_p02_partial_order_signature_preserves_layer_multisets_without_internal_order():
     sequence, trace, score_timeline = _sequence_process_unit_case()
