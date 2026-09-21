@@ -291,11 +291,13 @@ def test_terminal_outcome_and_card_semantics_are_preserved_without_action_promot
     goal_idx = _append_row(mvc, row, "TEAM", "Goals")
     card_idx = _append_row(mvc, row, "TEAM", "Yellow cards")
     progression_idx = _append_row(mvc, row, "TEAM", "Progressive passes accurate")
+    box_idx = _append_row(mvc, row, "TEAM", "Passes into the penalty box accurate")
     result = build_rebind(mvc, row, repo_root=ROOT)
 
     goal = _record(result, f"ctx_{goal_idx}")
     card = _record(result, f"ctx_{card_idx}")
     progression = _record(result, f"ctx_{progression_idx}")
+    box_access = _record(result, f"ctx_{box_idx}")
 
     assert goal["provider_semantic_role_candidate"] == "TERMINAL_OUTCOME_CANDIDATE"
     assert goal["provider_terminal_outcome_candidate"] == "GOAL"
@@ -308,3 +310,8 @@ def test_terminal_outcome_and_card_semantics_are_preserved_without_action_promot
     assert progression["provider_action_family_candidate"] == "PASS"
     assert progression["provider_progression_candidate"] == "PROGRESSIVE_CANDIDATE"
     assert progression["action_occurrence_eligible"] is True
+
+    assert box_access["provider_action_family_candidate"] == "PASS"
+    assert box_access["provider_zone_candidate"] == "PENALTY_AREA"
+    assert box_access["provider_outcome_candidate"] == "SUCCESS"
+    assert box_access["action_occurrence_eligible"] is True
