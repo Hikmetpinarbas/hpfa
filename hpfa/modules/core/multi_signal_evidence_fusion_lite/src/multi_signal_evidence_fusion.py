@@ -258,6 +258,7 @@ def _comparison_admission(signal: Any) -> dict[str, Any]:
         "candidate_context",
         "reference_outcome",
         "candidate_outcome",
+        "outcome_relation",
     ]
     missing = [key for key in required if signal.get(key) in [None, "", []]]
     if missing:
@@ -317,6 +318,7 @@ def _comparison_admission(signal: Any) -> dict[str, Any]:
 
     reference_outcome = signal.get("reference_outcome")
     candidate_outcome = signal.get("candidate_outcome")
+    outcome_relation = str(signal.get("outcome_relation") or "").strip().upper()
     if not _outcome_resolved(reference_outcome) or not _outcome_resolved(candidate_outcome):
         return {
             "comparison_status": "ELIGIBLE",
@@ -324,11 +326,32 @@ def _comparison_admission(signal: Any) -> dict[str, Any]:
             "counterevidence_admission_reason": "comparison_outcome_unresolved",
         }
 
-    if reference_outcome == candidate_outcome:
+    if outcome_relation not in {"OPPOSITE", "SAME", "INCOMPARABLE", "UNRESOLVED"}:
+        return {
+            "comparison_status": "INVALID_COMPARISON_CONTRACT",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "outcome_relation_invalid_or_missing",
+        }
+
+    if outcome_relation in {"INCOMPARABLE", "UNRESOLVED"}:
+        return {
+            "comparison_status": "ELIGIBLE",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "outcome_relation_not_counterevidence_eligible",
+        }
+
+    if outcome_relation == "SAME":
         return {
             "comparison_status": "ELIGIBLE",
             "counterevidence_class": "NON_SUPPORT",
-            "counterevidence_admission_reason": "comparable_outcome_not_opposite",
+            "counterevidence_admission_reason": "comparable_outcome_relation_same",
+        }
+
+    if reference_outcome == candidate_outcome:
+        return {
+            "comparison_status": "INVALID_COMPARISON_CONTRACT",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "opposite_relation_conflicts_with_identical_outcome_values",
         }
 
     lineage_pairs = [
