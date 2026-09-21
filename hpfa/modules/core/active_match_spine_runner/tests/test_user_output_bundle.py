@@ -106,6 +106,60 @@ def test_analyst_report_uses_current_episode_surface(tmp_path):
     assert "feature_surface_current_invocation=true" in text
     assert "canonical_event_count=UNKNOWN" in text
     assert "production_release=false" in text
+    assert "event-only occurrence/episode" not in text
+
+
+
+
+def test_analyst_report_surfaces_current_p02_turnover_response_without_overclaim(tmp_path):
+    (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
+        json.dumps(_feature_payload()), encoding="utf-8"
+    )
+    full = _full_spine()
+    full["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+    full["rich_multiformat_analysis_lattice"] = {
+        "status": "REVIEW_REQUIRED",
+        "review_hits": [],
+        "entity_views": {
+            "player_view_candidates": [],
+            "team_view_candidates": [],
+            "goalkeeper_view_candidates": [],
+            "observed_metric_cell_count": 0,
+        },
+        "constructs": {"C01": {}},
+        "phase_state_candidates": [],
+        "primitive_metrics": [],
+        "analysis_lattice": {},
+        "progression_pool_p02": {
+            "p02_team_pool_items": [
+                {
+                    "team_identity_candidate_id": "teamc_A",
+                    "team_candidate": "Team A",
+                }
+            ],
+            "process_units": {
+                "opponent_response_summary_by_team": [
+                    {
+                        "team_identity_candidate_id": "teamc_A",
+                        "turnover_handover_linked_count": 10,
+                        "turnover_handover_opponent_advanced_access_count": 3,
+                        "turnover_handover_opponent_no_advanced_access_count": 5,
+                        "turnover_handover_opponent_access_unresolved_count": 2,
+                    }
+                ]
+            },
+        },
+    }
+    text = build_analyst_report(tmp_path, full)
+    assert "turnover_handover_opponent_response:" in text
+    assert "Team A" in text
+    assert "10 process-unit" in text
+    assert "advanced access=3" in text
+    assert "no advanced access=5" in text
+    assert "unresolved=2" in text
+    assert "nedensellik, tehlikeli gecis veya taktik ustunluk kaniti degildir" in text
+    assert "event-only occurrence/episode" not in text
+    assert "EVENT bu gozlem evreninin yalniz bir ailesidir" in text
 
 
 def test_fail_closed_report_does_not_consume_stale_feature_artifact(tmp_path):
