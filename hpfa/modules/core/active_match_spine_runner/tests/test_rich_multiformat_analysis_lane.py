@@ -980,3 +980,45 @@ def test_p02_recurrence_groups_exact_partial_order_signatures_without_tactical_t
     assert repeated["member_count"] == 2
     assert repeated["recurrence_is_causality"] is False
     assert repeated["recurrence_is_tactical_truth"] is False
+
+
+
+def _sequence_evidence_atoms():
+    return {
+        "evidence_atoms": [
+            {"evidence_atom_id":"ea1","zone_candidate":"OWN_HALF"},
+            {"evidence_atom_id":"ea3","zone_candidate":"FINAL_THIRD"},
+            {"evidence_atom_id":"ea4","zone_candidate":"PENALTY_AREA"},
+        ]
+    }
+
+
+def _sequence_trace_with_zone_lineage():
+    sequence, trace, score_timeline = _sequence_process_unit_case()
+    by_id = {row["trackable_action_trace_candidate_id"]: row for row in trace["trackable_action_trace_candidates"]}
+    by_id["tr1"]["supporting_evidence_atom_ids"] = ["ea1"]
+    by_id["tr3"]["supporting_evidence_atom_ids"] = ["ea3"]
+    by_id["tr4"]["supporting_evidence_atom_ids"] = ["ea4"]
+    return sequence, trace, score_timeline, _sequence_evidence_atoms()
+
+
+def test_p02_process_unit_semantic_zone_path_uses_trace_evidence_atom_lineage():
+    sequence, trace, score_timeline, evidence = _sequence_trace_with_zone_lineage()
+    out = _build_p02_sequence_process_units(sequence, trace, score_timeline, evidence)
+    unit = out["p02_process_unit_candidates"][0]
+    assert unit["semantic_zone_path_candidate"] == ["OWN_HALF", "FINAL_THIRD", "PENALTY_AREA"]
+    assert unit["process_start_zone_candidate"] == "OWN_HALF"
+    assert unit["process_end_zone_candidate"] == "PENALTY_AREA"
+    assert unit["process_zone_basis"] == "EVIDENCE_ATOM_SEMANTIC_ZONE_CANDIDATE"
+    assert all(row["coordinate_zone_truth"] is False for row in unit["semantic_zone_stations"])
+
+
+def test_p02_process_unit_ambiguous_semantic_zone_layer_is_not_forced():
+    sequence, trace, score_timeline, evidence = _sequence_trace_with_zone_lineage()
+    evidence["evidence_atoms"].append({"evidence_atom_id":"ea1b","zone_candidate":"OPPONENT_HALF"})
+    by_id = {row["trackable_action_trace_candidate_id"]: row for row in trace["trackable_action_trace_candidates"]}
+    by_id["tr1"]["supporting_evidence_atom_ids"] = ["ea1", "ea1b"]
+    out = _build_p02_sequence_process_units(sequence, trace, score_timeline, evidence)
+    unit = out["p02_process_unit_candidates"][0]
+    assert unit["ambiguous_semantic_zone_layer_count"] >= 1
+    assert unit["process_start_zone_candidate"] == "FINAL_THIRD"
