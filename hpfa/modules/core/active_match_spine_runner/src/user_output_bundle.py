@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
+import platform
+import subprocess
+import sys
 import zipfile
 from collections import Counter
 from pathlib import Path
@@ -29,6 +33,7 @@ FEATURE_DELTA_JSON = "grammar_stable_variant_feature_delta_projection_v1.json"
 PROCESS_VARIANT_JSON = "observable_process_variant_binding_projection_v1.json"
 PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
 VARIANT_FEATURE_CHALLENGE_JSON = "variant_feature_challenge_projection_v1.json"
+MULTIFORMAT_INVENTORY_JSON = "multiformat_file_inventory_lite_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -45,6 +50,124 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _stable_json_sha256(value: Any) -> str:
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _git_head(execution_root: Any) -> str | None:
+    root = Path(str(execution_root or "")).expanduser().resolve(strict=False)
+    if not root.exists():
+        return None
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    value = completed.stdout.strip().casefold()
+    return value if len(value) == 40 and all(ch in "0123456789abcdef" for ch in value) else None
+
+
+def _input_snapshot_identity(root: Path, full_spine: dict[str, Any]) -> dict[str, Any]:
+    if not _declared_current(full_spine, MULTIFORMAT_INVENTORY_JSON):
+        return {"status": "REVIEW_REQUIRED", "reason": "current_multiformat_inventory_not_declared"}
+    payload = _load_json(root / MULTIFORMAT_INVENTORY_JSON)
+    rows: list[dict[str, Any]] = []
+    for row in payload.get("files") or []:
+        if not isinstance(row, dict):
+            continue
+        relative = str(row.get("relative_path") or row.get("file_name") or "").strip()
+        sha = str(row.get("sha256") or "").strip().casefold()
+        if not relative or len(sha) != 64 or not all(ch in "0123456789abcdef" for ch in sha):
+            continue
+        rows.append({
+            "relative_path": relative,
+            "sha256": sha,
+            "size_bytes": row.get("size_bytes"),
+            "source_role": row.get("source_role"),
+        })
+    rows.sort(key=lambda row: (str(row.get("relative_path") or "").casefold(), str(row.get("sha256") or "")))
+    if not rows:
+        return {"status": "REVIEW_REQUIRED", "reason": "inventory_has_no_hash_bound_files"}
+    return {
+        "status": "PASS",
+        "file_count": len(rows),
+        "fingerprint_sha256": _stable_json_sha256(rows),
+        "source": MULTIFORMAT_INVENTORY_JSON,
+        "snapshot_fingerprint_is_event_truth": False,
+    }
+
+
+def _runtime_environment_identity() -> dict[str, Any]:
+    packages: list[str] = []
+    try:
+        for dist in importlib.metadata.distributions():
+            name = str(dist.metadata.get("Name") or "").strip()
+            version = str(dist.version or "").strip()
+            if name and version:
+                packages.append(f"{name.casefold()}=={version}")
+    except Exception:
+        packages = []
+    packages = sorted(set(packages))
+    basis = {
+        "python_version": platform.python_version(),
+        "python_implementation": platform.python_implementation(),
+        "platform": platform.platform(),
+        "packages": packages,
+    }
+    return {
+        "fingerprint_sha256": _stable_json_sha256(basis),
+        "python_version": basis["python_version"],
+        "python_implementation": basis["python_implementation"],
+        "package_count": len(packages),
+        "environment_fingerprint_is_runtime_acceptance": False,
+    }
+
+
+def _current_run_provenance_envelope(
+    root: Path,
+    full_spine: dict[str, Any],
+    entries: list[dict[str, Any]],
+) -> dict[str, Any]:
+    exact_head = _git_head(full_spine.get("execution_root"))
+    input_snapshot = _input_snapshot_identity(root, full_spine)
+    environment = _runtime_environment_identity()
+    artifact_manifest_digest = _stable_json_sha256(entries)
+    status = "PASS" if exact_head and input_snapshot.get("status") == "PASS" else "REVIEW_REQUIRED"
+    identity_basis = {
+        "exact_head_sha": exact_head,
+        "active_match_authority": full_spine.get("active_match_authority"),
+        "input_snapshot_fingerprint": input_snapshot.get("fingerprint_sha256"),
+        "runtime_environment_fingerprint": environment.get("fingerprint_sha256"),
+        "artifact_manifest_digest": artifact_manifest_digest,
+    }
+    return {
+        "module_id": "current_run_provenance_envelope_v1",
+        "status": status,
+        "identity_kind": "DETERMINISTIC_CONTEXT_FINGERPRINT_NOT_UNIQUE_INVOCATION_UUID",
+        "current_run_context_fingerprint_sha256": _stable_json_sha256(identity_basis),
+        "exact_head_sha": exact_head,
+        "active_match_authority": full_spine.get("active_match_authority"),
+        "input_snapshot": input_snapshot,
+        "runtime_environment": environment,
+        "artifact_manifest_digest_sha256": artifact_manifest_digest,
+        "provenance_creates_new_football_evidence": False,
+        "provenance_can_authorize_emit": False,
+        "provenance_can_strengthen_claim_ceiling": False,
+        "artifact_digest_is_semantic_correctness_truth": False,
+        "exact_head_is_physical_acceptance_truth": False,
+        "reproducibility_is_external_validity_truth": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
 
 
 def snapshot_output_state(output_root: str | Path) -> dict[str, dict[str, Any]]:
@@ -1533,6 +1656,7 @@ def write_standard_user_outputs(
         {"name": path.name, "size_bytes": path.stat().st_size, "sha256": _sha256(path)}
         for path in candidates
     ]
+    provenance = _current_run_provenance_envelope(root, full_spine, entries)
     manifest = {
         "module_id": "active_match_standard_user_bundle_v1",
         "bundle_scope": "PRODUCER_DECLARED_CURRENT_INVOCATION_ARTIFACTS_PLUS_STANDARD_DELIVERABLES",
@@ -1543,6 +1667,7 @@ def write_standard_user_outputs(
         "rich_multiformat_surface_current_invocation": _rich_surface_current(full_spine),
         "c4_surface_current_invocation": _c4_surface_current(full_spine),
         "post_sequence_current_invocation_artifact_count": len(_post_sequence_current_artifacts(full_spine)),
+        "current_run_provenance_envelope": provenance,
         "file_count_before_manifest": len(entries),
         "files": entries,
         "canonical_event_count": "UNKNOWN",

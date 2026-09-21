@@ -616,3 +616,91 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
     assert "takeover baskı başarısı" in text
     assert "follow-up yokluğu başarısızlık değildir" in text
     assert "rakip planı" in text
+
+
+
+def _write_current_inventory(path: Path) -> None:
+    path.write_text(
+        json.dumps({
+            "module_id": "multiformat_file_inventory_lite_v1",
+            "status": "PASS",
+            "files": [
+                {"relative_path": "a.csv", "sha256": "a" * 64, "size_bytes": 10, "source_role": "PLAYER_SURFACE_CANDIDATE"},
+                {"relative_path": "b.xml", "sha256": "b" * 64, "size_bytes": 20, "source_role": "PLAYER_SURFACE_CANDIDATE"},
+            ],
+            "canonical_event_count": "UNKNOWN",
+            "production_release": False,
+        }),
+        encoding="utf-8",
+    )
+
+
+def test_bundle_manifest_binds_exact_head_input_snapshot_environment_and_artifacts(tmp_path):
+    inventory = tmp_path / "multiformat_file_inventory_lite_v1.json"
+    _write_current_inventory(inventory)
+    full_json = tmp_path / "active_match_full_spine_v1.json"
+    full_txt = tmp_path / "active_match_full_spine_v1.txt"
+    full_json.write_text("{}", encoding="utf-8")
+    full_txt.write_text("status=REVIEW_REQUIRED", encoding="utf-8")
+    spine = _full_spine(current_artifacts=[str(inventory), str(full_json), str(full_txt)])
+    spine["execution_root"] = str(ROOT)
+
+    write_standard_user_outputs(tmp_path, spine)
+    manifest = json.loads((tmp_path / BUNDLE_MANIFEST).read_text(encoding="utf-8"))
+    provenance = manifest["current_run_provenance_envelope"]
+
+    assert provenance["status"] == "PASS"
+    assert len(provenance["exact_head_sha"]) == 40
+    assert provenance["input_snapshot"]["status"] == "PASS"
+    assert provenance["input_snapshot"]["file_count"] == 2
+    assert len(provenance["input_snapshot"]["fingerprint_sha256"]) == 64
+    assert len(provenance["runtime_environment"]["fingerprint_sha256"]) == 64
+    assert len(provenance["artifact_manifest_digest_sha256"]) == 64
+    assert len(provenance["current_run_context_fingerprint_sha256"]) == 64
+    assert provenance["identity_kind"] == "DETERMINISTIC_CONTEXT_FINGERPRINT_NOT_UNIQUE_INVOCATION_UUID"
+    assert provenance["provenance_creates_new_football_evidence"] is False
+    assert provenance["provenance_can_authorize_emit"] is False
+    assert provenance["provenance_can_strengthen_claim_ceiling"] is False
+    assert provenance["production_release"] is False
+
+
+def test_missing_current_inventory_downgrades_provenance_only_not_bundle_or_claim_state(tmp_path):
+    full_json = tmp_path / "active_match_full_spine_v1.json"
+    full_txt = tmp_path / "active_match_full_spine_v1.txt"
+    full_json.write_text("{}", encoding="utf-8")
+    full_txt.write_text("status=REVIEW_REQUIRED", encoding="utf-8")
+    spine = _full_spine(current_artifacts=[str(full_json), str(full_txt)])
+    spine["execution_root"] = str(ROOT)
+
+    result = write_standard_user_outputs(tmp_path, spine)
+    manifest = json.loads((tmp_path / BUNDLE_MANIFEST).read_text(encoding="utf-8"))
+    provenance = manifest["current_run_provenance_envelope"]
+
+    assert provenance["status"] == "REVIEW_REQUIRED"
+    assert provenance["input_snapshot"]["reason"] == "current_multiformat_inventory_not_declared"
+    assert Path(result["bundle_zip"]).is_file()
+    assert manifest["runtime_status"] == "REVIEW_REQUIRED"
+    assert manifest["canonical_event_count"] == "UNKNOWN"
+    assert manifest["true_action_count"] == "UNKNOWN"
+    assert manifest["production_release"] is False
+    assert provenance["provenance_can_authorize_emit"] is False
+
+
+def test_current_run_context_fingerprint_is_stable_for_same_declared_context(tmp_path):
+    inventory = tmp_path / "multiformat_file_inventory_lite_v1.json"
+    _write_current_inventory(inventory)
+    full_json = tmp_path / "active_match_full_spine_v1.json"
+    full_txt = tmp_path / "active_match_full_spine_v1.txt"
+    full_json.write_text("{}", encoding="utf-8")
+    full_txt.write_text("status=REVIEW_REQUIRED", encoding="utf-8")
+    spine = _full_spine(current_artifacts=[str(inventory), str(full_json), str(full_txt)])
+    spine["execution_root"] = str(ROOT)
+
+    write_standard_user_outputs(tmp_path, spine)
+    first = json.loads((tmp_path / BUNDLE_MANIFEST).read_text(encoding="utf-8"))["current_run_provenance_envelope"]
+    write_standard_user_outputs(tmp_path, spine)
+    second = json.loads((tmp_path / BUNDLE_MANIFEST).read_text(encoding="utf-8"))["current_run_provenance_envelope"]
+
+    assert second["current_run_context_fingerprint_sha256"] == first["current_run_context_fingerprint_sha256"]
+    assert second["artifact_manifest_digest_sha256"] == first["artifact_manifest_digest_sha256"]
+    assert second["input_snapshot"]["fingerprint_sha256"] == first["input_snapshot"]["fingerprint_sha256"]
