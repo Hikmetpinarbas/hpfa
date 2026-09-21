@@ -155,6 +155,7 @@ PROVENANCE_ORDER_ONLY
 
 ## CLAIM SAFETY
 Observation richness expands the **available evidence ceiling**; claim scope follows construct admission.
+There is no product-wide observation ceiling: observation and claim ceilings are construct-specific and surface-specific under ZFGV admission.
 
 Physical-state and causal claim families use dedicated admission gates:
 - pitch-control models use admitted physical-state/spatiotemporal capability;
