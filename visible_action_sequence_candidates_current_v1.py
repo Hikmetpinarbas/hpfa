@@ -203,6 +203,9 @@ def _bind_dependency_aware_similarity(payload: dict) -> dict:
     payload["canonical_comparison_state_counts"] = dict(
         projection.get("canonical_comparison_state_counts") or {}
     )
+    payload["pruned_comparison_state_audit"] = dict(
+        projection.get("pruned_comparison_state_audit") or {}
+    )
     payload["eligible_denominator_frozen_before_outcome_attachment"] = (
         projection.get("eligible_denominator_frozen_before_outcome_attachment") is True
     )
