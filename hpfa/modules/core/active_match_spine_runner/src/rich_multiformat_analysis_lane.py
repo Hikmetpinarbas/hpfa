@@ -1611,6 +1611,21 @@ def _progression_pool_p02(
             )
             team_dependency_root = f"episode_team_feature:{episode_id}:{team_candidate}"
             team_identity_candidate_id = team_identity_alias_map.get(team_candidate.casefold())
+
+            team_shot_count = int(team_family_counts.get("SHOT", 0))
+            team_turnover_count = int(team_family_counts.get("TURNOVER", 0))
+            if team_shot_count > 0 and team_turnover_count == 0:
+                terminal_branch_state = "SHOT_ONLY_VISIBLE"
+                terminal_branch_resolution = "RESOLVED_SINGLE_VISIBLE_CLASS"
+            elif team_turnover_count > 0 and team_shot_count == 0:
+                terminal_branch_state = "LOSS_ONLY_VISIBLE"
+                terminal_branch_resolution = "RESOLVED_SINGLE_VISIBLE_CLASS"
+            elif team_shot_count > 0 and team_turnover_count > 0:
+                terminal_branch_state = "SHOT_AND_LOSS_VISIBLE"
+                terminal_branch_resolution = "UNRESOLVED_ORDER"
+            else:
+                terminal_branch_state = "NO_SHOT_OR_LOSS_VISIBLE"
+                terminal_branch_resolution = "UNRESOLVED_NO_TERMINAL_CLASS"
             team_score_state = _team_score_state_at_episode_start(
                 score_timeline,
                 team_identity_candidate_id=team_identity_candidate_id,
@@ -1777,8 +1792,10 @@ def _progression_pool_p02(
                     "action_family_counts": dict(sorted(team_family_counts.items())),
                     "zone_counts": dict(sorted(team_zone_counts.items())),
                     "channel_counts": dict(sorted(team_channel_counts.items())),
-                    "shot_candidate_count": int(team_family_counts.get("SHOT", 0)),
-                    "turnover_candidate_count": int(team_family_counts.get("TURNOVER", 0)),
+                    "shot_candidate_count": team_shot_count,
+                    "turnover_candidate_count": team_turnover_count,
+                    "terminal_branch_state": terminal_branch_state,
+                    "terminal_branch_resolution": terminal_branch_resolution,
                     "recovery_candidate_count": int(team_family_counts.get("RECOVERY", 0)),
                     "process_stage_profile": team_stage_profile,
                 },
@@ -1796,6 +1813,8 @@ def _progression_pool_p02(
                     "team_specific_visible_follow_up_occurrence_ids": team_visible_follow_up_ids,
                     "team_specific_terminal_support_occurrence_ids": team_terminal_support_ids,
                     "team_specific_opponent_follow_up_occurrence_ids": team_opponent_follow_up_ids,
+                    "terminal_branch_state": terminal_branch_state,
+                    "terminal_branch_resolution": terminal_branch_resolution,
                     "team_specific_process_stage_profile": team_stage_profile,
                     "team_episode_terminal_activity_candidate": team_episode_terminal_activity_candidate,
                     "team_episode_terminal_activity_is_process_outcome_truth": False,
@@ -1980,6 +1999,87 @@ def _progression_pool_p02(
     )
     process_unit_comparisons = _build_p02_process_unit_comparison_populations(process_units)
 
+    comparison_candidates: list[dict[str, Any]] = []
+    team_items_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for item in team_pool_items:
+        team_id = str(item.get("team_identity_candidate_id") or "")
+        if team_id:
+            team_items_by_team[team_id].append(item)
+
+    for team_id, items in sorted(team_items_by_team.items()):
+        eligible_items = [
+            item for item in items
+            if (item.get("process_signature_fields") or {}).get("team_specific_start_zone")
+            and (item.get("game_state") or {}).get("score_state_candidate")
+            not in {None, "NOT_EVALUATED", "UNRESOLVED_SAME_START_GOAL"}
+            and (item.get("visible_observation_summary") or {}).get("terminal_branch_resolution")
+            == "RESOLVED_SINGLE_VISIBLE_CLASS"
+        ]
+        eligible_items.sort(key=lambda item: (
+            str(item.get("episode_candidate_id") or ""),
+            str(item.get("pool_item_id") or ""),
+        ))
+        for idx, reference in enumerate(eligible_items):
+            ref_sig = reference.get("process_signature_fields") or {}
+            ref_obs = reference.get("visible_observation_summary") or {}
+            ref_game = reference.get("game_state") or {}
+            for candidate in eligible_items[idx + 1:]:
+                cand_sig = candidate.get("process_signature_fields") or {}
+                cand_obs = candidate.get("visible_observation_summary") or {}
+                cand_game = candidate.get("game_state") or {}
+                if ref_sig.get("team_specific_start_zone") != cand_sig.get("team_specific_start_zone"):
+                    continue
+                if ref_game.get("score_state_candidate") != cand_game.get("score_state_candidate"):
+                    continue
+
+                ref_outcome = str(ref_obs.get("terminal_branch_state") or "")
+                cand_outcome = str(cand_obs.get("terminal_branch_state") or "")
+                if ref_outcome == cand_outcome:
+                    outcome_relation = "SAME"
+                elif {ref_outcome, cand_outcome} == {"SHOT_ONLY_VISIBLE", "LOSS_ONLY_VISIBLE"}:
+                    outcome_relation = "OPPOSITE"
+                else:
+                    outcome_relation = "INCOMPARABLE"
+
+                comparison_candidates.append({
+                    "signal_id": "p02_cmp_" + hashlib.sha256(
+                        f"{reference.get('pool_item_id')}|{candidate.get('pool_item_id')}".encode("utf-8")
+                    ).hexdigest()[:20],
+                    "relation_type": "CONTRADICTS" if outcome_relation == "OPPOSITE" else "QUALIFIES",
+                    "contradiction_basis": (
+                        "same_team_same_score_state_same_start_zone_resolved_terminal_branch_opposition"
+                        if outcome_relation == "OPPOSITE" else ""
+                    ),
+                    "comparison_question_id": "P02_PROGRESSIVE_PROCESS_TERMINAL_BRANCH",
+                    "comparison_unit": "team_episode_pool_item",
+                    "exact_dimensions": ["team_identity_candidate_id", "score_state_candidate", "start_zone_candidate"],
+                    "coarsened_dimensions": [],
+                    "test_dimensions": ["terminal_branch_state"],
+                    "forbidden_leakage_dimensions": ["terminal_branch_state"],
+                    "reference_context": {
+                        "team_identity_candidate_id": team_id,
+                        "score_state_candidate": ref_game.get("score_state_candidate"),
+                        "start_zone_candidate": ref_sig.get("team_specific_start_zone"),
+                    },
+                    "candidate_context": {
+                        "team_identity_candidate_id": team_id,
+                        "score_state_candidate": cand_game.get("score_state_candidate"),
+                        "start_zone_candidate": cand_sig.get("team_specific_start_zone"),
+                    },
+                    "reference_outcome": ref_outcome,
+                    "candidate_outcome": cand_outcome,
+                    "outcome_relation": outcome_relation,
+                    "provenance_root": candidate.get("pool_item_id"),
+                    "dependency_group": (candidate.get("dependency_roots") or [None])[-1],
+                    "independence_group": candidate.get("episode_candidate_id"),
+                    "reference_provenance_root": reference.get("pool_item_id"),
+                    "reference_dependency_group": (reference.get("dependency_roots") or [None])[-1],
+                    "reference_independence_group": reference.get("episode_candidate_id"),
+                    "candidate_is_safe_finding": False,
+                    "comparison_candidate_is_counterevidence_truth": False,
+                    "production_release": False,
+                })
+
     return {
         "module_id": "progression_pool_p02_projection_v1",
         "status": "DEGRADED" if pool_items else "NOT_EVALUATED",
@@ -1993,7 +2093,8 @@ def _progression_pool_p02(
         "p02_team_pool_items": team_pool_items,
         "transformation_ledger_count": len(ledger),
         "transformation_ledger": ledger,
-        "comparison_candidates": [],
+        "comparison_candidate_count": len(comparison_candidates),
+        "comparison_candidates": comparison_candidates,
         "comparison_populations": comparison_populations,
         "process_units": process_units,
         "process_unit_comparisons": process_unit_comparisons,
