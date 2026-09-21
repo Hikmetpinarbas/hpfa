@@ -1518,3 +1518,75 @@ def test_p02_acceptance_counters_are_explicit_and_reconciled():
     assert counters["p02_advanced_access_unresolved_count"] == 0
     assert counters["p02_invented_semantics_count"] == 0
     assert counters["p02_lost_atom_count"] == 0
+
+
+
+def test_p02_population_collapse_prevents_pairwise_counterevidence_vote_explosion():
+    identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
+
+    visible_sequence["visible_action_time_layer_candidates"].extend([
+        {
+            "visible_action_time_layer_candidate_id": "d1",
+            "start_candidate": 50.0,
+            "trackable_action_trace_candidate_ids": ["tr_d1"],
+            "action_family_counts": {"PASS": 1},
+        },
+        {
+            "visible_action_time_layer_candidate_id": "d2",
+            "start_candidate": 60.0,
+            "trackable_action_trace_candidate_ids": ["tr_d2"],
+            "action_family_counts": {"PASS": 1},
+        },
+    ])
+    visible_sequence["visible_action_sequence_candidates"].append({
+        "visible_action_sequence_candidate_id": "vasq_cand_2",
+        "team_identity_candidate_id": "teamc_A",
+        "period_candidate": "1",
+        "start_time_candidate": 50.0,
+        "end_time_candidate": 60.0,
+        "duration_candidate_seconds": 10.0,
+        "time_layer_candidate_ids": ["d1", "d2"],
+        "time_layer_count": 2,
+        "trackable_action_trace_candidate_ids": ["tr_d1", "tr_d2"],
+        "trace_candidate_count": 2,
+        "action_family_counts": {"PASS": 2},
+        "consequence_candidate_counts": {},
+        "sequence_record_status": "PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
+        "start_reason_candidate": "TIME_GAP_BOUNDARY",
+        "end_reason_candidate": "TEAM_HANDOVER_BOUNDARY",
+    })
+    trace["trackable_action_trace_candidates"].extend([
+        {"trackable_action_trace_candidate_id":"tr_d1","supporting_evidence_atom_ids":["ea_d1"]},
+        {"trackable_action_trace_candidate_id":"tr_d2","supporting_evidence_atom_ids":["ea_d2"]},
+    ])
+    evidence["evidence_atoms"].extend([
+        {"evidence_atom_id":"ea_d1","row_nucleus_candidate_id":"rn_d1"},
+        {"evidence_atom_id":"ea_d2","row_nucleus_candidate_id":"rn_d2"},
+    ])
+    semantics["context_action_semantic_records"].extend([
+        {"row_nucleus_candidate_id":"rn_d1","context_zone_candidate":"OWN_HALF"},
+        {"row_nucleus_candidate_id":"rn_d2","context_zone_candidate":"MIDDLE_THIRD"},
+    ])
+
+    p02 = _progression_pool_p02(
+        {},
+        {},
+        {},
+        {},
+        semantics,
+        identities,
+        visible_sequence,
+        trace,
+        evidence,
+    )
+
+    assert p02["p02_pairwise_admitted_opposite_count"] == 2
+    assert p02["p02_counterevidence_population_count"] == 1
+    assert p02["p02_c4_packet_candidate_count"] == 1
+    assert p02["p02_pairwise_counterevidence_collapsed_count"] == 1
+    assert p02["population_emits_max_one_c4_counterevidence_packet"] is True
+    assert p02["pairwise_comparison_is_independent_evidence_vote"] is False
+
+    record = p02["p02_counterevidence_population_records"][0]
+    assert record["admitted_opposite_pair_count"] == 2
+    assert record["population_emits_max_one_c4_counterevidence_packet"] is True
