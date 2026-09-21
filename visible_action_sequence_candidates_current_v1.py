@@ -190,6 +190,19 @@ def _bind_dependency_aware_similarity(payload: dict) -> dict:
     )
     payload["process_comparable_sets"] = list(projection.get("process_comparable_sets") or [])
     payload["process_comparable_set_count"] = int(projection.get("process_comparable_set_count") or 0)
+    payload["comparison_dimension_registry_version"] = projection.get(
+        "comparison_dimension_registry_version"
+    )
+    payload["question_profile_hash"] = projection.get("question_profile_hash")
+    payload["profile_frozen_before_outcome_attachment"] = (
+        projection.get("profile_frozen_before_outcome_attachment") is True
+    )
+    payload["pair_materialization_count_is_eligible_denominator"] = (
+        projection.get("pair_materialization_count_is_eligible_denominator") is True
+    )
+    payload["canonical_comparison_state_counts"] = dict(
+        projection.get("canonical_comparison_state_counts") or {}
+    )
     payload["eligible_denominator_frozen_before_outcome_attachment"] = (
         projection.get("eligible_denominator_frozen_before_outcome_attachment") is True
     )
