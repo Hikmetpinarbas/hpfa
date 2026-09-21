@@ -8,8 +8,22 @@ from typing import Any
 CLAIM_CEILING = "DEPENDENCY_AWARE_PARTIAL_ORDER_SIMILARITY_CANDIDATE_ONLY"
 COMPARABLE_SET_CLAIM_CEILING = "QUESTION_CONDITIONED_OUTCOME_BLIND_PROCESS_COMPARABLE_SET_CANDIDATE_ONLY"
 PAIR_MATERIALIZATION_MODE = "ELIGIBILITY_GROUP_REPRESENTATIVE_PAIRS"
+DIMENSION_REGISTRY_VERSION = "comparison_dimension_registry_v1"
+DIMENSION_REGISTRY_V1 = {
+    "team": {"allowed_roles": {"EXACT", "TEST"}, "forbidden": False},
+    "period": {"allowed_roles": {"EXACT", "TEST"}, "forbidden": False},
+    "partial_order_structure": {"allowed_roles": {"EXACT"}, "forbidden": False},
+    "dependency_root": {"allowed_roles": {"DEPENDENCY_GATE"}, "forbidden": False},
+    "outcome_signature": {"allowed_roles": {"FORBIDDEN"}, "forbidden": True},
+    "downstream_visible_outcome": {"allowed_roles": {"FORBIDDEN"}, "forbidden": True},
+    "terminal_consequence": {"allowed_roles": {"FORBIDDEN"}, "forbidden": True},
+}
 DEFAULT_COMPARISON_QUESTION_CONTRACT = {
     "comparison_question_id": "match_local_structural_recurrence_v1",
+    "construct_id": "MATCH_LOCAL_STRUCTURAL_RECURRENCE_CANDIDATE",
+    "observation_unit": "PARTIAL_ORDER_OCCURRENCE_VARIANT",
+    "dimension_registry_version": DIMENSION_REGISTRY_VERSION,
+    "question_profile_version": "1.0.0",
     "football_question": "Which same-team, same-period partial-order variants are structurally comparable before visible outcome is read?",
     "analysis_scale": "PARTIAL_ORDER_OCCURRENCE_VARIANT",
     "candidate_universe": "CURRENT_MATCH_PARTIAL_ORDER_OCCURRENCE_VARIANTS",
@@ -323,6 +337,28 @@ def _comparison_contract(payload: dict[str, Any]) -> tuple[dict[str, Any], list[
             "comparison_question_forbidden_leakage_coarsened_match_overlap:"
             + ",".join(forbidden_coarsened)
         )
+
+    declared_roles = {
+        "EXACT": exact,
+        "COARSENED": coarsened,
+        "TEST": tested,
+        "FORBIDDEN": forbidden,
+    }
+    for role, dimensions in declared_roles.items():
+        for dimension in sorted(dimensions):
+            registry = DIMENSION_REGISTRY_V1.get(dimension)
+            if registry is None:
+                blocks.append(f"comparison_question_dimension_unregistered:{dimension}")
+                continue
+            allowed_roles = registry.get("allowed_roles") or set()
+            if role not in allowed_roles:
+                blocks.append(f"comparison_question_dimension_role_not_allowed:{dimension}:{role}")
+            if registry.get("forbidden") is True and role != "FORBIDDEN":
+                blocks.append(f"comparison_question_forbidden_dimension_used_for_admission:{dimension}:{role}")
+
+    if _clean(contract.get("dimension_registry_version")) not in {"", DIMENSION_REGISTRY_VERSION}:
+        blocks.append("comparison_question_dimension_registry_version_mismatch")
+    contract["dimension_registry_version"] = DIMENSION_REGISTRY_VERSION
     return contract, blocks, reviews
 
 
@@ -440,6 +476,9 @@ def _candidate_pair_indices(
         comparison_groups.append({
             "comparison_group_id": group_id,
             "comparison_question_id": contract.get("comparison_question_id"),
+            "question_profile_version": contract.get("question_profile_version") or "1.0.0",
+            "question_profile_hash": question_profile_hash,
+            "profile_frozen_before_outcome_attachment": True,
             "team_identity_candidate_id": team,
             "period_candidate": None if period_is_test else period_key,
             "period_is_test_dimension": period_is_test,
@@ -608,6 +647,19 @@ def _build_pair(
     else:
         outcome_state = "OUTCOME_COMPARISON_NOT_ELIGIBLE"
 
+    if comparison_eligible:
+        canonical_comparison_state = "ELIGIBLE"
+        canonical_reasons = [comparison_state]
+    elif not left_period or not right_period:
+        canonical_comparison_state = "CONTEXT_UNRESOLVED"
+        canonical_reasons = [comparison_state]
+    elif not same_team or not structural_exact_match or (left_period != right_period and "period" not in _dimension_set(contract, "allowed_test_dimensions")):
+        canonical_comparison_state = "CONTEXT_MISMATCH"
+        canonical_reasons = [comparison_state]
+    else:
+        canonical_comparison_state = "NOT_EVALUATED"
+        canonical_reasons = [comparison_state]
+
     pair_id = "po_sim_" + _digest(left_id, right_id)[:24]
     return {
         "partial_order_similarity_pair_id": pair_id,
@@ -640,6 +692,9 @@ def _build_pair(
         "pair_state": pair_state,
         "recurrence_candidate_eligible": recurrence_eligible,
         "comparison_eligibility_state": comparison_state,
+        "canonical_comparison_state": canonical_comparison_state,
+        "canonical_comparison_state_reasons": canonical_reasons,
+        "eligible_for_outcome_attachment": canonical_comparison_state == "ELIGIBLE",
         "process_comparison_eligibility_grade": eligibility_grade,
         "comparison_eligible": comparison_eligible,
         "comparison_outcome_contrast_allowed": outcome_contrast_allowed,
@@ -697,6 +752,7 @@ def _build_comparable_sets(
             for member in members
             if _clean(variant_by_id.get(member, {}).get("team_identity_candidate_id"))
         })
+        question_profile_hash = _digest(contract)
         set_id = "pcs_" + _digest(contract.get("comparison_question_id"), members)[:24]
         sets.append({
             "comparable_set_id": set_id,
@@ -707,6 +763,7 @@ def _build_comparable_sets(
             "eligibility_grade": "STRICT_ELIGIBLE",
             "member_process_candidate_ids": members,
             "eligible_case_count": len(members),
+            "materialized_pair_count_is_eligible_denominator": False,
             "unique_dependency_group_count": len(dependency_refs),
             "required_exact_dimensions": list(contract.get("required_exact_dimensions") or []),
             "required_coarsened_dimensions": list(contract.get("required_coarsened_dimensions") or []),
@@ -821,12 +878,16 @@ def build_dependency_aware_partial_order_similarity(
 
     counts = Counter(_clean(row.get("pair_state")) for row in pairs)
     comparison_counts = Counter(_clean(row.get("comparison_eligibility_state")) for row in pairs)
+    canonical_comparison_counts = Counter(_clean(row.get("canonical_comparison_state")) for row in pairs)
     materialized_pair_count = len(pairs)
     tested = _dimension_set(contract, "allowed_test_dimensions") if contract else set()
 
     return {
         "status": status,
         "process_comparison_question_contract": contract,
+        "comparison_dimension_registry_version": DIMENSION_REGISTRY_VERSION,
+        "question_profile_hash": _digest(contract) if contract else None,
+        "profile_frozen_before_outcome_attachment": True,
         "process_comparison_question_contract_status": (
             "FAIL_CLOSED"
             if contract_blocks
@@ -843,12 +904,14 @@ def build_dependency_aware_partial_order_similarity(
         "dependency_aware_partial_order_similarity_group_count": len(comparison_groups),
         "pair_state_counts": dict(sorted(counts.items())),
         "comparison_eligibility_state_counts": dict(sorted(comparison_counts.items())),
+        "canonical_comparison_state_counts": dict(sorted(canonical_comparison_counts.items())),
         "comparison_eligible_pair_count": sum(1 for row in pairs if row.get("comparison_eligible")),
         "source_partial_order_occurrence_variant_count": len(variants),
         "source_all_possible_pair_count": all_pair_count,
         "comparison_prefilter_materialized_pair_count": materialized_pair_count,
         "comparison_prefilter_pruned_pair_count": max(all_pair_count - materialized_pair_count, 0),
         "pair_materialization_mode": PAIR_MATERIALIZATION_MODE,
+        "pair_materialization_count_is_eligible_denominator": False,
         "comparison_admission_precedes_pair_materialization": True,
         "coarse_signature_is_only_prefilter": True,
         "structural_exact_match_requires_relation_preserving_topology": True,
