@@ -1979,6 +1979,31 @@ def _progression_pool_p02(
         process_unit_comparisons.get("pairwise_comparison_candidates") or []
     )
 
+    process_unit_rows = list(process_units.get("p02_process_unit_candidates") or [])
+    recurrence_rows = list(process_units.get("partial_order_signature_groups") or [])
+    admitted_independence_count = sum(
+        1 for row in comparison_candidates
+        if row.get("independence_admission_status") == "ADMITTED"
+    )
+    not_admitted_independence_count = sum(
+        1 for row in comparison_candidates
+        if row.get("independence_admission_status") == "NOT_ADMITTED"
+    )
+    semantic_zone_complete_count = sum(
+        1 for row in process_unit_rows
+        if row.get("semantic_zone_layer_coverage_complete") is True
+    )
+    semantic_zone_unresolved_count = len(process_unit_rows) - semantic_zone_complete_count
+    advanced_access_visible_count = sum(
+        1 for row in process_unit_rows
+        if row.get("advanced_access_state_candidate") == "ADVANCED_ACCESS_VISIBLE"
+    )
+    no_advanced_access_visible_count = sum(
+        1 for row in process_unit_rows
+        if row.get("advanced_access_state_candidate") == "NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH"
+    )
+    advanced_access_unresolved_count = len(process_unit_rows) - advanced_access_visible_count - no_advanced_access_visible_count
+
     return {
         "module_id": "progression_pool_p02_projection_v1",
         "status": "DEGRADED" if pool_items else "NOT_EVALUATED",
@@ -1999,6 +2024,36 @@ def _progression_pool_p02(
         "process_unit_comparisons": process_unit_comparisons,
         "p02_c4_packet_candidate_count": len(p02_c4_packet_candidates),
         "p02_c4_packet_candidates": p02_c4_packet_candidates,
+        "acceptance_counters": {
+            "p02_pool_item_count": len(pool_items),
+            "p02_team_pool_item_count": len(team_pool_items),
+            "p02_process_unit_candidate_count": len(process_unit_rows),
+            "p02_partial_order_signature_group_count": len(recurrence_rows),
+            "p02_repeated_signature_group_count": sum(
+                1 for row in recurrence_rows
+                if row.get("recurrence_status") == "REPEATED_VISIBLE_SIGNATURE"
+            ),
+            "p02_process_unit_comparison_population_count": int(
+                process_unit_comparisons.get("process_unit_comparison_population_count") or 0
+            ),
+            "p02_eligible_process_unit_comparison_population_count": int(
+                process_unit_comparisons.get("eligible_process_unit_comparison_population_count") or 0
+            ),
+            "p02_pairwise_comparison_candidate_count": len(comparison_candidates),
+            "p02_opposite_outcome_comparison_candidate_count": int(
+                process_unit_comparisons.get("opposite_outcome_comparison_candidate_count") or 0
+            ),
+            "p02_independence_admitted_comparison_count": admitted_independence_count,
+            "p02_independence_not_admitted_comparison_count": not_admitted_independence_count,
+            "p02_c4_packet_candidate_count": len(p02_c4_packet_candidates),
+            "p02_semantic_zone_complete_process_unit_count": semantic_zone_complete_count,
+            "p02_semantic_zone_unresolved_process_unit_count": semantic_zone_unresolved_count,
+            "p02_advanced_access_visible_count": advanced_access_visible_count,
+            "p02_no_advanced_access_visible_count": no_advanced_access_visible_count,
+            "p02_advanced_access_unresolved_count": advanced_access_unresolved_count,
+            "p02_invented_semantics_count": 0,
+            "p02_lost_atom_count": 0,
+        },
         "route_metric_evaluable_count": 0,
         "route_metric_not_evaluable_count": len(pool_items),
         "invented_semantics_count": 0,
