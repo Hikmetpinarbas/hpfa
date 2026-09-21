@@ -10,7 +10,7 @@ COMPARABLE_SET_CLAIM_CEILING = "QUESTION_CONDITIONED_OUTCOME_BLIND_PROCESS_COMPA
 PAIR_MATERIALIZATION_MODE = "ELIGIBILITY_GROUP_REPRESENTATIVE_PAIRS"
 DIMENSION_REGISTRY_VERSION = "comparison_dimension_registry_v1"
 DIMENSION_REGISTRY_V1 = {
-    "team": {"allowed_roles": {"EXACT", "TEST"}, "forbidden": False},
+    "team": {"allowed_roles": {"EXACT"}, "forbidden": False},
     "period": {"allowed_roles": {"EXACT", "TEST"}, "forbidden": False},
     "partial_order_structure": {"allowed_roles": {"EXACT"}, "forbidden": False},
     "dependency_root": {"allowed_roles": {"DEPENDENCY_GATE"}, "forbidden": False},
@@ -366,6 +366,10 @@ def _pair_key(left_index: int, right_index: int) -> tuple[int, int]:
     return (left_index, right_index) if left_index < right_index else (right_index, left_index)
 
 
+def _choose2(count: int) -> int:
+    return count * max(count - 1, 0) // 2
+
+
 def _add_star_pairs(indices: list[int], out: set[tuple[int, int]]) -> None:
     ordered = sorted(set(indices))
     if len(ordered) < 2:
@@ -378,7 +382,7 @@ def _add_star_pairs(indices: list[int], out: set[tuple[int, int]]) -> None:
 def _candidate_pair_indices(
     variants: list[dict[str, Any]],
     contract: dict[str, Any],
-) -> tuple[set[tuple[int, int]], list[dict[str, Any]], dict[str, int]]:
+) -> tuple[set[tuple[int, int]], list[dict[str, Any]], dict[str, Any]]:
     question_profile_hash = _digest(contract)
     tested = _dimension_set(contract, "allowed_test_dimensions")
     period_is_test = "period" in tested
@@ -386,6 +390,9 @@ def _candidate_pair_indices(
     missing_team = 0
     missing_period = 0
     structural_unresolved = 0
+    resolved_variant_count = 0
+    team_counts: Counter[str] = Counter()
+    team_period_counts: Counter[tuple[str, str]] = Counter()
 
     for index, variant in enumerate(variants):
         team = _clean(variant.get("team_identity_candidate_id"))
@@ -400,6 +407,9 @@ def _candidate_pair_indices(
         if signature is None:
             structural_unresolved += 1
             continue
+        resolved_variant_count += 1
+        team_counts[team] += 1
+        team_period_counts[(team, period)] += 1
         period_key = "__TEST_DIMENSION_PERIOD__" if period_is_test else period
         groups[(team, period_key, signature)].append(index)
 
@@ -408,6 +418,8 @@ def _candidate_pair_indices(
     topology_mismatch_pair_pruned_count = 0
     topology_unresolved_pair_count = 0
     coarse_signature_topology_split_group_count = 0
+    topology_evaluated_pair_count = 0
+    topology_match_pair_count = 0
 
     for (team, period_key, signature), indices in sorted(
         groups.items(),
@@ -443,9 +455,11 @@ def _candidate_pair_indices(
         group_topology_mismatch = False
         group_topology_unresolved = False
         group_admitted_pairs: set[tuple[int, int]] = set()
+        topology_evaluated_pair_count += len(coarse_pair_indices)
         for left_index, right_index in sorted(coarse_pair_indices):
             topology_match = _topology_exact_match(variants[left_index], variants[right_index])
             if topology_match is True:
+                topology_match_pair_count += 1
                 pair_key = _pair_key(left_index, right_index)
                 admitted_pair_indices.add(pair_key)
                 group_admitted_pairs.add(pair_key)
@@ -503,7 +517,74 @@ def _candidate_pair_indices(
             "claim_ceiling": COMPARABLE_SET_CLAIM_CEILING,
         })
 
+    resolved_pair_universe_count = _choose2(resolved_variant_count)
+    within_team_pair_count = sum(_choose2(count) for count in team_counts.values())
+    cross_team_context_mismatch_pair_count = max(
+        resolved_pair_universe_count - within_team_pair_count,
+        0,
+    )
+    within_team_period_pair_count = sum(
+        _choose2(count) for count in team_period_counts.values()
+    )
+    if period_is_test:
+        cross_period_context_mismatch_pair_count = 0
+        declared_period_test_difference_pair_count = max(
+            within_team_pair_count - within_team_period_pair_count,
+            0,
+        )
+        within_required_context_pair_count = within_team_pair_count
+    else:
+        cross_period_context_mismatch_pair_count = max(
+            within_team_pair_count - within_team_period_pair_count,
+            0,
+        )
+        declared_period_test_difference_pair_count = 0
+        within_required_context_pair_count = within_team_period_pair_count
+
+    coarse_signature_pair_universe_count = sum(
+        _choose2(len(indices)) for indices in groups.values()
+    )
+    coarse_structure_context_mismatch_pair_count = max(
+        within_required_context_pair_count - coarse_signature_pair_universe_count,
+        0,
+    )
+    topology_not_evaluated_within_coarse_signature_pair_count = max(
+        coarse_signature_pair_universe_count - topology_evaluated_pair_count,
+        0,
+    )
+
+    pruned_audit = {
+        "audit_scope": "AGGREGATE_NON_MATERIALIZED_COMPARISON_STATE_AUDIT",
+        "source_variant_count": len(variants),
+        "resolved_required_context_variant_count": resolved_variant_count,
+        "context_unresolved_variant_count": missing_team + missing_period + structural_unresolved,
+        "primary_unresolved_variant_reason_counts": {
+            "MISSING_TEAM": missing_team,
+            "MISSING_PERIOD": missing_period,
+            "STRUCTURAL_SIGNATURE_UNRESOLVED": structural_unresolved,
+        },
+        "resolved_pair_universe_count": resolved_pair_universe_count,
+        "cross_team_context_mismatch_pair_count": cross_team_context_mismatch_pair_count,
+        "cross_period_context_mismatch_pair_count": cross_period_context_mismatch_pair_count,
+        "declared_period_test_difference_pair_count": declared_period_test_difference_pair_count,
+        "coarse_structure_context_mismatch_pair_count": coarse_structure_context_mismatch_pair_count,
+        "coarse_signature_pair_universe_count": coarse_signature_pair_universe_count,
+        "topology_evaluated_representative_pair_count": topology_evaluated_pair_count,
+        "topology_match_representative_pair_count": topology_match_pair_count,
+        "topology_mismatch_representative_pair_count": topology_mismatch_pair_pruned_count,
+        "topology_unresolved_representative_pair_count": topology_unresolved_pair_count,
+        "topology_not_evaluated_within_coarse_signature_pair_count": (
+            topology_not_evaluated_within_coarse_signature_pair_count
+        ),
+        "pruned_or_unresolved_cases_are_counterevidence": False,
+        "audit_counts_define_eligible_denominator": False,
+        "not_evaluated_is_context_mismatch": False,
+        "not_evaluated_is_counterevidence": False,
+        "pair_objects_materialized_for_audit": False,
+    }
+
     diagnostics = {
+        "pruned_comparison_state_audit": pruned_audit,
         "missing_team_variant_count": missing_team,
         "missing_period_variant_count": missing_period,
         "structural_signature_unresolved_variant_count": structural_unresolved,
