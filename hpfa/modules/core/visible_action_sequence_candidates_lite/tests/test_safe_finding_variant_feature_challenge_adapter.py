@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_variant_feature_challenge_adapter import (
+    _binding_for_handoff,
     apply_variant_feature_challenge_to_admission,
 )
 
@@ -250,3 +251,69 @@ def test_challenge_truth_lock_breach_fails_closed() -> None:
     assert out["status"] == "FAIL_CLOSED"
     assert out["safe_finding_admission_decisions"] == []
     assert "variant_feature_challenge_emit_lock_not_false" in out["hard_block_hits"]
+
+
+def test_unique_direct_divergence_family_can_resolve_single_episode_concentration_without_support_promotion():
+    handoff = {
+        "source_first_supported_branch_divergence_ref": "fsbd_direct",
+        "support": {"visible_success_sequence_refs": ["s1"]},
+        "counterevidence": {"visible_failure_sequence_refs": ["f1"]},
+    }
+    challenge = {"variant_feature_challenge_records": []}
+    process = {
+        "observable_process_variant_families": [{
+            "observable_process_variant_family_id": "opvf_direct",
+            "visible_episode_spread_count": 1,
+            "visible_episode_spread_state": "SINGLE_VISIBLE_EPISODE_CONCENTRATION",
+            "occurrence_disjoint_support_cluster_count": 1,
+            "supported_branch_divergence_bindings": [{
+                "source_first_supported_branch_divergence_ref": "fsbd_direct",
+            }],
+            "member_records": [],
+        }]
+    }
+    binding = _binding_for_handoff(handoff, challenge, process)
+    assert binding["state"] == "DIRECT_DIVERGENCE_FAMILY_SPREAD_ONLY_NO_GRAMMAR_STABLE_LINEAGE"
+    assert binding["family_refs"] == ["opvf_direct"]
+    assert binding["episode_spread_observed"] is True
+    assert binding["episode_spread_max_visible_count"] == 1
+    assert binding["multi_episode_spread_visible"] is False
+    assert binding["support_spread_is_independent_support"] is False
+    assert binding["support_spread_is_recurrence_truth"] is False
+    assert binding["direct_divergence_family_spread_can_authorize_emit"] is False
+    assert binding["direct_divergence_family_spread_can_increase_support"] is False
+
+
+def test_multiple_direct_divergence_families_remain_unresolved():
+    handoff = {
+        "source_first_supported_branch_divergence_ref": "fsbd_multi",
+        "support": {"visible_success_sequence_refs": ["s1"]},
+        "counterevidence": {"visible_failure_sequence_refs": ["f1"]},
+    }
+    challenge = {"variant_feature_challenge_records": []}
+    process = {
+        "observable_process_variant_families": [
+            {
+                "observable_process_variant_family_id": "opvf_a",
+                "visible_episode_spread_count": 3,
+                "visible_episode_spread_state": "MULTIPLE_VISIBLE_EPISODE_CANDIDATES",
+                "supported_branch_divergence_bindings": [{
+                    "source_first_supported_branch_divergence_ref": "fsbd_multi",
+                }],
+                "member_records": [],
+            },
+            {
+                "observable_process_variant_family_id": "opvf_b",
+                "visible_episode_spread_count": 4,
+                "visible_episode_spread_state": "MULTIPLE_VISIBLE_EPISODE_CANDIDATES",
+                "supported_branch_divergence_bindings": [{
+                    "source_first_supported_branch_divergence_ref": "fsbd_multi",
+                }],
+                "member_records": [],
+            },
+        ]
+    }
+    binding = _binding_for_handoff(handoff, challenge, process)
+    assert binding["state"] == "REVIEW_REQUIRED_MULTIPLE_DIRECT_DIVERGENCE_FAMILY_MATCHES"
+    assert binding["episode_spread_observed"] is False
+    assert binding["direct_divergence_family_match_count"] == 2
