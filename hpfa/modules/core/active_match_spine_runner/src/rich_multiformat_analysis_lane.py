@@ -408,6 +408,78 @@ def _team_score_state_at_episode_start(
     }
 
 
+def _build_p02_comparison_populations(team_pool_items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group team P02 child items by exact comparison context without outcome admission."""
+    grouped: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    unresolved_items: list[str] = []
+
+    for item in team_pool_items:
+        if not isinstance(item, dict):
+            continue
+        team_id = str(item.get("team_identity_candidate_id") or "")
+        period = str(item.get("episode_candidate_id") and item.get("comparison_context", {}).get("period_candidate") or "")
+        score_state = str(item.get("game_state") or "")
+        start_zone = str((item.get("process_signature_fields") or {}).get("team_specific_start_zone") or "")
+        if not team_id or not period or score_state not in {"LEVEL", "LEADING", "TRAILING"} or not start_zone:
+            unresolved_items.append(str(item.get("pool_item_id") or ""))
+            continue
+        grouped[(team_id, period, score_state, start_zone)].append(item)
+
+    populations: list[dict[str, Any]] = []
+    eligible_population_count = 0
+    for (team_id, period, score_state, start_zone), members in sorted(grouped.items()):
+        member_ids = sorted(str(row.get("pool_item_id") or "") for row in members if row.get("pool_item_id"))
+        population_id = "p02_cmp_pop_" + hashlib.sha256(
+            f"{team_id}|{period}|{score_state}|{start_zone}".encode("utf-8")
+        ).hexdigest()[:20]
+        status = "POPULATION_ELIGIBLE" if len(member_ids) >= 2 else "INSUFFICIENT_COMPARABLE_MEMBERS"
+        if status == "POPULATION_ELIGIBLE":
+            eligible_population_count += 1
+        populations.append({
+            "comparison_population_id": population_id,
+            "comparison_question_id": "P02_TEAM_PROGRESSION_VARIANT_COMPARISON",
+            "comparison_unit": "team_episode_pool_item_candidate",
+            "exact_dimensions": [
+                "team_identity_candidate_id",
+                "period_candidate",
+                "score_state_candidate",
+                "team_specific_start_zone",
+            ],
+            "coarsened_dimensions": [],
+            "test_dimensions": [
+                "team_specific_zone_advancement_steps_candidate",
+                "team_episode_terminal_activity_candidate",
+            ],
+            "forbidden_leakage_dimensions": [
+                "team_specific_zone_advancement_steps_candidate",
+                "team_episode_terminal_activity_candidate",
+            ],
+            "reference_context": {
+                "team_identity_candidate_id": team_id,
+                "period_candidate": period,
+                "score_state_candidate": score_state,
+                "team_specific_start_zone": start_zone,
+            },
+            "member_pool_item_ids": member_ids,
+            "member_count": len(member_ids),
+            "status": status,
+            "outcome_admission_authority": False,
+            "counterevidence_admission_authority": False,
+            "production_release": False,
+        })
+
+    return {
+        "comparison_population_count": len(populations),
+        "eligible_comparison_population_count": eligible_population_count,
+        "unresolved_comparison_population_item_count": len([x for x in unresolved_items if x]),
+        "unresolved_comparison_population_item_ids": sorted(x for x in unresolved_items if x),
+        "comparison_populations": populations,
+        "comparison_population_is_counterevidence": False,
+        "comparison_population_is_outcome_truth": False,
+        "production_release": False,
+    }
+
+
 def _progression_pool_p02(
     features: dict[str, Any],
     temporal: dict[str, Any],
@@ -831,6 +903,17 @@ def _progression_pool_p02(
                     "transition_is_physical_trajectory_truth": False,
                 })
 
+            if int(team_family_counts.get("SHOT", 0)) > 0 and int(team_family_counts.get("TURNOVER", 0)) == 0:
+                team_episode_terminal_activity_candidate = "SHOT_ACTIVITY_VISIBLE"
+            elif int(team_family_counts.get("TURNOVER", 0)) > 0 and int(team_family_counts.get("SHOT", 0)) == 0:
+                team_episode_terminal_activity_candidate = "LOSS_ACTIVITY_VISIBLE"
+            elif int(team_family_counts.get("SHOT", 0)) > 0 and int(team_family_counts.get("TURNOVER", 0)) > 0:
+                team_episode_terminal_activity_candidate = "MIXED_TERMINAL_ACTIVITY_VISIBLE"
+            elif team_visible_follow_up_ids:
+                team_episode_terminal_activity_candidate = "FOLLOW_UP_VISIBLE_NO_SHOT_OR_LOSS"
+            else:
+                team_episode_terminal_activity_candidate = "UNRESOLVED"
+
             team_unresolved = []
             if team_score_state.get("status") != "AVAILABLE":
                 team_unresolved.append("game_state_not_fully_bound")
@@ -901,6 +984,8 @@ def _progression_pool_p02(
                     "team_specific_visible_follow_up_occurrence_ids": team_visible_follow_up_ids,
                     "team_specific_terminal_support_occurrence_ids": team_terminal_support_ids,
                     "team_specific_opponent_follow_up_occurrence_ids": team_opponent_follow_up_ids,
+                    "team_episode_terminal_activity_candidate": team_episode_terminal_activity_candidate,
+                    "team_episode_terminal_activity_is_process_outcome_truth": False,
                     "occurrence_consequence_binding_is_causal_truth": False,
                     "opponent_follow_up_is_tactical_response_truth": False,
                 },
@@ -1072,6 +1157,8 @@ def _progression_pool_p02(
             "production_release": False,
         })
 
+    comparison_populations = _build_p02_comparison_populations(team_pool_items)
+
     return {
         "module_id": "progression_pool_p02_projection_v1",
         "status": "DEGRADED" if pool_items else "NOT_EVALUATED",
@@ -1086,6 +1173,7 @@ def _progression_pool_p02(
         "transformation_ledger_count": len(ledger),
         "transformation_ledger": ledger,
         "comparison_candidates": [],
+        "comparison_populations": comparison_populations,
         "route_metric_evaluable_count": 0,
         "route_metric_not_evaluable_count": len(pool_items),
         "invented_semantics_count": 0,
