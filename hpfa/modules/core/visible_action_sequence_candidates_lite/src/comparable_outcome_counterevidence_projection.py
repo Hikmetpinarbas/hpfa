@@ -121,12 +121,106 @@ def _branch_evidence_direction(
     return "SUPPORT", "BETWEEN_BRANCH_VISIBLE_OUTCOME_DISCRIMINATION"
 
 
+def _variant_comparable_set_bindings(
+    sequence_payload: dict[str, Any],
+) -> tuple[dict[str, dict[str, Any]], set[str]]:
+    bindings: dict[str, dict[str, Any]] = {}
+    ambiguous: set[str] = set()
+    for row in sequence_payload.get("process_comparable_sets") or []:
+        if not isinstance(row, dict):
+            continue
+        comparable_set_id = _clean(row.get("comparable_set_id"))
+        if not comparable_set_id:
+            continue
+        eligible_case_count = row.get("eligible_case_count")
+        if (
+            not isinstance(eligible_case_count, int)
+            or isinstance(eligible_case_count, bool)
+            or eligible_case_count < 0
+        ):
+            eligible_case_count = None
+        binding = {
+            "comparable_set_id": comparable_set_id,
+            "comparison_question_id": _clean(row.get("comparison_question_id")) or None,
+            "eligible_case_count": eligible_case_count,
+            "eligible_denominator_frozen_before_outcome_attachment": (
+                row.get("eligible_denominator_frozen_before_outcome_attachment") is True
+            ),
+            "materialized_pair_count_is_eligible_denominator": (
+                row.get("materialized_pair_count_is_eligible_denominator") is True
+            ),
+        }
+        for raw_variant_id in row.get("member_process_candidate_ids") or []:
+            variant_id = _clean(raw_variant_id)
+            if not variant_id:
+                continue
+            previous = bindings.get(variant_id)
+            if previous and previous.get("comparable_set_id") != comparable_set_id:
+                ambiguous.add(variant_id)
+                bindings.pop(variant_id, None)
+                continue
+            if variant_id not in ambiguous:
+                bindings[variant_id] = binding
+    return bindings, ambiguous
+
+
+def _legacy_denominator_binding(
+    *,
+    left_variant: str,
+    right_variant: str,
+    variant_set_bindings: dict[str, dict[str, Any]],
+    ambiguous_variant_ids: set[str],
+) -> dict[str, Any]:
+    if left_variant in ambiguous_variant_ids or right_variant in ambiguous_variant_ids:
+        return {
+            "state": "COMPARABLE_SET_MEMBERSHIP_AMBIGUOUS_REVIEW_REQUIRED",
+            "comparable_set_id": None,
+            "comparison_question_id": None,
+            "eligible_case_count": None,
+            "frozen": False,
+        }
+    left = variant_set_bindings.get(left_variant)
+    right = variant_set_bindings.get(right_variant)
+    if not left or not right:
+        return {
+            "state": "COMPARABLE_SET_DENOMINATOR_BINDING_UNRESOLVED",
+            "comparable_set_id": None,
+            "comparison_question_id": None,
+            "eligible_case_count": None,
+            "frozen": False,
+        }
+    if left.get("comparable_set_id") != right.get("comparable_set_id"):
+        return {
+            "state": "PAIR_MEMBERS_DIFFERENT_COMPARABLE_SETS_REVIEW_REQUIRED",
+            "comparable_set_id": None,
+            "comparison_question_id": None,
+            "eligible_case_count": None,
+            "frozen": False,
+        }
+    frozen = left.get("eligible_denominator_frozen_before_outcome_attachment") is True
+    pair_not_denominator = left.get("materialized_pair_count_is_eligible_denominator") is False
+    count = left.get("eligible_case_count")
+    state = (
+        "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND"
+        if frozen and pair_not_denominator and isinstance(count, int)
+        else "COMPARABLE_SET_DENOMINATOR_CONTRACT_UNRESOLVED_REVIEW_REQUIRED"
+    )
+    return {
+        "state": state,
+        "comparable_set_id": left.get("comparable_set_id"),
+        "comparison_question_id": left.get("comparison_question_id"),
+        "eligible_case_count": count,
+        "frozen": frozen,
+    }
+
+
 def _legacy_similarity_records(
     sequence_payload: dict[str, Any],
     sequence_outcomes: dict[str, set[str]],
     reviews: list[str],
 ) -> list[dict[str, Any]]:
     variant_to_sequence = _variant_sequence_map(sequence_payload)
+    variant_set_bindings, ambiguous_variant_ids = _variant_comparable_set_bindings(sequence_payload)
     records: list[dict[str, Any]] = []
     for pair in sequence_payload.get("dependency_aware_partial_order_similarity_pairs") or []:
         if not isinstance(pair, dict):
@@ -162,6 +256,12 @@ def _legacy_similarity_records(
 
         evidence_direction = _legacy_evidence_direction(contrast_state)
         dependency_challenge_present, dependency_challenge_reasons = _explicit_dependency_challenge(pair)
+        denominator_binding = _legacy_denominator_binding(
+            left_variant=left_variant,
+            right_variant=right_variant,
+            variant_set_bindings=variant_set_bindings,
+            ambiguous_variant_ids=ambiguous_variant_ids,
+        )
         record_id = "coc_" + _digest(pair_id, left_variant, right_variant, left_outcome, right_outcome)[:24]
         records.append({
             "comparable_outcome_counterevidence_id": record_id,
@@ -177,7 +277,24 @@ def _legacy_similarity_records(
             "right_visible_outcome_state": right_outcome,
             "comparable_outcome_contrast_state": contrast_state,
             "canonical_evidence_direction_class": evidence_direction,
+            "canonical_evidence_observation_unit": "COMPARABLE_VARIANT_PAIR_RELATION",
             "canonical_evidence_target_construct": "STRUCTURAL_RECURRENCE_VISIBLE_OUTCOME_CONSISTENCY",
+            "canonical_evidence_target_component": "WITHIN_COMPARABLE_SET_VISIBLE_OUTCOME_CONSISTENCY",
+            "canonical_evidence_target_question_id": (
+                denominator_binding.get("comparison_question_id")
+                or _clean(pair.get("comparison_question_id"))
+                or None
+            ),
+            "canonical_evidence_target_comparable_set_id": denominator_binding.get("comparable_set_id"),
+            "eligible_denominator_binding_state": denominator_binding.get("state"),
+            "eligible_denominator_basis": "FROZEN_COMPARABLE_SET_ELIGIBLE_CASES",
+            "eligible_denominator_count": denominator_binding.get("eligible_case_count"),
+            "eligible_denominator_frozen_before_outcome_attachment": (
+                denominator_binding.get("frozen") is True
+            ),
+            "pair_record_is_eligible_denominator": False,
+            "pair_count_is_eligible_denominator": False,
+            "eligible_denominator_is_independent_evidence_count": False,
             "dependency_challenge_present": dependency_challenge_present,
             "dependency_challenge_reason_codes": dependency_challenge_reasons,
             "dependency_challenge_changes_evidence_direction": False,
@@ -271,6 +388,18 @@ def _branch_design_records(
                 left_outcome=left_outcome,
                 right_outcome=right_outcome,
             )
+            branch_denominator = divergence.get("observed_branch_opportunity_eligible_denominator")
+            if (
+                not isinstance(branch_denominator, int)
+                or isinstance(branch_denominator, bool)
+                or branch_denominator < 0
+            ):
+                branch_denominator = None
+            branch_denominator_state = (
+                "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND"
+                if branch_denominator is not None
+                else "BRANCH_ELIGIBLE_CASE_DENOMINATOR_UNRESOLVED_REVIEW_REQUIRED"
+            )
 
             record_id = "boc_" + _digest(
                 comparable_set_id,
@@ -297,8 +426,18 @@ def _branch_design_records(
                 "right_visible_outcome_state": right_outcome,
                 "branch_comparison_contrast_state": state,
                 "canonical_evidence_direction_class": canonical_evidence_direction,
+                "canonical_evidence_observation_unit": "SAME_DESIGN_BRANCH_CASE_PAIR_RELATION",
                 "canonical_evidence_target_construct": "BRANCH_OUTCOME_STABILITY_AND_DISCRIMINATION",
                 "canonical_evidence_target_component": canonical_target_component,
+                "canonical_evidence_target_question_id": question_id,
+                "canonical_evidence_target_comparable_set_id": comparable_set_id,
+                "eligible_denominator_binding_state": branch_denominator_state,
+                "eligible_denominator_basis": "FROZEN_ELIGIBLE_CASES_FROM_FIRST_SUPPORTED_BRANCH_DIVERGENCE",
+                "eligible_denominator_count": branch_denominator,
+                "eligible_denominator_frozen_before_outcome_attachment": True,
+                "pair_record_is_eligible_denominator": False,
+                "pair_count_is_eligible_denominator": False,
+                "eligible_denominator_is_independent_evidence_count": False,
                 "dependency_challenge_present": None,
                 "dependency_challenge_state": "NOT_EVALUATED_IN_BRANCH_RECORD",
                 "dependency_challenge_changes_evidence_direction": False,
@@ -861,6 +1000,12 @@ def build_comparable_outcome_counterevidence(sequence_payload: dict[str, Any]) -
     branch_evidence_direction_counts = Counter(
         _clean(row.get("canonical_evidence_direction_class")) for row in branch_records
     )
+    legacy_denominator_binding_counts = Counter(
+        _clean(row.get("eligible_denominator_binding_state")) for row in legacy_records
+    )
+    branch_denominator_binding_counts = Counter(
+        _clean(row.get("eligible_denominator_binding_state")) for row in branch_records
+    )
     return {
         "status": status,
         "comparable_outcome_counterevidence_records": legacy_records if not blocks else [],
@@ -906,6 +1051,16 @@ def build_comparable_outcome_counterevidence(sequence_payload: dict[str, Any]) -
             if not blocks
             else 0
         ),
+        "claim_target_denominator_binding_applied": True,
+        "legacy_denominator_binding_state_counts": (
+            dict(sorted(legacy_denominator_binding_counts.items())) if not blocks else {}
+        ),
+        "branch_denominator_binding_state_counts": (
+            dict(sorted(branch_denominator_binding_counts.items())) if not blocks else {}
+        ),
+        "pair_record_is_eligible_denominator": False,
+        "pair_count_is_eligible_denominator": False,
+        "eligible_denominator_is_independent_evidence_count": False,
         "dependency_challenge_is_evidence_direction": False,
         "dependency_challenge_changes_evidence_direction": False,
         "non_support_is_counterevidence": False,
