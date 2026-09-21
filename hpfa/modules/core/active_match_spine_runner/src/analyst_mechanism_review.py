@@ -17,6 +17,7 @@ PROCESS_VARIANT_JSON = "observable_process_variant_binding_projection_v1.json"
 PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
 VARIANT_FEATURE_CHALLENGE_JSON = "variant_feature_challenge_projection_v1.json"
 ANALYST_OUTPUT_CLAIM_JSON = "analyst_output_claim_contract_projection_v1.json"
+RICH_MULTIFORMAT_JSON = "rich_multiformat_analysis_lattice_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -862,8 +863,82 @@ def _render_provider_semantic_guard(
     )
 
 
+def _rich_mechanism_context_lines(
+    root: Path,
+    full_spine: dict[str, Any],
+) -> list[str]:
+    if not _declared_current(full_spine, RICH_MULTIFORMAT_JSON):
+        return []
+    rich = _load_json(root / RICH_MULTIFORMAT_JSON)
+    if not rich or str(rich.get("status") or "").upper() == "FAIL_CLOSED":
+        return []
+
+    game = rich.get("game_state_context") or {}
+    mix = rich.get("game_state_process_mix_context") or {}
+    loss = rich.get("loss_next_opponent_process_context") or {}
+    recovery = rich.get("recovery_next_process_context") or {}
+    set_piece = rich.get("set_piece_process_consequence_context") or {}
+    counter = rich.get("counterattack_next_process_context") or {}
+    constructs = rich.get("constructs") or {}
+    c01 = constructs.get("C01") or {}
+    c03 = constructs.get("C03") or {}
+
+    lines = [
+        "rich_context_scope=ANALYST_REVIEW_CONTEXT_ONLY_NOT_SELECTION_OR_EVIDENCE_PROMOTION",
+        (
+            "rich_game_state_context: "
+            f"status={game.get('status')} "
+            f"goal_observation_count={game.get('goal_observation_count')} "
+            f"segment_count={len(game.get('score_state_segments') or [])} "
+            f"process_mix_profiles={mix.get('profile_count')}"
+        ),
+        (
+            "rich_access_creation_terminal: "
+            f"profile_count={c01.get('access_creation_terminal_profile_count')} "
+            f"access_terminal_both={c01.get('access_creation_terminal_profiles_with_access_and_terminal_count')} "
+            f"conversion_rate_emitted={str(c01.get('access_creation_terminal_conversion_rate_emitted') is True).lower()}"
+        ),
+        (
+            "rich_loss_opponent_response: "
+            f"status={loss.get('status')} "
+            f"context_rows={loss.get('loss_context_row_count')} "
+            f"next_process_families={json.dumps(loss.get('next_opponent_process_family_counts') or {}, sort_keys=True)}"
+        ),
+        (
+            "rich_recovery_response: "
+            f"status={recovery.get('status')} "
+            f"context_rows={recovery.get('recovery_context_row_count')} "
+            f"next_process_families={json.dumps(recovery.get('next_visible_process_family_counts') or {}, sort_keys=True)}"
+        ),
+        (
+            "rich_set_piece_boundary: "
+            f"status={set_piece.get('status')} "
+            f"declared_horizon_seconds={set_piece.get('declared_consequence_horizon_seconds')} "
+            f"first_visible_team_states={json.dumps(set_piece.get('post_set_piece_first_visible_team_state_counts') or {}, sort_keys=True)}"
+        ),
+        (
+            "rich_counterattack_successor: "
+            f"status={counter.get('status')} "
+            f"context_rows={counter.get('counterattack_context_row_count')} "
+            f"next_process_families={json.dumps(counter.get('next_visible_process_family_counts') or {}, sort_keys=True)} "
+            f"transition_stabilization_truth={str(counter.get('visible_successor_is_transition_stabilization_truth') is True).lower()}"
+        ),
+        (
+            "rich_spatial_process_context: "
+            f"signature_count={c03.get('signature_count')} "
+            f"provider_axis_admission_is_physical_pitch_truth=false "
+            f"tracking_truth=false line_break_truth=false"
+        ),
+        "rich_context_can_authorize_emit=false rich_context_can_increase_support=false",
+    ]
+    return lines
+
+
 def build_mechanism_review_lines(
     output_root: str | Path,
     full_spine: dict[str, Any],
 ) -> list[str]:
-    return _BASE_BUILD_MECHANISM_REVIEW_LINES(output_root, full_spine)
+    root = Path(output_root)
+    lines = _BASE_BUILD_MECHANISM_REVIEW_LINES(root, full_spine)
+    lines.extend(_rich_mechanism_context_lines(root, full_spine))
+    return lines

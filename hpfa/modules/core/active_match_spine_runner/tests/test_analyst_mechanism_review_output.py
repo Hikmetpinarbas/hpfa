@@ -408,3 +408,75 @@ def test_same_grammar_contexts_are_compared_without_tactical_promotion(tmp_path:
     assert "same_grammar_context: team=Team Alpha period=1 resolved=10 success_visible=7 failure_visible=3" in text
     assert "same_grammar_context: team=Team Beta period=2 resolved=8 success_visible=6 failure_visible=2" in text
     assert "independent_support=false recurrence_truth=false" in text
+
+
+def test_rich_context_is_appended_for_review_without_changing_emit_authority(tmp_path: Path) -> None:
+    _write_payloads(tmp_path)
+    rich = {
+        "status": "REVIEW_REQUIRED",
+        "game_state_context": {
+            "status": "PASS",
+            "goal_observation_count": 4,
+            "score_state_segments": [{}, {}, {}, {}, {}],
+        },
+        "game_state_process_mix_context": {
+            "status": "PASS",
+            "profile_count": 10,
+        },
+        "loss_next_opponent_process_context": {
+            "status": "PASS",
+            "loss_context_row_count": 102,
+            "next_opponent_process_family_counts": {
+                "POSITIONAL_ATTACK_CANDIDATE": 10,
+                "COUNTERATTACK_CANDIDATE": 3,
+            },
+        },
+        "recovery_next_process_context": {
+            "status": "PASS",
+            "recovery_context_row_count": 43,
+            "next_visible_process_family_counts": {
+                "POSITIONAL_ATTACK_CANDIDATE": 8,
+            },
+        },
+        "set_piece_process_consequence_context": {
+            "status": "PASS",
+            "declared_consequence_horizon_seconds": 12.0,
+            "post_set_piece_first_visible_team_state_counts": {
+                "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE": 2,
+                "OPPONENT_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE": 2,
+                "FIRST_STRICT_AFTER_OUTSIDE_DECLARED_CONSEQUENCE_HORIZON": 7,
+            },
+        },
+        "counterattack_next_process_context": {
+            "status": "PASS",
+            "counterattack_context_row_count": 27,
+            "next_visible_process_family_counts": {
+                "POSITIONAL_ATTACK_CANDIDATE": 23,
+            },
+            "visible_successor_is_transition_stabilization_truth": False,
+        },
+        "constructs": {
+            "C01": {
+                "access_creation_terminal_profile_count": 30,
+                "access_creation_terminal_profiles_with_access_and_terminal_count": 28,
+                "access_creation_terminal_conversion_rate_emitted": False,
+            },
+            "C03": {
+                "signature_count": 167,
+            },
+        },
+    }
+    rich_path = tmp_path / "rich_multiformat_analysis_lattice_v1.json"
+    rich_path.write_text(json.dumps(rich), encoding="utf-8")
+    spine = _full_spine(tmp_path)
+    spine["current_invocation_artifacts"].append(str(rich_path))
+
+    text = "\n".join(build_mechanism_review_lines(tmp_path, spine))
+    assert "rich_context_scope=ANALYST_REVIEW_CONTEXT_ONLY_NOT_SELECTION_OR_EVIDENCE_PROMOTION" in text
+    assert "goal_observation_count=4" in text
+    assert "profile_count=30 access_terminal_both=28 conversion_rate_emitted=false" in text
+    assert '"POSITIONAL_ATTACK_CANDIDATE": 10' in text
+    assert "declared_horizon_seconds=12.0" in text
+    assert "transition_stabilization_truth=false" in text
+    assert "rich_context_can_authorize_emit=false" in text
+    assert "professional_emit_allowed=false" in text
