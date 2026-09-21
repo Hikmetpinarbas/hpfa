@@ -8,7 +8,7 @@ if str(ROOT) not in sys.path:
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from rich_multiformat_analysis_lane import _construct_c01, _phase_state_candidates
+from rich_multiformat_analysis_lane import _construct_c01, _phase_state_candidates, _progression_pool_p02
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -139,3 +139,84 @@ def test_c01_construct_can_enter_existing_composite_packet_without_independence_
     assert packet["independent_support_count"] == 0
     assert packet["nominal_ref_count_is_independent_support_count"] is False
     assert packet["claim_ceiling"] == "composite_candidate_only"
+
+
+
+def _p02_features():
+    return {
+        "episode_feature_vectors": [
+            {
+                "episode_candidate_id": "aep_generic_001",
+                "episode_feature_vector_id": "efv:aep_generic_001",
+                "claim_ceiling": "EPISODE_VISIBLE_FEATURE_CANDIDATES_ONLY",
+                "period_candidate": "1",
+                "duration_seconds_candidate": 60.0,
+                "eligible_action_candidate_count": 12,
+                "same_time_unordered_layer_count": 2,
+                "action_family_counts": {"PASS": 8, "DRIBBLE": 2, "TURNOVER": 2},
+                "eligible_action_zone_counts": {"DEFENSIVE_THIRD": 4, "MIDDLE_THIRD": 6, "FINAL_THIRD": 2},
+                "eligible_action_channel_counts": {"LEFT_CHANNEL": 3, "CENTRAL_CHANNEL": 5, "RIGHT_CHANNEL": 4},
+                "shot_candidate_count": 1,
+                "turnover_candidate_count": 2,
+                "recovery_candidate_count": 1,
+                "feature_readiness": "FEATURE_READY",
+                "context_refs": ["ctx_1", "ctx_2"],
+            }
+        ]
+    }
+
+
+def _p02_temporal():
+    return {
+        "temporal_episode_signatures": [
+            {
+                "temporal_episode_signature_id": "tes:aep_generic_001",
+                "episode_candidate_id": "aep_generic_001",
+                "comparison_status": "COMPARABLE_PRIOR_EPISODE_AVAILABLE",
+                "eligible_action_rate_delta_per_minute": 1.5,
+                "zone_share_shift_candidate": {"FINAL_THIRD": 0.1},
+                "channel_share_shift_candidate": {"CENTRAL_CHANNEL": -0.05},
+            }
+        ]
+    }
+
+
+def test_p02_projection_builds_atoms_and_pool_item_without_independence_inflation():
+    p02 = _progression_pool_p02(_p02_features(), _p02_temporal())
+    assert p02["p02_pool_item_count"] == 1
+    assert p02["finding_atom_candidate_count"] == 6
+    assert p02["pool_item_is_new_evidence_vote"] is False
+    assert p02["invented_semantics_count"] == 0
+    item = p02["p02_pool_items"][0]
+    assert item["pool_id"] == "P02_PROGRESSION"
+    assert item["dependency_roots"] == ["episode_feature:aep_generic_001"]
+    assert item["station_type"] == "ACTION_STATION"
+    assert item["visible_observation_summary"]["action_station_candidate_count"] == 12
+
+
+def test_p02_projection_preserves_same_time_ambiguity_and_withholds_route_truth():
+    p02 = _progression_pool_p02(_p02_features(), _p02_temporal())
+    item = p02["p02_pool_items"][0]
+    signature = item["process_signature_fields"]
+    assert signature["same_time_unordered_layer_count"] == 2
+    assert signature["route_evaluability"] == "NOT_EVALUATED"
+    assert signature["visible_path_length_proxy"] is None
+    assert signature["directness_proxy"] is None
+    assert p02["same_timestamp_is_total_order"] is False
+    assert p02["coordinate_is_tracking"] is False
+
+
+def test_p02_projection_zero_duration_does_not_invent_rate():
+    features = _p02_features()
+    features["episode_feature_vectors"][0]["duration_seconds_candidate"] = 0.0
+    p02 = _progression_pool_p02(features, _p02_temporal())
+    item = p02["p02_pool_items"][0]
+    assert item["visible_observation_summary"]["eligible_action_rate_per_second_candidate"] is None
+
+
+def test_p02_projection_final_third_activity_is_candidate_not_access_truth():
+    p02 = _progression_pool_p02(_p02_features(), _p02_temporal())
+    item = p02["p02_pool_items"][0]
+    assert item["process_signature_fields"]["advanced_access_activity_candidate"] is True
+    assert "start_end_zone_transition_not_bound" in item["unresolved_refs"]
+    assert item["claim_ceiling"] == "P02_EPISODE_DESCRIPTIVE_CANDIDATE_ONLY"
