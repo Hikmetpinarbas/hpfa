@@ -422,6 +422,69 @@ def test_p02_team_split_creates_team_specific_child_items():
     assert by_team["TEAM_B"]["visible_observation_summary"]["zone_counts"] == {"MIDDLE_THIRD": 1}
 
 
+def test_p02_team_process_stage_profile_preserves_stage_presence_without_inventing_order():
+    features = _p02_features()
+    features["episode_feature_vectors"][0]["context_refs"] = ["s1", "s2", "s3"]
+    semantics = {
+        "context_action_semantic_records": [
+            {
+                "context_id": "s1",
+                "action_occurrence_eligible": True,
+                "context_team_candidate": "TEAM_A",
+                "provider_action_family_candidate": "PASS",
+                "provider_progression_candidate": "PROGRESSIVE_CANDIDATE",
+                "provider_zone_candidate": "PENALTY_AREA",
+                "provider_key_action_candidate": "KEY_PASS_CANDIDATE",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "context_zone_candidate": "FINAL_THIRD",
+                "context_channel_candidate": "CENTRAL_CHANNEL",
+            },
+            {
+                "context_id": "s2",
+                "action_occurrence_eligible": True,
+                "context_team_candidate": "TEAM_A",
+                "provider_action_family_candidate": "SHOT",
+                "provider_shot_result_candidate": "ON_TARGET",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "context_zone_candidate": "FINAL_THIRD",
+                "context_channel_candidate": "CENTRAL_CHANNEL",
+            },
+            {
+                "context_id": "s3",
+                "action_occurrence_eligible": False,
+                "context_team_candidate": "TEAM_A",
+                "provider_action_family_candidate": "UNKNOWN",
+                "provider_terminal_outcome_candidate": "GOAL",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "context_zone_candidate": "FINAL_THIRD",
+                "context_channel_candidate": "CENTRAL_CHANNEL",
+            },
+        ]
+    }
+    p02 = _progression_pool_p02(
+        features,
+        _p02_temporal(),
+        _p02_episode(),
+        {},
+        semantics,
+    )
+    team = next(row for row in p02["p02_team_pool_items"] if row["team_candidate"] == "TEAM_A")
+    profile = team["process_signature_fields"]["team_specific_process_stage_profile"]
+    assert profile["stage_counts"]["PROGRESSION"] == 1
+    assert profile["stage_counts"]["FINAL_THIRD"] == 2
+    assert profile["stage_counts"]["PENALTY_AREA"] == 1
+    assert profile["stage_counts"]["KEY_ACTION"] == 1
+    assert profile["stage_counts"]["SHOT"] == 1
+    assert profile["stage_counts"]["SHOT_ON_TARGET"] == 1
+    assert profile["stage_counts"]["GOAL"] == 1
+    assert profile["deepest_observed_stage_candidate"] == "GOAL"
+    assert profile["exit_stage_candidate"] == "UNRESOLVED"
+    assert profile["ordering_state"] == "PRESENCE_ONLY_NO_TOTAL_ORDER"
+    assert profile["terminal_outcomes_do_not_add_action_volume"] is True
+    assert profile["stage_ladder_is_physical_sequence_truth"] is False
+    assert profile["deepest_stage_is_tactical_quality_truth"] is False
+
+
 def test_p02_team_child_items_do_not_create_independent_support_votes():
     p02 = _progression_pool_p02(
         _p02_features(),
