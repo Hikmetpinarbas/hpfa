@@ -65,6 +65,138 @@ def _bound_by_family(analyst_output_claim_payload: dict[str, Any] | None) -> dic
     return result
 
 
+def _safe_finding_review_by_family(
+    analyst_output_claim_payload: dict[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
+    if not isinstance(analyst_output_claim_payload, dict):
+        return {}
+    if str(analyst_output_claim_payload.get("status") or "").upper() == "FAIL_CLOSED":
+        return {}
+
+    tier_order = {
+        "SF_R0_REVIEW_RICH_MATCH_LOCAL_DESCRIPTION": 0,
+        "SF_R1_REVIEWABLE_MATCH_LOCAL_DESCRIPTION": 1,
+        "SF_R2_SUPPORTING_MATCH_LOCAL_CONTEXT": 2,
+        "SF_R3_LOW_CONTEXT_OR_ABSTAIN": 3,
+        "SF_UNBOUND": 4,
+    }
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in analyst_output_claim_payload.get("analyst_output_contracts") or []:
+        if not isinstance(row, dict):
+            continue
+        family_refs = {
+            str(value or "").strip()
+            for value in [
+                *(row.get("rate_bound_matched_process_variant_family_refs") or []),
+                *(row.get("variant_feature_challenge_family_refs") or []),
+                *[
+                    profile.get("family_ref")
+                    for profile in (row.get("variant_support_spread_profiles") or [])
+                    if isinstance(profile, dict)
+                ],
+            ]
+            if str(value or "").strip()
+        }
+        if not family_refs:
+            continue
+
+        decision = str(row.get("safe_finding_admission_decision") or "").upper()
+        blocking = {str(value) for value in (row.get("blocking_dimensions") or [])}
+        spread = row.get("variant_support_episode_spread_observed") is True
+        challenge = (
+            str(row.get("variant_feature_challenge_binding_state") or "")
+            == "MATCHED_CHALLENGE_VISIBLE"
+            or bool(row.get("variant_feature_challenge_refs"))
+        )
+        source_bound_rate = (
+            row.get("rate_bound_binding_state") == "SOURCE_BOUND_NUMERIC"
+            and str(row.get("rate_bound_state") or "") in NUMERIC_BOUND_STATES
+        )
+        outcome_debt = bool(
+            blocking
+            & {
+                "OUTCOME_COVERAGE_PARTIAL_OR_UNKNOWN",
+                "UNRESOLVED_OUTCOME_BURDEN",
+            }
+        )
+        if decision == "DOWNGRADE" and spread and challenge and source_bound_rate and not outcome_debt:
+            tier = "SF_R0_REVIEW_RICH_MATCH_LOCAL_DESCRIPTION"
+        elif decision == "DOWNGRADE" and spread and challenge and not outcome_debt:
+            tier = "SF_R1_REVIEWABLE_MATCH_LOCAL_DESCRIPTION"
+        elif decision == "DOWNGRADE" and (spread or challenge):
+            tier = "SF_R2_SUPPORTING_MATCH_LOCAL_CONTEXT"
+        else:
+            tier = "SF_R3_LOW_CONTEXT_OR_ABSTAIN"
+
+        summary = {
+            "tier": tier,
+            "tier_order": tier_order[tier],
+            "source_contract_ref": row.get("analyst_output_contract_id"),
+            "decision": decision or "UNKNOWN",
+            "claim_scope": row.get("claim_scope"),
+            "blocking_dimensions": sorted(blocking),
+            "episode_spread_observed": spread,
+            "challenge_visible": challenge,
+            "source_bound_rate_visible": source_bound_rate,
+            "outcome_debt_visible": outcome_debt,
+            "review_readiness_is_truth_ranking": False,
+            "review_readiness_is_confidence_score": False,
+            "review_readiness_can_authorize_emit": False,
+            "review_readiness_can_increase_support": False,
+        }
+        for family_ref in family_refs:
+            grouped.setdefault(family_ref, []).append(summary)
+
+    result: dict[str, dict[str, Any]] = {}
+    for family_ref, rows in grouped.items():
+        ordered = sorted(
+            rows,
+            key=lambda row: (
+                int(row.get("tier_order") or 99),
+                str(row.get("source_contract_ref") or ""),
+            ),
+        )
+        best = ordered[0]
+        decision_counts: dict[str, int] = {}
+        tier_counts: dict[str, int] = {}
+        blocking: set[str] = set()
+        for row in rows:
+            decision = str(row.get("decision") or "UNKNOWN")
+            tier = str(row.get("tier") or "SF_UNBOUND")
+            decision_counts[decision] = decision_counts.get(decision, 0) + 1
+            tier_counts[tier] = tier_counts.get(tier, 0) + 1
+            blocking.update(str(value) for value in (row.get("blocking_dimensions") or []))
+        result[family_ref] = {
+            "safe_finding_review_readiness_band": best["tier"],
+            "safe_finding_review_contract_count": len(rows),
+            "safe_finding_review_source_contract_refs": sorted(
+                str(row.get("source_contract_ref") or "")
+                for row in rows
+                if str(row.get("source_contract_ref") or "")
+            ),
+            "safe_finding_review_decision_counts": dict(sorted(decision_counts.items())),
+            "safe_finding_review_tier_counts": dict(sorted(tier_counts.items())),
+            "safe_finding_review_blocking_dimensions": sorted(blocking),
+            "safe_finding_review_has_observed_episode_spread": any(
+                row.get("episode_spread_observed") is True for row in rows
+            ),
+            "safe_finding_review_has_challenge_surface": any(
+                row.get("challenge_visible") is True for row in rows
+            ),
+            "safe_finding_review_has_source_bound_rate": any(
+                row.get("source_bound_rate_visible") is True for row in rows
+            ),
+            "safe_finding_review_has_outcome_debt": any(
+                row.get("outcome_debt_visible") is True for row in rows
+            ),
+            "safe_finding_review_readiness_is_truth_ranking": False,
+            "safe_finding_review_readiness_is_confidence_score": False,
+            "safe_finding_review_readiness_can_authorize_emit": False,
+            "safe_finding_review_readiness_can_increase_support": False,
+        }
+    return result
+
+
 def _eligibility_state(record: dict[str, Any], bound_by_family: dict[str, dict[str, Any]]) -> str:
     if not (
         int(record.get("resolved_variant_count") or 0) > 0
@@ -332,6 +464,7 @@ def build_mechanism_story_review_shortlist(
         }
 
     bounds = _bound_by_family(analyst_output_claim_payload)
+    safe_finding_review_by_family = _safe_finding_review_by_family(analyst_output_claim_payload)
     process_context_by_family = _process_context_binding_by_variant_family(
         process_variant_payload,
         process_participation_payload,
@@ -355,17 +488,33 @@ def build_mechanism_story_review_shortlist(
         "SINGLE_EPISODE_DIVERGENCE_VISIBLE_NO_SUCCESS_FAILURE_CONTRAST": 4,
         "DIVERGENCE_SUPPORT_UNRESOLVED": 5,
     }
-    decorated: list[tuple[int, int, str, dict[str, Any]]] = []
+    safe_review_order = {
+        "SF_R0_REVIEW_RICH_MATCH_LOCAL_DESCRIPTION": 0,
+        "SF_R1_REVIEWABLE_MATCH_LOCAL_DESCRIPTION": 1,
+        "SF_R2_SUPPORTING_MATCH_LOCAL_CONTEXT": 2,
+        "SF_R3_LOW_CONTEXT_OR_ABSTAIN": 3,
+        "SF_UNBOUND": 4,
+    }
+    decorated: list[tuple[int, int, int, str, dict[str, Any]]] = []
     for row in records:
         band = _priority_band(row, bounds)
         support_state = _review_support_state(row)
+        family_ref = str(row.get("source_process_variant_family_ref") or "").strip()
+        safe_summary = safe_finding_review_by_family.get(family_ref, {})
+        safe_band = str(safe_summary.get("safe_finding_review_readiness_band") or "SF_UNBOUND")
         candidate_id = str(row.get("grammar_stable_variant_feature_delta_id") or "")
-        decorated.append((band_order[band], support_order[support_state], candidate_id, row))
-    decorated.sort(key=lambda item: (item[0], item[1], item[2]))
+        decorated.append((
+            band_order[band],
+            safe_review_order[safe_band],
+            support_order[support_state],
+            candidate_id,
+            row,
+        ))
+    decorated.sort(key=lambda item: (item[0], item[1], item[2], item[3]))
 
     selected: list[dict[str, Any]] = []
     seen_diversity: set[tuple[str, ...]] = set()
-    for _, _, _, row in decorated:
+    for _, _, _, _, row in decorated:
         eligibility = _eligibility_state(row, bounds)
         band = _priority_band(row, bounds)
         if eligibility.startswith("BLOCKED_"):
@@ -377,6 +526,7 @@ def build_mechanism_story_review_shortlist(
         family_ref = str(row.get("source_process_variant_family_ref") or "").strip()
         bound = bounds.get(family_ref) if eligibility == "BOUND_AWARE_REVIEW_ONLY" else None
         process_context_binding = process_context_by_family.get(family_ref, {})
+        safe_finding_review_summary = safe_finding_review_by_family.get(family_ref, {})
         challenge_summary = challenge_by_feature_delta.get(
             str(row.get("grammar_stable_variant_feature_delta_id") or ""), {}
         )
@@ -384,6 +534,40 @@ def build_mechanism_story_review_shortlist(
             "source_mechanism_review_ref": row.get("grammar_stable_variant_feature_delta_id"),
             "source_process_variant_family_ref": row.get("source_process_variant_family_ref"),
             "priority_band": band,
+            "safe_finding_review_readiness_band": safe_finding_review_summary.get(
+                "safe_finding_review_readiness_band", "SF_UNBOUND"
+            ),
+            "safe_finding_review_contract_count": int(
+                safe_finding_review_summary.get("safe_finding_review_contract_count") or 0
+            ),
+            "safe_finding_review_source_contract_refs": list(
+                safe_finding_review_summary.get("safe_finding_review_source_contract_refs") or []
+            ),
+            "safe_finding_review_decision_counts": dict(
+                safe_finding_review_summary.get("safe_finding_review_decision_counts") or {}
+            ),
+            "safe_finding_review_tier_counts": dict(
+                safe_finding_review_summary.get("safe_finding_review_tier_counts") or {}
+            ),
+            "safe_finding_review_blocking_dimensions": list(
+                safe_finding_review_summary.get("safe_finding_review_blocking_dimensions") or []
+            ),
+            "safe_finding_review_has_observed_episode_spread": (
+                safe_finding_review_summary.get("safe_finding_review_has_observed_episode_spread") is True
+            ),
+            "safe_finding_review_has_challenge_surface": (
+                safe_finding_review_summary.get("safe_finding_review_has_challenge_surface") is True
+            ),
+            "safe_finding_review_has_source_bound_rate": (
+                safe_finding_review_summary.get("safe_finding_review_has_source_bound_rate") is True
+            ),
+            "safe_finding_review_has_outcome_debt": (
+                safe_finding_review_summary.get("safe_finding_review_has_outcome_debt") is True
+            ),
+            "safe_finding_review_readiness_is_truth_ranking": False,
+            "safe_finding_review_readiness_is_confidence_score": False,
+            "safe_finding_review_readiness_can_authorize_emit": False,
+            "safe_finding_review_readiness_can_increase_support": False,
             "story_eligibility_state": eligibility,
             "team_identity_candidate_ids": list(row.get("team_identity_candidate_ids") or []),
             "period_candidates": list(row.get("period_candidates") or []),
@@ -521,7 +705,7 @@ def build_mechanism_story_review_shortlist(
         selected_grammar = tuple(str(v) for v in (selected_row.get("grammar_signature_tokens") or []))
         context_refs: list[str] = []
         seen_contexts: set[tuple[tuple[str, ...], tuple[str, ...]]] = set()
-        for _, _, _, candidate in decorated:
+        for _, _, _, _, candidate in decorated:
             if _eligibility_state(candidate, bounds).startswith("BLOCKED_"):
                 continue
             grammar = tuple(str(v) for v in (candidate.get("grammar_signature_tokens") or []))
@@ -557,6 +741,11 @@ def build_mechanism_story_review_shortlist(
         "same_grammar_contexts_are_separate_comparison_not_extra_mechanism_slots": True,
         "review_support_attention_compression_applied": True,
         "review_support_attention_order_is_truth_ranking": False,
+        "safe_finding_review_readiness_applied": bool(safe_finding_review_by_family),
+        "safe_finding_review_readiness_is_truth_ranking": False,
+        "safe_finding_review_readiness_is_confidence_score": False,
+        "safe_finding_review_readiness_can_authorize_emit": False,
+        "safe_finding_review_readiness_can_increase_support": False,
         "episode_spread_count_is_independent_support_count": False,
         "occurrence_disjoint_cluster_count_is_independent_support_count": False,
         "analyst_relevance_state": "UNRESOLVED_NO_EXPLICIT_ANALYST_QUESTION",

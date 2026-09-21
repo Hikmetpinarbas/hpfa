@@ -398,3 +398,102 @@ def test_selector_binds_source_challenge_summary_without_creating_evidence_or_em
     assert selected["mechanism_challenge_summary_is_counterfactual_truth"] is False
     assert selected["mechanism_challenge_summary_is_causal_explanation"] is False
     assert selected["mechanism_challenge_can_authorize_emit"] is False
+
+
+
+def _safe_review_contract(family_ref, *, spread, challenge, bound, outcome_debt=False, ref_suffix="1"):
+    blocking = ["CONTEXT_COVERAGE_PARTIAL_OR_UNKNOWN", "DEPENDENCY_INDEPENDENCE_NOT_PROVEN", "INDEPENDENT_SUPPORT_NOT_ADMITTED", "STATISTICAL_INDEPENDENCE_NOT_PROVEN"]
+    if outcome_debt:
+        blocking.extend(["OUTCOME_COVERAGE_PARTIAL_OR_UNKNOWN", "UNRESOLVED_OUTCOME_BURDEN"])
+    return {
+        "analyst_output_contract_id": f"aoc_{ref_suffix}",
+        "safe_finding_admission_decision": "DOWNGRADE",
+        "claim_scope": "MATCH_LOCAL_OBSERVED_VARIATION_CUE_ONLY",
+        "blocking_dimensions": blocking,
+        "variant_support_episode_spread_observed": spread,
+        "variant_support_spread_profiles": [{"family_ref": family_ref}] if spread else [],
+        "variant_feature_challenge_binding_state": "MATCHED_CHALLENGE_VISIBLE" if challenge else "NO_MATCHED_CHALLENGE",
+        "variant_feature_challenge_refs": [f"vfc_{ref_suffix}"] if challenge else [],
+        "variant_feature_challenge_family_refs": [family_ref] if challenge else [],
+        "rate_bound_binding_state": "SOURCE_BOUND_NUMERIC" if bound else "NOT_AVAILABLE",
+        "rate_bound_state": "PARTIALLY_IDENTIFIED_VISIBLE_OUTCOME_RATE" if bound else None,
+        "rate_bound_estimand_id": "MATCH_LOCAL_VISIBLE_PROCESS_OUTCOME_RATE" if bound else None,
+        "rate_bound_denominator_basis": "UNIQUE_OBSERVABLE_PROCESS_VARIANT_FAMILY_MEMBER_SEQUENCE_REFS" if bound else None,
+        "rate_bound_resolved_success_n": 3 if bound else None,
+        "rate_bound_resolved_failure_n": 1 if bound else None,
+        "rate_bound_unresolved_eligible_n": 0 if bound else None,
+        "rate_bound_eligible_total_n": 4 if bound else None,
+        "rate_bound_lower": 0.75 if bound else None,
+        "rate_bound_upper": 0.75 if bound else None,
+        "rate_bound_width": 0.0 if bound else None,
+        "rate_bound_assumption_set_id": "BINARY_VISIBLE_OUTCOME_KNOWN_ELIGIBLE_DENOMINATOR_WORST_CASE_UNRESOLVED_V1" if bound else None,
+        "rate_bound_matched_process_variant_family_refs": [family_ref] if bound else [],
+        "rate_bound_can_authorize_emit": False,
+        "rate_bound_can_strengthen_claim_ceiling": False,
+    }
+
+
+def test_safe_finding_review_readiness_prioritizes_attention_inside_same_mechanism_band_only():
+    low = _row("a_low", "T1", "1", ["LAYER[PASS]", "LAYER[PASS]"])
+    high = _row("z_high", "T2", "1", ["LAYER[CARRY]", "LAYER[PASS]"])
+    for row in (low, high):
+        row.update({
+            "visible_episode_spread_count": 3,
+            "occurrence_disjoint_support_cluster_count": 3,
+            "supported_branch_divergence_binding_count": 2,
+            "success_failure_supported_branch_divergence_count": 1,
+        })
+    analyst = {
+        "status": "REVIEW_REQUIRED",
+        "analyst_output_contracts": [
+            _safe_review_contract("family_a_low", spread=False, challenge=False, bound=False, ref_suffix="low"),
+            _safe_review_contract("family_z_high", spread=True, challenge=True, bound=True, ref_suffix="high"),
+        ],
+        "production_release": False,
+    }
+    result = build_mechanism_story_review_shortlist(
+        {"grammar_stable_variant_feature_delta_records": [low, high]},
+        analyst_output_claim_payload=analyst,
+        limit=1,
+    )
+
+    row = result["shortlist"][0]
+    assert row["source_mechanism_review_ref"] == "z_high"
+    assert row["safe_finding_review_readiness_band"] == "SF_R0_REVIEW_RICH_MATCH_LOCAL_DESCRIPTION"
+    assert row["safe_finding_review_has_observed_episode_spread"] is True
+    assert row["safe_finding_review_has_challenge_surface"] is True
+    assert row["safe_finding_review_has_source_bound_rate"] is True
+    assert row["safe_finding_review_has_outcome_debt"] is False
+    assert row["safe_finding_review_readiness_is_truth_ranking"] is False
+    assert row["safe_finding_review_readiness_is_confidence_score"] is False
+    assert row["safe_finding_review_readiness_can_authorize_emit"] is False
+    assert row["safe_finding_review_readiness_can_increase_support"] is False
+    assert result["safe_finding_review_readiness_applied"] is True
+    assert result["safe_finding_review_readiness_is_truth_ranking"] is False
+
+
+def test_outcome_debt_prevents_review_rich_tier_without_blocking_match_local_attention():
+    row = _row("debt", "T1", "1", ["LAYER[RECOVERY]", "LAYER[PASS]"])
+    row.update({
+        "visible_episode_spread_count": 4,
+        "occurrence_disjoint_support_cluster_count": 4,
+        "supported_branch_divergence_binding_count": 2,
+        "success_failure_supported_branch_divergence_count": 1,
+    })
+    analyst = {
+        "status": "REVIEW_REQUIRED",
+        "analyst_output_contracts": [
+            _safe_review_contract("family_debt", spread=True, challenge=True, bound=True, outcome_debt=True, ref_suffix="debt")
+        ],
+        "production_release": False,
+    }
+    result = build_mechanism_story_review_shortlist(
+        {"grammar_stable_variant_feature_delta_records": [row]},
+        analyst_output_claim_payload=analyst,
+    )
+
+    selected = result["shortlist"][0]
+    assert selected["safe_finding_review_readiness_band"] == "SF_R2_SUPPORTING_MATCH_LOCAL_CONTEXT"
+    assert selected["safe_finding_review_has_outcome_debt"] is True
+    assert selected["selection_can_authorize_emit"] is False
+    assert selected["safe_finding_review_readiness_can_authorize_emit"] is False
