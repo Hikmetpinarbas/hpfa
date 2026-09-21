@@ -251,6 +251,13 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert comparative["zone_mentions_by_period"]["rows"][0]["eligible_action_zone_mention_count"] == 2
     assert comparative["zone_mentions_by_period"]["rows"][0]["eligible_denominator_zone_mentions"] == 2
     assert comparative["channel_mentions_by_period"]["rows"][0]["eligible_action_channel_mention_count"] == 2
+    comparison_cards = payload["surface_data"]["comparison_cards"]
+    assert comparison_cards["card_count"] == 5
+    assert len(comparison_cards["mobile_cards"]) == 5
+    assert len(comparison_cards["broadcast_graph_cards"]) == 5
+    assert comparison_cards["policy"] == "COMPACT_COMPARISON_WITH_VISIBLE_DENOMINATOR_AND_NO_EVALUATIVE_VERDICT"
+    assert comparison_cards["mobile_cards"][0]["broadcast_copy_is_final"] is False
+    assert comparison_cards["mobile_cards"][0]["graph"] == "GROUPED_BAR_WITH_ELIGIBLE_DENOMINATORS"
     assert graphability["specs"]["comparative_views"]["state"] == "GRAPHABLE"
     assert graphability["specs"]["analyst_report"]["state"] == "GRAPHABLE_AS_COMPANION_ONLY"
     assert payload["interaction_provenance_may_affect_evidence"] is False

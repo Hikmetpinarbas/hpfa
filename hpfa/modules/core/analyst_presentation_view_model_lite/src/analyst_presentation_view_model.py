@@ -814,6 +814,84 @@ def _comparative_views(
         ],
     }
 
+def _comparison_cards(comparative: dict[str, Any]) -> dict[str, Any]:
+    cards: list[dict[str, Any]] = []
+
+    period_rows = (comparative.get("period_mechanism_comparison") or {}).get("rows") or []
+    if period_rows:
+        cards.append({
+            "card_id": "comparison:period_mechanism",
+            "card_type": "PERIOD_MECHANISM_ANCHOR_COMPARISON",
+            "title_tr": "Periyot bazlı mekanizma anchor karşılaştırması",
+            "graph": "GROUPED_BAR_WITH_ELIGIBLE_DENOMINATORS",
+            "rows": period_rows,
+            "broadcast_copy_candidate_tr": "Periyot bazlı time/spatial anchor sayıları eligible denominator ile birlikte gösterilir; fark mekanizma gücü değildir.",
+            "broadcast_copy_is_final": False,
+            "claim_ceiling": "NOMINAL_REFERENCE_LINKED_COMPARISON_ONLY",
+        })
+
+    team_rows = (comparative.get("team_coordinate_comparison") or {}).get("rows") or []
+    if team_rows:
+        cards.append({
+            "card_id": "comparison:team_coordinate",
+            "card_type": "TEAM_CANDIDATE_COORDINATE_COMPARISON",
+            "title_tr": "Takım-candidate coordinate anchor karşılaştırması",
+            "graph": "GROUPED_BAR_OR_SMALL_MULTIPLE_SCATTER_WITH_ELIGIBLE_DENOMINATOR",
+            "rows": team_rows,
+            "broadcast_copy_candidate_tr": "Takım-candidate coordinate anchor sayıları aynı eligible spatial denominator içinde karşılaştırılır; kimlikler match-local candidate düzeyindedir.",
+            "broadcast_copy_is_final": False,
+            "claim_ceiling": "TEAM_CANDIDATE_NOMINAL_ANCHOR_COMPARISON_ONLY",
+        })
+
+    state_rows = (comparative.get("defeasible_state_comparison") or {}).get("rows") or []
+    if state_rows:
+        cards.append({
+            "card_id": "comparison:defeasible_state",
+            "card_type": "DEFEASIBLE_STATE_COMPARISON",
+            "title_tr": "SUPPORTED / WEAKENED dağılımı",
+            "graph": "STACKED_BAR_WITH_EXPLICIT_DENOMINATOR",
+            "rows": state_rows,
+            "broadcast_copy_candidate_tr": "SUPPORTED ve WEAKENED nominal chain sayıları aynı eligible chain denominator içinde gösterilir; independence admitted değildir.",
+            "broadcast_copy_is_final": False,
+            "claim_ceiling": "DEFEASIBLE_STATE_DISTRIBUTION_ONLY",
+        })
+
+    for key, card_id, title, graph in [
+        ("zone_mentions_by_period", "comparison:zone_period", "Zone mention × periyot", "GROUPED_BAR_COUNTS_ONLY"),
+        ("channel_mentions_by_period", "comparison:channel_period", "Channel mention × periyot", "GROUPED_BAR_COUNTS_ONLY"),
+    ]:
+        rows = (comparative.get(key) or {}).get("rows") or []
+        if rows:
+            cards.append({
+                "card_id": card_id,
+                "card_type": "MENTION_COUNT_BY_PERIOD",
+                "title_tr": title,
+                "graph": graph,
+                "rows": rows,
+                "broadcast_copy_candidate_tr": "Mention sayıları yalnız kendi eligible mention denominator'ları içinde okunur; time share veya possession share değildir.",
+                "broadcast_copy_is_final": False,
+                "claim_ceiling": "MENTION_COUNT_COMPARISON_ONLY",
+            })
+
+    return {
+        "mobile_cards": cards,
+        "broadcast_graph_cards": [
+            {
+                "card_id": card["card_id"],
+                "title_tr": card["title_tr"],
+                "graph": card["graph"],
+                "rows": card["rows"],
+                "broadcast_copy_candidate_tr": card["broadcast_copy_candidate_tr"],
+                "broadcast_copy_is_final": False,
+                "claim_ceiling": card["claim_ceiling"],
+            }
+            for card in cards
+        ],
+        "card_count": len(cards),
+        "policy": "COMPACT_COMPARISON_WITH_VISIBLE_DENOMINATOR_AND_NO_EVALUATIVE_VERDICT",
+        "forbidden_inference": comparative.get("forbidden_inference") or [],
+    }
+
 def _graphability_manifest(
     surfaces: dict[str, Any],
     episode_cards: list[dict[str, Any]],
@@ -1131,6 +1209,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         episode_cards=episode_cards,
         player_cards=player_process_cards,
     )
+    comparison_cards = _comparison_cards(comparative_views)
     report_text = ""
     report_path = root / "HPFA_ANALYST_REPORT.txt"
     if report_available:
@@ -1253,6 +1332,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "broadcast_sentence_candidates": broadcast_candidates,
         "broadcast_groups": broadcast_groups,
         "comparative_views": comparative_views,
+        "comparison_cards": comparison_cards,
         "unknown_unobservable_register": {
             "surface_gaps": unavailable,
             "review_hits": list(full.get("review_hits") or []),

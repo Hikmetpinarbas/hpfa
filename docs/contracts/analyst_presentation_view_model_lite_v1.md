@@ -461,3 +461,34 @@ Full graph retrieval must follow the declared lazy join paths.
 Six-phase count terminology:
 source_activity_label_mention_count is used because multiple activity labels may coexist in one episode candidate.
 It is not an episode denominator, time share, possession share or independent recurrence count.
+
+## Comparative graph cards
+
+Comparative views are compressed into mobile and broadcast graph cards.
+
+Policy:
+COMPACT_COMPARISON_WITH_VISIBLE_DENOMINATOR_AND_NO_EVALUATIVE_VERDICT
+
+Current cards:
+- period mechanism anchor comparison
+- team-candidate coordinate anchor comparison
+- defeasible-state comparison
+- zone mentions by period
+- channel mentions by period
+
+Every card must preserve:
+- graph type
+- raw rows
+- eligible denominator where defined
+- claim ceiling
+- broadcast copy candidate
+- broadcast_copy_is_final=false
+
+Broadcast copy candidates are explanatory metadata, not final editorial sentences.
+
+Blocked:
+- better/worse verdict from count difference
+- causal interpretation
+- rate/share inference without eligible denominator
+- identity promotion
+- independent recurrence inference from nominal counts
