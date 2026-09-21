@@ -961,6 +961,12 @@ def test_p02_sequence_terminal_boundary_remains_visible_activity_candidate():
     sequence, trace, score_timeline = _sequence_process_unit_case()
     unit = _build_p02_sequence_process_units(sequence, trace, score_timeline)["p02_process_unit_candidates"][0]
     assert unit["team_episode_terminal_activity_candidate"] == "TERMINAL_SUPPORT_BOUNDARY_VISIBLE"
+    assert unit["visible_exit_class_candidate"] == "TERMINAL_SUPPORT_BOUNDARY_VISIBLE"
+    assert unit["visible_exit_zone_candidate"] == unit["process_end_zone_candidate"]
+    assert unit["visible_exit_access_state_candidate"] == unit["advanced_access_state_candidate"]
+    assert unit["visible_exit_class_is_failure_truth"] is False
+    assert unit["visible_exit_class_is_causal_truth"] is False
+    assert unit["visible_exit_class_is_process_outcome_truth"] is False
     assert unit["terminal_activity_is_process_outcome_truth"] is False
     assert unit["comparison_candidate_ready"] is False
 
