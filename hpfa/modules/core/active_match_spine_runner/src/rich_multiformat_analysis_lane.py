@@ -1385,6 +1385,93 @@ def _game_state_process_mix_context(
     }
 
 
+
+def _counterattack_next_process_context(
+    process_participation_payload: dict[str, Any],
+) -> dict[str, Any]:
+    intervals: list[dict[str, Any]] = []
+    for row in process_participation_payload.get("process_participation_candidates", []) or []:
+        if not isinstance(row, dict) or str(row.get("semantic_role") or "") != "CONTEXT_INTERVAL":
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        period = str(row.get("period_candidate") or "").strip()
+        start = _float_candidate(row.get("start_candidate"))
+        end = _float_candidate(row.get("end_candidate"))
+        if team_id and family and start is not None and end is not None:
+            intervals.append({
+                "process_participation_candidate_id": row.get("process_participation_candidate_id"),
+                "team_identity_candidate_id": team_id,
+                "process_family_candidate": family,
+                "period_candidate": period,
+                "start_candidate": start,
+                "end_candidate": end,
+                "shot_present_annotation_candidate": row.get("shot_present_annotation_candidate") is True,
+            })
+
+    rows: list[dict[str, Any]] = []
+    successor_counts: Counter[str] = Counter()
+    state_counts: Counter[str] = Counter()
+    counters = [row for row in intervals if row["process_family_candidate"] == "COUNTERATTACK_CANDIDATE"]
+    for anchor in sorted(counters, key=lambda row: (row["team_identity_candidate_id"], row["period_candidate"], row["start_candidate"])):
+        next_candidates = [
+            row for row in intervals
+            if row["team_identity_candidate_id"] == anchor["team_identity_candidate_id"]
+            and row["period_candidate"] == anchor["period_candidate"]
+            and row["start_candidate"] > anchor["end_candidate"]
+        ]
+        next_start = min((row["start_candidate"] for row in next_candidates), default=None)
+        next_layer = [
+            row for row in next_candidates
+            if next_start is not None and row["start_candidate"] == next_start
+        ]
+        families = sorted({row["process_family_candidate"] for row in next_layer})
+        if not next_layer:
+            state = "NO_LATER_VISIBLE_PROCESS_INTERVAL"
+        elif len(families) == 1:
+            state = "SINGLE_NEXT_VISIBLE_PROCESS_FAMILY"
+        else:
+            state = "MULTIPLE_NEXT_VISIBLE_PROCESS_FAMILIES_REVIEW_REQUIRED"
+        state_counts[state] += 1
+        successor_counts.update(families)
+        rows.append({
+            "counterattack_process_ref": anchor["process_participation_candidate_id"],
+            "team_identity_candidate_id": anchor["team_identity_candidate_id"],
+            "period_candidate": anchor["period_candidate"],
+            "counterattack_start_candidate": anchor["start_candidate"],
+            "counterattack_end_candidate": anchor["end_candidate"],
+            "counterattack_shot_present_annotation_candidate": anchor["shot_present_annotation_candidate"],
+            "next_visible_process_start_candidate": next_start,
+            "seconds_to_next_visible_process_candidate": (
+                next_start - anchor["end_candidate"] if next_start is not None else None
+            ),
+            "next_visible_process_family_candidates": families,
+            "next_process_binding_state": state,
+            "visible_counter_to_positional_successor_candidate": (
+                families == ["POSITIONAL_ATTACK_CANDIDATE"]
+            ),
+            "visible_successor_is_transition_stabilization_truth": False,
+            "visible_successor_is_possession_truth": False,
+            "visible_successor_is_tactical_intention_truth": False,
+            "creates_independent_support": False,
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "binding_state": "COUNTERATTACK_TO_NEXT_VISIBLE_PROCESS_CONTEXT",
+        "counterattack_context_row_count": len(rows),
+        "next_process_binding_state_counts": dict(sorted(state_counts.items())),
+        "next_visible_process_family_counts": dict(sorted(successor_counts.items())),
+        "counter_to_positional_successor_candidate_count": sum(
+            row.get("visible_counter_to_positional_successor_candidate") is True
+            for row in rows
+        ),
+        "rows": rows,
+        "visible_successor_is_transition_stabilization_truth": False,
+        "creates_independent_support": False,
+    }
+
+
 def _set_piece_process_consequence_context(
     process_participation_payload: dict[str, Any],
     consequence_payload: dict[str, Any],
@@ -3596,6 +3683,9 @@ def run_rich_lane(
         occurrence_consequence_payload,
         trackable_trace_payload,
     )
+    counterattack_next_process_context = _counterattack_next_process_context(
+        process_participation_payload,
+    )
     spatial_transition_payload = _load_json(output / SPATIAL_TRANSITION_JSON)
     c03 = _construct_c03(process_participation_payload, occurrence_transition_payload, spatial_transition_payload)
     if c03.get("status") == "REVIEW_REQUIRED":
@@ -3633,6 +3723,7 @@ def run_rich_lane(
         "loss_next_opponent_process_context": loss_next_opponent_process_context,
         "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
         "set_piece_process_consequence_context": set_piece_process_consequence_context,
+        "counterattack_next_process_context": counterattack_next_process_context,
         "analysis_lattice": {
             "MICRO": {
                 "player_view_candidates": entity_views.get("player_view_candidates"),
@@ -3645,6 +3736,7 @@ def run_rich_lane(
                 "recovery_next_process_context": recovery_next_process_context,
                 "loss_next_opponent_process_context": loss_next_opponent_process_context,
                 "set_piece_process_consequence_context": set_piece_process_consequence_context,
+                "counterattack_next_process_context": counterattack_next_process_context,
                 "phase_state_candidates": phase_states,
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
                 "process_development_signatures": c03.get("signatures") or [],

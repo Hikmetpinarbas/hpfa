@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _loss_next_opponent_process_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _access_terminal_bridge_profiles
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _loss_next_opponent_process_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _counterattack_next_process_context, _access_terminal_bridge_profiles
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -188,6 +188,59 @@ def test_game_state_process_mix_context_normalizes_by_score_state_exposure():
     assert alpha[1]["process_family_counts"] == {"COUNTERATTACK_CANDIDATE": 1}
     assert alpha[1]["process_family_rate_per_10_minutes"]["COUNTERATTACK_CANDIDATE"] == 1.0
     assert alpha[0]["score_state_is_causal_explanation"] is False
+
+
+
+def test_counterattack_next_process_context_exposes_positional_successor_without_stabilization_truth():
+    process = {
+        "process_participation_candidates": [
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_participation_candidate_id": "counter_1",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "10",
+                "end_candidate": "18",
+                "shot_present_annotation_candidate": False,
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_participation_candidate_id": "pos_1",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "24",
+                "end_candidate": "40",
+            },
+        ]
+    }
+    result = _counterattack_next_process_context(process)
+    assert result["status"] == "PASS"
+    assert result["counterattack_context_row_count"] == 1
+    row = result["rows"][0]
+    assert row["next_visible_process_family_candidates"] == ["POSITIONAL_ATTACK_CANDIDATE"]
+    assert row["seconds_to_next_visible_process_candidate"] == 6.0
+    assert row["visible_counter_to_positional_successor_candidate"] is True
+    assert row["visible_successor_is_transition_stabilization_truth"] is False
+    assert row["visible_successor_is_tactical_intention_truth"] is False
+
+
+def test_counterattack_next_process_context_keeps_no_successor_explicit():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "counter_last",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            "period_candidate": "2",
+            "start_candidate": "100",
+            "end_candidate": "110",
+        }]
+    }
+    result = _counterattack_next_process_context(process)
+    assert result["rows"][0]["next_process_binding_state"] == "NO_LATER_VISIBLE_PROCESS_INTERVAL"
+    assert result["rows"][0]["next_visible_process_family_candidates"] == []
 
 
 def test_set_piece_process_consequence_context_binds_visible_consequence_inside_process_interval():
