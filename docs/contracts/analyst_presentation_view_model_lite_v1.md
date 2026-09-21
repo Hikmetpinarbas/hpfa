@@ -405,3 +405,59 @@ Mobile use:
 - initial card render uses summary + sample
 - tap/open WHERE/WHEN graph triggers lazy reference join
 - full evidence remains available without burdening first-frame payload
+
+## Mechanism WHERE / WHEN reference binding
+
+Mechanism cards may expose WHERE / WHEN only through existing upstream reference membership.
+
+WHEN:
+- packet.input_window_records
+- period_candidate
+- start_second_candidate
+- layer_state
+
+WHERE:
+packet.input_sequence_records.sequence_id
+→ visible_action_sequence_candidate_id
+→ trackable_action_trace_candidate_ids
+→ recorded trace coordinate candidates
+
+Important ceiling:
+visible sequence candidate membership is NOT sequence truth.
+A trace may have sequence_link_allowed=false.
+Therefore spatial anchors are reference-reached recorded coordinate anchors only.
+
+Explicitly forbidden:
+- joining coordinate anchors into ball trajectory
+- inferring team shape
+- inferring pitch control
+- inferring off-ball positioning
+- treating same timestamp as total order
+- treating anchor density as mechanism strength
+- treating nominal anchor coverage as independent recurrence
+
+Claim ceiling:
+MECHANISM_WHERE_WHEN_REFERENCE_BINDING_ONLY
+
+Mobile delivery:
+LAZY_REFERENCE_JOIN
+
+The view model carries:
+- exact anchor counts
+- period coverage
+- coordinate evidence status counts
+- bounded samples
+- lazy source join descriptors
+
+It does not inline the complete coordinate/time population into each mechanism card.
+
+Graph contracts:
+WHEN -> TIME_ANCHOR_STRIP
+WHERE -> COORDINATE_ANCHOR_SCATTER
+
+Graph samples are previews only.
+Full graph retrieval must follow the declared lazy join paths.
+
+Six-phase count terminology:
+source_activity_label_mention_count is used because multiple activity labels may coexist in one episode candidate.
+It is not an episode denominator, time share, possession share or independent recurrence count.
