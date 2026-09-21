@@ -1083,14 +1083,23 @@ def _progression_pool_p02(
             unresolved.append("visible_opponent_follow_up_not_resolved_for_episode")
         pool_item_id = f"p02:{episode_id}"
         team_rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        team_stage_rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for context_ref in card.get("context_refs") or []:
             semantic_row = semantic_by_context.get(str(context_ref))
             if not isinstance(semantic_row, dict):
                 continue
-            if semantic_row.get("action_occurrence_eligible") is not True:
-                continue
             team_candidate = str(semantic_row.get("context_team_candidate") or "").strip()
             if team_candidate.casefold() in {"", "unknown", "none", "null", "unknown_team"}:
+                continue
+            if (
+                str(semantic_row.get("provider_semantics_review_status") or "") == "REVIEWED_CANDIDATE"
+                and (
+                    semantic_row.get("action_occurrence_eligible") is True
+                    or bool(str(semantic_row.get("provider_terminal_outcome_candidate") or "").strip())
+                )
+            ):
+                team_stage_rows[team_candidate].append(semantic_row)
+            if semantic_row.get("action_occurrence_eligible") is not True:
                 continue
             team_rows[team_candidate].append(semantic_row)
 
@@ -1107,7 +1116,9 @@ def _progression_pool_p02(
                 str(row.get("context_channel_candidate") or "UNKNOWN_CHANNEL")
                 for row in rows_for_team
             )
-            team_stage_profile = _visible_process_stage_profile(rows_for_team)
+            team_stage_profile = _visible_process_stage_profile(
+                team_stage_rows.get(team_candidate, rows_for_team)
+            )
             team_context_refs = sorted(
                 str(row.get("context_id"))
                 for row in rows_for_team
