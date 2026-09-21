@@ -1185,3 +1185,16 @@ def test_entity_views_infers_goalkeeper_from_schema_not_filename_or_person_name(
     assert len(views["player_view_candidates"]) == 1
     assert views["goalkeeper_view_candidates"][0]["entity_role_candidate"] == "GOALKEEPER"
     assert views["player_view_candidates"][0]["entity_role_candidate"] == "PLAYER"
+
+
+
+def test_rich_lane_snapshot_uses_shared_surface_contract(tmp_path):
+    from hpfa.modules.core.active_match_spine_runner.src.rich_multiformat_analysis_lane import _snapshot
+    from hpfa.modules.core.active_match_spine_runner.src.shared_surface_snapshot_contract import surface_snapshot_id
+
+    (tmp_path / "a.csv").write_text("x,y\n1,2\n", encoding="utf-8")
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (nested / "b.xml").write_text("<root><x>1</x></root>\n", encoding="utf-8")
+
+    assert _snapshot(tmp_path) == surface_snapshot_id(tmp_path)
