@@ -197,6 +197,7 @@ def _progression_pool_p02(
     episode: dict[str, Any] | None = None,
     consequence: dict[str, Any] | None = None,
     semantics: dict[str, Any] | None = None,
+    identities: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project current episode/temporal outputs into a claim-bounded P02 pool.
 
@@ -207,6 +208,7 @@ def _progression_pool_p02(
     episode = episode or {}
     consequence = consequence or {}
     semantics = semantics or {}
+    identities = identities or {}
     temporal_by_episode = {
         str(row.get("episode_candidate_id")): row
         for row in (temporal.get("temporal_episode_signatures") or [])
@@ -227,6 +229,27 @@ def _progression_pool_p02(
         for row in (consequence.get("trackable_action_consequence_candidates") or [])
         if isinstance(row, dict)
     ]
+    team_identity_alias_map: dict[str, str] = {}
+    ambiguous_team_aliases: set[str] = set()
+    for candidate in identities.get("team_identity_candidates") or []:
+        if not isinstance(candidate, dict):
+            continue
+        if str(candidate.get("decision_state") or "") != "TEAM_IDENTITY_CANDIDATE_BOUND":
+            continue
+        team_id = str(candidate.get("team_identity_candidate_id") or "")
+        if not team_id:
+            continue
+        for alias in candidate.get("team_aliases_raw") or []:
+            key = str(alias or "").strip().casefold()
+            if not key:
+                continue
+            if key in team_identity_alias_map and team_identity_alias_map[key] != team_id:
+                ambiguous_team_aliases.add(key)
+                team_identity_alias_map.pop(key, None)
+                continue
+            if key not in ambiguous_team_aliases:
+                team_identity_alias_map[key] = team_id
+
     semantic_by_context = {
         str(row.get("context_id")): row
         for row in (semantics.get("context_action_semantic_records") or [])
@@ -486,6 +509,58 @@ def _progression_pool_p02(
                 if row.get("context_id")
             )
             team_dependency_root = f"episode_team_feature:{episode_id}:{team_candidate}"
+            team_identity_candidate_id = team_identity_alias_map.get(team_candidate.casefold())
+
+            team_consequence_summary_by_occurrence: dict[str, dict[str, Any]] = {}
+            if team_identity_candidate_id and isinstance(episode_start, (int, float)) and isinstance(episode_end, (int, float)):
+                for record in consequence_records:
+                    if str(record.get("period_candidate") or "") != episode_period:
+                        continue
+                    if str(record.get("team_identity_candidate_id") or "") != team_identity_candidate_id:
+                        continue
+                    try:
+                        anchor_second = float(record.get("anchor_start_candidate"))
+                    except (TypeError, ValueError):
+                        continue
+                    if anchor_second < float(episode_start) or anchor_second > float(episode_end):
+                        continue
+                    for occurrence_id in [
+                        str(value)
+                        for value in (record.get("supporting_action_occurrence_candidate_ids") or [])
+                        if str(value).strip()
+                    ]:
+                        summary = team_consequence_summary_by_occurrence.setdefault(
+                            occurrence_id,
+                            {
+                                "visible_follow_up": False,
+                                "terminal_support_visible": False,
+                                "opponent_follow_up_visible": False,
+                                "same_team_follow_up_visible": False,
+                            },
+                        )
+                        if record.get("occurrence_visible_consequence_support") is True or record.get("visible_follow_up_trace_ids"):
+                            summary["visible_follow_up"] = True
+                        if record.get("terminal_outcome_support_visible") is True:
+                            summary["terminal_support_visible"] = True
+                        signals = {str(value) for value in (record.get("consequence_signal_candidates") or [])}
+                        if "OPPONENT_FOLLOW_UP_VISIBLE" in signals:
+                            summary["opponent_follow_up_visible"] = True
+                        if "SAME_TEAM_FOLLOW_UP_VISIBLE" in signals:
+                            summary["same_team_follow_up_visible"] = True
+
+            team_occurrence_ids = sorted(team_consequence_summary_by_occurrence)
+            team_visible_follow_up_ids = sorted(
+                oid for oid, summary in team_consequence_summary_by_occurrence.items()
+                if summary["visible_follow_up"]
+            )
+            team_terminal_support_ids = sorted(
+                oid for oid, summary in team_consequence_summary_by_occurrence.items()
+                if summary["terminal_support_visible"]
+            )
+            team_opponent_follow_up_ids = sorted(
+                oid for oid, summary in team_consequence_summary_by_occurrence.items()
+                if summary["opponent_follow_up_visible"]
+            )
 
             team_zone_station_path: list[dict[str, Any]] = []
             for layer in ordered_layers:
@@ -532,10 +607,13 @@ def _progression_pool_p02(
                     "transition_is_physical_trajectory_truth": False,
                 })
 
-            team_unresolved = [
-                "team_specific_occurrence_consequence_identity_bridge_not_bound",
-                "game_state_not_bound",
-            ]
+            team_unresolved = ["game_state_not_bound"]
+            if not team_identity_candidate_id:
+                team_unresolved.append("team_identity_candidate_not_bound")
+            elif not team_occurrence_ids:
+                team_unresolved.append("team_specific_occurrence_consequence_not_visible_in_episode")
+            if not team_opponent_follow_up_ids:
+                team_unresolved.append("team_specific_visible_opponent_follow_up_not_resolved")
             if not team_compressed_zones:
                 team_unresolved.append("team_specific_ordered_zone_path_not_bound")
 
@@ -547,6 +625,7 @@ def _progression_pool_p02(
                 "pool_version": "v1-pilot",
                 "pool_stage": "SPECIALIZED",
                 "team_candidate": team_candidate,
+                "team_identity_candidate_id": team_identity_candidate_id,
                 "episode_candidate_id": episode_id,
                 "input_finding_atom_ids": atom_ids,
                 "input_context_refs": team_context_refs,
@@ -563,6 +642,10 @@ def _progression_pool_p02(
                 "dimensions": ["TEAM", "TIME", "SPACE", "ACTION", "PROCESS", "CONTEXT"],
                 "visible_observation_summary": {
                     "eligible_action_candidate_count": len(rows_for_team),
+                    "occurrence_bound_consequence_occurrence_count": len(team_occurrence_ids),
+                    "visible_follow_up_occurrence_count": len(team_visible_follow_up_ids),
+                    "terminal_support_occurrence_count": len(team_terminal_support_ids),
+                    "opponent_follow_up_visible_occurrence_count": len(team_opponent_follow_up_ids),
                     "action_family_counts": dict(sorted(team_family_counts.items())),
                     "zone_counts": dict(sorted(team_zone_counts.items())),
                     "channel_counts": dict(sorted(team_channel_counts.items())),
@@ -580,6 +663,12 @@ def _progression_pool_p02(
                     "team_specific_route_evaluability": "ZONE_STATION_PATH_ONLY" if team_compressed_zones else "NOT_EVALUATED",
                     "team_specific_visible_path_length_proxy": None,
                     "team_specific_directness_proxy": None,
+                    "team_specific_occurrence_ids": team_occurrence_ids,
+                    "team_specific_visible_follow_up_occurrence_ids": team_visible_follow_up_ids,
+                    "team_specific_terminal_support_occurrence_ids": team_terminal_support_ids,
+                    "team_specific_opponent_follow_up_occurrence_ids": team_opponent_follow_up_ids,
+                    "occurrence_consequence_binding_is_causal_truth": False,
+                    "opponent_follow_up_is_tactical_response_truth": False,
                 },
                 "support_refs": team_context_refs,
                 "counterevidence_refs": [],
@@ -938,12 +1027,13 @@ def run_rich_lane(
     episode = _load_json(output / "analyst_episode_locator_lite_v1.json")
     consequence = _load_json(output / "trackable_action_consequence_candidates_lite_v1.json")
     semantics = _load_json(output / "context_action_semantics_rebind_lite_v1.json")
+    identities = _load_json(output / "match_local_identity_candidates_lite_v1.json")
     rows = _flatten_projection(projection)
     entity_views = _entity_views(rows)
     primitives = _primitive_metrics(features, entity_views)
     phase_states = _phase_state_candidates(features)
     c01 = _construct_c01(rows, features)
-    p02 = _progression_pool_p02(features, temporal, episode, consequence, semantics)
+    p02 = _progression_pool_p02(features, temporal, episode, consequence, semantics, identities)
     if c01.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C01_progression_terminal_construct_review_required")
 
