@@ -60,6 +60,8 @@ the tested outcome is not leaked into matching dimensions
 reference and candidate outcomes are resolved
 outcome_relation is explicitly OPPOSITE
 reference and candidate lineage are dependency-separated
+independence_admission_status is explicitly ADMITTED
+independence_admission_basis is present
 ```
 
 Otherwise the signal remains review-bounded as `QUALIFIES`.
@@ -88,6 +90,8 @@ Important rules:
 - different outcome labels alone are not counterevidence;
 - `outcome_relation` must be one of `OPPOSITE | SAME | INCOMPARABLE | UNRESOLVED`;
 - only `OPPOSITE` may proceed toward counterevidence admission;
+- different independence-group IDs do not prove independence;
+- counterevidence admission additionally requires `independence_admission_status=ADMITTED` and a non-empty `independence_admission_basis`;
 - same dependency root/group/independence group + OPPOSITE relation => `DEPENDENCY_CHALLENGE`, not independent counterevidence;
 - unresolved outcome => `UNRESOLVED`;
 - exact-context mismatch => `CONTEXT_MISMATCH`;
