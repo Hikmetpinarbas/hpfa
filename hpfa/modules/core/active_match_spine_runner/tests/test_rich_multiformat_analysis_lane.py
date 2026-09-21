@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _player_function_profiles
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _player_function_profiles, _set_piece_process_consequence_context
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -52,6 +52,67 @@ def _audit():
 
 
 
+
+
+
+def test_set_piece_process_consequence_context_binds_visible_consequence_inside_process_interval():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "sp_1",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "100",
+            "end_candidate": "112",
+            "shot_present_annotation_candidate": True,
+        }]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "occurrence_consequence_projection_id": "ocp_1",
+            "team_identity_candidate_ids": ["team_a"],
+            "period_candidates": ["1"],
+            "start_candidates": ["108"],
+            "primary_consequence_candidates": ["SHOT_FOLLOW_UP_CANDIDATE"],
+            "process_continuation_status": "PROCESS_CONTINUES_VISIBLE_CANDIDATE",
+            "terminal_status": "VISIBLE_TERMINAL_SUPPORT",
+        }]
+    }
+    result = _set_piece_process_consequence_context(process, consequence)
+    assert result["status"] == "PASS"
+    assert result["set_piece_process_context_row_count"] == 1
+    row = result["rows"][0]
+    assert row["binding_state"] == "VISIBLE_CONSEQUENCE_CONTEXT_BOUND"
+    assert row["primary_consequence_candidates"] == ["SHOT_FOLLOW_UP_CANDIDATE"]
+    assert row["visible_consequence_is_second_ball_truth"] is False
+    assert row["set_piece_process_is_designed_routine_truth"] is False
+
+
+def test_set_piece_process_consequence_context_does_not_use_other_team_occurrence():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "sp_2",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "100",
+            "end_candidate": "112",
+        }]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "occurrence_consequence_projection_id": "ocp_other",
+            "team_identity_candidate_ids": ["team_b"],
+            "period_candidates": ["1"],
+            "start_candidates": ["108"],
+            "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+        }]
+    }
+    result = _set_piece_process_consequence_context(process, consequence)
+    assert result["rows"][0]["binding_state"] == "NO_VISIBLE_CONSEQUENCE_MATCH"
+    assert result["rows"][0]["matched_occurrence_count"] == 0
 
 
 def test_player_function_profiles_keep_dimensions_separate_without_quality_score():

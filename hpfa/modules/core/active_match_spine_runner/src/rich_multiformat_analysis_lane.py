@@ -943,6 +943,137 @@ def _recovery_next_process_context(
 
 
 
+
+def _set_piece_process_consequence_context(
+    process_participation_payload: dict[str, Any],
+    consequence_payload: dict[str, Any],
+) -> dict[str, Any]:
+    process_intervals: dict[tuple[str, str, float, float], dict[str, Any]] = {}
+    for row in process_participation_payload.get("process_participation_candidates", []) or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("semantic_role") or "") != "CONTEXT_INTERVAL":
+            continue
+        if str(row.get("process_family_candidate") or "") != "SET_PIECE_ATTACK_CANDIDATE":
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        period = str(row.get("period_candidate") or "").strip()
+        start = _float_candidate(row.get("start_candidate"))
+        end = _float_candidate(row.get("end_candidate"))
+        if not team_id or start is None or end is None:
+            continue
+        key = (team_id, period, start, end)
+        process_intervals.setdefault(
+            key,
+            {
+                "team_identity_candidate_id": team_id,
+                "period_candidate": period,
+                "start_candidate": start,
+                "end_candidate": end,
+                "process_candidate_ids": [],
+                "shot_present_annotation_candidate": False,
+            },
+        )
+        compact = process_intervals[key]
+        pid = str(row.get("process_participation_candidate_id") or "").strip()
+        if pid:
+            compact["process_candidate_ids"].append(pid)
+        if row.get("shot_present_annotation_candidate") is True:
+            compact["shot_present_annotation_candidate"] = True
+
+    consequence_rows = [
+        row for row in (consequence_payload.get("occurrence_consequence_projections") or [])
+        if isinstance(row, dict)
+    ]
+    rows: list[dict[str, Any]] = []
+    primary_counts: Counter[str] = Counter()
+    continuation_counts: Counter[str] = Counter()
+    terminal_counts: Counter[str] = Counter()
+    state_counts: Counter[str] = Counter()
+
+    for (_, _, _, _), process in sorted(process_intervals.items()):
+        team_id = process["team_identity_candidate_id"]
+        period = process["period_candidate"]
+        start = process["start_candidate"]
+        end = process["end_candidate"]
+        matched: list[dict[str, Any]] = []
+        for consequence in consequence_rows:
+            teams = {str(v) for v in (consequence.get("team_identity_candidate_ids") or []) if v}
+            periods = {str(v) for v in (consequence.get("period_candidates") or []) if v}
+            times = [
+                _float_candidate(v) for v in (consequence.get("start_candidates") or [])
+                if _float_candidate(v) is not None
+            ]
+            if team_id not in teams:
+                continue
+            if period and periods and period not in periods:
+                continue
+            if not any(start <= value <= end for value in times):
+                continue
+            matched.append(consequence)
+
+        primary = sorted({
+            str(v)
+            for consequence in matched
+            for v in (consequence.get("primary_consequence_candidates") or [])
+            if str(v)
+        })
+        continuation = sorted({
+            str(consequence.get("process_continuation_status") or "")
+            for consequence in matched
+            if str(consequence.get("process_continuation_status") or "")
+        })
+        terminal = sorted({
+            str(consequence.get("terminal_status") or "")
+            for consequence in matched
+            if str(consequence.get("terminal_status") or "")
+        })
+        if not matched:
+            binding_state = "NO_VISIBLE_CONSEQUENCE_MATCH"
+        elif primary or terminal:
+            binding_state = "VISIBLE_CONSEQUENCE_CONTEXT_BOUND"
+        else:
+            binding_state = "VISIBLE_OCCURRENCE_WITHOUT_RESOLVED_CONSEQUENCE"
+
+        state_counts[binding_state] += 1
+        primary_counts.update(primary)
+        continuation_counts.update(continuation)
+        terminal_counts.update(terminal)
+        rows.append({
+            **process,
+            "process_candidate_ids": sorted(set(process["process_candidate_ids"])),
+            "matched_occurrence_consequence_projection_ids": sorted({
+                str(row.get("occurrence_consequence_projection_id") or "")
+                for row in matched
+                if str(row.get("occurrence_consequence_projection_id") or "")
+            }),
+            "matched_occurrence_count": len(matched),
+            "primary_consequence_candidates": primary,
+            "process_continuation_status_candidates": continuation,
+            "terminal_status_candidates": terminal,
+            "binding_state": binding_state,
+            "set_piece_process_is_designed_routine_truth": False,
+            "visible_consequence_is_second_ball_truth": False,
+            "visible_consequence_is_causal_truth": False,
+            "creates_independent_support": False,
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "binding_state": "SET_PIECE_PROCESS_TO_VISIBLE_CONSEQUENCE_CONTEXT",
+        "set_piece_process_context_row_count": len(rows),
+        "binding_state_counts": dict(sorted(state_counts.items())),
+        "primary_consequence_counts": dict(sorted(primary_counts.items())),
+        "process_continuation_status_counts": dict(sorted(continuation_counts.items())),
+        "terminal_status_counts": dict(sorted(terminal_counts.items())),
+        "rows": rows,
+        "set_piece_process_is_designed_routine_truth": False,
+        "visible_consequence_is_second_ball_truth": False,
+        "visible_consequence_is_causal_truth": False,
+        "creates_independent_support": False,
+    }
+
+
 def _player_function_metric_dimension(metric_key: str, raw_label: str) -> str | None:
     text = f"{metric_key} {raw_label}".casefold().replace("_", " ")
     if any(term in text for term in (
@@ -2878,6 +3009,10 @@ def run_rich_lane(
         occurrence_consequence_payload,
         process_participation_payload,
     )
+    set_piece_process_consequence_context = _set_piece_process_consequence_context(
+        process_participation_payload,
+        occurrence_consequence_payload,
+    )
     spatial_transition_payload = _load_json(output / SPATIAL_TRANSITION_JSON)
     c03 = _construct_c03(process_participation_payload, occurrence_transition_payload, spatial_transition_payload)
     if c03.get("status") == "REVIEW_REQUIRED":
@@ -2912,6 +3047,7 @@ def run_rich_lane(
         "game_state_context": game_state_context,
         "recovery_next_process_context": recovery_next_process_context,
         "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
+        "set_piece_process_consequence_context": set_piece_process_consequence_context,
         "analysis_lattice": {
             "MICRO": {
                 "player_view_candidates": entity_views.get("player_view_candidates"),
@@ -2922,6 +3058,7 @@ def run_rich_lane(
             "MEZZO": {
                 "episode_feature_vectors": features.get("episode_feature_vectors") or [],
                 "recovery_next_process_context": recovery_next_process_context,
+                "set_piece_process_consequence_context": set_piece_process_consequence_context,
                 "phase_state_candidates": phase_states,
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
                 "process_development_signatures": c03.get("signatures") or [],
