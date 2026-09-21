@@ -486,6 +486,59 @@ def _progression_pool_p02(
                 if row.get("context_id")
             )
             team_dependency_root = f"episode_team_feature:{episode_id}:{team_candidate}"
+
+            team_zone_station_path: list[dict[str, Any]] = []
+            for layer in ordered_layers:
+                team_layer_zones = sorted({
+                    str(semantic_by_context[str(context_ref)].get("context_zone_candidate") or "")
+                    for context_ref in (layer.get("context_refs") or [])
+                    if str(context_ref) in semantic_by_context
+                    and semantic_by_context[str(context_ref)].get("action_occurrence_eligible") is True
+                    and str(semantic_by_context[str(context_ref)].get("context_team_candidate") or "").strip() == team_candidate
+                    and str(semantic_by_context[str(context_ref)].get("context_zone_candidate") or "").strip()
+                    not in {"", "UNKNOWN_ZONE"}
+                })
+                if len(team_layer_zones) != 1:
+                    continue
+                team_zone_station_path.append({
+                    "time_layer_ref": layer.get("episode_time_layer_candidate_id"),
+                    "second_candidate": layer.get("second_candidate"),
+                    "zone_candidate": team_layer_zones[0],
+                    "same_time_unordered": bool(layer.get("same_time_unordered")),
+                    "internal_order_asserted": False,
+                })
+
+            team_compressed_zones: list[str] = []
+            for station in team_zone_station_path:
+                zone = str(station.get("zone_candidate") or "")
+                if zone and (not team_compressed_zones or team_compressed_zones[-1] != zone):
+                    team_compressed_zones.append(zone)
+            team_start_zone = team_compressed_zones[0] if team_compressed_zones else None
+            team_end_zone = team_compressed_zones[-1] if team_compressed_zones else None
+            team_zone_advancement_steps = None
+            if team_start_zone in zone_order and team_end_zone in zone_order:
+                team_zone_advancement_steps = zone_order[team_end_zone] - zone_order[team_start_zone]
+
+            team_transition_candidates: list[dict[str, Any]] = []
+            for left, right in zip(team_zone_station_path, team_zone_station_path[1:]):
+                if left.get("second_candidate") == right.get("second_candidate"):
+                    continue
+                team_transition_candidates.append({
+                    "from_zone": left.get("zone_candidate"),
+                    "to_zone": right.get("zone_candidate"),
+                    "from_second_candidate": left.get("second_candidate"),
+                    "to_second_candidate": right.get("second_candidate"),
+                    "same_timestamp_transition": False,
+                    "transition_is_physical_trajectory_truth": False,
+                })
+
+            team_unresolved = [
+                "team_specific_occurrence_consequence_identity_bridge_not_bound",
+                "game_state_not_bound",
+            ]
+            if not team_compressed_zones:
+                team_unresolved.append("team_specific_ordered_zone_path_not_bound")
+
             team_item_id = f"p02_team:{episode_id}:{hashlib.sha256(team_candidate.encode('utf-8')).hexdigest()[:12]}"
             team_pool_items.append({
                 "pool_item_id": team_item_id,
@@ -518,10 +571,13 @@ def _progression_pool_p02(
                     "recovery_candidate_count": int(team_family_counts.get("RECOVERY", 0)),
                 },
                 "process_signature_fields": {
-                    "team_specific_zone_station_path": None,
-                    "team_specific_route_evaluability": "NOT_EVALUATED",
-                    "team_specific_start_zone": None,
-                    "team_specific_end_zone": None,
+                    "team_specific_zone_station_path": team_compressed_zones,
+                    "team_specific_zone_station_count_candidate": len(team_compressed_zones) if team_compressed_zones else None,
+                    "team_specific_zone_transition_candidates": team_transition_candidates,
+                    "team_specific_start_zone": team_start_zone,
+                    "team_specific_end_zone": team_end_zone,
+                    "team_specific_zone_advancement_steps_candidate": team_zone_advancement_steps,
+                    "team_specific_route_evaluability": "ZONE_STATION_PATH_ONLY" if team_compressed_zones else "NOT_EVALUATED",
                     "team_specific_visible_path_length_proxy": None,
                     "team_specific_directness_proxy": None,
                 },
@@ -529,11 +585,7 @@ def _progression_pool_p02(
                 "counterevidence_refs": [],
                 "dependency_challenge_refs": [],
                 "non_support_refs": [],
-                "unresolved_refs": [
-                    "team_specific_ordered_zone_path_not_bound",
-                    "team_specific_occurrence_consequence_identity_bridge_not_bound",
-                    "game_state_not_bound",
-                ],
+                "unresolved_refs": team_unresolved,
                 "comparison_admission_status": "NOT_EVALUATED",
                 "pool_status": "DEGRADED",
                 "downstream_admission": "REVIEW_BOUNDED_POOL_ITEM",
