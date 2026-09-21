@@ -295,6 +295,80 @@ def _classify_consequence(
     return primary, sorted(signals)
 
 
+def _visible_path_recurrence_candidates(
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    eligible_anchor_populations: Counter[tuple[str, tuple[str, ...]]] = Counter()
+
+    for record in records:
+        if record.get("record_status") == "REVIEW_REQUIRED":
+            continue
+        if int(record.get("visible_consequence_path_depth") or 0) < 1:
+            continue
+        team = _clean(record.get("team_identity_candidate_id"))
+        signature = _clean(record.get("visible_consequence_path_signature"))
+        anchor_families = tuple(
+            sorted(
+                _clean(value)
+                for value in (record.get("anchor_action_family_candidates") or [])
+                if _clean(value)
+            )
+        )
+        if not team or not signature or not anchor_families:
+            continue
+        grouped[(team, signature)].append(record)
+        eligible_anchor_populations[(team, anchor_families)] += 1
+
+    candidates: list[dict[str, Any]] = []
+    for (team, signature), members in sorted(grouped.items()):
+        if len(members) < 2:
+            continue
+        anchor_families = tuple(
+            sorted(
+                _clean(value)
+                for value in (members[0].get("anchor_action_family_candidates") or [])
+                if _clean(value)
+            )
+        )
+        denominator = int(eligible_anchor_populations[(team, anchor_families)])
+        actors = {
+            _clean(member.get("actor_identity_candidate_id"))
+            for member in members
+            if _clean(member.get("actor_identity_candidate_id"))
+        }
+        periods = {
+            _clean(member.get("period_candidate"))
+            for member in members
+            if _clean(member.get("period_candidate"))
+        }
+        candidates.append({
+            "visible_consequence_path_recurrence_candidate_id": "vcpr_"
+            + _digest(team, signature)[:24],
+            "team_identity_candidate_id": team,
+            "anchor_action_family_candidates": list(anchor_families),
+            "visible_consequence_path_signature": signature,
+            "visible_occurrence_count": len(members),
+            "eligible_anchor_population_count": denominator,
+            "actor_spread_count": len(actors),
+            "period_spread_count": len(periods),
+            "anchor_trace_refs": sorted(
+                _clean(member.get("anchor_trackable_action_trace_candidate_id"))
+                for member in members
+                if _clean(member.get("anchor_trackable_action_trace_candidate_id"))
+            ),
+            "recurrence_candidate_eligible": True,
+            "recurrence_is_independent_support": False,
+            "recurrence_is_causality_truth": False,
+            "recurrence_is_tactical_intention_truth": False,
+            "recurrence_is_quality_truth": False,
+            "same_timestamp_is_total_order": False,
+            "no_visible_follow_up_is_failure": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_CONSEQUENCE_PATH_RECURRENCE_CANDIDATE_ONLY",
+        })
+    return candidates
+
+
 def build_trackable_action_consequence_candidates(
     trace_payload: dict[str, Any],
     evidence_payload: dict[str, Any],
@@ -474,6 +548,7 @@ def build_trackable_action_consequence_candidates(
     if set(anchor_ids) != trace_ids and not blocks:
         blocks.append("consequence_anchor_trace_set_mismatch")
 
+    recurrence_candidates = _visible_path_recurrence_candidates(records)
     consequence_counts = Counter(record.get("primary_consequence_candidate") for record in records)
     visible_path_signature_counts = Counter(
         _clean(record.get("visible_consequence_path_signature"))
@@ -516,6 +591,12 @@ def build_trackable_action_consequence_candidates(
         "trackable_action_consequence_candidates": records,
         "source_trackable_action_trace_candidate_count": len(traces),
         "trackable_action_consequence_candidate_count": len(records),
+        "visible_consequence_path_recurrence_candidates": recurrence_candidates,
+        "visible_consequence_path_recurrence_candidate_count": len(recurrence_candidates),
+        "visible_consequence_path_recurrence_minimum_visible_occurrence_count": 2,
+        "visible_consequence_path_recurrence_is_independent_support": False,
+        "visible_consequence_path_recurrence_is_causality_truth": False,
+        "visible_consequence_path_recurrence_is_tactical_intention_truth": False,
         "classified_consequence_candidate_count": classified_count,
         "review_required_consequence_candidate_count": review_required_count,
         "support_visible_trace_count": support_visible_count,
