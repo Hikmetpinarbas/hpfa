@@ -343,6 +343,13 @@ def _bind_comparable_outcome_counterevidence(payload: dict) -> dict:
     payload["pair_record_is_eligible_denominator"] = False
     payload["pair_count_is_eligible_denominator"] = False
     payload["eligible_denominator_is_independent_evidence_count"] = False
+    payload["falsification_invalidation_contract_applied"] = (
+        projection.get("falsification_invalidation_contract_applied") is True
+    )
+    payload["falsifier_is_invalidator"] = False
+    payload["invalidator_is_falsifier"] = False
+    payload["invalidator_is_counterevidence"] = False
+    payload["invalidator_makes_claim_false"] = False
     payload["dependency_challenge_is_evidence_direction"] = False
     payload["dependency_challenge_changes_evidence_direction"] = False
     payload["non_support_is_counterevidence"] = False
