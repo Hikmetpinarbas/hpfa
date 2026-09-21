@@ -125,3 +125,38 @@ def test_failed_projection_never_replaces_legacy_primary_inventory() -> None:
     assert result["primary_sequence_projection_mode"] == "LEGACY_TRACE_COMPATIBILITY"
     assert result["occurrence_temporal_primary_inventory_admitted"] is False
     assert result["visible_action_sequence_candidates"][0]["visible_action_sequence_candidate_id"] == "legacy_sequence"
+
+
+def test_similarity_runtime_binding_propagates_comparison_contract_metadata(monkeypatch) -> None:
+    projection = {
+        "status": "PASS",
+        "process_comparison_question_contract": {"comparison_question_id": "q"},
+        "process_comparison_question_contract_status": "PASS",
+        "process_comparable_sets": [{
+            "comparable_set_id": "set_1",
+            "eligible_case_count": 2,
+            "materialized_pair_count_is_eligible_denominator": False,
+        }],
+        "process_comparable_set_count": 1,
+        "comparison_dimension_registry_version": "comparison_dimension_registry_v1",
+        "question_profile_hash": "a" * 64,
+        "profile_frozen_before_outcome_attachment": True,
+        "pair_materialization_count_is_eligible_denominator": False,
+        "canonical_comparison_state_counts": {"ELIGIBLE": 1},
+        "eligible_denominator_frozen_before_outcome_attachment": True,
+        "dependency_aware_partial_order_similarity_pairs": [],
+        "dependency_aware_partial_order_similarity_pair_count": 0,
+        "pair_state_counts": {},
+        "recurrence_candidate_eligible_pair_count": 0,
+        "claim_ceiling": "TEST_CEILING",
+    }
+    monkeypatch.setattr(current, "build_dependency_aware_partial_order_similarity", lambda payload: projection)
+
+    result = current._bind_dependency_aware_similarity(_payload())
+
+    assert result["comparison_dimension_registry_version"] == "comparison_dimension_registry_v1"
+    assert result["question_profile_hash"] == "a" * 64
+    assert result["profile_frozen_before_outcome_attachment"] is True
+    assert result["pair_materialization_count_is_eligible_denominator"] is False
+    assert result["canonical_comparison_state_counts"] == {"ELIGIBLE": 1}
+    assert result["eligible_denominator_frozen_before_outcome_attachment"] is True
