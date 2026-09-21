@@ -595,6 +595,34 @@ def _build_p02_sequence_process_units(
             start_second_candidate=sequence.get("start_time_candidate"),
         )
 
+        action_layer_signature: list[dict[str, Any]] = []
+        for layer_id in sequence.get("time_layer_candidate_ids") or []:
+            layer = layer_by_id.get(str(layer_id))
+            if not isinstance(layer, dict):
+                continue
+            action_counts = {
+                str(key): int(value or 0)
+                for key, value in (layer.get("action_family_counts") or {}).items()
+                if str(key).strip() and int(value or 0) > 0
+            }
+            action_layer_signature.append({
+                "time_layer_candidate_id": layer.get("visible_action_time_layer_candidate_id"),
+                "time_candidate": layer.get("start_candidate"),
+                "action_family_multiset": dict(sorted(action_counts.items())),
+                "same_timestamp_internal_ordering_allowed": False,
+            })
+
+        signature_payload = {
+            "action_layer_signature": [
+                row.get("action_family_multiset") for row in action_layer_signature
+            ],
+            "start_reason_candidate": sequence.get("start_reason_candidate"),
+            "end_reason_candidate": sequence.get("end_reason_candidate"),
+        }
+        partial_order_process_signature_id = "p02_posig_" + hashlib.sha256(
+            json.dumps(signature_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()[:20]
+
         coordinate_stations: list[dict[str, Any]] = []
         ambiguous_coordinate_layer_count = 0
         missing_coordinate_layer_count = 0
@@ -683,6 +711,8 @@ def _build_p02_sequence_process_units(
             "time_layer_count": sequence.get("time_layer_count"),
             "trace_candidate_count": sequence.get("trace_candidate_count"),
             "action_family_counts": dict(sequence.get("action_family_counts") or {}),
+            "action_layer_signature": action_layer_signature,
+            "partial_order_process_signature_id": partial_order_process_signature_id,
             "consequence_candidate_counts": dict(sequence.get("consequence_candidate_counts") or {}),
             "sequence_record_status": sequence.get("sequence_record_status"),
             "start_reason_candidate": sequence.get("start_reason_candidate"),
@@ -720,9 +750,29 @@ def _build_p02_sequence_process_units(
             "production_release": False,
         })
 
+    signature_groups: dict[str, list[str]] = defaultdict(list)
+    for unit in units:
+        signature_groups[str(unit.get("partial_order_process_signature_id") or "")].append(
+            str(unit.get("p02_process_unit_candidate_id") or "")
+        )
+    recurrence_groups = [
+        {
+            "partial_order_process_signature_id": signature_id,
+            "member_process_unit_candidate_ids": sorted(member_ids),
+            "member_count": len(member_ids),
+            "recurrence_status": "REPEATED_VISIBLE_SIGNATURE" if len(member_ids) >= 2 else "SINGLETON_VISIBLE_SIGNATURE",
+            "recurrence_is_causality": False,
+            "recurrence_is_tactical_truth": False,
+        }
+        for signature_id, member_ids in sorted(signature_groups.items())
+        if signature_id
+    ]
+
     return {
         "p02_process_unit_candidate_count": len(units),
         "p02_process_unit_candidates": units,
+        "partial_order_signature_group_count": len(recurrence_groups),
+        "partial_order_signature_groups": recurrence_groups,
         "process_unit_source": "visible_action_sequence_candidates_lite_v1",
         "process_unit_is_sequence_truth": False,
         "process_unit_is_possession_truth": False,
