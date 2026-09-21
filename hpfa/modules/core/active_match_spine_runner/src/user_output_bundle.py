@@ -1373,6 +1373,8 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             f"recovery_next_process_context_status={(rich.get('recovery_next_process_context') or {}).get('status')}",
             f"recovery_next_process_context_row_count={(rich.get('recovery_next_process_context') or {}).get('recovery_context_row_count')}",
             f"recovery_next_process_family_counts={json.dumps((rich.get('recovery_next_process_context') or {}).get('next_visible_process_family_counts') or {}, ensure_ascii=False, sort_keys=True)}",
+            f"loss_next_opponent_process_context_status={(rich.get('loss_next_opponent_process_context') or {}).get('status')}",
+            f"loss_next_opponent_process_family_counts={json.dumps((rich.get('loss_next_opponent_process_context') or {}).get('next_opponent_process_family_counts') or {}, ensure_ascii=False, sort_keys=True)}",
             f"goalkeeper_restart_consequence_context_status={(rich.get('goalkeeper_restart_consequence_context') or {}).get('status')}",
             f"goalkeeper_restart_context_row_count={(rich.get('goalkeeper_restart_consequence_context') or {}).get('goalkeeper_restart_context_row_count')}",
             f"goalkeeper_restart_bucket_counts={json.dumps((rich.get('goalkeeper_restart_consequence_context') or {}).get('provider_distance_bucket_counts') or {}, ensure_ascii=False, sort_keys=True)}",

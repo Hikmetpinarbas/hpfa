@@ -1020,6 +1020,154 @@ def _goalkeeper_restart_consequence_context(
     }
 
 
+
+def _loss_next_opponent_process_context(
+    consequence_payload: dict[str, Any],
+    trace_payload: dict[str, Any],
+    process_participation_payload: dict[str, Any],
+) -> dict[str, Any]:
+    trace_rows = (
+        trace_payload.get("primary_occurrence_trace_candidates")
+        or trace_payload.get("trackable_action_trace_candidates")
+        or []
+    )
+    trace_by_id = {
+        str(row.get("trackable_action_trace_candidate_id") or ""): row
+        for row in trace_rows
+        if isinstance(row, dict) and str(row.get("trackable_action_trace_candidate_id") or "")
+    }
+
+    process_intervals: list[dict[str, Any]] = []
+    for row in process_participation_payload.get("process_participation_candidates", []) or []:
+        if not isinstance(row, dict) or str(row.get("semantic_role") or "") != "CONTEXT_INTERVAL":
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        period = str(row.get("period_candidate") or "").strip()
+        start = _float_candidate(row.get("start_candidate"))
+        end = _float_candidate(row.get("end_candidate"))
+        if team_id and family and start is not None and end is not None:
+            process_intervals.append({
+                "team_identity_candidate_id": team_id,
+                "process_family_candidate": family,
+                "period_candidate": period,
+                "start_candidate": start,
+                "end_candidate": end,
+            })
+
+    rows: list[dict[str, Any]] = []
+    state_counts: Counter[str] = Counter()
+    family_counts: Counter[str] = Counter()
+
+    for consequence in consequence_payload.get("occurrence_consequence_projections", []) or []:
+        if not isinstance(consequence, dict):
+            continue
+        anchor_families = {
+            str(value)
+            for value in (consequence.get("action_family_candidates") or [])
+            if str(value)
+        }
+        if not anchor_families.intersection({"TURNOVER", "CONTROL_ERROR"}):
+            continue
+        anchor_teams = {
+            str(value)
+            for value in (consequence.get("team_identity_candidate_ids") or [])
+            if str(value)
+        }
+        periods = {
+            str(value)
+            for value in (consequence.get("period_candidates") or [])
+            if str(value)
+        }
+        admitted_ids = [
+            str(value)
+            for value in (consequence.get("admitted_after_follow_up_trace_ids") or [])
+            if str(value)
+        ]
+        admitted_traces = [
+            trace_by_id[value] for value in admitted_ids if value in trace_by_id
+        ]
+        starts = [
+            _float_candidate(row.get("start_candidate"))
+            for row in admitted_traces
+            if _float_candidate(row.get("start_candidate")) is not None
+        ]
+        first_start = min(starts) if starts else None
+        first_layer = [
+            row for row in admitted_traces
+            if first_start is not None
+            and _float_candidate(row.get("start_candidate")) == first_start
+        ]
+        first_teams = {
+            str(row.get("team_identity_candidate_id") or "").strip()
+            for row in first_layer
+            if str(row.get("team_identity_candidate_id") or "").strip()
+        }
+
+        opponent_team: str | None = None
+        if len(anchor_teams) == 1 and len(first_teams) == 1:
+            anchor_team = next(iter(anchor_teams))
+            candidate_team = next(iter(first_teams))
+            if candidate_team != anchor_team:
+                opponent_team = candidate_team
+
+        next_process_families: set[str] = set()
+        if opponent_team and first_start is not None:
+            for proc in process_intervals:
+                if proc["team_identity_candidate_id"] != opponent_team:
+                    continue
+                if periods and proc["period_candidate"] not in periods:
+                    continue
+                if proc["start_candidate"] <= first_start <= proc["end_candidate"]:
+                    next_process_families.add(proc["process_family_candidate"])
+
+        if first_start is None:
+            binding_state = "NO_ADMITTED_AFTER_TIME"
+        elif len(anchor_teams) != 1:
+            binding_state = "ANCHOR_TEAM_UNRESOLVED"
+        elif len(first_teams) != 1:
+            binding_state = "FOLLOWUP_TEAM_UNRESOLVED"
+        elif opponent_team is None:
+            binding_state = "FIRST_FOLLOWUP_NOT_OPPONENT_TEAM"
+        elif len(next_process_families) == 1:
+            binding_state = "SINGLE_OPPONENT_VISIBLE_PROCESS_FAMILY_MATCH"
+        elif len(next_process_families) > 1:
+            binding_state = "MULTIPLE_OPPONENT_PROCESS_FAMILIES_REVIEW_REQUIRED"
+        else:
+            binding_state = "NO_OPPONENT_VISIBLE_PROCESS_INTERVAL_MATCH"
+
+        state_counts[binding_state] += 1
+        family_counts.update(next_process_families)
+        rows.append({
+            "action_occurrence_candidate_id": consequence.get("action_occurrence_candidate_id"),
+            "anchor_action_family_candidates": sorted(anchor_families),
+            "anchor_team_identity_candidate_ids": sorted(anchor_teams),
+            "first_admitted_followup_start_candidate": first_start,
+            "first_admitted_followup_team_identity_candidate_ids": sorted(first_teams),
+            "opponent_team_identity_candidate": opponent_team,
+            "next_opponent_process_family_candidates": sorted(next_process_families),
+            "next_opponent_process_binding_state": binding_state,
+            "primary_consequence_candidates": consequence.get("primary_consequence_candidates") or [],
+            "process_continuation_status": consequence.get("process_continuation_status"),
+            "loss_is_defensive_transition_truth": False,
+            "opponent_process_is_counterattack_truth_unless_provider_labeled": False,
+            "opponent_process_is_causal_consequence_truth": False,
+            "creates_independent_support": False,
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "binding_state": "LOSS_TO_FIRST_OPPONENT_FOLLOWUP_PROCESS_CONTEXT",
+        "loss_context_row_count": len(rows),
+        "next_opponent_process_binding_state_counts": dict(sorted(state_counts.items())),
+        "next_opponent_process_family_counts": dict(sorted(family_counts.items())),
+        "rows": rows,
+        "loss_is_defensive_transition_truth": False,
+        "opponent_process_is_causal_consequence_truth": False,
+        "creates_independent_support": False,
+    }
+
+
 def _recovery_next_process_context(
     consequence_payload: dict[str, Any],
     process_participation_payload: dict[str, Any],
@@ -3352,6 +3500,11 @@ def run_rich_lane(
         occurrence_consequence_payload,
         process_participation_payload,
     )
+    loss_next_opponent_process_context = _loss_next_opponent_process_context(
+        occurrence_consequence_payload,
+        trackable_trace_payload,
+        process_participation_payload,
+    )
     set_piece_process_consequence_context = _set_piece_process_consequence_context(
         process_participation_payload,
         occurrence_consequence_payload,
@@ -3390,6 +3543,7 @@ def run_rich_lane(
         "game_state_context": game_state_context,
         "game_state_process_mix_context": game_state_process_mix_context,
         "recovery_next_process_context": recovery_next_process_context,
+        "loss_next_opponent_process_context": loss_next_opponent_process_context,
         "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
         "set_piece_process_consequence_context": set_piece_process_consequence_context,
         "analysis_lattice": {
@@ -3402,6 +3556,7 @@ def run_rich_lane(
             "MEZZO": {
                 "episode_feature_vectors": features.get("episode_feature_vectors") or [],
                 "recovery_next_process_context": recovery_next_process_context,
+                "loss_next_opponent_process_context": loss_next_opponent_process_context,
                 "set_piece_process_consequence_context": set_piece_process_consequence_context,
                 "phase_state_candidates": phase_states,
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],

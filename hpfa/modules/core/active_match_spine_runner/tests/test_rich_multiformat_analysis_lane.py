@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _access_terminal_bridge_profiles
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _loss_next_opponent_process_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _access_terminal_bridge_profiles
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -393,6 +393,74 @@ def test_goalkeeper_restart_consequence_context_is_not_available_without_goal_ki
     )
     assert result["status"] == "NOT_AVAILABLE"
     assert result["goalkeeper_restart_context_row_count"] == 0
+
+
+
+def test_loss_next_opponent_process_context_binds_first_opponent_followup():
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "loss_1",
+            "action_family_candidates": ["TURNOVER"],
+            "team_identity_candidate_ids": ["team_a"],
+            "period_candidates": ["1"],
+            "admitted_after_follow_up_trace_ids": ["trace_b"],
+            "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+        }]
+    }
+    traces = {
+        "primary_occurrence_trace_candidates": [{
+            "trackable_action_trace_candidate_id": "trace_b",
+            "start_candidate": "25",
+            "period_candidate": "1",
+            "team_identity_candidate_id": "team_b",
+        }]
+    }
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "team_identity_candidate_id": "team_b",
+            "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "24",
+            "end_candidate": "31",
+        }]
+    }
+    result = _loss_next_opponent_process_context(consequence, traces, process)
+    assert result["status"] == "PASS"
+    row = result["rows"][0]
+    assert row["opponent_team_identity_candidate"] == "team_b"
+    assert row["next_opponent_process_family_candidates"] == ["COUNTERATTACK_CANDIDATE"]
+    assert row["next_opponent_process_binding_state"] == "SINGLE_OPPONENT_VISIBLE_PROCESS_FAMILY_MATCH"
+    assert row["loss_is_defensive_transition_truth"] is False
+    assert row["opponent_process_is_causal_consequence_truth"] is False
+
+
+def test_loss_next_opponent_process_context_does_not_promote_same_team_followup():
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "loss_2",
+            "action_family_candidates": ["CONTROL_ERROR"],
+            "team_identity_candidate_ids": ["team_a"],
+            "period_candidates": ["1"],
+            "admitted_after_follow_up_trace_ids": ["trace_a"],
+        }]
+    }
+    traces = {
+        "primary_occurrence_trace_candidates": [{
+            "trackable_action_trace_candidate_id": "trace_a",
+            "start_candidate": "25",
+            "period_candidate": "1",
+            "team_identity_candidate_id": "team_a",
+        }]
+    }
+    result = _loss_next_opponent_process_context(
+        consequence,
+        traces,
+        {"process_participation_candidates": []},
+    )
+    row = result["rows"][0]
+    assert row["next_opponent_process_binding_state"] == "FIRST_FOLLOWUP_NOT_OPPONENT_TEAM"
+    assert row["opponent_team_identity_candidate"] is None
 
 
 def test_recovery_next_process_context_binds_first_followup_to_visible_process_family():
