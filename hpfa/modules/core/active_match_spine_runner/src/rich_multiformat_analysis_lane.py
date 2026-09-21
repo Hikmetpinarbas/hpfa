@@ -191,6 +191,263 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
+def _progression_pool_p02(features: dict[str, Any], temporal: dict[str, Any]) -> dict[str, Any]:
+    """Project current episode/temporal outputs into a claim-bounded P02 pool.
+
+    This is a projection, not a new occurrence, sequence or reasoning engine.
+    Route/directness fields remain not evaluated until an ordered coordinate
+    chain is explicitly bound.
+    """
+    temporal_by_episode = {
+        str(row.get("episode_candidate_id")): row
+        for row in (temporal.get("temporal_episode_signatures") or [])
+        if isinstance(row, dict) and row.get("episode_candidate_id")
+    }
+    finding_atoms: list[dict[str, Any]] = []
+    pool_items: list[dict[str, Any]] = []
+    ledger: list[dict[str, Any]] = []
+
+    for card in features.get("episode_feature_vectors") or []:
+        if not isinstance(card, dict):
+            continue
+        episode_id = str(card.get("episode_candidate_id") or "")
+        if not episode_id:
+            continue
+        feature_id = str(card.get("episode_feature_vector_id") or f"efv:{episode_id}")
+        temporal_row = temporal_by_episode.get(episode_id) or {}
+        temporal_id = str(temporal_row.get("temporal_episode_signature_id") or "")
+        dependency_root = f"episode_feature:{episode_id}"
+        atom_ids: list[str] = []
+
+        def add_atom(kind: str, value: Any, unit: str, semantic_role: str) -> None:
+            atom_id = f"fa_p02:{episode_id}:{kind}"
+            atom_ids.append(atom_id)
+            finding_atoms.append({
+                "finding_atom_id": atom_id,
+                "producer_module_id": MODULE_ID,
+                "producer_output_id": feature_id,
+                "source_ref_ids": [feature_id] + ([temporal_id] if temporal_id else []),
+                "surface_ref_ids": ["episode_feature_vector_lite_v1"] + (["temporal_episode_signature_lite_v1"] if temporal_id else []),
+                "observation_ref_ids": list(card.get("context_refs") or []),
+                "dependency_root": dependency_root,
+                "provenance_root": "episode_feature_vector_lite_v1",
+                "observation_family": "PROCESS/PARTICIPATION",
+                "semantic_role": semantic_role,
+                "epistemic_state": "DERIVED_OBSERVATION",
+                "claim_ceiling": "P02_EPISODE_DESCRIPTIVE_CANDIDATE_ONLY",
+                "provider_semantics_status": "PRESERVED_UPSTREAM",
+                "pool_candidates": ["P02_PROGRESSION"],
+                "scale": "MEZZO",
+                "game_dimensions": ["TIME", "ACTION", "PROCESS", "CONTEXT"],
+                "episode_candidate_id": episode_id,
+                "period_candidate": card.get("period_candidate"),
+                "value": value,
+                "unit": unit,
+                "dependency_state": "DEPENDENT_OR_PARTIAL_LINEAGE",
+                "independent_support_vote": False,
+                "uncertainty_state": "VISIBLE_CANDIDATE_ONLY",
+                "transformation_state": "SEMANTICALLY_ENRICHED",
+                "transformation_id": f"p02_projection:{episode_id}",
+                "information_delta_class": "ENRICHED",
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            })
+
+        duration = card.get("duration_seconds_candidate")
+        eligible_actions = int(card.get("eligible_action_candidate_count") or 0)
+        same_time_layers = int(card.get("same_time_unordered_layer_count") or 0)
+        zone_counts = dict(card.get("eligible_action_zone_counts") or {})
+        channel_counts = dict(card.get("eligible_action_channel_counts") or {})
+        family_counts = dict(card.get("action_family_counts") or {})
+        shot_count = int(card.get("shot_candidate_count") or 0)
+        turnover_count = int(card.get("turnover_candidate_count") or 0)
+        recovery_count = int(card.get("recovery_candidate_count") or 0)
+
+        add_atom("duration", duration, "seconds_candidate", "EPISODE_DURATION_CANDIDATE")
+        add_atom("action_station_burden", eligible_actions, "action_station_candidate_count", "ACTION_STATION_BURDEN_CANDIDATE")
+        add_atom("zone_distribution", zone_counts, "candidate_count_by_zone", "ZONE_DISTRIBUTION_CANDIDATE")
+        add_atom("channel_distribution", channel_counts, "candidate_count_by_channel", "CHANNEL_DISTRIBUTION_CANDIDATE")
+        add_atom(
+            "terminal_activity",
+            {"shot": shot_count, "turnover": turnover_count, "recovery": recovery_count},
+            "candidate_counts",
+            "VISIBLE_TERMINAL_AND_TRANSITION_ACTIVITY_CANDIDATE",
+        )
+        if temporal_row:
+            add_atom(
+                "temporal_change",
+                {
+                    "comparison_status": temporal_row.get("comparison_status"),
+                    "eligible_action_rate_delta_per_minute": temporal_row.get("eligible_action_rate_delta_per_minute"),
+                    "zone_share_shift_candidate": temporal_row.get("zone_share_shift_candidate"),
+                    "channel_share_shift_candidate": temporal_row.get("channel_share_shift_candidate"),
+                },
+                "temporal_signature_candidate",
+                "TEMPORAL_COMPARISON_CANDIDATE",
+            )
+
+        final_third_count = int(zone_counts.get("FINAL_THIRD") or zone_counts.get("final_third") or 0)
+        action_rate = None
+        if isinstance(duration, (int, float)) and duration > 0:
+            action_rate = round(eligible_actions / float(duration), 6)
+
+        pool_status = "DEGRADED"
+        unresolved = [
+            "ordered_coordinate_chain_not_bound",
+            "start_end_zone_transition_not_bound",
+            "actor_station_identity_not_bound",
+            "relation_station_identity_not_bound",
+            "opponent_response_not_bound_at_p02_projection_stage",
+        ]
+        pool_item_id = f"p02:{episode_id}"
+        pool_items.append({
+            "pool_item_id": pool_item_id,
+            "pool_id": "P02_PROGRESSION",
+            "pool_version": "v1-pilot",
+            "pool_stage": "SPECIALIZED",
+            "input_finding_atom_ids": atom_ids,
+            "input_pool_item_ids": [],
+            "dependency_roots": [dependency_root],
+            "football_question_id": "P02_VISIBLE_PROGRESSION_PROCESS",
+            "construct_id": "P02_PROCESS_SIGNATURE_PARTIAL",
+            "construct_definition": "Visible episode-level progression-relevant process description without route truth.",
+            "estimand": "episode_process_signature_candidate",
+            "eligible_population_definition": "reviewed episode feature vectors produced by the current episode lane",
+            "numerator": None,
+            "denominator": None,
+            "unit": "episode_candidate",
+            "scale": "MEZZO",
+            "dimensions": ["TIME", "SPACE", "ACTION", "PROCESS", "CONTEXT", "OUTCOME"],
+            "phase_family": None,
+            "process_stage": "PROGRESSION_RELEVANT_EPISODE",
+            "temporal_role": "EPISODE",
+            "comparison_context": {
+                "period_candidate": card.get("period_candidate"),
+                "feature_readiness": card.get("feature_readiness"),
+            },
+            "context_completeness": "PARTIAL",
+            "opponent_context": "NOT_EVALUATED",
+            "game_state": "NOT_EVALUATED",
+            "visible_observation_summary": {
+                "duration_seconds_candidate": duration,
+                "action_station_candidate_count": eligible_actions,
+                "same_time_unordered_layer_count": same_time_layers,
+                "action_family_counts": family_counts,
+                "zone_counts": zone_counts,
+                "channel_counts": channel_counts,
+                "final_third_activity_candidate_count": final_third_count,
+                "shot_candidate_count": shot_count,
+                "turnover_candidate_count": turnover_count,
+                "recovery_candidate_count": recovery_count,
+                "eligible_action_rate_per_second_candidate": action_rate,
+            },
+            "process_signature_fields": {
+                "route_evaluability": "NOT_EVALUATED",
+                "visible_path_length_proxy": None,
+                "directness_proxy": None,
+                "net_goalward_progression": None,
+                "net_lateral_displacement": None,
+                "action_station_count_candidate": eligible_actions,
+                "actor_station_count_candidate": None,
+                "relation_station_count_candidate": None,
+                "zone_station_count_candidate": None,
+                "same_time_unordered_layer_count": same_time_layers,
+                "advanced_access_activity_candidate": final_third_count > 0,
+            },
+            "station_type": "ACTION_STATION",
+            "route_family": "NOT_EVALUATED",
+            "branch_family": "NOT_EVALUATED",
+            "support_refs": atom_ids,
+            "counterevidence_refs": [],
+            "dependency_challenge_refs": [],
+            "non_support_refs": [],
+            "unresolved_refs": unresolved,
+            "comparison_admission_status": "NOT_EVALUATED",
+            "reconstruction_status": "DEGRADED",
+            "information_delta_counts": {
+                "preserved": len(atom_ids),
+                "collapsed": 0,
+                "enriched": len(atom_ids),
+                "degraded": len(unresolved),
+                "lost": 0,
+                "invented": 0,
+                "ambiguous": 0,
+            },
+            "lost_atom_refs": [],
+            "invented_semantics_hits": [],
+            "collapsed_reflection_count": 0,
+            "preserved_atom_count": len(atom_ids),
+            "enriched_field_count": len(atom_ids),
+            "pool_status": pool_status,
+            "downstream_admission": "REVIEW_BOUNDED_POOL_ITEM",
+            "claim_ceiling": "P02_EPISODE_DESCRIPTIVE_CANDIDATE_ONLY",
+            "forbidden_inferences": [
+                "TACTICAL_TRUTH",
+                "COACH_INTENTION",
+                "DOMINANCE_TRUTH",
+                "CONTROL_TRUTH",
+                "PHYSICAL_TRAJECTORY_TRUTH",
+                "CAUSAL_TRUTH",
+            ],
+            "withdrawal_conditions": ["upstream_episode_feature_vector_invalidated"],
+            "pool_coverage": {
+                "duration_available": duration is not None,
+                "action_station_available": True,
+                "zone_distribution_available": bool(zone_counts),
+                "channel_distribution_available": bool(channel_counts),
+                "route_available": False,
+            },
+            "missing_required_dimensions": [],
+            "missing_optional_dimensions": unresolved,
+            "recurring_gap_signatures": unresolved,
+            "maintenance_debt_candidates": [],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        })
+        ledger.append({
+            "transformation_id": f"p02_projection:{episode_id}",
+            "operation_type": "ROUTE_TO_POOL",
+            "input_artifact_ids": [feature_id] + ([temporal_id] if temporal_id else []),
+            "input_atom_ids": atom_ids,
+            "output_pool_item_ids": [pool_item_id],
+            "information_delta_class": "ENRICHED_WITH_EXPLICIT_DEGRADATION",
+            "preserved_atom_refs": atom_ids,
+            "collapsed_atom_refs": [],
+            "excluded_atom_refs": [],
+            "lost_atom_refs": [],
+            "invented_semantics_hits": [],
+            "claim_ceiling_before": card.get("claim_ceiling"),
+            "claim_ceiling_after": "P02_EPISODE_DESCRIPTIVE_CANDIDATE_ONLY",
+            "production_release": False,
+        })
+
+    return {
+        "module_id": "progression_pool_p02_projection_v1",
+        "status": "DEGRADED" if pool_items else "NOT_EVALUATED",
+        "decision": "P02_PARTIAL_PROJECTION_AVAILABLE" if pool_items else "P02_NOT_EVALUATED",
+        "finding_atom_candidate_count": len(finding_atoms),
+        "finding_atom_candidates": finding_atoms,
+        "p02_pool_item_count": len(pool_items),
+        "p02_pool_items": pool_items,
+        "transformation_ledger_count": len(ledger),
+        "transformation_ledger": ledger,
+        "comparison_candidates": [],
+        "route_metric_evaluable_count": 0,
+        "route_metric_not_evaluable_count": len(pool_items),
+        "invented_semantics_count": 0,
+        "lost_atom_count": 0,
+        "pool_item_is_new_evidence_vote": False,
+        "same_timestamp_is_total_order": False,
+        "coordinate_is_tracking": False,
+        "absence_is_counterevidence": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
 def _metric_refs(rows: list[dict[str, Any]], terms: tuple[str, ...], limit: int = 20) -> list[dict[str, Any]]:
     refs: list[dict[str, Any]] = []
     for row in rows:
@@ -355,6 +612,7 @@ def run_rich_lane(
     primitives = _primitive_metrics(features, entity_views)
     phase_states = _phase_state_candidates(features)
     c01 = _construct_c01(rows, features)
+    p02 = _progression_pool_p02(features, temporal)
     if c01.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C01_progression_terminal_construct_review_required")
 
@@ -375,6 +633,7 @@ def run_rich_lane(
         "xlsx_entity_metric_projection": projection,
         "primitive_metrics": primitives,
         "constructs": {"C01": c01},
+        "progression_pool_p02": p02,
         "phase_state_candidates": phase_states,
         "analysis_lattice": {
             "MICRO": {
@@ -386,6 +645,7 @@ def run_rich_lane(
                 "episode_feature_vectors": features.get("episode_feature_vectors") or [],
                 "phase_state_candidates": phase_states,
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
+                "P02_progression_pool_items": p02.get("p02_pool_items") or [],
             },
             "MACRO": {
                 "team_view_candidates": entity_views.get("team_view_candidates"),
@@ -396,6 +656,10 @@ def run_rich_lane(
         },
         "entity_views": entity_views,
         "c4_packet_candidates": packet_candidates,
+        "p02_pool_item_count": p02.get("p02_pool_item_count", 0),
+        "p02_finding_atom_candidate_count": p02.get("finding_atom_candidate_count", 0),
+        "p02_route_metric_evaluable_count": p02.get("route_metric_evaluable_count", 0),
+        "p02_route_metric_not_evaluable_count": p02.get("route_metric_not_evaluable_count", 0),
         "hard_block_hits": list(dict.fromkeys(hard_blocks)),
         "review_hits": list(dict.fromkeys(review_hits)),
         "format_fusion_is_independent_evidence_vote": False,
