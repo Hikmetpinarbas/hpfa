@@ -37,6 +37,49 @@ def explicit_contradiction_packet():
     return packet
 
 
+
+def admitted_counterevidence_packet():
+    packet = base_packet()
+    packet["contradicting_signals"] = [
+        {
+            "signal_id": "counter_generic_eligible",
+            "relation_type": "CONTRADICTS",
+            "contradiction_basis": "comparable opposite resolved outcome",
+            "comparison_question_id": "progression_terminal_outcome",
+            "comparison_unit": "episode",
+            "exact_dimensions": ["team", "game_state", "start_zone"],
+            "coarsened_dimensions": [],
+            "test_dimensions": ["terminal_outcome"],
+            "forbidden_leakage_dimensions": ["terminal_outcome"],
+            "reference_context": {"team": "TEAM_A", "game_state": "LEVEL", "start_zone": "MIDDLE"},
+            "candidate_context": {"team": "TEAM_A", "game_state": "LEVEL", "start_zone": "MIDDLE"},
+            "reference_outcome": "SHOT_ENDING",
+            "candidate_outcome": "LOSS",
+        }
+    ]
+    return packet
+
+
+def same_dependency_counterevidence_packet():
+    packet = admitted_counterevidence_packet()
+    packet["supporting_signals"] = [
+        {
+            "signal_id": "support_generic_001",
+            "provenance_root": "root_shared",
+            "dependency_group": "dep_shared",
+            "independence_group": "ind_shared",
+        }
+    ]
+    packet["contradicting_signals"][0].update(
+        {
+            "provenance_root": "root_shared",
+            "dependency_group": "dep_shared",
+            "independence_group": "ind_other",
+        }
+    )
+    return packet
+
+
 def failed_upstream_packet():
     packet = base_packet()
     packet["status"] = "FAIL_CLOSED"
@@ -84,11 +127,60 @@ def test_low_shot_volume_qualifies_not_contradicts_by_default():
     assert any(row["signal_ref"] == "low_shot_volume" and row["relation_type"] == "QUALIFIES" for row in record["relation_records"])
 
 
-def test_explicit_contradiction_requires_basis():
+def test_legacy_declared_contradiction_without_comparison_contract_downgrades():
     record = fuse_packet(explicit_contradiction_packet())
+    assert record["contradiction_signal_count"] == 0
+    assert record["qualifier_signal_count"] == 1
+    assert record["fusion_status"] == "SUPPORTED_WITH_QUALIFIER"
+    assert record["legacy_unadmitted_contradiction_count"] == 1
+    diagnostic = record["counterevidence_admission_diagnostics"][0]
+    assert diagnostic["comparison_status"] == "NOT_EVALUATED"
+    assert diagnostic["counterevidence_class"] == "UNRESOLVED"
+
+
+def test_admitted_comparable_opposite_outcome_contradicts():
+    record = fuse_packet(admitted_counterevidence_packet())
     assert record["contradiction_signal_count"] == 1
+    assert record["admitted_counterevidence_count"] == 1
     assert record["fusion_status"] == "MIXED_WITH_EXPLICIT_CONTRADICTION"
-    assert any(row["relation_type"] == "CONTRADICTS" for row in record["relation_records"])
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "counter_generic_eligible")
+    assert row["relation_type"] == "CONTRADICTS"
+    assert row["comparison_status"] == "ELIGIBLE"
+    assert row["counterevidence_class"] == "COUNTEREVIDENCE"
+
+
+def test_missing_outcome_is_unresolved_not_contradiction():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["candidate_outcome"] = "UNRESOLVED"
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    assert record["unresolved_counterevidence_count"] == 1
+
+
+def test_exact_context_mismatch_is_non_support():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["candidate_context"]["game_state"] = "LEADING"
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    assert record["context_mismatch_count"] == 1
+    assert record["non_support_count"] == 1
+
+
+def test_outcome_leakage_invalidates_comparison_contract():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["exact_dimensions"].append("terminal_outcome")
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    assert record["invalid_comparison_contract_count"] == 1
+
+
+def test_same_dependency_opposite_outcome_is_dependency_challenge():
+    record = fuse_packet(same_dependency_counterevidence_packet())
+    assert record["contradiction_signal_count"] == 0
+    assert record["dependency_challenge_count"] == 1
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "counter_generic_eligible")
+    assert row["relation_type"] == "QUALIFIES"
+    assert row["counterevidence_class"] == "DEPENDENCY_CHALLENGE"
 
 
 def test_fusion_preserves_contextualizes_relation():
