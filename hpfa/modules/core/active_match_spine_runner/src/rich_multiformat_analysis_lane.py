@@ -195,6 +195,7 @@ def _progression_pool_p02(
     features: dict[str, Any],
     temporal: dict[str, Any],
     episode: dict[str, Any] | None = None,
+    consequence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project current episode/temporal outputs into a claim-bounded P02 pool.
 
@@ -203,6 +204,7 @@ def _progression_pool_p02(
     chain is explicitly bound.
     """
     episode = episode or {}
+    consequence = consequence or {}
     temporal_by_episode = {
         str(row.get("episode_candidate_id")): row
         for row in (temporal.get("temporal_episode_signatures") or [])
@@ -218,6 +220,11 @@ def _progression_pool_p02(
         for row in (episode.get("episode_time_layer_candidates") or [])
         if isinstance(row, dict) and row.get("episode_time_layer_candidate_id")
     }
+    consequence_records = [
+        row
+        for row in (consequence.get("trackable_action_consequence_candidates") or [])
+        if isinstance(row, dict)
+    ]
     finding_atoms: list[dict[str, Any]] = []
     pool_items: list[dict[str, Any]] = []
     ledger: list[dict[str, Any]] = []
@@ -357,6 +364,71 @@ def _progression_pool_p02(
         if start_zone_candidate in zone_order and end_zone_candidate in zone_order:
             zone_advancement_steps = zone_order[end_zone_candidate] - zone_order[start_zone_candidate]
 
+        occurrence_summary_by_id: dict[str, dict[str, Any]] = {}
+        episode_start = card.get("start_second_candidate")
+        episode_end = card.get("end_second_candidate")
+        episode_period = str(card.get("period_candidate") or "")
+        if isinstance(episode_start, (int, float)) and isinstance(episode_end, (int, float)):
+            for record in consequence_records:
+                if str(record.get("period_candidate") or "") != episode_period:
+                    continue
+                try:
+                    anchor_second = float(record.get("anchor_start_candidate"))
+                except (TypeError, ValueError):
+                    continue
+                if anchor_second < float(episode_start) or anchor_second > float(episode_end):
+                    continue
+                occurrence_ids = [
+                    str(value)
+                    for value in (record.get("supporting_action_occurrence_candidate_ids") or [])
+                    if str(value).strip()
+                ]
+                for occurrence_id in occurrence_ids:
+                    summary = occurrence_summary_by_id.setdefault(
+                        occurrence_id,
+                        {
+                            "visible_follow_up": False,
+                            "terminal_support_visible": False,
+                            "opponent_follow_up_visible": False,
+                            "same_team_follow_up_visible": False,
+                            "consequence_candidate_ids": set(),
+                        },
+                    )
+                    if record.get("occurrence_visible_consequence_support") is True or record.get("visible_follow_up_trace_ids"):
+                        summary["visible_follow_up"] = True
+                    if record.get("terminal_outcome_support_visible") is True:
+                        summary["terminal_support_visible"] = True
+                    signals = {str(value) for value in (record.get("consequence_signal_candidates") or [])}
+                    if "OPPONENT_FOLLOW_UP_VISIBLE" in signals:
+                        summary["opponent_follow_up_visible"] = True
+                    if "SAME_TEAM_FOLLOW_UP_VISIBLE" in signals:
+                        summary["same_team_follow_up_visible"] = True
+                    candidate_id = str(record.get("trackable_action_consequence_candidate_id") or "")
+                    if candidate_id:
+                        summary["consequence_candidate_ids"].add(candidate_id)
+
+        occurrence_ids = sorted(occurrence_summary_by_id)
+        visible_follow_up_occurrence_ids = sorted(
+            occurrence_id
+            for occurrence_id, summary in occurrence_summary_by_id.items()
+            if summary["visible_follow_up"]
+        )
+        terminal_support_occurrence_ids = sorted(
+            occurrence_id
+            for occurrence_id, summary in occurrence_summary_by_id.items()
+            if summary["terminal_support_visible"]
+        )
+        opponent_follow_up_occurrence_ids = sorted(
+            occurrence_id
+            for occurrence_id, summary in occurrence_summary_by_id.items()
+            if summary["opponent_follow_up_visible"]
+        )
+        same_team_follow_up_occurrence_ids = sorted(
+            occurrence_id
+            for occurrence_id, summary in occurrence_summary_by_id.items()
+            if summary["same_team_follow_up_visible"]
+        )
+
         action_rate = None
         if isinstance(duration, (int, float)) and duration > 0:
             action_rate = round(eligible_actions / float(duration), 6)
@@ -370,6 +442,10 @@ def _progression_pool_p02(
         ]
         if not compressed_zone_stations:
             unresolved.append("start_end_zone_transition_not_bound")
+        if not occurrence_ids:
+            unresolved.append("occurrence_consequence_binding_not_available_for_episode")
+        if not opponent_follow_up_occurrence_ids:
+            unresolved.append("visible_opponent_follow_up_not_resolved_for_episode")
         pool_item_id = f"p02:{episode_id}"
         pool_items.append({
             "pool_item_id": pool_item_id,
@@ -397,10 +473,19 @@ def _progression_pool_p02(
                 "feature_readiness": card.get("feature_readiness"),
             },
             "context_completeness": "PARTIAL",
-            "opponent_context": "NOT_EVALUATED",
+            "opponent_context": (
+                "VISIBLE_OPPONENT_FOLLOW_UP_CANDIDATE"
+                if opponent_follow_up_occurrence_ids
+                else "UNRESOLVED_VISIBLE_OPPONENT_RESPONSE"
+            ),
             "game_state": "NOT_EVALUATED",
             "visible_observation_summary": {
                 "duration_seconds_candidate": duration,
+                "occurrence_bound_consequence_occurrence_count": len(occurrence_ids),
+                "visible_follow_up_occurrence_count": len(visible_follow_up_occurrence_ids),
+                "terminal_support_occurrence_count": len(terminal_support_occurrence_ids),
+                "opponent_follow_up_visible_occurrence_count": len(opponent_follow_up_occurrence_ids),
+                "same_team_follow_up_visible_occurrence_count": len(same_team_follow_up_occurrence_ids),
                 "start_zone_candidate": start_zone_candidate,
                 "end_zone_candidate": end_zone_candidate,
                 "zone_advancement_steps_candidate": zone_advancement_steps,
@@ -434,6 +519,13 @@ def _progression_pool_p02(
                 "zone_station_count_candidate": len(compressed_zone_stations) if compressed_zone_stations else None,
                 "same_time_unordered_layer_count": same_time_layers,
                 "advanced_access_activity_candidate": final_third_count > 0,
+                "occurrence_ids": occurrence_ids,
+                "visible_follow_up_occurrence_ids": visible_follow_up_occurrence_ids,
+                "terminal_support_occurrence_ids": terminal_support_occurrence_ids,
+                "opponent_follow_up_occurrence_ids": opponent_follow_up_occurrence_ids,
+                "same_team_follow_up_occurrence_ids": same_team_follow_up_occurrence_ids,
+                "occurrence_consequence_binding_is_causal_truth": False,
+                "opponent_follow_up_is_tactical_response_truth": False,
             },
             "station_type": "ACTION_STATION",
             "route_family": "NOT_EVALUATED",
@@ -473,6 +565,9 @@ def _progression_pool_p02(
             "withdrawal_conditions": ["upstream_episode_feature_vector_invalidated"],
             "pool_coverage": {
                 "duration_available": duration is not None,
+                "occurrence_consequence_binding_available": bool(occurrence_ids),
+                "visible_follow_up_available": bool(visible_follow_up_occurrence_ids),
+                "opponent_follow_up_visible": bool(opponent_follow_up_occurrence_ids),
                 "action_station_available": True,
                 "zone_distribution_available": bool(zone_counts),
                 "channel_distribution_available": bool(channel_counts),
@@ -690,12 +785,13 @@ def run_rich_lane(
     features = _load_json(output / "episode_feature_vector_lite_v1.json")
     temporal = _load_json(output / "temporal_episode_signature_lite_v1.json")
     episode = _load_json(output / "analyst_episode_locator_lite_v1.json")
+    consequence = _load_json(output / "trackable_action_consequence_candidates_lite_v1.json")
     rows = _flatten_projection(projection)
     entity_views = _entity_views(rows)
     primitives = _primitive_metrics(features, entity_views)
     phase_states = _phase_state_candidates(features)
     c01 = _construct_c01(rows, features)
-    p02 = _progression_pool_p02(features, temporal, episode)
+    p02 = _progression_pool_p02(features, temporal, episode, consequence)
     if c01.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C01_progression_terminal_construct_review_required")
 
