@@ -498,3 +498,56 @@ def test_ambiguous_variant_membership_does_not_bind_pair_to_arbitrary_denominato
     )
     assert record["eligible_denominator_count"] is None
     assert record["canonical_evidence_target_comparable_set_id"] is None
+
+
+def test_safe_finding_exposes_explicit_falsifier_vs_invalidator_contract():
+    result = build_comparable_outcome_counterevidence(_payload())
+    handoff = result["safe_finding_handoff_candidates"][0]
+    contract = handoff["falsification_invalidation_contract"]
+
+    assert result["falsification_invalidation_contract_applied"] is True
+    assert contract["observed_counterevidence_ref_count"] == 1
+    assert contract["observed_counterevidence_is_falsifier_of_current_safe_claim"] is False
+    assert contract["falsifier_contract"]["requires_comparison_eligible"] is True
+    assert contract["falsifier_contract"]["requires_resolved_visible_outcome"] is True
+    assert contract["falsifier_contract"]["requires_opposite_observation_to_target_claim"] is True
+    assert contract["falsifier_contract"]["falsifier_is_causal_refutation"] is False
+    assert contract["falsifier_contract"]["falsifier_is_independent_evidence_vote"] is False
+    assert contract["invalidator_contract"]["invalidator_makes_claim_false"] is False
+    assert contract["invalidator_contract"]["invalidator_is_counterevidence"] is False
+    assert contract["invalidator_contract"]["invalidator_effect"] == (
+        "CLAIM_NOT_ADMISSIBLE_OR_ABSTAIN"
+    )
+    assert "ELIGIBLE_DENOMINATOR_BINDING_INVALIDATED" in contract[
+        "invalidator_contract"
+    ]["invalidator_reason_codes"]
+    assert "OUTCOME_LEAKAGE_DETECTED" in contract[
+        "invalidator_contract"
+    ]["invalidator_reason_codes"]
+    assert contract["eligible_denominator_is_pair_count"] is False
+    assert contract["absence_is_falsifier"] is False
+    assert contract["unresolved_is_falsifier"] is False
+    assert contract["non_support_is_falsifier"] is False
+    assert contract["falsifier_is_invalidator"] is False
+    assert contract["invalidator_is_falsifier"] is False
+
+
+def test_withdrawal_rules_type_denominator_and_outcome_leakage_as_invalidating_warrant_attacks():
+    result = build_comparable_outcome_counterevidence(_payload())
+    handoff = result["safe_finding_handoff_candidates"][0]
+    rules = {
+        row["condition_code"]: row
+        for row in handoff["typed_defeat_contract"]["conditional_withdrawal_rules"]
+    }
+
+    denominator = rules["WITHDRAW_IF_ELIGIBLE_DENOMINATOR_BINDING_INVALIDATED"]
+    leakage = rules["WITHDRAW_IF_OUTCOME_LEAKAGE_DETECTED"]
+
+    assert denominator["defeat_type"] == "UNDERCUT"
+    assert denominator["target_component_type"] == "DENOMINATOR_WARRANT"
+    assert denominator["withdrawal_effect"] == "ABSTAIN"
+    assert leakage["defeat_type"] == "UNDERCUT"
+    assert leakage["target_component_type"] == "COMPARISON_DESIGN_WARRANT"
+    assert leakage["withdrawal_effect"] == "ABSTAIN"
+    assert handoff["invalidator_is_counterevidence"] is False
+    assert handoff["invalidator_makes_claim_false"] is False
