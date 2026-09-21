@@ -179,6 +179,109 @@ def fusion_context_candidate(team_comparison: dict[str, Any], physical_summary: 
     ]
 
 
+
+def visual_integration_registry(root: Path) -> dict[str, Any]:
+    """Bind governed upstream outputs to visual families without creating new football truth."""
+    reconciliation = read_json(root / "cross_format_reconciliation_lite_v1.json")
+    safe_finding = read_json(root / "safe_finding_admission_projection_v1.json")
+    consequence = read_json(root / "occurrence_consequence_projection_v1.json")
+    variants = read_json(root / "observable_process_variant_binding_projection_v1.json")
+    temporal = read_json(root / "temporal_episode_signature_lite_v1.json")
+    participation = read_json(root / "analyst_episode_process_participation_projection_v1.json")
+    spatial = read_json(root / "spatial_transition_candidate_lite_v1.json")
+    transition = read_json(root / "state_transition_dynamics_lite_v1.json")
+
+    def surface(
+        surface_id: str,
+        sources: list[str],
+        available: bool,
+        claim_ceiling: Any,
+        graph_families: list[str],
+        forbidden_inference: list[str],
+        state: str | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "surface_id": surface_id,
+            "available": bool(available),
+            "graph_state": state or ("ADMITTED_GOVERNED_INPUT_AVAILABLE" if available else "UNOBSERVABLE_OR_NOT_ADMITTED"),
+            "source_files": sources,
+            "claim_ceiling": claim_ceiling if available else None,
+            "graph_families": graph_families if available else [],
+            "forbidden_inference": forbidden_inference,
+            "render_targets": ["interactive", "mobile", "tv", "print"] if available else [],
+            "creates_new_football_truth": False,
+        }
+
+    decisions = safe_finding.get("safe_finding_admission_decisions") or []
+    safe_ceiling = next((x.get("claim_ceiling") for x in decisions if isinstance(x, dict) and x.get("claim_ceiling")), None)
+
+    surfaces = [
+        surface(
+            "DEPENDENCY_RECONCILIATION",
+            ["cross_format_reconciliation_lite_v1.json"],
+            bool(reconciliation),
+            reconciliation.get("claim_ceiling"),
+            ["typed_dependency_graph", "paired_reconciliation", "review_state_rail"],
+            ["multiformat != independent evidence", "mismatch != root cause", "edge != causality"],
+        ),
+        surface(
+            "SAFE_FINDING_DISPOSITION",
+            ["safe_finding_admission_projection_v1.json"],
+            bool(safe_finding),
+            safe_ceiling,
+            ["disposition_bar", "burden_prevalence_bar", "decision_burden_matrix"],
+            ["0 EMIT != system failure", "REVIEW_REQUIRED != negative evidence", "burden prevalence != root cause"],
+        ),
+        surface(
+            "PROCESS_VARIANT_CONSEQUENCE",
+            ["occurrence_consequence_projection_v1.json", "observable_process_variant_binding_projection_v1.json"],
+            bool(consequence) and bool(variants),
+            variants.get("claim_ceiling"),
+            ["followup_state_bar", "variant_state_bar", "partial_order_branch_lane"],
+            ["no visible followup != failure", "variant binding != process identity truth", "different visible outcome != causal explanation"],
+        ),
+        surface(
+            "TEMPORAL_EPISODE_CHANGE",
+            ["temporal_episode_signature_lite_v1.json"],
+            bool(temporal),
+            temporal.get("claim_ceiling") or "TEMPORAL_EPISODE_CHANGE_CANDIDATES_ONLY",
+            ["episode_interval_strip", "candidate_rate_delta_view"],
+            ["candidate rate != tempo truth", "candidate rate != physical intensity", "episode boundary != tactical phase truth"],
+        ),
+        surface(
+            "PROCESS_PARTICIPATION",
+            ["analyst_episode_process_participation_projection_v1.json"],
+            bool(participation),
+            participation.get("claim_ceiling"),
+            ["actor_process_matrix", "team_process_comparison", "denominator_scope_rail"],
+            ["participation count != contribution quality", "no recorded action != no contribution", "process family != coach intention"],
+        ),
+        surface(
+            "SPATIAL_STATE_TRANSITION",
+            ["spatial_transition_candidate_lite_v1.json", "state_transition_dynamics_lite_v1.json"],
+            bool(spatial) and bool(transition),
+            {
+                "spatial": spatial.get("claim_ceiling") or "VISIBLE_SPATIAL_TRANSITION_CANDIDATE_ONLY",
+                "transition": transition.get("claim_ceiling") or "SEMANTIC_SPATIAL_CONSEQUENCE_ASSOCIATION_ONLY",
+            },
+            ["annotation_anchor_scatter", "zone_count_view", "semantic_consequence_bar", "transition_class_bar"],
+            ["coordinate != tracking", "zone share != territorial control", "transition association != possession/sequence/causality/tactical pattern"],
+        ),
+    ]
+    available_count = sum(1 for item in surfaces if item["available"])
+    return {
+        "status": "PASS" if available_count else "NOT_EVALUATED",
+        "owner": MODULE_ID,
+        "binding_role": "DOWNSTREAM_PRESENTATION_ONLY",
+        "available_surface_count": available_count,
+        "surface_count": len(surfaces),
+        "surfaces": surfaces,
+        "production_release": False,
+        "creates_new_finding": False,
+        "creates_new_claim": False,
+    }
+
+
 def build_report(out_dir: str | Path) -> dict[str, Any]:
     root = Path(out_dir).expanduser().resolve(strict=False)
     team_binding = read_json(root / "team_binding_lite_audit_v1.json")
@@ -249,6 +352,7 @@ def build_report(out_dir: str | Path) -> dict[str, Any]:
         "canonical_surface_summary": {"available": bool(canonical), "surface_row_inventory_total": canonical.get("surface_row_inventory_total")},
         "analyst_numeric_findings": numeric_findings(left, right, action, zones, channels),
         "analyst_translation": analyst_translation(team_comparison, action, zones, channels),
+        "visual_integration_registry": visual_integration_registry(root),
         "blocked_claims": ["validated event count", "primary event truth", "possession truth", "phase truth", "sequence truth", "metric truth", "efficiency truth", "fatigue truth"],
     }
 
@@ -290,6 +394,7 @@ def render_txt(report: dict[str, Any]) -> str:
     for block in ("physical_report_summary", "metric_registry_summary", "identity_summary"):
         lines += ["", f"[{block}]", json.dumps(report.get(block, {}), ensure_ascii=False, sort_keys=True)]
     lines += ["", "[analyst_numeric_findings]"] + [f"- {x}" for x in report.get("analyst_numeric_findings", [])]
+    lines += ["", "[visual_integration_registry]", json.dumps(report.get("visual_integration_registry", {}), ensure_ascii=False, sort_keys=True)]
     lines += ["", "[blocked_claims]"] + [f"- {x}" for x in report.get("blocked_claims", [])]
     lines.append("")
     return "\n".join(lines)
