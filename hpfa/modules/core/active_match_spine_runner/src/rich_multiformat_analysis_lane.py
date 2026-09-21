@@ -453,22 +453,31 @@ def _visible_process_stage_profile(rows: list[dict[str, Any]]) -> dict[str, Any]
             in {"ON_TARGET", "SHOT_ON_TARGET", "TARGET"}
         )
     }
-    ladder = [
-        "PROGRESSION",
-        "FINAL_THIRD",
-        "PENALTY_AREA",
-        "KEY_ACTION",
-        "SHOT",
-        "SHOT_ON_TARGET",
-    ]
-    deepest = next((stage for stage in reversed(ladder) if stage_counts[stage] > 0), None)
+    if stage_counts["PENALTY_AREA"] > 0:
+        spatial_access_stage = "PENALTY_AREA"
+    elif stage_counts["FINAL_THIRD"] > 0:
+        spatial_access_stage = "FINAL_THIRD"
+    elif stage_counts["PROGRESSION"] > 0:
+        spatial_access_stage = "PROGRESSION"
+    else:
+        spatial_access_stage = None
+
+    if stage_counts["SHOT_ON_TARGET"] > 0:
+        terminal_action_stage = "SHOT_ON_TARGET"
+    elif stage_counts["SHOT"] > 0:
+        terminal_action_stage = "SHOT"
+    elif stage_counts["KEY_ACTION"] > 0:
+        terminal_action_stage = "KEY_ACTION"
+    else:
+        terminal_action_stage = None
 
     return {
         "reviewed_semantic_row_count": len(reviewed),
         "action_eligible_semantic_row_count": len(eligible_actions),
         "stage_counts": stage_counts,
         "stage_presence": {stage: count > 0 for stage, count in stage_counts.items()},
-        "deepest_observed_stage_candidate": deepest,
+        "spatial_access_stage_candidate": spatial_access_stage,
+        "terminal_action_stage_candidate": terminal_action_stage,
         "turnover_visible_count": action_count(
             lambda row: str(row.get("provider_action_family_candidate") or "") == "TURNOVER"
         ),
@@ -478,10 +487,14 @@ def _visible_process_stage_profile(rows: list[dict[str, Any]]) -> dict[str, Any]
         "exit_stage_candidate": "UNRESOLVED",
         "ordering_state": "PRESENCE_ONLY_NO_TOTAL_ORDER",
         "terminal_outcomes_do_not_add_action_volume": True,
+        "stage_counts_are_event_counts": False,
+        "stage_counts_are_independent_support": False,
         "chance_stage_status": "NOT_EVALUATED_NO_PROCESS_BOUND_TERMINAL_AUTHORITY",
         "goal_stage_status": "NOT_EVALUATED_NO_PROCESS_BOUND_TERMINAL_AUTHORITY",
+        "single_linear_stage_ladder_claimed": False,
         "stage_ladder_is_physical_sequence_truth": False,
-        "deepest_stage_is_tactical_quality_truth": False,
+        "spatial_access_stage_is_tactical_quality_truth": False,
+        "terminal_action_stage_is_tactical_quality_truth": False,
         "provider_zone_semantics_are_tracking_truth": False,
         "claim_ceiling": "TEAM_EPISODE_VISIBLE_STAGE_PRESENCE_ONLY",
     }
