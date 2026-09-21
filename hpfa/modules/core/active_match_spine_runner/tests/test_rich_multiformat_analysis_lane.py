@@ -1210,3 +1210,124 @@ def test_p02_same_advanced_access_state_is_same_relation_not_counterevidence():
 
 
 
+
+
+
+def _independent_process_unit(
+    unit_id: str,
+    *,
+    sequence_id: str,
+    trace_ids,
+    start: float,
+    end: float,
+    advanced_access: str,
+):
+    row = _process_unit_for_comparison(unit_id)
+    row["source_visible_action_sequence_candidate_id"] = sequence_id
+    row["source_trackable_action_trace_candidate_ids"] = list(trace_ids)
+    row["start_time_candidate"] = start
+    row["end_time_candidate"] = end
+    row["advanced_access_state_candidate"] = advanced_access
+    return row
+
+
+def test_p02_disjoint_nonoverlapping_process_units_admit_evidence_unit_independence():
+    reference = _independent_process_unit(
+        "u_ref",
+        sequence_id="vasq_ref",
+        trace_ids=["tr_ref_1", "tr_ref_2"],
+        start=10.0,
+        end=20.0,
+        advanced_access="ADVANCED_ACCESS_VISIBLE",
+    )
+    candidate = _independent_process_unit(
+        "u_cand",
+        sequence_id="vasq_cand",
+        trace_ids=["tr_cand_1", "tr_cand_2"],
+        start=30.0,
+        end=40.0,
+        advanced_access="NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH",
+    )
+    comparisons = _build_p02_process_unit_comparison_populations({
+        "p02_process_unit_candidates": [reference, candidate]
+    })
+    comparison = comparisons["counterevidence_candidates"][0]
+    assert comparison["outcome_relation"] == "OPPOSITE"
+    assert comparison["independence_admission_status"] == "ADMITTED"
+    assert comparison["counterevidence_admission_ready"] is True
+    assert comparison["statistical_independence_claimed"] is False
+
+    packet = {
+        "packet_id": "p02_independent_progression_comparison_packet",
+        "packet_family": "progression",
+        "input_features": ["advanced_access_state_candidate"],
+        "input_windows": ["p02_exact_context_population"],
+        "input_sequences": ["vasq_ref", "vasq_cand"],
+        "input_metrics": [],
+        "supporting_signals": ["p02_visible_progression_context"],
+        "contradicting_signals": [comparison],
+        "claim_ceiling": "P02_COMPARISON_CANDIDATE_ONLY",
+        "claim_output_allowed": False,
+        "report_language_allowed": False,
+    }
+    fusion = fuse_packet(packet)
+    assert fusion["contradiction_signal_count"] == 1
+    assert fusion["admitted_counterevidence_count"] == 1
+    row = next(
+        row for row in fusion["relation_records"]
+        if row["signal_ref"] == comparison["signal_id"]
+    )
+    assert row["counterevidence_class"] == "COUNTEREVIDENCE"
+    assert row["independence_admission_status"] == "ADMITTED"
+
+
+def test_p02_shared_trace_root_blocks_independence_admission():
+    reference = _independent_process_unit(
+        "u_ref",
+        sequence_id="vasq_ref",
+        trace_ids=["tr_shared", "tr_ref_2"],
+        start=10.0,
+        end=20.0,
+        advanced_access="ADVANCED_ACCESS_VISIBLE",
+    )
+    candidate = _independent_process_unit(
+        "u_cand",
+        sequence_id="vasq_cand",
+        trace_ids=["tr_shared", "tr_cand_2"],
+        start=30.0,
+        end=40.0,
+        advanced_access="NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH",
+    )
+    comparisons = _build_p02_process_unit_comparison_populations({
+        "p02_process_unit_candidates": [reference, candidate]
+    })
+    comparison = comparisons["counterevidence_candidates"][0]
+    assert comparison["independence_admission_status"] == "NOT_ADMITTED"
+    assert "trace_roots_overlap" in comparison["independence_admission_basis"]
+    assert comparison["counterevidence_admission_ready"] is False
+
+
+def test_p02_overlapping_time_intervals_block_independence_admission():
+    reference = _independent_process_unit(
+        "u_ref",
+        sequence_id="vasq_ref",
+        trace_ids=["tr_ref_1"],
+        start=10.0,
+        end=25.0,
+        advanced_access="ADVANCED_ACCESS_VISIBLE",
+    )
+    candidate = _independent_process_unit(
+        "u_cand",
+        sequence_id="vasq_cand",
+        trace_ids=["tr_cand_1"],
+        start=20.0,
+        end=30.0,
+        advanced_access="NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH",
+    )
+    comparisons = _build_p02_process_unit_comparison_populations({
+        "p02_process_unit_candidates": [reference, candidate]
+    })
+    comparison = comparisons["counterevidence_candidates"][0]
+    assert comparison["independence_admission_status"] == "NOT_ADMITTED"
+    assert "admitted_time_intervals_overlap" in comparison["independence_admission_basis"]
+    assert comparison["counterevidence_admission_ready"] is False
