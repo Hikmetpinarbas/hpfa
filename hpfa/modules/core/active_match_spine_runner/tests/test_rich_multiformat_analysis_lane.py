@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _player_function_profiles, _set_piece_process_consequence_context
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -53,6 +53,58 @@ def _audit():
 
 
 
+
+
+
+def test_game_state_process_mix_context_normalizes_by_score_state_exposure():
+    game_state = {
+        "score_state_segments": [
+            {
+                "start_second_candidate": 0.0,
+                "end_second_candidate": 600.0,
+                "score_state_candidate": {"Alpha (11)": 0, "Beta (22)": 0},
+            },
+            {
+                "start_second_candidate": 600.0,
+                "end_second_candidate": 1200.0,
+                "score_state_candidate": {"Alpha (11)": 1, "Beta (22)": 0},
+            },
+        ]
+    }
+    identity = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha (11)"]},
+            {"team_identity_candidate_id": "team_b", "team_aliases_raw": ["Beta (22)"]},
+        ]
+    }
+    process = {
+        "process_participation_candidates": [
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "100",
+                "end_candidate": "120",
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "700",
+                "end_candidate": "710",
+            },
+        ]
+    }
+    result = _game_state_process_mix_context(game_state, identity, process)
+    assert result["status"] == "PASS"
+    alpha = [p for p in result["profiles"] if p["team_label"] == "Alpha (11)"]
+    assert alpha[0]["process_family_counts"] == {"POSITIONAL_ATTACK_CANDIDATE": 1}
+    assert alpha[0]["process_family_rate_per_10_minutes"]["POSITIONAL_ATTACK_CANDIDATE"] == 1.0
+    assert alpha[1]["process_family_counts"] == {"COUNTERATTACK_CANDIDATE": 1}
+    assert alpha[1]["process_family_rate_per_10_minutes"]["COUNTERATTACK_CANDIDATE"] == 1.0
+    assert alpha[0]["score_state_is_causal_explanation"] is False
 
 
 def test_set_piece_process_consequence_context_binds_visible_consequence_inside_process_interval():

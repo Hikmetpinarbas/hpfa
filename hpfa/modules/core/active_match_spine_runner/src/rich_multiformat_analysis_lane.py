@@ -944,6 +944,105 @@ def _recovery_next_process_context(
 
 
 
+
+def _game_state_process_mix_context(
+    game_state_context: dict[str, Any],
+    identity_payload: dict[str, Any],
+    process_participation_payload: dict[str, Any],
+) -> dict[str, Any]:
+    team_alias_to_id: dict[str, str] = {}
+    for row in identity_payload.get("team_identity_candidates", []) or []:
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if not team_id:
+            continue
+        for alias in row.get("team_aliases_raw", []) or []:
+            key = _normalize_identity_text(alias)
+            if key:
+                team_alias_to_id[key] = team_id
+
+    intervals: dict[tuple[str, str, str, float, float], dict[str, Any]] = {}
+    for row in process_participation_payload.get("process_participation_candidates", []) or []:
+        if not isinstance(row, dict) or str(row.get("semantic_role") or "") != "CONTEXT_INTERVAL":
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        period = str(row.get("period_candidate") or "").strip()
+        start = _float_candidate(row.get("start_candidate"))
+        end = _float_candidate(row.get("end_candidate"))
+        if not team_id or not family or start is None or end is None:
+            continue
+        intervals.setdefault(
+            (team_id, family, period, start, end),
+            {
+                "team_identity_candidate_id": team_id,
+                "process_family_candidate": family,
+                "period_candidate": period,
+                "start_candidate": start,
+                "end_candidate": end,
+            },
+        )
+
+    profiles: list[dict[str, Any]] = []
+    unresolved_team_labels: set[str] = set()
+    family_counts_global: Counter[str] = Counter()
+    for segment in game_state_context.get("score_state_segments", []) or []:
+        start = _float_candidate(segment.get("start_second_candidate"))
+        end = _float_candidate(segment.get("end_second_candidate"))
+        if start is None or end is None or end < start:
+            continue
+        duration = max(0.0, end - start)
+        score_state = segment.get("score_state_candidate") or {}
+        for team_label in score_state:
+            team_key = _normalize_identity_text(team_label)
+            team_id = team_alias_to_id.get(team_key)
+            if not team_id:
+                unresolved_team_labels.add(str(team_label))
+                continue
+            counts: Counter[str] = Counter()
+            for interval in intervals.values():
+                if interval["team_identity_candidate_id"] != team_id:
+                    continue
+                process_start = float(interval["start_candidate"])
+                if start <= process_start < end or (duration == 0 and process_start == start):
+                    counts[interval["process_family_candidate"]] += 1
+            family_counts_global.update(counts)
+            rate_per_10: dict[str, float | None] = {}
+            for family, count in sorted(counts.items()):
+                rate_per_10[family] = round((count / duration) * 600.0, 6) if duration > 0 else None
+            profiles.append({
+                "team_identity_candidate_id": team_id,
+                "team_label": team_label,
+                "score_state_candidate": score_state,
+                "segment_start_second_candidate": start,
+                "segment_end_second_candidate": end,
+                "segment_duration_second_candidate": duration,
+                "process_family_counts": dict(sorted(counts.items())),
+                "process_family_rate_per_10_minutes": rate_per_10,
+                "rate_denominator_is_score_state_exposure_time": True,
+                "process_rate_is_tactical_intention_truth": False,
+                "score_state_is_causal_explanation": False,
+                "creates_independent_support": False,
+            })
+
+    status = "PASS" if profiles and not unresolved_team_labels else (
+        "REVIEW_REQUIRED" if profiles else "NOT_AVAILABLE"
+    )
+    return {
+        "status": status,
+        "binding_state": "SCORE_STATE_TO_VISIBLE_PROCESS_MIX_CONTEXT",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "global_visible_process_family_counts": dict(sorted(family_counts_global.items())),
+        "unresolved_team_labels": sorted(unresolved_team_labels),
+        "rate_denominator_is_score_state_exposure_time": True,
+        "process_rate_is_tactical_intention_truth": False,
+        "score_state_is_causal_explanation": False,
+        "creates_independent_support": False,
+    }
+
+
 def _set_piece_process_consequence_context(
     process_participation_payload: dict[str, Any],
     consequence_payload: dict[str, Any],
@@ -2994,6 +3093,11 @@ def run_rich_lane(
 
     identity_payload = _load_json(output / IDENTITY_JSON)
     process_participation_payload = _load_json(output / PROCESS_PARTICIPATION_JSON)
+    game_state_process_mix_context = _game_state_process_mix_context(
+        game_state_context,
+        identity_payload,
+        process_participation_payload,
+    )
     c02 = _construct_c02(rows, identity_payload, process_participation_payload)
     if c02.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C02_process_participant_outcome_association_review_available")
@@ -3045,6 +3149,7 @@ def run_rich_lane(
         "constructs": {"C01": c01, "C02": c02, "C03": c03, "C04": c04},
         "phase_state_candidates": phase_states,
         "game_state_context": game_state_context,
+        "game_state_process_mix_context": game_state_process_mix_context,
         "recovery_next_process_context": recovery_next_process_context,
         "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
         "set_piece_process_consequence_context": set_piece_process_consequence_context,
@@ -3066,6 +3171,7 @@ def run_rich_lane(
             "MACRO": {
                 "team_view_candidates": entity_views.get("team_view_candidates"),
                 "game_state_context": game_state_context,
+                "game_state_process_mix_context": game_state_process_mix_context,
                 "action_family_candidate_counts": features.get("eligible_action_family_candidate_counts") or {},
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
                 "constructs": {

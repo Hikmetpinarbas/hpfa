@@ -1365,6 +1365,8 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             f"game_state_context_status={(rich.get('game_state_context') or {}).get('status')}",
             f"game_state_goal_observation_count={(rich.get('game_state_context') or {}).get('goal_observation_count')}",
             f"game_state_segment_count={len((rich.get('game_state_context') or {}).get('score_state_segments') or [])}",
+            f"game_state_process_mix_context_status={(rich.get('game_state_process_mix_context') or {}).get('status')}",
+            f"game_state_process_mix_profile_count={(rich.get('game_state_process_mix_context') or {}).get('profile_count')}",
             f"recovery_next_process_context_status={(rich.get('recovery_next_process_context') or {}).get('status')}",
             f"recovery_next_process_context_row_count={(rich.get('recovery_next_process_context') or {}).get('recovery_context_row_count')}",
             f"recovery_next_process_family_counts={json.dumps((rich.get('recovery_next_process_context') or {}).get('next_visible_process_family_counts') or {}, ensure_ascii=False, sort_keys=True)}",
