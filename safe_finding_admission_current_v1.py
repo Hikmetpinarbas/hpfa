@@ -175,6 +175,65 @@ def _missing_sequence_puzzle_contract() -> dict:
     }
 
 
+
+def _context_coverage_decomposition(
+    source_payload: dict,
+    admission_payload: dict,
+    rich_multiformat_payload: dict | None,
+) -> dict:
+    handoff_context_by_ref: dict[str, str] = {}
+    for handoff in source_payload.get("safe_finding_handoff_candidates") or []:
+        if not isinstance(handoff, dict):
+            continue
+        ref = str(handoff.get("safe_finding_handoff_candidate_id") or "").strip()
+        suff = handoff.get("evidence_sufficiency") or {}
+        dimensions = suff.get("dimensions") or {}
+        context = dimensions.get("context_coverage") or {}
+        state = str(context.get("state") or "").strip()
+        if ref and state:
+            handoff_context_by_ref[ref] = state
+
+    branch_states: dict[str, int] = {}
+    for row in admission_payload.get("safe_finding_admission_decisions") or []:
+        if not isinstance(row, dict):
+            continue
+        source_ref = str(row.get("source_safe_finding_handoff_ref") or "").strip()
+        state = str(row.get("context_coverage_state") or "").strip()
+        if not state:
+            state = handoff_context_by_ref.get(source_ref, "UNKNOWN")
+        branch_states[state] = branch_states.get(state, 0) + 1
+
+    process_states = dict(source_payload.get("process_comparison_context_state_counts") or {})
+    rich = rich_multiformat_payload if isinstance(rich_multiformat_payload, dict) else {}
+    descriptive_surfaces = {
+        "game_state_context_status": (rich.get("game_state_context") or {}).get("status"),
+        "game_state_process_mix_context_status": (rich.get("game_state_process_mix_context") or {}).get("status"),
+        "loss_next_opponent_process_context_status": (rich.get("loss_next_opponent_process_context") or {}).get("status"),
+        "recovery_next_process_context_status": (rich.get("recovery_next_process_context") or {}).get("status"),
+        "set_piece_process_consequence_context_status": (rich.get("set_piece_process_consequence_context") or {}).get("status"),
+        "counterattack_next_process_context_status": (rich.get("counterattack_next_process_context") or {}).get("status"),
+    }
+    descriptive_available = any(
+        value in {"PASS", "REVIEW_REQUIRED"}
+        for value in descriptive_surfaces.values()
+    )
+
+    return {
+        "branch_comparison_context_state_counts": branch_states,
+        "provider_reviewed_process_comparison_context_consumed": (
+            source_payload.get("process_comparison_context_consumed") is True
+        ),
+        "provider_reviewed_process_context_state_counts": process_states,
+        "rich_descriptive_context_available": descriptive_available,
+        "rich_descriptive_context_surface_statuses": descriptive_surfaces,
+        "rich_descriptive_context_resolves_branch_comparison_completeness": False,
+        "rich_descriptive_context_creates_independent_support": False,
+        "context_blocker_scope": "BRANCH_COMPARISON_CONTEXT_COMPLETENESS_NOT_GLOBAL_CONTEXT_ABSENCE",
+        "can_change_safe_finding_decision": False,
+        "can_authorize_emit": False,
+    }
+
+
 def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dict:
     source_path = Path(sequence_json).expanduser().resolve()
     output = Path(out_dir).expanduser().resolve()
@@ -368,6 +427,11 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
     result["puzzle_finding_contract_creates_new_finding"] = False
     result["cross_mechanism_fusion_performed"] = False
     result["mechanism_candidate_emitted"] = False
+    result["context_coverage_decomposition"] = _context_coverage_decomposition(
+        source_payload,
+        result,
+        rich_multiformat_payload or None,
+    )
 
     target = output / OUTPUT_NAME
     _write(target, result)

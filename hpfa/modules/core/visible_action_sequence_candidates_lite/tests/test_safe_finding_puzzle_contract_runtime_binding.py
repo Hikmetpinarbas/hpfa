@@ -115,3 +115,57 @@ def test_safe_finding_runtime_materializes_puzzle_contract_without_fusion(
     assert safe_finding["canonical_event_count"] == "UNKNOWN"
     assert safe_finding["true_action_count"] == "UNKNOWN"
     assert safe_finding["production_release"] is False
+
+
+def test_context_decomposition_distinguishes_rich_context_from_branch_completeness():
+    source = {
+        "process_comparison_context_consumed": True,
+        "process_comparison_context_state_counts": {
+            "MATCHED_PROVIDER_REVIEWED_TEAM_PROCESS_CONTEXT": 8,
+            "UNKNOWN_PROVIDER_REVIEWED_TEAM_PROCESS_CONTEXT_REVIEW_REQUIRED": 2,
+        },
+        "safe_finding_handoff_candidates": [
+            {
+                "safe_finding_handoff_candidate_id": "sfh_a",
+                "evidence_sufficiency": {
+                    "dimensions": {
+                        "context_coverage": {
+                            "state": "PARTIAL_PERIOD_AND_SHARED_ANCHOR_ONLY"
+                        }
+                    }
+                },
+            },
+            {
+                "safe_finding_handoff_candidate_id": "sfh_b",
+                "evidence_sufficiency": {
+                    "dimensions": {
+                        "context_coverage": {
+                            "state": "PARTIAL_PERIOD_AND_SHARED_ANCHOR_ONLY"
+                        }
+                    }
+                },
+            },
+        ],
+    }
+    admission = {
+        "safe_finding_admission_decisions": [
+            {"source_safe_finding_handoff_ref": "sfh_a"},
+            {"source_safe_finding_handoff_ref": "sfh_b"},
+        ]
+    }
+    rich = {
+        "game_state_context": {"status": "PASS"},
+        "loss_next_opponent_process_context": {"status": "PASS"},
+    }
+    result = runtime._context_coverage_decomposition(source, admission, rich)
+    assert result["rich_descriptive_context_available"] is True
+    assert result["provider_reviewed_process_comparison_context_consumed"] is True
+    assert result["branch_comparison_context_state_counts"] == {
+        "PARTIAL_PERIOD_AND_SHARED_ANCHOR_ONLY": 2
+    }
+    assert result["rich_descriptive_context_resolves_branch_comparison_completeness"] is False
+    assert result["context_blocker_scope"] == (
+        "BRANCH_COMPARISON_CONTEXT_COMPLETENESS_NOT_GLOBAL_CONTEXT_ABSENCE"
+    )
+    assert result["can_change_safe_finding_decision"] is False
+    assert result["can_authorize_emit"] is False
