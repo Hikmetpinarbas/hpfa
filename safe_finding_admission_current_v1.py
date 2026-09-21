@@ -79,6 +79,25 @@ def _bind_counterevidence_projection(source_payload: dict, projection: dict) -> 
     source_payload["comparable_counterevidence_candidate_count"] = int(
         projection.get("comparable_counterevidence_candidate_count") or 0
     )
+    source_payload["canonical_evidence_classification_applied"] = (
+        projection.get("canonical_evidence_classification_applied") is True
+    )
+    source_payload["canonical_evidence_direction_classes"] = list(
+        projection.get("canonical_evidence_direction_classes") or []
+    )
+    source_payload["legacy_canonical_evidence_direction_counts"] = dict(
+        projection.get("legacy_canonical_evidence_direction_counts") or {}
+    )
+    source_payload["branch_canonical_evidence_direction_counts"] = dict(
+        projection.get("branch_canonical_evidence_direction_counts") or {}
+    )
+    source_payload["legacy_dependency_challenge_record_count"] = int(
+        projection.get("legacy_dependency_challenge_record_count") or 0
+    )
+    source_payload["dependency_challenge_is_evidence_direction"] = False
+    source_payload["dependency_challenge_changes_evidence_direction"] = False
+    source_payload["non_support_is_counterevidence"] = False
+    source_payload["unresolved_is_failure"] = False
     source_payload["counterevidence_independent_support_count"] = 0
     source_payload["counterevidence_is_independent_support"] = False
     source_payload["comparable_outcome_counterevidence_claim_ceiling"] = projection.get("claim_ceiling")
