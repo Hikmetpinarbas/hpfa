@@ -160,6 +160,74 @@ def _first_layer_team_state(anchor_team: str, future: list[dict[str, Any]]) -> s
     return "UNKNOWN"
 
 
+def _visible_layer_profile(
+    anchor_team: str,
+    layer: list[dict[str, Any]],
+    layer_index: int,
+) -> dict[str, Any]:
+    teams = {
+        _clean(trace.get("team_identity_candidate_id"))
+        for trace in layer
+        if _clean(trace.get("team_identity_candidate_id"))
+    }
+    families = sorted(
+        {
+            _clean(family)
+            for trace in layer
+            for family in (trace.get("action_family_candidates") or [])
+            if _clean(family)
+        }
+    )
+    if not layer:
+        relation = "NONE"
+    elif not teams:
+        relation = "UNKNOWN"
+    elif len(teams) > 1:
+        relation = "MIXED"
+    elif anchor_team in teams:
+        relation = "SAME_TEAM"
+    else:
+        relation = "OPPONENT"
+    return {
+        "layer_index": layer_index,
+        "team_relation_state": relation,
+        "action_family_candidates": families,
+        "visible_trace_ids": sorted(
+            _clean(trace.get("trackable_action_trace_candidate_id"))
+            for trace in layer
+            if _clean(trace.get("trackable_action_trace_candidate_id"))
+        ),
+        "same_time_layer_internal_order_claimed": False,
+    }
+
+
+def _visible_consequence_path(
+    anchor: dict[str, Any],
+    layers: list[list[dict[str, Any]]],
+) -> tuple[list[dict[str, Any]], str]:
+    anchor_team = _clean(anchor.get("team_identity_candidate_id"))
+    anchor_families = sorted(
+        {
+            _clean(family)
+            for family in (anchor.get("action_family_candidates") or [])
+            if _clean(family)
+        }
+    )
+    profiles = [
+        _visible_layer_profile(anchor_team, layer, index + 1)
+        for index, layer in enumerate(layers[:2])
+    ]
+    while len(profiles) < 2:
+        profiles.append(_visible_layer_profile(anchor_team, [], len(profiles) + 1))
+    parts = ["ANCHOR:" + "/".join(anchor_families)]
+    for profile in profiles:
+        families = "/".join(profile["action_family_candidates"]) or "NONE"
+        parts.append(
+            f"L{profile['layer_index']}:{profile['team_relation_state']}:{families}"
+        )
+    return profiles, " -> ".join(parts)
+
+
 def _classify_consequence(
     anchor: dict[str, Any],
     future: list[dict[str, Any]],
@@ -324,6 +392,10 @@ def build_trackable_action_consequence_candidates(
                     terminal_visible,
                     derived_visible,
                 )
+                visible_path_layers, visible_path_signature = _visible_consequence_path(
+                    anchor,
+                    layers,
+                )
                 first_delta = None
                 if future and anchor_start is not None:
                     first_start = _number(future[0].get("start_candidate"))
@@ -367,6 +439,12 @@ def build_trackable_action_consequence_candidates(
                         **window_counts,
                         "primary_consequence_candidate": primary,
                         "consequence_signal_candidates": signals,
+                        "visible_consequence_path_layers": visible_path_layers,
+                        "visible_consequence_path_signature": visible_path_signature,
+                        "visible_consequence_path_depth": min(len(layers), 2),
+                        "visible_consequence_path_is_total_order": False,
+                        "visible_consequence_path_is_possession_truth": False,
+                        "visible_consequence_path_is_causal_truth": False,
                         "record_status": record_status,
                         "supporting_consequence_evidence_atom_ids": sorted(
                             _clean(atom.get("evidence_atom_id")) for atom in support_atoms
@@ -397,6 +475,11 @@ def build_trackable_action_consequence_candidates(
         blocks.append("consequence_anchor_trace_set_mismatch")
 
     consequence_counts = Counter(record.get("primary_consequence_candidate") for record in records)
+    visible_path_signature_counts = Counter(
+        _clean(record.get("visible_consequence_path_signature"))
+        for record in records
+        if _clean(record.get("visible_consequence_path_signature"))
+    )
     review_required_count = sum(record.get("record_status") == "REVIEW_REQUIRED" for record in records)
     classified_count = len(records) - review_required_count
     support_visible_count = sum(bool(record.get("supporting_consequence_evidence_atom_ids")) for record in records)
@@ -437,6 +520,16 @@ def build_trackable_action_consequence_candidates(
         "review_required_consequence_candidate_count": review_required_count,
         "support_visible_trace_count": support_visible_count,
         "primary_consequence_candidate_counts": dict(sorted(consequence_counts.items())),
+        "visible_consequence_path_signature_counts": dict(
+            sorted(
+                visible_path_signature_counts.items(),
+                key=lambda item: (-item[1], item[0]),
+            )
+        ),
+        "visible_consequence_path_max_layers": 2,
+        "visible_consequence_path_is_total_order": False,
+        "visible_consequence_path_is_possession_truth": False,
+        "visible_consequence_path_is_causal_truth": False,
         "window_coverage_counts": window_coverage,
         "hard_block_hits": blocks,
         "review_hits": reviews,
