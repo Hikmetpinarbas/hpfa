@@ -262,3 +262,122 @@ def test_safe_finding_handoff_exposes_unresolved_observed_defeat_and_typed_withd
     assert rules["WITHDRAW_IF_SHARED_ANCHOR_ADMISSION_INVALIDATED"]["defeat_type"] == "UNDERMINE"
     assert rules["WITHDRAW_IF_COMPARISON_ELIGIBILITY_INVALIDATED"]["defeat_type"] == "UNDERCUT"
     assert all(row["withdrawal_effect"] in {"ABSTAIN", "REVIEW_REQUIRED"} for row in rules.values())
+
+
+def test_canonical_evidence_direction_separates_counterevidence_from_dependency_challenge():
+    result = build_comparable_outcome_counterevidence(_payload())
+    record = _record(result)
+
+    assert record["canonical_evidence_direction_class"] == "COUNTEREVIDENCE"
+    assert record["canonical_evidence_target_construct"] == (
+        "STRUCTURAL_RECURRENCE_VISIBLE_OUTCOME_CONSISTENCY"
+    )
+    assert record["dependency_challenge_present"] is True
+    assert "SHARED_ORIGIN_COMPARISON_DESIGN" in record["dependency_challenge_reason_codes"]
+    assert record["dependency_challenge_changes_evidence_direction"] is False
+    assert record["independent_evidence_vote_allowed"] is False
+    assert result["legacy_canonical_evidence_direction_counts"]["COUNTEREVIDENCE"] == 1
+    assert result["legacy_dependency_challenge_record_count"] == 1
+    assert result["dependency_challenge_is_evidence_direction"] is False
+
+
+def test_same_visible_outcome_is_canonical_support_not_counterevidence():
+    result = build_comparable_outcome_counterevidence(
+        _payload(
+            left_outcome="SUCCESS_SEMANTIC_VISIBLE",
+            right_outcome="SUCCESS_SEMANTIC_VISIBLE",
+        )
+    )
+    record = _record(result)
+
+    assert record["canonical_evidence_direction_class"] == "SUPPORT"
+    assert record["comparable_counterevidence_candidate"] is False
+    assert record["non_support_is_counterevidence"] is False
+
+
+def test_unresolved_outcome_is_canonical_unresolved_not_failure():
+    result = build_comparable_outcome_counterevidence(
+        _payload(right_outcome="OUTCOME_SEMANTIC_NOT_ADMITTED_FOR_DIVERGENCE")
+    )
+    record = _record(result)
+
+    assert record["canonical_evidence_direction_class"] == "UNRESOLVED"
+    assert record["unresolved_is_failure"] is False
+    assert result["legacy_canonical_evidence_direction_counts"]["UNRESOLVED"] == 1
+
+
+def test_ineligible_comparison_is_not_evaluated_not_counterevidence():
+    result = build_comparable_outcome_counterevidence(_payload(comparison_eligible=False))
+    record = _record(result)
+
+    assert record["canonical_evidence_direction_class"] == "NOT_EVALUATED"
+    assert record["comparable_counterevidence_candidate"] is False
+
+
+def test_branch_different_branch_same_outcome_is_non_support_not_counterevidence():
+    payload = _payload(
+        left_outcome="SUCCESS_SEMANTIC_VISIBLE",
+        right_outcome="SUCCESS_SEMANTIC_VISIBLE",
+    )
+    divergence = payload["first_supported_branch_divergence_candidates"][0]
+    divergence["comparable_set_id"] = "set_1"
+    divergence["comparison_question_id"] = "shared_visible_anchor_branch_contrast_v1"
+    divergence["eligible_denominator_frozen_before_divergence_outcome_attachment"] = True
+    divergence["outcome_used_in_divergence_location"] = False
+    divergence["branch_profiles"] = [
+        {
+            "branch_id": "branch_a",
+            "branch_outcome_state": "SUCCESS_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s1"],
+        },
+        {
+            "branch_id": "branch_b",
+            "branch_outcome_state": "SUCCESS_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s2"],
+        },
+    ]
+
+    result = build_comparable_outcome_counterevidence(payload)
+    assert result["branch_comparison_counterevidence_record_count"] == 1
+    record = result["branch_comparison_counterevidence_records"][0]
+
+    assert record["canonical_evidence_direction_class"] == "NON_SUPPORT"
+    assert record["canonical_evidence_target_component"] == (
+        "BETWEEN_BRANCH_VISIBLE_OUTCOME_DISCRIMINATION"
+    )
+    assert record["same_design_challenge_candidate"] is True
+    assert record["non_support_is_counterevidence"] is False
+    assert record["dependency_challenge_state"] == "NOT_EVALUATED_IN_BRANCH_RECORD"
+    assert result["branch_canonical_evidence_direction_counts"]["NON_SUPPORT"] == 1
+
+
+def test_branch_same_branch_different_outcome_is_canonical_counterevidence():
+    payload = _payload()
+    divergence = payload["first_supported_branch_divergence_candidates"][0]
+    divergence["comparable_set_id"] = "set_1"
+    divergence["comparison_question_id"] = "shared_visible_anchor_branch_contrast_v1"
+    divergence["eligible_denominator_frozen_before_divergence_outcome_attachment"] = True
+    divergence["outcome_used_in_divergence_location"] = False
+    divergence["branch_profiles"] = [
+        {
+            "branch_id": "branch_a",
+            "branch_outcome_state": "SUCCESS_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s1"],
+        },
+        {
+            "branch_id": "branch_a",
+            "branch_outcome_state": "FAILURE_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s2"],
+        },
+    ]
+
+    result = build_comparable_outcome_counterevidence(payload)
+    assert result["branch_comparison_counterevidence_record_count"] == 1
+    record = result["branch_comparison_counterevidence_records"][0]
+
+    assert record["canonical_evidence_direction_class"] == "COUNTEREVIDENCE"
+    assert record["canonical_evidence_target_component"] == (
+        "WITHIN_BRANCH_VISIBLE_OUTCOME_STABILITY"
+    )
+    assert record["same_design_challenge_candidate"] is True
+    assert record["independent_evidence_vote_allowed"] is False
