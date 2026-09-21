@@ -106,6 +106,13 @@ def _bind_counterevidence_projection(source_payload: dict, projection: dict) -> 
     source_payload["pair_record_is_eligible_denominator"] = False
     source_payload["pair_count_is_eligible_denominator"] = False
     source_payload["eligible_denominator_is_independent_evidence_count"] = False
+    source_payload["falsification_invalidation_contract_applied"] = (
+        projection.get("falsification_invalidation_contract_applied") is True
+    )
+    source_payload["falsifier_is_invalidator"] = False
+    source_payload["invalidator_is_falsifier"] = False
+    source_payload["invalidator_is_counterevidence"] = False
+    source_payload["invalidator_makes_claim_false"] = False
     source_payload["dependency_challenge_is_evidence_direction"] = False
     source_payload["dependency_challenge_changes_evidence_direction"] = False
     source_payload["non_support_is_counterevidence"] = False
