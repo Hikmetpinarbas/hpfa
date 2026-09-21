@@ -410,46 +410,52 @@ def _team_score_state_at_episode_start(
 
 def _visible_process_stage_profile(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Project reviewed semantic facets into stage presence without inventing chronology."""
-    eligible = [
+    reviewed = [
         row for row in rows
         if isinstance(row, dict)
-        and row.get("action_occurrence_eligible") is True
         and str(row.get("provider_semantics_review_status") or "") == "REVIEWED_CANDIDATE"
     ]
+    eligible_actions = [
+        row for row in reviewed
+        if row.get("action_occurrence_eligible") is True
+    ]
 
-    def count_where(predicate: Any) -> int:
-        return sum(1 for row in eligible if predicate(row))
+    def action_count(predicate: Any) -> int:
+        return sum(1 for row in eligible_actions if predicate(row))
+
+    def reviewed_count(predicate: Any) -> int:
+        return sum(1 for row in reviewed if predicate(row))
 
     stage_counts = {
-        "PROGRESSION": count_where(
+        "PROGRESSION": action_count(
             lambda row: str(row.get("provider_progression_candidate") or "") == "PROGRESSIVE_CANDIDATE"
         ),
-        "FINAL_THIRD": count_where(
+        "FINAL_THIRD": action_count(
             lambda row: "FINAL_THIRD" in {
                 str(row.get("provider_zone_candidate") or ""),
                 str(row.get("context_zone_candidate") or ""),
             }
         ),
-        "PENALTY_AREA": count_where(
+        "PENALTY_AREA": action_count(
             lambda row: "PENALTY_AREA" in {
                 str(row.get("provider_zone_candidate") or ""),
                 str(row.get("context_zone_candidate") or ""),
             }
         ),
-        "KEY_ACTION": count_where(
+        "KEY_ACTION": action_count(
             lambda row: bool(str(row.get("provider_key_action_candidate") or "").strip())
         ),
-        "CHANCE": count_where(
+        "CHANCE": reviewed_count(
             lambda row: str(row.get("provider_terminal_outcome_candidate") or "") == "CHANCE"
         ),
-        "SHOT": count_where(
+        "SHOT": action_count(
             lambda row: str(row.get("provider_action_family_candidate") or "") == "SHOT"
         ),
-        "SHOT_ON_TARGET": count_where(
+        "SHOT_ON_TARGET": action_count(
             lambda row: str(row.get("provider_shot_result_candidate") or "")
             in {"ON_TARGET", "SHOT_ON_TARGET", "TARGET"}
         ),
-        "GOAL": count_where(
+        "GOAL": reviewed_count(
             lambda row: str(row.get("provider_terminal_outcome_candidate") or "") == "GOAL"
         ),
     }
@@ -466,24 +472,25 @@ def _visible_process_stage_profile(rows: list[dict[str, Any]]) -> dict[str, Any]
     deepest = next((stage for stage in reversed(ladder) if stage_counts[stage] > 0), None)
 
     return {
-        "eligible_semantic_row_count": len(eligible),
+        "reviewed_semantic_row_count": len(reviewed),
+        "action_eligible_semantic_row_count": len(eligible_actions),
         "stage_counts": stage_counts,
         "stage_presence": {stage: count > 0 for stage, count in stage_counts.items()},
         "deepest_observed_stage_candidate": deepest,
-        "turnover_visible_count": count_where(
+        "turnover_visible_count": action_count(
             lambda row: str(row.get("provider_action_family_candidate") or "") == "TURNOVER"
         ),
-        "recovery_visible_count": count_where(
+        "recovery_visible_count": action_count(
             lambda row: str(row.get("provider_action_family_candidate") or "") == "RECOVERY"
         ),
         "exit_stage_candidate": "UNRESOLVED",
         "ordering_state": "PRESENCE_ONLY_NO_TOTAL_ORDER",
+        "terminal_outcomes_do_not_add_action_volume": True,
         "stage_ladder_is_physical_sequence_truth": False,
         "deepest_stage_is_tactical_quality_truth": False,
         "provider_zone_semantics_are_tracking_truth": False,
         "claim_ceiling": "TEAM_EPISODE_VISIBLE_STAGE_PRESENCE_ONLY",
     }
-
 
 def _build_p02_comparison_populations(team_pool_items: list[dict[str, Any]]) -> dict[str, Any]:
     """Group team P02 child items by exact comparison context without outcome admission."""
