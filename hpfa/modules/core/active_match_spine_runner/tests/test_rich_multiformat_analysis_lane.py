@@ -224,6 +224,95 @@ def test_set_piece_process_consequence_context_binds_visible_consequence_inside_
     assert row["set_piece_process_is_designed_routine_truth"] is False
 
 
+
+def test_set_piece_process_context_exposes_first_strict_after_team_without_recycle_truth():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "sp_after_1",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "100",
+            "end_candidate": "112",
+        }]
+    }
+    traces = {
+        "primary_occurrence_trace_candidates": [
+            {
+                "trackable_action_trace_candidate_id": "during",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "start_candidate": "110",
+                "action_family_candidates": ["PASS"],
+            },
+            {
+                "trackable_action_trace_candidate_id": "after",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "start_candidate": "114",
+                "action_family_candidates": ["RECOVERY"],
+            },
+        ]
+    }
+    result = _set_piece_process_consequence_context(
+        process,
+        {
+            "occurrence_consequence_projections": [{
+                "action_occurrence_candidate_id": "unrelated",
+                "team_identity_candidate_ids": ["team_b"],
+                "period_candidates": ["1"],
+                "start_candidates": ["50"],
+                "maximum_window_seconds": 12.0,
+            }]
+        },
+        traces,
+    )
+    row = result["rows"][0]
+    assert row["first_strict_after_start_candidate"] == 114.0
+    assert row["seconds_from_process_end_to_first_strict_after_candidate"] == 2.0
+    assert row["post_set_piece_first_visible_team_state"] == "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE"
+    assert row["post_set_piece_first_visible_team_state_is_recycle_truth"] is False
+    assert row["post_set_piece_first_visible_team_state_is_second_ball_truth"] is False
+    assert row["strict_after_relation_is_possession_truth"] is False
+
+
+
+def test_set_piece_first_strict_after_outside_declared_horizon_is_not_continuation_candidate():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "sp_after_far",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "100",
+            "end_candidate": "112",
+        }]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "unrelated",
+            "maximum_window_seconds": 12.0,
+        }]
+    }
+    traces = {
+        "primary_occurrence_trace_candidates": [{
+            "trackable_action_trace_candidate_id": "far_after",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": "150",
+            "action_family_candidates": ["PASS"],
+        }]
+    }
+    result = _set_piece_process_consequence_context(process, consequence, traces)
+    row = result["rows"][0]
+    assert row["seconds_from_process_end_to_first_strict_after_candidate"] == 38.0
+    assert row["raw_first_strict_after_team_state"] == "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE"
+    assert row["post_set_piece_first_visible_team_state"] == "FIRST_STRICT_AFTER_OUTSIDE_DECLARED_CONSEQUENCE_HORIZON"
+    assert row["post_set_piece_first_visible_team_state_is_recycle_truth"] is False
+
+
 def test_set_piece_process_consequence_context_does_not_use_other_team_occurrence():
     process = {
         "process_participation_candidates": [{

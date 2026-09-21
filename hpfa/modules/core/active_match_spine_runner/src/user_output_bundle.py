@@ -1383,6 +1383,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             f"set_piece_process_consequence_context_status={(rich.get('set_piece_process_consequence_context') or {}).get('status')}",
             f"set_piece_process_context_row_count={(rich.get('set_piece_process_consequence_context') or {}).get('set_piece_process_context_row_count')}",
             f"set_piece_primary_consequence_counts={json.dumps((rich.get('set_piece_process_consequence_context') or {}).get('primary_consequence_counts') or {}, ensure_ascii=False, sort_keys=True)}",
+            f"set_piece_post_process_team_state_counts={json.dumps((rich.get('set_piece_process_consequence_context') or {}).get('post_set_piece_first_visible_team_state_counts') or {}, ensure_ascii=False, sort_keys=True)}",
             "game_state_context_is_tactical_truth=false",
             "game_state_context_is_causal_truth=false",
             "format_fusion_is_independent_evidence_vote=false",

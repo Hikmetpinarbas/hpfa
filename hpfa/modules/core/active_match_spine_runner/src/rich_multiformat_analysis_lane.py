@@ -1388,6 +1388,7 @@ def _game_state_process_mix_context(
 def _set_piece_process_consequence_context(
     process_participation_payload: dict[str, Any],
     consequence_payload: dict[str, Any],
+    trace_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     process_intervals: dict[tuple[str, str, float, float], dict[str, Any]] = {}
     for row in process_participation_payload.get("process_participation_candidates", []) or []:
@@ -1422,15 +1423,38 @@ def _set_piece_process_consequence_context(
         if row.get("shot_present_annotation_candidate") is True:
             compact["shot_present_annotation_candidate"] = True
 
+    trace_rows = []
+    if isinstance(trace_payload, dict):
+        trace_rows = (
+            trace_payload.get("primary_occurrence_trace_candidates")
+            or trace_payload.get("trackable_action_trace_candidates")
+            or []
+        )
+    visible_trace_rows = [
+        row for row in trace_rows
+        if isinstance(row, dict)
+        and _float_candidate(row.get("start_candidate")) is not None
+        and str(row.get("period_candidate") or "").strip()
+    ]
+
     consequence_rows = [
         row for row in (consequence_payload.get("occurrence_consequence_projections") or [])
         if isinstance(row, dict)
     ]
+    declared_horizon_candidates = [
+        _float_candidate(row.get("maximum_window_seconds"))
+        for row in consequence_rows
+        if _float_candidate(row.get("maximum_window_seconds")) is not None
+    ]
+    declared_context_horizon_seconds = (
+        max(declared_horizon_candidates) if declared_horizon_candidates else None
+    )
     rows: list[dict[str, Any]] = []
     primary_counts: Counter[str] = Counter()
     continuation_counts: Counter[str] = Counter()
     terminal_counts: Counter[str] = Counter()
     state_counts: Counter[str] = Counter()
+    post_process_state_counts: Counter[str] = Counter()
 
     for (_, _, _, _), process in sorted(process_intervals.items()):
         team_id = process["team_identity_candidate_id"]
@@ -1480,6 +1504,54 @@ def _set_piece_process_consequence_context(
         primary_counts.update(primary)
         continuation_counts.update(continuation)
         terminal_counts.update(terminal)
+
+        strict_after = [
+            trace for trace in visible_trace_rows
+            if str(trace.get("period_candidate") or "").strip() == period
+            and float(_float_candidate(trace.get("start_candidate"))) > end
+        ]
+        first_after_start = min(
+            (_float_candidate(trace.get("start_candidate")) for trace in strict_after),
+            default=None,
+        )
+        first_after_layer = [
+            trace for trace in strict_after
+            if first_after_start is not None
+            and _float_candidate(trace.get("start_candidate")) == first_after_start
+        ]
+        first_after_teams = {
+            str(trace.get("team_identity_candidate_id") or "").strip()
+            for trace in first_after_layer
+            if str(trace.get("team_identity_candidate_id") or "").strip()
+        }
+        first_after_families = sorted({
+            str(value)
+            for trace in first_after_layer
+            for value in (trace.get("action_family_candidates") or [])
+            if str(value)
+        })
+        strict_after_gap = (
+            first_after_start - end if first_after_start is not None else None
+        )
+        if first_after_start is None:
+            raw_first_after_team_state = "NO_STRICT_AFTER_VISIBLE_TRACE"
+        elif len(first_after_teams) != 1:
+            raw_first_after_team_state = "FIRST_STRICT_AFTER_TEAM_UNRESOLVED"
+        elif team_id in first_after_teams:
+            raw_first_after_team_state = "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE"
+        else:
+            raw_first_after_team_state = "OPPONENT_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE"
+
+        if first_after_start is None:
+            post_process_state = "NO_STRICT_AFTER_VISIBLE_TRACE"
+        elif declared_context_horizon_seconds is None:
+            post_process_state = "DECLARED_CONSEQUENCE_HORIZON_UNRESOLVED"
+        elif strict_after_gap is not None and strict_after_gap > declared_context_horizon_seconds:
+            post_process_state = "FIRST_STRICT_AFTER_OUTSIDE_DECLARED_CONSEQUENCE_HORIZON"
+        else:
+            post_process_state = raw_first_after_team_state
+        post_process_state_counts[post_process_state] += 1
+
         rows.append({
             **process,
             "process_candidate_ids": sorted(set(process["process_candidate_ids"])),
@@ -1493,6 +1565,16 @@ def _set_piece_process_consequence_context(
             "process_continuation_status_candidates": continuation,
             "terminal_status_candidates": terminal,
             "binding_state": binding_state,
+            "first_strict_after_start_candidate": first_after_start,
+            "seconds_from_process_end_to_first_strict_after_candidate": strict_after_gap,
+            "declared_consequence_horizon_seconds": declared_context_horizon_seconds,
+            "first_strict_after_team_identity_candidate_ids": sorted(first_after_teams),
+            "first_strict_after_action_family_candidates": first_after_families,
+            "raw_first_strict_after_team_state": raw_first_after_team_state,
+            "post_set_piece_first_visible_team_state": post_process_state,
+            "post_set_piece_first_visible_team_state_is_recycle_truth": False,
+            "post_set_piece_first_visible_team_state_is_second_ball_truth": False,
+            "strict_after_relation_is_possession_truth": False,
             "set_piece_process_is_designed_routine_truth": False,
             "visible_consequence_is_second_ball_truth": False,
             "visible_consequence_is_causal_truth": False,
@@ -1507,6 +1589,10 @@ def _set_piece_process_consequence_context(
         "primary_consequence_counts": dict(sorted(primary_counts.items())),
         "process_continuation_status_counts": dict(sorted(continuation_counts.items())),
         "terminal_status_counts": dict(sorted(terminal_counts.items())),
+        "declared_consequence_horizon_seconds": declared_context_horizon_seconds,
+        "post_set_piece_first_visible_team_state_counts": dict(
+            sorted(post_process_state_counts.items())
+        ),
         "rows": rows,
         "set_piece_process_is_designed_routine_truth": False,
         "visible_consequence_is_second_ball_truth": False,
@@ -3508,6 +3594,7 @@ def run_rich_lane(
     set_piece_process_consequence_context = _set_piece_process_consequence_context(
         process_participation_payload,
         occurrence_consequence_payload,
+        trackable_trace_payload,
     )
     spatial_transition_payload = _load_json(output / SPATIAL_TRANSITION_JSON)
     c03 = _construct_c03(process_participation_payload, occurrence_transition_payload, spatial_transition_payload)
