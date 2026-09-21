@@ -25,7 +25,7 @@ def _load(path: Path) -> dict[str, Any]:
 def materialize_variant_feature_challenge(out_dir: str | Path) -> dict[str, Any]:
     """Materialize the existing challenge projection and finalize current post-sequence admission.
 
-    This remains a binding/orchestration step only. It does not discover observations,
+    This binding/orchestration step links current challenge surfaces and carries their existing observation authority;
     reconstruct sequences, recompute feature deltas, create independent evidence, or
     authorize a professional finding. The post-sequence finalizer is deliberately run
     only after the current challenge artifact is materialized so Safe Finding admission

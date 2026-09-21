@@ -158,7 +158,7 @@ def _dependency_burden_profile(
     independence_proven: bool,
     statistical_independence_proven: bool,
 ) -> tuple[dict[str, Any], list[str]]:
-    """Describe why apparent repetitions cannot yet be counted as independent support.
+    """Describe the dependency conditions that place apparent repetitions in unresolved independent-support state.
 
     This profile creates no new evidence and no score. It only exposes dependency debt
     already visible in the Safe Finding handoff. Missing reflection/dependency lineage is

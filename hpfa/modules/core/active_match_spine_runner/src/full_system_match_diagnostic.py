@@ -647,7 +647,7 @@ def build_diagnostic(
         {"family":"OUTCOME/QUALIFIER","status":"ADMITTED","support":"visible outcome partition/consequence surfaces","count":sequence.get("comparison_eligible_outcome_record_count"),"ceiling":"provider/visible outcome partition only"},
         {"family":"RELATIONAL","status":"DEGRADED","support":"cross-role relation candidates","count":relation.get("resolved_relation_candidate_count"),"ceiling":"relation candidate, not causal relation"},
         {"family":"PROCESS/PARTICIPATION","status":"DEGRADED","support":"provider-reviewed process participation","count":participation.get("process_participation_candidate_count"),"ceiling":"provider-reviewed annotation context, not tactical plan"},
-        {"family":"AGGREGATE/TABULAR","status":"ADMITTED","support":"XLSX aggregate projection","count":xlsx.get("row_projection_count"),"ceiling":"aggregate surface does not create action identity"},
+        {"family":"AGGREGATE/TABULAR","status":"ADMITTED","support":"XLSX aggregate projection","count":xlsx.get("row_projection_count"),"ceiling":"aggregate/context authority; action identity follows occurrence admission"},
         {"family":"EXTERNAL CONTEXT","status":"ABSENT","support":None,"count":0,"ceiling":"no external-context claim"},
         {"family":"TRACKING/VIDEO","status":"ABSENT","support":None,"count":0,"ceiling":"no tracking/video physical claim"},
         {"family":"HPFA-DERIVED INTELLIGENCE","status":"DEGRADED","support":"partial-order/process/feature/finding chain","count":sequence.get("occurrence_temporal_sequence_candidate_count"),"ceiling":"ANALYST_REVIEW_MECHANISM_CANDIDATE_ONLY; professional EMIT may remain zero"},
@@ -977,7 +977,7 @@ def build_diagnostic(
                         "make sufficiency coverage and dependency burden explicit before EMIT"
                     ),
                     "test_needed": (
-                        "EMIT cannot occur from dependent reflection or raw rates"
+                        "EMIT authority requires dependency-resolved support and admitted estimand/denominator"
                     ),
                     "active_match_needed": True,
                     "expected_analyst_gain": (
@@ -1027,7 +1027,7 @@ def build_diagnostic(
                 "smallest_path": (
                     "LATER unless project explicitly opens tracking/video capability"
                 ),
-                "test_needed": "no tracking claim without tracking",
+                "test_needed": "physical-state claims require admitted physical-state authority",
                 "active_match_needed": False,
                 "expected_analyst_gain": (
                     "potentially high later, but poor current observation fit"
@@ -1096,8 +1096,8 @@ def build_diagnostic(
         "engineering_test_evidence": {
             "state": "UNKNOWN",
             "reason": (
-                "runtime diagnostic does not convert repository presence or CI "
-                "history into per-component engineering test proof"
+                "per-component engineering-test authority comes from explicit test evidence; "
+                "repository presence and CI history remain separate evidence surfaces"
             ),
         },
         "observation_capability_coverage": capabilities,

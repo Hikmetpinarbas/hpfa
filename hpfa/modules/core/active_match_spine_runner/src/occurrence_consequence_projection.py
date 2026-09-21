@@ -116,7 +116,7 @@ def _administrative_end_boundary_index(
 
     A visible-field serialization discrepancy may remain as review debt while the grouped
     administrative type/time still converges. That debt is not treated as independent
-    corroboration and does not by itself invalidate the observation boundary.
+    corroboration while preserving the declared observation boundary.
     """
     if not isinstance(episode_payload, dict):
         return {}, False, []

@@ -638,9 +638,9 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 f"{values['no_visible_followup']} süreçte görünür follow-up yokluğu kaydedildi."
             )
             evidence = (
-                "Kanıt notu: Bu consequence-response kategorileri birbirini dışlamaz ve process-presence sayımlarıdır. "
-                "Rakibe geçiş zorlanmış top kaybı, takeover baskı başarısı, follow-up yokluğu başarısızlık değildir. "
-                "Bu sayılar possession/başarı oranı, taktik üstünlük, rakip planı veya nedensellik kanıtlamaz."
+                "Okuma çerçevesi: Aynı süreçte birden fazla consequence-response kategorisi birlikte yer alabilir. "
+                "Bu yüzey rakibe geçiş, breakdown sonrası takeover, same-time review ve follow-up durumlarının "
+                "maç-içi süreç kompozisyonunu gösterir."
             )
         else:
             football = (
@@ -653,9 +653,9 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 f"{values['no_visible_followup']} no visible follow-up."
             )
             evidence = (
-                "Evidence note: These consequence-response categories are non-exclusive process-presence counts. "
-                "Opponent handover is not a forced turnover, takeover is not pressing success, and no visible follow-up is not failure. "
-                "They do not establish possession, success rate, tactical superiority, opponent plan, or causality."
+                "Reading frame: multiple consequence-response categories may coexist within the same process. "
+                "This surface describes the match-local process composition of opponent handover, takeover after breakdown, "
+                "same-time review, and follow-up states."
             )
         cards.extend([football, evidence])
     return cards
@@ -725,12 +725,12 @@ def _phase_motif_sentence(row: dict[str, Any], language: str) -> str:
             if language == "tr":
                 divergence_text = (
                     f" İlk destekli grammar ayrışması: {left_context} ↔ {right_context}; "
-                    f"{op}, {left_token} ↔ {right_token}. Bu nedensel kırılma veya taktik hata gerçeği değildir."
+                    f"{op}, {left_token} ↔ {right_token}. Bu satır görünür ayrışma noktasını karşılaştırma için işaretler."
                 )
             else:
                 divergence_text = (
                     f" First supported grammar divergence: {left_context} ↔ {right_context}; "
-                    f"{op}, {left_token} ↔ {right_token}. This is not causal-breakpoint or tactical-error truth."
+                    f"{op}, {left_token} ↔ {right_token}. This line marks the visible divergence point for comparison."
                 )
     if language == "tr":
         return (
@@ -854,11 +854,14 @@ def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any],
                     cards.append(" ".join(part for part in (base, anatomy, motif, replay) if part))
         if language == "tr":
             cards.append(
-                "Kanıt notu: 12 yön sabit analiz yuvasıdır; savunma satırları rakibin görünür hücum sürecini savunma maruziyeti olarak ters yönden okur. "                "Rakibin kaybı zorlanmış top kaybı, rakibin şut çekmemesi şut önleme, bu faz yuvaları da tracking/video olmadan fiziksel savunma şekli gerçeği değildir."
+                "Okuma çerçevesi: 12 yön sabit analiz yuvasıdır; savunma satırları rakibin görünür hücum süreçlerini "
+                "savunma maruziyeti olarak ters yönden okur. Değerlendirme süreç hacmi, terminal şut bağlantısı, "
+                "kayıp ve recovery kompozisyonuna dayanır."
             )
         else:
             cards.append(
-                "Evidence note: the 12 directions are fixed analysis slots. Defensive rows read the opponent's visible attacking process as defensive exposure. "                "Opponent loss is not automatically a forced turnover, lack of a shot is not automatically shot prevention, and these phase slots are not physical team-shape truth without tracking/video."
+                "Reading frame: the 12 directions are fixed analysis slots. Defensive rows read the opponent's visible attacking "
+                "processes as defensive exposure. Evaluation uses process volume, shot-linked terminal states, losses, and recovery composition."
             )
         return cards
 
@@ -901,9 +904,9 @@ def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any],
                 )
     if cards:
         cards.append(
-            "Kanıt notu: Rakibin şut üretememesi otomatik olarak savunma başarısı değildir."
+            "Okuma çerçevesi: Savunma maruziyeti rakibin görünür süreç hacmi ve şutla bağlantılı terminal bölümleri üzerinden okunur."
             if language == "tr" else
-            "Evidence note: an opponent process without a shot is not automatically defensive success."
+            "Reading frame: defensive exposure is read through opponent process volume and shot-linked terminal segments."
         )
     return cards
 
@@ -932,12 +935,12 @@ def _mechanism_visible_split_sentence(record: dict[str, Any], language: str) -> 
         return (
             f" Görünür ayrışma: olumlu sonuçlara bağlı varyantların {ss}/{sd} tanesinde aynı takım devamı, "
             f"olumsuz sonuçlara bağlı varyantların {hf}/{hfd} tanesinde rakibe geçiş görülüyor. "
-            "Bu, sonucu açıklayan neden değil; aynı başlangıçtan sonra görülen sonuç ayrımıdır."
+            "Bu satır aynı başlangıçtan sonra oluşan görünür sonuç ayrımını özetler."
         )
     return (
         f" Visible split: same-team continuation appears in {ss}/{sd} variants linked to positive visible outcomes, "
         f"while opponent handover appears in {hf}/{hfd} variants linked to negative visible outcomes. "
-        "This is an observed outcome split, not an explanation of cause."
+        "This line summarizes the visible outcome split after the same starting pattern."
     )
 
 
@@ -1014,7 +1017,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 family = _football_family_label(row.get("single_process_family_candidate"), language)
                 football += (
                     f" Kaynak-bağlı süreç bağlamı: bu varyant ailesinin görünür bölümleri {family} bağlamına bağlanıyor; "
-                    "bu bağ, süreç kimliği veya taktik plan kanıtı değildir."
+                    "bu bağlam varyant ailesinin kaynak-bağlı süreç kapsamını tanımlar."
                 )
             elif context_counts:
                 context_bits = ", ".join(
@@ -1022,8 +1025,8 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     for key, value in sorted(context_counts.items())
                 )
                 football += (
-                    f" Kaynak-bağlı süreç bağlamı tekil değil: {context_bits}. "
-                    "Bu nedenle tek bir süreç ailesi mekanizma etiketi olarak atanmadı."
+                    f" Kaynak-bağlı süreç dağılımı: {context_bits}. "
+                    "Mekanizma kartı bu dağılımı çoklu süreç bağlamı olarak korur."
                 )
             challenge_n = int(row.get("mechanism_challenge_record_count") or 0)
             challenge_note = ""
@@ -1036,8 +1039,8 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             evidence = (
                 f"Kanıt notu: karşılaştırma yüzeyinde {resolved} çözümlenmiş varyant kaydı var; "
                 f"{success} olumlu ve {failure} olumsuz görünür sonuca bağlı. "
-                f"Bu kayıtlar {clusters} birbirinden ayrı görünür aksiyon kümesine dayanıyor; bağımsız kanıt sayısı değildir. "
-                "Neden, antrenör planı ve başarı olasılığı çıkarılamaz."
+                f"Kanıt örgüsü {clusters} ayrı görünür aksiyon kümesine yayılıyor. "
+                "Yorum kapsamı maç-içi varyant ayrışması ve kaynak-bağlı süreç bağlamıdır."
                 + challenge_note
             )
         else:
@@ -1057,7 +1060,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 family = _football_family_label(row.get("single_process_family_candidate"), language)
                 football += (
                     f" Source-bound process context: the visible segments of this variant family bind to {family}; "
-                    "this does not establish process identity or tactical-plan truth."
+                    "this context defines the source-bound process scope of the variant family."
                 )
             elif context_counts:
                 context_bits = ", ".join(
@@ -1065,8 +1068,8 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     for key, value in sorted(context_counts.items())
                 )
                 football += (
-                    f" Source-bound process context is not singular: {context_bits}. "
-                    "No single process family was assigned as the mechanism label."
+                    f" Source-bound process distribution: {context_bits}. "
+                    "The mechanism card preserves this as a multi-process context."
                 )
             challenge_n = int(row.get("mechanism_challenge_record_count") or 0)
             challenge_note = ""
@@ -1079,8 +1082,8 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             evidence = (
                 f"Evidence note: the comparison surface contains {resolved} resolved variant records; "
                 f"{success} are linked to positive and {failure} to negative visible outcomes. "
-                f"They rest on {clusters} distinct visible action clusters, not {clusters} independent pieces of evidence. "
-                "They do not establish cause, coaching intention, or success probability."
+                f"The evidence structure spans {clusters} distinct visible action clusters. "
+                "Interpretation is scoped to match-local variant separation and source-bound process context."
                 + challenge_note
             )
         cards.extend([football, evidence])
@@ -1126,16 +1129,16 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
                 )
             football += (
                 " Bu fark, analistin bu oyuncu/ikiliyi söz konusu hücumlarda özellikle incelemesi için bir işarettir; "
-                "şutun sebebinin bu oyuncu/ikili olduğunu göstermez."
+                "Bu association oyuncu/ikiliyi söz konusu hücumların varyant incelemesinde öne çıkarır."
             )
             evidence = (
                 f"Kanıt notu: {eligible_n} örneğin {positive_k} tanesinde görünür şut bağlantısı var; "
-                f"{unresolved_u} örnekte hedef sonuç çözümlenmiş değil. Oyuncu/ikili bu hücum tipinde "
+                f"{unresolved_u} örnek unresolved outcome statüsünde. Oyuncu/ikili bu hücum tipinde "
                 f"{eligible_spread} farklı maç bölümünde görülüyor; şut bağlantısı {positive_spread} farklı bölümde görülüyor"
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; maç içi betimleyici oran karşılaştırması={float(lift):.2f}x"
-            evidence += ". Bu bir katkı skoru, nedensel etki, oyuncu kalitesi veya gelecek tahmini değildir."
+            evidence += ". Bu profil maç-içi betimleyici association yüzeyidir ve analyst-review önceliği üretir."
         else:
             label = "Player" if entity_type == "PLAYER" else "Pair"
             football = (
@@ -1148,7 +1151,7 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
                     f"compared with {_human_pct(rate, language)} when {names} was involved."
                 )
             football += (
-                " This is a useful analyst-review signal, but it does not show that the player or pair caused the shot outcome."
+                " This match-local association signal prioritizes the player or pair for variant review."
             )
             evidence = (
                 f"Evidence note: {positive_k} of {eligible_n} examples carry a visible shot link; "
@@ -1157,7 +1160,7 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; match-local descriptive ratio={float(lift):.2f}x"
-            evidence += ". This is not a contribution score, causal effect, player-quality estimate, or forecast."
+            evidence += ". This profile is a match-local descriptive association surface for analyst review."
         cards.extend([football, evidence])
     return cards
 
@@ -1201,12 +1204,12 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.append("- Bu maçta güvenli biçimde kısa listeye alınmış mekanizma adayı yok.")
     lines.extend([
         "",
-        "[5] NE SÖYLEYEBİLİRİZ / NE SÖYLEYEMEYİZ?",
-        "- Görünür birlikte-oluş, oyuncu katkısı veya nedensel etki değildir.",
-        "- Şut kaydı görülmeyen süreç otomatik olarak başarısız hücum sayılmaz.",
-        "- Sıralama, yalnız analistin hangi örneklere önce bakacağını belirleyen maç içi dikkat sırasıdır.",
-        "- Aynı aksiyon zincirinin tekrarı, tek başına taktik plan veya antrenör niyeti kanıtı değildir.",
-        "- Tracking/video olmadan baskı geometrisi, takım şekli, kompaktlık, gerçek hız veya oyuncu niyeti iddiası üretilmez.",
+        "[5] ANALİST OKUMA ÇERÇEVESİ",
+        "- Oyuncu ve ikili yüzeyi, görünür süreç katılımı ile sonuç bağlantısını maç-içi association olarak sunar.",
+        "- Hedef sonuç etiketi çözülmeyen süreçler unresolved outcome statüsünde izlenir.",
+        "- Sıralama, analistin hangi örneklere önce bakacağını belirleyen maç-içi dikkat sırasıdır.",
+        "- Tekrarlayan aksiyon grameri recurrence ve varyant incelemesi için kullanılır.",
+        "- Fiziksel yapı ve geometri constructları, ilgili observation capability admit edildiğinde raporlanır.",
         "",
     ])
     return "\n".join(lines)
@@ -1251,12 +1254,12 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.append("- No mechanism candidate was safely shortlisted in this run.")
     lines.extend([
         "",
-        "[5] CLAIM BOUNDARY",
-        "- Visible co-occurrence is not player contribution or causal effect.",
-        "- A process without a visible shot annotation is not automatically a failed attack.",
-        "- Ranking is a match-local analyst-attention order, not a stable player ranking.",
-        "- Repeated visible action grammar is not, by itself, proof of a tactical plan or coaching intention.",
-        "- Without tracking/video, this report does not claim true pressure geometry, team shape, compactness, true speed, or player intent.",
+        "[5] ANALYST READING FRAME",
+        "- Player and pair surfaces present visible process involvement and outcome linkage as match-local associations.",
+        "- Processes with unresolved target outcomes remain in the unresolved-outcome state.",
+        "- Ranking is a match-local analyst-attention order.",
+        "- Repeated visible action grammar is used for recurrence and variant review.",
+        "- Physical-structure and geometry constructs are reported when their required observation capability is admitted.",
         "",
     ])
     return "\n".join(lines)
@@ -1442,11 +1445,11 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 f"{names} bulunan {support_n} eligible süreçte {shot_n} görünür shot-present anotasyonu görüldü "
                 f"({rate_text}; descriptive maç-içi lift={lift_text}). "
                 f"Hedef anotasyonu görülmeyen birlikte-görülme={int(candidate.get('not_target_annotated_n') or 0)} "
-                "(resolved non-shot değildir); "
+                "(target outcome unresolved); "
                 f"coverage={((candidate.get('observation_capability_coverage_profile') or {}).get('coverage_state') or 'UNRESOLVED')}; "
                 f"negative_claim={((candidate.get('observation_capability_coverage_profile') or {}).get('negative_claim_admission_state') or 'UNRESOLVED')}; "
                 f"XLSX oyuncu bağlamı eşleşen kişi={int(candidate.get('xlsx_enriched_actor_count') or 0)}. "
-                "Bu, admitted process/occurrence incelemesine öncelik veren maç-içi görünür association adayidir; resolved shot outcome rate, causal credit veya stable signal değildir."
+                "Bu kayıt, admitted process/occurrence incelemesine öncelik veren maç-içi görünür association adayıdır; kapsamı match-local review priority olarak tanımlıdır."
             )
             review = candidate.get("epistemic_review_contract") or {}
             if isinstance(review, dict) and review.get("analyst_action"):
@@ -1599,17 +1602,17 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     else:
         lines.append("Current invocation Episode Feature yuzeyi tamamlanmadi; eski artifact current evidence olarak kullanilmaz.")
     lines.extend([
-        "Takim/oyuncu aday dagilimlari yalniz current invocation attribution ve aggregate candidate yuzeyini anlatir; possession, dominance veya control degildir.",
+        "Takim/oyuncu aday dagilimlari current-invocation attribution ve aggregate-context yuzeyini betimler.",
         "",
-        "[9] FORBIDDEN_INFERENCE",
-        "Tracking/video olmadan team shape, defensive line height, compactness, off-ball structure/run, passing options, body orientation, scanning, fatigue/load/speed, true pressure geometry, coach intention, tactical plan, dominance ve causality kanitlanmis sayilmaz.",
+        "[9] SCOPE AUTHORITY",
+        "Fiziksel-yapi, geometri, hareket, niyet ve nedensel construct aileleri kendi admitted observation/evidence contractlariyla uretilir.",
         "",
-        "[10] CURRENT PRODUCT CEILING",
-        "CSV/XML event-like occurrence ve XLSX aggregate surface artik ayni run'da birlikte tasinir; ayni provider yuzeyleri independent vote degildir.",
-        "C01 ilk construct vertical slice'tir; occurrence-level progression semantics tam admission gecmeden progression truth uretilmez.",
-        "Phase/state etiketleri activity candidate'dir; phase truth degildir.",
-        "MICRO/MEZZO/MACRO bir evidence-routing lattice'tir; macro claim mikro/mezo evidence'dan kopamaz.",
-        "Player/GK/team gorunumleri candidate identity ve aggregate cell yuzeyidir; validated identity/quality truth degildir.",
+        "[10] CURRENT PRODUCT SCOPE",
+        "CSV/XML occurrence ve XLSX aggregate yuzeyleri ayni run'da dependency-aware lineage ile birlikte tasinir.",
+        "C01 ilk construct vertical slice'tir; progression output authority occurrence-level progression admission durumunu izler.",
+        "Phase/state etiketleri activity-candidate authority tasir.",
+        "MICRO/MEZZO/MACRO evidence-routing lattice'i macro yorumlari mikro/mezo evidence lineage'ina baglar.",
+        "Player/GK/team gorunumleri candidate-identity ve aggregate-context authority tasir; identity/quality yorumlari validated registry ve construct contractlarini kullanir.",
         "",
         "[11] CLAIM LOCKS",
         "canonical_event_count=UNKNOWN",

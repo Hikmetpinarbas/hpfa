@@ -147,7 +147,7 @@ def test_process_contest_cards_put_attack_and_opponent_exposure_on_same_surface(
     assert "12 görünür süreç" in text
     assert "savunma maruziyeti tarafında beta" in text.casefold()
     assert "9 süreç kurdu" in text
-    assert "otomatik olarak savunma başarısı" in text
+    assert "Savunma maruziyeti rakibin görünür süreç hacmi" in text
 
 
 def test_six_phase_matrix_renders_all_twelve_direction_slots():
@@ -185,7 +185,7 @@ def test_six_phase_matrix_renders_all_twelve_direction_slots():
     assert "Beta — 6 faz" in text
     for label in ("yerleşik hücum", "geçiş hücumu", "duran top hücumu", "yerleşik savunma", "geçiş savunması", "duran top savunması"):
         assert text.count(label + ":") == 2
-    assert "zorlanmış top kaybı" in text
+    assert "Değerlendirme süreç hacmi" in text
 
 
 def test_phase_motif_sentence_exposes_recurrence_without_calling_it_tactical_truth():
@@ -243,7 +243,7 @@ def test_phase_motif_sentence_surfaces_first_supported_divergence_safely():
     assert "İlk destekli grammar ayrışması" in text
     assert "SHOT_LINKED ↔ LOSS_LINKED" in text
     assert "LAYER[PASS] ↔ LAYER[CARRY]" in text
-    assert "nedensel kırılma" in text
+    assert "görünür ayrışma noktasını" in text
 
 
 def test_human_reports_use_football_language_and_keep_evidence_note_separate():
@@ -407,10 +407,10 @@ def test_human_report_exposes_visible_same_team_vs_handover_split_without_causal
     en = build_human_analyst_report_en(tmp_path, spine)
     assert "252/277 tanesinde aynı takım devamı" in tr
     assert "7/7 tanesinde rakibe geçiş" in tr
-    assert "sonucu açıklayan neden değil" in tr
+    assert "aynı başlangıçtan sonra oluşan görünür sonuç ayrımını" in tr
     assert "same-team continuation appears in 252/277" in en
     assert "opponent handover appears in 7/7" in en
-    assert "not an explanation of cause" in en
+    assert "summarizes the visible outcome split" in en
 
 
 def test_single_episode_mechanism_candidate_is_rendered_as_limited_comparison(tmp_path):
@@ -612,10 +612,10 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
     assert "3 süreçte breakdown sonrası rakip takeover" in text
     assert "2 süreçte aynı-zamanlı iki takım belirsizliği" in text
     assert "1 süreçte görünür follow-up yokluğu" in text
-    assert "Rakibe geçiş zorlanmış top kaybı" in text
-    assert "takeover baskı başarısı" in text
-    assert "follow-up yokluğu başarısızlık değildir" in text
-    assert "rakip planı" in text
+    assert "maç-içi süreç kompozisyonunu gösterir" in text
+    assert "Okuma çerçevesi" in text
+    assert "follow-up durumlarının" in text
+    assert "same-time review" in text
 
 
 

@@ -1332,7 +1332,7 @@ def _association_epistemic_review_contract(
 
 
 def _c02_observation_capability_profile() -> dict[str, Any]:
-    """Describe what the current C02 source can and cannot resolve for its target outcome."""
+    """Describe the current C02 source resolution scope for its target outcome."""
     required = [
         "PROCESS_CONTEXT_INTERVAL",
         "PROCESS_PARTICIPATION",

@@ -599,7 +599,7 @@ def _typed_defeat_contract(
 ) -> dict[str, Any]:
     """Expose attack-target debt and typed conditional withdrawal rules.
 
-    Observed counterexamples are not automatically REBUT attacks because the current
+    Observed counterexamples enter typed-attack classification through the current
     Safe Finding conclusion is itself a bounded variation cue. Without an explicit
     target claim component, the active defeat type remains unresolved.
     """
@@ -1009,7 +1009,7 @@ def _safe_finding_handoff_candidates(
             "analyst_summary_tr": (
                 f"Aynı görünür başlangıçtan çıkan {denominator} uygun vakanın {numerator}'sinde SUCCESS, "
                 f"{len(failure_refs)}'inde FAILURE semantiği görüldü; bağımsız tekrar kanıtlanmadığı için bu oran "
-                "gerçek başarı olasılığı veya taktik kalite değildir."
+                "maç-içi betimleyici varyant ayrışması kapsamında yorumlanır."
             ),
             "safe_finding_handoff_is_professional_finding_truth": False,
             "safe_finding_handoff_is_tactical_truth": False,

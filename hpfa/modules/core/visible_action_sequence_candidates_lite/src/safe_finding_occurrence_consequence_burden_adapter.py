@@ -345,7 +345,7 @@ def apply_occurrence_consequence_burden_to_admission(
 ) -> dict[str, Any]:
     """Bind observed follow-up/censoring debt to final Safe Finding decisions.
 
-    This adapter cannot create evidence or upgrade a decision. It distinguishes a fully
+    This adapter carries burden-state authority and distinguishes a fully
     observed no-follow-up from unresolved or right-censored observation and preserves
     NO_VISIBLE_FOLLOWUP != FAILURE.
     """

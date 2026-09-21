@@ -6,7 +6,7 @@ Product: **Hikmet Pınarbaş Football Analytics**
 
 ## 0. START HERE
 
-Do not ask the user to reconstruct project history.
+Use recorded project history and continuity records as the reconstruction source; present the resulting state directly.
 
 Mandatory startup:
 1. Read `docs/governance/HPFA_MASTER_PROJECT_DIRECTIVE_SHORT_CURRENT.md`.
@@ -14,13 +14,13 @@ Mandatory startup:
 3. Read this snapshot.
 4. Fresh-fetch PR #364 and the Termux worktree before every write/current-state claim.
 5. Verify ACTIVE_MATCH physically before runtime claims.
-6. Do not merge/release/force-push/reset/rebase destructively without explicit user approval.
+6. Merge/release and history-changing operations use explicit user approval; default adaptation is fresh and non-destructive.
 
 ## 1. CORE PRODUCT LAW
 
 HPFA = Hikmet Pınarbaş Football Analytics.
 
-`EVENT ⊂ ZFGV` and `ZFGV != EVENT`.
+ACTION/EVENT is one observation family within the wider ZFGV architecture.
 
 Evidence spine:
 
@@ -38,37 +38,38 @@ Operating laws:
 - REHABILITATE_BEFORE_PARALLEL_ENGINE
 - ADAPT_NOT_COPY
 - CODE LAST
-- PASS != RELEASE
-- CI PASS != ACTIVE_MATCH
-- ACTIVE_MATCH != production
-- donor PASS != product PASS
+- PASS authority: test/contract acceptance.
+- CI PASS authority: workflow evidence.
+- ACTIVE_MATCH authority: physical runtime acceptance.
+- Production authority: explicit release governance.
+- Donor PASS authority: donor/support validation.
 
 ## 2. TRUTH LOCKS
 
-- ROW != EVENT TRUTH
-- EVENT != WHOLE OBSERVATION UNIVERSE
-- PROVIDER LABEL != PHYSICAL/TACTICAL TRUTH
-- AGGREGATE != ACTION IDENTITY
-- MULTIFORMAT != INDEPENDENT EVIDENCE
-- SAME TIMESTAMP != TOTAL ORDER
-- COORDINATE != TRACKING
-- PROCESS LABEL != COACH INTENTION
-- RECURRENCE != CAUSALITY
-- MODEL OUTPUT != FACT
-- LLM TEXT != EVIDENCE
-- ABSENCE != COUNTEREVIDENCE
-- NO_VISIBLE_FOLLOWUP != FAILURE
+- Row authority: source-surface observation unit.
+- Event authority: admitted action/event observation family inside the wider ZFGV universe.
+- Provider-label authority: source/provider semantic annotation candidate.
+- Aggregate authority: contextual/tabular evidence surface.
+- Multiformat authority: multiple serialized surfaces with explicit dependency/reflection accounting.
+- Timestamp authority: temporal anchor; ordering strength follows the admitted temporal relation contract.
+- Coordinate authority: admitted event-location observation.
+- Process-label authority: source/provider process annotation candidate.
+- Recurrence authority: repeated admitted pattern within the declared match-local scope.
+- Model-output authority: model-derived signal governed by its model/source/version contract.
+- LLM-output authority: analyst synthesis and communication surface.
+- Absence authority: unresolved or empty observation state within the declared observation window.
+- NO_VISIBLE_FOLLOWUP authority: unresolved visible continuation state within the declared horizon.
 
 C02 locks:
-- OUTCOME MUST NOT DEFINE ITS OWN ELIGIBLE DENOMINATOR
-- MINIMUM SUPPORT THRESHOLD != EVIDENCE STRENGTH TRUTH
-- SHRUNK RATE != OBSERVED RATE
-- NO P-VALUE != NO MULTIPLICITY RISK
-- RANKED EXTREME != STABLE SIGNAL
-- EXACT COMPUTATION != VALID FOOTBALL INFERENCE
-- CLUSTER-AWARE != ASSUMPTION-FREE
+- Eligible-denominator authority: construct-defined opportunity set established before outcome attachment.
+- Minimum-support authority: review/admission gate.
+- Shrunk-rate authority: model-adjusted estimate with its own model contract.
+- Multiplicity authority: search-space and selection governance across tested candidates.
+- Ranking authority: analyst-attention ordering within the declared scope.
+- Exact-computation authority: arithmetic reproducibility of the declared estimand.
+- Cluster-aware authority: dependency-adjusted descriptive/statistical scope.
 
-Without tracking/video do not claim true shape, compactness, pitch control, off-ball geometry, true speed/load, pressure geometry, coach intention, dominance or causality.
+Physical-state constructs such as shape, compactness, pitch control, off-ball geometry, speed/load and pressure geometry use observation packages whose admitted capability contract includes the required physical-state surface. Coach-intention and causal constructs use their dedicated evidence contracts. Enriched action/process/aggregate constructs remain eligible under their own HPFA-native names.
 
 ## 3. CURRENT FRONTIER SNAPSHOT
 
@@ -78,7 +79,7 @@ Branch: `repair/post-sequence-current-ledger-v1`
 Snapshot head at handoff creation: `239d9a18f5dc95984caf3cc84b5e37b1d0f253fb`  
 State at handoff creation: `OPEN / DRAFT / UNMERGED / NOT_PRODUCTION`
 
-This SHA is a handoff snapshot, not permanent authority. Re-fetch before use.
+This SHA is a handoff snapshot. Current authority is re-established by fresh fetch before use.
 
 Current product direction:
 
@@ -93,7 +94,7 @@ Recent commits:
 - `2f23ceba` Tighten C02 descriptive association semantics
 - `145c5747` Bind provider cues to rendered mechanism records
 
-PR #359 is historical/base support, not current interactive WIP.
+PR #359 carries historical/base support authority; current interactive WIP authority follows fresh #364 verification.
 
 ## 4. CI / TEST STATE
 
@@ -139,7 +140,7 @@ Safe Finding:
 
 The physical report currently contains Trabzonspor / Galatasaray team surfaces.
 
-Do not transfer this physical evidence to current head `239d9a18...`.
+This physical evidence remains bound to its tested exact head; current-head runtime claims use a current-head physical acceptance.
 
 Current-head physical ACTIVE_MATCH acceptance is still required because later commits changed report language, authority state and comparison outcome-leakage guards.
 
@@ -147,25 +148,25 @@ Current-head physical ACTIVE_MATCH acceptance is still required because later co
 
 C02 = player/dyad × visible shot-linked association.
 
-No new significance engine. Do not implement Fisher/permutation/bootstrap/shrinkage merely because a table can be formed.
+Statistical methods enter the product only when the estimand, observation unit, dependency and exchangeability contract justify them; current owner rehabilitation remains the path.
 
 C02 claim ceiling:
 `MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY`
 
 C02 is connected to governed composition but:
-- creates no independent support
-- absence is not counterevidence
-- unresolved is not resolved negative
-- no causal player credit
-- no statistical significance
-- no stable signal
-- no forced EMIT
+- support authority follows admitted dependency groups and episode spread
+- absence authority remains an unresolved/empty observation state
+- unresolved outcomes retain unresolved status
+- player-credit authority remains descriptive association within the current construct
+- statistical authority follows an explicitly admitted statistical contract
+- signal stability follows repeated evidence under declared scope
+- EMIT follows Safe Finding admission
 
 ## 7. SAFE FINDING STATE
 
 0 EMIT is valid.
 
-Do not optimize toward EMIT count.
+Optimize for evidence quality, analyst information gain and governed claim composition; EMIT count remains a downstream result.
 
 Professional finding still needs enough dependency control, support spread, counterevidence scope, context scope, consequence resolution, unresolved burden handling and selection-risk visibility.
 
@@ -183,19 +184,11 @@ Current TR/EN report includes:
 1. visible team process profile
 2. player/pair × attack-outcome review
 3. mechanism candidates for analyst review
-4. claim boundary
+4. claim scope
 
-Internal tokens must not leak into the main football sentence.
+Primary football sentences use human-readable labels; internal tokens remain metadata.
 
-Do not tell the user:
-- admitted positional-attack family
-- eligible unit
-- visible annotation
-- occurrence-disjoint cluster
-- post-hoc rank
-- claim ceiling
-
-Those belong in evidence metadata only.
+Primary football prose uses human-readable football language. Terms such as admitted family, eligible unit, visible annotation, occurrence-disjoint cluster, post-hoc rank and claim ceiling remain evidence metadata.
 
 ### Physical language review
 
@@ -204,10 +197,10 @@ The 7f998955 Turkish report improved substantially but still has product-languag
 - phrases such as `230 adaylık tarama` are too research-like for the main football report
 - `mekanizma adayı` should become a natural football description where safely nameable
 - C02 sentences remain somewhat repetitive/mechanical
-- report still does not reconstruct the match into a strong 3–5 mechanism story
+- current report frontier: compress reconstructed match evidence into a strong 3–5 mechanism story
 - evidence notes must remain inspectable but secondary to football meaning
 
-Improve presentation; do not delete evidence.
+Improve presentation while preserving evidence lineage and inspectability.
 
 ## 9. REPOSITORY RE-AUDIT
 
@@ -215,11 +208,11 @@ Canonical record:
 `docs/governance/HPFA_FULL_REPOSITORY_REAUDIT_2026-09-20.md`
 
 ### RELEASE_CONVERGENCE_DEBT
-`origin/main` and current ZFGV development history do not form one simple natural ancestry chain. Older PRs are often disconnected/diverged.
+`origin/main` and current ZFGV development history currently have a diverged ancestry structure; older PRs carry historical/support roles according to reachability.
 
-Do not force-push, destructive-rebase, reset-to-main or blind-merge.
+Convergence uses fresh non-destructive adaptation and explicit user-approved merge/release governance.
 
-Open PR list != current product backlog.
+Current product backlog is defined by fresh tree/owner gap audit; open PRs remain support context.
 
 A user-approved convergence/release plan will eventually be required.
 
@@ -230,14 +223,14 @@ A user-approved convergence/release plan will eventually be required.
 ### HYGIENE / AUTHORITY DEBT
 Tracked repo still contains legacy `hpfa-main/`, vendor trees, compatibility wrappers, historical generated `out/` surfaces and runtime-evidence snapshots.
 
-Presence != runtime authority.
+Runtime authority comes from exact-head execution evidence.
 
-Do not delete by file count. Classify reachability and authority first.
+File retention/deletion follows reachability, authority and consumer-impact classification.
 
 ### PACKAGING MATURITY DEBT
-`pyproject.toml` is old/minimal and is not a reliable description of the whole current runtime surface.
+`pyproject.toml` is a minimal/legacy packaging description; runtime dependency authority comes from executable imports, tests and current product paths.
 
-Do not blindly add dependencies. Current XLSX product reading is intentionally native/stdlib-oriented; `openpyxl` is mainly test/tool fixture support in the current path.
+Dependency additions follow current runtime need, license and portability review. XLSX product reading is intentionally native/stdlib-oriented; `openpyxl` mainly supports tests/tools in the current path.
 
 ### SECURITY
 Reviewed non-donor product surface showed no obvious committed credential-pattern hit.
@@ -256,7 +249,7 @@ Physical suite:
 Useful idea already adapted:
 `finding → natural football narrative → counterevidence → limitation`
 
-Do not copy Yel architecture or loosen HPFA contracts.
+Yel contributes donor ideas through clean-room, gap-specific adaptation into existing HPFA owners and contracts.
 
 Donor decisions:
 - ALREADY_ABSORBED
@@ -269,7 +262,7 @@ Only ADAPT_NOW when a proven current-owner gap exists.
 
 ## 11. POST-LOSS REGAIN RESEARCH
 
-Do not open a parallel WIP.
+WIP=1 remains the development mode; research capital attaches to the current owner/frontier.
 
 Useful research capital:
 - loss-normalized regain incidence
@@ -282,15 +275,15 @@ Useful research capital:
 - counterevidence when regain fails
 
 Locks:
-- REGAIN != COUNTERPRESS TRUTH
-- FAST REGAIN != PRESSING QUALITY
-- RECOVERY LOCATION != CAUSAL PRESS MECHANISM
+- Regain authority: admitted recovery occurrence and its source-bound process context.
+- Fast-regain authority: recovery latency within the declared temporal window.
+- Recovery-location authority: admitted spatial recovery observation.
 
 Survival/hazard/competing risks/xR10:
 `RESEARCH_REQUIRED`
 
-Tracking-dependent pressure geometry:
-`UNOBSERVABLE_WITH_CURRENT_DATA`
+Pressure-geometry authority:
+`PHYSICAL_STATE_SURFACE_REQUIRED`
 
 ## 12. NEXT OPERATOR — FIRST ACTIONS
 
@@ -302,15 +295,15 @@ Tracking-dependent pressure geometry:
 6. Red-team football language: remove IDs from primary display names, reduce research jargon, keep evidence note separate, preserve uncertainty.
 7. Verify the new outcome-leakage comparison guard physically.
 8. If current head physically passes, run one blind second-match exact-head acceptance.
-9. Reconcile open PRs/issues semantically against current tree; do not auto-close.
+9. Reconcile open PRs/issues semantically against current tree; closure follows explicit governance and current-state evidence.
 10. Return to the single bottleneck:
    `MECHANISM CANDIDATE → SAFE FOOTBALL FINDING COMPOSITION`
 
 ## 13. USER COMMUNICATION
 
-The user is a football analyst, not a software operator.
+The user role is football analyst; software/runtime operations remain operator-owned.
 
-Do not make the user run terminal commands, locate paths, carry SHA values, debug CI or manage Git branches.
+The operator handles terminal commands, paths, SHA verification, CI debugging and branch management; the user receives football/product outcomes.
 
 Default report:
 1. Ne yaptım?
@@ -331,17 +324,14 @@ Bad:
 - Remote Desktop Commander = Termux / physical runtime / ACTIVE_MATCH
 - Drive / Dropbox = support/donor/history
 - YelFootballLab = donor lab
-- Wolfram / Mathbox / Precise Special Functions = mathematical verification, not football truth
+- Wolfram / Mathbox / Precise Special Functions = mathematical verification authority; football interpretation follows HPFA evidence/construct contracts
 - Figma / MobileMockup = analyst UI/presentation
 - Vercel = preview only; no production deploy without approval
 - academic connectors = scientific validation
 
 ## 15. RELEASE LOCK
 
-No merge.
-No release.
-No production binding.
-No destructive history rewrite.
+Current release state: OPEN / DRAFT / UNMERGED / production binding pending explicit user-approved release governance. History adaptation remains non-destructive.
 
 `canonical_event_count=UNKNOWN`  
 `true_action_count=UNKNOWN`  
@@ -351,10 +341,14 @@ Release/convergence requires explicit user approval.
 
 ## 16. FIRST MESSAGE TO USER
 
-After reading repo handoff, do not ask for project history.
+After reading repo handoff, reconstruct project history from recorded continuity sources and proceed from current authority.
 
 Say, in substance:
 
 > Devri aldım. Current GitHub head ile Termux fiziksel durumu eşleştiriyorum. Sonra current-head ACTIVE_MATCH kabulünü ve Türkçe/İngilizce raporların futbol dili kontrolünü kapatacağım. Kullanıcıdan şu anda işlem gerekmiyor.
 
 Then work.
+
+## PROJECT LANGUAGE AUTHORITY
+Human-readable HPFA surfaces follow `HPFA_POSITIVE_SCOPE_NARRATIVE_POLICY_V1.md`.
+Construct naming, authority roles, claim scope and evidence lineage carry epistemic boundaries; analyst prose presents the strongest supported football knowledge directly.
