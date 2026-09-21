@@ -1148,8 +1148,10 @@ def build_dependency_aware_partial_order_similarity(
         ),
         "structural_mismatch_pairs_materialized": False,
         "topology_mismatch_pairs_materialized": False,
+        "topology_partition_precedes_pair_materialization": True,
+        "topology_partition_can_discover_multiple_equivalence_classes": True,
         "topology_filter_can_create_new_pair": False,
-        "topology_filter_only_removes_or_preserves_coarse_prefilter_pairs": True,
+        "topology_filter_only_removes_or_preserves_coarse_prefilter_pairs": False,
         **diagnostics,
         "recurrence_candidate_eligible_pair_count": sum(
             1 for row in pairs if row.get("recurrence_candidate_eligible")
