@@ -81,6 +81,7 @@ def admitted_counterevidence_candidate():
             "candidate_context": {"team": "TEAM_A", "game_state": "LEVEL", "start_zone": "MIDDLE_THIRD"},
             "reference_outcome": "SHOT_ENDING",
             "candidate_outcome": "LOSS",
+            "outcome_relation": "OPPOSITE",
             "provenance_root": "root_candidate",
             "dependency_group": "dep_candidate",
             "independence_group": "ind_candidate",
