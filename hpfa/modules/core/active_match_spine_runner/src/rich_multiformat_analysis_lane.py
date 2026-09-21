@@ -368,6 +368,8 @@ def _progression_pool_p02(
             "relation_station_identity_not_bound",
             "opponent_response_not_bound_at_p02_projection_stage",
         ]
+        if not compressed_zone_stations:
+            unresolved.append("start_end_zone_transition_not_bound")
         pool_item_id = f"p02:{episode_id}"
         pool_items.append({
             "pool_item_id": pool_item_id,
