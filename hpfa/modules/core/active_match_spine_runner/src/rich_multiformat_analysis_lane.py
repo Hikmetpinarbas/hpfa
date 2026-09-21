@@ -191,6 +191,223 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
+def _score_state_timeline_candidates(
+    episode: dict[str, Any],
+    semantics: dict[str, Any],
+    identities: dict[str, Any],
+) -> dict[str, Any]:
+    """Build a claim-bounded score-state timeline from reviewed TEAM goal outcomes.
+
+    This does not use source row order.  Only admitted episode time-layer chronology,
+    reviewed terminal GOAL semantics and bound match-local team identities are used.
+    """
+    alias_map: dict[str, str] = {}
+    ambiguous_aliases: set[str] = set()
+    bound_team_ids: list[str] = []
+    for candidate in identities.get("team_identity_candidates") or []:
+        if not isinstance(candidate, dict):
+            continue
+        if str(candidate.get("decision_state") or "") != "TEAM_IDENTITY_CANDIDATE_BOUND":
+            continue
+        team_id = str(candidate.get("team_identity_candidate_id") or "")
+        if not team_id:
+            continue
+        bound_team_ids.append(team_id)
+        for alias in candidate.get("team_aliases_raw") or []:
+            key = str(alias or "").strip().casefold()
+            if not key:
+                continue
+            if key in alias_map and alias_map[key] != team_id:
+                ambiguous_aliases.add(key)
+                alias_map.pop(key, None)
+                continue
+            if key not in ambiguous_aliases:
+                alias_map[key] = team_id
+    bound_team_ids = sorted(set(bound_team_ids))
+
+    context_time: dict[str, dict[str, Any]] = {}
+    for layer in episode.get("episode_time_layer_candidates") or []:
+        if not isinstance(layer, dict):
+            continue
+        for context_ref in layer.get("context_refs") or []:
+            context_time[str(context_ref)] = {
+                "period_candidate": str(layer.get("period_candidate") or ""),
+                "second_candidate": layer.get("second_candidate"),
+                "same_time_unordered": bool(layer.get("same_time_unordered")),
+                "time_layer_ref": layer.get("episode_time_layer_candidate_id"),
+            }
+
+    raw_goal_changes: list[dict[str, Any]] = []
+    for row in semantics.get("context_action_semantic_records") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("source_role") or "") != "TEAM":
+            continue
+        if str(row.get("provider_semantics_review_status") or "") != "REVIEWED_CANDIDATE":
+            continue
+        if str(row.get("provider_semantic_role_candidate") or "") != "TERMINAL_OUTCOME_CANDIDATE":
+            continue
+        if str(row.get("provider_terminal_outcome_candidate") or "") != "GOAL":
+            continue
+        if str(row.get("provider_downstream_eligibility") or "") != "TERMINAL_OUTCOME_ONLY":
+            continue
+        context_id = str(row.get("context_id") or "")
+        time_row = context_time.get(context_id)
+        if not time_row:
+            continue
+        alias = str(row.get("context_team_candidate") or "").strip().casefold()
+        team_id = alias_map.get(alias)
+        if not team_id:
+            continue
+        second = time_row.get("second_candidate")
+        if not isinstance(second, (int, float)):
+            continue
+        raw_goal_changes.append({
+            "team_identity_candidate_id": team_id,
+            "team_candidate": row.get("context_team_candidate"),
+            "period_candidate": time_row.get("period_candidate"),
+            "second_candidate": float(second),
+            "time_layer_ref": time_row.get("time_layer_ref"),
+            "same_time_unordered": bool(time_row.get("same_time_unordered")),
+            "context_ref": context_id,
+            "row_nucleus_ref": row.get("row_nucleus_candidate_id"),
+            "score_change_is_validated_goal_truth": False,
+        })
+
+    grouped: dict[tuple[str, str, float], list[dict[str, Any]]] = defaultdict(list)
+    for row in raw_goal_changes:
+        grouped[
+            (
+                str(row["team_identity_candidate_id"]),
+                str(row["period_candidate"]),
+                float(row["second_candidate"]),
+            )
+        ].append(row)
+
+    goal_changes: list[dict[str, Any]] = []
+    collapsed_goal_reflection_count = 0
+    for (team_id, period, second), rows in sorted(
+        grouped.items(),
+        key=lambda item: (
+            int(item[0][1]) if str(item[0][1]).isdigit() else 999,
+            item[0][2],
+            item[0][0],
+        ),
+    ):
+        collapsed_goal_reflection_count += max(0, len(rows) - 1)
+        goal_changes.append({
+            "score_change_candidate_id": "score_goal_" + hashlib.sha256(
+                f"{team_id}|{period}|{second}".encode("utf-8")
+            ).hexdigest()[:20],
+            "team_identity_candidate_id": team_id,
+            "period_candidate": period,
+            "second_candidate": second,
+            "supporting_context_refs": sorted({str(row["context_ref"]) for row in rows}),
+            "supporting_row_nucleus_refs": sorted({
+                str(row.get("row_nucleus_ref"))
+                for row in rows
+                if row.get("row_nucleus_ref")
+            }),
+            "collapsed_reflection_count": max(0, len(rows) - 1),
+            "same_time_unordered": any(bool(row.get("same_time_unordered")) for row in rows),
+            "score_change_kind": "GOAL_TERMINAL_OUTCOME_CANDIDATE",
+            "score_change_is_validated_goal_truth": False,
+        })
+
+    return {
+        "status": "AVAILABLE" if goal_changes and len(bound_team_ids) == 2 else "DEGRADED",
+        "bound_team_identity_candidate_ids": bound_team_ids,
+        "goal_score_change_candidate_count": len(goal_changes),
+        "goal_score_change_candidates": goal_changes,
+        "collapsed_goal_reflection_count": collapsed_goal_reflection_count,
+        "score_state_requires_exactly_two_bound_teams": True,
+        "source_row_order_is_temporal_truth": False,
+        "same_timestamp_internal_ordering_allowed": False,
+        "numerical_state": "NOT_EVALUATED",
+        "red_card_state": "NOT_EVALUATED",
+        "validated_score_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_SCORE_STATE_CANDIDATE_ONLY",
+        "production_release": False,
+    }
+
+
+def _team_score_state_at_episode_start(
+    score_timeline: dict[str, Any],
+    *,
+    team_identity_candidate_id: str | None,
+    period_candidate: Any,
+    start_second_candidate: Any,
+) -> dict[str, Any]:
+    team_ids = list(score_timeline.get("bound_team_identity_candidate_ids") or [])
+    if not team_identity_candidate_id or len(team_ids) != 2:
+        return {
+            "status": "NOT_EVALUATED",
+            "score_state_candidate": "NOT_EVALUATED",
+            "reason": "team_identity_or_two_team_context_unavailable",
+        }
+    try:
+        start_second = float(start_second_candidate)
+    except (TypeError, ValueError):
+        return {
+            "status": "NOT_EVALUATED",
+            "score_state_candidate": "NOT_EVALUATED",
+            "reason": "episode_start_time_unavailable",
+        }
+    period = str(period_candidate or "")
+    if team_identity_candidate_id not in team_ids:
+        return {
+            "status": "NOT_EVALUATED",
+            "score_state_candidate": "NOT_EVALUATED",
+            "reason": "team_identity_not_in_bound_match_pair",
+        }
+    opponent_id = next(team_id for team_id in team_ids if team_id != team_identity_candidate_id)
+    scores = {team_id: 0 for team_id in team_ids}
+    same_time_goal_refs: list[str] = []
+    for change in score_timeline.get("goal_score_change_candidates") or []:
+        change_period = str(change.get("period_candidate") or "")
+        try:
+            change_second = float(change.get("second_candidate"))
+        except (TypeError, ValueError):
+            continue
+        before = False
+        if change_period.isdigit() and period.isdigit():
+            before = int(change_period) < int(period) or (
+                int(change_period) == int(period) and change_second < start_second
+            )
+            at_boundary = int(change_period) == int(period) and change_second == start_second
+        else:
+            before = change_period == period and change_second < start_second
+            at_boundary = change_period == period and change_second == start_second
+        if before and change.get("team_identity_candidate_id") in scores:
+            scores[str(change["team_identity_candidate_id"])] += 1
+        elif at_boundary:
+            same_time_goal_refs.append(str(change.get("score_change_candidate_id") or ""))
+    if same_time_goal_refs:
+        return {
+            "status": "CONTEXT_UNRESOLVED",
+            "score_state_candidate": "UNRESOLVED",
+            "reason": "goal_state_change_at_episode_start_timestamp",
+            "same_time_goal_refs": sorted(ref for ref in same_time_goal_refs if ref),
+        }
+    team_score = scores[team_identity_candidate_id]
+    opponent_score = scores[opponent_id]
+    if team_score > opponent_score:
+        state = "LEADING"
+    elif team_score < opponent_score:
+        state = "TRAILING"
+    else:
+        state = "LEVEL"
+    return {
+        "status": "AVAILABLE",
+        "score_state_candidate": state,
+        "team_score_candidate": team_score,
+        "opponent_score_candidate": opponent_score,
+        "team_identity_candidate_id": team_identity_candidate_id,
+        "opponent_identity_candidate_id": opponent_id,
+        "validated_score_truth": False,
+    }
+
+
 def _progression_pool_p02(
     features: dict[str, Any],
     temporal: dict[str, Any],
@@ -255,6 +472,7 @@ def _progression_pool_p02(
         for row in (semantics.get("context_action_semantic_records") or [])
         if isinstance(row, dict) and row.get("context_id")
     }
+    score_timeline = _score_state_timeline_candidates(episode, semantics, identities)
     finding_atoms: list[dict[str, Any]] = []
     pool_items: list[dict[str, Any]] = []
     team_pool_items: list[dict[str, Any]] = []
@@ -510,6 +728,12 @@ def _progression_pool_p02(
             )
             team_dependency_root = f"episode_team_feature:{episode_id}:{team_candidate}"
             team_identity_candidate_id = team_identity_alias_map.get(team_candidate.casefold())
+            team_score_state = _team_score_state_at_episode_start(
+                score_timeline,
+                team_identity_candidate_id=team_identity_candidate_id,
+                period_candidate=card.get("period_candidate"),
+                start_second_candidate=card.get("start_second_candidate"),
+            )
 
             team_consequence_summary_by_occurrence: dict[str, dict[str, Any]] = {}
             if team_identity_candidate_id and isinstance(episode_start, (int, float)) and isinstance(episode_end, (int, float)):
@@ -607,7 +831,9 @@ def _progression_pool_p02(
                     "transition_is_physical_trajectory_truth": False,
                 })
 
-            team_unresolved = ["game_state_not_bound"]
+            team_unresolved = []
+            if team_score_state.get("status") != "AVAILABLE":
+                team_unresolved.append("game_state_not_fully_bound")
             if not team_identity_candidate_id:
                 team_unresolved.append("team_identity_candidate_not_bound")
             elif not team_occurrence_ids:
@@ -627,10 +853,18 @@ def _progression_pool_p02(
                 "team_candidate": team_candidate,
                 "team_identity_candidate_id": team_identity_candidate_id,
                 "episode_candidate_id": episode_id,
+                "game_state": team_score_state.get("score_state_candidate"),
+                "score_state_context": team_score_state,
+                "numerical_state": "NOT_EVALUATED",
                 "input_finding_atom_ids": atom_ids,
                 "input_context_refs": team_context_refs,
                 "dependency_roots": [dependency_root, team_dependency_root],
                 "football_question_id": "P02_TEAM_VISIBLE_PROGRESSION_PROCESS",
+                "comparison_context": {
+                    "team_identity_candidate_id": team_identity_candidate_id,
+                    "period_candidate": card.get("period_candidate"),
+                    "score_state_candidate": team_score_state.get("score_state_candidate"),
+                },
                 "construct_id": "P02_TEAM_PROCESS_SIGNATURE_PARTIAL",
                 "construct_definition": "Team-specific visible progression-relevant composition inside one analyst episode.",
                 "estimand": "team_episode_process_signature_candidate",
@@ -842,6 +1076,7 @@ def _progression_pool_p02(
         "module_id": "progression_pool_p02_projection_v1",
         "status": "DEGRADED" if pool_items else "NOT_EVALUATED",
         "decision": "P02_PARTIAL_PROJECTION_AVAILABLE" if pool_items else "P02_NOT_EVALUATED",
+        "score_state_timeline": score_timeline,
         "finding_atom_candidate_count": len(finding_atoms),
         "finding_atom_candidates": finding_atoms,
         "p02_pool_item_count": len(pool_items),
