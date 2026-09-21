@@ -10,6 +10,7 @@ if str(SRC) not in sys.path:
 
 from rich_multiformat_analysis_lane import (
     _build_p02_comparison_populations,
+    _build_p02_sequence_process_units,
     _construct_c01,
     _phase_state_candidates,
     _progression_pool_p02,
@@ -794,3 +795,96 @@ def test_p02_terminal_activity_candidate_is_not_process_outcome_truth():
     for item in p02["p02_team_pool_items"]:
         sig = item["process_signature_fields"]
         assert sig["team_episode_terminal_activity_is_process_outcome_truth"] is False
+
+
+
+def _sequence_process_unit_case():
+    sequence = {
+        "visible_action_time_layer_candidates": [
+            {
+                "visible_action_time_layer_candidate_id": "vl1",
+                "start_candidate": 10.0,
+                "trackable_action_trace_candidate_ids": ["tr1"],
+            },
+            {
+                "visible_action_time_layer_candidate_id": "vl2",
+                "start_candidate": 20.0,
+                "trackable_action_trace_candidate_ids": ["tr2a", "tr2b"],
+            },
+            {
+                "visible_action_time_layer_candidate_id": "vl3",
+                "start_candidate": 30.0,
+                "trackable_action_trace_candidate_ids": ["tr3"],
+            },
+            {
+                "visible_action_time_layer_candidate_id": "vl4",
+                "start_candidate": 40.0,
+                "trackable_action_trace_candidate_ids": ["tr4"],
+            },
+        ],
+        "visible_action_sequence_candidates": [
+            {
+                "visible_action_sequence_candidate_id": "vasq_1",
+                "team_identity_candidate_id": "teamc_A",
+                "period_candidate": "1",
+                "start_time_candidate": 10.0,
+                "end_time_candidate": 40.0,
+                "duration_candidate_seconds": 30.0,
+                "time_layer_candidate_ids": ["vl1", "vl2", "vl3", "vl4"],
+                "time_layer_count": 4,
+                "trackable_action_trace_candidate_ids": ["tr1", "tr2a", "tr2b", "tr3", "tr4"],
+                "trace_candidate_count": 5,
+                "action_family_counts": {"PASS": 3, "DRIBBLE": 1, "SHOT": 1},
+                "consequence_candidate_counts": {"FOLLOW_UP_VISIBLE": 3},
+                "sequence_record_status": "PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
+                "start_reason_candidate": "PERIOD_START",
+                "end_reason_candidate": "TERMINAL_OUTCOME_SUPPORT_BOUNDARY",
+            }
+        ],
+    }
+    trace = {
+        "trackable_action_trace_candidates": [
+            {"trackable_action_trace_candidate_id":"tr1","pos_x_candidate":10.0,"pos_y_candidate":10.0,"coordinate_evidence_status":"VISIBLE_COORDINATE_CANDIDATE"},
+            {"trackable_action_trace_candidate_id":"tr2a","pos_x_candidate":15.0,"pos_y_candidate":10.0,"coordinate_evidence_status":"VISIBLE_COORDINATE_CANDIDATE"},
+            {"trackable_action_trace_candidate_id":"tr2b","pos_x_candidate":16.0,"pos_y_candidate":11.0,"coordinate_evidence_status":"VISIBLE_COORDINATE_CANDIDATE"},
+            {"trackable_action_trace_candidate_id":"tr3","pos_x_candidate":20.0,"pos_y_candidate":10.0,"coordinate_evidence_status":"VISIBLE_COORDINATE_CANDIDATE"},
+            {"trackable_action_trace_candidate_id":"tr4","pos_x_candidate":20.0,"pos_y_candidate":20.0,"coordinate_evidence_status":"VISIBLE_COORDINATE_CANDIDATE"},
+        ]
+    }
+    score_timeline = {
+        "bound_team_identity_candidate_ids": ["teamc_A", "teamc_B"],
+        "goal_score_change_candidates": [],
+    }
+    return sequence, trace, score_timeline
+
+
+def test_p02_sequence_process_unit_uses_only_single_trace_coordinate_layers():
+    sequence, trace, score_timeline = _sequence_process_unit_case()
+    out = _build_p02_sequence_process_units(sequence, trace, score_timeline)
+    assert out["p02_process_unit_candidate_count"] == 1
+    unit = out["p02_process_unit_candidates"][0]
+    assert unit["coordinate_station_count"] == 3
+    assert unit["ambiguous_coordinate_layer_count"] == 1
+    assert [x["trackable_action_trace_candidate_id"] for x in unit["coordinate_stations"]] == ["tr1", "tr3", "tr4"]
+
+
+def test_p02_sequence_process_unit_geometric_path_is_provider_coordinate_proxy_only():
+    sequence, trace, score_timeline = _sequence_process_unit_case()
+    unit = _build_p02_sequence_process_units(sequence, trace, score_timeline)["p02_process_unit_candidates"][0]
+    assert unit["provider_coordinate_path_length_proxy"] == 20.0
+    assert unit["provider_coordinate_raw_x_displacement"] == 10.0
+    assert unit["provider_coordinate_raw_y_displacement"] == 10.0
+    assert round(unit["geometric_directness_proxy"], 6) == 0.707107
+    assert unit["metric_distance_metres"] is None
+    assert unit["goalward_progression"] is None
+    assert unit["attacking_direction"] == "NOT_EVALUATED"
+    assert unit["coordinate_is_tracking"] is False
+    assert unit["provider_coordinate_path_is_physical_trajectory_truth"] is False
+
+
+def test_p02_sequence_terminal_boundary_remains_visible_activity_candidate():
+    sequence, trace, score_timeline = _sequence_process_unit_case()
+    unit = _build_p02_sequence_process_units(sequence, trace, score_timeline)["p02_process_unit_candidates"][0]
+    assert unit["team_episode_terminal_activity_candidate"] == "TERMINAL_SUPPORT_BOUNDARY_VISIBLE"
+    assert unit["terminal_activity_is_process_outcome_truth"] is False
+    assert unit["comparison_candidate_ready"] is False
