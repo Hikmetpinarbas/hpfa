@@ -445,29 +445,21 @@ def _visible_process_stage_profile(rows: list[dict[str, Any]]) -> dict[str, Any]
         "KEY_ACTION": action_count(
             lambda row: bool(str(row.get("provider_key_action_candidate") or "").strip())
         ),
-        "CHANCE": reviewed_count(
-            lambda row: str(row.get("provider_terminal_outcome_candidate") or "") == "CHANCE"
-        ),
         "SHOT": action_count(
             lambda row: str(row.get("provider_action_family_candidate") or "") == "SHOT"
         ),
         "SHOT_ON_TARGET": action_count(
             lambda row: str(row.get("provider_shot_result_candidate") or "")
             in {"ON_TARGET", "SHOT_ON_TARGET", "TARGET"}
-        ),
-        "GOAL": reviewed_count(
-            lambda row: str(row.get("provider_terminal_outcome_candidate") or "") == "GOAL"
-        ),
+        )
     }
     ladder = [
         "PROGRESSION",
         "FINAL_THIRD",
         "PENALTY_AREA",
         "KEY_ACTION",
-        "CHANCE",
         "SHOT",
         "SHOT_ON_TARGET",
-        "GOAL",
     ]
     deepest = next((stage for stage in reversed(ladder) if stage_counts[stage] > 0), None)
 
@@ -486,6 +478,8 @@ def _visible_process_stage_profile(rows: list[dict[str, Any]]) -> dict[str, Any]
         "exit_stage_candidate": "UNRESOLVED",
         "ordering_state": "PRESENCE_ONLY_NO_TOTAL_ORDER",
         "terminal_outcomes_do_not_add_action_volume": True,
+        "chance_stage_status": "NOT_EVALUATED_NO_PROCESS_BOUND_TERMINAL_AUTHORITY",
+        "goal_stage_status": "NOT_EVALUATED_NO_PROCESS_BOUND_TERMINAL_AUTHORITY",
         "stage_ladder_is_physical_sequence_truth": False,
         "deepest_stage_is_tactical_quality_truth": False,
         "provider_zone_semantics_are_tracking_truth": False,
