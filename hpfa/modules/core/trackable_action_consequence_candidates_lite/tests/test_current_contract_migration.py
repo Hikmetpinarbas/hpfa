@@ -242,3 +242,50 @@ def test_missing_second_layer_stays_explicit_none_not_failure() -> None:
     )
     assert row["visible_consequence_path_depth"] == 1
     assert row["visible_consequence_path_layers"][1]["team_relation_state"] == "NONE"
+
+
+def test_repeated_visible_path_becomes_match_local_recurrence_candidate() -> None:
+    traces = [
+        trace("a1", start=10, team="A", actor="p1", family="TURNOVER"),
+        trace("b1", start=14, team="B", actor="q1", family="PASS", x=20),
+        trace("c1", start=18, team="B", actor="q2", family="PASS", x=30),
+        trace("a2", start=30, team="A", actor="p2", family="TURNOVER", x=40),
+        trace("b2", start=34, team="B", actor="q3", family="PASS", x=50),
+        trace("c2", start=38, team="B", actor="q4", family="PASS", x=60),
+    ]
+    result = build(traces)
+    candidates = result["visible_consequence_path_recurrence_candidates"]
+    target = next(
+        row for row in candidates
+        if row["visible_consequence_path_signature"]
+        == "ANCHOR:TURNOVER -> L1:OPPONENT:PASS -> L2:OPPONENT:PASS"
+    )
+
+    assert target["visible_occurrence_count"] == 2
+    assert target["eligible_anchor_population_count"] == 2
+    assert target["actor_spread_count"] == 2
+    assert target["recurrence_candidate_eligible"] is True
+    assert target["recurrence_is_independent_support"] is False
+    assert target["recurrence_is_causality_truth"] is False
+    assert target["recurrence_is_tactical_intention_truth"] is False
+
+
+def test_single_visible_path_does_not_become_recurrence_candidate() -> None:
+    result = build([
+        trace("a", start=10, team="A", family="RECOVERY"),
+        trace("b", start=14, team="A", actor="b", family="PASS", x=20),
+        trace("c", start=18, team="A", actor="c", family="PASS", x=30),
+    ])
+
+    assert result["visible_consequence_path_recurrence_candidate_count"] == 0
+
+
+def test_no_visible_follow_up_is_not_promoted_to_recurrence_candidate() -> None:
+    result = build([
+        trace("a1", start=10, team="A", actor="p1", family="TURNOVER"),
+        trace("a2", start=30, team="A", actor="p2", family="TURNOVER", x=40),
+    ])
+
+    assert result["visible_consequence_path_recurrence_candidate_count"] == 0
+    assert result["visible_consequence_path_recurrence_is_independent_support"] is False
+    assert result["visible_consequence_path_recurrence_is_causality_truth"] is False
