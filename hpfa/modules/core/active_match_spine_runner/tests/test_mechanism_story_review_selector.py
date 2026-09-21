@@ -319,3 +319,82 @@ def test_selector_preserves_multi_process_context_ambiguity_instead_of_forcing_o
         "COUNTERATTACK_CANDIDATE": 1,
         "POSITIONAL_ATTACK_CANDIDATE": 2,
     }
+
+
+def test_selector_binds_source_challenge_summary_without_creating_evidence_or_emit_authority():
+    row = _row("challenge", "T1", "1", ["LAYER[PASS]", "LAYER[PASS]"])
+    challenge_payload = {
+        "status": "PASS",
+        "variant_feature_challenge_records": [
+            {
+                "variant_feature_challenge_id": "vfc_1",
+                "source_feature_delta_record_ref": "challenge",
+                "feature_surface": "CONTEXT",
+                "challenge_reasons": ["DEPENDENCY_INDEPENDENCE_UNPROVEN"],
+                "counter_scenario_candidates": ["SAMPLE_COMPOSITION_MAY_EXPLAIN_DIFFERENCE"],
+                "withdrawal_conditions": ["WITHDRAW_IF_CONTEXT_DIFFERENCE_DISAPPEARS"],
+                "context_scope_state": "SINGLE_TEAM_SINGLE_PERIOD_SCOPE",
+                "partition_visibility_state": "VISIBLE_IN_BOTH_OUTCOME_PARTITIONS",
+                "professional_finding_emit_allowed": False,
+                "hypothesis_candidate_is_truth": False,
+                "dependency_independence_proven": False,
+                "statistical_independence_proven": False,
+            },
+            {
+                "variant_feature_challenge_id": "vfc_2",
+                "source_feature_delta_record_ref": "challenge",
+                "feature_surface": "CONSEQUENCE",
+                "challenge_reasons": ["CONTEXT_ROBUSTNESS_NOT_TESTED"],
+                "counter_scenario_candidates": ["OPPONENT_BEHAVIOUR_OR_SCORE_STATE_MAY_EXPLAIN_DIFFERENCE"],
+                "withdrawal_conditions": ["WITHDRAW_IF_HORIZON_CHANGES_DIFFERENCE"],
+                "context_scope_state": "SINGLE_TEAM_SINGLE_PERIOD_SCOPE",
+                "partition_visibility_state": "VISIBLE_IN_ONE_OUTCOME_PARTITION_ONLY",
+                "professional_finding_emit_allowed": False,
+                "hypothesis_candidate_is_truth": False,
+                "dependency_independence_proven": False,
+                "statistical_independence_proven": False,
+            },
+            {
+                "variant_feature_challenge_id": "vfc_other",
+                "source_feature_delta_record_ref": "other",
+                "feature_surface": "CONTEXT",
+                "challenge_reasons": ["SHOULD_NOT_BIND"],
+                "counter_scenario_candidates": ["SHOULD_NOT_BIND"],
+                "withdrawal_conditions": ["SHOULD_NOT_BIND"],
+                "professional_finding_emit_allowed": False,
+                "hypothesis_candidate_is_truth": False,
+                "dependency_independence_proven": False,
+                "statistical_independence_proven": False,
+            },
+        ],
+    }
+
+    result = build_mechanism_story_review_shortlist(
+        {"grammar_stable_variant_feature_delta_records": [row]},
+        variant_feature_challenge_payload=challenge_payload,
+    )
+
+    selected = result["shortlist"][0]
+    assert selected["mechanism_challenge_binding_state"] == "SOURCE_BOUND_VARIANT_FEATURE_CHALLENGE_AVAILABLE"
+    assert selected["mechanism_challenge_record_count"] == 2
+    assert selected["mechanism_challenge_feature_surface_counts"] == {"CONSEQUENCE": 1, "CONTEXT": 1}
+    assert selected["mechanism_challenge_reason_codes"] == [
+        "CONTEXT_ROBUSTNESS_NOT_TESTED",
+        "DEPENDENCY_INDEPENDENCE_UNPROVEN",
+    ]
+    assert selected["mechanism_counter_scenario_candidates"] == [
+        "OPPONENT_BEHAVIOUR_OR_SCORE_STATE_MAY_EXPLAIN_DIFFERENCE",
+        "SAMPLE_COMPOSITION_MAY_EXPLAIN_DIFFERENCE",
+    ]
+    assert selected["mechanism_withdrawal_conditions"] == [
+        "WITHDRAW_IF_CONTEXT_DIFFERENCE_DISAPPEARS",
+        "WITHDRAW_IF_HORIZON_CHANGES_DIFFERENCE",
+    ]
+    assert selected["mechanism_challenge_all_professional_finding_emit_disallowed"] is True
+    assert selected["mechanism_challenge_all_hypothesis_candidate_truth_false"] is True
+    assert selected["mechanism_challenge_dependency_independence_proven"] is False
+    assert selected["mechanism_challenge_statistical_independence_proven"] is False
+    assert selected["mechanism_challenge_records_are_independent_evidence_votes"] is False
+    assert selected["mechanism_challenge_summary_is_counterfactual_truth"] is False
+    assert selected["mechanism_challenge_summary_is_causal_explanation"] is False
+    assert selected["mechanism_challenge_can_authorize_emit"] is False

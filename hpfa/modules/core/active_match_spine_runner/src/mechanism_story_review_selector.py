@@ -217,12 +217,91 @@ def _process_context_binding_by_variant_family(
     return result
 
 
+def _challenge_summary_by_feature_delta(
+    challenge_payload: dict[str, Any] | None,
+) -> dict[str, dict[str, Any]]:
+    if not isinstance(challenge_payload, dict):
+        return {}
+    if str(challenge_payload.get("status") or "").upper() == "FAIL_CLOSED":
+        return {}
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in challenge_payload.get("variant_feature_challenge_records") or []:
+        if not isinstance(row, dict):
+            continue
+        ref = str(row.get("source_feature_delta_record_ref") or "").strip()
+        if ref:
+            grouped.setdefault(ref, []).append(row)
+
+    result: dict[str, dict[str, Any]] = {}
+    for ref, rows in grouped.items():
+        result[ref] = {
+            "mechanism_challenge_binding_state": "SOURCE_BOUND_VARIANT_FEATURE_CHALLENGE_AVAILABLE",
+            "challenge_record_count": len(rows),
+            "challenge_reason_codes": sorted({
+                str(value)
+                for row in rows
+                for value in (row.get("challenge_reasons") or [])
+                if str(value)
+            }),
+            "counter_scenario_candidates": sorted({
+                str(value)
+                for row in rows
+                for value in (row.get("counter_scenario_candidates") or [])
+                if str(value)
+            }),
+            "withdrawal_conditions": sorted({
+                str(value)
+                for row in rows
+                for value in (row.get("withdrawal_conditions") or [])
+                if str(value)
+            }),
+            "feature_surface_counts": dict(sorted({
+                surface: sum(str(row.get("feature_surface") or "") == surface for row in rows)
+                for surface in {
+                    str(row.get("feature_surface") or "").strip()
+                    for row in rows
+                    if str(row.get("feature_surface") or "").strip()
+                }
+            }.items())),
+            "context_scope_states": sorted({
+                str(row.get("context_scope_state") or "")
+                for row in rows
+                if str(row.get("context_scope_state") or "")
+            }),
+            "partition_visibility_states": sorted({
+                str(row.get("partition_visibility_state") or "")
+                for row in rows
+                if str(row.get("partition_visibility_state") or "")
+            }),
+            "all_professional_finding_emit_disallowed": all(
+                row.get("professional_finding_emit_allowed") is False for row in rows
+            ),
+            "all_hypothesis_candidate_truth_false": all(
+                row.get("hypothesis_candidate_is_truth") is False for row in rows
+            ),
+            "dependency_independence_proven": all(
+                row.get("dependency_independence_proven") is True for row in rows
+            ),
+            "statistical_independence_proven": all(
+                row.get("statistical_independence_proven") is True for row in rows
+            ),
+            "challenge_records_are_independent_evidence_votes": False,
+            "challenge_summary_is_counterfactual_truth": False,
+            "challenge_summary_is_causal_explanation": False,
+            "challenge_can_authorize_emit": False,
+            "claim_ceiling": "MATCH_LOCAL_SOURCE_BOUND_MECHANISM_CHALLENGE_SUMMARY_ONLY",
+        }
+    return result
+
+
 def build_mechanism_story_review_shortlist(
     feature_delta_payload: dict[str, Any],
     *,
     analyst_output_claim_payload: dict[str, Any] | None = None,
     process_variant_payload: dict[str, Any] | None = None,
     process_participation_payload: dict[str, Any] | None = None,
+    variant_feature_challenge_payload: dict[str, Any] | None = None,
     limit: int = 5,
 ) -> dict[str, Any]:
     """Build an analyst-attention shortlist without promoting evidence or truth.
@@ -256,6 +335,9 @@ def build_mechanism_story_review_shortlist(
     process_context_by_family = _process_context_binding_by_variant_family(
         process_variant_payload,
         process_participation_payload,
+    )
+    challenge_by_feature_delta = _challenge_summary_by_feature_delta(
+        variant_feature_challenge_payload
     )
     band_order = {
         "P0_REVIEW_RICH": 0,
@@ -295,6 +377,9 @@ def build_mechanism_story_review_shortlist(
         family_ref = str(row.get("source_process_variant_family_ref") or "").strip()
         bound = bounds.get(family_ref) if eligibility == "BOUND_AWARE_REVIEW_ONLY" else None
         process_context_binding = process_context_by_family.get(family_ref, {})
+        challenge_summary = challenge_by_feature_delta.get(
+            str(row.get("grammar_stable_variant_feature_delta_id") or ""), {}
+        )
         selected.append({
             "source_mechanism_review_ref": row.get("grammar_stable_variant_feature_delta_id"),
             "source_process_variant_family_ref": row.get("source_process_variant_family_ref"),
@@ -332,6 +417,51 @@ def build_mechanism_story_review_shortlist(
             "process_context_binding_claim_ceiling": process_context_binding.get(
                 "claim_ceiling",
                 "MATCH_LOCAL_SOURCE_BOUND_PROCESS_CONTEXT_BINDING_CANDIDATE_ONLY",
+            ),
+            "mechanism_challenge_binding_state": challenge_summary.get(
+                "mechanism_challenge_binding_state",
+                "UNRESOLVED_NO_SOURCE_BOUND_VARIANT_FEATURE_CHALLENGE",
+            ),
+            "mechanism_challenge_record_count": int(
+                challenge_summary.get("challenge_record_count") or 0
+            ),
+            "mechanism_challenge_reason_codes": list(
+                challenge_summary.get("challenge_reason_codes") or []
+            ),
+            "mechanism_counter_scenario_candidates": list(
+                challenge_summary.get("counter_scenario_candidates") or []
+            ),
+            "mechanism_withdrawal_conditions": list(
+                challenge_summary.get("withdrawal_conditions") or []
+            ),
+            "mechanism_challenge_feature_surface_counts": dict(
+                challenge_summary.get("feature_surface_counts") or {}
+            ),
+            "mechanism_challenge_context_scope_states": list(
+                challenge_summary.get("context_scope_states") or []
+            ),
+            "mechanism_challenge_partition_visibility_states": list(
+                challenge_summary.get("partition_visibility_states") or []
+            ),
+            "mechanism_challenge_all_professional_finding_emit_disallowed": (
+                challenge_summary.get("all_professional_finding_emit_disallowed") is True
+            ),
+            "mechanism_challenge_all_hypothesis_candidate_truth_false": (
+                challenge_summary.get("all_hypothesis_candidate_truth_false") is True
+            ),
+            "mechanism_challenge_dependency_independence_proven": (
+                challenge_summary.get("dependency_independence_proven") is True
+            ),
+            "mechanism_challenge_statistical_independence_proven": (
+                challenge_summary.get("statistical_independence_proven") is True
+            ),
+            "mechanism_challenge_records_are_independent_evidence_votes": False,
+            "mechanism_challenge_summary_is_counterfactual_truth": False,
+            "mechanism_challenge_summary_is_causal_explanation": False,
+            "mechanism_challenge_can_authorize_emit": False,
+            "mechanism_challenge_claim_ceiling": challenge_summary.get(
+                "claim_ceiling",
+                "MATCH_LOCAL_SOURCE_BOUND_MECHANISM_CHALLENGE_SUMMARY_ONLY",
             ),
             "grammar_signature_tokens": list(row.get("grammar_signature_tokens") or []),
             "resolved_variant_count": int(row.get("resolved_variant_count") or 0),

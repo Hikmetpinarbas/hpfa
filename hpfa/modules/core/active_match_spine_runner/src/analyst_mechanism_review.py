@@ -15,6 +15,7 @@ OCCURRENCE_CONSEQUENCE_JSON = "occurrence_consequence_projection_v1.json"
 SEQUENCE_JSON = "visible_action_sequence_candidates_lite_v1.json"
 PROCESS_VARIANT_JSON = "observable_process_variant_binding_projection_v1.json"
 PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
+VARIANT_FEATURE_CHALLENGE_JSON = "variant_feature_challenge_projection_v1.json"
 ANALYST_OUTPUT_CLAIM_JSON = "analyst_output_claim_contract_projection_v1.json"
 
 
@@ -442,6 +443,11 @@ def build_mechanism_review_lines(
         if _declared_current(full_spine, PROCESS_PARTICIPATION_JSON)
         else {}
     )
+    variant_feature_challenge_payload = (
+        _load_json(root / VARIANT_FEATURE_CHALLENGE_JSON)
+        if _declared_current(full_spine, VARIANT_FEATURE_CHALLENGE_JSON)
+        else {}
+    )
     teams = _team_names(identity)
     actors = _actor_names(identity)
     records = [
@@ -461,6 +467,7 @@ def build_mechanism_review_lines(
         analyst_output_claim_payload=analyst_output_payload or None,
         process_variant_payload=process_variant_payload or None,
         process_participation_payload=process_participation_payload or None,
+        variant_feature_challenge_payload=variant_feature_challenge_payload or None,
         limit=5,
     )
 
@@ -605,6 +612,18 @@ def build_mechanism_review_lines(
             "process_identity_truth=false tactical_truth=false causal_truth=false "
             "independent_support=false emit=false"
         )
+        challenge_n = int(shortlist_support.get("mechanism_challenge_record_count") or 0)
+        if challenge_n:
+            lines.append(
+                "  mechanism_challenge: "
+                f"state={shortlist_support.get('mechanism_challenge_binding_state')} "
+                f"record_count={challenge_n} "
+                f"feature_surface_counts={json.dumps(shortlist_support.get('mechanism_challenge_feature_surface_counts') or {}, sort_keys=True)} "
+                f"reasons={json.dumps(shortlist_support.get('mechanism_challenge_reason_codes') or [])} "
+                f"counter_scenarios={json.dumps(shortlist_support.get('mechanism_counter_scenario_candidates') or [])} "
+                f"withdrawal_conditions={json.dumps(shortlist_support.get('mechanism_withdrawal_conditions') or [])} "
+                "independent_evidence=false counterfactual_truth=false causal_explanation=false emit=false"
+            )
         divergence_refs = [
             str(value)
             for value in (record.get("supported_branch_divergence_refs") or [])

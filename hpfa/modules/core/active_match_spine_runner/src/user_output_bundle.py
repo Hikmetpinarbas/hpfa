@@ -28,6 +28,7 @@ IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 FEATURE_DELTA_JSON = "grammar_stable_variant_feature_delta_projection_v1.json"
 PROCESS_VARIANT_JSON = "observable_process_variant_binding_projection_v1.json"
 PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
+VARIANT_FEATURE_CHALLENGE_JSON = "variant_feature_challenge_projection_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -838,11 +839,17 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         if _declared_current(full_spine, PROCESS_PARTICIPATION_JSON)
         else {}
     )
+    variant_feature_challenge_payload = (
+        _load_json(root / VARIANT_FEATURE_CHALLENGE_JSON)
+        if _declared_current(full_spine, VARIANT_FEATURE_CHALLENGE_JSON)
+        else {}
+    )
     shortlist = build_mechanism_story_review_shortlist(
         payload,
         analyst_output_claim_payload=analyst_output or None,
         process_variant_payload=process_variant_payload or None,
         process_participation_payload=process_participation_payload or None,
+        variant_feature_challenge_payload=variant_feature_challenge_payload or None,
         limit=5,
     )
     teams = _human_team_labels(identity)
@@ -895,11 +902,20 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     f" Kaynak-bağlı süreç bağlamı tekil değil: {context_bits}. "
                     "Bu nedenle tek bir süreç ailesi mekanizma etiketi olarak atanmadı."
                 )
+            challenge_n = int(row.get("mechanism_challenge_record_count") or 0)
+            challenge_note = ""
+            if challenge_n:
+                challenge_note = (
+                    f" Bu aday için {challenge_n} kaynak-bağlı challenge kaydı; örneklem bileşimi, rakip davranışı/skor durumu, "
+                    "gözlem/provider semantiği, çözülmemiş bağımlılık ve sonuç ufku gibi alternatif açıklamaları açık tutuyor. "
+                    "Bu koşullardan biri görünür ayrışmayı ortadan kaldırırsa mekanizma yorumu geri çekilmeli veya nitelendirilmelidir."
+                )
             evidence = (
                 f"Kanıt notu: karşılaştırma yüzeyinde {resolved} çözümlenmiş varyant kaydı var; "
                 f"{success} olumlu ve {failure} olumsuz görünür sonuca bağlı. "
                 f"Bu kayıtlar {clusters} birbirinden ayrı görünür aksiyon kümesine dayanıyor; bağımsız kanıt sayısı değildir. "
                 "Neden, antrenör planı ve başarı olasılığı çıkarılamaz."
+                + challenge_note
             )
         else:
             prefix = "Limited comparison" if single_episode_only else "Review point"
@@ -929,11 +945,20 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     f" Source-bound process context is not singular: {context_bits}. "
                     "No single process family was assigned as the mechanism label."
                 )
+            challenge_n = int(row.get("mechanism_challenge_record_count") or 0)
+            challenge_note = ""
+            if challenge_n:
+                challenge_note = (
+                    f" This candidate carries {challenge_n} source-bound challenge records that keep sample composition, opponent behaviour/score state, "
+                    "observation/provider semantics, unresolved dependency and consequence-horizon definitions open as alternative explanations. "
+                    "If those conditions remove the visible split, the mechanism interpretation must be withdrawn or qualified."
+                )
             evidence = (
                 f"Evidence note: the comparison surface contains {resolved} resolved variant records; "
                 f"{success} are linked to positive and {failure} to negative visible outcomes. "
                 f"They rest on {clusters} distinct visible action clusters, not {clusters} independent pieces of evidence. "
                 "They do not establish cause, coaching intention, or success probability."
+                + challenge_note
             )
         cards.extend([football, evidence])
     return cards
