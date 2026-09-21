@@ -568,12 +568,19 @@ def _build_p02_sequence_process_units(
     sequence_payload: dict[str, Any],
     trace_payload: dict[str, Any],
     score_timeline: dict[str, Any],
+    evidence_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project current visible sequences into P02 process-unit candidates.
 
     Only chronology already admitted by the visible-sequence owner is used.
     Coordinate geometry remains provider-coordinate proxy, not metres/tracking.
     """
+    evidence_payload = evidence_payload or {}
+    atom_by_id = {
+        str(row.get("evidence_atom_id")): row
+        for row in (evidence_payload.get("evidence_atoms") or [])
+        if isinstance(row, dict) and row.get("evidence_atom_id")
+    }
     trace_by_id = {
         str(row.get("trackable_action_trace_candidate_id")): row
         for row in (trace_payload.get("trackable_action_trace_candidates") or [])
@@ -629,6 +636,51 @@ def _build_p02_sequence_process_units(
         partial_order_process_signature_id = "p02_posig_" + hashlib.sha256(
             json.dumps(signature_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()[:20]
+
+        semantic_zone_stations: list[dict[str, Any]] = []
+        ambiguous_semantic_zone_layer_count = 0
+        for layer_id in sequence.get("time_layer_candidate_ids") or []:
+            layer = layer_by_id.get(str(layer_id))
+            if not isinstance(layer, dict):
+                continue
+            trace_ids = [
+                str(value)
+                for value in (layer.get("trackable_action_trace_candidate_ids") or [])
+                if str(value).strip()
+            ]
+            if len(trace_ids) != 1:
+                ambiguous_semantic_zone_layer_count += 1
+                continue
+            trace_row = trace_by_id.get(trace_ids[0])
+            if not isinstance(trace_row, dict):
+                continue
+            zones = sorted({
+                str(atom_by_id[evidence_id].get("zone_candidate") or "")
+                for evidence_id in (trace_row.get("supporting_evidence_atom_ids") or [])
+                if evidence_id in atom_by_id
+                and str(atom_by_id[evidence_id].get("zone_candidate") or "").strip()
+            })
+            if len(zones) != 1:
+                if len(zones) > 1:
+                    ambiguous_semantic_zone_layer_count += 1
+                continue
+            semantic_zone_stations.append({
+                "time_layer_candidate_id": layer.get("visible_action_time_layer_candidate_id"),
+                "trackable_action_trace_candidate_id": trace_ids[0],
+                "time_candidate": layer.get("start_candidate"),
+                "semantic_zone_candidate": zones[0],
+                "zone_basis": "EVIDENCE_ATOM_SEMANTIC_ZONE_CANDIDATE",
+                "coordinate_zone_truth": False,
+                "same_timestamp_internal_ordering_asserted": False,
+            })
+
+        semantic_zone_path: list[str] = []
+        for station in semantic_zone_stations:
+            zone = str(station.get("semantic_zone_candidate") or "")
+            if zone and (not semantic_zone_path or semantic_zone_path[-1] != zone):
+                semantic_zone_path.append(zone)
+        process_start_zone_candidate = semantic_zone_path[0] if semantic_zone_path else None
+        process_end_zone_candidate = semantic_zone_path[-1] if semantic_zone_path else None
 
         coordinate_stations: list[dict[str, Any]] = []
         ambiguous_coordinate_layer_count = 0
@@ -726,6 +778,13 @@ def _build_p02_sequence_process_units(
             "end_reason_candidate": end_reason,
             "score_state_candidate": score_state.get("score_state_candidate"),
             "score_state_context": score_state,
+            "semantic_zone_station_count": len(semantic_zone_stations),
+            "semantic_zone_stations": semantic_zone_stations,
+            "semantic_zone_path_candidate": semantic_zone_path,
+            "process_start_zone_candidate": process_start_zone_candidate,
+            "process_end_zone_candidate": process_end_zone_candidate,
+            "process_zone_basis": "EVIDENCE_ATOM_SEMANTIC_ZONE_CANDIDATE" if semantic_zone_path else "NOT_EVALUATED",
+            "ambiguous_semantic_zone_layer_count": ambiguous_semantic_zone_layer_count,
             "coordinate_station_count": len(coordinate_stations),
             "coordinate_stations": coordinate_stations,
             "ambiguous_coordinate_layer_count": ambiguous_coordinate_layer_count,
@@ -742,7 +801,7 @@ def _build_p02_sequence_process_units(
             "comparison_candidate_ready": False,
             "comparison_not_ready_reasons": [
                 "attacking_direction_not_bound",
-                "process_start_zone_not_bound",
+                *([] if process_start_zone_candidate else ["process_start_zone_not_bound"]),
                 "process_terminal_outcome_relation_not_admitted",
             ],
             "visible_sequence_candidate_is_sequence_truth": False,
@@ -799,6 +858,7 @@ def _progression_pool_p02(
     identities: dict[str, Any] | None = None,
     visible_sequence: dict[str, Any] | None = None,
     trace: dict[str, Any] | None = None,
+    evidence_atoms: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project current episode/temporal outputs into a claim-bounded P02 pool.
 
@@ -812,6 +872,7 @@ def _progression_pool_p02(
     identities = identities or {}
     visible_sequence = visible_sequence or {}
     trace = trace or {}
+    evidence_atoms = evidence_atoms or {}
     temporal_by_episode = {
         str(row.get("episode_candidate_id")): row
         for row in (temporal.get("temporal_episode_signatures") or [])
@@ -1486,7 +1547,12 @@ def _progression_pool_p02(
         })
 
     comparison_populations = _build_p02_comparison_populations(team_pool_items)
-    process_units = _build_p02_sequence_process_units(visible_sequence, trace, score_timeline)
+    process_units = _build_p02_sequence_process_units(
+        visible_sequence,
+        trace,
+        score_timeline,
+        evidence_atoms,
+    )
 
     return {
         "module_id": "progression_pool_p02_projection_v1",
@@ -1683,6 +1749,7 @@ def run_rich_lane(
     identities = _load_json(output / "match_local_identity_candidates_lite_v1.json")
     visible_sequence = _load_json(output / "visible_action_sequence_candidates_lite_v1.json")
     trace = _load_json(output / "trackable_action_trace_candidates_lite_v1.json")
+    evidence_atoms = _load_json(output / "evidence_atom_inventory_lite_v1.json")
     rows = _flatten_projection(projection)
     entity_views = _entity_views(rows)
     primitives = _primitive_metrics(features, entity_views)
@@ -1697,6 +1764,7 @@ def run_rich_lane(
         identities,
         visible_sequence,
         trace,
+        evidence_atoms,
     )
     if c01.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C01_progression_terminal_construct_review_required")
