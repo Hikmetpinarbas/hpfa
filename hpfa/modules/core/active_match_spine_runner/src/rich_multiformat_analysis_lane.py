@@ -1923,44 +1923,77 @@ def _progression_pool_p02(
     process_unit_comparisons = _build_p02_process_unit_comparison_populations(process_units)
 
     p02_c4_packet_candidates: list[dict[str, Any]] = []
-    for comparison in process_unit_comparisons.get("counterevidence_candidates") or []:
-        if not isinstance(comparison, dict):
+    p02_counterevidence_population_records: list[dict[str, Any]] = []
+    total_admitted_opposite_pairs = 0
+
+    for population in process_unit_comparisons.get("process_unit_comparison_populations") or []:
+        if not isinstance(population, dict):
             continue
-        if comparison.get("counterevidence_admission_ready") is not True:
+        admitted_opposite_pairs = sorted(
+            [
+                row
+                for row in (population.get("pairwise_comparison_candidates") or [])
+                if isinstance(row, dict)
+                and row.get("counterevidence_admission_ready") is True
+                and str(row.get("outcome_relation") or "") == "OPPOSITE"
+            ],
+            key=lambda row: str(row.get("signal_id") or ""),
+        )
+        if not admitted_opposite_pairs:
             continue
-        if str(comparison.get("outcome_relation") or "") != "OPPOSITE":
-            continue
-        reference_sequence = str(comparison.get("reference_provenance_root") or "")
-        candidate_sequence = str(comparison.get("provenance_root") or "")
+
+        total_admitted_opposite_pairs += len(admitted_opposite_pairs)
+        representative = dict(admitted_opposite_pairs[0])
+        population_id = str(population.get("process_unit_comparison_population_id") or "")
+        representative["counterevidence_population_id"] = population_id
+        representative["population_member_count"] = int(population.get("member_count") or 0)
+        representative["population_variant_family_count"] = int(population.get("variant_family_count") or 0)
+        representative["population_admitted_opposite_pair_count"] = len(admitted_opposite_pairs)
+        representative["population_counterevidence_collapse_applied"] = True
+        representative["pairwise_comparison_is_independent_evidence_vote"] = False
+        representative["population_representative_is_additional_support_vote"] = False
+
+        reference_sequence = str(representative.get("reference_provenance_root") or "")
+        candidate_sequence = str(representative.get("provenance_root") or "")
         if not reference_sequence or not candidate_sequence or reference_sequence == candidate_sequence:
             continue
-        packet_seed = f"{comparison.get('signal_id')}|{reference_sequence}|{candidate_sequence}"
-        p02_c4_packet_candidates.append({
+
+        packet_seed = f"{population_id}|{representative.get('signal_id')}|{reference_sequence}|{candidate_sequence}"
+        packet = {
             "packet_id": "p02_cmp_packet_" + hashlib.sha256(packet_seed.encode("utf-8")).hexdigest()[:20],
             "packet_family": "progression",
             "input_features": [],
-            "input_windows": [],
+            "input_windows": [
+                {
+                    "window_id": population_id or "P02_COMPARISON_POPULATION",
+                    "source_surface": "P02_PROCESS_UNIT_COMPARISON_POPULATION",
+                    "provenance_root": population_id or None,
+                    "dependency_group": population_id or None,
+                    "independence_group": None,
+                    "independent_support_vote": False,
+                }
+            ],
             "input_sequences": [
                 {
                     "sequence_id": reference_sequence,
                     "source_surface": "visible_action_sequence_candidates_lite_v1",
                     "provenance_root": reference_sequence,
-                    "dependency_group": comparison.get("reference_dependency_group"),
-                    "independence_group": comparison.get("reference_independence_group"),
+                    "dependency_group": representative.get("reference_dependency_group"),
+                    "independence_group": representative.get("reference_independence_group"),
                     "independent_support_vote": False,
                 },
                 {
                     "sequence_id": candidate_sequence,
                     "source_surface": "visible_action_sequence_candidates_lite_v1",
                     "provenance_root": candidate_sequence,
-                    "dependency_group": comparison.get("dependency_group"),
-                    "independence_group": comparison.get("independence_group"),
+                    "dependency_group": representative.get("dependency_group"),
+                    "independence_group": representative.get("independence_group"),
                     "independent_support_vote": False,
                 },
             ],
             "input_metrics": [],
             "supporting_signals": [],
-            "contradicting_signals": [comparison],
+            "contradicting_signals": [representative],
             "claim_ceiling": "composite_candidate_only",
             "blocked_language_families": [
                 "tactical_truth",
@@ -1969,10 +2002,22 @@ def _progression_pool_p02(
                 "coach_intention",
                 "causal_truth",
             ],
-            "p02_packet_role": "COUNTEREVIDENCE_COMPARISON_PACKET_ONLY",
+            "p02_packet_role": "POPULATION_COLLAPSED_COUNTEREVIDENCE_COMPARISON_PACKET_ONLY",
+            "pairwise_candidates_collapsed_into_population_count": len(admitted_opposite_pairs),
             "claim_output_allowed": False,
             "report_language_allowed": False,
             "production_release": False,
+        }
+        p02_c4_packet_candidates.append(packet)
+        p02_counterevidence_population_records.append({
+            "comparison_population_id": population_id,
+            "representative_signal_id": representative.get("signal_id"),
+            "member_count": int(population.get("member_count") or 0),
+            "variant_family_count": int(population.get("variant_family_count") or 0),
+            "admitted_opposite_pair_count": len(admitted_opposite_pairs),
+            "emitted_c4_packet_id": packet["packet_id"],
+            "pairwise_candidates_are_independent_evidence_votes": False,
+            "population_emits_max_one_c4_counterevidence_packet": True,
         })
 
     comparison_candidates = list(
@@ -2024,6 +2069,14 @@ def _progression_pool_p02(
         "process_unit_comparisons": process_unit_comparisons,
         "p02_c4_packet_candidate_count": len(p02_c4_packet_candidates),
         "p02_c4_packet_candidates": p02_c4_packet_candidates,
+        "p02_counterevidence_population_count": len(p02_counterevidence_population_records),
+        "p02_counterevidence_population_records": p02_counterevidence_population_records,
+        "p02_pairwise_admitted_opposite_count": total_admitted_opposite_pairs,
+        "p02_pairwise_counterevidence_collapsed_count": max(
+            0, total_admitted_opposite_pairs - len(p02_c4_packet_candidates)
+        ),
+        "pairwise_comparison_is_independent_evidence_vote": False,
+        "population_emits_max_one_c4_counterevidence_packet": True,
         "acceptance_counters": {
             "p02_pool_item_count": len(pool_items),
             "p02_team_pool_item_count": len(team_pool_items),
@@ -2046,6 +2099,11 @@ def _progression_pool_p02(
             "p02_independence_admitted_comparison_count": admitted_independence_count,
             "p02_independence_not_admitted_comparison_count": not_admitted_independence_count,
             "p02_c4_packet_candidate_count": len(p02_c4_packet_candidates),
+            "p02_counterevidence_population_count": len(p02_counterevidence_population_records),
+            "p02_pairwise_admitted_opposite_count": total_admitted_opposite_pairs,
+            "p02_pairwise_counterevidence_collapsed_count": max(
+                0, total_admitted_opposite_pairs - len(p02_c4_packet_candidates)
+            ),
             "p02_semantic_zone_complete_process_unit_count": semantic_zone_complete_count,
             "p02_semantic_zone_unresolved_process_unit_count": semantic_zone_unresolved_count,
             "p02_advanced_access_visible_count": advanced_access_visible_count,
