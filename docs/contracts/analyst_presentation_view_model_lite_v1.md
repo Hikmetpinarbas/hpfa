@@ -492,3 +492,28 @@ Blocked:
 - rate/share inference without eligible denominator
 - identity promotion
 - independent recurrence inference from nominal counts
+
+## Chart render pack
+
+The presentation view-model now emits frontend-ready chart specs for the comparative cards.
+
+State:
+RENDER_READY
+
+Current charts:
+- period mechanism grouped bar
+- team-candidate coordinate bar
+- defeasible-state stacked bar
+- zone-by-period grouped bar
+- channel-by-period grouped bar
+
+Render contract:
+- DO_NOT_INTERPOLATE missing values
+- preserve candidate / proxy language
+- no percentages unless numerator + eligible denominator are explicitly defined
+- client-defined colors are non-epistemic unless separately contracted
+- frontend may not invent missing values
+- frontend may not infer causality
+- frontend may not connect spatial points as trajectory
+
+Each chart retains its claim ceiling and denominator metadata.

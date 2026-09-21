@@ -892,6 +892,118 @@ def _comparison_cards(comparative: dict[str, Any]) -> dict[str, Any]:
         "forbidden_inference": comparative.get("forbidden_inference") or [],
     }
 
+def _chart_render_pack(comparison_cards: dict[str, Any]) -> dict[str, Any]:
+    specs: list[dict[str, Any]] = []
+    for card in comparison_cards.get("mobile_cards") or []:
+        card_id = str(card.get("card_id"))
+        rows = card.get("rows") or []
+        if card_id == "comparison:period_mechanism":
+            categories = [str(row.get("period_candidate")) for row in rows]
+            specs.append({
+                "chart_id": "chart:period_mechanism",
+                "source_card_id": card_id,
+                "chart_type": "GROUPED_BAR",
+                "categories": categories,
+                "series": [
+                    {"name": "time_anchor_count", "values": [int(row.get("time_anchor_count") or 0) for row in rows]},
+                    {"name": "spatial_anchor_count", "values": [int(row.get("spatial_anchor_count") or 0) for row in rows]},
+                ],
+                "denominators": [
+                    {
+                        "period_candidate": row.get("period_candidate"),
+                        "eligible_time_anchor_denominator": row.get("eligible_time_anchor_denominator"),
+                        "eligible_spatial_anchor_denominator": row.get("eligible_spatial_anchor_denominator"),
+                    }
+                    for row in rows
+                ],
+                "claim_ceiling": card.get("claim_ceiling"),
+            })
+        elif card_id == "comparison:team_coordinate":
+            specs.append({
+                "chart_id": "chart:team_coordinate",
+                "source_card_id": card_id,
+                "chart_type": "BAR",
+                "categories": [str(row.get("team_display_candidate")) for row in rows],
+                "series": [
+                    {"name": "spatial_anchor_count", "values": [int(row.get("spatial_anchor_count") or 0) for row in rows]},
+                ],
+                "denominators": [
+                    {
+                        "team_identity_candidate_id": row.get("team_identity_candidate_id"),
+                        "eligible_spatial_anchor_denominator": row.get("eligible_spatial_anchor_denominator"),
+                        "team_identity_is_candidate_only": row.get("team_identity_is_candidate_only"),
+                    }
+                    for row in rows
+                ],
+                "claim_ceiling": card.get("claim_ceiling"),
+            })
+        elif card_id == "comparison:defeasible_state":
+            specs.append({
+                "chart_id": "chart:defeasible_state",
+                "source_card_id": card_id,
+                "chart_type": "STACKED_BAR",
+                "categories": [str(row.get("defeasible_state")) for row in rows],
+                "series": [
+                    {"name": "nominal_chain_count", "values": [int(row.get("nominal_chain_count") or 0) for row in rows]},
+                ],
+                "denominators": [
+                    {
+                        "defeasible_state": row.get("defeasible_state"),
+                        "eligible_denominator_nominal_chain_count": row.get("eligible_denominator_nominal_chain_count"),
+                        "independence_admitted": row.get("independence_admitted"),
+                    }
+                    for row in rows
+                ],
+                "claim_ceiling": card.get("claim_ceiling"),
+            })
+        elif card_id in {"comparison:zone_period", "comparison:channel_period"}:
+            is_zone = card_id.endswith("zone_period")
+            label_key = "zone_candidate" if is_zone else "channel_candidate"
+            value_key = "eligible_action_zone_mention_count" if is_zone else "eligible_action_channel_mention_count"
+            denom_key = "eligible_denominator_zone_mentions" if is_zone else "eligible_denominator_channel_mentions"
+            periods = sorted({str(row.get("period_candidate")) for row in rows})
+            labels = sorted({str(row.get(label_key)) for row in rows})
+            lookup = {(str(row.get("period_candidate")), str(row.get(label_key))): int(row.get(value_key) or 0) for row in rows}
+            specs.append({
+                "chart_id": "chart:zone_period" if is_zone else "chart:channel_period",
+                "source_card_id": card_id,
+                "chart_type": "GROUPED_BAR",
+                "categories": periods,
+                "series": [
+                    {"name": label, "values": [lookup.get((period, label), 0) for period in periods]}
+                    for label in labels
+                ],
+                "denominators": [
+                    {
+                        "period_candidate": period,
+                        denom_key: next((row.get(denom_key) for row in rows if str(row.get("period_candidate")) == period), None),
+                    }
+                    for period in periods
+                ],
+                "claim_ceiling": card.get("claim_ceiling"),
+            })
+
+    for spec in specs:
+        spec["render_ready"] = True
+        spec["visual_strength_must_not_exceed_evidence_strength"] = True
+        spec["percentages_emitted"] = False
+        spec["frontend_may_invent_missing_values"] = False
+        spec["frontend_may_infer_causality"] = False
+        spec["frontend_may_connect_spatial_points_as_trajectory"] = False
+
+    return {
+        "schema_version": "1.0",
+        "state": "RENDER_READY",
+        "chart_count": len(specs),
+        "charts": specs,
+        "render_contract": {
+            "missing_value_policy": "DO_NOT_INTERPOLATE",
+            "percentage_policy": "NO_PERCENTAGE_UNLESS_NUMERATOR_AND_ELIGIBLE_DENOMINATOR_ARE_EXPLICITLY_DEFINED",
+            "label_policy": "PRESERVE_CANDIDATE_AND_PROXY_LANGUAGE",
+            "color_semantics": "CLIENT_DEFINED_NON_EPISTEMIC_UNLESS_EXPLICITLY_CONTRACTED",
+        },
+    }
+
 def _graphability_manifest(
     surfaces: dict[str, Any],
     episode_cards: list[dict[str, Any]],
@@ -1210,6 +1322,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         player_cards=player_process_cards,
     )
     comparison_cards = _comparison_cards(comparative_views)
+    chart_render_pack = _chart_render_pack(comparison_cards)
     report_text = ""
     report_path = root / "HPFA_ANALYST_REPORT.txt"
     if report_available:
@@ -1333,6 +1446,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "broadcast_groups": broadcast_groups,
         "comparative_views": comparative_views,
         "comparison_cards": comparison_cards,
+        "chart_render_pack": chart_render_pack,
         "unknown_unobservable_register": {
             "surface_gaps": unavailable,
             "review_hits": list(full.get("review_hits") or []),

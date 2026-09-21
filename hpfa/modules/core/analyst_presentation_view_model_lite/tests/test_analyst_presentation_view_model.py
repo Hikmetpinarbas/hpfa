@@ -258,6 +258,14 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert comparison_cards["policy"] == "COMPACT_COMPARISON_WITH_VISIBLE_DENOMINATOR_AND_NO_EVALUATIVE_VERDICT"
     assert comparison_cards["mobile_cards"][0]["broadcast_copy_is_final"] is False
     assert comparison_cards["mobile_cards"][0]["graph"] == "GROUPED_BAR_WITH_ELIGIBLE_DENOMINATORS"
+    render_pack = payload["surface_data"]["chart_render_pack"]
+    assert render_pack["state"] == "RENDER_READY"
+    assert render_pack["chart_count"] == 5
+    assert render_pack["render_contract"]["missing_value_policy"] == "DO_NOT_INTERPOLATE"
+    assert render_pack["charts"][0]["render_ready"] is True
+    assert render_pack["charts"][0]["percentages_emitted"] is False
+    assert render_pack["charts"][0]["categories"] == ["1"]
+    assert render_pack["charts"][0]["series"][0]["name"] == "time_anchor_count"
     assert graphability["specs"]["comparative_views"]["state"] == "GRAPHABLE"
     assert graphability["specs"]["analyst_report"]["state"] == "GRAPHABLE_AS_COMPANION_ONLY"
     assert payload["interaction_provenance_may_affect_evidence"] is False
