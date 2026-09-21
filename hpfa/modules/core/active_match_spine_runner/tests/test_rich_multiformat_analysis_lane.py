@@ -1079,3 +1079,53 @@ def test_p02_process_unit_same_variant_recurrence_does_not_create_branch_diverge
     assert population["visible_branch_divergence_candidate"] is False
     assert population["outcome_relation_admitted"] is False
     assert out["counterevidence_candidates"] == []
+
+
+
+def _complete_zone_process_case():
+    sequence, trace, score_timeline = _sequence_process_unit_case()
+    by_id = {row["trackable_action_trace_candidate_id"]: row for row in trace["trackable_action_trace_candidates"]}
+    by_id["tr1"]["supporting_evidence_atom_ids"] = ["ea1"]
+    by_id["tr2a"]["supporting_evidence_atom_ids"] = ["ea2a"]
+    by_id["tr2b"]["supporting_evidence_atom_ids"] = ["ea2b"]
+    by_id["tr3"]["supporting_evidence_atom_ids"] = ["ea3"]
+    by_id["tr4"]["supporting_evidence_atom_ids"] = ["ea4"]
+    evidence = {
+        "evidence_atoms": [
+            {"evidence_atom_id":"ea1","row_nucleus_candidate_id":"rn1"},
+            {"evidence_atom_id":"ea2a","row_nucleus_candidate_id":"rn2a"},
+            {"evidence_atom_id":"ea2b","row_nucleus_candidate_id":"rn2b"},
+            {"evidence_atom_id":"ea3","row_nucleus_candidate_id":"rn3"},
+            {"evidence_atom_id":"ea4","row_nucleus_candidate_id":"rn4"},
+        ]
+    }
+    semantics = {
+        "context_action_semantic_records": [
+            {"row_nucleus_candidate_id":"rn1","context_zone_candidate":"OWN_HALF"},
+            {"row_nucleus_candidate_id":"rn2a","context_zone_candidate":"MIDDLE_THIRD"},
+            {"row_nucleus_candidate_id":"rn2b","context_zone_candidate":"MIDDLE_THIRD"},
+            {"row_nucleus_candidate_id":"rn3","context_zone_candidate":"FINAL_THIRD"},
+            {"row_nucleus_candidate_id":"rn4","context_zone_candidate":"FINAL_THIRD"},
+        ]
+    }
+    return sequence, trace, score_timeline, evidence, semantics
+
+
+def test_p02_advanced_access_resolves_when_all_time_layers_have_single_zone_state():
+    sequence, trace, score_timeline, evidence, semantics = _complete_zone_process_case()
+    out = _build_p02_sequence_process_units(sequence, trace, score_timeline, evidence, semantics)
+    unit = out["p02_process_unit_candidates"][0]
+    assert unit["semantic_zone_layer_coverage_complete"] is True
+    assert unit["semantic_zone_path_candidate"] == ["OWN_HALF", "MIDDLE_THIRD", "FINAL_THIRD"]
+    assert unit["advanced_access_state_candidate"] == "ADVANCED_ACCESS_VISIBLE"
+    assert unit["advanced_access_state_is_tactical_truth"] is False
+
+
+def test_p02_advanced_access_unresolved_when_one_layer_has_conflicting_zones():
+    sequence, trace, score_timeline, evidence, semantics = _complete_zone_process_case()
+    semantics["context_action_semantic_records"][2]["context_zone_candidate"] = "FINAL_THIRD"
+    out = _build_p02_sequence_process_units(sequence, trace, score_timeline, evidence, semantics)
+    unit = out["p02_process_unit_candidates"][0]
+    assert unit["semantic_zone_layer_coverage_complete"] is False
+    assert unit["ambiguous_semantic_zone_layer_count"] >= 1
+    assert unit["advanced_access_state_candidate"] == "UNRESOLVED"
