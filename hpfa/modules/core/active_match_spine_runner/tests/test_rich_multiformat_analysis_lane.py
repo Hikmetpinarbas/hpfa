@@ -19,6 +19,7 @@ from rich_multiformat_analysis_lane import (
     _team_score_state_at_episode_start,
 )
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
+from hpfa.modules.core.multi_signal_evidence_fusion_lite.src.multi_signal_evidence_fusion import fuse_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
 
@@ -1129,3 +1130,75 @@ def test_p02_advanced_access_unresolved_when_one_layer_has_conflicting_zones():
     assert unit["semantic_zone_layer_coverage_complete"] is False
     assert unit["ambiguous_semantic_zone_layer_count"] >= 1
     assert unit["advanced_access_state_candidate"] == "UNRESOLVED"
+
+
+
+def test_p02_opposite_advanced_access_emits_comparison_intent_without_independence_admission():
+    reference = _process_unit_for_comparison("u_ref")
+    candidate = _process_unit_for_comparison("u_cand")
+    reference["advanced_access_state_candidate"] = "ADVANCED_ACCESS_VISIBLE"
+    candidate["advanced_access_state_candidate"] = "NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH"
+    reference["source_visible_action_sequence_candidate_id"] = "vasq_ref"
+    candidate["source_visible_action_sequence_candidate_id"] = "vasq_cand"
+
+    out = _build_p02_process_unit_comparison_populations({
+        "p02_process_unit_candidates": [reference, candidate]
+    })
+    assert out["opposite_outcome_comparison_candidate_count"] == 1
+    comparison = out["counterevidence_candidates"][0]
+    assert comparison["outcome_relation"] == "OPPOSITE"
+    assert comparison["counterevidence_admission_ready"] is False
+    assert comparison["independence_group"] is None
+    assert comparison["reference_independence_group"] is None
+
+
+def test_p02_opposite_advanced_access_reaches_fusion_but_stays_unresolved_without_independence():
+    reference = _process_unit_for_comparison("u_ref")
+    candidate = _process_unit_for_comparison("u_cand")
+    reference["advanced_access_state_candidate"] = "ADVANCED_ACCESS_VISIBLE"
+    candidate["advanced_access_state_candidate"] = "NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH"
+    reference["source_visible_action_sequence_candidate_id"] = "vasq_ref"
+    candidate["source_visible_action_sequence_candidate_id"] = "vasq_cand"
+
+    comparisons = _build_p02_process_unit_comparison_populations({
+        "p02_process_unit_candidates": [reference, candidate]
+    })
+    comparison = comparisons["counterevidence_candidates"][0]
+
+    packet = {
+        "packet_id": "p02_progression_comparison_packet",
+        "packet_family": "progression",
+        "input_features": ["advanced_access_state_candidate"],
+        "input_windows": ["p02_exact_context_population"],
+        "input_sequences": ["vasq_ref", "vasq_cand"],
+        "input_metrics": [],
+        "supporting_signals": ["p02_visible_progression_context"],
+        "contradicting_signals": [comparison],
+        "claim_ceiling": "P02_COMPARISON_CANDIDATE_ONLY",
+        "claim_output_allowed": False,
+        "report_language_allowed": False,
+    }
+    fusion = fuse_packet(packet)
+    assert fusion["contradiction_signal_count"] == 0
+    assert fusion["unresolved_counterevidence_count"] == 1
+    row = next(
+        row for row in fusion["relation_records"]
+        if row["signal_ref"] == comparison["signal_id"]
+    )
+    assert row["comparison_status"] == "ELIGIBLE"
+    assert row["counterevidence_class"] == "UNRESOLVED"
+    assert row["counterevidence_admission_reason"] == "counterevidence_dependency_not_admitted"
+
+
+def test_p02_same_advanced_access_state_is_same_relation_not_counterevidence():
+    reference = _process_unit_for_comparison("u_ref")
+    candidate = _process_unit_for_comparison("u_cand")
+    reference["advanced_access_state_candidate"] = "ADVANCED_ACCESS_VISIBLE"
+    candidate["advanced_access_state_candidate"] = "ADVANCED_ACCESS_VISIBLE"
+    reference["source_visible_action_sequence_candidate_id"] = "vasq_ref"
+    candidate["source_visible_action_sequence_candidate_id"] = "vasq_cand"
+    out = _build_p02_process_unit_comparison_populations({
+        "p02_process_unit_candidates": [reference, candidate]
+    })
+    assert out["opposite_outcome_comparison_candidate_count"] == 0
+    assert out["pairwise_comparison_candidates"][0]["outcome_relation"] == "SAME"
