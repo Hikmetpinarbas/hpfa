@@ -88,6 +88,8 @@ def admitted_counterevidence_candidate():
             "reference_provenance_root": "root_reference",
             "reference_dependency_group": "dep_reference",
             "reference_independence_group": "ind_reference",
+            "independence_admission_status": "ADMITTED",
+            "independence_admission_basis": "fixture_explicit_independence_contract",
         }
     ]
     return candidate
