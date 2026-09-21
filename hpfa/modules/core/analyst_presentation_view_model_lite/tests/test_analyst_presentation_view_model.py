@@ -144,6 +144,20 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert payload["surface_data"]["match_story"]["emitted_mechanism_count"] == 1
     assert payload["surface_data"]["match_story"]["forced_minimum_disabled"] is True
     assert payload["surface_data"]["broadcast_sentence_candidates"] == ["Görünür kanıt aday okumayı destekler."]
+    broadcast_groups = payload["surface_data"]["broadcast_groups"]
+    assert len(broadcast_groups) == 1
+    assert broadcast_groups[0]["argument_family"] == "progression_without_terminal_value"
+    assert broadcast_groups[0]["nominal_candidate_count"] == 1
+    assert broadcast_groups[0]["nominal_candidate_count_is_independent_support"] is False
+    six_phase = payload["surface_data"]["six_phase_lens"]
+    assert six_phase["phase_truth"] is False
+    phase_states = {item["phase"]: item["status"] for item in six_phase["phases"]}
+    assert phase_states["YERLESIK_HUCUM"] == "NOT_EVALUATED"
+    assert phase_states["GECIS_HUCUMU"] == "NOT_EVALUATED"
+    assert phase_states["YERLESIK_SAVUNMA"] == "NOT_EVALUATED"
+    assert phase_states["GECIS_SAVUNMASI"] == "PROXY_LENS_ONLY"
+    assert phase_states["DURAN_TOP_HUCUMU"] == "NOT_EVALUATED"
+    assert phase_states["DURAN_TOP_SAVUNMASI"] == "NOT_EVALUATED"
     traceback = payload["surface_data"]["traceback_index"]
     assert traceback["scope"] == "REFERENCE_ID_GRAPH_ONLY_NOT_RAW_ROW_RENDER"
     assert traceback["episodes"]["ep_1"]["row_nucleus_refs"] == ["row_1"]
@@ -161,7 +175,9 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert graphability["specs"]["mechanism_cards"]["preferred_representation"] == "STACKED_BAR"
     assert graphability["specs"]["player_process_cards"]["state"] == "GRAPHABLE"
     assert graphability["specs"]["observed_replay"]["preferred_representation"] == "INTERVAL_STRIP_WITH_UNORDERED_SAME_TIME_BUNDLES"
-    assert graphability["specs"]["six_phase_match_view"]["data_semantics"] == "phase_activity_candidate_label_frequency_not_phase_truth"
+    assert graphability["specs"]["six_phase_match_view"]["data_semantics"] == "canonical_six_phase_slots_with_proxy_lens_or_not_evaluated_status"
+    assert graphability["specs"]["six_phase_match_view"]["preferred_representation"] == "SIX_SLOT_STATUS_BAR_OR_MATRIX"
+    assert graphability["specs"]["broadcast_summary"]["preferred_representation"] == "STACKED_OR_GROUPED_BAR_BY_FAMILY_AND_DEFEASIBLE_STATE"
     assert graphability["specs"]["traceback_evidence_drawer"]["preferred_representation"] == "NODE_LINK_OR_HIERARCHICAL_DRILLDOWN"
     assert graphability["specs"]["analyst_report"]["state"] == "GRAPHABLE_AS_COMPANION_ONLY"
     assert payload["interaction_provenance_may_affect_evidence"] is False

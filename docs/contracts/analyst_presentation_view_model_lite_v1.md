@@ -245,3 +245,66 @@ Examples:
 - absent counterevidence != support
 
 If the required denominator, temporal order, identity, relation, or observation surface is missing, graphability must downgrade instead of interpolating.
+
+## Broadcast compression extension
+
+Broadcast candidates are compressed deterministically by:
+- upstream argument family
+- defeasible state
+
+The compressed group exposes:
+- argument_family
+- defeasible_state
+- nominal_candidate_count
+- review_required_count
+- one deterministic representative safe-sentence candidate
+- explicit non-independence guard
+
+Representative sentence selection is deterministic:
+shortest safe sentence within the same family/state group.
+
+This is compression, not editorial publication.
+The representative sentence is not final broadcast copy.
+
+Blocked interpretations:
+- nominal candidate count as evidence strength
+- nominal candidate count as independent recurrence
+- SUPPORTED as publication permission
+- candidate-pool size as match importance
+
+Graph:
+STACKED_OR_GROUPED_BAR_BY_FAMILY_AND_DEFEASIBLE_STATE
+
+## Six-Phase presentation extension
+
+The six canonical analyst slots remain:
+- YERLESIK_HUCUM
+- GECIS_HUCUMU
+- YERLESIK_SAVUNMA
+- GECIS_SAVUNMASI
+- DURAN_TOP_HUCUMU
+- DURAN_TOP_SAVUNMASI
+
+A slot may only be:
+- PROXY_LENS_ONLY
+- NOT_EVALUATED
+
+Current proxy mapping:
+- circulation / advanced access / terminal activity candidates -> YERLESIK_HUCUM proxy lens
+- recovery-transition activity candidate -> GECIS_HUCUMU proxy lens
+- loss-transition activity candidate -> GECIS_SAVUNMASI proxy lens
+- settled defence and set-piece phases remain NOT_EVALUATED without admitted upstream support
+
+This mapping does not create phase truth, possession truth or tactical truth.
+
+Counts are source activity LABEL MENTIONS, not:
+- episode counts
+- duration shares
+- possession shares
+- independent recurrence counts
+- tactical dominance
+
+Graph:
+SIX_SLOT_STATUS_BAR_OR_MATRIX
+
+Any future stronger six-phase representation requires explicit denominator/time/phase admission.

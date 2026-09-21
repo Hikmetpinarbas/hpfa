@@ -217,6 +217,52 @@ def _match_story(mechanisms: list[dict[str, Any]]) -> dict[str, Any]:
         "claim_ceiling": "MATCH_STORY_PRESENTATION_CANDIDATE_ONLY",
     }
 
+def _broadcast_groups(full: dict[str, Any], max_groups: int = 6) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for chain in full.get("intelligence_chains") or []:
+        if not isinstance(chain, dict):
+            continue
+        argument = chain.get("argument") or {}
+        safe = chain.get("safe_sentence") or {}
+        route = chain.get("route") or {}
+        if not isinstance(argument, dict) or not isinstance(safe, dict):
+            continue
+        text = str(safe.get("safe_sentence_candidate_tr") or "").strip()
+        if not text:
+            continue
+        family = str(argument.get("argument_family") or "UNKNOWN_ARGUMENT_FAMILY")
+        state = str(route.get("defeasible_state") or safe.get("defeasible_state") or safe.get("status") or "UNKNOWN")
+        key = (family, state)
+        bucket = grouped.setdefault(key, {
+            "argument_family": family,
+            "defeasible_state": state,
+            "nominal_candidate_count": 0,
+            "representative_sentence_candidate_tr": text,
+            "representative_sentence_length": len(text),
+            "review_required_count": 0,
+        })
+        bucket["nominal_candidate_count"] += 1
+        if safe.get("review_required") is True or safe.get("status") == "REVIEW_REQUIRED":
+            bucket["review_required_count"] += 1
+        if len(text) < bucket["representative_sentence_length"]:
+            bucket["representative_sentence_candidate_tr"] = text
+            bucket["representative_sentence_length"] = len(text)
+
+    groups = []
+    for bucket in grouped.values():
+        groups.append({
+            "argument_family": bucket["argument_family"],
+            "defeasible_state": bucket["defeasible_state"],
+            "nominal_candidate_count": bucket["nominal_candidate_count"],
+            "representative_sentence_candidate_tr": bucket["representative_sentence_candidate_tr"],
+            "review_required_count": bucket["review_required_count"],
+            "selection_basis": "DETERMINISTIC_SHORTEST_SAFE_SENTENCE_WITHIN_FAMILY_STATE",
+            "nominal_candidate_count_is_independent_support": False,
+            "claim_ceiling": "BROADCAST_COMPRESSION_CANDIDATE_ONLY",
+        })
+    groups.sort(key=lambda x: (-int(x["nominal_candidate_count"]), str(x["argument_family"]), str(x["defeasible_state"])))
+    return groups[:max_groups]
+
 def _broadcast_candidates(full: dict[str, Any]) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
@@ -426,15 +472,72 @@ def _count_labels(items: list[dict[str, Any]], key: str) -> dict[str, int]:
             counts[label] = counts.get(label, 0) + 1
     return dict(sorted(counts.items()))
 
+def _six_phase_lens(phase_cards: list[dict[str, Any]]) -> dict[str, Any]:
+    label_counts = _count_labels(phase_cards, "labels")
+    phase_specs = [
+        {
+            "phase": "YERLESIK_HUCUM",
+            "status": "PROXY_LENS_ONLY" if any(label_counts.get(x, 0) for x in [
+                "CIRCULATION_ACTIVITY_CANDIDATE",
+                "ADVANCED_ACCESS_ACTIVITY_CANDIDATE",
+                "TERMINAL_ACTIVITY_CANDIDATE",
+            ]) else "NOT_EVALUATED",
+            "source_activity_labels": [
+                "CIRCULATION_ACTIVITY_CANDIDATE",
+                "ADVANCED_ACCESS_ACTIVITY_CANDIDATE",
+                "TERMINAL_ACTIVITY_CANDIDATE",
+            ],
+        },
+        {
+            "phase": "GECIS_HUCUMU",
+            "status": "PROXY_LENS_ONLY" if label_counts.get("RECOVERY_TRANSITION_ACTIVITY_CANDIDATE", 0) else "NOT_EVALUATED",
+            "source_activity_labels": ["RECOVERY_TRANSITION_ACTIVITY_CANDIDATE"],
+        },
+        {
+            "phase": "YERLESIK_SAVUNMA",
+            "status": "NOT_EVALUATED",
+            "source_activity_labels": [],
+        },
+        {
+            "phase": "GECIS_SAVUNMASI",
+            "status": "PROXY_LENS_ONLY" if label_counts.get("LOSS_TRANSITION_ACTIVITY_CANDIDATE", 0) else "NOT_EVALUATED",
+            "source_activity_labels": ["LOSS_TRANSITION_ACTIVITY_CANDIDATE"],
+        },
+        {
+            "phase": "DURAN_TOP_HUCUMU",
+            "status": "NOT_EVALUATED",
+            "source_activity_labels": [],
+        },
+        {
+            "phase": "DURAN_TOP_SAVUNMASI",
+            "status": "NOT_EVALUATED",
+            "source_activity_labels": [],
+        },
+    ]
+    for spec in phase_specs:
+        spec["source_activity_label_mention_count"] = sum(label_counts.get(label, 0) for label in spec["source_activity_labels"])
+        spec["phase_truth"] = False
+        spec["possession_truth"] = False
+        spec["tactical_truth"] = False
+        spec["claim_ceiling"] = "SIX_PHASE_PRESENTATION_PROXY_LENS_ONLY"
+    return {
+        "mapping_policy": "CANONICAL_PHASE_SLOTS_WITH_PROXY_LENS_OR_NOT_EVALUATED",
+        "phase_truth": False,
+        "phases": phase_specs,
+        "unresolved_activity_state_count": label_counts.get("UNRESOLVED_ACTIVITY_STATE", 0),
+    }
+
 def _graphability_manifest(
     surfaces: dict[str, Any],
     episode_cards: list[dict[str, Any]],
     phase_cards: list[dict[str, Any]],
+    six_phase_lens: dict[str, Any],
     mechanism_cards: list[dict[str, Any]],
     player_cards: list[dict[str, Any]],
     counter_cards: list[dict[str, Any]],
     traceback_index: dict[str, Any],
     broadcast_candidates: list[str],
+    broadcast_groups: list[dict[str, Any]],
 ) -> dict[str, Any]:
     specs: dict[str, Any] = {}
 
@@ -520,12 +623,12 @@ def _graphability_manifest(
         ],
     }
 
-    phase_label_counts = _count_labels(phase_cards, "labels")
+    phase_rows = six_phase_lens.get("phases") or []
     specs["six_phase_match_view"] = {
-        "state": "GRAPHABLE" if phase_label_counts else "UNGRAPHABLE_WITH_CURRENT_DATA",
-        "preferred_representation": "BAR",
-        "data_semantics": "phase_activity_candidate_label_frequency_not_phase_truth",
-        "data": [{"label": k, "candidate_count": v} for k, v in phase_label_counts.items()],
+        "state": "GRAPHABLE" if phase_rows else "UNGRAPHABLE_WITH_CURRENT_DATA",
+        "preferred_representation": "SIX_SLOT_STATUS_BAR_OR_MATRIX",
+        "data_semantics": "canonical_six_phase_slots_with_proxy_lens_or_not_evaluated_status",
+        "data": phase_rows,
         "forbidden_visual_inference": [
             "candidate_label_is_canonical_six_phase_truth",
             "frequency_is_time_share_without_duration_denominator",
@@ -576,13 +679,15 @@ def _graphability_manifest(
     }
 
     specs["broadcast_summary"] = {
-        "state": "GRAPHABLE" if broadcast_candidates else "UNGRAPHABLE_WITH_CURRENT_DATA",
-        "preferred_representation": "COUNT_BADGE_OR_BAR_AFTER_EDITORIAL_GROUPING",
-        "data_semantics": "safe_sentence_candidate_pool_size_only",
-        "data": [{"safe_sentence_candidate_count": len(broadcast_candidates)}],
+        "state": "GRAPHABLE" if broadcast_groups else "UNGRAPHABLE_WITH_CURRENT_DATA",
+        "preferred_representation": "STACKED_OR_GROUPED_BAR_BY_FAMILY_AND_DEFEASIBLE_STATE",
+        "data_semantics": "broadcast_candidate_groups_after_deterministic_family_state_compression",
+        "data": broadcast_groups,
         "forbidden_visual_inference": [
-            "candidate_pool_size_is_match_importance",
-            "candidate_pool_size_is_evidence_strength",
+            "nominal_candidate_count_is_match_importance",
+            "nominal_candidate_count_is_evidence_strength",
+            "supported_group_is_publication_permission",
+            "representative_sentence_is_final_broadcast_copy",
         ],
     }
 
@@ -662,6 +767,8 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
     player_process_cards = _player_process_cards(root, declared)
     traceback_index = _traceback_index(root, full, episode, declared)
     broadcast_candidates = _broadcast_candidates(full)
+    broadcast_groups = _broadcast_groups(full)
+    six_phase_lens = _six_phase_lens(phase_cards)
     report_text = ""
     report_path = root / "HPFA_ANALYST_REPORT.txt"
     if report_available:
@@ -683,8 +790,8 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
     surfaces["six_phase_match_view"] = _surface(
         "DEGRADED" if phase_cards else "NOT_EVALUATED",
         ["active_match_full_spine_v1.json"] if phase_cards else [],
-        "Phase-activity candidates are exposed without promotion to canonical six-phase truth.",
-        "phase_candidate_only",
+        "Canonical six-phase slots are shown only as PROXY_LENS_ONLY or NOT_EVALUATED; no slot is promoted to phase truth.",
+        "six_phase_presentation_proxy_lens_only",
     )
 
     surfaces["mechanism_cards"] = _surface(
@@ -734,8 +841,8 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
     surfaces["broadcast_summary"] = _surface(
         "DEGRADED" if broadcast_candidates else "NOT_EVALUATED",
         ["active_match_full_spine_v1.json"] if broadcast_candidates else [],
-        "Safe-sentence candidate pool is exposed; editorial selection/compression is not production broadcast truth.",
-        "safe_sentence_candidate_pool_only",
+        "Safe-sentence candidates are compressed deterministically by argument family and defeasible state; representative copy is not final broadcast publication.",
+        "broadcast_compression_candidate_only",
     )
     surfaces["unknown_unobservable_register"] = _surface(
         "AVAILABLE",
@@ -755,11 +862,13 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         surfaces=surfaces,
         episode_cards=episode_cards,
         phase_cards=phase_cards,
+        six_phase_lens=six_phase_lens,
         mechanism_cards=mechanism_cards,
         player_cards=player_process_cards,
         counter_cards=counter_cards,
         traceback_index=traceback_index,
         broadcast_candidates=broadcast_candidates,
+        broadcast_groups=broadcast_groups,
     )
 
     unavailable = {
@@ -771,6 +880,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "analyst_report_text": report_text,
         "observed_replay_cards": episode_cards,
         "phase_activity_candidates": phase_cards,
+        "six_phase_lens": six_phase_lens,
         "mechanism_cards": mechanism_cards,
         "match_story": match_story,
         "player_process_cards": player_process_cards,
@@ -778,6 +888,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "graphability": graphability,
         "counterevidence_cards": counter_cards,
         "broadcast_sentence_candidates": broadcast_candidates,
+        "broadcast_groups": broadcast_groups,
         "unknown_unobservable_register": {
             "surface_gaps": unavailable,
             "review_hits": list(full.get("review_hits") or []),
