@@ -758,6 +758,9 @@ def _build_comparable_sets(
         sets.append({
             "comparable_set_id": set_id,
             "comparison_question_id": contract.get("comparison_question_id"),
+            "question_profile_version": contract.get("question_profile_version") or "1.0.0",
+            "question_profile_hash": question_profile_hash,
+            "profile_frozen_before_outcome_attachment": True,
             "team": teams[0] if len(teams) == 1 else None,
             "analysis_scale": contract.get("analysis_scale"),
             "anchor_process_family": contract.get("anchor_process_family"),
