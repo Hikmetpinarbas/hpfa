@@ -965,6 +965,80 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
 
         status = "POPULATION_ELIGIBLE" if len(members) >= 2 else "INSUFFICIENT_COMPARABLE_MEMBERS"
         visible_divergence = len(variant_records) >= 2 or len(terminal_activity_counts) >= 2 or len(end_zone_counts) >= 2
+        pairwise_candidates: list[dict[str, Any]] = []
+        resolved_outcomes = {
+            "ADVANCED_ACCESS_VISIBLE",
+            "NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH",
+        }
+        ordered_members = sorted(
+            members,
+            key=lambda row: str(row.get("p02_process_unit_candidate_id") or ""),
+        )
+        for reference_index, reference in enumerate(ordered_members):
+            for candidate in ordered_members[reference_index + 1:]:
+                reference_outcome = str(reference.get("advanced_access_state_candidate") or "UNRESOLVED")
+                candidate_outcome = str(candidate.get("advanced_access_state_candidate") or "UNRESOLVED")
+                if reference_outcome not in resolved_outcomes or candidate_outcome not in resolved_outcomes:
+                    outcome_relation = "UNRESOLVED"
+                elif reference_outcome == candidate_outcome:
+                    outcome_relation = "SAME"
+                else:
+                    outcome_relation = "OPPOSITE"
+
+                reference_id = str(reference.get("p02_process_unit_candidate_id") or "")
+                candidate_id = str(candidate.get("p02_process_unit_candidate_id") or "")
+                comparison_id = "p02_cmp_" + hashlib.sha256(
+                    f"{population_id}|{reference_id}|{candidate_id}|advanced_access".encode("utf-8")
+                ).hexdigest()[:20]
+                pairwise_candidates.append({
+                    "signal_id": comparison_id,
+                    "comparison_candidate_id": comparison_id,
+                    "source_surface": "P02_PROCESS_UNIT_COMPARISON_POPULATION",
+                    "relation_type": "CONTRADICTS" if outcome_relation == "OPPOSITE" else "QUALIFIES",
+                    "contradiction_basis": (
+                        "same_exact_progression_context_resolved_advanced_access_state_differs"
+                        if outcome_relation == "OPPOSITE"
+                        else ""
+                    ),
+                    "comparison_question_id": "P02_ADVANCED_ACCESS_VISIBLE",
+                    "comparison_unit": "p02_visible_sequence_process_unit_candidate",
+                    "exact_dimensions": [
+                        "team_identity_candidate_id",
+                        "period_candidate",
+                        "score_state_candidate",
+                        "process_start_zone_candidate",
+                    ],
+                    "coarsened_dimensions": [],
+                    "test_dimensions": ["advanced_access_state_candidate"],
+                    "forbidden_leakage_dimensions": ["advanced_access_state_candidate"],
+                    "reference_context": {
+                        "team_identity_candidate_id": team_id,
+                        "period_candidate": period,
+                        "score_state_candidate": score_state,
+                        "process_start_zone_candidate": start_zone,
+                    },
+                    "candidate_context": {
+                        "team_identity_candidate_id": team_id,
+                        "period_candidate": period,
+                        "score_state_candidate": score_state,
+                        "process_start_zone_candidate": start_zone,
+                    },
+                    "reference_outcome": reference_outcome,
+                    "candidate_outcome": candidate_outcome,
+                    "outcome_relation": outcome_relation,
+                    "provenance_root": candidate.get("source_visible_action_sequence_candidate_id"),
+                    "reference_provenance_root": reference.get("source_visible_action_sequence_candidate_id"),
+                    "dependency_group": candidate_id or None,
+                    "reference_dependency_group": reference_id or None,
+                    "independence_group": None,
+                    "reference_independence_group": None,
+                    "counterevidence_candidate_class": "UPSTREAM_INTENT_ONLY",
+                    "counterevidence_admission_ready": False,
+                    "counterevidence_admission_block_reason": "process_unit_independence_not_admitted",
+                    "claim_ceiling": "P02_COMPARISON_CANDIDATE_ONLY",
+                    "production_release": False,
+                })
+
         populations.append({
             "process_unit_comparison_population_id": population_id,
             "comparison_question_id": "P02_PROCESS_UNIT_ROUTE_VARIANT_COMPARISON",
@@ -1000,6 +1074,8 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
             "member_count": len(members),
             "status": status,
             "variant_family_count": len(variant_records),
+            "pairwise_comparison_candidate_count": len(pairwise_candidates),
+            "pairwise_comparison_candidates": pairwise_candidates,
             "variant_families": variant_records,
             "terminal_activity_distribution": dict(sorted(terminal_activity_counts.items())),
             "end_zone_distribution": dict(sorted(end_zone_counts.items())),
@@ -1011,6 +1087,16 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
             "production_release": False,
         })
 
+    all_pairwise_candidates = [
+        candidate
+        for population in populations
+        for candidate in (population.get("pairwise_comparison_candidates") or [])
+    ]
+    opposite_candidates = [
+        candidate for candidate in all_pairwise_candidates
+        if candidate.get("outcome_relation") == "OPPOSITE"
+    ]
+
     return {
         "process_unit_comparison_population_count": len(populations),
         "eligible_process_unit_comparison_population_count": sum(
@@ -1019,8 +1105,13 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
         "unresolved_process_unit_comparison_member_count": len([x for x in unresolved if x]),
         "unresolved_process_unit_comparison_member_ids": sorted(x for x in unresolved if x),
         "process_unit_comparison_populations": populations,
-        "counterevidence_candidates": [],
-        "outcome_relation_admission_open": False,
+        "pairwise_comparison_candidate_count": len(all_pairwise_candidates),
+        "pairwise_comparison_candidates": all_pairwise_candidates,
+        "opposite_outcome_comparison_candidate_count": len(opposite_candidates),
+        "counterevidence_candidates": opposite_candidates,
+        "counterevidence_candidates_are_admitted_counterevidence": False,
+        "outcome_relation_admission_open": True,
+        "independence_admission_open": False,
         "production_release": False,
     }
 
