@@ -10,6 +10,8 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
+from shared_surface_snapshot_contract import surface_snapshot_id
+
 from hpfa.modules.core.multiformat_file_inventory_lite.src import multiformat_file_inventory as inventory
 from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader import native_reader as xlsx
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import build_projection
@@ -49,12 +51,13 @@ def _hash_file(path: Path) -> str:
 
 
 def _snapshot(root: Path) -> str:
-    records = []
-    if root.is_dir():
-        for path in sorted(root.rglob("*"), key=lambda item: item.as_posix().casefold()):
-            if path.is_file():
-                records.append((path.relative_to(root).as_posix(), path.stat().st_size, _hash_file(path)))
-    return hashlib.sha256(json.dumps(records, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+    """Use the canonical ACTIVE_MATCH surface snapshot contract.
+
+    Rich analysis must bind to the exact same input authority fingerprint as the
+    reconstruction bridge and episode lane. A parallel serialization/hash contract
+    would make identical match packages appear different.
+    """
+    return surface_snapshot_id(root)
 
 
 
@@ -997,8 +1000,7 @@ def _goalkeeper_restart_consequence_context(
         })
 
     return {
-        "status": "PASS" if rows else "NOT_AVAILABLE",
-        "binding_state": "GOALKEEPER_RESTART_TO_VISIBLE_CONSEQUENCE_CONTEXT",
+        "status": "PASS" if rows else "NOT_AVAILABLE",        "binding_state": "GOALKEEPER_RESTART_TO_VISIBLE_CONSEQUENCE_CONTEXT",
         "goalkeeper_restart_context_row_count": len(rows),
         "provider_distance_bucket_counts": dict(sorted(bucket_counts.items())),
         "pass_outcome_counts": dict(sorted(pass_outcome_counts.items())),
@@ -1997,8 +1999,7 @@ def _association_record(
         "epistemic_review_contract": _association_epistemic_review_contract(
             shot_rows=shot_rows,
             not_target_rows=no_shot_rows,
-            shot_without=shot_without,
-        ),
+            shot_without=shot_without,        ),
         "small_n_association_contract": {
             "observation_unit": "ADMITTED_PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
             "target_outcome_semantic": "PROVIDER_REVIEWED_SHOT_PRESENT_ANNOTATION_CANDIDATE",
@@ -2997,7 +2998,6 @@ def _construct_c03(
         )].append(motif)
     for rows in motif_index.values():
         rows.sort(key=lambda row: (-int(row.get("member_process_n") or 0), str(row.get("process_motif_family_candidate_id") or "")))
-
     process_motif_neighborhood_candidates: list[dict[str, Any]] = []
     singleton_process_motif_with_recurring_neighbor_ids: set[str] = set()
     length_bucket_order = {
