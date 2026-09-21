@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
 from rich_multiformat_analysis_lane import (
     _build_p02_comparison_populations,
     _build_p02_sequence_process_units,
+    _build_p02_process_unit_comparison_populations,
     _construct_c01,
     _phase_state_candidates,
     _progression_pool_p02,
@@ -1022,3 +1023,58 @@ def test_p02_process_unit_ambiguous_semantic_zone_layer_is_not_forced():
     unit = out["p02_process_unit_candidates"][0]
     assert unit["ambiguous_semantic_zone_layer_count"] >= 1
     assert unit["process_start_zone_candidate"] == "FINAL_THIRD"
+
+
+
+def _process_unit_for_comparison(
+    unit_id: str,
+    *,
+    signature: str = "sig_a",
+    zone_path=None,
+    end_zone: str = "FINAL_THIRD",
+    terminal: str = "TEAM_HANDOVER_BOUNDARY_VISIBLE",
+):
+    return {
+        "p02_process_unit_candidate_id": unit_id,
+        "team_identity_candidate_id": "teamc_A",
+        "period_candidate": "1",
+        "score_state_candidate": "LEVEL",
+        "process_start_zone_candidate": "OWN_HALF",
+        "process_end_zone_candidate": end_zone,
+        "partial_order_process_signature_id": signature,
+        "semantic_zone_path_candidate": list(zone_path or ["OWN_HALF", "FINAL_THIRD"]),
+        "team_episode_terminal_activity_candidate": terminal,
+    }
+
+
+def test_p02_process_unit_variant_population_groups_exact_context_and_separates_variants():
+    process_units = {
+        "p02_process_unit_candidates": [
+            _process_unit_for_comparison("u1", signature="sig_a", zone_path=["OWN_HALF", "FINAL_THIRD"]),
+            _process_unit_for_comparison("u2", signature="sig_b", zone_path=["OWN_HALF", "PENALTY_AREA"], end_zone="PENALTY_AREA"),
+        ]
+    }
+    out = _build_p02_process_unit_comparison_populations(process_units)
+    assert out["eligible_process_unit_comparison_population_count"] == 1
+    population = out["process_unit_comparison_populations"][0]
+    assert population["member_count"] == 2
+    assert population["variant_family_count"] == 2
+    assert population["visible_branch_divergence_candidate"] is True
+    assert population["branch_divergence_is_causality"] is False
+    assert population["branch_divergence_is_tactical_truth"] is False
+    assert population["counterevidence_admission_authority"] is False
+
+
+def test_p02_process_unit_same_variant_recurrence_does_not_create_branch_divergence():
+    process_units = {
+        "p02_process_unit_candidates": [
+            _process_unit_for_comparison("u1"),
+            _process_unit_for_comparison("u2"),
+        ]
+    }
+    out = _build_p02_process_unit_comparison_populations(process_units)
+    population = out["process_unit_comparison_populations"][0]
+    assert population["variant_family_count"] == 1
+    assert population["visible_branch_divergence_candidate"] is False
+    assert population["outcome_relation_admitted"] is False
+    assert out["counterevidence_candidates"] == []
