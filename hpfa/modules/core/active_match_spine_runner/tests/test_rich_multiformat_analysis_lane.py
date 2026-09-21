@@ -1263,3 +1263,94 @@ def test_c03_builds_nonexclusive_visible_consequence_response_profile() -> None:
     assert profile["profile_is_opponent_tactical_response_truth"] is False
     assert profile["profile_is_independent_support"] is False
     assert profile["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_CONSEQUENCE_RESPONSE_PROFILE_CANDIDATE_ONLY"
+
+
+def test_c03_morphology_neighborhood_links_near_variant_without_merging_exact_motif() -> None:
+    processes = [
+        {
+            "process_participation_candidate_id": "p1",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 10.0,
+            "end_candidate": 16.0,
+            "shot_present_annotation_candidate": False,
+        },
+        {
+            "process_participation_candidate_id": "p2",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 20.0,
+            "end_candidate": 26.0,
+            "shot_present_annotation_candidate": False,
+        },
+        {
+            "process_participation_candidate_id": "p3",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 30.0,
+            "end_candidate": 36.0,
+            "shot_present_annotation_candidate": False,
+        },
+    ]
+    occurrences = [
+        {
+            "action_occurrence_candidate_id": "o1",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [11.0],
+            "action_family_candidates": ["PASS"],
+            "actor_identity_candidate_ids": ["a1"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+        {
+            "action_occurrence_candidate_id": "o2",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [21.0],
+            "action_family_candidates": ["PASS"],
+            "actor_identity_candidate_ids": ["a2"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+        {
+            "action_occurrence_candidate_id": "o3",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [31.0],
+            "action_family_candidates": ["PASS", "DUEL"],
+            "actor_identity_candidate_ids": ["a3"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+    ]
+
+    result = _construct_c03(
+        {"process_participation_candidates": processes},
+        {"occurrence_state_transition_projections": occurrences},
+        {"spatial_transition_candidates": []},
+    )
+
+    assert result["recurring_process_motif_family_candidate_count"] == 1
+    assert result["recurring_process_motif_covered_process_n"] == 2
+    assert result["process_motif_neighborhood_candidate_count"] == 1
+    assert result["singleton_process_motif_with_recurring_neighbor_count"] == 1
+
+    neighbor = result["process_motif_neighborhood_candidates"][0]
+    assert neighbor["neighborhood_basis"] == "ONE_ACTION_FAMILY_DELTA_SAME_LENGTH_BUCKET"
+    assert neighbor["action_family_delta"] == ["DUEL"]
+    assert sorted([neighbor["left_member_process_n"], neighbor["right_member_process_n"]]) == [1, 2]
+    assert neighbor["exact_motif_identity_changed"] is False
+    assert neighbor["recurrence_support_created"] is False
+    assert neighbor["independent_support_created"] is False
+    assert neighbor["similarity_is_tactical_pattern_truth"] is False
+    assert neighbor["similarity_is_coach_intention_truth"] is False
+    assert neighbor["similarity_is_causal_equivalence_truth"] is False
+    assert neighbor["outcome_participates_in_neighborhood_identity"] is False
+    assert neighbor["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_PROCESS_MORPHOLOGY_NEIGHBOR_CANDIDATE_ONLY"

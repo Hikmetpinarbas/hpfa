@@ -1781,6 +1781,87 @@ def _construct_c03(
     for rows in motif_index.values():
         rows.sort(key=lambda row: (-int(row.get("member_process_n") or 0), str(row.get("process_motif_family_candidate_id") or "")))
 
+    process_motif_neighborhood_candidates: list[dict[str, Any]] = []
+    singleton_process_motif_with_recurring_neighbor_ids: set[str] = set()
+    length_bucket_order = {
+        "SHORT_0_2_LAYERS": 0,
+        "MEDIUM_3_5_LAYERS": 1,
+        "LONG_6_PLUS_LAYERS": 2,
+    }
+
+    for (team_id, family_id), rows in sorted(motif_index.items()):
+        for left_idx, left in enumerate(rows):
+            left_morphology = left.get("morphology_signature") or {}
+            for right in rows[left_idx + 1:]:
+                right_morphology = right.get("morphology_signature") or {}
+
+                if left_morphology.get("route_hint") != right_morphology.get("route_hint"):
+                    continue
+                if left_morphology.get("pass_carry_style") != right_morphology.get("pass_carry_style"):
+                    continue
+
+                left_actions = set(str(v) for v in (left_morphology.get("action_family_presence") or []))
+                right_actions = set(str(v) for v in (right_morphology.get("action_family_presence") or []))
+                left_length = str(left_morphology.get("length_bucket") or "")
+                right_length = str(right_morphology.get("length_bucket") or "")
+
+                neighborhood_basis = None
+                action_family_delta = sorted(left_actions.symmetric_difference(right_actions))
+                if (
+                    left_actions == right_actions
+                    and left_length in length_bucket_order
+                    and right_length in length_bucket_order
+                    and abs(length_bucket_order[left_length] - length_bucket_order[right_length]) == 1
+                ):
+                    neighborhood_basis = "ADJACENT_LENGTH_BUCKET_SAME_ACTION_SET"
+                elif (
+                    left_length == right_length
+                    and len(action_family_delta) == 1
+                ):
+                    neighborhood_basis = "ONE_ACTION_FAMILY_DELTA_SAME_LENGTH_BUCKET"
+
+                if neighborhood_basis is None:
+                    continue
+
+                left_id = str(left.get("process_motif_family_candidate_id") or "")
+                right_id = str(right.get("process_motif_family_candidate_id") or "")
+                left_member_n = int(left.get("member_process_n") or 0)
+                right_member_n = int(right.get("member_process_n") or 0)
+                if left_member_n == 1 and right_member_n >= 2:
+                    singleton_process_motif_with_recurring_neighbor_ids.add(left_id)
+                if right_member_n == 1 and left_member_n >= 2:
+                    singleton_process_motif_with_recurring_neighbor_ids.add(right_id)
+
+                process_motif_neighborhood_candidates.append({
+                    "process_motif_neighborhood_candidate_id": "pmn_" + hashlib.sha256(
+                        f"{left_id}|{right_id}|{neighborhood_basis}".encode()
+                    ).hexdigest()[:24],
+                    "team_identity_candidate_id": team_id,
+                    "process_family_candidate": family_id,
+                    "left_process_motif_family_candidate_id": left_id,
+                    "right_process_motif_family_candidate_id": right_id,
+                    "left_member_process_n": left_member_n,
+                    "right_member_process_n": right_member_n,
+                    "neighborhood_basis": neighborhood_basis,
+                    "shared_route_hint": left_morphology.get("route_hint"),
+                    "shared_pass_carry_style": left_morphology.get("pass_carry_style"),
+                    "left_length_bucket": left_length,
+                    "right_length_bucket": right_length,
+                    "action_family_delta": action_family_delta,
+                    "left_mean_duration_candidate": left.get("mean_duration_candidate"),
+                    "right_mean_duration_candidate": right.get("mean_duration_candidate"),
+                    "left_mean_actor_spread_candidate": left.get("mean_actor_spread_candidate"),
+                    "right_mean_actor_spread_candidate": right.get("mean_actor_spread_candidate"),
+                    "exact_motif_identity_changed": False,
+                    "recurrence_support_created": False,
+                    "independent_support_created": False,
+                    "similarity_is_tactical_pattern_truth": False,
+                    "similarity_is_coach_intention_truth": False,
+                    "similarity_is_causal_equivalence_truth": False,
+                    "outcome_participates_in_neighborhood_identity": False,
+                    "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_MORPHOLOGY_NEIGHBOR_CANDIDATE_ONLY",
+                })
+
     team_process_profiles: list[dict[str, Any]] = []
     by_team_family: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for signature in signatures:
@@ -2086,6 +2167,19 @@ def _construct_c03(
         ),
         "process_motif_family_candidates": process_motif_family_candidates,
         "process_motif_identity_uses_outcome": False,
+        "process_motif_neighborhood_candidate_count": len(process_motif_neighborhood_candidates),
+        "process_motif_neighborhood_candidates": process_motif_neighborhood_candidates,
+        "singleton_process_motif_with_recurring_neighbor_count": len(
+            singleton_process_motif_with_recurring_neighbor_ids
+        ),
+        "singleton_process_motif_with_recurring_neighbor_ids": sorted(
+            singleton_process_motif_with_recurring_neighbor_ids
+        ),
+        "process_motif_neighborhood_changes_exact_identity": False,
+        "process_motif_neighborhood_creates_recurrence_support": False,
+        "process_motif_neighborhood_creates_independent_support": False,
+        "process_motif_neighborhood_is_tactical_pattern_truth": False,
+        "process_motif_neighborhood_is_coach_intention_truth": False,
         "team_process_profile_count": len(team_process_profiles),
         "team_process_profiles": team_process_profiles,
         "reciprocal_team_process_comparison_count": len(reciprocal_team_process_comparisons),
