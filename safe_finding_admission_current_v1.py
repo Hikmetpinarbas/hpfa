@@ -169,6 +169,7 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
             source_payload,
             process_participation_payload,
             occurrence_consequence_payload,
+            occurrence_state_transition_payload,
         )
         if source_payload.get("process_comparison_context_consumed") is True:
             counterevidence_projection = build_comparable_outcome_counterevidence(source_payload)
