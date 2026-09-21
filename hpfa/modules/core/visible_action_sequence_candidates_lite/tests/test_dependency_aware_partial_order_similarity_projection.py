@@ -436,3 +436,87 @@ def test_dimension_registry_version_mismatch_fails_closed():
 
     assert result["status"] == "FAIL_CLOSED"
     assert "comparison_question_dimension_registry_version_mismatch" in result["hard_block_hits"]
+
+
+def test_pruned_audit_counts_cross_team_without_materializing_pair_objects():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", team="team_a"), _variant("b", team="team_b"))
+    )
+    audit = result["pruned_comparison_state_audit"]
+
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert audit["resolved_pair_universe_count"] == 1
+    assert audit["cross_team_context_mismatch_pair_count"] == 1
+    assert audit["pair_objects_materialized_for_audit"] is False
+    assert audit["pruned_or_unresolved_cases_are_counterevidence"] is False
+
+
+def test_pruned_audit_counts_cross_period_as_context_mismatch_by_default():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", period="1"), _variant("b", period="2"))
+    )
+    audit = result["pruned_comparison_state_audit"]
+
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert audit["cross_period_context_mismatch_pair_count"] == 1
+    assert audit["declared_period_test_difference_pair_count"] == 0
+
+
+def test_pruned_audit_reclassifies_cross_period_as_declared_test_difference():
+    payload = _payload(_variant("a", period="1"), _variant("b", period="2"))
+    payload["process_comparison_question_contract"] = _period_test_contract()
+    result = build_dependency_aware_partial_order_similarity(payload)
+    audit = result["pruned_comparison_state_audit"]
+
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 1
+    assert audit["cross_period_context_mismatch_pair_count"] == 0
+    assert audit["declared_period_test_difference_pair_count"] == 1
+
+
+def test_pruned_audit_counts_coarse_structure_mismatch_without_pair_materialization():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", first_layer_size=2), _variant("b", first_layer_size=3))
+    )
+    audit = result["pruned_comparison_state_audit"]
+
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert audit["coarse_structure_context_mismatch_pair_count"] == 1
+    assert audit["coarse_signature_pair_universe_count"] == 0
+    assert audit["topology_evaluated_representative_pair_count"] == 0
+
+
+def test_pruned_audit_marks_large_unmaterialized_exact_pairs_as_not_evaluated_not_mismatch():
+    variants = [_variant(f"v{index:04d}") for index in range(1000)]
+    result = build_dependency_aware_partial_order_similarity(_payload(*variants))
+    audit = result["pruned_comparison_state_audit"]
+
+    assert audit["coarse_signature_pair_universe_count"] == 499500
+    assert audit["topology_evaluated_representative_pair_count"] == 999
+    assert audit["topology_match_representative_pair_count"] == 999
+    assert audit["topology_not_evaluated_within_coarse_signature_pair_count"] == 498501
+    assert audit["not_evaluated_is_context_mismatch"] is False
+    assert audit["not_evaluated_is_counterevidence"] is False
+
+
+def test_pruned_audit_exposes_primary_unresolved_context_case_burden():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", period=None), _variant("b"))
+    )
+    audit = result["pruned_comparison_state_audit"]
+
+    assert audit["context_unresolved_variant_count"] == 1
+    assert audit["primary_unresolved_variant_reason_counts"]["MISSING_PERIOD"] == 1
+    assert audit["audit_counts_define_eligible_denominator"] is False
+
+
+def test_team_cannot_be_declared_test_dimension_until_supported():
+    payload = _payload(_variant("a", team="team_a"), _variant("b", team="team_b"))
+    contract = _period_test_contract()
+    contract["required_exact_dimensions"] = ["partial_order_structure", "period"]
+    contract["allowed_test_dimensions"] = ["team"]
+    payload["process_comparison_question_contract"] = contract
+
+    result = build_dependency_aware_partial_order_similarity(payload)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert "comparison_question_dimension_role_not_allowed:team:TEST" in result["hard_block_hits"]
