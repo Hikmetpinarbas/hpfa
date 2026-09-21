@@ -69,6 +69,8 @@ def admitted_counterevidence_packet():
             "reference_provenance_root": "root_reference",
             "reference_dependency_group": "dep_reference",
             "reference_independence_group": "ind_reference",
+            "independence_admission_status": "ADMITTED",
+            "independence_admission_basis": "fixture_explicit_independence_contract",
         }
     ]
     return packet
@@ -339,3 +341,25 @@ def test_identical_outcome_values_cannot_be_declared_opposite():
     row = next(row for row in record["relation_records"] if row["signal_ref"] == "admitted_counter_001")
     assert row["comparison_status"] == "INVALID_COMPARISON_CONTRACT"
     assert row["counterevidence_class"] == "UNRESOLVED"
+
+
+
+def test_distinct_independence_group_ids_without_admission_do_not_create_counterevidence():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0].pop("independence_admission_status", None)
+    packet["contradicting_signals"][0].pop("independence_admission_basis", None)
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    assert record["unresolved_counterevidence_count"] == 1
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "admitted_counter_001")
+    assert row["counterevidence_class"] == "UNRESOLVED"
+    assert row["counterevidence_admission_reason"] == "counterevidence_independence_not_admitted"
+
+
+def test_independence_admission_requires_basis_not_status_only():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["independence_admission_basis"] = ""
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "admitted_counter_001")
+    assert row["counterevidence_admission_reason"] == "counterevidence_independence_not_admitted"
