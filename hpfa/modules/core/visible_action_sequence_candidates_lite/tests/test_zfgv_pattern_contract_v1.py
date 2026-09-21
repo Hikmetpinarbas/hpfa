@@ -82,3 +82,15 @@ def test_access_terminal_contract_forbids_rate_without_denominator():
 def test_contract_truth_locks_remain_closed():
     locks = _payload()["truth_locks"]
     assert all(value is False for value in locks.values())
+
+
+def test_transition_stabilization_pattern_is_not_activated_without_temporal_bound():
+    payload = _payload()
+    row = next(
+        item for item in payload["patterns"]
+        if item["pattern_id"] == "VISIBLE_TRANSITION_STABILIZATION_CANDIDATE_V1"
+    )
+    assert row["activation_state"] == "REVIEW_REQUIRED_NOT_PRODUCT_ADMITTED"
+    assert "NO_NUMERIC_THRESHOLD_ADMITTED_YET" in row["time_window"]
+    assert "STABILIZATION_TRUTH_WITHOUT_ADMITTED_TIME_BOUND" in row["forbidden_inference"]
+    assert row["degraded_behavior"].endswith("DO_NOT_LABEL_STABILIZATION")
