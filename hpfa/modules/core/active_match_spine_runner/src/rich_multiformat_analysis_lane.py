@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import re
@@ -51,6 +52,133 @@ def _snapshot(root: Path) -> str:
             if path.is_file():
                 records.append((path.relative_to(root).as_posix(), path.stat().st_size, _hash_file(path)))
     return hashlib.sha256(json.dumps(records, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+
+def _float_candidate(value: Any) -> float | None:
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _team_label_from_row(row: dict[str, Any]) -> str:
+    direct = str(row.get("team") or "").strip()
+    if direct:
+        return direct
+    code = str(row.get("code") or "").strip()
+    if " - " in code:
+        return code.split(" - ", 1)[0].strip()
+    return ""
+
+
+def _game_state_context(active_match: Path) -> dict[str, Any]:
+    """Build match-local score-state context from visible goal/time/team observations.
+
+    This projection is descriptive context only. It does not create canonical event
+    identity, causal/tactical truth, or independent support.
+    """
+    teams: set[str] = set()
+    goal_nuclei: set[tuple[str, float, str]] = set()
+    max_time: float | None = None
+    readable_csv_count = 0
+    review_hits: list[str] = []
+
+    for path in sorted(active_match.glob("*.csv"), key=lambda item: item.name.casefold()):
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                reader = csv.DictReader(handle, delimiter=";")
+                if not reader.fieldnames or "action" not in reader.fieldnames:
+                    continue
+                readable_csv_count += 1
+                for row in reader:
+                    team = _team_label_from_row(row)
+                    if team:
+                        teams.add(team)
+                    start = _float_candidate(row.get("start"))
+                    if start is not None:
+                        max_time = start if max_time is None else max(max_time, start)
+                    if str(row.get("action") or "").strip().casefold() != "goals":
+                        continue
+                    if not team or start is None:
+                        review_hits.append("goal_row_missing_team_or_start")
+                        continue
+                    period = str(row.get("half") or "").strip() or "UNKNOWN"
+                    goal_nuclei.add((period, start, team))
+        except (OSError, UnicodeError, csv.Error):
+            review_hits.append(f"csv_unreadable_for_game_state:{path.name}")
+
+    team_list = sorted(teams, key=str.casefold)
+    if readable_csv_count == 0:
+        return {
+            "status": "NOT_AVAILABLE",
+            "binding_state": "NO_READABLE_ACTION_CSV_SURFACE",
+            "team_labels": [],
+            "goal_observation_count": 0,
+            "score_state_segments": [],
+            "review_hits": review_hits,
+            "game_state_is_tactical_truth": False,
+            "game_state_is_causal_truth": False,
+            "creates_independent_support": False,
+        }
+    if len(team_list) != 2 or max_time is None:
+        return {
+            "status": "REVIEW_REQUIRED",
+            "binding_state": "TEAM_OR_TIME_CONTEXT_UNRESOLVED",
+            "team_labels": team_list,
+            "goal_observation_count": len(goal_nuclei),
+            "score_state_segments": [],
+            "review_hits": sorted(set(review_hits + ["game_state_requires_two_teams_and_time"])),
+            "game_state_is_tactical_truth": False,
+            "game_state_is_causal_truth": False,
+            "creates_independent_support": False,
+        }
+
+    ordered_goals = sorted(goal_nuclei, key=lambda row: (row[1], row[0], row[2].casefold()))
+    score = {team: 0 for team in team_list}
+    segments: list[dict[str, Any]] = []
+    cursor = 0.0
+    for period, second, scorer in ordered_goals:
+        if second < cursor:
+            review_hits.append("goal_time_non_monotonic_after_dedup")
+            continue
+        segments.append({
+            "start_second_candidate": cursor,
+            "end_second_candidate": second,
+            "duration_second_candidate": max(0.0, second - cursor),
+            "score_state_candidate": {team: score[team] for team in team_list},
+            "terminal_goal_scorer_team_candidate": scorer,
+            "terminal_goal_period_candidate": period,
+        })
+        score[scorer] = score.get(scorer, 0) + 1
+        cursor = second
+
+    segments.append({
+        "start_second_candidate": cursor,
+        "end_second_candidate": max_time,
+        "duration_second_candidate": max(0.0, max_time - cursor),
+        "score_state_candidate": {team: score[team] for team in team_list},
+        "terminal_goal_scorer_team_candidate": None,
+        "terminal_goal_period_candidate": None,
+    })
+
+    return {
+        "status": "PASS" if not review_hits else "REVIEW_REQUIRED",
+        "binding_state": "VISIBLE_GOAL_TIME_TEAM_SCORE_STATE_CONTEXT",
+        "team_labels": team_list,
+        "goal_observation_count": len(ordered_goals),
+        "goal_observation_nuclei": [
+            {"period_candidate": period, "start_second_candidate": second, "team_label_candidate": team}
+            for period, second, team in ordered_goals
+        ],
+        "score_state_segments": segments,
+        "review_hits": sorted(set(review_hits)),
+        "reflection_dedup_key": ["period_candidate", "start_second_candidate", "team_label_candidate"],
+        "aggregate_or_reflected_rows_are_not_independent_goals": True,
+        "game_state_is_tactical_truth": False,
+        "game_state_is_causal_truth": False,
+        "creates_independent_support": False,
+    }
 
 
 def _flatten_projection(projection: dict[str, Any]) -> list[dict[str, Any]]:
@@ -2422,6 +2550,7 @@ def run_rich_lane(
 
     features = _load_json(output / "episode_feature_vector_lite_v1.json")
     temporal = _load_json(output / "temporal_episode_signature_lite_v1.json")
+    game_state_context = _game_state_context(active_match)
     rows = _flatten_projection(projection)
     entity_views = _entity_views(rows)
     primitives = _primitive_metrics(features, entity_views)
@@ -2468,6 +2597,7 @@ def run_rich_lane(
         "football_ontology_contract": _football_ontology_contract(),
         "constructs": {"C01": c01, "C02": c02, "C03": c03, "C04": c04},
         "phase_state_candidates": phase_states,
+        "game_state_context": game_state_context,
         "analysis_lattice": {
             "MICRO": {
                 "player_view_candidates": entity_views.get("player_view_candidates"),
@@ -2482,6 +2612,7 @@ def run_rich_lane(
             },
             "MACRO": {
                 "team_view_candidates": entity_views.get("team_view_candidates"),
+                "game_state_context": game_state_context,
                 "action_family_candidate_counts": features.get("eligible_action_family_candidate_counts") or {},
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
                 "constructs": {

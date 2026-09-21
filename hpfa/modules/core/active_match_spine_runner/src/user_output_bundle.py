@@ -1362,6 +1362,11 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             f"player_view_candidate_count={entity_summary['player']}",
             f"team_view_candidate_count={entity_summary['team']}",
             f"goalkeeper_view_candidate_count={entity_summary['goalkeeper']}",
+            f"game_state_context_status={(rich.get('game_state_context') or {}).get('status')}",
+            f"game_state_goal_observation_count={(rich.get('game_state_context') or {}).get('goal_observation_count')}",
+            f"game_state_segment_count={len((rich.get('game_state_context') or {}).get('score_state_segments') or [])}",
+            "game_state_context_is_tactical_truth=false",
+            "game_state_context_is_causal_truth=false",
             "format_fusion_is_independent_evidence_vote=false",
             "representative_entity_surfaces:",
         ])

@@ -9,7 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -47,6 +47,50 @@ def _audit():
             {"raw_column": "Shots", "normalized_column": "shots", "identity_role_candidate": None, "percent_header_candidate": False},
         ],
     }
+
+
+
+
+def test_game_state_context_is_match_agnostic_and_deduplicates_reflected_goals(tmp_path):
+    header = "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+    rows = [
+        "1;10;12;7. Player A (1);Alpha (11);Goals;1;90;34\n",
+        "2;40;42;9. Player B (2);Beta (22);Goals;1;92;30\n",
+        "3;80;82;4. Player C (3);Alpha (11);Passes accurate;1;50;20\n",
+    ]
+    (tmp_path / "players.csv").write_text(header + "".join(rows), encoding="utf-8")
+    reflected = [
+        "1;10;12;Alpha (11) - Team;Alpha (11);Goals;1;90;34\n",
+        "2;40;42;Beta (22) - Team;Beta (22);Goals;1;92;30\n",
+    ]
+    (tmp_path / "reflection.csv").write_text(header + "".join(reflected), encoding="utf-8")
+
+    result = _game_state_context(tmp_path)
+
+    assert result["status"] == "PASS"
+    assert result["goal_observation_count"] == 2
+    assert result["team_labels"] == ["Alpha (11)", "Beta (22)"]
+    assert [row["score_state_candidate"] for row in result["score_state_segments"]] == [
+        {"Alpha (11)": 0, "Beta (22)": 0},
+        {"Alpha (11)": 1, "Beta (22)": 0},
+        {"Alpha (11)": 1, "Beta (22)": 1},
+    ]
+    assert result["creates_independent_support"] is False
+    assert result["game_state_is_tactical_truth"] is False
+
+
+def test_game_state_context_supports_zero_zero_without_goal_rows(tmp_path):
+    (tmp_path / "match.csv").write_text(
+        "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+        "1;5;7;1. A (1);Alpha;Passes accurate;1;20;20\n"
+        "2;90;92;2. B (2);Beta;Lost balls;1;30;30\n",
+        encoding="utf-8",
+    )
+    result = _game_state_context(tmp_path)
+    assert result["status"] == "PASS"
+    assert result["goal_observation_count"] == 0
+    assert result["score_state_segments"][0]["score_state_candidate"] == {"Alpha": 0, "Beta": 0}
+    assert result["score_state_segments"][0]["end_second_candidate"] == 90.0
 
 
 def test_xlsx_row_projection_preserves_identity_metric_alignment_and_zero():
