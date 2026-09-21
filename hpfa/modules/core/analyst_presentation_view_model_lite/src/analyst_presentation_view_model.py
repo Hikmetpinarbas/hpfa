@@ -246,6 +246,20 @@ def _mechanism_where_when(
         full_spatial = entry["spatial_anchors"]
         entry["time_anchor_count"] = len(full_time)
         entry["spatial_anchor_count"] = len(full_spatial)
+        period_time_counts: dict[str, int] = {}
+        period_spatial_counts: dict[str, int] = {}
+        team_spatial_counts: dict[str, int] = {}
+        for anchor in full_time:
+            period = str(anchor.get("period_candidate") or "UNKNOWN_PERIOD")
+            period_time_counts[period] = period_time_counts.get(period, 0) + 1
+        for anchor in full_spatial:
+            period = str(anchor.get("period_candidate") or "UNKNOWN_PERIOD")
+            period_spatial_counts[period] = period_spatial_counts.get(period, 0) + 1
+            team_id = str(anchor.get("team_identity_candidate_id") or "UNKNOWN_TEAM")
+            team_spatial_counts[team_id] = team_spatial_counts.get(team_id, 0) + 1
+        entry["period_time_anchor_counts"] = dict(sorted(period_time_counts.items()))
+        entry["period_spatial_anchor_counts"] = dict(sorted(period_spatial_counts.items()))
+        entry["team_spatial_anchor_counts"] = dict(sorted(team_spatial_counts.items()))
         entry["period_candidates"] = sorted({
             str(x.get("period_candidate"))
             for x in [*full_time, *full_spatial]
@@ -676,6 +690,130 @@ def _six_phase_lens(phase_cards: list[dict[str, Any]]) -> dict[str, Any]:
         "unresolved_activity_state_count": label_counts.get("UNRESOLVED_ACTIVITY_STATE", 0),
     }
 
+def _comparative_views(
+    mechanism_cards: list[dict[str, Any]],
+    episode_cards: list[dict[str, Any]],
+    player_cards: list[dict[str, Any]],
+) -> dict[str, Any]:
+    team_labels = {
+        str(card.get("team_identity_candidate_id")): card.get("team_normalized_key")
+        for card in player_cards
+        if card.get("team_identity_candidate_id") and card.get("team_normalized_key")
+    }
+
+    period_rows: list[dict[str, Any]] = []
+    team_rows: list[dict[str, Any]] = []
+    state_rows: list[dict[str, Any]] = []
+    for card in mechanism_cards:
+        mechanism_id = card.get("mechanism_candidate_id")
+        where_when = card.get("where_when") or {}
+
+        period_time = where_when.get("period_time_anchor_counts") or {}
+        period_spatial = where_when.get("period_spatial_anchor_counts") or {}
+        periods = sorted(set(period_time) | set(period_spatial))
+        for period in periods:
+            period_rows.append({
+                "mechanism_candidate_id": mechanism_id,
+                "period_candidate": str(period),
+                "time_anchor_count": int(period_time.get(period, 0)),
+                "spatial_anchor_count": int(period_spatial.get(period, 0)),
+                "eligible_time_anchor_denominator": int(where_when.get("time_anchor_count") or 0),
+                "eligible_spatial_anchor_denominator": int(where_when.get("spatial_anchor_count") or 0),
+                "counts_are_independent_recurrence": False,
+            })
+
+        for team_id, count in sorted((where_when.get("team_spatial_anchor_counts") or {}).items()):
+            team_rows.append({
+                "mechanism_candidate_id": mechanism_id,
+                "team_identity_candidate_id": team_id,
+                "team_display_candidate": team_labels.get(team_id, team_id),
+                "spatial_anchor_count": int(count),
+                "eligible_spatial_anchor_denominator": int(where_when.get("spatial_anchor_count") or 0),
+                "team_identity_is_candidate_only": True,
+                "counts_are_independent_recurrence": False,
+            })
+
+        for state, count in sorted((card.get("defeasible_state_counts") or {}).items()):
+            state_rows.append({
+                "mechanism_candidate_id": mechanism_id,
+                "defeasible_state": str(state),
+                "nominal_chain_count": int(count),
+                "eligible_denominator_nominal_chain_count": int(card.get("nominal_chain_count") or 0),
+                "independence_admitted": False,
+            })
+
+    zone_by_period: dict[tuple[str, str], int] = {}
+    channel_by_period: dict[tuple[str, str], int] = {}
+    eligible_zone_mentions_by_period: dict[str, int] = {}
+    eligible_channel_mentions_by_period: dict[str, int] = {}
+    for episode in episode_cards:
+        period = str(episode.get("period_candidate") or "UNKNOWN_PERIOD")
+        for zone, count in (episode.get("zone_surface") or {}).items():
+            value = int(count)
+            zone_by_period[(period, str(zone))] = zone_by_period.get((period, str(zone)), 0) + value
+            eligible_zone_mentions_by_period[period] = eligible_zone_mentions_by_period.get(period, 0) + value
+        for channel, count in (episode.get("channel_surface") or {}).items():
+            value = int(count)
+            channel_by_period[(period, str(channel))] = channel_by_period.get((period, str(channel)), 0) + value
+            eligible_channel_mentions_by_period[period] = eligible_channel_mentions_by_period.get(period, 0) + value
+
+    zone_rows = [
+        {
+            "period_candidate": period,
+            "zone_candidate": zone,
+            "eligible_action_zone_mention_count": count,
+            "eligible_denominator_zone_mentions": eligible_zone_mentions_by_period.get(period, 0),
+            "share_not_emitted": True,
+        }
+        for (period, zone), count in sorted(zone_by_period.items())
+    ]
+    channel_rows = [
+        {
+            "period_candidate": period,
+            "channel_candidate": channel,
+            "eligible_action_channel_mention_count": count,
+            "eligible_denominator_channel_mentions": eligible_channel_mentions_by_period.get(period, 0),
+            "share_not_emitted": True,
+        }
+        for (period, channel), count in sorted(channel_by_period.items())
+    ]
+
+    return {
+        "policy": "COMPARE_ONLY_ON_DECLARED_CANDIDATE_UNITS_WITH_VISIBLE_DENOMINATORS",
+        "period_mechanism_comparison": {
+            "state": "EXACT_NOMINAL_COUNTS_WITH_ELIGIBLE_DENOMINATORS",
+            "rows": period_rows,
+            "note": "Counts cover the exact reference-linked anchor population but do not represent independent recurrence.",
+        },
+        "team_coordinate_comparison": {
+            "state": "EXACT_NOMINAL_COUNTS_WITH_ELIGIBLE_DENOMINATOR",
+            "rows": team_rows,
+            "note": "Team identities remain match-local candidates; anchor counts are nominal reference-linked counts.",
+        },
+        "defeasible_state_comparison": {
+            "state": "COUNT_WITH_ELIGIBLE_DENOMINATOR",
+            "rows": state_rows,
+        },
+        "zone_mentions_by_period": {
+            "state": "COUNT_WITH_ELIGIBLE_DENOMINATOR",
+            "rows": zone_rows,
+            "count_unit": "eligible_action_zone_mentions",
+        },
+        "channel_mentions_by_period": {
+            "state": "COUNT_WITH_ELIGIBLE_DENOMINATOR",
+            "rows": channel_rows,
+            "count_unit": "eligible_action_channel_mentions",
+        },
+        "forbidden_inference": [
+            "preview_sample_as_full_population",
+            "candidate_team_identity_as_validated_identity",
+            "zone_or_channel_mentions_as_time_share",
+            "zone_or_channel_mentions_as_possession_share",
+            "nominal_chain_count_as_independent_recurrence",
+            "count_difference_as_causal_effect",
+        ],
+    }
+
 def _graphability_manifest(
     surfaces: dict[str, Any],
     episode_cards: list[dict[str, Any]],
@@ -896,6 +1034,27 @@ def _graphability_manifest(
         ],
     }
 
+    specs["comparative_views"] = {
+        "state": "GRAPHABLE",
+        "preferred_representations": {
+            "defeasible_state_comparison": "STACKED_BAR_WITH_EXPLICIT_DENOMINATOR",
+            "zone_mentions_by_period": "GROUPED_BAR_COUNTS_ONLY",
+            "channel_mentions_by_period": "GROUPED_BAR_COUNTS_ONLY",
+            "period_mechanism_comparison": "GROUPED_BAR_WITH_ELIGIBLE_DENOMINATORS",
+            "team_coordinate_comparison": "GROUPED_BAR_OR_SMALL_MULTIPLE_SCATTER_WITH_ELIGIBLE_DENOMINATOR",
+        },
+        "data_semantics": "candidate_unit_comparisons_with_explicit_denominator_or_preview_only_state",
+        "data_ref": "surface_data.comparative_views",
+        "forbidden_visual_inference": [
+            "nominal_anchor_count_as_independent_recurrence",
+            "count_difference_as_rate_without_denominator",
+            "zone_or_channel_mentions_as_time_share",
+            "team_candidate_as_validated_identity",
+            "nominal_chain_count_as_independent_recurrence",
+            "count_difference_as_causal_effect",
+        ],
+    }
+
     specs["analyst_report"] = {
         "state": "GRAPHABLE_AS_COMPANION_ONLY",
         "preferred_representation": "NO_DIRECT_REPORT_PROSE_CHART",
@@ -967,6 +1126,11 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
     broadcast_candidates = _broadcast_candidates(full)
     broadcast_groups = _broadcast_groups(full)
     six_phase_lens = _six_phase_lens(phase_cards)
+    comparative_views = _comparative_views(
+        mechanism_cards=mechanism_cards,
+        episode_cards=episode_cards,
+        player_cards=player_process_cards,
+    )
     report_text = ""
     report_path = root / "HPFA_ANALYST_REPORT.txt"
     if report_available:
@@ -1088,6 +1252,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "counterevidence_cards": counter_cards,
         "broadcast_sentence_candidates": broadcast_candidates,
         "broadcast_groups": broadcast_groups,
+        "comparative_views": comparative_views,
         "unknown_unobservable_register": {
             "surface_gaps": unavailable,
             "review_hits": list(full.get("review_hits") or []),

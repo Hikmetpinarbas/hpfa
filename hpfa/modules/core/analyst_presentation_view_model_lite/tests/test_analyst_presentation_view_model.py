@@ -88,7 +88,10 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
                     "episode_candidate_id": "ep_1",
                     "start_second_candidate": 10,
                     "end_second_candidate": 20,
+                    "period_candidate": "1",
                     "action_family_distribution": {"PASS": 2},
+                    "eligible_action_zone_surface": {"MIDDLE_THIRD": 2},
+                    "eligible_action_channel_surface": {"CENTRAL_CHANNEL": 2},
                     "context_refs": ["ctx_1"],
                     "row_nucleus_refs": ["row_1"],
                     "action_occurrence_eligible_context_refs": ["ctx_1"],
@@ -181,6 +184,9 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert mechanism["where_when"]["spatial_anchor_sample"][0]["pos_x_candidate"] == 44.0
     assert mechanism["where_when"]["spatial_anchor_sample"][0]["pos_y_candidate"] == 37.0
     assert mechanism["where_when"]["delivery_mode"] == "LAZY_REFERENCE_JOIN"
+    assert mechanism["where_when"]["period_time_anchor_counts"] == {"1": 1}
+    assert mechanism["where_when"]["period_spatial_anchor_counts"] == {"1": 1}
+    assert mechanism["where_when"]["team_spatial_anchor_counts"] == {"team_1": 1}
     assert mechanism["where_when"]["coverage_is_independent_recurrence"] is False
     assert mechanism["where_when"]["path_or_trajectory_truth"] is False
     assert mechanism["nominal_chain_count"] == 1
@@ -229,6 +235,23 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert graphability["specs"]["six_phase_match_view"]["preferred_representation"] == "SIX_SLOT_STATUS_BAR_OR_MATRIX"
     assert graphability["specs"]["broadcast_summary"]["preferred_representation"] == "STACKED_OR_GROUPED_BAR_BY_FAMILY_AND_DEFEASIBLE_STATE"
     assert graphability["specs"]["traceback_evidence_drawer"]["preferred_representation"] == "NODE_LINK_OR_HIERARCHICAL_DRILLDOWN"
+    comparative = payload["surface_data"]["comparative_views"]
+    assert comparative["period_mechanism_comparison"]["state"] == "EXACT_NOMINAL_COUNTS_WITH_ELIGIBLE_DENOMINATORS"
+    period_row = comparative["period_mechanism_comparison"]["rows"][0]
+    assert period_row["period_candidate"] == "1"
+    assert period_row["time_anchor_count"] == 1
+    assert period_row["spatial_anchor_count"] == 1
+    assert period_row["eligible_time_anchor_denominator"] == 1
+    assert period_row["eligible_spatial_anchor_denominator"] == 1
+    assert period_row["counts_are_independent_recurrence"] is False
+    team_row = comparative["team_coordinate_comparison"]["rows"][0]
+    assert team_row["team_identity_candidate_id"] == "team_1"
+    assert team_row["spatial_anchor_count"] == 1
+    assert team_row["eligible_spatial_anchor_denominator"] == 1
+    assert comparative["zone_mentions_by_period"]["rows"][0]["eligible_action_zone_mention_count"] == 2
+    assert comparative["zone_mentions_by_period"]["rows"][0]["eligible_denominator_zone_mentions"] == 2
+    assert comparative["channel_mentions_by_period"]["rows"][0]["eligible_action_channel_mention_count"] == 2
+    assert graphability["specs"]["comparative_views"]["state"] == "GRAPHABLE"
     assert graphability["specs"]["analyst_report"]["state"] == "GRAPHABLE_AS_COMPANION_ONLY"
     assert payload["interaction_provenance_may_affect_evidence"] is False
     assert payload["client_may_create_new_football_semantics"] is False
