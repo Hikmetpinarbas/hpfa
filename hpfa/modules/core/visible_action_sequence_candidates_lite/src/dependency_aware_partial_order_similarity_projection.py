@@ -379,6 +379,61 @@ def _add_star_pairs(indices: list[int], out: set[tuple[int, int]]) -> None:
         out.add(_pair_key(anchor, index))
 
 
+def _partition_topology_classes(
+    indices: list[int],
+    variants: list[dict[str, Any]],
+) -> tuple[list[list[int]], list[int], dict[str, int]]:
+    ordered = sorted(
+        set(indices),
+        key=lambda idx: _clean(variants[idx].get("partial_order_occurrence_variant_id")),
+    )
+    classes: list[list[int]] = []
+    unresolved_indices: list[int] = []
+    comparison_count = 0
+    match_count = 0
+    mismatch_count = 0
+    unresolved_count = 0
+
+    for index in ordered:
+        if not classes:
+            classes.append([index])
+            continue
+        matched_class = False
+        unresolved_against_any_representative = False
+        for topology_class in classes:
+            representative = topology_class[0]
+            comparison_count += 1
+            topology_match = _topology_exact_match(
+                variants[index],
+                variants[representative],
+            )
+            if topology_match is True:
+                match_count += 1
+                topology_class.append(index)
+                matched_class = True
+                break
+            if topology_match is False:
+                mismatch_count += 1
+                continue
+            unresolved_count += 1
+            unresolved_against_any_representative = True
+
+        if matched_class:
+            continue
+        if unresolved_against_any_representative:
+            unresolved_indices.append(index)
+            continue
+        classes.append([index])
+
+    diagnostics = {
+        "topology_classification_representative_comparison_count": comparison_count,
+        "topology_classification_representative_match_count": match_count,
+        "topology_classification_representative_mismatch_count": mismatch_count,
+        "topology_classification_representative_unresolved_count": unresolved_count,
+    }
+    return classes, unresolved_indices, diagnostics
+
+
 def _candidate_pair_indices(
     variants: list[dict[str, Any]],
     contract: dict[str, Any],
@@ -420,6 +475,12 @@ def _candidate_pair_indices(
     coarse_signature_topology_split_group_count = 0
     topology_evaluated_pair_count = 0
     topology_match_pair_count = 0
+    topology_equivalence_class_count = 0
+    topology_singleton_class_count = 0
+    topology_unresolved_variant_count = 0
+    topology_same_class_pair_universe_count = 0
+    topology_cross_class_mismatch_pair_universe_count = 0
+    topology_unresolved_pair_burden = 0
 
     for (team, period_key, signature), indices in sorted(
         groups.items(),
@@ -432,12 +493,61 @@ def _candidate_pair_indices(
         if len(ordered) < 2:
             continue
 
-        coarse_pair_indices: set[tuple[int, int]] = set()
-        _add_star_pairs(ordered, coarse_pair_indices)
+        topology_classes, unresolved_indices, class_diagnostics = _partition_topology_classes(
+            ordered,
+            variants,
+        )
+        topology_evaluated_pair_count += int(
+            class_diagnostics["topology_classification_representative_comparison_count"]
+        )
+        topology_match_pair_count += int(
+            class_diagnostics["topology_classification_representative_match_count"]
+        )
+        topology_mismatch_pair_pruned_count += int(
+            class_diagnostics["topology_classification_representative_mismatch_count"]
+        )
+        topology_unresolved_pair_count += int(
+            class_diagnostics["topology_classification_representative_unresolved_count"]
+        )
+        topology_unresolved_variant_count += len(unresolved_indices)
+
+        resolved_class_member_count = sum(len(topology_class) for topology_class in topology_classes)
+        same_class_pair_count = sum(_choose2(len(topology_class)) for topology_class in topology_classes)
+        resolved_class_pair_universe = _choose2(resolved_class_member_count)
+        cross_class_pair_count = max(
+            resolved_class_pair_universe - same_class_pair_count,
+            0,
+        )
+        group_pair_universe = _choose2(len(ordered))
+        unresolved_pair_burden = max(
+            group_pair_universe - resolved_class_pair_universe,
+            0,
+        )
+        topology_same_class_pair_universe_count += same_class_pair_count
+        topology_cross_class_mismatch_pair_universe_count += cross_class_pair_count
+        topology_unresolved_pair_burden += unresolved_pair_burden
+
+        multi_member_classes = [
+            topology_class for topology_class in topology_classes if len(topology_class) >= 2
+        ]
+        topology_equivalence_class_count += len(multi_member_classes)
+        topology_singleton_class_count += sum(
+            1 for topology_class in topology_classes if len(topology_class) == 1
+        )
+        source_group_split = len(topology_classes) > 1
+        if source_group_split:
+            coarse_signature_topology_split_group_count += 1
+
+        class_by_index: dict[int, int] = {}
+        for class_index, topology_class in enumerate(topology_classes):
+            for member_index in topology_class:
+                class_by_index[member_index] = class_index
 
         occurrence_members: dict[str, list[int]] = defaultdict(list)
         dependency_members: dict[str, list[int]] = defaultdict(list)
         for index in ordered:
+            if index not in class_by_index:
+                continue
             variant = variants[index]
             for value in variant.get("supporting_action_occurrence_candidate_ids") or []:
                 cleaned = _clean(value)
@@ -447,75 +557,86 @@ def _candidate_pair_indices(
                 cleaned = _clean(value)
                 if cleaned:
                     dependency_members[cleaned].append(index)
-        for member_indices in occurrence_members.values():
-            _add_star_pairs(member_indices, coarse_pair_indices)
-        for member_indices in dependency_members.values():
-            _add_star_pairs(member_indices, coarse_pair_indices)
 
-        group_topology_mismatch = False
-        group_topology_unresolved = False
-        group_admitted_pairs: set[tuple[int, int]] = set()
-        topology_evaluated_pair_count += len(coarse_pair_indices)
-        for left_index, right_index in sorted(coarse_pair_indices):
-            topology_match = _topology_exact_match(variants[left_index], variants[right_index])
-            if topology_match is True:
-                topology_match_pair_count += 1
+        for class_index, topology_class in enumerate(topology_classes):
+            if len(topology_class) < 2:
+                continue
+
+            class_pair_indices: set[tuple[int, int]] = set()
+            _add_star_pairs(topology_class, class_pair_indices)
+
+            for member_indices in occurrence_members.values():
+                same_class_members = [
+                    index for index in member_indices if class_by_index.get(index) == class_index
+                ]
+                _add_star_pairs(same_class_members, class_pair_indices)
+            for member_indices in dependency_members.values():
+                same_class_members = [
+                    index for index in member_indices if class_by_index.get(index) == class_index
+                ]
+                _add_star_pairs(same_class_members, class_pair_indices)
+
+            group_admitted_pairs: set[tuple[int, int]] = set()
+            for left_index, right_index in sorted(class_pair_indices):
+                topology_match = _topology_exact_match(
+                    variants[left_index],
+                    variants[right_index],
+                )
+                if topology_match is not True:
+                    topology_unresolved_pair_count += int(topology_match is None)
+                    topology_mismatch_pair_pruned_count += int(topology_match is False)
+                    continue
                 pair_key = _pair_key(left_index, right_index)
                 admitted_pair_indices.add(pair_key)
                 group_admitted_pairs.add(pair_key)
-            elif topology_match is False:
-                topology_mismatch_pair_pruned_count += 1
-                group_topology_mismatch = True
-            else:
-                topology_unresolved_pair_count += 1
-                group_topology_unresolved = True
 
-        if group_topology_mismatch:
-            coarse_signature_topology_split_group_count += 1
-
-        eligible_indices = sorted({index for pair in group_admitted_pairs for index in pair})
-        eligible_refs = [
-            _clean(variants[index].get("partial_order_occurrence_variant_id"))
-            for index in eligible_indices
-        ]
-        member_refs = [
-            _clean(variants[index].get("partial_order_occurrence_variant_id"))
-            for index in ordered
-        ]
-        group_id = "po_group_" + _digest(
-            team,
-            period_key,
-            signature,
-            contract.get("comparison_question_id"),
-        )[:24]
-        comparison_groups.append({
-            "comparison_group_id": group_id,
-            "comparison_question_id": contract.get("comparison_question_id"),
-            "question_profile_version": contract.get("question_profile_version") or "1.0.0",
-            "question_profile_hash": question_profile_hash,
-            "profile_frozen_before_outcome_attachment": True,
-            "team_identity_candidate_id": team,
-            "period_candidate": None if period_is_test else period_key,
-            "period_is_test_dimension": period_is_test,
-            "member_variant_refs": member_refs,
-            "member_variant_count": len(ordered),
-            "eligible_member_variant_refs": eligible_refs,
-            "eligible_case_count": len(eligible_refs),
-            "coarse_partial_order_signature_match_required": True,
-            "coarse_signature_is_exact_equivalence_proof": False,
-            "relation_preserving_topology_filter_applied": True,
-            "topology_filter_can_create_new_pair": False,
-            "topology_filter_only_removes_or_preserves_coarse_prefilter_pairs": True,
-            "structural_exact_equivalence_proven_for_all_materialized_pairs": not group_topology_unresolved,
-            "coarse_signature_group_contains_topology_mismatch": group_topology_mismatch,
-            "outcome_used_in_comparison_admission": False,
-            "outcome_used_in_pair_materialization": False,
-            "dependency_independence_proven": False,
-            "statistical_independence_proven": False,
-            "comparison_group_is_process_identity_truth": False,
-            "comparison_group_is_tactical_pattern_truth": False,
-            "claim_ceiling": COMPARABLE_SET_CLAIM_CEILING,
-        })
+            class_refs = [
+                _clean(variants[index].get("partial_order_occurrence_variant_id"))
+                for index in topology_class
+            ]
+            group_id = "po_group_" + _digest(
+                team,
+                period_key,
+                signature,
+                contract.get("comparison_question_id"),
+                class_refs,
+            )[:24]
+            comparison_groups.append({
+                "comparison_group_id": group_id,
+                "comparison_question_id": contract.get("comparison_question_id"),
+                "question_profile_version": contract.get("question_profile_version") or "1.0.0",
+                "question_profile_hash": question_profile_hash,
+                "profile_frozen_before_outcome_attachment": True,
+                "team_identity_candidate_id": team,
+                "period_candidate": None if period_is_test else period_key,
+                "period_is_test_dimension": period_is_test,
+                "member_variant_refs": class_refs,
+                "member_variant_count": len(class_refs),
+                "eligible_member_variant_refs": class_refs,
+                "eligible_case_count": len(class_refs),
+                "coarse_partial_order_signature_match_required": True,
+                "coarse_signature_is_exact_equivalence_proof": False,
+                "relation_preserving_topology_filter_applied": True,
+                "topology_partition_precedes_pair_materialization": True,
+                "topology_partition_can_discover_multiple_equivalence_classes": True,
+                "topology_filter_can_create_new_pair": False,
+                "topology_filter_only_removes_or_preserves_coarse_prefilter_pairs": False,
+                "comparison_group_is_topology_homogeneous": True,
+                "source_coarse_signature_group_topology_class_count": len(topology_classes),
+                "topology_equivalence_class_index": class_index,
+                "topology_class_member_count": len(class_refs),
+                "source_coarse_signature_group_contains_topology_mismatch": source_group_split,
+                "source_coarse_signature_group_unresolved_variant_count": len(unresolved_indices),
+                "structural_exact_equivalence_proven_for_all_materialized_pairs": True,
+                "coarse_signature_group_contains_topology_mismatch": source_group_split,
+                "outcome_used_in_comparison_admission": False,
+                "outcome_used_in_pair_materialization": False,
+                "dependency_independence_proven": False,
+                "statistical_independence_proven": False,
+                "comparison_group_is_process_identity_truth": False,
+                "comparison_group_is_tactical_pattern_truth": False,
+                "claim_ceiling": COMPARABLE_SET_CLAIM_CEILING,
+            })
 
     resolved_pair_universe_count = _choose2(resolved_variant_count)
     within_team_pair_count = sum(_choose2(count) for count in team_counts.values())
@@ -548,9 +669,14 @@ def _candidate_pair_indices(
         within_required_context_pair_count - coarse_signature_pair_universe_count,
         0,
     )
-    topology_not_evaluated_within_coarse_signature_pair_count = max(
+    topology_not_directly_evaluated_within_coarse_signature_pair_count = max(
         coarse_signature_pair_universe_count - topology_evaluated_pair_count,
         0,
+    )
+    topology_partition_accounted_pair_count = (
+        topology_same_class_pair_universe_count
+        + topology_cross_class_mismatch_pair_universe_count
+        + topology_unresolved_pair_burden
     )
 
     pruned_audit = {
@@ -573,8 +699,20 @@ def _candidate_pair_indices(
         "topology_match_representative_pair_count": topology_match_pair_count,
         "topology_mismatch_representative_pair_count": topology_mismatch_pair_pruned_count,
         "topology_unresolved_representative_pair_count": topology_unresolved_pair_count,
-        "topology_not_evaluated_within_coarse_signature_pair_count": (
-            topology_not_evaluated_within_coarse_signature_pair_count
+        "topology_equivalence_class_count": topology_equivalence_class_count,
+        "topology_singleton_class_count": topology_singleton_class_count,
+        "topology_unresolved_variant_count": topology_unresolved_variant_count,
+        "topology_same_class_pair_universe_count": topology_same_class_pair_universe_count,
+        "topology_cross_class_mismatch_pair_universe_count": (
+            topology_cross_class_mismatch_pair_universe_count
+        ),
+        "topology_unresolved_pair_burden": topology_unresolved_pair_burden,
+        "topology_partition_accounted_pair_count": topology_partition_accounted_pair_count,
+        "topology_partition_closes_coarse_signature_pair_universe": (
+            topology_partition_accounted_pair_count == coarse_signature_pair_universe_count
+        ),
+        "topology_not_directly_evaluated_within_coarse_signature_pair_count": (
+            topology_not_directly_evaluated_within_coarse_signature_pair_count
         ),
         "pruned_or_unresolved_cases_are_counterevidence": False,
         "audit_counts_define_eligible_denominator": False,
@@ -591,6 +729,9 @@ def _candidate_pair_indices(
         "topology_unresolved_pair_count": topology_unresolved_pair_count,
         "topology_mismatch_pair_pruned_count": topology_mismatch_pair_pruned_count,
         "coarse_signature_topology_split_group_count": coarse_signature_topology_split_group_count,
+        "topology_equivalence_class_count": topology_equivalence_class_count,
+        "topology_singleton_class_count": topology_singleton_class_count,
+        "topology_unresolved_variant_count": topology_unresolved_variant_count,
         "admitted_structural_comparison_group_count": len(comparison_groups),
     }
     return admitted_pair_indices, comparison_groups, diagnostics
