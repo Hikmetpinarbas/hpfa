@@ -191,17 +191,32 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
-def _progression_pool_p02(features: dict[str, Any], temporal: dict[str, Any]) -> dict[str, Any]:
+def _progression_pool_p02(
+    features: dict[str, Any],
+    temporal: dict[str, Any],
+    episode: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Project current episode/temporal outputs into a claim-bounded P02 pool.
 
     This is a projection, not a new occurrence, sequence or reasoning engine.
     Route/directness fields remain not evaluated until an ordered coordinate
     chain is explicitly bound.
     """
+    episode = episode or {}
     temporal_by_episode = {
         str(row.get("episode_candidate_id")): row
         for row in (temporal.get("temporal_episode_signatures") or [])
         if isinstance(row, dict) and row.get("episode_candidate_id")
+    }
+    episode_by_id = {
+        str(row.get("episode_candidate_id")): row
+        for row in (episode.get("episode_candidates") or [])
+        if isinstance(row, dict) and row.get("episode_candidate_id")
+    }
+    time_layer_by_id = {
+        str(row.get("episode_time_layer_candidate_id")): row
+        for row in (episode.get("episode_time_layer_candidates") or [])
+        if isinstance(row, dict) and row.get("episode_time_layer_candidate_id")
     }
     finding_atoms: list[dict[str, Any]] = []
     pool_items: list[dict[str, Any]] = []
@@ -288,6 +303,60 @@ def _progression_pool_p02(features: dict[str, Any], temporal: dict[str, Any]) ->
             )
 
         final_third_count = int(zone_counts.get("FINAL_THIRD") or zone_counts.get("final_third") or 0)
+
+        episode_row = episode_by_id.get(episode_id) or {}
+        ordered_layers = [
+            time_layer_by_id.get(str(layer_ref))
+            for layer_ref in (episode_row.get("time_layer_refs") or [])
+        ]
+        ordered_layers = [row for row in ordered_layers if isinstance(row, dict)]
+
+        zone_station_path: list[dict[str, Any]] = []
+        zone_transition_candidates: list[dict[str, Any]] = []
+        for layer in ordered_layers:
+            eligible_zone_counts = {
+                str(key): int(value or 0)
+                for key, value in (layer.get("eligible_action_zone_candidate_counts") or {}).items()
+                if str(key) not in {"", "UNKNOWN_ZONE"} and int(value or 0) > 0
+            }
+            unique_zones = sorted(eligible_zone_counts)
+            if len(unique_zones) != 1:
+                continue
+            zone_station_path.append({
+                "time_layer_ref": layer.get("episode_time_layer_candidate_id"),
+                "second_candidate": layer.get("second_candidate"),
+                "zone_candidate": unique_zones[0],
+                "same_time_unordered": bool(layer.get("same_time_unordered")),
+                "internal_order_asserted": False,
+            })
+
+        for left, right in zip(zone_station_path, zone_station_path[1:]):
+            if left.get("second_candidate") == right.get("second_candidate"):
+                continue
+            zone_transition_candidates.append({
+                "from_zone": left.get("zone_candidate"),
+                "to_zone": right.get("zone_candidate"),
+                "from_second_candidate": left.get("second_candidate"),
+                "to_second_candidate": right.get("second_candidate"),
+                "same_timestamp_transition": False,
+                "transition_is_physical_trajectory_truth": False,
+            })
+
+        compressed_zone_stations: list[str] = []
+        for station in zone_station_path:
+            zone = str(station.get("zone_candidate") or "")
+            if not zone:
+                continue
+            if not compressed_zone_stations or compressed_zone_stations[-1] != zone:
+                compressed_zone_stations.append(zone)
+
+        start_zone_candidate = compressed_zone_stations[0] if compressed_zone_stations else None
+        end_zone_candidate = compressed_zone_stations[-1] if compressed_zone_stations else None
+        zone_order = {"DEFENSIVE_THIRD": 0, "MIDDLE_THIRD": 1, "FINAL_THIRD": 2}
+        zone_advancement_steps = None
+        if start_zone_candidate in zone_order and end_zone_candidate in zone_order:
+            zone_advancement_steps = zone_order[end_zone_candidate] - zone_order[start_zone_candidate]
+
         action_rate = None
         if isinstance(duration, (int, float)) and duration > 0:
             action_rate = round(eligible_actions / float(duration), 6)
@@ -295,7 +364,6 @@ def _progression_pool_p02(features: dict[str, Any], temporal: dict[str, Any]) ->
         pool_status = "DEGRADED"
         unresolved = [
             "ordered_coordinate_chain_not_bound",
-            "start_end_zone_transition_not_bound",
             "actor_station_identity_not_bound",
             "relation_station_identity_not_bound",
             "opponent_response_not_bound_at_p02_projection_stage",
@@ -331,6 +399,11 @@ def _progression_pool_p02(features: dict[str, Any], temporal: dict[str, Any]) ->
             "game_state": "NOT_EVALUATED",
             "visible_observation_summary": {
                 "duration_seconds_candidate": duration,
+                "start_zone_candidate": start_zone_candidate,
+                "end_zone_candidate": end_zone_candidate,
+                "zone_advancement_steps_candidate": zone_advancement_steps,
+                "zone_station_path_candidate": compressed_zone_stations,
+                "zone_transition_candidate_count": len(zone_transition_candidates),
                 "action_station_candidate_count": eligible_actions,
                 "same_time_unordered_layer_count": same_time_layers,
                 "action_family_counts": family_counts,
@@ -348,10 +421,15 @@ def _progression_pool_p02(features: dict[str, Any], temporal: dict[str, Any]) ->
                 "directness_proxy": None,
                 "net_goalward_progression": None,
                 "net_lateral_displacement": None,
+                "start_zone_candidate": start_zone_candidate,
+                "end_zone_candidate": end_zone_candidate,
+                "zone_advancement_steps_candidate": zone_advancement_steps,
+                "zone_station_path_candidate": compressed_zone_stations,
+                "zone_transition_candidates": zone_transition_candidates,
                 "action_station_count_candidate": eligible_actions,
                 "actor_station_count_candidate": None,
                 "relation_station_count_candidate": None,
-                "zone_station_count_candidate": None,
+                "zone_station_count_candidate": len(compressed_zone_stations) if compressed_zone_stations else None,
                 "same_time_unordered_layer_count": same_time_layers,
                 "advanced_access_activity_candidate": final_third_count > 0,
             },
@@ -396,6 +474,8 @@ def _progression_pool_p02(features: dict[str, Any], temporal: dict[str, Any]) ->
                 "action_station_available": True,
                 "zone_distribution_available": bool(zone_counts),
                 "channel_distribution_available": bool(channel_counts),
+                "zone_station_path_available": bool(compressed_zone_stations),
+                "zone_transition_available": bool(zone_transition_candidates),
                 "route_available": False,
             },
             "missing_required_dimensions": [],
@@ -607,12 +687,13 @@ def run_rich_lane(
 
     features = _load_json(output / "episode_feature_vector_lite_v1.json")
     temporal = _load_json(output / "temporal_episode_signature_lite_v1.json")
+    episode = _load_json(output / "analyst_episode_locator_lite_v1.json")
     rows = _flatten_projection(projection)
     entity_views = _entity_views(rows)
     primitives = _primitive_metrics(features, entity_views)
     phase_states = _phase_state_candidates(features)
     c01 = _construct_c01(rows, features)
-    p02 = _progression_pool_p02(features, temporal)
+    p02 = _progression_pool_p02(features, temporal, episode)
     if c01.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C01_progression_terminal_construct_review_required")
 
