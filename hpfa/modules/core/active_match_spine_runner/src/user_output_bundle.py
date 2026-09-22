@@ -359,6 +359,49 @@ def _actor_participation_summary_lines(
     ]
 
 
+def _readable_score_state_counts(counts: dict[str, Any]) -> str:
+    labels = {
+        "LEVEL": "berabere",
+        "LEADING": "onde",
+        "TRAILING": "geride",
+        "UNRESOLVED": "cozulmemis",
+        "NOT_EVALUATED": "degerlendirilmedi",
+    }
+    parts: list[str] = []
+    for key, value in sorted((counts or {}).items(), key=lambda item: str(item[0])):
+        try:
+            count = int(value or 0)
+        except (TypeError, ValueError):
+            continue
+        if count > 0:
+            parts.append(f"{labels.get(str(key), str(key).casefold())}={count}")
+    return ", ".join(parts) if parts else "game-state baglanamadi"
+
+
+def _post_loss_score_state_text(row: dict[str, Any]) -> str:
+    nested = row.get("source_score_state_access_counts") or {}
+    parts: list[str] = []
+    for state, access_counts in sorted(nested.items(), key=lambda item: str(item[0])):
+        if not isinstance(access_counts, dict):
+            continue
+        advanced = int(access_counts.get("ADVANCED_ACCESS_VISIBLE") or 0)
+        no_advanced = int(access_counts.get("NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH") or 0)
+        unresolved = int(access_counts.get("UNRESOLVED") or 0)
+        total = advanced + no_advanced + unresolved
+        if total <= 0:
+            continue
+        label = {
+            "LEVEL": "berabere",
+            "LEADING": "onde",
+            "TRAILING": "geride",
+            "NOT_EVALUATED": "degerlendirilmedi",
+        }.get(str(state), str(state).casefold())
+        parts.append(
+            f"{label}: ileri-erisim={advanced}, ileri-erisim-yok={no_advanced}, cozulmemis={unresolved}"
+        )
+    return "; ".join(parts) if parts else "game-state baglanamadi"
+
+
 def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
     p02 = rich.get("progression_pool_p02") or {}
     team_names = _p02_team_name_map(rich)
@@ -405,7 +448,7 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
                 f"rakip ilk iki devam katmanini pas -> pas ile surdurdu; bunlarin {bound}'i sonraki rakip oyun surecine "
                 f"baglanabildi. Bu baglarda final-third gorundu={final_third}, final-third gorunmedi={no_final_third}, "
                 f"bolge sonucu cozulmedi={unresolved}, {box_text}, sut aktivitesi gorundu={shots}"
-                f"{dominant_route}."
+                f"{dominant_route}. Game-state: {_post_loss_score_state_text(row)}."
             )
 
     pass_signature = "ANCHOR:PASS -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
@@ -458,6 +501,8 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
                 f"girisle AYNI zaman-katmaninda: sut={entry_layer_shots}, turnover={entry_layer_turnovers}, "
                 f"cross={entry_layer_crosses}; giristen sonra yeni gorunur katmani olmayan surec={no_later_layer}. "
                 f"Post-entry varyant facetleri: {variant_text}. Bu facetler birbirini dislamaz. "
+                f"Yeni final-third girislerinin game-state dagilimi: "
+                f"{_readable_score_state_counts(row.get('final_third_entry_score_state_counts') or {})}. "
                 f"Gorunur bitisler: {boundary_text}."
             )
             lines.extend(
@@ -503,7 +548,9 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
                 f"final-third'e ulasmayan={no_final_third}, bolgesi cozulmeyen={unresolved}, "
                 f"recovery sonrasinda ayni surecte sut aktivitesi={shots}; yeni final-third girisinden SONRA "
                 f"sut aktivitesi={post_entry_shots}, girisle AYNI zaman-katmaninda sut aktivitesi={entry_layer_shots}. "
-                f"Post-entry varyant facetleri: {recovery_variant_text}; facetler birbirini dislamaz."
+                f"Post-entry varyant facetleri: {recovery_variant_text}; facetler birbirini dislamaz. "
+                f"Yeni final-third girislerinin game-state dagilimi: "
+                f"{_readable_score_state_counts(row.get('final_third_entry_score_state_counts') or {})}."
             )
             lines.extend(
                 _actor_participation_summary_lines(
@@ -555,6 +602,9 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
                 "recovery_units": recovery_units,
                 "recovery_unresolved": int(recovery.get("process_unit_with_zone_unresolved_count") or 0),
                 "recovery_shots": int(recovery.get("process_unit_with_shot_activity_after_anchor_count") or 0),
+                "pass_score_states": dict(passing.get("final_third_entry_score_state_counts") or {}),
+                "recovery_score_states": dict(recovery.get("final_third_entry_score_state_counts") or {}),
+                "loss_score_states": dict(loss.get("source_score_state_access_counts") or {}),
             }
 
         def _rate(numerator: int, denominator: int) -> float | None:
@@ -608,6 +658,15 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
                     f"- Safe meaning: {exposed_name} tarafinda bu mac icinde top kaybi sonrasi rakibin ileri erisimi "
                     f"daha belirgin gorunurken, kendi devam eden pas ve recovery sureclerinin yeni final-third girisine "
                     f"donusumu {contrast_name} tarafina gore daha sinirli gorunen bir surec ayrismasi vardir."
+                )
+                lines.append(
+                    f"- Game-state baglami: {exposed_name} pas-sureci yeni final-third girisleri "
+                    f"{_readable_score_state_counts(exposed['pass_score_states'])}; recovery-girisleri "
+                    f"{_readable_score_state_counts(exposed['recovery_score_states'])}. "
+                    f"{contrast_name} pas-sureci girisleri {_readable_score_state_counts(contrast['pass_score_states'])}; "
+                    f"recovery-girisleri {_readable_score_state_counts(contrast['recovery_score_states'])}. "
+                    "Bu nedenle sentez skor durumundan bagimsiz bir takim karakteri veya 0-0 oyun modeli olarak genellenmez; "
+                    "game-state ile birlikte okunur ve game-state nedensellik aciklamasi sayilmaz."
                 )
                 lines.append(
                     f"- Counterevidence / sinir: post-loss pas-pas yolunda sut aktivitesi "
