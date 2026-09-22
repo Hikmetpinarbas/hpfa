@@ -1285,6 +1285,10 @@ def test_p02_advanced_access_resolves_when_all_time_layers_have_single_zone_stat
     assert unit["semantic_zone_path_candidate"] == ["OWN_HALF", "MIDDLE_THIRD", "FINAL_THIRD"]
     assert unit["advanced_access_state_candidate"] == "ADVANCED_ACCESS_VISIBLE"
     assert unit["advanced_access_state_is_tactical_truth"] is False
+    profile = unit["visible_variant_outcome_profile"]
+    assert profile["target_relative_variant_state_candidate"] == "TARGET_OBSERVED_VISIBLE"
+    assert profile["success_failure_label"] == "NOT_ASSIGNED"
+    assert profile["target_relative_state_is_general_attack_success_failure"] is False
 
 
 def test_p02_advanced_access_unresolved_when_one_layer_has_conflicting_zones():
@@ -1295,6 +1299,26 @@ def test_p02_advanced_access_unresolved_when_one_layer_has_conflicting_zones():
     assert unit["semantic_zone_layer_coverage_complete"] is False
     assert unit["ambiguous_semantic_zone_layer_count"] >= 1
     assert unit["advanced_access_state_candidate"] == "UNRESOLVED"
+    profile = unit["visible_variant_outcome_profile"]
+    assert profile["target_relative_variant_state_candidate"] == "TARGET_STATE_UNRESOLVED"
+    assert profile["success_failure_label"] == "NOT_ASSIGNED"
+
+
+
+def test_p02_target_not_observed_state_requires_complete_admitted_zone_path():
+    sequence, trace, score_timeline, evidence, semantics = _complete_zone_process_case()
+    for row in semantics["context_action_semantic_records"]:
+        if row["row_nucleus_candidate_id"] in {"rn3", "rn4"}:
+            row["context_zone_candidate"] = "MIDDLE_THIRD"
+    out = _build_p02_sequence_process_units(sequence, trace, score_timeline, evidence, semantics)
+    unit = out["p02_process_unit_candidates"][0]
+    assert unit["semantic_zone_layer_coverage_complete"] is True
+    assert unit["advanced_access_state_candidate"] == "NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH"
+    profile = unit["visible_variant_outcome_profile"]
+    assert profile["target_relative_variant_state_candidate"] == "TARGET_NOT_OBSERVED_IN_COMPLETE_ADMITTED_PATH"
+    assert profile["target_relative_state_is_general_attack_success_failure"] is False
+    assert profile["target_relative_state_is_tactical_quality_truth"] is False
+    assert profile["success_failure_label"] == "NOT_ASSIGNED"
 
 
 
