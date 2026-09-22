@@ -178,6 +178,124 @@ def _safe_external_call(runner: Callable[..., dict[str, Any]], args: tuple[Any, 
         }
 
 
+def _p02_finding_safe_sentence_candidate(finding: dict[str, Any]) -> dict[str, Any] | None:
+    if str(finding.get("finding_admission_decision") or "") != "EMIT_CANDIDATE":
+        return None
+    finding_id = str(finding.get("finding_target_candidate_id") or "").strip()
+    if not finding_id:
+        return None
+    resolved = int(finding.get("resolved_target_state_denominator") or 0)
+    observed = int(finding.get("target_observed_visible_count") or 0)
+    not_observed = int(finding.get("target_not_observed_complete_path_count") or 0)
+    unresolved = int(finding.get("target_state_unresolved_count") or 0)
+    focus = str(finding.get("finding_focus") or "")
+    if focus == "TARGET_VARIATION_VISIBLE":
+        sentence = (
+            f"Aynı exact takım, periyot, skor-durumu ve başlangıç-bölgesi bağlamındaki çözümlenmiş "
+            f"{resolved} süreç biriminin {observed} tanesinde ilan edilen advanced-access hedefi görünürken "
+            f"{not_observed} complete admitted path içinde hedef görünmedi; unresolved={unresolved}. "
+            "Bu yalnız match-local hedef-varyasyonu bulgusudur; genel hücum başarısı, taktik kalite veya nedensellik değildir."
+        )
+    elif focus == "TARGET_OBSERVED_ONLY_IN_RESOLVED_POPULATION":
+        sentence = (
+            f"Aynı exact takım, periyot, skor-durumu ve başlangıç-bölgesi bağlamındaki çözümlenmiş "
+            f"{resolved} süreç biriminin tamamında ilan edilen advanced-access hedefi görünür; unresolved={unresolved}. "
+            "Bu yalnız bu match-local resolved population için görünürlük bulgusudur; genel hücum başarısı, "
+            "taktik kalite, bağlam dışı istikrar veya nedensellik değildir."
+        )
+    elif focus == "TARGET_NOT_OBSERVED_ONLY_IN_RESOLVED_POPULATION":
+        sentence = (
+            f"Aynı exact takım, periyot, skor-durumu ve başlangıç-bölgesi bağlamındaki çözümlenmiş "
+            f"{resolved} süreç biriminin hiçbir complete admitted semantic-zone path örneğinde ilan edilen "
+            f"advanced-access hedefi görünmedi; unresolved={unresolved}. Bu yalnız bu match-local resolved population "
+            "için görünürlük bulgusudur; genel hücum başarısızlığı, taktik zayıflık veya nedensellik değildir."
+        )
+    else:
+        return None
+    return {
+        "module_id": "p02_professional_finding_safe_sentence_adapter_v1",
+        "safe_sentence_id": f"safe_sentence_{finding_id}",
+        "finding_target_candidate_id": finding_id,
+        "safe_sentence_candidate_tr": sentence,
+        "sentence_candidate_tr": sentence,
+        "sentence_language": "tr",
+        "claim_ceiling": "safe_sentence_candidate_only",
+        "status": "SMOKE_PASS",
+        "decision": "READY_FOR_REPORT_COMPOSER_CANDIDATE",
+        "review_required": False,
+        "review_reasons": [],
+        "hard_block_hits": [],
+        "claim_output_allowed": False,
+        "report_language_allowed": False,
+        "safe_sentence_allowed": True,
+        "tactical_truth": False,
+        "dominance_truth": False,
+        "control_truth": False,
+        "coach_intention_truth": False,
+        "off_ball_truth": False,
+        "pitch_control_truth": False,
+        "causal_truth": False,
+        "quality_truth": False,
+        "sequence_truth": False,
+        "organism_truth": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
+def _run_p02_professional_finding_report_contracts(rich_report: dict[str, Any]) -> dict[str, Any]:
+    p02 = rich_report.get("progression_pool_p02") or {}
+    findings = p02.get("professional_finding_target_candidates") or []
+    items: list[dict[str, Any]] = []
+    for finding in findings if isinstance(findings, list) else []:
+        if not isinstance(finding, dict):
+            continue
+        safe = _p02_finding_safe_sentence_candidate(finding)
+        if safe is None:
+            continue
+        block = compose_report_block(safe)
+        contract = evaluate_report_block(block)
+        assembly = evaluate_assembly_item(contract)
+        items.append({
+            "finding_target_candidate_id": finding.get("finding_target_candidate_id"),
+            "safe_sentence": safe,
+            "report_block": block,
+            "output_contract": contract,
+            "assembly": assembly,
+        })
+    blocked = sum(
+        1 for row in items
+        if str((row.get("assembly") or {}).get("status") or "") == "FAIL_CLOSED"
+    )
+    review = sum(
+        1 for row in items
+        if str((row.get("assembly") or {}).get("status") or "") == "REVIEW_REQUIRED"
+    )
+    ready = sum(
+        1 for row in items
+        if str((row.get("assembly") or {}).get("status") or "") == "SMOKE_PASS"
+        and str((row.get("assembly") or {}).get("assembly_decision") or "") == "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
+    )
+    status = "FAIL_CLOSED" if blocked else "REVIEW_REQUIRED" if review else "SMOKE_PASS"
+    return {
+        "module_id": "p02_professional_finding_report_contract_adapter_v1",
+        "status": status,
+        "finding_contract_item_count": len(items),
+        "ready_draft_report_candidate_count": ready,
+        "review_count": review,
+        "blocked_count": blocked,
+        "items": items,
+        "claim_output_allowed": False,
+        "draft_report_candidate_allowed": bool(ready and not blocked and not review),
+        "final_report_allowed": False,
+        "production_report_allowed": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
 def _write_fused_packet_inventory(
     output_root: Path,
     packets: list[dict[str, Any]],
@@ -316,12 +434,33 @@ def run_full_spine(
         if _status(sidecar_report.get("status")) == "REVIEW_REQUIRED":
             review_hits.append("orphan_capability_sidecars_review_required")
 
+        p02_professional_finding_report_contracts = _run_p02_professional_finding_report_contracts(rich_report)
+        if _status(p02_professional_finding_report_contracts.get("status")) == "REVIEW_REQUIRED":
+            review_hits.append("p02_professional_finding_report_contract_review_required")
+        elif _status(p02_professional_finding_report_contracts.get("status")) == "FAIL_CLOSED":
+            review_hits.append("p02_professional_finding_report_contract_blocked")
+
     packets: list[dict[str, Any]] = []
     base_packet_count = 0
     rich_packet_count = 0
     auxiliary_counterevidence_packets: list[dict[str, Any]] = []
     auxiliary_counterevidence_fusions: list[dict[str, Any]] = []
     fused_packet_artifacts: list[str] = []
+    p02_professional_finding_report_contracts: dict[str, Any] = {
+        "module_id": "p02_professional_finding_report_contract_adapter_v1",
+        "status": "NOT_EVALUATED",
+        "finding_contract_item_count": 0,
+        "ready_draft_report_candidate_count": 0,
+        "review_count": 0,
+        "blocked_count": 0,
+        "items": [],
+        "claim_output_allowed": False,
+        "final_report_allowed": False,
+        "production_report_allowed": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
     if not hard_blocks:
         try:
             packet_report = _load_json(output_root / PACKET_REPORT_JSON)
@@ -493,6 +632,9 @@ def run_full_spine(
         "episode_lane": episode_report,
         "rich_multiformat_analysis_lattice": rich_report,
         "orphan_capability_sidecars": sidecar_report,
+        "p02_professional_finding_report_contracts": p02_professional_finding_report_contracts,
+        "P02_professional_finding_report_contract_item_count": p02_professional_finding_report_contracts.get("finding_contract_item_count", 0),
+        "P02_professional_finding_ready_draft_report_candidate_count": p02_professional_finding_report_contracts.get("ready_draft_report_candidate_count", 0),
         "intelligence_chains": chains,
         "current_invocation_artifacts": current_invocation_artifacts,
         "engineering_evidence": {
@@ -519,6 +661,7 @@ def run_full_spine(
             "c4_stage_exception_containment_enabled": True,
             "c4_sidecar_dependency_preserved": True,
             "parallel_reasoning_engine_created": False,
+            "p02_professional_finding_report_contract_reuses_existing_composer_output_assembly": True,
             "first_failure_disclosure_enabled": True,
             "duplicate_foundation_execution_currently_possible": False,
         },
