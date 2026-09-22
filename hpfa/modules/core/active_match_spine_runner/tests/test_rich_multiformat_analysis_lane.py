@@ -2013,6 +2013,13 @@ def test_p02_same_team_pass_windows_collapse_to_unique_process_units() -> None:
     assert profile["anchor_visible_occurrence_count"] == 2
     assert profile["unique_process_unit_count"] == 1
     assert profile["process_unit_with_final_third_entry_count"] == 1
+    assert profile["final_third_entry_process_unit_count"] == 1
+    assert profile["final_third_entry_process_end_reason_counts"] == {"TIME_GAP_BOUNDARY": 1}
+    assert profile["final_third_entry_process_with_shot_activity_count"] == 0
+    assert profile["final_third_entry_process_with_turnover_activity_count"] == 0
+    assert profile["final_third_entry_process_with_cross_activity_count"] == 0
+    assert profile["terminal_boundary_is_process_outcome_truth"] is False
+    assert profile["shot_activity_is_chance_quality_truth"] is False
     assert profile["max_anchor_windows_within_single_process_unit"] == 2
     assert profile["anchor_window_count_is_process_denominator"] is False
     assert profile["unique_process_unit_count_is_independent_evidence_count"] is False
