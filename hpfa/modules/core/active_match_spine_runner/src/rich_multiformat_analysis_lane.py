@@ -17,6 +17,7 @@ from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader import n
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import build_projection
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_sequence_grammar_alignment_projection import build_supported_sequence_grammar_alignment
 from hpfa.modules.core.active_match_spine_runner.src.process_sequence_information import build_process_sequence_information
+from hpfa.modules.core.active_match_spine_runner.src.process_mix_change import build_time_window_process_mix_change_context
 
 MODULE_ID = "rich_multiformat_analysis_lattice_v1"
 OUTPUT_JSON = "rich_multiformat_analysis_lattice_v1.json"
@@ -3769,6 +3770,9 @@ def run_rich_lane(
         identity_payload,
         process_participation_payload,
     )
+    time_window_process_mix_change_context = build_time_window_process_mix_change_context(
+        process_participation_payload,
+    )
     c02 = _construct_c02(rows, identity_payload, process_participation_payload)
 
     occurrence_transition_payload = _load_json(output / OCCURRENCE_STATE_TRANSITION_JSON)
@@ -3834,6 +3838,7 @@ def run_rich_lane(
         "phase_state_candidates": phase_states,
         "game_state_context": game_state_context,
         "game_state_process_mix_context": game_state_process_mix_context,
+        "time_window_process_mix_change_context": time_window_process_mix_change_context,
         "recovery_next_process_context": recovery_next_process_context,
         "loss_next_opponent_process_context": loss_next_opponent_process_context,
         "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
@@ -3860,6 +3865,7 @@ def run_rich_lane(
                 "team_view_candidates": entity_views.get("team_view_candidates"),
                 "game_state_context": game_state_context,
                 "game_state_process_mix_context": game_state_process_mix_context,
+                "time_window_process_mix_change_context": time_window_process_mix_change_context,
                 "action_family_candidate_counts": features.get("eligible_action_family_candidate_counts") or {},
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
                 "constructs": {
