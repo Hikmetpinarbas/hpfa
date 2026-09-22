@@ -1826,5 +1826,12 @@ def test_p02_recurring_consequence_path_binds_to_opponent_advanced_access() -> N
     assert row["advanced_access_visible_count"] == 1
     assert row["no_advanced_access_visible_count"] == 0
     assert row["access_unresolved_count"] == 0
+    assert row["final_third_visible_count"] == 1
+    assert row["no_final_third_visible_count"] == 0
+    assert row["penalty_area_visible_count"] == 0
+    assert row["no_penalty_area_visible_count"] == 1
+    assert row["zone_path_unresolved_count"] == 0
+    assert row["shot_activity_visible_count"] == 0
+    assert row["no_shot_activity_visible_count"] == 1
     assert row["severity_is_transition_defence_quality_truth"] is False
     assert row["severity_is_causal_truth"] is False
