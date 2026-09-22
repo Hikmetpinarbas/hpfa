@@ -338,6 +338,13 @@ def _team_score_state_at_episode_start(
     period_candidate: Any,
     start_second_candidate: Any,
 ) -> dict[str, Any]:
+    if str(score_timeline.get("status") or "") != "AVAILABLE":
+        return {
+            "status": "NOT_EVALUATED",
+            "score_state_candidate": "NOT_EVALUATED",
+            "reason": "score_timeline_not_available",
+            "score_timeline_status": score_timeline.get("status"),
+        }
     team_ids = list(score_timeline.get("bound_team_identity_candidate_ids") or [])
     if not team_identity_candidate_id or len(team_ids) != 2:
         return {
