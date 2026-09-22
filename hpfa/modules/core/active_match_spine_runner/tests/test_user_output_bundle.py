@@ -1117,3 +1117,18 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     assert review["can_authorize_emit"] is False
     assert card["can_authorize_emit"] is False
     assert card["can_strengthen_claim_ceiling"] is False
+
+    human_text = "\n".join(
+        user_output_bundle._human_mechanism_cards(
+            tmp_path,
+            spine,
+            identity,
+            "tr",
+        )
+    )
+    assert "Güvenli anlam:" in human_text
+    assert "Yasak çıkarım:" in human_text
+    assert "Analist aksiyonu:" in human_text
+    assert "nedensellik" in human_text
+    assert "taktik plan gerçeği" in human_text
+    assert "oyuncu aggregate verisini yalnız maç-içi işlev bağlamı olarak kullan" in human_text
