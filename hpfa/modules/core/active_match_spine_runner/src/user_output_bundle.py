@@ -686,39 +686,7 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 "This surface describes the match-local process composition of opponent handover, takeover after breakdown, "
                 "same-time review, and follow-up states."
             )
-        process_label = (
-            _football_family_label(row.get("single_process_family_candidate"), language)
-            if str(row.get("process_context_binding_state") or "") == "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT"
-            else ("çoklu/çözülmemiş süreç bağlamı" if language == "tr" else "multi/unresolved process context")
-        )
-        consequence_layer = source_record.get("first_supported_consequence_difference_layer_candidate")
-        context_layer = source_record.get("first_supported_context_difference_layer_candidate")
-        challenge_reasons = [
-            str(value)
-            for value in (row.get("mechanism_challenge_reason_codes") or [])
-            if str(value)
-        ]
-        if language == "tr":
-            card = (
-                f"MEKANİZMA KARTI {idx} | TAKIM={team} | DÖNEM={periods} | "
-                f"TRACE={grammar} | PROCESS={process_label} | "
-                f"VARYANT={success} olumlu / {failure} olumsuz / {resolved} çözümlenmiş | "
-                f"İLK GÖRÜNÜR AYRIŞMA=context L{context_layer}, consequence L{consequence_layer} | "
-                f"YAYILIM={spread} bölüm, {clusters} occurrence-disjoint küme | "
-                f"COUNTEREVIDENCE={','.join(challenge_reasons) if challenge_reasons else 'açık challenge kaydı yok'} | "
-                "CLAIM=maç-içi görünür varyant/mekanizma adayı; neden, taktik plan veya üstünlük truth değildir."
-            )
-        else:
-            card = (
-                f"MECHANISM CARD {idx} | TEAM={team} | PERIOD={periods} | "
-                f"TRACE={grammar} | PROCESS={process_label} | "
-                f"VARIANT={success} positive / {failure} negative / {resolved} resolved | "
-                f"FIRST VISIBLE DIVERGENCE=context L{context_layer}, consequence L{consequence_layer} | "
-                f"SPREAD={spread} segments, {clusters} occurrence-disjoint clusters | "
-                f"COUNTEREVIDENCE={','.join(challenge_reasons) if challenge_reasons else 'no explicit challenge record'} | "
-                "CLAIM=match-local visible variant/mechanism candidate; not causal, tactical-plan, or superiority truth."
-            )
-        cards.extend([card, football, evidence])
+        cards.extend([football, evidence])
     return cards
 
 
@@ -1481,7 +1449,39 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 "Interpretation is scoped to match-local variant separation and source-bound process context."
                 + challenge_note
             )
-        cards.extend([football, evidence])
+        process_label = (
+            _football_family_label(row.get("single_process_family_candidate"), language)
+            if str(row.get("process_context_binding_state") or "") == "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT"
+            else ("çoklu/çözülmemiş süreç bağlamı" if language == "tr" else "multi/unresolved process context")
+        )
+        consequence_layer = source_record.get("first_supported_consequence_difference_layer_candidate")
+        context_layer = source_record.get("first_supported_context_difference_layer_candidate")
+        challenge_reasons = [
+            str(value)
+            for value in (row.get("mechanism_challenge_reason_codes") or [])
+            if str(value)
+        ]
+        if language == "tr":
+            card = (
+                f"MEKANİZMA KARTI {idx} | TAKIM={team} | DÖNEM={periods} | "
+                f"TRACE={grammar} | PROCESS={process_label} | "
+                f"VARYANT={success} olumlu / {failure} olumsuz / {resolved} çözümlenmiş | "
+                f"İLK GÖRÜNÜR AYRIŞMA=context L{context_layer}, consequence L{consequence_layer} | "
+                f"YAYILIM={spread} bölüm, {clusters} occurrence-disjoint küme | "
+                f"COUNTEREVIDENCE={','.join(challenge_reasons) if challenge_reasons else 'açık challenge kaydı yok'} | "
+                "CLAIM=maç-içi görünür varyant/mekanizma adayı; neden, taktik plan veya üstünlük truth değildir."
+            )
+        else:
+            card = (
+                f"MECHANISM CARD {idx} | TEAM={team} | PERIOD={periods} | "
+                f"TRACE={grammar} | PROCESS={process_label} | "
+                f"VARIANT={success} positive / {failure} negative / {resolved} resolved | "
+                f"FIRST VISIBLE DIVERGENCE=context L{context_layer}, consequence L{consequence_layer} | "
+                f"SPREAD={spread} segments, {clusters} occurrence-disjoint clusters | "
+                f"COUNTEREVIDENCE={','.join(challenge_reasons) if challenge_reasons else 'no explicit challenge record'} | "
+                "CLAIM=match-local visible variant/mechanism candidate; not causal, tactical-plan, or superiority truth."
+            )
+        cards.extend([card, football, evidence])
     return cards
 
 
