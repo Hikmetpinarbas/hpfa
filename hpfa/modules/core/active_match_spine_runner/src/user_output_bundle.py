@@ -1251,7 +1251,7 @@ def _mechanism_governance_sentence(language: str) -> str:
         )
     return (
         " Safe meaning: this card is only a match-local visible-variant cue for analyst review."
-        " Forbidden inference: it does not establish causality, tactical-plan truth, superiority, physical shape, or player quality."
+        " Scope boundary: causality, tactical-plan truth, superiority, physical shape, and player quality remain outside this card's admitted scope."
         " Analyst action: review the first visible divergence across comparable variants, inspect counterevidence and partial context,"
         " and use player aggregates only as match-local functional context."
     )
