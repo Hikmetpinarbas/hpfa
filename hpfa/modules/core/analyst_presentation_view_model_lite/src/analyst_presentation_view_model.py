@@ -818,6 +818,7 @@ def _football_dynamics_surface(
     root: Path,
     declared: set[str],
     player_cards: list[dict[str, Any]],
+    mechanism_cards: list[dict[str, Any]],
 ) -> dict[str, Any]:
     trace_name = "trackable_action_trace_candidates_lite_v1.json"
     consequence_name = "trackable_action_consequence_candidates_lite_v1.json"
@@ -897,6 +898,7 @@ def _football_dynamics_surface(
         })
 
     consequence_rows: dict[tuple[str, str, str], int] = {}
+    consequence_windows: dict[tuple[str, int], dict[str, int]] = {}
     for item in consequences:
         if not isinstance(item, dict):
             continue
@@ -909,6 +911,15 @@ def _football_dynamics_surface(
             anchor_kind = "RECOVERY"
         if not anchor_kind:
             continue
+        try:
+            anchor_start = float(item.get("anchor_start_candidate"))
+        except (TypeError, ValueError):
+            anchor_start = None
+        period = str(item.get("period_candidate") or "UNKNOWN_PERIOD")
+        if anchor_start is not None and anchor_start >= 0:
+            bin_start = int(anchor_start // 300) * 5
+            bucket = consequence_windows.setdefault((period, bin_start), {"TURNOVER": 0, "RECOVERY": 0})
+            bucket[anchor_kind] = bucket.get(anchor_kind, 0) + 1
         team_id = str(item.get("team_identity_candidate_id") or trace_team.get(trace_id) or "UNKNOWN_TEAM")
         primary = str(item.get("primary_consequence_candidate") or "UNKNOWN_CONSEQUENCE_CANDIDATE")
         key = (team_id, anchor_kind, primary)
@@ -925,6 +936,55 @@ def _football_dynamics_surface(
         }
         for (team_id, anchor_kind, primary), count in sorted(consequence_rows.items())
     ]
+
+    turning_point_rows: list[dict[str, Any]] = []
+    previous_state_by_period: dict[str, str] = {}
+    for row in rhythm_rows:
+        period = str(row.get("period_candidate") or "UNKNOWN_PERIOD")
+        current_state = str(row.get("relative_activity_state") or "UNKNOWN")
+        previous_state = previous_state_by_period.get(period)
+        previous_state_by_period[period] = current_state
+        window_start = int(row.get("window_start_minute_candidate") or 0)
+        consequence_counts = consequence_windows.get((period, window_start), {"TURNOVER": 0, "RECOVERY": 0})
+        transition_anchor_count = int(consequence_counts.get("TURNOVER", 0)) + int(consequence_counts.get("RECOVERY", 0))
+        rhythm_state_changed = previous_state is not None and current_state != previous_state
+        if rhythm_state_changed and transition_anchor_count > 0:
+            turning_point_rows.append({
+                "period_candidate": period,
+                "window_start_minute_candidate": window_start,
+                "window_end_minute_candidate": int(row.get("window_end_minute_candidate") or (window_start + 5)),
+                "previous_activity_state": previous_state,
+                "current_activity_state": current_state,
+                "turnover_anchor_consequence_count": int(consequence_counts.get("TURNOVER", 0)),
+                "recovery_anchor_consequence_count": int(consequence_counts.get("RECOVERY", 0)),
+                "change_signal_count": 2,
+                "candidate_reason": "RHYTHM_STATE_CHANGE_PLUS_LOSS_RECOVERY_CONSEQUENCE_ACTIVITY",
+                "is_match_turning_point_truth": False,
+                "is_causal_break": False,
+                "claim_ceiling": "TURNING_POINT_CANDIDATE_ONLY",
+            })
+
+    mechanism_variant_rows: list[dict[str, Any]] = []
+    for card in mechanism_cards:
+        mechanism_id = card.get("mechanism_candidate_id")
+        denominator = int(card.get("nominal_chain_count") or 0)
+        for state, count in sorted((card.get("defeasible_state_counts") or {}).items()):
+            state_text = str(state)
+            normalized_state = {
+                "ARGUMENT_SUPPORTED": "SUPPORTED",
+                "ARGUMENT_WEAKENED": "WEAKENED",
+            }.get(state_text, state_text)
+            mechanism_variant_rows.append({
+                "mechanism_candidate_id": mechanism_id,
+                "mechanism_display_tr": card.get("display_tr"),
+                "reading_variant_state": normalized_state,
+                "source_reading_variant_state": state_text,
+                "nominal_chain_count": int(count),
+                "eligible_nominal_chain_denominator": denominator,
+                "is_distinct_football_mechanism_variant_truth": False,
+                "independence_admitted": False,
+                "claim_ceiling": "MECHANISM_READING_VARIANT_ONLY",
+            })
 
     player_location_rows: list[dict[str, Any]] = []
     for actor_id, points in sorted(player_points.items()):
@@ -961,6 +1021,18 @@ def _football_dynamics_surface(
             "rows": loss_recovery_rows,
             "football_meaning": "visible consequence candidates after recorded TURNOVER/RECOVERY anchors",
             "forbidden_inference": ["causal_effect", "press_success", "transition_quality_fact", "tactical_intention"],
+        },
+        "turning_point_candidates": {
+            "state": "AVAILABLE" if turning_point_rows else "NOT_EVALUATED",
+            "rows": turning_point_rows,
+            "football_meaning": "multi-signal candidate windows where visible action-rhythm state changes coincide with loss/recovery consequence activity",
+            "forbidden_inference": ["true_match_turning_point", "causal_break", "momentum_truth", "psychological_shift"],
+        },
+        "mechanism_reading_variants": {
+            "state": "AVAILABLE" if mechanism_variant_rows else "NOT_EVALUATED",
+            "rows": mechanism_variant_rows,
+            "football_meaning": "SUPPORTED/WEAKENED reading variants inside the same mechanism family",
+            "forbidden_inference": ["distinct_football_mechanism_variant", "success_failure_variant_truth", "independent_recurrence"],
         },
         "player_action_location_candidates": {
             "state": "AVAILABLE" if player_location_rows else "NOT_EVALUATED",
@@ -1196,6 +1268,55 @@ def _chart_render_pack(
                 "claim_ceiling": "VISIBLE_CONSEQUENCE_CANDIDATE_COUNTS_ONLY",
                 "football_label_tr": "Top kaybı sonrası görünen sonuçlar" if anchor_kind == "TURNOVER" else "Geri kazanım sonrası görünen sonuçlar",
             })
+
+    turning_rows = (football_dynamics.get("turning_point_candidates") or {}).get("rows") or []
+    if turning_rows:
+        specs.append({
+            "chart_id": "chart:turning_point_candidates",
+            "source_card_id": "football_dynamics:turning_point_candidates",
+            "chart_type": "TIMELINE_MARKERS",
+            "markers": [
+                {
+                    "period_candidate": row.get("period_candidate"),
+                    "window_start_minute_candidate": row.get("window_start_minute_candidate"),
+                    "window_end_minute_candidate": row.get("window_end_minute_candidate"),
+                    "previous_activity_state": row.get("previous_activity_state"),
+                    "current_activity_state": row.get("current_activity_state"),
+                    "turnover_anchor_consequence_count": row.get("turnover_anchor_consequence_count"),
+                    "recovery_anchor_consequence_count": row.get("recovery_anchor_consequence_count"),
+                    "change_signal_count": row.get("change_signal_count"),
+                }
+                for row in turning_rows
+            ],
+            "denominators": [],
+            "claim_ceiling": "TURNING_POINT_CANDIDATE_ONLY",
+            "football_label_tr": "Kırılma anı adayları",
+        })
+
+    mechanism_variant_rows = (football_dynamics.get("mechanism_reading_variants") or {}).get("rows") or []
+    if mechanism_variant_rows:
+        specs.append({
+            "chart_id": "chart:mechanism_reading_variants",
+            "source_card_id": "football_dynamics:mechanism_reading_variants",
+            "chart_type": "STACKED_BAR",
+            "categories": [str(row.get("reading_variant_state")) for row in mechanism_variant_rows],
+            "series": [
+                {
+                    "name": "nominal_chain_count",
+                    "values": [int(row.get("nominal_chain_count") or 0) for row in mechanism_variant_rows],
+                }
+            ],
+            "denominators": [
+                {
+                    "reading_variant_state": row.get("reading_variant_state"),
+                    "eligible_nominal_chain_denominator": row.get("eligible_nominal_chain_denominator"),
+                    "independence_admitted": row.get("independence_admitted"),
+                }
+                for row in mechanism_variant_rows
+            ],
+            "claim_ceiling": "MECHANISM_READING_VARIANT_ONLY",
+            "football_label_tr": "Mekanizma okuma varyantları",
+        })
 
     location_rows = (football_dynamics.get("player_action_location_candidates") or {}).get("rows") or []
     if location_rows:
@@ -1859,6 +1980,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         root=root,
         declared=declared,
         player_cards=player_process_cards,
+        mechanism_cards=mechanism_cards,
     )
     chart_render_pack = _chart_render_pack(
         comparison_cards,

@@ -760,3 +760,44 @@ RHYTHM_CONSEQUENCE_AND_ACTION_LOCATION_VIEWS
 - player action locations
 
 All inherit graph audit metadata and visual-strength <= evidence-strength rules.
+
+## Turning-point candidates and mechanism reading variants
+
+### Turning-point candidates
+A turning-point candidate is emitted only when:
+- the visible action-rhythm state changes relative to the previous 5-minute window, and
+- the same window contains at least one TURNOVER or RECOVERY consequence anchor.
+
+This is a multi-signal candidate window.
+
+It is NOT:
+- true match turning-point truth
+- causal break
+- momentum truth
+- psychological shift
+
+Claim ceiling:
+TURNING_POINT_CANDIDATE_ONLY
+
+Graph:
+TIMELINE_MARKERS
+
+### Mechanism reading variants
+When a mechanism family contains multiple defeasible states, presentation may expose those as reading variants.
+
+Current states may include:
+- SUPPORTED
+- WEAKENED
+
+These are evidence/reading variants inside the same mechanism family.
+
+They are NOT:
+- distinct football mechanisms
+- successful / failed tactical variants
+- independent recurrence truth
+
+Claim ceiling:
+MECHANISM_READING_VARIANT_ONLY
+
+Graph:
+STACKED_BAR_WITH_EXPLICIT_DENOMINATOR

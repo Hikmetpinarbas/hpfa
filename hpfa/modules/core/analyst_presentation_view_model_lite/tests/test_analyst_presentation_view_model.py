@@ -264,13 +264,17 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert dynamics["activity_rhythm_proxy"]["rows"][0]["nominal_trace_candidate_count"] == 1
     assert dynamics["activity_rhythm_proxy"]["rows"][0]["tempo_truth"] is False
     assert dynamics["loss_recovery_visible_consequences"]["state"] == "NOT_EVALUATED"
+    assert dynamics["turning_point_candidates"]["state"] == "NOT_EVALUATED"
+    assert dynamics["mechanism_reading_variants"]["state"] == "AVAILABLE"
+    assert dynamics["mechanism_reading_variants"]["rows"][0]["reading_variant_state"] == "SUPPORTED"
+    assert dynamics["mechanism_reading_variants"]["rows"][0]["is_distinct_football_mechanism_variant_truth"] is False
     assert dynamics["player_action_location_candidates"]["state"] == "AVAILABLE"
     assert dynamics["player_action_location_candidates"]["rows"][0]["median_action_x_candidate"] == 44.0
     assert dynamics["player_action_location_candidates"]["rows"][0]["median_action_y_candidate"] == 37.0
     assert dynamics["player_action_location_candidates"]["rows"][0]["is_player_position"] is False
     render_pack = payload["surface_data"]["chart_render_pack"]
     assert render_pack["state"] == "RENDER_READY"
-    assert render_pack["chart_count"] == 7
+    assert render_pack["chart_count"] == 8
     assert render_pack["render_contract"]["missing_value_policy"] == "DO_NOT_INTERPOLATE"
     assert render_pack["charts"][0]["render_ready"] is True
     assert render_pack["charts"][0]["percentages_emitted"] is False
@@ -280,6 +284,7 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert render_pack["charts"][0]["series"][0]["name"] == "time_anchor_count"
     chart_ids = {chart["chart_id"] for chart in render_pack["charts"]}
     assert "chart:activity_rhythm:1" in chart_ids
+    assert "chart:mechanism_reading_variants" in chart_ids
     assert "chart:player_action_locations" in chart_ids
     dashboard = payload["surface_data"]["dashboard_manifest"]
     assert dashboard["layout_mode"] == "ANALYST_FIRST_RESPONSIVE"
