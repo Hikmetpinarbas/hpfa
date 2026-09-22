@@ -206,6 +206,12 @@ def _p02_finding_safe_sentence_candidate(
     mechanism_readiness = str(finding.get("mechanism_review_readiness") or maturity_profile.get("mechanism_review_readiness") or "NOT_EVALUATED")
     recurrent_signature_count = int(maturity_profile.get("recurrent_process_signature_count") or 0)
     context_spread_count = int(maturity_profile.get("same_team_same_focus_context_population_count") or 0)
+    cross_context_recurrent_signature_count = int(
+        maturity_profile.get("cross_context_recurrent_process_signature_count") or 0
+    )
+    admitted_cross_context_recurrent_signature_count = int(
+        maturity_profile.get("admitted_cross_context_recurrent_process_signature_count") or 0
+    )
     if focus == "TARGET_VARIATION_VISIBLE":
         sentence = (
             context_prefix
@@ -234,7 +240,9 @@ def _p02_finding_safe_sentence_candidate(
         return None
     sentence += (
         f" Örneklem-olgunluğu={sample_maturity}; mekanizma-review-readiness={mechanism_readiness}; "
-        f"recurrent-process-signature={recurrent_signature_count}; context-spread-population={context_spread_count}. "
+        f"recurrent-process-signature={recurrent_signature_count}; context-spread-population={context_spread_count}; "
+        f"cross-context-recurrent-signature={cross_context_recurrent_signature_count}; "
+        f"admitted-cross-context-recurrent-signature={admitted_cross_context_recurrent_signature_count}. "
         "Bu etiketler istatistiksel anlamlılık, güçlü kanıt, dış geçerlilik, mekanizma gerçeği veya nedensellik değildir."
     )
     return {
@@ -245,6 +253,8 @@ def _p02_finding_safe_sentence_candidate(
         "mechanism_review_readiness": mechanism_readiness,
         "recurrent_process_signature_count": recurrent_signature_count,
         "same_team_same_focus_context_population_count": context_spread_count,
+        "cross_context_recurrent_process_signature_count": cross_context_recurrent_signature_count,
+        "admitted_cross_context_recurrent_process_signature_count": admitted_cross_context_recurrent_signature_count,
         "mechanism_promotion_allowed": False,
         "finding_strength_promotion_allowed": False,
         "safe_sentence_candidate_tr": sentence,
