@@ -286,3 +286,95 @@ def test_atomic_zip_publication_never_exposes_partial_new_bundle(tmp_path, monke
 
     assert old_zip.read_bytes() == before_old
     assert not (tmp_path / f".{BUNDLE_ZIP}.tmp").exists()
+
+
+def test_analyst_report_surfaces_football_process_mechanisms_without_internal_codes(tmp_path):
+    (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
+        json.dumps(_feature_payload()), encoding="utf-8"
+    )
+    full = _full_spine()
+    full["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+    full["rich_multiformat_analysis_lattice"] = {
+        "status": "REVIEW_REQUIRED",
+        "review_hits": [],
+        "entity_views": {
+            "player_view_candidates": [],
+            "team_view_candidates": [],
+            "goalkeeper_view_candidates": [],
+            "observed_metric_cell_count": 0,
+        },
+        "constructs": {"C01": {}},
+        "phase_state_candidates": [],
+        "primitive_metrics": [],
+        "analysis_lattice": {},
+        "progression_pool_p02": {
+            "p02_team_pool_items": [
+                {"team_identity_candidate_id": "teamc_A", "team_candidate": "Team A"},
+                {"team_identity_candidate_id": "teamc_B", "team_candidate": "Team B"},
+            ],
+            "process_units": {"opponent_response_summary_by_team": []},
+            "visible_consequence_path_severity_candidates": [
+                {
+                    "team_identity_candidate_id": "teamc_A",
+                    "visible_consequence_path_signature": (
+                        "ANCHOR:TURNOVER -> L1:OPPONENT:PASS -> L2:OPPONENT:PASS"
+                    ),
+                    "eligible_anchor_population_count": 20,
+                    "visible_occurrence_count": 8,
+                    "exact_process_response_bound_count": 7,
+                    "final_third_visible_count": 3,
+                    "no_final_third_visible_count": 3,
+                    "zone_path_unresolved_count": 1,
+                    "penalty_area_visible_count": 0,
+                    "shot_activity_visible_count": 1,
+                    "response_zone_route_counts": {"MIDDLE_THIRD->FINAL_THIRD": 3},
+                }
+            ],
+            "same_team_continuation_process_profiles": [
+                {
+                    "team_identity_candidate_id": "teamc_A",
+                    "visible_consequence_path_signature": (
+                        "ANCHOR:PASS -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
+                    ),
+                    "anchor_visible_occurrence_count": 30,
+                    "unique_process_unit_count": 10,
+                    "process_unit_with_final_third_entry_count": 4,
+                    "process_unit_with_final_third_continuation_count": 1,
+                    "process_unit_with_no_final_third_visible_count": 4,
+                    "process_unit_with_zone_unresolved_count": 1,
+                    "final_third_entry_process_with_shot_activity_count": 1,
+                    "final_third_entry_process_with_turnover_activity_count": 2,
+                    "final_third_entry_process_with_cross_activity_count": 2,
+                    "final_third_entry_process_end_reason_counts": {
+                        "TEAM_HANDOVER_BOUNDARY": 2,
+                        "TIME_GAP_BOUNDARY": 2,
+                    },
+                    "max_anchor_windows_within_single_process_unit": 5,
+                },
+                {
+                    "team_identity_candidate_id": "teamc_A",
+                    "visible_consequence_path_signature": (
+                        "ANCHOR:RECOVERY -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
+                    ),
+                    "unique_process_unit_count": 3,
+                    "process_unit_with_final_third_entry_count": 1,
+                    "process_unit_with_final_third_continuation_count": 0,
+                    "process_unit_with_no_final_third_visible_count": 2,
+                    "process_unit_with_zone_unresolved_count": 0,
+                    "process_unit_with_shot_activity_after_anchor_count": 1,
+                },
+            ],
+        },
+    }
+    text = build_analyst_report(tmp_path, full)
+
+    assert "MAC MEKANIZMASI ADAYLARI — SUREC / DEVAM / SONUC" in text
+    assert "Top kaybi sonrasi rakibin pas-pas devami:" in text
+    assert "gorunur devami degerlendirilebilir 20 top-kaybi adayinin 8'inde" in text
+    assert "Pas dolasiminin final-third'e donusumu:" in text
+    assert "30 gorunur pas -> pas -> pas penceresi 10 benzersiz oyun surecinde toplandi" in text
+    assert "takim el degistirme=2" in text
+    assert "Recovery sonrasi ayni takimin yeniden hucum devami:" in text
+    assert "ayni surecteki coklu pencereler bagimsiz kanit sayilmaz" in text
+    assert "ANCHOR:" not in text
+    assert "process_unit" not in text
