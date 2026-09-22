@@ -3246,10 +3246,35 @@ def _progression_pool_p02(
             if resolved_target > 0
             else "ABSTAIN"
         )
+        if observed > 0 and not_observed > 0:
+            finding_focus = "TARGET_VARIATION_VISIBLE"
+            safe_meaning = (
+                "Within the same exact comparison context, some resolved process units show the declared advanced-access "
+                "target while other complete admitted paths do not. This is bounded within-match target variation, not "
+                "general attack success/failure or tactical-quality truth."
+            )
+        elif observed > 0 and not_observed == 0:
+            finding_focus = "TARGET_OBSERVED_ONLY_IN_RESOLVED_POPULATION"
+            safe_meaning = (
+                "Within the resolved portion of this exact comparison population, the declared advanced-access target is "
+                "visible in every resolved process unit. This does not establish general attack success, tactical quality, "
+                "stability beyond this context, or causality."
+            )
+        elif observed == 0 and not_observed > 0:
+            finding_focus = "TARGET_NOT_OBSERVED_ONLY_IN_RESOLVED_POPULATION"
+            safe_meaning = (
+                "Within the resolved portion of this exact comparison population, the declared advanced-access target is "
+                "not visible in any complete admitted semantic-zone path. This does not establish general attack failure, "
+                "tactical weakness, or causality."
+            )
+        else:
+            finding_focus = "TARGET_STATE_UNRESOLVED"
+            safe_meaning = "The declared target state is unresolved in this exact comparison population."
         professional_finding_targets.append({
             "finding_target_candidate_id": finding_id,
             "finding_family": "P02_EXACT_CONTEXT_ADVANCED_ACCESS_VARIATION",
             "finding_status": finding_status,
+            "finding_focus": finding_focus,
             "comparison_population_id": population_id,
             "comparison_question_id": "P02_ADVANCED_ACCESS_VISIBLE",
             "target_estimand": "ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_SEMANTIC_ZONE_PATH",
@@ -3289,11 +3314,7 @@ def _progression_pool_p02(
                 "target_state_unresolved_count": unresolved_target,
                 "pairwise_counts_are_independent_support_votes": False,
             },
-            "SAFE_MEANING": (
-                "The current match contains visible route variants under the same exact comparison context "
-                "that differ on the declared advanced-access target. This is a bounded within-match variation finding, "
-                "not a general attack-success or tactical-quality judgment."
-            ),
+            "SAFE_MEANING": safe_meaning,
             "FORBIDDEN_INFERENCE": [
                 "general_attack_success_failure",
                 "tactical_quality",
