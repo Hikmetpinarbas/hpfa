@@ -1865,3 +1865,78 @@ def test_p02_recovery_recurrence_is_not_misread_as_post_loss_severity() -> None:
     assert p02["visible_consequence_path_severity_candidate_count"] == 0
     assert p02["non_loss_recurrence_severity_not_evaluated_count"] == 1
     assert p02["recovery_continuation_requires_separate_same_team_process_evaluation"] is True
+
+
+def test_p02_recovery_continuation_reads_only_post_anchor_same_team_access() -> None:
+    identities = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "teamc_A", "team_aliases_raw": ["TEAM_A"], "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND"},
+        ]
+    }
+    visible_sequence = {
+        "visible_action_time_layer_candidates": [
+            {"visible_action_time_layer_candidate_id":"r0","start_candidate":10.0,"trackable_action_trace_candidate_ids":["tr_rec"],"action_family_counts":{"RECOVERY":1}},
+            {"visible_action_time_layer_candidate_id":"r1","start_candidate":14.0,"trackable_action_trace_candidate_ids":["tr_p1"],"action_family_counts":{"PASS":1}},
+            {"visible_action_time_layer_candidate_id":"r2","start_candidate":18.0,"trackable_action_trace_candidate_ids":["tr_p2"],"action_family_counts":{"PASS":1}},
+        ],
+        "visible_action_sequence_candidates": [
+            {
+                "visible_action_sequence_candidate_id":"vasq_recovery",
+                "team_identity_candidate_id":"teamc_A","period_candidate":"1",
+                "start_time_candidate":10.0,"end_time_candidate":18.0,"duration_candidate_seconds":8.0,
+                "time_layer_candidate_ids":["r0","r1","r2"],"time_layer_count":3,
+                "trackable_action_trace_candidate_ids":["tr_rec","tr_p1","tr_p2"],"trace_candidate_count":3,
+                "action_family_counts":{"RECOVERY":1,"PASS":2},"consequence_candidate_counts":{},
+                "sequence_record_status":"PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
+                "start_reason_candidate":"TIME_GAP_BOUNDARY","end_reason_candidate":"TIME_GAP_BOUNDARY",
+            }
+        ],
+    }
+    trace = {
+        "trackable_action_trace_candidates": [
+            {"trackable_action_trace_candidate_id":"tr_rec","start_candidate":10.0,"supporting_evidence_atom_ids":["ea_rec"]},
+            {"trackable_action_trace_candidate_id":"tr_p1","start_candidate":14.0,"supporting_evidence_atom_ids":["ea_p1"]},
+            {"trackable_action_trace_candidate_id":"tr_p2","start_candidate":18.0,"supporting_evidence_atom_ids":["ea_p2"]},
+        ]
+    }
+    evidence = {
+        "evidence_atoms": [
+            {"evidence_atom_id":"ea_rec","row_nucleus_candidate_id":"rn_rec"},
+            {"evidence_atom_id":"ea_p1","row_nucleus_candidate_id":"rn_p1"},
+            {"evidence_atom_id":"ea_p2","row_nucleus_candidate_id":"rn_p2"},
+        ]
+    }
+    semantics = {
+        "context_action_semantic_records": [
+            {"row_nucleus_candidate_id":"rn_rec","context_zone_candidate":"MIDDLE_THIRD"},
+            {"row_nucleus_candidate_id":"rn_p1","context_zone_candidate":"MIDDLE_THIRD"},
+            {"row_nucleus_candidate_id":"rn_p2","context_zone_candidate":"FINAL_THIRD"},
+        ]
+    }
+    consequence = {
+        "visible_consequence_path_recurrence_candidates": [
+            {
+                "team_identity_candidate_id":"teamc_A",
+                "anchor_action_family_candidates":["RECOVERY"],
+                "visible_consequence_path_signature":"ANCHOR:RECOVERY -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS",
+                "visible_occurrence_count":2,
+                "eligible_anchor_population_count":2,
+                "anchor_trace_refs":["tr_rec"],
+            }
+        ]
+    }
+
+    p02 = _progression_pool_p02(
+        {}, {}, {}, consequence, semantics, identities, visible_sequence, trace, evidence
+    )
+    assert p02["visible_consequence_path_severity_candidate_count"] == 0
+    assert p02["recovery_continuation_severity_candidate_count"] == 1
+    row = p02["recovery_continuation_severity_candidates"][0]
+    assert row["severity_evaluation_scope"] == "POST_RECOVERY_SAME_TEAM_CONTINUATION_ONLY"
+    assert row["same_team_process_bound_count"] == 1
+    assert row["final_third_visible_count"] == 1
+    assert row["penalty_area_visible_count"] == 0
+    assert row["shot_activity_visible_count"] == 0
+    assert row["post_recovery_zone_route_counts"] == {"MIDDLE_THIRD->FINAL_THIRD": 1}
+    assert row["recovery_anchor_zone_is_access_outcome"] is False
+    assert row["severity_is_recovery_quality_truth"] is False
