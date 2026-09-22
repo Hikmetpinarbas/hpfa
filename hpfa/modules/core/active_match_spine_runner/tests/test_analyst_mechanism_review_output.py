@@ -119,10 +119,14 @@ def _write_payloads(tmp_path: Path) -> None:
             {
                 "actor_identity_candidate_id": "actor_1",
                 "actor_normalized_key": "player_alpha",
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "validated_player_identity": True,
             },
             {
                 "actor_identity_candidate_id": "actor_2",
                 "actor_normalized_key": "player_beta",
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "validated_player_identity": True,
             },
         ],
         "canonical_event_count": "UNKNOWN",
@@ -263,6 +267,23 @@ def test_actor_only_difference_does_not_become_mechanism_context_focus(tmp_path:
     assert "SOURCE_ROLE_UNRESOLVED_REVIEW_REQUIRED" not in text
     assert "actor_locator_only: actor=Player Alpha" in text
     assert "video_review_locator: shared_anchor=02:00" in text
+
+
+def test_unvalidated_match_local_actor_name_is_withheld_from_human_review(tmp_path: Path) -> None:
+    _write_payloads(tmp_path)
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    for row in identity["actor_identity_candidates"]:
+        row["validated_player_identity"] = False
+    identity_path.write_text(json.dumps(identity), encoding="utf-8")
+
+    text = "\n".join(build_mechanism_review_lines(tmp_path, _full_spine(tmp_path)))
+
+    assert "Player Alpha" not in text
+    assert "Player Beta" not in text
+    assert "WITHHELD_MATCH_LOCAL_IDENTITY[actor_1]" in text
+    assert "WITHHELD_MATCH_LOCAL_IDENTITY[actor_2]" in text
+    assert "role=VIDEO_REVIEW_LOCATOR_ONLY" in text
 
 
 def test_unknown_context_provenance_fails_closed(tmp_path: Path) -> None:
