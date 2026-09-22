@@ -3304,6 +3304,13 @@ def _progression_pool_p02(
             admission_reasons.append("target_state_not_emittable")
 
         admission_decision = "EMIT_CANDIDATE" if not admission_reasons else "REVIEW_REQUIRED"
+        minimum_resolved_gate = 3
+        if resolved_target < minimum_resolved_gate:
+            sample_maturity_candidate = "BELOW_MINIMUM_GATE"
+        elif resolved_target == minimum_resolved_gate:
+            sample_maturity_candidate = "MINIMUM_GATE_ONLY"
+        else:
+            sample_maturity_candidate = "ABOVE_MINIMUM_GATE"
         professional_finding_targets.append({
             "finding_target_candidate_id": finding_id,
             "finding_family": "P02_EXACT_CONTEXT_ADVANCED_ACCESS_VARIATION",
@@ -3311,7 +3318,10 @@ def _progression_pool_p02(
             "finding_focus": finding_focus,
             "finding_admission_decision": admission_decision,
             "finding_admission_reasons": admission_reasons,
-            "finding_minimum_resolved_process_unit_gate": 3,
+            "finding_minimum_resolved_process_unit_gate": minimum_resolved_gate,
+            "finding_sample_maturity_candidate": sample_maturity_candidate,
+            "finding_sample_maturity_is_statistical_significance": False,
+            "finding_strength_promotion_allowed": False,
             "finding_requires_zero_unresolved_burden_for_emit_candidate": True,
             "finding_target_must_not_be_satisfied_at_process_start": True,
             "comparison_population_id": population_id,
@@ -3346,6 +3356,8 @@ def _progression_pool_p02(
                 "target_not_observed_complete_path_count": not_observed,
                 "variant_family_count": int(population.get("variant_family_count") or 0),
                 "member_process_unit_count": len(members),
+                "sample_maturity_candidate": sample_maturity_candidate,
+                "strength_promotion_allowed": False,
             },
             "COUNTEREVIDENCE": {
                 "admitted_opposite_pair_count": len(admitted_counterevidence_pairs),
@@ -3368,6 +3380,9 @@ def _progression_pool_p02(
                 "comparison_population_member_count": len(members),
                 "denominator_scope": "RESOLVED_TARGET_STATE_PROCESS_UNITS_WITHIN_EXACT_COMPARISON_POPULATION",
                 "external_validity": "NOT_EVALUATED",
+                "sample_maturity_candidate": sample_maturity_candidate,
+                "sample_maturity_is_statistical_significance": False,
+                "strength_promotion_allowed": False,
             },
             "WITHDRAWAL_CONDITION": [
                 "exact_context_binding_changes",
