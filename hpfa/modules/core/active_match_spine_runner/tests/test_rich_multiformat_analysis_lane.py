@@ -2000,7 +2000,13 @@ def test_p02_same_team_pass_windows_collapse_to_unique_process_units() -> None:
     identities = {
         "team_identity_candidates": [
             {"team_identity_candidate_id": "teamc_A", "team_aliases_raw": ["TEAM_A"], "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND"},
-        ]
+        ],
+        "actor_identity_candidates": [
+            {"actor_identity_candidate_id":"actor_p0","actor_normalized_key":"player_zero","decision_state":"ACTOR_IDENTITY_CANDIDATE_BOUND"},
+            {"actor_identity_candidate_id":"actor_p1","actor_normalized_key":"player_one","decision_state":"ACTOR_IDENTITY_CANDIDATE_BOUND"},
+            {"actor_identity_candidate_id":"actor_p2","actor_normalized_key":"player_entry","decision_state":"ACTOR_IDENTITY_CANDIDATE_BOUND"},
+            {"actor_identity_candidate_id":"actor_p3","actor_normalized_key":"player_after","decision_state":"ACTOR_IDENTITY_CANDIDATE_BOUND"},
+        ],
     }
     visible_sequence = {
         "visible_action_time_layer_candidates": [
