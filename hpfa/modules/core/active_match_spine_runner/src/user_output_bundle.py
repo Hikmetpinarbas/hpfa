@@ -275,10 +275,18 @@ def _p02_professional_finding_lines(rich: dict[str, Any]) -> list[str]:
         return []
     team_names = _p02_team_name_map(rich)
     lines: list[str] = []
-    for finding in findings:
-        if not isinstance(finding, dict):
-            continue
-        if str(finding.get("finding_status") or "") not in {"REVIEW_REQUIRED", "PASS", "SMOKE_PASS"}:
+    ordered_findings = sorted(
+        [finding for finding in findings if isinstance(finding, dict)],
+        key=lambda finding: (
+            0 if str(finding.get("finding_admission_decision") or "") == "EMIT_CANDIDATE" else 1,
+            str((finding.get("exact_context") or {}).get("team_identity_candidate_id") or ""),
+            str((finding.get("exact_context") or {}).get("period_candidate") or ""),
+            str((finding.get("exact_context") or {}).get("score_state_candidate") or ""),
+            str((finding.get("exact_context") or {}).get("process_start_zone_candidate") or ""),
+        ),
+    )
+    for finding in ordered_findings:
+        if str(finding.get("finding_status") or "") not in {"EMIT_CANDIDATE", "REVIEW_REQUIRED", "PASS", "SMOKE_PASS"}:
             continue
         context = finding.get("exact_context") or {}
         team_id = str(context.get("team_identity_candidate_id") or "")
@@ -302,13 +310,16 @@ def _p02_professional_finding_lines(rich: dict[str, Any]) -> list[str]:
             ensure_ascii=False,
             sort_keys=True,
         )
+        admission = str(finding.get("finding_admission_decision") or finding.get("finding_status") or "REVIEW_REQUIRED")
+        admission_reasons = finding.get("finding_admission_reasons") or []
         lines.extend([
             (
-                f"- {team_name} | period={period} | skor-durumu={score_state} | baslangic-bolgesi={start_zone}: "
+                f"- [{admission}] {team_name} | period={period} | skor-durumu={score_state} | baslangic-bolgesi={start_zone}: "
                 f"resolved target-state denominator={resolved}; target gorundu={observed}; "
                 f"complete admitted path icinde target gorunmedi={not_observed}; unresolved={unresolved}; "
                 f"gorunur varyant ailesi={variants}; admitted opposite counterevidence pair={opposite}."
             ),
+            f"  ADMISSION_REASONS: {admission_reasons}",
             f"  WHAT_VISIBLE: {finding.get('WHAT_VISIBLE')}",
             (
                 "  COUNTEREVIDENCE: "
@@ -324,6 +335,18 @@ def _p02_professional_finding_lines(rich: dict[str, Any]) -> list[str]:
             ),
         ])
     if lines:
+        emit_count = sum(
+            1 for finding in ordered_findings
+            if str(finding.get("finding_admission_decision") or "") == "EMIT_CANDIDATE"
+        )
+        review_count = sum(
+            1 for finding in ordered_findings
+            if str(finding.get("finding_admission_decision") or "") == "REVIEW_REQUIRED"
+        )
+        lines.append(
+            f"- Admission summary: EMIT_CANDIDATE={emit_count}; REVIEW_REQUIRED={review_count}. "
+            "EMIT_CANDIDATE release veya production claim degildir."
+        )
         lines.append(
             "- Claim ceiling: bu bolum match-local exact-context target-relative variation finding candidate'tir; "
             "genel hucum basarisi, taktik kalite, teknik direktor niyeti veya nedensellik iddiasi degildir."
