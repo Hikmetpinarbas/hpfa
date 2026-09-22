@@ -1641,17 +1641,38 @@ def _p02_c4_bridge_case():
             {"row_nucleus_candidate_id":"rn_r2","context_zone_candidate":"FINAL_THIRD"},
             {"row_nucleus_candidate_id":"rn_c1","context_zone_candidate":"OWN_HALF"},
             {"row_nucleus_candidate_id":"rn_c2","context_zone_candidate":"MIDDLE_THIRD"},
+            {
+                "context_id":"goal_after_all_sequences",
+                "row_nucleus_candidate_id":"rn_goal_after_all_sequences",
+                "source_role":"TEAM",
+                "provider_semantics_review_status":"REVIEWED_CANDIDATE",
+                "provider_semantic_role_candidate":"TERMINAL_OUTCOME_CANDIDATE",
+                "provider_terminal_outcome_candidate":"GOAL",
+                "provider_downstream_eligibility":"TERMINAL_OUTCOME_ONLY",
+                "context_team_candidate":"TEAM_A",
+            },
         ]
     }
-    return identities, visible_sequence, trace, evidence, semantics
+    episode = {
+        "episode_time_layer_candidates": [
+            {
+                "episode_time_layer_candidate_id":"tl_goal_after_all_sequences",
+                "period_candidate":"1",
+                "second_candidate":120.0,
+                "context_refs":["goal_after_all_sequences"],
+                "same_time_unordered":False,
+            }
+        ]
+    }
+    return episode, identities, visible_sequence, trace, evidence, semantics
 
 
 def test_p02_independence_admitted_comparison_builds_c4_packet_and_reaches_fusion():
-    identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
+    episode, identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
     p02 = _progression_pool_p02(
         {},
         {},
-        {},
+        episode,
         {},
         semantics,
         identities,
@@ -1677,11 +1698,11 @@ def test_p02_independence_admitted_comparison_builds_c4_packet_and_reaches_fusio
 
 
 def test_p02_c4_packet_is_claim_bounded_and_does_not_invent_support():
-    identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
+    episode, identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
     p02 = _progression_pool_p02(
         {},
         {},
-        {},
+        episode,
         {},
         semantics,
         identities,
@@ -1699,11 +1720,11 @@ def test_p02_c4_packet_is_claim_bounded_and_does_not_invent_support():
 
 
 def test_p02_acceptance_counters_are_explicit_and_reconciled():
-    identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
+    episode, identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
     p02 = _progression_pool_p02(
         {},
         {},
-        {},
+        episode,
         {},
         semantics,
         identities,
@@ -1728,7 +1749,7 @@ def test_p02_acceptance_counters_are_explicit_and_reconciled():
 
 
 def test_p02_population_collapse_prevents_pairwise_counterevidence_vote_explosion():
-    identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
+    episode, identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
 
     visible_sequence["visible_action_time_layer_candidates"].extend([
         {
@@ -1777,7 +1798,7 @@ def test_p02_population_collapse_prevents_pairwise_counterevidence_vote_explosio
     p02 = _progression_pool_p02(
         {},
         {},
-        {},
+        episode,
         {},
         semantics,
         identities,
