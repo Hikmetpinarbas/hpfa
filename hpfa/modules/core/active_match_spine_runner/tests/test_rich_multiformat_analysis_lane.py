@@ -2000,8 +2000,8 @@ def test_p02_same_team_pass_windows_collapse_to_unique_process_units() -> None:
         "visible_action_time_layer_candidates": [
             {"visible_action_time_layer_candidate_id":"p0","start_candidate":10.0,"trackable_action_trace_candidate_ids":["tr_p0"],"action_family_counts":{"PASS":1}},
             {"visible_action_time_layer_candidate_id":"p1","start_candidate":14.0,"trackable_action_trace_candidate_ids":["tr_p1"],"action_family_counts":{"PASS":1}},
-            {"visible_action_time_layer_candidate_id":"p2","start_candidate":18.0,"trackable_action_trace_candidate_ids":["tr_p2"],"action_family_counts":{"PASS":1}},
-            {"visible_action_time_layer_candidate_id":"p3","start_candidate":22.0,"trackable_action_trace_candidate_ids":["tr_p3"],"action_family_counts":{"PASS":1}},
+            {"visible_action_time_layer_candidate_id":"p2","start_candidate":18.0,"trackable_action_trace_candidate_ids":["tr_p2"],"action_family_counts":{"PASS":1,"CROSS":1}},
+            {"visible_action_time_layer_candidate_id":"p3","start_candidate":22.0,"trackable_action_trace_candidate_ids":["tr_p3"],"action_family_counts":{"PASS":1,"SHOT":1,"TURNOVER":1}},
         ],
         "visible_action_sequence_candidates": [
             {
@@ -2010,7 +2010,7 @@ def test_p02_same_team_pass_windows_collapse_to_unique_process_units() -> None:
                 "start_time_candidate":10.0,"end_time_candidate":22.0,"duration_candidate_seconds":12.0,
                 "time_layer_candidate_ids":["p0","p1","p2","p3"],"time_layer_count":4,
                 "trackable_action_trace_candidate_ids":["tr_p0","tr_p1","tr_p2","tr_p3"],"trace_candidate_count":4,
-                "action_family_counts":{"PASS":4},"consequence_candidate_counts":{},
+                "action_family_counts":{"PASS":4,"CROSS":1,"SHOT":1,"TURNOVER":1},"consequence_candidate_counts":{},
                 "sequence_record_status":"PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
                 "start_reason_candidate":"PERIOD_START","end_reason_candidate":"TIME_GAP_BOUNDARY",
             }
@@ -2063,9 +2063,18 @@ def test_p02_same_team_pass_windows_collapse_to_unique_process_units() -> None:
     assert profile["process_unit_with_final_third_entry_count"] == 1
     assert profile["final_third_entry_process_unit_count"] == 1
     assert profile["final_third_entry_process_end_reason_counts"] == {"TIME_GAP_BOUNDARY": 1}
-    assert profile["final_third_entry_process_with_shot_activity_count"] == 0
-    assert profile["final_third_entry_process_with_turnover_activity_count"] == 0
-    assert profile["final_third_entry_process_with_cross_activity_count"] == 0
+    assert profile["final_third_entry_process_with_shot_activity_count"] == 1
+    assert profile["final_third_entry_process_with_turnover_activity_count"] == 1
+    assert profile["final_third_entry_process_with_cross_activity_count"] == 1
+    assert profile["final_third_entry_process_with_post_entry_shot_count"] == 1
+    assert profile["final_third_entry_process_with_post_entry_turnover_count"] == 1
+    assert profile["final_third_entry_process_with_post_entry_cross_count"] == 0
+    assert profile["final_third_entry_process_with_entry_layer_cross_count"] == 1
+    assert profile["final_third_entry_process_with_entry_layer_shot_count"] == 0
+    assert profile["final_third_entry_process_with_entry_layer_turnover_count"] == 0
+    assert profile["final_third_entry_process_with_no_later_visible_layer_count"] == 0
+    assert profile["post_entry_activity_excludes_entry_timestamp_layer"] is True
+    assert profile["same_timestamp_entry_layer_internal_order_claimed"] is False
     assert profile["terminal_boundary_is_process_outcome_truth"] is False
     assert profile["shot_activity_is_chance_quality_truth"] is False
     assert profile["max_anchor_windows_within_single_process_unit"] == 2
