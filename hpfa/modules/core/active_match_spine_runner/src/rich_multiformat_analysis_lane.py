@@ -947,6 +947,30 @@ def _build_p02_sequence_process_units(
         unit["opponent_response_is_tactical_response_truth"] = False
         unit["opponent_response_is_counterattack_truth"] = False
         unit["opponent_response_adds_independent_support"] = False
+        response_access = str(response.get("advanced_access_state_candidate") or "NOT_EVALUATED")
+        unit["visible_variant_outcome_profile"] = {
+            "advanced_access_state_candidate": unit.get("advanced_access_state_candidate"),
+            "visible_exit_class_candidate": unit.get("visible_exit_class_candidate"),
+            "visible_exit_zone_candidate": unit.get("visible_exit_zone_candidate"),
+            "turnover_visible": int((unit.get("action_family_counts") or {}).get("TURNOVER", 0) or 0) > 0,
+            "opponent_response_status": response.get("status"),
+            "opponent_advanced_access_state_candidate": response_access,
+            "profile_status": (
+                "RESOLVED_BOUNDED_VISIBLE_PROFILE"
+                if unit.get("advanced_access_state_candidate") in {
+                    "ADVANCED_ACCESS_VISIBLE",
+                    "NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH",
+                }
+                and unit.get("visible_exit_class_candidate")
+                else "DEGRADED_VISIBLE_PROFILE"
+            ),
+            "success_failure_label": "NOT_ASSIGNED",
+            "profile_is_process_outcome_truth": False,
+            "profile_is_tactical_quality_truth": False,
+            "profile_is_causal_truth": False,
+            "opponent_response_is_causal_truth": False,
+            "claim_ceiling": "P02_VISIBLE_VARIANT_OUTCOME_PROFILE_ONLY",
+        }
 
     response_summary_by_team: dict[str, dict[str, Any]] = {}
     for unit in units:
@@ -1144,6 +1168,22 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
                 str(row.get("process_end_zone_candidate") or "UNRESOLVED")
                 for row in variant_members
             )
+            variant_advanced_access = Counter(
+                str((row.get("visible_variant_outcome_profile") or {}).get("advanced_access_state_candidate") or "UNRESOLVED")
+                for row in variant_members
+            )
+            variant_exit_classes = Counter(
+                str((row.get("visible_variant_outcome_profile") or {}).get("visible_exit_class_candidate") or "UNRESOLVED")
+                for row in variant_members
+            )
+            variant_opponent_response = Counter(
+                str((row.get("visible_variant_outcome_profile") or {}).get("opponent_response_status") or "UNRESOLVED")
+                for row in variant_members
+            )
+            variant_opponent_access = Counter(
+                str((row.get("visible_variant_outcome_profile") or {}).get("opponent_advanced_access_state_candidate") or "UNRESOLVED")
+                for row in variant_members
+            )
             variant_records.append({
                 "variant_family_candidate_id": variant_id,
                 "member_process_unit_candidate_ids": sorted(
@@ -1156,6 +1196,13 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
                 "semantic_zone_path_candidate": list(first.get("semantic_zone_path_candidate") or []),
                 "terminal_activity_distribution": dict(sorted(variant_terminal.items())),
                 "end_zone_distribution": dict(sorted(variant_end_zones.items())),
+                "visible_outcome_profile_distributions": {
+                    "advanced_access_state": dict(sorted(variant_advanced_access.items())),
+                    "exit_class": dict(sorted(variant_exit_classes.items())),
+                    "opponent_response_status": dict(sorted(variant_opponent_response.items())),
+                    "opponent_advanced_access_state": dict(sorted(variant_opponent_access.items())),
+                },
+                "success_failure_label": "NOT_ASSIGNED",
                 "variant_is_tactical_truth": False,
                 "variant_is_causal_mechanism_truth": False,
             })
@@ -1224,6 +1271,30 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
                     "reference_outcome": reference_outcome,
                     "candidate_outcome": candidate_outcome,
                     "outcome_relation": outcome_relation,
+                    "reference_visible_variant_outcome_profile": dict(reference.get("visible_variant_outcome_profile") or {}),
+                    "candidate_visible_variant_outcome_profile": dict(candidate.get("visible_variant_outcome_profile") or {}),
+                    "variant_contrast_dimensions": sorted([
+                        dimension
+                        for dimension, left, right in [
+                            (
+                                "visible_exit_class_candidate",
+                                (reference.get("visible_variant_outcome_profile") or {}).get("visible_exit_class_candidate"),
+                                (candidate.get("visible_variant_outcome_profile") or {}).get("visible_exit_class_candidate"),
+                            ),
+                            (
+                                "opponent_response_status",
+                                (reference.get("visible_variant_outcome_profile") or {}).get("opponent_response_status"),
+                                (candidate.get("visible_variant_outcome_profile") or {}).get("opponent_response_status"),
+                            ),
+                            (
+                                "opponent_advanced_access_state_candidate",
+                                (reference.get("visible_variant_outcome_profile") or {}).get("opponent_advanced_access_state_candidate"),
+                                (candidate.get("visible_variant_outcome_profile") or {}).get("opponent_advanced_access_state_candidate"),
+                            ),
+                        ]
+                        if left != right
+                    ]),
+                    "success_failure_label": "NOT_ASSIGNED",
                     "provenance_root": candidate.get("source_visible_action_sequence_candidate_id"),
                     "reference_provenance_root": reference.get("source_visible_action_sequence_candidate_id"),
                     "dependency_group": candidate_id or None,
