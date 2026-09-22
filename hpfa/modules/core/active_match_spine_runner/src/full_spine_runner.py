@@ -178,35 +178,50 @@ def _safe_external_call(runner: Callable[..., dict[str, Any]], args: tuple[Any, 
         }
 
 
-def _p02_finding_safe_sentence_candidate(finding: dict[str, Any]) -> dict[str, Any] | None:
+def _p02_finding_safe_sentence_candidate(
+    finding: dict[str, Any],
+    *,
+    team_name: str | None = None,
+) -> dict[str, Any] | None:
     if str(finding.get("finding_admission_decision") or "") != "EMIT_CANDIDATE":
         return None
     finding_id = str(finding.get("finding_target_candidate_id") or "").strip()
     if not finding_id:
         return None
     resolved = int(finding.get("resolved_target_state_denominator") or 0)
+    context = finding.get("exact_context") or {}
+    team_label = str(team_name or context.get("team_identity_candidate_id") or "cozulemeyen takim")
+    period = str(context.get("period_candidate") or "cozulmeyen periyot")
+    score_state = str(context.get("score_state_candidate") or "cozulmeyen skor durumu")
+    start_zone = str(context.get("process_start_zone_candidate") or "cozulmeyen baslangic bolgesi")
+    context_prefix = (
+        f"{team_label}; period={period}; skor-durumu={score_state}; baslangic-bolgesi={start_zone}: "
+    )
     observed = int(finding.get("target_observed_visible_count") or 0)
     not_observed = int(finding.get("target_not_observed_complete_path_count") or 0)
     unresolved = int(finding.get("target_state_unresolved_count") or 0)
     focus = str(finding.get("finding_focus") or "")
     if focus == "TARGET_VARIATION_VISIBLE":
         sentence = (
-            f"Aynı exact takım, periyot, skor-durumu ve başlangıç-bölgesi bağlamındaki çözümlenmiş "
-            f"{resolved} süreç biriminin {observed} tanesinde ilan edilen advanced-access hedefi görünürken "
+            context_prefix
+            + f"aynı exact bağlamdaki çözümlenmiş {resolved} süreç biriminin {observed} tanesinde ilan edilen "
+            "advanced-access hedefi görünürken "
             f"{not_observed} complete admitted path içinde hedef görünmedi; unresolved={unresolved}. "
             "Bu yalnız match-local hedef-varyasyonu bulgusudur; genel hücum başarısı, taktik kalite veya nedensellik değildir."
         )
     elif focus == "TARGET_OBSERVED_ONLY_IN_RESOLVED_POPULATION":
         sentence = (
-            f"Aynı exact takım, periyot, skor-durumu ve başlangıç-bölgesi bağlamındaki çözümlenmiş "
-            f"{resolved} süreç biriminin tamamında ilan edilen advanced-access hedefi görünür; unresolved={unresolved}. "
+            context_prefix
+            + f"aynı exact bağlamdaki çözümlenmiş {resolved} süreç biriminin tamamında ilan edilen "
+            f"advanced-access hedefi görünür; unresolved={unresolved}. "
             "Bu yalnız bu match-local resolved population için görünürlük bulgusudur; genel hücum başarısı, "
             "taktik kalite, bağlam dışı istikrar veya nedensellik değildir."
         )
     elif focus == "TARGET_NOT_OBSERVED_ONLY_IN_RESOLVED_POPULATION":
         sentence = (
-            f"Aynı exact takım, periyot, skor-durumu ve başlangıç-bölgesi bağlamındaki çözümlenmiş "
-            f"{resolved} süreç biriminin hiçbir complete admitted semantic-zone path örneğinde ilan edilen "
+            context_prefix
+            + f"aynı exact bağlamdaki çözümlenmiş {resolved} süreç biriminin hiçbir complete admitted semantic-zone "
+            "path örneğinde ilan edilen "
             f"advanced-access hedefi görünmedi; unresolved={unresolved}. Bu yalnız bu match-local resolved population "
             "için görünürlük bulgusudur; genel hücum başarısızlığı, taktik zayıflık veya nedensellik değildir."
         )
@@ -247,11 +262,22 @@ def _p02_finding_safe_sentence_candidate(finding: dict[str, Any]) -> dict[str, A
 def _run_p02_professional_finding_report_contracts(rich_report: dict[str, Any]) -> dict[str, Any]:
     p02 = rich_report.get("progression_pool_p02") or {}
     findings = p02.get("professional_finding_target_candidates") or []
+    team_names = {
+        str(row.get("team_identity_candidate_id") or ""): str(row.get("team_candidate") or "")
+        for row in (p02.get("p02_team_pool_items") or [])
+        if isinstance(row, dict)
+        and row.get("team_identity_candidate_id")
+        and row.get("team_candidate")
+    }
     items: list[dict[str, Any]] = []
     for finding in findings if isinstance(findings, list) else []:
         if not isinstance(finding, dict):
             continue
-        safe = _p02_finding_safe_sentence_candidate(finding)
+        context = finding.get("exact_context") or {}
+        safe = _p02_finding_safe_sentence_candidate(
+            finding,
+            team_name=team_names.get(str(context.get("team_identity_candidate_id") or "")),
+        )
         if safe is None:
             continue
         block = compose_report_block(safe)
