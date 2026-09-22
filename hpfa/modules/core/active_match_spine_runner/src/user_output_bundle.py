@@ -289,6 +289,76 @@ def _readable_boundary_counts(counts: dict[str, Any]) -> str:
     return ", ".join(parts) if parts else "gorunur bitis siniri yok"
 
 
+def _readable_actor_label(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "cozulemeyen oyuncu"
+    if text.startswith("actorc_"):
+        return text
+    return " ".join(part.capitalize() for part in text.replace("_", " ").split())
+
+
+def _actor_participation_summary_lines(
+    row: dict[str, Any],
+    *,
+    process_denominator: int,
+) -> list[str]:
+    participants = [
+        item
+        for item in (row.get("final_third_entry_actor_participation_candidates") or [])
+        if isinstance(item, dict)
+    ]
+    if not participants or process_denominator <= 0:
+        return []
+
+    def top_by(field: str, limit: int = 5) -> list[dict[str, Any]]:
+        return sorted(
+            [item for item in participants if int(item.get(field) or 0) > 0],
+            key=lambda item: (
+                -int(item.get(field) or 0),
+                str(item.get("actor_label_candidate") or ""),
+            ),
+        )[:limit]
+
+    def render(rows: list[dict[str, Any]], field: str) -> str:
+        if not rows:
+            return "gorunur katilim yok"
+        return ", ".join(
+            f"{_readable_actor_label(item.get('actor_label_candidate'))} "
+            f"{int(item.get(field) or 0)}/{process_denominator}"
+            for item in rows
+        )
+
+    process_rows = top_by("final_third_entry_process_participation_count")
+    entry_rows = top_by("final_third_entry_layer_participation_count")
+    post_rows = top_by("post_entry_participation_count")
+
+    post_parts: list[str] = []
+    for item in post_rows:
+        facets = item.get("post_entry_variant_facet_counts") or {}
+        facet_parts = []
+        for key, label in (
+            ("POST_ENTRY_SHOT_VISIBLE", "sut"),
+            ("POST_ENTRY_CROSS_VISIBLE", "cross"),
+            ("POST_ENTRY_TURNOVER_VISIBLE", "turnover"),
+            ("POST_ENTRY_OTHER_VISIBLE_CONTINUATION", "diger-devam"),
+        ):
+            count = int(facets.get(key) or 0)
+            if count > 0:
+                facet_parts.append(f"{label}={count}")
+        facet_text = f" ({', '.join(facet_parts)})" if facet_parts else ""
+        post_parts.append(
+            f"{_readable_actor_label(item.get('actor_label_candidate'))} "
+            f"{int(item.get('post_entry_participation_count') or 0)}/{process_denominator}{facet_text}"
+        )
+
+    return [
+        f"  Oyuncu surec katilimi: {render(process_rows, 'final_third_entry_process_participation_count')}.",
+        f"  Final-third giris katmani katilimi: {render(entry_rows, 'final_third_entry_layer_participation_count')}.",
+        f"  Giris sonrasi gorunur katilim: {', '.join(post_parts) if post_parts else 'gorunur katilim yok'}.",
+    ]
+
+
 def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
     p02 = rich.get("progression_pool_p02") or {}
     team_names = _p02_team_name_map(rich)
@@ -390,6 +460,12 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
                 f"Post-entry varyant facetleri: {variant_text}. Bu facetler birbirini dislamaz. "
                 f"Gorunur bitisler: {boundary_text}."
             )
+            lines.extend(
+                _actor_participation_summary_lines(
+                    row,
+                    process_denominator=entries,
+                )
+            )
 
     recovery_signature = "ANCHOR:RECOVERY -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
     recovery_rows = [
@@ -428,6 +504,12 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
                 f"recovery sonrasinda ayni surecte sut aktivitesi={shots}; yeni final-third girisinden SONRA "
                 f"sut aktivitesi={post_entry_shots}, girisle AYNI zaman-katmaninda sut aktivitesi={entry_layer_shots}. "
                 f"Post-entry varyant facetleri: {recovery_variant_text}; facetler birbirini dislamaz."
+            )
+            lines.extend(
+                _actor_participation_summary_lines(
+                    row,
+                    process_denominator=entries,
+                )
             )
 
     post_loss_by_team = {
@@ -546,7 +628,8 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
     if lines:
         lines.append(
             "- Okuma siniri: bunlar mac-ici gorunur surec ve tekrar adaylaridir; ayni surecteki coklu pencereler "
-            "bagimsiz kanit sayilmaz. Bu yuzey tek basina taktik niyet, kalite, ustunluk veya nedensellik kaniti degildir."
+            "bagimsiz kanit sayilmaz. Oyuncu surec katilimi katkı, kalite, neden veya oyuncu kredisi degildir. "
+            "Bu yuzey tek basina taktik niyet, kalite, ustunluk veya nedensellik kaniti degildir."
         )
     return lines
 
