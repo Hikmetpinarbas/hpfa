@@ -1914,7 +1914,13 @@ def test_p02_recovery_continuation_reads_only_post_anchor_same_team_access() -> 
     identities = {
         "team_identity_candidates": [
             {"team_identity_candidate_id": "teamc_A", "team_aliases_raw": ["TEAM_A"], "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND"},
-        ]
+        ],
+        "actor_identity_candidates": [
+            {"actor_identity_candidate_id":"actor_p0","actor_normalized_key":"player_zero","decision_state":"ACTOR_IDENTITY_CANDIDATE_BOUND"},
+            {"actor_identity_candidate_id":"actor_p1","actor_normalized_key":"player_one","decision_state":"ACTOR_IDENTITY_CANDIDATE_BOUND"},
+            {"actor_identity_candidate_id":"actor_p2","actor_normalized_key":"player_entry","decision_state":"ACTOR_IDENTITY_CANDIDATE_BOUND"},
+            {"actor_identity_candidate_id":"actor_p3","actor_normalized_key":"player_after","decision_state":"ACTOR_IDENTITY_CANDIDATE_BOUND"},
+        ],
     }
     visible_sequence = {
         "visible_action_time_layer_candidates": [
@@ -2018,10 +2024,10 @@ def test_p02_same_team_pass_windows_collapse_to_unique_process_units() -> None:
     }
     trace = {
         "trackable_action_trace_candidates": [
-            {"trackable_action_trace_candidate_id":"tr_p0","start_candidate":10.0,"supporting_evidence_atom_ids":["ea_p0"]},
-            {"trackable_action_trace_candidate_id":"tr_p1","start_candidate":14.0,"supporting_evidence_atom_ids":["ea_p1"]},
-            {"trackable_action_trace_candidate_id":"tr_p2","start_candidate":18.0,"supporting_evidence_atom_ids":["ea_p2"]},
-            {"trackable_action_trace_candidate_id":"tr_p3","start_candidate":22.0,"supporting_evidence_atom_ids":["ea_p3"]},
+            {"trackable_action_trace_candidate_id":"tr_p0","start_candidate":10.0,"actor_identity_candidate_id":"actor_p0","supporting_evidence_atom_ids":["ea_p0"]},
+            {"trackable_action_trace_candidate_id":"tr_p1","start_candidate":14.0,"actor_identity_candidate_id":"actor_p1","supporting_evidence_atom_ids":["ea_p1"]},
+            {"trackable_action_trace_candidate_id":"tr_p2","start_candidate":18.0,"actor_identity_candidate_id":"actor_p2","supporting_evidence_atom_ids":["ea_p2"]},
+            {"trackable_action_trace_candidate_id":"tr_p3","start_candidate":22.0,"actor_identity_candidate_id":"actor_p3","supporting_evidence_atom_ids":["ea_p3"]},
         ]
     }
     evidence = {
@@ -2097,6 +2103,23 @@ def test_p02_same_team_pass_windows_collapse_to_unique_process_units() -> None:
     assert profile["anchor_window_count_is_process_denominator"] is False
     assert profile["unique_process_unit_count_is_independent_evidence_count"] is False
     assert profile["same_process_multiple_anchor_reflection_possible"] is True
+    participants = {
+        row["actor_identity_candidate_id"]: row
+        for row in profile["final_third_entry_actor_participation_candidates"]
+    }
+    assert set(participants) == {"actor_p0", "actor_p1", "actor_p2", "actor_p3"}
+    assert participants["actor_p0"]["final_third_entry_process_participation_count"] == 1
+    assert participants["actor_p1"]["final_third_entry_process_participation_count"] == 1
+    assert participants["actor_p2"]["final_third_entry_layer_participation_count"] == 1
+    assert participants["actor_p2"]["post_entry_participation_count"] == 0
+    assert participants["actor_p2"]["actor_label_candidate"] == "player_entry"
+    assert participants["actor_p3"]["post_entry_participation_count"] == 1
+    assert participants["actor_p3"]["post_entry_variant_facet_counts"] == {
+        "POST_ENTRY_SHOT_VISIBLE": 1,
+        "POST_ENTRY_TURNOVER_VISIBLE": 1,
+    }
+    assert profile["actor_participation_is_causal_credit"] is False
+    assert profile["actor_participation_is_quality_truth"] is False
 
 
 def test_p02_thirds_only_zone_surface_marks_penalty_area_unobservable() -> None:
