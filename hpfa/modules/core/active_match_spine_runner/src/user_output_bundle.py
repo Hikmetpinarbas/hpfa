@@ -207,6 +207,67 @@ def _p02_turnover_response_lines(rich: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _p02_variant_contrast_lines(rich: dict[str, Any]) -> list[str]:
+    p02 = rich.get("progression_pool_p02") or {}
+    comparisons = p02.get("process_unit_comparisons") or {}
+    populations = comparisons.get("process_unit_comparison_populations") or []
+    if not isinstance(populations, list):
+        return []
+    team_names = _p02_team_name_map(rich)
+    lines: list[str] = []
+    for population in populations:
+        if not isinstance(population, dict):
+            continue
+        if str(population.get("status") or "") != "POPULATION_ELIGIBLE":
+            continue
+        context = population.get("reference_context") or {}
+        team_id = str(context.get("team_identity_candidate_id") or "")
+        team_name = team_names.get(team_id, team_id or "cozulemeyen takim")
+        pairs = [
+            row for row in (population.get("pairwise_comparison_candidates") or [])
+            if isinstance(row, dict)
+        ]
+        contrast_pairs = [
+            row for row in pairs
+            if isinstance(row.get("variant_contrast_dimensions"), list)
+            and len(row.get("variant_contrast_dimensions") or []) > 0
+        ]
+        opposite_pairs = [
+            row for row in pairs
+            if str(row.get("outcome_relation") or "") == "OPPOSITE"
+        ]
+        exit_delta_pairs = [
+            row for row in contrast_pairs
+            if "visible_exit_class_candidate" in (row.get("variant_contrast_dimensions") or [])
+        ]
+        response_delta_pairs = [
+            row for row in contrast_pairs
+            if "opponent_response_status" in (row.get("variant_contrast_dimensions") or [])
+        ]
+        opponent_access_delta_pairs = [
+            row for row in contrast_pairs
+            if "opponent_advanced_access_state_candidate" in (row.get("variant_contrast_dimensions") or [])
+        ]
+        terminal_distribution = population.get("terminal_activity_distribution") or {}
+        end_zone_distribution = population.get("end_zone_distribution") or {}
+        lines.append(
+            f"- {team_name}: ayni exact baglamda {int(population.get('member_count') or 0)} process-unit, "
+            f"{int(population.get('variant_family_count') or 0)} gorunur varyant ailesi. "
+            f"Advanced-access sonucu farkli pair={len(opposite_pairs)}, exit-class farki={len(exit_delta_pairs)}, "
+            f"rakip-response durumu farki={len(response_delta_pairs)}, rakibin sonraki advanced-access sonucu farki="
+            f"{len(opponent_access_delta_pairs)}. Gorunur bitis dagilimi={json.dumps(terminal_distribution, ensure_ascii=False, sort_keys=True)}; "
+            f"bitis-bolge dagilimi={json.dumps(end_zone_distribution, ensure_ascii=False, sort_keys=True)}. "
+            "Bu pair sayilari bagimsiz kanit degildir; success/failure etiketi atanmaz."
+        )
+    if lines:
+        lines.append(
+            "- Okuma siniri: varyant farki mekanizma adayi icin review yuzeyidir; tekrar nedensellik, taktik niyet, "
+            "kalite veya ustunluk kaniti degildir. Ayni comparison population icindeki pairwise kombinasyonlar "
+            "bagimsiz destek oyu sayilmaz."
+        )
+    return lines
+
+
 def _readable_boundary_counts(counts: dict[str, Any]) -> str:
     labels = {
         "TEAM_HANDOVER_BOUNDARY": "takim el degistirme",
@@ -467,6 +528,13 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 "",
                 "MAC MEKANIZMASI ADAYLARI — SUREC / DEVAM / SONUC",
                 *mechanism_lines,
+            ])
+        variant_lines = _p02_variant_contrast_lines(rich)
+        if variant_lines:
+            lines.extend([
+                "",
+                "GORUNUR VARYANT KARSILASTIRMASI — REVIEW-BOUNDED",
+                *variant_lines,
             ])
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
