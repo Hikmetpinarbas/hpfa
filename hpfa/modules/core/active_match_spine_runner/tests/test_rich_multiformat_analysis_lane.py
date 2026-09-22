@@ -1995,12 +1995,24 @@ def test_p02_population_collapse_prevents_pairwise_counterevidence_vote_explosio
     assert p02["pairwise_comparison_is_independent_evidence_vote"] is False
     assert p02["professional_finding_emit_candidate_count"] == 1
     assert p02["professional_finding_review_required_count"] == 0
+    assert p02["evidence_maturity_profile_count"] == 1
+    assert p02["mechanism_reviewable_finding_count"] == 0
+    assert p02["mechanism_promotion_allowed_count"] == 0
     finding = p02["professional_finding_target_candidates"][0]
     assert finding["finding_admission_decision"] == "EMIT_CANDIDATE"
     assert finding["finding_status"] == "EMIT_CANDIDATE"
     assert finding["finding_admission_reasons"] == []
     assert finding["finding_sample_maturity_candidate"] == "MINIMUM_GATE_ONLY"
     assert finding["finding_strength_promotion_allowed"] is False
+    maturity = finding["evidence_maturity_profile"]
+    assert maturity["mechanism_review_readiness"] == "INSUFFICIENT_EVIDENCE_MATURITY"
+    assert maturity["same_team_same_focus_context_population_count"] == 1
+    assert maturity["admitted_same_team_same_focus_context_population_count"] == 1
+    assert maturity["evidence_unit_independence_admitted_pair_count"] >= 1
+    assert maturity["mechanism_promotion_allowed"] is False
+    assert maturity["mechanism_truth_claimed"] is False
+    assert "sample_maturity_not_above_minimum_gate" in maturity["mechanism_maturity_reasons"]
+    assert "same_team_same_focus_context_spread_below_2" in maturity["mechanism_maturity_reasons"]
     assert finding["claim_output_allowed"] is False
     assert finding["production_release"] is False
 
