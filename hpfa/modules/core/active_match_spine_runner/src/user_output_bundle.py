@@ -1025,7 +1025,10 @@ def _mechanism_safe_context_by_family(
         ).strip()
         decision = decisions.get(handoff_id)
         if divergence_ref and isinstance(decision, dict):
-            by_divergence.setdefault(divergence_ref, []).append(decision)
+            by_divergence.setdefault(divergence_ref, []).append({
+                "safe_finding_handoff_ref": handoff_id,
+                "decision": decision,
+            })
 
     result: dict[str, dict[str, Any]] = {}
     for family in process_variant_payload.get("observable_process_variant_families") or []:
@@ -1042,13 +1045,23 @@ def _mechanism_safe_context_by_family(
             if isinstance(binding, dict)
             and str(binding.get("source_first_supported_branch_divergence_ref") or "").strip()
         }
-        matched = [
+        matched_entries = [
             row
             for divergence_ref in divergence_refs
             for row in by_divergence.get(divergence_ref, [])
         ]
-        if not matched:
+        if not matched_entries:
             continue
+        matched = [
+            row.get("decision")
+            for row in matched_entries
+            if isinstance(row.get("decision"), dict)
+        ]
+        matched_handoff_refs = sorted({
+            str(row.get("safe_finding_handoff_ref") or "").strip()
+            for row in matched_entries
+            if str(row.get("safe_finding_handoff_ref") or "").strip()
+        })
 
         score_states: dict[str, dict[str, Any]] = {}
         process_families: list[tuple[str, ...]] = []
@@ -1076,6 +1089,9 @@ def _mechanism_safe_context_by_family(
         unique_process = sorted(set(nonempty_process))
         result[family_ref] = {
             "safe_finding_match_count": len(matched),
+            "safe_finding_handoff_refs": matched_handoff_refs,
+            "source_first_supported_branch_divergence_refs": sorted(divergence_refs),
+            "source_process_variant_family_ref": family_ref,
             "score_state_consensus": len(score_states) == 1,
             "score_state_candidate": (
                 next(iter(score_states.values())) if len(score_states) == 1 else None
@@ -1704,6 +1720,18 @@ def build_graph_ready_mechanism_cards_payload(
         cards.append({
             "card_index": idx,
             "classification": "LIMITED_COMPARISON" if single_episode_only else "MAIN_MECHANISM_CANDIDATE",
+            "source_mechanism_review_ref": row.get("source_mechanism_review_ref"),
+            "source_process_variant_family_ref": family_ref or None,
+            "source_first_supported_branch_divergence_refs": [
+                str(v)
+                for v in (safe_context.get("source_first_supported_branch_divergence_refs") or [])
+                if str(v)
+            ],
+            "source_safe_finding_handoff_refs": [
+                str(v)
+                for v in (safe_context.get("safe_finding_handoff_refs") or [])
+                if str(v)
+            ],
             "team_identity_candidate_ids": team_ids,
             "team_labels": [teams.get(ref, ref) for ref in team_ids],
             "period_candidates": [str(v) for v in (row.get("period_candidates") or [])],
@@ -1714,6 +1742,19 @@ def build_graph_ready_mechanism_cards_payload(
             "process_family_episode_presence_counts": process_counts,
             "safe_finding_context": {
                 "safe_finding_match_count": int(safe_context.get("safe_finding_match_count") or 0),
+                "safe_finding_handoff_refs": [
+                    str(v)
+                    for v in (safe_context.get("safe_finding_handoff_refs") or [])
+                    if str(v)
+                ],
+                "source_first_supported_branch_divergence_refs": [
+                    str(v)
+                    for v in (safe_context.get("source_first_supported_branch_divergence_refs") or [])
+                    if str(v)
+                ],
+                "source_process_variant_family_ref": (
+                    safe_context.get("source_process_variant_family_ref")
+                ),
                 "score_state_consensus": safe_context.get("score_state_consensus") is True,
                 "score_state_candidate": safe_context.get("score_state_candidate"),
                 "provider_process_family_consensus": (
@@ -1803,6 +1844,22 @@ def build_graph_ready_mechanism_cards_payload(
                     "first_visible_consequence_difference_layer_candidate": source_record.get(
                         "first_supported_consequence_difference_layer_candidate"
                     ),
+                },
+                "evidence_lineage": {
+                    "source_mechanism_review_ref": row.get("source_mechanism_review_ref"),
+                    "source_process_variant_family_ref": family_ref or None,
+                    "source_first_supported_branch_divergence_refs": [
+                        str(v)
+                        for v in (safe_context.get("source_first_supported_branch_divergence_refs") or [])
+                        if str(v)
+                    ],
+                    "source_safe_finding_handoff_refs": [
+                        str(v)
+                        for v in (safe_context.get("safe_finding_handoff_refs") or [])
+                        if str(v)
+                    ],
+                    "lineage_creates_new_evidence": False,
+                    "lineage_strengthens_claim": False,
                 },
                 "support": {
                     "visible_episode_spread_n": int(
