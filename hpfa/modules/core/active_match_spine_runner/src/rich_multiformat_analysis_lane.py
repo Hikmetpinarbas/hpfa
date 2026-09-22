@@ -3246,6 +3246,24 @@ def _progression_pool_p02(
             if resolved_target > 0
             else "ABSTAIN"
         )
+        exact_context = dict(population.get("reference_context") or {})
+        required_context_keys = [
+            "team_identity_candidate_id",
+            "period_candidate",
+            "score_state_candidate",
+            "process_start_zone_candidate",
+        ]
+        missing_context_keys = [
+            key for key in required_context_keys
+            if exact_context.get(key) in [None, ""]
+        ]
+        admission_reasons: list[str] = []
+        if missing_context_keys:
+            admission_reasons.append("exact_context_incomplete")
+        if resolved_target < 3:
+            admission_reasons.append("resolved_target_state_denominator_below_minimum_3")
+        if unresolved_target > 0:
+            admission_reasons.append("target_state_unresolved_burden_present")
         if observed > 0 and not_observed > 0:
             finding_focus = "TARGET_VARIATION_VISIBLE"
             safe_meaning = (
@@ -3270,15 +3288,32 @@ def _progression_pool_p02(
         else:
             finding_focus = "TARGET_STATE_UNRESOLVED"
             safe_meaning = "The declared target state is unresolved in this exact comparison population."
+        if finding_focus == "TARGET_VARIATION_VISIBLE":
+            if len(admitted_counterevidence_pairs) <= 0:
+                admission_reasons.append("variation_without_admitted_opposite_counterevidence")
+        elif finding_focus in {
+            "TARGET_OBSERVED_ONLY_IN_RESOLVED_POPULATION",
+            "TARGET_NOT_OBSERVED_ONLY_IN_RESOLVED_POPULATION",
+        }:
+            if int(population.get("variant_family_count") or 0) < 2:
+                admission_reasons.append("homogeneous_finding_requires_multiple_visible_variant_families")
+        else:
+            admission_reasons.append("target_state_not_emittable")
+
+        admission_decision = "EMIT_CANDIDATE" if not admission_reasons else "REVIEW_REQUIRED"
         professional_finding_targets.append({
             "finding_target_candidate_id": finding_id,
             "finding_family": "P02_EXACT_CONTEXT_ADVANCED_ACCESS_VARIATION",
-            "finding_status": finding_status,
+            "finding_status": admission_decision,
             "finding_focus": finding_focus,
+            "finding_admission_decision": admission_decision,
+            "finding_admission_reasons": admission_reasons,
+            "finding_minimum_resolved_process_unit_gate": 3,
+            "finding_requires_zero_unresolved_burden_for_emit_candidate": True,
             "comparison_population_id": population_id,
             "comparison_question_id": "P02_ADVANCED_ACCESS_VISIBLE",
             "target_estimand": "ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_SEMANTIC_ZONE_PATH",
-            "exact_context": dict(population.get("reference_context") or {}),
+            "exact_context": exact_context,
             "member_process_unit_count": len(members),
             "resolved_target_state_denominator": resolved_target,
             "target_observed_visible_count": observed,
@@ -3407,7 +3442,16 @@ def _progression_pool_p02(
         ),
         "professional_finding_target_candidate_count": len(professional_finding_targets),
         "professional_finding_target_candidates": professional_finding_targets,
+        "professional_finding_emit_candidate_count": sum(
+            1 for row in professional_finding_targets
+            if row.get("finding_admission_decision") == "EMIT_CANDIDATE"
+        ),
+        "professional_finding_review_required_count": sum(
+            1 for row in professional_finding_targets
+            if row.get("finding_admission_decision") == "REVIEW_REQUIRED"
+        ),
         "professional_finding_targets_are_final_claims": False,
+        "professional_finding_emit_candidate_is_release": False,
         "pairwise_comparison_is_independent_evidence_vote": False,
         "population_emits_max_one_c4_counterevidence_packet": True,
         "acceptance_counters": {
