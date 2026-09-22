@@ -788,6 +788,115 @@ def test_team_score_state_before_episode_start_is_team_relative_candidate():
     assert team_b["score_state_candidate"] == "TRAILING"
 
 
+def test_score_state_can_use_correlated_player_team_and_opponent_gk_goal_reflections():
+    episode = {
+        "episode_time_layer_candidates": [
+            {
+                "episode_time_layer_candidate_id": "tl_goal",
+                "period_candidate": "1",
+                "second_candidate": 100.0,
+                "context_refs": ["player_goal", "team_goal", "gk_conceded"],
+                "same_time_unordered": True,
+            }
+        ]
+    }
+    semantics = {
+        "context_action_semantic_records": [
+            {
+                "context_id": "player_goal",
+                "row_nucleus_candidate_id": "rn_player_goal",
+                "source_role": "PLAYER",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "provider_semantic_role_candidate": "TERMINAL_OUTCOME_CANDIDATE",
+                "provider_terminal_outcome_candidate": "GOAL",
+                "provider_downstream_eligibility": "TERMINAL_OUTCOME_ONLY",
+                "context_team_candidate": "TEAM_A",
+            },
+            {
+                "context_id": "team_goal",
+                "row_nucleus_candidate_id": "rn_team_goal",
+                "source_role": "TEAM",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "provider_semantic_role_candidate": "TERMINAL_OUTCOME_CANDIDATE",
+                "provider_terminal_outcome_candidate": "GOAL",
+                "provider_downstream_eligibility": "TERMINAL_OUTCOME_ONLY",
+                "context_team_candidate": "unknown",
+            },
+            {
+                "context_id": "gk_conceded",
+                "row_nucleus_candidate_id": "rn_gk_conceded",
+                "source_role": "GOALKEEPER",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "provider_semantic_role_candidate": "OPPONENT_ACTION_REFERENCE",
+                "provider_terminal_outcome_candidate": "GOAL",
+                "provider_downstream_eligibility": "REFERENCE_ONLY",
+                "context_team_candidate": "TEAM_B",
+            },
+        ]
+    }
+    identities = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "teamc_A", "team_aliases_raw": ["TEAM_A"], "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND"},
+            {"team_identity_candidate_id": "teamc_B", "team_aliases_raw": ["TEAM_B"], "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND"},
+        ]
+    }
+    timeline = _score_state_timeline_candidates(episode, semantics, identities)
+
+    assert timeline["status"] == "AVAILABLE"
+    assert timeline["goal_score_change_candidate_count"] == 1
+    assert timeline["cross_surface_goal_candidate_count"] == 1
+    goal = timeline["goal_score_change_candidates"][0]
+    assert goal["team_identity_candidate_id"] == "teamc_A"
+    assert goal["cross_surface_reflection_used"] is True
+    assert goal["cross_surface_reflection_is_independent_evidence"] is False
+    assert goal["score_change_binding_bases"] == [
+        "PLAYER_GOAL_PLUS_TEAM_REFLECTION_PLUS_OPPONENT_GK_CONCEDED"
+    ]
+    assert set(goal["supporting_context_refs"]) == {
+        "player_goal", "team_goal", "gk_conceded"
+    }
+
+
+def test_player_goal_without_required_reflections_does_not_create_score_change():
+    episode = {
+        "episode_time_layer_candidates": [
+            {
+                "episode_time_layer_candidate_id": "tl_goal",
+                "period_candidate": "1",
+                "second_candidate": 100.0,
+                "context_refs": ["player_goal"],
+                "same_time_unordered": False,
+            }
+        ]
+    }
+    semantics = {
+        "context_action_semantic_records": [
+            {
+                "context_id": "player_goal",
+                "row_nucleus_candidate_id": "rn_player_goal",
+                "source_role": "PLAYER",
+                "provider_semantics_review_status": "REVIEWED_CANDIDATE",
+                "provider_semantic_role_candidate": "TERMINAL_OUTCOME_CANDIDATE",
+                "provider_terminal_outcome_candidate": "GOAL",
+                "provider_downstream_eligibility": "TERMINAL_OUTCOME_ONLY",
+                "context_team_candidate": "TEAM_A",
+            }
+        ]
+    }
+    identities = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "teamc_A", "team_aliases_raw": ["TEAM_A"], "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND"},
+            {"team_identity_candidate_id": "teamc_B", "team_aliases_raw": ["TEAM_B"], "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND"},
+        ]
+    }
+    timeline = _score_state_timeline_candidates(episode, semantics, identities)
+
+    assert timeline["status"] == "DEGRADED"
+    assert timeline["goal_score_change_candidate_count"] == 0
+    assert timeline["cross_surface_goal_candidate_count"] == 0
+    assert timeline["cross_surface_goal_rejected_count"] == 1
+
+
 def test_degraded_score_timeline_does_not_invent_level_state():
     state = _team_score_state_at_episode_start(
         {
