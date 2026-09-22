@@ -164,7 +164,7 @@ def _bind_first_eligible_vs_horizon_semantics(payload: dict, trace_payload: dict
             horizon_family_presence_visible += 1
 
         if not admitted_rows:
-            record["first_eligible_consequence_binding_state"] = "NO_ADMITTED_AFTER_FOLLOWUP"
+            record["first_eligible_consequence_binding_state"] = "NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"
             record["first_eligible_follow_up_trace_ids"] = []
             record["first_eligible_action_family_candidates"] = []
             record["first_eligible_team_relation"] = "NONE"
@@ -172,7 +172,7 @@ def _bind_first_eligible_vs_horizon_semantics(payload: dict, trace_payload: dict
             record["primary_consequence_semantics"] = (
                 "NON_ACTION_OR_REVIEW_SEMANTICS_PRESERVED_WITHOUT_ADMITTED_FIRST_FOLLOWUP"
             )
-            record["time_to_first_admitted_visible_state_change_observation_state"] = "NO_ADMITTED_AFTER_FOLLOWUP"
+            record["time_to_first_admitted_visible_state_change_observation_state"] = "NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"
             continue
 
         starts = [_number(row.get("start_candidate")) for row in admitted_rows]
@@ -296,8 +296,15 @@ def _bind_first_eligible_vs_horizon_semantics(payload: dict, trace_payload: dict
         "distribution_values_seconds_candidate": timing_values,
         "distribution_is_descriptive_not_first_passage_model": True,
         "right_censoring_model_applied": False,
+        "diagnostic_observation_horizon_seconds": max(
+            [float(value) for value in (payload.get("window_seconds") or []) if isinstance(value, (int, float))],
+            default=None,
+        ),
+        "distribution_is_truncated_by_diagnostic_horizon": True,
+        "no_admitted_after_within_horizon_is_no_future_state_truth": False,
         "no_admitted_after_is_failure": False,
         "global_5_8_12_window_is_production_threshold": False,
+        "temporal_interpretation_state": "DIAGNOSTIC_HORIZON_TRUNCATED_DESCRIPTIVE_DISTRIBUTION",
         "graphability_state": "GRAPH_READY_WITH_REVIEW" if timing_values else "NOT_GRAPH_READY_NO_ADMITTED_TIMING",
         "recommended_graphs": [
             "TIME_TO_FIRST_ADMITTED_VISIBLE_STATE_CHANGE_ECDF",
