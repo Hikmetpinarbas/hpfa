@@ -56,15 +56,31 @@ def _team_names(identity_payload: dict[str, Any]) -> dict[str, str]:
 
 
 def _actor_names(identity_payload: dict[str, Any]) -> dict[str, str]:
+    """Expose human actor names only when identity is explicitly validated.
+
+    Match-local identity candidates are useful internal locators, but candidate binding
+    alone is not sufficient authority for human-facing player-name rendering.
+    """
     result: dict[str, str] = {}
     for row in identity_payload.get("actor_identity_candidates") or []:
         if not isinstance(row, dict):
+            continue
+        if row.get("validated_player_identity") is not True:
+            continue
+        if str(row.get("decision_state") or "") != "ACTOR_IDENTITY_CANDIDATE_BOUND":
             continue
         ref = str(row.get("actor_identity_candidate_id") or "").strip()
         name = str(row.get("actor_normalized_key") or "").strip()
         if ref and name:
             result[ref] = _pretty_key(name)
     return result
+
+
+def _actor_label(actor_ref: str | None, actors: dict[str, str]) -> str:
+    ref = str(actor_ref or "").strip()
+    if not ref:
+        return "UNRESOLVED_ACTOR"
+    return actors.get(ref, f"WITHHELD_MATCH_LOCAL_IDENTITY[{ref}]")
 
 
 def _grammar_label(tokens: list[Any]) -> str:
@@ -279,7 +295,7 @@ def _render_actor_locator(row: dict[str, Any] | None, actors: dict[str, str]) ->
         return "NO_ACTOR_LOCATOR_CONTRAST_EXPOSED"
     token = str(row.get("feature_token") or "")
     actor_ref = token.rsplit("actor_identity_candidate_ids:", 1)[-1].strip()
-    label = actors.get(actor_ref, actor_ref)
+    label = _actor_label(actor_ref, actors)
     success_n = int(row.get("success_visible_numerator") or 0)
     success_d = int(row.get("success_eligible_denominator") or 0)
     failure_n = int(row.get("failure_visible_numerator") or 0)
@@ -393,7 +409,7 @@ def _clip_locator_lines(
         except (TypeError, ValueError):
             anchor_sort = float("inf")
         branch_text = "; ".join(
-            f"{_fmt_clock(time_value)} {actors.get(actor_ref, actor_ref or 'UNRESOLVED_ACTOR')} "
+            f"{_fmt_clock(time_value)} {_actor_label(actor_ref, actors)} "
             f"{outcome.replace('_SEMANTIC_VISIBLE', '')} {family}"
             for outcome, time_value, actor_ref, family in family_profiles
         )
