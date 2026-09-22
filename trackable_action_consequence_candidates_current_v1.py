@@ -297,9 +297,14 @@ def _bind_first_eligible_vs_horizon_semantics(payload: dict, trace_payload: dict
         "distribution_is_descriptive_not_first_passage_model": True,
         "right_censoring_model_applied": False,
         "diagnostic_observation_horizon_seconds": max(
-            [float(value) for value in (payload.get("window_seconds") or []) if isinstance(value, (int, float))],
+            [
+                float(value)
+                for value in (payload.get("window_seconds") or consequence.WINDOW_SECONDS)
+                if isinstance(value, (int, float))
+            ],
             default=None,
         ),
+        "diagnostic_observation_horizon_basis": "UPSTREAM_CONSEQUENCE_DIAGNOSTIC_WINDOW_SECONDS",
         "distribution_is_truncated_by_diagnostic_horizon": True,
         "no_admitted_after_within_horizon_is_no_future_state_truth": False,
         "no_admitted_after_is_failure": False,
