@@ -1081,5 +1081,25 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     assert player["aggregate_context_is_mechanism_action_identity"] is False
     assert player["aggregate_context_is_player_quality_truth"] is False
     assert player["aggregate_context_is_causal_contribution_truth"] is False
+
+    review = card["analyst_review_contract"]
+    assert review["what_visible"]["resolved_variant_n"] == 3
+    assert review["what_visible"]["positive_visible_variant_n"] == 2
+    assert review["what_visible"]["negative_visible_variant_n"] == 1
+    assert review["support"]["visible_episode_spread_n"] >= 0
+    assert review["support"]["safe_finding_match_count"] == 1
+    assert review["uncertainty"]["independent_support_proven"] is False
+    assert review["uncertainty"]["branch_context_completeness_promoted"] is False
+    assert review["uncertainty"]["causal_explanation_admitted"] is False
+    assert "CAUSALITY" in review["forbidden_inference"]
+    assert "PLAYER_QUALITY_TRUTH" in review["forbidden_inference"]
+    assert review["safe_meaning"] == (
+        "MATCH_LOCAL_VISIBLE_VARIANT_DIFFERENCE_FOR_ANALYST_REVIEW"
+    )
+    assert review["creates_new_evidence"] is False
+    assert review["creates_independent_support"] is False
+    assert review["can_change_shortlist_selection"] is False
+    assert review["can_change_safe_finding_decision"] is False
+    assert review["can_authorize_emit"] is False
     assert card["can_authorize_emit"] is False
     assert card["can_strengthen_claim_ceiling"] is False

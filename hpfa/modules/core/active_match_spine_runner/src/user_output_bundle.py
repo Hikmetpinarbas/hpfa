@@ -1783,6 +1783,89 @@ def build_graph_ready_mechanism_cards_payload(
                 if safe_context
                 else "NO_SAFE_FINDING_CONTEXT_BOUND"
             ),
+            "analyst_review_contract": {
+                "what_visible": {
+                    "trace_grammar_tokens": [
+                        str(v) for v in (row.get("grammar_signature_tokens") or [])
+                    ],
+                    "process_context_binding_state": row.get("process_context_binding_state"),
+                    "single_process_family_candidate": row.get("single_process_family_candidate"),
+                    "resolved_variant_n": int(row.get("resolved_variant_count") or 0),
+                    "positive_visible_variant_n": int(
+                        row.get("success_resolved_variant_count") or 0
+                    ),
+                    "negative_visible_variant_n": int(
+                        row.get("failure_resolved_variant_count") or 0
+                    ),
+                    "first_visible_context_difference_layer_candidate": source_record.get(
+                        "first_supported_context_difference_layer_candidate"
+                    ),
+                    "first_visible_consequence_difference_layer_candidate": source_record.get(
+                        "first_supported_consequence_difference_layer_candidate"
+                    ),
+                },
+                "support": {
+                    "visible_episode_spread_n": int(
+                        row.get("visible_episode_spread_count") or 0
+                    ),
+                    "occurrence_disjoint_support_cluster_n": int(
+                        row.get("occurrence_disjoint_support_cluster_count") or 0
+                    ),
+                    "success_failure_supported_branch_divergence_n": int(
+                        row.get("success_failure_supported_branch_divergence_count") or 0
+                    ),
+                    "safe_finding_match_count": int(
+                        safe_context.get("safe_finding_match_count") or 0
+                    ),
+                },
+                "counterevidence": {
+                    "reason_codes": [
+                        str(v)
+                        for v in (row.get("mechanism_challenge_reason_codes") or [])
+                        if str(v)
+                    ],
+                    "counter_scenario_candidates": [
+                        str(v)
+                        for v in (row.get("mechanism_counter_scenario_candidates") or [])
+                        if str(v)
+                    ],
+                },
+                "uncertainty": {
+                    "provider_process_context_partial_count": int(
+                        safe_context.get("provider_process_context_partial_count") or 0
+                    ),
+                    "score_state_consensus": safe_context.get("score_state_consensus") is True,
+                    "provider_process_family_consensus": (
+                        safe_context.get("provider_process_family_consensus") is True
+                    ),
+                    "independent_support_proven": False,
+                    "branch_context_completeness_promoted": False,
+                    "causal_explanation_admitted": False,
+                },
+                "safe_meaning": "MATCH_LOCAL_VISIBLE_VARIANT_DIFFERENCE_FOR_ANALYST_REVIEW",
+                "forbidden_inference": [
+                    "CAUSALITY",
+                    "TACTICAL_PLAN_TRUTH",
+                    "SUPERIORITY_TRUTH",
+                    "PHYSICAL_SHAPE_TRUTH",
+                    "PLAYER_QUALITY_TRUTH",
+                ],
+                "withdrawal_conditions": [
+                    str(v)
+                    for v in (row.get("mechanism_withdrawal_conditions") or [])
+                    if str(v)
+                ],
+                "analyst_action": [
+                    "REVIEW_FIRST_VISIBLE_DIVERGENCE_ACROSS_COMPARABLE_VARIANTS",
+                    "CHECK_COUNTEREVIDENCE_AND_PARTIAL_CONTEXT",
+                    "INSPECT_PLAYER_CONTEXT_ONLY_AS_MATCH_LOCAL_CONTEXT",
+                ],
+                "creates_new_evidence": False,
+                "creates_independent_support": False,
+                "can_change_shortlist_selection": False,
+                "can_change_safe_finding_decision": False,
+                "can_authorize_emit": False,
+            },
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_VARIANT_MECHANISM_CANDIDATE_ONLY",
             "player_name_rendering_state": "VALIDATED_IDENTITY_ONLY",
             "creates_new_evidence": False,
