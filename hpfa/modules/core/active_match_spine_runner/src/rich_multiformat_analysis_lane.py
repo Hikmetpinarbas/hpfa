@@ -2491,6 +2491,13 @@ def _progression_pool_p02(
                 "zone_unresolved": False,
                 "penalty_area_entry_visible": False,
                 "shot_activity_after_anchor_visible": False,
+                "post_final_third_entry_shot_visible": False,
+                "post_final_third_entry_cross_visible": False,
+                "post_final_third_entry_turnover_visible": False,
+                "final_third_entry_layer_shot_visible": False,
+                "final_third_entry_layer_cross_visible": False,
+                "final_third_entry_layer_turnover_visible": False,
+                "post_final_third_entry_layer_count": 0,
                 "process_end_reason_candidate": unit.get("end_reason_candidate"),
                 "process_terminal_activity_candidate": unit.get("team_episode_terminal_activity_candidate"),
                 "process_has_shot_activity_visible": (
@@ -2549,6 +2556,52 @@ def _progression_pool_p02(
                         state["final_third_continuation_visible"] = True
                     else:
                         state["final_third_entry_visible"] = True
+                        entry_station = next(
+                            (
+                                station for station in after_stations
+                                if str(station.get("semantic_zone_candidate") or "")
+                                in {"FINAL_THIRD", "PENALTY_AREA"}
+                            ),
+                            None,
+                        )
+                        if isinstance(entry_station, dict):
+                            try:
+                                entry_time = float(entry_station.get("time_candidate"))
+                            except (TypeError, ValueError):
+                                entry_time = None
+                            if entry_time is not None:
+                                entry_layers = []
+                                post_entry_layers = []
+                                for layer in after_layers:
+                                    try:
+                                        layer_time = float(layer.get("time_candidate"))
+                                    except (TypeError, ValueError):
+                                        continue
+                                    if abs(layer_time - entry_time) <= 1e-6:
+                                        entry_layers.append(layer)
+                                    elif layer_time > entry_time:
+                                        post_entry_layers.append(layer)
+                                state["post_final_third_entry_layer_count"] = max(
+                                    int(state.get("post_final_third_entry_layer_count") or 0),
+                                    len(post_entry_layers),
+                                )
+                                def _layer_has_family(rows: list[dict[str, Any]], family: str) -> bool:
+                                    return any(
+                                        int((layer.get("action_family_multiset") or {}).get(family, 0) or 0) > 0
+                                        for layer in rows
+                                    )
+                                if _layer_has_family(entry_layers, "SHOT"):
+                                    state["final_third_entry_layer_shot_visible"] = True
+                                if _layer_has_family(entry_layers, "CROSS"):
+                                    state["final_third_entry_layer_cross_visible"] = True
+                                if _layer_has_family(entry_layers, "TURNOVER"):
+                                    state["final_third_entry_layer_turnover_visible"] = True
+                                if _layer_has_family(post_entry_layers, "SHOT"):
+                                    state["post_final_third_entry_shot_visible"] = True
+                                if _layer_has_family(post_entry_layers, "CROSS"):
+                                    state["post_final_third_entry_cross_visible"] = True
+                                if _layer_has_family(post_entry_layers, "TURNOVER"):
+                                    state["post_final_third_entry_turnover_visible"] = True
                 else:
                     state["no_final_third_visible"] = True
                 if "PENALTY_AREA" in after_zones and anchor_zone != "PENALTY_AREA":
@@ -2637,6 +2690,36 @@ def _progression_pool_p02(
                 1 for value in final_third_entry_units
                 if value.get("process_has_cross_activity_visible") is True
             ),
+            "final_third_entry_process_with_post_entry_shot_count": sum(
+                1 for value in final_third_entry_units
+                if value.get("post_final_third_entry_shot_visible") is True
+            ),
+            "final_third_entry_process_with_post_entry_cross_count": sum(
+                1 for value in final_third_entry_units
+                if value.get("post_final_third_entry_cross_visible") is True
+            ),
+            "final_third_entry_process_with_post_entry_turnover_count": sum(
+                1 for value in final_third_entry_units
+                if value.get("post_final_third_entry_turnover_visible") is True
+            ),
+            "final_third_entry_process_with_entry_layer_shot_count": sum(
+                1 for value in final_third_entry_units
+                if value.get("final_third_entry_layer_shot_visible") is True
+            ),
+            "final_third_entry_process_with_entry_layer_cross_count": sum(
+                1 for value in final_third_entry_units
+                if value.get("final_third_entry_layer_cross_visible") is True
+            ),
+            "final_third_entry_process_with_entry_layer_turnover_count": sum(
+                1 for value in final_third_entry_units
+                if value.get("final_third_entry_layer_turnover_visible") is True
+            ),
+            "final_third_entry_process_with_no_later_visible_layer_count": sum(
+                1 for value in final_third_entry_units
+                if int(value.get("post_final_third_entry_layer_count") or 0) == 0
+            ),
+            "post_entry_activity_excludes_entry_timestamp_layer": True,
+            "same_timestamp_entry_layer_internal_order_claimed": False,
             "terminal_boundary_is_process_outcome_truth": False,
             "shot_activity_is_chance_quality_truth": False,
             "max_anchor_windows_within_single_process_unit": max(anchor_window_counts, default=0),
