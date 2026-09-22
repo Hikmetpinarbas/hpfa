@@ -1795,6 +1795,10 @@ def test_p02_recurring_consequence_path_binds_to_opponent_advanced_access() -> N
         ]
     }
     semantics = {
+        "context_zone_ontology_id": "TEST_EXPLICIT_BOX_ZONE_V1",
+        "context_zone_domain": ["DEFENSIVE_THIRD", "MIDDLE_THIRD", "FINAL_THIRD", "PENALTY_AREA"],
+        "context_zone_final_third_observable": True,
+        "context_zone_penalty_area_observable": True,
         "context_action_semantic_records": [
             {"row_nucleus_candidate_id":"rn_turn","context_zone_candidate":"MIDDLE_THIRD"},
             {"row_nucleus_candidate_id":"rn_b1","context_zone_candidate":"MIDDLE_THIRD"},
@@ -1828,6 +1832,7 @@ def test_p02_recurring_consequence_path_binds_to_opponent_advanced_access() -> N
     assert row["access_unresolved_count"] == 0
     assert row["final_third_visible_count"] == 1
     assert row["no_final_third_visible_count"] == 0
+    assert row["penalty_area_access_evaluation_status"] == "EVALUABLE"
     assert row["penalty_area_visible_count"] == 0
     assert row["no_penalty_area_visible_count"] == 1
     assert row["zone_path_unresolved_count"] == 0
@@ -1907,6 +1912,10 @@ def test_p02_recovery_continuation_reads_only_post_anchor_same_team_access() -> 
         ]
     }
     semantics = {
+        "context_zone_ontology_id": "TEST_EXPLICIT_BOX_ZONE_V1",
+        "context_zone_domain": ["DEFENSIVE_THIRD", "MIDDLE_THIRD", "FINAL_THIRD", "PENALTY_AREA"],
+        "context_zone_final_third_observable": True,
+        "context_zone_penalty_area_observable": True,
         "context_action_semantic_records": [
             {"row_nucleus_candidate_id":"rn_rec","context_zone_candidate":"MIDDLE_THIRD"},
             {"row_nucleus_candidate_id":"rn_p1","context_zone_candidate":"MIDDLE_THIRD"},
@@ -1935,6 +1944,7 @@ def test_p02_recovery_continuation_reads_only_post_anchor_same_team_access() -> 
     assert row["severity_evaluation_scope"] == "POST_RECOVERY_SAME_TEAM_CONTINUATION_ONLY"
     assert row["same_team_process_bound_count"] == 1
     assert row["final_third_visible_count"] == 1
+    assert row["penalty_area_access_evaluation_status"] == "EVALUABLE"
     assert row["penalty_area_visible_count"] == 0
     assert row["shot_activity_visible_count"] == 0
     assert row["post_recovery_zone_route_counts"] == {"MIDDLE_THIRD->FINAL_THIRD": 1}
@@ -2024,3 +2034,43 @@ def test_p02_same_team_pass_windows_collapse_to_unique_process_units() -> None:
     assert profile["anchor_window_count_is_process_denominator"] is False
     assert profile["unique_process_unit_count_is_independent_evidence_count"] is False
     assert profile["same_process_multiple_anchor_reflection_possible"] is True
+
+
+def test_p02_thirds_only_zone_surface_marks_penalty_area_unobservable() -> None:
+    p02 = _progression_pool_p02(
+        {},
+        {},
+        {},
+        {},
+        {
+            "context_zone_ontology_id": "THIRDS_ONLY_V1",
+            "context_zone_domain": ["DEFENSIVE_THIRD", "MIDDLE_THIRD", "FINAL_THIRD"],
+            "context_zone_final_third_observable": True,
+            "context_zone_penalty_area_observable": False,
+            "context_zone_penalty_area_unobservable_reason": "THIRDS_ONLY_ZONE_ONTOLOGY",
+        },
+    )
+
+    assert p02["final_third_access_evaluable"] is True
+    assert p02["penalty_area_access_evaluable"] is False
+    assert p02["penalty_area_access_evaluation_status"] == "UNOBSERVABLE_WITH_CURRENT_DATA"
+    assert p02["penalty_area_access_unobservable_reason"] == "THIRDS_ONLY_ZONE_ONTOLOGY"
+
+
+def test_p02_explicit_box_capability_can_be_evaluable_without_provider_hardcoding() -> None:
+    p02 = _progression_pool_p02(
+        {},
+        {},
+        {},
+        {},
+        {
+            "context_zone_ontology_id": "ANY_FUTURE_EXPLICIT_BOX_ZONE",
+            "context_zone_domain": ["DEFENSIVE_THIRD", "MIDDLE_THIRD", "FINAL_THIRD", "PENALTY_AREA"],
+            "context_zone_final_third_observable": True,
+            "context_zone_penalty_area_observable": True,
+        },
+    )
+
+    assert p02["penalty_area_access_evaluable"] is True
+    assert p02["penalty_area_access_evaluation_status"] == "EVALUABLE"
+    assert p02["penalty_area_access_unobservable_reason"] is None
