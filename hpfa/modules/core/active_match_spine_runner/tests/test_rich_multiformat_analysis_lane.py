@@ -1858,6 +1858,23 @@ def test_p02_professional_finding_target_homogeneous_observed_does_not_claim_var
     assert "general attack success" in finding["SAFE_MEANING"]
 
 
+def test_p02_finding_admission_blocks_target_satisfied_at_process_start():
+    episode, identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
+    for row in semantics["context_action_semantic_records"]:
+        if row.get("row_nucleus_candidate_id") in {"rn_r1", "rn_r2", "rn_c1", "rn_c2"}:
+            row["context_zone_candidate"] = "FINAL_THIRD"
+    p02 = _progression_pool_p02(
+        {}, {}, episode, {}, semantics, identities, visible_sequence, trace, evidence,
+    )
+    finding = p02["professional_finding_target_candidates"][0]
+    assert finding["exact_context"]["process_start_zone_candidate"] == "FINAL_THIRD"
+    assert finding["finding_focus"] == "TARGET_OBSERVED_ONLY_IN_RESOLVED_POPULATION"
+    assert finding["finding_admission_decision"] == "REVIEW_REQUIRED"
+    assert "target_already_satisfied_at_process_start_zone" in finding["finding_admission_reasons"]
+    assert finding["claim_output_allowed"] is False
+    assert finding["production_release"] is False
+
+
 def test_p02_c4_packet_is_claim_bounded_and_does_not_invent_support():
     episode, identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
     p02 = _progression_pool_p02(
