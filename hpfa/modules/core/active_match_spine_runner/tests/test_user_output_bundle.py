@@ -704,3 +704,75 @@ def test_current_run_context_fingerprint_is_stable_for_same_declared_context(tmp
     assert second["current_run_context_fingerprint_sha256"] == first["current_run_context_fingerprint_sha256"]
     assert second["artifact_manifest_digest_sha256"] == first["artifact_manifest_digest_sha256"]
     assert second["input_snapshot"]["fingerprint_sha256"] == first["input_snapshot"]["fingerprint_sha256"]
+
+def test_mechanism_safe_context_uses_only_common_preoutcome_context(tmp_path):
+    sequence = {
+        "safe_finding_handoff_candidates": [
+            {
+                "safe_finding_handoff_candidate_id": "sfh_1",
+                "source_first_supported_branch_divergence_ref": "fsbd_1",
+            },
+            {
+                "safe_finding_handoff_candidate_id": "sfh_2",
+                "source_first_supported_branch_divergence_ref": "fsbd_2",
+            },
+        ]
+    }
+    admission = {
+        "safe_finding_admission_decisions": [
+            {
+                "source_safe_finding_handoff_ref": "sfh_1",
+                "decision": "ABSTAIN",
+                "claim_output_allowed": False,
+                "branch_preoutcome_context_enrichment": {
+                    "state": "PRE_BRANCH_CONTEXT_ENRICHED_GAME_STATE_AND_PROCESS",
+                    "score_state_candidate": {"Alpha": 0, "Beta": 0},
+                    "provider_process_family_candidates": ["POSITIONAL_ATTACK_CANDIDATE"],
+                },
+            },
+            {
+                "source_safe_finding_handoff_ref": "sfh_2",
+                "decision": "ABSTAIN",
+                "claim_output_allowed": False,
+                "branch_preoutcome_context_enrichment": {
+                    "state": "PRE_BRANCH_CONTEXT_ENRICHED_PARTIAL",
+                    "score_state_candidate": {"Alpha": 0, "Beta": 0},
+                    "provider_process_family_candidates": [],
+                },
+            },
+        ]
+    }
+    process_variant = {
+        "observable_process_variant_families": [
+            {
+                "observable_process_variant_family_id": "opvf_1",
+                "supported_branch_divergence_bindings": [
+                    {"source_first_supported_branch_divergence_ref": "fsbd_1"},
+                    {"source_first_supported_branch_divergence_ref": "fsbd_2"},
+                ],
+            }
+        ]
+    }
+    seq_path = tmp_path / user_output_bundle.VISIBLE_SEQUENCE_JSON
+    adm_path = tmp_path / user_output_bundle.SAFE_FINDING_ADMISSION_JSON
+    seq_path.write_text(json.dumps(sequence), encoding="utf-8")
+    adm_path.write_text(json.dumps(admission), encoding="utf-8")
+    spine = _full_spine(current_artifacts=[str(seq_path), str(adm_path)])
+
+    result = user_output_bundle._mechanism_safe_context_by_family(
+        tmp_path, spine, process_variant
+    )
+    row = result["opvf_1"]
+    assert row["score_state_consensus"] is True
+    assert row["score_state_candidate"] == {"Alpha": 0, "Beta": 0}
+    assert row["provider_process_family_consensus"] is True
+    assert row["provider_process_family_candidates"] == [
+        "POSITIONAL_ATTACK_CANDIDATE"
+    ]
+    assert row["provider_process_context_partial_count"] == 1
+    assert row["emit_decision_count"] == 0
+    assert row["creates_new_evidence"] is False
+    assert row["creates_independent_support"] is False
+    assert row["can_change_shortlist_selection"] is False
+    assert row["can_change_safe_finding_decision"] is False
+    assert row["can_authorize_emit"] is False

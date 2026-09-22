@@ -33,6 +33,8 @@ FEATURE_DELTA_JSON = "grammar_stable_variant_feature_delta_projection_v1.json"
 PROCESS_VARIANT_JSON = "observable_process_variant_binding_projection_v1.json"
 PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
 VARIANT_FEATURE_CHALLENGE_JSON = "variant_feature_challenge_projection_v1.json"
+SAFE_FINDING_ADMISSION_JSON = "safe_finding_admission_projection_v1.json"
+VISIBLE_SEQUENCE_JSON = "visible_action_sequence_candidates_lite_v1.json"
 MULTIFORMAT_INVENTORY_JSON = "multiformat_file_inventory_lite_v1.json"
 
 
@@ -944,6 +946,136 @@ def _mechanism_visible_split_sentence(record: dict[str, Any], language: str) -> 
     )
 
 
+
+def _score_state_human(score_state: dict[str, Any] | None, language: str) -> str:
+    if not isinstance(score_state, dict) or not score_state:
+        return ""
+    parts = []
+    for team, value in score_state.items():
+        try:
+            score = int(value)
+        except (TypeError, ValueError):
+            continue
+        parts.append(f"{_display_label(team)} {score}")
+    if not parts:
+        return ""
+    return " - ".join(parts)
+
+
+def _mechanism_safe_context_by_family(
+    root: Path,
+    full_spine: dict[str, Any],
+    process_variant_payload: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    if not (
+        _declared_current(full_spine, SAFE_FINDING_ADMISSION_JSON)
+        and _declared_current(full_spine, VISIBLE_SEQUENCE_JSON)
+    ):
+        return {}
+    admission = _load_json(root / SAFE_FINDING_ADMISSION_JSON)
+    sequence = _load_json(root / VISIBLE_SEQUENCE_JSON)
+    if not admission or not sequence:
+        return {}
+
+    handoffs = {
+        str(row.get("safe_finding_handoff_candidate_id") or "").strip(): row
+        for row in (sequence.get("safe_finding_handoff_candidates") or [])
+        if isinstance(row, dict)
+        and str(row.get("safe_finding_handoff_candidate_id") or "").strip()
+    }
+    decisions = {
+        str(row.get("source_safe_finding_handoff_ref") or "").strip(): row
+        for row in (admission.get("safe_finding_admission_decisions") or [])
+        if isinstance(row, dict)
+        and str(row.get("source_safe_finding_handoff_ref") or "").strip()
+    }
+
+    by_divergence: dict[str, list[dict[str, Any]]] = {}
+    for handoff_id, handoff in handoffs.items():
+        divergence_ref = str(
+            handoff.get("source_first_supported_branch_divergence_ref") or ""
+        ).strip()
+        decision = decisions.get(handoff_id)
+        if divergence_ref and isinstance(decision, dict):
+            by_divergence.setdefault(divergence_ref, []).append(decision)
+
+    result: dict[str, dict[str, Any]] = {}
+    for family in process_variant_payload.get("observable_process_variant_families") or []:
+        if not isinstance(family, dict):
+            continue
+        family_ref = str(
+            family.get("observable_process_variant_family_id") or ""
+        ).strip()
+        if not family_ref:
+            continue
+        divergence_refs = {
+            str(binding.get("source_first_supported_branch_divergence_ref") or "").strip()
+            for binding in (family.get("supported_branch_divergence_bindings") or [])
+            if isinstance(binding, dict)
+            and str(binding.get("source_first_supported_branch_divergence_ref") or "").strip()
+        }
+        matched = [
+            row
+            for divergence_ref in divergence_refs
+            for row in by_divergence.get(divergence_ref, [])
+        ]
+        if not matched:
+            continue
+
+        score_states: dict[str, dict[str, Any]] = {}
+        process_families: list[tuple[str, ...]] = []
+        context_states: Counter = Counter()
+        for decision in matched:
+            context = decision.get("branch_preoutcome_context_enrichment") or {}
+            if not isinstance(context, dict):
+                continue
+            state = str(context.get("state") or "").strip()
+            if state:
+                context_states[state] += 1
+            score_state = context.get("score_state_candidate")
+            if isinstance(score_state, dict) and score_state:
+                key = json.dumps(score_state, ensure_ascii=False, sort_keys=True)
+                score_states[key] = score_state
+            process_families.append(
+                tuple(
+                    str(value)
+                    for value in (context.get("provider_process_family_candidates") or [])
+                    if str(value)
+                )
+            )
+
+        nonempty_process = [value for value in process_families if value]
+        unique_process = sorted(set(nonempty_process))
+        result[family_ref] = {
+            "safe_finding_match_count": len(matched),
+            "score_state_consensus": len(score_states) == 1,
+            "score_state_candidate": (
+                next(iter(score_states.values())) if len(score_states) == 1 else None
+            ),
+            "provider_process_family_consensus": len(unique_process) == 1,
+            "provider_process_family_candidates": (
+                list(unique_process[0]) if len(unique_process) == 1 else []
+            ),
+            "provider_process_context_partial_count": (
+                len(process_families) - len(nonempty_process)
+            ),
+            "preoutcome_context_state_counts": dict(sorted(context_states.items())),
+            "emit_decision_count": sum(
+                str(row.get("decision") or "").upper() == "EMIT" for row in matched
+            ),
+            "claim_output_allowed_count": sum(
+                row.get("claim_output_allowed") is True for row in matched
+            ),
+            "context_is_preoutcome_only": True,
+            "creates_new_evidence": False,
+            "creates_independent_support": False,
+            "can_change_shortlist_selection": False,
+            "can_change_safe_finding_decision": False,
+            "can_authorize_emit": False,
+        }
+    return result
+
+
 def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     if not _declared_current(full_spine, FEATURE_DELTA_JSON):
         return []
@@ -979,6 +1111,11 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         limit=5,
     )
     teams = _human_team_labels(identity)
+    safe_context_by_family = _mechanism_safe_context_by_family(
+        root,
+        full_spine,
+        process_variant_payload,
+    )
     source_records = {
         str(record.get("grammar_stable_variant_feature_delta_id") or ""): record
         for record in (payload.get("grammar_stable_variant_feature_delta_records") or [])
@@ -1000,6 +1137,10 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         support_state = str(row.get("review_support_state") or "")
         single_episode_only = support_state.startswith("SINGLE_EPISODE_")
         source_record = source_records.get(str(row.get("source_mechanism_review_ref") or ""), {})
+        safe_context = safe_context_by_family.get(
+            str(row.get("source_process_variant_family_ref") or ""),
+            {},
+        )
         if language == "tr":
             prefix = "Sınırlı karşılaştırma" if single_episode_only else "İnceleme noktası"
             football = (
@@ -1011,6 +1152,34 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 football += " Bu karşılaştırma tek görünür maç bölümünde yoğunlaştığı için ana mekanizma olarak yorumlanmamalıdır."
             else:
                 football += _mechanism_visible_split_sentence(source_record, language)
+            if safe_context:
+                if safe_context.get("score_state_consensus") is True:
+                    score_text = _score_state_human(
+                        safe_context.get("score_state_candidate"),
+                        language,
+                    )
+                    if score_text:
+                        football += (
+                            f" Skor bağlamı: bu mekanizma ailesiyle bağlanan Safe Finding örneklerinde ortak görünür skor durumu {score_text}."
+                        )
+                if safe_context.get("provider_process_family_consensus") is True:
+                    families = [
+                        _football_family_label(value, language)
+                        for value in (
+                            safe_context.get("provider_process_family_candidates") or []
+                        )
+                    ]
+                    if families:
+                        football += (
+                            f" Branch öncesi süreç bağlamı: ortak görünür süreç {', '.join(families)}."
+                        )
+                partial_n = int(
+                    safe_context.get("provider_process_context_partial_count") or 0
+                )
+                if partial_n:
+                    football += (
+                        f" {partial_n} bağlı Safe Finding örneğinde provider süreç bağlamı tekil çözülemedi; bu örnekler kısmi bağlam olarak korunuyor."
+                    )
             context_state = str(row.get("process_context_binding_state") or "")
             context_counts = dict(row.get("process_family_episode_presence_counts") or {})
             if context_state == "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT":
@@ -1054,6 +1223,34 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 football += " This comparison is concentrated in one visible match segment and should not be treated as a main mechanism."
             else:
                 football += _mechanism_visible_split_sentence(source_record, language)
+            if safe_context:
+                if safe_context.get("score_state_consensus") is True:
+                    score_text = _score_state_human(
+                        safe_context.get("score_state_candidate"),
+                        language,
+                    )
+                    if score_text:
+                        football += (
+                            f" Score context: Safe Finding examples bound to this mechanism family share the visible score state {score_text}."
+                        )
+                if safe_context.get("provider_process_family_consensus") is True:
+                    families = [
+                        _football_family_label(value, language)
+                        for value in (
+                            safe_context.get("provider_process_family_candidates") or []
+                        )
+                    ]
+                    if families:
+                        football += (
+                            f" Pre-branch process context: the common visible process is {', '.join(families)}."
+                        )
+                partial_n = int(
+                    safe_context.get("provider_process_context_partial_count") or 0
+                )
+                if partial_n:
+                    football += (
+                        f" {partial_n} bound Safe Finding examples do not have a unique provider-process context and remain partial."
+                    )
             context_state = str(row.get("process_context_binding_state") or "")
             context_counts = dict(row.get("process_family_episode_presence_counts") or {})
             if context_state == "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT":
