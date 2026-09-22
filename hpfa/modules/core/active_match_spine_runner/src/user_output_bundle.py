@@ -1501,6 +1501,43 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
     return cards
 
 
+def _human_sequence_information_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
+    c03 = (rich.get("constructs") or {}).get("C03") or {}
+    info = c03.get("process_sequence_information") or {}
+    profiles = [row for row in (info.get("team_process_family_profiles") or []) if isinstance(row, dict)]
+    if not profiles:
+        return []
+    teams = _human_team_labels(identity)
+    cards: list[str] = []
+    for row in sorted(profiles, key=lambda x: (-int(x.get("eligible_process_signature_n") or 0), str(x.get("team_identity_candidate_id") or ""), str(x.get("process_family_candidate") or "")))[:8]:
+        team_id = str(row.get("team_identity_candidate_id") or "UNKNOWN")
+        team = teams.get(team_id, team_id)
+        family = str(row.get("process_family_candidate") or "UNKNOWN")
+        n = int(row.get("eligible_process_signature_n") or 0)
+        variants = int(row.get("distinct_trace_variant_n") or 0)
+        transitions = int(row.get("transition_count") or 0)
+        duration = (row.get("process_duration_profile") or {}).get("median_process_interval_seconds_candidate")
+        top = (row.get("trace_variant_counts") or [])[:1]
+        top_text = str(top[0].get("trace_variant")) if top and isinstance(top[0], dict) else "UNKNOWN"
+        top_n = int(top[0].get("process_n") or 0) if top and isinstance(top[0], dict) else 0
+        if language == "tr":
+            text = f"{team} — {family}: {n} görünür süreç, {variants} trace varyantı, {transitions} ardışık layer geçişi."
+            if isinstance(duration, (int, float)):
+                text += f" Medyan süreç aralığı {float(duration):.1f} sn."
+            if top_n:
+                text += f" En sık görünür trace: {top_text} ({top_n})."
+            text += " Bu profil görünür süreç çeşitliliğini ve geçiş dağılımını betimler; taktik niyet veya nedensellik çıkarmaz."
+        else:
+            text = f"{team} — {family}: {n} visible processes, {variants} trace variants, {transitions} ordered layer transitions."
+            if isinstance(duration, (int, float)):
+                text += f" Median process interval {float(duration):.1f}s."
+            if top_n:
+                text += f" Most frequent visible trace: {top_text} ({top_n})."
+            text += " This profile describes visible process diversity and transition distribution within a match-local descriptive claim scope; tactical-intent and causal constructs require their own admitted evidence."
+        cards.append(text)
+    return cards
+
+
 def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str, Any]) -> str:
     root = Path(output_root)
     rich_current = _rich_surface_current(full_spine)
@@ -1510,6 +1547,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     c02_cards = _human_c02_cards(rich, "tr") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "tr") if rich_current else []
+    sequence_cards = _human_sequence_information_cards(rich, identity, "tr") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "tr")
     lines = [
         "HPFA MAÇ ANALİZİ — TÜRKÇE ANALİST RAPORU",
@@ -1523,24 +1561,29 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in team_cards)
     else:
         lines.append("- Bu maçta takım süreç profili güvenli biçimde üretilemedi.")
-    lines.extend(["", "[2] OYUNCU / İKİLİ × HÜCUM SONUCU"])
+    lines.extend(["", "[2] SEQUENCE / PROCESS INTELLIGENCE"])
+    if sequence_cards:
+        lines.extend(f"- {line}" for line in sequence_cards)
+    else:
+        lines.append("- Bu maçta sequence/process information profili üretilemedi.")
+    lines.extend(["", "[3] OYUNCU / İKİLİ × HÜCUM SONUCU"])
     if c02_cards:
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- Bu maçta bu başlık için güvenli biçimde raporlanabilir current-run aday yok.")
-    lines.extend(["", "[3] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
+    lines.extend(["", "[4] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- Bu maçta iki takım için karşılaştırılabilir süreç çarpışma yüzeyi üretilemedi.")
-    lines.extend(["", "[4] AYNI HÜCUM BAŞLANGICININ AYRIŞAN SONUÇLARI"])
+    lines.extend(["", "[5] AYNI HÜCUM BAŞLANGICININ AYRIŞAN SONUÇLARI"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde kısa listeye alınmış mekanizma adayı yok.")
     lines.extend([
         "",
-        "[5] ANALİST OKUMA ÇERÇEVESİ",
+        "[6] ANALİST OKUMA ÇERÇEVESİ",
         "- Oyuncu ve ikili yüzeyi, görünür süreç katılımı ile sonuç bağlantısını maç-içi association olarak sunar.",
         "- Hedef sonuç etiketi çözülmeyen süreçler unresolved outcome statüsünde izlenir.",
         "- Sıralama, analistin hangi örneklere önce bakacağını belirleyen maç-içi dikkat sırasıdır.",
@@ -1560,6 +1603,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     c02_cards = _human_c02_cards(rich, "en") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "en") if rich_current else []
+    sequence_cards = _human_sequence_information_cards(rich, identity, "en") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "en")
     lines = [
         "HPFA MATCH ANALYSIS — ENGLISH ANALYST REPORT",
@@ -1573,24 +1617,29 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in team_cards)
     else:
         lines.append("- No safe current-run team process profile is available.")
-    lines.extend(["", "[2] PLAYER / PAIR × ATTACK OUTCOME"])
+    lines.extend(["", "[2] SEQUENCE / PROCESS INTELLIGENCE"])
+    if sequence_cards:
+        lines.extend(f"- {line}" for line in sequence_cards)
+    else:
+        lines.append("- No sequence/process information profile is available for this run.")
+    lines.extend(["", "[3] PLAYER / PAIR × ATTACK OUTCOME"])
     if c02_cards:
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- No current-run candidate can be reported safely under this heading.")
-    lines.extend(["", "[3] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
+    lines.extend(["", "[4] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- No comparable two-team process contest surface is available for this run.")
-    lines.extend(["", "[4] DIVERGING OUTCOMES FROM THE SAME ATTACKING START"])
+    lines.extend(["", "[5] DIVERGING OUTCOMES FROM THE SAME ATTACKING START"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- No mechanism candidate was safely shortlisted in this run.")
     lines.extend([
         "",
-        "[5] ANALYST READING FRAME",
+        "[6] ANALYST READING FRAME",
         "- Player and pair surfaces present visible process involvement and outcome linkage as match-local associations.",
         "- Processes with unresolved target outcomes remain in the unresolved-outcome state.",
         "- Ranking is a match-local analyst-attention order.",

@@ -16,6 +16,7 @@ from hpfa.modules.core.multiformat_file_inventory_lite.src import multiformat_fi
 from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader import native_reader as xlsx
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import build_projection
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_sequence_grammar_alignment_projection import build_supported_sequence_grammar_alignment
+from hpfa.modules.core.active_match_spine_runner.src.process_sequence_information import build_process_sequence_information
 
 MODULE_ID = "rich_multiformat_analysis_lattice_v1"
 OUTPUT_JSON = "rich_multiformat_analysis_lattice_v1.json"
@@ -3478,11 +3479,14 @@ def _construct_c03(
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_VARIANT_CONTEXT_DESCRIPTION_ONLY",
         })
 
+    sequence_information = build_process_sequence_information(signatures)
+
     return {
         "construct_id": "C03_PROCESS_DEVELOPMENT_SIGNATURE",
         "status": "REVIEW_REQUIRED" if signatures else "NOT_APPLICABLE",
         "signature_count": len(signatures),
         "signatures": signatures,
+        "process_sequence_information": sequence_information,
         "process_motif_family_candidate_count": len(process_motif_family_candidates),
         "recurring_process_motif_family_candidate_count": sum(
             bool(row.get("recurring_motif_candidate")) for row in process_motif_family_candidates
