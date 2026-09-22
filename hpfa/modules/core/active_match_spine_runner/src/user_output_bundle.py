@@ -250,7 +250,16 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
             final_third = int(row.get("final_third_visible_count") or 0)
             no_final_third = int(row.get("no_final_third_visible_count") or 0)
             unresolved = int(row.get("zone_path_unresolved_count") or 0)
-            box = int(row.get("penalty_area_visible_count") or 0)
+            penalty_status = str(
+                row.get("penalty_area_access_evaluation_status")
+                or p02.get("penalty_area_access_evaluation_status")
+                or "NOT_EVALUATED"
+            )
+            box_text = (
+                f"ceza-sahasi gorundu={int(row.get('penalty_area_visible_count') or 0)}"
+                if penalty_status == "EVALUABLE"
+                else "ceza sahasi erisimi bu surec-bolge yuzeyinde mevcut veriyle gozlenemiyor"
+            )
             shots = int(row.get("shot_activity_visible_count") or 0)
             routes = row.get("response_zone_route_counts") or {}
             dominant_route = ""
@@ -264,7 +273,7 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
                 f"- {team_name}: gorunur devami degerlendirilebilir {eligible} top-kaybi adayinin {visible}'inde "
                 f"rakip ilk iki devam katmanini pas -> pas ile surdurdu; bunlarin {bound}'i sonraki rakip oyun surecine "
                 f"baglanabildi. Bu baglarda final-third gorundu={final_third}, final-third gorunmedi={no_final_third}, "
-                f"bolge sonucu cozulmedi={unresolved}, ceza-sahasi gorundu={box}, sut aktivitesi gorundu={shots}"
+                f"bolge sonucu cozulmedi={unresolved}, {box_text}, sut aktivitesi gorundu={shots}"
                 f"{dominant_route}."
             )
 
