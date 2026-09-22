@@ -2374,6 +2374,17 @@ def _progression_pool_p02(
                 "zone_unresolved": False,
                 "penalty_area_entry_visible": False,
                 "shot_activity_after_anchor_visible": False,
+                "process_end_reason_candidate": unit.get("end_reason_candidate"),
+                "process_terminal_activity_candidate": unit.get("team_episode_terminal_activity_candidate"),
+                "process_has_shot_activity_visible": (
+                    int((unit.get("action_family_counts") or {}).get("SHOT", 0) or 0) > 0
+                ),
+                "process_has_turnover_activity_visible": (
+                    int((unit.get("action_family_counts") or {}).get("TURNOVER", 0) or 0) > 0
+                ),
+                "process_has_cross_activity_visible": (
+                    int((unit.get("action_family_counts") or {}).get("CROSS", 0) or 0) > 0
+                ),
             })
             state["anchor_window_count"] += 1
 
@@ -2434,6 +2445,19 @@ def _progression_pool_p02(
             int(value.get("anchor_window_count") or 0)
             for value in per_unit.values()
         ]
+        final_third_entry_units = [
+            value for value in per_unit.values()
+            if value.get("final_third_entry_visible") is True
+        ]
+        final_third_entry_end_reason_counts = Counter(
+            str(value.get("process_end_reason_candidate") or "UNRESOLVED")
+            for value in final_third_entry_units
+        )
+        final_third_entry_terminal_activity_counts = Counter(
+            str(value.get("process_terminal_activity_candidate") or "UNRESOLVED")
+            for value in final_third_entry_units
+        )
+
         same_team_continuation_process_profiles.append({
             "visible_consequence_path_signature": recurrence.get("visible_consequence_path_signature"),
             "team_identity_candidate_id": recurrence.get("team_identity_candidate_id"),
@@ -2467,6 +2491,27 @@ def _progression_pool_p02(
                 1 for value in per_unit.values()
                 if value.get("shot_activity_after_anchor_visible") is True
             ),
+            "final_third_entry_process_unit_count": len(final_third_entry_units),
+            "final_third_entry_process_end_reason_counts": dict(
+                sorted(final_third_entry_end_reason_counts.items())
+            ),
+            "final_third_entry_process_terminal_activity_counts": dict(
+                sorted(final_third_entry_terminal_activity_counts.items())
+            ),
+            "final_third_entry_process_with_shot_activity_count": sum(
+                1 for value in final_third_entry_units
+                if value.get("process_has_shot_activity_visible") is True
+            ),
+            "final_third_entry_process_with_turnover_activity_count": sum(
+                1 for value in final_third_entry_units
+                if value.get("process_has_turnover_activity_visible") is True
+            ),
+            "final_third_entry_process_with_cross_activity_count": sum(
+                1 for value in final_third_entry_units
+                if value.get("process_has_cross_activity_visible") is True
+            ),
+            "terminal_boundary_is_process_outcome_truth": False,
+            "shot_activity_is_chance_quality_truth": False,
             "max_anchor_windows_within_single_process_unit": max(anchor_window_counts, default=0),
             "process_binding_missing_count": binding_missing_count,
             "process_binding_ambiguous_count": binding_ambiguous_count,
