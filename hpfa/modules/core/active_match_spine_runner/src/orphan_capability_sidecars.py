@@ -127,7 +127,11 @@ def finalize_metric_governance_sidecar(
     report["hard_block_hits"] = _dedupe(hard_blocks)
     report["review_hits"] = _dedupe(review_hits)
     report["current_invocation_artifacts"] = sorted(set(artifacts))
-    report["status"] = "REVIEW_REQUIRED" if report["hard_block_hits"] or report["review_hits"] else "SMOKE_PASS"
+    report["status"] = (
+        "FAIL_CLOSED"
+        if report["hard_block_hits"]
+        else ("REVIEW_REQUIRED" if report["review_hits"] else "SMOKE_PASS")
+    )
     return report
 
 
@@ -524,7 +528,7 @@ def run_sidecars(
 
     return {
         "module_id": MODULE_ID,
-        "status": "REVIEW_REQUIRED" if hard_blocks or review_hits else "SMOKE_PASS",
+        "status": "FAIL_CLOSED" if hard_blocks else ("REVIEW_REQUIRED" if review_hits else "SMOKE_PASS"),
         "active_match_analyst_report_lite_status": baseline_status,
         "triplex_source_alignment_status": triplex_status,
         "triplex_source_alignment_prerequisite_present": mapping_present,
