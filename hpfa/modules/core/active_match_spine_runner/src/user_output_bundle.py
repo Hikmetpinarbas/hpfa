@@ -26,6 +26,7 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_sentence
 ANALYST_REPORT = "HPFA_ANALYST_REPORT.txt"
 ANALYST_REPORT_TR = "HPFA_ANALYST_REPORT_TR.txt"
 ANALYST_REPORT_EN = "HPFA_ANALYST_REPORT_EN.txt"
+MECHANISM_CARDS_GRAPH_JSON = "HPFA_MECHANISM_CARDS_GRAPH_READY.json"
 BUNDLE_MANIFEST = "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"
 BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
 EPISODE_FEATURE_JSON = "episode_feature_vector_lite_v1.json"
@@ -1599,6 +1600,131 @@ def _human_sequence_information_cards(rich: dict[str, Any], identity: dict[str, 
     return cards
 
 
+def build_graph_ready_mechanism_cards_payload(
+    output_root: str | Path,
+    full_spine: dict[str, Any],
+) -> dict[str, Any]:
+    root = Path(output_root)
+    if not _declared_current(full_spine, FEATURE_DELTA_JSON):
+        return {
+            "module_id": "mechanism_cards_graph_ready_v1",
+            "status": "NOT_EVALUATED",
+            "cards": [],
+            "card_count": 0,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+
+    payload = _load_json(root / FEATURE_DELTA_JSON)
+    analyst_output = (
+        _load_json(root / ANALYST_OUTPUT_CLAIM_JSON)
+        if _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON)
+        else {}
+    )
+    process_variant_payload = (
+        _load_json(root / PROCESS_VARIANT_JSON)
+        if _declared_current(full_spine, PROCESS_VARIANT_JSON)
+        else {}
+    )
+    process_participation_payload = (
+        _load_json(root / PROCESS_PARTICIPATION_JSON)
+        if _declared_current(full_spine, PROCESS_PARTICIPATION_JSON)
+        else {}
+    )
+    variant_feature_challenge_payload = (
+        _load_json(root / VARIANT_FEATURE_CHALLENGE_JSON)
+        if _declared_current(full_spine, VARIANT_FEATURE_CHALLENGE_JSON)
+        else {}
+    )
+    identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
+    teams = _human_team_labels(identity)
+
+    shortlist = build_mechanism_story_review_shortlist(
+        payload,
+        analyst_output_claim_payload=analyst_output or None,
+        process_variant_payload=process_variant_payload or None,
+        process_participation_payload=process_participation_payload or None,
+        variant_feature_challenge_payload=variant_feature_challenge_payload or None,
+        limit=5,
+    )
+    source_records = {
+        str(record.get("grammar_stable_variant_feature_delta_id") or ""): record
+        for record in (payload.get("grammar_stable_variant_feature_delta_records") or [])
+        if isinstance(record, dict)
+    }
+
+    cards: list[dict[str, Any]] = []
+    for idx, row in enumerate(shortlist.get("shortlist") or [], start=1):
+        if not isinstance(row, dict):
+            continue
+        source_record = source_records.get(str(row.get("source_mechanism_review_ref") or ""), {})
+        team_ids = [str(v) for v in (row.get("team_identity_candidate_ids") or []) if str(v)]
+        process_counts = dict(row.get("process_family_episode_presence_counts") or {})
+        support_state = str(row.get("review_support_state") or "")
+        single_episode_only = support_state.startswith("SINGLE_EPISODE_")
+        cards.append({
+            "card_index": idx,
+            "classification": "LIMITED_COMPARISON" if single_episode_only else "MAIN_MECHANISM_CANDIDATE",
+            "team_identity_candidate_ids": team_ids,
+            "team_labels": [teams.get(ref, ref) for ref in team_ids],
+            "period_candidates": [str(v) for v in (row.get("period_candidates") or [])],
+            "trace_grammar_tokens": [str(v) for v in (row.get("grammar_signature_tokens") or [])],
+            "trace_human_tr": _grammar_human(list(row.get("grammar_signature_tokens") or []), "tr"),
+            "process_context_binding_state": row.get("process_context_binding_state"),
+            "single_process_family_candidate": row.get("single_process_family_candidate"),
+            "process_family_episode_presence_counts": process_counts,
+            "resolved_variant_n": int(row.get("resolved_variant_count") or 0),
+            "positive_visible_variant_n": int(row.get("success_resolved_variant_count") or 0),
+            "negative_visible_variant_n": int(row.get("failure_resolved_variant_count") or 0),
+            "visible_episode_spread_n": int(row.get("visible_episode_spread_count") or 0),
+            "occurrence_disjoint_support_cluster_n": int(row.get("occurrence_disjoint_support_cluster_count") or 0),
+            "success_failure_supported_branch_divergence_n": int(row.get("success_failure_supported_branch_divergence_count") or 0),
+            "first_visible_context_difference_layer_candidate": source_record.get("first_supported_context_difference_layer_candidate"),
+            "first_visible_consequence_difference_layer_candidate": source_record.get("first_supported_consequence_difference_layer_candidate"),
+            "mechanism_challenge_record_n": int(row.get("mechanism_challenge_record_count") or 0),
+            "counterevidence_reason_codes": [
+                str(v) for v in (row.get("mechanism_challenge_reason_codes") or []) if str(v)
+            ],
+            "counter_scenario_candidates": [
+                str(v) for v in (row.get("mechanism_counter_scenario_candidates") or []) if str(v)
+            ],
+            "withdrawal_conditions": [
+                str(v) for v in (row.get("mechanism_withdrawal_conditions") or []) if str(v)
+            ],
+            "graph_recommendations": [
+                "TRACE_VARIANT_SMALL_MULTIPLES",
+                "VISIBLE_OUTCOME_SPLIT_BAR",
+                "CONTEXT_OUTCOME_CONTRAST_HEATMAP",
+                "FIRST_VISIBLE_DIVERGENCE_PANEL",
+            ],
+            "graphability_state": "GRAPH_READY_WITH_REVIEW",
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_VARIANT_MECHANISM_CANDIDATE_ONLY",
+            "player_name_rendering_state": "VALIDATED_IDENTITY_ONLY",
+            "creates_new_evidence": False,
+            "can_authorize_emit": False,
+            "can_strengthen_claim_ceiling": False,
+        })
+
+    return {
+        "module_id": "mechanism_cards_graph_ready_v1",
+        "status": "REVIEW_REQUIRED" if cards else "NOT_EVALUATED",
+        "shortlist_status": shortlist.get("status"),
+        "card_count": len(cards),
+        "main_mechanism_candidate_count": sum(
+            row.get("classification") == "MAIN_MECHANISM_CANDIDATE" for row in cards
+        ),
+        "limited_comparison_count": sum(
+            row.get("classification") == "LIMITED_COMPARISON" for row in cards
+        ),
+        "cards": cards,
+        "graphability_does_not_strengthen_evidence": True,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
 def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str, Any]) -> str:
     root = Path(output_root)
     rich_current = _rich_surface_current(full_spine)
@@ -2122,6 +2248,7 @@ def write_standard_user_outputs(
     report_path = root / ANALYST_REPORT
     report_tr_path = root / ANALYST_REPORT_TR
     report_en_path = root / ANALYST_REPORT_EN
+    mechanism_graph_path = root / MECHANISM_CARDS_GRAPH_JSON
     manifest_path = root / BUNDLE_MANIFEST
     zip_path = root / BUNDLE_ZIP
     temp_zip_path = root / f".{BUNDLE_ZIP}.tmp"
@@ -2131,7 +2258,15 @@ def write_standard_user_outputs(
     report_path.write_text(build_analyst_report(root, full_spine), encoding="utf-8")
     report_tr_path.write_text(build_human_analyst_report_tr(root, full_spine), encoding="utf-8")
     report_en_path.write_text(build_human_analyst_report_en(root, full_spine), encoding="utf-8")
+    mechanism_graph_payload = build_graph_ready_mechanism_cards_payload(root, full_spine)
+    mechanism_graph_path.write_text(
+        json.dumps(mechanism_graph_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     candidates = _declared_current_artifacts(root, full_spine)
+    if mechanism_graph_path.is_file() and mechanism_graph_path not in candidates:
+        candidates.append(mechanism_graph_path)
+        candidates.sort(key=lambda item: item.name.casefold())
     entries = [
         {"name": path.name, "size_bytes": path.stat().st_size, "sha256": _sha256(path)}
         for path in candidates
@@ -2175,6 +2310,7 @@ def write_standard_user_outputs(
         "analyst_report": str(report_path),
         "analyst_report_tr": str(report_tr_path),
         "analyst_report_en": str(report_en_path),
+        "mechanism_cards_graph_ready": str(mechanism_graph_path),
         "bundle_manifest": str(manifest_path),
         "bundle_zip": str(zip_path),
         "bundle_file_count": len(candidates) + 1,
