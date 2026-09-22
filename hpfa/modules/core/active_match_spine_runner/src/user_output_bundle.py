@@ -1462,8 +1462,9 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             if str(value)
         ]
         if language == "tr":
+            card_class = "SINIRLI KARŞILAŞTIRMA" if single_episode_only else "ANA MEKANİZMA ADAYI"
             card = (
-                f"MEKANİZMA KARTI {idx} | TAKIM={team} | DÖNEM={periods} | "
+                f"MEKANİZMA KARTI {idx} | SINIF={card_class} | TAKIM={team} | DÖNEM={periods} | "
                 f"TRACE={grammar} | PROCESS={process_label} | "
                 f"VARYANT={success} olumlu / {failure} olumsuz / {resolved} çözümlenmiş | "
                 f"İLK GÖRÜNÜR AYRIŞMA=context L{context_layer}, consequence L{consequence_layer} | "
@@ -1472,8 +1473,9 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 "CLAIM=maç-içi görünür varyant/mekanizma adayı; neden, taktik plan veya üstünlük truth değildir."
             )
         else:
+            card_class = "LIMITED COMPARISON" if single_episode_only else "MAIN MECHANISM CANDIDATE"
             card = (
-                f"MECHANISM CARD {idx} | TEAM={team} | PERIOD={periods} | "
+                f"MECHANISM CARD {idx} | CLASS={card_class} | TEAM={team} | PERIOD={periods} | "
                 f"TRACE={grammar} | PROCESS={process_label} | "
                 f"VARIANT={success} positive / {failure} negative / {resolved} resolved | "
                 f"FIRST VISIBLE DIVERGENCE=context L{context_layer}, consequence L{consequence_layer} | "
@@ -1635,7 +1637,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- Bu maçta iki takım için karşılaştırılabilir süreç çarpışma yüzeyi üretilemedi.")
-    lines.extend(["", "[5] AYNI HÜCUM BAŞLANGICININ AYRIŞAN SONUÇLARI"])
+    lines.extend(["", "[5] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
@@ -1691,7 +1693,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- No comparable two-team process contest surface is available for this run.")
-    lines.extend(["", "[5] DIVERGING OUTCOMES FROM THE SAME ATTACKING START"])
+    lines.extend(["", "[5] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
