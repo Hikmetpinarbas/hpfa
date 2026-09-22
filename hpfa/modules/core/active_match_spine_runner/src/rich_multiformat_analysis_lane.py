@@ -2168,6 +2168,159 @@ def _progression_pool_p02(
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_CONSEQUENCE_PATH_DOWNSTREAM_ACCESS_CANDIDATE_ONLY",
         })
 
+    recovery_continuation_severity_candidates: list[dict[str, Any]] = []
+    trace_lookup = {
+        str(row.get("trackable_action_trace_candidate_id")): row
+        for row in (trace.get("trackable_action_trace_candidates") or [])
+        if isinstance(row, dict) and row.get("trackable_action_trace_candidate_id")
+    }
+    for recurrence in consequence.get("visible_consequence_path_recurrence_candidates") or []:
+        if not isinstance(recurrence, dict):
+            continue
+        anchor_families = {
+            str(value)
+            for value in (recurrence.get("anchor_action_family_candidates") or [])
+            if str(value).strip()
+        }
+        signature = str(recurrence.get("visible_consequence_path_signature") or "")
+        recovery_scope = bool(
+            anchor_families & {"RECOVERY", "INTERCEPTION"}
+        ) and "L1:SAME_TEAM:" in signature
+        if not recovery_scope:
+            continue
+
+        stage_states = Counter()
+        route_counts = Counter()
+        route_unresolved_count = 0
+        bound_count = 0
+        missing_count = 0
+        ambiguous_count = 0
+        no_post_anchor_layer_count = 0
+
+        for trace_id in recurrence.get("anchor_trace_refs") or []:
+            anchor_trace = trace_lookup.get(str(trace_id))
+            if not isinstance(anchor_trace, dict):
+                missing_count += 1
+                continue
+            try:
+                anchor_time = float(anchor_trace.get("start_candidate"))
+            except (TypeError, ValueError):
+                missing_count += 1
+                continue
+
+            matches = [
+                unit for unit in trace_to_units.get(str(trace_id), [])
+                if set(unit.get("action_family_counts") or {}) & anchor_families
+            ]
+            if len(matches) != 1:
+                if not matches:
+                    missing_count += 1
+                else:
+                    ambiguous_count += 1
+                continue
+            unit = matches[0]
+            bound_count += 1
+
+            after_layers = []
+            for layer in unit.get("action_layer_signature") or []:
+                try:
+                    layer_time = float(layer.get("time_candidate"))
+                except (TypeError, ValueError):
+                    continue
+                if layer_time > anchor_time:
+                    after_layers.append(layer)
+            if not after_layers:
+                no_post_anchor_layer_count += 1
+                continue
+
+            anchor_stations = []
+            after_stations = []
+            for station in unit.get("semantic_zone_stations") or []:
+                try:
+                    station_time = float(station.get("time_candidate"))
+                except (TypeError, ValueError):
+                    continue
+                if abs(station_time - anchor_time) <= 1e-6:
+                    anchor_stations.append(station)
+                elif station_time > anchor_time:
+                    after_stations.append(station)
+
+            post_zone_complete = (
+                len(after_stations) == len(after_layers)
+                and all(str(row.get("semantic_zone_candidate") or "").strip() for row in after_stations)
+            )
+            if post_zone_complete:
+                after_zones = [
+                    str(row.get("semantic_zone_candidate"))
+                    for row in after_stations
+                ]
+                stage_states[
+                    "FINAL_THIRD_VISIBLE"
+                    if "FINAL_THIRD" in after_zones
+                    else "NO_FINAL_THIRD_VISIBLE"
+                ] += 1
+                stage_states[
+                    "PENALTY_AREA_VISIBLE"
+                    if "PENALTY_AREA" in after_zones
+                    else "NO_PENALTY_AREA_VISIBLE"
+                ] += 1
+
+                route_path: list[str] = []
+                if len(anchor_stations) == 1:
+                    anchor_zone = str(anchor_stations[0].get("semantic_zone_candidate") or "").strip()
+                    if anchor_zone:
+                        route_path.append(anchor_zone)
+                for zone in after_zones:
+                    if zone and (not route_path or route_path[-1] != zone):
+                        route_path.append(zone)
+                if len(route_path) >= 2:
+                    route_counts[f"{route_path[0]}->{route_path[-1]}"] += 1
+                elif len(route_path) == 1:
+                    route_counts[f"{route_path[0]}->{route_path[0]}"] += 1
+                else:
+                    route_unresolved_count += 1
+            else:
+                stage_states["ZONE_PATH_UNRESOLVED"] += 1
+                route_unresolved_count += 1
+
+            shot_visible = any(
+                int((layer.get("action_family_multiset") or {}).get("SHOT", 0) or 0) > 0
+                for layer in after_layers
+            )
+            stage_states[
+                "SHOT_ACTIVITY_VISIBLE"
+                if shot_visible
+                else "NO_SHOT_ACTIVITY_VISIBLE"
+            ] += 1
+
+        recovery_continuation_severity_candidates.append({
+            "visible_consequence_path_signature": recurrence.get("visible_consequence_path_signature"),
+            "team_identity_candidate_id": recurrence.get("team_identity_candidate_id"),
+            "severity_evaluation_scope": "POST_RECOVERY_SAME_TEAM_CONTINUATION_ONLY",
+            "severity_evaluation_status": "EVALUATED",
+            "visible_occurrence_count": recurrence.get("visible_occurrence_count"),
+            "eligible_anchor_population_count": recurrence.get("eligible_anchor_population_count"),
+            "same_team_process_bound_count": bound_count,
+            "final_third_visible_count": int(stage_states.get("FINAL_THIRD_VISIBLE", 0)),
+            "no_final_third_visible_count": int(stage_states.get("NO_FINAL_THIRD_VISIBLE", 0)),
+            "penalty_area_visible_count": int(stage_states.get("PENALTY_AREA_VISIBLE", 0)),
+            "no_penalty_area_visible_count": int(stage_states.get("NO_PENALTY_AREA_VISIBLE", 0)),
+            "zone_path_unresolved_count": int(stage_states.get("ZONE_PATH_UNRESOLVED", 0)),
+            "shot_activity_visible_count": int(stage_states.get("SHOT_ACTIVITY_VISIBLE", 0)),
+            "no_shot_activity_visible_count": int(stage_states.get("NO_SHOT_ACTIVITY_VISIBLE", 0)),
+            "post_recovery_zone_route_counts": dict(sorted(route_counts.items())),
+            "post_recovery_zone_route_unresolved_count": route_unresolved_count,
+            "no_post_anchor_layer_count": no_post_anchor_layer_count,
+            "process_binding_missing_count": missing_count,
+            "process_binding_ambiguous_count": ambiguous_count,
+            "recovery_anchor_zone_is_access_outcome": False,
+            "post_recovery_zone_route_is_physical_trajectory_truth": False,
+            "severity_is_recovery_quality_truth": False,
+            "severity_is_causal_truth": False,
+            "severity_is_tactical_intention_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_POST_RECOVERY_CONTINUATION_ACCESS_CANDIDATE_ONLY",
+        })
+
     p02_c4_packet_candidates: list[dict[str, Any]] = []
     p02_counterevidence_population_records: list[dict[str, Any]] = []
     total_admitted_opposite_pairs = 0
@@ -2318,6 +2471,11 @@ def _progression_pool_p02(
         "visible_consequence_path_severity_scope": "POST_LOSS_OPPONENT_RESPONSE_ONLY",
         "non_loss_recurrence_severity_not_evaluated_count": non_loss_recurrence_not_evaluated_count,
         "recovery_continuation_requires_separate_same_team_process_evaluation": True,
+        "recovery_continuation_severity_candidates": recovery_continuation_severity_candidates,
+        "recovery_continuation_severity_candidate_count": len(recovery_continuation_severity_candidates),
+        "recovery_continuation_severity_scope": "POST_RECOVERY_SAME_TEAM_CONTINUATION_ONLY",
+        "recovery_anchor_zone_is_access_outcome": False,
+        "recovery_continuation_is_recovery_quality_truth": False,
         "consequence_path_severity_is_transition_defence_quality_truth": False,
         "consequence_path_severity_is_causal_truth": False,
         "p02_c4_packet_candidate_count": len(p02_c4_packet_candidates),
