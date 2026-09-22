@@ -319,6 +319,7 @@ def _p02_professional_finding_lines(rich: dict[str, Any]) -> list[str]:
         unresolved = int(finding.get("target_state_unresolved_count") or 0)
         variants = int(finding.get("visible_variant_family_count") or 0)
         opposite = int(finding.get("admitted_opposite_counterevidence_pair_count") or 0)
+        sample_maturity = str(finding.get("finding_sample_maturity_candidate") or "NOT_EVALUATED")
         exit_dist = json.dumps(
             finding.get("visible_exit_class_distribution") or {},
             ensure_ascii=False,
@@ -336,7 +337,8 @@ def _p02_professional_finding_lines(rich: dict[str, Any]) -> list[str]:
                 f"- [{admission}] {team_name} | period={period} | skor-durumu={score_state} | baslangic-bolgesi={start_zone}: "
                 f"resolved target-state denominator={resolved}; target gorundu={observed}; "
                 f"complete admitted path icinde target gorunmedi={not_observed}; unresolved={unresolved}; "
-                f"gorunur varyant ailesi={variants}; admitted opposite counterevidence pair={opposite}."
+                f"gorunur varyant ailesi={variants}; admitted opposite counterevidence pair={opposite}; "
+                f"orneklem-olgunlugu={sample_maturity}."
             ),
             f"  ADMISSION_REASONS: {admission_reasons}",
             f"  WHAT_VISIBLE: {finding.get('WHAT_VISIBLE')}",
