@@ -2321,6 +2321,7 @@ def _progression_pool_p02(
         downstream_stage_states = Counter()
         response_zone_route_counts = Counter()
         response_zone_route_unresolved_count = 0
+        source_score_state_access_counts: Counter[tuple[str, str]] = Counter()
         bound_count = 0
         missing_count = 0
         ambiguous_count = 0
@@ -2340,7 +2341,10 @@ def _progression_pool_p02(
                 states["HANDOVER_NOT_EXACT"] += 1
                 continue
             bound_count += 1
-            states[str(response.get("advanced_access_state_candidate") or "UNRESOLVED")] += 1
+            access_state = str(response.get("advanced_access_state_candidate") or "UNRESOLVED")
+            states[access_state] += 1
+            source_score_state = str(matches[0].get("score_state_candidate") or "NOT_EVALUATED")
+            source_score_state_access_counts[(source_score_state, access_state)] += 1
 
             zone_complete = response.get("semantic_zone_layer_coverage_complete") is True
             zone_path = {
@@ -2406,6 +2410,20 @@ def _progression_pool_p02(
             "no_shot_activity_visible_count": int(downstream_stage_states.get("NO_SHOT_ACTIVITY_VISIBLE", 0)),
             "response_zone_route_counts": dict(sorted(response_zone_route_counts.items())),
             "response_zone_route_unresolved_count": response_zone_route_unresolved_count,
+            "source_score_state_access_counts": {
+                score_state: {
+                    access_state: int(source_score_state_access_counts.get((score_state, access_state), 0))
+                    for access_state in sorted({
+                        key[1]
+                        for key in source_score_state_access_counts
+                        if key[0] == score_state
+                    })
+                }
+                for score_state in sorted({
+                    key[0] for key in source_score_state_access_counts
+                })
+            },
+            "source_score_state_is_causal_explanation": False,
             "response_zone_route_is_physical_trajectory_truth": False,
             "response_zone_route_is_tactical_route_truth": False,
             "handover_not_exact_count": int(states.get("HANDOVER_NOT_EXACT", 0)),
@@ -2644,6 +2662,8 @@ def _progression_pool_p02(
 
             state = per_unit.setdefault(unit_id, {
                 "process_unit_candidate_id": unit_id,
+                "score_state_candidate": unit.get("score_state_candidate"),
+                "score_state_context": dict(unit.get("score_state_context") or {}),
                 "anchor_window_count": 0,
                 "final_third_entry_visible": False,
                 "final_third_continuation_visible": False,
@@ -2852,6 +2872,7 @@ def _progression_pool_p02(
             final_third_entry_layer_facet_counts.update(entry_layer_facets)
             final_third_entry_process_variant_candidates.append({
                 "process_unit_candidate_id": value.get("process_unit_candidate_id"),
+                "score_state_candidate": value.get("score_state_candidate"),
                 "post_entry_variant_facets": post_entry_facets,
                 "entry_layer_facets": entry_layer_facets,
                 "post_entry_visible_layer_count": post_entry_layer_count,
@@ -3007,6 +3028,11 @@ def _progression_pool_p02(
             "final_third_entry_process_variant_candidate_count": len(
                 final_third_entry_process_variant_candidates
             ),
+            "final_third_entry_score_state_counts": dict(sorted(Counter(
+                str(value.get("score_state_candidate") or "NOT_EVALUATED")
+                for value in final_third_entry_units
+            ).items())),
+            "final_third_entry_score_state_is_causal_explanation": False,
             "final_third_entry_post_entry_variant_facet_counts": dict(
                 sorted(final_third_entry_variant_facet_counts.items())
             ),
