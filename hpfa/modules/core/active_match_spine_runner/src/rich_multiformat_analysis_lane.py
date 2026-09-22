@@ -637,6 +637,11 @@ def _build_p02_sequence_process_units(
                 "time_layer_candidate_id": layer.get("visible_action_time_layer_candidate_id"),
                 "time_candidate": layer.get("start_candidate"),
                 "action_family_multiset": dict(sorted(action_counts.items())),
+                "trackable_action_trace_candidate_ids": sorted(
+                    str(value)
+                    for value in (layer.get("trackable_action_trace_candidate_ids") or [])
+                    if str(value).strip()
+                ),
                 "same_timestamp_internal_ordering_allowed": False,
             })
 
@@ -2282,6 +2287,24 @@ def _progression_pool_p02(
         for row in (trace.get("trackable_action_trace_candidates") or [])
         if isinstance(row, dict) and row.get("trackable_action_trace_candidate_id")
     }
+    actor_identity_label_map: dict[str, str] = {}
+    for actor in identities.get("actor_identity_candidates") or []:
+        if not isinstance(actor, dict):
+            continue
+        if str(actor.get("decision_state") or "") != "ACTOR_IDENTITY_CANDIDATE_BOUND":
+            continue
+        actor_id = str(actor.get("actor_identity_candidate_id") or "")
+        if not actor_id:
+            continue
+        actor_label = str(actor.get("actor_normalized_key") or "").strip()
+        if not actor_label:
+            aliases = [
+                str(value).strip()
+                for value in (actor.get("actor_aliases_raw") or [])
+                if str(value).strip()
+            ]
+            actor_label = aliases[0] if aliases else actor_id
+        actor_identity_label_map[actor_id] = actor_label
     for recurrence in consequence.get("visible_consequence_path_recurrence_candidates") or []:
         if not isinstance(recurrence, dict):
             continue
@@ -2499,6 +2522,9 @@ def _progression_pool_p02(
                 "final_third_entry_layer_cross_visible": False,
                 "final_third_entry_layer_turnover_visible": False,
                 "post_final_third_entry_layer_count": 0,
+                "process_participant_actor_ids": set(),
+                "entry_layer_participant_actor_ids": set(),
+                "post_entry_participant_actor_ids": set(),
                 "process_end_reason_candidate": unit.get("end_reason_candidate"),
                 "process_terminal_activity_candidate": unit.get("team_episode_terminal_activity_candidate"),
                 "process_has_shot_activity_visible": (
@@ -2512,6 +2538,13 @@ def _progression_pool_p02(
                 ),
             })
             state["anchor_window_count"] += 1
+            for source_trace_id in unit.get("source_trackable_action_trace_candidate_ids") or []:
+                source_trace = trace_lookup.get(str(source_trace_id))
+                if not isinstance(source_trace, dict):
+                    continue
+                actor_id = str(source_trace.get("actor_identity_candidate_id") or "")
+                if actor_id:
+                    state["process_participant_actor_ids"].add(actor_id)
 
             after_layers = []
             for layer in unit.get("action_layer_signature") or []:
@@ -2586,6 +2619,23 @@ def _progression_pool_p02(
                                     int(state.get("post_final_third_entry_layer_count") or 0),
                                     len(post_entry_layers),
                                 )
+                                for layer in entry_layers:
+                                    for source_trace_id in layer.get("trackable_action_trace_candidate_ids") or []:
+                                        source_trace = trace_lookup.get(str(source_trace_id))
+                                        if not isinstance(source_trace, dict):
+                                            continue
+                                        actor_id = str(source_trace.get("actor_identity_candidate_id") or "")
+                                        if actor_id:
+                                            state["entry_layer_participant_actor_ids"].add(actor_id)
+                                for layer in post_entry_layers:
+                                    for source_trace_id in layer.get("trackable_action_trace_candidate_ids") or []:
+                                        source_trace = trace_lookup.get(str(source_trace_id))
+                                        if not isinstance(source_trace, dict):
+                                            continue
+                                        actor_id = str(source_trace.get("actor_identity_candidate_id") or "")
+                                        if actor_id:
+                                            state["post_entry_participant_actor_ids"].add(actor_id)
+
                                 def _layer_has_family(rows: list[dict[str, Any]], family: str) -> bool:
                                     return any(
                                         int((layer.get("action_family_multiset") or {}).get(family, 0) or 0) > 0
@@ -2669,6 +2719,9 @@ def _progression_pool_p02(
                 "post_entry_variant_facets": post_entry_facets,
                 "entry_layer_facets": entry_layer_facets,
                 "post_entry_visible_layer_count": post_entry_layer_count,
+                "process_participant_actor_ids": sorted(value.get("process_participant_actor_ids") or []),
+                "entry_layer_participant_actor_ids": sorted(value.get("entry_layer_participant_actor_ids") or []),
+                "post_entry_participant_actor_ids": sorted(value.get("post_entry_participant_actor_ids") or []),
                 "process_end_reason_candidate": value.get("process_end_reason_candidate"),
                 "process_terminal_activity_candidate": value.get("process_terminal_activity_candidate"),
                 "variant_facets_are_mutually_exclusive": False,
@@ -2677,6 +2730,57 @@ def _progression_pool_p02(
                 "variant_is_tactical_quality_truth": False,
                 "claim_ceiling": "MATCH_LOCAL_VISIBLE_FINAL_THIRD_ENTRY_VARIANT_CANDIDATE_ONLY",
             })
+
+        process_actor_participation = Counter()
+        entry_actor_participation = Counter()
+        post_entry_actor_participation = Counter()
+        post_entry_actor_variant_facets: dict[str, Counter[str]] = defaultdict(Counter)
+        for variant in final_third_entry_process_variant_candidates:
+            for actor_id in set(variant.get("process_participant_actor_ids") or []):
+                process_actor_participation[str(actor_id)] += 1
+            for actor_id in set(variant.get("entry_layer_participant_actor_ids") or []):
+                entry_actor_participation[str(actor_id)] += 1
+            for actor_id in set(variant.get("post_entry_participant_actor_ids") or []):
+                actor_id = str(actor_id)
+                post_entry_actor_participation[actor_id] += 1
+                for facet in variant.get("post_entry_variant_facets") or []:
+                    post_entry_actor_variant_facets[actor_id][str(facet)] += 1
+
+        participant_actor_ids = sorted(
+            set(process_actor_participation)
+            | set(entry_actor_participation)
+            | set(post_entry_actor_participation)
+        )
+        final_third_entry_actor_participation_candidates = [
+            {
+                "actor_identity_candidate_id": actor_id,
+                "actor_label_candidate": actor_identity_label_map.get(actor_id, actor_id),
+                "final_third_entry_process_participation_count": int(
+                    process_actor_participation.get(actor_id, 0)
+                ),
+                "final_third_entry_layer_participation_count": int(
+                    entry_actor_participation.get(actor_id, 0)
+                ),
+                "post_entry_participation_count": int(
+                    post_entry_actor_participation.get(actor_id, 0)
+                ),
+                "post_entry_variant_facet_counts": dict(
+                    sorted(post_entry_actor_variant_facets.get(actor_id, Counter()).items())
+                ),
+                "participation_is_causal_credit": False,
+                "participation_is_quality_truth": False,
+                "actor_concentration_is_process_independence": False,
+                "claim_ceiling": "MATCH_LOCAL_VISIBLE_FINAL_THIRD_ENTRY_PROCESS_PARTICIPATION_ONLY",
+            }
+            for actor_id in sorted(
+                participant_actor_ids,
+                key=lambda actor_id: (
+                    -int(process_actor_participation.get(actor_id, 0)),
+                    -int(entry_actor_participation.get(actor_id, 0)),
+                    actor_identity_label_map.get(actor_id, actor_id),
+                ),
+            )
+        ]
 
         same_team_continuation_process_profiles.append({
             "visible_consequence_path_signature": recurrence.get("visible_consequence_path_signature"),
@@ -2775,6 +2879,13 @@ def _progression_pool_p02(
             ),
             "final_third_entry_variant_facets_are_mutually_exclusive": False,
             "final_third_entry_variant_is_success_failure_truth": False,
+            "final_third_entry_actor_participation_candidates": final_third_entry_actor_participation_candidates,
+            "final_third_entry_actor_participation_candidate_count": len(
+                final_third_entry_actor_participation_candidates
+            ),
+            "actor_participation_is_causal_credit": False,
+            "actor_participation_is_quality_truth": False,
+            "actor_concentration_is_process_independence": False,
             "post_entry_activity_excludes_entry_timestamp_layer": True,
             "same_timestamp_entry_layer_internal_order_claimed": False,
             "terminal_boundary_is_process_outcome_truth": False,
