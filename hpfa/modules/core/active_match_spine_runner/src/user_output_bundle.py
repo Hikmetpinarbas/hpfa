@@ -268,6 +268,69 @@ def _p02_variant_contrast_lines(rich: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _p02_professional_finding_lines(rich: dict[str, Any]) -> list[str]:
+    p02 = rich.get("progression_pool_p02") or {}
+    findings = p02.get("professional_finding_target_candidates") or []
+    if not isinstance(findings, list):
+        return []
+    team_names = _p02_team_name_map(rich)
+    lines: list[str] = []
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        if str(finding.get("finding_status") or "") not in {"REVIEW_REQUIRED", "PASS", "SMOKE_PASS"}:
+            continue
+        context = finding.get("exact_context") or {}
+        team_id = str(context.get("team_identity_candidate_id") or "")
+        team_name = team_names.get(team_id, team_id or "cozulemeyen takim")
+        period = str(context.get("period_candidate") or "cozulmedi")
+        score_state = str(context.get("score_state_candidate") or "cozulmedi")
+        start_zone = str(context.get("process_start_zone_candidate") or "cozulmedi")
+        resolved = int(finding.get("resolved_target_state_denominator") or 0)
+        observed = int(finding.get("target_observed_visible_count") or 0)
+        not_observed = int(finding.get("target_not_observed_complete_path_count") or 0)
+        unresolved = int(finding.get("target_state_unresolved_count") or 0)
+        variants = int(finding.get("visible_variant_family_count") or 0)
+        opposite = int(finding.get("admitted_opposite_counterevidence_pair_count") or 0)
+        exit_dist = json.dumps(
+            finding.get("visible_exit_class_distribution") or {},
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        response_dist = json.dumps(
+            finding.get("opponent_response_status_distribution") or {},
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        lines.extend([
+            (
+                f"- {team_name} | period={period} | skor-durumu={score_state} | baslangic-bolgesi={start_zone}: "
+                f"resolved target-state denominator={resolved}; target gorundu={observed}; "
+                f"complete admitted path icinde target gorunmedi={not_observed}; unresolved={unresolved}; "
+                f"gorunur varyant ailesi={variants}; admitted opposite counterevidence pair={opposite}."
+            ),
+            f"  WHAT_VISIBLE: {finding.get('WHAT_VISIBLE')}",
+            (
+                "  COUNTEREVIDENCE: "
+                f"target-gorunmedi={not_observed}; unresolved={unresolved}; admitted-opposite-pair={opposite}. "
+                "Pairwise kombinasyonlar bagimsiz destek oyu degildir."
+            ),
+            f"  SAFE_MEANING: {finding.get('SAFE_MEANING')}",
+            f"  EXIT_DISTRIBUTION: {exit_dist}",
+            f"  OPPONENT_RESPONSE_DISTRIBUTION: {response_dist}",
+            (
+                "  ANALYST_ACTION: target-gorunen ve target-gorunmeyen varyant ailelerini yan yana incele; "
+                "exit-class ve exact opponent-response farklarini mekanizma hipotezi kurmadan once kontrol et."
+            ),
+        ])
+    if lines:
+        lines.append(
+            "- Claim ceiling: bu bolum match-local exact-context target-relative variation finding candidate'tir; "
+            "genel hucum basarisi, taktik kalite, teknik direktor niyeti veya nedensellik iddiasi degildir."
+        )
+    return lines
+
+
 def _readable_boundary_counts(counts: dict[str, Any]) -> str:
     labels = {
         "TEAM_HANDOVER_BOUNDARY": "takim el degistirme",
@@ -828,6 +891,13 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 "",
                 "GORUNUR VARYANT KARSILASTIRMASI — REVIEW-BOUNDED",
                 *variant_lines,
+            ])
+        finding_lines = _p02_professional_finding_lines(rich)
+        if finding_lines:
+            lines.extend([
+                "",
+                "P02 PROFESSIONAL FINDING TARGETS — SAFE-FINDING CONTRACT",
+                *finding_lines,
             ])
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
