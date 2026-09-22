@@ -1741,3 +1741,90 @@ def test_p02_population_collapse_prevents_pairwise_counterevidence_vote_explosio
     record = p02["p02_counterevidence_population_records"][0]
     assert record["admitted_opposite_pair_count"] == 2
     assert record["population_emits_max_one_c4_counterevidence_packet"] is True
+
+
+def test_p02_recurring_consequence_path_binds_to_opponent_advanced_access() -> None:
+    identities = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "teamc_A", "team_aliases_raw": ["TEAM_A"], "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND"},
+            {"team_identity_candidate_id": "teamc_B", "team_aliases_raw": ["TEAM_B"], "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND"},
+        ]
+    }
+    visible_sequence = {
+        "visible_action_time_layer_candidates": [
+            {"visible_action_time_layer_candidate_id":"a1","start_candidate":10.0,"trackable_action_trace_candidate_ids":["tr_turn"],"action_family_counts":{"TURNOVER":1}},
+            {"visible_action_time_layer_candidate_id":"b1","start_candidate":20.0,"trackable_action_trace_candidate_ids":["tr_b1"],"action_family_counts":{"PASS":1}},
+            {"visible_action_time_layer_candidate_id":"b2","start_candidate":24.0,"trackable_action_trace_candidate_ids":["tr_b2"],"action_family_counts":{"PASS":1}},
+        ],
+        "visible_action_sequence_candidates": [
+            {
+                "visible_action_sequence_candidate_id":"vasq_A",
+                "team_identity_candidate_id":"teamc_A","period_candidate":"1",
+                "start_time_candidate":10.0,"end_time_candidate":10.0,"duration_candidate_seconds":0.0,
+                "time_layer_candidate_ids":["a1"],"time_layer_count":1,
+                "trackable_action_trace_candidate_ids":["tr_turn"],"trace_candidate_count":1,
+                "action_family_counts":{"TURNOVER":1},"consequence_candidate_counts":{},
+                "sequence_record_status":"PASS_SINGLE_LAYER_VISIBLE_TRACE_CANDIDATE",
+                "start_reason_candidate":"PERIOD_START","end_reason_candidate":"TEAM_HANDOVER_BOUNDARY",
+                "end_boundary_time_candidate":20.0,"next_team_identity_candidate_id":"teamc_B",
+            },
+            {
+                "visible_action_sequence_candidate_id":"vasq_B",
+                "team_identity_candidate_id":"teamc_B","period_candidate":"1",
+                "start_time_candidate":20.0,"end_time_candidate":24.0,"duration_candidate_seconds":4.0,
+                "time_layer_candidate_ids":["b1","b2"],"time_layer_count":2,
+                "trackable_action_trace_candidate_ids":["tr_b1","tr_b2"],"trace_candidate_count":2,
+                "action_family_counts":{"PASS":2},"consequence_candidate_counts":{},
+                "sequence_record_status":"PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
+                "start_reason_candidate":"AFTER_TEAM_HANDOVER","end_reason_candidate":"TIME_GAP_BOUNDARY",
+            },
+        ],
+    }
+    trace = {
+        "trackable_action_trace_candidates": [
+            {"trackable_action_trace_candidate_id":"tr_turn","supporting_evidence_atom_ids":["ea_turn"]},
+            {"trackable_action_trace_candidate_id":"tr_b1","supporting_evidence_atom_ids":["ea_b1"]},
+            {"trackable_action_trace_candidate_id":"tr_b2","supporting_evidence_atom_ids":["ea_b2"]},
+        ]
+    }
+    evidence = {
+        "evidence_atoms": [
+            {"evidence_atom_id":"ea_turn","row_nucleus_candidate_id":"rn_turn"},
+            {"evidence_atom_id":"ea_b1","row_nucleus_candidate_id":"rn_b1"},
+            {"evidence_atom_id":"ea_b2","row_nucleus_candidate_id":"rn_b2"},
+        ]
+    }
+    semantics = {
+        "context_action_semantic_records": [
+            {"row_nucleus_candidate_id":"rn_turn","context_zone_candidate":"MIDDLE_THIRD"},
+            {"row_nucleus_candidate_id":"rn_b1","context_zone_candidate":"MIDDLE_THIRD"},
+            {"row_nucleus_candidate_id":"rn_b2","context_zone_candidate":"FINAL_THIRD"},
+        ]
+    }
+    consequence = {
+        "visible_consequence_path_recurrence_candidates": [
+            {
+                "team_identity_candidate_id":"teamc_A",
+                "anchor_action_family_candidates":["TURNOVER"],
+                "visible_consequence_path_signature":"ANCHOR:TURNOVER -> L1:OPPONENT:PASS -> L2:OPPONENT:PASS",
+                "visible_occurrence_count":2,
+                "eligible_anchor_population_count":2,
+                "anchor_trace_refs":["tr_turn"],
+            }
+        ]
+    }
+
+    p02 = _progression_pool_p02(
+        {}, {}, {}, consequence, semantics, identities, visible_sequence, trace, evidence
+    )
+    row = p02["visible_consequence_path_severity_candidates"][0]
+
+    assert row["visible_consequence_path_signature"] == (
+        "ANCHOR:TURNOVER -> L1:OPPONENT:PASS -> L2:OPPONENT:PASS"
+    )
+    assert row["exact_process_response_bound_count"] == 1
+    assert row["advanced_access_visible_count"] == 1
+    assert row["no_advanced_access_visible_count"] == 0
+    assert row["access_unresolved_count"] == 0
+    assert row["severity_is_transition_defence_quality_truth"] is False
+    assert row["severity_is_causal_truth"] is False
