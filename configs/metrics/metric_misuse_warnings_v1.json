@@ -24,6 +24,18 @@
       "safe_interpretation": "Provider-bound descriptive rate candidate with explicit definition.",
       "does_not_measure": ["provider-invariant construct", "causal contribution", "tactical control"],
       "claim_ceiling": "provider_bound_descriptive_rate_candidate"
+    },
+    {
+      "misuse_policy_id": "event_geometry_not_tracking_truth_v1",
+      "metric_assumption": "Admitted event start/end coordinates describe provider event geometry only.",
+      "proxy_risk": "Event endpoints do not reveal continuous player positions, defender geometry, off-ball movement or true occupied space.",
+      "denominator_risk": "Not applicable to an action-level descriptor; aggregate comparisons still require a declared eligible action set.",
+      "sample_risk": "Sparse or selectively tagged event endpoints can distort aggregate geometry summaries.",
+      "context_risk": "Coordinate direction, pitch normalization and event semantic role must be admitted before interpretation.",
+      "blocked_interpretation": ["player running speed", "defensive line bypass", "pitch control", "team shape", "coach intention", "causal tactical mechanism"],
+      "safe_interpretation": "Provider-coordinate displacement, direction and zone-transition candidate for an admitted event surface.",
+      "does_not_measure": ["continuous movement", "off-ball structure", "physical intensity", "true passing options"],
+      "claim_ceiling": "event_geometry_candidate_only"
     }
   ]
 }

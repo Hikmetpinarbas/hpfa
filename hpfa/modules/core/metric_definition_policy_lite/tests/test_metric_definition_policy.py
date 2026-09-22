@@ -22,9 +22,10 @@ def _docs():
 
 def test_seed_policy_pack_smoke_passes():
     report = load_policy_pack(CONFIG)
+    registered_metric_count = len(_docs()[0]["metrics"])
     assert report["status"] == "SMOKE_PASS"
-    assert report["metric_definition_candidate_count"] == 2
-    assert report["definition_status_counts"] == {"DEFINITION_CANDIDATE_READY": 2}
+    assert report["metric_definition_candidate_count"] == registered_metric_count
+    assert report["definition_status_counts"] == {"DEFINITION_CANDIDATE_READY": registered_metric_count}
     assert report["policy_counts"]["exposure"] == 1
 
 
