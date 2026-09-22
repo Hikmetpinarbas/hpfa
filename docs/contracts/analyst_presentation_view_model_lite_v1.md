@@ -648,3 +648,58 @@ SIMPLE_FIRST_VIEW_DEEPER_ON_DEMAND_TRACEABLE_TO_EVIDENCE
 Detail may collapse until requested.
 Uncertainty may never be hidden.
 UNKNOWN / NOT_EVALUATED / UNOBSERVABLE remain visible states.
+
+## Donor-adapted visual epistemology
+
+Donor sources inspected:
+- HPFA Graphics Research Pack v1
+- HP-Motor dashboard prototype
+- HP-Engine PlotSpecFactory
+- Dropbox Visual Constitution B02
+- Dropbox Metric Visualization Grammar B04
+- Dropbox Visual Forbidden Pattern Map B08
+- Dropbox Professional Match Report safe-writing contracts
+
+Decision:
+ADAPT_NOT_COPY.
+
+ADAPT_NOW:
+1. Chart audit metadata:
+   - what it measures
+   - what it does not measure
+   - denominator rule
+   - observation window
+   - source surface
+   - claim ceiling
+   - uncertainty note
+2. Epistemic visual tokens:
+   - OBSERVED
+   - CANDIDATE
+   - UNCERTAIN
+   - COUNTEREVIDENCE
+   - WITHDRAWN
+   - MISSING_UNKNOWN
+3. Visual drama cannot increase claim capacity.
+
+ALREADY_ABSORBED:
+- UI renders specs instead of creating football truth.
+- no invented trajectory / shape / pitch-control.
+- proxy and candidate language remains visible.
+- denominator-visible comparison.
+
+ADAPT_LATER:
+- event-rhythm temporal charts
+- regain/loss consequence distributions
+- player action-location facets
+only after construct-specific upstream admission.
+
+REJECT / DO NOT REVIVE:
+- event-derived compactness as physical compactness
+- dominance heatmaps
+- tracking-like player positions
+- pressure truth glow
+- opaque composite scores
+- inferred receiver networks without admitted receiver identity
+
+These donor decisions do not change source authority.
+Donors remain SUPPORT/HISTORICAL.

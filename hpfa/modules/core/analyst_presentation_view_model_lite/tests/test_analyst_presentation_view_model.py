@@ -264,6 +264,8 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert render_pack["render_contract"]["missing_value_policy"] == "DO_NOT_INTERPOLATE"
     assert render_pack["charts"][0]["render_ready"] is True
     assert render_pack["charts"][0]["percentages_emitted"] is False
+    assert render_pack["charts"][0]["chart_audit"]["denominator_rule"].startswith("use only explicit eligible denominators")
+    assert render_pack["charts"][0]["chart_audit"]["claim_ceiling"] == render_pack["charts"][0]["claim_ceiling"]
     assert render_pack["charts"][0]["categories"] == ["1"]
     assert render_pack["charts"][0]["series"][0]["name"] == "time_anchor_count"
     dashboard = payload["surface_data"]["dashboard_manifest"]
@@ -277,6 +279,10 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert doctrine["EDUARDO_GALEANO"].startswith("human_scale_football_storytelling")
     assert doctrine["UMBERTO_ECO"].startswith("layered_meaning")
     assert dashboard["visual_language"]["palette_principles"]["primary_accent"] == "electric_blue"
+    assert dashboard["visual_language"]["epistemic_visual_tokens"]["OBSERVED"]["opacity"] == "high"
+    assert dashboard["visual_language"]["epistemic_visual_tokens"]["CANDIDATE"]["opacity"] == "medium"
+    assert dashboard["visual_language"]["epistemic_visual_tokens"]["MISSING_UNKNOWN"]["geometry"] == "intentional_void_or_gap"
+    assert dashboard["visual_language"]["epistemic_token_rule"] == "VISUAL_DRAMA_CANNOT_INCREASE_CLAIM_CAPACITY"
     assert "mechanism_over_scoreline" in dashboard["operator_cognitive_doctrine"]["core"]
     assert "aesthetic_inflation_of_evidence" in dashboard["operator_cognitive_doctrine"]["avoid"]
     field_region = next(item for item in dashboard["regions"] if item["region_id"] == "field_replay")

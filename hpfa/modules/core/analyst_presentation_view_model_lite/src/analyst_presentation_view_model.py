@@ -990,6 +990,20 @@ def _chart_render_pack(comparison_cards: dict[str, Any]) -> dict[str, Any]:
         spec["frontend_may_invent_missing_values"] = False
         spec["frontend_may_infer_causality"] = False
         spec["frontend_may_connect_spatial_points_as_trajectory"] = False
+        spec["chart_audit"] = {
+            "what_it_measures": "declared candidate-unit counts from the source comparison card",
+            "what_it_does_not_measure": [
+                "football_quality",
+                "causal_effect",
+                "tactical_intention",
+                "independent_recurrence_unless_explicitly_admitted",
+            ],
+            "denominator_rule": "use only explicit eligible denominators carried by the source rows",
+            "observation_window": "match-local current invocation; finer window is encoded only when source rows declare it",
+            "source_surface": "analyst_presentation_view_model comparative_views/comparison_cards derived from current invocation",
+            "claim_ceiling": spec.get("claim_ceiling"),
+            "uncertainty_note": "candidate/proxy/identity limitations remain binding after rendering",
+        }
 
     return {
         "schema_version": "1.0",
@@ -1201,6 +1215,39 @@ def _dashboard_manifest(
                 "visual_complexity_must_have_analyst_value",
                 "literal_historical_iconography_is_not_required",
             ],
+            "epistemic_visual_tokens": {
+                "OBSERVED": {
+                    "geometry": "sharp_edge_or_point",
+                    "opacity": "high",
+                    "meaning": "directly observed/admitted surface",
+                },
+                "CANDIDATE": {
+                    "geometry": "soft_edge_or_faint_glow",
+                    "opacity": "medium",
+                    "meaning": "candidate/proxy signal only",
+                },
+                "UNCERTAIN": {
+                    "geometry": "soft_boundary_or_halo",
+                    "opacity": "medium_low",
+                    "meaning": "uncertainty or unresolved boundary",
+                },
+                "COUNTEREVIDENCE": {
+                    "geometry": "dashed_branch_or_fracture_marker",
+                    "opacity": "high",
+                    "meaning": "alternative explanation or weakening evidence",
+                },
+                "WITHDRAWN": {
+                    "geometry": "dimmed_crack",
+                    "opacity": "low",
+                    "meaning": "withdrawn claim, not whole-model failure",
+                },
+                "MISSING_UNKNOWN": {
+                    "geometry": "intentional_void_or_gap",
+                    "opacity": "none",
+                    "meaning": "missing/unknown, never evidence by absence",
+                },
+            },
+            "epistemic_token_rule": "VISUAL_DRAMA_CANNOT_INCREASE_CLAIM_CAPACITY",
         },
         "operator_cognitive_doctrine": {
             "core": [
