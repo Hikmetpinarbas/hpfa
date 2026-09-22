@@ -3260,6 +3260,9 @@ def _progression_pool_p02(
         admission_reasons: list[str] = []
         if missing_context_keys:
             admission_reasons.append("exact_context_incomplete")
+        start_zone_for_target = str(exact_context.get("process_start_zone_candidate") or "")
+        if start_zone_for_target in {"FINAL_THIRD", "PENALTY_AREA"}:
+            admission_reasons.append("target_already_satisfied_at_process_start_zone")
         if resolved_target < 3:
             admission_reasons.append("resolved_target_state_denominator_below_minimum_3")
         if unresolved_target > 0:
@@ -3310,6 +3313,7 @@ def _progression_pool_p02(
             "finding_admission_reasons": admission_reasons,
             "finding_minimum_resolved_process_unit_gate": 3,
             "finding_requires_zero_unresolved_burden_for_emit_candidate": True,
+            "finding_target_must_not_be_satisfied_at_process_start": True,
             "comparison_population_id": population_id,
             "comparison_question_id": "P02_ADVANCED_ACCESS_VISIBLE",
             "target_estimand": "ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_SEMANTIC_ZONE_PATH",
