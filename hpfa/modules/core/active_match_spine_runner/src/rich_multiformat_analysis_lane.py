@@ -3404,6 +3404,111 @@ def _progression_pool_p02(
             "production_release": False,
         })
 
+    population_by_id = {
+        str(row.get("process_unit_comparison_population_id") or ""): row
+        for row in (process_unit_comparisons.get("process_unit_comparison_populations") or [])
+        if isinstance(row, dict) and row.get("process_unit_comparison_population_id")
+    }
+    for finding in professional_finding_targets:
+        context = finding.get("exact_context") or {}
+        population_id = str(finding.get("comparison_population_id") or "")
+        population = population_by_id.get(population_id) or {}
+        member_ids = [
+            str(value)
+            for value in (population.get("member_process_unit_candidate_ids") or [])
+            if str(value).strip()
+        ]
+        members = [
+            process_unit_by_id[value]
+            for value in member_ids
+            if value in process_unit_by_id
+        ]
+        signature_counts = Counter(
+            str(row.get("partial_order_process_signature_id") or "UNRESOLVED_SIGNATURE")
+            for row in members
+        )
+        recurrent_signature_count = sum(
+            1 for count in signature_counts.values()
+            if count >= 2
+        )
+        members_in_recurrent_signatures = sum(
+            count for count in signature_counts.values()
+            if count >= 2
+        )
+        pairwise_rows = [
+            row for row in (population.get("pairwise_comparison_candidates") or [])
+            if isinstance(row, dict)
+        ]
+        independence_admitted_pair_count = sum(
+            1 for row in pairwise_rows
+            if str(row.get("independence_admission_status") or "") == "ADMITTED"
+        )
+        independence_not_admitted_pair_count = sum(
+            1 for row in pairwise_rows
+            if str(row.get("independence_admission_status") or "") == "NOT_ADMITTED"
+        )
+        same_team_same_focus_findings = [
+            row for row in professional_finding_targets
+            if str((row.get("exact_context") or {}).get("team_identity_candidate_id") or "")
+            == str(context.get("team_identity_candidate_id") or "")
+            and str(row.get("finding_focus") or "") == str(finding.get("finding_focus") or "")
+        ]
+        context_spread_population_count = len(same_team_same_focus_findings)
+        admitted_context_spread_population_count = sum(
+            1 for row in same_team_same_focus_findings
+            if str(row.get("finding_admission_decision") or "") == "EMIT_CANDIDATE"
+        )
+        maturity_reasons: list[str] = []
+        if str(finding.get("finding_admission_decision") or "") != "EMIT_CANDIDATE":
+            maturity_reasons.append("finding_not_admitted_for_safe_descriptive_emit")
+        if str(finding.get("finding_sample_maturity_candidate") or "") != "ABOVE_MINIMUM_GATE":
+            maturity_reasons.append("sample_maturity_not_above_minimum_gate")
+        if recurrent_signature_count <= 0:
+            maturity_reasons.append("no_recurrent_process_signature_visible")
+        if context_spread_population_count < 2:
+            maturity_reasons.append("same_team_same_focus_context_spread_below_2")
+        if admitted_context_spread_population_count < 2:
+            maturity_reasons.append("admitted_context_spread_below_2")
+        if independence_admitted_pair_count <= 0:
+            maturity_reasons.append("no_evidence_unit_independence_admitted_pair")
+        if int(finding.get("target_state_unresolved_count") or 0) > 0:
+            maturity_reasons.append("target_state_unresolved_burden_present")
+        mechanism_review_readiness = (
+            "REVIEWABLE_EVIDENCE_MATURITY"
+            if not maturity_reasons
+            else "INSUFFICIENT_EVIDENCE_MATURITY"
+        )
+        maturity_profile = {
+            "profile_family": "P02_EVIDENCE_MATURITY_PROFILE",
+            "finding_target_candidate_id": finding.get("finding_target_candidate_id"),
+            "resolved_target_state_denominator": int(finding.get("resolved_target_state_denominator") or 0),
+            "sample_maturity_candidate": finding.get("finding_sample_maturity_candidate"),
+            "distinct_process_signature_count": len(signature_counts),
+            "recurrent_process_signature_count": recurrent_signature_count,
+            "members_in_recurrent_process_signatures": members_in_recurrent_signatures,
+            "same_team_same_focus_context_population_count": context_spread_population_count,
+            "admitted_same_team_same_focus_context_population_count": admitted_context_spread_population_count,
+            "evidence_unit_pair_count": len(pairwise_rows),
+            "evidence_unit_independence_admitted_pair_count": independence_admitted_pair_count,
+            "evidence_unit_independence_not_admitted_pair_count": independence_not_admitted_pair_count,
+            "statistical_independence_claimed": False,
+            "target_state_unresolved_count": int(finding.get("target_state_unresolved_count") or 0),
+            "admitted_opposite_counterevidence_pair_count": int(finding.get("admitted_opposite_counterevidence_pair_count") or 0),
+            "counterevidence_persistence_across_contexts": "NOT_EVALUATED",
+            "mechanism_review_readiness": mechanism_review_readiness,
+            "mechanism_maturity_reasons": maturity_reasons,
+            "mechanism_promotion_allowed": False,
+            "mechanism_truth_claimed": False,
+            "causal_truth_claimed": False,
+            "tactical_intent_claimed": False,
+            "recurrence_is_causality": False,
+            "claim_ceiling": "MATCH_LOCAL_EVIDENCE_MATURITY_PROFILE_ONLY",
+        }
+        finding["evidence_maturity_profile"] = maturity_profile
+        finding["mechanism_review_readiness"] = mechanism_review_readiness
+        finding["mechanism_maturity_reasons"] = maturity_reasons
+        finding["mechanism_promotion_allowed"] = False
+
     return {
         "module_id": "progression_pool_p02_projection_v1",
         "status": "DEGRADED" if pool_items else "NOT_EVALUATED",
@@ -3461,6 +3566,12 @@ def _progression_pool_p02(
         ),
         "professional_finding_target_candidate_count": len(professional_finding_targets),
         "professional_finding_target_candidates": professional_finding_targets,
+        "evidence_maturity_profile_count": len(professional_finding_targets),
+        "mechanism_reviewable_finding_count": sum(
+            1 for row in professional_finding_targets
+            if row.get("mechanism_review_readiness") == "REVIEWABLE_EVIDENCE_MATURITY"
+        ),
+        "mechanism_promotion_allowed_count": 0,
         "professional_finding_emit_candidate_count": sum(
             1 for row in professional_finding_targets
             if row.get("finding_admission_decision") == "EMIT_CANDIDATE"
