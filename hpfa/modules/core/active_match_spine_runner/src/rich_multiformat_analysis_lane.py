@@ -2046,6 +2046,56 @@ def _progression_pool_p02(
     )
     process_unit_comparisons = _build_p02_process_unit_comparison_populations(process_units)
 
+    consequence_path_severity_candidates: list[dict[str, Any]] = []
+    trace_to_units: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for unit in process_units.get("p02_process_unit_candidates") or []:
+        if not isinstance(unit, dict):
+            continue
+        for trace_id in unit.get("source_trackable_action_trace_candidate_ids") or []:
+            trace_to_units[str(trace_id)].append(unit)
+
+    for recurrence in consequence.get("visible_consequence_path_recurrence_candidates") or []:
+        if not isinstance(recurrence, dict):
+            continue
+        states = Counter()
+        bound_count = 0
+        missing_count = 0
+        ambiguous_count = 0
+        for trace_id in recurrence.get("anchor_trace_refs") or []:
+            matches = [
+                unit for unit in trace_to_units.get(str(trace_id), [])
+                if set(unit.get("action_family_counts") or {}) & set(recurrence.get("anchor_action_family_candidates") or [])
+            ]
+            if len(matches) != 1:
+                if not matches:
+                    missing_count += 1
+                else:
+                    ambiguous_count += 1
+                continue
+            response = matches[0].get("opponent_response_candidate") or {}
+            if response.get("status") != "EXACT_HANDOVER_BOUNDARY_LINKED":
+                states["HANDOVER_NOT_EXACT"] += 1
+                continue
+            bound_count += 1
+            states[str(response.get("advanced_access_state_candidate") or "UNRESOLVED")] += 1
+        consequence_path_severity_candidates.append({
+            "visible_consequence_path_signature": recurrence.get("visible_consequence_path_signature"),
+            "team_identity_candidate_id": recurrence.get("team_identity_candidate_id"),
+            "visible_occurrence_count": recurrence.get("visible_occurrence_count"),
+            "eligible_anchor_population_count": recurrence.get("eligible_anchor_population_count"),
+            "exact_process_response_bound_count": bound_count,
+            "advanced_access_visible_count": int(states.get("ADVANCED_ACCESS_VISIBLE", 0)),
+            "no_advanced_access_visible_count": int(states.get("NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH", 0)),
+            "access_unresolved_count": int(states.get("UNRESOLVED", 0)),
+            "handover_not_exact_count": int(states.get("HANDOVER_NOT_EXACT", 0)),
+            "process_binding_missing_count": missing_count,
+            "process_binding_ambiguous_count": ambiguous_count,
+            "severity_is_transition_defence_quality_truth": False,
+            "severity_is_causal_truth": False,
+            "severity_is_tactical_intention_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_CONSEQUENCE_PATH_DOWNSTREAM_ACCESS_CANDIDATE_ONLY",
+        })
+
     p02_c4_packet_candidates: list[dict[str, Any]] = []
     p02_counterevidence_population_records: list[dict[str, Any]] = []
     total_admitted_opposite_pairs = 0
@@ -2191,6 +2241,10 @@ def _progression_pool_p02(
         "comparison_populations": comparison_populations,
         "process_units": process_units,
         "process_unit_comparisons": process_unit_comparisons,
+        "visible_consequence_path_severity_candidates": consequence_path_severity_candidates,
+        "visible_consequence_path_severity_candidate_count": len(consequence_path_severity_candidates),
+        "consequence_path_severity_is_transition_defence_quality_truth": False,
+        "consequence_path_severity_is_causal_truth": False,
         "p02_c4_packet_candidate_count": len(p02_c4_packet_candidates),
         "p02_c4_packet_candidates": p02_c4_packet_candidates,
         "p02_counterevidence_population_count": len(p02_counterevidence_population_records),
