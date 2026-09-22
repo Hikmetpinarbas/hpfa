@@ -68,6 +68,11 @@ def _payloads() -> tuple[dict, dict]:
         "context_candidate_count": len(contexts),
         "context_candidates": contexts,
         "time_admission_status": "ADMITTED",
+        "context_zone_ontology_id": "THIRDS_ONLY_V1",
+        "context_zone_domain": ["DEFENSIVE_THIRD", "MIDDLE_THIRD", "FINAL_THIRD"],
+        "context_zone_final_third_observable": True,
+        "context_zone_penalty_area_observable": False,
+        "context_zone_penalty_area_unobservable_reason": "THIRDS_ONLY_ZONE_ONTOLOGY",
         "context_occurrence_basis": "ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT",
         "row_nucleus_context_binding": {
             "enabled": True,
@@ -122,6 +127,11 @@ def test_reviewed_provider_semantics_rebinds_action_and_non_action_surfaces() ->
     assert result["non_action_context_or_reference_count"] == 3
     assert result["reviewed_provider_semantics_bound_count"] == 7
     assert result["provider_semantics_unresolved_or_review_required_count"] == 0
+    assert result["context_zone_ontology_id"] == "THIRDS_ONLY_V1"
+    assert result["context_zone_domain"] == ["DEFENSIVE_THIRD", "MIDDLE_THIRD", "FINAL_THIRD"]
+    assert result["context_zone_final_third_observable"] is True
+    assert result["context_zone_penalty_area_observable"] is False
+    assert result["context_zone_penalty_area_unobservable_reason"] == "THIRDS_ONLY_ZONE_ONTOLOGY"
 
 
 def test_team_goal_kick_length_is_reference_not_action_occurrence() -> None:
