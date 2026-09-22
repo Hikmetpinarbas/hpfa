@@ -1018,6 +1018,12 @@ def test_p02_exact_handover_links_first_visible_opponent_process_without_causal_
     assert source["opponent_response_is_tactical_response_truth"] is False
     assert source["opponent_response_is_counterattack_truth"] is False
     assert source["opponent_response_adds_independent_support"] is False
+    profile = source["visible_variant_outcome_profile"]
+    assert profile["opponent_response_status"] == "EXACT_HANDOVER_BOUNDARY_LINKED"
+    assert profile["success_failure_label"] == "NOT_ASSIGNED"
+    assert profile["profile_is_process_outcome_truth"] is False
+    assert profile["profile_is_tactical_quality_truth"] is False
+    assert profile["profile_is_causal_truth"] is False
 
 
 def test_p02_handover_does_not_guess_nearest_opponent_process():
@@ -1107,6 +1113,14 @@ def test_p02_turnover_response_summary_uses_explicit_denominator_and_no_causal_p
     assert summary["opponent_response_is_causal_truth"] is False
     assert summary["opponent_advanced_access_is_dangerous_transition_truth"] is False
     assert summary["counts_are_independent_support_votes"] is False
+    source = next(
+        row for row in out["p02_process_unit_candidates"]
+        if row["source_visible_action_sequence_candidate_id"] == "vasq_1"
+    )
+    profile = source["visible_variant_outcome_profile"]
+    assert profile["turnover_visible"] is True
+    assert profile["opponent_response_status"] == "EXACT_HANDOVER_BOUNDARY_LINKED"
+    assert profile["success_failure_label"] == "NOT_ASSIGNED"
 
 
 def test_p02_partial_order_signature_preserves_layer_multisets_without_internal_order():
