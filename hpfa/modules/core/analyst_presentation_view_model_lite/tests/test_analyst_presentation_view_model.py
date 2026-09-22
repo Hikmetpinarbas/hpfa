@@ -283,6 +283,13 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert field_region["visual_mode"] == "SCHEMATIC_PITCH_WITH_RECORDED_ANCHORS"
     assert "invented_ball_trajectory" in field_region["blocked_overlays"]
     assert dashboard["interaction_rules"]["every_claim_card_must_offer_traceback"] is True
+    depth = dashboard["depth_model"]
+    assert depth["principle"] == "SIMPLE_FIRST_VIEW_DEEPER_ON_DEMAND_TRACEABLE_TO_EVIDENCE"
+    assert [layer["layer_id"] for layer in depth["layers"]] == ["L1_MATCH_READ", "L2_MECHANISM_READ", "L3_EVIDENCE_AUDIT"]
+    assert depth["layers"][0]["analyst_time_horizon"] == "5_TO_10_SECONDS"
+    assert "uncertainty_marker" in depth["layers"][0]["must_show"]
+    assert "withdrawal_condition" in depth["layers"][2]["must_show"]
+    assert depth["collapse_rule"] == "DETAIL_MAY_HIDE_UNTIL_REQUESTED_BUT_UNCERTAINTY_MAY_NOT_BE_HIDDEN"
     assert graphability["specs"]["comparative_views"]["state"] == "GRAPHABLE"
     assert graphability["specs"]["analyst_report"]["state"] == "GRAPHABLE_AS_COMPANION_ONLY"
     assert payload["interaction_provenance_may_affect_evidence"] is False

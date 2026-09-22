@@ -590,3 +590,61 @@ Palette:
 dark navy / black base, electric blue primary accent, restrained green for support, restrained amber/red for warning.
 
 Aesthetic quality must improve analyst comprehension without strengthening the underlying football claim.
+
+## Depth model
+
+The HPFA analyst dashboard uses three progressive depth layers.
+
+L1 — MATCH READ
+Target: 5–10 seconds.
+Question:
+What are the few visible match stories worth attention?
+Show:
+- Match Story
+- Six-Phase state
+- key comparisons
+- safe meaning
+- uncertainty marker
+Do not flood with raw reference IDs or dense tables.
+
+L2 — MECHANISM READ
+Target: 30–120 seconds.
+Question:
+How did the visible mechanism unfold, where/when, through which players and variants?
+Show:
+- mechanism
+- WHERE / WHEN
+- episode/process chain
+- successful / failed / deviant variants
+- visible consequence
+- recorded player participation
+Never promote to trajectory, off-ball tactical role or coach intention.
+
+L3 — EVIDENCE AUDIT
+Target: on demand.
+Question:
+Why is the claim allowed, what weakens it, and when should it be withdrawn?
+Show:
+- support
+- counterevidence
+- dependency state
+- uncertainty
+- withdrawal condition
+- traceback
+
+Drill-down:
+MATCH STORY
+→ MECHANISM
+→ WHERE / WHEN
+→ VARIANT
+→ PLAYER PARTICIPATION
+→ CONSEQUENCE
+→ COUNTEREVIDENCE
+→ EVIDENCE TRACEBACK
+
+Depth principle:
+SIMPLE_FIRST_VIEW_DEEPER_ON_DEMAND_TRACEABLE_TO_EVIDENCE
+
+Detail may collapse until requested.
+Uncertainty may never be hidden.
+UNKNOWN / NOT_EVALUATED / UNOBSERVABLE remain visible states.
