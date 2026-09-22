@@ -315,6 +315,23 @@ def test_analyst_report_surfaces_emit_candidate_without_promoting_release(tmp_pa
             ],
         },
     }
+    full["P02_professional_finding_report_contract_item_count"] = 1
+    full["p02_professional_finding_report_contracts"] = {
+        "status": "SMOKE_PASS",
+        "items": [
+            {
+                "safe_sentence": {
+                    "safe_sentence_candidate_tr": "P02_ADMITTED_SAFE_SENTENCE_FIXTURE",
+                },
+                "assembly": {
+                    "assembly_decision": "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE",
+                    "status": "SMOKE_PASS",
+                    "final_report_allowed": False,
+                    "production_report_allowed": False,
+                },
+            }
+        ],
+    }
     text = build_analyst_report(tmp_path, full)
     assert "[EMIT_CANDIDATE] Team A" in text
     assert "[REVIEW_REQUIRED] Team A" in text
@@ -322,6 +339,11 @@ def test_analyst_report_surfaces_emit_candidate_without_promoting_release(tmp_pa
     assert "target_state_unresolved_burden_present" in text
     assert "Admission summary: EMIT_CANDIDATE=1; REVIEW_REQUIRED=1" in text
     assert "EMIT_CANDIDATE release veya production claim degildir." in text
+    assert "P02_ADMITTED_SAFE_SENTENCE_FIXTURE" in text
+    p02_index = text.index("P02_ADMITTED_SAFE_SENTENCE_FIXTURE")
+    generic_index = text.find("Görünür kanıt grafiği")
+    if generic_index >= 0:
+        assert p02_index < generic_index
 
 def test_fail_closed_report_does_not_consume_stale_feature_artifact(tmp_path):
     (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
