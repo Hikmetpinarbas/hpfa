@@ -5,7 +5,7 @@ from hpfa.modules.core.state_transition_dynamics_lite.src.state_transition_dynam
 BINDING = "msb_" + "a" * 24
 
 
-def spatial(trace_id="tat_a", progression=True, zone="FINAL_THIRD"):
+def spatial(trace_id="tat_a", progression=True, zone="FINAL_THIRD", direction="FORWARD"):
     return {
         "module_id": "spatial_transition_candidate_lite_v1",
         "status": "PASS",
@@ -22,7 +22,7 @@ def spatial(trace_id="tat_a", progression=True, zone="FINAL_THIRD"):
             "provider_progression_candidates": ["PROGRESSIVE_CANDIDATE"] if progression else [],
             "provider_zone_candidates": [zone] if zone else [],
             "provider_context_candidates": [],
-            "provider_direction_candidates": ["FORWARD"],
+            "provider_direction_candidates": [direction] if direction else [],
             "provider_outcome_candidates": ["SUCCESS"],
             "spatial_admission_state": "PROVIDER_SPATIAL_CONTEXT_CANDIDATE_ONLY",
         }],
@@ -85,6 +85,49 @@ def test_no_visible_follow_up_is_not_counterevidence():
     row = result["state_transition_dynamics_candidates"][0]
     assert row["transition_class_candidate"] == "NO_VISIBLE_FOLLOW_UP_ASSOCIATION_CANDIDATE"
     assert row["adverse_consequence_candidates"] == []
+
+
+def test_progression_to_continuation_gets_bounded_state_advancement_function():
+    result = build_state_transition_dynamics(
+        spatial(progression=True, zone="MIDDLE_THIRD"),
+        consequence(primary="SAME_TEAM_CONTINUATION_CANDIDATE"),
+    )
+    row = result["state_transition_dynamics_candidates"][0]
+    assert row["visible_state_change_function_candidate"] == "VISIBLE_STATE_ADVANCEMENT_CONTINUATION_CANDIDATE"
+    assert row["state_change_function_is_player_causal_credit"] is False
+    assert row["state_change_function_is_opponent_organization_truth"] is False
+
+
+def test_backward_action_to_same_team_continuation_is_not_automatically_negative():
+    result = build_state_transition_dynamics(
+        spatial(progression=False, zone="MIDDLE_THIRD", direction="BACKWARD"),
+        consequence(primary="SAME_TEAM_CONTINUATION_CANDIDATE"),
+    )
+    row = result["state_transition_dynamics_candidates"][0]
+    assert row["visible_state_change_function_candidate"] == "BACKWARD_OR_LATERAL_TO_SAME_TEAM_CONTINUATION_CANDIDATE"
+    assert row["backward_or_lateral_action_is_automatically_negative"] is False
+    assert row["adverse_consequence_candidates"] == []
+
+
+def test_shot_follow_up_is_visible_exploitation_candidate_not_value_truth():
+    result = build_state_transition_dynamics(
+        spatial(progression=False, zone="FINAL_THIRD", direction="LATERAL"),
+        consequence(primary="SHOT_FOLLOW_UP_CANDIDATE"),
+    )
+    row = result["state_transition_dynamics_candidates"][0]
+    assert row["visible_state_change_function_candidate"] == "VISIBLE_ADVANTAGE_EXPLOITATION_CANDIDATE"
+    assert row["state_change_function_is_value_model_output"] is False
+    assert result["state_change_function_is_value_model_output"] is False
+
+
+def test_adverse_handover_is_visible_advantage_loss_candidate_not_causality():
+    result = build_state_transition_dynamics(
+        spatial(progression=True),
+        consequence(primary="OPPONENT_HANDOVER_CANDIDATE"),
+    )
+    row = result["state_transition_dynamics_candidates"][0]
+    assert row["visible_state_change_function_candidate"] == "VISIBLE_ADVANTAGE_LOSS_OR_HANDOVER_CANDIDATE"
+    assert row["transition_is_causal_truth"] is False
 
 
 def test_trace_coverage_mismatch_fails_closed():
