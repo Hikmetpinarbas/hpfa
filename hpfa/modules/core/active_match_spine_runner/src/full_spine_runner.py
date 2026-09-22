@@ -404,6 +404,22 @@ def run_full_spine(
         "status": "NOT_EVALUATED_PREREQUISITE_MISSING",
         "current_invocation_artifacts": [],
     }
+    p02_professional_finding_report_contracts: dict[str, Any] = {
+        "module_id": "p02_professional_finding_report_contract_adapter_v1",
+        "status": "NOT_EVALUATED",
+        "finding_contract_item_count": 0,
+        "ready_draft_report_candidate_count": 0,
+        "review_count": 0,
+        "blocked_count": 0,
+        "items": [],
+        "claim_output_allowed": False,
+        "draft_report_candidate_allowed": False,
+        "final_report_allowed": False,
+        "production_report_allowed": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
     expected_snapshot_id = str(bridge_report.get("input_surface_snapshot_id") or "")
     if not hard_blocks and expected_snapshot_id:
         try:
@@ -446,21 +462,6 @@ def run_full_spine(
     auxiliary_counterevidence_packets: list[dict[str, Any]] = []
     auxiliary_counterevidence_fusions: list[dict[str, Any]] = []
     fused_packet_artifacts: list[str] = []
-    p02_professional_finding_report_contracts: dict[str, Any] = {
-        "module_id": "p02_professional_finding_report_contract_adapter_v1",
-        "status": "NOT_EVALUATED",
-        "finding_contract_item_count": 0,
-        "ready_draft_report_candidate_count": 0,
-        "review_count": 0,
-        "blocked_count": 0,
-        "items": [],
-        "claim_output_allowed": False,
-        "final_report_allowed": False,
-        "production_report_allowed": False,
-        "canonical_event_count": "UNKNOWN",
-        "true_action_count": "UNKNOWN",
-        "production_release": False,
-    }
     if not hard_blocks:
         try:
             packet_report = _load_json(output_root / PACKET_REPORT_JSON)
