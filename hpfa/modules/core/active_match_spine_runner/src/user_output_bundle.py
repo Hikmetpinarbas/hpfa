@@ -1639,6 +1639,18 @@ def build_graph_ready_mechanism_cards_payload(
     )
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     teams = _human_team_labels(identity)
+    rich_payload = (
+        _load_json(root / RICH_MULTIFORMAT_JSON)
+        if _declared_current(full_spine, RICH_MULTIFORMAT_JSON)
+        else {}
+    )
+    player_profiles_by_actor = _player_function_profiles_by_actor(rich_payload)
+    validated_actor_labels = _human_validated_actor_labels(identity)
+    safe_context_by_family = _mechanism_safe_context_by_family(
+        root,
+        full_spine,
+        process_variant_payload,
+    )
 
     shortlist = build_mechanism_story_review_shortlist(
         payload,
@@ -1663,6 +1675,32 @@ def build_graph_ready_mechanism_cards_payload(
         process_counts = dict(row.get("process_family_episode_presence_counts") or {})
         support_state = str(row.get("review_support_state") or "")
         single_episode_only = support_state.startswith("SINGLE_EPISODE_")
+        family_ref = str(row.get("source_process_variant_family_ref") or "")
+        safe_context = safe_context_by_family.get(family_ref, {})
+        actor_locator = _select_actor_locator(source_record)
+        actor_ref = _focus_actor_ref(actor_locator)
+        actor_profile = (
+            player_profiles_by_actor.get(actor_ref, {})
+            if actor_ref
+            else {}
+        )
+        actor_metrics = (
+            _player_profile_metric_values(actor_profile)
+            if isinstance(actor_profile, dict)
+            else {}
+        )
+        actor_label = (
+            validated_actor_labels.get(actor_ref)
+            if actor_ref
+            else None
+        )
+        actor_process_counts = (
+            ((actor_profile.get("function_dimensions") or {}).get("PROCESS") or {}).get(
+                "process_participation_counts"
+            )
+            if isinstance(actor_profile, dict)
+            else {}
+        ) or {}
         cards.append({
             "card_index": idx,
             "classification": "LIMITED_COMPARISON" if single_episode_only else "MAIN_MECHANISM_CANDIDATE",
@@ -1674,6 +1712,47 @@ def build_graph_ready_mechanism_cards_payload(
             "process_context_binding_state": row.get("process_context_binding_state"),
             "single_process_family_candidate": row.get("single_process_family_candidate"),
             "process_family_episode_presence_counts": process_counts,
+            "safe_finding_context": {
+                "safe_finding_match_count": int(safe_context.get("safe_finding_match_count") or 0),
+                "score_state_consensus": safe_context.get("score_state_consensus") is True,
+                "score_state_candidate": safe_context.get("score_state_candidate"),
+                "provider_process_family_consensus": (
+                    safe_context.get("provider_process_family_consensus") is True
+                ),
+                "provider_process_family_candidates": [
+                    str(v)
+                    for v in (safe_context.get("provider_process_family_candidates") or [])
+                    if str(v)
+                ],
+                "provider_process_context_partial_count": int(
+                    safe_context.get("provider_process_context_partial_count") or 0
+                ),
+                "preoutcome_context_state_counts": dict(
+                    safe_context.get("preoutcome_context_state_counts") or {}
+                ),
+                "emit_decision_count": int(safe_context.get("emit_decision_count") or 0),
+                "claim_output_allowed_count": int(
+                    safe_context.get("claim_output_allowed_count") or 0
+                ),
+                "context_is_preoutcome_only": True,
+                "creates_new_evidence": False,
+                "creates_independent_support": False,
+                "can_change_shortlist_selection": False,
+                "can_change_safe_finding_decision": False,
+                "can_authorize_emit": False,
+            },
+            "player_context": {
+                "actor_identity_candidate_id": actor_ref,
+                "actor_label": actor_label,
+                "actor_locator": actor_locator,
+                "aggregate_metric_values": actor_metrics,
+                "process_participation_counts": dict(actor_process_counts),
+                "aggregate_context_is_mechanism_action_identity": False,
+                "aggregate_context_is_player_quality_truth": False,
+                "aggregate_context_is_causal_contribution_truth": False,
+                "creates_new_evidence": False,
+                "can_authorize_emit": False,
+            },
             "resolved_variant_n": int(row.get("resolved_variant_count") or 0),
             "positive_visible_variant_n": int(row.get("success_resolved_variant_count") or 0),
             "negative_visible_variant_n": int(row.get("failure_resolved_variant_count") or 0),
@@ -1699,6 +1778,11 @@ def build_graph_ready_mechanism_cards_payload(
                 "FIRST_VISIBLE_DIVERGENCE_PANEL",
             ],
             "graphability_state": "GRAPH_READY_WITH_REVIEW",
+            "graph_context_lineage_state": (
+                "SAFE_FINDING_CONTEXT_BOUND"
+                if safe_context
+                else "NO_SAFE_FINDING_CONTEXT_BOUND"
+            ),
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_VARIANT_MECHANISM_CANDIDATE_ONLY",
             "player_name_rendering_state": "VALIDATED_IDENTITY_ONLY",
             "creates_new_evidence": False,

@@ -938,3 +938,148 @@ def test_actor_aggregate_context_is_match_context_not_mechanism_evidence():
     assert "yerleşik hücum 12" in text
     assert "mekanizma aksiyon kimliği" in text
     assert "nedensel katkı için kullanıma kapalıdır" in text
+
+
+def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_without_claim_promotion(tmp_path: Path) -> None:
+    feature = {
+        "status": "PASS",
+        "grammar_stable_variant_feature_delta_records": [{
+            "grammar_stable_variant_feature_delta_id": "gsvfd_1",
+            "source_process_variant_family_ref": "opvf_1",
+            "team_identity_candidate_ids": ["team_a"],
+            "period_candidates": ["1"],
+            "grammar_signature_tokens": ["PASS", "PASS"],
+            "resolved_variant_count": 3,
+            "success_resolved_variant_count": 2,
+            "failure_resolved_variant_count": 1,
+            "first_supported_context_difference_layer_candidate": 1,
+            "first_supported_consequence_difference_layer_candidate": 2,
+            "context_feature_difference_candidates": [{
+                "feature_token": "actor_identity_candidate_ids:actor_1",
+                "success_visible_numerator": 2,
+                "success_eligible_denominator": 2,
+                "failure_visible_numerator": 0,
+                "failure_eligible_denominator": 1,
+                "descriptive_rate_delta_success_minus_failure": 1.0,
+            }],
+        }],
+    }
+    process_variant = {
+        "observable_process_variant_families": [{
+            "observable_process_variant_family_id": "opvf_1",
+            "grammar_stable_variant_feature_delta_ref": "gsvfd_1",
+            "visible_episode_spread_count": 2,
+            "occurrence_disjoint_support_cluster_count": 2,
+            "supported_branch_divergence_bindings": [{
+                "source_first_supported_branch_divergence_ref": "fsbd_1",
+            }],
+        }],
+    }
+    sequence = {
+        "safe_finding_handoff_candidates": [{
+            "safe_finding_handoff_candidate_id": "sfh_1",
+            "source_first_supported_branch_divergence_ref": "fsbd_1",
+        }],
+    }
+    admission = {
+        "safe_finding_admission_decisions": [{
+            "source_safe_finding_handoff_ref": "sfh_1",
+            "decision": "ABSTAIN",
+            "claim_output_allowed": False,
+            "branch_preoutcome_context_enrichment": {
+                "state": "PRE_BRANCH_CONTEXT_ENRICHED_GAME_STATE_AND_PROCESS",
+                "score_state_candidate": {"Alpha": 0, "Beta": 0},
+                "provider_process_family_candidates": ["POSITIONAL_ATTACK_CANDIDATE"],
+            },
+        }],
+    }
+    rich = {
+        "status": "PASS",
+        "constructs": {
+            "C02": {
+                "player_function_profiles": [{
+                    "actor_identity_candidate_id": "actor_1",
+                    "actor_label": "Hikmet",
+                    "function_dimensions": {
+                        "ACCESS": [{
+                            "metric_key": "progressive_passes",
+                            "raw_value": 8,
+                        }],
+                        "TERMINAL": [{
+                            "metric_key": "shots",
+                            "raw_value": 3,
+                        }],
+                        "PROCESS": {
+                            "process_participation_counts": {
+                                "POSITIONAL_ATTACK_CANDIDATE": 12,
+                            }
+                        },
+                    },
+                }]
+            }
+        },
+    }
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_a",
+            "team_aliases_raw": ["Alpha"],
+        }],
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "actor_1",
+            "actor_aliases_raw": ["Hikmet"],
+            "validated_player_identity": True,
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+        }],
+    }
+    challenge = {
+        "status": "PASS",
+        "variant_feature_challenge_records": [],
+    }
+
+    files = {
+        user_output_bundle.FEATURE_DELTA_JSON: feature,
+        user_output_bundle.PROCESS_VARIANT_JSON: process_variant,
+        user_output_bundle.VISIBLE_SEQUENCE_JSON: sequence,
+        user_output_bundle.SAFE_FINDING_ADMISSION_JSON: admission,
+        user_output_bundle.RICH_MULTIFORMAT_JSON: rich,
+        user_output_bundle.IDENTITY_JSON: identity,
+        user_output_bundle.VARIANT_FEATURE_CHALLENGE_JSON: challenge,
+    }
+    current = []
+    for name, payload in files.items():
+        path = tmp_path / name
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        current.append(str(path))
+
+    spine = _full_spine(current_artifacts=current)
+    result = user_output_bundle.build_graph_ready_mechanism_cards_payload(
+        tmp_path,
+        spine,
+    )
+    assert result["card_count"] == 1
+    card = result["cards"][0]
+    safe = card["safe_finding_context"]
+    assert safe["score_state_consensus"] is True
+    assert safe["score_state_candidate"] == {"Alpha": 0, "Beta": 0}
+    assert safe["provider_process_family_consensus"] is True
+    assert safe["provider_process_family_candidates"] == [
+        "POSITIONAL_ATTACK_CANDIDATE"
+    ]
+    assert safe["emit_decision_count"] == 0
+    assert safe["claim_output_allowed_count"] == 0
+    assert safe["creates_independent_support"] is False
+    assert safe["can_authorize_emit"] is False
+
+    player = card["player_context"]
+    assert player["actor_identity_candidate_id"] == "actor_1"
+    assert player["actor_label"] == "Hikmet"
+    assert player["aggregate_metric_values"]["progressive_passes"] == 8
+    assert player["aggregate_metric_values"]["shots"] == 3
+    assert player["process_participation_counts"] == {
+        "POSITIONAL_ATTACK_CANDIDATE": 12
+    }
+    assert player["aggregate_context_is_mechanism_action_identity"] is False
+    assert player["aggregate_context_is_player_quality_truth"] is False
+    assert player["aggregate_context_is_causal_contribution_truth"] is False
+    assert card["can_authorize_emit"] is False
+    assert card["can_strengthen_claim_ceiling"] is False
