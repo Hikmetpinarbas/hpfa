@@ -112,15 +112,15 @@ def test_no_admitted_after_followup_does_not_invent_first_or_target_result() -> 
     row = out["trackable_action_consequence_candidates"][0]
 
     assert row["primary_consequence_candidate"] == "TERMINAL_OUTCOME_SUPPORT_CANDIDATE"
-    assert row["first_eligible_consequence_binding_state"] == "NO_ADMITTED_AFTER_FOLLOWUP"
+    assert row["first_eligible_consequence_binding_state"] == "NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"
     assert row["first_eligible_follow_up_trace_ids"] == []
     assert row["first_eligible_team_relation"] == "NONE"
     assert row["target_consequence_within_horizon"] is None
     assert row["target_consequence_query_required_for_target_claim"] is True
     assert row["diagnostic_horizon_family_presence_can_authorize_claim"] is False
     assert row["time_to_first_admitted_visible_state_change_seconds_candidate"] is None
-    assert row["time_to_first_admitted_visible_state_change_observation_state"] == "NO_ADMITTED_AFTER_FOLLOWUP"
-    assert out["time_to_first_admitted_visible_state_change_profile"]["observation_state_counts"]["NO_ADMITTED_AFTER_FOLLOWUP"] == 1
+    assert row["time_to_first_admitted_visible_state_change_observation_state"] == "NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"
+    assert out["time_to_first_admitted_visible_state_change_profile"]["observation_state_counts"]["NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"] == 1
 
 
 def test_time_profile_uses_median_and_keeps_no_followup_out_of_observed_distribution() -> None:
@@ -175,9 +175,13 @@ def test_time_profile_uses_median_and_keeps_no_followup_out_of_observed_distribu
     assert profile["eligible_observed_n"] == 2
     assert profile["distribution_values_seconds_candidate"] == [1.0, 4.0]
     assert profile["median_seconds_candidate"] == 2.5
-    assert profile["observation_state_counts"]["NO_ADMITTED_AFTER_FOLLOWUP"] == 1
+    assert profile["observation_state_counts"]["NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"] == 1
     assert profile["right_censoring_model_applied"] is False
+    assert profile["diagnostic_observation_horizon_seconds"] == 12.0
+    assert profile["distribution_is_truncated_by_diagnostic_horizon"] is True
+    assert profile["no_admitted_after_within_horizon_is_no_future_state_truth"] is False
     assert profile["no_admitted_after_is_failure"] is False
+    assert profile["temporal_interpretation_state"] == "DIAGNOSTIC_HORIZON_TRUNCATED_DESCRIPTIVE_DISTRIBUTION"
     assert profile["graphability_state"] == "GRAPH_READY_WITH_REVIEW"
 
 
