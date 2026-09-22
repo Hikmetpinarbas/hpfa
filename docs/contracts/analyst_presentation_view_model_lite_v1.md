@@ -801,3 +801,35 @@ MECHANISM_READING_VARIANT_ONLY
 
 Graph:
 STACKED_BAR_WITH_EXPLICIT_DENOMINATOR
+
+## Turning-point contributor drill-down
+
+Each turning-point candidate may expose match-local navigation contributors for the same five-minute window:
+
+- team trace-candidate counts
+- top player trace-candidate counts
+- action-family candidate counts
+- primary consequence-candidate counts
+
+Player ordering is explicitly:
+NAVIGATION_VOLUME_ONLY_NOT_PLAYER_QUALITY
+
+These fields support analyst drill-down only.
+
+They do not establish:
+- player quality
+- tactical importance
+- causality
+- contribution value
+- dominance
+- true match turning point
+
+The analyst path is:
+TURNING-POINT CANDIDATE
+→ TEAM
+→ PLAYER
+→ ACTION FAMILY
+→ VISIBLE CONSEQUENCE
+→ EVIDENCE
+
+All counts remain nominal candidate counts unless a stronger upstream identity/independence contract is admitted.

@@ -843,6 +843,7 @@ def _football_dynamics_surface(
     }
 
     rhythm_bins: dict[tuple[str, int], int] = {}
+    rhythm_detail_windows: dict[tuple[str, int], dict[str, dict[str, int]]] = {}
     player_points: dict[str, list[tuple[float, float]]] = {}
     trace_team: dict[str, str] = {}
     trace_families: dict[str, list[str]] = {}
@@ -861,7 +862,13 @@ def _football_dynamics_surface(
         period = str(item.get("period_candidate") or "UNKNOWN_PERIOD")
         if start is not None and start >= 0:
             bin_start = int(start // 300) * 5
-            rhythm_bins[(period, bin_start)] = rhythm_bins.get((period, bin_start), 0) + 1
+            key = (period, bin_start)
+            rhythm_bins[key] = rhythm_bins.get(key, 0) + 1
+            detail = rhythm_detail_windows.setdefault(key, {"team": {}, "actor": {}, "family": {}})
+            detail["team"][team_id] = detail["team"].get(team_id, 0) + 1
+            detail["actor"][actor_id] = detail["actor"].get(actor_id, 0) + 1
+            for family in trace_families.get(trace_id) or []:
+                detail["family"][family] = detail["family"].get(family, 0) + 1
         try:
             x = float(item.get("pos_x_candidate"))
             y = float(item.get("pos_y_candidate"))
@@ -899,6 +906,7 @@ def _football_dynamics_surface(
 
     consequence_rows: dict[tuple[str, str, str], int] = {}
     consequence_windows: dict[tuple[str, int], dict[str, int]] = {}
+    consequence_detail_windows: dict[tuple[str, int], dict[str, dict[str, int]]] = {}
     for item in consequences:
         if not isinstance(item, dict):
             continue
@@ -916,12 +924,18 @@ def _football_dynamics_surface(
         except (TypeError, ValueError):
             anchor_start = None
         period = str(item.get("period_candidate") or "UNKNOWN_PERIOD")
-        if anchor_start is not None and anchor_start >= 0:
-            bin_start = int(anchor_start // 300) * 5
-            bucket = consequence_windows.setdefault((period, bin_start), {"TURNOVER": 0, "RECOVERY": 0})
-            bucket[anchor_kind] = bucket.get(anchor_kind, 0) + 1
         team_id = str(item.get("team_identity_candidate_id") or trace_team.get(trace_id) or "UNKNOWN_TEAM")
         primary = str(item.get("primary_consequence_candidate") or "UNKNOWN_CONSEQUENCE_CANDIDATE")
+        if anchor_start is not None and anchor_start >= 0:
+            bin_start = int(anchor_start // 300) * 5
+            key = (period, bin_start)
+            bucket = consequence_windows.setdefault(key, {"TURNOVER": 0, "RECOVERY": 0})
+            bucket[anchor_kind] = bucket.get(anchor_kind, 0) + 1
+            detail = consequence_detail_windows.setdefault(key, {"team": {}, "primary": {}, "team_primary": {}})
+            detail["team"][team_id] = detail["team"].get(team_id, 0) + 1
+            detail["primary"][primary] = detail["primary"].get(primary, 0) + 1
+            tp_key = f"{team_id}|{primary}"
+            detail["team_primary"][tp_key] = detail["team_primary"].get(tp_key, 0) + 1
         key = (team_id, anchor_kind, primary)
         consequence_rows[key] = consequence_rows.get(key, 0) + 1
     loss_recovery_rows = [
@@ -949,6 +963,51 @@ def _football_dynamics_surface(
         transition_anchor_count = int(consequence_counts.get("TURNOVER", 0)) + int(consequence_counts.get("RECOVERY", 0))
         rhythm_state_changed = previous_state is not None and current_state != previous_state
         if rhythm_state_changed and transition_anchor_count > 0:
+            rhythm_detail = rhythm_detail_windows.get((period, window_start), {"team": {}, "actor": {}, "family": {}})
+            consequence_detail = consequence_detail_windows.get((period, window_start), {"team": {}, "primary": {}, "team_primary": {}})
+            team_trace_rows = [
+                {
+                    "team_identity_candidate_id": team_id,
+                    "team_display_candidate": team_labels.get(team_id, team_id),
+                    "nominal_trace_candidate_count": int(count),
+                }
+                for team_id, count in sorted(
+                    rhythm_detail.get("team", {}).items(),
+                    key=lambda item: (-int(item[1]), str(item[0])),
+                )
+            ]
+            player_trace_rows = [
+                {
+                    "actor_identity_candidate_id": actor_id,
+                    "actor_display_candidate": actor_labels.get(actor_id, actor_id),
+                    "nominal_trace_candidate_count": int(count),
+                    "ranking_basis": "NAVIGATION_VOLUME_ONLY_NOT_PLAYER_QUALITY",
+                }
+                for actor_id, count in sorted(
+                    rhythm_detail.get("actor", {}).items(),
+                    key=lambda item: (-int(item[1]), str(item[0])),
+                )[:5]
+            ]
+            action_family_rows = [
+                {
+                    "action_family_candidate": family,
+                    "nominal_mention_count": int(count),
+                }
+                for family, count in sorted(
+                    rhythm_detail.get("family", {}).items(),
+                    key=lambda item: (-int(item[1]), str(item[0])),
+                )
+            ]
+            consequence_rows_window = [
+                {
+                    "primary_consequence_candidate": primary,
+                    "nominal_consequence_candidate_count": int(count),
+                }
+                for primary, count in sorted(
+                    consequence_detail.get("primary", {}).items(),
+                    key=lambda item: (-int(item[1]), str(item[0])),
+                )
+            ]
             turning_point_rows.append({
                 "period_candidate": period,
                 "window_start_minute_candidate": window_start,
@@ -958,6 +1017,10 @@ def _football_dynamics_surface(
                 "turnover_anchor_consequence_count": int(consequence_counts.get("TURNOVER", 0)),
                 "recovery_anchor_consequence_count": int(consequence_counts.get("RECOVERY", 0)),
                 "change_signal_count": 2,
+                "team_trace_candidate_counts": team_trace_rows,
+                "top_player_trace_candidate_counts": player_trace_rows,
+                "action_family_candidate_counts": action_family_rows,
+                "primary_consequence_candidate_counts": consequence_rows_window,
                 "candidate_reason": "RHYTHM_STATE_CHANGE_PLUS_LOSS_RECOVERY_CONSEQUENCE_ACTIVITY",
                 "is_match_turning_point_truth": False,
                 "is_causal_break": False,

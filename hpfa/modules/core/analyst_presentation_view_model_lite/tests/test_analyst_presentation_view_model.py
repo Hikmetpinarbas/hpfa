@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "analyst_presentation_view_model_lite" / "src"
 sys.path.insert(0, str(SRC))
 
-from analyst_presentation_view_model import build_view_model, write_view_model
+from analyst_presentation_view_model import _football_dynamics_surface, build_view_model, write_view_model
 
 def _write_json(path: Path, payload):
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -344,3 +344,86 @@ def test_stale_optional_artifacts_are_not_promoted(tmp_path):
     assert states["analyst_episode_locator_lite_v1.json"] == "STALE_NOT_CURRENT_INVOCATION"
     assert payload["surfaces"]["observed_replay"]["state"] == "MISSING"
     assert payload["surfaces"]["counterevidence_cards"]["state"] == "NOT_EVALUATED"
+
+
+def test_turning_point_candidate_exposes_navigation_contributors(tmp_path):
+    _write_json(
+        tmp_path / "trackable_action_trace_candidates_lite_v1.json",
+        {"trackable_action_trace_candidates": [
+            {
+                "trackable_action_trace_candidate_id": "t1",
+                "actor_identity_candidate_id": "a1",
+                "team_identity_candidate_id": "team1",
+                "action_family_candidates": ["PASS", "TURNOVER"],
+                "period_candidate": "1",
+                "start_candidate": 10.0,
+                "pos_x_candidate": 40.0,
+                "pos_y_candidate": 30.0,
+            },
+            {
+                "trackable_action_trace_candidate_id": "t2",
+                "actor_identity_candidate_id": "a2",
+                "team_identity_candidate_id": "team2",
+                "action_family_candidates": ["PASS"],
+                "period_candidate": "1",
+                "start_candidate": 320.0,
+                "pos_x_candidate": 60.0,
+                "pos_y_candidate": 35.0,
+            },
+            {
+                "trackable_action_trace_candidate_id": "t3",
+                "actor_identity_candidate_id": "a2",
+                "team_identity_candidate_id": "team2",
+                "action_family_candidates": ["RECOVERY"],
+                "period_candidate": "1",
+                "start_candidate": 325.0,
+                "pos_x_candidate": 61.0,
+                "pos_y_candidate": 36.0,
+            },
+            {
+                "trackable_action_trace_candidate_id": "t4",
+                "actor_identity_candidate_id": "a2",
+                "team_identity_candidate_id": "team2",
+                "action_family_candidates": ["PASS"],
+                "period_candidate": "1",
+                "start_candidate": 330.0,
+                "pos_x_candidate": 62.0,
+                "pos_y_candidate": 37.0,
+            },
+        ]},
+    )
+    _write_json(
+        tmp_path / "trackable_action_consequence_candidates_lite_v1.json",
+        {"trackable_action_consequence_candidates": [
+            {
+                "anchor_trackable_action_trace_candidate_id": "t3",
+                "anchor_start_candidate": 325.0,
+                "period_candidate": "1",
+                "team_identity_candidate_id": "team2",
+                "primary_consequence_candidate": "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE",
+            }
+        ]},
+    )
+    result = _football_dynamics_surface(
+        tmp_path,
+        {
+            "trackable_action_trace_candidates_lite_v1.json",
+            "trackable_action_consequence_candidates_lite_v1.json",
+        },
+        player_cards=[
+            {"actor_identity_candidate_id": "a1", "actor_display_candidate": "Player A", "team_identity_candidate_id": "team1", "team_normalized_key": "team_one"},
+            {"actor_identity_candidate_id": "a2", "actor_display_candidate": "Player B", "team_identity_candidate_id": "team2", "team_normalized_key": "team_two"},
+        ],
+        mechanism_cards=[],
+    )
+    rows = result["turning_point_candidates"]["rows"]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["window_start_minute_candidate"] == 5
+    assert row["recovery_anchor_consequence_count"] == 1
+    assert row["team_trace_candidate_counts"][0]["team_display_candidate"] == "team_two"
+    assert row["top_player_trace_candidate_counts"][0]["actor_display_candidate"] == "Player B"
+    assert row["top_player_trace_candidate_counts"][0]["ranking_basis"] == "NAVIGATION_VOLUME_ONLY_NOT_PLAYER_QUALITY"
+    assert any(item["action_family_candidate"] == "PASS" for item in row["action_family_candidate_counts"])
+    assert row["primary_consequence_candidate_counts"][0]["primary_consequence_candidate"] == "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE"
+    assert row["is_match_turning_point_truth"] is False
