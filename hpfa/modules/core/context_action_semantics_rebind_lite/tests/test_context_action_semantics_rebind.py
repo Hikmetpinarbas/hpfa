@@ -68,6 +68,11 @@ def _payloads() -> tuple[dict, dict]:
         "context_candidate_count": len(contexts),
         "context_candidates": contexts,
         "time_admission_status": "ADMITTED",
+        "context_zone_ontology_id": "THIRDS_ONLY_V1",
+        "context_zone_domain": ["DEFENSIVE_THIRD", "MIDDLE_THIRD", "FINAL_THIRD"],
+        "context_zone_final_third_observable": True,
+        "context_zone_penalty_area_observable": False,
+        "context_zone_penalty_area_unobservable_reason": "THIRDS_ONLY_ZONE_ONTOLOGY",
         "context_occurrence_basis": "ROW_NUCLEUS_CANDIDATE_NOT_EVENT_COUNT",
         "row_nucleus_context_binding": {
             "enabled": True,
@@ -122,6 +127,11 @@ def test_reviewed_provider_semantics_rebinds_action_and_non_action_surfaces() ->
     assert result["non_action_context_or_reference_count"] == 3
     assert result["reviewed_provider_semantics_bound_count"] == 7
     assert result["provider_semantics_unresolved_or_review_required_count"] == 0
+    assert result["context_zone_ontology_id"] == "THIRDS_ONLY_V1"
+    assert result["context_zone_domain"] == ["DEFENSIVE_THIRD", "MIDDLE_THIRD", "FINAL_THIRD"]
+    assert result["context_zone_final_third_observable"] is True
+    assert result["context_zone_penalty_area_observable"] is False
+    assert result["context_zone_penalty_area_unobservable_reason"] == "THIRDS_ONLY_ZONE_ONTOLOGY"
 
 
 def test_team_goal_kick_length_is_reference_not_action_occurrence() -> None:
@@ -283,3 +293,35 @@ def test_no_sample_match_identity_leak() -> None:
     text = (SRC / "context_action_semantics_rebind.py").read_text(encoding="utf-8")
     forbidden = ["Fenerbahce", "Galatasaray", "Genclerbirligi", "15.08.2026", "World Cup"]
     assert not any(token in text for token in forbidden)
+
+
+
+def test_terminal_outcome_and_card_semantics_are_preserved_without_action_promotion() -> None:
+    mvc, row = _payloads()
+    goal_idx = _append_row(mvc, row, "TEAM", "Goals")
+    card_idx = _append_row(mvc, row, "TEAM", "Yellow cards")
+    progression_idx = _append_row(mvc, row, "TEAM", "Progressive passes accurate")
+    box_idx = _append_row(mvc, row, "TEAM", "Passes into the penalty box accurate")
+    result = build_rebind(mvc, row, repo_root=ROOT)
+
+    goal = _record(result, f"ctx_{goal_idx}")
+    card = _record(result, f"ctx_{card_idx}")
+    progression = _record(result, f"ctx_{progression_idx}")
+    box_access = _record(result, f"ctx_{box_idx}")
+
+    assert goal["provider_semantic_role_candidate"] == "TERMINAL_OUTCOME_CANDIDATE"
+    assert goal["provider_terminal_outcome_candidate"] == "GOAL"
+    assert goal["action_occurrence_eligible"] is False
+
+    assert card["provider_semantic_role_candidate"] == "ADMINISTRATIVE_MARKER"
+    assert card["provider_card_type_candidate"] == "YELLOW"
+    assert card["action_occurrence_eligible"] is False
+
+    assert progression["provider_action_family_candidate"] == "PASS"
+    assert progression["provider_progression_candidate"] == "PROGRESSIVE_CANDIDATE"
+    assert progression["action_occurrence_eligible"] is True
+
+    assert box_access["provider_action_family_candidate"] == "PASS"
+    assert box_access["provider_zone_candidate"] == "PENALTY_AREA"
+    assert box_access["provider_outcome_candidate"] == "SUCCESS"
+    assert box_access["action_occurrence_eligible"] is True

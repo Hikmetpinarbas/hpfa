@@ -63,6 +63,38 @@ def explicit_contradiction_candidate():
     return candidate
 
 
+def admitted_counterevidence_candidate():
+    candidate = supported_candidate()
+    candidate["contradicting_signals"] = [
+        {
+            "signal_id": "counter_admitted_001",
+            "source_surface": "counter_surface",
+            "relation_type": "CONTRADICTS",
+            "contradiction_basis": "comparable process candidate resolves to opposite terminal outcome",
+            "comparison_question_id": "progression_terminal_outcome",
+            "comparison_unit": "episode_candidate",
+            "exact_dimensions": ["team", "game_state", "start_zone"],
+            "coarsened_dimensions": [],
+            "test_dimensions": ["terminal_outcome"],
+            "forbidden_leakage_dimensions": ["terminal_outcome"],
+            "reference_context": {"team": "TEAM_A", "game_state": "LEVEL", "start_zone": "MIDDLE_THIRD"},
+            "candidate_context": {"team": "TEAM_A", "game_state": "LEVEL", "start_zone": "MIDDLE_THIRD"},
+            "reference_outcome": "SHOT_ENDING",
+            "candidate_outcome": "LOSS",
+            "outcome_relation": "OPPOSITE",
+            "provenance_root": "root_candidate",
+            "dependency_group": "dep_candidate",
+            "independence_group": "ind_candidate",
+            "reference_provenance_root": "root_reference",
+            "reference_dependency_group": "dep_reference",
+            "reference_independence_group": "ind_reference",
+            "independence_admission_status": "ADMITTED",
+            "independence_admission_basis": "fixture_explicit_independence_contract",
+        }
+    ]
+    return candidate
+
+
 def blocked_candidate():
     return {
         "packet_family": "progression",
@@ -120,12 +152,14 @@ def test_intelligence_chain_standard_fields_connect():
     assert chain["assembly"]["contract_item_id"] == chain["output_contract"]["contract_item_id"]
 
 
-def test_intelligence_chain_explicit_counterevidence_remains_review_bounded():
+def test_intelligence_chain_legacy_declared_contradiction_is_qualifier_bounded():
     chain = run_chain(explicit_contradiction_candidate())
 
-    assert chain["fusion"]["fusion_status"] == "MIXED_WITH_EXPLICIT_CONTRADICTION"
-    assert chain["fusion"]["contradiction_signal_count"] == 1
-    assert chain["argument"]["contradicting_refs"] == ["counter_generic_001"]
+    assert chain["fusion"]["fusion_status"] == "SUPPORTED_WITH_QUALIFIER"
+    assert chain["fusion"]["contradiction_signal_count"] == 0
+    assert chain["fusion"]["unresolved_counterevidence_count"] == 1
+    assert chain["argument"]["contradicting_refs"] == []
+    assert chain["argument"]["qualifying_refs"] == ["counter_generic_001"]
     assert chain["route"]["defeasible_state"] == "WEAKENED"
     assert chain["graph"]["status"] == "REVIEW_REQUIRED"
     assert chain["graph"]["review_required"] is True
@@ -139,6 +173,31 @@ def test_intelligence_chain_explicit_counterevidence_remains_review_bounded():
     assert chain["output_contract"]["output_text_candidate_tr"] == ""
     assert chain["assembly"]["status"] == "REVIEW_REQUIRED"
     assert chain["assembly"]["assembly_decision"] == "ROUTE_ASSEMBLY_ITEM_TO_REVIEW"
+    assert chain["assembly"]["draft_report_candidate_allowed"] is False
+
+
+def test_intelligence_chain_explicit_counterevidence_remains_review_bounded():
+    """Compatibility guard: only comparison-admitted counterevidence may remain explicit downstream."""
+    chain = run_chain(admitted_counterevidence_candidate())
+    assert chain["fusion"]["contradiction_signal_count"] == 1
+    assert chain["fusion"]["admitted_counterevidence_count"] == 1
+    assert chain["argument"]["contradicting_refs"] == ["counter_admitted_001"]
+    assert chain["route"]["defeasible_state"] == "WEAKENED"
+    assert chain["graph"]["review_required"] is True
+    assert chain["assembly"]["draft_report_candidate_allowed"] is False
+
+
+def test_intelligence_chain_admitted_comparable_counterevidence_weakens_as_contradiction():
+    chain = run_chain(admitted_counterevidence_candidate())
+
+    assert chain["fusion"]["fusion_status"] == "MIXED_WITH_EXPLICIT_CONTRADICTION"
+    assert chain["fusion"]["contradiction_signal_count"] == 1
+    assert chain["fusion"]["admitted_counterevidence_count"] == 1
+    assert chain["argument"]["contradicting_refs"] == ["counter_admitted_001"]
+    assert chain["route"]["defeasible_state"] == "WEAKENED"
+    assert chain["graph"]["status"] == "REVIEW_REQUIRED"
+    assert chain["safe_sentence"]["status"] == "REVIEW_REQUIRED"
+    assert chain["output_contract"]["inclusion_decision"] == "REVIEW_BLOCK"
     assert chain["assembly"]["draft_report_candidate_allowed"] is False
 
 

@@ -178,16 +178,200 @@ def _safe_external_call(runner: Callable[..., dict[str, Any]], args: tuple[Any, 
         }
 
 
-def _write_fused_packet_inventory(output_root: Path, packets: list[dict[str, Any]], base_count: int, rich_count: int) -> list[str]:
+def _p02_finding_safe_sentence_candidate(
+    finding: dict[str, Any],
+    *,
+    team_name: str | None = None,
+) -> dict[str, Any] | None:
+    if str(finding.get("finding_admission_decision") or "") != "EMIT_CANDIDATE":
+        return None
+    finding_id = str(finding.get("finding_target_candidate_id") or "").strip()
+    if not finding_id:
+        return None
+    resolved = int(finding.get("resolved_target_state_denominator") or 0)
+    context = finding.get("exact_context") or {}
+    team_label = str(team_name or context.get("team_identity_candidate_id") or "cozulemeyen takim")
+    period = str(context.get("period_candidate") or "cozulmeyen periyot")
+    score_state = str(context.get("score_state_candidate") or "cozulmeyen skor durumu")
+    start_zone = str(context.get("process_start_zone_candidate") or "cozulmeyen baslangic bolgesi")
+    context_prefix = (
+        f"{team_label}; period={period}; skor-durumu={score_state}; baslangic-bolgesi={start_zone}: "
+    )
+    observed = int(finding.get("target_observed_visible_count") or 0)
+    not_observed = int(finding.get("target_not_observed_complete_path_count") or 0)
+    unresolved = int(finding.get("target_state_unresolved_count") or 0)
+    focus = str(finding.get("finding_focus") or "")
+    sample_maturity = str(finding.get("finding_sample_maturity_candidate") or "NOT_EVALUATED")
+    maturity_profile = finding.get("evidence_maturity_profile") or {}
+    mechanism_readiness = str(finding.get("mechanism_review_readiness") or maturity_profile.get("mechanism_review_readiness") or "NOT_EVALUATED")
+    recurrent_signature_count = int(maturity_profile.get("recurrent_process_signature_count") or 0)
+    context_spread_count = int(maturity_profile.get("same_team_same_focus_context_population_count") or 0)
+    cross_context_recurrent_signature_count = int(
+        maturity_profile.get("cross_context_recurrent_process_signature_count") or 0
+    )
+    admitted_cross_context_recurrent_signature_count = int(
+        maturity_profile.get("admitted_cross_context_recurrent_process_signature_count") or 0
+    )
+    if focus == "TARGET_VARIATION_VISIBLE":
+        sentence = (
+            context_prefix
+            + f"aynı exact bağlamdaki çözümlenmiş {resolved} süreç biriminin {observed} tanesinde ilan edilen "
+            "advanced-access hedefi görünürken "
+            f"{not_observed} complete admitted path içinde hedef görünmedi; unresolved={unresolved}. "
+            "Bu yalnız match-local hedef-varyasyonu bulgusudur; genel hücum başarısı, taktik kalite veya nedensellik değildir."
+        )
+    elif focus == "TARGET_OBSERVED_ONLY_IN_RESOLVED_POPULATION":
+        sentence = (
+            context_prefix
+            + f"aynı exact bağlamdaki çözümlenmiş {resolved} süreç biriminin tamamında ilan edilen "
+            f"advanced-access hedefi görünür; unresolved={unresolved}. "
+            "Bu yalnız bu match-local resolved population için görünürlük bulgusudur; genel hücum başarısı, "
+            "taktik kalite, bağlam dışı istikrar veya nedensellik değildir."
+        )
+    elif focus == "TARGET_NOT_OBSERVED_ONLY_IN_RESOLVED_POPULATION":
+        sentence = (
+            context_prefix
+            + f"aynı exact bağlamdaki çözümlenmiş {resolved} süreç biriminin hiçbir complete admitted semantic-zone "
+            "path örneğinde ilan edilen "
+            f"advanced-access hedefi görünmedi; unresolved={unresolved}. Bu yalnız bu match-local resolved population "
+            "için görünürlük bulgusudur; genel hücum başarısızlığı, taktik zayıflık veya nedensellik değildir."
+        )
+    else:
+        return None
+    sentence += (
+        f" Örneklem-olgunluğu={sample_maturity}; mekanizma-review-readiness={mechanism_readiness}; "
+        f"recurrent-process-signature={recurrent_signature_count}; context-spread-population={context_spread_count}; "
+        f"cross-context-recurrent-signature={cross_context_recurrent_signature_count}; "
+        f"admitted-cross-context-recurrent-signature={admitted_cross_context_recurrent_signature_count}. "
+        "Bu etiketler istatistiksel anlamlılık, güçlü kanıt, dış geçerlilik, mekanizma gerçeği veya nedensellik değildir."
+    )
+    return {
+        "module_id": "p02_professional_finding_safe_sentence_adapter_v1",
+        "safe_sentence_id": f"safe_sentence_{finding_id}",
+        "finding_target_candidate_id": finding_id,
+        "finding_sample_maturity_candidate": sample_maturity,
+        "mechanism_review_readiness": mechanism_readiness,
+        "recurrent_process_signature_count": recurrent_signature_count,
+        "same_team_same_focus_context_population_count": context_spread_count,
+        "cross_context_recurrent_process_signature_count": cross_context_recurrent_signature_count,
+        "admitted_cross_context_recurrent_process_signature_count": admitted_cross_context_recurrent_signature_count,
+        "mechanism_promotion_allowed": False,
+        "finding_strength_promotion_allowed": False,
+        "safe_sentence_candidate_tr": sentence,
+        "sentence_candidate_tr": sentence,
+        "sentence_language": "tr",
+        "claim_ceiling": "safe_sentence_candidate_only",
+        "status": "SMOKE_PASS",
+        "decision": "READY_FOR_REPORT_COMPOSER_CANDIDATE",
+        "review_required": False,
+        "review_reasons": [],
+        "hard_block_hits": [],
+        "claim_output_allowed": False,
+        "report_language_allowed": False,
+        "safe_sentence_allowed": True,
+        "tactical_truth": False,
+        "dominance_truth": False,
+        "control_truth": False,
+        "coach_intention_truth": False,
+        "off_ball_truth": False,
+        "pitch_control_truth": False,
+        "causal_truth": False,
+        "quality_truth": False,
+        "sequence_truth": False,
+        "organism_truth": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
+def _run_p02_professional_finding_report_contracts(rich_report: dict[str, Any]) -> dict[str, Any]:
+    p02 = rich_report.get("progression_pool_p02") or {}
+    findings = p02.get("professional_finding_target_candidates") or []
+    team_names = {
+        str(row.get("team_identity_candidate_id") or ""): str(row.get("team_candidate") or "")
+        for row in (p02.get("p02_team_pool_items") or [])
+        if isinstance(row, dict)
+        and row.get("team_identity_candidate_id")
+        and row.get("team_candidate")
+    }
+    items: list[dict[str, Any]] = []
+    for finding in findings if isinstance(findings, list) else []:
+        if not isinstance(finding, dict):
+            continue
+        context = finding.get("exact_context") or {}
+        safe = _p02_finding_safe_sentence_candidate(
+            finding,
+            team_name=team_names.get(str(context.get("team_identity_candidate_id") or "")),
+        )
+        if safe is None:
+            continue
+        block = compose_report_block(safe)
+        contract = evaluate_report_block(block)
+        assembly = evaluate_assembly_item(contract)
+        items.append({
+            "finding_target_candidate_id": finding.get("finding_target_candidate_id"),
+            "safe_sentence": safe,
+            "report_block": block,
+            "output_contract": contract,
+            "assembly": assembly,
+        })
+    blocked = sum(
+        1 for row in items
+        if str((row.get("assembly") or {}).get("status") or "") == "FAIL_CLOSED"
+    )
+    review = sum(
+        1 for row in items
+        if str((row.get("assembly") or {}).get("status") or "") == "REVIEW_REQUIRED"
+    )
+    ready = sum(
+        1 for row in items
+        if str((row.get("assembly") or {}).get("status") or "") == "SMOKE_PASS"
+        and str((row.get("assembly") or {}).get("assembly_decision") or "") == "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE"
+    )
+    status = "FAIL_CLOSED" if blocked else "REVIEW_REQUIRED" if review else "SMOKE_PASS"
+    return {
+        "module_id": "p02_professional_finding_report_contract_adapter_v1",
+        "status": status,
+        "finding_contract_item_count": len(items),
+        "ready_draft_report_candidate_count": ready,
+        "review_count": review,
+        "blocked_count": blocked,
+        "items": items,
+        "claim_output_allowed": False,
+        "draft_report_candidate_allowed": bool(ready and not blocked and not review),
+        "final_report_allowed": False,
+        "production_report_allowed": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
+def _write_fused_packet_inventory(
+    output_root: Path,
+    packets: list[dict[str, Any]],
+    base_count: int,
+    rich_count: int,
+    *,
+    auxiliary_counterevidence_packets: list[dict[str, Any]] | None = None,
+    auxiliary_counterevidence_fusions: list[dict[str, Any]] | None = None,
+) -> list[str]:
     json_path = output_root / FUSED_PACKET_JSON
     txt_path = output_root / FUSED_PACKET_TXT
+    auxiliary_counterevidence_packets = auxiliary_counterevidence_packets or []
+    auxiliary_counterevidence_fusions = auxiliary_counterevidence_fusions or []
     payload = {
         "module_id": "active_match_fused_packet_inventory_v1",
         "status": "SMOKE_PASS",
         "base_reconstruction_packet_count": base_count,
         "rich_construct_packet_count": rich_count,
+        "auxiliary_counterevidence_packet_count": len(auxiliary_counterevidence_packets),
+        "auxiliary_counterevidence_fusion_count": len(auxiliary_counterevidence_fusions),
         "fused_packet_count": len(packets),
         "packets": packets,
+        "auxiliary_counterevidence_packets": auxiliary_counterevidence_packets,
+        "auxiliary_counterevidence_fusions": auxiliary_counterevidence_fusions,
         "format_fusion_is_independent_evidence_vote": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
@@ -198,6 +382,8 @@ def _write_fused_packet_inventory(output_root: Path, packets: list[dict[str, Any
         "HPFA ACTIVE_MATCH FUSED PACKET INVENTORY V1",
         f"base_reconstruction_packet_count={base_count}",
         f"rich_construct_packet_count={rich_count}",
+        f"auxiliary_counterevidence_packet_count={len(auxiliary_counterevidence_packets)}",
+        f"auxiliary_counterevidence_fusion_count={len(auxiliary_counterevidence_fusions)}",
         f"fused_packet_count={len(packets)}",
         "format_fusion_is_independent_evidence_vote=false",
         "canonical_event_count=UNKNOWN",
@@ -270,6 +456,22 @@ def run_full_spine(
         "status": "NOT_EVALUATED_PREREQUISITE_MISSING",
         "current_invocation_artifacts": [],
     }
+    p02_professional_finding_report_contracts: dict[str, Any] = {
+        "module_id": "p02_professional_finding_report_contract_adapter_v1",
+        "status": "NOT_EVALUATED",
+        "finding_contract_item_count": 0,
+        "ready_draft_report_candidate_count": 0,
+        "review_count": 0,
+        "blocked_count": 0,
+        "items": [],
+        "claim_output_allowed": False,
+        "draft_report_candidate_allowed": False,
+        "final_report_allowed": False,
+        "production_report_allowed": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
     expected_snapshot_id = str(bridge_report.get("input_surface_snapshot_id") or "")
     if not hard_blocks and expected_snapshot_id:
         try:
@@ -300,9 +502,17 @@ def run_full_spine(
         if _status(sidecar_report.get("status")) == "REVIEW_REQUIRED":
             review_hits.append("orphan_capability_sidecars_review_required")
 
+        p02_professional_finding_report_contracts = _run_p02_professional_finding_report_contracts(rich_report)
+        if _status(p02_professional_finding_report_contracts.get("status")) == "REVIEW_REQUIRED":
+            review_hits.append("p02_professional_finding_report_contract_review_required")
+        elif _status(p02_professional_finding_report_contracts.get("status")) == "FAIL_CLOSED":
+            review_hits.append("p02_professional_finding_report_contract_blocked")
+
     packets: list[dict[str, Any]] = []
     base_packet_count = 0
     rich_packet_count = 0
+    auxiliary_counterevidence_packets: list[dict[str, Any]] = []
+    auxiliary_counterevidence_fusions: list[dict[str, Any]] = []
     fused_packet_artifacts: list[str] = []
     if not hard_blocks:
         try:
@@ -333,6 +543,16 @@ def run_full_spine(
             if packet.get("hard_block_hits"):
                 review_hits.append("rich_construct_packet_not_admitted")
                 continue
+
+            p02_role = str(candidate.get("p02_packet_role") or "")
+            if p02_role == "POPULATION_COLLAPSED_COUNTEREVIDENCE_COMPARISON_PACKET_ONLY":
+                auxiliary_counterevidence_packets.append(packet)
+                fusion = fuse_packet(packet)
+                auxiliary_counterevidence_fusions.append(fusion)
+                if _status(fusion.get("status")) in {"REVIEW_REQUIRED", "FAIL_CLOSED"}:
+                    review_hits.append("p02_auxiliary_counterevidence_review_required")
+                continue
+
             packets.append(packet)
             rich_packet_count += 1
 
@@ -342,6 +562,8 @@ def run_full_spine(
                 packets,
                 base_packet_count,
                 rich_packet_count,
+                auxiliary_counterevidence_packets=auxiliary_counterevidence_packets,
+                auxiliary_counterevidence_fusions=auxiliary_counterevidence_fusions,
             )
             for packet in packets:
                 chains.append(run_intelligence_chain(packet))
@@ -387,6 +609,35 @@ def run_full_spine(
 
     entity_views = rich_report.get("entity_views") or {}
     constructs = rich_report.get("constructs") or {}
+    c01_construct = constructs.get("C01") or {}
+    c01_bound_to_c4 = (
+        str(c01_construct.get("c4_admission_status") or "").upper() == "ADMITTED"
+        and str(c01_construct.get("status") or "").upper() in {"PASS", "SMOKE_PASS"}
+    )
+    p02_report = rich_report.get("progression_pool_p02") or {}
+    p02_rich_packet_count = len(auxiliary_counterevidence_packets)
+    p02_aux_counterevidence_count = sum(
+        int(fusion.get("admitted_counterevidence_count") or 0)
+        for fusion in auxiliary_counterevidence_fusions
+    )
+    p02_aux_dependency_challenge_count = sum(
+        int(fusion.get("dependency_challenge_count") or 0)
+        for fusion in auxiliary_counterevidence_fusions
+    )
+    p02_aux_non_support_count = sum(
+        int(fusion.get("non_support_count") or 0)
+        for fusion in auxiliary_counterevidence_fusions
+    )
+    p02_aux_unresolved_count = sum(
+        int(fusion.get("unresolved_counterevidence_count") or 0)
+        for fusion in auxiliary_counterevidence_fusions
+    )
+    _unused_p02_rich_packet_count = sum(
+        1
+        for candidate in (rich_report.get("c4_packet_candidates") or [])
+        if isinstance(candidate, dict)
+        and str(candidate.get("p02_packet_role") or "") == "POPULATION_COLLAPSED_COUNTEREVIDENCE_COMPARISON_PACKET_ONLY"
+    )
     report = {
         "module_id": MODULE_ID,
         "status": status,
@@ -410,7 +661,16 @@ def run_full_spine(
         "player_view_candidate_count": len(entity_views.get("player_view_candidates") or []),
         "team_view_candidate_count": len(entity_views.get("team_view_candidates") or []),
         "goalkeeper_view_candidate_count": len(entity_views.get("goalkeeper_view_candidates") or []),
-        "C01_status": (constructs.get("C01") or {}).get("status"),
+        "C01_status": c01_construct.get("status"),
+        "C01_c4_admission_status": c01_construct.get("c4_admission_status"),
+        "P02_c4_packet_candidate_count": p02_rich_packet_count,
+        "P02_counterevidence_population_count": p02_report.get("p02_counterevidence_population_count"),
+        "P02_auxiliary_counterevidence_packet_count": len(auxiliary_counterevidence_packets),
+        "P02_auxiliary_counterevidence_fusion_count": len(auxiliary_counterevidence_fusions),
+        "P02_admitted_counterevidence_count": p02_aux_counterevidence_count,
+        "P02_dependency_challenge_count": p02_aux_dependency_challenge_count,
+        "P02_non_support_count": p02_aux_non_support_count,
+        "P02_unresolved_counterevidence_count": p02_aux_unresolved_count,
         "base_composite_packet_count": base_packet_count,
         "rich_construct_packet_count": rich_packet_count,
         "composite_packet_count": len(chains),
@@ -425,6 +685,9 @@ def run_full_spine(
         "episode_lane": episode_report,
         "rich_multiformat_analysis_lattice": rich_report,
         "orphan_capability_sidecars": sidecar_report,
+        "p02_professional_finding_report_contracts": p02_professional_finding_report_contracts,
+        "P02_professional_finding_report_contract_item_count": p02_professional_finding_report_contracts.get("finding_contract_item_count", 0),
+        "P02_professional_finding_ready_draft_report_candidate_count": p02_professional_finding_report_contracts.get("ready_draft_report_candidate_count", 0),
         "intelligence_chains": chains,
         "current_invocation_artifacts": current_invocation_artifacts,
         "engineering_evidence": {
@@ -442,12 +705,16 @@ def run_full_spine(
             "micro_mezzo_macro_lattice_bound": bool(rich_report.get("analysis_lattice")),
             "phase_state_candidate_lane_bound": bool(rich_report.get("phase_state_candidates")),
             "entity_views_bound": bool(entity_views),
-            "construct_C01_bound_to_c4": rich_packet_count > 0,
+            "construct_C01_bound_to_c4": c01_bound_to_c4,
+            "P02_counterevidence_packets_bound_to_c4": p02_rich_packet_count > 0,
+            "P02_counterevidence_packets_are_auxiliary_fusion_only": True,
+            "P02_counterevidence_packets_enter_argument_route": False,
             "current_c4_producers_executed": c4_chain_executed,
             "current_c4_producers_reused": c4_surface_current,
             "c4_stage_exception_containment_enabled": True,
             "c4_sidecar_dependency_preserved": True,
             "parallel_reasoning_engine_created": False,
+            "p02_professional_finding_report_contract_reuses_existing_composer_output_assembly": True,
             "first_failure_disclosure_enabled": True,
             "duplicate_foundation_execution_currently_possible": False,
         },
@@ -460,6 +727,8 @@ def run_full_spine(
             "phase_state_candidate_count": len(rich_report.get("phase_state_candidates") or []),
             "packet_level_report_candidates_generated": len(chains),
             "counterevidence_preserved_by_current_c4_chain": c4_surface_current,
+            "P02_auxiliary_counterevidence_preserved": p02_aux_counterevidence_count > 0,
+            "P02_auxiliary_counterevidence_safe_finding_emitted": False,
             "absence_is_counterevidence": False,
             "safe_report_language_only": c4_surface_current,
         },
@@ -492,7 +761,11 @@ def run_full_spine(
         f"player_view_candidate_count={len(entity_views.get('player_view_candidates') or [])}",
         f"team_view_candidate_count={len(entity_views.get('team_view_candidates') or [])}",
         f"goalkeeper_view_candidate_count={len(entity_views.get('goalkeeper_view_candidates') or [])}",
-        f"C01_status={(constructs.get('C01') or {}).get('status')}",
+        f"C01_status={c01_construct.get('status')}",
+        f"C01_c4_admission_status={c01_construct.get('c4_admission_status')}",
+        f"P02_c4_packet_candidate_count={p02_rich_packet_count}",
+        f"P02_auxiliary_counterevidence_packet_count={len(auxiliary_counterevidence_packets)}",
+        f"P02_admitted_counterevidence_count={p02_aux_counterevidence_count}",
         f"base_composite_packet_count={base_packet_count}",
         f"rich_construct_packet_count={rich_packet_count}",
         f"intelligence_chain_count={len(chains)}",

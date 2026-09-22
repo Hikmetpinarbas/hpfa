@@ -28,6 +28,8 @@ XML_EVENT_TAGS = {"instance", "event", "row", "action"}
 ORDERING_AUTHORITY = "PARTIAL_ORDER_ONLY"
 MAX_FOOTBALL_MINUTE_CANDIDATE = 180
 COMPONENT_RELATION_AUTHORITY = "MINUTE_PLUS_COMPONENT_SECOND"
+CONTEXT_ZONE_ONTOLOGY_ID = "THIRDS_ONLY_V1"
+CONTEXT_ZONE_DOMAIN = ["DEFENSIVE_THIRD", "MIDDLE_THIRD", "FINAL_THIRD"]
 
 
 def repo_root_from_file() -> Path:
@@ -237,6 +239,11 @@ def resolve_time_evidence(row):
         "rejected_time_field_candidates": rejected,
         "component_second_relation_authority": COMPONENT_RELATION_AUTHORITY if component_relation else "NOT_ADMITTED",
         "ordering_authority": ORDERING_AUTHORITY,
+        "context_zone_ontology_id": CONTEXT_ZONE_ONTOLOGY_ID,
+        "context_zone_domain": list(CONTEXT_ZONE_DOMAIN),
+        "context_zone_final_third_observable": True,
+        "context_zone_penalty_area_observable": False,
+        "context_zone_penalty_area_unobservable_reason": "THIRDS_ONLY_ZONE_ONTOLOGY",
         "source_row_order_is_temporal_truth": False,
         "same_timestamp_internal_ordering_allowed": False,
     }
@@ -416,6 +423,11 @@ def build_report(input_dir, root=None):
         "context_summary": summary,
         "time_admission_status": "ADMITTED" if candidates and all(x.get("time_admission_status") == "ADMITTED" for x in candidates) else "REVIEW_REQUIRED",
         "ordering_authority": ORDERING_AUTHORITY,
+        "context_zone_ontology_id": CONTEXT_ZONE_ONTOLOGY_ID,
+        "context_zone_domain": list(CONTEXT_ZONE_DOMAIN),
+        "context_zone_final_third_observable": True,
+        "context_zone_penalty_area_observable": False,
+        "context_zone_penalty_area_unobservable_reason": "THIRDS_ONLY_ZONE_ONTOLOGY",
         "source_row_order_is_temporal_truth": False,
         "same_timestamp_internal_ordering_allowed": False,
         "canonical_event_count": "UNKNOWN",

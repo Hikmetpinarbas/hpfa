@@ -110,3 +110,45 @@ def test_metric_governance_construct_gate_resets_state_for_each_run(monkeypatch)
         "status": "PASS",
         "candidate": {"id": "second"},
     }
+
+
+
+def test_review_required_c01_withholds_only_c01_and_preserves_claim_bounded_p02_packet(tmp_path: Path) -> None:
+    entrypoint = _load_entrypoint()
+    lattice_json = tmp_path / "rich_multiformat_analysis_lattice_v1.json"
+    lattice_txt = tmp_path / "rich_multiformat_analysis_lattice_v1.txt"
+    lattice_json.write_text("{}\n", encoding="utf-8")
+    lattice_txt.write_text("HPFA RICH MULTIFORMAT ANALYSIS LATTICE V1\n", encoding="utf-8")
+
+    c01_packet = {"packet_family": "progression", "construct_id": "C01"}
+    p02_packet = {
+        "packet_id": "p02_cmp_packet_test",
+        "packet_family": "progression",
+        "p02_packet_role": "POPULATION_COLLAPSED_COUNTEREVIDENCE_COMPARISON_PACKET_ONLY",
+        "claim_output_allowed": False,
+        "report_language_allowed": False,
+        "production_release": False,
+    }
+    report = {
+        "status": "REVIEW_REQUIRED",
+        "constructs": {
+            "C01": {
+                "status": "REVIEW_REQUIRED",
+                "review_reason": "c01_not_admitted",
+                "construct_truth": False,
+                "packet_candidate": c01_packet,
+            }
+        },
+        "c4_packet_candidates": [c01_packet, p02_packet],
+        "outputs": {
+            "lattice_json": str(lattice_json),
+            "lattice_txt": str(lattice_txt),
+        },
+    }
+
+    gated = entrypoint._apply_construct_admission_gate(report)
+
+    assert gated["c4_packet_candidates"] == [p02_packet]
+    assert gated["construct_c4_promotion_withheld_count"] == 1
+    assert gated["construct_c4_non_c01_preserved_count"] == 1
+    assert gated["constructs"]["C01"]["c4_admission_status"] == "WITHHELD_PENDING_CONSTRUCT_ADMISSION"

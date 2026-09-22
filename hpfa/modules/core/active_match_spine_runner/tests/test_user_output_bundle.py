@@ -106,7 +106,244 @@ def test_analyst_report_uses_current_episode_surface(tmp_path):
     assert "feature_surface_current_invocation=true" in text
     assert "canonical_event_count=UNKNOWN" in text
     assert "production_release=false" in text
+    assert "event-only occurrence/episode" not in text
 
+
+
+
+def test_analyst_report_surfaces_current_p02_turnover_response_without_overclaim(tmp_path):
+    (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
+        json.dumps(_feature_payload()), encoding="utf-8"
+    )
+    full = _full_spine()
+    full["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+    full["rich_multiformat_analysis_lattice"] = {
+        "status": "REVIEW_REQUIRED",
+        "review_hits": [],
+        "entity_views": {
+            "player_view_candidates": [],
+            "team_view_candidates": [],
+            "goalkeeper_view_candidates": [],
+            "observed_metric_cell_count": 0,
+        },
+        "constructs": {"C01": {}},
+        "phase_state_candidates": [],
+        "primitive_metrics": [],
+        "analysis_lattice": {},
+        "progression_pool_p02": {
+            "p02_team_pool_items": [
+                {
+                    "team_identity_candidate_id": "teamc_A",
+                    "team_candidate": "Team A",
+                }
+            ],
+            "process_units": {
+                "opponent_response_summary_by_team": [
+                    {
+                        "team_identity_candidate_id": "teamc_A",
+                        "turnover_handover_linked_count": 10,
+                        "turnover_handover_opponent_advanced_access_count": 3,
+                        "turnover_handover_opponent_no_advanced_access_count": 5,
+                        "turnover_handover_opponent_access_unresolved_count": 2,
+                    }
+                ]
+            },
+        },
+    }
+    text = build_analyst_report(tmp_path, full)
+    assert "turnover_handover_opponent_response:" in text
+    assert "Team A" in text
+    assert "10 process-unit" in text
+    assert "advanced access=3" in text
+    assert "no advanced access=5" in text
+    assert "unresolved=2" in text
+    assert "nedensellik, tehlikeli gecis veya taktik ustunluk kaniti degildir" in text
+    assert "event-only occurrence/episode" not in text
+    assert "EVENT bu gozlem evreninin yalniz bir ailesidir" in text
+
+
+
+
+def test_analyst_report_surfaces_review_bounded_variant_contrasts_without_success_label(tmp_path):
+    (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
+        json.dumps(_feature_payload()), encoding="utf-8"
+    )
+    full = _full_spine()
+    full["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+    full["rich_multiformat_analysis_lattice"] = {
+        "status": "REVIEW_REQUIRED",
+        "review_hits": [],
+        "entity_views": {
+            "player_view_candidates": [],
+            "team_view_candidates": [],
+            "goalkeeper_view_candidates": [],
+            "observed_metric_cell_count": 0,
+        },
+        "constructs": {"C01": {}},
+        "phase_state_candidates": [],
+        "primitive_metrics": [],
+        "analysis_lattice": {},
+        "progression_pool_p02": {
+            "p02_team_pool_items": [
+                {"team_identity_candidate_id": "teamc_A", "team_candidate": "Team A"},
+            ],
+            "process_units": {"opponent_response_summary_by_team": []},
+            "process_unit_comparisons": {
+                "process_unit_comparison_populations": [
+                    {
+                        "status": "POPULATION_ELIGIBLE",
+                        "member_count": 4,
+                        "variant_family_count": 3,
+                        "reference_context": {
+                            "team_identity_candidate_id": "teamc_A",
+                            "period_candidate": "1",
+                            "score_state_candidate": "LEVEL",
+                            "process_start_zone_candidate": "MIDDLE_THIRD",
+                        },
+                        "terminal_activity_distribution": {
+                            "TEAM_HANDOVER_BOUNDARY_VISIBLE": 2,
+                            "TIME_GAP_BOUNDARY_VISIBLE": 2,
+                        },
+                        "end_zone_distribution": {
+                            "FINAL_THIRD": 2,
+                            "MIDDLE_THIRD": 2,
+                        },
+                        "pairwise_comparison_candidates": [
+                            {
+                                "outcome_relation": "OPPOSITE",
+                                "variant_contrast_dimensions": [
+                                    "visible_exit_class_candidate",
+                                    "opponent_response_status",
+                                ],
+                                "success_failure_label": "NOT_ASSIGNED",
+                            },
+                            {
+                                "outcome_relation": "SAME",
+                                "variant_contrast_dimensions": [
+                                    "opponent_advanced_access_state_candidate",
+                                ],
+                                "success_failure_label": "NOT_ASSIGNED",
+                            },
+                        ],
+                    }
+                ]
+            },
+        },
+    }
+    text = build_analyst_report(tmp_path, full)
+    assert "GORUNUR VARYANT KARSILASTIRMASI — REVIEW-BOUNDED" in text
+    assert "Team A" in text
+    assert "4 process-unit" in text
+    assert "3 gorunur varyant ailesi" in text
+    assert "Advanced-access sonucu farkli pair=1" in text
+    assert "exit-class farki=1" in text
+    assert "rakip-response durumu farki=1" in text
+    assert "rakibin sonraki advanced-access sonucu farki=1" in text
+    assert "success/failure etiketi atanmaz" in text
+    assert "bagimsiz kanit degildir" in text
+
+
+
+def test_analyst_report_surfaces_emit_candidate_without_promoting_release(tmp_path):
+    (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
+        json.dumps(_feature_payload()), encoding="utf-8"
+    )
+    full = _full_spine()
+    full["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+    full["rich_multiformat_analysis_lattice"] = {
+        "status": "REVIEW_REQUIRED",
+        "review_hits": [],
+        "entity_views": {
+            "player_view_candidates": [],
+            "team_view_candidates": [],
+            "goalkeeper_view_candidates": [],
+            "observed_metric_cell_count": 0,
+        },
+        "constructs": {"C01": {}},
+        "phase_state_candidates": [],
+        "primitive_metrics": [],
+        "analysis_lattice": {},
+        "progression_pool_p02": {
+            "p02_team_pool_items": [
+                {"team_identity_candidate_id": "teamc_A", "team_candidate": "Team A"},
+            ],
+            "process_units": {"opponent_response_summary_by_team": []},
+            "process_unit_comparisons": {"process_unit_comparison_populations": []},
+            "professional_finding_target_candidates": [
+                {
+                    "finding_status": "EMIT_CANDIDATE",
+                    "finding_admission_decision": "EMIT_CANDIDATE",
+                    "finding_admission_reasons": [],
+                    "exact_context": {
+                        "team_identity_candidate_id": "teamc_A",
+                        "period_candidate": "1",
+                        "score_state_candidate": "LEVEL",
+                        "process_start_zone_candidate": "MIDDLE_THIRD",
+                    },
+                    "resolved_target_state_denominator": 4,
+                    "target_observed_visible_count": 2,
+                    "target_not_observed_complete_path_count": 2,
+                    "target_state_unresolved_count": 0,
+                    "visible_variant_family_count": 3,
+                    "admitted_opposite_counterevidence_pair_count": 1,
+                    "WHAT_VISIBLE": "bounded visible variation",
+                    "SAFE_MEANING": "bounded match-local meaning only",
+                    "visible_exit_class_distribution": {"TEAM_HANDOVER_BOUNDARY_VISIBLE": 2},
+                    "opponent_response_status_distribution": {"EXACT_HANDOVER_BOUNDARY_LINKED": 2},
+                },
+                {
+                    "finding_status": "REVIEW_REQUIRED",
+                    "finding_admission_decision": "REVIEW_REQUIRED",
+                    "finding_admission_reasons": ["target_state_unresolved_burden_present"],
+                    "exact_context": {
+                        "team_identity_candidate_id": "teamc_A",
+                        "period_candidate": "2",
+                        "score_state_candidate": "LEVEL",
+                        "process_start_zone_candidate": "DEFENSIVE_THIRD",
+                    },
+                    "resolved_target_state_denominator": 3,
+                    "target_observed_visible_count": 1,
+                    "target_not_observed_complete_path_count": 2,
+                    "target_state_unresolved_count": 1,
+                    "visible_variant_family_count": 3,
+                    "admitted_opposite_counterevidence_pair_count": 1,
+                    "WHAT_VISIBLE": "review bounded visible variation",
+                    "SAFE_MEANING": "review bounded match-local meaning only",
+                    "visible_exit_class_distribution": {},
+                    "opponent_response_status_distribution": {},
+                },
+            ],
+        },
+    }
+    full["P02_professional_finding_report_contract_item_count"] = 1
+    full["p02_professional_finding_report_contracts"] = {
+        "status": "SMOKE_PASS",
+        "items": [
+            {
+                "safe_sentence": {
+                    "safe_sentence_candidate_tr": "P02_ADMITTED_SAFE_SENTENCE_FIXTURE",
+                },
+                "assembly": {
+                    "assembly_decision": "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE",
+                    "status": "SMOKE_PASS",
+                    "final_report_allowed": False,
+                    "production_report_allowed": False,
+                },
+            }
+        ],
+    }
+    text = build_analyst_report(tmp_path, full)
+    assert "[EMIT_CANDIDATE] Team A" in text
+    assert "[REVIEW_REQUIRED] Team A" in text
+    assert "ADMISSION_REASONS: []" in text
+    assert "target_state_unresolved_burden_present" in text
+    assert "Admission summary: EMIT_CANDIDATE=1; REVIEW_REQUIRED=1" in text
+    assert "EMIT_CANDIDATE release veya production claim degildir." in text
+    assert "P02_ADMITTED_SAFE_SENTENCE_FIXTURE" in text
+    p02_index = text.index("P02_ADMITTED_SAFE_SENTENCE_FIXTURE")
+    generic_index = text.find("Görünür kanıt grafiği")
+    if generic_index >= 0:
+        assert p02_index < generic_index
 
 def test_fail_closed_report_does_not_consume_stale_feature_artifact(tmp_path):
     (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
@@ -232,3 +469,99 @@ def test_atomic_zip_publication_never_exposes_partial_new_bundle(tmp_path, monke
 
     assert old_zip.read_bytes() == before_old
     assert not (tmp_path / f".{BUNDLE_ZIP}.tmp").exists()
+
+
+def test_analyst_report_surfaces_football_process_mechanisms_without_internal_codes(tmp_path):
+    (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
+        json.dumps(_feature_payload()), encoding="utf-8"
+    )
+    full = _full_spine()
+    full["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+    full["rich_multiformat_analysis_lattice"] = {
+        "status": "REVIEW_REQUIRED",
+        "review_hits": [],
+        "entity_views": {
+            "player_view_candidates": [],
+            "team_view_candidates": [],
+            "goalkeeper_view_candidates": [],
+            "observed_metric_cell_count": 0,
+        },
+        "constructs": {"C01": {}},
+        "phase_state_candidates": [],
+        "primitive_metrics": [],
+        "analysis_lattice": {},
+        "progression_pool_p02": {
+            "penalty_area_access_evaluation_status": "UNOBSERVABLE_WITH_CURRENT_DATA",
+            "penalty_area_access_evaluable": False,
+            "p02_team_pool_items": [
+                {"team_identity_candidate_id": "teamc_A", "team_candidate": "Team A"},
+                {"team_identity_candidate_id": "teamc_B", "team_candidate": "Team B"},
+            ],
+            "process_units": {"opponent_response_summary_by_team": []},
+            "visible_consequence_path_severity_candidates": [
+                {
+                    "team_identity_candidate_id": "teamc_A",
+                    "visible_consequence_path_signature": (
+                        "ANCHOR:TURNOVER -> L1:OPPONENT:PASS -> L2:OPPONENT:PASS"
+                    ),
+                    "eligible_anchor_population_count": 20,
+                    "visible_occurrence_count": 8,
+                    "exact_process_response_bound_count": 7,
+                    "final_third_visible_count": 3,
+                    "no_final_third_visible_count": 3,
+                    "zone_path_unresolved_count": 1,
+                    "penalty_area_visible_count": 0,
+                    "shot_activity_visible_count": 1,
+                    "response_zone_route_counts": {"MIDDLE_THIRD->FINAL_THIRD": 3},
+                }
+            ],
+            "same_team_continuation_process_profiles": [
+                {
+                    "team_identity_candidate_id": "teamc_A",
+                    "visible_consequence_path_signature": (
+                        "ANCHOR:PASS -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
+                    ),
+                    "anchor_visible_occurrence_count": 30,
+                    "unique_process_unit_count": 10,
+                    "process_unit_with_final_third_entry_count": 4,
+                    "process_unit_with_final_third_continuation_count": 1,
+                    "process_unit_with_no_final_third_visible_count": 4,
+                    "process_unit_with_zone_unresolved_count": 1,
+                    "final_third_entry_process_with_shot_activity_count": 1,
+                    "final_third_entry_process_with_turnover_activity_count": 2,
+                    "final_third_entry_process_with_cross_activity_count": 2,
+                    "final_third_entry_process_end_reason_counts": {
+                        "TEAM_HANDOVER_BOUNDARY": 2,
+                        "TIME_GAP_BOUNDARY": 2,
+                    },
+                    "max_anchor_windows_within_single_process_unit": 5,
+                },
+                {
+                    "team_identity_candidate_id": "teamc_A",
+                    "visible_consequence_path_signature": (
+                        "ANCHOR:RECOVERY -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
+                    ),
+                    "unique_process_unit_count": 3,
+                    "process_unit_with_final_third_entry_count": 1,
+                    "process_unit_with_final_third_continuation_count": 0,
+                    "process_unit_with_no_final_third_visible_count": 2,
+                    "process_unit_with_zone_unresolved_count": 0,
+                    "process_unit_with_shot_activity_after_anchor_count": 1,
+                },
+            ],
+        },
+    }
+    text = build_analyst_report(tmp_path, full)
+
+    assert "MAC MEKANIZMASI ADAYLARI — SUREC / DEVAM / SONUC" in text
+    assert "Top kaybi sonrasi rakibin pas-pas devami:" in text
+    assert "gorunur devami degerlendirilebilir 20 top-kaybi adayinin 8'inde" in text
+    assert "Pas dolasiminin final-third'e donusumu:" in text
+    assert "30 gorunur pas -> pas -> pas penceresi 10 benzersiz oyun surecinde toplandi" in text
+    assert "takim el degistirme=2" in text
+    assert "Recovery sonrasi ayni takimin yeniden hucum devami:" in text
+    assert "ayni surecteki coklu pencereler bagimsiz kanit sayilmaz" in text
+    assert "ceza sahasi erisimi bu surec-bolge yuzeyinde mevcut veriyle gozlenemiyor" in text
+    assert "ceza-sahasi gorundu=0" not in text
+    assert "ANCHOR:" not in text
+    assert "process_unit" not in text

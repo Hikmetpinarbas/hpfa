@@ -79,6 +79,22 @@ SIGNAL_RECORD_KEYS = {
     "contradicting_signals": "contradicting_signal_records",
 }
 
+COMPARISON_STATUSES = {
+    "ELIGIBLE",
+    "CONTEXT_UNRESOLVED",
+    "CONTEXT_MISMATCH",
+    "INVALID_COMPARISON_CONTRACT",
+    "NOT_EVALUATED",
+}
+COUNTEREVIDENCE_CLASSES = {
+    "SUPPORT",
+    "COUNTEREVIDENCE",
+    "DEPENDENCY_CHALLENGE",
+    "NON_SUPPORT",
+    "UNRESOLVED",
+}
+UNRESOLVED_OUTCOME_VALUES = {"", "UNKNOWN", "UNRESOLVED", "NOT_EVALUATED", "NONE", "NULL"}
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[5]
@@ -203,7 +219,7 @@ def _upstream_packet_failed(packet: dict[str, Any]) -> bool:
     return False
 
 
-def _is_explicit_contradiction(item: Any) -> bool:
+def _is_declared_contradiction_intent(item: Any) -> bool:
     if not isinstance(item, dict):
         return False
     relation_type = str(item.get("relation_type") or "").upper()
@@ -214,6 +230,182 @@ def _is_explicit_contradiction(item: Any) -> bool:
     if item.get("contradiction_basis") not in [None, "", []]:
         return True
     return False
+
+
+def _string_list(value: Any) -> list[str]:
+    return sorted({str(item).strip() for item in _as_list(value) if str(item).strip()})
+
+
+def _outcome_resolved(value: Any) -> bool:
+    return str(value or "").strip().upper() not in UNRESOLVED_OUTCOME_VALUES
+
+
+def _comparison_admission(signal: Any) -> dict[str, Any]:
+    base = {
+        "comparison_status": "NOT_EVALUATED",
+        "counterevidence_class": "UNRESOLVED",
+        "counterevidence_admission_reason": "counterevidence_comparability_not_admitted",
+    }
+    if not isinstance(signal, dict) or not _is_declared_contradiction_intent(signal):
+        return base
+
+    required = [
+        "comparison_question_id",
+        "comparison_unit",
+        "exact_dimensions",
+        "test_dimensions",
+        "reference_context",
+        "candidate_context",
+        "reference_outcome",
+        "candidate_outcome",
+        "outcome_relation",
+    ]
+    missing = [key for key in required if signal.get(key) in [None, "", []]]
+    if missing:
+        return {
+            **base,
+            "missing_comparison_fields": missing,
+        }
+
+    exact_dimensions = _string_list(signal.get("exact_dimensions"))
+    coarsened_dimensions = _string_list(signal.get("coarsened_dimensions"))
+    test_dimensions = _string_list(signal.get("test_dimensions"))
+    forbidden_leakage = _string_list(signal.get("forbidden_leakage_dimensions"))
+    matching_dimensions = set(exact_dimensions) | set(coarsened_dimensions)
+    leaked = sorted((set(test_dimensions) | set(forbidden_leakage)) & matching_dimensions)
+    if leaked:
+        return {
+            "comparison_status": "INVALID_COMPARISON_CONTRACT",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "comparison_outcome_leakage_detected",
+            "leaked_dimensions": leaked,
+        }
+
+    reference_context = signal.get("reference_context")
+    candidate_context = signal.get("candidate_context")
+    if not isinstance(reference_context, dict) or not isinstance(candidate_context, dict):
+        return {
+            "comparison_status": "INVALID_COMPARISON_CONTRACT",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "comparison_context_not_object",
+        }
+
+    unresolved_dimensions = [
+        dim
+        for dim in exact_dimensions
+        if reference_context.get(dim) in [None, ""] or candidate_context.get(dim) in [None, ""]
+    ]
+    if unresolved_dimensions:
+        return {
+            "comparison_status": "CONTEXT_UNRESOLVED",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "comparison_exact_context_unresolved",
+            "unresolved_dimensions": unresolved_dimensions,
+        }
+
+    mismatched_dimensions = [
+        dim
+        for dim in exact_dimensions
+        if reference_context.get(dim) != candidate_context.get(dim)
+    ]
+    if mismatched_dimensions:
+        return {
+            "comparison_status": "CONTEXT_MISMATCH",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "comparison_exact_context_mismatch",
+            "mismatched_dimensions": mismatched_dimensions,
+        }
+
+    reference_outcome = signal.get("reference_outcome")
+    candidate_outcome = signal.get("candidate_outcome")
+    outcome_relation = str(signal.get("outcome_relation") or "").strip().upper()
+    if not _outcome_resolved(reference_outcome) or not _outcome_resolved(candidate_outcome):
+        return {
+            "comparison_status": "ELIGIBLE",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "comparison_outcome_unresolved",
+        }
+
+    if outcome_relation not in {"OPPOSITE", "SAME", "INCOMPARABLE", "UNRESOLVED"}:
+        return {
+            "comparison_status": "INVALID_COMPARISON_CONTRACT",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "outcome_relation_invalid_or_missing",
+        }
+
+    if outcome_relation in {"INCOMPARABLE", "UNRESOLVED"}:
+        return {
+            "comparison_status": "ELIGIBLE",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "outcome_relation_not_counterevidence_eligible",
+        }
+
+    if outcome_relation == "SAME":
+        return {
+            "comparison_status": "ELIGIBLE",
+            "counterevidence_class": "NON_SUPPORT",
+            "counterevidence_admission_reason": "comparable_outcome_relation_same",
+        }
+
+    if reference_outcome == candidate_outcome:
+        return {
+            "comparison_status": "INVALID_COMPARISON_CONTRACT",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "opposite_relation_conflicts_with_identical_outcome_values",
+        }
+
+    lineage_pairs = [
+        ("provenance_root", "reference_provenance_root"),
+        ("dependency_group", "reference_dependency_group"),
+        ("independence_group", "reference_independence_group"),
+    ]
+    same_lineage = [
+        current_key
+        for current_key, reference_key in lineage_pairs
+        if signal.get(current_key) not in [None, ""]
+        and signal.get(reference_key) not in [None, ""]
+        and str(signal.get(current_key)) == str(signal.get(reference_key))
+    ]
+    if same_lineage:
+        return {
+            "comparison_status": "ELIGIBLE",
+            "counterevidence_class": "DEPENDENCY_CHALLENGE",
+            "counterevidence_admission_reason": "comparable_opposite_outcome_same_dependency",
+            "shared_lineage_dimensions": same_lineage,
+        }
+
+    incomplete_lineage = [
+        key
+        for current_key, reference_key in lineage_pairs
+        for key in (current_key, reference_key)
+        if signal.get(key) in [None, ""]
+    ]
+    if incomplete_lineage:
+        return {
+            "comparison_status": "ELIGIBLE",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "counterevidence_dependency_not_admitted",
+            "missing_lineage_fields": sorted(set(incomplete_lineage)),
+        }
+
+    independence_status = str(signal.get("independence_admission_status") or "").strip().upper()
+    independence_basis = str(signal.get("independence_admission_basis") or "").strip()
+    if independence_status != "ADMITTED" or not independence_basis:
+        return {
+            "comparison_status": "ELIGIBLE",
+            "counterevidence_class": "UNRESOLVED",
+            "counterevidence_admission_reason": "counterevidence_independence_not_admitted",
+            "independence_admission_status": independence_status or "NOT_EVALUATED",
+            "independence_admission_basis_present": bool(independence_basis),
+        }
+
+    return {
+        "comparison_status": "ELIGIBLE",
+        "counterevidence_class": "COUNTEREVIDENCE",
+        "counterevidence_admission_reason": "comparable_opposite_outcome_dependency_and_independence_admitted",
+        "independence_admission_status": "ADMITTED",
+        "independence_admission_basis": independence_basis,
+    }
 
 
 def _lineage_fields(item: Any) -> dict[str, Any]:
@@ -236,6 +428,7 @@ def _record(
     evidence_role: str,
     relation_basis: str = "",
     lineage: dict[str, Any] | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     record = {
         "packet_id": packet_id,
@@ -248,6 +441,8 @@ def _record(
         record["relation_basis"] = relation_basis
     if lineage:
         record.update(lineage)
+    if metadata:
+        record.update(metadata)
     return record
 
 
@@ -269,11 +464,37 @@ def _signal_relation_records(packet: dict[str, Any]) -> list[dict[str, Any]]:
     for idx, signal in enumerate(_signal_items(packet, "contradicting_signals")):
         signal_ref = _ref_from_item(signal, "contradicting_signals", idx)
         lineage = _lineage_fields(signal)
-        if _is_explicit_contradiction(signal):
-            basis = str(signal.get("contradiction_basis") or signal.get("relation_basis") or "") if isinstance(signal, dict) else ""
-            records.append(_record(packet_id, signal_ref, "CONTRADICTS", "explicit_contradiction_signal", basis, lineage))
+        admission = _comparison_admission(signal)
+        basis = str(signal.get("contradiction_basis") or signal.get("relation_basis") or "") if isinstance(signal, dict) else ""
+        if admission["comparison_status"] == "ELIGIBLE" and admission["counterevidence_class"] == "COUNTEREVIDENCE":
+            records.append(
+                _record(
+                    packet_id,
+                    signal_ref,
+                    "CONTRADICTS",
+                    "admitted_counterevidence_signal",
+                    basis,
+                    lineage,
+                    admission,
+                )
+            )
         else:
-            records.append(_record(packet_id, signal_ref, "QUALIFIES", "qualifying_or_tension_signal", lineage=lineage))
+            evidence_role = {
+                "DEPENDENCY_CHALLENGE": "dependency_challenge_signal",
+                "NON_SUPPORT": "non_support_signal",
+                "UNRESOLVED": "unresolved_counterevidence_candidate",
+            }.get(admission["counterevidence_class"], "qualifying_or_tension_signal")
+            records.append(
+                _record(
+                    packet_id,
+                    signal_ref,
+                    "QUALIFIES",
+                    evidence_role,
+                    basis,
+                    lineage,
+                    admission,
+                )
+            )
 
     for feature in _refs(packet, "input_features"):
         records.append(_record(packet_id, feature, "COMPLEMENTS", "input_feature_ref"))
@@ -633,6 +854,23 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     hard_block_hits = sorted(set(hard_block_hits))
     relation_records = _signal_relation_records(normalized_packet) if not missing_fields else []
     relation_counts = Counter(row["relation_type"] for row in relation_records)
+    comparison_status_counts = Counter(
+        str(row.get("comparison_status"))
+        for row in relation_records
+        if row.get("comparison_status")
+    )
+    counterevidence_class_counts = Counter(
+        str(row.get("counterevidence_class"))
+        for row in relation_records
+        if row.get("counterevidence_class")
+    )
+    counterevidence_admission_reasons = sorted(
+        {
+            str(row.get("counterevidence_admission_reason"))
+            for row in relation_records
+            if row.get("counterevidence_admission_reason")
+        }
+    )
     has_support = relation_counts.get("SUPPORTS", 0) > 0
     has_contradiction = relation_counts.get("CONTRADICTS", 0) > 0
     has_qualifier = relation_counts.get("QUALIFIES", 0) > 0
@@ -671,6 +909,14 @@ def fuse_packet(packet: dict[str, Any], idx: int = 0) -> dict[str, Any]:
         "qualifier_signal_count": relation_counts.get("QUALIFIES", 0),
         "context_signal_count": relation_counts.get("CONTEXTUALIZES", 0),
         "complement_signal_count": relation_counts.get("COMPLEMENTS", 0),
+        "comparison_status_counts": dict(sorted(comparison_status_counts.items())),
+        "counterevidence_class_counts": dict(sorted(counterevidence_class_counts.items())),
+        "counterevidence_candidate_count": sum(counterevidence_class_counts.values()),
+        "admitted_counterevidence_count": counterevidence_class_counts.get("COUNTEREVIDENCE", 0),
+        "dependency_challenge_count": counterevidence_class_counts.get("DEPENDENCY_CHALLENGE", 0),
+        "non_support_count": counterevidence_class_counts.get("NON_SUPPORT", 0),
+        "unresolved_counterevidence_count": counterevidence_class_counts.get("UNRESOLVED", 0),
+        "counterevidence_admission_reasons": counterevidence_admission_reasons,
         "dependency_ledger": dependency_ledger,
         "independence_state": derived_independence["independence_state"],
         "independent_support_count": derived_independence["independent_support_count"],

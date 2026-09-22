@@ -37,6 +37,45 @@ def explicit_contradiction_packet():
     return packet
 
 
+def admitted_counterevidence_packet():
+    packet = base_packet()
+    packet["contradicting_signals"] = [
+        {
+            "signal_id": "admitted_counter_001",
+            "relation_type": "CONTRADICTS",
+            "contradiction_basis": "comparable process candidate resolves to opposite terminal outcome",
+            "comparison_question_id": "progression_terminal_outcome",
+            "comparison_unit": "episode_candidate",
+            "exact_dimensions": ["team", "game_state", "start_zone"],
+            "coarsened_dimensions": [],
+            "test_dimensions": ["terminal_outcome"],
+            "forbidden_leakage_dimensions": ["terminal_outcome"],
+            "reference_context": {
+                "team": "TEAM_A",
+                "game_state": "LEVEL",
+                "start_zone": "MIDDLE_THIRD",
+            },
+            "candidate_context": {
+                "team": "TEAM_A",
+                "game_state": "LEVEL",
+                "start_zone": "MIDDLE_THIRD",
+            },
+            "reference_outcome": "SHOT_ENDING",
+            "candidate_outcome": "LOSS",
+            "outcome_relation": "OPPOSITE",
+            "provenance_root": "root_candidate",
+            "dependency_group": "dep_candidate",
+            "independence_group": "ind_candidate",
+            "reference_provenance_root": "root_reference",
+            "reference_dependency_group": "dep_reference",
+            "reference_independence_group": "ind_reference",
+            "independence_admission_status": "ADMITTED",
+            "independence_admission_basis": "fixture_explicit_independence_contract",
+        }
+    ]
+    return packet
+
+
 def failed_upstream_packet():
     packet = base_packet()
     packet["status"] = "FAIL_CLOSED"
@@ -84,11 +123,73 @@ def test_low_shot_volume_qualifies_not_contradicts_by_default():
     assert any(row["signal_ref"] == "low_shot_volume" and row["relation_type"] == "QUALIFIES" for row in record["relation_records"])
 
 
-def test_explicit_contradiction_requires_basis():
+def test_declared_contradiction_without_comparison_contract_downgrades_to_qualifier():
     record = fuse_packet(explicit_contradiction_packet())
+    assert record["contradiction_signal_count"] == 0
+    assert record["qualifier_signal_count"] == 1
+    assert record["fusion_status"] == "SUPPORTED_WITH_QUALIFIER"
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "same_construct_opposite_direction")
+    assert row["relation_type"] == "QUALIFIES"
+    assert row["comparison_status"] == "NOT_EVALUATED"
+    assert row["counterevidence_class"] == "UNRESOLVED"
+    assert row["counterevidence_admission_reason"] == "counterevidence_comparability_not_admitted"
+
+
+def test_admitted_comparable_opposite_outcome_becomes_counterevidence():
+    record = fuse_packet(admitted_counterevidence_packet())
     assert record["contradiction_signal_count"] == 1
     assert record["fusion_status"] == "MIXED_WITH_EXPLICIT_CONTRADICTION"
-    assert any(row["relation_type"] == "CONTRADICTS" for row in record["relation_records"])
+    assert record["admitted_counterevidence_count"] == 1
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "admitted_counter_001")
+    assert row["relation_type"] == "CONTRADICTS"
+    assert row["comparison_status"] == "ELIGIBLE"
+    assert row["counterevidence_class"] == "COUNTEREVIDENCE"
+
+
+def test_missing_outcome_is_unresolved_not_contradiction():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["candidate_outcome"] = "UNRESOLVED"
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    assert record["unresolved_counterevidence_count"] == 1
+
+
+def test_same_dependency_root_is_dependency_challenge_not_contradiction():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["reference_provenance_root"] = "root_candidate"
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    assert record["dependency_challenge_count"] == 1
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "admitted_counter_001")
+    assert row["counterevidence_class"] == "DEPENDENCY_CHALLENGE"
+
+
+def test_exact_context_mismatch_blocks_counterevidence_admission():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["candidate_context"]["start_zone"] = "FINAL_THIRD"
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "admitted_counter_001")
+    assert row["comparison_status"] == "CONTEXT_MISMATCH"
+
+
+def test_outcome_leakage_invalidates_comparison_contract():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["exact_dimensions"].append("terminal_outcome")
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "admitted_counter_001")
+    assert row["comparison_status"] == "INVALID_COMPARISON_CONTRACT"
+
+
+def test_same_resolved_outcome_is_non_support_not_support():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["candidate_outcome"] = "SHOT_ENDING"
+    packet["contradicting_signals"][0]["outcome_relation"] = "SAME"
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    assert record["non_support_count"] == 1
+    assert record["support_signal_count"] == 1
 
 
 def test_fusion_preserves_contextualizes_relation():
@@ -221,3 +322,44 @@ def test_no_sample_match_identity_leak():
     src = (SRC / "multi_signal_evidence_fusion.py").read_text(encoding="utf-8")
     for token in ["Turkey", "Australia", "Türkiye", "Avustralya", "World Cup", "13.06.2026"]:
         assert token not in src
+
+
+
+def test_different_outcome_values_without_opposite_relation_are_not_counterevidence():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["outcome_relation"] = "INCOMPARABLE"
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    assert record["unresolved_counterevidence_count"] == 1
+
+
+def test_identical_outcome_values_cannot_be_declared_opposite():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["candidate_outcome"] = packet["contradicting_signals"][0]["reference_outcome"]
+    packet["contradicting_signals"][0]["outcome_relation"] = "OPPOSITE"
+    record = fuse_packet(packet)
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "admitted_counter_001")
+    assert row["comparison_status"] == "INVALID_COMPARISON_CONTRACT"
+    assert row["counterevidence_class"] == "UNRESOLVED"
+
+
+
+def test_distinct_independence_group_ids_without_admission_do_not_create_counterevidence():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0].pop("independence_admission_status", None)
+    packet["contradicting_signals"][0].pop("independence_admission_basis", None)
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    assert record["unresolved_counterevidence_count"] == 1
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "admitted_counter_001")
+    assert row["counterevidence_class"] == "UNRESOLVED"
+    assert row["counterevidence_admission_reason"] == "counterevidence_independence_not_admitted"
+
+
+def test_independence_admission_requires_basis_not_status_only():
+    packet = admitted_counterevidence_packet()
+    packet["contradicting_signals"][0]["independence_admission_basis"] = ""
+    record = fuse_packet(packet)
+    assert record["contradiction_signal_count"] == 0
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "admitted_counter_001")
+    assert row["counterevidence_admission_reason"] == "counterevidence_independence_not_admitted"
