@@ -4,6 +4,7 @@ import argparse
 import json
 from collections import Counter
 from pathlib import Path
+from statistics import median
 
 import trackable_action_trace_candidates_current_v1 as current_trace
 from hpfa.modules.core.trackable_action_consequence_candidates_lite.src import (
@@ -133,6 +134,12 @@ def _bind_first_eligible_vs_horizon_semantics(payload: dict, trace_payload: dict
         record["first_eligible_action_is_target_consequence_truth"] = False
         record["diagnostic_horizon_family_presence_can_authorize_claim"] = False
         record["same_timestamp_first_layer_internal_ordering_allowed"] = False
+        record["time_to_first_admitted_visible_state_change_seconds_candidate"] = None
+        record["time_to_first_admitted_visible_state_change_observation_state"] = "NOT_EVALUATED"
+        record["time_to_first_admitted_visible_state_change_basis"] = "AFTER_CONFIRMED_FIRST_ELIGIBLE_VISIBLE_LAYER"
+        record["time_to_first_admitted_visible_state_change_is_physical_advantage_window_truth"] = False
+        record["time_to_first_admitted_visible_state_change_is_causal_timing_truth"] = False
+        record["time_to_first_admitted_visible_state_change_is_first_passage_model_output"] = False
 
         if anchor is None or missing_admitted_ids:
             semantic_unresolved += 1
@@ -147,6 +154,7 @@ def _bind_first_eligible_vs_horizon_semantics(payload: dict, trace_payload: dict
             }
             record["first_eligible_consequence_signal_candidates"] = []
             record["primary_consequence_semantics"] = "LEGACY_PRESERVED_LINEAGE_UNRESOLVED"
+            record["time_to_first_admitted_visible_state_change_observation_state"] = "UNRESOLVED_TRACE_LINEAGE"
             continue
 
         anchor_team = _clean(anchor.get("team_identity_candidate_id"))
@@ -164,6 +172,7 @@ def _bind_first_eligible_vs_horizon_semantics(payload: dict, trace_payload: dict
             record["primary_consequence_semantics"] = (
                 "NON_ACTION_OR_REVIEW_SEMANTICS_PRESERVED_WITHOUT_ADMITTED_FIRST_FOLLOWUP"
             )
+            record["time_to_first_admitted_visible_state_change_observation_state"] = "NO_ADMITTED_AFTER_FOLLOWUP"
             continue
 
         starts = [_number(row.get("start_candidate")) for row in admitted_rows]
@@ -175,9 +184,34 @@ def _bind_first_eligible_vs_horizon_semantics(payload: dict, trace_payload: dict
             record["first_eligible_team_relation"] = "UNKNOWN"
             record["first_eligible_consequence_signal_candidates"] = []
             record["primary_consequence_semantics"] = "LEGACY_PRESERVED_TIME_UNRESOLVED"
+            record["time_to_first_admitted_visible_state_change_observation_state"] = "UNRESOLVED_FOLLOWUP_TIME"
             continue
 
         first_start = min(value for value in starts if value is not None)
+        anchor_start = _number(anchor.get("start_candidate"))
+        if anchor_start is None:
+            semantic_unresolved += 1
+            record["first_eligible_consequence_binding_state"] = "UNRESOLVED_ANCHOR_TIME"
+            record["first_eligible_follow_up_trace_ids"] = []
+            record["first_eligible_action_family_candidates"] = []
+            record["first_eligible_team_relation"] = "UNKNOWN"
+            record["first_eligible_consequence_signal_candidates"] = []
+            record["primary_consequence_semantics"] = "LEGACY_PRESERVED_ANCHOR_TIME_UNRESOLVED"
+            record["time_to_first_admitted_visible_state_change_observation_state"] = "UNRESOLVED_ANCHOR_TIME"
+            continue
+        elapsed = round(first_start - anchor_start, 6)
+        if elapsed <= 0:
+            semantic_unresolved += 1
+            record["first_eligible_consequence_binding_state"] = "UNRESOLVED_NONPOSITIVE_ADMITTED_TIME_DELTA"
+            record["first_eligible_follow_up_trace_ids"] = []
+            record["first_eligible_action_family_candidates"] = []
+            record["first_eligible_team_relation"] = "UNKNOWN"
+            record["first_eligible_consequence_signal_candidates"] = []
+            record["primary_consequence_semantics"] = "LEGACY_PRESERVED_TEMPORAL_CONFLICT"
+            record["time_to_first_admitted_visible_state_change_observation_state"] = "UNRESOLVED_NONPOSITIVE_ADMITTED_TIME_DELTA"
+            continue
+        record["time_to_first_admitted_visible_state_change_seconds_candidate"] = elapsed
+        record["time_to_first_admitted_visible_state_change_observation_state"] = "OBSERVED_ADMITTED_AFTER"
         first_rows = [
             row for row in admitted_rows if _number(row.get("start_candidate")) == first_start
         ]
@@ -241,6 +275,37 @@ def _bind_first_eligible_vs_horizon_semantics(payload: dict, trace_payload: dict
     payload["horizon_family_presence_is_target_consequence_truth"] = False
     payload["diagnostic_horizon_family_presence_can_authorize_claim"] = False
     payload["same_timestamp_first_layer_internal_ordering_allowed"] = False
+    timing_values = sorted(
+        float(record["time_to_first_admitted_visible_state_change_seconds_candidate"])
+        for record in records
+        if isinstance(record, dict)
+        and record.get("time_to_first_admitted_visible_state_change_observation_state") == "OBSERVED_ADMITTED_AFTER"
+        and isinstance(record.get("time_to_first_admitted_visible_state_change_seconds_candidate"), (int, float))
+    )
+    timing_states = Counter(
+        str(record.get("time_to_first_admitted_visible_state_change_observation_state") or "UNKNOWN")
+        for record in records
+        if isinstance(record, dict)
+    )
+    payload["time_to_first_admitted_visible_state_change_profile"] = {
+        "eligible_observed_n": len(timing_values),
+        "observation_state_counts": dict(sorted(timing_states.items())),
+        "median_seconds_candidate": median(timing_values) if timing_values else None,
+        "min_seconds_candidate": min(timing_values) if timing_values else None,
+        "max_seconds_candidate": max(timing_values) if timing_values else None,
+        "distribution_values_seconds_candidate": timing_values,
+        "distribution_is_descriptive_not_first_passage_model": True,
+        "right_censoring_model_applied": False,
+        "no_admitted_after_is_failure": False,
+        "global_5_8_12_window_is_production_threshold": False,
+        "graphability_state": "GRAPH_READY_WITH_REVIEW" if timing_values else "NOT_GRAPH_READY_NO_ADMITTED_TIMING",
+        "recommended_graphs": [
+            "TIME_TO_FIRST_ADMITTED_VISIBLE_STATE_CHANGE_ECDF",
+            "TIME_TO_FIRST_ADMITTED_VISIBLE_STATE_CHANGE_DISTRIBUTION",
+        ],
+        "creates_new_evidence": False,
+        "can_authorize_emit": False,
+    }
 
     reviews = set(payload.get("review_hits") or [])
     reviews.discard("review_required_visible_consequence_candidates_present")
