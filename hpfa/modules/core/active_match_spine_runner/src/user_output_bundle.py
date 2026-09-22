@@ -88,13 +88,30 @@ def _safe_sentences(full_spine: dict[str, Any], limit: int = 12) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
     chains = full_spine.get("intelligence_chains")
-    if not isinstance(chains, list):
-        return result
-    for chain in chains:
-        if not isinstance(chain, dict):
+    if isinstance(chains, list):
+        for chain in chains:
+            if not isinstance(chain, dict):
+                continue
+            safe = chain.get("safe_sentence")
+            if not isinstance(safe, dict):
+                continue
+            text = str(safe.get("safe_sentence_candidate_tr") or "").strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            result.append(text)
+            if len(result) >= limit:
+                return result
+
+    p02_contracts = full_spine.get("p02_professional_finding_report_contracts") or {}
+    for row in p02_contracts.get("items") or []:
+        if not isinstance(row, dict):
             continue
-        safe = chain.get("safe_sentence")
+        safe = row.get("safe_sentence")
+        assembly = row.get("assembly") or {}
         if not isinstance(safe, dict):
+            continue
+        if str(assembly.get("assembly_decision") or "") != "READY_FOR_DRAFT_REPORT_ASSEMBLY_CANDIDATE":
             continue
         text = str(safe.get("safe_sentence_candidate_tr") or "").strip()
         if not text or text in seen:
@@ -925,8 +942,9 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
 
-    safe = _safe_sentences(full_spine) if c4_current else []
-    lines.extend(["", "[5] SAFE_ARGUMENT_CANDIDATES — MEVCUT C4 BLOKLARI"])
+    p02_contract_current = int(full_spine.get("P02_professional_finding_report_contract_item_count") or 0) > 0
+    safe = _safe_sentences(full_spine) if (c4_current or p02_contract_current) else []
+    lines.extend(["", "[5] SAFE_ARGUMENT_CANDIDATES — MEVCUT C4 + P02 ADMITTED BLOKLARI"])
     if safe:
         lines.extend(f"- {text}" for text in safe)
     elif c4_current:
