@@ -788,6 +788,23 @@ def test_team_score_state_before_episode_start_is_team_relative_candidate():
     assert team_b["score_state_candidate"] == "TRAILING"
 
 
+def test_degraded_score_timeline_does_not_invent_level_state():
+    state = _team_score_state_at_episode_start(
+        {
+            "status": "DEGRADED",
+            "bound_team_identity_candidate_ids": ["teamc_A", "teamc_B"],
+            "goal_score_change_candidate_count": 0,
+            "goal_score_change_candidates": [],
+        },
+        team_identity_candidate_id="teamc_A",
+        period_candidate="1",
+        start_second_candidate=40.0,
+    )
+    assert state["status"] == "NOT_EVALUATED"
+    assert state["score_state_candidate"] == "NOT_EVALUATED"
+    assert state["reason"] == "score_timeline_not_available"
+
+
 def test_goal_at_exact_episode_start_keeps_score_state_unresolved():
     episode, semantics, identities = _score_state_case()
     timeline = _score_state_timeline_candidates(episode, semantics, identities)
