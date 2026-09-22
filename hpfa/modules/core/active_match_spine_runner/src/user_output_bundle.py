@@ -358,14 +358,25 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
             entry_shots = int(row.get("final_third_entry_process_with_shot_activity_count") or 0)
             entry_turnovers = int(row.get("final_third_entry_process_with_turnover_activity_count") or 0)
             entry_crosses = int(row.get("final_third_entry_process_with_cross_activity_count") or 0)
+            post_entry_shots = int(row.get("final_third_entry_process_with_post_entry_shot_count") or 0)
+            post_entry_turnovers = int(row.get("final_third_entry_process_with_post_entry_turnover_count") or 0)
+            post_entry_crosses = int(row.get("final_third_entry_process_with_post_entry_cross_count") or 0)
+            entry_layer_shots = int(row.get("final_third_entry_process_with_entry_layer_shot_count") or 0)
+            entry_layer_turnovers = int(row.get("final_third_entry_process_with_entry_layer_turnover_count") or 0)
+            entry_layer_crosses = int(row.get("final_third_entry_process_with_entry_layer_cross_count") or 0)
+            no_later_layer = int(row.get("final_third_entry_process_with_no_later_visible_layer_count") or 0)
             max_windows = int(row.get("max_anchor_windows_within_single_process_unit") or 0)
             boundary_text = _readable_boundary_counts(row.get("final_third_entry_process_end_reason_counts") or {})
             lines.append(
                 f"- {team_name}: {windows} gorunur pas -> pas -> pas penceresi {units} benzersiz oyun surecinde toplandi "
                 f"(tek surecte en fazla {max_windows} pencere). Yeni final-third girisi gorunen surec={entries}, "
                 f"final-third icinde devam eden={continuations}, final-third'e ulasmayan={no_final_third}, "
-                f"bolgesi cozulmeyen={unresolved}. Final-third'e yeni giren sureclerde sut aktivitesi={entry_shots}, "
-                f"turnover aktivitesi={entry_turnovers}, cross aktivitesi={entry_crosses}; gorunur bitisler: {boundary_text}."
+                f"bolgesi cozulmeyen={unresolved}. Yeni giris sureclerinin tamaminda gorunen aktivite: "
+                f"sut={entry_shots}, turnover={entry_turnovers}, cross={entry_crosses}. Giris zaman-katmanindan "
+                f"SONRA gorunen aktivite: sut={post_entry_shots}, turnover={post_entry_turnovers}, cross={post_entry_crosses}; "
+                f"girisle AYNI zaman-katmaninda: sut={entry_layer_shots}, turnover={entry_layer_turnovers}, "
+                f"cross={entry_layer_crosses}; giristen sonra yeni gorunur katmani olmayan surec={no_later_layer}. "
+                f"Gorunur bitisler: {boundary_text}."
             )
 
     recovery_signature = "ANCHOR:RECOVERY -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
@@ -385,11 +396,14 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
             no_final_third = int(row.get("process_unit_with_no_final_third_visible_count") or 0)
             unresolved = int(row.get("process_unit_with_zone_unresolved_count") or 0)
             shots = int(row.get("process_unit_with_shot_activity_after_anchor_count") or 0)
+            post_entry_shots = int(row.get("final_third_entry_process_with_post_entry_shot_count") or 0)
+            entry_layer_shots = int(row.get("final_third_entry_process_with_entry_layer_shot_count") or 0)
             lines.append(
                 f"- {team_name}: recovery -> pas -> pas yolu {units} benzersiz oyun surecine baglandi; "
                 f"yeni final-third girisi={entries}, final-third icinde devam={continuations}, "
                 f"final-third'e ulasmayan={no_final_third}, bolgesi cozulmeyen={unresolved}, "
-                f"recovery sonrasinda ayni surecte sut aktivitesi={shots}."
+                f"recovery sonrasinda ayni surecte sut aktivitesi={shots}; yeni final-third girisinden SONRA "
+                f"sut aktivitesi={post_entry_shots}, girisle AYNI zaman-katmaninda sut aktivitesi={entry_layer_shots}."
             )
 
     post_loss_by_team = {
