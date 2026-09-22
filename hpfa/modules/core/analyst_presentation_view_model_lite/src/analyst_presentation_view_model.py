@@ -814,6 +814,163 @@ def _comparative_views(
         ],
     }
 
+def _football_dynamics_surface(
+    root: Path,
+    declared: set[str],
+    player_cards: list[dict[str, Any]],
+) -> dict[str, Any]:
+    trace_name = "trackable_action_trace_candidates_lite_v1.json"
+    consequence_name = "trackable_action_consequence_candidates_lite_v1.json"
+    if not {trace_name, consequence_name}.issubset(declared):
+        return {
+            "state": "NOT_EVALUATED",
+            "reason": "required_current_invocation_surfaces_missing",
+            "claim_ceiling": "NO_DYNAMICS_CLAIM",
+        }
+
+    traces = (_load(root / trace_name).get("trackable_action_trace_candidates") or [])
+    consequences = (_load(root / consequence_name).get("trackable_action_consequence_candidates") or [])
+    team_labels = {
+        str(card.get("team_identity_candidate_id")): card.get("team_normalized_key")
+        for card in player_cards
+        if card.get("team_identity_candidate_id")
+    }
+    actor_labels = {
+        str(card.get("actor_identity_candidate_id")): card.get("actor_display_candidate")
+        for card in player_cards
+        if card.get("actor_identity_candidate_id")
+    }
+
+    rhythm_bins: dict[tuple[str, int], int] = {}
+    player_points: dict[str, list[tuple[float, float]]] = {}
+    trace_team: dict[str, str] = {}
+    trace_families: dict[str, list[str]] = {}
+    for item in traces:
+        if not isinstance(item, dict):
+            continue
+        trace_id = str(item.get("trackable_action_trace_candidate_id") or "")
+        team_id = str(item.get("team_identity_candidate_id") or "UNKNOWN_TEAM")
+        actor_id = str(item.get("actor_identity_candidate_id") or "UNKNOWN_ACTOR")
+        trace_team[trace_id] = team_id
+        trace_families[trace_id] = [str(x) for x in item.get("action_family_candidates") or []]
+        try:
+            start = float(item.get("start_candidate"))
+        except (TypeError, ValueError):
+            start = None
+        period = str(item.get("period_candidate") or "UNKNOWN_PERIOD")
+        if start is not None and start >= 0:
+            bin_start = int(start // 300) * 5
+            rhythm_bins[(period, bin_start)] = rhythm_bins.get((period, bin_start), 0) + 1
+        try:
+            x = float(item.get("pos_x_candidate"))
+            y = float(item.get("pos_y_candidate"))
+        except (TypeError, ValueError):
+            continue
+        player_points.setdefault(actor_id, []).append((x, y))
+
+    rhythm_rows: list[dict[str, Any]] = []
+    by_period_counts: dict[str, list[int]] = {}
+    for (period, bin_start), count in sorted(rhythm_bins.items()):
+        by_period_counts.setdefault(period, []).append(count)
+    period_medians: dict[str, float] = {}
+    for period, values in by_period_counts.items():
+        ordered = sorted(values)
+        n = len(ordered)
+        if not n:
+            continue
+        mid = n // 2
+        period_medians[period] = float(ordered[mid]) if n % 2 else (ordered[mid - 1] + ordered[mid]) / 2.0
+    for (period, bin_start), count in sorted(rhythm_bins.items()):
+        median = period_medians.get(period)
+        relation = "UNKNOWN"
+        if median is not None:
+            relation = "ABOVE_PERIOD_MEDIAN" if count > median else "BELOW_PERIOD_MEDIAN" if count < median else "AT_PERIOD_MEDIAN"
+        rhythm_rows.append({
+            "period_candidate": period,
+            "window_start_minute_candidate": bin_start,
+            "window_end_minute_candidate": bin_start + 5,
+            "nominal_trace_candidate_count": count,
+            "period_median_nominal_trace_candidate_count": median,
+            "relative_activity_state": relation,
+            "trace_count_is_physical_action_count": False,
+            "tempo_truth": False,
+        })
+
+    consequence_rows: dict[tuple[str, str, str], int] = {}
+    for item in consequences:
+        if not isinstance(item, dict):
+            continue
+        trace_id = str(item.get("anchor_trackable_action_trace_candidate_id") or "")
+        family_set = set(trace_families.get(trace_id) or [])
+        anchor_kind = None
+        if "TURNOVER" in family_set:
+            anchor_kind = "TURNOVER"
+        elif "RECOVERY" in family_set:
+            anchor_kind = "RECOVERY"
+        if not anchor_kind:
+            continue
+        team_id = str(item.get("team_identity_candidate_id") or trace_team.get(trace_id) or "UNKNOWN_TEAM")
+        primary = str(item.get("primary_consequence_candidate") or "UNKNOWN_CONSEQUENCE_CANDIDATE")
+        key = (team_id, anchor_kind, primary)
+        consequence_rows[key] = consequence_rows.get(key, 0) + 1
+    loss_recovery_rows = [
+        {
+            "team_identity_candidate_id": team_id,
+            "team_display_candidate": team_labels.get(team_id, team_id),
+            "anchor_action_family": anchor_kind,
+            "primary_consequence_candidate": primary,
+            "nominal_consequence_candidate_count": count,
+            "consequence_candidate_is_causal_truth": False,
+            "team_response_is_tactical_truth": False,
+        }
+        for (team_id, anchor_kind, primary), count in sorted(consequence_rows.items())
+    ]
+
+    player_location_rows: list[dict[str, Any]] = []
+    for actor_id, points in sorted(player_points.items()):
+        if not points:
+            continue
+        xs = sorted(p[0] for p in points)
+        ys = sorted(p[1] for p in points)
+        def med(values: list[float]) -> float:
+            n = len(values)
+            m = n // 2
+            return values[m] if n % 2 else (values[m - 1] + values[m]) / 2.0
+        player_location_rows.append({
+            "actor_identity_candidate_id": actor_id,
+            "actor_display_candidate": actor_labels.get(actor_id, actor_id),
+            "recorded_coordinate_anchor_count": len(points),
+            "median_action_x_candidate": med(xs),
+            "median_action_y_candidate": med(ys),
+            "is_player_position": False,
+            "is_off_ball_role_truth": False,
+            "claim_ceiling": "RECORDED_ACTION_LOCATION_CANDIDATE_ONLY",
+        })
+
+    return {
+        "state": "AVAILABLE",
+        "activity_rhythm_proxy": {
+            "state": "AVAILABLE" if rhythm_rows else "NOT_EVALUATED",
+            "rows": rhythm_rows,
+            "unit": "nominal_trackable_trace_candidates_per_5min_window",
+            "football_meaning": "visible recorded-action activity rhythm proxy",
+            "forbidden_inference": ["true_match_tempo", "physical_intensity", "possession_speed", "dominance"],
+        },
+        "loss_recovery_visible_consequences": {
+            "state": "AVAILABLE" if loss_recovery_rows else "NOT_EVALUATED",
+            "rows": loss_recovery_rows,
+            "football_meaning": "visible consequence candidates after recorded TURNOVER/RECOVERY anchors",
+            "forbidden_inference": ["causal_effect", "press_success", "transition_quality_fact", "tactical_intention"],
+        },
+        "player_action_location_candidates": {
+            "state": "AVAILABLE" if player_location_rows else "NOT_EVALUATED",
+            "rows": player_location_rows,
+            "football_meaning": "median recorded action location, not player position",
+            "forbidden_inference": ["player_position", "team_shape", "off_ball_role", "compactness"],
+        },
+        "claim_ceiling": "EVENT_DERIVED_PRESENTATION_INTELLIGENCE_ONLY",
+    }
+
 def _comparison_cards(comparative: dict[str, Any]) -> dict[str, Any]:
     cards: list[dict[str, Any]] = []
 
@@ -892,7 +1049,10 @@ def _comparison_cards(comparative: dict[str, Any]) -> dict[str, Any]:
         "forbidden_inference": comparative.get("forbidden_inference") or [],
     }
 
-def _chart_render_pack(comparison_cards: dict[str, Any]) -> dict[str, Any]:
+def _chart_render_pack(
+    comparison_cards: dict[str, Any],
+    football_dynamics: dict[str, Any],
+) -> dict[str, Any]:
     specs: list[dict[str, Any]] = []
     for card in comparison_cards.get("mobile_cards") or []:
         card_id = str(card.get("card_id"))
@@ -982,6 +1142,81 @@ def _chart_render_pack(comparison_cards: dict[str, Any]) -> dict[str, Any]:
                 ],
                 "claim_ceiling": card.get("claim_ceiling"),
             })
+
+    rhythm_rows = (football_dynamics.get("activity_rhythm_proxy") or {}).get("rows") or []
+    if rhythm_rows:
+        periods = sorted({str(row.get("period_candidate")) for row in rhythm_rows})
+        for period in periods:
+            rows = [row for row in rhythm_rows if str(row.get("period_candidate")) == period]
+            rows.sort(key=lambda row: int(row.get("window_start_minute_candidate") or 0))
+            specs.append({
+                "chart_id": f"chart:activity_rhythm:{period}",
+                "source_card_id": "football_dynamics:activity_rhythm_proxy",
+                "chart_type": "LINE_OR_STEP_BAR",
+                "categories": [f"{row.get('window_start_minute_candidate')}-{row.get('window_end_minute_candidate')}" for row in rows],
+                "series": [
+                    {
+                        "name": "nominal_trace_candidate_count",
+                        "values": [int(row.get("nominal_trace_candidate_count") or 0) for row in rows],
+                    },
+                    {
+                        "name": "period_median_nominal_trace_candidate_count",
+                        "values": [row.get("period_median_nominal_trace_candidate_count") for row in rows],
+                    },
+                ],
+                "denominators": [],
+                "claim_ceiling": "VISIBLE_RECORDED_ACTION_ACTIVITY_RHYTHM_PROXY_ONLY",
+                "football_label_tr": "Görünür aksiyon ritmi",
+            })
+
+    consequence_rows = (football_dynamics.get("loss_recovery_visible_consequences") or {}).get("rows") or []
+    if consequence_rows:
+        teams = sorted({str(row.get("team_display_candidate")) for row in consequence_rows})
+        outcomes = sorted({str(row.get("primary_consequence_candidate")) for row in consequence_rows})
+        for anchor_kind in ["TURNOVER", "RECOVERY"]:
+            subset = [row for row in consequence_rows if row.get("anchor_action_family") == anchor_kind]
+            if not subset:
+                continue
+            lookup = {
+                (str(row.get("team_display_candidate")), str(row.get("primary_consequence_candidate"))):
+                    int(row.get("nominal_consequence_candidate_count") or 0)
+                for row in subset
+            }
+            specs.append({
+                "chart_id": f"chart:{anchor_kind.lower()}_visible_consequences",
+                "source_card_id": "football_dynamics:loss_recovery_visible_consequences",
+                "chart_type": "GROUPED_BAR",
+                "categories": teams,
+                "series": [
+                    {"name": outcome, "values": [lookup.get((team, outcome), 0) for team in teams]}
+                    for outcome in outcomes
+                    if any(lookup.get((team, outcome), 0) for team in teams)
+                ],
+                "denominators": [],
+                "claim_ceiling": "VISIBLE_CONSEQUENCE_CANDIDATE_COUNTS_ONLY",
+                "football_label_tr": "Top kaybı sonrası görünen sonuçlar" if anchor_kind == "TURNOVER" else "Geri kazanım sonrası görünen sonuçlar",
+            })
+
+    location_rows = (football_dynamics.get("player_action_location_candidates") or {}).get("rows") or []
+    if location_rows:
+        specs.append({
+            "chart_id": "chart:player_action_locations",
+            "source_card_id": "football_dynamics:player_action_location_candidates",
+            "chart_type": "PITCH_SCATTER",
+            "points": [
+                {
+                    "actor_identity_candidate_id": row.get("actor_identity_candidate_id"),
+                    "label": row.get("actor_display_candidate"),
+                    "x": row.get("median_action_x_candidate"),
+                    "y": row.get("median_action_y_candidate"),
+                    "recorded_coordinate_anchor_count": row.get("recorded_coordinate_anchor_count"),
+                }
+                for row in location_rows
+            ],
+            "denominators": [],
+            "claim_ceiling": "RECORDED_ACTION_LOCATION_CANDIDATE_ONLY",
+            "football_label_tr": "Oyuncu aksiyon bölgeleri",
+        })
 
     for spec in specs:
         spec["render_ready"] = True
@@ -1073,6 +1308,20 @@ def _dashboard_manifest(
                 "display_rule": "SHOW_PROXY_LENS_ONLY_AND_NOT_EVALUATED_EXPLICITLY",
             },
             {
+                "region_id": "football_dynamics_panel",
+                "priority": 4,
+                "desktop": "CENTER_RIGHT_MIDDLE",
+                "mobile": "FOURTH_STACK",
+                "content_ref": "surface_data.football_dynamics + surface_data.chart_render_pack",
+                "visual_mode": "RHYTHM_CONSEQUENCE_AND_ACTION_LOCATION_VIEWS",
+                "football_questions": [
+                    "Where did visible recorded-action activity rise or fall?",
+                    "What visible consequence candidates followed recorded losses/recoveries?",
+                    "Where were players' recorded actions concentrated?",
+                ],
+                "claim_ceiling": "EVENT_DERIVED_PRESENTATION_INTELLIGENCE_ONLY",
+            },
+            {
                 "region_id": "match_timeline",
                 "priority": 4,
                 "desktop": "CENTER_LEFT_BELOW_FIELD",
@@ -1140,7 +1389,7 @@ def _dashboard_manifest(
                     "layer_id": "L2_MECHANISM_READ",
                     "analyst_time_horizon": "30_TO_120_SECONDS",
                     "question": "How did the visible mechanism unfold, where/when, through which players and variants?",
-                    "surfaces": ["field_replay", "match_timeline", "process_chain", "player_process_drawer"],
+                    "surfaces": ["field_replay", "football_dynamics_panel", "match_timeline", "process_chain", "player_process_drawer"],
                     "content_rule": "episode_process_variant_consequence_and_player_participation",
                     "must_show": ["where_when", "successful_failed_deviant_variant", "visible_consequence", "player_participation"],
                     "must_not_show": ["invented_trajectory", "off_ball_role_truth", "coach_intention"],
@@ -1171,6 +1420,7 @@ def _dashboard_manifest(
         "mobile_navigation": [
             "MATCH_STORY",
             "FIELD_REPLAY",
+            "DYNAMICS",
             "SIX_PHASE",
             "COMPARISONS",
             "PLAYERS",
@@ -1605,7 +1855,15 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         player_cards=player_process_cards,
     )
     comparison_cards = _comparison_cards(comparative_views)
-    chart_render_pack = _chart_render_pack(comparison_cards)
+    football_dynamics = _football_dynamics_surface(
+        root=root,
+        declared=declared,
+        player_cards=player_process_cards,
+    )
+    chart_render_pack = _chart_render_pack(
+        comparison_cards,
+        football_dynamics,
+    )
     dashboard_manifest = _dashboard_manifest(
         match_story=match_story,
         six_phase_lens=six_phase_lens,
@@ -1738,6 +1996,7 @@ def build_view_model(output_root: str | Path) -> dict[str, Any]:
         "broadcast_groups": broadcast_groups,
         "comparative_views": comparative_views,
         "comparison_cards": comparison_cards,
+        "football_dynamics": football_dynamics,
         "chart_render_pack": chart_render_pack,
         "dashboard_manifest": dashboard_manifest,
         "unknown_unobservable_register": {

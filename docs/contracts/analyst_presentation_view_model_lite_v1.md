@@ -703,3 +703,60 @@ REJECT / DO NOT REVIVE:
 
 These donor decisions do not change source authority.
 Donors remain SUPPORT/HISTORICAL.
+
+## Football dynamics presentation surfaces
+
+Three additional event-derived presentation surfaces are admitted when current-invocation trace and consequence artifacts exist.
+
+### Visible action rhythm proxy
+5-minute windows of nominal trackable trace-candidate counts.
+
+Meaning:
+visible recorded-action activity rhythm proxy.
+
+Not:
+- true match tempo
+- physical intensity
+- possession speed
+- dominance
+
+Trace counts remain non-physical-action counts.
+
+### Loss / recovery visible consequences
+TURNOVER and RECOVERY trace anchors are grouped by their current visible consequence candidates.
+
+Meaning:
+what became visibly observable after recorded loss/recovery anchors.
+
+Not:
+- causal effect
+- pressing success
+- transition quality fact
+- tactical intention
+
+### Player action-location candidates
+Median x/y of recorded coordinate anchors by match-local actor candidate.
+
+Meaning:
+where the player's recorded actions occurred.
+
+Not:
+- player position
+- team shape
+- off-ball role
+- compactness
+
+Claim ceiling:
+RECORDED_ACTION_LOCATION_CANDIDATE_ONLY
+
+### Dashboard
+A dedicated DYNAMICS navigation/region is available:
+RHYTHM_CONSEQUENCE_AND_ACTION_LOCATION_VIEWS
+
+### Render-ready charts
+- activity rhythm by period
+- turnover visible consequences
+- recovery visible consequences
+- player action locations
+
+All inherit graph audit metadata and visual-strength <= evidence-strength rules.

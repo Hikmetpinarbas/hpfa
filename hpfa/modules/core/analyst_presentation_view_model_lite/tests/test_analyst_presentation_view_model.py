@@ -258,9 +258,19 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert comparison_cards["policy"] == "COMPACT_COMPARISON_WITH_VISIBLE_DENOMINATOR_AND_NO_EVALUATIVE_VERDICT"
     assert comparison_cards["mobile_cards"][0]["broadcast_copy_is_final"] is False
     assert comparison_cards["mobile_cards"][0]["graph"] == "GROUPED_BAR_WITH_ELIGIBLE_DENOMINATORS"
+    dynamics = payload["surface_data"]["football_dynamics"]
+    assert dynamics["state"] == "AVAILABLE"
+    assert dynamics["activity_rhythm_proxy"]["state"] == "AVAILABLE"
+    assert dynamics["activity_rhythm_proxy"]["rows"][0]["nominal_trace_candidate_count"] == 1
+    assert dynamics["activity_rhythm_proxy"]["rows"][0]["tempo_truth"] is False
+    assert dynamics["loss_recovery_visible_consequences"]["state"] == "NOT_EVALUATED"
+    assert dynamics["player_action_location_candidates"]["state"] == "AVAILABLE"
+    assert dynamics["player_action_location_candidates"]["rows"][0]["median_action_x_candidate"] == 44.0
+    assert dynamics["player_action_location_candidates"]["rows"][0]["median_action_y_candidate"] == 37.0
+    assert dynamics["player_action_location_candidates"]["rows"][0]["is_player_position"] is False
     render_pack = payload["surface_data"]["chart_render_pack"]
     assert render_pack["state"] == "RENDER_READY"
-    assert render_pack["chart_count"] == 5
+    assert render_pack["chart_count"] == 7
     assert render_pack["render_contract"]["missing_value_policy"] == "DO_NOT_INTERPOLATE"
     assert render_pack["charts"][0]["render_ready"] is True
     assert render_pack["charts"][0]["percentages_emitted"] is False
@@ -268,6 +278,9 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     assert render_pack["charts"][0]["chart_audit"]["claim_ceiling"] == render_pack["charts"][0]["claim_ceiling"]
     assert render_pack["charts"][0]["categories"] == ["1"]
     assert render_pack["charts"][0]["series"][0]["name"] == "time_anchor_count"
+    chart_ids = {chart["chart_id"] for chart in render_pack["charts"]}
+    assert "chart:activity_rhythm:1" in chart_ids
+    assert "chart:player_action_locations" in chart_ids
     dashboard = payload["surface_data"]["dashboard_manifest"]
     assert dashboard["layout_mode"] == "ANALYST_FIRST_RESPONSIVE"
     assert dashboard["claim_ceiling"] == "PRESENTATION_LAYOUT_ONLY_NO_NEW_EVIDENCE"
@@ -288,6 +301,10 @@ def test_surface_states_preserve_claim_ceiling(tmp_path):
     field_region = next(item for item in dashboard["regions"] if item["region_id"] == "field_replay")
     assert field_region["visual_mode"] == "SCHEMATIC_PITCH_WITH_RECORDED_ANCHORS"
     assert "invented_ball_trajectory" in field_region["blocked_overlays"]
+    dynamics_region = next(item for item in dashboard["regions"] if item["region_id"] == "football_dynamics_panel")
+    assert dynamics_region["visual_mode"] == "RHYTHM_CONSEQUENCE_AND_ACTION_LOCATION_VIEWS"
+    assert dynamics_region["claim_ceiling"] == "EVENT_DERIVED_PRESENTATION_INTELLIGENCE_ONLY"
+    assert "DYNAMICS" in dashboard["mobile_navigation"]
     assert dashboard["interaction_rules"]["every_claim_card_must_offer_traceback"] is True
     depth = dashboard["depth_model"]
     assert depth["principle"] == "SIMPLE_FIRST_VIEW_DEEPER_ON_DEMAND_TRACEABLE_TO_EVIDENCE"
