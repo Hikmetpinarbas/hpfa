@@ -16,6 +16,11 @@ def test_semicolon_csv_context_extraction(tmp_path):
     assert sample['zone_candidate'] == 'FINAL_THIRD'
     assert sample['time_admission_status'] == 'ADMITTED'
     assert sample['minute_bucket'] == '10'
+    assert report['context_zone_ontology_id'] == 'THIRDS_ONLY_V1'
+    assert report['context_zone_domain'] == ['DEFENSIVE_THIRD', 'MIDDLE_THIRD', 'FINAL_THIRD']
+    assert report['context_zone_final_third_observable'] is True
+    assert report['context_zone_penalty_area_observable'] is False
+    assert report['context_zone_penalty_area_unobservable_reason'] == 'THIRDS_ONLY_ZONE_ONTOLOGY'
 
 
 def test_generic_second_field_is_not_absolute_second_truth():
