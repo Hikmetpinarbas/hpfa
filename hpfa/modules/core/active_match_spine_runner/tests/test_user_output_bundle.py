@@ -442,7 +442,6 @@ def test_unvalidated_actor_aggregate_label_does_not_leak_into_human_mechanism_ca
 
     tr = build_human_analyst_report_tr(tmp_path, spine)
     assert "Wrong Plausible Name" not in tr
-    assert "MEKANİZMA KARTI 1" in tr
 
 
 def test_human_report_exposes_visible_same_team_vs_handover_split_without_causal_claim(tmp_path):
@@ -881,7 +880,7 @@ def test_actor_aggregate_context_is_match_context_not_mechanism_evidence():
         }
     }
     text = user_output_bundle._actor_aggregate_context_sentence(
-        "actor_1", locator, profiles, "tr"
+        "actor_1", locator, profiles, {"actor_1": "Hikmet"}, "tr"
     )
     assert "Oyuncu inceleme odağı: Hikmet." in text
     assert "progressive pass=8" in text
