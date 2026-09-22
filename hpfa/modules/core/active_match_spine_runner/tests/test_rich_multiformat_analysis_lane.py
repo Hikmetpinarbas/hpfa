@@ -1940,3 +1940,80 @@ def test_p02_recovery_continuation_reads_only_post_anchor_same_team_access() -> 
     assert row["post_recovery_zone_route_counts"] == {"MIDDLE_THIRD->FINAL_THIRD": 1}
     assert row["recovery_anchor_zone_is_access_outcome"] is False
     assert row["severity_is_recovery_quality_truth"] is False
+
+
+def test_p02_same_team_pass_windows_collapse_to_unique_process_units() -> None:
+    identities = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "teamc_A", "team_aliases_raw": ["TEAM_A"], "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND"},
+        ]
+    }
+    visible_sequence = {
+        "visible_action_time_layer_candidates": [
+            {"visible_action_time_layer_candidate_id":"p0","start_candidate":10.0,"trackable_action_trace_candidate_ids":["tr_p0"],"action_family_counts":{"PASS":1}},
+            {"visible_action_time_layer_candidate_id":"p1","start_candidate":14.0,"trackable_action_trace_candidate_ids":["tr_p1"],"action_family_counts":{"PASS":1}},
+            {"visible_action_time_layer_candidate_id":"p2","start_candidate":18.0,"trackable_action_trace_candidate_ids":["tr_p2"],"action_family_counts":{"PASS":1}},
+            {"visible_action_time_layer_candidate_id":"p3","start_candidate":22.0,"trackable_action_trace_candidate_ids":["tr_p3"],"action_family_counts":{"PASS":1}},
+        ],
+        "visible_action_sequence_candidates": [
+            {
+                "visible_action_sequence_candidate_id":"vasq_pass_chain",
+                "team_identity_candidate_id":"teamc_A","period_candidate":"1",
+                "start_time_candidate":10.0,"end_time_candidate":22.0,"duration_candidate_seconds":12.0,
+                "time_layer_candidate_ids":["p0","p1","p2","p3"],"time_layer_count":4,
+                "trackable_action_trace_candidate_ids":["tr_p0","tr_p1","tr_p2","tr_p3"],"trace_candidate_count":4,
+                "action_family_counts":{"PASS":4},"consequence_candidate_counts":{},
+                "sequence_record_status":"PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE",
+                "start_reason_candidate":"PERIOD_START","end_reason_candidate":"TIME_GAP_BOUNDARY",
+            }
+        ],
+    }
+    trace = {
+        "trackable_action_trace_candidates": [
+            {"trackable_action_trace_candidate_id":"tr_p0","start_candidate":10.0,"supporting_evidence_atom_ids":["ea_p0"]},
+            {"trackable_action_trace_candidate_id":"tr_p1","start_candidate":14.0,"supporting_evidence_atom_ids":["ea_p1"]},
+            {"trackable_action_trace_candidate_id":"tr_p2","start_candidate":18.0,"supporting_evidence_atom_ids":["ea_p2"]},
+            {"trackable_action_trace_candidate_id":"tr_p3","start_candidate":22.0,"supporting_evidence_atom_ids":["ea_p3"]},
+        ]
+    }
+    evidence = {
+        "evidence_atoms": [
+            {"evidence_atom_id":"ea_p0","row_nucleus_candidate_id":"rn_p0"},
+            {"evidence_atom_id":"ea_p1","row_nucleus_candidate_id":"rn_p1"},
+            {"evidence_atom_id":"ea_p2","row_nucleus_candidate_id":"rn_p2"},
+            {"evidence_atom_id":"ea_p3","row_nucleus_candidate_id":"rn_p3"},
+        ]
+    }
+    semantics = {
+        "context_action_semantic_records": [
+            {"row_nucleus_candidate_id":"rn_p0","context_zone_candidate":"DEFENSIVE_THIRD"},
+            {"row_nucleus_candidate_id":"rn_p1","context_zone_candidate":"MIDDLE_THIRD"},
+            {"row_nucleus_candidate_id":"rn_p2","context_zone_candidate":"FINAL_THIRD"},
+            {"row_nucleus_candidate_id":"rn_p3","context_zone_candidate":"FINAL_THIRD"},
+        ]
+    }
+    consequence = {
+        "visible_consequence_path_recurrence_candidates": [
+            {
+                "team_identity_candidate_id":"teamc_A",
+                "anchor_action_family_candidates":["PASS"],
+                "visible_consequence_path_signature":"ANCHOR:PASS -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS",
+                "visible_occurrence_count":2,
+                "eligible_anchor_population_count":4,
+                "anchor_trace_refs":["tr_p0","tr_p1"],
+            }
+        ]
+    }
+
+    p02 = _progression_pool_p02(
+        {}, {}, {}, consequence, semantics, identities, visible_sequence, trace, evidence
+    )
+    profile = p02["same_team_continuation_process_profiles"][0]
+
+    assert profile["anchor_visible_occurrence_count"] == 2
+    assert profile["unique_process_unit_count"] == 1
+    assert profile["process_unit_with_final_third_entry_count"] == 1
+    assert profile["max_anchor_windows_within_single_process_unit"] == 2
+    assert profile["anchor_window_count_is_process_denominator"] is False
+    assert profile["unique_process_unit_count_is_independent_evidence_count"] is False
+    assert profile["same_process_multiple_anchor_reflection_possible"] is True
