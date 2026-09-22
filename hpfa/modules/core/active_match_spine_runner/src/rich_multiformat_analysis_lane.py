@@ -2061,8 +2061,21 @@ def _progression_pool_p02(
         for trace_id in unit.get("source_trackable_action_trace_candidate_ids") or []:
             trace_to_units[str(trace_id)].append(unit)
 
+    non_loss_recurrence_not_evaluated_count = 0
     for recurrence in consequence.get("visible_consequence_path_recurrence_candidates") or []:
         if not isinstance(recurrence, dict):
+            continue
+        anchor_families = {
+            str(value)
+            for value in (recurrence.get("anchor_action_family_candidates") or [])
+            if str(value).strip()
+        }
+        signature = str(recurrence.get("visible_consequence_path_signature") or "")
+        post_loss_opponent_scope = bool(
+            anchor_families & {"TURNOVER", "CONTROL_ERROR"}
+        ) and "L1:OPPONENT:" in signature
+        if not post_loss_opponent_scope:
+            non_loss_recurrence_not_evaluated_count += 1
             continue
         states = Counter()
         downstream_stage_states = Counter()
@@ -2127,6 +2140,8 @@ def _progression_pool_p02(
         consequence_path_severity_candidates.append({
             "visible_consequence_path_signature": recurrence.get("visible_consequence_path_signature"),
             "team_identity_candidate_id": recurrence.get("team_identity_candidate_id"),
+            "severity_evaluation_scope": "POST_LOSS_OPPONENT_RESPONSE_ONLY",
+            "severity_evaluation_status": "EVALUATED",
             "visible_occurrence_count": recurrence.get("visible_occurrence_count"),
             "eligible_anchor_population_count": recurrence.get("eligible_anchor_population_count"),
             "exact_process_response_bound_count": bound_count,
@@ -2300,6 +2315,9 @@ def _progression_pool_p02(
         "process_unit_comparisons": process_unit_comparisons,
         "visible_consequence_path_severity_candidates": consequence_path_severity_candidates,
         "visible_consequence_path_severity_candidate_count": len(consequence_path_severity_candidates),
+        "visible_consequence_path_severity_scope": "POST_LOSS_OPPONENT_RESPONSE_ONLY",
+        "non_loss_recurrence_severity_not_evaluated_count": non_loss_recurrence_not_evaluated_count,
+        "recovery_continuation_requires_separate_same_team_process_evaluation": True,
         "consequence_path_severity_is_transition_defence_quality_truth": False,
         "consequence_path_severity_is_causal_truth": False,
         "p02_c4_packet_candidate_count": len(p02_c4_packet_candidates),
