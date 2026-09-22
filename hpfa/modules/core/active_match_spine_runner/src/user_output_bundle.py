@@ -320,6 +320,12 @@ def _p02_professional_finding_lines(rich: dict[str, Any]) -> list[str]:
         variants = int(finding.get("visible_variant_family_count") or 0)
         opposite = int(finding.get("admitted_opposite_counterevidence_pair_count") or 0)
         sample_maturity = str(finding.get("finding_sample_maturity_candidate") or "NOT_EVALUATED")
+        maturity_profile = finding.get("evidence_maturity_profile") or {}
+        mechanism_readiness = str(finding.get("mechanism_review_readiness") or maturity_profile.get("mechanism_review_readiness") or "NOT_EVALUATED")
+        recurrent_signature_count = int(maturity_profile.get("recurrent_process_signature_count") or 0)
+        context_spread_count = int(maturity_profile.get("same_team_same_focus_context_population_count") or 0)
+        independence_admitted_pairs = int(maturity_profile.get("evidence_unit_independence_admitted_pair_count") or 0)
+        maturity_reasons = finding.get("mechanism_maturity_reasons") or maturity_profile.get("mechanism_maturity_reasons") or []
         exit_dist = json.dumps(
             finding.get("visible_exit_class_distribution") or {},
             ensure_ascii=False,
@@ -338,7 +344,9 @@ def _p02_professional_finding_lines(rich: dict[str, Any]) -> list[str]:
                 f"resolved target-state denominator={resolved}; target gorundu={observed}; "
                 f"complete admitted path icinde target gorunmedi={not_observed}; unresolved={unresolved}; "
                 f"gorunur varyant ailesi={variants}; admitted opposite counterevidence pair={opposite}; "
-                f"orneklem-olgunlugu={sample_maturity}."
+                f"orneklem-olgunlugu={sample_maturity}; mekanizma-review-readiness={mechanism_readiness}; "
+                f"recurrent-signature={recurrent_signature_count}; context-spread={context_spread_count}; "
+                f"evidence-unit-independence-admitted-pair={independence_admitted_pairs}."
             ),
             f"  ADMISSION_REASONS: {admission_reasons}",
             f"  WHAT_VISIBLE: {finding.get('WHAT_VISIBLE')}",
@@ -348,6 +356,8 @@ def _p02_professional_finding_lines(rich: dict[str, Any]) -> list[str]:
                 "Pairwise kombinasyonlar bagimsiz destek oyu degildir."
             ),
             f"  SAFE_MEANING: {finding.get('SAFE_MEANING')}",
+            f"  MECHANISM_MATURITY_REASONS: {maturity_reasons}",
+            "  MECHANISM_PROMOTION_ALLOWED: false",
             f"  EXIT_DISTRIBUTION: {exit_dist}",
             f"  OPPONENT_RESPONSE_DISTRIBUTION: {response_dist}",
             (
