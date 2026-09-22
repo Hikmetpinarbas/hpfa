@@ -376,7 +376,17 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
         }
 
     source_status = _clean(sequence_payload.get("comparable_outcome_counterevidence_status")).upper()
-    upstream_review_hits = _refs(sequence_payload.get("review_hits"))
+    scoped_review_declared = "comparable_outcome_counterevidence_review_hits" in sequence_payload
+    upstream_review_hits = _refs(
+        sequence_payload.get("comparable_outcome_counterevidence_review_hits")
+        if scoped_review_declared
+        else sequence_payload.get("review_hits")
+    )
+    counterevidence_review_scope = (
+        "COMPARABLE_OUTCOME_PROJECTION_ONLY"
+        if scoped_review_declared
+        else "LEGACY_UNSCOPED_SEQUENCE_REVIEW"
+    )
     source_review_unscoped = source_status == "REVIEW_REQUIRED" or bool(upstream_review_hits)
     if source_status == "REVIEW_REQUIRED":
         review_hits.append("counterevidence_upstream_review_unscoped")
@@ -570,6 +580,8 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
         "evidence_profile_dimensions_required_for_emit": True,
         "evidence_profile_dimensions_compensate_each_other": False,
         "review_required_is_not_fail": True,
+        "counterevidence_review_scope": counterevidence_review_scope,
+        "counterevidence_scoped_review_surface_declared": scoped_review_declared,
         "unscoped_upstream_review_can_authorize_emit": False,
         "pass_with_unscoped_review_hits_can_authorize_emit": False,
         "malformed_alternative_can_satisfy_challenge": False,
