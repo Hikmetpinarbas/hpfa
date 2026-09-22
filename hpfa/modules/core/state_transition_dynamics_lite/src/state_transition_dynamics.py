@@ -66,6 +66,41 @@ def load_json(path: str | Path, error_code: str) -> dict[str, Any]:
     return payload
 
 
+def _visible_state_change_function(
+    spatial: dict[str, Any],
+    consequence_class: str,
+) -> str:
+    """Describe visible state development without promoting tactical or causal truth."""
+    progression = bool(spatial.get("provider_progression_candidates"))
+    zones = set(spatial.get("provider_zone_candidates") or [])
+    directions = {
+        _clean(value).upper()
+        for value in (spatial.get("provider_direction_candidates") or [])
+        if _clean(value)
+    }
+
+    if consequence_class == "SHOT_FOLLOW_UP_CANDIDATE":
+        return "VISIBLE_ADVANTAGE_EXPLOITATION_CANDIDATE"
+    if progression and consequence_class in {
+        "SAME_TEAM_CONTINUATION_CANDIDATE",
+        "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE",
+    }:
+        return "VISIBLE_STATE_ADVANCEMENT_CONTINUATION_CANDIDATE"
+    if "FINAL_THIRD" in zones and consequence_class == "SAME_TEAM_CONTINUATION_CANDIDATE":
+        return "VISIBLE_ADVANCED_ACCESS_CONTINUATION_CANDIDATE"
+    if consequence_class in ADVERSE_CONSEQUENCES:
+        return "VISIBLE_ADVANTAGE_LOSS_OR_HANDOVER_CANDIDATE"
+    if consequence_class == "RESTART_OR_RESET_CANDIDATE":
+        return "VISIBLE_RESET_STATE_CANDIDATE"
+    if consequence_class == "SAME_TEAM_CONTINUATION_CANDIDATE":
+        if "BACKWARD" in directions or "LATERAL" in directions or "SIDEWAYS" in directions:
+            return "BACKWARD_OR_LATERAL_TO_SAME_TEAM_CONTINUATION_CANDIDATE"
+        return "VISIBLE_SAME_TEAM_CONTINUATION_CANDIDATE"
+    if consequence_class == "NO_VISIBLE_FOLLOW_UP_CANDIDATE":
+        return "VISIBLE_STATE_CHANGE_UNRESOLVED_NO_FOLLOW_UP_CANDIDATE"
+    return "VISIBLE_STATE_CHANGE_REVIEW_REQUIRED_CANDIDATE"
+
+
 def _transition_class(spatial: dict[str, Any], consequence: dict[str, Any]) -> str:
     progression = bool(spatial.get("provider_progression_candidates"))
     zones = set(spatial.get("provider_zone_candidates") or [])
@@ -157,6 +192,7 @@ def build_state_transition_dynamics(
             consequence = consequence_by_trace[trace_id]
             consequence_class = _clean(consequence.get("primary_consequence_candidate"))
             transition_class = _transition_class(spatial, consequence)
+            state_change_function = _visible_state_change_function(spatial, consequence_class)
             temporal_admitted = bool(consequence.get("admitted_after_follow_up_trace_ids"))
             directional = consequence_class in DIRECTIONAL_CONSEQUENCES
             if directional and not temporal_admitted:
@@ -211,6 +247,14 @@ def build_state_transition_dynamics(
                 "primary_consequence_candidate": consequence_class,
                 "admitted_after_follow_up_trace_ids": consequence.get("admitted_after_follow_up_trace_ids") or [],
                 "transition_class_candidate": transition_class,
+                "visible_state_change_function_candidate": state_change_function,
+                "visible_state_before_candidate": "SOURCE_ACTION_CONTEXT_ONLY_NOT_FULL_GAME_STATE",
+                "visible_state_after_candidate": consequence_class or "UNRESOLVED_VISIBLE_CONSEQUENCE",
+                "state_change_function_is_player_causal_credit": False,
+                "state_change_function_is_opponent_organization_truth": False,
+                "state_change_function_is_physical_space_creation_truth": False,
+                "state_change_function_is_value_model_output": False,
+                "backward_or_lateral_action_is_automatically_negative": False,
                 "support_candidates": support,
                 "adverse_consequence_candidates": adverse,
                 "record_status": "REVIEW_REQUIRED" if record_reviews else "PASS_CANDIDATE_CLASSIFICATION",
@@ -247,6 +291,9 @@ def build_state_transition_dynamics(
         "state_transition_dynamics_candidates": records,
         "state_transition_dynamics_candidate_count": len(records),
         "transition_class_counts": dict(sorted(counts.items())),
+        "visible_state_change_function_counts": dict(sorted(Counter(
+            row.get("visible_state_change_function_candidate") for row in records
+        ).items())),
         "admitted_directional_transition_count": sum(
             bool(row.get("admitted_after_follow_up_trace_ids")) for row in records
         ),
@@ -264,6 +311,9 @@ def build_state_transition_dynamics(
         "sequence_truth": False,
         "tactical_pattern_truth": False,
         "causality_truth": False,
+        "state_change_function_is_opponent_organization_truth": False,
+        "state_change_function_is_player_causal_credit": False,
+        "state_change_function_is_value_model_output": False,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
         "true_action_count": TRUE_ACTION_COUNT,
         "production_release": False,
@@ -279,6 +329,7 @@ def _summary(payload: dict[str, Any]) -> str:
         f"admitted_directional_transition_count={payload.get('admitted_directional_transition_count')}",
         f"provider_progression_semantic_transition_count={payload.get('provider_progression_semantic_transition_count')}",
         f"adverse_consequence_transition_count={payload.get('adverse_consequence_transition_count')}",
+        f"visible_state_change_function_counts={payload.get('visible_state_change_function_counts')}",
         f"review_hits={payload.get('review_hits')}",
         f"hard_block_hits={payload.get('hard_block_hits')}",
         "canonical_event_count=UNKNOWN",
@@ -294,7 +345,8 @@ def _analyst(payload: dict[str, Any]) -> str:
         f"WHAT_VISIBLE: {payload.get('state_transition_dynamics_candidate_count', 0)} semantic-spatial/consequence associations projected.",
         f"SUPPORT: {payload.get('admitted_directional_transition_count', 0)} candidates include admitted AFTER_CONFIRMED follow-up evidence.",
         f"COUNTEREVIDENCE: {payload.get('adverse_consequence_transition_count', 0)} candidates carry explicit adverse visible consequence; absence is not counterevidence.",
-        "SAFE_MEANING: provider-admitted progression/zone/context semantics may be associated with admitted visible consequence candidates at trace level.",
+        "SAFE_MEANING: provider-admitted progression/zone/context semantics may be associated with admitted visible consequence candidates and a bounded visible state-change function at trace level.",
+        "STATE_CHANGE_SCOPE: backward/lateral action is not automatically negative; any value meaning comes only from admitted downstream visible state/consequence context.",
         "FORBIDDEN_INFERENCE: this does not prove measured displacement, possession, sequence truth, tactical pattern, dominance, adaptation, intention or causality.",
         "ANALYST_ACTION: drill into repeated transition classes and compare favorable/adverse consequence distributions before promoting a finding.",
         "canonical_event_count=UNKNOWN",
