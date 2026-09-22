@@ -33,7 +33,13 @@ def spatial(trace_id="tat_a", progression=True, zone="FINAL_THIRD", direction="F
     }
 
 
-def consequence(trace_id="tat_a", primary="SHOT_FOLLOW_UP_CANDIDATE", admitted=True, status="PASS_CANDIDATE_CLASSIFICATION"):
+def consequence(
+    trace_id="tat_a",
+    primary="SHOT_FOLLOW_UP_CANDIDATE",
+    admitted=True,
+    status="PASS_CANDIDATE_CLASSIFICATION",
+    timing_seconds=None,
+):
     return {
         "module_id": "trackable_action_consequence_candidates_lite_v1",
         "status": "PASS",
@@ -47,7 +53,26 @@ def consequence(trace_id="tat_a", primary="SHOT_FOLLOW_UP_CANDIDATE", admitted=T
             "primary_consequence_candidate": primary,
             "admitted_after_follow_up_trace_ids": ["tat_b"] if admitted else [],
             "record_status": status,
+            "time_to_first_admitted_visible_state_change_seconds_candidate": timing_seconds,
+            "time_to_first_admitted_visible_state_change_observation_state": (
+                "OBSERVED_ADMITTED_AFTER"
+                if timing_seconds is not None
+                else (
+                    "NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"
+                    if not admitted
+                    else "NOT_EVALUATED"
+                )
+            ),
+            "time_to_first_admitted_visible_state_change_basis": (
+                "AFTER_CONFIRMED_FIRST_ELIGIBLE_VISIBLE_LAYER"
+                if timing_seconds is not None
+                else None
+            ),
         }],
+        "time_to_first_admitted_visible_state_change_profile": {
+            "diagnostic_observation_horizon_seconds": 12.0,
+            "distribution_is_truncated_by_diagnostic_horizon": True,
+        },
         "hard_block_hits": [],
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
@@ -128,6 +153,43 @@ def test_adverse_handover_is_visible_advantage_loss_candidate_not_causality():
     row = result["state_transition_dynamics_candidates"][0]
     assert row["visible_state_change_function_candidate"] == "VISIBLE_ADVANTAGE_LOSS_OR_HANDOVER_CANDIDATE"
     assert row["transition_is_causal_truth"] is False
+
+
+def test_state_change_timing_is_carried_without_promoting_first_passage_truth():
+    result = build_state_transition_dynamics(
+        spatial(progression=False, zone="FINAL_THIRD", direction="LATERAL"),
+        consequence(primary="SHOT_FOLLOW_UP_CANDIDATE", timing_seconds=2.5),
+    )
+    row = result["state_transition_dynamics_candidates"][0]
+    assert row["visible_state_change_function_candidate"] == "VISIBLE_ADVANTAGE_EXPLOITATION_CANDIDATE"
+    assert row["time_to_first_admitted_visible_state_change_seconds_candidate"] == 2.5
+    assert result["state_change_timing_profile_count"] == 1
+    profile = result["visible_state_change_timing_profiles"][0]
+    assert profile["visible_state_change_function_candidate"] == "VISIBLE_ADVANTAGE_EXPLOITATION_CANDIDATE"
+    assert profile["observed_timing_n"] == 1
+    assert profile["median_seconds_candidate"] == 2.5
+    assert profile["diagnostic_observation_horizon_seconds"] == 12.0
+    assert profile["distribution_is_truncated_by_diagnostic_horizon"] is True
+    assert profile["distribution_is_descriptive_not_first_passage_model"] is True
+    assert result["state_change_timing_is_first_passage_model_output"] is False
+    assert result["state_change_timing_is_physical_advantage_window_truth"] is False
+
+
+def test_no_admitted_timing_stays_out_of_timing_distribution():
+    result = build_state_transition_dynamics(
+        spatial(progression=False, zone="MIDDLE_THIRD", direction="BACKWARD"),
+        consequence(
+            primary="NO_VISIBLE_FOLLOW_UP_CANDIDATE",
+            admitted=False,
+            timing_seconds=None,
+        ),
+    )
+    profile = result["visible_state_change_timing_profiles"][0]
+    assert profile["observed_timing_n"] == 0
+    assert profile["observation_state_counts"]["NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"] == 1
+    assert profile["median_seconds_candidate"] is None
+    assert profile["no_admitted_after_within_horizon_is_failure"] is False
+    assert profile["graphability_state"] == "NOT_GRAPH_READY_NO_ADMITTED_TIMING"
 
 
 def test_trace_coverage_mismatch_fails_closed():
