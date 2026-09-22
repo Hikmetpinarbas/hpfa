@@ -392,6 +392,119 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
                 f"recovery sonrasinda ayni surecte sut aktivitesi={shots}."
             )
 
+    post_loss_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in post_loss_rows
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+    pass_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in pass_rows
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+    recovery_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in recovery_rows
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+    common_team_ids = sorted(
+        set(post_loss_by_team) & set(pass_by_team) & set(recovery_by_team),
+        key=lambda team_id: team_names.get(team_id, team_id),
+    )
+    if len(common_team_ids) == 2:
+        def _mechanism_values(team_id: str) -> dict[str, Any]:
+            loss = post_loss_by_team[team_id]
+            passing = pass_by_team[team_id]
+            recovery = recovery_by_team[team_id]
+            loss_final = int(loss.get("final_third_visible_count") or 0)
+            loss_no_final = int(loss.get("no_final_third_visible_count") or 0)
+            loss_resolved = loss_final + loss_no_final
+            pass_units = int(passing.get("unique_process_unit_count") or 0)
+            pass_entries = int(passing.get("process_unit_with_final_third_entry_count") or 0)
+            recovery_units = int(recovery.get("unique_process_unit_count") or 0)
+            recovery_entries = int(recovery.get("process_unit_with_final_third_entry_count") or 0)
+            return {
+                "loss_final": loss_final,
+                "loss_resolved": loss_resolved,
+                "loss_unresolved": int(loss.get("zone_path_unresolved_count") or 0),
+                "loss_shots": int(loss.get("shot_activity_visible_count") or 0),
+                "pass_entries": pass_entries,
+                "pass_units": pass_units,
+                "pass_unresolved": int(passing.get("process_unit_with_zone_unresolved_count") or 0),
+                "recovery_entries": recovery_entries,
+                "recovery_units": recovery_units,
+                "recovery_unresolved": int(recovery.get("process_unit_with_zone_unresolved_count") or 0),
+                "recovery_shots": int(recovery.get("process_unit_with_shot_activity_after_anchor_count") or 0),
+            }
+
+        def _rate(numerator: int, denominator: int) -> float | None:
+            return (numerator / denominator) if denominator > 0 else None
+
+        left_id, right_id = common_team_ids
+        left = _mechanism_values(left_id)
+        right = _mechanism_values(right_id)
+        left_rates = (
+            _rate(left["loss_final"], left["loss_resolved"]),
+            _rate(left["pass_entries"], left["pass_units"]),
+            _rate(left["recovery_entries"], left["recovery_units"]),
+        )
+        right_rates = (
+            _rate(right["loss_final"], right["loss_resolved"]),
+            _rate(right["pass_entries"], right["pass_units"]),
+            _rate(right["recovery_entries"], right["recovery_units"]),
+        )
+        if all(value is not None for value in left_rates + right_rates):
+            left_exposed_lower_conversion = (
+                left_rates[0] > right_rates[0]
+                and left_rates[1] < right_rates[1]
+                and left_rates[2] < right_rates[2]
+            )
+            right_exposed_lower_conversion = (
+                right_rates[0] > left_rates[0]
+                and right_rates[1] < left_rates[1]
+                and right_rates[2] < left_rates[2]
+            )
+            if left_exposed_lower_conversion or right_exposed_lower_conversion:
+                exposed_id = left_id if left_exposed_lower_conversion else right_id
+                contrast_id = right_id if left_exposed_lower_conversion else left_id
+                exposed = left if left_exposed_lower_conversion else right
+                contrast = right if left_exposed_lower_conversion else left
+                exposed_name = team_names.get(exposed_id, exposed_id)
+                contrast_name = team_names.get(contrast_id, contrast_id)
+                lines.append("Iki yonlu surec ayrismasi adayi:")
+                lines.append(
+                    f"- {exposed_name}: top-kaybi -> rakip pas -> pas yolunda resolved final-third erisimi "
+                    f"{exposed['loss_final']}/{exposed['loss_resolved']}; kendi pas -> pas -> pas sureclerinde yeni "
+                    f"final-third girisi {exposed['pass_entries']}/{exposed['pass_units']}; recovery -> pas -> pas "
+                    f"sureclerinde yeni final-third girisi {exposed['recovery_entries']}/{exposed['recovery_units']}."
+                )
+                lines.append(
+                    f"- {contrast_name}: ayni uc gorunur yuzey sirasiyla "
+                    f"{contrast['loss_final']}/{contrast['loss_resolved']}, "
+                    f"{contrast['pass_entries']}/{contrast['pass_units']}, "
+                    f"{contrast['recovery_entries']}/{contrast['recovery_units']}."
+                )
+                lines.append(
+                    f"- Safe meaning: {exposed_name} tarafinda bu mac icinde top kaybi sonrasi rakibin ileri erisimi "
+                    f"daha belirgin gorunurken, kendi devam eden pas ve recovery sureclerinin yeni final-third girisine "
+                    f"donusumu {contrast_name} tarafina gore daha sinirli gorunen bir surec ayrismasi vardir."
+                )
+                lines.append(
+                    f"- Counterevidence / sinir: post-loss pas-pas yolunda sut aktivitesi "
+                    f"{exposed_name}={exposed['loss_shots']}, {contrast_name}={contrast['loss_shots']}; recovery "
+                    f"sonrasi ayni surecte sut aktivitesi {exposed_name}={exposed['recovery_shots']}, "
+                    f"{contrast_name}={contrast['recovery_shots']}. Cozulemeyen bolge yuku post-loss "
+                    f"{exposed_name}={exposed['loss_unresolved']}, {contrast_name}={contrast['loss_unresolved']}; "
+                    f"pas sureclerinde {exposed_name}={exposed['pass_unresolved']}, {contrast_name}={contrast['pass_unresolved']}; "
+                    f"recovery sureclerinde {exposed_name}={exposed['recovery_unresolved']}, "
+                    f"{contrast_name}={contrast['recovery_unresolved']}. Bu nedenle dogrudan tehlike, transition-savunma "
+                    f"kalitesi, hucum kalitesi, ustunluk veya nedensellik sonucu cikarilmaz."
+                )
+                lines.append(
+                    "- Geri cekme kosulu: process/zone binding degisir veya cozulmemis vakalar yeniden cozuldugunde "
+                    "uc yuzeyin ayni yonlu ayrismasi ortadan kalkarsa bu sentez geri cekilir."
+                )
+
     if lines:
         lines.append(
             "- Okuma siniri: bunlar mac-ici gorunur surec ve tekrar adaylaridir; ayni surecteki coklu pencereler "
