@@ -11,7 +11,11 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from analyst_mechanism_review import build_mechanism_review_lines
+from analyst_mechanism_review import (
+    _focus_actor_ref,
+    _select_actor_locator,
+    build_mechanism_review_lines,
+)
 from mechanism_story_review_selector import build_mechanism_story_review_shortlist
 
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_sentence_render_completeness import (
@@ -35,6 +39,7 @@ PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v
 VARIANT_FEATURE_CHALLENGE_JSON = "variant_feature_challenge_projection_v1.json"
 SAFE_FINDING_ADMISSION_JSON = "safe_finding_admission_projection_v1.json"
 VISIBLE_SEQUENCE_JSON = "visible_action_sequence_candidates_lite_v1.json"
+RICH_MULTIFORMAT_JSON = "rich_multiformat_analysis_lattice_v1.json"
 MULTIFORMAT_INVENTORY_JSON = "multiformat_file_inventory_lite_v1.json"
 
 
@@ -1076,6 +1081,124 @@ def _mechanism_safe_context_by_family(
     return result
 
 
+
+def _player_function_profiles_by_actor(rich: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    c02 = (rich.get("constructs") or {}).get("C02") or {}
+    return {
+        str(row.get("actor_identity_candidate_id") or "").strip(): row
+        for row in (c02.get("player_function_profiles") or [])
+        if isinstance(row, dict)
+        and str(row.get("actor_identity_candidate_id") or "").strip()
+    }
+
+
+def _player_profile_metric_values(profile: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    dimensions = profile.get("function_dimensions") or {}
+    for value in dimensions.values():
+        if not isinstance(value, list):
+            continue
+        for row in value:
+            if not isinstance(row, dict):
+                continue
+            key = str(row.get("metric_key") or "").strip()
+            raw = row.get("raw_value")
+            if not key or raw in (None, "", "-"):
+                continue
+            result[key] = raw
+    return result
+
+
+def _human_number(value: Any) -> str:
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        text = f"{value:.2f}".rstrip("0").rstrip(".")
+        return text
+    return str(value)
+
+
+def _actor_aggregate_context_sentence(
+    actor_ref: str | None,
+    actor_locator: dict[str, Any] | None,
+    profiles_by_actor: dict[str, dict[str, Any]],
+    language: str,
+) -> str:
+    if not actor_ref or not actor_locator:
+        return ""
+    profile = profiles_by_actor.get(actor_ref)
+    if not isinstance(profile, dict):
+        return ""
+    label = _display_label(profile.get("actor_label") or actor_ref)
+    metrics = _player_profile_metric_values(profile)
+
+    preferred = [
+        ("progressive_passes", "progressive pass", "progressive passes"),
+        ("progressive_passes_accurate", "isabetli progressive pass", "accurate progressive passes"),
+        ("final_third_entries", "son üçte bir girişi", "final-third entries"),
+        ("passes_into_the_penalty_box", "ceza sahasına pas", "passes into the box"),
+        ("actions_in_opponent_s_box", "rakip ceza sahası aksiyonu", "opponent-box actions"),
+        ("chances_created", "yaratılan şans", "chances created"),
+        ("xa_expected_assists", "xA", "xA"),
+        ("shots", "şut", "shots"),
+        ("shots_on_target", "isabetli şut", "shots on target"),
+        ("goals", "gol", "goals"),
+        ("xg_expected_goals", "xG", "xG"),
+        ("lost_balls", "top kaybı", "ball losses"),
+        ("ball_recoveries", "top kazanımı", "ball recoveries"),
+        ("shots_faced", "karşılaşılan şut", "shots faced"),
+        ("shots_on_target_faced", "karşılaşılan isabetli şut", "shots on target faced"),
+        ("goals_conceded", "yenilen gol", "goals conceded"),
+    ]
+    bits: list[str] = []
+    for key, tr_label, en_label in preferred:
+        if key not in metrics:
+            continue
+        label_text = tr_label if language == "tr" else en_label
+        bits.append(f"{label_text}={_human_number(metrics[key])}")
+        if len(bits) >= 6:
+            break
+
+    process_counts = (
+        (profile.get("function_dimensions") or {})
+        .get("PROCESS", {})
+        .get("process_participation_counts", {})
+    )
+    process_bit = ""
+    if isinstance(process_counts, dict) and process_counts:
+        family, count = max(
+            process_counts.items(),
+            key=lambda item: (int(item[1] or 0), str(item[0])),
+        )
+        if int(count or 0) > 0:
+            family_label = _football_family_label(family, language)
+            process_bit = (
+                f" En yüksek görünür süreç katılımı: {family_label} {int(count)}."
+                if language == "tr"
+                else f" Highest visible process participation: {family_label} {int(count)}."
+            )
+
+    if not bits and not process_bit:
+        return ""
+    if language == "tr":
+        metric_text = ", ".join(bits)
+        return (
+            f" Oyuncu inceleme odağı: {label}. "
+            + (f"XLSX maç toplamı bağlamı: {metric_text}." if metric_text else "")
+            + process_bit
+            + " Bu aggregate profil yalnız aynı oyuncunun maç-içi işlev bağlamını taşır; mekanizma aksiyon kimliği, oyuncu kalite hükmü ve nedensel katkı için kullanıma kapalıdır."
+        )
+    metric_text = ", ".join(bits)
+    return (
+        f" Player review focus: {label}. "
+        + (f"XLSX match-total context: {metric_text}." if metric_text else "")
+        + process_bit
+        + " This aggregate profile is used only as match-local functional context for the same player; action identity, player-quality judgment, and causal contribution remain outside its allowed scope."
+    )
+
+
 def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     if not _declared_current(full_spine, FEATURE_DELTA_JSON):
         return []
@@ -1102,6 +1225,12 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         if _declared_current(full_spine, VARIANT_FEATURE_CHALLENGE_JSON)
         else {}
     )
+    rich_payload = (
+        _load_json(root / RICH_MULTIFORMAT_JSON)
+        if _declared_current(full_spine, RICH_MULTIFORMAT_JSON)
+        else {}
+    )
+    player_profiles_by_actor = _player_function_profiles_by_actor(rich_payload)
     shortlist = build_mechanism_story_review_shortlist(
         payload,
         analyst_output_claim_payload=analyst_output or None,
@@ -1137,6 +1266,14 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         support_state = str(row.get("review_support_state") or "")
         single_episode_only = support_state.startswith("SINGLE_EPISODE_")
         source_record = source_records.get(str(row.get("source_mechanism_review_ref") or ""), {})
+        actor_locator = _select_actor_locator(source_record)
+        actor_ref = _focus_actor_ref(actor_locator)
+        actor_context_sentence = _actor_aggregate_context_sentence(
+            actor_ref,
+            actor_locator,
+            player_profiles_by_actor,
+            language,
+        )
         safe_context = safe_context_by_family.get(
             str(row.get("source_process_variant_family_ref") or ""),
             {},
@@ -1180,6 +1317,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     football += (
                         f" {partial_n} bağlı Safe Finding örneğinde provider süreç bağlamı tekil çözülemedi; bu örnekler kısmi bağlam olarak korunuyor."
                     )
+            football += actor_context_sentence
             context_state = str(row.get("process_context_binding_state") or "")
             context_counts = dict(row.get("process_family_episode_presence_counts") or {})
             if context_state == "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT":
@@ -1251,6 +1389,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     football += (
                         f" {partial_n} bound Safe Finding examples do not have a unique provider-process context and remain partial."
                     )
+            football += actor_context_sentence
             context_state = str(row.get("process_context_binding_state") or "")
             context_counts = dict(row.get("process_family_episode_presence_counts") or {})
             if context_state == "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT":

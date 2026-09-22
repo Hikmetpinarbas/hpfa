@@ -776,3 +776,51 @@ def test_mechanism_safe_context_uses_only_common_preoutcome_context(tmp_path):
     assert row["can_change_shortlist_selection"] is False
     assert row["can_change_safe_finding_decision"] is False
     assert row["can_authorize_emit"] is False
+
+def test_actor_aggregate_context_is_match_context_not_mechanism_evidence():
+    locator = {
+        "feature_token": "actor_identity_candidate_ids:actor_1",
+        "success_visible_numerator": 3,
+        "success_eligible_denominator": 4,
+        "failure_visible_numerator": 0,
+        "failure_eligible_denominator": 1,
+    }
+    profiles = {
+        "actor_1": {
+            "actor_identity_candidate_id": "actor_1",
+            "actor_label": "hikmet",
+            "function_dimensions": {
+                "ACCESS": [
+                    {"metric_key": "progressive_passes", "raw_value": 8},
+                    {"metric_key": "progressive_passes_accurate", "raw_value": 6},
+                    {"metric_key": "final_third_entries", "raw_value": 4},
+                ],
+                "CREATION": [
+                    {"metric_key": "xa_expected_assists", "raw_value": 0.31},
+                ],
+                "TERMINAL": [
+                    {"metric_key": "shots", "raw_value": 3},
+                    {"metric_key": "xg_expected_goals", "raw_value": 0.44},
+                ],
+                "PROCESS": {
+                    "process_participation_counts": {
+                        "POSITIONAL_ATTACK_CANDIDATE": 12,
+                        "COUNTERATTACK_CANDIDATE": 3,
+                    }
+                },
+            },
+        }
+    }
+    text = user_output_bundle._actor_aggregate_context_sentence(
+        "actor_1", locator, profiles, "tr"
+    )
+    assert "Oyuncu inceleme odağı: Hikmet." in text
+    assert "progressive pass=8" in text
+    assert "isabetli progressive pass=6" in text
+    assert "son üçte bir girişi=4" in text
+    assert "xA=0.31" in text
+    assert "şut=3" in text
+    assert "xG=0.44" in text
+    assert "yerleşik hücum 12" in text
+    assert "mekanizma aksiyon kimliği" in text
+    assert "nedensel katkı için kullanıma kapalıdır" in text
