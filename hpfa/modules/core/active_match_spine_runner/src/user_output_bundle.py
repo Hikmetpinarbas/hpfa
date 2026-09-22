@@ -324,6 +324,12 @@ def _p02_professional_finding_lines(rich: dict[str, Any]) -> list[str]:
         mechanism_readiness = str(finding.get("mechanism_review_readiness") or maturity_profile.get("mechanism_review_readiness") or "NOT_EVALUATED")
         recurrent_signature_count = int(maturity_profile.get("recurrent_process_signature_count") or 0)
         context_spread_count = int(maturity_profile.get("same_team_same_focus_context_population_count") or 0)
+        cross_context_recurrent_signature_count = int(
+            maturity_profile.get("cross_context_recurrent_process_signature_count") or 0
+        )
+        admitted_cross_context_recurrent_signature_count = int(
+            maturity_profile.get("admitted_cross_context_recurrent_process_signature_count") or 0
+        )
         independence_admitted_pairs = int(maturity_profile.get("evidence_unit_independence_admitted_pair_count") or 0)
         maturity_reasons = finding.get("mechanism_maturity_reasons") or maturity_profile.get("mechanism_maturity_reasons") or []
         exit_dist = json.dumps(
@@ -346,6 +352,8 @@ def _p02_professional_finding_lines(rich: dict[str, Any]) -> list[str]:
                 f"gorunur varyant ailesi={variants}; admitted opposite counterevidence pair={opposite}; "
                 f"orneklem-olgunlugu={sample_maturity}; mekanizma-review-readiness={mechanism_readiness}; "
                 f"recurrent-signature={recurrent_signature_count}; context-spread={context_spread_count}; "
+                f"cross-context-recurrent-signature={cross_context_recurrent_signature_count}; "
+                f"admitted-cross-context-recurrent-signature={admitted_cross_context_recurrent_signature_count}; "
                 f"evidence-unit-independence-admitted-pair={independence_admitted_pairs}."
             ),
             f"  ADMISSION_REASONS: {admission_reasons}",
