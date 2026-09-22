@@ -521,6 +521,28 @@ def _human_team_labels(identity: dict[str, Any]) -> dict[str, str]:
     return result
 
 
+def _human_validated_actor_labels(identity: dict[str, Any]) -> dict[str, str]:
+    """Human-facing actor labels require explicit validated player identity."""
+    result: dict[str, str] = {}
+    for row in identity.get("actor_identity_candidates") or []:
+        if not isinstance(row, dict):
+            continue
+        if row.get("validated_player_identity") is not True:
+            continue
+        if str(row.get("decision_state") or "") != "ACTOR_IDENTITY_CANDIDATE_BOUND":
+            continue
+        ref = str(row.get("actor_identity_candidate_id") or "").strip()
+        raw = (
+            row.get("actor_aliases_raw", [None])[0]
+            if isinstance(row.get("actor_aliases_raw"), list) and row.get("actor_aliases_raw")
+            else None
+        )
+        label = _display_label(raw or row.get("actor_normalized_key") or "")
+        if ref and label and label != "UNKNOWN":
+            result[ref] = label
+    return result
+
+
 def _action_human(value: str, language: str) -> str:
     key = value.strip().upper()
     tr = {
@@ -664,7 +686,39 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 "This surface describes the match-local process composition of opponent handover, takeover after breakdown, "
                 "same-time review, and follow-up states."
             )
-        cards.extend([football, evidence])
+        process_label = (
+            _football_family_label(row.get("single_process_family_candidate"), language)
+            if str(row.get("process_context_binding_state") or "") == "UNAMBIGUOUS_SINGLE_PROCESS_FAMILY_CONTEXT"
+            else ("çoklu/çözülmemiş süreç bağlamı" if language == "tr" else "multi/unresolved process context")
+        )
+        consequence_layer = source_record.get("first_supported_consequence_difference_layer_candidate")
+        context_layer = source_record.get("first_supported_context_difference_layer_candidate")
+        challenge_reasons = [
+            str(value)
+            for value in (row.get("mechanism_challenge_reason_codes") or [])
+            if str(value)
+        ]
+        if language == "tr":
+            card = (
+                f"MEKANİZMA KARTI {idx} | TAKIM={team} | DÖNEM={periods} | "
+                f"TRACE={grammar} | PROCESS={process_label} | "
+                f"VARYANT={success} olumlu / {failure} olumsuz / {resolved} çözümlenmiş | "
+                f"İLK GÖRÜNÜR AYRIŞMA=context L{context_layer}, consequence L{consequence_layer} | "
+                f"YAYILIM={spread} bölüm, {clusters} occurrence-disjoint küme | "
+                f"COUNTEREVIDENCE={','.join(challenge_reasons) if challenge_reasons else 'açık challenge kaydı yok'} | "
+                "CLAIM=maç-içi görünür varyant/mekanizma adayı; neden, taktik plan veya üstünlük truth değildir."
+            )
+        else:
+            card = (
+                f"MECHANISM CARD {idx} | TEAM={team} | PERIOD={periods} | "
+                f"TRACE={grammar} | PROCESS={process_label} | "
+                f"VARIANT={success} positive / {failure} negative / {resolved} resolved | "
+                f"FIRST VISIBLE DIVERGENCE=context L{context_layer}, consequence L{consequence_layer} | "
+                f"SPREAD={spread} segments, {clusters} occurrence-disjoint clusters | "
+                f"COUNTEREVIDENCE={','.join(challenge_reasons) if challenge_reasons else 'no explicit challenge record'} | "
+                "CLAIM=match-local visible variant/mechanism candidate; not causal, tactical-plan, or superiority truth."
+            )
+        cards.extend([card, football, evidence])
     return cards
 
 
@@ -1124,6 +1178,7 @@ def _actor_aggregate_context_sentence(
     actor_ref: str | None,
     actor_locator: dict[str, Any] | None,
     profiles_by_actor: dict[str, dict[str, Any]],
+    validated_actor_labels: dict[str, str],
     language: str,
 ) -> str:
     if not actor_ref or not actor_locator:
@@ -1131,7 +1186,9 @@ def _actor_aggregate_context_sentence(
     profile = profiles_by_actor.get(actor_ref)
     if not isinstance(profile, dict):
         return ""
-    label = _display_label(profile.get("actor_label") or actor_ref)
+    label = validated_actor_labels.get(actor_ref)
+    if not label:
+        return ""
     metrics = _player_profile_metric_values(profile)
 
     preferred = [
@@ -1231,6 +1288,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         else {}
     )
     player_profiles_by_actor = _player_function_profiles_by_actor(rich_payload)
+    validated_actor_labels = _human_validated_actor_labels(identity)
     shortlist = build_mechanism_story_review_shortlist(
         payload,
         analyst_output_claim_payload=analyst_output or None,
@@ -1272,6 +1330,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             actor_ref,
             actor_locator,
             player_profiles_by_actor,
+            validated_actor_labels,
             language,
         )
         safe_context = safe_context_by_family.get(
