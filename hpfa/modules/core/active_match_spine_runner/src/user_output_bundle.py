@@ -1241,6 +1241,22 @@ def _actor_aggregate_context_sentence(
     )
 
 
+def _mechanism_governance_sentence(language: str) -> str:
+    if language == "tr":
+        return (
+            " Güvenli anlam: bu kart yalnız maç-içi görünür varyant farkını analist incelemesine taşır."
+            " Yasak çıkarım: nedensellik, taktik plan gerçeği, üstünlük, fiziksel şekil ve oyuncu kalite hükmü üretmez."
+            " Analist aksiyonu: ilk görünür ayrışmayı karşılaştırılabilir varyantlarda kontrol et; counterevidence ve kısmi bağlamı incele;"
+            " oyuncu aggregate verisini yalnız maç-içi işlev bağlamı olarak kullan."
+        )
+    return (
+        " Safe meaning: this card is only a match-local visible-variant cue for analyst review."
+        " Forbidden inference: it does not establish causality, tactical-plan truth, superiority, physical shape, or player quality."
+        " Analyst action: review the first visible divergence across comparable variants, inspect counterevidence and partial context,"
+        " and use player aggregates only as match-local functional context."
+    )
+
+
 def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     if not _declared_current(full_spine, FEATURE_DELTA_JSON):
         return []
@@ -1500,6 +1516,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 f"COUNTEREVIDENCE={','.join(challenge_reasons) if challenge_reasons else 'no explicit challenge record'} | "
                 "CLAIM=match-local visible variant/mechanism candidate; not causal, tactical-plan, or superiority truth."
             )
+        football += _mechanism_governance_sentence(language)
         cards.extend([card, football, evidence])
     return cards
 
