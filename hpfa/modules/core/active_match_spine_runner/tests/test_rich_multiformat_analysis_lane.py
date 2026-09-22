@@ -1837,6 +1837,22 @@ def test_p02_professional_finding_target_is_exact_context_bounded_and_not_succes
     assert "general_attack_success_failure" in finding["FORBIDDEN_INFERENCE"]
 
 
+def test_p02_professional_finding_target_homogeneous_observed_does_not_claim_variation():
+    episode, identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
+    for row in semantics["context_action_semantic_records"]:
+        if row.get("row_nucleus_candidate_id") == "rn_c2":
+            row["context_zone_candidate"] = "FINAL_THIRD"
+    p02 = _progression_pool_p02(
+        {}, {}, episode, {}, semantics, identities, visible_sequence, trace, evidence,
+    )
+    finding = p02["professional_finding_target_candidates"][0]
+    assert finding["finding_focus"] == "TARGET_OBSERVED_ONLY_IN_RESOLVED_POPULATION"
+    assert finding["target_observed_visible_count"] == 2
+    assert finding["target_not_observed_complete_path_count"] == 0
+    assert "differ on the declared advanced-access target" not in finding["SAFE_MEANING"]
+    assert "general attack success" in finding["SAFE_MEANING"]
+
+
 def test_p02_c4_packet_is_claim_bounded_and_does_not_invent_support():
     episode, identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
     p02 = _progression_pool_p02(
