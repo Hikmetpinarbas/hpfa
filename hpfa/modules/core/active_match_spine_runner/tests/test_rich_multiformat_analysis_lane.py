@@ -1822,6 +1822,9 @@ def test_p02_professional_finding_target_is_exact_context_bounded_and_not_succes
     assert p02["professional_finding_target_candidate_count"] == 1
     finding = p02["professional_finding_target_candidates"][0]
     assert finding["finding_status"] == "REVIEW_REQUIRED"
+    assert finding["finding_admission_decision"] == "REVIEW_REQUIRED"
+    assert "resolved_target_state_denominator_below_minimum_3" in finding["finding_admission_reasons"]
+    assert p02["professional_finding_emit_candidate_count"] == 0
     assert finding["target_estimand"] == "ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_SEMANTIC_ZONE_PATH"
     assert finding["resolved_target_state_denominator"] == 2
     assert finding["target_observed_visible_count"] == 1
@@ -1849,6 +1852,8 @@ def test_p02_professional_finding_target_homogeneous_observed_does_not_claim_var
     assert finding["finding_focus"] == "TARGET_OBSERVED_ONLY_IN_RESOLVED_POPULATION"
     assert finding["target_observed_visible_count"] == 2
     assert finding["target_not_observed_complete_path_count"] == 0
+    assert finding["finding_admission_decision"] == "REVIEW_REQUIRED"
+    assert "resolved_target_state_denominator_below_minimum_3" in finding["finding_admission_reasons"]
     assert "differ on the declared advanced-access target" not in finding["SAFE_MEANING"]
     assert "general attack success" in finding["SAFE_MEANING"]
 
@@ -1969,6 +1974,14 @@ def test_p02_population_collapse_prevents_pairwise_counterevidence_vote_explosio
     assert p02["p02_pairwise_counterevidence_collapsed_count"] == 1
     assert p02["population_emits_max_one_c4_counterevidence_packet"] is True
     assert p02["pairwise_comparison_is_independent_evidence_vote"] is False
+    assert p02["professional_finding_emit_candidate_count"] == 1
+    assert p02["professional_finding_review_required_count"] == 0
+    finding = p02["professional_finding_target_candidates"][0]
+    assert finding["finding_admission_decision"] == "EMIT_CANDIDATE"
+    assert finding["finding_status"] == "EMIT_CANDIDATE"
+    assert finding["finding_admission_reasons"] == []
+    assert finding["claim_output_allowed"] is False
+    assert finding["production_release"] is False
 
     record = p02["p02_counterevidence_population_records"][0]
     assert record["admitted_opposite_pair_count"] == 2
