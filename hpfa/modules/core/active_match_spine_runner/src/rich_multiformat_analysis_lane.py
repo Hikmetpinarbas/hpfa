@@ -3190,6 +3190,145 @@ def _progression_pool_p02(
     )
     advanced_access_unresolved_count = len(process_unit_rows) - advanced_access_visible_count - no_advanced_access_visible_count
 
+    process_unit_by_id = {
+        str(row.get("p02_process_unit_candidate_id") or ""): row
+        for row in process_unit_rows
+        if isinstance(row, dict) and row.get("p02_process_unit_candidate_id")
+    }
+    professional_finding_targets: list[dict[str, Any]] = []
+    for population in process_unit_comparisons.get("process_unit_comparison_populations") or []:
+        if not isinstance(population, dict):
+            continue
+        if str(population.get("status") or "") != "POPULATION_ELIGIBLE":
+            continue
+        member_ids = [
+            str(value)
+            for value in (population.get("member_process_unit_candidate_ids") or [])
+            if str(value).strip()
+        ]
+        members = [
+            process_unit_by_id[value]
+            for value in member_ids
+            if value in process_unit_by_id
+        ]
+        target_states = Counter(
+            str((row.get("visible_variant_outcome_profile") or {}).get("target_relative_variant_state_candidate") or "TARGET_STATE_UNRESOLVED")
+            for row in members
+        )
+        observed = int(target_states.get("TARGET_OBSERVED_VISIBLE", 0))
+        not_observed = int(target_states.get("TARGET_NOT_OBSERVED_IN_COMPLETE_ADMITTED_PATH", 0))
+        unresolved_target = int(target_states.get("TARGET_STATE_UNRESOLVED", 0))
+        resolved_target = observed + not_observed
+        exit_distribution = Counter(
+            str((row.get("visible_variant_outcome_profile") or {}).get("visible_exit_class_candidate") or "UNRESOLVED")
+            for row in members
+        )
+        response_distribution = Counter(
+            str((row.get("visible_variant_outcome_profile") or {}).get("opponent_response_status") or "UNRESOLVED")
+            for row in members
+        )
+        opponent_access_distribution = Counter(
+            str((row.get("visible_variant_outcome_profile") or {}).get("opponent_advanced_access_state_candidate") or "UNRESOLVED")
+            for row in members
+        )
+        admitted_counterevidence_pairs = [
+            row for row in (population.get("pairwise_comparison_candidates") or [])
+            if isinstance(row, dict)
+            and row.get("counterevidence_admission_ready") is True
+            and str(row.get("outcome_relation") or "") == "OPPOSITE"
+        ]
+        population_id = str(population.get("process_unit_comparison_population_id") or "")
+        finding_id = "p02_finding_target_" + hashlib.sha256(
+            f"{population_id}|ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_SEMANTIC_ZONE_PATH".encode("utf-8")
+        ).hexdigest()[:20]
+        finding_status = (
+            "REVIEW_REQUIRED"
+            if resolved_target > 0
+            else "ABSTAIN"
+        )
+        professional_finding_targets.append({
+            "finding_target_candidate_id": finding_id,
+            "finding_family": "P02_EXACT_CONTEXT_ADVANCED_ACCESS_VARIATION",
+            "finding_status": finding_status,
+            "comparison_population_id": population_id,
+            "comparison_question_id": "P02_ADVANCED_ACCESS_VISIBLE",
+            "target_estimand": "ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_SEMANTIC_ZONE_PATH",
+            "exact_context": dict(population.get("reference_context") or {}),
+            "member_process_unit_count": len(members),
+            "resolved_target_state_denominator": resolved_target,
+            "target_observed_visible_count": observed,
+            "target_not_observed_complete_path_count": not_observed,
+            "target_state_unresolved_count": unresolved_target,
+            "visible_variant_family_count": int(population.get("variant_family_count") or 0),
+            "visible_exit_class_distribution": dict(sorted(exit_distribution.items())),
+            "opponent_response_status_distribution": dict(sorted(response_distribution.items())),
+            "opponent_advanced_access_state_distribution": dict(sorted(opponent_access_distribution.items())),
+            "admitted_opposite_counterevidence_pair_count": len(admitted_counterevidence_pairs),
+            "WHAT_VISIBLE": (
+                "Within one exact team/period/score-state/start-zone comparison population, "
+                "the declared advanced-access target is observed in some admitted process units "
+                "and not observed in other complete admitted semantic-zone paths."
+                if observed > 0 and not_observed > 0
+                else (
+                    "Within one exact team/period/score-state/start-zone comparison population, "
+                    "the declared advanced-access target has a resolved visible distribution."
+                    if resolved_target > 0
+                    else "Target-relative state remains unresolved in this comparison population."
+                )
+            ),
+            "SUPPORT": {
+                "resolved_target_state_denominator": resolved_target,
+                "target_observed_visible_count": observed,
+                "target_not_observed_complete_path_count": not_observed,
+                "variant_family_count": int(population.get("variant_family_count") or 0),
+                "member_process_unit_count": len(members),
+            },
+            "COUNTEREVIDENCE": {
+                "admitted_opposite_pair_count": len(admitted_counterevidence_pairs),
+                "target_not_observed_complete_path_count": not_observed,
+                "target_state_unresolved_count": unresolved_target,
+                "pairwise_counts_are_independent_support_votes": False,
+            },
+            "SAFE_MEANING": (
+                "The current match contains visible route variants under the same exact comparison context "
+                "that differ on the declared advanced-access target. This is a bounded within-match variation finding, "
+                "not a general attack-success or tactical-quality judgment."
+            ),
+            "FORBIDDEN_INFERENCE": [
+                "general_attack_success_failure",
+                "tactical_quality",
+                "coach_intention",
+                "causal_mechanism",
+                "dominance_or_control",
+                "possession_truth",
+                "independent_support_from_pairwise_combinations",
+            ],
+            "UNCERTAINTY": {
+                "target_state_unresolved_count": unresolved_target,
+                "comparison_population_member_count": len(members),
+                "denominator_scope": "RESOLVED_TARGET_STATE_PROCESS_UNITS_WITHIN_EXACT_COMPARISON_POPULATION",
+                "external_validity": "NOT_EVALUATED",
+            },
+            "WITHDRAWAL_CONDITION": [
+                "exact_context_binding_changes",
+                "semantic_zone_coverage_is_reclassified",
+                "target_state_mapping_changes",
+                "process_unit_lineage_changes",
+            ],
+            "ANALYST_ACTION": (
+                "Review target-observed and target-not-observed variant families side by side, then inspect exit-class "
+                "and exact opponent-response differences before proposing a football mechanism."
+            ),
+            "target_relative_state_is_general_attack_success_failure": False,
+            "finding_is_tactical_quality_truth": False,
+            "finding_is_causal_truth": False,
+            "pairwise_comparison_is_independent_evidence_vote": False,
+            "claim_ceiling": "MATCH_LOCAL_EXACT_CONTEXT_TARGET_RELATIVE_VARIATION_FINDING_CANDIDATE_ONLY",
+            "claim_output_allowed": False,
+            "report_language_allowed": True,
+            "production_release": False,
+        })
+
     return {
         "module_id": "progression_pool_p02_projection_v1",
         "status": "DEGRADED" if pool_items else "NOT_EVALUATED",
@@ -3245,6 +3384,9 @@ def _progression_pool_p02(
         "p02_pairwise_counterevidence_collapsed_count": max(
             0, total_admitted_opposite_pairs - len(p02_c4_packet_candidates)
         ),
+        "professional_finding_target_candidate_count": len(professional_finding_targets),
+        "professional_finding_target_candidates": professional_finding_targets,
+        "professional_finding_targets_are_final_claims": False,
         "pairwise_comparison_is_independent_evidence_vote": False,
         "population_emits_max_one_c4_counterevidence_packet": True,
         "acceptance_counters": {
