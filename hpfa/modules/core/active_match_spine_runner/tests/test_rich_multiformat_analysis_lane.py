@@ -1823,6 +1823,8 @@ def test_p02_professional_finding_target_is_exact_context_bounded_and_not_succes
     finding = p02["professional_finding_target_candidates"][0]
     assert finding["finding_status"] == "REVIEW_REQUIRED"
     assert finding["finding_admission_decision"] == "REVIEW_REQUIRED"
+    assert finding["finding_sample_maturity_candidate"] == "BELOW_MINIMUM_GATE"
+    assert finding["finding_strength_promotion_allowed"] is False
     assert "resolved_target_state_denominator_below_minimum_3" in finding["finding_admission_reasons"]
     assert p02["professional_finding_emit_candidate_count"] == 0
     assert finding["target_estimand"] == "ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_SEMANTIC_ZONE_PATH"
@@ -1997,6 +1999,8 @@ def test_p02_population_collapse_prevents_pairwise_counterevidence_vote_explosio
     assert finding["finding_admission_decision"] == "EMIT_CANDIDATE"
     assert finding["finding_status"] == "EMIT_CANDIDATE"
     assert finding["finding_admission_reasons"] == []
+    assert finding["finding_sample_maturity_candidate"] == "MINIMUM_GATE_ONLY"
+    assert finding["finding_strength_promotion_allowed"] is False
     assert finding["claim_output_allowed"] is False
     assert finding["production_release"] is False
 
