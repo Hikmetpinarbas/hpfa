@@ -2152,6 +2152,113 @@ def _c02_packet_candidate(candidate: dict[str, Any] | None) -> dict[str, Any] | 
     }
 
 
+
+def _profile_metric_values(profile: dict[str, Any]) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    for dimension in (profile.get("function_dimensions") or {}).values():
+        if not isinstance(dimension, list):
+            continue
+        for row in dimension:
+            if not isinstance(row, dict):
+                continue
+            key = str(row.get("metric_key") or "").strip()
+            raw = row.get("raw_value")
+            if not key or raw in (None, "", "-"):
+                continue
+            values[key] = raw
+    return values
+
+
+def _bind_player_action_aggregate_context(
+    c02: dict[str, Any],
+    action_occurrence_payload: dict[str, Any],
+) -> dict[str, Any]:
+    profiles = [
+        row
+        for row in (c02.get("player_function_profiles") or [])
+        if isinstance(row, dict)
+    ]
+    shot_counts: Counter = Counter()
+    shot_labels: dict[str, Counter] = defaultdict(Counter)
+
+    for row in action_occurrence_payload.get("action_occurrence_candidates") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("occurrence_topology") or "") != "SINGLE_ACTOR_ACTION":
+            continue
+        if str(row.get("primary_family_candidate") or "").upper() != "SHOT":
+            continue
+        actor_ref = str(row.get("actor_identity_candidate_id") or "").strip()
+        if not actor_ref:
+            continue
+        shot_counts[actor_ref] += 1
+        for component in row.get("semantic_components") or []:
+            if not isinstance(component, dict):
+                continue
+            label = str(component.get("label") or "").strip()
+            if label:
+                shot_labels[actor_ref][label] += 1
+
+    state_counts: Counter = Counter()
+    context_count = 0
+    for profile in profiles:
+        actor_ref = str(profile.get("actor_identity_candidate_id") or "").strip()
+        metrics = _profile_metric_values(profile)
+        visible_shots = int(shot_counts.get(actor_ref, 0))
+        xlsx_shots_raw = metrics.get("shots")
+        xlsx_xg = metrics.get("xg_expected_goals")
+        xlsx_shots: int | None = None
+        try:
+            if xlsx_shots_raw is not None and not isinstance(xlsx_shots_raw, bool):
+                xlsx_shots = int(float(xlsx_shots_raw))
+        except (TypeError, ValueError):
+            xlsx_shots = None
+
+        if xlsx_shots is None:
+            state = "XLSX_SHOTS_NOT_OBSERVED"
+        elif visible_shots == xlsx_shots:
+            state = "VISIBLE_SHOT_OCCURRENCE_COUNT_EQUALS_XLSX_SHOTS_AGGREGATE_CANDIDATE"
+        elif visible_shots < xlsx_shots:
+            state = "VISIBLE_SHOT_OCCURRENCE_COVERAGE_BELOW_XLSX_SHOTS_REVIEW_REQUIRED"
+        else:
+            state = "VISIBLE_SHOT_OCCURRENCE_COUNT_EXCEEDS_XLSX_SHOTS_REVIEW_REQUIRED"
+
+        context = {
+            "visible_shot_occurrence_count": visible_shots,
+            "visible_shot_occurrence_label_counts": dict(
+                sorted(shot_labels.get(actor_ref, {}).items())
+            ),
+            "xlsx_shots_aggregate_candidate": xlsx_shots,
+            "xlsx_xg_aggregate_candidate": xlsx_xg,
+            "cross_surface_count_alignment_state": state,
+            "descriptive_cross_surface_count_alignment_assessed": (
+                xlsx_shots is not None
+            ),
+            "visible_shot_occurrence_count_is_complete_shot_universe": False,
+            "xlsx_shots_aggregate_is_true_action_count": False,
+            "xlsx_xg_is_occurrence_level_value": False,
+            "same_provider_cross_surface_is_independent_support": False,
+            "aggregate_creates_action_identity": False,
+            "metric_value_reconciliation_admitted": False,
+            "count_alignment_is_definition_equivalence": False,
+            "count_alignment_can_authorize_emit": False,
+            "claim_ceiling": "MATCH_LOCAL_PLAYER_ACTION_AGGREGATE_CONTEXT_ONLY",
+        }
+        profile["player_action_aggregate_context"] = context
+        context_count += 1
+        state_counts[state] += 1
+
+    c02["player_action_aggregate_context_profile_count"] = context_count
+    c02["player_action_aggregate_alignment_state_counts"] = dict(
+        sorted(state_counts.items())
+    )
+    c02["player_action_aggregate_context_creates_action_identity"] = False
+    c02["player_action_aggregate_context_is_independent_support"] = False
+    c02["player_action_aggregate_metric_reconciliation_admitted"] = False
+    c02["player_action_aggregate_count_alignment_is_definition_equivalence"] = False
+    return c02
+
+
 def _construct_c02(
     rows: list[dict[str, Any]],
     identity_payload: dict[str, Any],
@@ -3659,12 +3766,13 @@ def run_rich_lane(
         process_participation_payload,
     )
     c02 = _construct_c02(rows, identity_payload, process_participation_payload)
-    if c02.get("status") == "REVIEW_REQUIRED":
-        review_hits.append("C02_process_participant_outcome_association_review_available")
 
     occurrence_transition_payload = _load_json(output / OCCURRENCE_STATE_TRANSITION_JSON)
     occurrence_consequence_payload = _load_json(output / OCCURRENCE_CONSEQUENCE_JSON)
     action_occurrence_payload = _load_json(output / ACTION_OCCURRENCE_JSON)
+    c02 = _bind_player_action_aggregate_context(c02, action_occurrence_payload)
+    if c02.get("status") == "REVIEW_REQUIRED":
+        review_hits.append("C02_process_participant_outcome_association_review_available")
     trackable_trace_payload = _load_json(output / TRACKABLE_TRACE_JSON)
     goalkeeper_restart_consequence_context = _goalkeeper_restart_consequence_context(
         action_occurrence_payload,

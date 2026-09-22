@@ -2150,3 +2150,84 @@ def test_rich_lane_snapshot_uses_canonical_shared_surface_contract(tmp_path):
     nested.mkdir()
     (nested / "c.txt").write_text("context", encoding="utf-8")
     assert _snapshot(tmp_path) == surface_snapshot_id(tmp_path)
+
+from rich_multiformat_analysis_lane import _bind_player_action_aggregate_context
+
+
+def test_player_action_aggregate_context_reports_count_alignment_without_identity_promotion():
+    c02 = {
+        "player_function_profiles": [{
+            "actor_identity_candidate_id": "actor_1",
+            "actor_label": "Hikmet",
+            "function_dimensions": {
+                "TERMINAL": [
+                    {"metric_key": "shots", "raw_value": 2},
+                    {"metric_key": "xg_expected_goals", "raw_value": 0.44},
+                ]
+            },
+        }]
+    }
+    occurrence = {
+        "action_occurrence_candidates": [
+            {
+                "occurrence_topology": "SINGLE_ACTOR_ACTION",
+                "primary_family_candidate": "SHOT",
+                "actor_identity_candidate_id": "actor_1",
+                "semantic_components": [{"label": "shots on target"}],
+            },
+            {
+                "occurrence_topology": "SINGLE_ACTOR_ACTION",
+                "primary_family_candidate": "SHOT",
+                "actor_identity_candidate_id": "actor_1",
+                "semantic_components": [{"label": "shots off target"}],
+            },
+        ]
+    }
+    result = _bind_player_action_aggregate_context(c02, occurrence)
+    ctx = result["player_function_profiles"][0]["player_action_aggregate_context"]
+    assert ctx["visible_shot_occurrence_count"] == 2
+    assert ctx["xlsx_shots_aggregate_candidate"] == 2
+    assert ctx["xlsx_xg_aggregate_candidate"] == 0.44
+    assert ctx["cross_surface_count_alignment_state"] == (
+        "VISIBLE_SHOT_OCCURRENCE_COUNT_EQUALS_XLSX_SHOTS_AGGREGATE_CANDIDATE"
+    )
+    assert ctx["visible_shot_occurrence_count_is_complete_shot_universe"] is False
+    assert ctx["xlsx_shots_aggregate_is_true_action_count"] is False
+    assert ctx["same_provider_cross_surface_is_independent_support"] is False
+    assert ctx["aggregate_creates_action_identity"] is False
+    assert ctx["metric_value_reconciliation_admitted"] is False
+    assert ctx["count_alignment_is_definition_equivalence"] is False
+    assert ctx["count_alignment_can_authorize_emit"] is False
+
+
+def test_player_action_aggregate_context_keeps_coverage_gap_review_visible():
+    c02 = {
+        "player_function_profiles": [{
+            "actor_identity_candidate_id": "actor_2",
+            "actor_label": "Example",
+            "function_dimensions": {
+                "TERMINAL": [
+                    {"metric_key": "shots", "raw_value": 3},
+                    {"metric_key": "xg_expected_goals", "raw_value": 0.7},
+                ]
+            },
+        }]
+    }
+    occurrence = {
+        "action_occurrence_candidates": [{
+            "occurrence_topology": "SINGLE_ACTOR_ACTION",
+            "primary_family_candidate": "SHOT",
+            "actor_identity_candidate_id": "actor_2",
+            "semantic_components": [{"label": "shots off target"}],
+        }]
+    }
+    result = _bind_player_action_aggregate_context(c02, occurrence)
+    ctx = result["player_function_profiles"][0]["player_action_aggregate_context"]
+    assert ctx["visible_shot_occurrence_count"] == 1
+    assert ctx["xlsx_shots_aggregate_candidate"] == 3
+    assert ctx["cross_surface_count_alignment_state"] == (
+        "VISIBLE_SHOT_OCCURRENCE_COVERAGE_BELOW_XLSX_SHOTS_REVIEW_REQUIRED"
+    )
+    assert result["player_action_aggregate_alignment_state_counts"] == {
+        "VISIBLE_SHOT_OCCURRENCE_COVERAGE_BELOW_XLSX_SHOTS_REVIEW_REQUIRED": 1
+    }
