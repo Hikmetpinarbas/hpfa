@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 import reconstruction_intelligence_packet_adapter_current_v1 as reconstruction_bridge
 from episode_lane_runner import run_current_episode_lane
-from orphan_capability_sidecars import run_sidecars
+from orphan_capability_sidecars import finalize_metric_governance_sidecar, run_sidecars
 from rich_multiformat_analysis_lane import run_rich_lane
 from hpfa.modules.core.analyst_report_block_composer_lite.src.analyst_report_block_composer import compose_report_block
 from hpfa.modules.core.composite_argument_builder_lite.src.composite_argument_builder import build_argument_candidate
@@ -388,7 +388,12 @@ def run_full_spine(
     }
     expected_snapshot_id = str(bridge_report.get("input_surface_snapshot_id") or "")
     if not hard_blocks and expected_snapshot_id:
-        sidecar_report = run_sidecars(active_match_path, output_root, Path(__file__).resolve().parents[5])
+        sidecar_report = run_sidecars(
+            active_match_path,
+            output_root,
+            Path(__file__).resolve().parents[5],
+            include_metric_governance=False,
+        )
         sidecar_status = _status(sidecar_report.get("status"))
         if sidecar_status == "FAIL_CLOSED":
             hard_blocks.append("orphan_capability_sidecars_fail_closed")
@@ -424,6 +429,23 @@ def run_full_spine(
                 )
             elif rich_status == "REVIEW_REQUIRED":
                 review_hits.append("rich_multiformat_analysis_lane_review_required")
+
+        if not hard_blocks:
+            sidecar_report = finalize_metric_governance_sidecar(
+                sidecar_report,
+                output_root,
+                Path(__file__).resolve().parents[5],
+            )
+            sidecar_status = _status(sidecar_report.get("status"))
+            if sidecar_status == "FAIL_CLOSED":
+                hard_blocks.append("orphan_capability_sidecars_fail_closed")
+                first_failed_node = first_failed_node or "orphan_capability_sidecars"
+                reasons = sidecar_report.get("hard_block_hits") or []
+                first_failed_reason_code = first_failed_reason_code or (
+                    str(reasons[0]) if isinstance(reasons, list) and reasons else "orphan_capability_sidecars_fail_closed"
+                )
+            elif sidecar_status == "REVIEW_REQUIRED" and "orphan_capability_sidecars_review_required" not in review_hits:
+                review_hits.append("orphan_capability_sidecars_review_required")
 
     spatial_progression_evidence = _spatial_progression_analyst_evidence(sidecar_report)
 
