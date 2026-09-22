@@ -301,6 +301,10 @@ def _bind_first_supported_divergence(payload: dict, occurrence_payload: dict) ->
 def _bind_comparable_outcome_counterevidence(payload: dict) -> dict:
     projection = build_comparable_outcome_counterevidence(payload)
     payload["comparable_outcome_counterevidence_status"] = projection.get("status")
+    payload["comparable_outcome_counterevidence_review_hits"] = list(
+        projection.get("review_hits") or []
+    )
+    payload["comparable_outcome_counterevidence_review_scope"] = "COMPARABLE_OUTCOME_PROJECTION_ONLY"
     payload["comparable_outcome_counterevidence_records"] = list(
         projection.get("comparable_outcome_counterevidence_records") or []
     )
