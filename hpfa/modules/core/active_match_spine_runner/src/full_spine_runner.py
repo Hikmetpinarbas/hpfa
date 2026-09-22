@@ -201,6 +201,7 @@ def _p02_finding_safe_sentence_candidate(
     not_observed = int(finding.get("target_not_observed_complete_path_count") or 0)
     unresolved = int(finding.get("target_state_unresolved_count") or 0)
     focus = str(finding.get("finding_focus") or "")
+    sample_maturity = str(finding.get("finding_sample_maturity_candidate") or "NOT_EVALUATED")
     if focus == "TARGET_VARIATION_VISIBLE":
         sentence = (
             context_prefix
@@ -227,10 +228,16 @@ def _p02_finding_safe_sentence_candidate(
         )
     else:
         return None
+    sentence += (
+        f" Örneklem-olgunluğu={sample_maturity}; bu olgunluk etiketi istatistiksel anlamlılık, "
+        "güçlü kanıt veya dış geçerlilik iddiası değildir."
+    )
     return {
         "module_id": "p02_professional_finding_safe_sentence_adapter_v1",
         "safe_sentence_id": f"safe_sentence_{finding_id}",
         "finding_target_candidate_id": finding_id,
+        "finding_sample_maturity_candidate": sample_maturity,
+        "finding_strength_promotion_allowed": False,
         "safe_sentence_candidate_tr": sentence,
         "sentence_candidate_tr": sentence,
         "sentence_language": "tr",
