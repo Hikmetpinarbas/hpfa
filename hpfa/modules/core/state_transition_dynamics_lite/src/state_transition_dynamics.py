@@ -3,8 +3,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
+from statistics import median
 from typing import Any
 
 MODULE_ID = "state_transition_dynamics_lite_v1"
@@ -250,6 +251,15 @@ def build_state_transition_dynamics(
                 "visible_state_change_function_candidate": state_change_function,
                 "visible_state_before_candidate": "SOURCE_ACTION_CONTEXT_ONLY_NOT_FULL_GAME_STATE",
                 "visible_state_after_candidate": consequence_class or "UNRESOLVED_VISIBLE_CONSEQUENCE",
+                "time_to_first_admitted_visible_state_change_seconds_candidate": consequence.get(
+                    "time_to_first_admitted_visible_state_change_seconds_candidate"
+                ),
+                "time_to_first_admitted_visible_state_change_observation_state": consequence.get(
+                    "time_to_first_admitted_visible_state_change_observation_state"
+                ),
+                "time_to_first_admitted_visible_state_change_basis": consequence.get(
+                    "time_to_first_admitted_visible_state_change_basis"
+                ),
                 "state_change_function_is_player_causal_credit": False,
                 "state_change_function_is_opponent_organization_truth": False,
                 "state_change_function_is_physical_space_creation_truth": False,
@@ -281,6 +291,59 @@ def build_state_transition_dynamics(
     reviews = sorted(set(reviews))
     status = "FAIL_CLOSED" if blocks else ("REVIEW_REQUIRED" if reviews else "PASS")
     counts = Counter(row.get("transition_class_candidate") for row in records)
+    timing_by_function: dict[str, list[float]] = defaultdict(list)
+    timing_state_by_function: dict[str, Counter[str]] = defaultdict(Counter)
+    eligible_by_function: Counter[str] = Counter()
+    for row in records:
+        function = _clean(row.get("visible_state_change_function_candidate")) or "UNRESOLVED"
+        eligible_by_function[function] += 1
+        timing_state = _clean(
+            row.get("time_to_first_admitted_visible_state_change_observation_state")
+        ) or "NOT_EVALUATED"
+        timing_state_by_function[function][timing_state] += 1
+        timing_value = row.get("time_to_first_admitted_visible_state_change_seconds_candidate")
+        if (
+            timing_state == "OBSERVED_ADMITTED_AFTER"
+            and isinstance(timing_value, (int, float))
+            and not isinstance(timing_value, bool)
+        ):
+            timing_by_function[function].append(float(timing_value))
+
+    timing_contract = consequence_payload.get(
+        "time_to_first_admitted_visible_state_change_profile"
+    ) or {}
+    state_change_timing_profiles: list[dict[str, Any]] = []
+    for function in sorted(eligible_by_function):
+        values = sorted(timing_by_function.get(function) or [])
+        state_counts = dict(sorted(timing_state_by_function[function].items()))
+        state_change_timing_profiles.append({
+            "visible_state_change_function_candidate": function,
+            "eligible_transition_n": int(eligible_by_function[function]),
+            "observed_timing_n": len(values),
+            "observation_state_counts": state_counts,
+            "median_seconds_candidate": median(values) if values else None,
+            "min_seconds_candidate": min(values) if values else None,
+            "max_seconds_candidate": max(values) if values else None,
+            "distribution_values_seconds_candidate": values,
+            "diagnostic_observation_horizon_seconds": timing_contract.get(
+                "diagnostic_observation_horizon_seconds"
+            ),
+            "distribution_is_truncated_by_diagnostic_horizon": timing_contract.get(
+                "distribution_is_truncated_by_diagnostic_horizon"
+            ) is True,
+            "distribution_is_descriptive_not_first_passage_model": True,
+            "no_admitted_after_within_horizon_is_failure": False,
+            "timing_is_physical_space_open_duration_truth": False,
+            "timing_is_causal_advantage_truth": False,
+            "graphability_state": (
+                "GRAPH_READY_WITH_REVIEW" if values else "NOT_GRAPH_READY_NO_ADMITTED_TIMING"
+            ),
+            "recommended_graphs": [
+                "STATE_CHANGE_FUNCTION_TIME_DISTRIBUTION",
+                "STATE_CHANGE_FUNCTION_TIME_ECDF",
+            ],
+            "claim_ceiling": CLAIM_CEILING,
+        })
     return {
         "module_id": MODULE_ID,
         "status": status,
@@ -294,6 +357,10 @@ def build_state_transition_dynamics(
         "visible_state_change_function_counts": dict(sorted(Counter(
             row.get("visible_state_change_function_candidate") for row in records
         ).items())),
+        "visible_state_change_timing_profiles": state_change_timing_profiles,
+        "state_change_timing_profile_count": len(state_change_timing_profiles),
+        "state_change_timing_is_first_passage_model_output": False,
+        "state_change_timing_is_physical_advantage_window_truth": False,
         "admitted_directional_transition_count": sum(
             bool(row.get("admitted_after_follow_up_trace_ids")) for row in records
         ),
