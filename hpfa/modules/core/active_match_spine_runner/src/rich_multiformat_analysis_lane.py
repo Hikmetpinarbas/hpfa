@@ -2484,6 +2484,7 @@ def _progression_pool_p02(
                 continue
 
             state = per_unit.setdefault(unit_id, {
+                "process_unit_candidate_id": unit_id,
                 "anchor_window_count": 0,
                 "final_third_entry_visible": False,
                 "final_third_continuation_visible": False,
@@ -2633,6 +2634,50 @@ def _progression_pool_p02(
             for value in final_third_entry_units
         )
 
+        final_third_entry_process_variant_candidates: list[dict[str, Any]] = []
+        final_third_entry_variant_facet_counts = Counter()
+        final_third_entry_layer_facet_counts = Counter()
+        for value in final_third_entry_units:
+            post_entry_layer_count = int(value.get("post_final_third_entry_layer_count") or 0)
+            post_entry_facets: list[str] = []
+            if post_entry_layer_count == 0:
+                post_entry_facets.append("ENTRY_ONLY_NO_LATER_VISIBLE_LAYER")
+            else:
+                if value.get("post_final_third_entry_shot_visible") is True:
+                    post_entry_facets.append("POST_ENTRY_SHOT_VISIBLE")
+                if value.get("post_final_third_entry_cross_visible") is True:
+                    post_entry_facets.append("POST_ENTRY_CROSS_VISIBLE")
+                if value.get("post_final_third_entry_turnover_visible") is True:
+                    post_entry_facets.append("POST_ENTRY_TURNOVER_VISIBLE")
+                if not post_entry_facets:
+                    post_entry_facets.append("POST_ENTRY_OTHER_VISIBLE_CONTINUATION")
+
+            entry_layer_facets: list[str] = []
+            if value.get("final_third_entry_layer_shot_visible") is True:
+                entry_layer_facets.append("ENTRY_LAYER_SHOT_VISIBLE")
+            if value.get("final_third_entry_layer_cross_visible") is True:
+                entry_layer_facets.append("ENTRY_LAYER_CROSS_VISIBLE")
+            if value.get("final_third_entry_layer_turnover_visible") is True:
+                entry_layer_facets.append("ENTRY_LAYER_TURNOVER_VISIBLE")
+            if not entry_layer_facets:
+                entry_layer_facets.append("NO_ENTRY_LAYER_TARGET_ACTIVITY_VISIBLE")
+
+            final_third_entry_variant_facet_counts.update(post_entry_facets)
+            final_third_entry_layer_facet_counts.update(entry_layer_facets)
+            final_third_entry_process_variant_candidates.append({
+                "process_unit_candidate_id": value.get("process_unit_candidate_id"),
+                "post_entry_variant_facets": post_entry_facets,
+                "entry_layer_facets": entry_layer_facets,
+                "post_entry_visible_layer_count": post_entry_layer_count,
+                "process_end_reason_candidate": value.get("process_end_reason_candidate"),
+                "process_terminal_activity_candidate": value.get("process_terminal_activity_candidate"),
+                "variant_facets_are_mutually_exclusive": False,
+                "entry_layer_internal_order_claimed": False,
+                "variant_is_success_failure_truth": False,
+                "variant_is_tactical_quality_truth": False,
+                "claim_ceiling": "MATCH_LOCAL_VISIBLE_FINAL_THIRD_ENTRY_VARIANT_CANDIDATE_ONLY",
+            })
+
         same_team_continuation_process_profiles.append({
             "visible_consequence_path_signature": recurrence.get("visible_consequence_path_signature"),
             "team_identity_candidate_id": recurrence.get("team_identity_candidate_id"),
@@ -2718,6 +2763,18 @@ def _progression_pool_p02(
                 1 for value in final_third_entry_units
                 if int(value.get("post_final_third_entry_layer_count") or 0) == 0
             ),
+            "final_third_entry_process_variant_candidates": final_third_entry_process_variant_candidates,
+            "final_third_entry_process_variant_candidate_count": len(
+                final_third_entry_process_variant_candidates
+            ),
+            "final_third_entry_post_entry_variant_facet_counts": dict(
+                sorted(final_third_entry_variant_facet_counts.items())
+            ),
+            "final_third_entry_entry_layer_facet_counts": dict(
+                sorted(final_third_entry_layer_facet_counts.items())
+            ),
+            "final_third_entry_variant_facets_are_mutually_exclusive": False,
+            "final_third_entry_variant_is_success_failure_truth": False,
             "post_entry_activity_excludes_entry_timestamp_layer": True,
             "same_timestamp_entry_layer_internal_order_claimed": False,
             "terminal_boundary_is_process_outcome_truth": False,
