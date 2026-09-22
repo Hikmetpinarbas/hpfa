@@ -2119,7 +2119,7 @@ def _progression_pool_p02(
             if zone_complete:
                 downstream_stage_states[
                     "FINAL_THIRD_VISIBLE"
-                    if "FINAL_THIRD" in zone_path
+                    if ({"FINAL_THIRD", "PENALTY_AREA"} & zone_path)
                     else "NO_FINAL_THIRD_VISIBLE"
                 ] += 1
                 downstream_stage_states[
@@ -2273,7 +2273,7 @@ def _progression_pool_p02(
                 ]
                 stage_states[
                     "FINAL_THIRD_VISIBLE"
-                    if "FINAL_THIRD" in after_zones
+                    if any(zone in {"FINAL_THIRD", "PENALTY_AREA"} for zone in after_zones)
                     else "NO_FINAL_THIRD_VISIBLE"
                 ] += 1
                 stage_states[
@@ -2448,8 +2448,13 @@ def _progression_pool_p02(
                     str(row.get("semantic_zone_candidate"))
                     for row in after_stations
                 ]
-                if "FINAL_THIRD" in after_zones:
-                    if anchor_zone == "FINAL_THIRD":
+                final_third_after_visible = any(
+                    zone in {"FINAL_THIRD", "PENALTY_AREA"}
+                    for zone in after_zones
+                )
+                anchor_already_advanced = anchor_zone in {"FINAL_THIRD", "PENALTY_AREA"}
+                if final_third_after_visible:
+                    if anchor_already_advanced:
                         state["final_third_continuation_visible"] = True
                     else:
                         state["final_third_entry_visible"] = True
