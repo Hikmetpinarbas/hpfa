@@ -207,6 +207,129 @@ def _p02_turnover_response_lines(rich: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _readable_boundary_counts(counts: dict[str, Any]) -> str:
+    labels = {
+        "TEAM_HANDOVER_BOUNDARY": "takim el degistirme",
+        "MIXED_TEAM_PRIMARY_LAYER_BOUNDARY": "karisik ayni-an siniri",
+        "TIME_GAP_BOUNDARY": "zaman boslugu",
+        "RESTART_PRIMARY_LAYER_BOUNDARY": "restart",
+        "TERMINAL_OUTCOME_SUPPORT_BOUNDARY": "terminal sonuc destegi",
+        "PERIOD_END": "devre sonu",
+    }
+    parts: list[str] = []
+    for key, value in sorted((counts or {}).items(), key=lambda item: (-int(item[1] or 0), str(item[0]))):
+        try:
+            count = int(value or 0)
+        except (TypeError, ValueError):
+            continue
+        if count <= 0:
+            continue
+        parts.append(f"{labels.get(str(key), str(key).casefold())}={count}")
+    return ", ".join(parts) if parts else "gorunur bitis siniri yok"
+
+
+def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
+    p02 = rich.get("progression_pool_p02") or {}
+    team_names = _p02_team_name_map(rich)
+    lines: list[str] = []
+
+    post_loss_signature = "ANCHOR:TURNOVER -> L1:OPPONENT:PASS -> L2:OPPONENT:PASS"
+    post_loss_rows = [
+        row for row in (p02.get("visible_consequence_path_severity_candidates") or [])
+        if isinstance(row, dict)
+        and str(row.get("visible_consequence_path_signature") or "") == post_loss_signature
+    ]
+    if post_loss_rows:
+        lines.append("Top kaybi sonrasi rakibin pas-pas devami:")
+        for row in sorted(post_loss_rows, key=lambda item: team_names.get(str(item.get("team_identity_candidate_id") or ""), "")):
+            team_id = str(row.get("team_identity_candidate_id") or "")
+            team_name = team_names.get(team_id, team_id or "cozulemeyen takim")
+            eligible = int(row.get("eligible_anchor_population_count") or 0)
+            visible = int(row.get("visible_occurrence_count") or 0)
+            bound = int(row.get("exact_process_response_bound_count") or 0)
+            final_third = int(row.get("final_third_visible_count") or 0)
+            no_final_third = int(row.get("no_final_third_visible_count") or 0)
+            unresolved = int(row.get("zone_path_unresolved_count") or 0)
+            box = int(row.get("penalty_area_visible_count") or 0)
+            shots = int(row.get("shot_activity_visible_count") or 0)
+            routes = row.get("response_zone_route_counts") or {}
+            dominant_route = ""
+            if isinstance(routes, dict) and routes:
+                route, count = max(
+                    routes.items(),
+                    key=lambda item: (int(item[1] or 0), str(item[0])),
+                )
+                dominant_route = f"; en sik gorunur bolge baslangic-bitis yolu {str(route).replace('->', ' -> ')} ({int(count or 0)})"
+            lines.append(
+                f"- {team_name}: gorunur devami degerlendirilebilir {eligible} top-kaybi adayinin {visible}'inde "
+                f"rakip ilk iki devam katmanini pas -> pas ile surdurdu; bunlarin {bound}'i sonraki rakip oyun surecine "
+                f"baglanabildi. Bu baglarda final-third gorundu={final_third}, final-third gorunmedi={no_final_third}, "
+                f"bolge sonucu cozulmedi={unresolved}, ceza-sahasi gorundu={box}, sut aktivitesi gorundu={shots}"
+                f"{dominant_route}."
+            )
+
+    pass_signature = "ANCHOR:PASS -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
+    pass_rows = [
+        row for row in (p02.get("same_team_continuation_process_profiles") or [])
+        if isinstance(row, dict)
+        and str(row.get("visible_consequence_path_signature") or "") == pass_signature
+    ]
+    if pass_rows:
+        lines.append("Pas dolasiminin final-third'e donusumu:")
+        for row in sorted(pass_rows, key=lambda item: team_names.get(str(item.get("team_identity_candidate_id") or ""), "")):
+            team_id = str(row.get("team_identity_candidate_id") or "")
+            team_name = team_names.get(team_id, team_id or "cozulemeyen takim")
+            windows = int(row.get("anchor_visible_occurrence_count") or 0)
+            units = int(row.get("unique_process_unit_count") or 0)
+            entries = int(row.get("process_unit_with_final_third_entry_count") or 0)
+            continuations = int(row.get("process_unit_with_final_third_continuation_count") or 0)
+            no_final_third = int(row.get("process_unit_with_no_final_third_visible_count") or 0)
+            unresolved = int(row.get("process_unit_with_zone_unresolved_count") or 0)
+            entry_shots = int(row.get("final_third_entry_process_with_shot_activity_count") or 0)
+            entry_turnovers = int(row.get("final_third_entry_process_with_turnover_activity_count") or 0)
+            entry_crosses = int(row.get("final_third_entry_process_with_cross_activity_count") or 0)
+            max_windows = int(row.get("max_anchor_windows_within_single_process_unit") or 0)
+            boundary_text = _readable_boundary_counts(row.get("final_third_entry_process_end_reason_counts") or {})
+            lines.append(
+                f"- {team_name}: {windows} gorunur pas -> pas -> pas penceresi {units} benzersiz oyun surecinde toplandi "
+                f"(tek surecte en fazla {max_windows} pencere). Yeni final-third girisi gorunen surec={entries}, "
+                f"final-third icinde devam eden={continuations}, final-third'e ulasmayan={no_final_third}, "
+                f"bolgesi cozulmeyen={unresolved}. Final-third'e yeni giren sureclerde sut aktivitesi={entry_shots}, "
+                f"turnover aktivitesi={entry_turnovers}, cross aktivitesi={entry_crosses}; gorunur bitisler: {boundary_text}."
+            )
+
+    recovery_signature = "ANCHOR:RECOVERY -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
+    recovery_rows = [
+        row for row in (p02.get("same_team_continuation_process_profiles") or [])
+        if isinstance(row, dict)
+        and str(row.get("visible_consequence_path_signature") or "") == recovery_signature
+    ]
+    if recovery_rows:
+        lines.append("Recovery sonrasi ayni takimin yeniden hucum devami:")
+        for row in sorted(recovery_rows, key=lambda item: team_names.get(str(item.get("team_identity_candidate_id") or ""), "")):
+            team_id = str(row.get("team_identity_candidate_id") or "")
+            team_name = team_names.get(team_id, team_id or "cozulemeyen takim")
+            units = int(row.get("unique_process_unit_count") or 0)
+            entries = int(row.get("process_unit_with_final_third_entry_count") or 0)
+            continuations = int(row.get("process_unit_with_final_third_continuation_count") or 0)
+            no_final_third = int(row.get("process_unit_with_no_final_third_visible_count") or 0)
+            unresolved = int(row.get("process_unit_with_zone_unresolved_count") or 0)
+            shots = int(row.get("process_unit_with_shot_activity_after_anchor_count") or 0)
+            lines.append(
+                f"- {team_name}: recovery -> pas -> pas yolu {units} benzersiz oyun surecine baglandi; "
+                f"yeni final-third girisi={entries}, final-third icinde devam={continuations}, "
+                f"final-third'e ulasmayan={no_final_third}, bolgesi cozulmeyen={unresolved}, "
+                f"recovery sonrasinda ayni surecte sut aktivitesi={shots}."
+            )
+
+    if lines:
+        lines.append(
+            "- Okuma siniri: bunlar mac-ici gorunur surec ve tekrar adaylaridir; ayni surecteki coklu pencereler "
+            "bagimsiz kanit sayilmaz. Bu yuzey tek basina taktik niyet, kalite, ustunluk veya nedensellik kaniti degildir."
+        )
+    return lines
+
+
 def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) -> str:
     root = Path(output_root)
     feature_current = _feature_surface_current(full_spine)
@@ -328,6 +451,13 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             lines.extend([
                 "turnover_handover_opponent_response:",
                 *p02_response_lines,
+            ])
+        mechanism_lines = _p02_process_mechanism_lines(rich)
+        if mechanism_lines:
+            lines.extend([
+                "",
+                "MAC MEKANIZMASI ADAYLARI — SUREC / DEVAM / SONUC",
+                *mechanism_lines,
             ])
     else:
         lines.append("- Rich metric/construct/layer surface unavailable for this invocation.")
