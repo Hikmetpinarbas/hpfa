@@ -2321,6 +2321,163 @@ def _progression_pool_p02(
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_POST_RECOVERY_CONTINUATION_ACCESS_CANDIDATE_ONLY",
         })
 
+    same_team_continuation_process_profiles: list[dict[str, Any]] = []
+    for recurrence in consequence.get("visible_consequence_path_recurrence_candidates") or []:
+        if not isinstance(recurrence, dict):
+            continue
+        signature = str(recurrence.get("visible_consequence_path_signature") or "")
+        if "L1:SAME_TEAM:" not in signature:
+            continue
+        anchor_families = {
+            str(value)
+            for value in (recurrence.get("anchor_action_family_candidates") or [])
+            if str(value).strip()
+        }
+        if not anchor_families:
+            continue
+
+        per_unit: dict[str, dict[str, Any]] = {}
+        binding_missing_count = 0
+        binding_ambiguous_count = 0
+
+        for trace_id in recurrence.get("anchor_trace_refs") or []:
+            anchor_trace = trace_lookup.get(str(trace_id))
+            if not isinstance(anchor_trace, dict):
+                binding_missing_count += 1
+                continue
+            try:
+                anchor_time = float(anchor_trace.get("start_candidate"))
+            except (TypeError, ValueError):
+                binding_missing_count += 1
+                continue
+            matches = [
+                unit for unit in trace_to_units.get(str(trace_id), [])
+                if set(unit.get("action_family_counts") or {}) & anchor_families
+            ]
+            if len(matches) != 1:
+                if not matches:
+                    binding_missing_count += 1
+                else:
+                    binding_ambiguous_count += 1
+                continue
+            unit = matches[0]
+            unit_id = str(unit.get("p02_process_unit_candidate_id") or "")
+            if not unit_id:
+                binding_missing_count += 1
+                continue
+
+            state = per_unit.setdefault(unit_id, {
+                "anchor_window_count": 0,
+                "final_third_entry_visible": False,
+                "final_third_continuation_visible": False,
+                "no_final_third_visible": False,
+                "zone_unresolved": False,
+                "penalty_area_entry_visible": False,
+                "shot_activity_after_anchor_visible": False,
+            })
+            state["anchor_window_count"] += 1
+
+            after_layers = []
+            for layer in unit.get("action_layer_signature") or []:
+                try:
+                    layer_time = float(layer.get("time_candidate"))
+                except (TypeError, ValueError):
+                    continue
+                if layer_time > anchor_time:
+                    after_layers.append(layer)
+
+            anchor_stations = []
+            after_stations = []
+            for station in unit.get("semantic_zone_stations") or []:
+                try:
+                    station_time = float(station.get("time_candidate"))
+                except (TypeError, ValueError):
+                    continue
+                if abs(station_time - anchor_time) <= 1e-6:
+                    anchor_stations.append(station)
+                elif station_time > anchor_time:
+                    after_stations.append(station)
+
+            zone_complete = (
+                bool(after_layers)
+                and len(after_stations) == len(after_layers)
+                and all(str(row.get("semantic_zone_candidate") or "").strip() for row in after_stations)
+                and len(anchor_stations) == 1
+                and bool(str(anchor_stations[0].get("semantic_zone_candidate") or "").strip())
+            )
+            if zone_complete:
+                anchor_zone = str(anchor_stations[0].get("semantic_zone_candidate"))
+                after_zones = [
+                    str(row.get("semantic_zone_candidate"))
+                    for row in after_stations
+                ]
+                if "FINAL_THIRD" in after_zones:
+                    if anchor_zone == "FINAL_THIRD":
+                        state["final_third_continuation_visible"] = True
+                    else:
+                        state["final_third_entry_visible"] = True
+                else:
+                    state["no_final_third_visible"] = True
+                if "PENALTY_AREA" in after_zones and anchor_zone != "PENALTY_AREA":
+                    state["penalty_area_entry_visible"] = True
+            else:
+                state["zone_unresolved"] = True
+
+            if any(
+                int((layer.get("action_family_multiset") or {}).get("SHOT", 0) or 0) > 0
+                for layer in after_layers
+            ):
+                state["shot_activity_after_anchor_visible"] = True
+
+        process_unit_count = len(per_unit)
+        anchor_window_counts = [
+            int(value.get("anchor_window_count") or 0)
+            for value in per_unit.values()
+        ]
+        same_team_continuation_process_profiles.append({
+            "visible_consequence_path_signature": recurrence.get("visible_consequence_path_signature"),
+            "team_identity_candidate_id": recurrence.get("team_identity_candidate_id"),
+            "anchor_action_family_candidates": sorted(anchor_families),
+            "anchor_visible_occurrence_count": recurrence.get("visible_occurrence_count"),
+            "eligible_anchor_population_count": recurrence.get("eligible_anchor_population_count"),
+            "unique_process_unit_count": process_unit_count,
+            "process_unit_with_final_third_entry_count": sum(
+                1 for value in per_unit.values()
+                if value.get("final_third_entry_visible") is True
+            ),
+            "process_unit_with_final_third_continuation_count": sum(
+                1 for value in per_unit.values()
+                if value.get("final_third_continuation_visible") is True
+            ),
+            "process_unit_with_no_final_third_visible_count": sum(
+                1 for value in per_unit.values()
+                if value.get("no_final_third_visible") is True
+                and value.get("final_third_entry_visible") is not True
+                and value.get("final_third_continuation_visible") is not True
+            ),
+            "process_unit_with_zone_unresolved_count": sum(
+                1 for value in per_unit.values()
+                if value.get("zone_unresolved") is True
+            ),
+            "process_unit_with_penalty_area_entry_count": sum(
+                1 for value in per_unit.values()
+                if value.get("penalty_area_entry_visible") is True
+            ),
+            "process_unit_with_shot_activity_after_anchor_count": sum(
+                1 for value in per_unit.values()
+                if value.get("shot_activity_after_anchor_visible") is True
+            ),
+            "max_anchor_windows_within_single_process_unit": max(anchor_window_counts, default=0),
+            "process_binding_missing_count": binding_missing_count,
+            "process_binding_ambiguous_count": binding_ambiguous_count,
+            "anchor_window_count_is_process_denominator": False,
+            "unique_process_unit_count_is_independent_evidence_count": False,
+            "same_process_multiple_anchor_reflection_possible": True,
+            "final_third_entry_is_tactical_quality_truth": False,
+            "continuation_profile_is_causal_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_SAME_TEAM_CONTINUATION_PROCESS_PROFILE_ONLY",
+        })
+
     p02_c4_packet_candidates: list[dict[str, Any]] = []
     p02_counterevidence_population_records: list[dict[str, Any]] = []
     total_admitted_opposite_pairs = 0
@@ -2476,6 +2633,10 @@ def _progression_pool_p02(
         "recovery_continuation_severity_scope": "POST_RECOVERY_SAME_TEAM_CONTINUATION_ONLY",
         "recovery_anchor_zone_is_access_outcome": False,
         "recovery_continuation_is_recovery_quality_truth": False,
+        "same_team_continuation_process_profiles": same_team_continuation_process_profiles,
+        "same_team_continuation_process_profile_count": len(same_team_continuation_process_profiles),
+        "same_team_continuation_anchor_window_count_is_process_denominator": False,
+        "same_team_continuation_unique_process_unit_count_is_independent_evidence_count": False,
         "consequence_path_severity_is_transition_defence_quality_truth": False,
         "consequence_path_severity_is_causal_truth": False,
         "p02_c4_packet_candidate_count": len(p02_c4_packet_candidates),
