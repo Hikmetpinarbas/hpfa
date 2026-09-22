@@ -2066,6 +2066,8 @@ def _progression_pool_p02(
             continue
         states = Counter()
         downstream_stage_states = Counter()
+        response_zone_route_counts = Counter()
+        response_zone_route_unresolved_count = 0
         bound_count = 0
         missing_count = 0
         ambiguous_count = 0
@@ -2107,6 +2109,15 @@ def _progression_pool_p02(
             else:
                 downstream_stage_states["ZONE_PATH_UNRESOLVED"] += 1
 
+            response_start_zone = str(response.get("process_start_zone_candidate") or "").strip()
+            response_end_zone = str(response.get("process_end_zone_candidate") or "").strip()
+            if response_start_zone and response_end_zone:
+                response_zone_route_counts[
+                    f"{response_start_zone}->{response_end_zone}"
+                ] += 1
+            else:
+                response_zone_route_unresolved_count += 1
+
             action_counts = dict(response.get("action_family_counts") or {})
             downstream_stage_states[
                 "SHOT_ACTIVITY_VISIBLE"
@@ -2129,6 +2140,10 @@ def _progression_pool_p02(
             "zone_path_unresolved_count": int(downstream_stage_states.get("ZONE_PATH_UNRESOLVED", 0)),
             "shot_activity_visible_count": int(downstream_stage_states.get("SHOT_ACTIVITY_VISIBLE", 0)),
             "no_shot_activity_visible_count": int(downstream_stage_states.get("NO_SHOT_ACTIVITY_VISIBLE", 0)),
+            "response_zone_route_counts": dict(sorted(response_zone_route_counts.items())),
+            "response_zone_route_unresolved_count": response_zone_route_unresolved_count,
+            "response_zone_route_is_physical_trajectory_truth": False,
+            "response_zone_route_is_tactical_route_truth": False,
             "handover_not_exact_count": int(states.get("HANDOVER_NOT_EXACT", 0)),
             "process_binding_missing_count": missing_count,
             "process_binding_ambiguous_count": ambiguous_count,
