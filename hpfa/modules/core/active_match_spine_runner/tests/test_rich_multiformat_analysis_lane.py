@@ -1837,5 +1837,31 @@ def test_p02_recurring_consequence_path_binds_to_opponent_advanced_access() -> N
     assert row["response_zone_route_unresolved_count"] == 0
     assert row["response_zone_route_is_physical_trajectory_truth"] is False
     assert row["response_zone_route_is_tactical_route_truth"] is False
+    assert row["severity_evaluation_scope"] == "POST_LOSS_OPPONENT_RESPONSE_ONLY"
+    assert row["severity_evaluation_status"] == "EVALUATED"
+    assert p02["visible_consequence_path_severity_scope"] == "POST_LOSS_OPPONENT_RESPONSE_ONLY"
+    assert p02["recovery_continuation_requires_separate_same_team_process_evaluation"] is True
     assert row["severity_is_transition_defence_quality_truth"] is False
     assert row["severity_is_causal_truth"] is False
+
+
+def test_p02_recovery_recurrence_is_not_misread_as_post_loss_severity() -> None:
+    consequence = {
+        "visible_consequence_path_recurrence_candidates": [
+            {
+                "team_identity_candidate_id": "teamc_A",
+                "anchor_action_family_candidates": ["RECOVERY"],
+                "visible_consequence_path_signature": (
+                    "ANCHOR:RECOVERY -> L1:SAME_TEAM:PASS -> L2:SAME_TEAM:PASS"
+                ),
+                "visible_occurrence_count": 2,
+                "eligible_anchor_population_count": 2,
+                "anchor_trace_refs": ["tr_recovery"],
+            }
+        ]
+    }
+    p02 = _progression_pool_p02({}, {}, {}, consequence)
+
+    assert p02["visible_consequence_path_severity_candidate_count"] == 0
+    assert p02["non_loss_recurrence_severity_not_evaluated_count"] == 1
+    assert p02["recovery_continuation_requires_separate_same_team_process_evaluation"] is True
