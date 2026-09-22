@@ -1806,6 +1806,37 @@ def test_p02_independence_admitted_comparison_builds_c4_packet_and_reaches_fusio
     assert comparison["independence_admission_status"] == "ADMITTED"
 
 
+def test_p02_professional_finding_target_is_exact_context_bounded_and_not_success_failure_truth():
+    episode, identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
+    p02 = _progression_pool_p02(
+        {},
+        {},
+        episode,
+        {},
+        semantics,
+        identities,
+        visible_sequence,
+        trace,
+        evidence,
+    )
+    assert p02["professional_finding_target_candidate_count"] == 1
+    finding = p02["professional_finding_target_candidates"][0]
+    assert finding["finding_status"] == "REVIEW_REQUIRED"
+    assert finding["target_estimand"] == "ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_SEMANTIC_ZONE_PATH"
+    assert finding["resolved_target_state_denominator"] == 2
+    assert finding["target_observed_visible_count"] == 1
+    assert finding["target_not_observed_complete_path_count"] == 1
+    assert finding["target_state_unresolved_count"] == 0
+    assert finding["admitted_opposite_counterevidence_pair_count"] == 1
+    assert finding["target_relative_state_is_general_attack_success_failure"] is False
+    assert finding["finding_is_tactical_quality_truth"] is False
+    assert finding["finding_is_causal_truth"] is False
+    assert finding["pairwise_comparison_is_independent_evidence_vote"] is False
+    assert finding["claim_output_allowed"] is False
+    assert finding["report_language_allowed"] is True
+    assert "general_attack_success_failure" in finding["FORBIDDEN_INFERENCE"]
+
+
 def test_p02_c4_packet_is_claim_bounded_and_does_not_invent_support():
     episode, identities, visible_sequence, trace, evidence, semantics = _p02_c4_bridge_case()
     p02 = _progression_pool_p02(
