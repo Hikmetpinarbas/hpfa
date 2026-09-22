@@ -3458,6 +3458,37 @@ def _progression_pool_p02(
             1 for row in same_team_same_focus_findings
             if str(row.get("finding_admission_decision") or "") == "EMIT_CANDIDATE"
         )
+
+        cross_context_signature_presence: Counter[str] = Counter()
+        admitted_cross_context_signature_presence: Counter[str] = Counter()
+        for sibling in same_team_same_focus_findings:
+            sibling_population = population_by_id.get(str(sibling.get("comparison_population_id") or "")) or {}
+            sibling_member_ids = [
+                str(value)
+                for value in (sibling_population.get("member_process_unit_candidate_ids") or [])
+                if str(value).strip()
+            ]
+            sibling_signatures = {
+                str(process_unit_by_id[value].get("partial_order_process_signature_id") or "UNRESOLVED_SIGNATURE")
+                for value in sibling_member_ids
+                if value in process_unit_by_id
+            }
+            sibling_signatures.discard("UNRESOLVED_SIGNATURE")
+            for signature_id in sibling_signatures:
+                cross_context_signature_presence[signature_id] += 1
+                if str(sibling.get("finding_admission_decision") or "") == "EMIT_CANDIDATE":
+                    admitted_cross_context_signature_presence[signature_id] += 1
+
+        cross_context_recurrent_signature_ids = sorted(
+            signature_id
+            for signature_id, count in cross_context_signature_presence.items()
+            if count >= 2
+        )
+        admitted_cross_context_recurrent_signature_ids = sorted(
+            signature_id
+            for signature_id, count in admitted_cross_context_signature_presence.items()
+            if count >= 2
+        )
         maturity_reasons: list[str] = []
         if str(finding.get("finding_admission_decision") or "") != "EMIT_CANDIDATE":
             maturity_reasons.append("finding_not_admitted_for_safe_descriptive_emit")
@@ -3469,6 +3500,10 @@ def _progression_pool_p02(
             maturity_reasons.append("same_team_same_focus_context_spread_below_2")
         if admitted_context_spread_population_count < 2:
             maturity_reasons.append("admitted_context_spread_below_2")
+        if not cross_context_recurrent_signature_ids:
+            maturity_reasons.append("no_cross_context_recurrent_process_signature_visible")
+        if not admitted_cross_context_recurrent_signature_ids:
+            maturity_reasons.append("no_admitted_cross_context_recurrent_process_signature_visible")
         if independence_admitted_pair_count <= 0:
             maturity_reasons.append("no_evidence_unit_independence_admitted_pair")
         if int(finding.get("target_state_unresolved_count") or 0) > 0:
@@ -3488,6 +3523,11 @@ def _progression_pool_p02(
             "members_in_recurrent_process_signatures": members_in_recurrent_signatures,
             "same_team_same_focus_context_population_count": context_spread_population_count,
             "admitted_same_team_same_focus_context_population_count": admitted_context_spread_population_count,
+            "cross_context_recurrent_process_signature_count": len(cross_context_recurrent_signature_ids),
+            "cross_context_recurrent_process_signature_ids": cross_context_recurrent_signature_ids,
+            "admitted_cross_context_recurrent_process_signature_count": len(admitted_cross_context_recurrent_signature_ids),
+            "admitted_cross_context_recurrent_process_signature_ids": admitted_cross_context_recurrent_signature_ids,
+            "cross_context_signature_recurrence_is_mechanism_truth": False,
             "evidence_unit_pair_count": len(pairwise_rows),
             "evidence_unit_independence_admitted_pair_count": independence_admitted_pair_count,
             "evidence_unit_independence_not_admitted_pair_count": independence_not_admitted_pair_count,
