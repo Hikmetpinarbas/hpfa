@@ -202,6 +202,10 @@ def _p02_finding_safe_sentence_candidate(
     unresolved = int(finding.get("target_state_unresolved_count") or 0)
     focus = str(finding.get("finding_focus") or "")
     sample_maturity = str(finding.get("finding_sample_maturity_candidate") or "NOT_EVALUATED")
+    maturity_profile = finding.get("evidence_maturity_profile") or {}
+    mechanism_readiness = str(finding.get("mechanism_review_readiness") or maturity_profile.get("mechanism_review_readiness") or "NOT_EVALUATED")
+    recurrent_signature_count = int(maturity_profile.get("recurrent_process_signature_count") or 0)
+    context_spread_count = int(maturity_profile.get("same_team_same_focus_context_population_count") or 0)
     if focus == "TARGET_VARIATION_VISIBLE":
         sentence = (
             context_prefix
@@ -229,14 +233,19 @@ def _p02_finding_safe_sentence_candidate(
     else:
         return None
     sentence += (
-        f" Örneklem-olgunluğu={sample_maturity}; bu olgunluk etiketi istatistiksel anlamlılık, "
-        "güçlü kanıt veya dış geçerlilik iddiası değildir."
+        f" Örneklem-olgunluğu={sample_maturity}; mekanizma-review-readiness={mechanism_readiness}; "
+        f"recurrent-process-signature={recurrent_signature_count}; context-spread-population={context_spread_count}. "
+        "Bu etiketler istatistiksel anlamlılık, güçlü kanıt, dış geçerlilik, mekanizma gerçeği veya nedensellik değildir."
     )
     return {
         "module_id": "p02_professional_finding_safe_sentence_adapter_v1",
         "safe_sentence_id": f"safe_sentence_{finding_id}",
         "finding_target_candidate_id": finding_id,
         "finding_sample_maturity_candidate": sample_maturity,
+        "mechanism_review_readiness": mechanism_readiness,
+        "recurrent_process_signature_count": recurrent_signature_count,
+        "same_team_same_focus_context_population_count": context_spread_count,
+        "mechanism_promotion_allowed": False,
         "finding_strength_promotion_allowed": False,
         "safe_sentence_candidate_tr": sentence,
         "sentence_candidate_tr": sentence,
