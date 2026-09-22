@@ -948,6 +948,16 @@ def _build_p02_sequence_process_units(
         unit["opponent_response_is_counterattack_truth"] = False
         unit["opponent_response_adds_independent_support"] = False
         response_access = str(response.get("advanced_access_state_candidate") or "NOT_EVALUATED")
+        advanced_access_state = str(unit.get("advanced_access_state_candidate") or "UNRESOLVED")
+        if advanced_access_state == "ADVANCED_ACCESS_VISIBLE":
+            target_relative_state = "TARGET_OBSERVED_VISIBLE"
+        elif (
+            advanced_access_state == "NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH"
+            and unit.get("semantic_zone_layer_coverage_complete") is True
+        ):
+            target_relative_state = "TARGET_NOT_OBSERVED_IN_COMPLETE_ADMITTED_PATH"
+        else:
+            target_relative_state = "TARGET_STATE_UNRESOLVED"
         unit["visible_variant_outcome_profile"] = {
             "advanced_access_state_candidate": unit.get("advanced_access_state_candidate"),
             "visible_exit_class_candidate": unit.get("visible_exit_class_candidate"),
@@ -955,6 +965,8 @@ def _build_p02_sequence_process_units(
             "turnover_visible": int((unit.get("action_family_counts") or {}).get("TURNOVER", 0) or 0) > 0,
             "opponent_response_status": response.get("status"),
             "opponent_advanced_access_state_candidate": response_access,
+            "target_estimand": "ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_SEMANTIC_ZONE_PATH",
+            "target_relative_variant_state_candidate": target_relative_state,
             "profile_status": (
                 "RESOLVED_BOUNDED_VISIBLE_PROFILE"
                 if unit.get("advanced_access_state_candidate") in {
@@ -965,6 +977,8 @@ def _build_p02_sequence_process_units(
                 else "DEGRADED_VISIBLE_PROFILE"
             ),
             "success_failure_label": "NOT_ASSIGNED",
+            "target_relative_state_is_general_attack_success_failure": False,
+            "target_relative_state_is_tactical_quality_truth": False,
             "profile_is_process_outcome_truth": False,
             "profile_is_tactical_quality_truth": False,
             "profile_is_causal_truth": False,
@@ -1184,6 +1198,10 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
                 str((row.get("visible_variant_outcome_profile") or {}).get("opponent_advanced_access_state_candidate") or "UNRESOLVED")
                 for row in variant_members
             )
+            variant_target_relative = Counter(
+                str((row.get("visible_variant_outcome_profile") or {}).get("target_relative_variant_state_candidate") or "TARGET_STATE_UNRESOLVED")
+                for row in variant_members
+            )
             variant_records.append({
                 "variant_family_candidate_id": variant_id,
                 "member_process_unit_candidate_ids": sorted(
@@ -1201,7 +1219,9 @@ def _build_p02_process_unit_comparison_populations(process_units: dict[str, Any]
                     "exit_class": dict(sorted(variant_exit_classes.items())),
                     "opponent_response_status": dict(sorted(variant_opponent_response.items())),
                     "opponent_advanced_access_state": dict(sorted(variant_opponent_access.items())),
+                    "target_relative_variant_state": dict(sorted(variant_target_relative.items())),
                 },
+                "target_estimand": "ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_SEMANTIC_ZONE_PATH",
                 "success_failure_label": "NOT_ASSIGNED",
                 "variant_is_tactical_truth": False,
                 "variant_is_causal_mechanism_truth": False,
