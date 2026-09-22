@@ -87,22 +87,9 @@ def _counter_sum(cards: list[dict[str, Any]], field: str) -> dict[str, int]:
 def _safe_sentences(full_spine: dict[str, Any], limit: int = 12) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
-    chains = full_spine.get("intelligence_chains")
-    if isinstance(chains, list):
-        for chain in chains:
-            if not isinstance(chain, dict):
-                continue
-            safe = chain.get("safe_sentence")
-            if not isinstance(safe, dict):
-                continue
-            text = str(safe.get("safe_sentence_candidate_tr") or "").strip()
-            if not text or text in seen:
-                continue
-            seen.add(text)
-            result.append(text)
-            if len(result) >= limit:
-                return result
 
+    # Prioritize admitted P02 finding candidates so current football findings are not
+    # hidden behind older generic C4 sentence volume.
     p02_contracts = full_spine.get("p02_professional_finding_report_contracts") or {}
     for row in p02_contracts.get("items") or []:
         if not isinstance(row, dict):
@@ -119,9 +106,24 @@ def _safe_sentences(full_spine: dict[str, Any], limit: int = 12) -> list[str]:
         seen.add(text)
         result.append(text)
         if len(result) >= limit:
-            break
-    return result
+            return result
 
+    chains = full_spine.get("intelligence_chains")
+    if isinstance(chains, list):
+        for chain in chains:
+            if not isinstance(chain, dict):
+                continue
+            safe = chain.get("safe_sentence")
+            if not isinstance(safe, dict):
+                continue
+            text = str(safe.get("safe_sentence_candidate_tr") or "").strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            result.append(text)
+            if len(result) >= limit:
+                break
+    return result
 
 def _feature_surface_current(full_spine: dict[str, Any]) -> bool:
     engineering = full_spine.get("engineering_evidence")
