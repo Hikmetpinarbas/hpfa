@@ -1059,6 +1059,13 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     assert result["card_count"] == 1
     card = result["cards"][0]
     safe = card["safe_finding_context"]
+    assert card["source_mechanism_review_ref"] == "gsvfd_1"
+    assert card["source_process_variant_family_ref"] == "opvf_1"
+    assert card["source_first_supported_branch_divergence_refs"] == ["fsbd_1"]
+    assert card["source_safe_finding_handoff_refs"] == ["sfh_1"]
+    assert safe["safe_finding_handoff_refs"] == ["sfh_1"]
+    assert safe["source_first_supported_branch_divergence_refs"] == ["fsbd_1"]
+    assert safe["source_process_variant_family_ref"] == "opvf_1"
     assert safe["score_state_consensus"] is True
     assert safe["score_state_candidate"] == {"Alpha": 0, "Beta": 0}
     assert safe["provider_process_family_consensus"] is True
@@ -1083,6 +1090,13 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     assert player["aggregate_context_is_causal_contribution_truth"] is False
 
     review = card["analyst_review_contract"]
+    lineage = review["evidence_lineage"]
+    assert lineage["source_mechanism_review_ref"] == "gsvfd_1"
+    assert lineage["source_process_variant_family_ref"] == "opvf_1"
+    assert lineage["source_first_supported_branch_divergence_refs"] == ["fsbd_1"]
+    assert lineage["source_safe_finding_handoff_refs"] == ["sfh_1"]
+    assert lineage["lineage_creates_new_evidence"] is False
+    assert lineage["lineage_strengthens_claim"] is False
     assert review["what_visible"]["resolved_variant_n"] == 3
     assert review["what_visible"]["positive_visible_variant_n"] == 2
     assert review["what_visible"]["negative_visible_variant_n"] == 1
