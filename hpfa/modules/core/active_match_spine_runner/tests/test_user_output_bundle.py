@@ -242,6 +242,87 @@ def test_analyst_report_surfaces_review_bounded_variant_contrasts_without_succes
     assert "success/failure etiketi atanmaz" in text
     assert "bagimsiz kanit degildir" in text
 
+
+
+def test_analyst_report_surfaces_emit_candidate_without_promoting_release(tmp_path):
+    (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
+        json.dumps(_feature_payload()), encoding="utf-8"
+    )
+    full = _full_spine()
+    full["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+    full["rich_multiformat_analysis_lattice"] = {
+        "status": "REVIEW_REQUIRED",
+        "review_hits": [],
+        "entity_views": {
+            "player_view_candidates": [],
+            "team_view_candidates": [],
+            "goalkeeper_view_candidates": [],
+            "observed_metric_cell_count": 0,
+        },
+        "constructs": {"C01": {}},
+        "phase_state_candidates": [],
+        "primitive_metrics": [],
+        "analysis_lattice": {},
+        "progression_pool_p02": {
+            "p02_team_pool_items": [
+                {"team_identity_candidate_id": "teamc_A", "team_candidate": "Team A"},
+            ],
+            "process_units": {"opponent_response_summary_by_team": []},
+            "process_unit_comparisons": {"process_unit_comparison_populations": []},
+            "professional_finding_target_candidates": [
+                {
+                    "finding_status": "EMIT_CANDIDATE",
+                    "finding_admission_decision": "EMIT_CANDIDATE",
+                    "finding_admission_reasons": [],
+                    "exact_context": {
+                        "team_identity_candidate_id": "teamc_A",
+                        "period_candidate": "1",
+                        "score_state_candidate": "LEVEL",
+                        "process_start_zone_candidate": "MIDDLE_THIRD",
+                    },
+                    "resolved_target_state_denominator": 4,
+                    "target_observed_visible_count": 2,
+                    "target_not_observed_complete_path_count": 2,
+                    "target_state_unresolved_count": 0,
+                    "visible_variant_family_count": 3,
+                    "admitted_opposite_counterevidence_pair_count": 1,
+                    "WHAT_VISIBLE": "bounded visible variation",
+                    "SAFE_MEANING": "bounded match-local meaning only",
+                    "visible_exit_class_distribution": {"TEAM_HANDOVER_BOUNDARY_VISIBLE": 2},
+                    "opponent_response_status_distribution": {"EXACT_HANDOVER_BOUNDARY_LINKED": 2},
+                },
+                {
+                    "finding_status": "REVIEW_REQUIRED",
+                    "finding_admission_decision": "REVIEW_REQUIRED",
+                    "finding_admission_reasons": ["target_state_unresolved_burden_present"],
+                    "exact_context": {
+                        "team_identity_candidate_id": "teamc_A",
+                        "period_candidate": "2",
+                        "score_state_candidate": "LEVEL",
+                        "process_start_zone_candidate": "DEFENSIVE_THIRD",
+                    },
+                    "resolved_target_state_denominator": 3,
+                    "target_observed_visible_count": 1,
+                    "target_not_observed_complete_path_count": 2,
+                    "target_state_unresolved_count": 1,
+                    "visible_variant_family_count": 3,
+                    "admitted_opposite_counterevidence_pair_count": 1,
+                    "WHAT_VISIBLE": "review bounded visible variation",
+                    "SAFE_MEANING": "review bounded match-local meaning only",
+                    "visible_exit_class_distribution": {},
+                    "opponent_response_status_distribution": {},
+                },
+            ],
+        },
+    }
+    text = build_analyst_report(tmp_path, full)
+    assert "[EMIT_CANDIDATE] Team A" in text
+    assert "[REVIEW_REQUIRED] Team A" in text
+    assert "ADMISSION_REASONS: []" in text
+    assert "target_state_unresolved_burden_present" in text
+    assert "Admission summary: EMIT_CANDIDATE=1; REVIEW_REQUIRED=1" in text
+    assert "EMIT_CANDIDATE release veya production claim degildir." in text
+
 def test_fail_closed_report_does_not_consume_stale_feature_artifact(tmp_path):
     (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
         json.dumps(_feature_payload()), encoding="utf-8"
