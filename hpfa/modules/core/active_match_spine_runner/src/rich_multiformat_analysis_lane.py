@@ -237,40 +237,147 @@ def _score_state_timeline_candidates(
                 "time_layer_ref": layer.get("episode_time_layer_candidate_id"),
             }
 
-    raw_goal_changes: list[dict[str, Any]] = []
+    semantic_goal_rows: list[dict[str, Any]] = []
     for row in semantics.get("context_action_semantic_records") or []:
         if not isinstance(row, dict):
             continue
-        if str(row.get("source_role") or "") != "TEAM":
-            continue
         if str(row.get("provider_semantics_review_status") or "") != "REVIEWED_CANDIDATE":
             continue
-        if str(row.get("provider_semantic_role_candidate") or "") != "TERMINAL_OUTCOME_CANDIDATE":
-            continue
         if str(row.get("provider_terminal_outcome_candidate") or "") != "GOAL":
-            continue
-        if str(row.get("provider_downstream_eligibility") or "") != "TERMINAL_OUTCOME_ONLY":
             continue
         context_id = str(row.get("context_id") or "")
         time_row = context_time.get(context_id)
         if not time_row:
             continue
+        second = time_row.get("second_candidate")
+        if not isinstance(second, (int, float)):
+            continue
+        semantic_goal_rows.append({
+            "row": row,
+            "context_id": context_id,
+            "period_candidate": str(time_row.get("period_candidate") or ""),
+            "second_candidate": float(second),
+            "time_layer_ref": time_row.get("time_layer_ref"),
+            "same_time_unordered": bool(time_row.get("same_time_unordered")),
+        })
+
+    rows_by_time: dict[tuple[str, float], list[dict[str, Any]]] = defaultdict(list)
+    for item in semantic_goal_rows:
+        rows_by_time[(item["period_candidate"], item["second_candidate"])].append(item)
+
+    raw_goal_changes: list[dict[str, Any]] = []
+    direct_team_goal_keys: set[tuple[str, str, float]] = set()
+    for item in semantic_goal_rows:
+        row = item["row"]
+        if str(row.get("source_role") or "") != "TEAM":
+            continue
+        if str(row.get("provider_semantic_role_candidate") or "") != "TERMINAL_OUTCOME_CANDIDATE":
+            continue
+        if str(row.get("provider_downstream_eligibility") or "") != "TERMINAL_OUTCOME_ONLY":
+            continue
         alias = str(row.get("context_team_candidate") or "").strip().casefold()
         team_id = alias_map.get(alias)
         if not team_id:
             continue
-        second = time_row.get("second_candidate")
-        if not isinstance(second, (int, float)):
-            continue
+        key = (team_id, item["period_candidate"], item["second_candidate"])
+        direct_team_goal_keys.add(key)
         raw_goal_changes.append({
             "team_identity_candidate_id": team_id,
             "team_candidate": row.get("context_team_candidate"),
-            "period_candidate": time_row.get("period_candidate"),
-            "second_candidate": float(second),
-            "time_layer_ref": time_row.get("time_layer_ref"),
-            "same_time_unordered": bool(time_row.get("same_time_unordered")),
-            "context_ref": context_id,
+            "period_candidate": item["period_candidate"],
+            "second_candidate": item["second_candidate"],
+            "time_layer_ref": item["time_layer_ref"],
+            "same_time_unordered": item["same_time_unordered"],
+            "context_ref": item["context_id"],
+            "supporting_context_refs": [item["context_id"]],
             "row_nucleus_ref": row.get("row_nucleus_candidate_id"),
+            "supporting_row_nucleus_refs": [
+                str(row.get("row_nucleus_candidate_id"))
+            ] if row.get("row_nucleus_candidate_id") else [],
+            "score_change_binding_basis": "BOUND_TEAM_TERMINAL_GOAL",
+            "cross_surface_reflection_used": False,
+            "cross_surface_reflection_is_independent_evidence": False,
+            "score_change_is_validated_goal_truth": False,
+        })
+
+    cross_surface_goal_candidate_count = 0
+    cross_surface_goal_rejected_count = 0
+    for item in semantic_goal_rows:
+        player_row = item["row"]
+        if str(player_row.get("source_role") or "") != "PLAYER":
+            continue
+        if str(player_row.get("provider_semantic_role_candidate") or "") != "TERMINAL_OUTCOME_CANDIDATE":
+            continue
+        if str(player_row.get("provider_downstream_eligibility") or "") != "TERMINAL_OUTCOME_ONLY":
+            continue
+        player_alias = str(player_row.get("context_team_candidate") or "").strip().casefold()
+        scoring_team_id = alias_map.get(player_alias)
+        if not scoring_team_id:
+            continue
+        key = (scoring_team_id, item["period_candidate"], item["second_candidate"])
+        if key in direct_team_goal_keys:
+            continue
+
+        same_time_rows = rows_by_time.get(
+            (item["period_candidate"], item["second_candidate"]),
+            [],
+        )
+        team_reflections = [
+            candidate for candidate in same_time_rows
+            if str(candidate["row"].get("source_role") or "") == "TEAM"
+            and str(candidate["row"].get("provider_semantic_role_candidate") or "")
+            == "TERMINAL_OUTCOME_CANDIDATE"
+            and str(candidate["row"].get("provider_downstream_eligibility") or "")
+            == "TERMINAL_OUTCOME_ONLY"
+        ]
+        goalkeeper_conceded = []
+        for candidate in same_time_rows:
+            row = candidate["row"]
+            if str(row.get("source_role") or "") != "GOALKEEPER":
+                continue
+            if str(row.get("provider_semantic_role_candidate") or "") != "OPPONENT_ACTION_REFERENCE":
+                continue
+            if str(row.get("provider_downstream_eligibility") or "") != "REFERENCE_ONLY":
+                continue
+            goalkeeper_alias = str(row.get("context_team_candidate") or "").strip().casefold()
+            goalkeeper_team_id = alias_map.get(goalkeeper_alias)
+            if not goalkeeper_team_id or goalkeeper_team_id == scoring_team_id:
+                continue
+            if len(bound_team_ids) == 2 and goalkeeper_team_id not in bound_team_ids:
+                continue
+            goalkeeper_conceded.append(candidate)
+
+        if not team_reflections or not goalkeeper_conceded:
+            cross_surface_goal_rejected_count += 1
+            continue
+
+        support_rows = [item, *team_reflections, *goalkeeper_conceded]
+        cross_surface_goal_candidate_count += 1
+        raw_goal_changes.append({
+            "team_identity_candidate_id": scoring_team_id,
+            "team_candidate": player_row.get("context_team_candidate"),
+            "period_candidate": item["period_candidate"],
+            "second_candidate": item["second_candidate"],
+            "time_layer_ref": item["time_layer_ref"],
+            "same_time_unordered": any(
+                bool(candidate.get("same_time_unordered"))
+                for candidate in support_rows
+            ),
+            "context_ref": item["context_id"],
+            "supporting_context_refs": sorted({
+                str(candidate["context_id"]) for candidate in support_rows
+            }),
+            "row_nucleus_ref": player_row.get("row_nucleus_candidate_id"),
+            "supporting_row_nucleus_refs": sorted({
+                str(candidate["row"].get("row_nucleus_candidate_id"))
+                for candidate in support_rows
+                if candidate["row"].get("row_nucleus_candidate_id")
+            }),
+            "score_change_binding_basis": (
+                "PLAYER_GOAL_PLUS_TEAM_REFLECTION_PLUS_OPPONENT_GK_CONCEDED"
+            ),
+            "cross_surface_reflection_used": True,
+            "cross_surface_reflection_is_independent_evidence": False,
             "score_change_is_validated_goal_truth": False,
         })
 
@@ -302,12 +409,31 @@ def _score_state_timeline_candidates(
             "team_identity_candidate_id": team_id,
             "period_candidate": period,
             "second_candidate": second,
-            "supporting_context_refs": sorted({str(row["context_ref"]) for row in rows}),
-            "supporting_row_nucleus_refs": sorted({
-                str(row.get("row_nucleus_ref"))
+            "supporting_context_refs": sorted({
+                str(ref)
                 for row in rows
-                if row.get("row_nucleus_ref")
+                for ref in (row.get("supporting_context_refs") or [row.get("context_ref")])
+                if ref
             }),
+            "supporting_row_nucleus_refs": sorted({
+                str(ref)
+                for row in rows
+                for ref in (
+                    row.get("supporting_row_nucleus_refs")
+                    or ([row.get("row_nucleus_ref")] if row.get("row_nucleus_ref") else [])
+                )
+                if ref
+            }),
+            "score_change_binding_bases": sorted({
+                str(row.get("score_change_binding_basis"))
+                for row in rows
+                if row.get("score_change_binding_basis")
+            }),
+            "cross_surface_reflection_used": any(
+                row.get("cross_surface_reflection_used") is True
+                for row in rows
+            ),
+            "cross_surface_reflection_is_independent_evidence": False,
             "collapsed_reflection_count": max(0, len(rows) - 1),
             "same_time_unordered": any(bool(row.get("same_time_unordered")) for row in rows),
             "score_change_kind": "GOAL_TERMINAL_OUTCOME_CANDIDATE",
@@ -320,6 +446,9 @@ def _score_state_timeline_candidates(
         "goal_score_change_candidate_count": len(goal_changes),
         "goal_score_change_candidates": goal_changes,
         "collapsed_goal_reflection_count": collapsed_goal_reflection_count,
+        "cross_surface_goal_candidate_count": cross_surface_goal_candidate_count,
+        "cross_surface_goal_rejected_count": cross_surface_goal_rejected_count,
+        "cross_surface_goal_reflection_is_independent_evidence": False,
         "score_state_requires_exactly_two_bound_teams": True,
         "source_row_order_is_temporal_truth": False,
         "same_timestamp_internal_ordering_allowed": False,
