@@ -361,7 +361,7 @@ def test_human_reports_render_team_process_and_mechanism_in_football_language(tm
     en = build_human_analyst_report_en(tmp_path, spine)
 
     assert "Galatasaray: Sistem bu maçta 12 görünür oyun sürecini" in tr
-    assert "MEKANİZMA KARTI 1 | TAKIM=Galatasaray | DÖNEM=1. devre | TRACE=pas → pas" in tr
+    assert "MEKANİZMA KARTI 1 | SINIF=ANA MEKANİZMA ADAYI | TAKIM=Galatasaray | DÖNEM=1. devre | TRACE=pas → pas" in tr
     assert "İnceleme noktası 1: Galatasaray, 1. devre. pas → pas bağlantısı" in tr
     assert "hangi aksiyon veya bağlam değişiminin sonuçları ayırdığı" in tr
     assert "MEKANİZMA ADAYLARI" not in tr
@@ -370,7 +370,7 @@ def test_human_reports_render_team_process_and_mechanism_in_football_language(tm
     assert "grammar_signature_tokens" not in tr
 
     assert "Galatasaray: The system linked 12 visible match processes" in en
-    assert "MECHANISM CARD 1 | TEAM=Galatasaray | PERIOD=first half | TRACE=pass → pass" in en
+    assert "MECHANISM CARD 1 | CLASS=MAIN MECHANISM CANDIDATE | TEAM=Galatasaray | PERIOD=first half | TRACE=pass → pass" in en
     assert "Review point 1: Galatasaray, first half. The pass → pass connection" in en
     assert "which subsequent action or context change separates those outcomes" in en
     assert "MECHANISM CANDIDATES" not in en
