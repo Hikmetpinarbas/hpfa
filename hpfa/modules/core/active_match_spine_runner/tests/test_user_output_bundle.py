@@ -308,6 +308,8 @@ def test_analyst_report_surfaces_football_process_mechanisms_without_internal_co
         "primitive_metrics": [],
         "analysis_lattice": {},
         "progression_pool_p02": {
+            "penalty_area_access_evaluation_status": "UNOBSERVABLE_WITH_CURRENT_DATA",
+            "penalty_area_access_evaluable": False,
             "p02_team_pool_items": [
                 {"team_identity_candidate_id": "teamc_A", "team_candidate": "Team A"},
                 {"team_identity_candidate_id": "teamc_B", "team_candidate": "Team B"},
@@ -376,5 +378,7 @@ def test_analyst_report_surfaces_football_process_mechanisms_without_internal_co
     assert "takim el degistirme=2" in text
     assert "Recovery sonrasi ayni takimin yeniden hucum devami:" in text
     assert "ayni surecteki coklu pencereler bagimsiz kanit sayilmaz" in text
+    assert "ceza sahasi erisimi bu surec-bolge yuzeyinde mevcut veriyle gozlenemiyor" in text
+    assert "ceza-sahasi gorundu=0" not in text
     assert "ANCHOR:" not in text
     assert "process_unit" not in text
