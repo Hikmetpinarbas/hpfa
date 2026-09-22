@@ -554,6 +554,7 @@ def test_bundle_uses_producer_write_ledger_even_when_content_unchanged(tmp_path)
     assert Path(result["analyst_report"]).name == ANALYST_REPORT
     assert Path(result["analyst_report_tr"]).name == ANALYST_REPORT_TR
     assert Path(result["analyst_report_en"]).name == ANALYST_REPORT_EN
+    assert Path(result["mechanism_cards_graph_ready"]).name == "HPFA_MECHANISM_CARDS_GRAPH_READY.json"
     assert Path(result["bundle_zip"]).name == BUNDLE_ZIP
     assert Path(result["bundle_manifest"]).name == BUNDLE_MANIFEST
 
@@ -567,6 +568,7 @@ def test_bundle_uses_producer_write_ledger_even_when_content_unchanged(tmp_path)
     assert ANALYST_REPORT in names
     assert ANALYST_REPORT_TR in names
     assert ANALYST_REPORT_EN in names
+    assert "HPFA_MECHANISM_CARDS_GRAPH_READY.json" in names
     assert BUNDLE_MANIFEST in names
     assert "stale_previous_run.txt" not in names
 
@@ -576,6 +578,50 @@ def test_bundle_uses_producer_write_ledger_even_when_content_unchanged(tmp_path)
     assert manifest["feature_surface_current_invocation"] is True
     assert manifest["canonical_event_count"] == "UNKNOWN"
     assert manifest["production_release"] is False
+
+
+def test_graph_ready_mechanism_card_payload_preserves_review_scope(tmp_path):
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    feature_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
+    identity_path.write_text(json.dumps({
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_1", "team_normalized_key": "galatasaray"}
+        ]
+    }), encoding="utf-8")
+    feature_path.write_text(json.dumps({
+        "status": "PASS",
+        "grammar_stable_variant_feature_delta_records": [{
+            "grammar_stable_variant_feature_delta_id": "gsvfd_graph",
+            "source_process_variant_family_ref": "family_graph",
+            "team_identity_candidate_ids": ["team_1"],
+            "period_candidates": ["2"],
+            "grammar_signature_tokens": ["LAYER[PASS]", "LAYER[PASS]"],
+            "resolved_variant_count": 10,
+            "success_resolved_variant_count": 8,
+            "failure_resolved_variant_count": 2,
+            "visible_episode_spread_count": 3,
+            "occurrence_disjoint_support_cluster_count": 3,
+            "success_failure_supported_branch_divergence_count": 2,
+            "first_supported_context_difference_layer_candidate": 0,
+            "first_supported_consequence_difference_layer_candidate": 1,
+            "consequence_feature_difference_candidates": [{"feature_token": "x"}],
+        }]
+    }), encoding="utf-8")
+    spine = _full_spine(current_artifacts=[str(identity_path), str(feature_path)])
+
+    payload = user_output_bundle.build_graph_ready_mechanism_cards_payload(tmp_path, spine)
+
+    assert payload["canonical_event_count"] == "UNKNOWN"
+    assert payload["true_action_count"] == "UNKNOWN"
+    assert payload["production_release"] is False
+    assert payload["graphability_does_not_strengthen_evidence"] is True
+    assert payload["card_count"] >= 1
+    card = payload["cards"][0]
+    assert card["graphability_state"] == "GRAPH_READY_WITH_REVIEW"
+    assert card["can_authorize_emit"] is False
+    assert card["creates_new_evidence"] is False
+    assert card["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_VARIANT_MECHANISM_CANDIDATE_ONLY"
+    assert "VISIBLE_OUTCOME_SPLIT_BAR" in card["graph_recommendations"]
 
 
 def test_bundle_rejects_declared_nested_or_outside_paths(tmp_path):
