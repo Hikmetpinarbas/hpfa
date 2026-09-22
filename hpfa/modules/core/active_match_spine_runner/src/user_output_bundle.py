@@ -365,6 +365,17 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
             entry_layer_turnovers = int(row.get("final_third_entry_process_with_entry_layer_turnover_count") or 0)
             entry_layer_crosses = int(row.get("final_third_entry_process_with_entry_layer_cross_count") or 0)
             no_later_layer = int(row.get("final_third_entry_process_with_no_later_visible_layer_count") or 0)
+            variant_facets = row.get("final_third_entry_post_entry_variant_facet_counts") or {}
+            variant_text = (
+                "entry-only={entry_only}, post-entry-shot={shot}, post-entry-cross={cross}, "
+                "post-entry-turnover={turnover}, other-continuation={other}"
+            ).format(
+                entry_only=int(variant_facets.get("ENTRY_ONLY_NO_LATER_VISIBLE_LAYER") or 0),
+                shot=int(variant_facets.get("POST_ENTRY_SHOT_VISIBLE") or 0),
+                cross=int(variant_facets.get("POST_ENTRY_CROSS_VISIBLE") or 0),
+                turnover=int(variant_facets.get("POST_ENTRY_TURNOVER_VISIBLE") or 0),
+                other=int(variant_facets.get("POST_ENTRY_OTHER_VISIBLE_CONTINUATION") or 0),
+            )
             max_windows = int(row.get("max_anchor_windows_within_single_process_unit") or 0)
             boundary_text = _readable_boundary_counts(row.get("final_third_entry_process_end_reason_counts") or {})
             lines.append(
@@ -376,6 +387,7 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
                 f"SONRA gorunen aktivite: sut={post_entry_shots}, turnover={post_entry_turnovers}, cross={post_entry_crosses}; "
                 f"girisle AYNI zaman-katmaninda: sut={entry_layer_shots}, turnover={entry_layer_turnovers}, "
                 f"cross={entry_layer_crosses}; giristen sonra yeni gorunur katmani olmayan surec={no_later_layer}. "
+                f"Post-entry varyant facetleri: {variant_text}. Bu facetler birbirini dislamaz. "
                 f"Gorunur bitisler: {boundary_text}."
             )
 
@@ -398,12 +410,24 @@ def _p02_process_mechanism_lines(rich: dict[str, Any]) -> list[str]:
             shots = int(row.get("process_unit_with_shot_activity_after_anchor_count") or 0)
             post_entry_shots = int(row.get("final_third_entry_process_with_post_entry_shot_count") or 0)
             entry_layer_shots = int(row.get("final_third_entry_process_with_entry_layer_shot_count") or 0)
+            recovery_variant_facets = row.get("final_third_entry_post_entry_variant_facet_counts") or {}
+            recovery_variant_text = (
+                "entry-only={entry_only}, post-entry-shot={shot}, post-entry-cross={cross}, "
+                "post-entry-turnover={turnover}, other-continuation={other}"
+            ).format(
+                entry_only=int(recovery_variant_facets.get("ENTRY_ONLY_NO_LATER_VISIBLE_LAYER") or 0),
+                shot=int(recovery_variant_facets.get("POST_ENTRY_SHOT_VISIBLE") or 0),
+                cross=int(recovery_variant_facets.get("POST_ENTRY_CROSS_VISIBLE") or 0),
+                turnover=int(recovery_variant_facets.get("POST_ENTRY_TURNOVER_VISIBLE") or 0),
+                other=int(recovery_variant_facets.get("POST_ENTRY_OTHER_VISIBLE_CONTINUATION") or 0),
+            )
             lines.append(
                 f"- {team_name}: recovery -> pas -> pas yolu {units} benzersiz oyun surecine baglandi; "
                 f"yeni final-third girisi={entries}, final-third icinde devam={continuations}, "
                 f"final-third'e ulasmayan={no_final_third}, bolgesi cozulmeyen={unresolved}, "
                 f"recovery sonrasinda ayni surecte sut aktivitesi={shots}; yeni final-third girisinden SONRA "
-                f"sut aktivitesi={post_entry_shots}, girisle AYNI zaman-katmaninda sut aktivitesi={entry_layer_shots}."
+                f"sut aktivitesi={post_entry_shots}, girisle AYNI zaman-katmaninda sut aktivitesi={entry_layer_shots}. "
+                f"Post-entry varyant facetleri: {recovery_variant_text}; facetler birbirini dislamaz."
             )
 
     post_loss_by_team = {
