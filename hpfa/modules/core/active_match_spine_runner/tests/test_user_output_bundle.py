@@ -162,6 +162,86 @@ def test_analyst_report_surfaces_current_p02_turnover_response_without_overclaim
     assert "EVENT bu gozlem evreninin yalniz bir ailesidir" in text
 
 
+
+
+def test_analyst_report_surfaces_review_bounded_variant_contrasts_without_success_label(tmp_path):
+    (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
+        json.dumps(_feature_payload()), encoding="utf-8"
+    )
+    full = _full_spine()
+    full["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+    full["rich_multiformat_analysis_lattice"] = {
+        "status": "REVIEW_REQUIRED",
+        "review_hits": [],
+        "entity_views": {
+            "player_view_candidates": [],
+            "team_view_candidates": [],
+            "goalkeeper_view_candidates": [],
+            "observed_metric_cell_count": 0,
+        },
+        "constructs": {"C01": {}},
+        "phase_state_candidates": [],
+        "primitive_metrics": [],
+        "analysis_lattice": {},
+        "progression_pool_p02": {
+            "p02_team_pool_items": [
+                {"team_identity_candidate_id": "teamc_A", "team_candidate": "Team A"},
+            ],
+            "process_units": {"opponent_response_summary_by_team": []},
+            "process_unit_comparisons": {
+                "process_unit_comparison_populations": [
+                    {
+                        "status": "POPULATION_ELIGIBLE",
+                        "member_count": 4,
+                        "variant_family_count": 3,
+                        "reference_context": {
+                            "team_identity_candidate_id": "teamc_A",
+                            "period_candidate": "1",
+                            "score_state_candidate": "LEVEL",
+                            "process_start_zone_candidate": "MIDDLE_THIRD",
+                        },
+                        "terminal_activity_distribution": {
+                            "TEAM_HANDOVER_BOUNDARY_VISIBLE": 2,
+                            "TIME_GAP_BOUNDARY_VISIBLE": 2,
+                        },
+                        "end_zone_distribution": {
+                            "FINAL_THIRD": 2,
+                            "MIDDLE_THIRD": 2,
+                        },
+                        "pairwise_comparison_candidates": [
+                            {
+                                "outcome_relation": "OPPOSITE",
+                                "variant_contrast_dimensions": [
+                                    "visible_exit_class_candidate",
+                                    "opponent_response_status",
+                                ],
+                                "success_failure_label": "NOT_ASSIGNED",
+                            },
+                            {
+                                "outcome_relation": "SAME",
+                                "variant_contrast_dimensions": [
+                                    "opponent_advanced_access_state_candidate",
+                                ],
+                                "success_failure_label": "NOT_ASSIGNED",
+                            },
+                        ],
+                    }
+                ]
+            },
+        },
+    }
+    text = build_analyst_report(tmp_path, full)
+    assert "GORUNUR VARYANT KARSILASTIRMASI — REVIEW-BOUNDED" in text
+    assert "Team A" in text
+    assert "4 process-unit" in text
+    assert "3 gorunur varyant ailesi" in text
+    assert "Advanced-access sonucu farkli pair=1" in text
+    assert "exit-class farki=1" in text
+    assert "rakip-response durumu farki=1" in text
+    assert "rakibin sonraki advanced-access sonucu farki=1" in text
+    assert "success/failure etiketi atanmaz" in text
+    assert "bagimsiz kanit degildir" in text
+
 def test_fail_closed_report_does_not_consume_stale_feature_artifact(tmp_path):
     (tmp_path / "episode_feature_vector_lite_v1.json").write_text(
         json.dumps(_feature_payload()), encoding="utf-8"
