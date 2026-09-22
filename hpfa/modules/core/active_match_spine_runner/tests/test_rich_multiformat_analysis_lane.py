@@ -2075,6 +2075,22 @@ def test_p02_same_team_pass_windows_collapse_to_unique_process_units() -> None:
     assert profile["final_third_entry_process_with_no_later_visible_layer_count"] == 0
     assert profile["post_entry_activity_excludes_entry_timestamp_layer"] is True
     assert profile["same_timestamp_entry_layer_internal_order_claimed"] is False
+    assert profile["final_third_entry_process_variant_candidate_count"] == 1
+    variant = profile["final_third_entry_process_variant_candidates"][0]
+    assert set(variant["post_entry_variant_facets"]) == {
+        "POST_ENTRY_SHOT_VISIBLE",
+        "POST_ENTRY_TURNOVER_VISIBLE",
+    }
+    assert variant["entry_layer_facets"] == ["ENTRY_LAYER_CROSS_VISIBLE"]
+    assert variant["variant_facets_are_mutually_exclusive"] is False
+    assert variant["variant_is_success_failure_truth"] is False
+    assert profile["final_third_entry_post_entry_variant_facet_counts"] == {
+        "POST_ENTRY_SHOT_VISIBLE": 1,
+        "POST_ENTRY_TURNOVER_VISIBLE": 1,
+    }
+    assert profile["final_third_entry_entry_layer_facet_counts"] == {
+        "ENTRY_LAYER_CROSS_VISIBLE": 1,
+    }
     assert profile["terminal_boundary_is_process_outcome_truth"] is False
     assert profile["shot_activity_is_chance_quality_truth"] is False
     assert profile["max_anchor_windows_within_single_process_unit"] == 2
