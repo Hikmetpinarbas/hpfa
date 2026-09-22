@@ -1471,7 +1471,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 f"İLK GÖRÜNÜR AYRIŞMA=context L{context_layer}, consequence L{consequence_layer} | "
                 f"YAYILIM={spread} bölüm, {clusters} occurrence-disjoint küme | "
                 f"COUNTEREVIDENCE={','.join(challenge_reasons) if challenge_reasons else 'açık challenge kaydı yok'} | "
-                "CLAIM=maç-içi görünür varyant/mekanizma adayı; neden, taktik plan veya üstünlük truth değildir."
+                "CLAIM=maç-içi görünür varyant/mekanizma adayı; kapsam yalnız görünür varyant, süreç ve sonuç bağlantısıdır."
             )
         else:
             card_class = "LIMITED COMPARISON" if single_episode_only else "MAIN MECHANISM CANDIDATE"
