@@ -927,6 +927,13 @@ def _build_p02_sequence_process_units(
                         "advanced_access_state_candidate": target.get("advanced_access_state_candidate"),
                         "process_start_zone_candidate": target.get("process_start_zone_candidate"),
                         "process_end_zone_candidate": target.get("process_end_zone_candidate"),
+                        "semantic_zone_layer_coverage_complete": (
+                            target.get("semantic_zone_layer_coverage_complete") is True
+                        ),
+                        "semantic_zone_path_candidate": list(
+                            target.get("semantic_zone_path_candidate") or []
+                        ),
+                        "action_family_counts": dict(target.get("action_family_counts") or {}),
                         "visible_exit_class_candidate": target.get("visible_exit_class_candidate"),
                     }
                 else:
@@ -2058,6 +2065,7 @@ def _progression_pool_p02(
         if not isinstance(recurrence, dict):
             continue
         states = Counter()
+        downstream_stage_states = Counter()
         bound_count = 0
         missing_count = 0
         ambiguous_count = 0
@@ -2078,6 +2086,33 @@ def _progression_pool_p02(
                 continue
             bound_count += 1
             states[str(response.get("advanced_access_state_candidate") or "UNRESOLVED")] += 1
+
+            zone_complete = response.get("semantic_zone_layer_coverage_complete") is True
+            zone_path = {
+                str(value)
+                for value in (response.get("semantic_zone_path_candidate") or [])
+                if str(value).strip()
+            }
+            if zone_complete:
+                downstream_stage_states[
+                    "FINAL_THIRD_VISIBLE"
+                    if "FINAL_THIRD" in zone_path
+                    else "NO_FINAL_THIRD_VISIBLE"
+                ] += 1
+                downstream_stage_states[
+                    "PENALTY_AREA_VISIBLE"
+                    if "PENALTY_AREA" in zone_path
+                    else "NO_PENALTY_AREA_VISIBLE"
+                ] += 1
+            else:
+                downstream_stage_states["ZONE_PATH_UNRESOLVED"] += 1
+
+            action_counts = dict(response.get("action_family_counts") or {})
+            downstream_stage_states[
+                "SHOT_ACTIVITY_VISIBLE"
+                if int(action_counts.get("SHOT", 0) or 0) > 0
+                else "NO_SHOT_ACTIVITY_VISIBLE"
+            ] += 1
         consequence_path_severity_candidates.append({
             "visible_consequence_path_signature": recurrence.get("visible_consequence_path_signature"),
             "team_identity_candidate_id": recurrence.get("team_identity_candidate_id"),
@@ -2087,6 +2122,13 @@ def _progression_pool_p02(
             "advanced_access_visible_count": int(states.get("ADVANCED_ACCESS_VISIBLE", 0)),
             "no_advanced_access_visible_count": int(states.get("NO_ADVANCED_ACCESS_VISIBLE_IN_ADMITTED_ZONE_PATH", 0)),
             "access_unresolved_count": int(states.get("UNRESOLVED", 0)),
+            "final_third_visible_count": int(downstream_stage_states.get("FINAL_THIRD_VISIBLE", 0)),
+            "no_final_third_visible_count": int(downstream_stage_states.get("NO_FINAL_THIRD_VISIBLE", 0)),
+            "penalty_area_visible_count": int(downstream_stage_states.get("PENALTY_AREA_VISIBLE", 0)),
+            "no_penalty_area_visible_count": int(downstream_stage_states.get("NO_PENALTY_AREA_VISIBLE", 0)),
+            "zone_path_unresolved_count": int(downstream_stage_states.get("ZONE_PATH_UNRESOLVED", 0)),
+            "shot_activity_visible_count": int(downstream_stage_states.get("SHOT_ACTIVITY_VISIBLE", 0)),
+            "no_shot_activity_visible_count": int(downstream_stage_states.get("NO_SHOT_ACTIVITY_VISIBLE", 0)),
             "handover_not_exact_count": int(states.get("HANDOVER_NOT_EXACT", 0)),
             "process_binding_missing_count": missing_count,
             "process_binding_ambiguous_count": ambiguous_count,
