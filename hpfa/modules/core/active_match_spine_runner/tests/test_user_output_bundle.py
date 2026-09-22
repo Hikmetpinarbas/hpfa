@@ -361,6 +361,7 @@ def test_human_reports_render_team_process_and_mechanism_in_football_language(tm
     en = build_human_analyst_report_en(tmp_path, spine)
 
     assert "Galatasaray: Sistem bu maçta 12 görünür oyun sürecini" in tr
+    assert "MEKANİZMA KARTI 1 | TAKIM=Galatasaray | DÖNEM=1. devre | TRACE=pas → pas" in tr
     assert "İnceleme noktası 1: Galatasaray, 1. devre. pas → pas bağlantısı" in tr
     assert "hangi aksiyon veya bağlam değişiminin sonuçları ayırdığı" in tr
     assert "MEKANİZMA ADAYLARI" not in tr
@@ -369,11 +370,79 @@ def test_human_reports_render_team_process_and_mechanism_in_football_language(tm
     assert "grammar_signature_tokens" not in tr
 
     assert "Galatasaray: The system linked 12 visible match processes" in en
+    assert "MECHANISM CARD 1 | TEAM=Galatasaray | PERIOD=first half | TRACE=pass → pass" in en
     assert "Review point 1: Galatasaray, first half. The pass → pass connection" in en
     assert "which subsequent action or context change separates those outcomes" in en
     assert "MECHANISM CANDIDATES" not in en
     assert "Evidence note:" in en
 
+
+
+def test_unvalidated_actor_aggregate_label_does_not_leak_into_human_mechanism_card(tmp_path):
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    feature_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
+    rich_path = tmp_path / "rich_multiformat_analysis_lattice_v1.json"
+
+    identity_path.write_text(json.dumps({
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_1", "team_normalized_key": "galatasaray"}
+        ],
+        "actor_identity_candidates": [
+            {
+                "actor_identity_candidate_id": "actor_unsafe",
+                "actor_normalized_key": "wrong_plausible_name",
+                "actor_aliases_raw": ["99. Wrong Plausible Name (999999)"],
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "validated_player_identity": False,
+            }
+        ],
+    }), encoding="utf-8")
+    feature_path.write_text(json.dumps({
+        "status": "PASS",
+        "grammar_stable_variant_feature_delta_records": [{
+            "grammar_stable_variant_feature_delta_id": "m_unsafe",
+            "source_process_variant_family_ref": "family_unsafe",
+            "team_identity_candidate_ids": ["team_1"],
+            "period_candidates": ["1"],
+            "grammar_signature_tokens": ["LAYER[PASS]", "LAYER[PASS]"],
+            "resolved_variant_count": 4,
+            "success_resolved_variant_count": 3,
+            "failure_resolved_variant_count": 1,
+            "visible_episode_spread_count": 2,
+            "occurrence_disjoint_support_cluster_count": 2,
+            "first_supported_context_difference_layer_candidate": 0,
+            "first_supported_consequence_difference_layer_candidate": 1,
+            "context_feature_difference_candidates": [{
+                "feature_token": "LAYER[0]::actor_identity_candidate_ids:actor_unsafe",
+                "success_visible_numerator": 3,
+                "success_eligible_denominator": 3,
+                "failure_visible_numerator": 0,
+                "failure_eligible_denominator": 1,
+                "descriptive_rate_delta_success_minus_failure": 1.0,
+            }],
+            "consequence_feature_difference_candidates": [],
+        }]
+    }), encoding="utf-8")
+    rich_path.write_text(json.dumps({
+        "status": "PASS",
+        "constructs": {
+            "C02": {
+                "player_function_profiles": [{
+                    "actor_identity_candidate_id": "actor_unsafe",
+                    "actor_label": "Wrong Plausible Name",
+                    "function_dimensions": {},
+                }]
+            }
+        }
+    }), encoding="utf-8")
+
+    spine = _full_spine(current_artifacts=[str(identity_path), str(feature_path), str(rich_path)])
+    spine["rich_multiformat_analysis_lattice"] = json.loads(rich_path.read_text(encoding="utf-8"))
+    spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+
+    tr = build_human_analyst_report_tr(tmp_path, spine)
+    assert "Wrong Plausible Name" not in tr
+    assert "MEKANİZMA KARTI 1" in tr
 
 
 def test_human_report_exposes_visible_same_team_vs_handover_split_without_causal_claim(tmp_path):
