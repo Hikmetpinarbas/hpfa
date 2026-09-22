@@ -1348,6 +1348,14 @@ def _progression_pool_p02(
     consequence = consequence or {}
     semantics = semantics or {}
     identities = identities or {}
+    penalty_area_access_evaluable = (
+        semantics.get("context_zone_penalty_area_observable") is True
+    )
+    penalty_area_access_evaluation_status = (
+        "EVALUABLE"
+        if penalty_area_access_evaluable
+        else "UNOBSERVABLE_WITH_CURRENT_DATA"
+    )
     visible_sequence = visible_sequence or {}
     trace = trace or {}
     evidence_atoms = evidence_atoms or {}
@@ -2150,8 +2158,17 @@ def _progression_pool_p02(
             "access_unresolved_count": int(states.get("UNRESOLVED", 0)),
             "final_third_visible_count": int(downstream_stage_states.get("FINAL_THIRD_VISIBLE", 0)),
             "no_final_third_visible_count": int(downstream_stage_states.get("NO_FINAL_THIRD_VISIBLE", 0)),
-            "penalty_area_visible_count": int(downstream_stage_states.get("PENALTY_AREA_VISIBLE", 0)),
-            "no_penalty_area_visible_count": int(downstream_stage_states.get("NO_PENALTY_AREA_VISIBLE", 0)),
+            "penalty_area_access_evaluation_status": penalty_area_access_evaluation_status,
+            "penalty_area_visible_count": (
+                int(downstream_stage_states.get("PENALTY_AREA_VISIBLE", 0))
+                if penalty_area_access_evaluable
+                else None
+            ),
+            "no_penalty_area_visible_count": (
+                int(downstream_stage_states.get("NO_PENALTY_AREA_VISIBLE", 0))
+                if penalty_area_access_evaluable
+                else None
+            ),
             "zone_path_unresolved_count": int(downstream_stage_states.get("ZONE_PATH_UNRESOLVED", 0)),
             "shot_activity_visible_count": int(downstream_stage_states.get("SHOT_ACTIVITY_VISIBLE", 0)),
             "no_shot_activity_visible_count": int(downstream_stage_states.get("NO_SHOT_ACTIVITY_VISIBLE", 0)),
@@ -2303,8 +2320,17 @@ def _progression_pool_p02(
             "same_team_process_bound_count": bound_count,
             "final_third_visible_count": int(stage_states.get("FINAL_THIRD_VISIBLE", 0)),
             "no_final_third_visible_count": int(stage_states.get("NO_FINAL_THIRD_VISIBLE", 0)),
-            "penalty_area_visible_count": int(stage_states.get("PENALTY_AREA_VISIBLE", 0)),
-            "no_penalty_area_visible_count": int(stage_states.get("NO_PENALTY_AREA_VISIBLE", 0)),
+            "penalty_area_access_evaluation_status": penalty_area_access_evaluation_status,
+            "penalty_area_visible_count": (
+                int(stage_states.get("PENALTY_AREA_VISIBLE", 0))
+                if penalty_area_access_evaluable
+                else None
+            ),
+            "no_penalty_area_visible_count": (
+                int(stage_states.get("NO_PENALTY_AREA_VISIBLE", 0))
+                if penalty_area_access_evaluable
+                else None
+            ),
             "zone_path_unresolved_count": int(stage_states.get("ZONE_PATH_UNRESOLVED", 0)),
             "shot_activity_visible_count": int(stage_states.get("SHOT_ACTIVITY_VISIBLE", 0)),
             "no_shot_activity_visible_count": int(stage_states.get("NO_SHOT_ACTIVITY_VISIBLE", 0)),
@@ -2483,9 +2509,14 @@ def _progression_pool_p02(
                 1 for value in per_unit.values()
                 if value.get("zone_unresolved") is True
             ),
-            "process_unit_with_penalty_area_entry_count": sum(
-                1 for value in per_unit.values()
-                if value.get("penalty_area_entry_visible") is True
+            "penalty_area_access_evaluation_status": penalty_area_access_evaluation_status,
+            "process_unit_with_penalty_area_entry_count": (
+                sum(
+                    1 for value in per_unit.values()
+                    if value.get("penalty_area_entry_visible") is True
+                )
+                if penalty_area_access_evaluable
+                else None
             ),
             "process_unit_with_shot_activity_after_anchor_count": sum(
                 1 for value in per_unit.values()
@@ -2669,6 +2700,19 @@ def _progression_pool_p02(
         "process_units": process_units,
         "process_unit_comparisons": process_unit_comparisons,
         "visible_consequence_path_severity_candidates": consequence_path_severity_candidates,
+        "context_zone_ontology_id": semantics.get("context_zone_ontology_id"),
+        "context_zone_domain": list(semantics.get("context_zone_domain") or []),
+        "final_third_access_evaluable": semantics.get("context_zone_final_third_observable") is True,
+        "penalty_area_access_evaluable": penalty_area_access_evaluable,
+        "penalty_area_access_evaluation_status": penalty_area_access_evaluation_status,
+        "penalty_area_access_unobservable_reason": (
+            None
+            if penalty_area_access_evaluable
+            else (
+                semantics.get("context_zone_penalty_area_unobservable_reason")
+                or "PENALTY_AREA_NOT_IN_ADMITTED_ZONE_ONTOLOGY"
+            )
+        ),
         "visible_consequence_path_severity_candidate_count": len(consequence_path_severity_candidates),
         "visible_consequence_path_severity_scope": "POST_LOSS_OPPONENT_RESPONSE_ONLY",
         "non_loss_recurrence_severity_not_evaluated_count": non_loss_recurrence_not_evaluated_count,
