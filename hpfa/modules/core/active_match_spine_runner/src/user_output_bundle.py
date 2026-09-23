@@ -744,7 +744,7 @@ def _human_aerial_duel_cards(rich: dict[str, Any], identity: dict[str, Any], lan
             evidence = (
                 f"Kanıt notu: {values['mixed_team_review']} örnek aynı zaman katmanında iki takım içerdiği için review-required, "
                 f"{values['no_visible_followup']} örnekte görünür follow-up yok. Provider hava topu sonucu top kontrolü, "
-                "possession veya ikinci top hâkimiyeti gerçeği değildir; yalnız ilk strikt-sonraki görünür takım durumu raporlanır."
+                "Claim scope yalnız ilk strikt-sonraki görünür takım durumuyla sınırlıdır; top kontrolü, possession ve ikinci top hâkimiyeti için ayrı observation gerekir."
             )
         else:
             football = (
