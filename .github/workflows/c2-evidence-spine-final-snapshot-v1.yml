@@ -2,6 +2,26 @@ name: C2 Evidence Spine Final Snapshot V1
 
 on:
   pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'requirements.txt'
+      - '.github/workflows/c2-evidence-spine-final-snapshot-v1.yml'
+      - 'evidence_atom_inventory_lite.py'
+      - 'match_local_identity_candidates_lite.py'
+      - 'semantic_role_action_bundle_candidates_lite.py'
+      - 'action_bundle_multi_family_review_taxonomy_current_v1.py'
+      - 'cross_role_relation_candidate_resolver_current_v1.py'
+      - 'action_occurrence_admission_current_v1.py'
+      - 'trackable_action_trace_candidates_current_v1.py'
+      - 'occurrence_active_match_evidence_package_current_v1.py'
+      - 'tools/bootstrap_termux_c2_evidence_spine_current_v1.sh'
+      - 'hpfa/modules/core/evidence_atom_inventory_lite/**'
+      - 'hpfa/modules/core/match_local_identity_candidates_lite/**'
+      - 'hpfa/modules/core/semantic_role_action_bundle_candidates_lite/**'
+      - 'hpfa/modules/core/action_bundle_multi_family_review_taxonomy_lite/**'
+      - 'hpfa/modules/core/cross_role_relation_candidate_resolver_lite/**'
+      - 'hpfa/modules/core/action_occurrence_admission_lite/**'
+      - 'hpfa/modules/core/trackable_action_trace_candidates_lite/**'
   workflow_dispatch:
 
 permissions:

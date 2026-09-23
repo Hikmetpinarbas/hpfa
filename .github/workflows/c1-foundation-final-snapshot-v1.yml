@@ -2,6 +2,25 @@ name: C1 Foundation Final Snapshot V1
 
 on:
   pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'requirements.txt'
+      - '.github/workflows/c1-foundation-final-snapshot-v1.yml'
+      - 'configs/metrics/**'
+      - 'hpfa/modules/core/multiformat_file_inventory_lite/**'
+      - 'hpfa/modules/core/csv_surface_reader_lite/**'
+      - 'hpfa/modules/core/xlsx_surface_reader_lite/**'
+      - 'hpfa/modules/core/xml_surface_reader_lite/**'
+      - 'hpfa/modules/core/provider_alias_field_semantics_lite/**'
+      - 'hpfa/modules/core/provider_label_value_semantics_lite/**'
+      - 'hpfa/modules/core/content_source_role_resolver_lite/**'
+      - 'hpfa/modules/core/cross_format_reconciliation_lite/**'
+      - 'hpfa/modules/core/metric_definition_policy_lite/**'
+      - 'hpfa/modules/core/metric_family_registry_lite/**'
+      - 'hpfa/modules/core/aggregate_definition_alignment_lite/**'
+      - 'hpfa/modules/core/provider_metric_dictionary_lite/**'
+      - 'hpfa/modules/core/triangulated_event_reflection_resolver_lite/**'
+      - 'hpfa/modules/core/row_nucleus_inventory_lite/**'
   workflow_dispatch:
 
 permissions:
