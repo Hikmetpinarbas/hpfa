@@ -162,6 +162,19 @@
       ]
     },
     {
+      "stage_id": "R01",
+      "owner_id": "rich_multiformat_analysis_lattice_v1",
+      "artifact_name": "rich_multiformat_analysis_lattice_v1.json",
+      "object_path": "r01_ball_progression_system_synthesis",
+      "required_when_artifact_current": true,
+      "epistemic_type": "MATCH_LOCAL_VISIBLE_BALL_PROGRESSION_SYSTEM_CANDIDATE",
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_BALL_PROGRESSION_SYSTEM_CANDIDATE_ONLY",
+      "allowed_downstream_stage_classes": [
+        "F",
+        "T"
+      ]
+    },
+    {
       "stage_id": "O01",
       "owner_id": "row_nucleus_inventory_lite_v1",
       "artifact_name": "row_nucleus_inventory_lite_v1.json",
