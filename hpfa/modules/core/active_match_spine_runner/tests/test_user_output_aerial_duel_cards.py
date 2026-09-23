@@ -1,4 +1,12 @@
-from hpfa.modules.core.active_match_spine_runner.src.user_output_bundle import _human_aerial_duel_cards
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[5]
+SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from user_output_bundle import _human_aerial_duel_cards
 
 
 def _rich(rows):
