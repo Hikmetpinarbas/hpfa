@@ -21,6 +21,7 @@ from hpfa.modules.core.active_match_spine_runner.src.process_mix_change import b
 from hpfa.modules.core.active_match_spine_runner.src.aerial_duel_first_visible_state import build_aerial_duel_first_visible_state_context
 from hpfa.modules.core.active_match_spine_runner.src.score_state_visible_process_outcome import build_score_state_visible_process_outcome_context
 from hpfa.modules.core.active_match_spine_runner.src.process_route_breadth import build_visible_process_route_breadth_profile
+from hpfa.modules.core.active_match_spine_runner.src.player_score_state_process_participation import build_player_score_state_process_participation
 
 MODULE_ID = "rich_multiformat_analysis_lattice_v1"
 OUTPUT_JSON = "rich_multiformat_analysis_lattice_v1.json"
@@ -3773,6 +3774,11 @@ def run_rich_lane(
         identity_payload,
         process_participation_payload,
     )
+    player_score_state_process_participation = build_player_score_state_process_participation(
+        game_state_context,
+        identity_payload,
+        process_participation_payload,
+    )
     time_window_process_mix_change_context = build_time_window_process_mix_change_context(
         process_participation_payload,
     )
@@ -3853,6 +3859,7 @@ def run_rich_lane(
         "phase_state_candidates": phase_states,
         "game_state_context": game_state_context,
         "game_state_process_mix_context": game_state_process_mix_context,
+        "player_score_state_process_participation": player_score_state_process_participation,
         "time_window_process_mix_change_context": time_window_process_mix_change_context,
         "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
         "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
@@ -3868,6 +3875,7 @@ def run_rich_lane(
                 "goalkeeper_view_candidates": entity_views.get("goalkeeper_view_candidates"),
                 "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
                 "aerial_duel_first_visible_state_context": aerial_duel_first_visible_state_context,
+                "player_score_state_process_participation": player_score_state_process_participation,
                 "primitive_metrics": primitives,
             },
             "MEZZO": {
