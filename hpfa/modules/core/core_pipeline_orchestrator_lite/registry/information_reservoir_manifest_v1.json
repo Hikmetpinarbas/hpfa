@@ -134,6 +134,20 @@
       ]
     },
     {
+      "stage_id": "M01",
+      "owner_id": "rich_multiformat_analysis_lattice_v1",
+      "artifact_name": "rich_multiformat_analysis_lattice_v1.json",
+      "object_path": "m01_possession_construction_synthesis",
+      "required_when_artifact_current": true,
+      "epistemic_type": "MATCH_LOCAL_VISIBLE_POSSESSION_CONSTRUCTION_CONTEXT_CANDIDATE",
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_POSSESSION_CONSTRUCTION_CONTEXT_CANDIDATE_ONLY",
+      "allowed_downstream_stage_classes": [
+        "R",
+        "F",
+        "T"
+      ]
+    },
+    {
       "stage_id": "M02",
       "owner_id": "rich_multiformat_analysis_lattice_v1",
       "artifact_name": "rich_multiformat_analysis_lattice_v1.json",
