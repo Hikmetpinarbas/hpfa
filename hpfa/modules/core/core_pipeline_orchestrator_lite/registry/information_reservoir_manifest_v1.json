@@ -1,0 +1,191 @@
+{
+  "manifest_id": "information_reservoir_manifest_v1",
+  "status": "CURRENT_OWNER_MAP",
+  "exact_design_scope": "current_verified_artifacts_only",
+  "rules": {
+    "pool_is_view_not_new_evidence": true,
+    "one_dependency_root_many_views_no_vote_inflation": true,
+    "final_tank_cannot_strengthen_claim_ceiling": true,
+    "report_text_is_not_evidence": true,
+    "visualization_is_not_evidence": true
+  },
+  "stage_classes": {
+    "L0": "SOURCE_LANDING",
+    "O01": "GOVERNED_OBSERVATION_RESERVOIR",
+    "O02": "SEMANTIC_IDENTITY_DEPENDENCY_RESERVOIR",
+    "O03": "RECONSTRUCTION_PROCESS_RESERVOIR",
+    "P": "SPECIALIZED_FOOTBALL_POOL",
+    "M": "MEZZO_INTELLIGENCE_POOL",
+    "R": "MACRO_SYNTHESIS_RESERVOIR",
+    "F": "FINAL_SYNTHESIS_RESERVOIR",
+    "T": "FINAL_CONTROLLED_TANK"
+  },
+  "artifacts": [
+    {
+      "stage_id": "O01",
+      "owner_id": "evidence_atom_inventory_lite_v1",
+      "artifact_name": "evidence_atom_inventory_lite_v1.json",
+      "epistemic_type": "EVIDENCE_ATOM_CANDIDATE",
+      "claim_ceiling": "EVIDENCE_ATOM_CANDIDATE_ONLY",
+      "allowed_downstream_stage_classes": [
+        "O02",
+        "O03",
+        "P"
+      ]
+    },
+    {
+      "stage_id": "O02",
+      "owner_id": "context_action_semantics_rebind_lite_v1",
+      "artifact_name": "context_action_semantics_rebind_lite_v1.json",
+      "epistemic_type": "REVIEWED_PROVIDER_ACTION_SEMANTICS_CANDIDATE",
+      "claim_ceiling": "REVIEWED_PROVIDER_ACTION_SEMANTICS_CANDIDATE_ONLY",
+      "allowed_downstream_stage_classes": [
+        "O03",
+        "P"
+      ]
+    },
+    {
+      "stage_id": "O03",
+      "owner_id": "analyst_episode_locator_lite_v1",
+      "artifact_name": "analyst_episode_locator_lite_v1.json",
+      "epistemic_type": "ANALYST_EPISODE_NAVIGATION_CANDIDATE",
+      "claim_ceiling": "ANALYST_EPISODE_NAVIGATION_CANDIDATE_ONLY",
+      "allowed_downstream_stage_classes": [
+        "O03",
+        "P",
+        "M"
+      ]
+    },
+    {
+      "stage_id": "O03",
+      "owner_id": "episode_feature_vector_lite_v1",
+      "artifact_name": "episode_feature_vector_lite_v1.json",
+      "epistemic_type": "EPISODE_VISIBLE_FEATURE_CANDIDATE",
+      "claim_ceiling": "EPISODE_VISIBLE_FEATURE_CANDIDATES_ONLY",
+      "allowed_downstream_stage_classes": [
+        "O03",
+        "P",
+        "M"
+      ]
+    },
+    {
+      "stage_id": "O03",
+      "owner_id": "temporal_episode_signature_lite_v1",
+      "artifact_name": "temporal_episode_signature_lite_v1.json",
+      "epistemic_type": "TEMPORAL_EPISODE_CHANGE_CANDIDATE",
+      "claim_ceiling": "TEMPORAL_EPISODE_CHANGE_CANDIDATES_ONLY",
+      "allowed_downstream_stage_classes": [
+        "P",
+        "M",
+        "R"
+      ]
+    },
+    {
+      "stage_id": "M10/F03",
+      "owner_id": "multi_signal_evidence_fusion_lite_v1",
+      "artifact_name": "multi_signal_evidence_fusion_lite_v1.json",
+      "epistemic_type": "FUSION_RELATION_CANDIDATE",
+      "claim_ceiling": "fusion_relation_candidate_only",
+      "allowed_downstream_stage_classes": [
+        "F",
+        "T"
+      ]
+    },
+    {
+      "stage_id": "T01",
+      "owner_id": "safe_finding_admission_projection",
+      "artifact_name": "safe_finding_admission_projection_v1.json",
+      "epistemic_type": "SAFE_FINDING_ADMISSION_DECISION",
+      "claim_ceiling": "MATCH_LOCAL_DEFEASIBLE_FINDING_BOUNDARY",
+      "allowed_downstream_stage_classes": [
+        "T"
+      ]
+    },
+    {
+      "stage_id": "T07",
+      "owner_id": "analyst_report_block_composer_lite_v1",
+      "artifact_name": "analyst_report_block_composer_lite_v1.json",
+      "epistemic_type": "ANALYST_REPORT_BLOCK_CANDIDATE",
+      "claim_ceiling": "analyst_report_block_candidate_only",
+      "allowed_downstream_stage_classes": [
+        "T08"
+      ]
+    },
+    {
+      "stage_id": "T08",
+      "owner_id": "report_output_contract_lite_v1",
+      "artifact_name": "report_output_contract_lite_v1.json",
+      "epistemic_type": "REPORT_OUTPUT_CONTRACT_CANDIDATE",
+      "claim_ceiling": "report_output_contract_candidate_only",
+      "allowed_downstream_stage_classes": [
+        "T09"
+      ]
+    },
+    {
+      "stage_id": "T09",
+      "owner_id": "final_report_assembly_gate_lite_v1",
+      "artifact_name": "final_report_assembly_gate_lite_v1.json",
+      "epistemic_type": "FINAL_REPORT_ASSEMBLY_CANDIDATE",
+      "claim_ceiling": "final_report_assembly_candidate_only",
+      "allowed_downstream_stage_classes": [
+        "T10"
+      ],
+      "final_report_allowed": false,
+      "production_report_allowed": false
+    }
+  ],
+  "taxonomy_only": {
+    "specialized_pools": [
+      "P01",
+      "P02",
+      "P03",
+      "P04",
+      "P05",
+      "P06",
+      "P07",
+      "P08",
+      "P09",
+      "P10",
+      "P11",
+      "P12",
+      "P13",
+      "P14",
+      "P15",
+      "P16",
+      "P17",
+      "P18",
+      "P19",
+      "P20",
+      "P21",
+      "P22",
+      "P23",
+      "P24"
+    ],
+    "mezzo_pools": [
+      "M01",
+      "M02",
+      "M03",
+      "M04",
+      "M05",
+      "M06",
+      "M07",
+      "M08",
+      "M09",
+      "M10"
+    ],
+    "macro_reservoirs": [
+      "R01",
+      "R02",
+      "R03",
+      "R04",
+      "R05"
+    ],
+    "final_synthesis": [
+      "F01",
+      "F02",
+      "F03"
+    ],
+    "note": "taxonomy membership does not assert a dedicated runtime engine"
+  },
+  "production_release": false
+}
