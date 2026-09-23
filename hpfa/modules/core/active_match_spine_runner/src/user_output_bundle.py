@@ -691,6 +691,77 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
     return cards
 
 
+def _human_aerial_duel_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
+    context = rich.get("aerial_duel_first_visible_state_context") or {}
+    rows = [row for row in (context.get("rows") or []) if isinstance(row, dict)]
+    if not rows:
+        return []
+    teams = _human_team_labels(identity)
+    by_team: dict[str, dict[str, int]] = {}
+    for row in rows:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip() or "UNKNOWN_TEAM"
+        bucket = by_team.setdefault(
+            team_id,
+            {
+                "won": 0,
+                "lost": 0,
+                "same_team_first_visible": 0,
+                "opponent_first_visible": 0,
+                "mixed_team_review": 0,
+                "no_visible_followup": 0,
+                "single_process_bound": 0,
+            },
+        )
+        outcome = str(row.get("provider_aerial_duel_outcome_candidate") or "")
+        if outcome.endswith("_WON_CANDIDATE"):
+            bucket["won"] += 1
+        elif outcome.endswith("_LOST_CANDIDATE"):
+            bucket["lost"] += 1
+        relation = str(row.get("first_visible_team_relation_to_aerial_actor_team") or "")
+        if relation == "SAME_TEAM_FIRST_VISIBLE_ACTION":
+            bucket["same_team_first_visible"] += 1
+        elif relation == "OPPONENT_TEAM_FIRST_VISIBLE_ACTION":
+            bucket["opponent_first_visible"] += 1
+        state = str(row.get("binding_state") or "")
+        if state == "REVIEW_REQUIRED_MIXED_TEAM_FIRST_VISIBLE_LAYER":
+            bucket["mixed_team_review"] += 1
+        elif state == "NO_VISIBLE_FOLLOWUP":
+            bucket["no_visible_followup"] += 1
+        elif state == "SINGLE_VISIBLE_PROCESS_FAMILY_MATCH":
+            bucket["single_process_bound"] += 1
+
+    cards: list[str] = []
+    for team_id, values in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
+        name = teams.get(team_id, team_id)
+        if language == "tr":
+            football = (
+                f"{name}: provider tarafından hava topu kazanıldı/kaybedildi olarak etiketlenmiş "
+                f"{values['won'] + values['lost']} görünür duel izinin {values['won']} tanesi kazanıldı, "
+                f"{values['lost']} tanesi kaybedildi etiketi taşıyor. İlk kesin sonraki görünür aksiyon "
+                f"{values['same_team_first_visible']} örnekte aynı takımda, {values['opponent_first_visible']} örnekte rakipte göründü; "
+                f"{values['single_process_bound']} örnek tek bir görünür sonraki süreç ailesine bağlanabildi."
+            )
+            evidence = (
+                f"Kanıt notu: {values['mixed_team_review']} örnek aynı zaman katmanında iki takım içerdiği için review-required, "
+                f"{values['no_visible_followup']} örnekte görünür follow-up yok. Provider hava topu sonucu top kontrolü, "
+                "possession veya ikinci top hâkimiyeti gerçeği değildir; yalnız ilk strikt-sonraki görünür takım durumu raporlanır."
+            )
+        else:
+            football = (
+                f"{name}: among {values['won'] + values['lost']} visible duel traces carrying provider reviewed aerial-won/lost labels, "
+                f"{values['won']} are labelled won and {values['lost']} lost. The first strictly later visible action belonged to the same team "
+                f"in {values['same_team_first_visible']} cases and the opponent in {values['opponent_first_visible']}; "
+                f"{values['single_process_bound']} cases bound to one visible next process family."
+            )
+            evidence = (
+                f"Evidence note: {values['mixed_team_review']} cases remain review-required because both teams appear in the same next timestamp layer; "
+                f"{values['no_visible_followup']} have no visible follow-up. A provider aerial-duel outcome is not ball-control, possession, "
+                "or second-ball-control truth; only the first strictly later visible team state is reported."
+            )
+        cards.extend([football, evidence])
+    return cards
+
+
 def _top_distribution_item(values: Any) -> tuple[str, int] | None:
     if not isinstance(values, dict) or not values:
         return None
@@ -1974,6 +2045,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "tr") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
+    aerial_cards = _human_aerial_duel_cards(rich, identity, "tr") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "tr") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "tr") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "tr")
@@ -1989,29 +2061,34 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in team_cards)
     else:
         lines.append("- Bu maçta takım süreç profili güvenli biçimde üretilemedi.")
-    lines.extend(["", "[2] SEQUENCE / PROCESS INTELLIGENCE"])
+    lines.extend(["", "[2] HAVA TOPU → İLK GÖRÜNÜR DEVAM"])
+    if aerial_cards:
+        lines.extend(f"- {line}" for line in aerial_cards)
+    else:
+        lines.append("- Bu maçta güvenli biçimde raporlanabilir hava topu ilk-görünür-devam yüzeyi yok.")
+    lines.extend(["", "[3] SEQUENCE / PROCESS INTELLIGENCE"])
     if sequence_cards:
         lines.extend(f"- {line}" for line in sequence_cards)
     else:
         lines.append("- Bu maçta sequence/process information profili üretilemedi.")
-    lines.extend(["", "[3] OYUNCU / İKİLİ × HÜCUM SONUCU"])
+    lines.extend(["", "[4] OYUNCU / İKİLİ × HÜCUM SONUCU"])
     if c02_cards:
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- Bu maçta bu başlık için güvenli biçimde raporlanabilir current-run aday yok.")
-    lines.extend(["", "[4] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
+    lines.extend(["", "[5] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- Bu maçta iki takım için karşılaştırılabilir süreç çarpışma yüzeyi üretilemedi.")
-    lines.extend(["", "[5] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
+    lines.extend(["", "[6] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde kısa listeye alınmış mekanizma adayı yok.")
     lines.extend([
         "",
-        "[6] ANALİST OKUMA ÇERÇEVESİ",
+        "[7] ANALİST OKUMA ÇERÇEVESİ",
         "- Oyuncu ve ikili yüzeyi, görünür süreç katılımı ile sonuç bağlantısını maç-içi association olarak sunar.",
         "- Hedef sonuç etiketi çözülmeyen süreçler unresolved outcome statüsünde izlenir.",
         "- Sıralama, analistin hangi örneklere önce bakacağını belirleyen maç-içi dikkat sırasıdır.",
@@ -2030,6 +2107,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "en") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
+    aerial_cards = _human_aerial_duel_cards(rich, identity, "en") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "en") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "en") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "en")
@@ -2045,29 +2123,34 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in team_cards)
     else:
         lines.append("- No safe current-run team process profile is available.")
-    lines.extend(["", "[2] SEQUENCE / PROCESS INTELLIGENCE"])
+    lines.extend(["", "[2] AERIAL DUEL → FIRST VISIBLE CONTINUATION"])
+    if aerial_cards:
+        lines.extend(f"- {line}" for line in aerial_cards)
+    else:
+        lines.append("- No safely reportable aerial-duel first-visible-continuation surface is available for this match.")
+    lines.extend(["", "[3] SEQUENCE / PROCESS INTELLIGENCE"])
     if sequence_cards:
         lines.extend(f"- {line}" for line in sequence_cards)
     else:
         lines.append("- No sequence/process information profile is available for this run.")
-    lines.extend(["", "[3] PLAYER / PAIR × ATTACK OUTCOME"])
+    lines.extend(["", "[4] PLAYER / PAIR × ATTACK OUTCOME"])
     if c02_cards:
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- No current-run candidate can be reported safely under this heading.")
-    lines.extend(["", "[4] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
+    lines.extend(["", "[5] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- No comparable two-team process contest surface is available for this run.")
-    lines.extend(["", "[5] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
+    lines.extend(["", "[6] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- No mechanism candidate was safely shortlisted in this run.")
     lines.extend([
         "",
-        "[6] ANALYST READING FRAME",
+        "[7] ANALYST READING FRAME",
         "- Player and pair surfaces present visible process involvement and outcome linkage as match-local associations.",
         "- Processes with unresolved target outcomes remain in the unresolved-outcome state.",
         "- Ranking is a match-local analyst-attention order.",
