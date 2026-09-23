@@ -3666,6 +3666,129 @@ def _construct_c04(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+
+def _m01_possession_construction_synthesis(
+    c03: dict[str, Any],
+    circulation_fate: dict[str, Any],
+    goalkeeper_restart_context: dict[str, Any],
+) -> dict[str, Any]:
+    """Synthesize visible construction context without claiming possession truth."""
+    signatures = [
+        row for row in (c03.get("signatures") or [])
+        if isinstance(row, dict)
+    ]
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in signatures:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            grouped[team_id].append(row)
+
+    circulation_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in (circulation_fate.get("profiles") or []):
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            circulation_by_team[team_id].append(row)
+
+    gk_rows_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in (goalkeeper_restart_context.get("rows") or []):
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            gk_rows_by_team[team_id].append(row)
+
+    team_ids = sorted(set(grouped) | set(circulation_by_team) | set(gk_rows_by_team))
+    profiles: list[dict[str, Any]] = []
+    for team_id in team_ids:
+        rows = grouped.get(team_id, [])
+        process_family_counts = Counter(
+            str(row.get("process_family_candidate") or "UNKNOWN") for row in rows
+        )
+        start_zone_counts: Counter[str] = Counter()
+        unresolved_start_zone_n = 0
+        for row in rows:
+            starts = [
+                str(value) for value in (row.get("process_start_zone_candidates") or [])
+                if str(value)
+            ]
+            if len(starts) == 1:
+                start_zone_counts[starts[0]] += 1
+            else:
+                unresolved_start_zone_n += 1
+
+        gk_rows = gk_rows_by_team.get(team_id, [])
+        next_process_counts: Counter[str] = Counter(
+            family
+            for row in gk_rows
+            for family in (row.get("next_visible_process_family_candidates") or [])
+            if family
+        )
+        continuation_counts = Counter(
+            str(row.get("process_continuation_status") or "UNRESOLVED")
+            for row in gk_rows
+        )
+
+        circulation_profiles = circulation_by_team.get(team_id, [])
+        circulation_eligible_n = sum(
+            int(row.get("eligible_circulation_process_n") or 0)
+            for row in circulation_profiles
+        )
+        circulation_fate_counts: Counter[str] = Counter()
+        for row in circulation_profiles:
+            circulation_fate_counts.update(
+                {
+                    str(key): int(value)
+                    for key, value in (row.get("visible_fate_counts") or {}).items()
+                    if isinstance(value, int) and not isinstance(value, bool)
+                }
+            )
+
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "eligible_process_signature_n": len(rows),
+            "process_family_counts": dict(sorted(process_family_counts.items())),
+            "visible_process_start_zone_candidate_counts": dict(sorted(start_zone_counts.items())),
+            "unresolved_process_start_zone_n": unresolved_start_zone_n,
+            "visible_circulation_process_n": circulation_eligible_n,
+            "visible_circulation_fate_counts": dict(sorted(circulation_fate_counts.items())),
+            "goalkeeper_restart_context_n": len(gk_rows),
+            "goalkeeper_restart_next_visible_process_family_counts": dict(sorted(next_process_counts.items())),
+            "goalkeeper_restart_continuation_status_counts": dict(sorted(continuation_counts.items())),
+            "denominator_basis": {
+                "process_signatures": "ADMITTED_MATCH_LOCAL_PROCESS_DEVELOPMENT_SIGNATURES",
+                "circulation": "VISIBLE_PROCESS_SIGNATURES_WITH_PASS_OR_CARRY_LAYER",
+                "goalkeeper_restart": "ADMITTED_GOAL_KICK_OCCURRENCE_CONTEXT_ROWS",
+            },
+            "pool_ids": ["P01", "P07", "P19", "P20"],
+            "possession_truth": False,
+            "possession_control_truth": False,
+            "build_up_tactical_plan_truth": False,
+            "goalkeeper_restart_same_team_continuation_is_possession_truth": False,
+            "circulation_fate_is_tactical_quality_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_POSSESSION_CONSTRUCTION_CONTEXT_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M01_POSSESSION_CONSTRUCTION",
+        "status": "PASS" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "source_construct_id": c03.get("construct_id"),
+        "source_circulation_module_id": circulation_fate.get("module_id"),
+        "source_goalkeeper_restart_binding_state": goalkeeper_restart_context.get("binding_state"),
+        "source_pool_ids": ["P01", "P07", "P19", "P20"],
+        "pool_views_create_independent_evidence": False,
+        "possession_truth": False,
+        "possession_control_truth": False,
+        "tactical_plan_truth": False,
+        "causal_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_POSSESSION_CONSTRUCTION_CONTEXT_CANDIDATE_ONLY",
+    }
+
+
 def _m02_progression_territory_synthesis(
     c03: dict[str, Any],
     route_breadth: dict[str, Any],
@@ -3947,6 +4070,11 @@ def run_rich_lane(
     visible_circulation_fate_profile = build_visible_circulation_fate_profile(
         [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
     )
+    m01_possession_construction_synthesis = _m01_possession_construction_synthesis(
+        c03,
+        visible_circulation_fate_profile,
+        goalkeeper_restart_consequence_context,
+    )
     if c03.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C03_process_development_signature_review_available")
 
@@ -3984,6 +4112,7 @@ def run_rich_lane(
         "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
         "m02_progression_territory_synthesis": m02_progression_territory_synthesis,
         "visible_circulation_fate_profile": visible_circulation_fate_profile,
+        "m01_possession_construction_synthesis": m01_possession_construction_synthesis,
         "aerial_duel_first_visible_state_context": aerial_duel_first_visible_state_context,
         "recovery_next_process_context": recovery_next_process_context,
         "loss_next_opponent_process_context": loss_next_opponent_process_context,
@@ -4009,6 +4138,7 @@ def run_rich_lane(
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
                 "process_development_signatures": c03.get("signatures") or [],
                 "visible_circulation_fate_profile": visible_circulation_fate_profile,
+                "m01_possession_construction_synthesis": m01_possession_construction_synthesis,
                 "m02_progression_territory_synthesis": m02_progression_territory_synthesis,
             },
             "MACRO": {
