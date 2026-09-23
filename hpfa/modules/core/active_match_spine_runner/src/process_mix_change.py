@@ -141,6 +141,10 @@ def build_time_window_process_mix_change_context(
                 - int(previous_counts.get(family, 0))
                 for family in sorted(set(previous_counts) | set(current_counts))
             }
+            composition_total_variation_distance_candidate = round(
+                0.5 * sum(abs(value) for value in share_delta.values()),
+                6,
+            )
             comparisons.append({
                 "team_identity_candidate_id": team_id,
                 "period_candidate": period,
@@ -152,6 +156,9 @@ def build_time_window_process_mix_change_context(
                 "current_eligible_visible_process_n": current["eligible_visible_process_n"],
                 "process_family_count_delta": count_delta,
                 "process_family_share_delta": share_delta,
+                "composition_total_variation_distance_candidate": composition_total_variation_distance_candidate,
+                "composition_distance_range": [0.0, 1.0],
+                "composition_distance_is_change_point_truth": False,
                 "comparison_basis": "ADJACENT_FIXED_TIME_WINDOWS_WITH_VISIBLE_PROCESS_EVIDENCE",
                 "comparison_is_change_point_truth": False,
                 "comparison_is_momentum_truth": False,
