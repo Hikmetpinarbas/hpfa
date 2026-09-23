@@ -3669,6 +3669,109 @@ def _construct_c04(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+
+def _m06_transition_dynamics_synthesis(
+    m05: dict[str, Any],
+    counterattack_context: dict[str, Any],
+    process_mix_change: dict[str, Any],
+) -> dict[str, Any]:
+    """Combine visible transition-related contexts without momentum/adaptation claims."""
+    m05_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (m05.get("profiles") or [])
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+    counter_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in (counterattack_context.get("rows") or []):
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            counter_by_team[team_id].append(row)
+
+    mix_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in (process_mix_change.get("comparisons") or []):
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            mix_by_team[team_id].append(row)
+
+    profiles: list[dict[str, Any]] = []
+    for team_id in sorted(set(m05_by_team) | set(counter_by_team) | set(mix_by_team)):
+        counter_rows = counter_by_team.get(team_id, [])
+        mix_rows = mix_by_team.get(team_id, [])
+        successor_counts: Counter[str] = Counter(
+            family
+            for row in counter_rows
+            for family in (row.get("next_visible_process_family_candidates") or [])
+            if family
+        )
+        latency_values = [
+            float(row["seconds_to_next_visible_process_candidate"])
+            for row in counter_rows
+            if isinstance(row.get("seconds_to_next_visible_process_candidate"), (int, float))
+            and not isinstance(row.get("seconds_to_next_visible_process_candidate"), bool)
+        ]
+        mix_distance_values = [
+            float(row["composition_total_variation_distance_candidate"])
+            for row in mix_rows
+            if isinstance(row.get("composition_total_variation_distance_candidate"), (int, float))
+            and not isinstance(row.get("composition_total_variation_distance_candidate"), bool)
+        ]
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "m05_loss_recovery_profile": m05_by_team.get(team_id),
+            "counterattack_context_n": len(counter_rows),
+            "counterattack_next_visible_process_family_counts": dict(sorted(successor_counts.items())),
+            "counter_to_positional_successor_candidate_n": sum(
+                row.get("visible_counter_to_positional_successor_candidate") is True
+                for row in counter_rows
+            ),
+            "counterattack_successor_latency_observed_n": len(latency_values),
+            "counterattack_successor_latency_min_candidate": (
+                min(latency_values) if latency_values else None
+            ),
+            "counterattack_successor_latency_max_candidate": (
+                max(latency_values) if latency_values else None
+            ),
+            "adjacent_process_mix_comparison_n": len(mix_rows),
+            "process_mix_composition_distance_observed_n": len(mix_distance_values),
+            "process_mix_composition_distance_max_candidate": (
+                max(mix_distance_values) if mix_distance_values else None
+            ),
+            "process_mix_distance_range": [0.0, 1.0],
+            "source_pool_ids": ["P04", "P06", "P14", "P15", "P20", "P22"],
+            "transition_phase_truth": False,
+            "transition_stabilization_truth": False,
+            "momentum_truth": False,
+            "tactical_adaptation_truth": False,
+            "causal_truth": False,
+            "coach_intention_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_TRANSITION_DYNAMICS_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M06_TRANSITION_DYNAMICS",
+        "status": "PASS" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "source_mezzo_ids": ["M05_LOSS_RECOVERY_DYNAMICS"],
+        "source_context_ids": [
+            "COUNTERATTACK_TO_NEXT_VISIBLE_PROCESS_CONTEXT",
+            "VISIBLE_PROCESS_MIX_FIXED_TIME_WINDOW_COMPARISON",
+        ],
+        "component_views_create_independent_support": False,
+        "transition_phase_truth": False,
+        "momentum_truth": False,
+        "tactical_adaptation_truth": False,
+        "causal_truth": False,
+        "coach_intention_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_TRANSITION_DYNAMICS_CANDIDATE_ONLY",
+    }
+
+
 def _m05_loss_recovery_dynamics_synthesis(
     loss_context: dict[str, Any],
     recovery_context: dict[str, Any],
@@ -4229,6 +4332,11 @@ def run_rich_lane(
     counterattack_next_process_context = _counterattack_next_process_context(
         process_participation_payload,
     )
+    m06_transition_dynamics_synthesis = _m06_transition_dynamics_synthesis(
+        m05_loss_recovery_dynamics_synthesis,
+        counterattack_next_process_context,
+        time_window_process_mix_change_context,
+    )
     spatial_transition_payload = _load_json(output / SPATIAL_TRANSITION_JSON)
     c03 = _construct_c03(process_participation_payload, occurrence_transition_payload, spatial_transition_payload)
     score_state_visible_process_outcome_context = build_score_state_visible_process_outcome_context(
@@ -4301,6 +4409,7 @@ def run_rich_lane(
         "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
         "set_piece_process_consequence_context": set_piece_process_consequence_context,
         "counterattack_next_process_context": counterattack_next_process_context,
+        "m06_transition_dynamics_synthesis": m06_transition_dynamics_synthesis,
         "analysis_lattice": {
             "MICRO": {
                 "player_view_candidates": entity_views.get("player_view_candidates"),
@@ -4317,6 +4426,7 @@ def run_rich_lane(
                 "m05_loss_recovery_dynamics_synthesis": m05_loss_recovery_dynamics_synthesis,
                 "set_piece_process_consequence_context": set_piece_process_consequence_context,
                 "counterattack_next_process_context": counterattack_next_process_context,
+                "m06_transition_dynamics_synthesis": m06_transition_dynamics_synthesis,
                 "phase_state_candidates": phase_states,
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
                 "process_development_signatures": c03.get("signatures") or [],
