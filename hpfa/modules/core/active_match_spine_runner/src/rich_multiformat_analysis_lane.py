@@ -3670,6 +3670,108 @@ def _construct_c04(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+
+def _m09_opponent_interaction_synthesis(
+    c03: dict[str, Any],
+) -> dict[str, Any]:
+    """Create reciprocal opponent-interaction context without response/superiority claims."""
+    comparisons = [
+        row for row in (c03.get("reciprocal_team_process_comparisons") or [])
+        if isinstance(row, dict)
+    ]
+    phase_rows = [
+        row for row in (c03.get("six_phase_team_matrix") or [])
+        if isinstance(row, dict)
+    ]
+    team_ids = sorted({
+        str(row.get("team_identity_candidate_id") or "")
+        for row in phase_rows
+        if str(row.get("team_identity_candidate_id") or "")
+    })
+
+    profiles: list[dict[str, Any]] = []
+    for team_id in team_ids:
+        team_phase_rows = [
+            row for row in phase_rows
+            if str(row.get("team_identity_candidate_id") or "") == team_id
+        ]
+        own_attack_rows = [
+            row for row in team_phase_rows
+            if str(row.get("perspective") or "") == "ATTACK"
+        ]
+        opponent_exposure_rows = [
+            row for row in team_phase_rows
+            if str(row.get("perspective") or "") == "DEFENCE"
+        ]
+
+        reciprocal_rows: list[dict[str, Any]] = []
+        for row in comparisons:
+            team_a = str(row.get("team_a_identity_candidate_id") or "")
+            team_b = str(row.get("team_b_identity_candidate_id") or "")
+            if team_id not in {team_a, team_b}:
+                continue
+            if team_id == team_a:
+                self_profile = row.get("team_a_profile")
+                opponent_profile = row.get("team_b_profile")
+                opponent_id = team_b
+            else:
+                self_profile = row.get("team_b_profile")
+                opponent_profile = row.get("team_a_profile")
+                opponent_id = team_a
+            reciprocal_rows.append({
+                "process_family_candidate": row.get("process_family_candidate"),
+                "team_identity_candidate_id": team_id,
+                "opponent_team_identity_candidate_id": opponent_id,
+                "self_visible_process_profile": self_profile,
+                "opponent_visible_process_profile": opponent_profile,
+                "comparison_basis": row.get("comparison_basis"),
+                "difference_is_opponent_response_truth": False,
+                "difference_is_tactical_superiority_truth": False,
+                "difference_is_causal_truth": False,
+                "independent_support_created": False,
+            })
+
+        visible_phase_n = sum(
+            row.get("observation_state") == "VISIBLE_PROCESS_PROFILE_AVAILABLE"
+            for row in team_phase_rows
+        )
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "six_phase_direction_n": len(team_phase_rows),
+            "visible_six_phase_direction_n": visible_phase_n,
+            "unresolved_six_phase_direction_n": len(team_phase_rows) - visible_phase_n,
+            "own_attack_direction_rows": own_attack_rows,
+            "opponent_exposure_direction_rows": opponent_exposure_rows,
+            "reciprocal_same_family_comparison_n": len(reciprocal_rows),
+            "reciprocal_same_family_comparisons": reciprocal_rows,
+            "source_pool_ids": ["P18", "P20"],
+            "opponent_exposure_is_defensive_success_truth": False,
+            "opponent_non_shot_is_prevention_truth": False,
+            "opponent_visible_loss_is_forced_turnover_truth": False,
+            "reciprocal_difference_is_opponent_response_truth": False,
+            "reciprocal_difference_is_tactical_superiority_truth": False,
+            "reciprocal_difference_is_causal_truth": False,
+            "phase_slot_is_observed_phase_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_OPPONENT_INTERACTION_CONTEXT_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M09_OPPONENT_INTERACTION",
+        "status": "PASS" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "source_pool_ids": ["P18", "P20"],
+        "reciprocal_team_process_comparison_count": len(comparisons),
+        "pool_views_create_independent_evidence": False,
+        "opponent_response_truth": False,
+        "defensive_success_truth": False,
+        "tactical_superiority_truth": False,
+        "causal_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_OPPONENT_INTERACTION_CONTEXT_CANDIDATE_ONLY",
+    }
+
+
 def _m06_transition_dynamics_synthesis(
     m05: dict[str, Any],
     counterattack_context: dict[str, Any],
@@ -4339,6 +4441,7 @@ def run_rich_lane(
     )
     spatial_transition_payload = _load_json(output / SPATIAL_TRANSITION_JSON)
     c03 = _construct_c03(process_participation_payload, occurrence_transition_payload, spatial_transition_payload)
+    m09_opponent_interaction_synthesis = _m09_opponent_interaction_synthesis(c03)
     score_state_visible_process_outcome_context = build_score_state_visible_process_outcome_context(
         game_state_context,
         identity_payload,
@@ -4397,6 +4500,7 @@ def run_rich_lane(
         "player_score_state_process_participation": player_score_state_process_participation,
         "time_window_process_mix_change_context": time_window_process_mix_change_context,
         "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
+        "m09_opponent_interaction_synthesis": m09_opponent_interaction_synthesis,
         "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
         "m02_progression_territory_synthesis": m02_progression_territory_synthesis,
         "r01_ball_progression_system_synthesis": r01_ball_progression_system_synthesis,
@@ -4430,6 +4534,7 @@ def run_rich_lane(
                 "phase_state_candidates": phase_states,
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
                 "process_development_signatures": c03.get("signatures") or [],
+                "m09_opponent_interaction_synthesis": m09_opponent_interaction_synthesis,
                 "visible_circulation_fate_profile": visible_circulation_fate_profile,
                 "m01_possession_construction_synthesis": m01_possession_construction_synthesis,
                 "m02_progression_territory_synthesis": m02_progression_territory_synthesis,
