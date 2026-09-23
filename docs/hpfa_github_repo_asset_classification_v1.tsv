@@ -4,7 +4,7 @@ docs/*	productization_docs	docs/productization_or_architecture	classify_later	mi
 runtime_evidence/*	runtime_evidence	runtime_evidence	keep_as_evidence	not product code
 tools/*	release_or_ops_tools	tools_or_ops	keep_with_review	tool not runtime authority
 configs/hpfa_canon/*	canon_config	configs/hpfa_canon	keep_with_review	needs config audit
-hpfa-main/*	legacy_or_imported_structure	hpfa_or_archive	review_later	nested structure risk
+hpfa-main/*	legacy_or_imported_structure	git_history_or_external_legacy_reference	remove_current_tree	zero current reachability; legacy semantics conflict with current ZFGV truth locks
 graphics_pack/*	research_pack	archive_reference	archive_candidate	not core product code
 data_inbox/*	inbox_or_drift_report	archive_reference	archive_candidate	not canonical code
 progression_docs	progression_productization_docs	docs/productization/progression_engine	group_later	decision docs not runtime contracts

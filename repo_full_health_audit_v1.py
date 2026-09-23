@@ -249,7 +249,7 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
         "NOTE",
         "Product core tests are explicit current tests under hpfa/ or root tests/, run with pytest --import-mode=importlib to avoid duplicate-basename collection collisions.",
         "The isolated reconciliation probe runs the two aggregate-suite failures again in a fresh Python process. It is diagnostic only and never turns a failing full suite into PASS.",
-        "hpfa-main/* is classified by repository governance as legacy_or_imported_structure and is reported separately rather than treated as current product authority.",
+        "Historical hpfa-main/* is classified as legacy_or_imported_structure; current product authority is hpfa/ and raw nested legacy trees must not regain authority.",
         "Raw vendor/donor snapshots are not current product dependencies; if present, their compile debt remains visible in whole_tree_status.",
         "This audit does not substitute for physical ACTIVE_MATCH evidence.",
         "A module directory is not automatically an independent runtime engine or an orphan capability.",

@@ -50,3 +50,6 @@ tools/.#*
 
 # Raw donor/vendor snapshots are not product-tree dependencies.
 /vendor/
+
+# Nested legacy/imported product trees are not current authority.
+/hpfa-main/
