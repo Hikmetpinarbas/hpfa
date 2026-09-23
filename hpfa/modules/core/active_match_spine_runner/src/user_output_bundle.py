@@ -773,7 +773,7 @@ def _human_circulation_fate_cards(rich: dict[str, Any], identity: dict[str, Any]
     for row in sorted(profiles, key=lambda item: (teams.get(str(item.get("team_identity_candidate_id") or ""), ""), str(item.get("process_family_candidate") or ""))):
         team_id = str(row.get("team_identity_candidate_id") or "UNKNOWN_TEAM")
         name = teams.get(team_id, team_id)
-        family = _phase_label(str(row.get("process_family_candidate") or ""), language)
+        family = _football_family_label(str(row.get("process_family_candidate") or ""), language)
         n = int(row.get("eligible_circulation_process_n") or 0)
         counts = row.get("visible_fate_counts") or {}
         shot = int(counts.get("SHOT_LINKED_VISIBLE") or 0) + int(counts.get("SHOT_AND_LOSS_VISIBLE") or 0)
@@ -798,7 +798,7 @@ def _human_circulation_fate_cards(rich: dict[str, Any], identity: dict[str, Any]
             )
             evidence = (
                 "Evidence note: the denominator contains only admitted process signatures with a visible PASS or CARRY layer. "
-                "This surface does not establish sterile/productive football, possession superiority, tactical quality, causality, or player credit."
+                "Scope is limited to visible process fate; sterile/productive football, possession superiority, tactical quality, causality, and player credit require separate evidence."
             )
         cards.extend([football, evidence])
     return cards
