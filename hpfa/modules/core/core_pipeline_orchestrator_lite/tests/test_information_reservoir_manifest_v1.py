@@ -14,7 +14,10 @@ def load_manifest() -> dict:
 
 def test_manifest_has_unique_current_artifact_bindings() -> None:
     payload = load_manifest()
-    bindings = [(row["owner_id"], row["artifact_name"]) for row in payload["artifacts"]]
+    bindings = [
+        (row["owner_id"], row["artifact_name"], row.get("object_path") or "")
+        for row in payload["artifacts"]
+    ]
     assert len(bindings) == len(set(bindings))
 
 
@@ -51,3 +54,17 @@ def test_key_current_chain_claim_ceilings_are_preserved() -> None:
     assert by_owner["analyst_report_block_composer_lite_v1"]["claim_ceiling"] == "analyst_report_block_candidate_only"
     assert by_owner["report_output_contract_lite_v1"]["claim_ceiling"] == "report_output_contract_candidate_only"
     assert by_owner["final_report_assembly_gate_lite_v1"]["claim_ceiling"] == "final_report_assembly_candidate_only"
+
+
+def test_m02_object_path_binding_is_explicit() -> None:
+    payload = load_manifest()
+    rows = [
+        row for row in payload["artifacts"]
+        if row["artifact_name"] == "rich_multiformat_analysis_lattice_v1.json"
+        and row.get("object_path") == "m02_progression_territory_synthesis"
+    ]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["stage_id"] == "M02"
+    assert row["required_when_artifact_current"] is True
+    assert row["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_PROGRESSION_TERRITORY_SYNTHESIS_CANDIDATE_ONLY"
