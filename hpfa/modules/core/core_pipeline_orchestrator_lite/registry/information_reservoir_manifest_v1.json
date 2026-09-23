@@ -22,12 +22,36 @@
   },
   "artifacts": [
     {
+      "stage_id": "M10/F03",
+      "owner_id": "multi_signal_evidence_fusion_lite_v1",
+      "artifact_name": "multi_signal_evidence_fusion_lite_v1.json",
+      "epistemic_type": "FUSION_RELATION_CANDIDATE",
+      "claim_ceiling": "fusion_relation_candidate_only",
+      "allowed_downstream_stage_classes": [
+        "F",
+        "T"
+      ]
+    },
+    {
       "stage_id": "O01",
       "owner_id": "evidence_atom_inventory_lite_v1",
       "artifact_name": "evidence_atom_inventory_lite_v1.json",
       "epistemic_type": "EVIDENCE_ATOM_CANDIDATE",
       "claim_ceiling": "EVIDENCE_ATOM_CANDIDATE_ONLY",
       "allowed_downstream_stage_classes": [
+        "O02",
+        "O03",
+        "P"
+      ]
+    },
+    {
+      "stage_id": "O01",
+      "owner_id": "row_nucleus_inventory_lite_v1",
+      "artifact_name": "row_nucleus_inventory_lite_v1.json",
+      "epistemic_type": "ROW_NUCLEUS_LINEAGE_CANDIDATE",
+      "claim_ceiling": "ROW_NUCLEUS_LINEAGE_CANDIDATE_ONLY",
+      "allowed_downstream_stage_classes": [
+        "O01",
         "O02",
         "O03",
         "P"
@@ -81,17 +105,6 @@
       ]
     },
     {
-      "stage_id": "M10/F03",
-      "owner_id": "multi_signal_evidence_fusion_lite_v1",
-      "artifact_name": "multi_signal_evidence_fusion_lite_v1.json",
-      "epistemic_type": "FUSION_RELATION_CANDIDATE",
-      "claim_ceiling": "fusion_relation_candidate_only",
-      "allowed_downstream_stage_classes": [
-        "F",
-        "T"
-      ]
-    },
-    {
       "stage_id": "T01",
       "owner_id": "safe_finding_admission_projection",
       "artifact_name": "safe_finding_admission_projection_v1.json",
@@ -99,6 +112,18 @@
       "claim_ceiling": "MATCH_LOCAL_DEFEASIBLE_FINDING_BOUNDARY",
       "allowed_downstream_stage_classes": [
         "T"
+      ]
+    },
+    {
+      "stage_id": "T04",
+      "owner_id": "analyst_output_claim_contract_projection",
+      "artifact_name": "analyst_output_claim_contract_projection_v1.json",
+      "epistemic_type": "ANALYST_OUTPUT_CLAIM_CONTRACT",
+      "claim_ceiling": "MATCH_LOCAL_OBSERVED_VARIATION_CUE_ONLY_OR_ADMITTED_DEFEASIBLE_FINDING_ONLY",
+      "allowed_downstream_stage_classes": [
+        "T07",
+        "T10",
+        "T11"
       ]
     },
     {
@@ -132,6 +157,16 @@
       ],
       "final_report_allowed": false,
       "production_report_allowed": false
+    },
+    {
+      "stage_id": "T10",
+      "owner_id": "active_match_spine_runner/user_output_bundle",
+      "artifact_name": "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json",
+      "epistemic_type": "USER_CONSUMABLE_GOVERNED_BUNDLE_MANIFEST",
+      "claim_ceiling": "INHERITS_UPSTREAM_NO_STRENGTHENING",
+      "allowed_downstream_stage_classes": [
+        "T11"
+      ]
     }
   ],
   "taxonomy_only": {
