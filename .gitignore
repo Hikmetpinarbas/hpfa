@@ -56,3 +56,10 @@ tools/.#*
 
 # Historical inbox material must be distilled into an owning product surface.
 /data_inbox/
+
+# Historical/provider match datasets do not belong in the product source tree.
+/data/keepbox/
+/data/quarantine/
+
+# Historical graphics research packs are distilled into governed presentation policy.
+/graphics_pack/
