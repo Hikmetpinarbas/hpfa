@@ -3665,6 +3665,117 @@ def _construct_c04(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+
+def _m02_progression_territory_synthesis(
+    c03: dict[str, Any],
+    route_breadth: dict[str, Any],
+) -> dict[str, Any]:
+    """Synthesize visible progression/territory descriptors without adding evidence.
+
+    Territory here means observed start/end-zone and provider-axis process context,
+    not possession control, team shape, dominance or physical territorial occupation.
+    """
+    signatures = [
+        row for row in (c03.get("signatures") or [])
+        if isinstance(row, dict)
+    ]
+    route_profiles = [
+        row for row in (route_breadth.get("profiles") or [])
+        if isinstance(row, dict)
+    ]
+    route_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in route_profiles:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            route_by_team[team_id].append(row)
+
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in signatures:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            grouped[team_id].append(row)
+
+    profiles: list[dict[str, Any]] = []
+    for team_id, rows in sorted(grouped.items()):
+        start_counts: Counter[str] = Counter()
+        end_counts: Counter[str] = Counter()
+        family_counts: Counter[str] = Counter()
+        admitted_axis_delta_n = 0
+        admitted_axis_delta_sum = 0.0
+        unresolved_start_n = 0
+        unresolved_end_n = 0
+
+        for row in rows:
+            family = str(row.get("process_family_candidate") or "UNKNOWN")
+            family_counts[family] += 1
+            starts = [
+                str(value) for value in (row.get("process_start_zone_candidates") or [])
+                if str(value)
+            ]
+            ends = [
+                str(value) for value in (row.get("process_end_zone_candidates") or [])
+                if str(value)
+            ]
+            if len(starts) == 1:
+                start_counts[starts[0]] += 1
+            else:
+                unresolved_start_n += 1
+            if len(ends) == 1:
+                end_counts[ends[0]] += 1
+            else:
+                unresolved_end_n += 1
+
+            delta = row.get("provider_attack_axis_net_longitudinal_delta_candidate")
+            if (
+                row.get("provider_attack_axis_admitted") is True
+                and isinstance(delta, (int, float))
+                and not isinstance(delta, bool)
+            ):
+                admitted_axis_delta_n += 1
+                admitted_axis_delta_sum += float(delta)
+
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "eligible_process_signature_n": len(rows),
+            "process_family_counts": dict(sorted(family_counts.items())),
+            "visible_start_zone_candidate_counts": dict(sorted(start_counts.items())),
+            "visible_end_zone_candidate_counts": dict(sorted(end_counts.items())),
+            "unresolved_start_zone_process_n": unresolved_start_n,
+            "unresolved_end_zone_process_n": unresolved_end_n,
+            "provider_attack_axis_delta_admitted_process_n": admitted_axis_delta_n,
+            "provider_attack_axis_net_longitudinal_delta_sum_candidate": (
+                round(admitted_axis_delta_sum, 6)
+                if admitted_axis_delta_n
+                else None
+            ),
+            "visible_route_breadth_profiles": route_by_team.get(team_id, []),
+            "denominator_basis": "ADMITTED_MATCH_LOCAL_PROCESS_DEVELOPMENT_SIGNATURES",
+            "pool_ids": ["P02", "P08", "P09", "P11"],
+            "territory_is_possession_control_truth": False,
+            "territory_is_team_shape_truth": False,
+            "route_is_physical_trajectory_truth": False,
+            "provider_axis_delta_is_physical_distance_truth": False,
+            "progression_synthesis_is_tactical_superiority_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROGRESSION_TERRITORY_SYNTHESIS_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M02_PROGRESSION_AND_TERRITORY",
+        "status": "PASS" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "source_construct_id": c03.get("construct_id"),
+        "source_route_profile_module_id": route_breadth.get("module_id"),
+        "source_pool_ids": ["P02", "P08", "P09", "P11"],
+        "pool_views_create_independent_evidence": False,
+        "territory_is_possession_control_truth": False,
+        "territory_is_team_shape_truth": False,
+        "territory_is_dominance_truth": False,
+        "physical_trajectory_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROGRESSION_TERRITORY_SYNTHESIS_CANDIDATE_ONLY",
+    }
+
 def _render_txt(payload: dict[str, Any]) -> str:
     entity = payload.get("entity_views") or {}
     c01 = payload.get("constructs", {}).get("C01") or {}
@@ -3829,6 +3940,10 @@ def run_rich_lane(
     visible_process_route_breadth_profile = build_visible_process_route_breadth_profile(
         c03.get("signatures") or [],
     )
+    m02_progression_territory_synthesis = _m02_progression_territory_synthesis(
+        c03,
+        visible_process_route_breadth_profile,
+    )
     visible_circulation_fate_profile = build_visible_circulation_fate_profile(
         [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
     )
@@ -3867,6 +3982,7 @@ def run_rich_lane(
         "time_window_process_mix_change_context": time_window_process_mix_change_context,
         "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
         "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
+        "m02_progression_territory_synthesis": m02_progression_territory_synthesis,
         "visible_circulation_fate_profile": visible_circulation_fate_profile,
         "aerial_duel_first_visible_state_context": aerial_duel_first_visible_state_context,
         "recovery_next_process_context": recovery_next_process_context,
@@ -3893,6 +4009,7 @@ def run_rich_lane(
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
                 "process_development_signatures": c03.get("signatures") or [],
                 "visible_circulation_fate_profile": visible_circulation_fate_profile,
+                "m02_progression_territory_synthesis": m02_progression_territory_synthesis,
             },
             "MACRO": {
                 "team_view_candidates": entity_views.get("team_view_candidates"),
