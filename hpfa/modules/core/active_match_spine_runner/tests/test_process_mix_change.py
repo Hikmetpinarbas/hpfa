@@ -41,6 +41,9 @@ def test_process_mix_comparison_exposes_visible_composition_shift_without_moment
         "COUNTERATTACK_CANDIDATE": 1.0,
         "POSITIONAL_ATTACK_CANDIDATE": -1.0,
     }
+    assert comparison["composition_total_variation_distance_candidate"] == 1.0
+    assert comparison["composition_distance_range"] == [0.0, 1.0]
+    assert comparison["composition_distance_is_change_point_truth"] is False
     assert comparison["comparison_is_momentum_truth"] is False
     assert comparison["comparison_is_tactical_adaptation_truth"] is False
     assert comparison["comparison_is_causal_truth"] is False
