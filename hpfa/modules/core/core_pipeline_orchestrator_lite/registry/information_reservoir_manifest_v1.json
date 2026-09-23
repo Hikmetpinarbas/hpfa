@@ -22,53 +22,6 @@
   },
   "artifacts": [
     {
-      "stage_id": "M10/F03",
-      "owner_id": "multi_signal_evidence_fusion_lite_v1",
-      "artifact_name": "multi_signal_evidence_fusion_lite_v1.json",
-      "epistemic_type": "FUSION_RELATION_CANDIDATE",
-      "claim_ceiling": "fusion_relation_candidate_only",
-      "allowed_downstream_stage_classes": [
-        "F",
-        "T"
-      ]
-    },
-    {
-      "stage_id": "O01",
-      "owner_id": "evidence_atom_inventory_lite_v1",
-      "artifact_name": "evidence_atom_inventory_lite_v1.json",
-      "epistemic_type": "EVIDENCE_ATOM_CANDIDATE",
-      "claim_ceiling": "EVIDENCE_ATOM_CANDIDATE_ONLY",
-      "allowed_downstream_stage_classes": [
-        "O02",
-        "O03",
-        "P"
-      ]
-    },
-    {
-      "stage_id": "O01",
-      "owner_id": "row_nucleus_inventory_lite_v1",
-      "artifact_name": "row_nucleus_inventory_lite_v1.json",
-      "epistemic_type": "ROW_NUCLEUS_LINEAGE_CANDIDATE",
-      "claim_ceiling": "ROW_NUCLEUS_LINEAGE_CANDIDATE_ONLY",
-      "allowed_downstream_stage_classes": [
-        "O01",
-        "O02",
-        "O03",
-        "P"
-      ]
-    },
-    {
-      "stage_id": "O02",
-      "owner_id": "context_action_semantics_rebind_lite_v1",
-      "artifact_name": "context_action_semantics_rebind_lite_v1.json",
-      "epistemic_type": "REVIEWED_PROVIDER_ACTION_SEMANTICS_CANDIDATE",
-      "claim_ceiling": "REVIEWED_PROVIDER_ACTION_SEMANTICS_CANDIDATE_ONLY",
-      "allowed_downstream_stage_classes": [
-        "O03",
-        "P"
-      ]
-    },
-    {
       "stage_id": "O03",
       "owner_id": "analyst_episode_locator_lite_v1",
       "artifact_name": "analyst_episode_locator_lite_v1.json",
@@ -78,40 +31,6 @@
         "O03",
         "P",
         "M"
-      ]
-    },
-    {
-      "stage_id": "O03",
-      "owner_id": "episode_feature_vector_lite_v1",
-      "artifact_name": "episode_feature_vector_lite_v1.json",
-      "epistemic_type": "EPISODE_VISIBLE_FEATURE_CANDIDATE",
-      "claim_ceiling": "EPISODE_VISIBLE_FEATURE_CANDIDATES_ONLY",
-      "allowed_downstream_stage_classes": [
-        "O03",
-        "P",
-        "M"
-      ]
-    },
-    {
-      "stage_id": "O03",
-      "owner_id": "temporal_episode_signature_lite_v1",
-      "artifact_name": "temporal_episode_signature_lite_v1.json",
-      "epistemic_type": "TEMPORAL_EPISODE_CHANGE_CANDIDATE",
-      "claim_ceiling": "TEMPORAL_EPISODE_CHANGE_CANDIDATES_ONLY",
-      "allowed_downstream_stage_classes": [
-        "P",
-        "M",
-        "R"
-      ]
-    },
-    {
-      "stage_id": "T01",
-      "owner_id": "safe_finding_admission_projection",
-      "artifact_name": "safe_finding_admission_projection_v1.json",
-      "epistemic_type": "SAFE_FINDING_ADMISSION_DECISION",
-      "claim_ceiling": "MATCH_LOCAL_DEFEASIBLE_FINDING_BOUNDARY",
-      "allowed_downstream_stage_classes": [
-        "T"
       ]
     },
     {
@@ -137,13 +56,38 @@
       ]
     },
     {
-      "stage_id": "T08",
-      "owner_id": "report_output_contract_lite_v1",
-      "artifact_name": "report_output_contract_lite_v1.json",
-      "epistemic_type": "REPORT_OUTPUT_CONTRACT_CANDIDATE",
-      "claim_ceiling": "report_output_contract_candidate_only",
+      "stage_id": "O02",
+      "owner_id": "context_action_semantics_rebind_lite_v1",
+      "artifact_name": "context_action_semantics_rebind_lite_v1.json",
+      "epistemic_type": "REVIEWED_PROVIDER_ACTION_SEMANTICS_CANDIDATE",
+      "claim_ceiling": "REVIEWED_PROVIDER_ACTION_SEMANTICS_CANDIDATE_ONLY",
       "allowed_downstream_stage_classes": [
-        "T09"
+        "O03",
+        "P"
+      ]
+    },
+    {
+      "stage_id": "O03",
+      "owner_id": "episode_feature_vector_lite_v1",
+      "artifact_name": "episode_feature_vector_lite_v1.json",
+      "epistemic_type": "EPISODE_VISIBLE_FEATURE_CANDIDATE",
+      "claim_ceiling": "EPISODE_VISIBLE_FEATURE_CANDIDATES_ONLY",
+      "allowed_downstream_stage_classes": [
+        "O03",
+        "P",
+        "M"
+      ]
+    },
+    {
+      "stage_id": "O01",
+      "owner_id": "evidence_atom_inventory_lite_v1",
+      "artifact_name": "evidence_atom_inventory_lite_v1.json",
+      "epistemic_type": "EVIDENCE_ATOM_CANDIDATE",
+      "claim_ceiling": "EVIDENCE_ATOM_CANDIDATE_ONLY",
+      "allowed_downstream_stage_classes": [
+        "O02",
+        "O03",
+        "P"
       ]
     },
     {
@@ -166,6 +110,76 @@
       "claim_ceiling": "INHERITS_UPSTREAM_NO_STRENGTHENING",
       "allowed_downstream_stage_classes": [
         "T11"
+      ]
+    },
+    {
+      "stage_id": "M10/F03",
+      "owner_id": "multi_signal_evidence_fusion_lite_v1",
+      "artifact_name": "multi_signal_evidence_fusion_lite_v1.json",
+      "epistemic_type": "FUSION_RELATION_CANDIDATE",
+      "claim_ceiling": "fusion_relation_candidate_only",
+      "allowed_downstream_stage_classes": [
+        "F",
+        "T"
+      ]
+    },
+    {
+      "stage_id": "T08",
+      "owner_id": "report_output_contract_lite_v1",
+      "artifact_name": "report_output_contract_lite_v1.json",
+      "epistemic_type": "REPORT_OUTPUT_CONTRACT_CANDIDATE",
+      "claim_ceiling": "report_output_contract_candidate_only",
+      "allowed_downstream_stage_classes": [
+        "T09"
+      ]
+    },
+    {
+      "stage_id": "M02",
+      "owner_id": "rich_multiformat_analysis_lattice_v1",
+      "artifact_name": "rich_multiformat_analysis_lattice_v1.json",
+      "object_path": "m02_progression_territory_synthesis",
+      "required_when_artifact_current": true,
+      "epistemic_type": "MATCH_LOCAL_VISIBLE_PROGRESSION_TERRITORY_SYNTHESIS_CANDIDATE",
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROGRESSION_TERRITORY_SYNTHESIS_CANDIDATE_ONLY",
+      "allowed_downstream_stage_classes": [
+        "R",
+        "F",
+        "T"
+      ]
+    },
+    {
+      "stage_id": "O01",
+      "owner_id": "row_nucleus_inventory_lite_v1",
+      "artifact_name": "row_nucleus_inventory_lite_v1.json",
+      "epistemic_type": "ROW_NUCLEUS_LINEAGE_CANDIDATE",
+      "claim_ceiling": "ROW_NUCLEUS_LINEAGE_CANDIDATE_ONLY",
+      "allowed_downstream_stage_classes": [
+        "O01",
+        "O02",
+        "O03",
+        "P"
+      ]
+    },
+    {
+      "stage_id": "T01",
+      "owner_id": "safe_finding_admission_projection",
+      "artifact_name": "safe_finding_admission_projection_v1.json",
+      "epistemic_type": "SAFE_FINDING_ADMISSION_DECISION",
+      "claim_ceiling": "MATCH_LOCAL_DEFEASIBLE_FINDING_BOUNDARY",
+      "allowed_downstream_stage_classes": [
+        "T"
+      ]
+    },
+    {
+      "stage_id": "O03",
+      "owner_id": "temporal_episode_signature_lite_v1",
+      "artifact_name": "temporal_episode_signature_lite_v1.json",
+      "epistemic_type": "TEMPORAL_EPISODE_CHANGE_CANDIDATE",
+      "claim_ceiling": "TEMPORAL_EPISODE_CHANGE_CANDIDATES_ONLY",
+      "allowed_downstream_stage_classes": [
+        "P",
+        "M",
+        "R"
       ]
     }
   ],
