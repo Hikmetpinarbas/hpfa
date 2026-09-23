@@ -1,7 +1,12 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 
-MATCH_ID="${1:-rz-gs-20260208}"
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+  echo "USAGE: hpfa_quality_gates_v1.sh <match_id> [match_out_dir]" >&2
+  exit 2
+fi
+
+MATCH_ID="$1"
 OUTDIR="${2:-$HOME/hpfa/out/$MATCH_ID}"
 
 CANON="$OUTDIR/canonical_outfield.jsonl"
@@ -9,6 +14,7 @@ CANON="$OUTDIR/canonical_outfield.jsonl"
 
 REP="$OUTDIR/quality_gates_v1"
 mkdir -p "$REP"
+export CANON REP
 
 python - <<'PY'
 import json, os, math

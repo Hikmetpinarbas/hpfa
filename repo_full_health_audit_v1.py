@@ -250,7 +250,7 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
         "Product core tests are explicit current tests under hpfa/ or root tests/, run with pytest --import-mode=importlib to avoid duplicate-basename collection collisions.",
         "The isolated reconciliation probe runs the two aggregate-suite failures again in a fresh Python process. It is diagnostic only and never turns a failing full suite into PASS.",
         "hpfa-main/* is classified by repository governance as legacy_or_imported_structure and is reported separately rather than treated as current product authority.",
-        "vendor/donor compile debt remains visible in whole_tree_status.",
+        "Raw vendor/donor snapshots are not current product dependencies; if present, their compile debt remains visible in whole_tree_status.",
         "This audit does not substitute for physical ACTIVE_MATCH evidence.",
         "A module directory is not automatically an independent runtime engine or an orphan capability.",
         "",
@@ -259,7 +259,7 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Compile/test current HPFA product core and separately audit legacy/vendor tree debt.")
+    parser = argparse.ArgumentParser(description="Compile/test current HPFA product core and separately audit legacy/imported tree debt.")
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     args = parser.parse_args()

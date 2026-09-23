@@ -21,10 +21,14 @@ hidden production dependency.
 
 ## Vendor / donor boundary
 
-vendor/hp_engine and vendor/hp_cdl are research/provenance surfaces, not
-approved product dependencies. The current snapshots do not contain a verified
-license file at their vendor roots. They are therefore **EXCLUDE_FROM_DISTRIBUTION**
-until provenance, copyright, commercial-use and redistribution rights are resolved.
+Historical raw snapshots of HP-Engine / HP-CDL were research/provenance surfaces,
+not product dependencies. They have been removed from the current product tree
+after zero runtime/test/CI reachability was verified. Git history and the separate
+donor repositories preserve provenance for later ADAPT_NOT_COPY review.
+
+Raw donor/vendor source must not be reintroduced into the product tree unless its
+provenance, copyright, commercial-use and redistribution rights are verified and
+there is a concrete product dependency that cannot be represented more safely.
 
 External repositories named in HPFA research metadata are references, not bundled
 runtime code unless separately admitted and licensed.

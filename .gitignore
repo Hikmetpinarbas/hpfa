@@ -47,3 +47,6 @@ tools/.#*
 # Existing historical tracked artefacts are unaffected; new generated copies stay local.
 /runtime/
 /out/
+
+# Raw donor/vendor snapshots are not product-tree dependencies.
+/vendor/
