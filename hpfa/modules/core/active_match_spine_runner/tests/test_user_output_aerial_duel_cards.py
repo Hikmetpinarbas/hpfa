@@ -45,7 +45,8 @@ def test_aerial_duel_card_reports_first_visible_continuation_not_control_truth()
     assert "1 örnekte aynı takımda" in cards[0]
     assert "1 örnekte rakipte" in cards[0]
     assert "top kontrolü" in cards[1]
-    assert "ikinci top hâkimiyeti gerçeği değildir" in cards[1]
+    assert "Claim scope yalnız ilk strikt-sonraki görünür takım durumuyla sınırlıdır" in cards[1]
+    assert "ikinci top hâkimiyeti için ayrı observation gerekir" in cards[1]
 
 
 def test_aerial_duel_card_preserves_review_and_no_followup_burden():
