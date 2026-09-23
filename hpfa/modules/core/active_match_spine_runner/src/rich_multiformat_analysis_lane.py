@@ -3667,6 +3667,81 @@ def _construct_c04(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+
+def _r01_ball_progression_system_synthesis(
+    m01: dict[str, Any],
+    m02: dict[str, Any],
+) -> dict[str, Any]:
+    """Bind M01 construction and M02 progression views without inventing a score."""
+    m01_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (m01.get("profiles") or [])
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+    m02_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (m02.get("profiles") or [])
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+    team_ids = sorted(set(m01_by_team) | set(m02_by_team))
+    profiles: list[dict[str, Any]] = []
+    for team_id in team_ids:
+        construction = m01_by_team.get(team_id)
+        progression = m02_by_team.get(team_id)
+        if construction is not None and progression is not None:
+            coverage_state = "M01_AND_M02_VISIBLE"
+        elif construction is not None:
+            coverage_state = "M01_ONLY_VISIBLE"
+        else:
+            coverage_state = "M02_ONLY_VISIBLE"
+
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "coverage_state": coverage_state,
+            "m01_possession_construction": construction,
+            "m02_progression_territory": progression,
+            "construction_context_available": construction is not None,
+            "progression_territory_context_available": progression is not None,
+            "missing_component_is_negative_evidence": False,
+            "component_views_create_independent_support": False,
+            "scalar_ball_progression_score_emitted": False,
+            "possession_truth": False,
+            "territorial_control_truth": False,
+            "team_shape_truth": False,
+            "tactical_plan_truth": False,
+            "superiority_truth": False,
+            "causal_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_BALL_PROGRESSION_SYSTEM_CANDIDATE_ONLY",
+        })
+
+    complete_n = sum(row["coverage_state"] == "M01_AND_M02_VISIBLE" for row in profiles)
+    status = (
+        "PASS"
+        if profiles and complete_n == len(profiles)
+        else "REVIEW_REQUIRED"
+        if profiles
+        else "NOT_AVAILABLE"
+    )
+    return {
+        "reservoir_id": "R01_BALL_PROGRESSION_SYSTEM",
+        "status": status,
+        "profile_count": len(profiles),
+        "complete_profile_count": complete_n,
+        "profiles": profiles,
+        "source_mezzo_ids": ["M01_POSSESSION_CONSTRUCTION", "M02_PROGRESSION_AND_TERRITORY"],
+        "component_views_create_independent_support": False,
+        "scalar_ball_progression_score_emitted": False,
+        "missing_component_is_negative_evidence": False,
+        "possession_truth": False,
+        "territorial_control_truth": False,
+        "team_shape_truth": False,
+        "tactical_plan_truth": False,
+        "superiority_truth": False,
+        "causal_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_BALL_PROGRESSION_SYSTEM_CANDIDATE_ONLY",
+    }
+
+
 def _m01_possession_construction_synthesis(
     c03: dict[str, Any],
     circulation_fate: dict[str, Any],
@@ -4067,6 +4142,10 @@ def run_rich_lane(
         c03,
         visible_process_route_breadth_profile,
     )
+    r01_ball_progression_system_synthesis = _r01_ball_progression_system_synthesis(
+        m01_possession_construction_synthesis,
+        m02_progression_territory_synthesis,
+    )
     visible_circulation_fate_profile = build_visible_circulation_fate_profile(
         [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
     )
@@ -4111,6 +4190,7 @@ def run_rich_lane(
         "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
         "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
         "m02_progression_territory_synthesis": m02_progression_territory_synthesis,
+        "r01_ball_progression_system_synthesis": r01_ball_progression_system_synthesis,
         "visible_circulation_fate_profile": visible_circulation_fate_profile,
         "m01_possession_construction_synthesis": m01_possession_construction_synthesis,
         "aerial_duel_first_visible_state_context": aerial_duel_first_visible_state_context,
@@ -4148,6 +4228,7 @@ def run_rich_lane(
                 "time_window_process_mix_change_context": time_window_process_mix_change_context,
                 "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
                 "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
+                "r01_ball_progression_system_synthesis": r01_ball_progression_system_synthesis,
                 "action_family_candidate_counts": features.get("eligible_action_family_candidate_counts") or {},
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
                 "constructs": {
