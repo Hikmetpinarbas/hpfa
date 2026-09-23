@@ -11,12 +11,20 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from analyst_mechanism_review import (
-    _focus_actor_ref,
-    _select_actor_locator,
-    build_mechanism_review_lines,
-)
-from mechanism_story_review_selector import build_mechanism_story_review_shortlist
+try:
+    from .analyst_mechanism_review import (
+        _focus_actor_ref,
+        _select_actor_locator,
+        build_mechanism_review_lines,
+    )
+    from .mechanism_story_review_selector import build_mechanism_story_review_shortlist
+except ImportError:  # compatibility for direct src-path test/runtime imports
+    from analyst_mechanism_review import (
+        _focus_actor_ref,
+        _select_actor_locator,
+        build_mechanism_review_lines,
+    )
+    from mechanism_story_review_selector import build_mechanism_story_review_shortlist
 
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_sentence_render_completeness import (
     FACT_ONLY_RENDER,
