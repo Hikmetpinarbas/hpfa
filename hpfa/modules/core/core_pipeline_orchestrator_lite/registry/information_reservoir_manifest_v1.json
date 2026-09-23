@@ -176,6 +176,20 @@
       ]
     },
     {
+      "stage_id": "M06",
+      "owner_id": "rich_multiformat_analysis_lattice_v1",
+      "artifact_name": "rich_multiformat_analysis_lattice_v1.json",
+      "object_path": "m06_transition_dynamics_synthesis",
+      "required_when_artifact_current": true,
+      "epistemic_type": "MATCH_LOCAL_VISIBLE_TRANSITION_DYNAMICS_CANDIDATE",
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_TRANSITION_DYNAMICS_CANDIDATE_ONLY",
+      "allowed_downstream_stage_classes": [
+        "R",
+        "F",
+        "T"
+      ]
+    },
+    {
       "stage_id": "R01",
       "owner_id": "rich_multiformat_analysis_lattice_v1",
       "artifact_name": "rich_multiformat_analysis_lattice_v1.json",
