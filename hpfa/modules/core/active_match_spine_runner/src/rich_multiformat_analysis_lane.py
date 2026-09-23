@@ -19,6 +19,7 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_seq
 from hpfa.modules.core.active_match_spine_runner.src.process_sequence_information import build_process_sequence_information
 from hpfa.modules.core.active_match_spine_runner.src.process_mix_change import build_time_window_process_mix_change_context
 from hpfa.modules.core.active_match_spine_runner.src.aerial_duel_first_visible_state import build_aerial_duel_first_visible_state_context
+from hpfa.modules.core.active_match_spine_runner.src.score_state_visible_process_outcome import build_score_state_visible_process_outcome_context
 
 MODULE_ID = "rich_multiformat_analysis_lattice_v1"
 OUTPUT_JSON = "rich_multiformat_analysis_lattice_v1.json"
@@ -3812,6 +3813,11 @@ def run_rich_lane(
     )
     spatial_transition_payload = _load_json(output / SPATIAL_TRANSITION_JSON)
     c03 = _construct_c03(process_participation_payload, occurrence_transition_payload, spatial_transition_payload)
+    score_state_visible_process_outcome_context = build_score_state_visible_process_outcome_context(
+        game_state_context,
+        identity_payload,
+        c03.get("signatures") or [],
+    )
     if c03.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C03_process_development_signature_review_available")
 
@@ -3844,6 +3850,7 @@ def run_rich_lane(
         "game_state_context": game_state_context,
         "game_state_process_mix_context": game_state_process_mix_context,
         "time_window_process_mix_change_context": time_window_process_mix_change_context,
+        "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
         "aerial_duel_first_visible_state_context": aerial_duel_first_visible_state_context,
         "recovery_next_process_context": recovery_next_process_context,
         "loss_next_opponent_process_context": loss_next_opponent_process_context,
@@ -3873,6 +3880,7 @@ def run_rich_lane(
                 "game_state_context": game_state_context,
                 "game_state_process_mix_context": game_state_process_mix_context,
                 "time_window_process_mix_change_context": time_window_process_mix_change_context,
+                "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
                 "action_family_candidate_counts": features.get("eligible_action_family_candidate_counts") or {},
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
                 "constructs": {
