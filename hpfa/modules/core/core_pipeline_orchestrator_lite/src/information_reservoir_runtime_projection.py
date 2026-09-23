@@ -157,6 +157,7 @@ def project_information_reservoir(
 
         if (
             current
+            and object_present
             and expected_owner in STRICT_EXACT_CEILING_OWNERS
             and ceiling_match_state == "MISMATCH"
         ):
