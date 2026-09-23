@@ -35,4 +35,4 @@ def test_human_circulation_fate_cards_render_visible_fate_without_sterility_clai
     assert en
     assert any("pas/taşıma içeren 4 görünür süreç" in line for line in tr)
     assert any("steril/üretken oyun" in line for line in tr)
-    assert any("does not establish sterile/productive football" in line for line in en)
+    assert any("Scope is limited to visible process fate" in line for line in en)
