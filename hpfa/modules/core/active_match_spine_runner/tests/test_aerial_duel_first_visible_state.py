@@ -42,7 +42,7 @@ def test_aerial_win_does_not_become_control_truth():
     result = build_aerial_duel_first_visible_state_context(traces, processes)
 
     assert result["status"] == "PASS"
-    assert result["aerial_duel_context_row_count"] == 1
+    assert result["admitted_aerial_label_trace_context_row_count"] == 1
     row = result["rows"][0]
     assert row["provider_aerial_duel_outcome_candidate"] == "PROVIDER_REVIEWED_AERIAL_DUEL_WON_CANDIDATE"
     assert row["first_visible_team_relation_to_aerial_actor_team"] == "SAME_TEAM_FIRST_VISIBLE_ACTION"
@@ -51,6 +51,9 @@ def test_aerial_win_does_not_become_control_truth():
     assert row["first_visible_team_action_is_second_ball_control_truth"] is False
     assert row["first_visible_team_action_is_possession_truth"] is False
     assert result["claim_ceiling"] == CLAIM_CEILING
+    assert result["admitted_aerial_label_trace_count_is_physical_duel_count"] is False
+    assert result["admitted_trace_coverage_is_complete_aerial_duel_inventory"] is False
+    assert result["provider_pair_completeness_not_assumed"] is True
 
 
 def test_aerial_loss_can_still_have_same_team_first_visible_action():
@@ -124,7 +127,7 @@ def test_non_aerial_duel_is_not_promoted():
     )
 
     assert result["status"] == "NOT_AVAILABLE"
-    assert result["aerial_duel_context_row_count"] == 0
+    assert result["admitted_aerial_label_trace_context_row_count"] == 0
 
 
 def test_full_trackable_trace_surface_has_priority_over_primary_occurrence_subset():
