@@ -110,12 +110,28 @@ def test_zero_process_segment_is_not_promoted_to_absence_truth():
     result = build_score_state_visible_process_outcome_context(
         _game_state(),
         _identity(),
-        [],
+        [_sig("TEAM_A", 100, shot=True)],
     )
 
     assert result["status"] == "PASS"
-    assert all(row["eligible_visible_process_n"] == 0 for row in result["profiles"])
-    assert all(row["zero_process_count_is_process_absence_truth"] is False for row in result["profiles"])
+    team_b = [
+        row for row in result["profiles"]
+        if row["team_identity_candidate_id"] == "TEAM_B"
+    ]
+    assert team_b
+    assert all(row["eligible_visible_process_n"] == 0 for row in team_b)
+    assert all(row["zero_process_count_is_process_absence_truth"] is False for row in team_b)
+
+
+def test_no_process_signature_input_is_not_available():
+    result = build_score_state_visible_process_outcome_context(
+        _game_state(),
+        _identity(),
+        [],
+    )
+
+    assert result["status"] == "NOT_AVAILABLE"
+    assert result["score_state_profile_is_risk_appetite_truth"] is False
 
 
 def test_unresolved_team_binding_requires_review():
