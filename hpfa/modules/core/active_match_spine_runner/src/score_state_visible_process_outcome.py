@@ -42,6 +42,10 @@ def build_score_state_visible_process_outcome_context(
             if key:
                 alias_to_team_id[key] = team_id
 
+    signatures = [
+        row for row in (process_development_signatures or [])
+        if isinstance(row, dict)
+    ]
     profiles: list[dict[str, Any]] = []
     unresolved_team_labels: set[str] = set()
 
@@ -62,9 +66,7 @@ def build_score_state_visible_process_outcome_context(
                 continue
 
             rows = []
-            for signature in process_development_signatures or []:
-                if not isinstance(signature, dict):
-                    continue
+            for signature in signatures:
                 if str(signature.get("team_identity_candidate_id") or "") != team_id:
                     continue
                 process_start = _float_candidate(signature.get("process_start_candidate"))
@@ -118,9 +120,14 @@ def build_score_state_visible_process_outcome_context(
                 "creates_independent_support": False,
             })
 
-    status = "PASS" if profiles and not unresolved_team_labels else (
-        "REVIEW_REQUIRED" if profiles else "NOT_AVAILABLE"
-    )
+    if not signatures:
+        status = "NOT_AVAILABLE"
+    elif profiles and unresolved_team_labels:
+        status = "REVIEW_REQUIRED"
+    elif profiles:
+        status = "PASS"
+    else:
+        status = "NOT_AVAILABLE"
     return {
         "module_id": MODULE_ID,
         "status": status,
