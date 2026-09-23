@@ -21,6 +21,7 @@ from hpfa.modules.core.active_match_spine_runner.src.process_mix_change import b
 from hpfa.modules.core.active_match_spine_runner.src.aerial_duel_first_visible_state import build_aerial_duel_first_visible_state_context
 from hpfa.modules.core.active_match_spine_runner.src.score_state_visible_process_outcome import build_score_state_visible_process_outcome_context
 from hpfa.modules.core.active_match_spine_runner.src.process_route_breadth import build_visible_process_route_breadth_profile
+from hpfa.modules.core.active_match_spine_runner.src.visible_circulation_fate_profile import build_visible_circulation_fate_profile
 from hpfa.modules.core.active_match_spine_runner.src.player_score_state_process_participation import build_player_score_state_process_participation
 
 MODULE_ID = "rich_multiformat_analysis_lattice_v1"
@@ -3828,6 +3829,9 @@ def run_rich_lane(
     visible_process_route_breadth_profile = build_visible_process_route_breadth_profile(
         c03.get("signatures") or [],
     )
+    visible_circulation_fate_profile = build_visible_circulation_fate_profile(
+        [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
+    )
     if c03.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C03_process_development_signature_review_available")
 
@@ -3863,6 +3867,7 @@ def run_rich_lane(
         "time_window_process_mix_change_context": time_window_process_mix_change_context,
         "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
         "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
+        "visible_circulation_fate_profile": visible_circulation_fate_profile,
         "aerial_duel_first_visible_state_context": aerial_duel_first_visible_state_context,
         "recovery_next_process_context": recovery_next_process_context,
         "loss_next_opponent_process_context": loss_next_opponent_process_context,
@@ -3887,6 +3892,7 @@ def run_rich_lane(
                 "phase_state_candidates": phase_states,
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
                 "process_development_signatures": c03.get("signatures") or [],
+                "visible_circulation_fate_profile": visible_circulation_fate_profile,
             },
             "MACRO": {
                 "team_view_candidates": entity_views.get("team_view_candidates"),
