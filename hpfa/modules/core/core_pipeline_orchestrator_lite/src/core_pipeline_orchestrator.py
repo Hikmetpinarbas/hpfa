@@ -104,6 +104,25 @@ def artifact_requires_review(artifact: Mapping[str, Any]) -> bool:
     return "REVIEW" in _normalized_decision(artifact.get("decision"))
 
 
+
+def run_ordered_producer_steps(
+    producers: Sequence[Callable[[], dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    """Run declared producer steps in order and stop after the first explicit failure.
+
+    This owns generic execution policy only. Producer football semantics, inputs and
+    outputs remain owned by their modules.
+    """
+    steps: list[dict[str, Any]] = []
+    for producer in producers:
+        step = producer()
+        if not isinstance(step, dict):
+            raise OrchestrationContractError("producer_step_must_be_dict")
+        steps.append(step)
+        if step.get("passed") is False:
+            break
+    return steps
+
 def _blocking_reason(artifact: Mapping[str, Any]) -> str:
     hard_blocks = _meaningful_list(artifact.get("hard_block_hits"))
     if hard_blocks:
