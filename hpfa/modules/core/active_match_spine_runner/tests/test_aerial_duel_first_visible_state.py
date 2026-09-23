@@ -146,6 +146,6 @@ def test_full_trackable_trace_surface_has_priority_over_primary_occurrence_subse
         {"process_participation_candidates": []},
     )
 
-    assert result["aerial_duel_context_row_count"] == 1
+    assert result["admitted_aerial_label_trace_context_row_count"] == 1
     assert result["rows"][0]["source_trackable_action_trace_candidate_id"] == "a1"
     assert result["rows"][0]["first_visible_team_relation_to_aerial_actor_team"] == "OPPONENT_TEAM_FIRST_VISIBLE_ACTION"
