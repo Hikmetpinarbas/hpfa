@@ -42,3 +42,8 @@ tools/.#*
 
 # HPFA diagnostics
 /_diag/
+
+# Local runtime authority and generated match/report outputs.
+# Existing historical tracked artefacts are unaffected; new generated copies stay local.
+/runtime/
+/out/

@@ -1,12 +1,36 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "hpfa"
 version = "0.1.0"
+description = "Claim-safe, match-agnostic football intelligence core."
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
+classifiers = [
+  "Private :: Do Not Upload",
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
 
-[tool.setuptools]
-packages = ["canon", "canon.definitions"]
+[project.optional-dependencies]
+xls = ["xlrd>=2.0.2"]
+reference = ["pypdf>=6.0"]
+dev = ["pytest>=8.0", "openpyxl>=3.1"]
+legacy-tools = [
+  "numpy>=2.0",
+  "pandas>=2.0",
+  "matplotlib>=3.8",
+  "mplsoccer>=1.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hpfa*", "canon*"]
+exclude = ["hpfa.tests*", "hpfa.modules.*.tests*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.csv", "*.tsv", "*.yaml", "*.yml", "*.txt", "*.md"]
