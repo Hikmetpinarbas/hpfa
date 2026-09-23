@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import ast
+import sys
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,8 +56,36 @@ def test_current_full_spine_compatibility_closure_is_packaged() -> None:
         "event_window_builder",
         "row_nucleus_inventory",
         "time_scale_router",
+        "reconstruction_intelligence_packet_adapter_current_v1",
+        "post_sequence_admission_finalizer_current_v1",
     }
     assert required <= modules
     assert config["project"]["scripts"]["hpfa-active-match"] == "active_match_spine_runner:main"
     for module in modules:
         assert (ROOT / f"{module}.py").is_file()
+
+
+def test_declared_root_modules_cover_transitive_root_imports() -> None:
+    config = _pyproject()
+    declared = set(config["tool"]["setuptools"]["py-modules"])
+    closure = set(declared)
+    queue = list(declared)
+    while queue:
+        module = queue.pop()
+        path = ROOT / f"{module}.py"
+        if not path.is_file():
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            names: list[str] = []
+            if isinstance(node, ast.Import):
+                names = [alias.name.split(".")[0] for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                names = [node.module.split(".")[0]]
+            for name in names:
+                if name in sys.stdlib_module_names or name == "hpfa":
+                    continue
+                if (ROOT / f"{name}.py").is_file() and name not in closure:
+                    closure.add(name)
+                    queue.append(name)
+    assert closure == declared
