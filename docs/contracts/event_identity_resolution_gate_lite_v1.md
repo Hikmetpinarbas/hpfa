@@ -39,34 +39,22 @@ Goalkeepers surface
 
 Therefore metrics must not sum across surfaces before event identity resolution.
 
-## Donor / Reference Support
+## Design support
 
-GitHub canonical schema donor:
-
-```text
-configs/hpfa_canon/HPFA_Canonical_Event_Schema_v0.1.yaml
-```
-
-Relevant donor concepts:
+The gate uses provider-neutral identity-resolution principles only:
 
 ```text
-deterministic event_id from content
-composite primary key
+deterministic candidate fingerprints
+explicit provenance
+cross-surface reflection risk
 collision handling
-match_id + temporal field + event_type + player/team + coordinate inputs
+typed actor/team/action context
+admitted temporal and spatial fields only
 ```
 
-Drive donor support:
+Historical donor schemas and match-specific calibration packs are not product dependencies and are not versioned as canonical runtime configuration.
 
-```text
-canonicalization and deduplication
-unique event identifiers
-provenance tracking
-identity resolution
-redundant telemetry removal
-```
-
-These sources are donor/support only. ACTIVE_MATCH runtime remains the only match truth.
+ACTIVE_MATCH runtime remains the only physical single-match truth.
 
 ## Required Inputs
 

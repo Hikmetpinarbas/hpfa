@@ -1,3 +1,4 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
@@ -5,12 +6,42 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-data/quarantine/*.parquet
-data/quarantine/manifest.log
-.DS_Store
-data/quarantine/*.csv
 
-# vendor repos (kept as source snapshots)
+# OS / editor
+.DS_Store
+*.swp
+*~
+*.bak
+*.BROKEN.*
+*.err
+
+# Product-external match/runtime material
+/out/
+/_out/
+/data/matches/
+/data/quarantine/
+/data_inbox/
+/runtime_evidence/
+/_diag/
+/graphics_pack/
+/reports/
+
+# Local runtime and operator material
+runtime/
+*.log
+*_probe_*.txt
+*_probe_v2_*.txt
+validator_last.log
+doctor_history.tsv.BAK_*
+.config/hpfa/primary.env
+
+# Release/editor backups
+tools/*.BAK_*
+tools/*~
+tools/*.swp
+tools/.#*
+
+# Vendor build artefacts (source snapshots may remain versioned)
 vendor/**/__pycache__/
 vendor/**/*.pyc
 vendor/**/.pytest_cache/
@@ -19,26 +50,3 @@ vendor/**/.ruff_cache/
 vendor/**/dist/
 vendor/**/build/
 vendor/**/*.egg-info/
-
-# HPFA runtime outputs (repo-level)
-# NOTE: root-anchored patterns; Termux paths are irrelevant here.
-_out/
-_diag/
-
-# Probe / audit logs that are not SSOT
-*_probe_*.txt
-*_probe_v2_*.txt
-validator_last.log
-doctor_history.tsv.BAK_*
-
-# Release script backups (must not drift into version control)
-tools/*.BAK_*
-tools/*~ 
-tools/*.swp
-tools/.#*
-
-# Optional: local primary env (should not be committed)
-.config/hpfa/primary.env
-
-# HPFA diagnostics
-/_diag/
