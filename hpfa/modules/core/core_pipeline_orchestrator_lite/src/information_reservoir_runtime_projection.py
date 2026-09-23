@@ -167,7 +167,9 @@ def project_information_reservoir(
             {
                 "artifact_name": artifact_name,
                 "object_path": object_path or None,
-                "binding_id": f"{artifact_name}#{object_path or '                "owner_id": expected_owner,
+                "binding_id": f"{artifact_name}#{object_path or '$'}",
+                "stage_id": row.get("stage_id"),
+                "owner_id": expected_owner,
                 "epistemic_type": row.get("epistemic_type"),
                 "expected_claim_ceiling": expected_ceiling or None,
                 "allowed_downstream_stage_classes": list(
