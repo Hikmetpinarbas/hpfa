@@ -411,7 +411,7 @@ def run_pipeline(
 
     completed_all_stages = len(ledger) == len(stages) and not pipeline_halted and not initial_blocking
     has_block = initial_blocking or any(artifact_is_blocking(record) for record in ledger)
-    has_review = any(artifact_requires_review(record) for record in ledger)
+    has_review = artifact_requires_review(initial_artifact) or any(artifact_requires_review(record) for record in ledger)
 
     if has_block:
         status = "FAIL_CLOSED"
