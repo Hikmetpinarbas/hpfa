@@ -190,6 +190,20 @@
       ]
     },
     {
+      "stage_id": "M09",
+      "owner_id": "rich_multiformat_analysis_lattice_v1",
+      "artifact_name": "rich_multiformat_analysis_lattice_v1.json",
+      "object_path": "m09_opponent_interaction_synthesis",
+      "required_when_artifact_current": true,
+      "epistemic_type": "MATCH_LOCAL_VISIBLE_OPPONENT_INTERACTION_CONTEXT_CANDIDATE",
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_OPPONENT_INTERACTION_CONTEXT_CANDIDATE_ONLY",
+      "allowed_downstream_stage_classes": [
+        "R",
+        "F",
+        "T"
+      ]
+    },
+    {
       "stage_id": "R01",
       "owner_id": "rich_multiformat_analysis_lattice_v1",
       "artifact_name": "rich_multiformat_analysis_lattice_v1.json",
