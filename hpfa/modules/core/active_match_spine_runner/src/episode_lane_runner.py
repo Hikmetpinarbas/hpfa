@@ -13,6 +13,7 @@ from hpfa.modules.core.temporal_episode_signature_lite.src.temporal_episode_sign
 from hpfa.modules.core.core_pipeline_orchestrator_lite.src.episode_feature_temporal_typed_adapter import (
     write_episode_feature_temporal_typed_ledger,
 )
+from hpfa.modules.core.core_pipeline_orchestrator_lite.src.core_pipeline_orchestrator import run_ordered_producer_steps
 
 MODULE_ID = "active_match_episode_lane_adapter_v1"
 CURRENT_EPISODE_RUNNER_OUTPUT = "active_match_full_run_lite_v1.json"
@@ -126,17 +127,6 @@ def _first_failed_step(steps: list[dict[str, Any]]) -> dict[str, Any] | None:
             "stderr": str(step.get("stderr") or "")[-2000:],
         }
     return None
-
-
-def _run_until_failure(
-    steps: list[dict[str, Any]],
-    producers: list[Callable[[], dict[str, Any]]],
-) -> None:
-    for producer in producers:
-        step = producer()
-        steps.append(step)
-        if step.get("passed") is False:
-            break
 
 
 def _stage_executed(steps: list[dict[str, Any]], script_name: str) -> bool:
@@ -279,7 +269,7 @@ def run_current_episode_lane(
                 "--out-dir", str(output),
             ]),
         ]
-        _run_until_failure(steps, producers)
+        steps.extend(run_ordered_producer_steps(producers))
 
     current_report: dict[str, Any] = {}
     first_failed_episode_step: dict[str, Any] | None = None
