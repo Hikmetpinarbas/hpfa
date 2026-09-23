@@ -4,7 +4,10 @@ from pathlib import Path
 import argparse
 import json
 
-from core_pipeline_orchestrator import ContextInputSpec, StageSpec, artifact_fingerprint, run_pipeline
+try:
+    from .core_pipeline_orchestrator import ContextInputSpec, StageSpec, artifact_fingerprint, run_pipeline
+except ImportError:
+    from core_pipeline_orchestrator import ContextInputSpec, StageSpec, artifact_fingerprint, run_pipeline
 
 
 SEMANTICS_FILE = "context_action_semantics_rebind_lite_v1.json"
