@@ -45,8 +45,8 @@ def build_aerial_duel_first_visible_state_context(
     """
     traces = [
         row for row in (
-            trace_payload.get("primary_occurrence_trace_candidates")
-            or trace_payload.get("trackable_action_trace_candidates")
+            trace_payload.get("trackable_action_trace_candidates")
+            or trace_payload.get("primary_occurrence_trace_candidates")
             or []
         )
         if isinstance(row, dict)
