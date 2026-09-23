@@ -6,7 +6,7 @@ tools/*	release_or_ops_tools	tools_or_ops	keep_with_review	tool not runtime auth
 configs/hpfa_canon/*	canon_config	configs/hpfa_canon	keep_with_review	needs config audit
 hpfa-main/*	legacy_or_imported_structure	git_history_or_external_legacy_reference	remove_current_tree	zero current reachability; legacy semantics conflict with current ZFGV truth locks
 graphics_pack/*	research_pack	archive_reference	archive_candidate	not core product code
-data_inbox/*	inbox_or_drift_report	archive_reference	archive_candidate	not canonical code
+data_inbox/*	inbox_or_drift_report	git_history_after_vocabulary_distillation	remove_current_tree	raw XLSX vocabulary distilled to provider metric dictionary owner; legacy code/reports are non-authoritative
 progression_docs	progression_productization_docs	docs/productization/progression_engine	group_later	decision docs not runtime contracts
 progression_evidence	progression_runtime_evidence	runtime_evidence/postmatch_release_0_1/progression_engine	keep_as_evidence	no production promotion
 module_code_missing	product_code_gap	hpfa/modules/postmatch/progression_engine	create_later	canonical module skeleton missing

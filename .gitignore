@@ -53,3 +53,6 @@ tools/.#*
 
 # Nested legacy/imported product trees are not current authority.
 /hpfa-main/
+
+# Historical inbox material must be distilled into an owning product surface.
+/data_inbox/
