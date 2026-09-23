@@ -4142,10 +4142,6 @@ def run_rich_lane(
         c03,
         visible_process_route_breadth_profile,
     )
-    r01_ball_progression_system_synthesis = _r01_ball_progression_system_synthesis(
-        m01_possession_construction_synthesis,
-        m02_progression_territory_synthesis,
-    )
     visible_circulation_fate_profile = build_visible_circulation_fate_profile(
         [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
     )
@@ -4153,6 +4149,10 @@ def run_rich_lane(
         c03,
         visible_circulation_fate_profile,
         goalkeeper_restart_consequence_context,
+    )
+    r01_ball_progression_system_synthesis = _r01_ball_progression_system_synthesis(
+        m01_possession_construction_synthesis,
+        m02_progression_territory_synthesis,
     )
     if c03.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C03_process_development_signature_review_available")
