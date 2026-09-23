@@ -40,3 +40,22 @@ def test_generated_runtime_and_out_roots_are_ignored() -> None:
     ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "/runtime/" in ignored
     assert "/out/" in ignored
+
+def test_current_full_spine_compatibility_closure_is_packaged() -> None:
+    config = _pyproject()
+    modules = set(config["tool"]["setuptools"]["py-modules"])
+    required = {
+        "active_match_spine_runner",
+        "active_match_full_run",
+        "analyst_episode_locator",
+        "axis_integrity_tagger",
+        "context_action_semantics_rebind",
+        "episode_feature_vector",
+        "event_window_builder",
+        "row_nucleus_inventory",
+        "time_scale_router",
+    }
+    assert required <= modules
+    assert config["project"]["scripts"]["hpfa-active-match"] == "active_match_spine_runner:main"
+    for module in modules:
+        assert (ROOT / f"{module}.py").is_file()
