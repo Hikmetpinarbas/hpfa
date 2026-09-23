@@ -691,6 +691,78 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
     return cards
 
 
+def _human_score_state_process_outcome_cards(
+    rich: dict[str, Any], identity: dict[str, Any], language: str
+) -> list[str]:
+    context = rich.get("score_state_visible_process_outcome_context") or {}
+    profiles = [row for row in (context.get("profiles") or []) if isinstance(row, dict)]
+    if not profiles or str(context.get("status") or "") not in {"PASS", "REVIEW_REQUIRED"}:
+        return []
+
+    teams = _human_team_labels(identity)
+    by_team: dict[str, list[dict[str, Any]]] = {}
+    for row in profiles:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            by_team.setdefault(team_id, []).append(row)
+
+    cards: list[str] = []
+    for team_id, rows in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
+        name = teams.get(team_id, team_id)
+        rows = sorted(
+            rows,
+            key=lambda row: (
+                float(row.get("segment_start_second_candidate") or 0.0),
+                float(row.get("segment_end_second_candidate") or 0.0),
+            ),
+        )
+        segments: list[str] = []
+        rate_segments: list[str] = []
+        for row in rows:
+            score_text = _score_state_human(row.get("score_state_candidate"), language)
+            if not score_text:
+                score_text = "skor bağlamı çözümlenmedi" if language == "tr" else "score context unresolved"
+            eligible = int(row.get("eligible_visible_process_n") or 0)
+            shot = int(row.get("shot_ending_process_n") or 0)
+            loss = int(row.get("visible_loss_process_n") or 0)
+            recovery = int(row.get("visible_recovery_process_n") or 0)
+            process_rate = row.get("eligible_visible_process_rate_per_10_minutes")
+            shot_rate = row.get("shot_ending_process_rate_per_10_minutes")
+            if language == "tr":
+                segments.append(
+                    f"{score_text}: süreç {eligible}, şut-sonlanma {shot}, görünür kayıp {loss}, görünür kazanım {recovery}"
+                )
+                if isinstance(process_rate, (int, float)) and isinstance(shot_rate, (int, float)):
+                    rate_segments.append(
+                        f"{score_text}: süreç/10dk {process_rate:.2f}, şut-sonlanma/10dk {shot_rate:.2f}"
+                    )
+            else:
+                segments.append(
+                    f"{score_text}: processes {eligible}, shot-ending {shot}, visible loss {loss}, visible recovery {recovery}"
+                )
+                if isinstance(process_rate, (int, float)) and isinstance(shot_rate, (int, float)):
+                    rate_segments.append(
+                        f"{score_text}: processes/10m {process_rate:.2f}, shot-ending/10m {shot_rate:.2f}"
+                    )
+
+        if language == "tr":
+            football = f"{name} — skor bağlamına göre görünür süreç/sonuç profili: " + "; ".join(segments) + "."
+            evidence = (
+                "Kanıt kapsamı: paydalar admitted görünür süreç sayısı ve skor-segmenti maruziyet süresidir. "
+                + ("Oranlar: " + "; ".join(rate_segments) + ". " if rate_segments else "")
+                + "Bu yüzey skor bağlamındaki görünür bileşimi tanımlar; neden, teknik plan, dominance ve risk iştahı yorumları için ayrı evidence gerekir."
+            )
+        else:
+            football = f"{name} — visible process/outcome profile by score context: " + "; ".join(segments) + "."
+            evidence = (
+                "Evidence scope: denominators are admitted visible process count and score-segment exposure time. "
+                + ("Rates: " + "; ".join(rate_segments) + ". " if rate_segments else "")
+                + "This surface describes visible composition under score context; causal explanation, tactical-plan, dominance, and risk-appetite interpretation require separate evidence."
+            )
+        cards.extend([football, evidence])
+    return cards
+
+
 def _human_aerial_duel_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     context = rich.get("aerial_duel_first_visible_state_context") or {}
     rows = [row for row in (context.get("rows") or []) if isinstance(row, dict)]
@@ -2045,6 +2117,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "tr") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
+    score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "tr") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "tr") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "tr") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "tr") if rich_current else []
@@ -2061,34 +2134,39 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in team_cards)
     else:
         lines.append("- Bu maçta takım süreç profili güvenli biçimde üretilemedi.")
-    lines.extend(["", "[2] HAVA TOPU → İLK GÖRÜNÜR DEVAM"])
+    lines.extend(["", "[2] SKOR BAĞLAMI → GÖRÜNÜR SÜREÇ / SONUÇ PROFİLİ"])
+    if score_state_cards:
+        lines.extend(f"- {line}" for line in score_state_cards)
+    else:
+        lines.append("- Skor-segmenti süreç/sonuç yüzeyi bu çalışmada rapor kapsamına alınamadı.")
+    lines.extend(["", "[3] HAVA TOPU → İLK GÖRÜNÜR DEVAM"])
     if aerial_cards:
         lines.extend(f"- {line}" for line in aerial_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde raporlanabilir hava topu ilk-görünür-devam yüzeyi yok.")
-    lines.extend(["", "[3] SEQUENCE / PROCESS INTELLIGENCE"])
+    lines.extend(["", "[4] SEQUENCE / PROCESS INTELLIGENCE"])
     if sequence_cards:
         lines.extend(f"- {line}" for line in sequence_cards)
     else:
         lines.append("- Bu maçta sequence/process information profili üretilemedi.")
-    lines.extend(["", "[4] OYUNCU / İKİLİ × HÜCUM SONUCU"])
+    lines.extend(["", "[5] OYUNCU / İKİLİ × HÜCUM SONUCU"])
     if c02_cards:
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- Bu maçta bu başlık için güvenli biçimde raporlanabilir current-run aday yok.")
-    lines.extend(["", "[5] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
+    lines.extend(["", "[6] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- Bu maçta iki takım için karşılaştırılabilir süreç çarpışma yüzeyi üretilemedi.")
-    lines.extend(["", "[6] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
+    lines.extend(["", "[7] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde kısa listeye alınmış mekanizma adayı yok.")
     lines.extend([
         "",
-        "[7] ANALİST OKUMA ÇERÇEVESİ",
+        "[8] ANALİST OKUMA ÇERÇEVESİ",
         "- Oyuncu ve ikili yüzeyi, görünür süreç katılımı ile sonuç bağlantısını maç-içi association olarak sunar.",
         "- Hedef sonuç etiketi çözülmeyen süreçler unresolved outcome statüsünde izlenir.",
         "- Sıralama, analistin hangi örneklere önce bakacağını belirleyen maç-içi dikkat sırasıdır.",
@@ -2107,6 +2185,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "en") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
+    score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "en") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "en") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "en") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "en") if rich_current else []
@@ -2123,34 +2202,39 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in team_cards)
     else:
         lines.append("- No safe current-run team process profile is available.")
-    lines.extend(["", "[2] AERIAL DUEL → FIRST VISIBLE CONTINUATION"])
+    lines.extend(["", "[2] SCORE CONTEXT → VISIBLE PROCESS / OUTCOME PROFILE"])
+    if score_state_cards:
+        lines.extend(f"- {line}" for line in score_state_cards)
+    else:
+        lines.append("- Score-segment process/outcome context was not admitted into this report run.")
+    lines.extend(["", "[3] AERIAL DUEL → FIRST VISIBLE CONTINUATION"])
     if aerial_cards:
         lines.extend(f"- {line}" for line in aerial_cards)
     else:
         lines.append("- No safely reportable aerial-duel first-visible-continuation surface is available for this match.")
-    lines.extend(["", "[3] SEQUENCE / PROCESS INTELLIGENCE"])
+    lines.extend(["", "[4] SEQUENCE / PROCESS INTELLIGENCE"])
     if sequence_cards:
         lines.extend(f"- {line}" for line in sequence_cards)
     else:
         lines.append("- No sequence/process information profile is available for this run.")
-    lines.extend(["", "[4] PLAYER / PAIR × ATTACK OUTCOME"])
+    lines.extend(["", "[5] PLAYER / PAIR × ATTACK OUTCOME"])
     if c02_cards:
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- No current-run candidate can be reported safely under this heading.")
-    lines.extend(["", "[5] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
+    lines.extend(["", "[6] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- No comparable two-team process contest surface is available for this run.")
-    lines.extend(["", "[6] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
+    lines.extend(["", "[7] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- No mechanism candidate was safely shortlisted in this run.")
     lines.extend([
         "",
-        "[7] ANALYST READING FRAME",
+        "[8] ANALYST READING FRAME",
         "- Player and pair surfaces present visible process involvement and outcome linkage as match-local associations.",
         "- Processes with unresolved target outcomes remain in the unresolved-outcome state.",
         "- Ranking is a match-local analyst-attention order.",
