@@ -3671,6 +3671,115 @@ def _construct_c04(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+
+def _m07_defensive_process_visible_exposure_response_synthesis(
+    m09: dict[str, Any],
+    m05: dict[str, Any],
+    m02: dict[str, Any],
+) -> dict[str, Any]:
+    """Describe event/process-visible defensive exposure and response.
+
+    This is intentionally NOT organized-defence shape/compactness/pressure truth.
+    """
+    m05_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (m05.get("profiles") or [])
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+    m02_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (m02.get("profiles") or [])
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+
+    profiles: list[dict[str, Any]] = []
+    for interaction in (m09.get("profiles") or []):
+        if not isinstance(interaction, dict):
+            continue
+        team_id = str(interaction.get("team_identity_candidate_id") or "").strip()
+        if not team_id:
+            continue
+        exposure_rows = [
+            row for row in (interaction.get("opponent_exposure_direction_rows") or [])
+            if isinstance(row, dict)
+        ]
+        opponent_ids = sorted({
+            str(row.get("opponent_team_identity_candidate_id") or "")
+            for row in exposure_rows
+            if str(row.get("opponent_team_identity_candidate_id") or "")
+        })
+        opponent_id = opponent_ids[0] if len(opponent_ids) == 1 else None
+
+        visible_exposure_rows = [
+            row for row in exposure_rows
+            if row.get("observation_state") == "VISIBLE_PROCESS_PROFILE_AVAILABLE"
+        ]
+        opponent_process_n = sum(
+            int(row.get("eligible_process_n") or 0)
+            for row in visible_exposure_rows
+        )
+        opponent_shot_ending_n = sum(
+            int(row.get("shot_ending_process_n") or 0)
+            for row in visible_exposure_rows
+        )
+        opponent_visible_loss_n = sum(
+            int(row.get("visible_loss_process_n") or 0)
+            for row in visible_exposure_rows
+        )
+        opponent_visible_recovery_n = sum(
+            int(row.get("visible_recovery_process_n") or 0)
+            for row in visible_exposure_rows
+        )
+        own_loss_recovery = m05_by_team.get(team_id)
+        opponent_progression = m02_by_team.get(opponent_id or "") if opponent_id else None
+
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "opponent_team_identity_candidate_id": opponent_id,
+            "defensive_exposure_direction_n": len(exposure_rows),
+            "visible_defensive_exposure_direction_n": len(visible_exposure_rows),
+            "unresolved_defensive_exposure_direction_n": len(exposure_rows) - len(visible_exposure_rows),
+            "opponent_visible_process_n": opponent_process_n,
+            "opponent_shot_ending_process_n": opponent_shot_ending_n,
+            "opponent_visible_loss_process_n": opponent_visible_loss_n,
+            "opponent_visible_recovery_process_n": opponent_visible_recovery_n,
+            "own_loss_recovery_dynamics": own_loss_recovery,
+            "opponent_progression_territory_context": opponent_progression,
+            "organized_defence_component_status": "NOT_EVALUATED_NO_DEDICATED_P05_OWNER",
+            "taxonomy_coverage_state": "PARTIAL_VISIBLE_EXPOSURE_RESPONSE_ONLY",
+            "defensive_success_truth": False,
+            "opponent_progression_prevention_truth": False,
+            "opponent_non_shot_is_prevention_truth": False,
+            "opponent_visible_loss_is_forced_turnover_truth": False,
+            "organized_defence_shape_truth": False,
+            "compactness_truth": False,
+            "pressure_geometry_truth": False,
+            "tactical_plan_truth": False,
+            "causal_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_DEFENSIVE_EXPOSURE_RESPONSE_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M07_DEFENSIVE_PROCESS_VISIBLE_EXPOSURE_RESPONSE",
+        "status": "REVIEW_REQUIRED" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "source_mezzo_ids": ["M05_LOSS_RECOVERY_DYNAMICS", "M09_OPPONENT_INTERACTION"],
+        "source_pool_ids": ["P05", "P15", "P18", "P20"],
+        "p05_organized_defence_owner_status": "GAP",
+        "taxonomy_coverage_state": "PARTIAL_VISIBLE_EXPOSURE_RESPONSE_ONLY",
+        "pool_views_create_independent_evidence": False,
+        "defensive_success_truth": False,
+        "organized_defence_truth": False,
+        "team_shape_truth": False,
+        "compactness_truth": False,
+        "pressure_geometry_truth": False,
+        "causal_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_DEFENSIVE_EXPOSURE_RESPONSE_CANDIDATE_ONLY",
+    }
+
+
 def _m09_opponent_interaction_synthesis(
     c03: dict[str, Any],
 ) -> dict[str, Any]:
@@ -4454,6 +4563,13 @@ def run_rich_lane(
         c03,
         visible_process_route_breadth_profile,
     )
+    m07_defensive_process_visible_exposure_response_synthesis = (
+        _m07_defensive_process_visible_exposure_response_synthesis(
+            m09_opponent_interaction_synthesis,
+            m05_loss_recovery_dynamics_synthesis,
+            m02_progression_territory_synthesis,
+        )
+    )
     visible_circulation_fate_profile = build_visible_circulation_fate_profile(
         [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
     )
@@ -4501,6 +4617,7 @@ def run_rich_lane(
         "time_window_process_mix_change_context": time_window_process_mix_change_context,
         "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
         "m09_opponent_interaction_synthesis": m09_opponent_interaction_synthesis,
+        "m07_defensive_process_visible_exposure_response_synthesis": m07_defensive_process_visible_exposure_response_synthesis,
         "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
         "m02_progression_territory_synthesis": m02_progression_territory_synthesis,
         "r01_ball_progression_system_synthesis": r01_ball_progression_system_synthesis,
@@ -4535,6 +4652,7 @@ def run_rich_lane(
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
                 "process_development_signatures": c03.get("signatures") or [],
                 "m09_opponent_interaction_synthesis": m09_opponent_interaction_synthesis,
+                "m07_defensive_process_visible_exposure_response_synthesis": m07_defensive_process_visible_exposure_response_synthesis,
                 "visible_circulation_fate_profile": visible_circulation_fate_profile,
                 "m01_possession_construction_synthesis": m01_possession_construction_synthesis,
                 "m02_progression_territory_synthesis": m02_progression_territory_synthesis,
