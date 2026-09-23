@@ -3668,6 +3668,103 @@ def _construct_c04(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+
+def _m05_loss_recovery_dynamics_synthesis(
+    loss_context: dict[str, Any],
+    recovery_context: dict[str, Any],
+) -> dict[str, Any]:
+    """Combine visible loss/recovery successor context without causal promotion."""
+    loss_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    recovery_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    unresolved_loss_team_n = 0
+    unresolved_recovery_team_n = 0
+
+    for row in (loss_context.get("rows") or []):
+        if not isinstance(row, dict):
+            continue
+        teams = [
+            str(value) for value in (row.get("anchor_team_identity_candidate_ids") or [])
+            if str(value)
+        ]
+        if len(teams) == 1:
+            loss_by_team[teams[0]].append(row)
+        else:
+            unresolved_loss_team_n += 1
+
+    for row in (recovery_context.get("rows") or []):
+        if not isinstance(row, dict):
+            continue
+        teams = [
+            str(value) for value in (row.get("team_identity_candidate_ids") or [])
+            if str(value)
+        ]
+        if len(teams) == 1:
+            recovery_by_team[teams[0]].append(row)
+        else:
+            unresolved_recovery_team_n += 1
+
+    profiles: list[dict[str, Any]] = []
+    for team_id in sorted(set(loss_by_team) | set(recovery_by_team)):
+        loss_rows = loss_by_team.get(team_id, [])
+        recovery_rows = recovery_by_team.get(team_id, [])
+        opponent_family_counts: Counter[str] = Counter(
+            family
+            for row in loss_rows
+            for family in (row.get("next_opponent_process_family_candidates") or [])
+            if family
+        )
+        own_family_counts: Counter[str] = Counter(
+            family
+            for row in recovery_rows
+            for family in (row.get("next_visible_process_family_candidates") or [])
+            if family
+        )
+        loss_binding_counts = Counter(
+            str(row.get("next_opponent_process_binding_state") or "UNKNOWN")
+            for row in loss_rows
+        )
+        recovery_binding_counts = Counter(
+            str(row.get("next_process_binding_state") or "UNKNOWN")
+            for row in recovery_rows
+        )
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "visible_loss_context_n": len(loss_rows),
+            "visible_recovery_context_n": len(recovery_rows),
+            "loss_next_opponent_process_family_counts": dict(sorted(opponent_family_counts.items())),
+            "recovery_next_own_process_family_counts": dict(sorted(own_family_counts.items())),
+            "loss_binding_state_counts": dict(sorted(loss_binding_counts.items())),
+            "recovery_binding_state_counts": dict(sorted(recovery_binding_counts.items())),
+            "loss_denominator": "ADMITTED_LOSS_CONTEXT_ROWS_WITH_UNAMBIGUOUS_ANCHOR_TEAM",
+            "recovery_denominator": "ADMITTED_RECOVERY_CONTEXT_ROWS_WITH_UNAMBIGUOUS_TEAM",
+            "loss_is_failure_truth": False,
+            "recovery_is_success_truth": False,
+            "loss_is_defensive_transition_truth": False,
+            "recovery_is_attacking_transition_truth": False,
+            "successor_process_is_causal_consequence_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_LOSS_RECOVERY_DYNAMICS_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M05_LOSS_RECOVERY_DYNAMICS",
+        "status": "PASS" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "unresolved_loss_team_row_n": unresolved_loss_team_n,
+        "unresolved_recovery_team_row_n": unresolved_recovery_team_n,
+        "source_loss_binding_state": loss_context.get("binding_state"),
+        "source_recovery_binding_state": recovery_context.get("binding_state"),
+        "source_pool_ids": ["P14", "P15", "P18", "P20"],
+        "pool_views_create_independent_evidence": False,
+        "loss_is_failure_truth": False,
+        "recovery_is_success_truth": False,
+        "transition_truth": False,
+        "causal_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_LOSS_RECOVERY_DYNAMICS_CANDIDATE_ONLY",
+    }
+
+
 def _r01_ball_progression_system_synthesis(
     m01: dict[str, Any],
     m02: dict[str, Any],
@@ -4120,6 +4217,10 @@ def run_rich_lane(
         trackable_trace_payload,
         process_participation_payload,
     )
+    m05_loss_recovery_dynamics_synthesis = _m05_loss_recovery_dynamics_synthesis(
+        loss_next_opponent_process_context,
+        recovery_next_process_context,
+    )
     set_piece_process_consequence_context = _set_piece_process_consequence_context(
         process_participation_payload,
         occurrence_consequence_payload,
@@ -4196,6 +4297,7 @@ def run_rich_lane(
         "aerial_duel_first_visible_state_context": aerial_duel_first_visible_state_context,
         "recovery_next_process_context": recovery_next_process_context,
         "loss_next_opponent_process_context": loss_next_opponent_process_context,
+        "m05_loss_recovery_dynamics_synthesis": m05_loss_recovery_dynamics_synthesis,
         "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
         "set_piece_process_consequence_context": set_piece_process_consequence_context,
         "counterattack_next_process_context": counterattack_next_process_context,
@@ -4212,6 +4314,7 @@ def run_rich_lane(
                 "episode_feature_vectors": features.get("episode_feature_vectors") or [],
                 "recovery_next_process_context": recovery_next_process_context,
                 "loss_next_opponent_process_context": loss_next_opponent_process_context,
+                "m05_loss_recovery_dynamics_synthesis": m05_loss_recovery_dynamics_synthesis,
                 "set_piece_process_consequence_context": set_piece_process_consequence_context,
                 "counterattack_next_process_context": counterattack_next_process_context,
                 "phase_state_candidates": phase_states,
