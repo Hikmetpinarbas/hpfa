@@ -125,3 +125,24 @@ def test_non_aerial_duel_is_not_promoted():
 
     assert result["status"] == "NOT_AVAILABLE"
     assert result["aerial_duel_context_row_count"] == 0
+
+
+def test_full_trackable_trace_surface_has_priority_over_primary_occurrence_subset():
+    traces = {
+        "primary_occurrence_trace_candidates": [
+            _trace("subset1", "TEAM_A", 90, ["Challenges won"]),
+        ],
+        "trackable_action_trace_candidates": [
+            _trace("a1", "TEAM_A", 100, ["Aerial challenges won"]),
+            _trace("n1", "TEAM_B", 105, ["Pass"]),
+        ],
+    }
+
+    result = build_aerial_duel_first_visible_state_context(
+        traces,
+        {"process_participation_candidates": []},
+    )
+
+    assert result["aerial_duel_context_row_count"] == 1
+    assert result["rows"][0]["source_trackable_action_trace_candidate_id"] == "a1"
+    assert result["rows"][0]["first_visible_team_relation_to_aerial_actor_team"] == "OPPONENT_TEAM_FIRST_VISIBLE_ACTION"
