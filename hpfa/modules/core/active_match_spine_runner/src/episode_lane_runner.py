@@ -10,12 +10,16 @@ import active_match_full_run as current_episode
 from hpfa.modules.core.temporal_episode_signature_lite.src.temporal_episode_signature import (
     write_outputs as write_temporal_episode_signature,
 )
+from hpfa.modules.core.core_pipeline_orchestrator_lite.src.episode_feature_temporal_typed_adapter import (
+    write_episode_feature_temporal_typed_ledger,
+)
 
 MODULE_ID = "active_match_episode_lane_adapter_v1"
 CURRENT_EPISODE_RUNNER_OUTPUT = "active_match_full_run_lite_v1.json"
 ROW_NUCLEUS_OUTPUT = "row_nucleus_inventory_lite_v1.json"
 BRIDGE_OUTPUT = "reconstruction_intelligence_packet_bridge_current_v1.json"
 TEMPORAL_OUTPUT = "temporal_episode_signature_lite_v1.json"
+TYPED_ORCHESTRATION_OUTPUT = "episode_feature_temporal_typed_orchestration_v1.json"
 EPISODE_OWNED_OUTPUTS = {
     "minimum_viable_context_lite_v1.json",
     "minimum_viable_context_lite_v1.txt",
@@ -37,6 +41,7 @@ EPISODE_OWNED_OUTPUTS = {
     "temporal_episode_signature_lite_v1.json",
     "temporal_episode_signature_lite_v1.txt",
     "temporal_episode_signature_analyst_audit_v1.txt",
+    TYPED_ORCHESTRATION_OUTPUT,
     "active_match_full_run_lite_v1.json",
     "active_match_full_run_lite_v1.txt",
 }
@@ -338,6 +343,31 @@ def run_current_episode_lane(
             elif temporal_report.get("status") == "REVIEW_REQUIRED":
                 review_hits.append("temporal_episode_signature_review_required")
 
+    typed_orchestration_report: dict[str, Any] = {}
+    typed_orchestration_executed = False
+    first_failed_typed_orchestration_reason: str | None = None
+    if not hard_blocks and temporal_executed:
+        typed_orchestration_executed = True
+        try:
+            typed_orchestration_report = write_episode_feature_temporal_typed_ledger(
+                output,
+                run_id=f"{expected_snapshot_id}:episode_feature_temporal",
+                filename=TYPED_ORCHESTRATION_OUTPUT,
+            )
+        except (OSError, ValueError, TypeError) as exc:
+            first_failed_typed_orchestration_reason = (
+                f"typed_orchestration_execution_failed:{type(exc).__name__}"
+            )
+            hard_blocks.append(first_failed_typed_orchestration_reason)
+        if typed_orchestration_report.get("status") == "FAIL_CLOSED":
+            first_failed_typed_orchestration_reason = (
+                str(typed_orchestration_report.get("first_failed_reason_code") or "")
+                or "typed_orchestration_fail_closed"
+            )
+            hard_blocks.append(first_failed_typed_orchestration_reason)
+        elif typed_orchestration_report.get("status") == "REVIEW_REQUIRED":
+            review_hits.append("typed_orchestration_review_required")
+
     final_observed_snapshot = _surface_snapshot(active_match)
     final_snapshot_bound = bool(expected_snapshot_id) and final_observed_snapshot.get("snapshot_id") == expected_snapshot_id
     if expected_snapshot_id and not final_snapshot_bound:
@@ -377,6 +407,10 @@ def run_current_episode_lane(
         "same_start_order_indeterminate_count": temporal_report.get("same_start_order_indeterminate_count"),
         "first_failed_episode_step": first_failed_episode_step,
         "first_failed_temporal_reason": first_failed_temporal_reason,
+        "first_failed_typed_orchestration_reason": first_failed_typed_orchestration_reason,
+        "typed_orchestration_status": typed_orchestration_report.get("status"),
+        "typed_orchestration_decision": typed_orchestration_report.get("decision"),
+        "typed_orchestration_stage_count": typed_orchestration_report.get("stage_count_executed"),
         "hard_block_hits": hard_blocks,
         "review_hits": review_hits,
         "step_statuses": [
@@ -396,6 +430,8 @@ def run_current_episode_lane(
         "context_episode_feature_lane_executed": feature_lane_executed,
         "context_episode_feature_lane_completed": feature_lane_completed,
         "temporal_episode_signature_executed": temporal_executed,
+        "typed_orchestration_executed": typed_orchestration_executed,
+        "typed_orchestration_output": str(output / TYPED_ORCHESTRATION_OUTPUT),
         "row_nucleus_recomputed_by_episode_lane": False,
         "episode_lane_adds_action_volume": False,
         "temporal_signature_is_rhythm_truth": False,
