@@ -15,6 +15,7 @@ from hpfa.modules.core.defeasible_argument_router_lite.src.defeasible_argument_r
 from hpfa.modules.core.evidence_graph_engine_lite.src.evidence_graph_engine import build_evidence_graph
 from hpfa.modules.core.evidence_lens_matrix_lite.src.evidence_lens_matrix import bind_construct_lens_contract, build_lens_matrix
 from hpfa.modules.core.final_report_assembly_gate_lite.src.final_report_assembly_gate import evaluate_assembly_item
+from hpfa.modules.core.core_pipeline_orchestrator_lite.src.information_reservoir_runtime_projection import write_information_reservoir_projection
 from hpfa.modules.core.multi_signal_evidence_fusion_lite.src.multi_signal_evidence_fusion import fuse_packet
 from hpfa.modules.core.report_output_contract_lite.src.report_output_contract import evaluate_report_block
 from hpfa.modules.core.safe_argument_router_tr_lite.src.safe_argument_router_tr import route_safe_sentence
@@ -541,6 +542,38 @@ def run_full_spine(
         ],
     )
 
+    information_reservoir_report = write_information_reservoir_projection(
+        output_root,
+        current_invocation_artifacts=current_invocation_artifacts,
+    )
+    information_reservoir_path = output_root / "information_reservoir_runtime_projection_v1.json"
+    if information_reservoir_path.is_file():
+        current_invocation_artifacts = _collect_current_artifacts(
+            {"current_invocation_artifacts": current_invocation_artifacts},
+            extra=[str(information_reservoir_path)],
+        )
+    reservoir_status = _status(information_reservoir_report.get("status"))
+    if reservoir_status == "FAIL_CLOSED":
+        hard_blocks.append("information_reservoir_projection_fail_closed")
+        first_failed_node = first_failed_node or "information_reservoir_projection"
+        reasons = information_reservoir_report.get("hard_block_hits") or []
+        first_failed_reason_code = first_failed_reason_code or (
+            str(reasons[0])
+            if isinstance(reasons, list) and reasons
+            else "information_reservoir_projection_fail_closed"
+        )
+    elif reservoir_status == "REVIEW_REQUIRED":
+        review_hits.append("information_reservoir_projection_review_required")
+
+    hard_blocks = _dedupe_preserve_order(hard_blocks)
+    review_hits = _dedupe_preserve_order(review_hits)
+    if hard_blocks:
+        status, decision = "FAIL_CLOSED", "BLOCK_FULL_SPINE"
+    elif review_hits:
+        status, decision = "REVIEW_REQUIRED", "FULL_SPINE_COMPLETED_REVIEW_REQUIRED"
+    else:
+        status, decision = "SMOKE_PASS", "FULL_SPINE_EXECUTION_COMPLETED"
+
     entity_views = rich_report.get("entity_views") or {}
     constructs = rich_report.get("constructs") or {}
     report = {
@@ -584,6 +617,7 @@ def run_full_spine(
         "orphan_capability_sidecars": sidecar_report,
         "intelligence_chains": chains,
         "current_invocation_artifacts": current_invocation_artifacts,
+        "information_reservoir_runtime_projection": information_reservoir_report,
         "engineering_evidence": {
             "single_active_match_authority_validated": True,
             "reconstruction_bridge_executed": True,
@@ -609,6 +643,8 @@ def run_full_spine(
             "c4_sidecar_dependency_preserved": True,
             "parallel_reasoning_engine_created": False,
             "first_failure_disclosure_enabled": True,
+            "information_reservoir_runtime_projection_bound": information_reservoir_report.get("status") in {"PASS", "REVIEW_REQUIRED"},
+            "information_reservoir_claim_ceiling_guard_enabled": True,
             "duplicate_foundation_execution_currently_possible": False,
         },
         "analyst_evidence": {
@@ -673,6 +709,8 @@ def run_full_spine(
         "spatial_progression_measured_displacement_truth=false",
         "spatial_progression_coordinate_is_tracking_truth=false",
         "spatial_progression_zero_count_is_counterevidence=false",
+        f"information_reservoir_projection_status={information_reservoir_report.get('status')}",
+        f"information_reservoir_current_binding_count={information_reservoir_report.get('current_invocation_binding_count')}",
         f"first_failed_node={first_failed_node}",
         f"first_failed_reason_code={first_failed_reason_code}",
         f"hard_block_hits={hard_blocks}",
