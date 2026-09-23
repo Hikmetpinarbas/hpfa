@@ -18,6 +18,7 @@ from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_me
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_sequence_grammar_alignment_projection import build_supported_sequence_grammar_alignment
 from hpfa.modules.core.active_match_spine_runner.src.process_sequence_information import build_process_sequence_information
 from hpfa.modules.core.active_match_spine_runner.src.process_mix_change import build_time_window_process_mix_change_context
+from hpfa.modules.core.active_match_spine_runner.src.aerial_duel_first_visible_state import build_aerial_duel_first_visible_state_context
 
 MODULE_ID = "rich_multiformat_analysis_lattice_v1"
 OUTPUT_JSON = "rich_multiformat_analysis_lattice_v1.json"
@@ -3782,6 +3783,10 @@ def run_rich_lane(
     if c02.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C02_process_participant_outcome_association_review_available")
     trackable_trace_payload = _load_json(output / TRACKABLE_TRACE_JSON)
+    aerial_duel_first_visible_state_context = build_aerial_duel_first_visible_state_context(
+        trackable_trace_payload,
+        process_participation_payload,
+    )
     goalkeeper_restart_consequence_context = _goalkeeper_restart_consequence_context(
         action_occurrence_payload,
         occurrence_consequence_payload,
@@ -3839,6 +3844,7 @@ def run_rich_lane(
         "game_state_context": game_state_context,
         "game_state_process_mix_context": game_state_process_mix_context,
         "time_window_process_mix_change_context": time_window_process_mix_change_context,
+        "aerial_duel_first_visible_state_context": aerial_duel_first_visible_state_context,
         "recovery_next_process_context": recovery_next_process_context,
         "loss_next_opponent_process_context": loss_next_opponent_process_context,
         "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
@@ -3849,6 +3855,7 @@ def run_rich_lane(
                 "player_view_candidates": entity_views.get("player_view_candidates"),
                 "goalkeeper_view_candidates": entity_views.get("goalkeeper_view_candidates"),
                 "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
+                "aerial_duel_first_visible_state_context": aerial_duel_first_visible_state_context,
                 "primitive_metrics": primitives,
             },
             "MEZZO": {
