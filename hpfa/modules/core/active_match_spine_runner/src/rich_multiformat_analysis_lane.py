@@ -10,7 +10,10 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
-from shared_surface_snapshot_contract import surface_snapshot_id
+try:
+    from .shared_surface_snapshot_contract import surface_snapshot_id
+except ImportError:  # compatibility for direct src-path test/runtime imports
+    from shared_surface_snapshot_contract import surface_snapshot_id
 
 from hpfa.modules.core.multiformat_file_inventory_lite.src import multiformat_file_inventory as inventory
 from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader import native_reader as xlsx
