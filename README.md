@@ -113,6 +113,14 @@ The product repository does **not** version:
 
 Those belong outside the product tree.
 
+## Compatibility entrypoints
+
+A small set of top-level Python entrypoints is intentionally retained for current CI, Termux runtime automation and backward-compatible operator invocation.
+
+They are not duplicate engines. Their implementation authority remains under `hpfa/modules/`.
+
+`bin/` contains maintained command-line entrypoints that have already been separated from the repository root. New executable surfaces should prefer `bin/` or package-level entrypoints; new product logic must not be added to top-level compatibility wrappers.
+
 ## Engineering rules
 
 - `WIP=1`
