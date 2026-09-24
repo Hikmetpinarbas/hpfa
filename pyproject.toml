@@ -5,8 +5,23 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hpfa"
 version = "0.1.0"
+description = "Hikmet Pınarbaş Football Analytics"
 requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+test = [
+  "pytest>=8.0",
+  "openpyxl>=3.1",
+]
+
 [tool.setuptools]
-packages = ["canon", "canon.definitions"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hpfa*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.csv", "*.md", "*.tsv", "*.yaml", "*.yml"]
