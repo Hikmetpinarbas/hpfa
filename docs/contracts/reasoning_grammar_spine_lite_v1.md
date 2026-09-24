@@ -88,8 +88,8 @@ The following language is rejected for this contract:
 - pre-motor time is measured from event rows
 - mental decline is measured from event rows
 - next action is predicted as truth
-- Voronoi or pitch-control truth from event-only runtime
-- off-ball structure from event-only runtime
+- Voronoi or pitch-control truth from event observations alone
+- off-ball structure from event observations alone
 - coach intention
 - city or culture as runtime evidence
 
