@@ -19,13 +19,13 @@ normalize_origin(){
 identity_matches(){ [[ -n "$3" && -n "$4" && "$1" == "$3" && "$2" == "$4" ]]; }
 
 if [[ "${1:-}" == "--self-test-execution-identity-guard" ]]; then
-  identity_matches "integration/foundation-tranche-a-v1" "abc123" \
-    "integration/foundation-tranche-a-v1" "abc123" || fail "self_test_exact_identity_rejected"
-  if identity_matches "wrong" "abc123" "integration/foundation-tranche-a-v1" "abc123"; then
+  identity_matches "test/expected-branch" "abc123" \
+    "test/expected-branch" "abc123" || fail "self_test_exact_identity_rejected"
+  if identity_matches "wrong" "abc123" "test/expected-branch" "abc123"; then
     fail "self_test_wrong_branch_accepted"
   fi
-  if identity_matches "integration/foundation-tranche-a-v1" "wrong" \
-    "integration/foundation-tranche-a-v1" "abc123"; then
+  if identity_matches "test/expected-branch" "wrong" \
+    "test/expected-branch" "abc123"; then
     fail "self_test_wrong_head_accepted"
   fi
   echo "cross_format_reconciliation_execution_identity_guard_self_test=PASS"
