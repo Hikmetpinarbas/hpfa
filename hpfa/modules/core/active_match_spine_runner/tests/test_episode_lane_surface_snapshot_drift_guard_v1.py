@@ -32,7 +32,7 @@ def _passing_step(command):
     return {"command": command, "returncode": 0, "stdout": "", "stderr": "", "passed": True}
 
 
-def test_final_snapshot_drift_after_temporal_fails_closed(tmp_path, monkeypatch):
+def test_surface_snapshot_drift_after_temporal_fails_closed(tmp_path, monkeypatch):
     active_match, output, surface = _base_fixture(tmp_path)
     monkeypatch.setattr(
         episode_lane_runner.current_episode,
