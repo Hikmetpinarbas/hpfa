@@ -1,0 +1,85 @@
+{
+  "acceptance_id": "hpfa_multi_match_portability_acceptance_v1",
+  "accepted_head_sha": "3f7a428b9b8685a08dd742492809e89a12f2e19e",
+  "acceptance_scope": "MATCH_PACKAGE_PORTABILITY_SAME_CURRENT_PRODUCT_RUNTIME",
+  "status": "PASS_WITH_SCOPE_LIMITS",
+  "provider_portability": "NOT_EVALUATED",
+  "cross_environment_portability": "NOT_EVALUATED",
+  "production_release": false,
+  "canonical_event_count": "UNKNOWN",
+  "true_action_count": "UNKNOWN",
+  "raw_provider_data_committed": false,
+  "packages": [
+    {
+      "match": "Trabzonspor 4-0 Galatasaray 19.09.2026",
+      "role": "CANONICAL_ACTIVE_MATCH",
+      "surface_pattern": {"csv": 3, "xml": 3, "xlsx": 2},
+      "package_fingerprint_sha256": "0abe5ac0fb88503b51bbcdd7c9e5fd5b19c34ded512734f64584dae0309b7f54",
+      "runtime_status": "REVIEW_REQUIRED",
+      "episode_candidate_count": 58,
+      "episode_feature_vector_count": 58,
+      "temporal_episode_signature_count": 58,
+      "hard_block_count": 0,
+      "professional_emit_allowed_count": 0,
+      "fact_only_render_count": 79,
+      "presentation_view_in_bundle": true,
+      "professional_html_in_bundle": true
+    },    {
+      "match": "Gaziantep FK 0-0 Fenerbahce 14.09.2026",
+      "role": "HISTORICAL_SUPPORT_ACCEPTANCE",
+      "surface_pattern": {"csv": 3, "xml": 3, "xlsx": 2},
+      "package_fingerprint_sha256": "2f897e9ec9bb4f13ec3997bf2be3f39eb143ea1c96fb2202e7d7ee9aa0a435e3",
+      "runtime_status": "REVIEW_REQUIRED",
+      "episode_candidate_count": 57,
+      "episode_feature_vector_count": 57,
+      "temporal_episode_signature_count": 57,
+      "hard_block_count": 0,
+      "professional_emit_allowed_count": 0,
+      "fact_only_render_count": 74,
+      "presentation_view_in_bundle": true,
+      "professional_html_in_bundle": true
+    },
+    {
+      "match": "Fenerbahce 8-0 Eyupspor 20.09.2026",
+      "role": "HISTORICAL_SUPPORT_ACCEPTANCE",
+      "surface_pattern": {"csv": 3, "xml": 3, "xlsx": 2},
+      "package_fingerprint_sha256": "0efc7763ee5ac89411dafe3160759b858084f60715e96b5d891cea0bb24a0812",
+      "runtime_status": "REVIEW_REQUIRED",
+      "episode_candidate_count": 49,
+      "episode_feature_vector_count": 49,
+      "temporal_episode_signature_count": 49,
+      "hard_block_count": 0,
+      "professional_emit_allowed_count": 0,
+      "fact_only_render_count": 88,
+      "presentation_view_in_bundle": true,
+      "professional_html_in_bundle": true
+    },    {
+      "match": "Galatasaray 1-0 Kocaelispor 13.09.2026",
+      "role": "HISTORICAL_SUPPORT_ACCEPTANCE",
+      "surface_pattern": {"csv": 3, "xml": 3, "xlsx": 2},
+      "package_fingerprint_sha256": "eb648e5696827dfa17a389c7e6169835dff177172b15360e81b4ec244a75b598",
+      "runtime_status": "REVIEW_REQUIRED",
+      "episode_candidate_count": 57,
+      "episode_feature_vector_count": 57,
+      "temporal_episode_signature_count": 57,
+      "hard_block_count": 0,
+      "professional_emit_allowed_count": 0,
+      "fact_only_render_count": 76,
+      "presentation_view_in_bundle": true,
+      "professional_html_in_bundle": true
+    }
+  ],
+  "claims": {
+    "supports_match_package_portability": true,
+    "supports_fixed_episode_count": false,
+    "supports_provider_independence": false,
+    "supports_cross_match_generalization_of_football_findings": false,
+    "supports_production_release": false
+  },
+  "notes": [
+    "Distinct package fingerprints prevent counting copied packages as independent portability checks.",
+    "Episode counts vary 49-58 across accepted matches; 58 is not a fixed product count.",
+    "REVIEW_REQUIRED and zero professional emit are valid governed outcomes.",
+    "This acceptance does not establish provider portability or external validity."
+  ]
+}
