@@ -159,3 +159,37 @@ def test_historical_snapshot_workflow_names_do_not_return() -> None:
         and "final-snapshot" in path
     ]
     assert hits == []
+
+
+def test_runtime_tools_do_not_embed_historical_branch_names() -> None:
+    tracked = _tracked_files()
+    tool_paths = [
+        ROOT / path
+        for path in tracked
+        if path.startswith("tools/") and path.endswith((".sh", ".py"))
+    ]
+    forbidden = (
+        "foundation-tranche-a-v1",
+        "rz-gs-20260208",
+    )
+    hits: list[str] = []
+    for path in tool_paths:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if any(token in text for token in forbidden):
+            hits.append(path.name)
+    assert hits == []
+
+
+def test_runtime_tools_do_not_use_destructive_git_reset() -> None:
+    tracked = _tracked_files()
+    tool_paths = [
+        ROOT / path
+        for path in tracked
+        if path.startswith("tools/") and path.endswith((".sh", ".py"))
+    ]
+    hits = [
+        path.name
+        for path in tool_paths
+        if "reset --hard" in path.read_text(encoding="utf-8", errors="ignore")
+    ]
+    assert hits == []
