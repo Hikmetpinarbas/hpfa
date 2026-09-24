@@ -2,13 +2,14 @@
 set -euo pipefail
 umask 077
 
-BRANCH="work/reconstruct-181-research-hardened-v1"
+BRANCH="${HPFA_EXPECTED_BRANCH:-}"
 DEFAULT_ORIGIN_URL="https://github.com/Hikmetpinarbas/hpfa.git"
 SYSTEM_PATH="/data/data/com.termux/files/usr/bin:/system/bin"
 SYSTEM_TMP="/data/data/com.termux/files/usr/tmp"
 ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
 OUT="${HPFA_PHONE_OUTPUT:-/sdcard/Download/HPFA}"
 fail(){ printf 'FAIL: %s\n' "$1" >&2; exit 2; }
+[[ -n "$BRANCH" ]] || fail "expected_branch_required:set_HPFA_EXPECTED_BRANCH"
 
 origin_is_trusted(){
   local o="${1:-}"
