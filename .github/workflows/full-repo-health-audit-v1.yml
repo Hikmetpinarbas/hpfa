@@ -37,7 +37,7 @@ jobs:
 
       - name: Validate distribution contract
         run: |
-          python -m pytest -q tests/test_distribution_contract_v1.py
+          python -m pytest -q tests/test_distribution_contract_v1.py tests/test_release_readiness_audit_v1.py tests/test_release_command_safety_v1.py
           mkdir -p "$RUNNER_TEMP/hpfa-wheel"
           python -m pip wheel . --no-deps -w "$RUNNER_TEMP/hpfa-wheel"
           python - "$RUNNER_TEMP/hpfa-wheel" <<'PYCODE'
@@ -64,6 +64,13 @@ jobs:
           if not all(required.values()) or any(forbidden.values()):
               raise SystemExit({"required": required, "forbidden": forbidden})
           PYCODE
+          WHEEL="$(find "$RUNNER_TEMP/hpfa-wheel" -maxdepth 1 -name 'hpfa-*.whl' | head -1)"
+          mkdir -p "$RUNNER_TEMP/hpfa-release-readiness"
+          python tools/hpfa_release_readiness_audit_v1.py \
+            --repo . \
+            --wheel "$WHEEL" \
+            --out-dir "$RUNNER_TEMP/hpfa-release-readiness"
+
 
       - name: Fail-local repository compile and product test audit
         id: full_audit

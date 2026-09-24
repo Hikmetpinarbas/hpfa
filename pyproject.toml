@@ -68,8 +68,8 @@ py-modules = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["hpfa*", "canon*"]
-exclude = ["hpfa.tests*", "hpfa.modules.*.tests*"]
+include = ["hpfa", "hpfa.*", "canon", "canon.*"]
+exclude = ["hpfa.tests*", "hpfa.modules.*.tests*", "hpfa-main*", "build*"]
 namespaces = true
 
 [tool.setuptools.package-data]

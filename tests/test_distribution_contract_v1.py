@@ -15,12 +15,15 @@ def _pyproject() -> dict:
 def test_distribution_package_discovers_hpfa_and_excludes_non_product_roots() -> None:
     config = _pyproject()
     find = config["tool"]["setuptools"]["packages"]["find"]
-    assert "hpfa*" in find["include"]
-    assert "canon*" in find["include"]
+    assert {"hpfa", "hpfa.*", "canon", "canon.*"} <= set(find["include"])
+    assert "hpfa*" not in find["include"]
+    assert "canon*" not in find["include"]
     assert "vendor*" not in find["include"]
     assert "runtime*" not in find["include"]
     assert "out*" not in find["include"]
     assert "hpfa.modules.*.tests*" in find["exclude"]
+    assert "hpfa-main*" in find["exclude"]
+    assert "build*" in find["exclude"]
 
 
 def test_core_has_no_mandatory_third_party_runtime_dependency() -> None:

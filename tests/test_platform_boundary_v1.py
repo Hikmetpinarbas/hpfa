@@ -24,5 +24,5 @@ def test_termux_delivery_adapter_owns_legacy_flat_download_policy() -> None:
 
 def test_termux_delivery_adapter_is_packaged_under_hpfa_namespace() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert 'include = ["hpfa*", "canon*"]' in pyproject
+    assert 'include = ["hpfa", "hpfa.*", "canon", "canon.*"]' in pyproject
     assert ADAPTER.is_file()
