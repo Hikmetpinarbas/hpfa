@@ -1,4 +1,4 @@
-name: C3 Reconstruction Final Snapshot V1
+name: Reconstruction Regression V1
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  reconstruction-final-snapshot:
+  reconstruction-regression:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

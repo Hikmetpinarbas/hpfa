@@ -1,4 +1,4 @@
-name: C4 Intelligence Final Snapshot V1
+name: Intelligence Regression V1
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  intelligence-final-snapshot:
+  intelligence-regression:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

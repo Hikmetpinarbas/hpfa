@@ -1,4 +1,4 @@
-name: C2 Evidence Spine Final Snapshot V1
+name: Evidence Spine Regression V1
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  evidence-spine-final-snapshot:
+  evidence-spine-regression:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

@@ -1,4 +1,4 @@
-name: C1 Foundation Final Snapshot V1
+name: Foundation Regression V1
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  foundation-final-snapshot:
+  foundation-regression:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
