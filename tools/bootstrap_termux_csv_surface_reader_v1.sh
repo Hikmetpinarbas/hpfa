@@ -55,9 +55,8 @@ else
   git -C "$REPO" switch --track "origin/$BRANCH"
 fi
 
-# The product branch may have been rebuilt on a refreshed dependency head.
-# A clean worktree is required above, so exact reset cannot discard user work.
-git -C "$REPO" reset --hard "$EXPECTED_HEAD"
+# Preserve repository history: only fast-forward to the verified remote head.
+git -C "$REPO" merge --ff-only "origin/$BRANCH"
 
 ACTUAL_BRANCH="$(git -C "$REPO" branch --show-current)"
 ACTUAL_HEAD="$(git -C "$REPO" rev-parse HEAD)"
