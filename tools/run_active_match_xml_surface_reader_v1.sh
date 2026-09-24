@@ -36,24 +36,24 @@ identity_matches() {
 
 if [[ "${1:-}" == "--self-test-execution-identity-guard" ]]; then
   identity_matches \
-    "integration/foundation-tranche-a-v1" \
+    "test/expected-branch" \
     "abc123" \
-    "integration/foundation-tranche-a-v1" \
+    "test/expected-branch" \
     "abc123" \
     || fail "self_test_exact_identity_rejected"
 
   if identity_matches \
     "wrong-branch" \
     "abc123" \
-    "integration/foundation-tranche-a-v1" \
+    "test/expected-branch" \
     "abc123"; then
     fail "self_test_wrong_branch_accepted"
   fi
 
   if identity_matches \
-    "integration/foundation-tranche-a-v1" \
+    "test/expected-branch" \
     "wrong-head" \
-    "integration/foundation-tranche-a-v1" \
+    "test/expected-branch" \
     "abc123"; then
     fail "self_test_wrong_head_accepted"
   fi
