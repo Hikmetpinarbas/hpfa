@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 import json
 import math
-import sys
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -262,10 +261,7 @@ def build_time_admission(input_root: str | Path) -> dict[str, Any]:
 
 
 def _load_mvc(repo_root: Path):
-    src = repo_root / "hpfa" / "modules" / "core" / "minimum_viable_context_lite" / "src"
-    if str(src) not in sys.path:
-        sys.path.insert(0, str(src))
-    import minimum_viable_context  # type: ignore
+    from hpfa.modules.core.minimum_viable_context_lite.src import minimum_viable_context
 
     return minimum_viable_context
 
