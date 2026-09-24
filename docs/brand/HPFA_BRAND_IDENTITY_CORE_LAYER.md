@@ -4,7 +4,7 @@ Kayıt tipi: Brand identity / communication governance
 Kayıt dili: Türkçe  
 Ürün ilişkisi: HPFA'nın dış iletişim, rapor dili, arayüz tonu ve görsel kararları için temel marka katmanı  
 Runtime authority: Bu dosya runtime truth değildir.  
-Claim discipline: Marka dili, HPFA'nın event-only ve claim-safe analiz disiplinini bozmayacak şekilde çalışır.
+Claim discipline: Marka dili, HPFA'nın observation-capability-first, EVENT ⊂ ZFGV ve claim-safe analiz disiplinini bozmayacak şekilde çalışır.
 
 ---
 
@@ -28,7 +28,7 @@ Referans karakter:
 - Palantir'in sistem/mimari hissi,
 - Stratfor'un analitik otoritesi,
 - Opta'nın ciddi yüzü,
-- fakat HPFA'nın kendi event-only ve claim-safe epistemik disiplini.
+- fakat HPFA'nın kendi observation-capability-first, EVENT ⊂ ZFGV ve claim-safe epistemik disiplini.
 
 ---
 
@@ -236,7 +236,7 @@ HPFA'nın marka kimliği, spor-eğlence markası değil, epistemik mühendislik 
 Marka, sistemin yaptığı işi gizlememeli; tam tersine görünür kılmalıdır:
 
 ```text
-event-only evidence → structured football intelligence → claim-safe explanation
+admitted observation evidence → structured football intelligence → claim-safe explanation
 ```
 
 HPFA'nın dış dünyaya vereceği temel his:
