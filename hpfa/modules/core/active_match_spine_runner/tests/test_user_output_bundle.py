@@ -1132,3 +1132,39 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     assert "nedensellik" in human_text
     assert "taktik plan gerçeği" in human_text
     assert "oyuncu aggregate verisini yalnız maç-içi işlev bağlamı olarak kullan" in human_text
+
+
+def test_standard_bundle_publishes_governed_presentation_view_and_html(tmp_path):
+    full_json = tmp_path / "active_match_full_spine_v1.json"
+    full_txt = tmp_path / "active_match_full_spine_v1.txt"
+    full_json.write_text("{}", encoding="utf-8")
+    full_txt.write_text("status=REVIEW_REQUIRED", encoding="utf-8")
+    spine = _full_spine(
+        feature_current=False,
+        c4_current=False,
+        current_artifacts=[str(full_json), str(full_txt)],
+    )
+
+    result = write_standard_user_outputs(tmp_path, spine)
+
+    view_path = Path(result["presentation_view_model"])
+    html_path = Path(result["professional_report_html"])
+    assert view_path.name == user_output_bundle.PRESENTATION_VIEW_MODEL_JSON
+    assert html_path.name == user_output_bundle.PROFESSIONAL_REPORT_HTML
+    assert view_path.is_file()
+    assert html_path.is_file()
+
+    view = json.loads(view_path.read_text(encoding="utf-8"))
+    assert view["view_model_creates_new_evidence"] is False
+    assert view["view_model_can_strengthen_claim_ceiling"] is False
+    assert view["production_release"] is False
+
+    manifest = json.loads((tmp_path / BUNDLE_MANIFEST).read_text(encoding="utf-8"))
+    names = {row["name"] for row in manifest["files"]}
+    assert user_output_bundle.PRESENTATION_VIEW_MODEL_JSON in names
+    assert user_output_bundle.PROFESSIONAL_REPORT_HTML in names
+
+    with zipfile.ZipFile(tmp_path / BUNDLE_ZIP) as archive:
+        zip_names = set(archive.namelist())
+    assert user_output_bundle.PRESENTATION_VIEW_MODEL_JSON in zip_names
+    assert user_output_bundle.PROFESSIONAL_REPORT_HTML in zip_names

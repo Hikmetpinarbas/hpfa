@@ -31,10 +31,17 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_sentence
     validate_safe_sentence_render,
 )
 
+try:
+    from .presentation_view_model import build_presentation_view_model, render_professional_html
+except ImportError:  # compatibility for direct src-path test/runtime imports
+    from presentation_view_model import build_presentation_view_model, render_professional_html
+
 ANALYST_REPORT = "HPFA_ANALYST_REPORT.txt"
 ANALYST_REPORT_TR = "HPFA_ANALYST_REPORT_TR.txt"
 ANALYST_REPORT_EN = "HPFA_ANALYST_REPORT_EN.txt"
 MECHANISM_CARDS_GRAPH_JSON = "HPFA_MECHANISM_CARDS_GRAPH_READY.json"
+PRESENTATION_VIEW_MODEL_JSON = "HPFA_PRESENTATION_VIEW_MODEL.json"
+PROFESSIONAL_REPORT_HTML = "HPFA_PROFESSIONAL_REPORT.html"
 BUNDLE_MANIFEST = "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"
 BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
 EPISODE_FEATURE_JSON = "episode_feature_vector_lite_v1.json"
@@ -2724,18 +2731,40 @@ def write_standard_user_outputs(
     if temp_zip_path.is_file():
         temp_zip_path.unlink()
 
-    report_path.write_text(build_analyst_report(root, full_spine), encoding="utf-8")
-    report_tr_path.write_text(build_human_analyst_report_tr(root, full_spine), encoding="utf-8")
-    report_en_path.write_text(build_human_analyst_report_en(root, full_spine), encoding="utf-8")
+    report_text = build_analyst_report(root, full_spine)
+    report_tr_text = build_human_analyst_report_tr(root, full_spine)
+    report_en_text = build_human_analyst_report_en(root, full_spine)
+    report_path.write_text(report_text, encoding="utf-8")
+    report_tr_path.write_text(report_tr_text, encoding="utf-8")
+    report_en_path.write_text(report_en_text, encoding="utf-8")
+
     mechanism_graph_payload = build_graph_ready_mechanism_cards_payload(root, full_spine)
     mechanism_graph_path.write_text(
         json.dumps(mechanism_graph_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    presentation_view_path = root / PRESENTATION_VIEW_MODEL_JSON
+    professional_html_path = root / PROFESSIONAL_REPORT_HTML
+    presentation_view = build_presentation_view_model(
+        full_spine,
+        analyst_report_tr=report_tr_text,
+        analyst_report_en=report_en_text,
+        mechanism_graph_payload=mechanism_graph_payload,
+    )
+    presentation_view_path.write_text(
+        json.dumps(presentation_view, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    professional_html_path.write_text(
+        render_professional_html(presentation_view, language="tr"),
+        encoding="utf-8",
+    )
+
     candidates = _declared_current_artifacts(root, full_spine)
-    if mechanism_graph_path.is_file() and mechanism_graph_path not in candidates:
-        candidates.append(mechanism_graph_path)
-        candidates.sort(key=lambda item: item.name.casefold())
+    for presentation_path in (mechanism_graph_path, presentation_view_path, professional_html_path):
+        if presentation_path.is_file() and presentation_path not in candidates:
+            candidates.append(presentation_path)
+    candidates.sort(key=lambda item: item.name.casefold())
     entries = [
         {"name": path.name, "size_bytes": path.stat().st_size, "sha256": _sha256(path)}
         for path in candidates
@@ -2780,6 +2809,8 @@ def write_standard_user_outputs(
         "analyst_report_tr": str(report_tr_path),
         "analyst_report_en": str(report_en_path),
         "mechanism_cards_graph_ready": str(mechanism_graph_path),
+        "presentation_view_model": str(presentation_view_path),
+        "professional_report_html": str(professional_html_path),
         "bundle_manifest": str(manifest_path),
         "bundle_zip": str(zip_path),
         "bundle_file_count": len(candidates) + 1,

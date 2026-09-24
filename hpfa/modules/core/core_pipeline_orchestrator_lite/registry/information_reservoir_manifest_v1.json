@@ -113,6 +113,17 @@
       ]
     },
     {
+      "stage_id": "T11",
+      "owner_id": "active_match_spine_runner/user_output_bundle",
+      "artifact_name": "HPFA_PRESENTATION_VIEW_MODEL.json",
+      "epistemic_type": "ANALYST_PRESENTATION_VIEW_MODEL",
+      "claim_ceiling": "INHERITS_UPSTREAM_NO_STRENGTHENING",
+      "allowed_downstream_stage_classes": [],
+      "creates_new_evidence": false,
+      "can_strengthen_claim_ceiling": false,
+      "production_report_allowed": false
+    },
+    {
       "stage_id": "M10/F03",
       "owner_id": "multi_signal_evidence_fusion_lite_v1",
       "artifact_name": "multi_signal_evidence_fusion_lite_v1.json",
