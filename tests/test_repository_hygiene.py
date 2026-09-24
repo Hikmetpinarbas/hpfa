@@ -52,7 +52,7 @@ def test_product_code_has_no_real_match_or_team_identity_hardcoding() -> None:
         p = Path(path)
         if "/tests/" in f"/{path}/":
             continue
-        if path.startswith(("hpfa/", "tools/", "configs/", "canon/")) or (
+        if path.startswith(("hpfa/", "tools/", "bin/", "configs/", "canon/")) or (
             len(p.parts) == 1 and p.suffix in {".py", ".sh"}
         ):
             source_paths.append(path)
@@ -91,7 +91,7 @@ def test_product_code_has_no_named_ai_authority_trace() -> None:
     for path in tracked:
         if "/tests/" in f"/{path}/":
             continue
-        if path.startswith(("hpfa/", "tools/", "configs/", "canon/")) or (
+        if path.startswith(("hpfa/", "tools/", "bin/", "configs/", "canon/")) or (
             "/" not in path and Path(path).suffix in {".py", ".sh"}
         ):
             source_paths.append(path)
@@ -193,3 +193,25 @@ def test_runtime_tools_do_not_use_destructive_git_reset() -> None:
         if "reset --hard" in path.read_text(encoding="utf-8", errors="ignore")
     ]
     assert hits == []
+
+
+def test_bin_entrypoints_reference_existing_hpfa_modules() -> None:
+    import ast
+    import importlib.util
+
+    violations: list[str] = []
+    for path in sorted((ROOT / "bin").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        modules: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("hpfa."):
+                modules.add(node.module)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.startswith("hpfa."):
+                        modules.add(alias.name)
+        for module in sorted(modules):
+            if importlib.util.find_spec(module) is None:
+                violations.append(f"{path.name}:{module}")
+
+    assert violations == []
