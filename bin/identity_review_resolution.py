@@ -6,13 +6,18 @@ import sys
 from pathlib import Path
 
 
-def main() -> int:
-    root = Path(__file__).resolve().parent
-    src = root / "hpfa" / "modules" / "core" / "event_state_transition_verifier_lite" / "src"
-    sys.path.insert(0, str(src))
-    from event_state_transition_verifier import write_outputs
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
 
-    parser = argparse.ArgumentParser()
+
+def main() -> int:
+    root = repo_root()
+    src = root / "hpfa" / "modules" / "core" / "identity_review_resolution_lite" / "src"
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+    from identity_review_resolution import write_outputs
+
+    parser = argparse.ArgumentParser(description="HPFA Identity Review Resolution Lite V1")
     parser.add_argument("--input-dir", required=True)
     parser.add_argument("--out-dir", required=True)
     args = parser.parse_args()
@@ -22,8 +27,8 @@ def main() -> int:
         "status": report.get("status"),
         "decision": report.get("decision"),
         "claim_safety": report.get("claim_safety"),
-        "rows_evaluated": report.get("rows_evaluated"),
-        "transition_issue_count": report.get("transition_issue_count"),
+        "candidate_cluster_count": report.get("candidate_cluster_count"),
+        "duplicate_risk_candidate_count": report.get("duplicate_risk_candidate_count"),
         "blocking_reasons": report.get("blocking_reasons"),
         "outputs": report.get("outputs"),
     }, ensure_ascii=False, sort_keys=True))

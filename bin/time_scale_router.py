@@ -7,7 +7,9 @@ from pathlib import Path
 
 
 def main() -> int:
-    repo_root = Path(__file__).resolve().parent
+    repo_root = Path(__file__).resolve().parents[1]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
     src = repo_root / "hpfa" / "modules" / "core" / "time_scale_router_lite" / "src"
     sys.path.insert(0, str(src))
     from time_scale_router import write_outputs

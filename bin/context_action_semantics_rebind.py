@@ -7,7 +7,9 @@ from pathlib import Path
 
 
 def main() -> int:
-    root = Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parents[1]
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
     src = root / "hpfa" / "modules" / "core" / "context_action_semantics_rebind_lite" / "src"
     sys.path.insert(0, str(src))
     from context_action_semantics_rebind import write_outputs

@@ -35,8 +35,8 @@ fi
 
 for required in \
   active_match_full_run.py \
-  episode_feature_vector.py \
-  hpfa/modules/core/episode_feature_vector_lite/src/episode_feature_vector.py; do
+  bin/episode_feature_vector.py \
+  hpfa/modules/core/episode_feature_vector_lite/src/bin/episode_feature_vector.py; do
   [[ -f "$REPO/$required" ]] || fail "required_product_file_missing:$required"
 done
 

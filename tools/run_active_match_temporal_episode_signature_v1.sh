@@ -70,7 +70,7 @@ fi
 [[ -f "$OUT/active_match_full_run_lite_v1.json" ]] || fail "full_run_output_missing_after_success"
 [[ -f "$OUT/episode_feature_vector_lite_v1.json" ]] || fail "episode_feature_output_missing_after_success"
 
-python temporal_episode_signature.py \
+python bin/temporal_episode_signature.py \
   --input-dir "$OUT" \
   --out-dir "$OUT" >>"$LOG" 2>&1
 TEMPORAL_RC=$?

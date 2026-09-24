@@ -3,7 +3,7 @@ name: Temporal Episode Signature V1
 on:
   pull_request:
     paths:
-      - 'temporal_episode_signature.py'
+      - 'bin/temporal_episode_signature.py'
       - 'tools/run_active_match_temporal_episode_signature_v1.sh'
       - 'hpfa/modules/core/temporal_episode_signature_lite/**'
       - 'hpfa/modules/core/episode_feature_vector_lite/**'
@@ -44,25 +44,25 @@ jobs:
           python -m compileall -q \
             hpfa/modules/core/temporal_episode_signature_lite \
             hpfa/modules/core/episode_feature_vector_lite \
-            temporal_episode_signature.py
+            bin/temporal_episode_signature.py
 
       - name: Run temporal tests
         run: |
           python -m pytest -q \
-            hpfa/modules/core/temporal_episode_signature_lite/tests/test_temporal_episode_signature.py
+            hpfa/modules/core/temporal_episode_signature_lite/tests/test_bin/temporal_episode_signature.py
 
       - name: Run upstream episode feature regressions
         run: |
           python -m pytest -q \
-            hpfa/modules/core/episode_feature_vector_lite/tests/test_episode_feature_vector.py \
+            hpfa/modules/core/episode_feature_vector_lite/tests/test_bin/episode_feature_vector.py \
             hpfa/modules/core/episode_feature_vector_lite/tests/test_episode_feature_vector_duration_guard.py
 
       - name: Temporal policy guards
         shell: bash
         run: |
           set -euo pipefail
-          P=hpfa/modules/core/temporal_episode_signature_lite/src/temporal_episode_signature.py
-          F=hpfa/modules/core/episode_feature_vector_lite/src/episode_feature_vector.py
+          P=hpfa/modules/core/temporal_episode_signature_lite/src/bin/temporal_episode_signature.py
+          F=hpfa/modules/core/episode_feature_vector_lite/src/bin/episode_feature_vector.py
           grep -F 'REVIEWED_ACTION_OCCURRENCE_ELIGIBLE_ONLY' "$P"
           grep -F 'same_timestamp_internal_ordering_allowed' "$P"
           grep -F 'source_row_order_is_temporal_truth' "$P"
@@ -79,7 +79,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          P=hpfa/modules/core/temporal_episode_signature_lite/src/temporal_episode_signature.py
+          P=hpfa/modules/core/temporal_episode_signature_lite/src/bin/temporal_episode_signature.py
           grep -F '"canonical_event_count": "UNKNOWN"' "$P"
           grep -F '"true_action_count": "UNKNOWN"' "$P"
           grep -F '"phase_truth": False' "$P"
@@ -92,8 +92,8 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          temporal = Path('hpfa/modules/core/temporal_episode_signature_lite/src/temporal_episode_signature.py').read_text(encoding='utf-8')
-          feature = Path('hpfa/modules/core/episode_feature_vector_lite/src/episode_feature_vector.py').read_text(encoding='utf-8')
+          temporal = Path('hpfa/modules/core/temporal_episode_signature_lite/src/bin/temporal_episode_signature.py').read_text(encoding='utf-8')
+          feature = Path('hpfa/modules/core/episode_feature_vector_lite/src/bin/episode_feature_vector.py').read_text(encoding='utf-8')
           forbidden = ['Fenerbahce', 'Galatasaray', 'Genclerbirligi', '15.08.2026', 'Turkey', 'World Cup']
           assert not any(token in temporal for token in forbidden)
           assert not any(token in feature for token in forbidden)

@@ -3,7 +3,7 @@ name: Analyst Episode Locator Semantic Rebind V1
 on:
   pull_request:
     paths:
-      - 'analyst_episode_locator.py'
+      - 'bin/analyst_episode_locator.py'
       - 'active_match_full_run.py'
       - 'hpfa/modules/core/analyst_episode_locator_lite/**'
       - 'hpfa/modules/core/context_action_semantics_rebind_lite/**'
@@ -44,25 +44,25 @@ jobs:
           python -m compileall -q \
             hpfa/modules/core/analyst_episode_locator_lite \
             hpfa/modules/core/context_action_semantics_rebind_lite \
-            analyst_episode_locator.py \
-            context_action_semantics_rebind.py \
+            bin/analyst_episode_locator.py \
+            bin/context_action_semantics_rebind.py \
             active_match_full_run.py
 
       - name: Run episode semantic tests
         run: |
           python -m pytest -q \
-            hpfa/modules/core/analyst_episode_locator_lite/tests/test_analyst_episode_locator.py
+            hpfa/modules/core/analyst_episode_locator_lite/tests/test_bin/analyst_episode_locator.py
 
       - name: Run semantic rebind regressions
         run: |
           python -m pytest -q \
-            hpfa/modules/core/context_action_semantics_rebind_lite/tests/test_context_action_semantics_rebind.py
+            hpfa/modules/core/context_action_semantics_rebind_lite/tests/test_bin/context_action_semantics_rebind.py
 
       - name: Football-volume policy guards
         shell: bash
         run: |
           set -euo pipefail
-          P=hpfa/modules/core/analyst_episode_locator_lite/src/analyst_episode_locator.py
+          P=hpfa/modules/core/analyst_episode_locator_lite/src/bin/analyst_episode_locator.py
           grep -F 'REVIEWED_ACTION_OCCURRENCE_ELIGIBLE_ONLY' "$P"
           grep -F 'support_rows_add_action_volume' "$P"
           grep -F 'episode_action_family_reconciliation_mismatch' "$P"
@@ -76,7 +76,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          P=hpfa/modules/core/analyst_episode_locator_lite/src/analyst_episode_locator.py
+          P=hpfa/modules/core/analyst_episode_locator_lite/src/bin/analyst_episode_locator.py
           grep -F '"canonical_event_count": "UNKNOWN"' "$P"
           grep -F '"true_action_count": "UNKNOWN"' "$P"
           grep -F '"phase_truth": False' "$P"
@@ -87,7 +87,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          text = Path('hpfa/modules/core/analyst_episode_locator_lite/src/analyst_episode_locator.py').read_text(encoding='utf-8')
+          text = Path('hpfa/modules/core/analyst_episode_locator_lite/src/bin/analyst_episode_locator.py').read_text(encoding='utf-8')
           forbidden = ['Fenerbahce', 'Galatasaray', 'Genclerbirligi', '15.08.2026', 'Turkey', 'World Cup']
           assert not any(token in text for token in forbidden)
           PY

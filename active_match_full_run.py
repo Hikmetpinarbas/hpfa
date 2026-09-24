@@ -419,19 +419,19 @@ def main() -> int:
         run_provider_time_context_step(repo_root, match_dir, out_dir, row_nucleus_path),
         run_step(repo_root, [
             sys.executable,
-            "context_action_semantics_rebind.py",
+            "bin/context_action_semantics_rebind.py",
             "--input-dir", str(out_dir),
             "--out-dir", str(out_dir),
         ]),
         run_step(repo_root, [
             sys.executable,
-            "analyst_episode_locator.py",
+            "bin/analyst_episode_locator.py",
             "--input-dir", str(out_dir),
             "--out-dir", str(out_dir),
         ]),
         run_step(repo_root, [
             sys.executable,
-            "episode_feature_vector.py",
+            "bin/episode_feature_vector.py",
             "--input-dir", str(out_dir),
             "--out-dir", str(out_dir),
         ]),
@@ -444,13 +444,13 @@ def main() -> int:
         ]),
         run_step(repo_root, [
             sys.executable,
-            "time_scale_router.py",
+            "bin/time_scale_router.py",
             "--input-dir", str(out_dir),
             "--out-dir", str(out_dir),
         ]),
         run_step(repo_root, [
             sys.executable,
-            "axis_integrity_tagger.py",
+            "bin/axis_integrity_tagger.py",
             "--input-dir", str(out_dir),
             "--out-dir", str(out_dir),
         ]),

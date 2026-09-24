@@ -47,7 +47,7 @@ jobs:
             hpfa/modules/core/event_window_builder_lite \
             hpfa/modules/core/time_scale_router_lite \
             hpfa/modules/core/axis_integrity_tagger_lite \
-            event_window_builder.py time_scale_router.py axis_integrity_tagger.py active_match_full_run.py
+            event_window_builder.py bin/time_scale_router.py bin/axis_integrity_tagger.py active_match_full_run.py
       - name: Run P0 time-chain tests
         run: |
           python -m pytest -q \
@@ -69,8 +69,8 @@ jobs:
           MVC=hpfa/modules/core/minimum_viable_context_lite/src/minimum_viable_context.py
           SCA=hpfa/modules/core/minimum_viable_context_lite/src/semantic_context_adapter.py
           EWB=hpfa/modules/core/event_window_builder_lite/src/event_window_builder.py
-          TSR=hpfa/modules/core/time_scale_router_lite/src/time_scale_router.py
-          AIT=hpfa/modules/core/axis_integrity_tagger_lite/src/axis_integrity_tagger.py
+          TSR=hpfa/modules/core/time_scale_router_lite/src/bin/time_scale_router.py
+          AIT=hpfa/modules/core/axis_integrity_tagger_lite/src/bin/axis_integrity_tagger.py
           SOG=hpfa/modules/core/event_window_builder_lite/src/sequence_output_contract_guard.py
           grep -F 'PARTIAL_ORDER_ONLY' "$MVC"
           grep -F 'UNKNOWN_TIME_UNIT' "$MVC"
@@ -95,8 +95,8 @@ jobs:
           for SRC in \
             hpfa/modules/core/minimum_viable_context_lite/src/minimum_viable_context.py \
             hpfa/modules/core/event_window_builder_lite/src/event_window_builder.py \
-            hpfa/modules/core/time_scale_router_lite/src/time_scale_router.py \
-            hpfa/modules/core/axis_integrity_tagger_lite/src/axis_integrity_tagger.py \
+            hpfa/modules/core/time_scale_router_lite/src/bin/time_scale_router.py \
+            hpfa/modules/core/axis_integrity_tagger_lite/src/bin/axis_integrity_tagger.py \
             hpfa/modules/core/event_window_builder_lite/src/sequence_output_contract_guard.py
           do
             grep -F 'canonical_event_count' "$SRC"

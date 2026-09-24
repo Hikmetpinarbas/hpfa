@@ -3,7 +3,7 @@ name: Episode Feature Vector V1
 on:
   pull_request:
     paths:
-      - 'episode_feature_vector.py'
+      - 'bin/episode_feature_vector.py'
       - 'active_match_full_run.py'
       - 'tools/run_active_match_episode_feature_vector_v1.sh'
       - 'hpfa/modules/core/episode_feature_vector_lite/**'
@@ -47,7 +47,7 @@ jobs:
             hpfa/modules/core/episode_feature_vector_lite \
             hpfa/modules/core/analyst_episode_locator_lite \
             hpfa/modules/core/context_action_semantics_rebind_lite \
-            episode_feature_vector.py \
+            bin/episode_feature_vector.py \
             active_match_full_run.py
 
       - name: Validate Termux ACTIVE_MATCH helper syntax
@@ -57,19 +57,19 @@ jobs:
       - name: Run episode feature tests
         run: |
           python -m pytest -q \
-            hpfa/modules/core/episode_feature_vector_lite/tests/test_episode_feature_vector.py
+            hpfa/modules/core/episode_feature_vector_lite/tests/test_bin/episode_feature_vector.py
 
       - name: Run upstream episode and semantic regressions
         run: |
           python -m pytest -q \
-            hpfa/modules/core/analyst_episode_locator_lite/tests/test_analyst_episode_locator.py \
-            hpfa/modules/core/context_action_semantics_rebind_lite/tests/test_context_action_semantics_rebind.py
+            hpfa/modules/core/analyst_episode_locator_lite/tests/test_bin/analyst_episode_locator.py \
+            hpfa/modules/core/context_action_semantics_rebind_lite/tests/test_bin/context_action_semantics_rebind.py
 
       - name: Football feature policy guards
         shell: bash
         run: |
           set -euo pipefail
-          P=hpfa/modules/core/episode_feature_vector_lite/src/episode_feature_vector.py
+          P=hpfa/modules/core/episode_feature_vector_lite/src/bin/episode_feature_vector.py
           grep -F 'REVIEWED_ACTION_OCCURRENCE_ELIGIBLE_ONLY' "$P"
           grep -F 'NOT_APPLICABLE_ZERO_DURATION' "$P"
           grep -F 'support_rows_add_action_volume' "$P"
@@ -85,7 +85,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          P=hpfa/modules/core/episode_feature_vector_lite/src/episode_feature_vector.py
+          P=hpfa/modules/core/episode_feature_vector_lite/src/bin/episode_feature_vector.py
           grep -F '"canonical_event_count": "UNKNOWN"' "$P"
           grep -F '"true_action_count": "UNKNOWN"' "$P"
           grep -F '"phase_truth": False' "$P"
@@ -96,7 +96,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          text = Path('hpfa/modules/core/episode_feature_vector_lite/src/episode_feature_vector.py').read_text(encoding='utf-8')
+          text = Path('hpfa/modules/core/episode_feature_vector_lite/src/bin/episode_feature_vector.py').read_text(encoding='utf-8')
           forbidden = ['Fenerbahce', 'Galatasaray', 'Genclerbirligi', '15.08.2026', 'Turkey', 'World Cup']
           assert not any(token in text for token in forbidden)
           PY

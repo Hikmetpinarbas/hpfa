@@ -7,7 +7,9 @@ from pathlib import Path
 
 
 def main() -> int:
-    root = Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parents[1]
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
     src = root / "hpfa" / "modules" / "core" / "temporal_episode_signature_lite" / "src"
     sys.path.insert(0, str(src))
     from temporal_episode_signature import write_outputs
