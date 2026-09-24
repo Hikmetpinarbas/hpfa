@@ -37,8 +37,8 @@ jobs:
 
       - name: Validate distribution contract
         run: |
-          python -m pytest -q tests/test_distribution_contract_v1.py tests/test_release_readiness_audit_v1.py tests/test_release_command_safety_v1.py
-          mkdir -p "$RUNNER_TEMP/hpfa-wheel"
+          python -m pytest -q tests/test_distribution_contract_v1.py tests/test_release_readiness_audit_v1.py tests/test_release_command_safety_v1.py tests/test_cyclonedx_sbom_v1.py tests/test_reproducible_wheel_probe_v1.py
+          mkdir -p "$RUNNER_TEMP/hpfa-wheel" "$RUNNER_TEMP/hpfa-full-repo-audit/release"
           python -m pip wheel . --no-deps -w "$RUNNER_TEMP/hpfa-wheel"
           python - "$RUNNER_TEMP/hpfa-wheel" <<'PYCODE'
           import sys
@@ -65,11 +65,17 @@ jobs:
               raise SystemExit({"required": required, "forbidden": forbidden})
           PYCODE
           WHEEL="$(find "$RUNNER_TEMP/hpfa-wheel" -maxdepth 1 -name 'hpfa-*.whl' | head -1)"
-          mkdir -p "$RUNNER_TEMP/hpfa-release-readiness"
           python tools/hpfa_release_readiness_audit_v1.py \
             --repo . \
             --wheel "$WHEEL" \
-            --out-dir "$RUNNER_TEMP/hpfa-release-readiness"
+            --out-dir "$RUNNER_TEMP/hpfa-full-repo-audit/release"
+          python tools/hpfa_cyclonedx_sbom_v1.py \
+            --repo . \
+            --wheel "$WHEEL" \
+            --out "$RUNNER_TEMP/hpfa-full-repo-audit/release/hpfa.cdx.json"
+          python tools/hpfa_reproducible_wheel_probe_v1.py \
+            --repo . \
+            --out-dir "$RUNNER_TEMP/hpfa-full-repo-audit/release"
 
 
       - name: Fail-local repository compile and product test audit

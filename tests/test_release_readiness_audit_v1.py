@@ -30,7 +30,9 @@ def test_clean_bundle_passes_integrity_but_release_remains_review_required(tmp_p
     assert report["bundle_integrity_status"] == "PASS"
     assert report["release_decision"] == "REVIEW_REQUIRED"
     assert report["production_release"] is False
-    assert report["exact_dependency_lock_present"] is False
+    assert report["exact_dependency_lock_present"] is True
+    assert report["exact_dependency_lock_complete"] is False
+    assert report["dependency_lock_status"] == "INCOMPLETE"
     assert report["forbidden_bundle_entries"] == []
     assert report["unexpected_bundle_entries"] == []
 

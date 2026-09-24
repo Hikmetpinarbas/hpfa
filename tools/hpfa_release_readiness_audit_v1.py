@@ -71,7 +71,13 @@ def audit(repo: Path, wheel: Path) -> dict:
     core_present = any(name.startswith("hpfa/modules/core/") and name.endswith(".py") for name in names)
     registry_present = any("/registry/" in name and name.endswith((".json", ".csv", ".tsv")) for name in names)
 
-    exact_lock_present = (repo / "release/dependency_lock_v1.json").is_file()
+    lock_path = repo / "release/dependency_lock_v1.json"
+    lock = json.loads(lock_path.read_text(encoding="utf-8")) if lock_path.is_file() else {}
+    exact_lock_present = lock_path.is_file()
+    exact_lock_complete = (
+        lock.get("lock_status") == "COMPLETE_EXACT_HASHED"
+        and lock.get("reproducible_dependency_resolution") is True
+    )
     bundle_integrity_pass = (
         core_present
         and registry_present
@@ -84,7 +90,7 @@ def audit(repo: Path, wheel: Path) -> dict:
     )
     release_decision = "PASS" if (
         bundle_integrity_pass
-        and exact_lock_present
+        and exact_lock_complete
         and dependency_policy.get("production_release") is True
         and dependency_policy.get("public_index_upload_authorized") is True
         and bundle_policy.get("production_release") is True
@@ -115,7 +121,9 @@ def audit(repo: Path, wheel: Path) -> dict:
         "missing_license_policy_entries": missing_policy,
         "orphan_license_policy_entries": undeclared_policy,
         "exact_dependency_lock_present": exact_lock_present,
-        "reproducible_dependency_resolution": exact_lock_present,
+        "exact_dependency_lock_complete": exact_lock_complete,
+        "dependency_lock_status": lock.get("lock_status", "MISSING"),
+        "reproducible_dependency_resolution": exact_lock_complete,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN"
     }
