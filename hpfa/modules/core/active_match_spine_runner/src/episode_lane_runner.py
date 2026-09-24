@@ -6,10 +6,27 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-import active_match_full_run as current_episode
 from hpfa.modules.core.temporal_episode_signature_lite.src.temporal_episode_signature import (
     write_outputs as write_temporal_episode_signature,
 )
+
+try:
+    import active_match_full_run as current_episode
+except ModuleNotFoundError:
+    current_episode = None
+
+
+def _current_episode_runtime():
+    global current_episode
+    if current_episode is not None:
+        return current_episode
+    try:
+        import active_match_full_run as runtime_module
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("active_match_full_run_unavailable_outside_execution_root") from exc
+    current_episode = runtime_module
+    return current_episode
+
 
 MODULE_ID = "active_match_episode_lane_adapter_v1"
 CURRENT_EPISODE_RUNNER_OUTPUT = "active_match_full_run_lite_v1.json"
@@ -188,6 +205,7 @@ def run_current_episode_lane(
 
     hard_blocks: list[str] = []
     review_hits: list[str] = []
+    current_episode = _current_episode_runtime()
 
     row_nucleus_available = row_nucleus_path.is_file()
     if not row_nucleus_available:

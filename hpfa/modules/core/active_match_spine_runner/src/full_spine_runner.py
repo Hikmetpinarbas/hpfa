@@ -4,10 +4,9 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
-import reconstruction_intelligence_packet_adapter_current_v1 as reconstruction_bridge
-from episode_lane_runner import run_current_episode_lane
-from orphan_capability_sidecars import run_sidecars
-from rich_multiformat_analysis_lane import run_rich_lane
+from hpfa.modules.core.active_match_spine_runner.src.episode_lane_runner import run_current_episode_lane
+from hpfa.modules.core.active_match_spine_runner.src.orphan_capability_sidecars import run_sidecars
+from hpfa.modules.core.active_match_spine_runner.src.rich_multiformat_analysis_lane import run_rich_lane
 from hpfa.modules.core.analyst_report_block_composer_lite.src.analyst_report_block_composer import compose_report_block
 from hpfa.modules.core.composite_argument_builder_lite.src.composite_argument_builder import build_argument_candidate
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
@@ -18,7 +17,7 @@ from hpfa.modules.core.final_report_assembly_gate_lite.src.final_report_assembly
 from hpfa.modules.core.multi_signal_evidence_fusion_lite.src.multi_signal_evidence_fusion import fuse_packet
 from hpfa.modules.core.report_output_contract_lite.src.report_output_contract import evaluate_report_block
 from hpfa.modules.core.safe_argument_router_tr_lite.src.safe_argument_router_tr import route_safe_sentence
-from spine_runner import validate_active_match_authority, validate_output_root
+from hpfa.modules.core.active_match_spine_runner.src.spine_runner import validate_active_match_authority, validate_output_root
 
 MODULE_ID = "active_match_full_spine_runner_v1"
 OUTPUT_JSON = "active_match_full_spine_v1.json"
@@ -32,6 +31,22 @@ TRUE_ACTION_COUNT = "UNKNOWN"
 
 class FullSpineContractError(ValueError):
     pass
+
+
+def _default_reconstruction_bridge_runner() -> Callable[..., dict[str, Any]]:
+    """Resolve the checkout/runtime bridge only when a real full-spine run needs it.
+
+    The bridge is an execution-root wrapper, not an installed-package import
+    dependency. Keeping it lazy lets the HPFA package be imported from outside
+    the repository checkout while preserving the canonical runtime path.
+    """
+    try:
+        import reconstruction_intelligence_packet_adapter_current_v1 as reconstruction_bridge
+    except ModuleNotFoundError as exc:
+        raise FullSpineContractError(
+            "reconstruction_runtime_bridge_unavailable_outside_execution_root"
+        ) from exc
+    return reconstruction_bridge.runtime_write_outputs
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -226,7 +241,7 @@ def run_full_spine(
     first_failed_node = None
     first_failed_reason_code = None
 
-    bridge = bridge_runner or reconstruction_bridge.runtime_write_outputs
+    bridge = bridge_runner or _default_reconstruction_bridge_runner()
     bridge_report = _safe_external_call(bridge, (active_match_path, output_root), "reconstruction_bridge")
     bridge_status = _status(bridge_report.get("status"))
     if bridge_status == "FAIL_CLOSED":
