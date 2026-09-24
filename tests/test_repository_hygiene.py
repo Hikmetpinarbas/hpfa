@@ -118,3 +118,20 @@ def test_product_code_has_no_named_ai_authority_trace() -> None:
             hits.append(path)
 
     assert hits == []
+
+
+def test_termux_bootstraps_are_branch_and_head_parameterized() -> None:
+    bootstraps = sorted((ROOT / "tools").glob("bootstrap_termux_*.sh"))
+    assert bootstraps, "no_termux_bootstraps_found"
+
+    violations: list[str] = []
+    for path in bootstraps:
+        text = path.read_text(encoding="utf-8")
+        if 'BRANCH="${HPFA_EXPECTED_BRANCH:-}"' not in text:
+            violations.append(f"{path.name}:branch_not_parameterized")
+        if "HPFA_EXPECTED_HEAD" not in text:
+            violations.append(f"{path.name}:expected_head_missing")
+        if "reset --hard" in text:
+            violations.append(f"{path.name}:destructive_reset_present")
+
+    assert violations == []
