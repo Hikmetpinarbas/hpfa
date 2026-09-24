@@ -2,11 +2,12 @@
 set -euo pipefail
 
 REPO="${HPFA_REPO:-$HOME/hp/repos/hpfa}"
-BRANCH="integration/foundation-tranche-a-v1"
+BRANCH="${HPFA_EXPECTED_BRANCH:-}"
 ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
 OUT="${HPFA_PHONE_OUTPUT:-/sdcard/Download/HPFA}"
 
 fail(){ printf 'FAIL: %s\n' "$1" >&2; exit 2; }
+[[ -n "$BRANCH" ]] || fail "expected_branch_required:set_HPFA_EXPECTED_BRANCH"
 
 verify_python_dependencies(){
   python - <<'PY'
