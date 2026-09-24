@@ -1034,6 +1034,34 @@ def _goalkeeper_restart_consequence_context(
 
 
 
+def _score_state_candidate_at_visible_time(
+    game_state_context: dict[str, Any],
+    second_candidate: float | None,
+) -> dict[str, Any] | None:
+    """Return one descriptive score-state segment for an admitted visible time.
+
+    Segment membership is half-open [start, end), except the final segment which
+    admits its terminal end. This avoids double-binding observations at goal
+    boundaries. The result is context only and never causal/tactical evidence.
+    """
+    if second_candidate is None:
+        return None
+    segments = [
+        row for row in (game_state_context.get("score_state_segments") or [])
+        if isinstance(row, dict)
+    ]
+    for idx, segment in enumerate(segments):
+        start = _float_candidate(segment.get("start_second_candidate"))
+        end = _float_candidate(segment.get("end_second_candidate"))
+        score = segment.get("score_state_candidate")
+        if start is None or end is None or not isinstance(score, dict) or not score:
+            continue
+        is_final = idx == len(segments) - 1
+        if start <= second_candidate < end or (is_final and start <= second_candidate <= end):
+            return {str(key): value for key, value in score.items()}
+    return None
+
+
 def _loss_next_opponent_process_context(
     consequence_payload: dict[str, Any],
     trace_payload: dict[str, Any],
@@ -1151,8 +1179,16 @@ def _loss_next_opponent_process_context(
 
         state_counts[binding_state] += 1
         family_counts.update(next_process_families)
+        anchor_starts = [
+            _float_candidate(value)
+            for value in (consequence.get("start_candidates") or [])
+            if _float_candidate(value) is not None
+        ]
+        anchor_start = anchor_starts[0] if len(set(anchor_starts)) == 1 else None
         rows.append({
             "action_occurrence_candidate_id": consequence.get("action_occurrence_candidate_id"),
+            "anchor_start_candidate": anchor_start,
+            "period_candidates": sorted(periods),
             "anchor_action_family_candidates": sorted(anchor_families),
             "anchor_team_identity_candidate_ids": sorted(anchor_teams),
             "first_admitted_followup_start_candidate": first_start,
@@ -1260,8 +1296,16 @@ def _recovery_next_process_context(
 
         state_counts[binding_state] += 1
         family_counts.update(families)
+        anchor_starts = [
+            _float_candidate(value)
+            for value in (row.get("start_candidates") or [])
+            if _float_candidate(value) is not None
+        ]
+        anchor_start = anchor_starts[0] if len(set(anchor_starts)) == 1 else None
         rows.append({
             "action_occurrence_candidate_id": row.get("action_occurrence_candidate_id"),
+            "anchor_start_candidate": anchor_start,
+            "period_candidates": sorted(periods),
             "team_identity_candidate_ids": row.get("team_identity_candidate_ids") or [],
             "actor_identity_candidate_ids": row.get("actor_identity_candidate_ids") or [],
             "recovery_first_admitted_followup_state": row.get("recovery_first_admitted_followup_state"),
@@ -4074,6 +4118,7 @@ def _m06_transition_dynamics_synthesis(
 def _m05_loss_recovery_dynamics_synthesis(
     loss_context: dict[str, Any],
     recovery_context: dict[str, Any],
+    game_state_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Combine visible loss/recovery successor context without causal promotion."""
     loss_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -4105,6 +4150,18 @@ def _m05_loss_recovery_dynamics_synthesis(
         else:
             unresolved_recovery_team_n += 1
 
+    game_state_context = game_state_context or {}
+    score_state_exposure_seconds: dict[str, float] = defaultdict(float)
+    for segment in (game_state_context.get("score_state_segments") or []):
+        if not isinstance(segment, dict):
+            continue
+        score = segment.get("score_state_candidate")
+        duration = _float_candidate(segment.get("duration_second_candidate"))
+        if not isinstance(score, dict) or not score or duration is None:
+            continue
+        key = json.dumps(score, ensure_ascii=False, sort_keys=True)
+        score_state_exposure_seconds[key] += max(0.0, duration)
+
     profiles: list[dict[str, Any]] = []
     for team_id in sorted(set(loss_by_team) | set(recovery_by_team)):
         loss_rows = loss_by_team.get(team_id, [])
@@ -4129,6 +4186,76 @@ def _m05_loss_recovery_dynamics_synthesis(
             str(row.get("next_process_binding_state") or "UNKNOWN")
             for row in recovery_rows
         )
+
+        score_buckets: dict[str, dict[str, Any]] = {}
+        unresolved_loss_score_state_n = 0
+        unresolved_recovery_score_state_n = 0
+
+        def bind_score_state(
+            rows: list[dict[str, Any]],
+            row_kind: str,
+        ) -> None:
+            nonlocal unresolved_loss_score_state_n, unresolved_recovery_score_state_n
+            for source_row in rows:
+                state = _score_state_candidate_at_visible_time(
+                    game_state_context,
+                    _float_candidate(source_row.get("anchor_start_candidate")),
+                )
+                if not state:
+                    if row_kind == "loss":
+                        unresolved_loss_score_state_n += 1
+                    else:
+                        unresolved_recovery_score_state_n += 1
+                    continue
+                key = json.dumps(state, ensure_ascii=False, sort_keys=True)
+                bucket = score_buckets.setdefault(
+                    key,
+                    {
+                        "score_state_candidate": state,
+                        "visible_loss_context_n": 0,
+                        "visible_recovery_context_n": 0,
+                        "loss_next_opponent_process_family_counts": Counter(),
+                        "recovery_next_own_process_family_counts": Counter(),
+                    },
+                )
+                if row_kind == "loss":
+                    bucket["visible_loss_context_n"] += 1
+                    bucket["loss_next_opponent_process_family_counts"].update(
+                        value
+                        for value in (source_row.get("next_opponent_process_family_candidates") or [])
+                        if value
+                    )
+                else:
+                    bucket["visible_recovery_context_n"] += 1
+                    bucket["recovery_next_own_process_family_counts"].update(
+                        value
+                        for value in (source_row.get("next_visible_process_family_candidates") or [])
+                        if value
+                    )
+
+        bind_score_state(loss_rows, "loss")
+        bind_score_state(recovery_rows, "recovery")
+        score_state_profiles = []
+        for key in sorted(score_buckets):
+            bucket = score_buckets[key]
+            score_state_profiles.append({
+                "score_state_candidate": bucket["score_state_candidate"],
+                "score_state_exposure_seconds_candidate": score_state_exposure_seconds.get(key),
+                "visible_loss_context_n": bucket["visible_loss_context_n"],
+                "visible_recovery_context_n": bucket["visible_recovery_context_n"],
+                "loss_next_opponent_process_family_counts": dict(
+                    sorted(bucket["loss_next_opponent_process_family_counts"].items())
+                ),
+                "recovery_next_own_process_family_counts": dict(
+                    sorted(bucket["recovery_next_own_process_family_counts"].items())
+                ),
+                "loss_denominator": "ADMITTED_LOSS_CONTEXT_ROWS_BOUND_TO_THIS_VISIBLE_SCORE_STATE",
+                "recovery_denominator": "ADMITTED_RECOVERY_CONTEXT_ROWS_BOUND_TO_THIS_VISIBLE_SCORE_STATE",
+                "score_state_is_causal_explanation": False,
+                "score_state_is_tactical_truth": False,
+                "creates_independent_support": False,
+            })
+
         profiles.append({
             "team_identity_candidate_id": team_id,
             "visible_loss_context_n": len(loss_rows),
@@ -4137,6 +4264,10 @@ def _m05_loss_recovery_dynamics_synthesis(
             "recovery_next_own_process_family_counts": dict(sorted(own_family_counts.items())),
             "loss_binding_state_counts": dict(sorted(loss_binding_counts.items())),
             "recovery_binding_state_counts": dict(sorted(recovery_binding_counts.items())),
+            "score_state_profile_count": len(score_state_profiles),
+            "score_state_profiles": score_state_profiles,
+            "unresolved_loss_score_state_n": unresolved_loss_score_state_n,
+            "unresolved_recovery_score_state_n": unresolved_recovery_score_state_n,
             "loss_denominator": "ADMITTED_LOSS_CONTEXT_ROWS_WITH_UNAMBIGUOUS_ANCHOR_TEAM",
             "recovery_denominator": "ADMITTED_RECOVERY_CONTEXT_ROWS_WITH_UNAMBIGUOUS_TEAM",
             "loss_is_failure_truth": False,
@@ -4144,6 +4275,8 @@ def _m05_loss_recovery_dynamics_synthesis(
             "loss_is_defensive_transition_truth": False,
             "recovery_is_attacking_transition_truth": False,
             "successor_process_is_causal_consequence_truth": False,
+            "score_state_is_causal_explanation": False,
+            "score_state_is_tactical_truth": False,
             "creates_independent_support": False,
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_LOSS_RECOVERY_DYNAMICS_CANDIDATE_ONLY",
         })
@@ -4162,6 +4295,8 @@ def _m05_loss_recovery_dynamics_synthesis(
         "loss_is_failure_truth": False,
         "recovery_is_success_truth": False,
         "transition_truth": False,
+        "score_state_is_causal_explanation": False,
+        "score_state_is_tactical_truth": False,
         "causal_truth": False,
         "claim_ceiling": "MATCH_LOCAL_VISIBLE_LOSS_RECOVERY_DYNAMICS_CANDIDATE_ONLY",
     }
@@ -4622,6 +4757,7 @@ def run_rich_lane(
     m05_loss_recovery_dynamics_synthesis = _m05_loss_recovery_dynamics_synthesis(
         loss_next_opponent_process_context,
         recovery_next_process_context,
+        game_state_context,
     )
     set_piece_process_consequence_context = _set_piece_process_consequence_context(
         process_participation_payload,

@@ -778,6 +778,88 @@ def _human_score_state_process_outcome_cards(
     return cards
 
 
+def _human_loss_recovery_score_state_cards(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+) -> list[str]:
+    m05 = rich.get("m05_loss_recovery_dynamics_synthesis") or {}
+    if str(m05.get("status") or "").upper() != "PASS":
+        return []
+    teams = _human_team_labels(identity)
+    cards: list[str] = []
+    for profile in m05.get("profiles") or []:
+        if not isinstance(profile, dict):
+            continue
+        team_id = str(profile.get("team_identity_candidate_id") or "").strip()
+        team = teams.get(team_id, team_id or ("Takım çözümlenmedi" if language == "tr" else "Team unresolved"))
+        for row in profile.get("score_state_profiles") or []:
+            if not isinstance(row, dict):
+                continue
+            score = row.get("score_state_candidate")
+            if not isinstance(score, dict) or not score:
+                continue
+            loss_n = int(row.get("visible_loss_context_n") or 0)
+            recovery_n = int(row.get("visible_recovery_context_n") or 0)
+            if loss_n == 0 and recovery_n == 0:
+                continue
+            exposure_seconds = row.get("score_state_exposure_seconds_candidate")
+            exposure_minutes = (
+                float(exposure_seconds) / 60.0
+                if isinstance(exposure_seconds, (int, float)) and not isinstance(exposure_seconds, bool)
+                else None
+            )
+            score_text = " - ".join(f"{_display_label(k)} {v}" for k, v in score.items())
+            loss_families = row.get("loss_next_opponent_process_family_counts") or {}
+            recovery_families = row.get("recovery_next_own_process_family_counts") or {}
+            loss_bits = ", ".join(
+                f"{_football_family_label(key, language)} {value}"
+                for key, value in sorted(loss_families.items())
+            )
+            recovery_bits = ", ".join(
+                f"{_football_family_label(key, language)} {value}"
+                for key, value in sorted(recovery_families.items())
+            )
+            if language == "tr":
+                exposure_note = (
+                    f" yaklaşık {exposure_minutes:.1f} dakikalık görünür skor-state maruziyetinde"
+                    if exposure_minutes is not None
+                    else ""
+                )
+                sentence = (
+                    f"{team}, skor {score_text}:{exposure_note} {loss_n} görünür kayıp bağlamı ve "
+                    f"{recovery_n} görünür geri kazanım bağlamı."
+                )
+                if loss_bits:
+                    sentence += f" Kayıp sonrası rakibin eşleşen görünür süreçleri: {loss_bits}."
+                if recovery_bits:
+                    sentence += f" Geri kazanım sonrası eşleşen kendi görünür süreçleri: {recovery_bits}."
+                sentence += (
+                    " Bu dağılım skor durumuyla birlikte gözlenen bağlamdır; "
+                    "skor durumunu neden, taktik plan veya geçiş kalitesi olarak yorumlamaz."
+                )
+            else:
+                exposure_note = (
+                    f" across approximately {exposure_minutes:.1f} minutes of visible score-state exposure,"
+                    if exposure_minutes is not None
+                    else ""
+                )
+                sentence = (
+                    f"{team}, score {score_text}:{exposure_note} {loss_n} visible loss contexts and "
+                    f"{recovery_n} visible recovery contexts."
+                )
+                if loss_bits:
+                    sentence += f" Matched opponent processes after losses: {loss_bits}."
+                if recovery_bits:
+                    sentence += f" Matched own processes after recoveries: {recovery_bits}."
+                sentence += (
+                    " This is score-conditioned observed context; score state is not treated "
+                    "as cause, tactical plan, or transition quality."
+                )
+            cards.append(sentence)
+    return cards
+
+
 def _human_circulation_fate_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     context = rich.get("visible_circulation_fate_profile") or {}
     profiles = [row for row in (context.get("profiles") or []) if isinstance(row, dict)]
@@ -2222,6 +2304,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     c02_cards = _human_c02_cards(rich, "tr") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "tr") if rich_current else []
+    loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "tr") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "tr") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "tr") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "tr") if rich_current else []
@@ -2244,6 +2327,8 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in score_state_cards)
     else:
         lines.append("- Skor-segmenti süreç/sonuç yüzeyi bu çalışmada rapor kapsamına alınamadı.")
+    if loss_recovery_score_state_cards:
+        lines.extend(f"- {line}" for line in loss_recovery_score_state_cards)
     lines.extend(["", "[3] DOLAŞIM → GÖRÜNÜR KADER"])
     if circulation_cards:
         lines.extend(f"- {line}" for line in circulation_cards)
@@ -2296,6 +2381,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     c02_cards = _human_c02_cards(rich, "en") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "en") if rich_current else []
+    loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "en") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "en") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "en") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "en") if rich_current else []
@@ -2318,6 +2404,8 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in score_state_cards)
     else:
         lines.append("- Score-segment process/outcome context was not admitted into this report run.")
+    if loss_recovery_score_state_cards:
+        lines.extend(f"- {line}" for line in loss_recovery_score_state_cards)
     lines.extend(["", "[3] CIRCULATION → VISIBLE FATE"])
     if circulation_cards:
         lines.extend(f"- {line}" for line in circulation_cards)

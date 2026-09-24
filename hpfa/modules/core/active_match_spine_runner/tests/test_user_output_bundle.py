@@ -1270,3 +1270,54 @@ def test_ambiguous_multi_process_context_is_not_main_mechanism_label(tmp_path, m
     assert "CLASS=BROAD CONTEXT COMPARISON" in en
     assert "CLASS=MAIN MECHANISM CANDIDATE" not in en
     assert "not presented as a main mechanism" in en
+
+
+def test_loss_recovery_score_state_cards_keep_exposure_and_claim_ceiling() -> None:
+    rich = {
+        "m05_loss_recovery_dynamics_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_1",
+                "score_state_profiles": [{
+                    "score_state_candidate": {"Galatasaray (1)": 0, "Trabzonspor (2)": 1},
+                    "score_state_exposure_seconds_candidate": 600.0,
+                    "visible_loss_context_n": 4,
+                    "visible_recovery_context_n": 3,
+                    "loss_next_opponent_process_family_counts": {
+                        "COUNTERATTACK_CANDIDATE": 1
+                    },
+                    "recovery_next_own_process_family_counts": {
+                        "POSITIONAL_ATTACK_CANDIDATE": 2
+                    },
+                }],
+            }],
+        }
+    }
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_1",
+            "team_normalized_key": "trabzonspor",
+            "team_aliases_raw": ["Trabzonspor (2)"],
+        }]
+    }
+
+    tr = user_output_bundle._human_loss_recovery_score_state_cards(
+        rich, identity, "tr"
+    )
+    en = user_output_bundle._human_loss_recovery_score_state_cards(
+        rich, identity, "en"
+    )
+
+    assert len(tr) == 1
+    assert "yaklaşık 10.0 dakikalık görünür skor-state maruziyetinde" in tr[0]
+    assert "4 görünür kayıp bağlamı" in tr[0]
+    assert "3 görünür geri kazanım bağlamı" in tr[0]
+    assert "kontra atak 1" in tr[0]
+    assert "yerleşik hücum 2" in tr[0]
+    assert "neden, taktik plan veya geçiş kalitesi" in tr[0]
+
+    assert len(en) == 1
+    assert "approximately 10.0 minutes of visible score-state exposure" in en[0]
+    assert "4 visible loss contexts" in en[0]
+    assert "3 visible recovery contexts" in en[0]
+    assert "not treated as cause, tactical plan, or transition quality" in en[0]
