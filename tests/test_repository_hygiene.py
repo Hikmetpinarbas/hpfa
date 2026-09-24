@@ -1,0 +1,120 @@
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _tracked_files() -> list[str]:
+    raw = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT)
+    return [item for item in raw.decode("utf-8", "surrogateescape").split("\0") if item]
+
+
+def test_product_tree_excludes_runtime_history_and_nested_legacy_assets() -> None:
+    tracked = _tracked_files()
+    forbidden_prefixes = (
+        "out/",
+        "_out/",
+        "_diag/",
+        "data/matches/",
+        "data/quarantine/",
+        "data/keepbox/",
+        "data_inbox/",
+        "runtime_evidence/",
+        "graphics_pack/",
+        "vendor/",
+        "hpfa-main/",
+    )
+    hits = [path for path in tracked if path.startswith(forbidden_prefixes)]
+    assert hits == []
+
+
+def test_product_tree_excludes_backup_compiled_and_generated_binary_files() -> None:
+    tracked = _tracked_files()
+    forbidden_suffixes = (
+        ".pyc",
+        ".bak",
+        ".err",
+        ".xlsx",
+        ".xls",
+        ".png",
+        ".zip",
+    )
+    hits = [path for path in tracked if path.lower().endswith(forbidden_suffixes)]
+    assert hits == []
+
+
+def test_product_code_has_no_real_match_or_team_identity_hardcoding() -> None:
+    tracked = _tracked_files()
+    source_paths = []
+    for path in tracked:
+        p = Path(path)
+        if "/tests/" in f"/{path}/":
+            continue
+        if path.startswith(("hpfa/", "tools/", "configs/", "canon/")) or (
+            len(p.parts) == 1 and p.suffix in {".py", ".sh"}
+        ):
+            source_paths.append(path)
+
+    forbidden = (
+        "rz-gs-20260208",
+        "caykur rizespor",
+        "rizespor",
+        "galatasaray",
+        "fenerbahce",
+        "fenerbahçe",
+        "trabzonspor",
+        "juventus",
+        "basaksehir",
+        "başakşehir",
+        "genclerbirligi",
+        "gençlerbirliği",
+    )
+
+    hits: list[str] = []
+    for path in source_paths:
+        p = ROOT / path
+        try:
+            text = p.read_text(encoding="utf-8").casefold()
+        except (UnicodeDecodeError, OSError):
+            continue
+        if any(token.casefold() in text for token in forbidden):
+            hits.append(path)
+
+    assert hits == []
+
+
+def test_product_code_has_no_named_ai_authority_trace() -> None:
+    tracked = _tracked_files()
+    source_paths = []
+    for path in tracked:
+        if "/tests/" in f"/{path}/":
+            continue
+        if path.startswith(("hpfa/", "tools/", "configs/", "canon/")) or (
+            "/" not in path and Path(path).suffix in {".py", ".sh"}
+        ):
+            source_paths.append(path)
+
+    forbidden = (
+        "chatgpt",
+        "claude opus",
+        "gemini",
+        "grok",
+        "manus",
+        "qwen",
+        "kimi",
+        "microsoft copilot",
+    )
+
+    hits: list[str] = []
+    for path in source_paths:
+        p = ROOT / path
+        try:
+            text = p.read_text(encoding="utf-8").casefold()
+        except (UnicodeDecodeError, OSError):
+            continue
+        if any(token in text for token in forbidden):
+            hits.append(path)
+
+    assert hits == []
