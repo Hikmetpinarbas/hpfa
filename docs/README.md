@@ -17,7 +17,6 @@ Historical sprint notes, chat prompts, handoff texts, generated runtime reports 
 - `contracts/` — product-node contracts and claim boundaries.
 - `governance/` — current authority, maintenance, donor and release governance.
 - `audits/` — reusable product-level audits.
-- `project_knowledge_base/` — maintained domain knowledge that remains relevant to the product.
 - `research_support/` — research support indexes/matrices.
 - `brand/` — product identity material.
 

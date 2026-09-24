@@ -135,3 +135,27 @@ def test_termux_bootstraps_are_branch_and_head_parameterized() -> None:
             violations.append(f"{path.name}:destructive_reset_present")
 
     assert violations == []
+
+
+def test_history_and_operator_checkpoint_directories_do_not_return() -> None:
+    tracked = _tracked_files()
+    forbidden_prefixes = (
+        "docs/project_knowledge_base/",
+        "docs/logbook/",
+        "docs/project_log/",
+        "docs/prompts/",
+        "docs/runtime/",
+    )
+    hits = [path for path in tracked if path.startswith(forbidden_prefixes)]
+    assert hits == []
+
+
+def test_historical_snapshot_workflow_names_do_not_return() -> None:
+    tracked = _tracked_files()
+    hits = [
+        path
+        for path in tracked
+        if path.startswith(".github/workflows/")
+        and "final-snapshot" in path
+    ]
+    assert hits == []
