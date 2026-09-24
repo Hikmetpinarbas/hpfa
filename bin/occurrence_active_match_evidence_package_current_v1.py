@@ -24,7 +24,7 @@ def _sha256(path: Path) -> str:
 
 
 def _git_head() -> str:
-    repo = Path(__file__).resolve().parent
+    repo = Path(__file__).resolve().parents[1]
     try:
         return subprocess.check_output(
             ["git", "-C", str(repo), "rev-parse", "HEAD"],

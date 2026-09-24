@@ -34,7 +34,7 @@ RELEASE_STATUS_NORMALIZER = Path("docs/governance/runtime_pack_v1/release_status
 CONTRACT_ROOT = Path("docs/contracts")
 MODULE_ROOT = Path("hpfa/modules")
 SPINE_RUNNER = Path("hpfa/modules/core/active_match_spine_runner/src/spine_runner.py")
-ROOT_SPINE_ENTRYPOINT = Path("active_match_spine_runner.py")
+ROOT_SPINE_ENTRYPOINT = Path("bin/active_match_spine_runner.py")
 
 IGNORED_PARTS = {
     ".git",
@@ -861,7 +861,11 @@ def _trusted_entrypoint_root_seeds(
             if implementation_file.is_file():
                 leaf_candidates.setdefault(str(leaf), []).append((cid, implementation_file))
 
-    for wrapper in sorted(path for path in trusted_root.glob("*.py") if path.is_file()):
+    entrypoint_candidates = [
+        *trusted_root.glob("*.py"),
+        *(trusted_root / "bin").glob("*.py"),
+    ]
+    for wrapper in sorted(path for path in entrypoint_candidates if path.is_file()):
         text = _read_text(wrapper)
         try:
             tree = ast.parse(text)

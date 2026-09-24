@@ -23,14 +23,16 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
         for path in (BOOTSTRAP, RUNNER):
             self.assertTrue(os.access(path, os.X_OK), path)
 
-    def test_bootstrap_discovers_supported_termux_checkouts_and_pins_branch(self):
+    def test_bootstrap_uses_parameterized_branch_and_verified_fresh_worktree(self):
         text = BOOTSTRAP.read_text(encoding="utf-8")
         self.assertIn('$HOME/hp/repos/hpfa', text)
         self.assertIn('$HOME/hpfa_claim_integrity/hpfa', text)
-        self.assertIn('work/reconstruct-183-research-hardened-v1', text)
+        self.assertIn('BRANCH="${HPFA_EXPECTED_BRANCH:-}"', text)
+        self.assertIn('expected_branch_required:set_HPFA_EXPECTED_BRANCH', text)
         self.assertIn('run_active_match_provider_metric_dictionary_v1.sh', text)
-        self.assertIn('merge --ff-only', text)
         self.assertIn('remote_head_mismatch', text)
+        self.assertIn('worktree add -B "$BRANCH"', text)
+        self.assertNotIn('reset --hard', text)
 
     def test_bootstrap_trust_boundary_precedes_status_and_fetch(self):
         text = BOOTSTRAP.read_text(encoding="utf-8")
@@ -136,7 +138,7 @@ class ProviderMetricDictionaryRuntimeToolTests(unittest.TestCase):
     def test_runner_binds_inventory_authority_without_inventing_provider_truth(self):
         text = RUNNER.read_text(encoding="utf-8")
         self.assertIn('multiformat_file_inventory.py', text)
-        self.assertIn('provider_metric_dictionary_lite.py', text)
+        self.assertIn('bin/provider_metric_dictionary_lite.py', text)
         self.assertIn('INVENTORY_AUTHORITY_PLUS_PROVIDER_DICTIONARY_ADMISSION', text)
         self.assertIn('Provider metric semantics remain candidate/reference-only', text)
 

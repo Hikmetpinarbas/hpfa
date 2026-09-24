@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[5]
@@ -6,7 +7,7 @@ BOOTSTRAP = ROOT / "tools" / "bootstrap_termux_aggregate_definition_alignment_v1
 
 
 def test_phone_runner_is_repository_executable():
-    assert (RUNNER.stat().st_mode & 0o111) == 0o111
+    assert os.access(RUNNER, os.X_OK)
 
 
 def test_phone_runner_is_one_zip_no_pytest_single_pass():
@@ -51,9 +52,10 @@ def test_runner_persists_runtime_state_into_main_alignment_json():
     assert '(root/"aggregate_definition_alignment_lite_v1.json").write_text' in text
 
 
-def test_bootstrap_uses_clean_current_181_work_branch_without_checkout_mutation():
+def test_bootstrap_uses_parameterized_branch_and_verified_remote_head_without_checkout_mutation():
     text = BOOTSTRAP.read_text(encoding="utf-8")
-    assert 'BRANCH="work/reconstruct-181-research-hardened-v1"' in text
+    assert 'BRANCH="${HPFA_EXPECTED_BRANCH:-}"' in text
+    assert "expected_branch_required:set_HPFA_EXPECTED_BRANCH" in text
     assert "clone --no-tags --no-recurse-submodules --single-branch --branch" in text
     assert "merge --ff-only" not in text
     assert "reset --hard" not in text

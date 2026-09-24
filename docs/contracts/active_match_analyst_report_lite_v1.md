@@ -218,7 +218,7 @@ Example Termux command:
 
 ```bash
 ACTIVE_MATCH="/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/runtime/active_single_match/current"
-python active_match_analyst_report_lite.py "$ACTIVE_MATCH" --out-dir "/sdcard/Download/HPFA"
+python bin/active_match_analyst_report_lite.py "$ACTIVE_MATCH" --out-dir "/sdcard/Download/HPFA"
 ls -la /sdcard/Download/HPFA/active_match_analyst_report_lite_v1.*
 ```
 

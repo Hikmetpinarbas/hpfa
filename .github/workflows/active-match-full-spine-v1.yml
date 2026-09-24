@@ -38,7 +38,7 @@ jobs:
       - name: Compile unified full-spine surface
         run: |
           python -m compileall -q \
-            active_match_spine_runner.py \
+            bin/active_match_spine_runner.py \
             active_match_full_run.py \
             hpfa/modules/core/active_match_spine_runner/src/full_spine_runner.py \
             hpfa/modules/core/active_match_spine_runner/src/episode_lane_runner.py \

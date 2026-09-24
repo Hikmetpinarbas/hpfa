@@ -4,7 +4,7 @@ import importlib.util
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[5]
-WRAPPER = ROOT / "triangulated_event_reflection_resolver_lite.py"
+WRAPPER = ROOT / "bin/triangulated_event_reflection_resolver_lite.py"
 
 spec = importlib.util.spec_from_file_location("reflection_runtime_wrapper", WRAPPER)
 assert spec and spec.loader

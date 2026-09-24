@@ -91,7 +91,7 @@ safe_python(){
     "$TRUSTED_PYTHON" "$@"
 }
 
-ADAPTER="$WORK_REPO/triangulated_event_reflection_resolver_lite.py"
+ADAPTER="$WORK_REPO/bin/triangulated_event_reflection_resolver_lite.py"
 [[ -f "$ADAPTER" ]] || fail "reflection_runtime_adapter_missing:$ADAPTER"
 
 TMP_ROOT="$FETCH_TMP/evidence"

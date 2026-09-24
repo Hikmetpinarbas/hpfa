@@ -3,7 +3,7 @@ name: XML Surface Reader Lite V1
 on:
   pull_request:
     paths:
-      - "xml_surface_reader_lite.py"
+      - "bin/xml_surface_reader_lite.py"
       - "hpfa/modules/core/xml_surface_reader_lite/**"
       - "tools/bootstrap_termux_xml_surface_reader_v1.sh"
       - "tools/run_active_match_xml_surface_reader_v1.sh"
@@ -29,7 +29,7 @@ jobs:
       - name: Compile
         run: |
           python -m py_compile \
-            xml_surface_reader_lite.py \
+            bin/xml_surface_reader_lite.py \
             hpfa/modules/core/xml_surface_reader_lite/src/xml_common.py \
             hpfa/modules/core/xml_surface_reader_lite/src/xml_structure.py \
             hpfa/modules/core/xml_surface_reader_lite/src/xml_rows.py \
@@ -56,7 +56,7 @@ jobs:
 
       - name: Historical final capability blob lineage
         run: |
-          test "$(git hash-object xml_surface_reader_lite.py)" = "4f36505976a10051060c47e4a6198384e85072db"
+          test "$(git hash-object bin/xml_surface_reader_lite.py)" = "4f36505976a10051060c47e4a6198384e85072db"
           test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/contract/xml_surface_reader_lite_v1.json)" = "fc61e9098fae2107fe1cb25981a948f53f82bec6"
           test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/src/xml_common.py)" = "17ad5bd5b9ae86237c664c8a06bdf5b10b8deb3b"
           test "$(git hash-object hpfa/modules/core/xml_surface_reader_lite/src/xml_rows.py)" = "ff6241bdd701d3b35c8db144c9ea44806e63c16f"

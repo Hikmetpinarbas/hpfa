@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "hpfa/modules/core/provider_label_value_semantics_lite/**"
-      - "provider_label_value_semantics_lite.py"
+      - "bin/provider_label_value_semantics_lite.py"
       - "tools/bootstrap_termux_provider_label_value_semantics_v1.sh"
       - "tools/run_active_match_provider_label_value_semantics_v1.sh"
       - ".github/workflows/provider-label-value-semantics-v1.yml"
@@ -39,7 +39,7 @@ jobs:
       - name: Compile
         run: |
           python -m py_compile \
-            provider_label_value_semantics_lite.py \
+            bin/provider_label_value_semantics_lite.py \
             hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py
       - name: Focused tests
         run: python -m pytest -q hpfa/modules/core/provider_label_value_semantics_lite/tests
@@ -65,7 +65,7 @@ jobs:
           test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/registry/sportsbase_label_semantics_seed_v1.json)" = "e2c7f721f5ea9060e86d8b4487ef0775fd74c64e"
           test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py)" = "72e4818e8f155c7ea7984afa73f4fc5dde055c07"
           test "$(git hash-object hpfa/modules/core/provider_label_value_semantics_lite/tests/test_provider_label_value_semantics_registry_safety.py)" = "069e64a98bd940a40485d8c259e877ee621dcf2f"
-          test "$(git hash-object provider_label_value_semantics_lite.py)" = "7d8fee4ef7735bd1f134b470125a6eeab0d0a4e7"
+          test "$(git hash-object bin/provider_label_value_semantics_lite.py)" = "7d8fee4ef7735bd1f134b470125a6eeab0d0a4e7"
 
           grep -F 'ATTRIBUTE_REFERENCE' docs/contracts/provider_label_value_semantics_lite_v1.md
           grep -F 'CONTEXT_DEPENDENT_SEMANTIC_COLLISION' docs/contracts/provider_label_value_semantics_lite_v1.md
@@ -94,7 +94,7 @@ jobs:
         run: |
           grep -F 'CANONICAL_EVENT_COUNT = "UNKNOWN"' hpfa/modules/core/provider_label_value_semantics_lite/src/provider_label_value_semantics.py
           ! grep -RInE "Sturm Graz|Heart of Midlothian|Australia|Turkey|World Cup|6935|77798" \
-            provider_label_value_semantics_lite.py \
+            bin/provider_label_value_semantics_lite.py \
             hpfa/modules/core/provider_label_value_semantics_lite/src \
             tools/run_active_match_provider_label_value_semantics_v1.sh \
             tools/bootstrap_termux_provider_label_value_semantics_v1.sh

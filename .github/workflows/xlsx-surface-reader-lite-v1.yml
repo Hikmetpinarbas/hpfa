@@ -3,7 +3,7 @@ name: XLSX Surface Reader Lite V1
 on:
   pull_request:
     paths:
-      - "xlsx_surface_reader_lite.py"
+      - "bin/xlsx_surface_reader_lite.py"
       - "hpfa/modules/core/xlsx_surface_reader_lite/**"
       - "tools/bootstrap_termux_xlsx_surface_reader_v1.sh"
       - "tools/run_active_match_xlsx_surface_reader_v1.sh"
@@ -27,7 +27,7 @@ jobs:
       - name: Compile
         run: |
           python -m py_compile \
-            xlsx_surface_reader_lite.py \
+            bin/xlsx_surface_reader_lite.py \
             hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_surface_reader.py \
             hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_surface_reader/__init__.py \
             hpfa/modules/core/xlsx_surface_reader_lite/src/xlsx_surface_reader/native_reader.py \
@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           ! grep -R -n -E '^[[:space:]]*(from|import)[[:space:]]+openpyxl([[:space:].]|$)' \
-            xlsx_surface_reader_lite.py \
+            bin/xlsx_surface_reader_lite.py \
             hpfa/modules/core/xlsx_surface_reader_lite
       - name: Focused tests
         run: python -m pytest -q hpfa/modules/core/xlsx_surface_reader_lite/tests

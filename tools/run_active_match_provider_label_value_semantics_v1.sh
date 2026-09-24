@@ -102,7 +102,7 @@ run_step inventory \
 
 if [[ "$FINAL_RC" -eq 0 ]]; then
   run_step csv \
-    python csv_surface_reader_lite.py \
+    python bin/csv_surface_reader_lite.py \
       --input-root "$ACTIVE_RESOLVED" \
       --inventory "$TMP_ROOT/multiformat_file_inventory_lite_v1.json" \
       --out "$TMP_ROOT" || true
@@ -110,7 +110,7 @@ fi
 
 if [[ "$FINAL_RC" -eq 0 ]]; then
   run_step xlsx \
-    python xlsx_surface_reader_lite.py \
+    python bin/xlsx_surface_reader_lite.py \
       --input-root "$ACTIVE_RESOLVED" \
       --inventory "$TMP_ROOT/multiformat_file_inventory_lite_v1.json" \
       --out "$TMP_ROOT" || true
@@ -118,7 +118,7 @@ fi
 
 if [[ "$FINAL_RC" -eq 0 ]]; then
   run_step xml \
-    python xml_surface_reader_lite.py \
+    python bin/xml_surface_reader_lite.py \
       --input-root "$ACTIVE_RESOLVED" \
       --inventory "$TMP_ROOT/multiformat_file_inventory_lite_v1.json" \
       --out "$TMP_ROOT" || true
@@ -126,7 +126,7 @@ fi
 
 if [[ "$FINAL_RC" -eq 0 ]]; then
   run_step field_semantics \
-    python provider_alias_field_semantics_lite.py \
+    python bin/provider_alias_field_semantics_lite.py \
       --input-root "$ACTIVE_RESOLVED" \
       --csv-audit "$TMP_ROOT/csv_surface_audit_lite_v1.json" \
       --xlsx-audit "$TMP_ROOT/xlsx_surface_audit_lite_v1.json" \
@@ -136,7 +136,7 @@ fi
 
 if [[ "$FINAL_RC" -eq 0 ]]; then
   run_step label_value_semantics \
-    python provider_label_value_semantics_lite.py \
+    python bin/provider_label_value_semantics_lite.py \
       --runtime-authority "$ACTIVE_RESOLVED" \
       --expected-runtime-authority "$ACTIVE_RESOLVED" \
       --csv-audit "$TMP_ROOT/csv_surface_audit_lite_v1.json" \

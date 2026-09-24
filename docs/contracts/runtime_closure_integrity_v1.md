@@ -85,7 +85,7 @@ A quarantine copy, archive copy, donor/reference/fixture path, sibling checkout,
 The canonical repository-root operator entry point is:
 
 ```text
-active_match_spine_runner.py
+bin/active_match_spine_runner.py
 ```
 
 It exposes an explicit:

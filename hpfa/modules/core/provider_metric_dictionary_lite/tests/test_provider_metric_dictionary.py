@@ -408,7 +408,7 @@ class ProviderMetricDictionaryTests(unittest.TestCase):
             r"(?i)(sturm|hearts|fenerbah|galatasaray|besiktas|beşiktaş|trabzon|2026[-_]0[1-9][-_][0-9]{2})"
         )
         files = [
-            ROOT / "provider_metric_dictionary_lite.py",
+            ROOT / "bin/provider_metric_dictionary_lite.py",
             ROOT / "docs/contracts/provider_metric_dictionary_lite_v1.md",
             ROOT / "configs/metrics/provider_metric_dictionary_v1.json",
             ROOT / "configs/metrics/provider_alias_registry_v1.json",

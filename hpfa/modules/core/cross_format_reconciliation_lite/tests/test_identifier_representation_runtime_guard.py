@@ -4,7 +4,7 @@ import importlib.util
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[5]
-WRAPPER = ROOT / "cross_format_reconciliation_lite.py"
+WRAPPER = ROOT / "bin/cross_format_reconciliation_lite.py"
 
 
 def load_wrapper():

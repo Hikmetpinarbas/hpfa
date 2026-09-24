@@ -103,7 +103,7 @@ python -m py_compile \
   hpfa/modules/core/csv_surface_reader_lite/src/csv_surface_reader.py \
   hpfa/modules/core/csv_surface_reader_lite/tests/test_csv_surface_reader.py \
   hpfa/modules/core/csv_surface_reader_lite/tests/test_csv_surface_reader_team_binding.py \
-  csv_surface_reader_lite.py
+  bin/csv_surface_reader_lite.py
 
 python -m pytest -q \
   hpfa/modules/core/csv_surface_reader_lite/tests \
@@ -121,7 +121,7 @@ INVENTORY="$OUT/multiformat_file_inventory_lite_v1.json"
 [[ -f "$INVENTORY" ]] || fail "fresh_inventory_output_missing:$INVENTORY"
 
 set +e
-python csv_surface_reader_lite.py \
+python bin/csv_surface_reader_lite.py \
   --input-root "$ACTIVE_MATCH" \
   --inventory "$INVENTORY" \
   --out "$OUT" \

@@ -9,7 +9,7 @@ from hpfa.modules.core.xlsx_surface_reader_lite.tests.ooxml_fixture import (
 
 
 PRODUCT_ROOT = Path(__file__).resolve().parents[5]
-CLI = PRODUCT_ROOT / "active_match_spine_runner.py"
+CLI = PRODUCT_ROOT / "bin/active_match_spine_runner.py"
 
 
 def _write_role_csv(path: Path, role: str) -> None:

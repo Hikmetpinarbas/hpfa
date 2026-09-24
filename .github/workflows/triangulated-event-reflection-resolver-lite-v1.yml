@@ -6,7 +6,7 @@ on:
       - work/reconstruct-185-research-hardened-v1
   pull_request:
     paths:
-      - triangulated_event_reflection_resolver_lite.py
+      - bin/triangulated_event_reflection_resolver_lite.py
       - hpfa/modules/core/triangulated_event_reflection_resolver_lite/**
       - docs/contracts/triangulated_event_reflection_resolver_lite_v1.md
       - tools/bootstrap_termux_triangulated_event_reflection_resolver_v1.sh
@@ -32,7 +32,7 @@ jobs:
       - name: Compile resolver and current adapter
         run: |
           python -m py_compile hpfa/modules/core/triangulated_event_reflection_resolver_lite/src/triangulated_event_reflection_resolver.py
-          python -m py_compile triangulated_event_reflection_resolver_lite.py
+          python -m py_compile bin/triangulated_event_reflection_resolver_lite.py
       - name: Run deterministic resolver tests
         run: python -m pytest hpfa/modules/core/triangulated_event_reflection_resolver_lite/tests -q
       - name: Verify content-role bridge tests

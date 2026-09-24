@@ -112,7 +112,7 @@ python -m py_compile \
   hpfa/modules/core/xml_surface_reader_lite/src/xml_rows.py \
   hpfa/modules/core/xml_surface_reader_lite/src/xml_surface_reader.py \
   hpfa/modules/core/xml_surface_reader_lite/tests/test_xml_surface_reader.py \
-  xml_surface_reader_lite.py
+  bin/xml_surface_reader_lite.py
 
 python -m pytest -q hpfa/modules/core/xml_surface_reader_lite/tests \
   | tee "$OUT/xml_surface_reader_pytest_v1.txt"
@@ -129,7 +129,7 @@ INVENTORY="$OUT/multiformat_file_inventory_lite_v1.json"
 [[ -f "$INVENTORY" ]] || fail "fresh_inventory_output_missing:$INVENTORY"
 
 set +e
-python xml_surface_reader_lite.py \
+python bin/xml_surface_reader_lite.py \
   --input-root "$ACTIVE_MATCH" \
   --inventory "$INVENTORY" \
   --out "$OUT" \

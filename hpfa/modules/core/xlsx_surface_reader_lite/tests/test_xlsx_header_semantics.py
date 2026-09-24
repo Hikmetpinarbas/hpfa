@@ -13,7 +13,7 @@ SRC = ROOT / "hpfa" / "modules" / "core" / "xlsx_surface_reader_lite" / "src"
 
 
 def load_product_entrypoint():
-    entrypoint = ROOT / "xlsx_surface_reader_lite.py"
+    entrypoint = ROOT / "bin/xlsx_surface_reader_lite.py"
     spec = importlib.util.spec_from_file_location("xlsx_product_entrypoint", entrypoint)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None

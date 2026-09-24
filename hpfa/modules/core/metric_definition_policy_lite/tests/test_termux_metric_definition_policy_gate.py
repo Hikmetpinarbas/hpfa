@@ -50,9 +50,10 @@ def test_runner_preserves_metric_claim_boundaries():
         assert token in source
 
 
-def test_bootstrap_tracks_only_current_178_work_branch_and_remote_head():
+def test_bootstrap_tracks_parameterized_branch_and_remote_head():
     source = BOOTSTRAP.read_text(encoding="utf-8")
-    assert 'BRANCH="work/reconstruct-178-research-hardened-v1"' in source
+    assert 'BRANCH="${HPFA_EXPECTED_BRANCH:-}"' in source
+    assert "expected_branch_required:set_HPFA_EXPECTED_BRANCH" in source
     assert 'git -C "$REPO" fetch origin "$BRANCH"' in source
     assert 'git -C "$REPO" merge --ff-only "origin/$BRANCH"' in source
     assert '[[ "$ACTUAL_HEAD" == "$REMOTE_HEAD" ]]' in source

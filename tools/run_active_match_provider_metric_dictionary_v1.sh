@@ -164,7 +164,7 @@ record_failure(){ local rc="$1" name="$2"; [[ "$rc" -eq 0 ]] && return 0; [[ "$F
 run_step inventory safe_python multiformat_file_inventory.py --input-root "$ACTIVE_RESOLVED" --runtime-authority "$ACTIVE_RESOLVED" --active-match-execution --out "$TMP_ROOT" || true
 
 if [[ "$FINAL_RC" -eq 0 ]]; then
-  run_step provider_metric_dictionary safe_python provider_metric_dictionary_lite.py --repo-root "$REPO_RESOLVED" --output "$TMP_ROOT/provider_metric_dictionary_lite_v1.json" || true
+  run_step provider_metric_dictionary safe_python bin/provider_metric_dictionary_lite.py --repo-root "$REPO_RESOLVED" --output "$TMP_ROOT/provider_metric_dictionary_lite_v1.json" || true
 fi
 
 safe_python - "$TMP_ROOT" "$ACTUAL_BRANCH" "$ACTUAL_HEAD" "$ACTIVE_RESOLVED" "$FINAL_RC" "$FAILED_STEP" <<'PY'

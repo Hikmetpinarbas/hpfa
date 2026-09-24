@@ -32,7 +32,7 @@ docs/contracts/*
 hpfa/modules/**/src/*
 hpfa/modules/**/tests/*
 hpfa/modules/core/active_match_spine_runner/src/spine_runner.py
-active_match_spine_runner.py
+bin/active_match_spine_runner.py
 ```
 
 `module_governance_matrix.tsv` is discovery seed only. Its `current_status` field is never accepted as capability truth by itself.

@@ -111,7 +111,7 @@ python -m py_compile \
   hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_surface_reader.py \
   hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_runtime_guard.py \
   hpfa/modules/core/xlsx_surface_reader_lite/tests/test_xlsx_header_semantics.py \
-  xlsx_surface_reader_lite.py
+  bin/xlsx_surface_reader_lite.py
 
 python -m pytest -q \
   hpfa/modules/core/xlsx_surface_reader_lite/tests \
@@ -129,7 +129,7 @@ INVENTORY="$OUT/multiformat_file_inventory_lite_v1.json"
 [[ -f "$INVENTORY" ]] || fail "fresh_inventory_output_missing:$INVENTORY"
 
 set +e
-python xlsx_surface_reader_lite.py \
+python bin/xlsx_surface_reader_lite.py \
   --input-root "$ACTIVE_MATCH" \
   --inventory "$INVENTORY" \
   --out "$OUT" \

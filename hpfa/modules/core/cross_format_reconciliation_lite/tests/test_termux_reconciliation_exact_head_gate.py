@@ -17,9 +17,10 @@ def test_runner_requires_explicit_exact_execution_identity() -> None:
     assert "*/runtime/active_single_match/current" in source
 
 
-def test_bootstrap_uses_current_integration_branch_and_exact_head() -> None:
+def test_bootstrap_uses_parameterized_branch_and_exact_head() -> None:
     source = BOOTSTRAP.read_text(encoding="utf-8")
-    assert 'BRANCH="integration/foundation-tranche-a-v1"' in source
+    assert 'BRANCH="${HPFA_EXPECTED_BRANCH:-}"' in source
+    assert "expected_branch_required:set_HPFA_EXPECTED_BRANCH" in source
     assert "reset --hard" not in source
     assert 'git -C "$REPO" merge --ff-only "origin/$BRANCH"' in source
     assert 'ACTUAL_HEAD="$(git -C "$REPO" rev-parse HEAD)"' in source
@@ -79,9 +80,9 @@ def test_runner_publishes_evidence_zip_atomically() -> None:
 
 def test_runner_integrates_current_semantics_and_research_hardening() -> None:
     source = RUNNER.read_text(encoding="utf-8")
-    assert "provider_alias_field_semantics_lite.py" in source
-    assert "provider_label_value_semantics_lite.py" in source
-    assert "cross_format_reconciliation_lite.py" in source
+    assert "bin/provider_alias_field_semantics_lite.py" in source
+    assert "bin/provider_label_value_semantics_lite.py" in source
+    assert "bin/cross_format_reconciliation_lite.py" in source
     assert "--field-semantics" in source
     assert "--label-semantics" in source
     assert "--xml-group-registry" in source

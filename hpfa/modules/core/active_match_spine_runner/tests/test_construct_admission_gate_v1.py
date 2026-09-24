@@ -7,7 +7,7 @@ from pathlib import Path
 
 def _load_entrypoint():
     root = Path(__file__).resolve().parents[5]
-    path = root / "active_match_spine_runner.py"
+    path = root / "bin/active_match_spine_runner.py"
     spec = importlib.util.spec_from_file_location("hpfa_active_match_entrypoint_construct_gate_test", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

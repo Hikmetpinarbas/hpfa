@@ -68,7 +68,7 @@ rm -f \
 python -m py_compile \
   hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_alias_field_semantics.py \
   hpfa/modules/core/provider_alias_field_semantics_lite/tests/test_provider_alias_field_semantics.py \
-  provider_alias_field_semantics_lite.py
+  bin/provider_alias_field_semantics_lite.py
 python -m pytest -q hpfa/modules/core/provider_alias_field_semantics_lite/tests \
   | tee "$OUT/provider_alias_field_semantics_pytest_v1.txt"
 
@@ -87,7 +87,7 @@ do
 done
 
 set +e
-python provider_alias_field_semantics_lite.py \
+python bin/provider_alias_field_semantics_lite.py \
   --input-root "$ACTIVE_MATCH" \
   --csv-audit "$OUT/csv_surface_audit_lite_v1.json" \
   --xlsx-audit "$OUT/xlsx_surface_audit_lite_v1.json" \

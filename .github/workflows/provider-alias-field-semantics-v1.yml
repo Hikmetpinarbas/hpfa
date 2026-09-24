@@ -3,7 +3,7 @@ name: Provider Alias Field Semantics Lite V1
 on:
   pull_request:
     paths:
-      - "provider_alias_field_semantics_lite.py"
+      - "bin/provider_alias_field_semantics_lite.py"
       - "hpfa/modules/core/provider_alias_field_semantics_lite/**"
       - "tools/bootstrap_termux_provider_alias_field_semantics_v1.sh"
       - "tools/run_active_match_provider_alias_field_semantics_v1.sh"
@@ -26,7 +26,7 @@ jobs:
       - name: Compile
         run: |
           python -m py_compile \
-            provider_alias_field_semantics_lite.py \
+            bin/provider_alias_field_semantics_lite.py \
             hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_alias_field_semantics.py \
             hpfa/modules/core/provider_alias_field_semantics_lite/tests/test_provider_alias_field_semantics.py
       - name: Focused tests
@@ -41,7 +41,7 @@ jobs:
           ! grep -F 'reset --hard' tools/bootstrap_termux_provider_alias_field_semantics_v1.sh
       - name: Historical mapping implementation lineage
         run: |
-          test "$(git hash-object provider_alias_field_semantics_lite.py)" = "49d7cff116dd46a29d94cee0549c608d6694622d"
+          test "$(git hash-object bin/provider_alias_field_semantics_lite.py)" = "49d7cff116dd46a29d94cee0549c608d6694622d"
           test "$(git hash-object hpfa/modules/core/provider_alias_field_semantics_lite/src/provider_alias_field_semantics.py)" = "65b915eb531a0943359c7351444354c54f7b5dd0"
       - name: Claim boundary and R08 temporal-order guard
         run: |

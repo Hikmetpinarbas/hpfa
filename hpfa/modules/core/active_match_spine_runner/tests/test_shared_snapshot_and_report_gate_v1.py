@@ -9,7 +9,7 @@ from hpfa.modules.core.active_match_spine_runner.src.shared_surface_snapshot_con
 
 def _load_entrypoint():
     root = Path(__file__).resolve().parents[5]
-    path = root / "active_match_spine_runner.py"
+    path = root / "bin/active_match_spine_runner.py"
     spec = importlib.util.spec_from_file_location("hpfa_active_match_entrypoint_test", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

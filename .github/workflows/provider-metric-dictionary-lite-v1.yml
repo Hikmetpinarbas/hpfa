@@ -3,7 +3,7 @@ name: Provider Metric Dictionary Lite V1
 on:
   pull_request:
     paths:
-      - "provider_metric_dictionary_lite.py"
+      - "bin/provider_metric_dictionary_lite.py"
       - "configs/metrics/provider_metric_dictionary_v1.json"
       - "configs/metrics/provider_alias_registry_v1.json"
       - "configs/metrics/metric_derivation_registry_v1.json"
@@ -38,7 +38,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile
-        run: python -m compileall -q provider_metric_dictionary_lite.py hpfa/modules/core/provider_metric_dictionary_lite
+        run: python -m compileall -q bin/provider_metric_dictionary_lite.py hpfa/modules/core/provider_metric_dictionary_lite
       - name: Runtime shell syntax and mode
         shell: bash
         run: |
@@ -67,7 +67,7 @@ jobs:
           ! grep -Eq '^[[:space:]]*(pytest|python[[:space:]]+-m[[:space:]]+(pytest|unittest))([[:space:]]|$)' tools/run_active_match_provider_metric_dictionary_v1.sh
       - name: Contract smoke
         run: |
-          python provider_metric_dictionary_lite.py --repo-root . --output /tmp/provider_metric_dictionary_report.json
+          python bin/provider_metric_dictionary_lite.py --repo-root . --output /tmp/provider_metric_dictionary_report.json
           python - <<'PY2'
           import json
           r=json.load(open('/tmp/provider_metric_dictionary_report.json'))

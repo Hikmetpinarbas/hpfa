@@ -13,7 +13,7 @@ import importlib.util
 from pathlib import Path
 
 root = Path.cwd()
-wrapper_path = root / "cross_format_reconciliation_lite.py"
+wrapper_path = root / "bin/cross_format_reconciliation_lite.py"
 spec = importlib.util.spec_from_file_location("cross_format_reconciliation_runtime_wrapper", wrapper_path)
 assert spec and spec.loader
 wrapper = importlib.util.module_from_spec(spec)

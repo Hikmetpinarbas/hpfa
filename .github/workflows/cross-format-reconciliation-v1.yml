@@ -3,7 +3,7 @@ name: Cross-Format Reconciliation Lite V1
 on:
   pull_request:
     paths:
-      - "cross_format_reconciliation_lite.py"
+      - "bin/cross_format_reconciliation_lite.py"
       - "hpfa/modules/core/cross_format_reconciliation_lite/**"
       - "hpfa/modules/core/provider_label_value_semantics_lite/**"
       - "docs/contracts/cross_format_reconciliation_lite_v1.md"
@@ -37,7 +37,7 @@ jobs:
       - name: Compile
         run: |
           python -m py_compile \
-            cross_format_reconciliation_lite.py \
+            bin/cross_format_reconciliation_lite.py \
             hpfa/modules/core/cross_format_reconciliation_lite/src/cross_format_reconciliation.py \
             hpfa/modules/core/cross_format_reconciliation_lite/tests/test_cross_format_reconciliation.py
       - name: Focused tests
