@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_URL="https://github.com/Hikmetpinarbas/hpfa.git"
 EXPECTED_REPO_SLUG="hikmetpinarbas/hpfa"
 BRANCH="${HPFA_EXPECTED_BRANCH:-}"
+EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"
 PRODUCT_REPO="${HPFA_PRODUCT_REPO:-$HOME/hp/repos/hpfa}"
 ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
 OUT="/sdcard/Download/HPFA"
@@ -27,6 +28,7 @@ normalize_remote_slug() {
 }
 
 [[ -n "$BRANCH" ]] || fail "expected_branch_required:set_HPFA_EXPECTED_BRANCH"
+[[ -n "$EXPECTED_HEAD" ]] || fail "expected_head_required:set_HPFA_EXPECTED_HEAD"
 [[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_not_found:$ACTIVE_MATCH"
 
 if [[ -e "$PRODUCT_REPO" && ! -d "$PRODUCT_REPO/.git" ]]; then
@@ -47,6 +49,8 @@ if [[ -n "$(git -C "$PRODUCT_REPO" status --porcelain)" ]]; then
 fi
 
 git -C "$PRODUCT_REPO" fetch origin "$BRANCH"
+REMOTE_HEAD="$(git -C "$PRODUCT_REPO" rev-parse "origin/$BRANCH" 2>/dev/null || true)"
+[[ "$REMOTE_HEAD" == "$EXPECTED_HEAD" ]] || fail "remote_head_mismatch:$REMOTE_HEAD expected:$EXPECTED_HEAD"
 
 if git -C "$PRODUCT_REPO" show-ref --verify --quiet "refs/heads/$BRANCH"; then
   git -C "$PRODUCT_REPO" switch "$BRANCH"
@@ -54,11 +58,12 @@ else
   git -C "$PRODUCT_REPO" switch --track "origin/$BRANCH"
 fi
 
-git -C "$PRODUCT_REPO" pull --ff-only origin "$BRANCH"
+git -C "$PRODUCT_REPO" merge --ff-only "origin/$BRANCH"
 
 ACTUAL_BRANCH="$(git -C "$PRODUCT_REPO" branch --show-current)"
 ACTUAL_HEAD="$(git -C "$PRODUCT_REPO" rev-parse HEAD)"
 [[ "$ACTUAL_BRANCH" == "$BRANCH" ]] || fail "unexpected_branch:$ACTUAL_BRANCH expected:$BRANCH"
+[[ "$ACTUAL_HEAD" == "$EXPECTED_HEAD" ]] || fail "unexpected_head:$ACTUAL_HEAD expected:$EXPECTED_HEAD"
 
 {
   echo "product_repo=$PRODUCT_REPO"
@@ -72,4 +77,6 @@ ACTUAL_HEAD="$(git -C "$PRODUCT_REPO" rev-parse HEAD)"
 
 HPFA_REPO="$PRODUCT_REPO" \
 HPFA_ACTIVE_MATCH="$ACTIVE_MATCH" \
+HPFA_EXPECTED_BRANCH="$BRANCH" \
+HPFA_EXPECTED_HEAD="$EXPECTED_HEAD" \
 bash "$PRODUCT_REPO/tools/run_active_match_multiformat_inventory_v1.sh"
