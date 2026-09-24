@@ -1,17 +1,57 @@
 {
-  "policy_id": "hpfa_release_dependency_policy_v1",
-  "production_release": false,
-  "public_index_upload_authorized": false,
   "commercial_distribution_authorized": false,
   "exact_dependency_lock_required_for_release": true,
   "optional_dependencies": {
-    "xlrd": {"scope": "xls", "license_family": "BSD", "bundled": false},
-    "pypdf": {"scope": "reference", "license_family": "BSD-3-Clause", "bundled": false},
-    "pytest": {"scope": "dev", "license_family": "MIT", "bundled": false},
-    "openpyxl": {"scope": "dev", "license_family": "MIT", "bundled": false},
-    "numpy": {"scope": "legacy-tools", "license_family": "BSD-3-Clause", "bundled": false},
-    "pandas": {"scope": "legacy-tools", "license_family": "BSD-3-Clause", "bundled": false},
-    "matplotlib": {"scope": "legacy-tools", "license_family": "PSF-based", "bundled": false},
-    "mplsoccer": {"scope": "legacy-tools", "license_family": "MIT", "bundled": false}
-  }
+    "matplotlib": {
+      "bundled": false,
+      "license_family": "PSF-based",
+      "license_verification_state": "DECLARED_FAMILY_ONLY_EXACT_VERSION_PENDING",
+      "scope": "legacy-tools"
+    },
+    "mplsoccer": {
+      "bundled": false,
+      "license_family": "MIT",
+      "license_verification_state": "DECLARED_FAMILY_ONLY_EXACT_VERSION_PENDING",
+      "scope": "legacy-tools"
+    },
+    "numpy": {
+      "bundled": false,
+      "license_family": "BSD-3-Clause",
+      "license_verification_state": "DECLARED_FAMILY_ONLY_EXACT_VERSION_PENDING",
+      "scope": "legacy-tools"
+    },
+    "openpyxl": {
+      "bundled": false,
+      "license_family": "MIT",
+      "license_verification_state": "DECLARED_FAMILY_ONLY_EXACT_VERSION_PENDING",
+      "scope": "dev"
+    },
+    "pandas": {
+      "bundled": false,
+      "license_family": "BSD-3-Clause",
+      "license_verification_state": "DECLARED_FAMILY_ONLY_EXACT_VERSION_PENDING",
+      "scope": "legacy-tools"
+    },
+    "pypdf": {
+      "bundled": false,
+      "license_family": "BSD-3-Clause",
+      "license_verification_state": "DECLARED_FAMILY_ONLY_EXACT_VERSION_PENDING",
+      "scope": "reference"
+    },
+    "pytest": {
+      "bundled": false,
+      "license_family": "MIT",
+      "license_verification_state": "DECLARED_FAMILY_ONLY_EXACT_VERSION_PENDING",
+      "scope": "dev"
+    },
+    "xlrd": {
+      "bundled": false,
+      "license_family": "BSD",
+      "license_verification_state": "DECLARED_FAMILY_ONLY_EXACT_VERSION_PENDING",
+      "scope": "xls"
+    }
+  },
+  "policy_id": "hpfa_release_dependency_policy_v1",
+  "production_release": false,
+  "public_index_upload_authorized": false
 }

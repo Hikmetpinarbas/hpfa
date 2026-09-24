@@ -32,6 +32,7 @@ def test_clean_bundle_passes_integrity_but_release_remains_review_required(tmp_p
     assert report["production_release"] is False
     assert report["exact_dependency_lock_present"] is False
     assert report["forbidden_bundle_entries"] == []
+    assert report["unexpected_bundle_entries"] == []
 
 
 def test_forbidden_raw_surface_fails_bundle_integrity(tmp_path: Path) -> None:
@@ -45,3 +46,13 @@ def test_every_optional_dependency_has_release_license_policy(tmp_path: Path) ->
     report = MOD.audit(ROOT, _wheel(tmp_path / "hpfa.whl"))
     assert report["missing_license_policy_entries"] == []
     assert report["orphan_license_policy_entries"] == []
+
+
+def test_unexpected_top_level_file_fails_bundle_integrity(tmp_path: Path) -> None:
+    wheel = _wheel(tmp_path / "hpfa.whl")
+    with zipfile.ZipFile(wheel, "a") as z:
+        z.writestr("mystery.txt", "unexpected")
+    report = MOD.audit(ROOT, wheel)
+    assert report["bundle_integrity_status"] == "FAIL"
+    assert report["release_decision"] == "REVIEW_REQUIRED"
+    assert report["unexpected_bundle_entries"] == ["mystery.txt"]

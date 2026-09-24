@@ -8,9 +8,6 @@ import tomllib
 import zipfile
 from pathlib import Path
 
-FORBIDDEN_PREFIXES = ("vendor/", "runtime/", "out/", "data/", "graphics_pack/", "_diag/", "hpfa-main/")
-REQUIRED_NOTICE_TOKENS = ("LICENSE", "NOTICE")
-
 
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -26,7 +23,12 @@ def dependency_name(spec: str) -> str:
 
 def audit(repo: Path, wheel: Path) -> dict:
     pyproject = tomllib.loads((repo / "pyproject.toml").read_text(encoding="utf-8"))
-    policy = json.loads((repo / "release/release_dependency_policy_v1.json").read_text(encoding="utf-8"))
+    dependency_policy = json.loads(
+        (repo / "release/release_dependency_policy_v1.json").read_text(encoding="utf-8")
+    )
+    bundle_policy = json.loads(
+        (repo / "release/release_bundle_policy_v1.json").read_text(encoding="utf-8")
+    )
     project = pyproject["project"]
     optional = project.get("optional-dependencies") or {}
     mandatory = list(project.get("dependencies") or [])
@@ -36,17 +38,35 @@ def audit(repo: Path, wheel: Path) -> dict:
         for scope, specs in optional.items()
         for spec in specs
     }
-    policy_optional = policy.get("optional_dependencies") or {}
+    policy_optional = dependency_policy.get("optional_dependencies") or {}
     undeclared_policy = sorted(set(policy_optional) - set(declared_optional))
     missing_policy = sorted(set(declared_optional) - set(policy_optional))
 
     with zipfile.ZipFile(wheel) as z:
         names = sorted(z.namelist())
 
-    forbidden = sorted(name for name in names if name.startswith(FORBIDDEN_PREFIXES))
+    forbidden_prefixes = tuple(bundle_policy.get("forbidden_prefixes") or [])
+    required_notice_tokens = tuple(bundle_policy.get("required_notice_basename_tokens") or [])
+    allowed_package_prefixes = tuple(bundle_policy.get("allowed_package_prefixes") or [])
+    root_modules = set(pyproject["tool"]["setuptools"].get("py-modules") or [])
+    dist_info_prefix = f"{project['name'].replace('-', '_')}-{project['version']}.dist-info/"
+
+    forbidden = sorted(name for name in names if name.startswith(forbidden_prefixes))
+    unexpected: list[str] = []
+    for name in names:
+        if name.startswith(allowed_package_prefixes):
+            continue
+        if bundle_policy.get("allow_project_dist_info") is True and name.startswith(dist_info_prefix):
+            continue
+        if bundle_policy.get("allow_declared_root_py_modules") is True:
+            path = Path(name)
+            if len(path.parts) == 1 and path.suffix == ".py" and path.stem in root_modules:
+                continue
+        unexpected.append(name)
+
     notice_presence = {
         token: any(token in Path(name).name.upper() for name in names)
-        for token in REQUIRED_NOTICE_TOKENS
+        for token in required_notice_tokens
     }
     core_present = any(name.startswith("hpfa/modules/core/") and name.endswith(".py") for name in names)
     registry_present = any("/registry/" in name and name.endswith((".json", ".csv", ".tsv")) for name in names)
@@ -56,6 +76,7 @@ def audit(repo: Path, wheel: Path) -> dict:
         core_present
         and registry_present
         and not forbidden
+        and not unexpected
         and all(notice_presence.values())
         and not mandatory
         and not missing_policy
@@ -64,8 +85,9 @@ def audit(repo: Path, wheel: Path) -> dict:
     release_decision = "PASS" if (
         bundle_integrity_pass
         and exact_lock_present
-        and policy.get("production_release") is True
-        and policy.get("public_index_upload_authorized") is True
+        and dependency_policy.get("production_release") is True
+        and dependency_policy.get("public_index_upload_authorized") is True
+        and bundle_policy.get("production_release") is True
     ) else "REVIEW_REQUIRED"
 
     return {
@@ -76,11 +98,14 @@ def audit(repo: Path, wheel: Path) -> dict:
         "bundle_integrity_status": "PASS" if bundle_integrity_pass else "FAIL",
         "release_decision": release_decision,
         "production_release": False,
-        "public_index_upload_authorized": bool(policy.get("public_index_upload_authorized")),
-        "commercial_distribution_authorized": bool(policy.get("commercial_distribution_authorized")),
+        "public_index_upload_authorized": bool(dependency_policy.get("public_index_upload_authorized")),
+        "commercial_distribution_authorized": bool(dependency_policy.get("commercial_distribution_authorized")),
+        "bundle_policy_id": bundle_policy.get("policy_id"),
+        "dependency_policy_id": dependency_policy.get("policy_id"),
         "core_present": core_present,
         "registry_present": registry_present,
         "forbidden_bundle_entries": forbidden,
+        "unexpected_bundle_entries": sorted(unexpected),
         "notice_presence": notice_presence,
         "mandatory_runtime_dependencies": mandatory,
         "optional_dependency_manifest": {
