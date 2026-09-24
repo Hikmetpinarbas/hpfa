@@ -1,6 +1,6 @@
 # Active Match Full Run Lite V1
 
-Status: IMPLEMENTATION_WRITTEN_EXECUTION_PENDING
+Status: IMPLEMENTED_CURRENT / RUNTIME_EVIDENCE_REQUIRED_PER_MATCH
 Module id: `active_match_full_run_lite_v1`
 Claim safety: `RUNTIME_EVIDENCE_ONLY`
 
@@ -10,7 +10,7 @@ Run the current repo-local ACTIVE_MATCH evidence chain with one command.
 
 ## Scope
 
-This runner executes engineering and analyst evidence modules. It is not yet a broadcast match report composer.
+This runner executes the current engineering and analyst evidence chain. It remains a runtime orchestrator, not a broadcast match report composer.
 
 ## Current chain
 
