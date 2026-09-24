@@ -7,12 +7,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from hpfa.platforms.termux_delivery_policy import restricted_output_roots
+
 CLAIM_SAFETY = "EVIDENCE_ONLY"
 RUNNER_ID = "active_match_spine_check_v1"
-PHONE_OUTPUT_ROOTS = (
-    Path("/sdcard/Download/HPFA"),
-    Path("/storage/emulated/0/Download/HPFA"),
-)
 ACTIVE_MATCH_RELATIVE_PATH = Path("runtime/active_single_match/current")
 ROLE_RESOLVER_DEPENDENCY_SURFACES = (
     Path("hpfa/modules/core/csv_surface_reader_lite"),
@@ -404,7 +402,7 @@ def _boundary_scorer_module(root: Path):
 
 def validate_output_root(out_dir: str | Path) -> Path:
     output_root = _resolve_path(Path(out_dir))
-    for phone_root in PHONE_OUTPUT_ROOTS:
+    for phone_root in restricted_output_roots():
         resolved_phone_root = _resolve_path(phone_root)
         if output_root == resolved_phone_root:
             return output_root
