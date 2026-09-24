@@ -1198,3 +1198,75 @@ def test_stale_analyst_claim_file_cannot_enter_presentation_without_current_ledg
     assert view["claim_admission_summary"]["professional_emit_allowed_count"] == 0
     assert view["professional_claim_records"] == []
     assert "STALE SHOULD NOT RENDER" not in Path(result["professional_report_html"]).read_text(encoding="utf-8")
+
+def test_ambiguous_multi_process_context_is_not_main_mechanism_label(tmp_path, monkeypatch):
+    feature_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
+    feature_path.write_text(
+        json.dumps({
+            "status": "PASS",
+            "grammar_stable_variant_feature_delta_records": [{
+                "grammar_stable_variant_feature_delta_id": "broad_1",
+                "source_process_variant_family_ref": "family_broad",
+                "team_identity_candidate_ids": ["team_1"],
+                "period_candidates": ["2"],
+                "grammar_signature_tokens": ["LAYER[PASS]", "LAYER[PASS]"],
+                "resolved_variant_count": 284,
+                "success_resolved_variant_count": 277,
+                "failure_resolved_variant_count": 7,
+                "right_censored_variant_count": 0,
+                "first_supported_context_difference_layer_candidate": 0,
+                "first_supported_consequence_difference_layer_candidate": 0,
+            }],
+        }),
+        encoding="utf-8",
+    )
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_1",
+            "team_normalized_key": "galatasaray",
+            "team_aliases_raw": ["Galatasaray"],
+        }]
+    }
+    shortlist = {
+        "shortlist": [{
+            "source_mechanism_review_ref": "broad_1",
+            "source_process_variant_family_ref": "family_broad",
+            "team_identity_candidate_ids": ["team_1"],
+            "period_candidates": ["2"],
+            "grammar_signature_tokens": ["LAYER[PASS]", "LAYER[PASS]"],
+            "resolved_variant_count": 284,
+            "success_resolved_variant_count": 277,
+            "failure_resolved_variant_count": 7,
+            "visible_episode_spread_count": 16,
+            "occurrence_disjoint_support_cluster_count": 33,
+            "review_support_state": "MULTI_EPISODE_OCCURRENCE_DISJOINT_SUCCESS_FAILURE_DIVERGENCE_VISIBLE",
+            "process_context_binding_state": "AMBIGUOUS_MULTI_PROCESS_FAMILY_CONTEXT",
+            "process_context_visible_episode_count": 16,
+            "process_family_episode_presence_counts": {
+                "COUNTERATTACK_CANDIDATE": 5,
+                "POSITIONAL_ATTACK_CANDIDATE": 16,
+            },
+            "mechanism_challenge_reason_codes": [],
+        }]
+    }
+    monkeypatch.setattr(
+        user_output_bundle,
+        "build_mechanism_story_review_shortlist",
+        lambda *args, **kwargs: shortlist,
+    )
+    monkeypatch.setattr(
+        user_output_bundle,
+        "_mechanism_safe_context_by_family",
+        lambda *args, **kwargs: {},
+    )
+    spine = _full_spine(current_artifacts=[str(feature_path)])
+
+    tr = "\n".join(user_output_bundle._human_mechanism_cards(tmp_path, spine, identity, "tr"))
+    en = "\n".join(user_output_bundle._human_mechanism_cards(tmp_path, spine, identity, "en"))
+
+    assert "SINIF=GENİŞ BAĞLAM KARŞILAŞTIRMASI" in tr
+    assert "SINIF=ANA MEKANİZMA ADAYI" not in tr
+    assert "ana mekanizma olarak sunulmaz" in tr
+    assert "CLASS=BROAD CONTEXT COMPARISON" in en
+    assert "CLASS=MAIN MECHANISM CANDIDATE" not in en
+    assert "not presented as a main mechanism" in en

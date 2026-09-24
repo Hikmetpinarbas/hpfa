@@ -1537,8 +1537,20 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             str(row.get("source_process_variant_family_ref") or ""),
             {},
         )
+        broad_context_only = (
+            str(row.get("process_context_binding_state") or "")
+            == "AMBIGUOUS_MULTI_PROCESS_FAMILY_CONTEXT"
+        )
         if language == "tr":
-            prefix = "Sınırlı karşılaştırma" if single_episode_only else "İnceleme noktası"
+            prefix = (
+                "Sınırlı karşılaştırma"
+                if single_episode_only
+                else (
+                    "Geniş bağlam karşılaştırması"
+                    if broad_context_only
+                    else "İnceleme noktası"
+                )
+            )
             football = (
                 f"{prefix} {idx}: {team}, {periods}. {grammar} bağlantısı maçın {spread} farklı bölümünde tekrar görülüyor. "
                 "Bu bağlantının karşılaştırılabilir varyantları hem olumlu hem olumsuz görünür sonuçlara gidiyor. "
@@ -1546,6 +1558,12 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             )
             if single_episode_only:
                 football += " Bu karşılaştırma tek görünür maç bölümünde yoğunlaştığı için ana mekanizma olarak yorumlanmamalıdır."
+            elif broad_context_only:
+                football += (
+                    " Süreç bağlamı birden fazla aileye yayıldığı için bu geniş örüntü ana mekanizma olarak sunulmaz; "
+                    "daha özgül süreç ayrışmaları için inceleme yüzeyi olarak korunur."
+                )
+                football += _mechanism_visible_split_sentence(source_record, language)
             else:
                 football += _mechanism_visible_split_sentence(source_record, language)
             if safe_context:
@@ -1610,7 +1628,15 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 + challenge_note
             )
         else:
-            prefix = "Limited comparison" if single_episode_only else "Review point"
+            prefix = (
+                "Limited comparison"
+                if single_episode_only
+                else (
+                    "Broad context comparison"
+                    if broad_context_only
+                    else "Review point"
+                )
+            )
             football = (
                 f"{prefix} {idx}: {team}, {periods}. The {grammar} connection recurs across {spread} distinct match segments. "
                 "Comparable variants of the same visible start lead to both positive and negative visible outcomes. "
@@ -1618,6 +1644,12 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             )
             if single_episode_only:
                 football += " This comparison is concentrated in one visible match segment and should not be treated as a main mechanism."
+            elif broad_context_only:
+                football += (
+                    " The process context spans multiple families, so this broad pattern is not presented as a main mechanism; "
+                    "it remains a review surface for more specific process separation."
+                )
+                football += _mechanism_visible_split_sentence(source_record, language)
             else:
                 football += _mechanism_visible_split_sentence(source_record, language)
             if safe_context:
@@ -1694,7 +1726,15 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             if str(value)
         ]
         if language == "tr":
-            card_class = "SINIRLI KARŞILAŞTIRMA" if single_episode_only else "ANA MEKANİZMA ADAYI"
+            card_class = (
+                "SINIRLI KARŞILAŞTIRMA"
+                if single_episode_only
+                else (
+                    "GENİŞ BAĞLAM KARŞILAŞTIRMASI"
+                    if broad_context_only
+                    else "ANA MEKANİZMA ADAYI"
+                )
+            )
             card = (
                 f"MEKANİZMA KARTI {idx} | SINIF={card_class} | TAKIM={team} | DÖNEM={periods} | "
                 f"TRACE={grammar} | PROCESS={process_label} | "
@@ -1705,7 +1745,15 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 "CLAIM=maç-içi görünür varyant/mekanizma adayı; kapsam yalnız görünür varyant, süreç ve sonuç bağlantısıdır."
             )
         else:
-            card_class = "LIMITED COMPARISON" if single_episode_only else "MAIN MECHANISM CANDIDATE"
+            card_class = (
+                "LIMITED COMPARISON"
+                if single_episode_only
+                else (
+                    "BROAD CONTEXT COMPARISON"
+                    if broad_context_only
+                    else "MAIN MECHANISM CANDIDATE"
+                )
+            )
             card = (
                 f"MECHANISM CARD {idx} | CLASS={card_class} | TEAM={team} | PERIOD={periods} | "
                 f"TRACE={grammar} | PROCESS={process_label} | "
