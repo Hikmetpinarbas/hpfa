@@ -2513,6 +2513,90 @@ def _as_number(value: Any) -> float | None:
         return None
 
 
+def _strict_post_final_third_entry_profile(layers: list[dict[str, Any]]) -> dict[str, Any]:
+    """Keep only activity strictly after a newly visible FINAL_THIRD access layer.
+
+    Activity co-located in the entry timestamp layer is intentionally excluded because
+    same-timestamp internal order is not admitted. This is a match-local visible
+    continuation profile, not tactical, causal, possession or chance-creation truth.
+    """
+    target = "FINAL_THIRD"
+    entry_indexes = [
+        idx
+        for idx, layer in enumerate(layers or [])
+        if target in {str(v) for v in (layer.get("provider_zone_candidates") or []) if v}
+    ]
+    if not entry_indexes:
+        return {
+            "status": "NOT_OBSERVED",
+            "target_zone_candidate": target,
+            "new_final_third_entry_visible": False,
+            "entry_temporal_layer_index_candidate": None,
+            "post_entry_observation_state": "NO_VISIBLE_FINAL_THIRD_ACCESS_LAYER",
+            "same_entry_layer_activity_is_post_entry_truth": False,
+            "no_strictly_later_visible_layer_is_failure": False,
+            "claim_ceiling": "MATCH_LOCAL_STRICTLY_LATER_POST_FINAL_THIRD_ENTRY_VISIBLE_ACTIVITY_CANDIDATE_ONLY",
+        }
+
+    first_index = entry_indexes[0]
+    if first_index == 0:
+        return {
+            "status": "NOT_ELIGIBLE_TARGET_ALREADY_VISIBLE_AT_PROCESS_START",
+            "target_zone_candidate": target,
+            "new_final_third_entry_visible": False,
+            "entry_temporal_layer_index_candidate": 0,
+            "post_entry_observation_state": "TARGET_ALREADY_VISIBLE_AT_PROCESS_START",
+            "same_entry_layer_activity_is_post_entry_truth": False,
+            "no_strictly_later_visible_layer_is_failure": False,
+            "claim_ceiling": "MATCH_LOCAL_STRICTLY_LATER_POST_FINAL_THIRD_ENTRY_VISIBLE_ACTIVITY_CANDIDATE_ONLY",
+        }
+
+    entry_layer = layers[first_index]
+    later_layers = layers[first_index + 1:]
+    later_actions = Counter(
+        str(value)
+        for layer in later_layers
+        for value in (layer.get("action_family_candidates") or [])
+        if value
+    )
+    later_consequences = Counter(
+        str(value)
+        for layer in later_layers
+        for value in (layer.get("primary_consequence_candidates") or [])
+        if value
+    )
+    entry_actions = sorted({
+        str(value) for value in (entry_layer.get("action_family_candidates") or []) if value
+    })
+    entry_consequences = sorted({
+        str(value) for value in (entry_layer.get("primary_consequence_candidates") or []) if value
+    })
+    return {
+        "status": "PASS",
+        "target_zone_candidate": target,
+        "new_final_third_entry_visible": True,
+        "entry_temporal_layer_index_candidate": first_index,
+        "entry_timestamp_candidate": entry_layer.get("timestamp_candidate"),
+        "entry_layer_action_family_candidates": entry_actions,
+        "entry_layer_primary_consequence_candidates": entry_consequences,
+        "strictly_later_temporal_layer_n": len(later_layers),
+        "strictly_later_action_family_layer_counts": dict(sorted(later_actions.items())),
+        "strictly_later_primary_consequence_candidate_counts": dict(sorted(later_consequences.items())),
+        "strictly_later_shot_action_layer_n": int(later_actions.get("SHOT", 0)),
+        "strictly_later_visible_activity_present": bool(later_actions or later_consequences),
+        "post_entry_observation_state": (
+            "STRICTLY_LATER_VISIBLE_ACTIVITY_PRESENT"
+            if later_actions or later_consequences
+            else "NO_STRICTLY_LATER_VISIBLE_ACTIVITY_WITHIN_PROCESS_WINDOW"
+        ),
+        "same_entry_layer_activity_is_post_entry_truth": False,
+        "no_strictly_later_visible_layer_is_failure": False,
+        "post_entry_activity_is_causal_consequence_truth": False,
+        "post_entry_activity_is_chance_creation_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_STRICTLY_LATER_POST_FINAL_THIRD_ENTRY_VISIBLE_ACTIVITY_CANDIDATE_ONLY",
+    }
+
+
 def _construct_c03(
     process_payload: dict[str, Any],
     occurrence_transition_payload: dict[str, Any],
@@ -2849,6 +2933,7 @@ def _construct_c03(
             "visible_zone_transition_candidates": zone_transition_candidates,
             "zone_transition_is_progression_truth": False,
             "zone_transition_is_line_break_truth": False,
+            "strict_post_final_third_entry_profile": _strict_post_final_third_entry_profile(layers),
             "transition_class_candidates_observed": sorted(transition_classes),
             "provider_outcome_candidates_observed": sorted(provider_outcomes),
             "primary_consequence_candidates_observed": sorted(primary_consequences),

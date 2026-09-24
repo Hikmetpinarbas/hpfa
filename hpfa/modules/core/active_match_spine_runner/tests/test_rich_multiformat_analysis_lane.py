@@ -10,7 +10,7 @@ if str(SRC) not in sys.path:
 
 from full_spine_runner import run_intelligence_chain
 from shared_surface_snapshot_contract import surface_snapshot_id
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _loss_next_opponent_process_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _counterattack_next_process_context, _access_terminal_bridge_profiles, _snapshot
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _strict_post_final_third_entry_profile, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _loss_next_opponent_process_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _counterattack_next_process_context, _access_terminal_bridge_profiles, _snapshot
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -2231,3 +2231,75 @@ def test_player_action_aggregate_context_keeps_coverage_gap_review_visible():
     assert result["player_action_aggregate_alignment_state_counts"] == {
         "VISIBLE_SHOT_OCCURRENCE_COVERAGE_BELOW_XLSX_SHOTS_REVIEW_REQUIRED": 1
     }
+
+
+def test_strict_post_final_third_entry_excludes_same_layer_activity_and_keeps_only_later_layers():
+    layers = [
+        {
+            "timestamp_candidate": 10.0,
+            "provider_zone_candidates": ["MIDDLE_THIRD"],
+            "action_family_candidates": ["PASS"],
+            "primary_consequence_candidates": [],
+        },
+        {
+            "timestamp_candidate": 20.0,
+            "provider_zone_candidates": ["FINAL_THIRD"],
+            "action_family_candidates": ["SHOT", "PASS"],
+            "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+        },
+        {
+            "timestamp_candidate": 25.0,
+            "provider_zone_candidates": ["FINAL_THIRD"],
+            "action_family_candidates": ["SHOT"],
+            "primary_consequence_candidates": ["SHOT_FOLLOW_UP_CANDIDATE"],
+        },
+    ]
+
+    profile = _strict_post_final_third_entry_profile(layers)
+
+    assert profile["new_final_third_entry_visible"] is True
+    assert profile["entry_temporal_layer_index_candidate"] == 1
+    assert profile["entry_layer_action_family_candidates"] == ["PASS", "SHOT"]
+    assert profile["strictly_later_temporal_layer_n"] == 1
+    assert profile["strictly_later_shot_action_layer_n"] == 1
+    assert profile["strictly_later_primary_consequence_candidate_counts"] == {"SHOT_FOLLOW_UP_CANDIDATE": 1}
+    assert profile["same_entry_layer_activity_is_post_entry_truth"] is False
+    assert profile["post_entry_activity_is_causal_consequence_truth"] is False
+
+
+def test_strict_post_final_third_entry_does_not_call_same_layer_shot_post_entry():
+    layers = [
+        {
+            "timestamp_candidate": 10.0,
+            "provider_zone_candidates": ["MIDDLE_THIRD"],
+            "action_family_candidates": ["PASS"],
+            "primary_consequence_candidates": [],
+        },
+        {
+            "timestamp_candidate": 20.0,
+            "provider_zone_candidates": ["FINAL_THIRD"],
+            "action_family_candidates": ["SHOT"],
+            "primary_consequence_candidates": ["SHOT_FOLLOW_UP_CANDIDATE"],
+        },
+    ]
+
+    profile = _strict_post_final_third_entry_profile(layers)
+
+    assert profile["new_final_third_entry_visible"] is True
+    assert profile["strictly_later_temporal_layer_n"] == 0
+    assert profile["strictly_later_shot_action_layer_n"] == 0
+    assert profile["post_entry_observation_state"] == "NO_STRICTLY_LATER_VISIBLE_ACTIVITY_WITHIN_PROCESS_WINDOW"
+    assert profile["no_strictly_later_visible_layer_is_failure"] is False
+
+
+def test_strict_post_final_third_entry_requires_new_access_not_process_start_already_in_final_third():
+    profile = _strict_post_final_third_entry_profile([{
+        "timestamp_candidate": 10.0,
+        "provider_zone_candidates": ["FINAL_THIRD"],
+        "action_family_candidates": ["PASS"],
+        "primary_consequence_candidates": [],
+    }])
+
+    assert profile["new_final_third_entry_visible"] is False
+    assert profile["status"] == "NOT_ELIGIBLE_TARGET_ALREADY_VISIBLE_AT_PROCESS_START"
+    assert profile["post_entry_observation_state"] == "TARGET_ALREADY_VISIBLE_AT_PROCESS_START"
