@@ -2745,11 +2745,17 @@ def write_standard_user_outputs(
     )
     presentation_view_path = root / PRESENTATION_VIEW_MODEL_JSON
     professional_html_path = root / PROFESSIONAL_REPORT_HTML
+    analyst_output_claim_payload = (
+        _load_json(root / ANALYST_OUTPUT_CLAIM_JSON)
+        if _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON)
+        else {}
+    )
     presentation_view = build_presentation_view_model(
         full_spine,
         analyst_report_tr=report_tr_text,
         analyst_report_en=report_en_text,
         mechanism_graph_payload=mechanism_graph_payload,
+        analyst_output_claim_payload=analyst_output_claim_payload,
     )
     presentation_view_path.write_text(
         json.dumps(presentation_view, ensure_ascii=False, indent=2, sort_keys=True) + "\n",

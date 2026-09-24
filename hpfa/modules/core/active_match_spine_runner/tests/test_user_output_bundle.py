@@ -1168,3 +1168,33 @@ def test_standard_bundle_publishes_governed_presentation_view_and_html(tmp_path)
         zip_names = set(archive.namelist())
     assert user_output_bundle.PRESENTATION_VIEW_MODEL_JSON in zip_names
     assert user_output_bundle.PROFESSIONAL_REPORT_HTML in zip_names
+
+
+def test_stale_analyst_claim_file_cannot_enter_presentation_without_current_ledger(tmp_path):
+    full_json = tmp_path / "active_match_full_spine_v1.json"
+    full_txt = tmp_path / "active_match_full_spine_v1.txt"
+    claim_path = tmp_path / user_output_bundle.ANALYST_OUTPUT_CLAIM_JSON
+    full_json.write_text("{}", encoding="utf-8")
+    full_txt.write_text("status=REVIEW_REQUIRED", encoding="utf-8")
+    claim_path.write_text(json.dumps({
+        "status": "PASS",
+        "analyst_output_contract_count": 1,
+        "professional_emit_allowed_count": 1,
+        "analyst_output_contracts": [{
+            "analyst_output_contract_id": "stale_claim",
+            "professional_emit_allowed": True,
+            "render_what_visible_text_tr": "STALE SHOULD NOT RENDER",
+        }],
+    }), encoding="utf-8")
+
+    spine = _full_spine(
+        feature_current=False,
+        c4_current=False,
+        current_artifacts=[str(full_json), str(full_txt)],
+    )
+    result = write_standard_user_outputs(tmp_path, spine)
+    view = json.loads(Path(result["presentation_view_model"]).read_text(encoding="utf-8"))
+
+    assert view["claim_admission_summary"]["professional_emit_allowed_count"] == 0
+    assert view["professional_claim_records"] == []
+    assert "STALE SHOULD NOT RENDER" not in Path(result["professional_report_html"]).read_text(encoding="utf-8")
