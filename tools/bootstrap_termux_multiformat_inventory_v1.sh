@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_URL="https://github.com/Hikmetpinarbas/hpfa.git"
 EXPECTED_REPO_SLUG="hikmetpinarbas/hpfa"
-BRANCH="multiformat-file-inventory-lite-v1"
+BRANCH="${HPFA_EXPECTED_BRANCH:-}"
 PRODUCT_REPO="${HPFA_PRODUCT_REPO:-$HOME/hp/repos/hpfa}"
 ACTIVE_MATCH="${HPFA_ACTIVE_MATCH:-$HOME/hpfa_claim_integrity/hpfa/runtime/active_single_match/current}"
 OUT="/sdcard/Download/HPFA"
@@ -26,6 +26,7 @@ normalize_remote_slug() {
   printf '%s\n' "${remote,,}"
 }
 
+[[ -n "$BRANCH" ]] || fail "expected_branch_required:set_HPFA_EXPECTED_BRANCH"
 [[ -d "$ACTIVE_MATCH" ]] || fail "active_match_runtime_not_found:$ACTIVE_MATCH"
 
 if [[ -e "$PRODUCT_REPO" && ! -d "$PRODUCT_REPO/.git" ]]; then
