@@ -81,3 +81,30 @@ canonical_event_count=UNKNOWN
 true_action_count=UNKNOWN
 production_release=false
 ```
+
+
+## Semantic compatibility debt — legacy event-only field name
+
+Status: REVIEW_REQUIRED  
+Scope: metric registry / provider metric dictionary compatibility schema
+
+The current v1 metric compatibility contract still contains the field name:
+
+`event_only_compatible`
+
+This name is legacy terminology and does **not** represent current HPFA doctrine.
+
+Current doctrine is:
+
+`EVENT ⊂ ZFGV`
+
+The field remains temporarily because it participates in registry fingerprints and provider-dictionary compatibility checks. It must not be interpreted as an event-only product boundary.
+
+Required migration:
+- introduce an observation-capability-compatible replacement field;
+- preserve deterministic fingerprint/version migration;
+- update provider dictionary and metric policy together;
+- update regression fixtures without weakening claim-safety tests;
+- remove the legacy key only after all current consumers use the replacement.
+
+Until that migration is accepted, no new construct should introduce additional `event_only_*` field names.
