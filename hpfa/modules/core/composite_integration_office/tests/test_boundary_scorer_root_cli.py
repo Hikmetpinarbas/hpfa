@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 
-def test_root_boundary_scorer_cli_accepts_list_input(tmp_path):
+def test_bin_boundary_scorer_cli_accepts_list_input(tmp_path):
     root = Path(__file__).resolve().parents[5]
     src = tmp_path / "composite_registry.json"
     out = tmp_path / "boundary_scores.json"
@@ -29,7 +29,7 @@ def test_root_boundary_scorer_cli_accepts_list_input(tmp_path):
     ]), encoding="utf-8")
 
     result = subprocess.run(
-        [sys.executable, "-m", "boundary_analysis_scorer", str(src), "--out", str(out)],
+        [sys.executable, str(root / "bin" / "boundary_analysis_scorer.py"), str(src), "--out", str(out)],
         cwd=root,
         text=True,
         capture_output=True,

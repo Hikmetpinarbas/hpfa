@@ -90,7 +90,7 @@ def test_nested_phone_output_directory_is_rejected(tmp_path):
 
 def test_no_sample_match_identity_leak():
     src = (SRC / "active_match_identity_guard.py").read_text(encoding="utf-8")
-    wrapper = (ROOT / "active_match_identity_guard.py").read_text(encoding="utf-8")
+    wrapper = (ROOT / "bin" / "active_match_identity_guard.py").read_text(encoding="utf-8")
     forbidden = [
         "Australia",
         "Turkey",

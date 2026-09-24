@@ -6,30 +6,30 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-SRC = ROOT / "hpfa" / "modules" / "support" / "event_physical_cost_surface_lite" / "src"
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+SRC = ROOT / "hpfa" / "modules" / "core" / "metric_family_registry_lite" / "src"
 SPINE_SRC = ROOT / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"
 for path in (SRC, SPINE_SRC):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from event_physical_cost_surface import write_outputs
+from metric_family_registry import write_outputs
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="HPFA Event Physical Cost Surface Lite V1")
+    parser = argparse.ArgumentParser(description="HPFA Metric Family Registry Lite V1")
     parser.add_argument("--out-dir", required=True)
     args = parser.parse_args()
     result = write_outputs(args.out_dir, root=ROOT)
     print(json.dumps({
         "status": result.get("status"),
         "claim_safety": result.get("claim_safety"),
-        "record_count": result.get("record_count"),
-        "surface_counts": result.get("surface_counts"),
-        "metric_family_counts": result.get("metric_family_counts"),
-        "runtime_event_truth": result.get("runtime_event_truth"),
-        "event_count_claim_allowed": result.get("event_count_claim_allowed"),
-        "metric_count_allowed": result.get("metric_count_allowed"),
+        "registry_record_count": result.get("registry_record_count"),
+        "family_counts": result.get("family_counts"),
+        "metric_value_output_allowed": result.get("metric_value_output_allowed"),
+        "efficiency_calculation_allowed": result.get("efficiency_calculation_allowed"),
         "outputs": result.get("outputs"),
     }, ensure_ascii=False))
     return 0
