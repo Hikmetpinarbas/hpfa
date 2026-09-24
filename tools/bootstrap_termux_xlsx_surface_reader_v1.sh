@@ -53,7 +53,7 @@ else
   git -C "$REPO" switch --track "origin/$BRANCH"
 fi
 
-git -C "$REPO" reset --hard "$EXPECTED_HEAD"
+git -C "$REPO" merge --ff-only "origin/$BRANCH"
 
 if ! python - <<'PY'
 import openpyxl
