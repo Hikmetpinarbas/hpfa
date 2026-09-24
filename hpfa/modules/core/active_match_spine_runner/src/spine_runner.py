@@ -160,6 +160,12 @@ def _validate_imported_module_origin(module: Any, expected_file: Path, module_na
         raise ValueError(f"runtime_module_origin_mismatch:{module_name}")
 
 
+def _validate_legacy_cached_alias(alias: str, expected_file: Path) -> None:
+    cached = sys.modules.get(alias)
+    if cached is not None:
+        _validate_imported_module_origin(cached, expected_file, alias)
+
+
 def _validate_transitive_reader_implementation_origins(
     content_source_role_resolver: Any,
     dependency_src: dict[str, Path],
@@ -341,12 +347,13 @@ def _content_source_role_resolver_module(root: Path):
     _load_product_legacy_module(root, "xml_structure", xml_src / "xml_structure.py")
 
     _ensure_module_path(root)
-    _ensure_module_path(src)
-    import content_source_role_resolver  # type: ignore
+    expected_resolver = src / "content_source_role_resolver.py"
+    _validate_legacy_cached_alias("content_source_role_resolver", expected_resolver)
+    from hpfa.modules.core.content_source_role_resolver_lite.src import content_source_role_resolver
 
     _validate_imported_module_origin(
         content_source_role_resolver,
-        src / "content_source_role_resolver.py",
+        expected_resolver,
         "content_source_role_resolver",
     )
     dependency_modules = {
@@ -389,12 +396,13 @@ def _boundary_scorer_module(root: Path):
         root,
         root / "hpfa" / "modules" / "core" / "composite_integration_office" / "src",
     )
-    _ensure_module_path(src)
-    import boundary_analysis_scorer  # type: ignore
+    expected_boundary = src / "boundary_analysis_scorer.py"
+    _validate_legacy_cached_alias("boundary_analysis_scorer", expected_boundary)
+    from hpfa.modules.core.composite_integration_office.src import boundary_analysis_scorer
 
     _validate_imported_module_origin(
         boundary_analysis_scorer,
-        src / "boundary_analysis_scorer.py",
+        expected_boundary,
         "boundary_analysis_scorer",
     )
     return boundary_analysis_scorer
