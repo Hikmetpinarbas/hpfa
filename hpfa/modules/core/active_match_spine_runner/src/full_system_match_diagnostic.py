@@ -190,7 +190,7 @@ def _human_report_scalar(root: Path, key: str) -> str | None:
 
 
 def _top_mechanism_candidates(
-    root: Path, limit: int = 5
+    root: Path, limit: int | None = None
 ) -> list[dict[str, Any]]:
     delta = _load_json(root, "grammar_stable_variant_feature_delta_projection_v1.json")
     records = delta.get("grammar_stable_variant_feature_delta_records")
@@ -294,9 +294,12 @@ def _top_mechanism_candidates(
         ),
         reverse=True,
     )
-    return [
+    eligible = [
         row for row in candidates if row["resolved_variant_count"] > 3
-    ][:limit]
+    ]
+    if limit is None:
+        return eligible
+    return eligible[: max(int(limit), 0)]
 
 
 def _safe_finding_accounting(

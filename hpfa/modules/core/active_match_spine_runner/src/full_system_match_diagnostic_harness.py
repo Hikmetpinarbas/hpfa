@@ -282,7 +282,7 @@ def write_human_report(root: Path, diagnostic: dict[str, Any]) -> Path:
     mechanisms = diagnostic.get("top_defensible_process_mechanism_candidates") or []
     if not mechanisms:
         lines.append("- Yeterli current-run candidate yok; kota doldurulmadı.")
-    for index, row in enumerate(mechanisms[:5], 1):
+    for index, row in enumerate(mechanisms, 1):
         lines.append(
             f"- C{index}: resolved={row.get('resolved_variant_count')} success={row.get('success_variant_count')} failure={row.get('failure_variant_count')} "
             f"claim_ceiling={row.get('claim_ceiling')} independence={str(row.get('dependency_independence_proven') is True).lower()}"
