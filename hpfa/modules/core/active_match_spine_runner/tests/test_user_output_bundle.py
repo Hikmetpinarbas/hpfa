@@ -2227,6 +2227,29 @@ def test_mechanism_context_review_payload_binds_opponent_only_with_explicit_sing
 
 def test_player_function_cards_surface_match_local_function_context_without_quality_ranking() -> None:
     rich = {
+        "player_score_state_process_participation": {
+            "status": "PASS",
+            "profiles": [
+                {
+                    "actor_identity_candidate_id": "a1",
+                    "score_state_candidate": {"Alpha": 1, "Beta": 0},
+                    "score_segment_start_second_candidate": 100.0,
+                    "visible_process_participation_n": 9,
+                    "shot_ending_process_participation_n": 2,
+                    "player_exposure_admitted": False,
+                    "player_rate_output_allowed": False,
+                },
+                {
+                    "actor_identity_candidate_id": "a1",
+                    "score_state_candidate": {"Alpha": 0, "Beta": 0},
+                    "score_segment_start_second_candidate": 0.0,
+                    "visible_process_participation_n": 3,
+                    "shot_ending_process_participation_n": 0,
+                    "player_exposure_admitted": False,
+                    "player_rate_output_allowed": False,
+                },
+            ],
+        },
         "constructs": {
             "C02": {
                 "player_function_profiles": [
@@ -2308,6 +2331,9 @@ def test_player_function_cards_surface_match_local_function_context_without_qual
     assert "yaratılan şans=2" in joined_tr
     assert "top kazanımı=5" in joined_tr
     assert "top kaybı=8" in joined_tr
+    assert "Skor-durumu bağlamı:" in joined_tr
+    assert "Alpha 1 - Beta 0: 9 görünür süreç katılımı / 2 şut bağlantılı" in joined_tr
+    assert "Alpha 0 - Beta 0: 3 görünür süreç katılımı / 0 şut bağlantılı" in joined_tr
     assert "kalite sıralaması" not in joined_tr.lower()
     assert "taktik rol gerçeği" not in joined_tr.lower()
     assert "nedensel katkı" in joined_tr.lower()

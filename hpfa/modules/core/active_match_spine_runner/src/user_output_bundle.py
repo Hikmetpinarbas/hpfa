@@ -744,6 +744,17 @@ def _human_score_state_process_outcome_cards(
         return []
 
     teams = _human_team_labels(identity)
+    score_state_surface = rich.get("player_score_state_process_participation") or {}
+    score_state_profiles = [
+        row for row in (score_state_surface.get("profiles") or [])
+        if isinstance(row, dict)
+    ]
+    score_state_by_actor: dict[str, list[dict[str, Any]]] = {}
+    for score_row in score_state_profiles:
+        actor_id = str(score_row.get("actor_identity_candidate_id") or "").strip()
+        if actor_id:
+            score_state_by_actor.setdefault(actor_id, []).append(score_row)
+
     by_team: dict[str, list[dict[str, Any]]] = {}
     for row in profiles:
         team_id = str(row.get("team_identity_candidate_id") or "").strip()
@@ -2861,6 +2872,17 @@ def _human_player_function_cards(
         return []
 
     teams = _human_team_labels(identity)
+    score_state_surface = rich.get("player_score_state_process_participation") or {}
+    score_state_profiles = [
+        row for row in (score_state_surface.get("profiles") or [])
+        if isinstance(row, dict)
+    ]
+    score_state_by_actor: dict[str, list[dict[str, Any]]] = {}
+    for score_row in score_state_profiles:
+        actor_id = str(score_row.get("actor_identity_candidate_id") or "").strip()
+        if actor_id:
+            score_state_by_actor.setdefault(actor_id, []).append(score_row)
+
     by_team: dict[str, list[dict[str, Any]]] = {}
     for row in profiles:
         team_id = str(row.get("team_identity_candidate_id") or "").strip()
@@ -2908,6 +2930,27 @@ def _human_player_function_cards(
                 if int(count or 0) > 0
             ][:3]
 
+            actor_id = str(row.get("actor_identity_candidate_id") or "").strip()
+            score_rows = sorted(
+                score_state_by_actor.get(actor_id, []),
+                key=lambda value: (
+                    -int(value.get("visible_process_participation_n") or 0),
+                    -int(value.get("shot_ending_process_participation_n") or 0),
+                    float(value.get("score_segment_start_second_candidate") or 0.0),
+                ),
+            )[:2]
+            score_bits: list[str] = []
+            for score_row in score_rows:
+                score_text = _score_state_human(score_row.get("score_state_candidate"), language)
+                if not score_text:
+                    continue
+                visible_n = int(score_row.get("visible_process_participation_n") or 0)
+                shot_n = int(score_row.get("shot_ending_process_participation_n") or 0)
+                if language == "tr":
+                    score_bits.append(f"{score_text}: {visible_n} görünür süreç katılımı / {shot_n} şut bağlantılı")
+                else:
+                    score_bits.append(f"{score_text}: {visible_n} visible process participations / {shot_n} shot-linked")
+
             metrics = _player_profile_metric_values(row)
             metric_bits: list[str] = []
             for key, tr_label, en_label in preferred_metrics:
@@ -2929,11 +2972,14 @@ def _human_player_function_cards(
                 )
                 if shot_bits:
                     text += " Şut bağlantılı süreç katılımı: " + ", ".join(shot_bits) + "."
+                if score_bits:
+                    text += " Skor-durumu bağlamı: " + "; ".join(score_bits) + "."
                 if metric_bits:
                     text += " Aggregate fonksiyon bağlamı: " + ", ".join(metric_bits) + "."
                 text += (
                     " Bu kart yalnız maç-içi görünür işlev bağlamıdır. Oyuncu niteliği ve kalıcı/taktik rol yorumu "
-                    "bu kapsamın dışındadır. Nedensel katkı yorumu kapsam dışındadır; "
+                    "bu kapsamın dışındadır. Skor-durumu satırları görülen katılımı sayar; görünmeyen katılım saha-dışı "
+                    "yokluk kanıtı olarak kullanılmaz. Nedensel katkı yorumu kapsam dışındadır; "
                     "substitution timeline otoritesi olmadığı için per-90 süreç oranı üretilmez."
                 )
             else:
@@ -2944,11 +2990,14 @@ def _human_player_function_cards(
                 )
                 if shot_bits:
                     text += " Shot-linked process participation: " + ", ".join(shot_bits) + "."
+                if score_bits:
+                    text += " Score-state context: " + "; ".join(score_bits) + "."
                 if metric_bits:
                     text += " Aggregate function context: " + ", ".join(metric_bits) + "."
                 text += (
                     " This is match-local function context only. Player quality and persistent/tactical-role interpretation "
-                    "remain outside scope. Causal-contribution interpretation remains outside scope, "
+                    "remain outside scope. Score-state rows count visible participation only; missing participation is not used "
+                    "as proof of off-field absence. Causal-contribution interpretation remains outside scope, "
                     "and no per-90 process rate is produced without substitution-timeline authority."
                 )
             cards.append(text)
