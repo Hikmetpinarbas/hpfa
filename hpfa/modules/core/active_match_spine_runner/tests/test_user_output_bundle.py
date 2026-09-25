@@ -2399,11 +2399,13 @@ def test_player_mechanism_link_cards_surface_source_bound_actor_variant_context_
             {
                 "actor_identity_candidate_id": "a1",
                 "actor_aliases_raw": ["1. Player One (101)"],
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
                 "validated_player_identity": True,
             },
             {
                 "actor_identity_candidate_id": "a2",
                 "actor_aliases_raw": ["2. Player Two (102)"],
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
                 "validated_player_identity": True,
             },
         ]
