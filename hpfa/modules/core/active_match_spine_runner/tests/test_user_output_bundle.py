@@ -1760,3 +1760,72 @@ def test_set_piece_cards_surface_restart_type_outcome_counts_without_percentage(
     assert "sonuç-bağlı=3" in joined
     assert "serbest vuruş n=2" in joined
     assert "%" not in joined
+
+
+def test_match_story_cards_lead_with_visible_attack_process_summary_without_quality_claim() -> None:
+    rich = {
+        "constructs": {
+            "C03": {
+                "six_phase_team_matrix": [
+                    {
+                        "team_identity_candidate_id": "team_a",
+                        "canonical_phase_slot": "ESTABLISHED_ATTACK",
+                        "perspective": "ATTACK",
+                        "observation_state": "VISIBLE_PROCESS_PROFILE_AVAILABLE",
+                        "eligible_process_n": 12,
+                        "shot_ending_process_n": 3,
+                        "visible_loss_process_n": 4,
+                        "visible_recovery_process_n": 1,
+                    },
+                    {
+                        "team_identity_candidate_id": "team_a",
+                        "canonical_phase_slot": "ATTACKING_TRANSITION",
+                        "perspective": "ATTACK",
+                        "observation_state": "VISIBLE_PROCESS_PROFILE_AVAILABLE",
+                        "eligible_process_n": 5,
+                        "shot_ending_process_n": 1,
+                        "visible_loss_process_n": 2,
+                        "visible_recovery_process_n": 0,
+                    },
+                    {
+                        "team_identity_candidate_id": "team_b",
+                        "canonical_phase_slot": "ESTABLISHED_ATTACK",
+                        "perspective": "ATTACK",
+                        "observation_state": "VISIBLE_PROCESS_PROFILE_AVAILABLE",
+                        "eligible_process_n": 9,
+                        "shot_ending_process_n": 2,
+                        "visible_loss_process_n": 3,
+                        "visible_recovery_process_n": 0,
+                    },
+                ]
+            }
+        }
+    }
+    identity = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]},
+            {"team_identity_candidate_id": "team_b", "team_aliases_raw": ["Beta"]},
+        ]
+    }
+
+    tr = user_output_bundle._human_match_story_cards(rich, identity, "tr")
+    en = user_output_bundle._human_match_story_cards(rich, identity, "en")
+
+    assert len(tr) == 3
+    assert "Alpha" in tr[0]
+    assert "yerleşik hücum" in tr[0]
+    assert "12 görünür süreç" in tr[0]
+    assert "3 şut bağlantılı" in tr[0]
+    assert "4 görünür kayıp" in tr[0]
+    assert "kalite" not in tr[0].lower()
+    assert "üstün" not in tr[0].lower()
+    assert "neden" not in tr[0].lower()
+    assert "Beta" in tr[1]
+    assert "görünür hacim özeti" in tr[2]
+
+    assert len(en) == 3
+    assert "Alpha" in en[0]
+    assert "established attack" in en[0]
+    assert "12 visible processes" in en[0]
+    assert "quality" not in en[0].lower()
+    assert "causal" not in en[0].lower()

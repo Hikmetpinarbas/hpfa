@@ -1436,6 +1436,71 @@ def _human_opponent_interaction_cards(
     return cards
 
 
+def _human_match_story_cards(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+) -> list[str]:
+    c03 = (rich.get("constructs") or {}).get("C03") or {}
+    matrix = [
+        row for row in (c03.get("six_phase_team_matrix") or [])
+        if isinstance(row, dict)
+        and str(row.get("perspective") or "") == "ATTACK"
+        and str(row.get("observation_state") or "") == "VISIBLE_PROCESS_PROFILE_AVAILABLE"
+    ]
+    if not matrix:
+        return []
+
+    teams = _human_team_labels(identity)
+    by_team: dict[str, list[dict[str, Any]]] = {}
+    for row in matrix:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            by_team.setdefault(team_id, []).append(row)
+
+    cards: list[str] = []
+    for team_id, rows in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
+        row = max(
+            rows,
+            key=lambda value: (
+                int(value.get("eligible_process_n") or 0),
+                str(value.get("canonical_phase_slot") or ""),
+            ),
+        )
+        team = teams.get(team_id, team_id)
+        phase = _six_phase_label(row.get("canonical_phase_slot"), language)
+        process_n = int(row.get("eligible_process_n") or 0)
+        shot_n = int(row.get("shot_ending_process_n") or 0)
+        loss_n = int(row.get("visible_loss_process_n") or 0)
+        recovery_n = int(row.get("visible_recovery_process_n") or 0)
+        if language == "tr":
+            cards.append(
+                f"{team}: admitted hücum fazları içinde en yüksek görünür süreç hacmi {phase} yüzeyinde; "
+                f"{process_n} görünür süreç, {shot_n} şut bağlantılı son bölüm, "
+                f"{loss_n} görünür kayıp ve {recovery_n} görünür kazanım."
+            )
+        else:
+            cards.append(
+                f"{team}: among admitted attacking phases, the largest visible process volume is in {phase}; "
+                f"{process_n} visible processes, {shot_n} shot-linked terminal segments, "
+                f"{loss_n} visible losses and {recovery_n} visible recoveries."
+            )
+
+    if language == "tr":
+        cards.append(
+            "Kanıt kapsamı: bu maç hikâyesi kartı yalnız admitted altı-faz süreçlerinin görünür hacim özetidir. "
+            "Faz sıklığı; kalite, üstünlük, niyet veya neden hükmüne dönüştürülmez. "
+            "Mekanizma ve ayrışma yorumları aşağıdaki source-bound kartlarda ayrıca değerlendirilir."
+        )
+    else:
+        cards.append(
+            "Evidence scope: this match-story card is only a visible-volume summary of admitted six-phase processes. "
+            "Phase frequency is not promoted to quality, superiority, intention, or causal explanation. "
+            "Mechanism and divergence interpretation remains in the source-bound cards below."
+        )
+    return cards
+
+
 def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     c03 = (rich.get("constructs") or {}).get("C03") or {}
     matrix = [row for row in (c03.get("six_phase_team_matrix") or []) if isinstance(row, dict)]
@@ -2760,6 +2825,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     c02_cards = _human_c02_cards(rich, "tr") if rich_current else []
     model_context_cards = _human_model_context_cards(rich, "tr") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
+    match_story_cards = _human_match_story_cards(rich, identity, "tr") if rich_current else []
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "tr") if rich_current else []
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "tr") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "tr") if rich_current else []
@@ -2776,8 +2842,13 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         "",
         "Bu rapor futbol diliyle yazılmış analist yüzeyidir. Teknik kanıt ayrıntıları ayrı 'Kanıt notu' satırlarında tutulur.",
         "",
-        "[1] MAÇIN GÖRÜNÜR SÜREÇ PROFİLİ",
+        "MAÇIN HİKÂYESİ — GÖRÜNÜR SÜREÇ ÖZETİ",
     ]
+    if match_story_cards:
+        lines.extend(f"- {line}" for line in match_story_cards)
+    else:
+        lines.append("- Bu maçta güvenli biçimde özetlenebilir altı-faz süreç hikâyesi yok.")
+    lines.extend(["", "[1] MAÇIN GÖRÜNÜR SÜREÇ PROFİLİ"])
     if team_cards:
         lines.extend(f"- {line}" for line in team_cards)
     else:
@@ -2858,6 +2929,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     c02_cards = _human_c02_cards(rich, "en") if rich_current else []
     model_context_cards = _human_model_context_cards(rich, "en") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
+    match_story_cards = _human_match_story_cards(rich, identity, "en") if rich_current else []
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "en") if rich_current else []
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "en") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "en") if rich_current else []
@@ -2874,8 +2946,13 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         "",
         "This is the analyst-facing football report. Technical evidence limits are kept in separate 'Evidence note' lines.",
         "",
-        "[1] VISIBLE MATCH PROCESS PROFILE",
+        "MATCH STORY — VISIBLE PROCESS SUMMARY",
     ]
+    if match_story_cards:
+        lines.extend(f"- {line}" for line in match_story_cards)
+    else:
+        lines.append("- No safely reportable six-phase process story is available for this match.")
+    lines.extend(["", "[1] VISIBLE MATCH PROCESS PROFILE"])
     if team_cards:
         lines.extend(f"- {line}" for line in team_cards)
     else:
