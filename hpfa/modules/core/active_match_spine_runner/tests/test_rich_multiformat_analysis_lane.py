@@ -9,10 +9,23 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
+import rich_multiformat_analysis_lane as rich_multiformat_analysis_lane
 from shared_surface_snapshot_contract import surface_snapshot_id
 from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _strict_post_final_third_entry_profile, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _loss_next_opponent_process_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _counterattack_next_process_context, _access_terminal_bridge_profiles, _process_variant_board, _snapshot
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
+
+
+def _admitted_time_contract():
+    return {
+        "status": "ADMITTED",
+        "rule_id": "sportsbase_like_start_end_absolute_seconds_v1",
+        "unit_candidate": "SECOND",
+        "unit_admission_status": "ADMITTED",
+        "time_basis_candidate": "ABSOLUTE_MATCH_SECONDS",
+        "time_basis_admission_status": "ADMITTED",
+        "review_reasons": [],
+    }
 
 
 class Cell:
@@ -687,7 +700,7 @@ def test_game_state_context_is_match_agnostic_and_deduplicates_reflected_goals(t
     ]
     (tmp_path / "reflection.csv").write_text(header + "".join(reflected), encoding="utf-8")
 
-    result = _game_state_context(tmp_path)
+    result = _game_state_context(tmp_path, _admitted_time_contract())
 
     assert result["status"] == "PASS"
     assert result["goal_observation_count"] == 2
@@ -708,7 +721,7 @@ def test_game_state_context_supports_zero_zero_without_goal_rows(tmp_path):
         "2;90;92;2. B (2);Beta;Lost balls;1;30;30\n",
         encoding="utf-8",
     )
-    result = _game_state_context(tmp_path)
+    result = _game_state_context(tmp_path, _admitted_time_contract())
     assert result["status"] == "PASS"
     assert result["goal_observation_count"] == 0
     assert result["score_state_segments"][0]["score_state_candidate"] == {"Alpha": 0, "Beta": 0}
@@ -2418,7 +2431,7 @@ def test_game_state_context_attributes_own_goal_to_opponent_team(tmp_path):
         header + "".join(rows), encoding="utf-8"
     )
 
-    result = _game_state_context(tmp_path)
+    result = _game_state_context(tmp_path, _admitted_time_contract())
 
     assert result["status"] == "PASS"
     assert result["goal_observation_count"] == 1
@@ -2440,10 +2453,57 @@ def test_game_state_context_fails_closed_when_reconstructed_final_score_conflict
         header + "".join(rows), encoding="utf-8"
     )
 
-    result = _game_state_context(tmp_path)
+    result = _game_state_context(tmp_path, _admitted_time_contract())
 
     assert result["status"] == "FAIL_CLOSED"
     assert result["binding_state"] == "FINAL_SCORE_CONTRADICTION"
     assert result["score_state_segments"] == []
     assert result["runtime_filename_score_validation_state"] == "CONTRADICTION"
     assert "reconstructed_final_score_conflicts_with_runtime_filename" in result["review_hits"]
+
+
+def test_game_state_context_requires_provider_time_semantic_admission(tmp_path, monkeypatch):
+    header = "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+    rows = [
+        "1;10;12;7. Player A (1);Alpha (11);Goals;1;90;34\n",
+        "2;20;22;9. Player B (2);Beta (22);Passes accurate;1;30;30\n",
+    ]
+    (tmp_path / "Alpha 1-0 Beta, Full match.csv").write_text(
+        header + "".join(rows), encoding="utf-8"
+    )
+
+    denied_time = {
+        "status": "REVIEW_REQUIRED",
+        "unit_admission_status": "REVIEW_REQUIRED",
+        "time_basis_candidate": "UNKNOWN",
+        "time_basis_admission_status": "REVIEW_REQUIRED",
+        "review_reasons": ["absolute_match_time_basis_not_demonstrated"],
+    }
+
+    result = _game_state_context(tmp_path, denied_time)
+
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["binding_state"] == "PROVIDER_TIME_SEMANTICS_NOT_ADMITTED"
+    assert result["score_state_segments"] == []
+    assert result["time_semantic_admission_status"] == "REVIEW_REQUIRED"
+    assert "absolute_match_time_basis_not_demonstrated" in result["review_hits"]
+
+
+def test_game_state_context_surfaces_admitted_provider_time_contract(tmp_path, monkeypatch):
+    header = "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+    rows = [
+        "1;10;12;7. Player A (1);Alpha (11);Goals;1;90;34\n",
+        "2;20;22;9. Player B (2);Beta (22);Passes accurate;1;30;30\n",
+    ]
+    (tmp_path / "Alpha 1-0 Beta, Full match.csv").write_text(
+        header + "".join(rows), encoding="utf-8"
+    )
+
+    admitted_time = _admitted_time_contract()
+
+    result = _game_state_context(tmp_path, admitted_time)
+
+    assert result["status"] == "PASS"
+    assert result["time_semantic_admission_status"] == "ADMITTED"
+    assert result["time_unit_candidate"] == "SECOND"
+    assert result["time_basis_candidate"] == "ABSOLUTE_MATCH_SECONDS"

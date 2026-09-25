@@ -18,6 +18,7 @@ except ImportError:  # compatibility for direct src-path test/runtime imports
 from hpfa.modules.core.multiformat_file_inventory_lite.src import multiformat_file_inventory as inventory
 from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader import native_reader as xlsx
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import build_projection
+from hpfa.modules.core.provider_alias_field_semantics_lite.src.provider_time_semantic_admission import build_time_admission
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_sequence_grammar_alignment_projection import build_supported_sequence_grammar_alignment
 from hpfa.modules.core.active_match_spine_runner.src.process_sequence_information import build_process_sequence_information
 from hpfa.modules.core.active_match_spine_runner.src.process_mix_change import build_time_window_process_mix_change_context
@@ -167,12 +168,52 @@ def _team_label_from_row(row: dict[str, Any]) -> str:
     return ""
 
 
-def _game_state_context(active_match: Path) -> dict[str, Any]:
+def _game_state_context(
+    active_match: Path,
+    time_admission_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Build match-local score-state context from visible goal/time/team observations.
 
     This projection is descriptive context only. It does not create canonical event
     identity, causal/tactical truth, or independent support.
     """
+    time_admission = time_admission_payload if isinstance(time_admission_payload, dict) else build_time_admission(active_match)
+    time_status = str(time_admission.get("status") or "REVIEW_REQUIRED")
+    unit_status = str(time_admission.get("unit_admission_status") or "REVIEW_REQUIRED")
+    basis_status = str(time_admission.get("time_basis_admission_status") or "REVIEW_REQUIRED")
+    time_basis = str(time_admission.get("time_basis_candidate") or "UNKNOWN")
+    time_unit = str(time_admission.get("unit_candidate") or "UNKNOWN")
+    time_review_reasons = [
+        str(reason)
+        for reason in (time_admission.get("review_reasons") or [])
+        if str(reason)
+    ]
+    time_admitted = (
+        time_status == "ADMITTED"
+        and unit_status == "ADMITTED"
+        and basis_status == "ADMITTED"
+        and time_basis == "ABSOLUTE_MATCH_SECONDS"
+        and time_unit == "SECOND"
+    )
+    if not time_admitted:
+        return {
+            "status": "REVIEW_REQUIRED",
+            "binding_state": "PROVIDER_TIME_SEMANTICS_NOT_ADMITTED",
+            "team_labels": [],
+            "goal_observation_count": 0,
+            "own_goal_observation_count": 0,
+            "score_state_segments": [],
+            "runtime_filename_score_validation_state": "NOT_EVALUATED",
+            "time_semantic_admission_status": time_status,
+            "time_unit_candidate": time_unit,
+            "time_basis_candidate": time_basis,
+            "time_semantic_rule_id": time_admission.get("rule_id"),
+            "review_hits": sorted(set(time_review_reasons + ["score_state_requires_admitted_absolute_match_seconds"])),
+            "game_state_is_tactical_truth": False,
+            "game_state_is_causal_truth": False,
+            "creates_independent_support": False,
+        }
+
     teams: set[str] = set()
     raw_goal_observations: list[dict[str, Any]] = []
     max_time: float | None = None
@@ -221,6 +262,10 @@ def _game_state_context(active_match: Path) -> dict[str, Any]:
         return {
             "status": "NOT_AVAILABLE",
             "binding_state": "NO_READABLE_ACTION_CSV_SURFACE",
+            "time_semantic_admission_status": time_status,
+            "time_unit_candidate": time_unit,
+            "time_basis_candidate": time_basis,
+            "time_semantic_rule_id": time_admission.get("rule_id"),
             "team_labels": [],
             "goal_observation_count": 0,
             "own_goal_observation_count": 0,
@@ -235,6 +280,10 @@ def _game_state_context(active_match: Path) -> dict[str, Any]:
         return {
             "status": "REVIEW_REQUIRED",
             "binding_state": "TEAM_OR_TIME_CONTEXT_UNRESOLVED",
+            "time_semantic_admission_status": time_status,
+            "time_unit_candidate": time_unit,
+            "time_basis_candidate": time_basis,
+            "time_semantic_rule_id": time_admission.get("rule_id"),
             "team_labels": team_list,
             "goal_observation_count": 0,
             "own_goal_observation_count": 0,
@@ -322,6 +371,10 @@ def _game_state_context(active_match: Path) -> dict[str, Any]:
             return {
                 "status": "FAIL_CLOSED",
                 "binding_state": "FINAL_SCORE_CONTRADICTION",
+                "time_semantic_admission_status": time_status,
+                "time_unit_candidate": time_unit,
+                "time_basis_candidate": time_basis,
+                "time_semantic_rule_id": time_admission.get("rule_id"),
                 "team_labels": team_list,
                 "goal_observation_count": len(ordered_goals),
                 "own_goal_observation_count": own_goal_observation_count,
@@ -342,6 +395,10 @@ def _game_state_context(active_match: Path) -> dict[str, Any]:
     return {
         "status": "PASS" if not review_hits else "REVIEW_REQUIRED",
         "binding_state": "VISIBLE_GOAL_TIME_TEAM_SCORE_STATE_CONTEXT",
+        "time_semantic_admission_status": time_status,
+        "time_unit_candidate": time_unit,
+        "time_basis_candidate": time_basis,
+        "time_semantic_rule_id": time_admission.get("rule_id"),
         "team_labels": team_list,
         "goal_observation_count": len(ordered_goals),
         "own_goal_observation_count": own_goal_observation_count,
