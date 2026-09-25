@@ -1776,6 +1776,7 @@ def _set_piece_process_consequence_context(
                 "start_candidate": start,
                 "end_candidate": end,
                 "process_candidate_ids": [],
+                "provider_restart_type_candidates": [],
                 "shot_present_annotation_candidate": False,
             },
         )
@@ -1783,6 +1784,9 @@ def _set_piece_process_consequence_context(
         pid = str(row.get("process_participation_candidate_id") or "").strip()
         if pid:
             compact["process_candidate_ids"].append(pid)
+        restart_type = str(row.get("provider_restart_type_candidate") or "").strip()
+        if restart_type:
+            compact["provider_restart_type_candidates"].append(restart_type)
         if row.get("shot_present_annotation_candidate") is True:
             compact["shot_present_annotation_candidate"] = True
 
@@ -1818,6 +1822,7 @@ def _set_piece_process_consequence_context(
     terminal_counts: Counter[str] = Counter()
     state_counts: Counter[str] = Counter()
     post_process_state_counts: Counter[str] = Counter()
+    restart_type_counts: Counter[str] = Counter()
 
     for (_, _, _, _), process in sorted(process_intervals.items()):
         team_id = process["team_identity_candidate_id"]
@@ -1915,9 +1920,12 @@ def _set_piece_process_consequence_context(
             post_process_state = raw_first_after_team_state
         post_process_state_counts[post_process_state] += 1
 
+        restart_types = sorted(set(process.get("provider_restart_type_candidates") or []))
+        restart_type_counts.update(restart_types)
         rows.append({
             **process,
             "process_candidate_ids": sorted(set(process["process_candidate_ids"])),
+            "provider_restart_type_candidates": restart_types,
             "matched_occurrence_consequence_projection_ids": sorted({
                 str(row.get("occurrence_consequence_projection_id") or "")
                 for row in matched
@@ -1938,6 +1946,8 @@ def _set_piece_process_consequence_context(
             "post_set_piece_first_visible_team_state_is_recycle_truth": False,
             "post_set_piece_first_visible_team_state_is_second_ball_truth": False,
             "strict_after_relation_is_possession_truth": False,
+            "provider_restart_type_is_action_identity_truth": False,
+            "provider_restart_type_is_designed_routine_truth": False,
             "set_piece_process_is_designed_routine_truth": False,
             "visible_consequence_is_second_ball_truth": False,
             "visible_consequence_is_causal_truth": False,
@@ -1956,7 +1966,10 @@ def _set_piece_process_consequence_context(
         "post_set_piece_first_visible_team_state_counts": dict(
             sorted(post_process_state_counts.items())
         ),
+        "provider_restart_type_counts": dict(sorted(restart_type_counts.items())),
         "rows": rows,
+        "provider_restart_type_is_action_identity_truth": False,
+        "provider_restart_type_is_designed_routine_truth": False,
         "set_piece_process_is_designed_routine_truth": False,
         "visible_consequence_is_second_ball_truth": False,
         "visible_consequence_is_causal_truth": False,

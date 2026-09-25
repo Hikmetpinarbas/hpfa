@@ -1616,6 +1616,7 @@ def test_set_piece_process_cards_surface_visible_outcome_and_post_process_state_
             "rows": [
                 {
                     "team_identity_candidate_id": "team_a",
+                    "provider_restart_type_candidates": ["CORNER"],
                     "shot_present_annotation_candidate": True,
                     "binding_state": "VISIBLE_CONSEQUENCE_CONTEXT_BOUND",
                     "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
@@ -1623,6 +1624,7 @@ def test_set_piece_process_cards_surface_visible_outcome_and_post_process_state_
                 },
                 {
                     "team_identity_candidate_id": "team_a",
+                    "provider_restart_type_candidates": ["FREE_KICK"],
                     "shot_present_annotation_candidate": False,
                     "binding_state": "NO_VISIBLE_CONSEQUENCE_MATCH",
                     "primary_consequence_candidates": [],
@@ -1630,6 +1632,7 @@ def test_set_piece_process_cards_surface_visible_outcome_and_post_process_state_
                 },
                 {
                     "team_identity_candidate_id": "team_a",
+                    "provider_restart_type_candidates": ["THROW_IN"],
                     "shot_present_annotation_candidate": False,
                     "binding_state": "VISIBLE_CONSEQUENCE_CONTEXT_BOUND",
                     "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
@@ -1654,6 +1657,7 @@ def test_set_piece_process_cards_surface_visible_outcome_and_post_process_state_
     assert len(tr) == 2
     assert "Alpha FC" in tr[0]
     assert "3 görünür duran top hücum süreci" in tr[0]
+    assert "provider-reviewed tür dağılımı: korner 1, serbest vuruş 1, taç 1" in tr[0]
     assert "1 süreçte şut anotasyonu" in tr[0]
     assert "2 süreç görünür sonuç bağlamına bağlandı" in tr[0]
     assert "aynı takım 1" in tr[0]
@@ -1664,6 +1668,7 @@ def test_set_piece_process_cards_surface_visible_outcome_and_post_process_state_
 
     assert len(en) == 2
     assert "3 visible attacking set-piece processes" in en[0]
+    assert "provider-reviewed restart types: corner 1, free kick 1, throw-in 1" in en[0]
     assert "1 carried a shot annotation" in en[0]
     assert "2 bound to visible consequence context" in en[0]
     assert "designed set-piece routine" in en[1].lower()

@@ -2543,3 +2543,47 @@ def test_player_function_profile_separates_total_minutes_from_interval_exposure(
     assert profile["process_participation_is_on_field_exposure"] is False
     assert profile["per90_process_rate_admitted"] is False
     assert profile["minutes_played_is_physical_cost"] is False
+
+
+def test_set_piece_process_context_preserves_reviewed_restart_type_distribution():
+    process = {
+        "process_participation_candidates": [
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "100",
+                "end_candidate": "112",
+                "process_participation_candidate_id": "p_corner",
+                "provider_restart_type_candidate": "CORNER",
+                "shot_present_annotation_candidate": False,
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "200",
+                "end_candidate": "212",
+                "process_participation_candidate_id": "p_free",
+                "provider_restart_type_candidate": "FREE_KICK",
+                "shot_present_annotation_candidate": True,
+            },
+        ]
+    }
+
+    result = _set_piece_process_consequence_context(
+        process,
+        {"occurrence_consequence_projections": []},
+        {"trackable_action_trace_candidates": []},
+    )
+
+    assert result["set_piece_process_context_row_count"] == 2
+    assert result["provider_restart_type_counts"] == {"CORNER": 1, "FREE_KICK": 1}
+    assert {tuple(row["provider_restart_type_candidates"]) for row in result["rows"]} == {
+        ("CORNER",),
+        ("FREE_KICK",),
+    }
+    assert result["provider_restart_type_is_action_identity_truth"] is False
+    assert result["provider_restart_type_is_designed_routine_truth"] is False

@@ -7,7 +7,7 @@ import platform
 import subprocess
 import sys
 import zipfile
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -1075,6 +1075,7 @@ def _human_set_piece_process_cards(
     teams = _human_team_labels(identity)
     horizon = context.get("declared_consequence_horizon_seconds")
     by_team: dict[str, dict[str, int]] = {}
+    restart_types_by_team: dict[str, Counter[str]] = defaultdict(Counter)
     for row in rows:
         team_id = str(row.get("team_identity_candidate_id") or "").strip() or "UNKNOWN_TEAM"
         bucket = by_team.setdefault(
@@ -1090,6 +1091,10 @@ def _human_set_piece_process_cards(
             },
         )
         bucket["process_n"] += 1
+        for restart_type in (row.get("provider_restart_type_candidates") or []):
+            value = str(restart_type or "").strip()
+            if value:
+                restart_types_by_team[team_id][value] += 1
         if row.get("shot_present_annotation_candidate") is True:
             bucket["shot_n"] += 1
         if str(row.get("binding_state") or "") == "VISIBLE_CONSEQUENCE_CONTEXT_BOUND":
@@ -1112,31 +1117,50 @@ def _human_set_piece_process_cards(
             if isinstance(horizon, (int, float)) and not isinstance(horizon, bool)
             else ("çözümlenmemiş" if language == "tr" else "unresolved")
         )
+        restart_counts = restart_types_by_team.get(team_id, Counter())
+        restart_labels = {
+            "CORNER": ("korner", "corner"),
+            "CORNER_KICK": ("korner", "corner"),
+            "FREE_KICK": ("serbest vuruş", "free kick"),
+            "THROW_IN": ("taç", "throw-in"),
+            "GOAL_KICK": ("aut", "goal kick"),
+            "PENALTY_KICK": ("penaltı", "penalty"),
+            "KICK_OFF": ("başlama vuruşu", "kick-off"),
+            "OTHER_RESTART": ("diğer yeniden başlatma", "other restart"),
+        }
+        restart_parts = []
+        for key, count in sorted(restart_counts.items()):
+            labels = restart_labels.get(key, (key.lower(), key.lower()))
+            restart_parts.append(f"{labels[0] if language == 'tr' else labels[1]} {count}")
+        restart_text = ", ".join(restart_parts)
+
         if language == "tr":
             football = (
                 f"{name}: {values['process_n']} görünür duran top hücum süreci; "
-                f"{values['shot_n']} süreçte şut anotasyonu görüldü, "
+                + (f"provider-reviewed tür dağılımı: {restart_text}; " if restart_text else "")
+                + f"{values['shot_n']} süreçte şut anotasyonu görüldü, "
                 f"{values['consequence_bound_n']} süreç görünür sonuç bağlamına bağlandı. "
                 f"İlan edilmiş {horizon_text} sonuç ufku içinde süreç sonrası ilk strikt görünür takım durumu: "
                 f"aynı takım {values['same_team_first_n']}, rakip {values['opponent_first_n']}; "
                 f"ufuk dışında {values['outside_horizon_n']}, görünür devam yok {values['no_strict_after_n']}."
             )
             evidence = (
-                "Kanıt notu: bu yüzey yalnız provider-reviewed duran top süreç anotasyonu ile görünür sonuç/sonraki takım durumunu bağlar. "
-                "Tasarlanmış duran top rutini, ikinci top hâkimiyeti, possession kontrolü ve nedensel sonuç bu kartın claim scope'u dışında kalır."
+                "Kanıt notu: bu yüzey yalnız provider-reviewed duran top süreç anotasyonu, reviewed restart türü ve görünür sonuç/sonraki takım durumunu bağlar. "
+                "Restart türü yalnız reviewed provider bağlamı olarak korunur; action identity, tasarlanmış duran top rutini gerçeği, ikinci top hâkimiyeti, possession kontrolü ve nedensel sonuç bu kartın claim scope'u dışında kalır."
             )
         else:
             football = (
                 f"{name}: {values['process_n']} visible attacking set-piece processes; "
-                f"{values['shot_n']} carried a shot annotation and "
+                + (f"provider-reviewed restart types: {restart_text}; " if restart_text else "")
+                + f"{values['shot_n']} carried a shot annotation and "
                 f"{values['consequence_bound_n']} bound to visible consequence context. "
                 f"Within the declared {horizon_text} consequence horizon, the first strictly visible post-process team state was "
                 f"same team {values['same_team_first_n']}, opponent {values['opponent_first_n']}; "
                 f"outside horizon {values['outside_horizon_n']}, no visible continuation {values['no_strict_after_n']}."
             )
             evidence = (
-                "Evidence note: this surface only binds provider-reviewed set-piece process annotations to visible consequence/post-process team state. "
-                "Designed set-piece routine, second-ball control, possession control, and causal consequence remain outside this scope."
+                "Evidence note: this surface only binds provider-reviewed set-piece process annotations, reviewed restart type, and visible consequence/post-process team state. "
+                "Restart type is retained only as reviewed provider context; action identity, designed set-piece routine truth, second-ball control, possession control, and causal consequence remain outside this scope."
             )
         cards.extend([football, evidence])
     return cards
