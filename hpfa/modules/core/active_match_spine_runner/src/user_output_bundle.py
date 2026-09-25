@@ -1376,6 +1376,35 @@ def _representative_replay_sentence(row: dict[str, Any], language: str) -> str:
     return f"Example replay: {kind} {start}-{end}, {start_zones} → {end_zones}, {layers} temporal layers, {actors} visible actors."
 
 
+def _visible_response_composition_sentence(
+    process_profile: dict[str, Any],
+    team_label: str,
+    language: str,
+) -> str:
+    response = process_profile.get("visible_consequence_response_profile") or {}
+    if not isinstance(response, dict):
+        return ""
+    counts = response.get("process_presence_counts") or {}
+    if not isinstance(counts, dict) or not counts:
+        return ""
+    same_n = int(counts.get("SAME_TEAM_CONTINUATION_CANDIDATE") or 0)
+    handover_n = int(counts.get("OPPONENT_HANDOVER_CANDIDATE") or 0)
+    takeover_n = int(counts.get("OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE") or 0)
+    mixed_n = int(counts.get("MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE") or 0)
+    no_follow_n = int(counts.get("NO_VISIBLE_FOLLOW_UP_CANDIDATE") or 0)
+    if language == "tr":
+        return (
+            f"{team_label}: aynı takım devamı {same_n}, rakibe geçiş {handover_n}, "
+            f"breakdown sonrası rakip takeover {takeover_n}, same-time review {mixed_n}, "
+            f"görünür follow-up yok {no_follow_n}"
+        )
+    return (
+        f"{team_label}: same-team continuation {same_n}, opponent handover {handover_n}, "
+        f"opponent takeover after breakdown {takeover_n}, same-time review {mixed_n}, "
+        f"no visible follow-up {no_follow_n}"
+    )
+
+
 def _human_opponent_interaction_cards(
     rich: dict[str, Any], identity: dict[str, Any], language: str
 ) -> list[str]:
@@ -1417,21 +1446,39 @@ def _human_opponent_interaction_cards(
             opp_n = int(opp.get("eligible_process_n") or 0)
             opp_shot = int(opp.get("shot_ending_process_n") or 0)
             opp_loss = int(opp.get("visible_loss_process_n") or 0)
+            own_response = _visible_response_composition_sentence(own, team, language)
+            opp_response = _visible_response_composition_sentence(opp, opponent, language)
             if language == "tr":
+                response_text = ""
+                if own_response or opp_response:
+                    joined = "; ".join(value for value in (own_response, opp_response) if value)
+                    response_text = (
+                        f" Görünür devam/sonuç kompozisyonu: {joined}. "
+                        "Bu kategoriler birbirini dışlamaz; sayılar süreç-varlığı sayımıdır ve görünür follow-up yokluğu başarısızlık olarak yorumlanmaz. "
+                    )
                 cards.append(
                     f"{team} ↔ {opponent} — {family}: {team} tarafında {own_n} görünür süreç; "
                     f"{own_shot} şut bağlantılı son bölüm ve {own_loss} görünür kayıp. "
                     f"{opponent} aynı ailede {opp_n} görünür süreç; {opp_shot} şut bağlantılı son bölüm "
-                    f"ve {opp_loss} görünür kayıp. Etkileşim kapsamı: {visible_direction_n}/{direction_n} yön görünür. "
-                    "Opponent-response, taktik üstünlük ve nedensellik için ayrı kanıt gerekir."
+                    f"ve {opp_loss} görünür kayıp. Etkileşim kapsamı: {visible_direction_n}/{direction_n} yön görünür."
+                    + response_text
+                    + "Opponent-response, taktik üstünlük ve nedensellik için ayrı kanıt gerekir."
                 )
             else:
+                response_text = ""
+                if own_response or opp_response:
+                    joined = "; ".join(value for value in (own_response, opp_response) if value)
+                    response_text = (
+                        f" Visible continuation/consequence composition: {joined}. "
+                        "These categories are non-exclusive process-presence counts; no visible follow-up is not interpreted as failure. "
+                    )
                 cards.append(
                     f"{team} ↔ {opponent} — {family}: {team} has {own_n} visible processes, "
                     f"with {own_shot} shot-linked terminal segments and {own_loss} visible losses. "
                     f"{opponent} has {opp_n} visible processes in the same family, with {opp_shot} shot-linked terminal segments "
-                    f"and {opp_loss} visible losses. Interaction coverage: {visible_direction_n}/{direction_n} directions visible. "
-                    "Opponent-response, tactical superiority, and causality require separate evidence."
+                    f"and {opp_loss} visible losses. Interaction coverage: {visible_direction_n}/{direction_n} directions visible."
+                    + response_text
+                    + "Opponent-response, tactical superiority, and causality require separate evidence."
                 )
     return cards
 

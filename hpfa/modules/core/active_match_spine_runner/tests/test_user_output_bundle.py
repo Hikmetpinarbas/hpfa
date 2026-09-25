@@ -1568,12 +1568,40 @@ def test_opponent_interaction_cards_surface_existing_m09_without_response_or_cau
                         "shot_ending_process_n": 3,
                         "visible_loss_process_n": 5,
                         "visible_recovery_process_n": 2,
+                        "visible_consequence_response_profile": {
+                            "eligible_process_n": 12,
+                            "categories_are_mutually_exclusive": False,
+                            "no_visible_followup_is_failure": False,
+                            "opponent_handover_is_forced_turnover_truth": False,
+                            "opponent_takeover_is_pressure_success_truth": False,
+                            "process_presence_counts": {
+                                "SAME_TEAM_CONTINUATION_CANDIDATE": 8,
+                                "OPPONENT_HANDOVER_CANDIDATE": 6,
+                                "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE": 3,
+                                "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE": 2,
+                                "NO_VISIBLE_FOLLOW_UP_CANDIDATE": 4,
+                            },
+                        },
                     },
                     "opponent_visible_process_profile": {
                         "eligible_process_n": 9,
                         "shot_ending_process_n": 1,
                         "visible_loss_process_n": 4,
                         "visible_recovery_process_n": 1,
+                        "visible_consequence_response_profile": {
+                            "eligible_process_n": 9,
+                            "categories_are_mutually_exclusive": False,
+                            "no_visible_followup_is_failure": False,
+                            "opponent_handover_is_forced_turnover_truth": False,
+                            "opponent_takeover_is_pressure_success_truth": False,
+                            "process_presence_counts": {
+                                "SAME_TEAM_CONTINUATION_CANDIDATE": 5,
+                                "OPPONENT_HANDOVER_CANDIDATE": 4,
+                                "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE": 2,
+                                "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE": 1,
+                                "NO_VISIBLE_FOLLOW_UP_CANDIDATE": 3,
+                            },
+                        },
                     },
                     "difference_is_opponent_response_truth": False,
                     "difference_is_tactical_superiority_truth": False,
@@ -1601,6 +1629,11 @@ def test_opponent_interaction_cards_surface_existing_m09_without_response_or_cau
     assert "12 görünür süreç" in text
     assert "Beta aynı ailede 9 görünür süreç" in text
     assert "5/6 yön" in text
+    assert "Görünür devam/sonuç kompozisyonu" in text
+    assert "Alpha: aynı takım devamı 8, rakibe geçiş 6, breakdown sonrası rakip takeover 3, same-time review 2, görünür follow-up yok 4" in text
+    assert "Beta: aynı takım devamı 5, rakibe geçiş 4, breakdown sonrası rakip takeover 2, same-time review 1, görünür follow-up yok 3" in text
+    assert "kategoriler birbirini dışlamaz" in text
+    assert "görünür follow-up yokluğu başarısızlık olarak yorumlanmaz" in text
     assert "Opponent-response, taktik üstünlük ve nedensellik için ayrı kanıt gerekir" in text
 
 
