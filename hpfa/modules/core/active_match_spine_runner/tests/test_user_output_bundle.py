@@ -1944,3 +1944,45 @@ def test_match_story_cards_add_score_arc_and_same_family_interaction_without_win
     assert "same process family" in joined_en
     assert "superior" not in story_en.lower()
     assert "better" not in story_en.lower()
+
+
+def test_match_story_mechanism_highlights_select_human_review_lines_only() -> None:
+    mechanism_cards = [
+        "MEKANİZMA KARTI 1 | SINIF=ANA MEKANİZMA ADAYI | ...",
+        "İnceleme noktası 1: Alpha, 1. devre. pas arası → pas bağlantısı iki bölümde tekrar görülüyor. Bu bağlantının karşılaştırılabilir varyantları hem olumlu hem olumsuz görünür sonuçlara gidiyor. Analist için asıl soru, hangi değişimin sonuçları ayırdığı.",
+        "Kanıt notu: dört varyant.",
+        "MEKANİZMA KARTI 2 | SINIF=GENİŞ BAĞLAM KARŞILAŞTIRMASI | ...",
+        "Geniş bağlam karşılaştırması 2: Alpha, 2. devre. pas → pas bağlantısı tekrar görülüyor.",
+        "Kanıt notu: çoklu bağlam.",
+        "MEKANİZMA KARTI 3 | SINIF=SINIRLI KARŞILAŞTIRMA | ...",
+        "Sınırlı karşılaştırma 3: Beta, 1. devre. ikili mücadele → pas.",
+        "Kanıt notu: tek bölüm.",
+    ]
+
+    tr = user_output_bundle._human_match_story_mechanism_highlights(
+        mechanism_cards, "tr", limit=2
+    )
+
+    assert len(tr) == 2
+    assert tr[0].startswith("İnceleme noktası 1:")
+    assert tr[1].startswith("Geniş bağlam karşılaştırması 2:")
+    assert "Analist için asıl soru" not in tr[0]
+    assert all("MEKANİZMA KARTI" not in line for line in tr)
+    assert all("Kanıt notu:" not in line for line in tr)
+
+
+def test_match_story_mechanism_highlights_support_english_and_no_fixed_analysis_count() -> None:
+    mechanism_cards = [
+        "MECHANISM CARD 1 | CLASS=MAIN MECHANISM CANDIDATE | ...",
+        "Review point 1: Alpha, first half. interception → pass repeats. Comparable variants lead to both positive and negative visible outcomes. The analyst question is what separates them.",
+        "Evidence note: four variants.",
+        "MECHANISM CARD 2 | CLASS=LIMITED COMPARISON | ...",
+        "Limited comparison 2: Beta, second half. duel → pass.",
+        "Evidence note: two variants.",
+    ]
+
+    en = user_output_bundle._human_match_story_mechanism_highlights(
+        mechanism_cards, "en", limit=1
+    )
+
+    assert en == ["Review point 1: Alpha, first half. interception → pass repeats. Comparable variants lead to both positive and negative visible outcomes."]

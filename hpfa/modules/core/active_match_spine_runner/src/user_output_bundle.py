@@ -1567,6 +1567,40 @@ def _human_match_story_cards(
     return cards
 
 
+def _human_match_story_mechanism_highlights(
+    mechanism_cards: list[str],
+    language: str,
+    *,
+    limit: int = 2,
+) -> list[str]:
+    if limit <= 0:
+        return []
+    if language == "tr":
+        prefixes = (
+            "İnceleme noktası ",
+            "Geniş bağlam karşılaştırması ",
+            "Sınırlı karşılaştırma ",
+        )
+        marker = " Analist için asıl soru"
+    else:
+        prefixes = (
+            "Review point ",
+            "Broad context comparison ",
+            "Limited comparison ",
+        )
+        marker = " The analyst question is"
+
+    highlights: list[str] = []
+    for line in mechanism_cards:
+        if not isinstance(line, str) or not line.startswith(prefixes):
+            continue
+        compact = line.split(marker, 1)[0].rstrip() if marker in line else line
+        highlights.append(compact)
+        if len(highlights) >= limit:
+            break
+    return highlights
+
+
 def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     c03 = (rich.get("constructs") or {}).get("C03") or {}
     matrix = [row for row in (c03.get("six_phase_team_matrix") or []) if isinstance(row, dict)]
@@ -2902,6 +2936,9 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     sequence_cards = _human_sequence_information_cards(rich, identity, "tr") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "tr") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "tr")
+    match_story_mechanism_highlights = _human_match_story_mechanism_highlights(
+        mechanism_cards, "tr", limit=2
+    )
     lines = [
         "HPFA MAÇ ANALİZİ — TÜRKÇE ANALİST RAPORU",
         "========================================",
@@ -2914,6 +2951,9 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in match_story_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde özetlenebilir altı-faz süreç hikâyesi yok.")
+    if match_story_mechanism_highlights:
+        lines.append("- Hikâyeyi destekleyen kaynak-bağlı inceleme noktaları:")
+        lines.extend(f"  • {line}" for line in match_story_mechanism_highlights)
     lines.extend(["", "[1] MAÇIN GÖRÜNÜR SÜREÇ PROFİLİ"])
     if team_cards:
         lines.extend(f"- {line}" for line in team_cards)
@@ -3006,6 +3046,9 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     sequence_cards = _human_sequence_information_cards(rich, identity, "en") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "en") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "en")
+    match_story_mechanism_highlights = _human_match_story_mechanism_highlights(
+        mechanism_cards, "en", limit=2
+    )
     lines = [
         "HPFA MATCH ANALYSIS — ENGLISH ANALYST REPORT",
         "===========================================",
@@ -3018,6 +3061,9 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in match_story_cards)
     else:
         lines.append("- No safely reportable six-phase process story is available for this match.")
+    if match_story_mechanism_highlights:
+        lines.append("- Source-bound review points supporting the story:")
+        lines.extend(f"  • {line}" for line in match_story_mechanism_highlights)
     lines.extend(["", "[1] VISIBLE MATCH PROCESS PROFILE"])
     if team_cards:
         lines.extend(f"- {line}" for line in team_cards)
