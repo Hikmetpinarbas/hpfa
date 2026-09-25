@@ -956,6 +956,30 @@ def _human_process_variant_board_cards(
         style = str(morphology.get("pass_carry_style") or "UNKNOWN")
         start_players = actor_summary(row.get("visible_start_actor_candidate_counts") or {})
         end_players = actor_summary(row.get("visible_end_actor_candidate_counts") or {})
+        score_context = row.get("visible_score_state_context") or {}
+        score_counts = score_context.get("relative_score_state_counts") or {}
+        score_context_text = ""
+        if score_context:
+            draw_n = int(score_counts.get("DRAW") or 0)
+            leading_n = int(score_counts.get("LEADING") or 0)
+            trailing_n = int(score_counts.get("TRAILING") or 0)
+            bound_n = int(score_context.get("bound_member_process_n") or 0)
+            member_context_n = int(score_context.get("member_process_n") or 0)
+            unresolved_n = int(score_context.get("unresolved_member_process_n") or 0)
+            if language == "tr":
+                score_context_text = (
+                    f" Skor bağlamı: beraberlikte {draw_n}, öndeyken {leading_n}, gerideyken {trailing_n}; "
+                    f"{bound_n}/{member_context_n} üye süreç skor-state'e bağlandı"
+                    + (f", {unresolved_n} bağ çözümlenemedi" if unresolved_n else "")
+                    + ". Skor-state birlikteliği betimleyici bağlamdır; taktik uyarlama ve nedensellik bu yüzeyin kapsamı dışındadır."
+                )
+            else:
+                score_context_text = (
+                    f" Score context: draw {draw_n}, leading {leading_n}, trailing {trailing_n}; "
+                    f"{bound_n}/{member_context_n} member processes were bound to visible score state"
+                    + (f", with {unresolved_n} unresolved bindings" if unresolved_n else "")
+                    + ". Score-state co-occurrence is descriptive context; tactical adaptation and causality remain outside this surface."
+                )
         divergence = row.get("representative_first_supported_grammar_divergence") or {}
         first = divergence.get("first_supported_grammar_divergence") or {}
         divergence_text = ""
@@ -977,6 +1001,7 @@ def _human_process_variant_board_cards(
                 f"Rota ipucu {route}; profil {style}. "
                 f"İlk görünür katman oyuncuları: {start_players}. "
                 f"Son görünür katman oyuncuları: {end_players}."
+                f"{score_context_text}"
                 f"{divergence_text} "
                 "Bu başlangıç/bitiş rolü yalnız görünür katman adayını gösterir; aynı timestamp içinde total order kurulmaz. "
                 "Gösterim sırası görünür üye süreç sayısına göre yalnız inceleme önceliği üretir; futbol doğruluğu sıralaması üretmez."
@@ -988,6 +1013,7 @@ def _human_process_variant_board_cards(
                 f"Route hint {route}; profile {style}. "
                 f"First visible-layer players: {start_players}. "
                 f"Last visible-layer players: {end_players}."
+                f"{score_context_text}"
                 f"{divergence_text} "
                 "These start/end roles are not definitive player order; no total order is imposed within the same timestamp. "
                 "Display order is an attention priority based on visible member-process count, not a ranking of football truth."

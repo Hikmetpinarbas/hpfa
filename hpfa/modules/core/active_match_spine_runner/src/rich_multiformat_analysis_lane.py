@@ -22,7 +22,7 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_seq
 from hpfa.modules.core.active_match_spine_runner.src.process_sequence_information import build_process_sequence_information
 from hpfa.modules.core.active_match_spine_runner.src.process_mix_change import build_time_window_process_mix_change_context
 from hpfa.modules.core.active_match_spine_runner.src.aerial_duel_first_visible_state import build_aerial_duel_first_visible_state_context
-from hpfa.modules.core.active_match_spine_runner.src.score_state_visible_process_outcome import build_score_state_visible_process_outcome_context
+from hpfa.modules.core.active_match_spine_runner.src.score_state_visible_process_outcome import build_score_state_visible_process_outcome_context, bind_process_variant_board_score_state_context
 from hpfa.modules.core.active_match_spine_runner.src.process_route_breadth import build_visible_process_route_breadth_profile
 from hpfa.modules.core.active_match_spine_runner.src.visible_circulation_fate_profile import build_visible_circulation_fate_profile
 from hpfa.modules.core.active_match_spine_runner.src.player_score_state_process_participation import build_player_score_state_process_participation
@@ -5038,6 +5038,13 @@ def run_rich_lane(
     )
     spatial_transition_payload = _load_json(output / SPATIAL_TRANSITION_JSON)
     c03 = _construct_c03(process_participation_payload, occurrence_transition_payload, spatial_transition_payload)
+    c03["process_variant_board"] = bind_process_variant_board_score_state_context(
+        game_state_context,
+        identity_payload,
+        c03.get("signatures") or [],
+        c03.get("process_motif_family_candidates") or [],
+        c03.get("process_variant_board") or {},
+    )
     m09_opponent_interaction_synthesis = _m09_opponent_interaction_synthesis(c03)
     score_state_visible_process_outcome_context = build_score_state_visible_process_outcome_context(
         game_state_context,

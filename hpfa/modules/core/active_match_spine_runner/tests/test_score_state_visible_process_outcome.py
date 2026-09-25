@@ -153,3 +153,43 @@ def test_unresolved_team_binding_requires_review():
 
     assert result["status"] == "NOT_AVAILABLE"
     assert result["unresolved_team_labels"] == ["Unknown Team"]
+
+
+def test_process_variant_board_binds_recurrent_motif_members_to_relative_score_state_without_causal_promotion():
+    from hpfa.modules.core.active_match_spine_runner.src.score_state_visible_process_outcome import (
+        bind_process_variant_board_score_state_context,
+    )
+
+    signatures = [
+        {**_sig("TEAM_A", 100), "process_development_signature_id": "s1"},
+        {**_sig("TEAM_A", 300), "process_development_signature_id": "s2"},
+        {**_sig("TEAM_A", 700), "process_development_signature_id": "s3"},
+    ]
+    motifs = [{
+        "process_motif_family_candidate_id": "m1",
+        "team_identity_candidate_id": "TEAM_A",
+        "member_process_development_signature_ids": ["s1", "s2", "s3"],
+    }]
+    board = {
+        "status": "PASS",
+        "rows": [{
+            "process_motif_family_candidate_id": "m1",
+            "team_identity_candidate_id": "TEAM_A",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "member_process_n": 3,
+        }],
+    }
+
+    result = bind_process_variant_board_score_state_context(
+        _game_state(), _identity(), signatures, motifs, board
+    )
+
+    context = result["rows"][0]["visible_score_state_context"]
+    assert context["member_process_n"] == 3
+    assert context["bound_member_process_n"] == 3
+    assert context["unresolved_member_process_n"] == 0
+    assert context["relative_score_state_counts"] == {"DRAW": 2, "TRAILING": 1}
+    assert context["score_state_context_is_causal_explanation"] is False
+    assert context["score_state_context_is_tactical_adaptation_truth"] is False
+    assert context["score_state_context_can_increase_claim_ceiling"] is False
+    assert context["claim_ceiling"] == "MATCH_LOCAL_PROCESS_VARIANT_VISIBLE_SCORE_STATE_CONTEXT_ONLY"

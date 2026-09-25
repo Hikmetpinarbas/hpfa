@@ -148,3 +148,128 @@ def build_score_state_visible_process_outcome_context(
         "score_state_profile_is_dominance_truth": False,
         "creates_independent_support": False,
     }
+
+
+def bind_process_variant_board_score_state_context(
+    game_state_context: dict[str, Any],
+    identity_payload: dict[str, Any],
+    process_development_signatures: list[dict[str, Any]],
+    process_motif_family_candidates: list[dict[str, Any]],
+    process_variant_board: dict[str, Any],
+) -> dict[str, Any]:
+    """Attach relative score-state context to existing recurrent process-variant rows.
+
+    This is descriptive match-local context only. It does not turn score state into
+    a causal explanation, tactical adaptation, intention, or quality claim.
+    """
+    from copy import deepcopy
+
+    result = deepcopy(process_variant_board or {})
+    rows = [row for row in (result.get("rows") or []) if isinstance(row, dict)]
+    if not rows:
+        return result
+
+    aliases_by_team: dict[str, set[str]] = {}
+    for row in identity_payload.get("team_identity_candidates", []) or []:
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if not team_id:
+            continue
+        aliases = {
+            _normalize_identity_text(value)
+            for value in (row.get("team_aliases_raw") or [])
+            if _normalize_identity_text(value)
+        }
+        aliases_by_team[team_id] = aliases
+
+    signature_by_id = {
+        str(row.get("process_development_signature_id") or ""): row
+        for row in (process_development_signatures or [])
+        if isinstance(row, dict) and str(row.get("process_development_signature_id") or "")
+    }
+    motif_members = {
+        str(row.get("process_motif_family_candidate_id") or ""): [
+            str(value)
+            for value in (row.get("member_process_development_signature_ids") or [])
+            if str(value)
+        ]
+        for row in (process_motif_family_candidates or [])
+        if isinstance(row, dict) and str(row.get("process_motif_family_candidate_id") or "")
+    }
+    segments = [
+        row for row in (game_state_context.get("score_state_segments") or [])
+        if isinstance(row, dict)
+    ]
+
+    for row in rows:
+        motif_id = str(row.get("process_motif_family_candidate_id") or "")
+        team_id = str(row.get("team_identity_candidate_id") or "")
+        members = [signature_by_id[value] for value in motif_members.get(motif_id, []) if value in signature_by_id]
+        counts: Counter[str] = Counter()
+        unresolved_n = 0
+        aliases = aliases_by_team.get(team_id, set())
+        for member in members:
+            start = _float_candidate(member.get("process_start_candidate"))
+            if start is None:
+                unresolved_n += 1
+                continue
+            segment = None
+            for candidate in segments:
+                seg_start = _float_candidate(candidate.get("start_second_candidate"))
+                seg_end = _float_candidate(candidate.get("end_second_candidate"))
+                if seg_start is None or seg_end is None:
+                    continue
+                duration = max(0.0, seg_end - seg_start)
+                if seg_start <= start < seg_end or (duration == 0 and start == seg_start):
+                    segment = candidate
+                    break
+            if segment is None:
+                unresolved_n += 1
+                continue
+            score = segment.get("score_state_candidate") or {}
+            if not isinstance(score, dict) or len(score) < 2:
+                unresolved_n += 1
+                continue
+            own_key = next(
+                (key for key in score if _normalize_identity_text(key) in aliases),
+                None,
+            )
+            if own_key is None:
+                unresolved_n += 1
+                continue
+            own_score = _float_candidate(score.get(own_key))
+            opponent_scores = [
+                _float_candidate(value) for key, value in score.items() if key != own_key
+            ]
+            opponent_scores = [value for value in opponent_scores if value is not None]
+            if own_score is None or len(opponent_scores) != 1:
+                unresolved_n += 1
+                continue
+            opponent_score = opponent_scores[0]
+            if own_score > opponent_score:
+                counts["LEADING"] += 1
+            elif own_score < opponent_score:
+                counts["TRAILING"] += 1
+            else:
+                counts["DRAW"] += 1
+
+        bound_n = sum(counts.values())
+        row["visible_score_state_context"] = {
+            "member_process_n": len(members),
+            "bound_member_process_n": bound_n,
+            "unresolved_member_process_n": unresolved_n,
+            "relative_score_state_counts": dict(sorted(counts.items())),
+            "binding_basis": "PROCESS_START_WITHIN_ADMITTED_VISIBLE_SCORE_STATE_SEGMENT",
+            "score_state_context_is_causal_explanation": False,
+            "score_state_context_is_tactical_adaptation_truth": False,
+            "score_state_context_is_risk_appetite_truth": False,
+            "score_state_context_can_increase_claim_ceiling": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_PROCESS_VARIANT_VISIBLE_SCORE_STATE_CONTEXT_ONLY",
+        }
+    result["rows"] = rows
+    result["score_state_context_bound"] = True
+    result["score_state_context_is_causal_explanation"] = False
+    result["score_state_context_is_tactical_adaptation_truth"] = False
+    return result

@@ -1365,6 +1365,14 @@ def test_process_variant_board_cards_surface_recurrence_variants_and_visible_act
                         },
                         "visible_start_actor_candidate_counts": {"actor_1": 3, "actor_2": 1},
                         "visible_end_actor_candidate_counts": {"actor_3": 2, "actor_4": 2},
+                        "visible_score_state_context": {
+                            "member_process_n": 4,
+                            "bound_member_process_n": 4,
+                            "unresolved_member_process_n": 0,
+                            "relative_score_state_counts": {"DRAW": 1, "LEADING": 2, "TRAILING": 1},
+                            "score_state_context_is_causal_explanation": False,
+                            "score_state_context_is_tactical_adaptation_truth": False,
+                        },
                         "representative_first_supported_grammar_divergence": {
                             "left_variant_context": "SHOT_LINKED",
                             "right_variant_context": "LOSS_LINKED",
@@ -1415,6 +1423,8 @@ def test_process_variant_board_cards_surface_recurrence_variants_and_visible_act
     assert "Player C" in text
     assert "şut bağlantılı varyant ↔ kayıp bağlantılı varyant" in text
     assert "şut ↔ top kaybı" in text
+    assert "Skor bağlamı: beraberlikte 1, öndeyken 2, gerideyken 1" in text
+    assert "taktik uyarlama ve nedensellik bu yüzeyin kapsamı dışındadır" in text
     assert "SHOT_LINKED" not in text
     assert "TURNOVER" not in text
     assert "başlangıç/bitiş rolü yalnız görünür katman adayını gösterir" in text
