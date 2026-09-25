@@ -78,6 +78,85 @@ def _float_candidate(value: Any) -> float | None:
         return None
 
 
+OWN_GOAL_ACTION_LABELS = {
+    "own goal",
+    "own goals",
+    "kendi kalesine gol",
+}
+
+
+def _filename_identity_token(value: Any) -> str:
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch)).casefold()
+    text = re.sub(r"\s*\(\d+\)\s*$", "", text)
+    text = re.sub(r"[^a-z0-9\s\-–]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _runtime_filename_score_candidate(
+    active_match: Path,
+    team_list: list[str],
+) -> dict[str, Any]:
+    if len(team_list) != 2:
+        return {
+            "state": "NOT_AVAILABLE",
+            "candidate": None,
+            "source_file_count": 0,
+        }
+
+    normalized_teams = {
+        team: _filename_identity_token(team)
+        for team in team_list
+    }
+    candidates: dict[str, dict[str, int]] = {}
+    source_files: set[str] = set()
+    score_pattern = re.compile(r"(?<!\d)(\d+)\s*[-–]\s*(\d+)(?!\d)")
+
+    for path in sorted((p for p in active_match.iterdir() if p.is_file()), key=lambda item: item.name.casefold()):
+        stem = _filename_identity_token(path.stem)
+        positions = {
+            team: stem.find(token)
+            for team, token in normalized_teams.items()
+            if token
+        }
+        if len(positions) != 2 or any(index < 0 for index in positions.values()):
+            continue
+        for match in score_pattern.finditer(stem):
+            left_score = int(match.group(1))
+            right_score = int(match.group(2))
+            ordered = sorted(positions.items(), key=lambda item: item[1])
+            if ordered[0][1] < match.start() < ordered[1][1]:
+                candidate = {
+                    ordered[0][0]: left_score,
+                    ordered[1][0]: right_score,
+                }
+            else:
+                continue
+            key = json.dumps(candidate, ensure_ascii=False, sort_keys=True)
+            candidates[key] = candidate
+            source_files.add(path.name)
+
+    if not candidates:
+        return {
+            "state": "NOT_AVAILABLE",
+            "candidate": None,
+            "source_file_count": 0,
+        }
+    if len(candidates) > 1:
+        return {
+            "state": "AMBIGUOUS",
+            "candidate": None,
+            "candidate_count": len(candidates),
+            "source_file_count": len(source_files),
+        }
+    return {
+        "state": "AVAILABLE",
+        "candidate": next(iter(candidates.values())),
+        "candidate_count": 1,
+        "source_file_count": len(source_files),
+    }
+
+
 def _team_label_from_row(row: dict[str, Any]) -> str:
     direct = str(row.get("team") or "").strip()
     if direct:
@@ -95,7 +174,7 @@ def _game_state_context(active_match: Path) -> dict[str, Any]:
     identity, causal/tactical truth, or independent support.
     """
     teams: set[str] = set()
-    goal_nuclei: set[tuple[str, float, str]] = set()
+    raw_goal_observations: list[dict[str, Any]] = []
     max_time: float | None = None
     readable_csv_count = 0
     review_hits: list[str] = []
@@ -114,13 +193,26 @@ def _game_state_context(active_match: Path) -> dict[str, Any]:
                     start = _float_candidate(row.get("start"))
                     if start is not None:
                         max_time = start if max_time is None else max(max_time, start)
-                    if str(row.get("action") or "").strip().casefold() != "goals":
+
+                    action = str(row.get("action") or "").strip().casefold()
+                    code = str(row.get("code") or "").strip().casefold()
+                    own_goal = (
+                        action in OWN_GOAL_ACTION_LABELS
+                        or "own goal" in action
+                        or "own goal" in code
+                    )
+                    normal_goal = action == "goals"
+                    if not own_goal and not normal_goal:
                         continue
                     if not team or start is None:
                         review_hits.append("goal_row_missing_team_or_start")
                         continue
-                    period = str(row.get("half") or "").strip() or "UNKNOWN"
-                    goal_nuclei.add((period, start, team))
+                    raw_goal_observations.append({
+                        "period_candidate": str(row.get("half") or "").strip() or "UNKNOWN",
+                        "start_second_candidate": start,
+                        "source_team_label_candidate": team,
+                        "own_goal_candidate": own_goal,
+                    })
         except (OSError, UnicodeError, csv.Error):
             review_hits.append(f"csv_unreadable_for_game_state:{path.name}")
 
@@ -131,7 +223,9 @@ def _game_state_context(active_match: Path) -> dict[str, Any]:
             "binding_state": "NO_READABLE_ACTION_CSV_SURFACE",
             "team_labels": [],
             "goal_observation_count": 0,
+            "own_goal_observation_count": 0,
             "score_state_segments": [],
+            "runtime_filename_score_validation_state": "NOT_AVAILABLE",
             "review_hits": review_hits,
             "game_state_is_tactical_truth": False,
             "game_state_is_causal_truth": False,
@@ -142,12 +236,49 @@ def _game_state_context(active_match: Path) -> dict[str, Any]:
             "status": "REVIEW_REQUIRED",
             "binding_state": "TEAM_OR_TIME_CONTEXT_UNRESOLVED",
             "team_labels": team_list,
-            "goal_observation_count": len(goal_nuclei),
+            "goal_observation_count": 0,
+            "own_goal_observation_count": 0,
             "score_state_segments": [],
+            "runtime_filename_score_validation_state": "NOT_AVAILABLE",
             "review_hits": sorted(set(review_hits + ["game_state_requires_two_teams_and_time"])),
             "game_state_is_tactical_truth": False,
             "game_state_is_causal_truth": False,
             "creates_independent_support": False,
+        }
+
+    goal_nuclei: set[tuple[str, float, str]] = set()
+    goal_records: dict[tuple[str, float, str], dict[str, Any]] = {}
+    own_goal_observation_count = 0
+
+    for observation in raw_goal_observations:
+        period = str(observation.get("period_candidate") or "UNKNOWN")
+        second = float(observation["start_second_candidate"])
+        source_team = str(observation.get("source_team_label_candidate") or "")
+        own_goal = observation.get("own_goal_candidate") is True
+
+        if own_goal:
+            if source_team not in team_list:
+                review_hits.append("own_goal_source_team_unresolved")
+                continue
+            beneficiary = next((team for team in team_list if team != source_team), "")
+            if not beneficiary:
+                review_hits.append("own_goal_beneficiary_team_unresolved")
+                continue
+            own_goal_observation_count += 1
+            attribution_basis = "OWN_GOAL_OPPONENT_BENEFICIARY"
+        else:
+            beneficiary = source_team
+            attribution_basis = "VISIBLE_GOAL_SOURCE_TEAM"
+
+        nucleus = (period, second, beneficiary)
+        goal_nuclei.add(nucleus)
+        goal_records[nucleus] = {
+            "period_candidate": period,
+            "start_second_candidate": second,
+            "team_label_candidate": beneficiary,
+            "source_team_label_candidate": source_team,
+            "own_goal_candidate": own_goal,
+            "score_attribution_basis": attribution_basis,
         }
 
     ordered_goals = sorted(goal_nuclei, key=lambda row: (row[1], row[0], row[2].casefold()))
@@ -178,15 +309,46 @@ def _game_state_context(active_match: Path) -> dict[str, Any]:
         "terminal_goal_period_candidate": None,
     })
 
+    filename_score = _runtime_filename_score_candidate(active_match, team_list)
+    filename_state = str(filename_score.get("state") or "NOT_AVAILABLE")
+    filename_candidate = filename_score.get("candidate")
+    validation_state = "NOT_AVAILABLE"
+    if filename_state == "AVAILABLE" and isinstance(filename_candidate, dict):
+        if filename_candidate == score:
+            validation_state = "MATCH"
+        else:
+            validation_state = "CONTRADICTION"
+            review_hits.append("reconstructed_final_score_conflicts_with_runtime_filename")
+            return {
+                "status": "FAIL_CLOSED",
+                "binding_state": "FINAL_SCORE_CONTRADICTION",
+                "team_labels": team_list,
+                "goal_observation_count": len(ordered_goals),
+                "own_goal_observation_count": own_goal_observation_count,
+                "goal_observation_nuclei": [goal_records[row] for row in ordered_goals],
+                "reconstructed_final_score_candidate": score,
+                "runtime_filename_score_candidate": filename_candidate,
+                "runtime_filename_score_validation_state": validation_state,
+                "score_state_segments": [],
+                "review_hits": sorted(set(review_hits)),
+                "aggregate_or_reflected_rows_are_not_independent_goals": True,
+                "game_state_is_tactical_truth": False,
+                "game_state_is_causal_truth": False,
+                "creates_independent_support": False,
+            }
+    elif filename_state == "AMBIGUOUS":
+        validation_state = "AMBIGUOUS_SUPPORT_ONLY"
+
     return {
         "status": "PASS" if not review_hits else "REVIEW_REQUIRED",
         "binding_state": "VISIBLE_GOAL_TIME_TEAM_SCORE_STATE_CONTEXT",
         "team_labels": team_list,
         "goal_observation_count": len(ordered_goals),
-        "goal_observation_nuclei": [
-            {"period_candidate": period, "start_second_candidate": second, "team_label_candidate": team}
-            for period, second, team in ordered_goals
-        ],
+        "own_goal_observation_count": own_goal_observation_count,
+        "goal_observation_nuclei": [goal_records[row] for row in ordered_goals],
+        "reconstructed_final_score_candidate": score,
+        "runtime_filename_score_candidate": filename_candidate,
+        "runtime_filename_score_validation_state": validation_state,
         "score_state_segments": segments,
         "review_hits": sorted(set(review_hits)),
         "reflection_dedup_key": ["period_candidate", "start_second_candidate", "team_label_candidate"],

@@ -2406,3 +2406,44 @@ def test_c04_provider_model_context_declares_causal_ladder_and_calibration_bound
     assert residual["model_output_is_fact"] is False
     assert result["provider_model_context_requires_causal_ladder_classification"] is True
     assert result["provider_model_context_requires_calibration_state"] is True
+
+
+def test_game_state_context_attributes_own_goal_to_opponent_team(tmp_path):
+    header = "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+    rows = [
+        "1;10;12;4. Player A (1);Alpha (11);Own goal;1;8;30\n",
+        "2;20;22;9. Player B (2);Beta (22);Passes accurate;1;50;20\n",
+    ]
+    (tmp_path / "Alpha 0-1 Beta, Full match.csv").write_text(
+        header + "".join(rows), encoding="utf-8"
+    )
+
+    result = _game_state_context(tmp_path)
+
+    assert result["status"] == "PASS"
+    assert result["goal_observation_count"] == 1
+    assert result["own_goal_observation_count"] == 1
+    assert result["score_state_segments"][-1]["score_state_candidate"] == {
+        "Alpha (11)": 0,
+        "Beta (22)": 1,
+    }
+    assert result["runtime_filename_score_validation_state"] == "MATCH"
+
+
+def test_game_state_context_fails_closed_when_reconstructed_final_score_conflicts_with_runtime_filename(tmp_path):
+    header = "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+    rows = [
+        "1;10;12;7. Player A (1);Alpha (11);Goals;1;90;34\n",
+        "2;90;92;2. Player B (2);Beta (22);Passes accurate;1;30;30\n",
+    ]
+    (tmp_path / "Alpha 2-0 Beta, Full match.csv").write_text(
+        header + "".join(rows), encoding="utf-8"
+    )
+
+    result = _game_state_context(tmp_path)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["binding_state"] == "FINAL_SCORE_CONTRADICTION"
+    assert result["score_state_segments"] == []
+    assert result["runtime_filename_score_validation_state"] == "CONTRADICTION"
+    assert "reconstructed_final_score_conflicts_with_runtime_filename" in result["review_hits"]
