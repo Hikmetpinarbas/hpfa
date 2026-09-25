@@ -4465,9 +4465,28 @@ def _process_variant_board(
         end_counts: Counter[str] = Counter()
         axis_direction_counts: Counter[str] = Counter()
         axis_direction_member_presence_counts: Counter[str] = Counter()
+        consequence_member_presence_counts: Counter[str] = Counter()
+        transition_class_member_presence_counts: Counter[str] = Counter()
         axis_admitted_member_process_n = 0
         member_with_visible_axis_transition_n = 0
+        member_with_visible_primary_consequence_n = 0
         for member in members:
+            member_consequences = {
+                str(value)
+                for value in (member.get("primary_consequence_candidates_observed") or [])
+                if str(value)
+            }
+            member_transitions = {
+                str(value)
+                for value in (member.get("transition_class_candidates_observed") or [])
+                if str(value)
+            }
+            if member_consequences:
+                member_with_visible_primary_consequence_n += 1
+            for value in member_consequences:
+                consequence_member_presence_counts[value] += 1
+            for value in member_transitions:
+                transition_class_member_presence_counts[value] += 1
             if member.get("provider_attack_axis_admitted") is True or str(member.get("provider_attack_axis_state") or "") == "ADMITTED":
                 axis_admitted_member_process_n += 1
             member_axis_counts = {
@@ -4508,6 +4527,27 @@ def _process_variant_board(
             ),
             "visible_start_actor_candidate_counts": dict(sorted(start_counts.items())),
             "visible_end_actor_candidate_counts": dict(sorted(end_counts.items())),
+            "visible_consequence_state_change_profile": {
+                "member_process_n": len(members),
+                "member_with_visible_primary_consequence_n": member_with_visible_primary_consequence_n,
+                "primary_consequence_member_presence_counts": dict(
+                    sorted(consequence_member_presence_counts.items())
+                ),
+                "transition_class_member_presence_counts": dict(
+                    sorted(transition_class_member_presence_counts.items())
+                ),
+                "count_basis": "MEMBER_PROCESS_PRESENCE_OF_ADMITTED_VISIBLE_CONSEQUENCE_OR_TRANSITION_CLASS",
+                "counts_are_member_process_presence_not_occurrence_counts": True,
+                "consequence_categories_are_mutually_exclusive": False,
+                "no_visible_follow_up_is_failure_truth": False,
+                "opponent_handover_is_forced_turnover_truth": False,
+                "opponent_takeover_is_defensive_success_truth": False,
+                "opponent_response_truth": False,
+                "tactical_superiority_truth": False,
+                "causal_truth": False,
+                "creates_independent_support": False,
+                "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_CONSEQUENCE_COMPOSITION_ONLY",
+            },
             "provider_attack_axis_transition_profile": {
                 "member_process_n": len(members),
                 "axis_admitted_member_process_n": axis_admitted_member_process_n,

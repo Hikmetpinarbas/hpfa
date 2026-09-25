@@ -2333,6 +2333,13 @@ def test_process_variant_board_surfaces_recurrent_motif_and_visible_start_end_ac
             "shot_present_annotation_candidate": True,
             "visible_loss_transition_candidate_present": False,
             "visible_recovery_transition_candidate_present": False,
+            "primary_consequence_candidates_observed": [
+                "SAME_TEAM_CONTINUATION_CANDIDATE",
+                "SHOT_FOLLOW_UP_CANDIDATE",
+            ],
+            "transition_class_candidates_observed": [
+                "VISIBLE_DIRECTIONAL_CONSEQUENCE_TRANSITION_CANDIDATE",
+            ],
             "provider_attack_axis_admitted": True,
             "provider_attack_axis_state": "ADMITTED",
             "provider_attack_axis_direction_counts": {
@@ -2354,6 +2361,13 @@ def test_process_variant_board_surfaces_recurrent_motif_and_visible_start_end_ac
             "shot_present_annotation_candidate": False,
             "visible_loss_transition_candidate_present": True,
             "visible_recovery_transition_candidate_present": False,
+            "primary_consequence_candidates_observed": [
+                "OPPONENT_HANDOVER_CANDIDATE",
+                "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE",
+            ],
+            "transition_class_candidates_observed": [
+                "REVIEW_REQUIRED_TRANSITION_CANDIDATE",
+            ],
             "provider_attack_axis_admitted": True,
             "provider_attack_axis_state": "ADMITTED",
             "provider_attack_axis_direction_counts": {
@@ -2421,6 +2435,24 @@ def test_process_variant_board_surfaces_recurrent_motif_and_visible_start_end_ac
     assert axis["axis_profile_is_physical_displacement_truth"] is False
     assert axis["axis_profile_is_tactical_progression_truth"] is False
     assert axis["claim_ceiling"] == "MATCH_LOCAL_PROVIDER_ATTACK_AXIS_TRANSITION_PROFILE_ONLY"
+    consequence = row["visible_consequence_state_change_profile"]
+    assert consequence["member_process_n"] == 2
+    assert consequence["member_with_visible_primary_consequence_n"] == 2
+    assert consequence["primary_consequence_member_presence_counts"] == {
+        "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE": 1,
+        "OPPONENT_HANDOVER_CANDIDATE": 1,
+        "SAME_TEAM_CONTINUATION_CANDIDATE": 1,
+        "SHOT_FOLLOW_UP_CANDIDATE": 1,
+    }
+    assert consequence["transition_class_member_presence_counts"] == {
+        "REVIEW_REQUIRED_TRANSITION_CANDIDATE": 1,
+        "VISIBLE_DIRECTIONAL_CONSEQUENCE_TRANSITION_CANDIDATE": 1,
+    }
+    assert consequence["counts_are_member_process_presence_not_occurrence_counts"] is True
+    assert consequence["opponent_handover_is_forced_turnover_truth"] is False
+    assert consequence["no_visible_follow_up_is_failure_truth"] is False
+    assert consequence["opponent_response_truth"] is False
+    assert consequence["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_PROCESS_CONSEQUENCE_COMPOSITION_ONLY"
     assert row["same_timestamp_internal_ordering_allowed"] is False
     assert row["start_end_actor_candidates_are_sequence_initiator_ender_truth"] is False
     assert row["motif_is_tactical_pattern_truth"] is False

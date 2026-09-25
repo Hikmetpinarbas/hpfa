@@ -1442,6 +1442,27 @@ def test_process_variant_board_cards_surface_recurrence_variants_and_visible_act
                             "score_state_context_is_causal_explanation": False,
                             "score_state_context_is_tactical_adaptation_truth": False,
                         },
+                        "visible_consequence_state_change_profile": {
+                            "member_process_n": 4,
+                            "member_with_visible_primary_consequence_n": 4,
+                            "primary_consequence_member_presence_counts": {
+                                "SAME_TEAM_CONTINUATION_CANDIDATE": 3,
+                                "OPPONENT_HANDOVER_CANDIDATE": 2,
+                                "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE": 1,
+                                "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE": 1,
+                                "NO_VISIBLE_FOLLOW_UP_CANDIDATE": 1,
+                            },
+                            "transition_class_member_presence_counts": {
+                                "VISIBLE_DIRECTIONAL_CONSEQUENCE_TRANSITION_CANDIDATE": 3,
+                                "REVIEW_REQUIRED_TRANSITION_CANDIDATE": 1,
+                            },
+                            "counts_are_member_process_presence_not_occurrence_counts": True,
+                            "consequence_categories_are_mutually_exclusive": False,
+                            "opponent_handover_is_forced_turnover_truth": False,
+                            "opponent_response_truth": False,
+                            "no_visible_follow_up_is_failure_truth": False,
+                            "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_CONSEQUENCE_COMPOSITION_ONLY",
+                        },
                         "provider_attack_axis_transition_profile": {
                             "member_process_n": 4,
                             "axis_admitted_member_process_n": 4,
@@ -1526,6 +1547,16 @@ def test_process_variant_board_cards_surface_recurrence_variants_and_visible_act
     assert "3/4 üye süreçte görünür yön geçişi" in text
     assert "ileri 5, geri 2, stabil 1" in text
     assert "fiziksel rota, line-break ve taktik progresyon bu kapsamın dışındadır" in text
+    assert "Görünür devam/sonuç kompozisyonu" in text
+    assert "aynı takım devamı 3/4" in text
+    assert "rakibe geçiş 2/4" in text
+    assert "breakdown sonrası rakip takeover 1/4" in text
+    assert "same-time review 1/4" in text
+    assert "görünür follow-up yok 1/4" in text
+    assert "sayılar üye süreç-varlığıdır" in text
+    assert "rakibe geçiş yalnız görünür handover bağlamıdır" in text.lower()
+    assert "zorlanmış top kaybı ve savunma başarısı yorumları kapsam dışındadır" in text.lower()
+    assert "görünür follow-up yokluğu başarısızlık yorumu için kullanılmaz" in text.lower()
     assert "SHOT_LINKED" not in text
     assert "TURNOVER" not in text
     assert "başlangıç/bitiş rolü yalnız görünür katman adayını gösterir" in text

@@ -1033,6 +1033,40 @@ def _human_process_variant_board_cards(
                     f"forward {forward_n}, rearward {rearward_n}, stable {stable_n}. "
                     "This summarizes visible direction changes on the provider axis; physical route, line-break, and tactical progression remain outside scope."
                 )
+        consequence_profile = row.get("visible_consequence_state_change_profile") or {}
+        consequence_text = ""
+        if consequence_profile:
+            consequence_counts = consequence_profile.get("primary_consequence_member_presence_counts") or {}
+            consequence_member_n = int(consequence_profile.get("member_process_n") or member_n)
+            same_team_n = int(consequence_counts.get("SAME_TEAM_CONTINUATION_CANDIDATE") or 0)
+            handover_n = int(consequence_counts.get("OPPONENT_HANDOVER_CANDIDATE") or 0)
+            takeover_n = int(consequence_counts.get("OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE") or 0)
+            same_time_review_n = int(
+                consequence_counts.get("MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE") or 0
+            )
+            no_follow_up_n = int(consequence_counts.get("NO_VISIBLE_FOLLOW_UP_CANDIDATE") or 0)
+            if language == "tr":
+                consequence_text = (
+                    f" Görünür devam/sonuç kompozisyonu: aynı takım devamı {same_team_n}/{consequence_member_n}, "
+                    f"rakibe geçiş {handover_n}/{consequence_member_n}, "
+                    f"breakdown sonrası rakip takeover {takeover_n}/{consequence_member_n}, "
+                    f"same-time review {same_time_review_n}/{consequence_member_n}, "
+                    f"görünür follow-up yok {no_follow_up_n}/{consequence_member_n}. "
+                    "Kategoriler birbirini dışlamaz; sayılar üye süreç-varlığıdır. "
+                    "Rakibe geçiş yalnız görünür handover bağlamıdır; zorlanmış top kaybı ve savunma başarısı yorumları kapsam dışındadır. "
+                    "Görünür follow-up yokluğu başarısızlık yorumu için kullanılmaz; rakip tepkisi, taktik üstünlük ve nedensellik bu yüzeyin kapsamı dışındadır."
+                )
+            else:
+                consequence_text = (
+                    f" Visible continuation/consequence composition: same-team continuation {same_team_n}/{consequence_member_n}, "
+                    f"opponent handover {handover_n}/{consequence_member_n}, "
+                    f"opponent takeover after breakdown {takeover_n}/{consequence_member_n}, "
+                    f"same-time review {same_time_review_n}/{consequence_member_n}, "
+                    f"no visible follow-up {no_follow_up_n}/{consequence_member_n}. "
+                    "Categories are non-exclusive and counts are member-process presence counts. "
+                    "Opponent handover is visible handover context only; forced-turnover and defensive-success interpretations remain outside scope. "
+                    "No visible follow-up is not used as failure evidence; opponent-response truth, tactical superiority, and causality remain outside scope."
+                )
         score_context = row.get("visible_score_state_context") or {}
         score_counts = score_context.get("relative_score_state_counts") or {}
         score_context_text = ""
@@ -1079,6 +1113,7 @@ def _human_process_variant_board_cards(
                 f"İlk görünür katman oyuncuları: {start_players}. "
                 f"Son görünür katman oyuncuları: {end_players}."
                 f"{axis_text}"
+                f"{consequence_text}"
                 f"{score_context_text}"
                 f"{divergence_text} "
                 "Bu başlangıç/bitiş rolü yalnız görünür katman adayını gösterir; aynı timestamp içinde total order kurulmaz. "
@@ -1092,6 +1127,7 @@ def _human_process_variant_board_cards(
                 f"First visible-layer players: {start_players}. "
                 f"Last visible-layer players: {end_players}."
                 f"{axis_text}"
+                f"{consequence_text}"
                 f"{score_context_text}"
                 f"{divergence_text} "
                 "These start/end roles are not definitive player order; no total order is imposed within the same timestamp. "
