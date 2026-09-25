@@ -1161,6 +1161,13 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
 
     player = card["player_context"]
     assert player["actor_identity_candidate_id"] == "actor_1"
+    assert player["actor_label_scope"] in {
+        "IDENTITY_OWNER_MATCH_LOCAL_OR_VALIDATED_HUMAN_LABEL",
+        "IDENTITY_OWNER_LABEL_UNRESOLVED",
+    }
+    assert player["actor_label_is_global_cross_match_identity_truth"] is False
+    assert card["player_name_rendering_state"] == "IDENTITY_OWNER_MATCH_LOCAL_OR_VALIDATED_ONLY"
+    assert card["player_name_is_global_cross_match_identity_truth"] is False
     assert player["actor_label"] == "Hikmet"
     assert player["aggregate_metric_values"]["progressive_passes"] == 8
     assert player["aggregate_metric_values"]["shots"] == 3
@@ -1481,14 +1488,22 @@ def test_process_variant_board_cards_surface_recurrence_variants_and_visible_act
             {
                 "actor_identity_candidate_id": "actor_1",
                 "actor_aliases_raw": ["Player A"],
-                "validated_player_identity": True,
+                "team_identity_candidate_id": "team_1",
+                "validated_player_identity": False,
                 "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+                "global_identity_claim_allowed": False,
+                "supporting_evidence_atom_ids": ["ea_a"],
             },
             {
                 "actor_identity_candidate_id": "actor_3",
                 "actor_aliases_raw": ["Player C"],
-                "validated_player_identity": True,
+                "team_identity_candidate_id": "team_1",
+                "validated_player_identity": False,
                 "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+                "global_identity_claim_allowed": False,
+                "supporting_evidence_atom_ids": ["ea_c"],
             },
         ],
     }
@@ -2689,3 +2704,52 @@ def test_c02_cards_resolve_names_from_admitted_actor_identity_not_candidate_acto
     assert "Safe Match Local Player" in joined
     assert "Wrong Aggregate Label" not in joined
     assert "global/cross-match oyuncu kimliği" in joined
+
+
+def test_technical_analyst_report_c02_uses_identity_owner_actor_label(tmp_path) -> None:
+    identity_path = tmp_path / user_output_bundle.IDENTITY_JSON
+    identity_path.write_text(json.dumps({
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "a1",
+            "actor_aliases_raw": ["8. Safe Match Player (108)"],
+            "team_identity_candidate_id": "team_a",
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+            "global_identity_claim_allowed": False,
+            "validated_player_identity": False,
+            "supporting_evidence_atom_ids": ["ea_1"],
+        }]
+    }), encoding="utf-8")
+    rich = {
+        "constructs": {
+            "C01": {},
+            "C02": {
+                "representative_actor_argument": {
+                    "actor_identity_candidate_ids": ["a1"],
+                    "actor_labels": ["Wrong Aggregate Name"],
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "support_n": 4,
+                    "eligible_process_n": 10,
+                    "shot_ending_n": 2,
+                    "baseline_shot_ending_n": 3,
+                    "conditional_shot_frequency": 0.5,
+                    "match_local_baseline_shot_frequency": 0.3,
+                    "match_local_lift": 1.67,
+                    "not_target_annotated_n": 2,
+                },
+                "representative_dyad_argument": None,
+            },
+            "C03": {},
+            "C04": {},
+        }
+    }
+    spine = _full_spine(
+        current_artifacts=[str(identity_path)],
+    )
+    spine["rich_multiformat_analysis_lattice"] = rich
+    spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+
+    report = build_analyst_report(tmp_path, spine)
+    assert "8. Safe Match Player" in report
+    assert "Wrong Aggregate Name" not in report
+    assert "global/cross-match kimlik claim'i üretilmez" in report

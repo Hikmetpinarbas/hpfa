@@ -955,7 +955,7 @@ def _human_process_variant_board_cards(
     if str(board.get("status") or "").upper() != "PASS":
         return []
     teams = _human_team_labels(identity)
-    actors = _human_validated_actor_labels(identity)
+    actors = _human_admitted_actor_labels(identity)
 
     def actor_summary(counts: dict[str, Any]) -> str:
         visible = []
@@ -971,12 +971,12 @@ def _human_process_variant_board_cards(
                 hidden_n += int(count or 0)
         if hidden_n:
             visible.append(
-                f"{hidden_n} doğrulanmamış oyuncu-katman adayı"
+                f"{hidden_n} kimliği bu maçta çözümlenmemiş oyuncu-katman adayı"
                 if language == "tr"
-                else f"{hidden_n} unvalidated player-layer candidates"
+                else f"{hidden_n} player-layer candidates without admitted match-local identity"
             )
         return ", ".join(visible) if visible else (
-            "doğrulanmış oyuncu yok" if language == "tr" else "no validated players"
+            "kabul edilmiş maç-içi oyuncu etiketi yok" if language == "tr" else "no admitted match-local player label"
         )
 
     board_rows = [row for row in (board.get("rows") or []) if isinstance(row, dict)]
@@ -3283,7 +3283,7 @@ def build_graph_ready_mechanism_cards_payload(
         else {}
     )
     player_profiles_by_actor = _player_function_profiles_by_actor(rich_payload)
-    validated_actor_labels = _human_validated_actor_labels(identity)
+    admitted_actor_labels = _human_admitted_actor_labels(identity)
     safe_context_by_family = _mechanism_safe_context_by_family(
         root,
         full_spine,
@@ -3328,7 +3328,7 @@ def build_graph_ready_mechanism_cards_payload(
             else {}
         )
         actor_label = (
-            validated_actor_labels.get(actor_ref)
+            admitted_actor_labels.get(actor_ref)
             if actor_ref
             else None
         )
@@ -3407,6 +3407,12 @@ def build_graph_ready_mechanism_cards_payload(
             "player_context": {
                 "actor_identity_candidate_id": actor_ref,
                 "actor_label": actor_label,
+                "actor_label_scope": (
+                    "IDENTITY_OWNER_MATCH_LOCAL_OR_VALIDATED_HUMAN_LABEL"
+                    if actor_label
+                    else "IDENTITY_OWNER_LABEL_UNRESOLVED"
+                ),
+                "actor_label_is_global_cross_match_identity_truth": False,
                 "actor_locator": actor_locator,
                 "aggregate_metric_values": actor_metrics,
                 "process_participation_counts": dict(actor_process_counts),
@@ -3554,7 +3560,8 @@ def build_graph_ready_mechanism_cards_payload(
                 "can_authorize_emit": False,
             },
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_VARIANT_MECHANISM_CANDIDATE_ONLY",
-            "player_name_rendering_state": "VALIDATED_IDENTITY_ONLY",
+            "player_name_rendering_state": "IDENTITY_OWNER_MATCH_LOCAL_OR_VALIDATED_ONLY",
+            "player_name_is_global_cross_match_identity_truth": False,
             "creates_new_evidence": False,
             "can_authorize_emit": False,
             "can_strengthen_claim_ceiling": False,
@@ -3862,6 +3869,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         for row in (identity.get("team_identity_candidates") or [])
         if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
     }
+    actor_labels = _human_admitted_actor_labels(identity)
     cards = features.get("episode_feature_vectors")
     cards = [item for item in cards if isinstance(item, dict)] if isinstance(cards, list) else []
 
@@ -4019,7 +4027,15 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
         ):
             if not isinstance(candidate, dict):
                 continue
-            names = " + ".join(str(value) for value in (candidate.get("actor_labels") or []))
+            actor_ids = [
+                str(value).strip()
+                for value in (candidate.get("actor_identity_candidate_ids") or [])
+                if str(value).strip()
+            ]
+            resolved_names = [actor_labels.get(actor_id) for actor_id in actor_ids]
+            if not actor_ids or any(not name for name in resolved_names):
+                continue
+            names = " + ".join(str(name) for name in resolved_names)
             support_n = int(candidate.get("support_n") or 0)
             shot_n = int(candidate.get("shot_ending_n") or 0)
             eligible_n = int(candidate.get("eligible_process_n") or 0)
@@ -4041,7 +4057,8 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
                 f"coverage={((candidate.get('observation_capability_coverage_profile') or {}).get('coverage_state') or 'UNRESOLVED')}; "
                 f"negative_claim={((candidate.get('observation_capability_coverage_profile') or {}).get('negative_claim_admission_state') or 'UNRESOLVED')}; "
                 f"XLSX oyuncu bağlamı eşleşen kişi={int(candidate.get('xlsx_enriched_actor_count') or 0)}. "
-                "Bu kayıt, admitted process/occurrence incelemesine öncelik veren maç-içi görünür association adayıdır; kapsamı match-local review priority olarak tanımlıdır."
+                "Bu kayıt, admitted process/occurrence incelemesine öncelik veren maç-içi görünür association adayıdır; kapsamı match-local review priority olarak tanımlıdır. "
+                "Oyuncu adı identity owner içindeki kabul edilmiş maç-içi etiketten gelir; global/cross-match kimlik claim'i üretilmez."
             )
             review = candidate.get("epistemic_review_contract") or {}
             if isinstance(review, dict) and review.get("analyst_action"):
