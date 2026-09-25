@@ -2544,7 +2544,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             actor_ref,
             actor_locator,
             player_profiles_by_actor,
-            validated_actor_labels,
+            admitted_actor_labels,
             language,
         )
         safe_context = safe_context_by_family.get(
@@ -2936,7 +2936,7 @@ def _human_player_function_cards(
         return []
 
     teams = _human_team_labels(identity)
-    validated_actor_labels = _human_validated_actor_labels(identity)
+    admitted_actor_labels = _human_admitted_actor_labels(identity)
     score_state_surface = rich.get("player_score_state_process_participation") or {}
     score_state_profiles = [
         row for row in (score_state_surface.get("profiles") or [])
