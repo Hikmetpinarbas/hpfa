@@ -2119,6 +2119,106 @@ def _mechanism_maturity_sentence(row: dict[str, Any], language: str) -> str:
     )
 
 
+def _context_feature_human(value: Any, language: str) -> str:
+    token = str(value or "").strip()
+    core = token.split("::", 1)[-1] if "::" in token else token
+    tr = {
+        "process_shot_present_annotation_candidate:TRUE": "süreçte şut-var işareti",
+        "process_semantic_role:PARTICIPATION_INTERVAL": "süreç katılım bağlamı",
+    }
+    en = {
+        "process_shot_present_annotation_candidate:TRUE": "shot-present process annotation",
+        "process_semantic_role:PARTICIPATION_INTERVAL": "process participation context",
+    }
+    table = tr if language == "tr" else en
+    return table.get(core, core.replace("_", " ").replace(":TRUE", "").lower())
+
+
+def _mechanism_context_review_sentence(
+    source_record: dict[str, Any],
+    rich_payload: dict[str, Any],
+    team_ids: list[str],
+    process_family_candidate: Any,
+    teams: dict[str, str],
+    language: str,
+) -> str:
+    bits: list[str] = []
+    context_rows = [
+        row
+        for row in (source_record.get("process_context_feature_difference_candidates") or [])
+        if isinstance(row, dict)
+    ]
+    context_rows.sort(
+        key=lambda row: abs(float(row.get("descriptive_rate_delta_success_minus_failure") or 0.0)),
+        reverse=True,
+    )
+    if context_rows:
+        row = context_rows[0]
+        feature = _context_feature_human(row.get("feature_token"), language)
+        s_num = int(row.get("success_visible_numerator") or 0)
+        s_den = int(row.get("success_eligible_denominator") or 0)
+        f_num = int(row.get("failure_visible_numerator") or 0)
+        f_den = int(row.get("failure_eligible_denominator") or 0)
+        layer = row.get("partial_order_layer_index")
+        layer_text = (
+            f"{int(layer) + 1}. görünür katmanda " if isinstance(layer, int) else ""
+        ) if language == "tr" else (
+            f"at visible layer {int(layer) + 1}, " if isinstance(layer, int) else ""
+        )
+        if language == "tr":
+            bits.append(
+                f"Bağlam ayrışması: {layer_text}{feature}; olumlu {s_num}/{s_den}, olumsuz {f_num}/{f_den}."
+            )
+        else:
+            bits.append(
+                f"Context difference: {layer_text}{feature}; positive {s_num}/{s_den}, negative {f_num}/{f_den}."
+            )
+
+    family = str(process_family_candidate or "").strip()
+    if len(team_ids) == 1 and family:
+        team_id = team_ids[0]
+        m09 = rich_payload.get("m09_opponent_interaction_synthesis") or {}
+        for profile in m09.get("profiles") or []:
+            if not isinstance(profile, dict) or str(profile.get("team_identity_candidate_id") or "") != team_id:
+                continue
+            for comparison in profile.get("reciprocal_same_family_comparisons") or []:
+                if not isinstance(comparison, dict):
+                    continue
+                if str(comparison.get("process_family_candidate") or "") != family:
+                    continue
+                opponent_id = str(comparison.get("opponent_team_identity_candidate_id") or "")
+                own = comparison.get("self_visible_process_profile") or {}
+                opp = comparison.get("opponent_visible_process_profile") or {}
+                team = teams.get(team_id, team_id)
+                opponent = teams.get(opponent_id, opponent_id)
+                own_n = int(own.get("eligible_process_n") or 0)
+                own_shot = int(own.get("shot_ending_process_n") or 0)
+                own_loss = int(own.get("visible_loss_process_n") or 0)
+                opp_n = int(opp.get("eligible_process_n") or 0)
+                opp_shot = int(opp.get("shot_ending_process_n") or 0)
+                opp_loss = int(opp.get("visible_loss_process_n") or 0)
+                if language == "tr":
+                    bits.append(
+                        f"Aynı süreç ailesinin karşılıklı görünümü: {team} {own_n} süreç ({own_shot} şut bağlantılı, {own_loss} görünür kayıp); "
+                        f"{opponent} {opp_n} süreç ({opp_shot} şut bağlantılı, {opp_loss} görünür kayıp)."
+                    )
+                else:
+                    bits.append(
+                        f"Reciprocal view of the same process family: {team} {own_n} processes ({own_shot} shot-linked, {own_loss} visible losses); "
+                        f"{opponent} {opp_n} processes ({opp_shot} shot-linked, {opp_loss} visible losses)."
+                    )
+                break
+            if len(bits) >= 2:
+                break
+
+    if bits:
+        if language == "tr":
+            bits.append("Bu bağlar betimleyicidir; neden, rakip tepkisi veya taktik üstünlük kanıtı üretmez.")
+        else:
+            bits.append("These bindings are descriptive; they do not establish cause, opponent-response truth, or tactical superiority.")
+    return " " + " ".join(bits) if bits else ""
+
+
 def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     if not _declared_current(full_spine, FEATURE_DELTA_JSON):
         return []
@@ -2200,6 +2300,9 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             str(row.get("source_process_variant_family_ref") or ""),
             {},
         )
+        context_review_sentence = _mechanism_context_review_sentence(
+            source_record, rich_payload, team_ids, row.get("single_process_family_candidate"), teams, language
+        )
         broad_context_only = (
             str(row.get("process_context_binding_state") or "")
             == "AMBIGUOUS_MULTI_PROCESS_FAMILY_CONTEXT"
@@ -2275,6 +2378,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     f" Kaynak-bağlı süreç dağılımı: {context_bits}. "
                     "Mekanizma kartı bu dağılımı çoklu süreç bağlamı olarak korur."
                 )
+            football += context_review_sentence
             challenge_n = int(row.get("mechanism_challenge_record_count") or 0)
             challenge_note = ""
             if challenge_n:
@@ -2362,6 +2466,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     f" Source-bound process distribution: {context_bits}. "
                     "The mechanism card preserves this as a multi-process context."
                 )
+            football += context_review_sentence
             challenge_n = int(row.get("mechanism_challenge_record_count") or 0)
             challenge_note = ""
             if challenge_n:

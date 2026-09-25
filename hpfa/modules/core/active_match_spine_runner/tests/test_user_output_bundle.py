@@ -1986,3 +1986,63 @@ def test_match_story_mechanism_highlights_support_english_and_no_fixed_analysis_
     )
 
     assert en == ["Review point 1: Alpha, first half. interception → pass repeats. Comparable variants lead to both positive and negative visible outcomes."]
+
+
+def test_mechanism_context_review_sentence_combines_provider_context_and_same_family_opponent_view_without_causal_promotion():
+    source_record = {
+        "process_context_feature_difference_candidates": [
+            {
+                "feature_token": "LAYER[0]::process_shot_present_annotation_candidate:TRUE",
+                "partial_order_layer_index": 0,
+                "success_visible_numerator": 3,
+                "success_eligible_denominator": 4,
+                "failure_visible_numerator": 0,
+                "failure_eligible_denominator": 2,
+                "descriptive_rate_delta_success_minus_failure": 0.75,
+                "difference_is_failure_cause_truth": False,
+                "difference_is_tactical_explanation": False,
+                "dependency_independence_proven": False,
+            }
+        ]
+    }
+    rich = {
+        "m09_opponent_interaction_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "reciprocal_same_family_comparisons": [{
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "opponent_team_identity_candidate_id": "team_b",
+                    "self_visible_process_profile": {
+                        "eligible_process_n": 12,
+                        "shot_ending_process_n": 3,
+                        "visible_loss_process_n": 5,
+                    },
+                    "opponent_visible_process_profile": {
+                        "eligible_process_n": 9,
+                        "shot_ending_process_n": 1,
+                        "visible_loss_process_n": 4,
+                    },
+                }],
+            }],
+        }
+    }
+    teams = {"team_a": "Alpha", "team_b": "Beta"}
+
+    text = user_output_bundle._mechanism_context_review_sentence(
+        source_record,
+        rich,
+        ["team_a"],
+        "POSITIONAL_ATTACK_CANDIDATE",
+        teams,
+        "tr",
+    )
+
+    assert "Bağlam ayrışması" in text
+    assert "süreçte şut-var işareti" in text
+    assert "olumlu 3/4" in text
+    assert "olumsuz 0/2" in text
+    assert "Aynı süreç ailesinin karşılıklı görünümü" in text
+    assert "Alpha 12 süreç" in text
+    assert "Beta 9 süreç" in text
+    assert "neden, rakip tepkisi veya taktik üstünlük kanıtı üretmez" in text
