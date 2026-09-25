@@ -207,6 +207,10 @@ def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dic
             "adverse_consequence_transition_count": None,
             "admitted_directional_transition_count": None,
             "transition_class_counts": {},
+            "visible_state_change_function_counts": {},
+            "state_change_function_is_opponent_organization_truth": False,
+            "state_change_function_is_player_causal_credit": False,
+            "state_change_function_is_value_model_output": False,
             "coordinate_anchor_present_count": None,
             "action_location_semantics_admitted_count": None,
             "occurrence_annotation_anchor_location_admitted_count": None,
@@ -230,6 +234,9 @@ def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dic
     transition_counts = state.get("transition_class_counts")
     if not isinstance(transition_counts, dict):
         transition_counts = {}
+    function_counts = state.get("visible_state_change_function_counts")
+    if not isinstance(function_counts, dict):
+        function_counts = {}
     source_status = _status(state.get("status"))
     state_blocks = state.get("hard_block_hits") if isinstance(state.get("hard_block_hits"), list) else []
     spatial_blocks = spatial.get("hard_block_hits") if isinstance(spatial.get("hard_block_hits"), list) else []
@@ -253,6 +260,10 @@ def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dic
             state.get("state_transition_dynamics_candidate_count")
         ),
         "transition_class_counts": dict(sorted((str(k), v) for k, v in transition_counts.items())),
+        "visible_state_change_function_counts": dict(sorted((str(k), v) for k, v in function_counts.items())),
+        "state_change_function_is_opponent_organization_truth": state.get("state_change_function_is_opponent_organization_truth") is True,
+        "state_change_function_is_player_causal_credit": state.get("state_change_function_is_player_causal_credit") is True,
+        "state_change_function_is_value_model_output": state.get("state_change_function_is_value_model_output") is True,
         "coordinate_anchor_present_count": _nonnegative_int(spatial.get("coordinate_anchor_present_count")),
         "action_location_semantics_admitted_count": _nonnegative_int(
             spatial.get("action_location_semantics_admitted_count")

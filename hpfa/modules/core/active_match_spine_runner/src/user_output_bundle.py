@@ -1436,6 +1436,60 @@ def _human_opponent_interaction_cards(
     return cards
 
 
+def _human_visible_state_function_lens(
+    full_spine: dict[str, Any],
+    language: str,
+) -> list[str]:
+    evidence = full_spine.get("spatial_progression_evidence") or {}
+    if not isinstance(evidence, dict):
+        return []
+    if str(evidence.get("status") or "") == "NOT_EVALUATED":
+        return []
+    counts = evidence.get("visible_state_change_function_counts") or {}
+    if not isinstance(counts, dict) or not counts:
+        return []
+
+    preserve_n = int(counts.get("VISIBLE_SAME_TEAM_CONTINUATION_CANDIDATE") or 0)
+    amplify_n = int(counts.get("VISIBLE_STATE_ADVANCEMENT_CONTINUATION_CANDIDATE") or 0) + int(
+        counts.get("VISIBLE_ADVANCED_ACCESS_CONTINUATION_CANDIDATE") or 0
+    )
+    exploit_n = int(counts.get("VISIBLE_ADVANTAGE_EXPLOITATION_CANDIDATE") or 0)
+    loss_n = int(counts.get("VISIBLE_ADVANTAGE_LOSS_OR_HANDOVER_CANDIDATE") or 0)
+    review_n = int(counts.get("VISIBLE_STATE_CHANGE_REVIEW_REQUIRED_CANDIDATE") or 0)
+    unresolved_n = int(counts.get("VISIBLE_STATE_CHANGE_UNRESOLVED_NO_FOLLOW_UP_CANDIDATE") or 0)
+    total_n = int(evidence.get("state_transition_dynamics_candidate_count") or 0)
+
+    if language == "tr":
+        return [
+            (
+                f"Görünür durum-değişimi lensi: toplam {total_n} aday; "
+                f"koruma-benzeri aynı takım devamı {preserve_n}, "
+                f"büyütme/ilerletme-benzeri görünür devam {amplify_n}, "
+                f"kullanma-benzeri görünür avantaj değerlendirme {exploit_n}, "
+                f"avantaj kaybı/rakibe geçiş {loss_n}; "
+                f"review-required {review_n}, görünür devam çözümlenmemiş {unresolved_n}."
+            ),
+            (
+                "CREATE=UNKNOWN; DENY=UNKNOWN. Bu yüzey yalnız state-before → action/process → visible state-after adaylarını özetler. "
+                "Oyuncu nedensel katkısı, rakip organizasyonu ve değer modeli yorumu bu kartın kapsamı dışındadır."
+            ),
+        ]
+    return [
+        (
+            f"Visible state-change lens: {total_n} candidates; "
+            f"preserve-like same-team continuation {preserve_n}, "
+            f"amplify/advance-like visible continuation {amplify_n}, "
+            f"exploit-like visible advantage use {exploit_n}, "
+            f"advantage loss/handover {loss_n}; "
+            f"review-required {review_n}, unresolved visible continuation {unresolved_n}."
+        ),
+        (
+            "CREATE=UNKNOWN; DENY=UNKNOWN. This surface summarizes state-before → action/process → visible state-after candidates; "
+            "it is not player causal credit, opponent-organization truth, or value-model output."
+        ),
+    ]
+
+
 def _human_match_story_cards(
     rich: dict[str, Any],
     identity: dict[str, Any],
@@ -3031,6 +3085,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     model_context_cards = _human_model_context_cards(rich, "tr") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
     match_story_cards = _human_match_story_cards(rich, identity, "tr") if rich_current else []
+    state_function_cards = _human_visible_state_function_lens(full_spine, "tr")
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "tr") if rich_current else []
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "tr") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "tr") if rich_current else []
@@ -3059,6 +3114,9 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     if match_story_mechanism_highlights:
         lines.append("- Hikâyeyi destekleyen kaynak-bağlı inceleme noktaları:")
         lines.extend(f"  • {line}" for line in match_story_mechanism_highlights)
+    if state_function_cards:
+        lines.append("- Görünür durum-değişimi fonksiyon lensi:")
+        lines.extend(f"  • {line}" for line in state_function_cards)
     lines.extend(["", "[1] MAÇIN GÖRÜNÜR SÜREÇ PROFİLİ"])
     if team_cards:
         lines.extend(f"- {line}" for line in team_cards)
@@ -3141,6 +3199,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     model_context_cards = _human_model_context_cards(rich, "en") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
     match_story_cards = _human_match_story_cards(rich, identity, "en") if rich_current else []
+    state_function_cards = _human_visible_state_function_lens(full_spine, "en")
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "en") if rich_current else []
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "en") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "en") if rich_current else []
@@ -3169,6 +3228,9 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     if match_story_mechanism_highlights:
         lines.append("- Source-bound review points supporting the story:")
         lines.extend(f"  • {line}" for line in match_story_mechanism_highlights)
+    if state_function_cards:
+        lines.append("- Visible state-change function lens:")
+        lines.extend(f"  • {line}" for line in state_function_cards)
     lines.extend(["", "[1] VISIBLE MATCH PROCESS PROFILE"])
     if team_cards:
         lines.extend(f"- {line}" for line in team_cards)

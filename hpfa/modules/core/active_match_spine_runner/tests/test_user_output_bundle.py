@@ -2046,3 +2046,47 @@ def test_mechanism_context_review_sentence_combines_provider_context_and_same_fa
     assert "Alpha 12 süreç" in text
     assert "Beta 9 süreç" in text
     assert "neden, rakip tepkisi veya taktik üstünlük kanıtı üretmez" in text
+
+def test_visible_state_function_lens_surfaces_observable_subset_and_unknowns() -> None:
+    full = {
+        "spatial_progression_evidence": {
+            "status": "REVIEW_REQUIRED",
+            "state_transition_dynamics_candidate_count": 100,
+            "visible_state_change_function_counts": {
+                "VISIBLE_SAME_TEAM_CONTINUATION_CANDIDATE": 50,
+                "VISIBLE_STATE_ADVANCEMENT_CONTINUATION_CANDIDATE": 8,
+                "VISIBLE_ADVANCED_ACCESS_CONTINUATION_CANDIDATE": 4,
+                "VISIBLE_ADVANTAGE_EXPLOITATION_CANDIDATE": 3,
+                "VISIBLE_ADVANTAGE_LOSS_OR_HANDOVER_CANDIDATE": 20,
+                "VISIBLE_STATE_CHANGE_REVIEW_REQUIRED_CANDIDATE": 10,
+                "VISIBLE_STATE_CHANGE_UNRESOLVED_NO_FOLLOW_UP_CANDIDATE": 5,
+            },
+            "state_change_function_is_opponent_organization_truth": False,
+            "state_change_function_is_player_causal_credit": False,
+            "state_change_function_is_value_model_output": False,
+        }
+    }
+
+    tr = user_output_bundle._human_visible_state_function_lens(full, "tr")
+    en = user_output_bundle._human_visible_state_function_lens(full, "en")
+
+    joined_tr = " ".join(tr)
+    joined_en = " ".join(en)
+    assert "koruma-benzeri aynı takım devamı 50" in joined_tr
+    assert "büyütme/ilerletme-benzeri görünür devam 12" in joined_tr
+    assert "kullanma-benzeri görünür avantaj değerlendirme 3" in joined_tr
+    assert "avantaj kaybı/rakibe geçiş 20" in joined_tr
+    assert "CREATE=UNKNOWN" in joined_tr
+    assert "DENY=UNKNOWN" in joined_tr
+    assert "Oyuncu nedensel katkısı, rakip organizasyonu ve değer modeli yorumu bu kartın kapsamı dışındadır." in joined_tr
+
+    assert "preserve-like same-team continuation 50" in joined_en
+    assert "CREATE=UNKNOWN" in joined_en
+    assert "DENY=UNKNOWN" in joined_en
+
+
+def test_visible_state_function_lens_returns_empty_without_current_evidence() -> None:
+    assert user_output_bundle._human_visible_state_function_lens({}, "tr") == []
+    assert user_output_bundle._human_visible_state_function_lens(
+        {"spatial_progression_evidence": {"status": "NOT_EVALUATED"}}, "en"
+    ) == []
