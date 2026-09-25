@@ -2013,6 +2013,13 @@ def _player_function_profiles(
     profiles: list[dict[str, Any]] = []
     for actor_id, binding in sorted(actor_bindings.items()):
         xlsx_row = binding.get("xlsx_row") or {}
+        xlsx_identity = xlsx_row.get("identity_candidates") or {}
+        minutes_candidate = _float_candidate(xlsx_identity.get("minutes_raw_candidate"))
+        total_exposure_state = (
+            "MATCH_TOTAL_MINUTES_OBSERVED_CANDIDATE"
+            if minutes_candidate is not None and minutes_candidate >= 0
+            else "MATCH_TOTAL_MINUTES_UNRESOLVED"
+        )
         dimension_metrics: dict[str, list[dict[str, Any]]] = {
             "ACCESS": [],
             "CREATION": [],
@@ -2042,6 +2049,13 @@ def _player_function_profiles(
             "team_identity_candidate_id": binding.get("team_identity_candidate_id"),
             "team_label": binding.get("team_label"),
             "xlsx_row_projection_id": binding.get("xlsx_row_projection_id"),
+            "total_minutes_observed_candidate": minutes_candidate,
+            "total_exposure_state": total_exposure_state,
+            "interval_exposure_state": "NOT_ESTABLISHED_NO_SUBSTITUTION_TIMELINE_AUTHORITY",
+            "on_field_process_interval_truth": False,
+            "process_participation_is_on_field_exposure": False,
+            "per90_process_rate_admitted": False,
+            "minutes_played_is_physical_cost": False,
             "process_participation_counts": dict(sorted(process_counts.get(actor_id, {}).items())),
             "shot_ending_process_participation_counts": dict(
                 sorted(shot_process_counts.get(actor_id, {}).items())
@@ -2063,6 +2077,8 @@ def _player_function_profiles(
             "profile_is_quality_score": False,
             "profile_is_tactical_role_truth": False,
             "process_participation_is_causal_credit": False,
+            "total_minutes_do_not_establish_on_field_interval": True,
+            "substitution_timeline_authority_required_for_interval_exposure": True,
             "xlsx_aggregate_is_action_identity": False,
             "cross_surface_reflection_is_independent_support": False,
             "claim_ceiling": "MATCH_LOCAL_OBSERVED_FUNCTION_PROFILE_ONLY",

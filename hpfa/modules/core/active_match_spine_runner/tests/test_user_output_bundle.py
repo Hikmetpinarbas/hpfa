@@ -942,7 +942,7 @@ def test_actor_aggregate_context_is_match_context_not_mechanism_evidence():
     assert "xG=0.44" in text
     assert "yerleşik hücum 12" in text
     assert "mekanizma aksiyon kimliği" in text
-    assert "nedensel katkı için kullanıma kapalıdır" in text
+    assert "nedensel katkı bu kapsamın dışında kalır" in text
 
 
 def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_without_claim_promotion(tmp_path: Path) -> None:
@@ -1668,3 +1668,32 @@ def test_set_piece_process_cards_surface_visible_outcome_and_post_process_state_
     assert "2 bound to visible consequence context" in en[0]
     assert "designed set-piece routine" in en[1].lower()
     assert "causal consequence" in en[1]
+
+
+def test_actor_aggregate_context_surfaces_total_minutes_but_not_interval_exposure():
+    sentence = user_output_bundle._actor_aggregate_context_sentence(
+        "actor_1",
+        {"some": "locator"},
+        {
+            "actor_1": {
+                "actor_identity_candidate_id": "actor_1",
+                "total_minutes_observed_candidate": 63.0,
+                "total_exposure_state": "MATCH_TOTAL_MINUTES_OBSERVED_CANDIDATE",
+                "interval_exposure_state": "NOT_ESTABLISHED_NO_SUBSTITUTION_TIMELINE_AUTHORITY",
+                "per90_process_rate_admitted": False,
+                "function_dimensions": {
+                    "PROCESS": {
+                        "process_participation_counts": {
+                            "POSITIONAL_ATTACK_CANDIDATE": 4,
+                        }
+                    }
+                },
+            }
+        },
+        {"actor_1": "Player One"},
+        "tr",
+    )
+
+    assert "toplam süre bağlamı: 63 dk" in sentence.lower()
+    assert "süreç anındaki saha-içi zaman aralığı çözümlenmedi" in sentence
+    assert "per-90 süreç oranı bu kartta üretilmez" in sentence.lower()

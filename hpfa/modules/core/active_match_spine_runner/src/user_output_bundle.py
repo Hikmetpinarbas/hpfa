@@ -1804,7 +1804,34 @@ def _actor_aggregate_context_sentence(
                 else f" Highest visible process participation: {family_label} {int(count)}."
             )
 
-    if not bits and not process_bit:
+    minutes = profile.get("total_minutes_observed_candidate")
+    total_exposure_state = str(profile.get("total_exposure_state") or "")
+    interval_exposure_state = str(profile.get("interval_exposure_state") or "")
+    exposure_bit = ""
+    if (
+        isinstance(minutes, (int, float))
+        and not isinstance(minutes, bool)
+        and total_exposure_state == "MATCH_TOTAL_MINUTES_OBSERVED_CANDIDATE"
+    ):
+        minute_text = _human_number(minutes)
+        if language == "tr":
+            exposure_bit = (
+                f" Toplam süre bağlamı: {minute_text} dk; süreç anındaki saha-içi zaman aralığı "
+                "çözümlenmedi. Per-90 süreç oranı bu kartta üretilmez."
+            )
+        else:
+            exposure_bit = (
+                f" Match-total exposure context: {minute_text} minutes; the on-field interval at process time "
+                "remains unresolved. No per-90 process rate is produced on this card."
+            )
+    elif interval_exposure_state:
+        exposure_bit = (
+            " Süreç anındaki saha-içi exposure bu kartta çözümlenmedi."
+            if language == "tr"
+            else " On-field exposure at process time remains unresolved on this card."
+        )
+
+    if not bits and not process_bit and not exposure_bit:
         return ""
     if language == "tr":
         metric_text = ", ".join(bits)
@@ -1812,13 +1839,15 @@ def _actor_aggregate_context_sentence(
             f" Oyuncu inceleme odağı: {label}. "
             + (f"XLSX maç toplamı bağlamı: {metric_text}." if metric_text else "")
             + process_bit
-            + " Bu aggregate profil yalnız aynı oyuncunun maç-içi işlev bağlamını taşır; mekanizma aksiyon kimliği, oyuncu kalite hükmü ve nedensel katkı için kullanıma kapalıdır."
+            + exposure_bit
+            + " Bu aggregate profil yalnız aynı oyuncunun maç-içi işlev bağlamını taşır; mekanizma aksiyon kimliği, oyuncu kalite hükmü ve nedensel katkı bu kapsamın dışında kalır."
         )
     metric_text = ", ".join(bits)
     return (
         f" Player review focus: {label}. "
         + (f"XLSX match-total context: {metric_text}." if metric_text else "")
         + process_bit
+        + exposure_bit
         + " This aggregate profile is used only as match-local functional context for the same player; action identity, player-quality judgment, and causal contribution remain outside its allowed scope."
     )
 

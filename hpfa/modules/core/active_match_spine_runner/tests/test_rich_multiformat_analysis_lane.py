@@ -2507,3 +2507,39 @@ def test_game_state_context_surfaces_admitted_provider_time_contract(tmp_path, m
     assert result["time_semantic_admission_status"] == "ADMITTED"
     assert result["time_unit_candidate"] == "SECOND"
     assert result["time_basis_candidate"] == "ABSOLUTE_MATCH_SECONDS"
+
+
+def test_player_function_profile_separates_total_minutes_from_interval_exposure():
+    bindings = {
+        "actor_1": {
+            "actor_label": "Player 1",
+            "team_identity_candidate_id": "team_1",
+            "team_label": "Team 1",
+            "xlsx_row_projection_id": "xrp_1",
+            "xlsx_row": {
+                "row_projection_id": "xrp_1",
+                "identity_candidates": {
+                    "player_raw_candidate": "Player 1",
+                    "team_raw_candidate": "Team 1",
+                    "minutes_raw_candidate": 63,
+                },
+                "metric_values": {},
+            },
+        }
+    }
+    process = [{
+        "semantic_role": "PARTICIPATION_INTERVAL",
+        "actor_identity_candidate_id": "actor_1",
+        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+        "shot_present_annotation_candidate": False,
+    }]
+
+    profile = _player_function_profiles(bindings, process)[0]
+
+    assert profile["total_minutes_observed_candidate"] == 63.0
+    assert profile["total_exposure_state"] == "MATCH_TOTAL_MINUTES_OBSERVED_CANDIDATE"
+    assert profile["interval_exposure_state"] == "NOT_ESTABLISHED_NO_SUBSTITUTION_TIMELINE_AUTHORITY"
+    assert profile["on_field_process_interval_truth"] is False
+    assert profile["process_participation_is_on_field_exposure"] is False
+    assert profile["per90_process_rate_admitted"] is False
+    assert profile["minutes_played_is_physical_cost"] is False
