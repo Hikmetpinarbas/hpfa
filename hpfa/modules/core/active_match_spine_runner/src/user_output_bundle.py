@@ -2884,6 +2884,7 @@ def _human_player_function_cards(
         return []
 
     teams = _human_team_labels(identity)
+    validated_actor_labels = _human_validated_actor_labels(identity)
     score_state_surface = rich.get("player_score_state_process_participation") or {}
     score_state_profiles = [
         row for row in (score_state_surface.get("profiles") or [])
@@ -2934,7 +2935,10 @@ def _human_player_function_cards(
         )[:per_team_limit]
         team_name = teams.get(team_id, team_id)
         for row in ranked:
-            actor = _display_label(row.get("actor_label") or row.get("actor_identity_candidate_id") or "UNKNOWN")
+            actor_id = str(row.get("actor_identity_candidate_id") or "").strip()
+            actor = validated_actor_labels.get(actor_id)
+            if not actor:
+                continue
             process_counts = row.get("process_participation_counts") or {}
             shot_counts = row.get("shot_ending_process_participation_counts") or {}
             process_bits = [
@@ -2954,7 +2958,6 @@ def _human_player_function_cards(
                 if int(count or 0) > 0
             ][:3]
 
-            actor_id = str(row.get("actor_identity_candidate_id") or "").strip()
             score_rows = sorted(
                 score_state_by_actor.get(actor_id, []),
                 key=lambda value: (

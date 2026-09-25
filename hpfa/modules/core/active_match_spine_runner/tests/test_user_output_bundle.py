@@ -2314,7 +2314,21 @@ def test_player_function_cards_surface_match_local_function_context_without_qual
     identity = {
         "team_identity_candidates": [
             {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]},
-        ]
+        ],
+        "actor_identity_candidates": [
+            {
+                "actor_identity_candidate_id": "a1",
+                "actor_aliases_raw": ["1. Player One (101)"],
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "validated_player_identity": True,
+            },
+            {
+                "actor_identity_candidate_id": "a2",
+                "actor_aliases_raw": ["2. Player Two (102)"],
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "validated_player_identity": True,
+            },
+        ],
     }
 
     tr = user_output_bundle._human_player_function_cards(rich, identity, "tr", per_team_limit=2)
@@ -2501,6 +2515,12 @@ def test_player_function_cards_surface_actor_bound_visible_state_change_counts_w
             "team_identity_candidate_id": "team_a",
             "team_aliases_raw": ["Alpha"],
         }],
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "a1",
+            "actor_aliases_raw": ["1. Player One (101)"],
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            "validated_player_identity": True,
+        }],
         "__spatial_progression_evidence__": {
             "actor_visible_state_change_function_profiles": [{
                 "actor_identity_candidate_id": "a1",
@@ -2536,3 +2556,43 @@ def test_player_function_cards_surface_actor_bound_visible_state_change_counts_w
     assert "amplify/advance-like 3" in joined_en
     assert "exploit-like 2" in joined_en
     assert "CREATE=UNKNOWN; DENY=UNKNOWN" in joined_en
+
+
+def test_player_function_cards_do_not_render_unvalidated_actor_label() -> None:
+    rich = {
+        "constructs": {
+            "C02": {
+                "player_function_profiles": [{
+                    "actor_identity_candidate_id": "unsafe",
+                    "actor_label": "Wrong Plausible Name",
+                    "team_identity_candidate_id": "team_a",
+                    "team_label": "Alpha",
+                    "process_participation_counts": {"POSITIONAL_ATTACK_CANDIDATE": 6},
+                    "shot_ending_process_participation_counts": {},
+                    "function_dimensions": {"PROCESS": {}},
+                    "profile_has_any_context": True,
+                    "profile_is_quality_score": False,
+                    "profile_is_tactical_role_truth": False,
+                    "process_participation_is_causal_credit": False,
+                    "per90_process_rate_admitted": False,
+                    "claim_ceiling": "MATCH_LOCAL_OBSERVED_FUNCTION_PROFILE_ONLY",
+                }]
+            }
+        }
+    }
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_a",
+            "team_aliases_raw": ["Alpha"],
+        }],
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "unsafe",
+            "actor_aliases_raw": ["99. Wrong Plausible Name (999999)"],
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            "validated_player_identity": False,
+        }],
+    }
+
+    assert user_output_bundle._human_player_function_cards(
+        rich, identity, "tr", per_team_limit=1
+    ) == []
