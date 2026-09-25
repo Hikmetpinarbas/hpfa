@@ -2822,6 +2822,116 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
     return cards
 
 
+def _human_player_function_cards(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+    *,
+    per_team_limit: int = 3,
+) -> list[str]:
+    c02 = (rich.get("constructs") or {}).get("C02") or {}
+    profiles = [
+        row for row in (c02.get("player_function_profiles") or [])
+        if isinstance(row, dict) and row.get("profile_has_any_context") is True
+    ]
+    if not profiles or per_team_limit <= 0:
+        return []
+
+    teams = _human_team_labels(identity)
+    by_team: dict[str, list[dict[str, Any]]] = {}
+    for row in profiles:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if not team_id:
+            continue
+        by_team.setdefault(team_id, []).append(row)
+
+    preferred_metrics = [
+        ("progressive_passes", "progressive pass", "progressive passes"),
+        ("chances_created", "yaratılan şans", "chances created"),
+        ("shots", "şut", "shots"),
+        ("goals", "gol", "goals"),
+        ("ball_recoveries", "top kazanımı", "ball recoveries"),
+        ("lost_balls", "top kaybı", "ball losses"),
+    ]
+
+    cards: list[str] = []
+    for team_id, rows in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
+        ranked = sorted(
+            rows,
+            key=lambda row: (
+                -sum(int(v or 0) for v in (row.get("process_participation_counts") or {}).values()),
+                str(row.get("actor_label") or ""),
+            ),
+        )[:per_team_limit]
+        team_name = teams.get(team_id, team_id)
+        for row in ranked:
+            actor = _display_label(row.get("actor_label") or row.get("actor_identity_candidate_id") or "UNKNOWN")
+            process_counts = row.get("process_participation_counts") or {}
+            shot_counts = row.get("shot_ending_process_participation_counts") or {}
+            process_bits = [
+                f"{_football_family_label(family, language)} {int(count or 0)}"
+                for family, count in sorted(
+                    process_counts.items(),
+                    key=lambda item: (-int(item[1] or 0), str(item[0])),
+                )
+                if int(count or 0) > 0
+            ][:3]
+            shot_bits = [
+                f"{_football_family_label(family, language)} {int(count or 0)}"
+                for family, count in sorted(
+                    shot_counts.items(),
+                    key=lambda item: (-int(item[1] or 0), str(item[0])),
+                )
+                if int(count or 0) > 0
+            ][:3]
+
+            metrics = _player_profile_metric_values(row)
+            metric_bits: list[str] = []
+            for key, tr_label, en_label in preferred_metrics:
+                if key not in metrics:
+                    continue
+                raw = metrics[key]
+                if raw in (None, "", "-"):
+                    continue
+                label = tr_label if language == "tr" else en_label
+                metric_bits.append(f"{label}={_human_number(raw)}")
+                if len(metric_bits) >= 6:
+                    break
+
+            if language == "tr":
+                text = (
+                    f"{team_name} — {actor}: görünür süreç katılımı "
+                    + (", ".join(process_bits) if process_bits else "çözümlenmemiş")
+                    + "."
+                )
+                if shot_bits:
+                    text += " Şut bağlantılı süreç katılımı: " + ", ".join(shot_bits) + "."
+                if metric_bits:
+                    text += " Aggregate fonksiyon bağlamı: " + ", ".join(metric_bits) + "."
+                text += (
+                    " Bu kart yalnız maç-içi görünür işlev bağlamıdır. Oyuncu niteliği ve kalıcı/taktik rol yorumu "
+                    "bu kapsamın dışındadır. Nedensel katkı yorumu kapsam dışındadır; "
+                    "substitution timeline otoritesi olmadığı için per-90 süreç oranı üretilmez."
+                )
+            else:
+                text = (
+                    f"{team_name} — {actor}: visible process participation "
+                    + (", ".join(process_bits) if process_bits else "unresolved")
+                    + "."
+                )
+                if shot_bits:
+                    text += " Shot-linked process participation: " + ", ".join(shot_bits) + "."
+                if metric_bits:
+                    text += " Aggregate function context: " + ", ".join(metric_bits) + "."
+                text += (
+                    " This is match-local function context only. Player quality and persistent/tactical-role interpretation "
+                    "remain outside scope. Causal-contribution interpretation remains outside scope, "
+                    "and no per-90 process rate is produced without substitution-timeline authority."
+                )
+            cards.append(text)
+    return cards
+
+
 def _human_sequence_information_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     c03 = (rich.get("constructs") or {}).get("C03") or {}
     info = c03.get("process_sequence_information") or {}
@@ -3207,6 +3317,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     rich = rich if isinstance(rich, dict) else {}
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "tr") if rich_current else []
+    player_function_cards = _human_player_function_cards(rich, identity, "tr") if rich_current else []
     model_context_cards = _human_model_context_cards(rich, "tr") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
     match_story_cards = _human_match_story_cards(rich, identity, "tr") if rich_current else []
@@ -3286,24 +3397,29 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.append("- Bu maçta bu başlık için güvenli biçimde raporlanabilir current-run aday yok.")
     if model_context_cards:
         lines.extend(f"- {line}" for line in model_context_cards)
-    lines.extend(["", "[9] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
+    lines.extend(["", "[9] PLAYER FUNCTIONS — MAÇ-İÇİ GÖRÜNÜR İŞLEV BAĞLAMI"])
+    if player_function_cards:
+        lines.extend(f"- {line}" for line in player_function_cards)
+    else:
+        lines.append("- Bu maçta güvenli biçimde raporlanabilir oyuncu fonksiyon profili yok.")
+    lines.extend(["", "[10] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- Bu maçta iki takım için karşılaştırılabilir süreç çarpışma yüzeyi üretilemedi.")
-    lines.extend(["", "[10] TEAM ↔ OPPONENT ETKİLEŞİMİ"])
+    lines.extend(["", "[11] TEAM ↔ OPPONENT ETKİLEŞİMİ"])
     if opponent_interaction_cards:
         lines.extend(f"- {line}" for line in opponent_interaction_cards)
     else:
         lines.append("- Bu maçta M09 görünür takım-rakip etkileşim yüzeyi rapor kapsamına alınamadı.")
-    lines.extend(["", "[11] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
+    lines.extend(["", "[12] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde kısa listeye alınmış mekanizma adayı yok.")
     lines.extend([
         "",
-        "[12] ANALİST OKUMA ÇERÇEVESİ",
+        "[13] ANALİST OKUMA ÇERÇEVESİ",
         "- Oyuncu ve ikili yüzeyi, görünür süreç katılımı ile sonuç bağlantısını maç-içi association olarak sunar.",
         "- Hedef sonuç etiketi çözülmeyen süreçler unresolved outcome statüsünde izlenir.",
         "- Sıralama, analistin hangi örneklere önce bakacağını belirleyen maç-içi dikkat sırasıdır.",
@@ -3321,6 +3437,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     rich = rich if isinstance(rich, dict) else {}
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "en") if rich_current else []
+    player_function_cards = _human_player_function_cards(rich, identity, "en") if rich_current else []
     model_context_cards = _human_model_context_cards(rich, "en") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
     match_story_cards = _human_match_story_cards(rich, identity, "en") if rich_current else []
@@ -3400,24 +3517,29 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.append("- No current-run candidate can be reported safely under this heading.")
     if model_context_cards:
         lines.extend(f"- {line}" for line in model_context_cards)
-    lines.extend(["", "[9] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
+    lines.extend(["", "[9] PLAYER FUNCTIONS — MATCH-LOCAL VISIBLE FUNCTION CONTEXT"])
+    if player_function_cards:
+        lines.extend(f"- {line}" for line in player_function_cards)
+    else:
+        lines.append("- No safely reportable player-function profile is available for this match.")
+    lines.extend(["", "[10] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- No comparable two-team process contest surface is available for this run.")
-    lines.extend(["", "[10] TEAM ↔ OPPONENT INTERACTION"])
+    lines.extend(["", "[11] TEAM ↔ OPPONENT INTERACTION"])
     if opponent_interaction_cards:
         lines.extend(f"- {line}" for line in opponent_interaction_cards)
     else:
         lines.append("- The M09 visible team-opponent interaction surface was not admitted into this report run.")
-    lines.extend(["", "[11] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
+    lines.extend(["", "[12] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- No mechanism candidate was safely shortlisted in this run.")
     lines.extend([
         "",
-        "[12] ANALYST READING FRAME",
+        "[13] ANALYST READING FRAME",
         "- Player and pair surfaces present visible process involvement and outcome linkage as match-local associations.",
         "- Processes with unresolved target outcomes remain in the unresolved-outcome state.",
         "- Ranking is a match-local analyst-attention order.",

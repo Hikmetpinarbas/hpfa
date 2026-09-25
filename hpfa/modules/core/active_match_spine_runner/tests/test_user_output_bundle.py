@@ -2199,3 +2199,100 @@ def test_mechanism_context_review_payload_binds_opponent_only_with_explicit_sing
         },
     )
     assert ambiguous["opponent_same_family_context"] == {}
+
+
+def test_player_function_cards_surface_match_local_function_context_without_quality_ranking() -> None:
+    rich = {
+        "constructs": {
+            "C02": {
+                "player_function_profiles": [
+                    {
+                        "actor_identity_candidate_id": "a1",
+                        "actor_label": "Player One",
+                        "team_identity_candidate_id": "team_a",
+                        "team_label": "Alpha",
+                        "process_participation_counts": {
+                            "POSITIONAL_ATTACK_CANDIDATE": 12,
+                            "COUNTERATTACK_CANDIDATE": 3,
+                        },
+                        "shot_ending_process_participation_counts": {
+                            "POSITIONAL_ATTACK_CANDIDATE": 2,
+                        },
+                        "function_dimensions": {
+                            "ACCESS": [
+                                {"metric_key": "progressive_passes", "raw_value": 7},
+                                {"metric_key": "passes_into_the_penalty_box", "raw_value": 4},
+                            ],
+                            "CREATION": [
+                                {"metric_key": "chances_created", "raw_value": 2},
+                            ],
+                            "TERMINAL": [
+                                {"metric_key": "shots", "raw_value": 1},
+                                {"metric_key": "goals", "raw_value": 0},
+                            ],
+                            "RECOVERY_LOSS": [
+                                {"metric_key": "ball_recoveries", "raw_value": 5},
+                                {"metric_key": "lost_balls", "raw_value": 8},
+                            ],
+                            "PROCESS": {},
+                        },
+                        "profile_has_any_context": True,
+                        "profile_is_quality_score": False,
+                        "profile_is_tactical_role_truth": False,
+                        "process_participation_is_causal_credit": False,
+                        "per90_process_rate_admitted": False,
+                        "claim_ceiling": "MATCH_LOCAL_OBSERVED_FUNCTION_PROFILE_ONLY",
+                    },
+                    {
+                        "actor_identity_candidate_id": "a2",
+                        "actor_label": "Player Two",
+                        "team_identity_candidate_id": "team_a",
+                        "team_label": "Alpha",
+                        "process_participation_counts": {
+                            "POSITIONAL_ATTACK_CANDIDATE": 5,
+                        },
+                        "shot_ending_process_participation_counts": {},
+                        "function_dimensions": {"PROCESS": {}},
+                        "profile_has_any_context": True,
+                        "profile_is_quality_score": False,
+                        "profile_is_tactical_role_truth": False,
+                        "process_participation_is_causal_credit": False,
+                        "per90_process_rate_admitted": False,
+                        "claim_ceiling": "MATCH_LOCAL_OBSERVED_FUNCTION_PROFILE_ONLY",
+                    },
+                ]
+            }
+        }
+    }
+    identity = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]},
+        ]
+    }
+
+    tr = user_output_bundle._human_player_function_cards(rich, identity, "tr", per_team_limit=2)
+    en = user_output_bundle._human_player_function_cards(rich, identity, "en", per_team_limit=2)
+
+    joined_tr = " ".join(tr)
+    joined_en = " ".join(en)
+
+    assert "Player One" in joined_tr
+    assert "yerleşik hücum 12" in joined_tr
+    assert "kontra atak 3" in joined_tr
+    assert "şut bağlantılı süreç katılımı: yerleşik hücum 2" in joined_tr.lower()
+    assert "progressive pass=7" in joined_tr
+    assert "yaratılan şans=2" in joined_tr
+    assert "top kazanımı=5" in joined_tr
+    assert "top kaybı=8" in joined_tr
+    assert "kalite sıralaması" not in joined_tr.lower()
+    assert "taktik rol gerçeği" not in joined_tr.lower()
+    assert "nedensel katkı" in joined_tr.lower()
+    assert "per-90" in joined_tr
+
+    assert "Player One" in joined_en
+    assert "positional attack 12" in joined_en
+    assert "match-local function context" in joined_en.lower()
+
+
+def test_player_function_cards_return_empty_without_profiles() -> None:
+    assert user_output_bundle._human_player_function_cards({}, {}, "tr") == []
