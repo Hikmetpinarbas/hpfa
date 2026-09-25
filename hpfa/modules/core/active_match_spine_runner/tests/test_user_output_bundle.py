@@ -2612,7 +2612,7 @@ def test_human_admitted_actor_labels_accept_match_local_candidate_without_global
         }]
     }
     labels = user_output_bundle._human_admitted_actor_labels(identity)
-    assert labels == {"a1": "Match Local Player"}
+    assert labels == {"a1": "10. Match Local Player"}
 
 
 def test_human_admitted_actor_labels_reject_unbound_or_unsupported_match_local_label() -> None:
