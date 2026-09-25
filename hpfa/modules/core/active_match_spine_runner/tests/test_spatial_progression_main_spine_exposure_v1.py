@@ -27,6 +27,22 @@ def _sidecar(*, progression_count: int = 3, adverse_count: int = 1) -> dict:
                 "PROGRESSIVE_TO_SAME_TEAM_CONTINUATION_CANDIDATE": 2,
                 "PROGRESSIVE_TO_ADVERSE_HANDOVER_CANDIDATE": adverse_count,
             },
+            "actor_visible_state_change_function_profile_count": 1,
+            "actor_visible_state_change_function_profiles": [{
+                "actor_identity_candidate_id": "actor_a",
+                "team_identity_candidate_ids": ["team_a"],
+                "visible_state_change_function_counts": {
+                    "VISIBLE_SAME_TEAM_CONTINUATION_CANDIDATE": 2,
+                    "VISIBLE_ADVANTAGE_LOSS_OR_HANDOVER_CANDIDATE": adverse_count,
+                },
+                "visible_state_change_candidate_n": 2 + adverse_count,
+                "create_function_state": "UNKNOWN",
+                "deny_function_state": "UNKNOWN",
+                "zero_count_is_failure": False,
+                "zero_count_is_non_participation_truth": False,
+                "state_change_function_is_player_causal_credit": False,
+                "state_change_function_is_player_quality_truth": False,
+            }],
             "claim_ceiling": "SEMANTIC_SPATIAL_CONSEQUENCE_ASSOCIATION_ONLY",
             "hard_block_hits": [],
         },
@@ -109,3 +125,19 @@ def test_missing_state_transition_surface_stays_not_evaluated():
     assert evidence["coordinate_anchor_present_count"] is None
     assert evidence["provider_team_relative_attack_axis_state"] == "NOT_EVALUATED"
     assert evidence["zero_count_is_counterevidence"] is False
+
+
+def test_main_spine_projection_exposes_actor_state_function_profiles_without_claim_inflation():
+    evidence = _spatial_progression_analyst_evidence(_sidecar())
+
+    assert evidence["actor_visible_state_change_function_profile_count"] == 1
+    profile = evidence["actor_visible_state_change_function_profiles"][0]
+    assert profile["actor_identity_candidate_id"] == "actor_a"
+    assert profile["visible_state_change_function_counts"][
+        "VISIBLE_SAME_TEAM_CONTINUATION_CANDIDATE"
+    ] == 2
+    assert profile["create_function_state"] == "UNKNOWN"
+    assert profile["deny_function_state"] == "UNKNOWN"
+    assert evidence["actor_function_profile_zero_count_is_failure"] is False
+    assert evidence["actor_function_profile_is_player_causal_credit"] is False
+    assert evidence["actor_function_profile_is_player_quality_truth"] is False

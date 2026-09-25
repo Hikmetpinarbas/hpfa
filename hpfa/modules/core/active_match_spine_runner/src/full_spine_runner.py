@@ -208,6 +208,11 @@ def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dic
             "admitted_directional_transition_count": None,
             "transition_class_counts": {},
             "visible_state_change_function_counts": {},
+            "actor_visible_state_change_function_profile_count": 0,
+            "actor_visible_state_change_function_profiles": [],
+            "actor_function_profile_zero_count_is_failure": False,
+            "actor_function_profile_is_player_causal_credit": False,
+            "actor_function_profile_is_player_quality_truth": False,
             "state_change_function_is_opponent_organization_truth": False,
             "state_change_function_is_player_causal_credit": False,
             "state_change_function_is_value_model_output": False,
@@ -237,6 +242,12 @@ def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dic
     function_counts = state.get("visible_state_change_function_counts")
     if not isinstance(function_counts, dict):
         function_counts = {}
+    actor_function_profiles = state.get("actor_visible_state_change_function_profiles")
+    if not isinstance(actor_function_profiles, list):
+        actor_function_profiles = []
+    actor_function_profiles = [
+        row for row in actor_function_profiles if isinstance(row, dict)
+    ]
     source_status = _status(state.get("status"))
     state_blocks = state.get("hard_block_hits") if isinstance(state.get("hard_block_hits"), list) else []
     spatial_blocks = spatial.get("hard_block_hits") if isinstance(spatial.get("hard_block_hits"), list) else []
@@ -261,6 +272,11 @@ def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dic
         ),
         "transition_class_counts": dict(sorted((str(k), v) for k, v in transition_counts.items())),
         "visible_state_change_function_counts": dict(sorted((str(k), v) for k, v in function_counts.items())),
+        "actor_visible_state_change_function_profile_count": len(actor_function_profiles),
+        "actor_visible_state_change_function_profiles": actor_function_profiles,
+        "actor_function_profile_zero_count_is_failure": False,
+        "actor_function_profile_is_player_causal_credit": False,
+        "actor_function_profile_is_player_quality_truth": False,
         "state_change_function_is_opponent_organization_truth": state.get("state_change_function_is_opponent_organization_truth") is True,
         "state_change_function_is_player_causal_credit": state.get("state_change_function_is_player_causal_credit") is True,
         "state_change_function_is_value_model_output": state.get("state_change_function_is_value_model_output") is True,

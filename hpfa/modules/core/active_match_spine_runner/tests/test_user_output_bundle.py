@@ -2472,3 +2472,67 @@ def test_player_mechanism_link_cards_do_not_render_unvalidated_actor_label() -> 
     assert user_output_bundle._human_player_mechanism_link_cards(
         graph, rich, identity, "tr"
     ) == []
+
+
+def test_player_function_cards_surface_actor_bound_visible_state_change_counts_without_causal_credit() -> None:
+    rich = {
+        "constructs": {
+            "C02": {
+                "player_function_profiles": [{
+                    "actor_identity_candidate_id": "a1",
+                    "actor_label": "Player One",
+                    "team_identity_candidate_id": "team_a",
+                    "team_label": "Alpha",
+                    "process_participation_counts": {"POSITIONAL_ATTACK_CANDIDATE": 4},
+                    "shot_ending_process_participation_counts": {},
+                    "function_dimensions": {"PROCESS": {}},
+                    "profile_has_any_context": True,
+                    "profile_is_quality_score": False,
+                    "profile_is_tactical_role_truth": False,
+                    "process_participation_is_causal_credit": False,
+                    "per90_process_rate_admitted": False,
+                    "claim_ceiling": "MATCH_LOCAL_OBSERVED_FUNCTION_PROFILE_ONLY",
+                }]
+            }
+        }
+    }
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_a",
+            "team_aliases_raw": ["Alpha"],
+        }],
+        "__spatial_progression_evidence__": {
+            "actor_visible_state_change_function_profiles": [{
+                "actor_identity_candidate_id": "a1",
+                "visible_state_change_function_counts": {
+                    "VISIBLE_SAME_TEAM_CONTINUATION_CANDIDATE": 5,
+                    "VISIBLE_STATE_ADVANCEMENT_CONTINUATION_CANDIDATE": 2,
+                    "VISIBLE_ADVANCED_ACCESS_CONTINUATION_CANDIDATE": 1,
+                    "VISIBLE_ADVANTAGE_EXPLOITATION_CANDIDATE": 2,
+                    "VISIBLE_ADVANTAGE_LOSS_OR_HANDOVER_CANDIDATE": 3,
+                    "VISIBLE_STATE_CHANGE_REVIEW_REQUIRED_CANDIDATE": 1,
+                    "VISIBLE_STATE_CHANGE_UNRESOLVED_NO_FOLLOW_UP_CANDIDATE": 2,
+                },
+                "create_function_state": "UNKNOWN",
+                "deny_function_state": "UNKNOWN",
+                "state_change_function_is_player_causal_credit": False,
+            }]
+        },
+    }
+
+    tr = user_output_bundle._human_player_function_cards(rich, identity, "tr", per_team_limit=1)
+    en = user_output_bundle._human_player_function_cards(rich, identity, "en", per_team_limit=1)
+
+    joined_tr = " ".join(tr)
+    joined_en = " ".join(en)
+    assert "koruma-benzeri 5" in joined_tr
+    assert "büyütme/ilerletme-benzeri 3" in joined_tr
+    assert "kullanma-benzeri 2" in joined_tr
+    assert "kayıp/rakibe geçiş 3" in joined_tr
+    assert "CREATE=UNKNOWN; DENY=UNKNOWN" in joined_tr
+    assert "nedensel katkı yorumu kapsam dışındadır" in joined_tr
+
+    assert "preserve-like 5" in joined_en
+    assert "amplify/advance-like 3" in joined_en
+    assert "exploit-like 2" in joined_en
+    assert "CREATE=UNKNOWN; DENY=UNKNOWN" in joined_en

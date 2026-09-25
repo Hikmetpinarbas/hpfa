@@ -309,6 +309,35 @@ def build_state_transition_dynamics(
         ):
             timing_by_function[function].append(float(timing_value))
 
+    actor_function_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    actor_team_ids: dict[str, set[str]] = defaultdict(set)
+    for row in records:
+        actor_id = _clean(row.get("actor_identity_candidate_id"))
+        if not actor_id:
+            continue
+        function = _clean(row.get("visible_state_change_function_candidate")) or "UNRESOLVED"
+        actor_function_counts[actor_id][function] += 1
+        team_id = _clean(row.get("team_identity_candidate_id"))
+        if team_id:
+            actor_team_ids[actor_id].add(team_id)
+
+    actor_visible_state_change_function_profiles = [
+        {
+            "actor_identity_candidate_id": actor_id,
+            "team_identity_candidate_ids": sorted(actor_team_ids.get(actor_id) or []),
+            "visible_state_change_function_counts": dict(sorted(function_counts.items())),
+            "visible_state_change_candidate_n": int(sum(function_counts.values())),
+            "create_function_state": "UNKNOWN",
+            "deny_function_state": "UNKNOWN",
+            "zero_count_is_failure": False,
+            "zero_count_is_non_participation_truth": False,
+            "state_change_function_is_player_causal_credit": False,
+            "state_change_function_is_player_quality_truth": False,
+            "claim_ceiling": CLAIM_CEILING,
+        }
+        for actor_id, function_counts in sorted(actor_function_counts.items())
+    ]
+
     timing_contract = consequence_payload.get(
         "time_to_first_admitted_visible_state_change_profile"
     ) or {}
@@ -357,6 +386,13 @@ def build_state_transition_dynamics(
         "visible_state_change_function_counts": dict(sorted(Counter(
             row.get("visible_state_change_function_candidate") for row in records
         ).items())),
+        "actor_visible_state_change_function_profile_count": len(
+            actor_visible_state_change_function_profiles
+        ),
+        "actor_visible_state_change_function_profiles": actor_visible_state_change_function_profiles,
+        "actor_function_profile_zero_count_is_failure": False,
+        "actor_function_profile_is_player_causal_credit": False,
+        "actor_function_profile_is_player_quality_truth": False,
         "visible_state_change_timing_profiles": state_change_timing_profiles,
         "state_change_timing_profile_count": len(state_change_timing_profiles),
         "state_change_timing_is_first_passage_model_output": False,

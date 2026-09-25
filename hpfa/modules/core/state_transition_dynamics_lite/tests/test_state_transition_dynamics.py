@@ -215,3 +215,32 @@ def test_no_sample_match_identity_leak():
     source = Path("hpfa/modules/core/state_transition_dynamics_lite/src/state_transition_dynamics.py").read_text(encoding="utf-8")
     forbidden = ("Genclerbirligi", "Fenerbahce", "15.08.2026", "Galatasaray")
     assert not any(token in source for token in forbidden)
+
+
+def test_actor_visible_state_change_function_profile_is_source_bound_and_noncausal():
+    result = build_state_transition_dynamics(
+        spatial(progression=False, zone="FINAL_THIRD", direction="LATERAL"),
+        consequence(primary="SHOT_FOLLOW_UP_CANDIDATE"),
+    )
+    assert result["actor_visible_state_change_function_profile_count"] == 1
+    profile = result["actor_visible_state_change_function_profiles"][0]
+    assert profile["actor_identity_candidate_id"] == "actor_a"
+    assert profile["team_identity_candidate_ids"] == ["team_a"]
+    assert profile["visible_state_change_function_counts"] == {
+        "VISIBLE_ADVANTAGE_EXPLOITATION_CANDIDATE": 1
+    }
+    assert profile["visible_state_change_candidate_n"] == 1
+    assert profile["create_function_state"] == "UNKNOWN"
+    assert profile["deny_function_state"] == "UNKNOWN"
+    assert profile["zero_count_is_failure"] is False
+    assert profile["zero_count_is_non_participation_truth"] is False
+    assert profile["state_change_function_is_player_causal_credit"] is False
+    assert profile["state_change_function_is_player_quality_truth"] is False
+
+
+def test_actor_function_profile_not_created_without_actor_identity():
+    payload = spatial()
+    payload["spatial_transition_candidates"][0]["actor_identity_candidate_id"] = None
+    result = build_state_transition_dynamics(payload, consequence())
+    assert result["actor_visible_state_change_function_profile_count"] == 0
+    assert result["actor_visible_state_change_function_profiles"] == []

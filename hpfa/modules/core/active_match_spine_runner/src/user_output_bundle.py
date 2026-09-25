@@ -755,6 +755,18 @@ def _human_score_state_process_outcome_cards(
         if actor_id:
             score_state_by_actor.setdefault(actor_id, []).append(score_row)
 
+    state_function_evidence = (
+        identity.get("__spatial_progression_evidence__")
+        if isinstance(identity.get("__spatial_progression_evidence__"), dict)
+        else {}
+    )
+    state_function_by_actor: dict[str, dict[str, Any]] = {
+        str(row.get("actor_identity_candidate_id") or "").strip(): row
+        for row in (state_function_evidence.get("actor_visible_state_change_function_profiles") or [])
+        if isinstance(row, dict)
+        and str(row.get("actor_identity_candidate_id") or "").strip()
+    }
+
     by_team: dict[str, list[dict[str, Any]]] = {}
     for row in profiles:
         team_id = str(row.get("team_identity_candidate_id") or "").strip()
@@ -2951,6 +2963,33 @@ def _human_player_function_cards(
                 else:
                     score_bits.append(f"{score_text}: {visible_n} visible process participations / {shot_n} shot-linked")
 
+            state_profile = state_function_by_actor.get(actor_id) or {}
+            state_counts = state_profile.get("visible_state_change_function_counts") or {}
+            preserve_n = int(state_counts.get("VISIBLE_SAME_TEAM_CONTINUATION_CANDIDATE") or 0)
+            amplify_n = int(state_counts.get("VISIBLE_STATE_ADVANCEMENT_CONTINUATION_CANDIDATE") or 0) + int(
+                state_counts.get("VISIBLE_ADVANCED_ACCESS_CONTINUATION_CANDIDATE") or 0
+            )
+            exploit_n = int(state_counts.get("VISIBLE_ADVANTAGE_EXPLOITATION_CANDIDATE") or 0)
+            loss_n = int(state_counts.get("VISIBLE_ADVANTAGE_LOSS_OR_HANDOVER_CANDIDATE") or 0)
+            review_n = int(state_counts.get("VISIBLE_STATE_CHANGE_REVIEW_REQUIRED_CANDIDATE") or 0)
+            unresolved_n = int(state_counts.get("VISIBLE_STATE_CHANGE_UNRESOLVED_NO_FOLLOW_UP_CANDIDATE") or 0)
+            state_function_bit = ""
+            if state_counts:
+                if language == "tr":
+                    state_function_bit = (
+                        f" Oyuncuya bağlanmış görünür durum-değişimi adayları: koruma-benzeri {preserve_n}, "
+                        f"büyütme/ilerletme-benzeri {amplify_n}, kullanma-benzeri {exploit_n}, "
+                        f"kayıp/rakibe geçiş {loss_n}, review {review_n}, çözümlenmemiş {unresolved_n}. "
+                        "CREATE=UNKNOWN; DENY=UNKNOWN."
+                    )
+                else:
+                    state_function_bit = (
+                        f" Actor-bound visible state-change candidates: preserve-like {preserve_n}, "
+                        f"amplify/advance-like {amplify_n}, exploit-like {exploit_n}, "
+                        f"loss/handover {loss_n}, review {review_n}, unresolved {unresolved_n}. "
+                        "CREATE=UNKNOWN; DENY=UNKNOWN."
+                    )
+
             metrics = _player_profile_metric_values(row)
             metric_bits: list[str] = []
             for key, tr_label, en_label in preferred_metrics:
@@ -2976,6 +3015,7 @@ def _human_player_function_cards(
                     text += " Skor-durumu bağlamı: " + "; ".join(score_bits) + "."
                 if metric_bits:
                     text += " Aggregate fonksiyon bağlamı: " + ", ".join(metric_bits) + "."
+                text += state_function_bit
                 text += (
                     " Bu kart yalnız maç-içi görünür işlev bağlamıdır. Oyuncu niteliği ve kalıcı/taktik rol yorumu "
                     "bu kapsamın dışındadır. Skor-durumu satırları görülen katılımı sayar; görünmeyen katılım saha-dışı "
@@ -2994,6 +3034,7 @@ def _human_player_function_cards(
                     text += " Score-state context: " + "; ".join(score_bits) + "."
                 if metric_bits:
                     text += " Aggregate function context: " + ", ".join(metric_bits) + "."
+                text += state_function_bit
                 text += (
                     " This is match-local function context only. Player quality and persistent/tactical-role interpretation "
                     "remain outside scope. Score-state rows count visible participation only; missing participation is not used "
@@ -3474,7 +3515,14 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     rich = rich if isinstance(rich, dict) else {}
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "tr") if rich_current else []
-    player_function_cards = _human_player_function_cards(rich, identity, "tr") if rich_current else []
+    player_identity_context = dict(identity)
+    player_identity_context["__spatial_progression_evidence__"] = (
+        full_spine.get("spatial_progression_evidence") or {}
+    )
+    player_function_cards = (
+        _human_player_function_cards(rich, player_identity_context, "tr")
+        if rich_current else []
+    )
     model_context_cards = _human_model_context_cards(rich, "tr") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
     match_story_cards = _human_match_story_cards(rich, identity, "tr") if rich_current else []
@@ -3601,7 +3649,14 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     rich = rich if isinstance(rich, dict) else {}
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "en") if rich_current else []
-    player_function_cards = _human_player_function_cards(rich, identity, "en") if rich_current else []
+    player_identity_context = dict(identity)
+    player_identity_context["__spatial_progression_evidence__"] = (
+        full_spine.get("spatial_progression_evidence") or {}
+    )
+    player_function_cards = (
+        _human_player_function_cards(rich, player_identity_context, "en")
+        if rich_current else []
+    )
     model_context_cards = _human_model_context_cards(rich, "en") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
     match_story_cards = _human_match_story_cards(rich, identity, "en") if rich_current else []
