@@ -1038,32 +1038,68 @@ def _human_process_variant_board_cards(
         if consequence_profile:
             consequence_counts = consequence_profile.get("primary_consequence_member_presence_counts") or {}
             consequence_member_n = int(consequence_profile.get("member_process_n") or member_n)
-            same_team_n = int(consequence_counts.get("SAME_TEAM_CONTINUATION_CANDIDATE") or 0)
-            handover_n = int(consequence_counts.get("OPPONENT_HANDOVER_CANDIDATE") or 0)
-            takeover_n = int(consequence_counts.get("OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE") or 0)
-            same_time_review_n = int(
-                consequence_counts.get("MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE") or 0
+            consequence_bound_n = int(
+                consequence_profile.get("member_with_visible_primary_consequence_n") or 0
             )
-            no_follow_up_n = int(consequence_counts.get("NO_VISIBLE_FOLLOW_UP_CANDIDATE") or 0)
+            consequence_label_map = {
+                "SAME_TEAM_CONTINUATION_CANDIDATE": (
+                    "aynı takım devamı", "same-team continuation"
+                ),
+                "OPPONENT_HANDOVER_CANDIDATE": (
+                    "rakibe geçiş", "opponent handover"
+                ),
+                "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE": (
+                    "breakdown sonrası rakip takeover", "opponent takeover after breakdown"
+                ),
+                "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE": (
+                    "same-time review", "same-time review"
+                ),
+                "NO_VISIBLE_FOLLOW_UP_CANDIDATE": (
+                    "görünür follow-up yok", "no visible follow-up"
+                ),
+                "SHOT_FOLLOW_UP_CANDIDATE": (
+                    "şut follow-up", "shot follow-up"
+                ),
+                "RECOVERY_TO_SAME_TEAM_CONTINUATION_CANDIDATE": (
+                    "recovery sonrası aynı takım devamı", "same-team continuation after recovery"
+                ),
+                "TERMINAL_OUTCOME_SUPPORT_CANDIDATE": (
+                    "terminal sonuç desteği", "terminal-outcome support"
+                ),
+                "BREAKDOWN_WITH_UNCERTAIN_VISIBLE_RESPONSE_CANDIDATE": (
+                    "breakdown sonrası görünür cevap belirsiz",
+                    "visible response unresolved after breakdown",
+                ),
+            }
+            consequence_bits: list[str] = []
+            for key, raw_count in sorted(
+                consequence_counts.items(),
+                key=lambda item: (-int(item[1] or 0), str(item[0])),
+            ):
+                count = int(raw_count or 0)
+                if count <= 0:
+                    continue
+                labels = consequence_label_map.get(str(key))
+                if labels is None:
+                    fallback = str(key).replace("_CANDIDATE", "").replace("_", " ").lower()
+                    labels = (fallback, fallback)
+                label = labels[0] if language == "tr" else labels[1]
+                consequence_bits.append(f"{label} {count}/{consequence_member_n}")
             if language == "tr":
                 consequence_text = (
-                    f" Görünür devam/sonuç kompozisyonu: aynı takım devamı {same_team_n}/{consequence_member_n}, "
-                    f"rakibe geçiş {handover_n}/{consequence_member_n}, "
-                    f"breakdown sonrası rakip takeover {takeover_n}/{consequence_member_n}, "
-                    f"same-time review {same_time_review_n}/{consequence_member_n}, "
-                    f"görünür follow-up yok {no_follow_up_n}/{consequence_member_n}. "
-                    "Kategoriler birbirini dışlamaz; sayılar üye süreç-varlığıdır. "
+                    f" Görünür devam/sonuç kompozisyonu: {consequence_bound_n}/{consequence_member_n} "
+                    "üye süreçte görünür consequence bağlamı"
+                    + (f"; {', '.join(consequence_bits)}" if consequence_bits else "")
+                    + ". Kategoriler birbirini dışlamaz; sayılar üye süreç-varlığıdır. "
                     "Rakibe geçiş yalnız görünür handover bağlamıdır; zorlanmış top kaybı ve savunma başarısı yorumları kapsam dışındadır. "
                     "Görünür follow-up yokluğu başarısızlık yorumu için kullanılmaz; rakip tepkisi, taktik üstünlük ve nedensellik bu yüzeyin kapsamı dışındadır."
                 )
             else:
                 consequence_text = (
-                    f" Visible continuation/consequence composition: same-team continuation {same_team_n}/{consequence_member_n}, "
-                    f"opponent handover {handover_n}/{consequence_member_n}, "
-                    f"opponent takeover after breakdown {takeover_n}/{consequence_member_n}, "
-                    f"same-time review {same_time_review_n}/{consequence_member_n}, "
-                    f"no visible follow-up {no_follow_up_n}/{consequence_member_n}. "
-                    "Categories are non-exclusive and counts are member-process presence counts. "
+                    f" Visible continuation/consequence composition: visible consequence context in "
+                    f"{consequence_bound_n}/{consequence_member_n} member processes"
+                    + (f"; {', '.join(consequence_bits)}" if consequence_bits else "")
+                    + ". Categories are non-exclusive and counts are member-process presence counts. "
                     "Opponent handover is visible handover context only; forced-turnover and defensive-success interpretations remain outside scope. "
                     "No visible follow-up is not used as failure evidence; opponent-response truth, tactical superiority, and causality remain outside scope."
                 )

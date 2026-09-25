@@ -2784,3 +2784,61 @@ def test_technical_analyst_report_c02_uses_identity_owner_actor_label(tmp_path) 
     assert "8. Safe Match Player" in report
     assert "Wrong Aggregate Name" not in report
     assert "global/cross-match kimlik claim'i üretilmez" in report
+
+
+def test_process_variant_board_cards_surface_nonzero_terminal_consequence_without_false_zero_story() -> None:
+    rich = {
+        "constructs": {
+            "C03": {
+                "process_variant_board": {
+                    "status": "PASS",
+                    "rows": [{
+                        "team_identity_candidate_id": "team_1",
+                        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                        "member_process_n": 11,
+                        "morphology_signature": {
+                            "length_bucket": "SHORT_0_2_LAYERS",
+                            "pass_carry_style": "NO_PASS_CARRY_BASIS",
+                            "route_hint": "NO_UNAMBIGUOUS_ROUTE_HINT",
+                            "action_family_presence": [],
+                        },
+                        "member_variant_context_counts": {"SHOT_LINKED": 1},
+                        "visible_start_actor_candidate_counts": {},
+                        "visible_end_actor_candidate_counts": {},
+                        "visible_consequence_state_change_profile": {
+                            "member_process_n": 11,
+                            "member_with_visible_primary_consequence_n": 2,
+                            "primary_consequence_member_presence_counts": {
+                                "TERMINAL_OUTCOME_SUPPORT_CANDIDATE": 2,
+                            },
+                            "counts_are_member_process_presence_not_occurrence_counts": True,
+                            "consequence_categories_are_mutually_exclusive": False,
+                            "opponent_response_truth": False,
+                            "no_visible_follow_up_is_failure_truth": False,
+                        },
+                        "provider_attack_axis_transition_profile": {
+                            "member_process_n": 11,
+                            "member_with_visible_axis_transition_n": 0,
+                            "direction_transition_counts": {},
+                        },
+                        "start_end_actor_candidates_are_sequence_initiator_ender_truth": False,
+                        "motif_is_tactical_pattern_truth": False,
+                    }],
+                }
+            }
+        }
+    }
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_1",
+            "team_aliases_raw": ["Trabzonspor"],
+        }]
+    }
+
+    cards = user_output_bundle._human_process_variant_board_cards(rich, identity, "tr")
+
+    assert len(cards) == 1
+    text = cards[0].lower()
+    assert "2/11 üye süreçte görünür consequence bağlamı" in text
+    assert "terminal sonuç desteği 2/11" in text
+    assert "görünür devam/sonuç kompozisyonu" in text
