@@ -1546,3 +1546,50 @@ def test_opponent_interaction_cards_surface_existing_m09_without_response_or_cau
     assert "Beta aynı ailede 9 görünür süreç" in text
     assert "5/6 yön" in text
     assert "Opponent-response, taktik üstünlük ve nedensellik için ayrı kanıt gerekir" in text
+
+
+def test_opponent_interaction_cards_deduplicate_mirrored_team_perspectives():
+    comparison_ab = {
+        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+        "team_identity_candidate_id": "team_a",
+        "opponent_team_identity_candidate_id": "team_b",
+        "self_visible_process_profile": {"eligible_process_n": 12, "shot_ending_process_n": 3, "visible_loss_process_n": 5},
+        "opponent_visible_process_profile": {"eligible_process_n": 9, "shot_ending_process_n": 1, "visible_loss_process_n": 4},
+    }
+    comparison_ba = {
+        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+        "team_identity_candidate_id": "team_b",
+        "opponent_team_identity_candidate_id": "team_a",
+        "self_visible_process_profile": {"eligible_process_n": 9, "shot_ending_process_n": 1, "visible_loss_process_n": 4},
+        "opponent_visible_process_profile": {"eligible_process_n": 12, "shot_ending_process_n": 3, "visible_loss_process_n": 5},
+    }
+    rich = {
+        "m09_opponent_interaction_synthesis": {
+            "status": "PASS",
+            "profiles": [
+                {
+                    "team_identity_candidate_id": "team_a",
+                    "six_phase_direction_n": 6,
+                    "visible_six_phase_direction_n": 6,
+                    "reciprocal_same_family_comparisons": [comparison_ab],
+                },
+                {
+                    "team_identity_candidate_id": "team_b",
+                    "six_phase_direction_n": 6,
+                    "visible_six_phase_direction_n": 6,
+                    "reciprocal_same_family_comparisons": [comparison_ba],
+                },
+            ],
+        }
+    }
+    identity = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha"},
+            {"team_identity_candidate_id": "team_b", "team_normalized_key": "beta"},
+        ]
+    }
+
+    cards = user_output_bundle._human_opponent_interaction_cards(rich, identity, "tr")
+
+    assert len(cards) == 1
+    assert "Alpha ↔ Beta" in cards[0]

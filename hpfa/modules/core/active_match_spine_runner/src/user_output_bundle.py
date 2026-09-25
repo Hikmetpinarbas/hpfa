@@ -1195,6 +1195,7 @@ def _human_opponent_interaction_cards(
         return []
     teams = _human_team_labels(identity)
     cards: list[str] = []
+    seen_reciprocal_keys: set[tuple[str, str, str]] = set()
     for profile in profiles:
         team_id = str(profile.get("team_identity_candidate_id") or "")
         team = teams.get(team_id, team_id or ("Takım çözümlenmedi" if language == "tr" else "Team unresolved"))
@@ -1210,7 +1211,12 @@ def _human_opponent_interaction_cards(
                 opponent_id,
                 opponent_id or ("Rakip çözümlenmedi" if language == "tr" else "Opponent unresolved"),
             )
-            family = _football_family_label(row.get("process_family_candidate"), language)
+            family_id = str(row.get("process_family_candidate") or "")
+            reciprocal_key = tuple(sorted((team_id, opponent_id))) + (family_id,)
+            if reciprocal_key in seen_reciprocal_keys:
+                continue
+            seen_reciprocal_keys.add(reciprocal_key)
+            family = _football_family_label(family_id, language)
             own = row.get("self_visible_process_profile") or {}
             opp = row.get("opponent_visible_process_profile") or {}
             own_n = int(own.get("eligible_process_n") or 0)
