@@ -370,7 +370,7 @@ def test_human_reports_render_team_process_and_mechanism_in_football_language(tm
     assert "4 çözümlenmiş varyant" in tr
     assert "2 görünür maç bölümü" in tr
     assert "dependency bağımsızlığı doğrulanmadı" in tr
-    assert "tek bir güven skoru değildir" in tr
+    assert "tek güven skoruna indirgeme yapmaz" in tr
     assert "independent_support=" not in tr
     assert "grammar_signature_tokens" not in tr
 

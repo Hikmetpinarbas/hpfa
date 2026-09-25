@@ -1660,16 +1660,16 @@ def _mechanism_maturity_sentence(row: dict[str, Any], language: str) -> str:
         return (
             f" Kanıt olgunluğu: {resolved} çözümlenmiş varyant, {episodes} görünür maç bölümü, "
             f"{clusters} occurrence-ayrık destek kümesi; sağdan sansürlü varyant={censored}; "
-            f"{dependency_text}; {counter_text}. Bu çok boyutlu profil tek bir güven skoru değildir "
-            "ve claim/emit yetkisi vermez."
+            f"{dependency_text}; {counter_text}. Bu çok boyutlu profil olgunluk boyutlarını ayrı tutar; "
+            "tek güven skoruna indirgeme yapmaz ve claim/emit yetkisi bu profilin kapsamı dışında kalır."
         )
     dependency_text = "dependency independence is proven" if dependency else "dependency independence is not proven"
     counter_text = "a counterevidence surface is visible" if counterevidence else "no counterevidence surface is visible in this profile"
     return (
         f" Evidence maturity: {resolved} resolved variants, {episodes} visible match episodes, "
         f"{clusters} occurrence-disjoint support clusters; right-censored variants={censored}; "
-        f"{dependency_text}; {counter_text}. This multidimensional profile is not a single confidence score "
-        "and cannot authorize a claim or emit."
+        f"{dependency_text}; {counter_text}. This multidimensional profile keeps maturity dimensions separate "
+        "rather than collapsing them into a confidence score; claim/emit authority remains outside this profile."
     )
 
 
