@@ -2188,6 +2188,85 @@ def _context_feature_human(value: Any, language: str) -> str:
     return table.get(core, core.replace("_", " ").replace(":TRUE", "").lower())
 
 
+def _mechanism_context_review_payload(
+    source_record: dict[str, Any],
+    rich_payload: dict[str, Any],
+    team_ids: list[str],
+    process_family_candidate: Any,
+    safe_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    safe_context = safe_context or {}
+    provider_rows = [
+        dict(row)
+        for row in (source_record.get("process_context_feature_difference_candidates") or [])
+        if isinstance(row, dict)
+    ]
+    provider_rows.sort(
+        key=lambda row: abs(float(row.get("descriptive_rate_delta_success_minus_failure") or 0.0)),
+        reverse=True,
+    )
+    provider_rows = provider_rows[:3]
+
+    family = str(process_family_candidate or "").strip()
+    if not family and safe_context.get("provider_process_family_consensus") is True:
+        candidates = [
+            str(v)
+            for v in (safe_context.get("provider_process_family_candidates") or [])
+            if str(v)
+        ]
+        if len(candidates) == 1:
+            family = candidates[0]
+
+    opponent_context: dict[str, Any] = {}
+    if len(team_ids) == 1 and family:
+        team_id = team_ids[0]
+        m09 = rich_payload.get("m09_opponent_interaction_synthesis") or {}
+        for profile in m09.get("profiles") or []:
+            if not isinstance(profile, dict) or str(profile.get("team_identity_candidate_id") or "") != team_id:
+                continue
+            for comparison in profile.get("reciprocal_same_family_comparisons") or []:
+                if not isinstance(comparison, dict):
+                    continue
+                if str(comparison.get("process_family_candidate") or "") != family:
+                    continue
+                opponent_context = {
+                    "team_identity_candidate_id": team_id,
+                    "opponent_team_identity_candidate_id": str(
+                        comparison.get("opponent_team_identity_candidate_id") or ""
+                    ),
+                    "process_family_candidate": family,
+                    "self_visible_process_profile": dict(
+                        comparison.get("self_visible_process_profile") or {}
+                    ),
+                    "opponent_visible_process_profile": dict(
+                        comparison.get("opponent_visible_process_profile") or {}
+                    ),
+                    "difference_is_opponent_response_truth": False,
+                    "difference_is_tactical_superiority_truth": False,
+                    "difference_is_causal_truth": False,
+                    "creates_independent_support": False,
+                }
+                break
+            if opponent_context:
+                break
+
+    return {
+        "provider_context_difference_candidates": provider_rows,
+        "opponent_same_family_context": opponent_context,
+        "score_state_context": {
+            "score_state_consensus": safe_context.get("score_state_consensus") is True,
+            "score_state_candidate": safe_context.get("score_state_candidate"),
+            "context_is_preoutcome_only": True,
+        },
+        "context_is_causal_explanation": False,
+        "context_is_tactical_adaptation_truth": False,
+        "context_is_opponent_response_truth": False,
+        "context_creates_independent_support": False,
+        "context_can_increase_claim_ceiling": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_MECHANISM_CONTEXT_REVIEW_ONLY",
+    }
+
+
 def _mechanism_context_review_sentence(
     source_record: dict[str, Any],
     rich_payload: dict[str, Any],
@@ -2919,6 +2998,13 @@ def build_graph_ready_mechanism_cards_payload(
                 "creates_new_evidence": False,
                 "can_authorize_emit": False,
             },
+            "context_review": _mechanism_context_review_payload(
+                source_record,
+                rich_payload,
+                team_ids,
+                row.get("single_process_family_candidate"),
+                safe_context,
+            ),
             "evidence_maturity_profile": dict(row.get("evidence_maturity_profile") or {}),
             "resolved_variant_n": int(row.get("resolved_variant_count") or 0),
             "positive_visible_variant_n": int(row.get("success_resolved_variant_count") or 0),

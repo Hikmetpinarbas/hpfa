@@ -249,6 +249,18 @@ def test_phase_motif_sentence_surfaces_first_supported_divergence_safely():
 def test_human_reports_use_football_language_and_keep_evidence_note_separate():
     rich = {
         "status": "REVIEW_REQUIRED",
+        "m09_opponent_interaction_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "reciprocal_same_family_comparisons": [{
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "opponent_team_identity_candidate_id": "team_b",
+                    "self_visible_process_profile": {"eligible_process_n": 12, "shot_ending_process_n": 3, "visible_loss_process_n": 5},
+                    "opponent_visible_process_profile": {"eligible_process_n": 9, "shot_ending_process_n": 1, "visible_loss_process_n": 4},
+                }],
+            }],
+        },
         "constructs": {
             "C02": {
                 "representative_actor_argument": {
@@ -965,6 +977,18 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
             "statistical_independence_proven": False,
             "first_supported_context_difference_layer_candidate": 1,
             "first_supported_consequence_difference_layer_candidate": 2,
+            "process_context_feature_difference_candidates": [{
+                "feature_token": "LAYER[0]::process_shot_present_annotation_candidate:TRUE",
+                "partial_order_layer_index": 0,
+                "success_visible_numerator": 2,
+                "success_eligible_denominator": 2,
+                "failure_visible_numerator": 0,
+                "failure_eligible_denominator": 1,
+                "descriptive_rate_delta_success_minus_failure": 1.0,
+                "difference_is_failure_cause_truth": False,
+                "difference_is_tactical_explanation": False,
+                "dependency_independence_proven": False,
+            }],
             "context_feature_difference_candidates": [{
                 "feature_token": "actor_identity_candidate_ids:actor_1",
                 "success_visible_numerator": 2,
@@ -1006,6 +1030,18 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     }
     rich = {
         "status": "PASS",
+        "m09_opponent_interaction_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "reciprocal_same_family_comparisons": [{
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "opponent_team_identity_candidate_id": "team_b",
+                    "self_visible_process_profile": {"eligible_process_n": 12, "shot_ending_process_n": 3, "visible_loss_process_n": 5},
+                    "opponent_visible_process_profile": {"eligible_process_n": 9, "shot_ending_process_n": 1, "visible_loss_process_n": 4},
+                }],
+            }],
+        },
         "constructs": {
             "C02": {
                 "player_function_profiles": [{
@@ -1031,10 +1067,10 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
         },
     }
     identity = {
-        "team_identity_candidates": [{
-            "team_identity_candidate_id": "team_a",
-            "team_aliases_raw": ["Alpha"],
-        }],
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]},
+            {"team_identity_candidate_id": "team_b", "team_aliases_raw": ["Beta"]},
+        ],
         "actor_identity_candidates": [{
             "actor_identity_candidate_id": "actor_1",
             "actor_aliases_raw": ["Hikmet"],
@@ -1083,6 +1119,14 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     assert safe["provider_process_family_candidates"] == [
         "POSITIONAL_ATTACK_CANDIDATE"
     ]
+    context_review = card["context_review"]
+    assert len(context_review["provider_context_difference_candidates"]) == 1
+    assert context_review["provider_context_difference_candidates"][0]["feature_token"].endswith("process_shot_present_annotation_candidate:TRUE")
+    assert context_review["opponent_same_family_context"]["opponent_team_identity_candidate_id"] == "team_b"
+    assert context_review["opponent_same_family_context"]["self_visible_process_profile"]["eligible_process_n"] == 12
+    assert context_review["opponent_same_family_context"]["opponent_visible_process_profile"]["eligible_process_n"] == 9
+    assert context_review["context_is_causal_explanation"] is False
+    assert context_review["context_can_increase_claim_ceiling"] is False
     assert safe["emit_decision_count"] == 0
     assert safe["claim_output_allowed_count"] == 0
     assert safe["creates_independent_support"] is False
