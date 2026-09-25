@@ -1336,3 +1336,116 @@ def test_loss_recovery_score_state_cards_keep_exposure_and_claim_ceiling() -> No
     assert "4 visible loss contexts" in en[0]
     assert "3 visible recovery contexts" in en[0]
     assert "not treated as cause, tactical plan, or transition quality" in en[0]
+
+
+def test_process_variant_board_cards_surface_recurrence_variants_and_visible_actor_edges() -> None:
+    rich = {
+        "constructs": {
+            "C03": {
+                "process_variant_board": {
+                    "status": "PASS",
+                    "rows": [{
+                        "team_identity_candidate_id": "team_1",
+                        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                        "member_process_n": 4,
+                        "morphology_signature": {
+                            "length_bucket": "MEDIUM_3_5_LAYERS",
+                            "pass_carry_style": "PASS_DOMINANT",
+                            "route_hint": "MIDDLE_THIRD->FINAL_THIRD",
+                            "action_family_presence": ["PASS", "CARRY"],
+                        },
+                        "member_variant_context_counts": {
+                            "SHOT_LINKED": 2,
+                            "LOSS_LINKED": 2,
+                        },
+                        "visible_start_actor_candidate_counts": {"actor_1": 3, "actor_2": 1},
+                        "visible_end_actor_candidate_counts": {"actor_3": 2, "actor_4": 2},
+                        "representative_first_supported_grammar_divergence": {
+                            "left_variant_context": "SHOT_LINKED",
+                            "right_variant_context": "LOSS_LINKED",
+                            "first_supported_grammar_divergence": {
+                                "operation": "SUBSTITUTE",
+                                "left_token": "SHOT",
+                                "right_token": "TURNOVER",
+                            },
+                        },
+                        "start_end_actor_candidates_are_sequence_initiator_ender_truth": False,
+                        "motif_is_tactical_pattern_truth": False,
+                        "claim_ceiling": "MATCH_LOCAL_PROCESS_VARIANT_BOARD_CANDIDATE_ONLY",
+                    }],
+                }
+            }
+        }
+    }
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_1",
+            "team_aliases_raw": ["Trabzonspor"],
+        }],
+        "actor_identity_candidates": [
+            {
+                "actor_identity_candidate_id": "actor_1",
+                "actor_aliases_raw": ["Player A"],
+                "validated_player_identity": True,
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            },
+            {
+                "actor_identity_candidate_id": "actor_3",
+                "actor_aliases_raw": ["Player C"],
+                "validated_player_identity": True,
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            },
+        ],
+    }
+
+    cards = user_output_bundle._human_process_variant_board_cards(rich, identity, "tr")
+
+    assert len(cards) == 1
+    text = cards[0]
+    assert "Trabzonspor" in text
+    assert "4 görünür süreç" in text
+    assert "2 şut bağlantılı" in text
+    assert "2 kayıp bağlantılı" in text
+    assert "Player A" in text
+    assert "Player C" in text
+    assert "başlangıç/bitiş rolü yalnız görünür katman adayını gösterir" in text
+
+
+def test_process_variant_board_cards_limit_to_three_attention_rows_per_team_without_truth_rank() -> None:
+    rows = []
+    for idx, n in enumerate((9, 7, 5, 3), start=1):
+        rows.append({
+            "process_motif_family_candidate_id": f"m{idx}",
+            "team_identity_candidate_id": "team_1",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "member_process_n": n,
+            "morphology_signature": {},
+            "member_variant_context_counts": {},
+            "visible_start_actor_candidate_counts": {},
+            "visible_end_actor_candidate_counts": {},
+            "representative_first_supported_grammar_divergence": None,
+        })
+    rich = {
+        "constructs": {
+            "C03": {
+                "process_variant_board": {
+                    "status": "PASS",
+                    "rows": rows,
+                }
+            }
+        }
+    }
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_1",
+            "team_aliases_raw": ["Trabzonspor"],
+        }]
+    }
+
+    cards = user_output_bundle._human_process_variant_board_cards(rich, identity, "tr")
+
+    assert len(cards) == 3
+    assert "9 görünür süreç" in cards[0]
+    assert "7 görünür süreç" in cards[1]
+    assert "5 görünür süreç" in cards[2]
+    assert all("yalnız inceleme önceliği üretir; futbol doğruluğu sıralaması üretmez" in card for card in cards)

@@ -3212,6 +3212,11 @@ def _construct_c03(
             "process_family_candidate": family_id,
             "morphology_signature": morphology,
             "member_process_n": len(rows),
+            "member_process_development_signature_ids": sorted(
+                str(row.get("process_development_signature_id") or "")
+                for row in rows
+                if str(row.get("process_development_signature_id") or "")
+            ),
             "recurring_motif_candidate": len(rows) >= 2,
             "period_spread_candidates": periods,
             "shot_variant_n": shot_n,
@@ -3618,6 +3623,10 @@ def _construct_c03(
         })
 
     sequence_information = build_process_sequence_information(signatures)
+    process_variant_board = _process_variant_board(
+        signatures,
+        process_motif_family_candidates,
+    )
 
     return {
         "construct_id": "C03_PROCESS_DEVELOPMENT_SIGNATURE",
@@ -3625,6 +3634,7 @@ def _construct_c03(
         "signature_count": len(signatures),
         "signatures": signatures,
         "process_sequence_information": sequence_information,
+        "process_variant_board": process_variant_board,
         "process_motif_family_candidate_count": len(process_motif_family_candidates),
         "recurring_process_motif_family_candidate_count": sum(
             bool(row.get("recurring_motif_candidate")) for row in process_motif_family_candidates
@@ -4112,6 +4122,87 @@ def _m06_transition_dynamics_synthesis(
         "causal_truth": False,
         "coach_intention_truth": False,
         "claim_ceiling": "MATCH_LOCAL_VISIBLE_TRANSITION_DYNAMICS_CANDIDATE_ONLY",
+    }
+
+
+def _process_variant_board(
+    signatures: list[dict[str, Any]],
+    motifs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Compact analyst-facing process view built only from admitted motif/signature context."""
+    signature_by_id = {
+        str(row.get("process_development_signature_id") or ""): row
+        for row in signatures
+        if isinstance(row, dict) and str(row.get("process_development_signature_id") or "")
+    }
+    rows: list[dict[str, Any]] = []
+    for motif in motifs:
+        if not isinstance(motif, dict) or motif.get("recurring_motif_candidate") is not True:
+            continue
+        member_ids = [
+            str(value)
+            for value in (motif.get("member_process_development_signature_ids") or [])
+            if str(value)
+        ]
+        members = [signature_by_id[value] for value in member_ids if value in signature_by_id]
+        if not members:
+            continue
+        start_counts: Counter[str] = Counter()
+        end_counts: Counter[str] = Counter()
+        for member in members:
+            layers = [layer for layer in (member.get("layers") or []) if isinstance(layer, dict)]
+            if not layers:
+                continue
+            for actor_id in {
+                str(value)
+                for value in (layers[0].get("actor_identity_candidate_ids") or [])
+                if str(value)
+            }:
+                start_counts[actor_id] += 1
+            for actor_id in {
+                str(value)
+                for value in (layers[-1].get("actor_identity_candidate_ids") or [])
+                if str(value)
+            }:
+                end_counts[actor_id] += 1
+
+        rows.append({
+            "process_motif_family_candidate_id": motif.get("process_motif_family_candidate_id"),
+            "team_identity_candidate_id": motif.get("team_identity_candidate_id"),
+            "process_family_candidate": motif.get("process_family_candidate"),
+            "member_process_n": len(members),
+            "morphology_signature": motif.get("morphology_signature") or {},
+            "member_variant_context_counts": motif.get("member_variant_context_counts") or {},
+            "representative_first_supported_grammar_divergence": motif.get(
+                "representative_first_supported_grammar_divergence"
+            ),
+            "visible_start_actor_candidate_counts": dict(sorted(start_counts.items())),
+            "visible_end_actor_candidate_counts": dict(sorted(end_counts.items())),
+            "visible_start_end_basis": "FIRST_AND_LAST_ADMITTED_TEMPORAL_LAYER_ACTOR_CANDIDATES",
+            "same_timestamp_internal_ordering_allowed": False,
+            "start_end_actor_candidates_are_sequence_initiator_ender_truth": False,
+            "motif_is_tactical_pattern_truth": False,
+            "motif_is_coach_intention_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_PROCESS_VARIANT_BOARD_CANDIDATE_ONLY",
+        })
+
+    rows.sort(key=lambda row: (
+        str(row.get("team_identity_candidate_id") or ""),
+        -int(row.get("member_process_n") or 0),
+        str(row.get("process_family_candidate") or ""),
+        str(row.get("process_motif_family_candidate_id") or ""),
+    ))
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "row_count": len(rows),
+        "rows": rows,
+        "same_timestamp_internal_ordering_allowed": False,
+        "board_is_process_mining_truth": False,
+        "board_is_possession_truth": False,
+        "board_is_tactical_pattern_truth": False,
+        "creates_independent_support": False,
+        "claim_ceiling": "MATCH_LOCAL_PROCESS_VARIANT_BOARD_CANDIDATE_ONLY",
     }
 
 

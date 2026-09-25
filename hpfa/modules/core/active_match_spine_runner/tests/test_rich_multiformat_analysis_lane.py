@@ -10,7 +10,7 @@ if str(SRC) not in sys.path:
 
 from full_spine_runner import run_intelligence_chain
 from shared_surface_snapshot_contract import surface_snapshot_id
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _strict_post_final_third_entry_profile, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _loss_next_opponent_process_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _counterattack_next_process_context, _access_terminal_bridge_profiles, _snapshot
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _strict_post_final_third_entry_profile, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _loss_next_opponent_process_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _counterattack_next_process_context, _access_terminal_bridge_profiles, _process_variant_board, _snapshot
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -1724,6 +1724,10 @@ def test_c03_recurring_motif_exposes_first_supported_grammar_divergence() -> Non
     assert div["first_supported_grammar_divergence"]["operation"] in {"SUBSTITUTE", "INSERT", "DELETE"}
     assert div["contrast_pair_outcome_context_is_not_similarity_basis"] is True
     assert div["first_divergence_is_causal_breakpoint_truth"] is False
+    board = result["process_variant_board"]
+    assert board["status"] == "PASS"
+    assert board["row_count"] == 1
+    assert board["rows"][0]["member_process_n"] == 2
 
 
 def test_c03_variant_profiles_never_pool_opponent_teams() -> None:
@@ -2303,3 +2307,77 @@ def test_strict_post_final_third_entry_requires_new_access_not_process_start_alr
     assert profile["new_final_third_entry_visible"] is False
     assert profile["status"] == "NOT_ELIGIBLE_TARGET_ALREADY_VISIBLE_AT_PROCESS_START"
     assert profile["post_entry_observation_state"] == "TARGET_ALREADY_VISIBLE_AT_PROCESS_START"
+
+
+def test_process_variant_board_surfaces_recurrent_motif_and_visible_start_end_actor_candidates() -> None:
+    signatures = [
+        {
+            "process_development_signature_id": "p1",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "process_start_candidate": 10.0,
+            "process_end_candidate": 20.0,
+            "shot_present_annotation_candidate": True,
+            "visible_loss_transition_candidate_present": False,
+            "visible_recovery_transition_candidate_present": False,
+            "layers": [
+                {"actor_identity_candidate_ids": ["a1"], "action_family_candidates": ["PASS"]},
+                {"actor_identity_candidate_ids": ["a2"], "action_family_candidates": ["PASS"]},
+                {"actor_identity_candidate_ids": ["a3"], "action_family_candidates": ["SHOT"]},
+            ],
+        },
+        {
+            "process_development_signature_id": "p2",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "process_start_candidate": 30.0,
+            "process_end_candidate": 40.0,
+            "shot_present_annotation_candidate": False,
+            "visible_loss_transition_candidate_present": True,
+            "visible_recovery_transition_candidate_present": False,
+            "layers": [
+                {"actor_identity_candidate_ids": ["a1"], "action_family_candidates": ["PASS"]},
+                {"actor_identity_candidate_ids": ["a2", "a4"], "action_family_candidates": ["PASS", "DUEL"]},
+                {"actor_identity_candidate_ids": ["a5"], "action_family_candidates": ["TURNOVER"]},
+            ],
+        },
+    ]
+    motifs = [
+        {
+            "process_motif_family_candidate_id": "m1",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "member_process_n": 2,
+            "member_process_development_signature_ids": ["p1", "p2"],
+            "recurring_motif_candidate": True,
+            "morphology_signature": {
+                "length_bucket": "MEDIUM_3_5_LAYERS",
+                "action_family_presence": ["PASS"],
+                "pass_carry_style": "PASS_DOMINANT",
+                "route_hint": "MIDDLE_THIRD->FINAL_THIRD",
+            },
+            "member_variant_context_counts": {"SHOT_LINKED": 1, "LOSS_LINKED": 1},
+            "representative_first_supported_grammar_divergence": {
+                "left_variant_context": "SHOT_LINKED",
+                "right_variant_context": "LOSS_LINKED",
+                "first_supported_grammar_divergence": {
+                    "operation": "SUBSTITUTE",
+                    "left_token": "SHOT",
+                    "right_token": "TURNOVER",
+                },
+            },
+        }
+    ]
+
+    board = _process_variant_board(signatures, motifs)
+
+    assert board["status"] == "PASS"
+    assert board["row_count"] == 1
+    row = board["rows"][0]
+    assert row["member_process_n"] == 2
+    assert row["visible_start_actor_candidate_counts"] == {"a1": 2}
+    assert row["visible_end_actor_candidate_counts"] == {"a3": 1, "a5": 1}
+    assert row["same_timestamp_internal_ordering_allowed"] is False
+    assert row["start_end_actor_candidates_are_sequence_initiator_ender_truth"] is False
+    assert row["motif_is_tactical_pattern_truth"] is False
+    assert row["claim_ceiling"] == "MATCH_LOCAL_PROCESS_VARIANT_BOARD_CANDIDATE_ONLY"
