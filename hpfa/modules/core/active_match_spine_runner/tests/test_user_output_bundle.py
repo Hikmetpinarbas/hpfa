@@ -2346,3 +2346,75 @@ def test_player_function_cards_surface_match_local_function_context_without_qual
 
 def test_player_function_cards_return_empty_without_profiles() -> None:
     assert user_output_bundle._human_player_function_cards({}, {}, "tr") == []
+
+
+def test_player_mechanism_link_cards_surface_source_bound_actor_variant_context_only() -> None:
+    graph = {
+        "status": "REVIEW_REQUIRED",
+        "cards": [
+            {
+                "card_index": 1,
+                "classification": "MAIN_MECHANISM_CANDIDATE",
+                "team_labels": ["Alpha"],
+                "period_candidates": ["1"],
+                "trace_grammar_tokens": ["LAYER[INTERCEPTION]", "LAYER[PASS]"],
+                "resolved_variant_n": 4,
+                "positive_visible_variant_n": 3,
+                "negative_visible_variant_n": 1,
+                "player_context": {"actor_identity_candidate_id": "a1"},
+                "safe_finding_context": {
+                    "score_state_candidate": {"Alpha": 0, "Beta": 1},
+                },
+                "source_mechanism_review_ref": "m1",
+            },
+            {
+                "card_index": 2,
+                "classification": "LIMITED_COMPARISON",
+                "team_labels": ["Beta"],
+                "period_candidates": ["2"],
+                "trace_grammar_tokens": ["LAYER[DUEL]", "LAYER[PASS]"],
+                "resolved_variant_n": 2,
+                "positive_visible_variant_n": 1,
+                "negative_visible_variant_n": 1,
+                "player_context": {"actor_identity_candidate_id": "a2"},
+                "safe_finding_context": {
+                    "score_state_candidate": {"Alpha": 0, "Beta": 2},
+                },
+                "source_mechanism_review_ref": "m2",
+            },
+        ],
+    }
+    rich = {
+        "constructs": {
+            "C02": {
+                "player_function_profiles": [
+                    {"actor_identity_candidate_id": "a1", "actor_label": "Player One"},
+                    {"actor_identity_candidate_id": "a2", "actor_label": "Player Two"},
+                ]
+            }
+        }
+    }
+
+    tr = user_output_bundle._human_player_mechanism_link_cards(graph, rich, "tr")
+    en = user_output_bundle._human_player_mechanism_link_cards(graph, rich, "en")
+
+    joined_tr = " ".join(tr)
+    joined_en = " ".join(en)
+    assert "Player One" in joined_tr
+    assert "pas arası → pas" in joined_tr
+    assert "4 çözümlenmiş varyant; 3 olumlu / 1 olumsuz" in joined_tr
+    assert "Alpha 0 - Beta 1" in joined_tr
+    assert "ana mekanizma adayı" in joined_tr.lower()
+    assert "Player Two" in joined_tr
+    assert "sınırlı karşılaştırma" in joined_tr.lower()
+    assert "nedensel katkı" in joined_tr.lower()
+    assert "oyuncu niteliği" in joined_tr.lower()
+
+    assert "Player One" in joined_en
+    assert "4 resolved variants; 3 positive / 1 negative" in joined_en
+    assert "source-bound mechanism link" in joined_en.lower()
+
+
+def test_player_mechanism_link_cards_return_empty_without_actor_bound_cards() -> None:
+    graph = {"status": "REVIEW_REQUIRED", "cards": [{"card_index": 1, "player_context": {}}]}
+    assert user_output_bundle._human_player_mechanism_link_cards(graph, {}, "tr") == []

@@ -3004,6 +3004,93 @@ def _human_player_function_cards(
     return cards
 
 
+def _human_player_mechanism_link_cards(
+    mechanism_graph: dict[str, Any],
+    rich: dict[str, Any],
+    language: str,
+    *,
+    limit: int = 6,
+) -> list[str]:
+    if limit <= 0:
+        return []
+    c02 = (rich.get("constructs") or {}).get("C02") or {}
+    profiles_by_actor = {
+        str(row.get("actor_identity_candidate_id") or "").strip(): row
+        for row in (c02.get("player_function_profiles") or [])
+        if isinstance(row, dict)
+        and str(row.get("actor_identity_candidate_id") or "").strip()
+    }
+    cards = [
+        row for row in (mechanism_graph.get("cards") or [])
+        if isinstance(row, dict)
+    ]
+    result: list[str] = []
+    for card in sorted(cards, key=lambda row: int(row.get("card_index") or 0)):
+        player_context = card.get("player_context") or {}
+        actor_id = str(player_context.get("actor_identity_candidate_id") or "").strip()
+        profile = profiles_by_actor.get(actor_id)
+        if not actor_id or not isinstance(profile, dict):
+            continue
+        actor = _display_label(
+            profile.get("actor_label")
+            or player_context.get("actor_label")
+            or actor_id
+        )
+        team = ", ".join(str(v) for v in (card.get("team_labels") or []) if str(v))
+        periods = ", ".join(
+            _period_human(v, language)
+            for v in (card.get("period_candidates") or [])
+        ) or _period_human(None, language)
+        grammar_tokens = [str(v) for v in (card.get("trace_grammar_tokens") or []) if str(v)]
+        trace = _grammar_human(grammar_tokens, language) if grammar_tokens else str(card.get("trace_human_tr") or "UNKNOWN")
+        resolved = int(card.get("resolved_variant_n") or 0)
+        positive = int(card.get("positive_visible_variant_n") or 0)
+        negative = int(card.get("negative_visible_variant_n") or 0)
+        score = _score_state_human(
+            (card.get("safe_finding_context") or {}).get("score_state_candidate"),
+            language,
+        )
+        process_state = str(card.get("process_context_binding_state") or "")
+        classification = str(card.get("classification") or "")
+        if classification == "LIMITED_COMPARISON":
+            class_text = "sınırlı karşılaştırma" if language == "tr" else "limited comparison"
+        elif process_state == "AMBIGUOUS_MULTI_PROCESS_FAMILY_CONTEXT":
+            class_text = "geniş bağlam karşılaştırması" if language == "tr" else "broad context comparison"
+        else:
+            class_text = "ana mekanizma adayı" if language == "tr" else "main mechanism candidate"
+
+        if language == "tr":
+            text = (
+                f"{class_text}: {actor}"
+                + (f", {team}" if team else "")
+                + f", {periods}; {trace}. "
+                f"{resolved} çözümlenmiş varyant; {positive} olumlu / {negative} olumsuz görünür sonuç."
+            )
+            if score:
+                text += f" Skor bağlamı: {score}."
+            text += (
+                " Bu bağlantı kaynak-bağlı oyuncu locator + varyant bağlamıdır; "
+                "oyuncu niteliği ve nedensel katkı yorumu kapsam dışındadır."
+            )
+        else:
+            text = (
+                f"{class_text}: {actor}"
+                + (f", {team}" if team else "")
+                + f", {periods}; {trace}. "
+                f"{resolved} resolved variants; {positive} positive / {negative} negative visible outcomes."
+            )
+            if score:
+                text += f" Score context: {score}."
+            text += (
+                " This source-bound mechanism link uses only the actor locator plus visible variant context; "
+                "player-quality and causal-contribution interpretation remain outside scope."
+            )
+        result.append(text)
+        if len(result) >= limit:
+            break
+    return result
+
+
 def _human_sequence_information_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     c03 = (rich.get("constructs") or {}).get("C03") or {}
     info = c03.get("process_sequence_information") or {}
@@ -3404,6 +3491,10 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     sequence_cards = _human_sequence_information_cards(rich, identity, "tr") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "tr") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "tr")
+    mechanism_graph = build_graph_ready_mechanism_cards_payload(root, full_spine)
+    player_mechanism_link_cards = _human_player_mechanism_link_cards(
+        mechanism_graph, rich, "tr"
+    )
     match_story_mechanism_highlights = _human_match_story_mechanism_highlights(
         mechanism_cards, "tr", limit=2
     )
@@ -3474,6 +3565,9 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in player_function_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde raporlanabilir oyuncu fonksiyon profili yok.")
+    if player_mechanism_link_cards:
+        lines.append("- Kaynak-bağlı oyuncu ↔ mekanizma bağlantıları:")
+        lines.extend(f"  • {line}" for line in player_mechanism_link_cards)
     lines.extend(["", "[10] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
@@ -3524,6 +3618,10 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     sequence_cards = _human_sequence_information_cards(rich, identity, "en") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "en") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "en")
+    mechanism_graph = build_graph_ready_mechanism_cards_payload(root, full_spine)
+    player_mechanism_link_cards = _human_player_mechanism_link_cards(
+        mechanism_graph, rich, "en"
+    )
     match_story_mechanism_highlights = _human_match_story_mechanism_highlights(
         mechanism_cards, "en", limit=2
     )
@@ -3594,6 +3692,9 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in player_function_cards)
     else:
         lines.append("- No safely reportable player-function profile is available for this match.")
+    if player_mechanism_link_cards:
+        lines.append("- Source-bound player ↔ mechanism links:")
+        lines.extend(f"  • {line}" for line in player_mechanism_link_cards)
     lines.extend(["", "[10] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
