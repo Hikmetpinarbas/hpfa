@@ -2889,7 +2889,7 @@ def _human_c02_cards(
                 evidence += f"; maç içi betimleyici oran karşılaştırması={float(lift):.2f}x"
             evidence += (
                 ". Bu profil maç-içi betimleyici association yüzeyidir ve analyst-review önceliği üretir. "
-                "Oyuncu adı yalnız admitted actor-identity etiketidir; global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır."
+                "Oyuncu adı yalnız kabul edilmiş maç-içi oyuncu etiketidir; global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır."
             )
         else:
             label = "Player" if entity_type == "PLAYER" else "Pair"
@@ -3178,7 +3178,7 @@ def _human_player_mechanism_link_cards(
                 text += f" Skor bağlamı: {score}."
             text += (
                 " Bu bağlantı kaynak-bağlı oyuncu locator + varyant bağlamıdır. "
-                "İsim yalnız admitted actor-identity etiketidir; global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır. "
+                "İsim yalnız kabul edilmiş maç-içi oyuncu etiketidir; global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır. "
                 "Oyuncu niteliği ve nedensel katkı yorumu kapsam dışındadır."
             )
         else:
