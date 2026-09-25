@@ -1987,6 +1987,43 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
     return cards
 
 
+def _human_model_context_cards(rich: dict[str, Any], language: str) -> list[str]:
+    c04 = (rich.get("constructs") or {}).get("C04") or {}
+    cards: list[str] = []
+    for row in (c04.get("model_context_residual_profiles") or []):
+        if not isinstance(row, dict):
+            continue
+        entity = _display_label(row.get("entity_candidate") or "UNKNOWN")
+        xgt = _human_number(row.get("xgt"))
+        xgopp = _human_number(row.get("xgopp"))
+        nxg = _human_number(row.get("nxg_observed"))
+        rung = str(row.get("causal_ladder_rung") or "")
+        rung_label = "Rung-1" if rung.startswith("RUNG_1") else (rung or "UNRESOLVED")
+        calibration_unknown = str(row.get("model_calibration_state") or "") == "UNKNOWN_NOT_ADMITTED"
+        if language == "tr":
+            sentence = (
+                f"{entity} — provider model bağlamı: xGT {xgt}, xGOPP {xgopp}, NxG {nxg}. "
+                f"Nedensellik sınıfı {rung_label}: kapsam ilişkisel/prediktif bağlamla sınırlıdır; "
+                "oyuncu nedensel katkısı bu kapsam dışında kalır."
+            )
+            if calibration_unknown:
+                sentence += " Model kalibrasyon durumu UNKNOWN_NOT_ADMITTED."
+            if row.get("model_output_is_fact") is False:
+                sentence += " Model çıktısı yalnız model bağlamı olarak ele alınır."
+        else:
+            sentence = (
+                f"{entity} — provider model context: xGT {xgt}, xGOPP {xgopp}, NxG {nxg}. "
+                f"Causal classification {rung_label}: scope is limited to associational/predictive context; "
+                "causal player contribution remains outside this scope."
+            )
+            if calibration_unknown:
+                sentence += " Model calibration state is UNKNOWN_NOT_ADMITTED."
+            if row.get("model_output_is_fact") is False:
+                sentence += " Model output is treated as model context only."
+        cards.append(sentence)
+    return cards
+
+
 def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
     c02 = (rich.get("constructs") or {}).get("C02") or {}
     rows = [
@@ -2440,6 +2477,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     rich = rich if isinstance(rich, dict) else {}
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "tr") if rich_current else []
+    model_context_cards = _human_model_context_cards(rich, "tr") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "tr") if rich_current else []
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "tr") if rich_current else []
@@ -2493,6 +2531,8 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- Bu maçta bu başlık için güvenli biçimde raporlanabilir current-run aday yok.")
+    if model_context_cards:
+        lines.extend(f"- {line}" for line in model_context_cards)
     lines.extend(["", "[8] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
@@ -2523,6 +2563,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     rich = rich if isinstance(rich, dict) else {}
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
     c02_cards = _human_c02_cards(rich, "en") if rich_current else []
+    model_context_cards = _human_model_context_cards(rich, "en") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "en") if rich_current else []
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "en") if rich_current else []
@@ -2576,6 +2617,8 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- No current-run candidate can be reported safely under this heading.")
+    if model_context_cards:
+        lines.extend(f"- {line}" for line in model_context_cards)
     lines.extend(["", "[8] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)

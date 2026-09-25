@@ -2381,3 +2381,28 @@ def test_process_variant_board_surfaces_recurrent_motif_and_visible_start_end_ac
     assert row["start_end_actor_candidates_are_sequence_initiator_ender_truth"] is False
     assert row["motif_is_tactical_pattern_truth"] is False
     assert row["claim_ceiling"] == "MATCH_LOCAL_PROCESS_VARIANT_BOARD_CANDIDATE_ONLY"
+
+
+def test_c04_provider_model_context_declares_causal_ladder_and_calibration_boundary() -> None:
+    row = {
+        "row_projection_id": "xrp_model_boundary",
+        "identity_candidates": {"player_raw_candidate": "P1", "team_raw_candidate": "T1"},
+        "metric_values": {
+            "xgt_xg_while_player_is_on_the_pitch": _xlsx_metric("xGT", 2.5),
+            "xgopp_opponent_s_xg_while_player_is_on_the_pitch": _xlsx_metric("xGOPP", 1.0),
+            "nxg_net_xg_difference_between_xgt_and_xgopp": _xlsx_metric("NxG", 1.5),
+        },
+    }
+
+    result = _construct_c04([row])
+    residual = result["model_context_residual_profiles"][0]
+
+    assert residual["causal_ladder_rung"] == "RUNG_1_ASSOCIATIONAL_PREDICTIVE_CONTEXT_ONLY"
+    assert residual["causal_identification_proven"] is False
+    assert residual["causal_language_allowed"] is False
+    assert residual["model_calibration_state"] == "UNKNOWN_NOT_ADMITTED"
+    assert residual["model_calibration_warning_required"] is True
+    assert residual["model_source_version_required_for_promotion"] is True
+    assert residual["model_output_is_fact"] is False
+    assert result["provider_model_context_requires_causal_ladder_classification"] is True
+    assert result["provider_model_context_requires_calibration_state"] is True

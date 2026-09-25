@@ -1454,3 +1454,40 @@ def test_process_variant_board_cards_limit_to_three_attention_rows_per_team_with
     assert "7 görünür süreç" in cards[1]
     assert "5 görünür süreç" in cards[2]
     assert all("yalnız inceleme önceliği üretir; futbol doğruluğu sıralaması üretmez" in card for card in cards)
+
+
+def test_model_context_cards_surface_causal_ladder_and_calibration_warning() -> None:
+    rich = {
+        "constructs": {
+            "C04": {
+                "model_context_residual_profiles": [{
+                    "entity_candidate": "Player One",
+                    "xgt": 2.5,
+                    "xgopp": 1.0,
+                    "nxg_observed": 1.5,
+                    "causal_ladder_rung": "RUNG_1_ASSOCIATIONAL_PREDICTIVE_CONTEXT_ONLY",
+                    "causal_identification_proven": False,
+                    "causal_language_allowed": False,
+                    "model_calibration_state": "UNKNOWN_NOT_ADMITTED",
+                    "model_calibration_warning_required": True,
+                    "model_output_is_fact": False,
+                    "claim_ceiling": "PROVIDER_MODEL_MATCH_CONTEXT_RESIDUAL_ONLY",
+                }]
+            }
+        }
+    }
+
+    tr = user_output_bundle._human_model_context_cards(rich, "tr")
+    en = user_output_bundle._human_model_context_cards(rich, "en")
+
+    assert len(tr) == 1
+    assert "Player One" in tr[0]
+    assert "Rung-1" in tr[0]
+    assert "oyuncu nedensel katkısı bu kapsam dışında kalır" in tr[0]
+    assert "Model kalibrasyon durumu UNKNOWN_NOT_ADMITTED" in tr[0]
+    assert "Model çıktısı yalnız model bağlamı olarak ele alınır" in tr[0]
+
+    assert len(en) == 1
+    assert "Rung-1" in en[0]
+    assert "causal player contribution remains outside this scope" in en[0]
+    assert "Model calibration state is UNKNOWN_NOT_ADMITTED" in en[0]
