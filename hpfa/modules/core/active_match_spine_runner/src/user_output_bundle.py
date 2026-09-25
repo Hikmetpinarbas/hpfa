@@ -1475,7 +1475,7 @@ def _human_match_story_cards(
         recovery_n = int(row.get("visible_recovery_process_n") or 0)
         if language == "tr":
             cards.append(
-                f"{team}: admitted hücum fazları içinde en yüksek görünür süreç hacmi {phase} yüzeyinde; "
+                f"{team}: kabul edilmiş hücum fazları içinde en yüksek görünür süreç hacmi {phase} yüzeyinde; "
                 f"{process_n} görünür süreç, {shot_n} şut bağlantılı son bölüm, "
                 f"{loss_n} görünür kayıp ve {recovery_n} görünür kazanım."
             )
@@ -1486,11 +1486,77 @@ def _human_match_story_cards(
                 f"{loss_n} visible losses and {recovery_n} visible recoveries."
             )
 
+    game_state = rich.get("game_state_context") or {}
+    if str(game_state.get("status") or "").upper() in {"PASS", "REVIEW_REQUIRED"}:
+        score_bits: list[str] = []
+        for segment in (game_state.get("score_state_segments") or []):
+            if not isinstance(segment, dict):
+                continue
+            score_text = _score_state_human(segment.get("score_state_candidate"), language)
+            duration = segment.get("duration_second_candidate")
+            if not score_text or not isinstance(duration, (int, float)) or isinstance(duration, bool):
+                continue
+            minutes = max(0.0, float(duration)) / 60.0
+            if language == "tr":
+                score_bits.append(f"{score_text} ≈ {minutes:.1f} dk")
+            else:
+                score_bits.append(f"{score_text} ≈ {minutes:.1f} min")
+        if score_bits:
+            if language == "tr":
+                cards.append("Skor akışı — görünür skor-durumu maruziyeti: " + "; ".join(score_bits) + ".")
+            else:
+                cards.append("Score-state exposure: " + "; ".join(score_bits) + ".")
+
+    interaction = rich.get("m09_opponent_interaction_synthesis") or {}
+    profiles = [
+        row for row in (interaction.get("profiles") or [])
+        if isinstance(row, dict)
+    ]
+    seen_pairs: set[tuple[str, str, str]] = set()
+    interaction_bits: list[str] = []
+    for profile in profiles:
+        team_id = str(profile.get("team_identity_candidate_id") or "")
+        for row in (profile.get("reciprocal_same_family_comparisons") or []):
+            if not isinstance(row, dict):
+                continue
+            opponent_id = str(row.get("opponent_team_identity_candidate_id") or "")
+            family_id = str(row.get("process_family_candidate") or "")
+            pair = tuple(sorted((team_id, opponent_id))) + (family_id,)
+            if not team_id or not opponent_id or not family_id or pair in seen_pairs:
+                continue
+            seen_pairs.add(pair)
+            own = row.get("self_visible_process_profile") or {}
+            opp = row.get("opponent_visible_process_profile") or {}
+            team_name = teams.get(team_id, team_id)
+            opp_name = teams.get(opponent_id, opponent_id)
+            family = _football_family_label(family_id, language)
+            own_n = int(own.get("eligible_process_n") or 0)
+            own_shot = int(own.get("shot_ending_process_n") or 0)
+            own_loss = int(own.get("visible_loss_process_n") or 0)
+            opp_n = int(opp.get("eligible_process_n") or 0)
+            opp_shot = int(opp.get("shot_ending_process_n") or 0)
+            opp_loss = int(opp.get("visible_loss_process_n") or 0)
+            if language == "tr":
+                interaction_bits.append(
+                    f"{family}: {team_name} {own_n} süreç / {own_shot} şut bağlantılı / {own_loss} kayıp ↔ "
+                    f"{opp_name} {opp_n} süreç / {opp_shot} şut bağlantılı / {opp_loss} kayıp"
+                )
+            else:
+                interaction_bits.append(
+                    f"{family}: {team_name} {own_n} processes / {own_shot} shot-linked / {own_loss} losses ↔ "
+                    f"{opp_name} {opp_n} processes / {opp_shot} shot-linked / {opp_loss} losses"
+                )
+    if interaction_bits:
+        if language == "tr":
+            cards.append("Takım ↔ rakip, aynı süreç ailesi: " + "; ".join(interaction_bits) + ".")
+        else:
+            cards.append("Team ↔ opponent, same process family: " + "; ".join(interaction_bits) + ".")
+
     if language == "tr":
         cards.append(
-            "Kanıt kapsamı: bu maç hikâyesi kartı yalnız admitted altı-faz süreçlerinin görünür hacim özetidir. "
+            "Kanıt kapsamı: bu maç hikâyesi kartı yalnız kabul edilmiş altı-faz süreçlerinin görünür hacim özetidir. "
             "Faz sıklığı; kalite, üstünlük, niyet veya neden hükmüne dönüştürülmez. "
-            "Mekanizma ve ayrışma yorumları aşağıdaki source-bound kartlarda ayrıca değerlendirilir."
+            "Mekanizma ve ayrışma yorumları aşağıdaki kaynak-bağlı kartlarda ayrıca değerlendirilir."
         )
     else:
         cards.append(

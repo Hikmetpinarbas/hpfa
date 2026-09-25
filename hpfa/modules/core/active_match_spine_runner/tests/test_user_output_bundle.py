@@ -1829,3 +1829,118 @@ def test_match_story_cards_lead_with_visible_attack_process_summary_without_qual
     assert "12 visible processes" in en[0]
     assert "quality" not in en[0].lower()
     assert "causal" not in en[0].lower()
+
+
+def test_match_story_cards_add_score_arc_and_same_family_interaction_without_winner_language() -> None:
+    rich = {
+        "constructs": {
+            "C03": {
+                "six_phase_team_matrix": [
+                    {
+                        "team_identity_candidate_id": "team_a",
+                        "canonical_phase_slot": "ESTABLISHED_ATTACK",
+                        "perspective": "ATTACK",
+                        "observation_state": "VISIBLE_PROCESS_PROFILE_AVAILABLE",
+                        "eligible_process_n": 12,
+                        "shot_ending_process_n": 3,
+                        "visible_loss_process_n": 4,
+                        "visible_recovery_process_n": 1,
+                    },
+                    {
+                        "team_identity_candidate_id": "team_b",
+                        "canonical_phase_slot": "ESTABLISHED_ATTACK",
+                        "perspective": "ATTACK",
+                        "observation_state": "VISIBLE_PROCESS_PROFILE_AVAILABLE",
+                        "eligible_process_n": 9,
+                        "shot_ending_process_n": 2,
+                        "visible_loss_process_n": 3,
+                        "visible_recovery_process_n": 0,
+                    },
+                ]
+            }
+        },
+        "game_state_context": {
+            "status": "PASS",
+            "score_state_segments": [
+                {
+                    "duration_second_candidate": 300.0,
+                    "score_state_candidate": {"Alpha": 0, "Beta": 0},
+                },
+                {
+                    "duration_second_candidate": 1800.0,
+                    "score_state_candidate": {"Alpha": 1, "Beta": 0},
+                },
+            ],
+        },
+        "m09_opponent_interaction_synthesis": {
+            "status": "PASS",
+            "profiles": [
+                {
+                    "team_identity_candidate_id": "team_a",
+                    "reciprocal_same_family_comparisons": [
+                        {
+                            "opponent_team_identity_candidate_id": "team_b",
+                            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                            "self_visible_process_profile": {
+                                "eligible_process_n": 12,
+                                "shot_ending_process_n": 3,
+                                "visible_loss_process_n": 4,
+                            },
+                            "opponent_visible_process_profile": {
+                                "eligible_process_n": 9,
+                                "shot_ending_process_n": 2,
+                                "visible_loss_process_n": 3,
+                            },
+                        }
+                    ],
+                },
+                {
+                    "team_identity_candidate_id": "team_b",
+                    "reciprocal_same_family_comparisons": [
+                        {
+                            "opponent_team_identity_candidate_id": "team_a",
+                            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                            "self_visible_process_profile": {
+                                "eligible_process_n": 9,
+                                "shot_ending_process_n": 2,
+                                "visible_loss_process_n": 3,
+                            },
+                            "opponent_visible_process_profile": {
+                                "eligible_process_n": 12,
+                                "shot_ending_process_n": 3,
+                                "visible_loss_process_n": 4,
+                            },
+                        }
+                    ],
+                },
+            ],
+        },
+    }
+    identity = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]},
+            {"team_identity_candidate_id": "team_b", "team_aliases_raw": ["Beta"]},
+        ]
+    }
+
+    tr = user_output_bundle._human_match_story_cards(rich, identity, "tr")
+    en = user_output_bundle._human_match_story_cards(rich, identity, "en")
+
+    joined_tr = " ".join(tr)
+    joined_en = " ".join(en)
+    assert "Skor akışı" in joined_tr
+    assert "5.0 dk" in joined_tr
+    assert "30.0 dk" in joined_tr
+    assert "aynı süreç ailesi" in joined_tr
+    assert "Alpha 12 süreç / 3 şut bağlantılı / 4 kayıp" in joined_tr
+    assert "Beta 9 süreç / 2 şut bağlantılı / 3 kayıp" in joined_tr
+    story_tr = " ".join(line for line in tr if not line.startswith("Kanıt kapsamı:"))
+    story_en = " ".join(line for line in en if not line.startswith("Evidence scope:"))
+    assert "üstün" not in story_tr.lower()
+    assert "daha iyi" not in story_tr.lower()
+    assert "neden" not in story_tr.lower()
+
+    assert "Score-state exposure" in joined_en
+    assert "same process family" in joined_en
+    assert "superior" not in story_en.lower()
+    assert "better" not in story_en.lower()
