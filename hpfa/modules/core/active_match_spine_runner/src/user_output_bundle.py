@@ -1133,6 +1133,37 @@ def _human_set_piece_process_cards(
             labels = restart_labels.get(key, (key.lower(), key.lower()))
             restart_parts.append(f"{labels[0] if language == 'tr' else labels[1]} {count}")
         restart_text = ", ".join(restart_parts)
+        type_profiles = [
+            row for row in (context.get("restart_type_profiles") or [])
+            if isinstance(row, dict)
+            and str(row.get("team_identity_candidate_id") or "").strip() == team_id
+        ]
+        type_detail_parts: list[str] = []
+        for profile in sorted(
+            type_profiles,
+            key=lambda row: str(row.get("provider_restart_type_candidate") or ""),
+        ):
+            restart_type = str(profile.get("provider_restart_type_candidate") or "").strip()
+            labels = restart_labels.get(restart_type, (restart_type.lower(), restart_type.lower()))
+            label_text = labels[0] if language == "tr" else labels[1]
+            process_n = int(profile.get("process_n") or 0)
+            shot_n = int(profile.get("shot_annotated_n") or 0)
+            consequence_n = int(profile.get("visible_consequence_bound_n") or 0)
+            same_n = int(profile.get("same_team_first_visible_n") or 0)
+            opponent_n = int(profile.get("opponent_first_visible_n") or 0)
+            outside_n = int(profile.get("outside_declared_horizon_n") or 0)
+            no_visible_n = int(profile.get("no_visible_continuation_n") or 0)
+            if language == "tr":
+                type_detail_parts.append(
+                    f"{label_text} n={process_n} (şut={shot_n}, sonuç-bağlı={consequence_n}, "
+                    f"sonrası aynı={same_n}/rakip={opponent_n}/ufuk-dışı={outside_n}/görünür-devam-yok={no_visible_n})"
+                )
+            else:
+                type_detail_parts.append(
+                    f"{label_text} n={process_n} (shot={shot_n}, consequence-bound={consequence_n}, "
+                    f"post same={same_n}/opponent={opponent_n}/outside-horizon={outside_n}/no-visible-follow-up={no_visible_n})"
+                )
+        type_detail_text = "; ".join(type_detail_parts)
 
         if language == "tr":
             football = (
@@ -1143,6 +1174,7 @@ def _human_set_piece_process_cards(
                 f"İlan edilmiş {horizon_text} sonuç ufku içinde süreç sonrası ilk strikt görünür takım durumu: "
                 f"aynı takım {values['same_team_first_n']}, rakip {values['opponent_first_n']}; "
                 f"ufuk dışında {values['outside_horizon_n']}, görünür devam yok {values['no_strict_after_n']}."
+                + (f" Tür bazında görünür sonuç: {type_detail_text}." if type_detail_text else "")
             )
             evidence = (
                 "Kanıt notu: bu yüzey yalnız provider-reviewed duran top süreç anotasyonu, reviewed restart türü ve görünür sonuç/sonraki takım durumunu bağlar. "
@@ -1157,6 +1189,7 @@ def _human_set_piece_process_cards(
                 f"Within the declared {horizon_text} consequence horizon, the first strictly visible post-process team state was "
                 f"same team {values['same_team_first_n']}, opponent {values['opponent_first_n']}; "
                 f"outside horizon {values['outside_horizon_n']}, no visible continuation {values['no_strict_after_n']}."
+                + (f" Visible outcome by restart type: {type_detail_text}." if type_detail_text else "")
             )
             evidence = (
                 "Evidence note: this surface only binds provider-reviewed set-piece process annotations, reviewed restart type, and visible consequence/post-process team state. "

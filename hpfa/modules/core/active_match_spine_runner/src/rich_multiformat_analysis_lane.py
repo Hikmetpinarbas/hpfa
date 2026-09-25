@@ -1954,6 +1954,57 @@ def _set_piece_process_consequence_context(
             "creates_independent_support": False,
         })
 
+    restart_profile_buckets: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        restart_types = [
+            str(value).strip()
+            for value in (row.get("provider_restart_type_candidates") or [])
+            if str(value).strip()
+        ]
+        for restart_type in restart_types:
+            key = (team_id, restart_type)
+            bucket = restart_profile_buckets.setdefault(
+                key,
+                {
+                    "team_identity_candidate_id": team_id or None,
+                    "provider_restart_type_candidate": restart_type,
+                    "process_n": 0,
+                    "shot_annotated_n": 0,
+                    "visible_consequence_bound_n": 0,
+                    "same_team_first_visible_n": 0,
+                    "opponent_first_visible_n": 0,
+                    "outside_declared_horizon_n": 0,
+                    "no_visible_continuation_n": 0,
+                },
+            )
+            bucket["process_n"] += 1
+            if row.get("shot_present_annotation_candidate") is True:
+                bucket["shot_annotated_n"] += 1
+            if str(row.get("binding_state") or "") == "VISIBLE_CONSEQUENCE_CONTEXT_BOUND":
+                bucket["visible_consequence_bound_n"] += 1
+            post = str(row.get("post_set_piece_first_visible_team_state") or "")
+            if post == "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE":
+                bucket["same_team_first_visible_n"] += 1
+            elif post == "OPPONENT_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE":
+                bucket["opponent_first_visible_n"] += 1
+            elif post == "FIRST_STRICT_AFTER_OUTSIDE_DECLARED_CONSEQUENCE_HORIZON":
+                bucket["outside_declared_horizon_n"] += 1
+            elif post == "NO_STRICT_AFTER_VISIBLE_TRACE":
+                bucket["no_visible_continuation_n"] += 1
+
+    restart_type_profiles = []
+    for _, bucket in sorted(restart_profile_buckets.items()):
+        restart_type_profiles.append({
+            **bucket,
+            "rate_emitted": False,
+            "profile_is_set_piece_quality_truth": False,
+            "profile_is_designed_routine_truth": False,
+            "profile_is_causal_effect_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_REVIEWED_RESTART_TYPE_VISIBLE_OUTCOME_COUNTS_ONLY",
+        })
+
     return {
         "status": "PASS" if rows else "NOT_AVAILABLE",
         "binding_state": "SET_PIECE_PROCESS_TO_VISIBLE_CONSEQUENCE_CONTEXT",
@@ -1967,6 +2018,10 @@ def _set_piece_process_consequence_context(
             sorted(post_process_state_counts.items())
         ),
         "provider_restart_type_counts": dict(sorted(restart_type_counts.items())),
+        "restart_type_profile_count": len(restart_type_profiles),
+        "restart_type_profiles": restart_type_profiles,
+        "restart_type_profile_rate_emitted": False,
+        "restart_type_profile_is_set_piece_quality_truth": False,
         "rows": rows,
         "provider_restart_type_is_action_identity_truth": False,
         "provider_restart_type_is_designed_routine_truth": False,

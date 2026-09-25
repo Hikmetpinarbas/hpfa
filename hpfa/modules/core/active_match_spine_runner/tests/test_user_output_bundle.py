@@ -1702,3 +1702,61 @@ def test_actor_aggregate_context_surfaces_total_minutes_but_not_interval_exposur
     assert "toplam süre bağlamı: 63 dk" in sentence.lower()
     assert "süreç anındaki saha-içi zaman aralığı çözümlenmedi" in sentence
     assert "per-90 süreç oranı bu kartta üretilmez" in sentence.lower()
+
+
+def test_set_piece_cards_surface_restart_type_outcome_counts_without_percentage():
+    rich = {
+        "set_piece_process_consequence_context": {
+            "status": "PASS",
+            "declared_consequence_horizon_seconds": 12.0,
+            "rows": [{
+                "team_identity_candidate_id": "team_a",
+                "provider_restart_type_candidates": ["CORNER"],
+                "shot_present_annotation_candidate": True,
+                "binding_state": "VISIBLE_CONSEQUENCE_CONTEXT_BOUND",
+                "post_set_piece_first_visible_team_state": "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE",
+            }],
+            "restart_type_profiles": [
+                {
+                    "team_identity_candidate_id": "team_a",
+                    "provider_restart_type_candidate": "CORNER",
+                    "process_n": 5,
+                    "shot_annotated_n": 1,
+                    "visible_consequence_bound_n": 3,
+                    "same_team_first_visible_n": 1,
+                    "opponent_first_visible_n": 1,
+                    "outside_declared_horizon_n": 3,
+                    "no_visible_continuation_n": 0,
+                    "rate_emitted": False,
+                },
+                {
+                    "team_identity_candidate_id": "team_a",
+                    "provider_restart_type_candidate": "FREE_KICK",
+                    "process_n": 2,
+                    "shot_annotated_n": 0,
+                    "visible_consequence_bound_n": 1,
+                    "same_team_first_visible_n": 0,
+                    "opponent_first_visible_n": 1,
+                    "outside_declared_horizon_n": 1,
+                    "no_visible_continuation_n": 0,
+                    "rate_emitted": False,
+                },
+            ],
+        }
+    }
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_a",
+            "team_aliases_raw": ["Alpha FC"],
+        }]
+    }
+
+    tr = user_output_bundle._human_set_piece_process_cards(rich, identity, "tr")
+    joined = " ".join(tr)
+
+    assert "Tür bazında görünür sonuç:" in joined
+    assert "korner n=5" in joined
+    assert "şut=1" in joined
+    assert "sonuç-bağlı=3" in joined
+    assert "serbest vuruş n=2" in joined
+    assert "%" not in joined

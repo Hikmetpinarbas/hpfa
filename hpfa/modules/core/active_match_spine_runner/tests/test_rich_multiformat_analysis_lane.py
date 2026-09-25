@@ -2587,3 +2587,109 @@ def test_set_piece_process_context_preserves_reviewed_restart_type_distribution(
     }
     assert result["provider_restart_type_is_action_identity_truth"] is False
     assert result["provider_restart_type_is_designed_routine_truth"] is False
+
+
+def test_set_piece_restart_type_profiles_keep_outcomes_separate_without_small_n_rate():
+    process = {
+        "process_participation_candidates": [
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "100",
+                "end_candidate": "112",
+                "process_participation_candidate_id": "p_corner_1",
+                "provider_restart_type_candidate": "CORNER",
+                "shot_present_annotation_candidate": True,
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "200",
+                "end_candidate": "212",
+                "process_participation_candidate_id": "p_corner_2",
+                "provider_restart_type_candidate": "CORNER",
+                "shot_present_annotation_candidate": False,
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "300",
+                "end_candidate": "312",
+                "process_participation_candidate_id": "p_free_1",
+                "provider_restart_type_candidate": "FREE_KICK",
+                "shot_present_annotation_candidate": False,
+            },
+        ]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [
+            {
+                "occurrence_consequence_projection_id": "ocp_corner",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["105"],
+                "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+                "process_continuation_status": "PROCESS_CONTINUES_VISIBLE_CANDIDATE",
+                "terminal_status": "TERMINAL_STATE_UNRESOLVED",
+                "maximum_window_seconds": 12.0,
+            },
+            {
+                "occurrence_consequence_projection_id": "ocp_free",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["305"],
+                "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+                "process_continuation_status": "PROCESS_STATE_UNRESOLVED",
+                "terminal_status": "TERMINAL_STATE_UNRESOLVED",
+                "maximum_window_seconds": 12.0,
+            },
+        ]
+    }
+    traces = {
+        "trackable_action_trace_candidates": [
+            {
+                "period_candidate": "1",
+                "start_candidate": "114",
+                "team_identity_candidate_id": "team_a",
+                "action_family_candidates": ["PASS"],
+            },
+            {
+                "period_candidate": "1",
+                "start_candidate": "214",
+                "team_identity_candidate_id": "team_b",
+                "action_family_candidates": ["PASS"],
+            },
+            {
+                "period_candidate": "1",
+                "start_candidate": "314",
+                "team_identity_candidate_id": "team_b",
+                "action_family_candidates": ["PASS"],
+            },
+        ]
+    }
+
+    result = _set_piece_process_consequence_context(process, consequence, traces)
+    profiles = {
+        (row["team_identity_candidate_id"], row["provider_restart_type_candidate"]): row
+        for row in result["restart_type_profiles"]
+    }
+
+    corner = profiles[("team_a", "CORNER")]
+    free = profiles[("team_a", "FREE_KICK")]
+    assert corner["process_n"] == 2
+    assert corner["shot_annotated_n"] == 1
+    assert corner["visible_consequence_bound_n"] == 1
+    assert corner["same_team_first_visible_n"] == 1
+    assert corner["opponent_first_visible_n"] == 1
+    assert free["process_n"] == 1
+    assert free["shot_annotated_n"] == 0
+    assert free["visible_consequence_bound_n"] == 1
+    assert free["opponent_first_visible_n"] == 1
+    assert result["restart_type_profile_rate_emitted"] is False
+    assert result["restart_type_profile_is_set_piece_quality_truth"] is False
