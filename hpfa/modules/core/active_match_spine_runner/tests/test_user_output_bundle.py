@@ -1413,6 +1413,10 @@ def test_process_variant_board_cards_surface_recurrence_variants_and_visible_act
     assert "2 kayıp bağlantılı" in text
     assert "Player A" in text
     assert "Player C" in text
+    assert "şut bağlantılı varyant ↔ kayıp bağlantılı varyant" in text
+    assert "şut ↔ top kaybı" in text
+    assert "SHOT_LINKED" not in text
+    assert "TURNOVER" not in text
     assert "başlangıç/bitiş rolü yalnız görünür katman adayını gösterir" in text
 
 

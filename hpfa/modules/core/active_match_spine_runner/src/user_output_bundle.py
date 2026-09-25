@@ -627,6 +627,35 @@ def _grammar_human(tokens: list[Any], language: str) -> str:
     return " → ".join(parts) if parts else ("aksiyon zinciri çözümlenmedi" if language == "tr" else "action chain unresolved")
 
 
+def _variant_context_human(value: Any, language: str) -> str:
+    key = str(value or "UNKNOWN").strip().upper()
+    tr = {
+        "SHOT_LINKED": "şut bağlantılı varyant",
+        "LOSS_LINKED": "kayıp bağlantılı varyant",
+        "RECOVERY_LINKED": "recovery bağlantılı varyant",
+        "SHOT_AND_LOSS_VISIBLE": "şut + kayıp bağlantılı varyant",
+        "OTHER_VISIBLE": "diğer görünür varyant",
+        "UNKNOWN": "bağlamı çözümlenmemiş varyant",
+    }
+    en = {
+        "SHOT_LINKED": "shot-linked variant",
+        "LOSS_LINKED": "loss-linked variant",
+        "RECOVERY_LINKED": "recovery-linked variant",
+        "SHOT_AND_LOSS_VISIBLE": "shot + loss-linked variant",
+        "OTHER_VISIBLE": "other visible variant",
+        "UNKNOWN": "context-unresolved variant",
+    }
+    table = tr if language == "tr" else en
+    return table.get(key, key.replace("_", " ").lower())
+
+
+def _grammar_token_human(value: Any, language: str) -> str:
+    token = str(value or "").strip()
+    if not token:
+        return "katman yok" if language == "tr" else "no layer"
+    return _grammar_human([token], language)
+
+
 def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     c03 = (rich.get("constructs") or {}).get("C03") or {}
     profiles = [row for row in (c03.get("team_process_profiles") or []) if isinstance(row, dict)]
@@ -931,14 +960,14 @@ def _human_process_variant_board_cards(
         first = divergence.get("first_supported_grammar_divergence") or {}
         divergence_text = ""
         if first.get("operation"):
-            left = str(divergence.get("left_variant_context") or "UNKNOWN")
-            right = str(divergence.get("right_variant_context") or "UNKNOWN")
-            lt = str(first.get("left_token") or "∅")
-            rt = str(first.get("right_token") or "∅")
+            left = _variant_context_human(divergence.get("left_variant_context"), language)
+            right = _variant_context_human(divergence.get("right_variant_context"), language)
+            lt = _grammar_token_human(first.get("left_token"), language)
+            rt = _grammar_token_human(first.get("right_token"), language)
             divergence_text = (
-                f" İlk görünür ayrışma adayı: {left} ↔ {right}, {lt} ↔ {rt}."
+                f" İlk görünür ayrışma adayı: {left} ↔ {right}; {lt} ↔ {rt}."
                 if language == "tr"
-                else f" First visible divergence candidate: {left} ↔ {right}, {lt} ↔ {rt}."
+                else f" First visible divergence candidate: {left} ↔ {right}; {lt} ↔ {rt}."
             )
 
         if language == "tr":
