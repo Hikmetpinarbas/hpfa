@@ -2394,9 +2394,23 @@ def test_player_mechanism_link_cards_surface_source_bound_actor_variant_context_
             }
         }
     }
+    identity = {
+        "actor_identity_candidates": [
+            {
+                "actor_identity_candidate_id": "a1",
+                "actor_aliases_raw": ["1. Player One (101)"],
+                "validated_player_identity": True,
+            },
+            {
+                "actor_identity_candidate_id": "a2",
+                "actor_aliases_raw": ["2. Player Two (102)"],
+                "validated_player_identity": True,
+            },
+        ]
+    }
 
-    tr = user_output_bundle._human_player_mechanism_link_cards(graph, rich, "tr")
-    en = user_output_bundle._human_player_mechanism_link_cards(graph, rich, "en")
+    tr = user_output_bundle._human_player_mechanism_link_cards(graph, rich, identity, "tr")
+    en = user_output_bundle._human_player_mechanism_link_cards(graph, rich, identity, "en")
 
     joined_tr = " ".join(tr)
     joined_en = " ".join(en)
@@ -2417,4 +2431,42 @@ def test_player_mechanism_link_cards_surface_source_bound_actor_variant_context_
 
 def test_player_mechanism_link_cards_return_empty_without_actor_bound_cards() -> None:
     graph = {"status": "REVIEW_REQUIRED", "cards": [{"card_index": 1, "player_context": {}}]}
-    assert user_output_bundle._human_player_mechanism_link_cards(graph, {}, "tr") == []
+    assert user_output_bundle._human_player_mechanism_link_cards(graph, {}, {}, "tr") == []
+
+
+def test_player_mechanism_link_cards_do_not_render_unvalidated_actor_label() -> None:
+    graph = {
+        "status": "REVIEW_REQUIRED",
+        "cards": [{
+            "card_index": 1,
+            "classification": "MAIN_MECHANISM_CANDIDATE",
+            "team_labels": ["Alpha"],
+            "period_candidates": ["1"],
+            "trace_grammar_tokens": ["LAYER[PASS]", "LAYER[PASS]"],
+            "resolved_variant_n": 4,
+            "positive_visible_variant_n": 3,
+            "negative_visible_variant_n": 1,
+            "player_context": {"actor_identity_candidate_id": "unsafe"},
+        }],
+    }
+    rich = {
+        "constructs": {
+            "C02": {
+                "player_function_profiles": [{
+                    "actor_identity_candidate_id": "unsafe",
+                    "actor_label": "Wrong Plausible Name",
+                }]
+            }
+        }
+    }
+    identity = {
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "unsafe",
+            "actor_aliases_raw": ["99. Wrong Plausible Name (999999)"],
+            "validated_player_identity": False,
+        }]
+    }
+
+    assert user_output_bundle._human_player_mechanism_link_cards(
+        graph, rich, identity, "tr"
+    ) == []

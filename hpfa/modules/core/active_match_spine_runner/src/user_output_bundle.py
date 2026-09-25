@@ -3007,6 +3007,7 @@ def _human_player_function_cards(
 def _human_player_mechanism_link_cards(
     mechanism_graph: dict[str, Any],
     rich: dict[str, Any],
+    identity: dict[str, Any],
     language: str,
     *,
     limit: int = 6,
@@ -3014,6 +3015,7 @@ def _human_player_mechanism_link_cards(
     if limit <= 0:
         return []
     c02 = (rich.get("constructs") or {}).get("C02") or {}
+    validated_actor_labels = _human_validated_actor_labels(identity)
     profiles_by_actor = {
         str(row.get("actor_identity_candidate_id") or "").strip(): row
         for row in (c02.get("player_function_profiles") or [])
@@ -3029,13 +3031,9 @@ def _human_player_mechanism_link_cards(
         player_context = card.get("player_context") or {}
         actor_id = str(player_context.get("actor_identity_candidate_id") or "").strip()
         profile = profiles_by_actor.get(actor_id)
-        if not actor_id or not isinstance(profile, dict):
+        actor = validated_actor_labels.get(actor_id)
+        if not actor_id or not isinstance(profile, dict) or not actor:
             continue
-        actor = _display_label(
-            profile.get("actor_label")
-            or player_context.get("actor_label")
-            or actor_id
-        )
         team = ", ".join(str(v) for v in (card.get("team_labels") or []) if str(v))
         periods = ", ".join(
             _period_human(v, language)
@@ -3493,7 +3491,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "tr")
     mechanism_graph = build_graph_ready_mechanism_cards_payload(root, full_spine)
     player_mechanism_link_cards = _human_player_mechanism_link_cards(
-        mechanism_graph, rich, "tr"
+        mechanism_graph, rich, identity, "tr"
     )
     match_story_mechanism_highlights = _human_match_story_mechanism_highlights(
         mechanism_cards, "tr", limit=2
@@ -3620,7 +3618,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "en")
     mechanism_graph = build_graph_ready_mechanism_cards_payload(root, full_spine)
     player_mechanism_link_cards = _human_player_mechanism_link_cards(
-        mechanism_graph, rich, "en"
+        mechanism_graph, rich, identity, "en"
     )
     match_story_mechanism_highlights = _human_match_story_mechanism_highlights(
         mechanism_cards, "en", limit=2
