@@ -3084,7 +3084,7 @@ def _human_player_function_cards(
                     text += " Aggregate fonksiyon bağlamı: " + ", ".join(metric_bits) + "."
                 text += state_function_bit
                 text += (
-                    " Bu kart yalnız maç-içi görünür işlev bağlamıdır. İsim yalnız admitted actor-identity etiketidir; "
+                    " Bu kart yalnız maç-içi görünür işlev bağlamıdır. İsim yalnız kabul edilmiş maç-içi oyuncu etiketidir; "
                     "global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır. Oyuncu niteliği ve kalıcı/taktik rol yorumu "
                     "bu kapsamın dışındadır. Skor-durumu satırları görülen katılımı sayar; görünmeyen katılım saha-dışı "
                     "yokluk kanıtı olarak kullanılmaz. Nedensel katkı yorumu kapsam dışındadır; "
