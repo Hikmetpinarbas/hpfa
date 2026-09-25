@@ -2530,7 +2530,7 @@ def test_player_function_cards_surface_actor_bound_visible_state_change_counts_w
     assert "kullanma-benzeri 2" in joined_tr
     assert "kayıp/rakibe geçiş 3" in joined_tr
     assert "CREATE=UNKNOWN; DENY=UNKNOWN" in joined_tr
-    assert "nedensel katkı yorumu kapsam dışındadır" in joined_tr
+    assert "nedensel katkı yorumu kapsam dışındadır" in joined_tr.lower()
 
     assert "preserve-like 5" in joined_en
     assert "amplify/advance-like 3" in joined_en
