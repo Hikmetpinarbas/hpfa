@@ -956,6 +956,27 @@ def _human_process_variant_board_cards(
         style = str(morphology.get("pass_carry_style") or "UNKNOWN")
         start_players = actor_summary(row.get("visible_start_actor_candidate_counts") or {})
         end_players = actor_summary(row.get("visible_end_actor_candidate_counts") or {})
+        axis_profile = row.get("provider_attack_axis_transition_profile") or {}
+        axis_text = ""
+        if axis_profile:
+            axis_counts = axis_profile.get("direction_transition_counts") or {}
+            forward_n = int(axis_counts.get("FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE") or 0)
+            rearward_n = int(axis_counts.get("REARWARD_PROVIDER_ATTACK_AXIS_CANDIDATE") or 0)
+            stable_n = int(axis_counts.get("STABLE_PROVIDER_ATTACK_AXIS_CANDIDATE") or 0)
+            axis_members = int(axis_profile.get("member_with_visible_axis_transition_n") or 0)
+            axis_total_members = int(axis_profile.get("member_process_n") or 0)
+            if language == "tr":
+                axis_text = (
+                    f" Provider hücum ekseni: {axis_members}/{axis_total_members} üye süreçte görünür yön geçişi; "
+                    f"ileri {forward_n}, geri {rearward_n}, stabil {stable_n}. "
+                    "Bu profil provider eksenindeki görünür yön değişimini özetler; fiziksel rota, line-break ve taktik progresyon bu kapsamın dışındadır."
+                )
+            else:
+                axis_text = (
+                    f" Provider attack axis: visible directional transitions in {axis_members}/{axis_total_members} member processes; "
+                    f"forward {forward_n}, rearward {rearward_n}, stable {stable_n}. "
+                    "This summarizes visible direction changes on the provider axis; physical route, line-break, and tactical progression remain outside scope."
+                )
         score_context = row.get("visible_score_state_context") or {}
         score_counts = score_context.get("relative_score_state_counts") or {}
         score_context_text = ""
@@ -1001,6 +1022,7 @@ def _human_process_variant_board_cards(
                 f"Rota ipucu {route}; profil {style}. "
                 f"İlk görünür katman oyuncuları: {start_players}. "
                 f"Son görünür katman oyuncuları: {end_players}."
+                f"{axis_text}"
                 f"{score_context_text}"
                 f"{divergence_text} "
                 "Bu başlangıç/bitiş rolü yalnız görünür katman adayını gösterir; aynı timestamp içinde total order kurulmaz. "
@@ -1013,6 +1035,7 @@ def _human_process_variant_board_cards(
                 f"Route hint {route}; profile {style}. "
                 f"First visible-layer players: {start_players}. "
                 f"Last visible-layer players: {end_players}."
+                f"{axis_text}"
                 f"{score_context_text}"
                 f"{divergence_text} "
                 "These start/end roles are not definitive player order; no total order is imposed within the same timestamp. "

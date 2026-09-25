@@ -2333,6 +2333,12 @@ def test_process_variant_board_surfaces_recurrent_motif_and_visible_start_end_ac
             "shot_present_annotation_candidate": True,
             "visible_loss_transition_candidate_present": False,
             "visible_recovery_transition_candidate_present": False,
+            "provider_attack_axis_admitted": True,
+            "provider_attack_axis_state": "ADMITTED",
+            "provider_attack_axis_direction_counts": {
+                "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 2,
+                "REARWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+            },
             "layers": [
                 {"actor_identity_candidate_ids": ["a1"], "action_family_candidates": ["PASS"]},
                 {"actor_identity_candidate_ids": ["a2"], "action_family_candidates": ["PASS"]},
@@ -2348,6 +2354,12 @@ def test_process_variant_board_surfaces_recurrent_motif_and_visible_start_end_ac
             "shot_present_annotation_candidate": False,
             "visible_loss_transition_candidate_present": True,
             "visible_recovery_transition_candidate_present": False,
+            "provider_attack_axis_admitted": True,
+            "provider_attack_axis_state": "ADMITTED",
+            "provider_attack_axis_direction_counts": {
+                "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+                "STABLE_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+            },
             "layers": [
                 {"actor_identity_candidate_ids": ["a1"], "action_family_candidates": ["PASS"]},
                 {"actor_identity_candidate_ids": ["a2", "a4"], "action_family_candidates": ["PASS", "DUEL"]},
@@ -2390,6 +2402,25 @@ def test_process_variant_board_surfaces_recurrent_motif_and_visible_start_end_ac
     assert row["member_process_n"] == 2
     assert row["visible_start_actor_candidate_counts"] == {"a1": 2}
     assert row["visible_end_actor_candidate_counts"] == {"a3": 1, "a5": 1}
+    axis = row["provider_attack_axis_transition_profile"]
+    assert axis["member_process_n"] == 2
+    assert axis["axis_admitted_member_process_n"] == 2
+    assert axis["member_with_visible_axis_transition_n"] == 2
+    assert axis["visible_axis_transition_n"] == 5
+    assert axis["direction_transition_counts"] == {
+        "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 3,
+        "REARWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+        "STABLE_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+    }
+    assert axis["direction_member_presence_counts"] == {
+        "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 2,
+        "REARWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+        "STABLE_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+    }
+    assert axis["axis_profile_is_route_truth"] is False
+    assert axis["axis_profile_is_physical_displacement_truth"] is False
+    assert axis["axis_profile_is_tactical_progression_truth"] is False
+    assert axis["claim_ceiling"] == "MATCH_LOCAL_PROVIDER_ATTACK_AXIS_TRANSITION_PROFILE_ONLY"
     assert row["same_timestamp_internal_ordering_allowed"] is False
     assert row["start_end_actor_candidates_are_sequence_initiator_ender_truth"] is False
     assert row["motif_is_tactical_pattern_truth"] is False

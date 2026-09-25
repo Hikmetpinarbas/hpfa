@@ -4463,7 +4463,23 @@ def _process_variant_board(
             continue
         start_counts: Counter[str] = Counter()
         end_counts: Counter[str] = Counter()
+        axis_direction_counts: Counter[str] = Counter()
+        axis_direction_member_presence_counts: Counter[str] = Counter()
+        axis_admitted_member_process_n = 0
+        member_with_visible_axis_transition_n = 0
         for member in members:
+            if member.get("provider_attack_axis_admitted") is True or str(member.get("provider_attack_axis_state") or "") == "ADMITTED":
+                axis_admitted_member_process_n += 1
+            member_axis_counts = {
+                str(key): int(value or 0)
+                for key, value in (member.get("provider_attack_axis_direction_counts") or {}).items()
+                if str(key) and int(value or 0) > 0
+            }
+            if member_axis_counts:
+                member_with_visible_axis_transition_n += 1
+                for key, value in member_axis_counts.items():
+                    axis_direction_counts[key] += value
+                    axis_direction_member_presence_counts[key] += 1
             layers = [layer for layer in (member.get("layers") or []) if isinstance(layer, dict)]
             if not layers:
                 continue
@@ -4492,6 +4508,21 @@ def _process_variant_board(
             ),
             "visible_start_actor_candidate_counts": dict(sorted(start_counts.items())),
             "visible_end_actor_candidate_counts": dict(sorted(end_counts.items())),
+            "provider_attack_axis_transition_profile": {
+                "member_process_n": len(members),
+                "axis_admitted_member_process_n": axis_admitted_member_process_n,
+                "member_with_visible_axis_transition_n": member_with_visible_axis_transition_n,
+                "visible_axis_transition_n": sum(axis_direction_counts.values()),
+                "direction_transition_counts": dict(sorted(axis_direction_counts.items())),
+                "direction_member_presence_counts": dict(sorted(axis_direction_member_presence_counts.items())),
+                "basis": "SUM_OF_MEMBER_PROCESS_ADMITTED_PROVIDER_ATTACK_AXIS_DIRECTION_COUNTS",
+                "axis_profile_is_route_truth": False,
+                "axis_profile_is_physical_displacement_truth": False,
+                "axis_profile_is_line_break_truth": False,
+                "axis_profile_is_tactical_progression_truth": False,
+                "creates_independent_support": False,
+                "claim_ceiling": "MATCH_LOCAL_PROVIDER_ATTACK_AXIS_TRANSITION_PROFILE_ONLY",
+            },
             "visible_start_end_basis": "FIRST_AND_LAST_ADMITTED_TEMPORAL_LAYER_ACTOR_CANDIDATES",
             "same_timestamp_internal_ordering_allowed": False,
             "start_end_actor_candidates_are_sequence_initiator_ender_truth": False,

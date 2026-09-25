@@ -1415,6 +1415,26 @@ def test_process_variant_board_cards_surface_recurrence_variants_and_visible_act
                             "score_state_context_is_causal_explanation": False,
                             "score_state_context_is_tactical_adaptation_truth": False,
                         },
+                        "provider_attack_axis_transition_profile": {
+                            "member_process_n": 4,
+                            "axis_admitted_member_process_n": 4,
+                            "member_with_visible_axis_transition_n": 3,
+                            "visible_axis_transition_n": 8,
+                            "direction_transition_counts": {
+                                "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 5,
+                                "REARWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 2,
+                                "STABLE_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+                            },
+                            "direction_member_presence_counts": {
+                                "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 3,
+                                "REARWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 2,
+                                "STABLE_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+                            },
+                            "axis_profile_is_route_truth": False,
+                            "axis_profile_is_physical_displacement_truth": False,
+                            "axis_profile_is_tactical_progression_truth": False,
+                            "claim_ceiling": "MATCH_LOCAL_PROVIDER_ATTACK_AXIS_TRANSITION_PROFILE_ONLY",
+                        },
                         "representative_first_supported_grammar_divergence": {
                             "left_variant_context": "SHOT_LINKED",
                             "right_variant_context": "LOSS_LINKED",
@@ -1467,6 +1487,10 @@ def test_process_variant_board_cards_surface_recurrence_variants_and_visible_act
     assert "şut ↔ top kaybı" in text
     assert "Skor bağlamı: beraberlikte 1, öndeyken 2, gerideyken 1" in text
     assert "taktik uyarlama ve nedensellik bu yüzeyin kapsamı dışındadır" in text
+    assert "Provider hücum ekseni" in text
+    assert "3/4 üye süreçte görünür yön geçişi" in text
+    assert "ileri 5, geri 2, stabil 1" in text
+    assert "fiziksel rota, line-break ve taktik progresyon bu kapsamın dışındadır" in text
     assert "SHOT_LINKED" not in text
     assert "TURNOVER" not in text
     assert "başlangıç/bitiş rolü yalnız görünür katman adayını gösterir" in text
