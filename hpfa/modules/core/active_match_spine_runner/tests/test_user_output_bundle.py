@@ -1607,3 +1607,64 @@ def test_opponent_interaction_cards_deduplicate_mirrored_team_perspectives():
 
     assert len(cards) == 1
     assert "Alpha ↔ Beta" in cards[0]
+
+
+def test_set_piece_process_cards_surface_visible_outcome_and_post_process_state_without_tactical_inflation() -> None:
+    rich = {
+        "set_piece_process_consequence_context": {
+            "status": "PASS",
+            "rows": [
+                {
+                    "team_identity_candidate_id": "team_a",
+                    "shot_present_annotation_candidate": True,
+                    "binding_state": "VISIBLE_CONSEQUENCE_CONTEXT_BOUND",
+                    "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+                    "post_set_piece_first_visible_team_state": "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE",
+                },
+                {
+                    "team_identity_candidate_id": "team_a",
+                    "shot_present_annotation_candidate": False,
+                    "binding_state": "NO_VISIBLE_CONSEQUENCE_MATCH",
+                    "primary_consequence_candidates": [],
+                    "post_set_piece_first_visible_team_state": "OPPONENT_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE",
+                },
+                {
+                    "team_identity_candidate_id": "team_a",
+                    "shot_present_annotation_candidate": False,
+                    "binding_state": "VISIBLE_CONSEQUENCE_CONTEXT_BOUND",
+                    "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+                    "post_set_piece_first_visible_team_state": "FIRST_STRICT_AFTER_OUTSIDE_DECLARED_CONSEQUENCE_HORIZON",
+                },
+            ],
+            "declared_consequence_horizon_seconds": 12.0,
+            "set_piece_process_is_designed_routine_truth": False,
+            "visible_consequence_is_causal_truth": False,
+        }
+    }
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_a",
+            "team_aliases_raw": ["Alpha FC"],
+        }]
+    }
+
+    tr = user_output_bundle._human_set_piece_process_cards(rich, identity, "tr")
+    en = user_output_bundle._human_set_piece_process_cards(rich, identity, "en")
+
+    assert len(tr) == 2
+    assert "Alpha FC" in tr[0]
+    assert "3 görünür duran top hücum süreci" in tr[0]
+    assert "1 süreçte şut anotasyonu" in tr[0]
+    assert "2 süreç görünür sonuç bağlamına bağlandı" in tr[0]
+    assert "aynı takım 1" in tr[0]
+    assert "rakip 1" in tr[0]
+    assert "12.0 sn" in tr[0]
+    assert "tasarlanmış duran top rutini" in tr[1].lower()
+    assert "nedensel sonuç" in tr[1]
+
+    assert len(en) == 2
+    assert "3 visible attacking set-piece processes" in en[0]
+    assert "1 carried a shot annotation" in en[0]
+    assert "2 bound to visible consequence context" in en[0]
+    assert "designed set-piece routine" in en[1].lower()
+    assert "causal consequence" in en[1]

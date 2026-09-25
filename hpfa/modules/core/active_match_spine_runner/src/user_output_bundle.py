@@ -1062,6 +1062,86 @@ def _human_circulation_fate_cards(rich: dict[str, Any], identity: dict[str, Any]
     return cards
 
 
+def _human_set_piece_process_cards(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+) -> list[str]:
+    context = rich.get("set_piece_process_consequence_context") or {}
+    rows = [row for row in (context.get("rows") or []) if isinstance(row, dict)]
+    if not rows:
+        return []
+
+    teams = _human_team_labels(identity)
+    horizon = context.get("declared_consequence_horizon_seconds")
+    by_team: dict[str, dict[str, int]] = {}
+    for row in rows:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip() or "UNKNOWN_TEAM"
+        bucket = by_team.setdefault(
+            team_id,
+            {
+                "process_n": 0,
+                "shot_n": 0,
+                "consequence_bound_n": 0,
+                "same_team_first_n": 0,
+                "opponent_first_n": 0,
+                "outside_horizon_n": 0,
+                "no_strict_after_n": 0,
+            },
+        )
+        bucket["process_n"] += 1
+        if row.get("shot_present_annotation_candidate") is True:
+            bucket["shot_n"] += 1
+        if str(row.get("binding_state") or "") == "VISIBLE_CONSEQUENCE_CONTEXT_BOUND":
+            bucket["consequence_bound_n"] += 1
+        post = str(row.get("post_set_piece_first_visible_team_state") or "")
+        if post == "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE":
+            bucket["same_team_first_n"] += 1
+        elif post == "OPPONENT_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE":
+            bucket["opponent_first_n"] += 1
+        elif post == "FIRST_STRICT_AFTER_OUTSIDE_DECLARED_CONSEQUENCE_HORIZON":
+            bucket["outside_horizon_n"] += 1
+        elif post == "NO_STRICT_AFTER_VISIBLE_TRACE":
+            bucket["no_strict_after_n"] += 1
+
+    cards: list[str] = []
+    for team_id, values in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
+        name = teams.get(team_id, team_id)
+        horizon_text = (
+            (f"{float(horizon):.1f} sn" if language == "tr" else f"{float(horizon):.1f}s")
+            if isinstance(horizon, (int, float)) and not isinstance(horizon, bool)
+            else ("çözümlenmemiş" if language == "tr" else "unresolved")
+        )
+        if language == "tr":
+            football = (
+                f"{name}: {values['process_n']} görünür duran top hücum süreci; "
+                f"{values['shot_n']} süreçte şut anotasyonu görüldü, "
+                f"{values['consequence_bound_n']} süreç görünür sonuç bağlamına bağlandı. "
+                f"İlan edilmiş {horizon_text} sonuç ufku içinde süreç sonrası ilk strikt görünür takım durumu: "
+                f"aynı takım {values['same_team_first_n']}, rakip {values['opponent_first_n']}; "
+                f"ufuk dışında {values['outside_horizon_n']}, görünür devam yok {values['no_strict_after_n']}."
+            )
+            evidence = (
+                "Kanıt notu: bu yüzey yalnız provider-reviewed duran top süreç anotasyonu ile görünür sonuç/sonraki takım durumunu bağlar. "
+                "Tasarlanmış duran top rutini, ikinci top hâkimiyeti, possession kontrolü ve nedensel sonuç bu kartın claim scope'u dışında kalır."
+            )
+        else:
+            football = (
+                f"{name}: {values['process_n']} visible attacking set-piece processes; "
+                f"{values['shot_n']} carried a shot annotation and "
+                f"{values['consequence_bound_n']} bound to visible consequence context. "
+                f"Within the declared {horizon_text} consequence horizon, the first strictly visible post-process team state was "
+                f"same team {values['same_team_first_n']}, opponent {values['opponent_first_n']}; "
+                f"outside horizon {values['outside_horizon_n']}, no visible continuation {values['no_strict_after_n']}."
+            )
+            evidence = (
+                "Evidence note: this surface only binds provider-reviewed set-piece process annotations to visible consequence/post-process team state. "
+                "Designed set-piece routine, second-ball control, possession control, and causal consequence remain outside this scope."
+            )
+        cards.extend([football, evidence])
+    return cards
+
+
 def _human_aerial_duel_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     context = rich.get("aerial_duel_first_visible_state_context") or {}
     rows = [row for row in (context.get("rows") or []) if isinstance(row, dict)]
@@ -2598,6 +2678,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "tr") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "tr") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "tr") if rich_current else []
+    set_piece_cards = _human_set_piece_process_cards(rich, identity, "tr") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "tr") if rich_current else []
     opponent_interaction_cards = _human_opponent_interaction_cards(rich, identity, "tr") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "tr") if rich_current else []
@@ -2632,41 +2713,46 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in aerial_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde raporlanabilir hava topu ilk-görünür-devam yüzeyi yok.")
-    lines.extend(["", "[5] SEQUENCE / PROCESS INTELLIGENCE"])
+    lines.extend(["", "[5] DURAN TOP HÜCUMU → GÖRÜNÜR SONUÇ"])
+    if set_piece_cards:
+        lines.extend(f"- {line}" for line in set_piece_cards)
+    else:
+        lines.append("- Bu maçta güvenli biçimde raporlanabilir duran top süreç-sonuç yüzeyi yok.")
+    lines.extend(["", "[6] SEQUENCE / PROCESS INTELLIGENCE"])
     if sequence_cards:
         lines.extend(f"- {line}" for line in sequence_cards)
     else:
         lines.append("- Bu maçta sequence/process information profili üretilemedi.")
-    lines.extend(["", "[6] SÜREÇ VARYANT PANOSU — TEKRAR / VARYANT / OYUNCU KENARLARI"])
+    lines.extend(["", "[7] SÜREÇ VARYANT PANOSU — TEKRAR / VARYANT / OYUNCU KENARLARI"])
     if process_variant_cards:
         lines.extend(f"- {line}" for line in process_variant_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde raporlanabilir tekrarlayan süreç varyantı yok.")
-    lines.extend(["", "[7] OYUNCU / İKİLİ × HÜCUM SONUCU"])
+    lines.extend(["", "[8] OYUNCU / İKİLİ × HÜCUM SONUCU"])
     if c02_cards:
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- Bu maçta bu başlık için güvenli biçimde raporlanabilir current-run aday yok.")
     if model_context_cards:
         lines.extend(f"- {line}" for line in model_context_cards)
-    lines.extend(["", "[8] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
+    lines.extend(["", "[9] 12 YÖNLÜ POSTMATCH — 6 FAZ × 2 TAKIM"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- Bu maçta iki takım için karşılaştırılabilir süreç çarpışma yüzeyi üretilemedi.")
-    lines.extend(["", "[9] TEAM ↔ OPPONENT ETKİLEŞİMİ"])
+    lines.extend(["", "[10] TEAM ↔ OPPONENT ETKİLEŞİMİ"])
     if opponent_interaction_cards:
         lines.extend(f"- {line}" for line in opponent_interaction_cards)
     else:
         lines.append("- Bu maçta M09 görünür takım-rakip etkileşim yüzeyi rapor kapsamına alınamadı.")
-    lines.extend(["", "[10] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
+    lines.extend(["", "[11] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde kısa listeye alınmış mekanizma adayı yok.")
     lines.extend([
         "",
-        "[11] ANALİST OKUMA ÇERÇEVESİ",
+        "[12] ANALİST OKUMA ÇERÇEVESİ",
         "- Oyuncu ve ikili yüzeyi, görünür süreç katılımı ile sonuç bağlantısını maç-içi association olarak sunar.",
         "- Hedef sonuç etiketi çözülmeyen süreçler unresolved outcome statüsünde izlenir.",
         "- Sıralama, analistin hangi örneklere önce bakacağını belirleyen maç-içi dikkat sırasıdır.",
@@ -2690,6 +2776,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "en") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "en") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "en") if rich_current else []
+    set_piece_cards = _human_set_piece_process_cards(rich, identity, "en") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "en") if rich_current else []
     opponent_interaction_cards = _human_opponent_interaction_cards(rich, identity, "en") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "en") if rich_current else []
@@ -2724,41 +2811,46 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in aerial_cards)
     else:
         lines.append("- No safely reportable aerial-duel first-visible-continuation surface is available for this match.")
-    lines.extend(["", "[5] SEQUENCE / PROCESS INTELLIGENCE"])
+    lines.extend(["", "[5] ATTACKING SET PIECE → VISIBLE OUTCOME"])
+    if set_piece_cards:
+        lines.extend(f"- {line}" for line in set_piece_cards)
+    else:
+        lines.append("- No safely reportable set-piece process/outcome surface is available for this match.")
+    lines.extend(["", "[6] SEQUENCE / PROCESS INTELLIGENCE"])
     if sequence_cards:
         lines.extend(f"- {line}" for line in sequence_cards)
     else:
         lines.append("- No sequence/process information profile is available for this run.")
-    lines.extend(["", "[6] PROCESS VARIANT BOARD — RECURRENCE / VARIANT / PLAYER EDGES"])
+    lines.extend(["", "[7] PROCESS VARIANT BOARD — RECURRENCE / VARIANT / PLAYER EDGES"])
     if process_variant_cards:
         lines.extend(f"- {line}" for line in process_variant_cards)
     else:
         lines.append("- No safely reportable recurring process variant is available for this match.")
-    lines.extend(["", "[7] PLAYER / PAIR × ATTACK OUTCOME"])
+    lines.extend(["", "[8] PLAYER / PAIR × ATTACK OUTCOME"])
     if c02_cards:
         lines.extend(f"- {line}" for line in c02_cards)
     else:
         lines.append("- No current-run candidate can be reported safely under this heading.")
     if model_context_cards:
         lines.extend(f"- {line}" for line in model_context_cards)
-    lines.extend(["", "[8] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
+    lines.extend(["", "[9] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- No comparable two-team process contest surface is available for this run.")
-    lines.extend(["", "[9] TEAM ↔ OPPONENT INTERACTION"])
+    lines.extend(["", "[10] TEAM ↔ OPPONENT INTERACTION"])
     if opponent_interaction_cards:
         lines.extend(f"- {line}" for line in opponent_interaction_cards)
     else:
         lines.append("- The M09 visible team-opponent interaction surface was not admitted into this report run.")
-    lines.extend(["", "[10] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
+    lines.extend(["", "[11] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- No mechanism candidate was safely shortlisted in this run.")
     lines.extend([
         "",
-        "[11] ANALYST READING FRAME",
+        "[12] ANALYST READING FRAME",
         "- Player and pair surfaces present visible process involvement and outcome linkage as match-local associations.",
         "- Processes with unresolved target outcomes remain in the unresolved-outcome state.",
         "- Ranking is a match-local analyst-attention order.",
