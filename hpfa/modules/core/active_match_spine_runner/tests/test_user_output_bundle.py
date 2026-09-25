@@ -1122,9 +1122,7 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     context_review = card["context_review"]
     assert len(context_review["provider_context_difference_candidates"]) == 1
     assert context_review["provider_context_difference_candidates"][0]["feature_token"].endswith("process_shot_present_annotation_candidate:TRUE")
-    assert context_review["opponent_same_family_context"]["opponent_team_identity_candidate_id"] == "team_b"
-    assert context_review["opponent_same_family_context"]["self_visible_process_profile"]["eligible_process_n"] == 12
-    assert context_review["opponent_same_family_context"]["opponent_visible_process_profile"]["eligible_process_n"] == 9
+    assert context_review["opponent_same_family_context"] == {}
     assert context_review["context_is_causal_explanation"] is False
     assert context_review["context_can_increase_claim_ceiling"] is False
     assert safe["emit_decision_count"] == 0
@@ -2134,3 +2132,37 @@ def test_visible_state_function_lens_returns_empty_without_current_evidence() ->
     assert user_output_bundle._human_visible_state_function_lens(
         {"spatial_progression_evidence": {"status": "NOT_EVALUATED"}}, "en"
     ) == []
+
+
+def test_mechanism_context_review_payload_binds_opponent_only_with_explicit_single_family():
+    rich = {
+        "m09_opponent_interaction_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "reciprocal_same_family_comparisons": [{
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "opponent_team_identity_candidate_id": "team_b",
+                    "self_visible_process_profile": {"eligible_process_n": 12},
+                    "opponent_visible_process_profile": {"eligible_process_n": 9},
+                }],
+            }],
+        }
+    }
+    bound = user_output_bundle._mechanism_context_review_payload(
+        {}, rich, ["team_a"], "POSITIONAL_ATTACK_CANDIDATE", {}
+    )
+    assert bound["opponent_same_family_context"]["opponent_team_identity_candidate_id"] == "team_b"
+    assert bound["opponent_same_family_context"]["self_visible_process_profile"]["eligible_process_n"] == 12
+
+    ambiguous = user_output_bundle._mechanism_context_review_payload(
+        {},
+        rich,
+        ["team_a"],
+        None,
+        {
+            "provider_process_family_consensus": True,
+            "provider_process_family_candidates": ["POSITIONAL_ATTACK_CANDIDATE"],
+        },
+    )
+    assert ambiguous["opponent_same_family_context"] == {}

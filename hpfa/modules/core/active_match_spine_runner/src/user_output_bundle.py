@@ -2208,14 +2208,6 @@ def _mechanism_context_review_payload(
     provider_rows = provider_rows[:3]
 
     family = str(process_family_candidate or "").strip()
-    if not family and safe_context.get("provider_process_family_consensus") is True:
-        candidates = [
-            str(v)
-            for v in (safe_context.get("provider_process_family_candidates") or [])
-            if str(v)
-        ]
-        if len(candidates) == 1:
-            family = candidates[0]
 
     opponent_context: dict[str, Any] = {}
     if len(team_ids) == 1 and family:
