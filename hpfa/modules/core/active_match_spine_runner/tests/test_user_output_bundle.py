@@ -1491,3 +1491,58 @@ def test_model_context_cards_surface_causal_ladder_and_calibration_warning() -> 
     assert "Rung-1" in en[0]
     assert "causal player contribution remains outside this scope" in en[0]
     assert "Model calibration state is UNKNOWN_NOT_ADMITTED" in en[0]
+
+
+def test_opponent_interaction_cards_surface_existing_m09_without_response_or_causal_promotion():
+    rich = {
+        "m09_opponent_interaction_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "six_phase_direction_n": 6,
+                "visible_six_phase_direction_n": 5,
+                "unresolved_six_phase_direction_n": 1,
+                "reciprocal_same_family_comparison_n": 1,
+                "reciprocal_same_family_comparisons": [{
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "team_identity_candidate_id": "team_a",
+                    "opponent_team_identity_candidate_id": "team_b",
+                    "self_visible_process_profile": {
+                        "eligible_process_n": 12,
+                        "shot_ending_process_n": 3,
+                        "visible_loss_process_n": 5,
+                        "visible_recovery_process_n": 2,
+                    },
+                    "opponent_visible_process_profile": {
+                        "eligible_process_n": 9,
+                        "shot_ending_process_n": 1,
+                        "visible_loss_process_n": 4,
+                        "visible_recovery_process_n": 1,
+                    },
+                    "difference_is_opponent_response_truth": False,
+                    "difference_is_tactical_superiority_truth": False,
+                    "difference_is_causal_truth": False,
+                }],
+                "reciprocal_difference_is_opponent_response_truth": False,
+                "reciprocal_difference_is_tactical_superiority_truth": False,
+                "reciprocal_difference_is_causal_truth": False,
+                "claim_ceiling": "MATCH_LOCAL_VISIBLE_OPPONENT_INTERACTION_CONTEXT_CANDIDATE_ONLY",
+            }],
+        }
+    }
+    identity = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha"},
+            {"team_identity_candidate_id": "team_b", "team_normalized_key": "beta"},
+        ]
+    }
+
+    cards = user_output_bundle._human_opponent_interaction_cards(rich, identity, "tr")
+    text = "\n".join(cards)
+
+    assert "Alpha ↔ Beta" in text
+    assert "yerleşik hücum" in text
+    assert "12 görünür süreç" in text
+    assert "Beta aynı ailede 9 görünür süreç" in text
+    assert "5/6 yön" in text
+    assert "Opponent-response, taktik üstünlük ve nedensellik için ayrı kanıt gerekir" in text

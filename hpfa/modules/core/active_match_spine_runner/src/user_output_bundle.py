@@ -1184,6 +1184,60 @@ def _representative_replay_sentence(row: dict[str, Any], language: str) -> str:
     return f"Example replay: {kind} {start}-{end}, {start_zones} → {end_zones}, {layers} temporal layers, {actors} visible actors."
 
 
+def _human_opponent_interaction_cards(
+    rich: dict[str, Any], identity: dict[str, Any], language: str
+) -> list[str]:
+    synthesis = rich.get("m09_opponent_interaction_synthesis") or {}
+    if str(synthesis.get("status") or "").upper() not in {"PASS", "REVIEW_REQUIRED"}:
+        return []
+    profiles = [row for row in (synthesis.get("profiles") or []) if isinstance(row, dict)]
+    if not profiles:
+        return []
+    teams = _human_team_labels(identity)
+    cards: list[str] = []
+    for profile in profiles:
+        team_id = str(profile.get("team_identity_candidate_id") or "")
+        team = teams.get(team_id, team_id or ("Takım çözümlenmedi" if language == "tr" else "Team unresolved"))
+        visible_direction_n = int(profile.get("visible_six_phase_direction_n") or 0)
+        direction_n = int(profile.get("six_phase_direction_n") or 0)
+        comparisons = [
+            row for row in (profile.get("reciprocal_same_family_comparisons") or [])
+            if isinstance(row, dict)
+        ]
+        for row in comparisons:
+            opponent_id = str(row.get("opponent_team_identity_candidate_id") or "")
+            opponent = teams.get(
+                opponent_id,
+                opponent_id or ("Rakip çözümlenmedi" if language == "tr" else "Opponent unresolved"),
+            )
+            family = _football_family_label(row.get("process_family_candidate"), language)
+            own = row.get("self_visible_process_profile") or {}
+            opp = row.get("opponent_visible_process_profile") or {}
+            own_n = int(own.get("eligible_process_n") or 0)
+            own_shot = int(own.get("shot_ending_process_n") or 0)
+            own_loss = int(own.get("visible_loss_process_n") or 0)
+            opp_n = int(opp.get("eligible_process_n") or 0)
+            opp_shot = int(opp.get("shot_ending_process_n") or 0)
+            opp_loss = int(opp.get("visible_loss_process_n") or 0)
+            if language == "tr":
+                cards.append(
+                    f"{team} ↔ {opponent} — {family}: {team} tarafında {own_n} görünür süreç; "
+                    f"{own_shot} şut bağlantılı son bölüm ve {own_loss} görünür kayıp. "
+                    f"{opponent} aynı ailede {opp_n} görünür süreç; {opp_shot} şut bağlantılı son bölüm "
+                    f"ve {opp_loss} görünür kayıp. Etkileşim kapsamı: {visible_direction_n}/{direction_n} yön görünür. "
+                    "Opponent-response, taktik üstünlük ve nedensellik için ayrı kanıt gerekir."
+                )
+            else:
+                cards.append(
+                    f"{team} ↔ {opponent} — {family}: {team} has {own_n} visible processes, "
+                    f"with {own_shot} shot-linked terminal segments and {own_loss} visible losses. "
+                    f"{opponent} has {opp_n} visible processes in the same family, with {opp_shot} shot-linked terminal segments "
+                    f"and {opp_loss} visible losses. Interaction coverage: {visible_direction_n}/{direction_n} directions visible. "
+                    "Opponent-response, tactical superiority, and causality require separate evidence."
+                )
+    return cards
+
+
 def _human_process_contest_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     c03 = (rich.get("constructs") or {}).get("C03") or {}
     matrix = [row for row in (c03.get("six_phase_team_matrix") or []) if isinstance(row, dict)]
@@ -2484,6 +2538,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     circulation_cards = _human_circulation_fate_cards(rich, identity, "tr") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "tr") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "tr") if rich_current else []
+    opponent_interaction_cards = _human_opponent_interaction_cards(rich, identity, "tr") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "tr") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "tr") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "tr")
@@ -2538,14 +2593,19 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- Bu maçta iki takım için karşılaştırılabilir süreç çarpışma yüzeyi üretilemedi.")
-    lines.extend(["", "[9] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
+    lines.extend(["", "[9] TEAM ↔ OPPONENT ETKİLEŞİMİ"])
+    if opponent_interaction_cards:
+        lines.extend(f"- {line}" for line in opponent_interaction_cards)
+    else:
+        lines.append("- Bu maçta M09 görünür takım-rakip etkileşim yüzeyi rapor kapsamına alınamadı.")
+    lines.extend(["", "[10] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde kısa listeye alınmış mekanizma adayı yok.")
     lines.extend([
         "",
-        "[10] ANALİST OKUMA ÇERÇEVESİ",
+        "[11] ANALİST OKUMA ÇERÇEVESİ",
         "- Oyuncu ve ikili yüzeyi, görünür süreç katılımı ile sonuç bağlantısını maç-içi association olarak sunar.",
         "- Hedef sonuç etiketi çözülmeyen süreçler unresolved outcome statüsünde izlenir.",
         "- Sıralama, analistin hangi örneklere önce bakacağını belirleyen maç-içi dikkat sırasıdır.",
@@ -2570,6 +2630,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     circulation_cards = _human_circulation_fate_cards(rich, identity, "en") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "en") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "en") if rich_current else []
+    opponent_interaction_cards = _human_opponent_interaction_cards(rich, identity, "en") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "en") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "en") if rich_current else []
     mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "en")
@@ -2624,14 +2685,19 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         lines.extend(f"- {line}" for line in contest_cards)
     else:
         lines.append("- No comparable two-team process contest surface is available for this run.")
-    lines.extend(["", "[8] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
+    lines.extend(["", "[9] TEAM ↔ OPPONENT INTERACTION"])
+    if opponent_interaction_cards:
+        lines.extend(f"- {line}" for line in opponent_interaction_cards)
+    else:
+        lines.append("- The M09 visible team-opponent interaction surface was not admitted into this report run.")
+    lines.extend(["", "[10] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
     else:
         lines.append("- No mechanism candidate was safely shortlisted in this run.")
     lines.extend([
         "",
-        "[10] ANALYST READING FRAME",
+        "[11] ANALYST READING FRAME",
         "- Player and pair surfaces present visible process involvement and outcome linkage as match-local associations.",
         "- Processes with unresolved target outcomes remain in the unresolved-outcome state.",
         "- Ranking is a match-local analyst-attention order.",
