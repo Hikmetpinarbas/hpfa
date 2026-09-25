@@ -2596,3 +2596,76 @@ def test_player_function_cards_do_not_render_unvalidated_actor_label() -> None:
     assert user_output_bundle._human_player_function_cards(
         rich, identity, "tr", per_team_limit=1
     ) == []
+
+
+def test_human_admitted_actor_labels_accept_match_local_candidate_without_global_identity() -> None:
+    identity = {
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "a1",
+            "actor_aliases_raw": ["10. Match Local Player (101)"],
+            "team_identity_candidate_id": "team_a",
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+            "global_identity_claim_allowed": False,
+            "validated_player_identity": False,
+            "supporting_evidence_atom_ids": ["ea_1", "ea_2"],
+        }]
+    }
+    labels = user_output_bundle._human_admitted_actor_labels(identity)
+    assert labels == {"a1": "Match Local Player"}
+
+
+def test_human_admitted_actor_labels_reject_unbound_or_unsupported_match_local_label() -> None:
+    identity = {
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "unsafe",
+            "actor_aliases_raw": ["99. Wrong Plausible Name (999999)"],
+            "team_identity_candidate_id": "team_a",
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+            "global_identity_claim_allowed": False,
+            "validated_player_identity": False,
+            "supporting_evidence_atom_ids": [],
+        }]
+    }
+    assert user_output_bundle._human_admitted_actor_labels(identity) == [] or user_output_bundle._human_admitted_actor_labels(identity) == {}
+
+
+def test_c02_cards_resolve_names_from_admitted_actor_identity_not_candidate_actor_labels() -> None:
+    rich = {
+        "constructs": {
+            "C02": {
+                "representative_actor_argument": {
+                    "actor_identity_candidate_ids": ["a1"],
+                    "actor_labels": ["Wrong Aggregate Label"],
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "eligible_n": 4,
+                    "visible_target_annotation_k": 1,
+                    "target_outcome_unresolved_u": 3,
+                    "eligible_episode_spread": 2,
+                    "positive_episode_spread": 1,
+                    "observed_visible_target_annotation_frequency": 0.25,
+                    "match_local_baseline_shot_frequency": 0.10,
+                    "descriptive_lift": 2.5,
+                },
+                "representative_dyad_argument": None,
+            }
+        }
+    }
+    identity = {
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "a1",
+            "actor_aliases_raw": ["10. Safe Match Local Player (101)"],
+            "team_identity_candidate_id": "team_a",
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+            "global_identity_claim_allowed": False,
+            "validated_player_identity": False,
+            "supporting_evidence_atom_ids": ["ea_1"],
+        }]
+    }
+    cards = user_output_bundle._human_c02_cards(rich, identity, "tr")
+    joined = " ".join(cards)
+    assert "Safe Match Local Player" in joined
+    assert "Wrong Aggregate Label" not in joined
+    assert "global/cross-match oyuncu kimliği" in joined

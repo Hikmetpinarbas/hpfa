@@ -559,6 +559,39 @@ def _human_validated_actor_labels(identity: dict[str, Any]) -> dict[str, str]:
     return result
 
 
+def _human_admitted_actor_labels(identity: dict[str, Any]) -> dict[str, str]:
+    """Human-facing labels may use validated global identity or source-bound match-local actor identity."""
+    result: dict[str, str] = {}
+    for row in identity.get("actor_identity_candidates") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("decision_state") or "") != "ACTOR_IDENTITY_CANDIDATE_BOUND":
+            continue
+        global_validated = row.get("validated_player_identity") is True
+        supporting_atoms = [
+            str(value) for value in (row.get("supporting_evidence_atom_ids") or [])
+            if str(value)
+        ]
+        match_local_admitted = (
+            str(row.get("identity_scope") or "") == "MATCH_LOCAL_CANDIDATE_ONLY"
+            and row.get("global_identity_claim_allowed") is False
+            and bool(str(row.get("team_identity_candidate_id") or "").strip())
+            and bool(supporting_atoms)
+        )
+        if not global_validated and not match_local_admitted:
+            continue
+        ref = str(row.get("actor_identity_candidate_id") or "").strip()
+        raw = (
+            row.get("actor_aliases_raw", [None])[0]
+            if isinstance(row.get("actor_aliases_raw"), list) and row.get("actor_aliases_raw")
+            else None
+        )
+        label = _display_label(raw or row.get("actor_normalized_key") or "")
+        if ref and label and label != "UNKNOWN":
+            result[ref] = label
+    return result
+
+
 def _action_human(value: str, language: str) -> str:
     key = value.strip().upper()
     tr = {
@@ -2469,7 +2502,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         else {}
     )
     player_profiles_by_actor = _player_function_profiles_by_actor(rich_payload)
-    validated_actor_labels = _human_validated_actor_labels(identity)
+    admitted_actor_labels = _human_admitted_actor_labels(identity)
     shortlist = build_mechanism_story_review_shortlist(
         payload,
         analyst_output_claim_payload=analyst_output or None,
@@ -2793,17 +2826,30 @@ def _human_model_context_cards(rich: dict[str, Any], language: str) -> list[str]
     return cards
 
 
-def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
+def _human_c02_cards(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+) -> list[str]:
     c02 = (rich.get("constructs") or {}).get("C02") or {}
     rows = [
         ("PLAYER", c02.get("representative_actor_argument")),
         ("DYAD", c02.get("representative_dyad_argument")),
     ]
+    actor_labels = _human_admitted_actor_labels(identity)
     cards: list[str] = []
     for entity_type, candidate in rows:
         if not isinstance(candidate, dict):
             continue
-        names = " + ".join(_display_label(value) for value in (candidate.get("actor_labels") or [])) or "UNKNOWN"
+        actor_ids = [
+            str(value).strip()
+            for value in (candidate.get("actor_identity_candidate_ids") or [])
+            if str(value).strip()
+        ]
+        resolved_names = [actor_labels.get(actor_id) for actor_id in actor_ids]
+        if not actor_ids or any(not name for name in resolved_names):
+            continue
+        names = " + ".join(str(name) for name in resolved_names)
         family = _football_family_label(candidate.get("process_family_candidate"), language)
         eligible_n = int(candidate.get("eligible_n") or candidate.get("support_n") or 0)
         positive_k = int(candidate.get("visible_target_annotation_k") or candidate.get("shot_ending_n") or 0)
@@ -2841,7 +2887,10 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; maç içi betimleyici oran karşılaştırması={float(lift):.2f}x"
-            evidence += ". Bu profil maç-içi betimleyici association yüzeyidir ve analyst-review önceliği üretir."
+            evidence += (
+                ". Bu profil maç-içi betimleyici association yüzeyidir ve analyst-review önceliği üretir. "
+                "Oyuncu adı yalnız admitted actor-identity etiketidir; global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır."
+            )
         else:
             label = "Player" if entity_type == "PLAYER" else "Pair"
             football = (
@@ -2863,7 +2912,10 @@ def _human_c02_cards(rich: dict[str, Any], language: str) -> list[str]:
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; match-local descriptive ratio={float(lift):.2f}x"
-            evidence += ". This profile is a match-local descriptive association surface for analyst review."
+            evidence += (
+                ". This profile is a match-local descriptive association surface for analyst review. "
+                "The player name is only an admitted actor-identity label; global/cross-match player identity remains outside scope."
+            )
         cards.extend([football, evidence])
     return cards
 
@@ -2936,7 +2988,7 @@ def _human_player_function_cards(
         team_name = teams.get(team_id, team_id)
         for row in ranked:
             actor_id = str(row.get("actor_identity_candidate_id") or "").strip()
-            actor = validated_actor_labels.get(actor_id)
+            actor = admitted_actor_labels.get(actor_id)
             if not actor:
                 continue
             process_counts = row.get("process_participation_counts") or {}
@@ -3032,7 +3084,8 @@ def _human_player_function_cards(
                     text += " Aggregate fonksiyon bağlamı: " + ", ".join(metric_bits) + "."
                 text += state_function_bit
                 text += (
-                    " Bu kart yalnız maç-içi görünür işlev bağlamıdır. Oyuncu niteliği ve kalıcı/taktik rol yorumu "
+                    " Bu kart yalnız maç-içi görünür işlev bağlamıdır. İsim yalnız admitted actor-identity etiketidir; "
+                    "global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır. Oyuncu niteliği ve kalıcı/taktik rol yorumu "
                     "bu kapsamın dışındadır. Skor-durumu satırları görülen katılımı sayar; görünmeyen katılım saha-dışı "
                     "yokluk kanıtı olarak kullanılmaz. Nedensel katkı yorumu kapsam dışındadır; "
                     "substitution timeline otoritesi olmadığı için per-90 süreç oranı üretilmez."
@@ -3051,7 +3104,8 @@ def _human_player_function_cards(
                     text += " Aggregate function context: " + ", ".join(metric_bits) + "."
                 text += state_function_bit
                 text += (
-                    " This is match-local function context only. Player quality and persistent/tactical-role interpretation "
+                    " This is match-local function context only. The name is only an admitted actor-identity label; "
+                    "global/cross-match player identity remains outside scope. Player quality and persistent/tactical-role interpretation "
                     "remain outside scope. Score-state rows count visible participation only; missing participation is not used "
                     "as proof of off-field absence. Causal-contribution interpretation remains outside scope, "
                     "and no per-90 process rate is produced without substitution-timeline authority."
@@ -3071,7 +3125,7 @@ def _human_player_mechanism_link_cards(
     if limit <= 0:
         return []
     c02 = (rich.get("constructs") or {}).get("C02") or {}
-    validated_actor_labels = _human_validated_actor_labels(identity)
+    admitted_actor_labels = _human_admitted_actor_labels(identity)
     profiles_by_actor = {
         str(row.get("actor_identity_candidate_id") or "").strip(): row
         for row in (c02.get("player_function_profiles") or [])
@@ -3087,7 +3141,7 @@ def _human_player_mechanism_link_cards(
         player_context = card.get("player_context") or {}
         actor_id = str(player_context.get("actor_identity_candidate_id") or "").strip()
         profile = profiles_by_actor.get(actor_id)
-        actor = validated_actor_labels.get(actor_id)
+        actor = admitted_actor_labels.get(actor_id)
         if not actor_id or not isinstance(profile, dict) or not actor:
             continue
         team = ", ".join(str(v) for v in (card.get("team_labels") or []) if str(v))
@@ -3123,8 +3177,9 @@ def _human_player_mechanism_link_cards(
             if score:
                 text += f" Skor bağlamı: {score}."
             text += (
-                " Bu bağlantı kaynak-bağlı oyuncu locator + varyant bağlamıdır; "
-                "oyuncu niteliği ve nedensel katkı yorumu kapsam dışındadır."
+                " Bu bağlantı kaynak-bağlı oyuncu locator + varyant bağlamıdır. "
+                "İsim yalnız admitted actor-identity etiketidir; global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır. "
+                "Oyuncu niteliği ve nedensel katkı yorumu kapsam dışındadır."
             )
         else:
             text = (
@@ -3136,8 +3191,9 @@ def _human_player_mechanism_link_cards(
             if score:
                 text += f" Score context: {score}."
             text += (
-                " This source-bound mechanism link uses only the actor locator plus visible variant context; "
-                "player-quality and causal-contribution interpretation remain outside scope."
+                " This source-bound mechanism link uses only the actor locator plus visible variant context. "
+                "The name is only an admitted actor-identity label; global/cross-match player identity remains outside scope. "
+                "Player-quality and causal-contribution interpretation remain outside scope."
             )
         result.append(text)
         if len(result) >= limit:
@@ -3529,7 +3585,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
     rich = rich if isinstance(rich, dict) else {}
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
-    c02_cards = _human_c02_cards(rich, "tr") if rich_current else []
+    c02_cards = _human_c02_cards(rich, identity, "tr") if rich_current else []
     player_identity_context = dict(identity)
     player_identity_context["__spatial_progression_evidence__"] = (
         full_spine.get("spatial_progression_evidence") or {}
@@ -3663,7 +3719,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
     rich = rich if isinstance(rich, dict) else {}
     identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
-    c02_cards = _human_c02_cards(rich, "en") if rich_current else []
+    c02_cards = _human_c02_cards(rich, identity, "en") if rich_current else []
     player_identity_context = dict(identity)
     player_identity_context["__spatial_progression_evidence__"] = (
         full_spine.get("spatial_progression_evidence") or {}
