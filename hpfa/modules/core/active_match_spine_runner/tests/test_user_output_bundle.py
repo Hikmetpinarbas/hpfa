@@ -246,7 +246,23 @@ def test_phase_motif_sentence_surfaces_first_supported_divergence_safely():
     assert "görünür ayrışma noktasını" in text
 
 
-def test_human_reports_use_football_language_and_keep_evidence_note_separate():
+def test_human_reports_use_football_language_and_keep_evidence_note_separate(tmp_path):
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    identity_path.write_text(
+        json.dumps({
+            "actor_identity_candidates": [{
+                "actor_identity_candidate_id": "actor_greenwood",
+                "actor_aliases_raw": ["Mason Greenwood (101)"],
+                "team_identity_candidate_id": "team_a",
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+                "global_identity_claim_allowed": False,
+                "validated_player_identity": False,
+                "supporting_evidence_atom_ids": ["ea_greenwood"],
+            }]
+        }),
+        encoding="utf-8",
+    )
     rich = {
         "status": "REVIEW_REQUIRED",
         "m09_opponent_interaction_synthesis": {
@@ -264,7 +280,8 @@ def test_human_reports_use_football_language_and_keep_evidence_note_separate():
         "constructs": {
             "C02": {
                 "representative_actor_argument": {
-                    "actor_labels": ["Mason Greenwood"],
+                    "actor_identity_candidate_ids": ["actor_greenwood"],
+                    "actor_labels": ["Wrong Aggregate Greenwood Label"],
                     "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
                     "eligible_n": 36,
                     "visible_target_annotation_k": 7,
@@ -281,14 +298,17 @@ def test_human_reports_use_football_language_and_keep_evidence_note_separate():
             }
         },
     }
-    spine = _full_spine()
+    spine = _full_spine(
+        current_artifacts=["match_local_identity_candidates_lite_v1.json"]
+    )
     spine["rich_multiformat_analysis_lattice"] = rich
     spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
 
-    tr = build_human_analyst_report_tr(".", spine)
-    en = build_human_analyst_report_en(".", spine)
+    tr = build_human_analyst_report_tr(tmp_path, spine)
+    en = build_human_analyst_report_en(tmp_path, spine)
 
-    assert "Greenwood" in tr
+    assert "Mason Greenwood" in tr
+    assert "Wrong Aggregate Greenwood Label" not in tr
     assert "36 tanesinde" in tr
     assert "7 tanesinde" in tr
     assert "Kanıt notu:" in tr
