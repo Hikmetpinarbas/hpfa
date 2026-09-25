@@ -366,6 +366,11 @@ def test_human_reports_render_team_process_and_mechanism_in_football_language(tm
     assert "hangi aksiyon veya bağlam değişiminin sonuçları ayırdığı" in tr
     assert "MEKANİZMA ADAYLARI" not in tr
     assert "Kanıt notu:" in tr
+    assert "Kanıt olgunluğu:" in tr
+    assert "4 çözümlenmiş varyant" in tr
+    assert "2 görünür maç bölümü" in tr
+    assert "dependency bağımsızlığı doğrulanmadı" in tr
+    assert "tek bir güven skoru değildir" in tr
     assert "independent_support=" not in tr
     assert "grammar_signature_tokens" not in tr
 

@@ -1644,6 +1644,35 @@ def _mechanism_governance_sentence(language: str) -> str:
     )
 
 
+def _mechanism_maturity_sentence(row: dict[str, Any], language: str) -> str:
+    profile = row.get("evidence_maturity_profile")
+    if not isinstance(profile, dict) or not profile:
+        return ""
+    resolved = int(profile.get("resolved_variant_denominator_n") or 0)
+    episodes = int(profile.get("episode_spread_n") or 0)
+    clusters = int(profile.get("occurrence_disjoint_support_cluster_n") or 0)
+    censored = int(profile.get("right_censored_variant_n") or 0)
+    dependency = profile.get("dependency_independence_proven") is True
+    counterevidence = profile.get("counterevidence_present") is True
+    if language == "tr":
+        dependency_text = "dependency bağımsızlığı doğrulandı" if dependency else "dependency bağımsızlığı doğrulanmadı"
+        counter_text = "karşı kanıt yüzeyi görünür" if counterevidence else "karşı kanıt yüzeyi bu profilde görünür değil"
+        return (
+            f" Kanıt olgunluğu: {resolved} çözümlenmiş varyant, {episodes} görünür maç bölümü, "
+            f"{clusters} occurrence-ayrık destek kümesi; sağdan sansürlü varyant={censored}; "
+            f"{dependency_text}; {counter_text}. Bu çok boyutlu profil tek bir güven skoru değildir "
+            "ve claim/emit yetkisi vermez."
+        )
+    dependency_text = "dependency independence is proven" if dependency else "dependency independence is not proven"
+    counter_text = "a counterevidence surface is visible" if counterevidence else "no counterevidence surface is visible in this profile"
+    return (
+        f" Evidence maturity: {resolved} resolved variants, {episodes} visible match episodes, "
+        f"{clusters} occurrence-disjoint support clusters; right-censored variants={censored}; "
+        f"{dependency_text}; {counter_text}. This multidimensional profile is not a single confidence score "
+        "and cannot authorize a claim or emit."
+    )
+
+
 def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     if not _declared_current(full_spine, FEATURE_DELTA_JSON):
         return []
@@ -1814,6 +1843,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 f"Kanıt örgüsü {clusters} ayrı görünür aksiyon kümesine yayılıyor. "
                 "Yorum kapsamı maç-içi varyant ayrışması ve kaynak-bağlı süreç bağlamıdır."
                 + challenge_note
+                + _mechanism_maturity_sentence(row, language)
             )
         else:
             prefix = (
@@ -1900,6 +1930,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 f"The evidence structure spans {clusters} distinct visible action clusters. "
                 "Interpretation is scoped to match-local variant separation and source-bound process context."
                 + challenge_note
+                + _mechanism_maturity_sentence(row, language)
             )
         process_label = (
             _football_family_label(row.get("single_process_family_candidate"), language)
