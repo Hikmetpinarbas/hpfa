@@ -497,3 +497,39 @@ def test_outcome_debt_prevents_review_rich_tier_without_blocking_match_local_att
     assert selected["safe_finding_review_has_outcome_debt"] is True
     assert selected["selection_can_authorize_emit"] is False
     assert selected["safe_finding_review_readiness_can_authorize_emit"] is False
+
+
+def test_selector_exposes_dimensioned_evidence_maturity_without_composite_confidence_score():
+    row = _row("mature", "T1", "1", ["LAYER[PASS]", "LAYER[CARRY]"])
+    row.update({
+        "resolved_variant_count": 8,
+        "success_resolved_variant_count": 5,
+        "failure_resolved_variant_count": 3,
+        "right_censored_variant_count": 0,
+        "visible_episode_spread_count": 4,
+        "occurrence_disjoint_support_cluster_count": 3,
+        "supported_branch_divergence_binding_count": 2,
+        "success_failure_supported_branch_divergence_count": 1,
+        "dependency_independence_proven": False,
+        "statistical_independence_proven": False,
+    })
+
+    result = build_mechanism_story_review_shortlist(
+        {"grammar_stable_variant_feature_delta_records": [row]},
+        limit=1,
+    )
+
+    profile = result["shortlist"][0]["evidence_maturity_profile"]
+    assert profile["resolved_variant_denominator_n"] == 8
+    assert profile["positive_visible_variant_n"] == 5
+    assert profile["negative_visible_variant_n"] == 3
+    assert profile["episode_spread_n"] == 4
+    assert profile["occurrence_disjoint_support_cluster_n"] == 3
+    assert profile["right_censored_variant_n"] == 0
+    assert profile["success_failure_divergence_n"] == 1
+    assert profile["dependency_independence_proven"] is False
+    assert profile["counterevidence_present"] is True
+    assert profile["maturity_is_confidence_score"] is False
+    assert profile["maturity_can_authorize_emit"] is False
+    assert "score" not in profile
+    assert "confidence" not in profile

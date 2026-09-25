@@ -2140,6 +2140,7 @@ def build_graph_ready_mechanism_cards_payload(
                 "creates_new_evidence": False,
                 "can_authorize_emit": False,
             },
+            "evidence_maturity_profile": dict(row.get("evidence_maturity_profile") or {}),
             "resolved_variant_n": int(row.get("resolved_variant_count") or 0),
             "positive_visible_variant_n": int(row.get("success_resolved_variant_count") or 0),
             "negative_visible_variant_n": int(row.get("failure_resolved_variant_count") or 0),

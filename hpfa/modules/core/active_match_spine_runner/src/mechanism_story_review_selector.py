@@ -249,6 +249,44 @@ def _review_support_state(record: dict[str, Any]) -> str:
     return "DIVERGENCE_SUPPORT_UNRESOLVED"
 
 
+def _evidence_maturity_profile(
+    record: dict[str, Any],
+    challenge_summary: dict[str, Any],
+) -> dict[str, Any]:
+    """Expose maturity dimensions without collapsing them into one score."""
+    success_failure_divergence_n = int(
+        record.get("success_failure_supported_branch_divergence_count") or 0
+    )
+    challenge_n = int(challenge_summary.get("challenge_record_count") or 0)
+    return {
+        "resolved_variant_denominator_n": int(record.get("resolved_variant_count") or 0),
+        "positive_visible_variant_n": int(record.get("success_resolved_variant_count") or 0),
+        "negative_visible_variant_n": int(record.get("failure_resolved_variant_count") or 0),
+        "episode_spread_n": int(record.get("visible_episode_spread_count") or 0),
+        "occurrence_disjoint_support_cluster_n": int(
+            record.get("occurrence_disjoint_support_cluster_count") or 0
+        ),
+        "right_censored_variant_n": int(record.get("right_censored_variant_count") or 0),
+        "supported_divergence_n": int(
+            record.get("supported_branch_divergence_binding_count") or 0
+        ),
+        "success_failure_divergence_n": success_failure_divergence_n,
+        "mechanism_challenge_record_n": challenge_n,
+        "counterevidence_present": bool(success_failure_divergence_n or challenge_n),
+        "dependency_independence_proven": record.get("dependency_independence_proven") is True,
+        "statistical_independence_proven": record.get("statistical_independence_proven") is True,
+        "episode_spread_is_independent_support_truth": False,
+        "occurrence_cluster_count_is_independent_support_truth": False,
+        "counterevidence_presence_is_falsifier_truth": False,
+        "maturity_is_confidence_score": False,
+        "maturity_is_quality_score": False,
+        "maturity_is_truth_ranking": False,
+        "maturity_can_authorize_emit": False,
+        "maturity_can_increase_claim_ceiling": False,
+        "claim_ceiling": "MATCH_LOCAL_DIMENSIONED_EVIDENCE_MATURITY_PROFILE_ONLY",
+    }
+
+
 def _diversity_key(record: dict[str, Any]) -> tuple[str, ...]:
     return tuple(str(v) for v in (record.get("grammar_signature_tokens") or []))
 
@@ -648,6 +686,7 @@ def build_mechanism_story_review_shortlist(
                 "MATCH_LOCAL_SOURCE_BOUND_MECHANISM_CHALLENGE_SUMMARY_ONLY",
             ),
             "grammar_signature_tokens": list(row.get("grammar_signature_tokens") or []),
+            "evidence_maturity_profile": _evidence_maturity_profile(row, challenge_summary),
             "resolved_variant_count": int(row.get("resolved_variant_count") or 0),
             "success_resolved_variant_count": int(row.get("success_resolved_variant_count") or 0),
             "failure_resolved_variant_count": int(row.get("failure_resolved_variant_count") or 0),

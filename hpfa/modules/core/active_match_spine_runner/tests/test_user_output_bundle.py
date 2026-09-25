@@ -952,6 +952,12 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
             "resolved_variant_count": 3,
             "success_resolved_variant_count": 2,
             "failure_resolved_variant_count": 1,
+            "visible_episode_spread_count": 2,
+            "occurrence_disjoint_support_cluster_count": 2,
+            "supported_branch_divergence_binding_count": 1,
+            "success_failure_supported_branch_divergence_count": 1,
+            "dependency_independence_proven": False,
+            "statistical_independence_proven": False,
             "first_supported_context_difference_layer_candidate": 1,
             "first_supported_consequence_difference_layer_candidate": 2,
             "context_feature_difference_candidates": [{
@@ -1076,6 +1082,15 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     assert safe["claim_output_allowed_count"] == 0
     assert safe["creates_independent_support"] is False
     assert safe["can_authorize_emit"] is False
+
+    maturity = card["evidence_maturity_profile"]
+    assert maturity["resolved_variant_denominator_n"] == 3
+    assert maturity["episode_spread_n"] == 2
+    assert maturity["occurrence_disjoint_support_cluster_n"] == 2
+    assert maturity["success_failure_divergence_n"] == 1
+    assert maturity["dependency_independence_proven"] is False
+    assert maturity["maturity_is_confidence_score"] is False
+    assert maturity["maturity_can_authorize_emit"] is False
 
     player = card["player_context"]
     assert player["actor_identity_candidate_id"] == "actor_1"
