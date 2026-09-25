@@ -2895,6 +2895,18 @@ def _human_player_function_cards(
         if actor_id:
             score_state_by_actor.setdefault(actor_id, []).append(score_row)
 
+    state_function_evidence = (
+        identity.get("__spatial_progression_evidence__")
+        if isinstance(identity.get("__spatial_progression_evidence__"), dict)
+        else {}
+    )
+    state_function_by_actor: dict[str, dict[str, Any]] = {
+        str(row.get("actor_identity_candidate_id") or "").strip(): row
+        for row in (state_function_evidence.get("actor_visible_state_change_function_profiles") or [])
+        if isinstance(row, dict)
+        and str(row.get("actor_identity_candidate_id") or "").strip()
+    }
+
     by_team: dict[str, list[dict[str, Any]]] = {}
     for row in profiles:
         team_id = str(row.get("team_identity_candidate_id") or "").strip()
