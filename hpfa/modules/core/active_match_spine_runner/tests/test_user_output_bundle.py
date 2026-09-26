@@ -1605,9 +1605,16 @@ def test_process_variant_board_cards_limit_to_three_attention_rows_per_team_with
 def test_model_context_cards_surface_causal_ladder_and_calibration_warning() -> None:
     rich = {
         "constructs": {
+            "C02": {
+                "player_function_profiles": [{
+                    "actor_identity_candidate_id": "a1",
+                    "xlsx_row_projection_id": "row_1",
+                }],
+            },
             "C04": {
                 "model_context_residual_profiles": [{
-                    "entity_candidate": "Player One",
+                    "row_projection_id": "row_1",
+                    "entity_candidate": "Wrong Aggregate Player One",
                     "xgt": 2.5,
                     "xgopp": 1.0,
                     "nxg_observed": 1.5,
@@ -1619,21 +1626,36 @@ def test_model_context_cards_surface_causal_ladder_and_calibration_warning() -> 
                     "model_output_is_fact": False,
                     "claim_ceiling": "PROVIDER_MODEL_MATCH_CONTEXT_RESIDUAL_ONLY",
                 }]
-            }
+            },
         }
     }
+    identity = {
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "a1",
+            "actor_aliases_raw": ["10. Safe Match Player One (110)"],
+            "team_identity_candidate_id": "team_a",
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+            "global_identity_claim_allowed": False,
+            "validated_player_identity": False,
+            "supporting_evidence_atom_ids": ["ea_1"],
+        }]
+    }
 
-    tr = user_output_bundle._human_model_context_cards(rich, "tr")
-    en = user_output_bundle._human_model_context_cards(rich, "en")
+    tr = user_output_bundle._human_model_context_cards(rich, identity, "tr")
+    en = user_output_bundle._human_model_context_cards(rich, identity, "en")
 
     assert len(tr) == 1
-    assert "Player One" in tr[0]
+    assert "10. Safe Match Player One" in tr[0]
+    assert "Wrong Aggregate Player One" not in tr[0]
     assert "Rung-1" in tr[0]
     assert "oyuncu nedensel katkısı bu kapsam dışında kalır" in tr[0]
     assert "Model kalibrasyon durumu UNKNOWN_NOT_ADMITTED" in tr[0]
     assert "Model çıktısı yalnız model bağlamı olarak ele alınır" in tr[0]
 
     assert len(en) == 1
+    assert "10. Safe Match Player One" in en[0]
+    assert "Wrong Aggregate Player One" not in en[0]
     assert "Rung-1" in en[0]
     assert "causal player contribution remains outside this scope" in en[0]
     assert "Model calibration state is UNKNOWN_NOT_ADMITTED" in en[0]
@@ -2842,3 +2864,139 @@ def test_process_variant_board_cards_surface_nonzero_terminal_consequence_withou
     assert "2/11 üye süreçte görünür consequence bağlamı" in text
     assert "terminal sonuç desteği 2/11" in text
     assert "görünür devam/sonuç kompozisyonu" in text
+
+
+def test_model_context_cards_use_match_local_identity_owner_not_xlsx_entity_label() -> None:
+    rich = {
+        "constructs": {
+            "C02": {
+                "player_function_profiles": [{
+                    "actor_identity_candidate_id": "a1",
+                    "xlsx_row_projection_id": "row_1",
+                }],
+            },
+            "C04": {
+                "model_context_residual_profiles": [{
+                    "row_projection_id": "row_1",
+                    "entity_candidate": "Wrong Aggregate Model Name",
+                    "xgt": 1.2,
+                    "xgopp": 0.7,
+                    "nxg_observed": 0.5,
+                    "causal_ladder_rung": "RUNG_1_ASSOCIATIONAL_PREDICTIVE_CONTEXT_ONLY",
+                    "model_calibration_state": "UNKNOWN_NOT_ADMITTED",
+                    "model_output_is_fact": False,
+                }],
+            },
+        }
+    }
+    identity = {
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "a1",
+            "actor_aliases_raw": ["7. Safe Match Model Player (107)"],
+            "team_identity_candidate_id": "team_a",
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+            "global_identity_claim_allowed": False,
+            "validated_player_identity": False,
+            "supporting_evidence_atom_ids": ["ea_1"],
+        }]
+    }
+
+    cards = user_output_bundle._human_model_context_cards(rich, identity, "tr")
+    joined = " ".join(cards)
+    assert "7. Safe Match Model Player" in joined
+    assert "Wrong Aggregate Model Name" not in joined
+
+
+def test_representative_entities_use_match_local_identity_owner_for_player_rows() -> None:
+    rich = {
+        "entity_views": {
+            "player_view_candidates": [{
+                "row_projection_id": "row_1",
+                "player_raw_candidate": "Wrong Aggregate Representative Name",
+                "metric_values": {"shots": {"value_status": "OBSERVED"}},
+                "source_role": "PLAYER_MATCH_SUMMARY",
+            }],
+            "goalkeeper_view_candidates": [],
+            "team_view_candidates": [],
+        },
+        "constructs": {
+            "C02": {
+                "player_function_profiles": [{
+                    "actor_identity_candidate_id": "a1",
+                    "xlsx_row_projection_id": "row_1",
+                }],
+            }
+        },
+    }
+    identity = {
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "a1",
+            "actor_aliases_raw": ["11. Safe Match Representative (111)"],
+            "team_identity_candidate_id": "team_a",
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+            "global_identity_claim_allowed": False,
+            "validated_player_identity": False,
+            "supporting_evidence_atom_ids": ["ea_1"],
+        }]
+    }
+
+    rows = user_output_bundle._representative_entities(rich, identity)
+    joined = " ".join(rows)
+    assert "11. Safe Match Representative" in joined
+    assert "Wrong Aggregate Representative Name" not in joined
+
+
+def test_technical_analyst_report_c04_composition_uses_identity_owner_actor_label(tmp_path) -> None:
+    identity_path = tmp_path / user_output_bundle.IDENTITY_JSON
+    identity_path.write_text(json.dumps({
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "a1",
+            "actor_aliases_raw": ["9. Safe Match Composition Player (109)"],
+            "team_identity_candidate_id": "team_a",
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+            "identity_scope": "MATCH_LOCAL_CANDIDATE_ONLY",
+            "global_identity_claim_allowed": False,
+            "validated_player_identity": False,
+            "supporting_evidence_atom_ids": ["ea_1"],
+        }]
+    }), encoding="utf-8")
+    rich = {
+        "entity_views": {
+            "player_view_candidates": [],
+            "goalkeeper_view_candidates": [],
+            "team_view_candidates": [],
+        },
+        "constructs": {
+            "C01": {},
+            "C02": {
+                "player_function_profiles": [{
+                    "actor_identity_candidate_id": "a1",
+                    "xlsx_row_projection_id": "row_1",
+                }],
+            },
+            "C03": {},
+            "C04": {
+                "composition_profiles": [{
+                    "row_projection_id": "row_1",
+                    "entity_candidate": "Wrong Aggregate Composition Name",
+                    "player_candidate": "Wrong Aggregate Composition Name",
+                    "team_candidate": None,
+                    "family_id": "BALL_LOSS_MODE_COMPOSITION",
+                    "total_value": 10,
+                    "component_values": {"lost_balls_after_passes": 6, "individual_ball_losses": 4},
+                    "composition_shares": {"lost_balls_after_passes": 0.6, "individual_ball_losses": 0.4},
+                    "closure_state": "IDENTITY_OBSERVED_WITHIN_TOLERANCE",
+                }],
+                "model_context_residual_profiles": [],
+            },
+        },
+    }
+    spine = _full_spine(current_artifacts=[str(identity_path)])
+    spine["rich_multiformat_analysis_lattice"] = rich
+    spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+
+    report = build_analyst_report(tmp_path, spine)
+    assert "9. Safe Match Composition Player" in report
+    assert "Wrong Aggregate Composition Name" not in report

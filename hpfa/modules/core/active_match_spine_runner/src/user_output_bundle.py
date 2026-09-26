@@ -427,7 +427,11 @@ def _entity_summary(rich: dict[str, Any]) -> dict[str, int]:
     }
 
 
-def _representative_entities(rich: dict[str, Any], limit: int = 8) -> list[str]:
+def _representative_entities(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    limit: int = 8,
+) -> list[str]:
     entity = rich.get("entity_views") or {}
     rows = [
         *(entity.get("player_view_candidates") or []),
@@ -438,7 +442,9 @@ def _representative_entities(rich: dict[str, Any], limit: int = 8) -> list[str]:
     for row in rows:
         if not isinstance(row, dict):
             continue
-        name = row.get("player_raw_candidate") or row.get("team_raw_candidate") or "UNRESOLVED_ENTITY"
+        name = _human_match_local_entity_label(rich, identity, row)
+        if not name:
+            continue
         metrics = row.get("metric_values") or {}
         result.append(f"{name}: observed_metric_cells={len(metrics)} source_role={row.get('source_role')}")
         if len(result) >= limit:
@@ -590,6 +596,57 @@ def _human_admitted_actor_labels(identity: dict[str, Any]) -> dict[str, str]:
         if ref and label and label != "UNKNOWN":
             result[ref] = label
     return result
+
+
+def _xlsx_row_actor_identity_map(rich: dict[str, Any]) -> dict[str, str]:
+    c02 = (rich.get("constructs") or {}).get("C02") or {}
+    candidates: dict[str, set[str]] = {}
+    for row in (c02.get("player_function_profiles") or []):
+        if not isinstance(row, dict):
+            continue
+        row_ref = str(row.get("xlsx_row_projection_id") or "").strip()
+        actor_ref = str(row.get("actor_identity_candidate_id") or "").strip()
+        if row_ref and actor_ref:
+            candidates.setdefault(row_ref, set()).add(actor_ref)
+    return {
+        row_ref: next(iter(actor_refs))
+        for row_ref, actor_refs in candidates.items()
+        if len(actor_refs) == 1
+    }
+
+
+def _human_match_local_entity_label(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    row: dict[str, Any],
+) -> str | None:
+    """Resolve human entity labels through match-local identity owners; never raw XLSX player labels."""
+    row_ref = str(row.get("row_projection_id") or "").strip()
+    actor_ref = _xlsx_row_actor_identity_map(rich).get(row_ref)
+    if actor_ref:
+        return _human_admitted_actor_labels(identity).get(actor_ref)
+
+    if row.get("player_candidate") not in (None, "") or row.get("player_raw_candidate") not in (None, ""):
+        return None
+
+    raw_team = row.get("team_candidate") or row.get("team_raw_candidate")
+    if raw_team in (None, ""):
+        return None
+    raw_key = _display_label(raw_team).casefold()
+    team_labels = _human_team_labels(identity)
+    for candidate in (identity.get("team_identity_candidates") or []):
+        if not isinstance(candidate, dict):
+            continue
+        team_ref = str(candidate.get("team_identity_candidate_id") or "").strip()
+        if not team_ref:
+            continue
+        aliases = list(candidate.get("team_aliases_raw") or [])
+        normalized = candidate.get("team_normalized_key")
+        if normalized not in (None, ""):
+            aliases.append(normalized)
+        if any(_display_label(alias).casefold() == raw_key for alias in aliases):
+            return team_labels.get(team_ref)
+    return None
 
 
 def _action_human(value: str, language: str) -> str:
@@ -2861,13 +2918,19 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
     return cards
 
 
-def _human_model_context_cards(rich: dict[str, Any], language: str) -> list[str]:
+def _human_model_context_cards(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+) -> list[str]:
     c04 = (rich.get("constructs") or {}).get("C04") or {}
     cards: list[str] = []
     for row in (c04.get("model_context_residual_profiles") or []):
         if not isinstance(row, dict):
             continue
-        entity = _display_label(row.get("entity_candidate") or "UNKNOWN")
+        entity = _human_match_local_entity_label(rich, identity, row)
+        if not entity:
+            continue
         xgt = _human_number(row.get("xgt"))
         xgopp = _human_number(row.get("xgopp"))
         nxg = _human_number(row.get("nxg_observed"))
@@ -3673,7 +3736,7 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
         _human_player_function_cards(rich, player_identity_context, "tr")
         if rich_current else []
     )
-    model_context_cards = _human_model_context_cards(rich, "tr") if rich_current else []
+    model_context_cards = _human_model_context_cards(rich, identity, "tr") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "tr") if rich_current else []
     match_story_cards = _human_match_story_cards(rich, identity, "tr") if rich_current else []
     state_function_cards = _human_visible_state_function_lens(full_spine, "tr")
@@ -3807,7 +3870,7 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
         _human_player_function_cards(rich, player_identity_context, "en")
         if rich_current else []
     )
-    model_context_cards = _human_model_context_cards(rich, "en") if rich_current else []
+    model_context_cards = _human_model_context_cards(rich, identity, "en") if rich_current else []
     team_cards = _human_team_process_cards(rich, identity, "en") if rich_current else []
     match_story_cards = _human_match_story_cards(rich, identity, "en") if rich_current else []
     state_function_cards = _human_visible_state_function_lens(full_spine, "en")
@@ -4054,7 +4117,7 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             "format_fusion_is_independent_evidence_vote=false",
             "representative_entity_surfaces:",
         ])
-        lines.extend(f"- {item}" for item in _representative_entities(rich))
+        lines.extend(f"- {item}" for item in _representative_entities(rich, identity))
 
     lines.extend(["", "[4] METRIC / CONSTRUCT / OYUN-KATMANI"])
     if rich_current:
@@ -4230,8 +4293,11 @@ def build_analyst_report(output_root: str | Path, full_spine: dict[str, Any]) ->
             representative = max(family_rows, key=lambda row: float(row.get("total_value") or 0))
             components = representative.get("component_values") or {}
             shares = representative.get("composition_shares") or {}
+            entity_label = _human_match_local_entity_label(rich, identity, representative)
+            if not entity_label:
+                continue
             lines.append(
-                f"- XLSX BILESIM ADAYI: {family_id}; entity={representative.get('entity_candidate')}; "
+                f"- XLSX BILESIM ADAYI: {family_id}; entity={entity_label}; "
                 f"toplam={representative.get('total_value')}; components={components}; shares={shares}. "
                 "Toplam hacim ayri eksendir; bilesim yeni bagimsiz kanit veya oyuncu-kalite skoru degildir."
             )
