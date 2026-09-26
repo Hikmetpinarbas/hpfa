@@ -33,6 +33,10 @@ Code must look coherent because it **is coherent**: one naming system, one packa
 | `Hikmetpinarbas/HP-PROJELERI` | GOVERNANCE SUPPORT DONOR | no product code without explicit mapped capability |
 | Poyraz repositories | OUTSIDE FOOTBALL PRODUCT CONSOLIDATION | no analytical product code transfer |
 
+## Reference-module inheritance rule
+
+Single-Match Postmatch is the architectural reference product for every analytical lane. Prematch, Scouting, Compare, Longitudinal and future analyst-facing modules inherit Postmatch ownership discipline, contract/test topology, evidence spine, counterevidence handling, Safe Finding semantics and analyst-output standard. They add only their domain-specific delta; they do not open parallel truth or analysis engines. See `HPFA_POSTMATCH_REFERENCE_MODULE_STANDARD_CURRENT.md`.
+
 ## Professional target tree
 
 The final repository should converge toward:
