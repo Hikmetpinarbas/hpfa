@@ -92,3 +92,21 @@ def test_declared_root_modules_cover_transitive_root_imports() -> None:
                     closure.add(name)
                     queue.append(name)
     assert closure == declared
+
+
+def test_repository_root_does_not_keep_superseded_unowned_report_and_health_tools() -> None:
+    forbidden = {
+        "match_reading_export.py",
+        "numeric_match_report.py",
+        "repo_full_health_audit_v1.py",
+    }
+    present = {path.name for path in ROOT.iterdir() if path.is_file()}
+    assert forbidden.isdisjoint(present)
+
+
+def test_repository_does_not_keep_next_player_receiver_proxy_pass_network_tools() -> None:
+    forbidden = {
+        ROOT / "tools" / "hpfa_passnet_v1.py",
+        ROOT / "tools" / "hpfa_passnet_105x68_v2.py",
+    }
+    assert not any(path.exists() for path in forbidden)
