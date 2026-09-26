@@ -110,3 +110,10 @@ def test_repository_does_not_keep_next_player_receiver_proxy_pass_network_tools(
         ROOT / "tools" / "hpfa_passnet_105x68_v2.py",
     }
     assert not any(path.exists() for path in forbidden)
+
+
+def test_full_repo_health_audit_is_maintained_tool_not_root_entrypoint() -> None:
+    assert not (ROOT / "repo_full_health_audit_v1.py").exists()
+    assert (ROOT / "tools" / "repo_full_health_audit_v1.py").is_file()
+    fail_local = (ROOT / "repo_fail_local_product_test_audit_v1.py").read_text(encoding="utf-8")
+    assert '"tools/repo_full_health_audit_v1.py"' in fail_local
