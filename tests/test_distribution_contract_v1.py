@@ -117,3 +117,14 @@ def test_full_repo_health_audit_is_maintained_tool_not_root_entrypoint() -> None
     assert (ROOT / "tools" / "repo_full_health_audit_v1.py").is_file()
     fail_local = (ROOT / "repo_fail_local_product_test_audit_v1.py").read_text(encoding="utf-8")
     assert '"tools/repo_full_health_audit_v1.py"' in fail_local
+
+
+
+def test_fail_local_isolation_worker_count_is_bounded() -> None:
+    from repo_fail_local_product_test_audit_v1 import _bounded_worker_count
+
+    assert _bounded_worker_count(-3, 301) == 1
+    assert _bounded_worker_count(1, 301) == 1
+    assert _bounded_worker_count(2, 301) == 2
+    assert _bounded_worker_count(99, 3) == 3
+    assert _bounded_worker_count(2, 0) == 1

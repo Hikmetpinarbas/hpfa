@@ -25,6 +25,12 @@ def test_global_health_gate_remains_global() -> None:
     assert "paths-ignore:" not in trigger
 
 
+def test_global_health_keeps_fail_local_isolation_with_bounded_parallelism() -> None:
+    text = _text("full-repo-health-audit-v1.yml")
+    assert "python repo_fail_local_product_test_audit_v1.py" in text
+    assert "--max-workers 2" in text
+
+
 def test_layer_snapshots_and_runtime_gate_are_path_scoped() -> None:
     for name in SCOPED:
         text = _text(name)
