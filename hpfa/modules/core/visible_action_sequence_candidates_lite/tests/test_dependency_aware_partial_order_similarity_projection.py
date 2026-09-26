@@ -194,7 +194,7 @@ def test_nonisomorphic_same_histogram_not_exact_match():
     assert result["structural_exact_match_requires_relation_preserving_topology"] is True
 
 
-def test_topology_filter_is_downward_only_and_does_not_create_new_pairs():
+def test_topology_partition_recovers_non_anchor_equivalence_class_without_all_pairs():
     path = _topology_variant("a_path", [(0, 1), (1, 2), (2, 3)])
     star_one = _topology_variant("b_star", [(0, 1), (0, 2), (0, 3)])
     star_two = _topology_variant("c_star", [(0, 1), (0, 2), (0, 3)])
@@ -202,10 +202,45 @@ def test_topology_filter_is_downward_only_and_does_not_create_new_pairs():
     result = build_dependency_aware_partial_order_similarity(_payload(path, star_one, star_two))
 
     assert result["source_all_possible_pair_count"] == 3
-    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 1
+    pair = result["dependency_aware_partial_order_similarity_pairs"][0]
+    assert {pair["left_variant_ref"], pair["right_variant_ref"]} == {"b_star", "c_star"}
     assert result["topology_mismatch_pair_pruned_count"] == 2
+    assert result["topology_partition_precedes_pair_materialization"] is True
+    assert result["topology_partition_can_discover_multiple_equivalence_classes"] is True
     assert result["topology_filter_can_create_new_pair"] is False
-    assert result["topology_filter_only_removes_or_preserves_coarse_prefilter_pairs"] is True
+    assert result["topology_filter_only_removes_or_preserves_coarse_prefilter_pairs"] is False
+    assert result["process_comparable_set_count"] == 1
+    assert result["process_comparable_sets"][0]["eligible_case_count"] == 2
+
+
+def test_topology_partition_emits_separate_homogeneous_comparable_sets_for_two_classes():
+    path_one = _topology_variant("a_path_one", [(0, 1), (1, 2), (2, 3)])
+    path_two = _topology_variant("b_path_two", [(0, 1), (1, 2), (2, 3)])
+    star_one = _topology_variant("c_star_one", [(0, 1), (0, 2), (0, 3)])
+    star_two = _topology_variant("d_star_two", [(0, 1), (0, 2), (0, 3)])
+
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(path_one, path_two, star_one, star_two)
+    )
+
+    assert result["process_comparable_set_count"] == 2
+    assert result["dependency_aware_partial_order_similarity_group_count"] == 2
+    assert sorted(row["eligible_case_count"] for row in result["process_comparable_sets"]) == [2, 2]
+    member_sets = {
+        frozenset(row["member_process_candidate_ids"])
+        for row in result["process_comparable_sets"]
+    }
+    assert frozenset({"a_path_one", "b_path_two"}) in member_sets
+    assert frozenset({"c_star_one", "d_star_two"}) in member_sets
+    assert all(
+        row["comparison_group_is_topology_homogeneous"] is True
+        for row in result["dependency_aware_partial_order_similarity_groups"]
+    )
+    audit = result["pruned_comparison_state_audit"]
+    assert audit["topology_partition_closes_coarse_signature_pair_universe"] is True
+    assert audit["topology_same_class_pair_universe_count"] == 2
+    assert audit["topology_cross_class_mismatch_pair_universe_count"] == 4
 
 
 def test_isomorphic_topology_with_different_layer_refs_remains_exact_match():
@@ -260,6 +295,43 @@ def test_test_dimension_cannot_also_be_required_exact_match():
     assert result["process_comparison_question_contract_status"] == "FAIL_CLOSED"
     assert result["process_comparable_set_count"] == 0
     assert "comparison_question_test_dimension_exact_match_overlap" in result["hard_block_hits"]
+
+
+def test_forbidden_outcome_leakage_cannot_be_exact_match_key():
+    payload = _payload(_variant("a"), _variant("b"))
+    contract = _period_test_contract()
+    contract["required_exact_dimensions"] = [
+        "team",
+        "partial_order_structure",
+        "outcome_signature",
+    ]
+    payload["process_comparison_question_contract"] = contract
+
+    result = build_dependency_aware_partial_order_similarity(payload)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["process_comparison_question_contract_status"] == "FAIL_CLOSED"
+    assert result["process_comparable_set_count"] == 0
+    assert (
+        "comparison_question_forbidden_leakage_exact_match_overlap:outcome_signature"
+        in result["hard_block_hits"]
+    )
+
+
+def test_forbidden_outcome_leakage_cannot_be_coarsened_match_key():
+    payload = _payload(_variant("a"), _variant("b"))
+    contract = _period_test_contract()
+    contract["required_coarsened_dimensions"] = ["terminal_consequence"]
+    payload["process_comparison_question_contract"] = contract
+
+    result = build_dependency_aware_partial_order_similarity(payload)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["process_comparable_set_count"] == 0
+    assert (
+        "comparison_question_forbidden_leakage_coarsened_match_overlap:terminal_consequence"
+        in result["hard_block_hits"]
+    )
 
 
 def test_missing_period_context_is_reviewed_and_not_materialized():
@@ -341,3 +413,149 @@ def test_no_sample_match_identity_leak():
     ).read_text(encoding="utf-8")
     for token in ("Sporting", "Galatasaray", "Fenerbahce", "Roma", "10.09.2026"):
         assert token not in source
+
+
+def test_unregistered_declared_dimension_fails_closed():
+    payload = _payload(_variant("a"), _variant("b"))
+    contract = _period_test_contract()
+    contract["required_exact_dimensions"] = ["team", "partial_order_structure", "score_state"]
+    contract["allowed_test_dimensions"] = ["period"]
+    payload["process_comparison_question_contract"] = contract
+
+    result = build_dependency_aware_partial_order_similarity(payload)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["process_comparable_set_count"] == 0
+    assert "comparison_question_dimension_unregistered:score_state" in result["hard_block_hits"]
+
+
+def test_default_pair_exposes_canonical_comparison_state_without_changing_eligibility():
+    result = build_dependency_aware_partial_order_similarity(_payload(_variant("a"), _variant("b")))
+    pair = _pair(result)
+
+    assert pair["comparison_eligible"] is True
+    assert pair["canonical_comparison_state"] == "ELIGIBLE"
+    assert pair["eligible_for_outcome_attachment"] is True
+    assert result["canonical_comparison_state_counts"]["ELIGIBLE"] == 1
+
+
+def test_comparable_set_freezes_profile_hash_before_outcome_attachment():
+    result = build_dependency_aware_partial_order_similarity(_payload(_variant("a"), _variant("b")))
+    comparable_set = result["process_comparable_sets"][0]
+
+    assert result["comparison_dimension_registry_version"] == "comparison_dimension_registry_v1"
+    assert result["profile_frozen_before_outcome_attachment"] is True
+    assert isinstance(result["question_profile_hash"], str)
+    assert len(result["question_profile_hash"]) == 64
+    assert comparable_set["profile_frozen_before_outcome_attachment"] is True
+    assert comparable_set["question_profile_hash"] == result["question_profile_hash"]
+
+
+def test_materialized_pair_count_is_not_eligible_case_denominator():
+    variants = [_variant(f"v{index}") for index in range(4)]
+    result = build_dependency_aware_partial_order_similarity(_payload(*variants))
+
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 3
+    assert result["process_comparable_sets"][0]["eligible_case_count"] == 4
+    assert result["pair_materialization_count_is_eligible_denominator"] is False
+    assert result["process_comparable_sets"][0]["materialized_pair_count_is_eligible_denominator"] is False
+
+
+def test_dimension_registry_version_mismatch_fails_closed():
+    payload = _payload(_variant("a"), _variant("b"))
+    contract = _period_test_contract()
+    contract["dimension_registry_version"] = "future_registry_v999"
+    payload["process_comparison_question_contract"] = contract
+
+    result = build_dependency_aware_partial_order_similarity(payload)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert "comparison_question_dimension_registry_version_mismatch" in result["hard_block_hits"]
+
+
+def test_pruned_audit_counts_cross_team_without_materializing_pair_objects():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", team="team_a"), _variant("b", team="team_b"))
+    )
+    audit = result["pruned_comparison_state_audit"]
+
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert audit["resolved_pair_universe_count"] == 1
+    assert audit["cross_team_context_mismatch_pair_count"] == 1
+    assert audit["pair_objects_materialized_for_audit"] is False
+    assert audit["pruned_or_unresolved_cases_are_counterevidence"] is False
+
+
+def test_pruned_audit_counts_cross_period_as_context_mismatch_by_default():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", period="1"), _variant("b", period="2"))
+    )
+    audit = result["pruned_comparison_state_audit"]
+
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert audit["cross_period_context_mismatch_pair_count"] == 1
+    assert audit["declared_period_test_difference_pair_count"] == 0
+
+
+def test_pruned_audit_reclassifies_cross_period_as_declared_test_difference():
+    payload = _payload(_variant("a", period="1"), _variant("b", period="2"))
+    payload["process_comparison_question_contract"] = _period_test_contract()
+    result = build_dependency_aware_partial_order_similarity(payload)
+    audit = result["pruned_comparison_state_audit"]
+
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 1
+    assert audit["cross_period_context_mismatch_pair_count"] == 0
+    assert audit["declared_period_test_difference_pair_count"] == 1
+
+
+def test_pruned_audit_counts_coarse_structure_mismatch_without_pair_materialization():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", first_layer_size=2), _variant("b", first_layer_size=3))
+    )
+    audit = result["pruned_comparison_state_audit"]
+
+    assert result["dependency_aware_partial_order_similarity_pair_count"] == 0
+    assert audit["coarse_structure_context_mismatch_pair_count"] == 1
+    assert audit["coarse_signature_pair_universe_count"] == 0
+    assert audit["topology_evaluated_representative_pair_count"] == 0
+
+
+def test_pruned_audit_marks_large_unmaterialized_exact_pairs_as_not_evaluated_not_mismatch():
+    variants = [_variant(f"v{index:04d}") for index in range(1000)]
+    result = build_dependency_aware_partial_order_similarity(_payload(*variants))
+    audit = result["pruned_comparison_state_audit"]
+
+    assert audit["coarse_signature_pair_universe_count"] == 499500
+    assert audit["topology_evaluated_representative_pair_count"] == 999
+    assert audit["topology_match_representative_pair_count"] == 999
+    assert audit["topology_not_directly_evaluated_within_coarse_signature_pair_count"] == 498501
+    assert audit["topology_same_class_pair_universe_count"] == 499500
+    assert audit["topology_cross_class_mismatch_pair_universe_count"] == 0
+    assert audit["topology_partition_accounted_pair_count"] == 499500
+    assert audit["topology_partition_closes_coarse_signature_pair_universe"] is True
+    assert audit["not_evaluated_is_context_mismatch"] is False
+    assert audit["not_evaluated_is_counterevidence"] is False
+
+
+def test_pruned_audit_exposes_primary_unresolved_context_case_burden():
+    result = build_dependency_aware_partial_order_similarity(
+        _payload(_variant("a", period=None), _variant("b"))
+    )
+    audit = result["pruned_comparison_state_audit"]
+
+    assert audit["context_unresolved_variant_count"] == 1
+    assert audit["primary_unresolved_variant_reason_counts"]["MISSING_PERIOD"] == 1
+    assert audit["audit_counts_define_eligible_denominator"] is False
+
+
+def test_team_cannot_be_declared_test_dimension_until_supported():
+    payload = _payload(_variant("a", team="team_a"), _variant("b", team="team_b"))
+    contract = _period_test_contract()
+    contract["required_exact_dimensions"] = ["partial_order_structure", "period"]
+    contract["allowed_test_dimensions"] = ["team"]
+    payload["process_comparison_question_contract"] = contract
+
+    result = build_dependency_aware_partial_order_similarity(payload)
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert "comparison_question_dimension_role_not_allowed:team:TEST" in result["hard_block_hits"]

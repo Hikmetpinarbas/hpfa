@@ -492,6 +492,19 @@ def build_grammar_stable_variant_feature_delta(
             "grammar_signature_tokens": list(family.get("grammar_signature_tokens") or []),
             "team_identity_candidate_ids": list(family.get("team_identity_candidate_ids") or []),
             "period_candidates": list(family.get("period_candidates") or []),
+            "visible_episode_spread_count": int(family.get("visible_episode_spread_count") or 0),
+            "success_visible_episode_spread_count": int(
+                family.get("success_visible_episode_spread_count") or 0
+            ),
+            "failure_visible_episode_spread_count": int(
+                family.get("failure_visible_episode_spread_count") or 0
+            ),
+            "occurrence_disjoint_support_cluster_count": int(
+                family.get("occurrence_disjoint_support_cluster_count") or 0
+            ),
+            "episode_spread_count_is_independent_support_count": False,
+            "episode_spread_is_recurrence_truth": False,
+            "occurrence_disjoint_cluster_count_is_independent_support_count": False,
             "success_resolved_variant_count": success_count,
             "failure_resolved_variant_count": failure_count,
             "resolved_variant_count": len(profiles),
@@ -869,6 +882,90 @@ def _bind_grammar_stable_consequence_contrast(
     return payload
 
 
+def _bind_supported_branch_divergence_trace(
+    payload: dict[str, Any],
+    process_variant_payload: dict[str, Any],
+) -> dict[str, Any]:
+    family_by_ref = {
+        _clean(row.get("observable_process_variant_family_id")): row
+        for row in (process_variant_payload.get("observable_process_variant_families") or [])
+        if isinstance(row, dict) and _clean(row.get("observable_process_variant_family_id"))
+    }
+
+    traced_family_refs: set[str] = set()
+    success_failure_traced_family_refs: set[str] = set()
+    traced_by_collection: dict[str, set[str]] = {}
+    success_failure_traced_by_collection: dict[str, set[str]] = {}
+    for collection_name in (
+        "grammar_stable_variant_feature_delta_records",
+        "grammar_stable_consequence_contrast_records",
+    ):
+        collection_traced = traced_by_collection.setdefault(collection_name, set())
+        collection_success_failure = success_failure_traced_by_collection.setdefault(collection_name, set())
+        for record in payload.get(collection_name) or []:
+            if not isinstance(record, dict):
+                continue
+            family_ref = _clean(record.get("source_process_variant_family_ref"))
+            family = family_by_ref.get(family_ref)
+            if not family:
+                record["supported_branch_divergence_refs"] = []
+                record["success_failure_supported_branch_divergence_refs"] = []
+                record["supported_branch_divergence_binding_count"] = 0
+                record["success_failure_supported_branch_divergence_count"] = 0
+                continue
+
+            bindings = [
+                row for row in (family.get("supported_branch_divergence_bindings") or [])
+                if isinstance(row, dict)
+            ]
+            refs = sorted({
+                _clean(row.get("source_first_supported_branch_divergence_ref"))
+                for row in bindings
+                if _clean(row.get("source_first_supported_branch_divergence_ref"))
+            })
+            success_failure_refs = sorted({
+                _clean(row.get("source_first_supported_branch_divergence_ref"))
+                for row in bindings
+                if row.get("family_supported_divergence_contrast_state")
+                == "SUCCESS_FAILURE_VISIBLE_WITHIN_FAMILY_SUPPORTED_DIVERGENCE"
+                and _clean(row.get("source_first_supported_branch_divergence_ref"))
+            })
+            record["supported_branch_divergence_refs"] = refs
+            record["success_failure_supported_branch_divergence_refs"] = success_failure_refs
+            record["supported_branch_divergence_binding_count"] = len(refs)
+            record["success_failure_supported_branch_divergence_count"] = len(success_failure_refs)
+            record["supported_branch_divergence_trace_is_failure_cause_truth"] = False
+            record["supported_branch_divergence_trace_is_tactical_truth"] = False
+            record["supported_branch_divergence_trace_is_independent_support_truth"] = False
+            if refs:
+                traced_family_refs.add(family_ref)
+                collection_traced.add(family_ref)
+            if success_failure_refs:
+                success_failure_traced_family_refs.add(family_ref)
+                collection_success_failure.add(family_ref)
+
+    payload["variant_feature_delta_supported_branch_divergence_traced_family_count"] = len(
+        traced_by_collection.get("grammar_stable_variant_feature_delta_records", set())
+    )
+    payload["variant_feature_delta_success_failure_supported_branch_divergence_traced_family_count"] = len(
+        success_failure_traced_by_collection.get("grammar_stable_variant_feature_delta_records", set())
+    )
+    payload["consequence_contrast_supported_branch_divergence_traced_family_count"] = len(
+        traced_by_collection.get("grammar_stable_consequence_contrast_records", set())
+    )
+    payload["consequence_contrast_success_failure_supported_branch_divergence_traced_family_count"] = len(
+        success_failure_traced_by_collection.get("grammar_stable_consequence_contrast_records", set())
+    )
+    payload["supported_branch_divergence_traced_family_count"] = len(traced_family_refs)
+    payload["success_failure_supported_branch_divergence_traced_family_count"] = len(
+        success_failure_traced_family_refs
+    )
+    payload["supported_branch_divergence_trace_is_failure_cause_truth"] = False
+    payload["supported_branch_divergence_trace_is_tactical_truth"] = False
+    payload["supported_branch_divergence_trace_is_independent_support_truth"] = False
+    return payload
+
+
 def build_grammar_stable_variant_feature_delta(
     sequence_payload: dict[str, Any],
     process_variant_payload: dict[str, Any],
@@ -881,9 +978,10 @@ def build_grammar_stable_variant_feature_delta(
         occurrence_state_transition_payload,
         occurrence_consequence_payload,
     )
-    return _bind_grammar_stable_consequence_contrast(
+    payload = _bind_grammar_stable_consequence_contrast(
         payload,
         sequence_payload,
         process_variant_payload,
         occurrence_consequence_payload,
     )
+    return _bind_supported_branch_divergence_trace(payload, process_variant_payload)

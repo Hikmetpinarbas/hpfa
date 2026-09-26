@@ -2,10 +2,30 @@ name: C4 Intelligence Final Snapshot V1
 
 on:
   pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'requirements.txt'
+      - '.github/workflows/c4-intelligence-final-snapshot-v1.yml'
+      - 'hpfa/tests/integration/test_intelligence_chain_contract_v1.py'
+      - 'hpfa/tests/integration/test_evidence_dependency_independence_v1.py'
+      - 'hpfa/modules/core/composite_evidence_packet_builder_lite/**'
+      - 'hpfa/modules/core/multi_signal_evidence_fusion_lite/**'
+      - 'hpfa/modules/core/composite_argument_builder_lite/**'
+      - 'hpfa/modules/core/defeasible_argument_router_lite/**'
+      - 'hpfa/modules/core/evidence_graph_engine_lite/**'
+      - 'hpfa/modules/core/evidence_lens_matrix_lite/**'
+      - 'hpfa/modules/core/safe_argument_router_tr_lite/**'
+      - 'hpfa/modules/core/analyst_report_block_composer_lite/**'
+      - 'hpfa/modules/core/report_output_contract_lite/**'
+      - 'hpfa/modules/core/final_report_assembly_gate_lite/**'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: hpfa-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   intelligence-final-snapshot:

@@ -190,6 +190,22 @@ def _bind_dependency_aware_similarity(payload: dict) -> dict:
     )
     payload["process_comparable_sets"] = list(projection.get("process_comparable_sets") or [])
     payload["process_comparable_set_count"] = int(projection.get("process_comparable_set_count") or 0)
+    payload["comparison_dimension_registry_version"] = projection.get(
+        "comparison_dimension_registry_version"
+    )
+    payload["question_profile_hash"] = projection.get("question_profile_hash")
+    payload["profile_frozen_before_outcome_attachment"] = (
+        projection.get("profile_frozen_before_outcome_attachment") is True
+    )
+    payload["pair_materialization_count_is_eligible_denominator"] = (
+        projection.get("pair_materialization_count_is_eligible_denominator") is True
+    )
+    payload["canonical_comparison_state_counts"] = dict(
+        projection.get("canonical_comparison_state_counts") or {}
+    )
+    payload["pruned_comparison_state_audit"] = dict(
+        projection.get("pruned_comparison_state_audit") or {}
+    )
     payload["eligible_denominator_frozen_before_outcome_attachment"] = (
         projection.get("eligible_denominator_frozen_before_outcome_attachment") is True
     )
@@ -285,6 +301,10 @@ def _bind_first_supported_divergence(payload: dict, occurrence_payload: dict) ->
 def _bind_comparable_outcome_counterevidence(payload: dict) -> dict:
     projection = build_comparable_outcome_counterevidence(payload)
     payload["comparable_outcome_counterevidence_status"] = projection.get("status")
+    payload["comparable_outcome_counterevidence_review_hits"] = list(
+        projection.get("review_hits") or []
+    )
+    payload["comparable_outcome_counterevidence_review_scope"] = "COMPARABLE_OUTCOME_PROJECTION_ONLY"
     payload["comparable_outcome_counterevidence_records"] = list(
         projection.get("comparable_outcome_counterevidence_records") or []
     )
@@ -300,6 +320,44 @@ def _bind_comparable_outcome_counterevidence(payload: dict) -> dict:
     payload["comparable_counterevidence_candidate_count"] = int(
         projection.get("comparable_counterevidence_candidate_count") or 0
     )
+    payload["canonical_evidence_classification_applied"] = (
+        projection.get("canonical_evidence_classification_applied") is True
+    )
+    payload["canonical_evidence_direction_classes"] = list(
+        projection.get("canonical_evidence_direction_classes") or []
+    )
+    payload["legacy_canonical_evidence_direction_counts"] = dict(
+        projection.get("legacy_canonical_evidence_direction_counts") or {}
+    )
+    payload["branch_canonical_evidence_direction_counts"] = dict(
+        projection.get("branch_canonical_evidence_direction_counts") or {}
+    )
+    payload["legacy_dependency_challenge_record_count"] = int(
+        projection.get("legacy_dependency_challenge_record_count") or 0
+    )
+    payload["claim_target_denominator_binding_applied"] = (
+        projection.get("claim_target_denominator_binding_applied") is True
+    )
+    payload["legacy_denominator_binding_state_counts"] = dict(
+        projection.get("legacy_denominator_binding_state_counts") or {}
+    )
+    payload["branch_denominator_binding_state_counts"] = dict(
+        projection.get("branch_denominator_binding_state_counts") or {}
+    )
+    payload["pair_record_is_eligible_denominator"] = False
+    payload["pair_count_is_eligible_denominator"] = False
+    payload["eligible_denominator_is_independent_evidence_count"] = False
+    payload["falsification_invalidation_contract_applied"] = (
+        projection.get("falsification_invalidation_contract_applied") is True
+    )
+    payload["falsifier_is_invalidator"] = False
+    payload["invalidator_is_falsifier"] = False
+    payload["invalidator_is_counterevidence"] = False
+    payload["invalidator_makes_claim_false"] = False
+    payload["dependency_challenge_is_evidence_direction"] = False
+    payload["dependency_challenge_changes_evidence_direction"] = False
+    payload["non_support_is_counterevidence"] = False
+    payload["unresolved_is_failure"] = False
     payload["counterevidence_independent_support_count"] = 0
     payload["counterevidence_is_independent_support"] = False
     payload["comparable_outcome_counterevidence_claim_ceiling"] = projection.get("claim_ceiling")

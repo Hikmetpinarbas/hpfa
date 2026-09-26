@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 import reconstruction_intelligence_packet_adapter_current_v1 as reconstruction_bridge
 from episode_lane_runner import run_current_episode_lane
-from orphan_capability_sidecars import run_sidecars
+from orphan_capability_sidecars import finalize_metric_governance_sidecar, run_sidecars
 from rich_multiformat_analysis_lane import run_rich_lane
 from hpfa.modules.core.analyst_report_block_composer_lite.src.analyst_report_block_composer import compose_report_block
 from hpfa.modules.core.composite_argument_builder_lite.src.composite_argument_builder import build_argument_candidate
@@ -15,6 +15,7 @@ from hpfa.modules.core.defeasible_argument_router_lite.src.defeasible_argument_r
 from hpfa.modules.core.evidence_graph_engine_lite.src.evidence_graph_engine import build_evidence_graph
 from hpfa.modules.core.evidence_lens_matrix_lite.src.evidence_lens_matrix import bind_construct_lens_contract, build_lens_matrix
 from hpfa.modules.core.final_report_assembly_gate_lite.src.final_report_assembly_gate import evaluate_assembly_item
+from hpfa.modules.core.core_pipeline_orchestrator_lite.src.information_reservoir_runtime_projection import write_information_reservoir_projection
 from hpfa.modules.core.multi_signal_evidence_fusion_lite.src.multi_signal_evidence_fusion import fuse_packet
 from hpfa.modules.core.report_output_contract_lite.src.report_output_contract import evaluate_report_block
 from hpfa.modules.core.safe_argument_router_tr_lite.src.safe_argument_router_tr import route_safe_sentence
@@ -206,6 +207,15 @@ def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dic
             "adverse_consequence_transition_count": None,
             "admitted_directional_transition_count": None,
             "transition_class_counts": {},
+            "visible_state_change_function_counts": {},
+            "actor_visible_state_change_function_profile_count": 0,
+            "actor_visible_state_change_function_profiles": [],
+            "actor_function_profile_zero_count_is_failure": False,
+            "actor_function_profile_is_player_causal_credit": False,
+            "actor_function_profile_is_player_quality_truth": False,
+            "state_change_function_is_opponent_organization_truth": False,
+            "state_change_function_is_player_causal_credit": False,
+            "state_change_function_is_value_model_output": False,
             "coordinate_anchor_present_count": None,
             "action_location_semantics_admitted_count": None,
             "occurrence_annotation_anchor_location_admitted_count": None,
@@ -229,6 +239,15 @@ def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dic
     transition_counts = state.get("transition_class_counts")
     if not isinstance(transition_counts, dict):
         transition_counts = {}
+    function_counts = state.get("visible_state_change_function_counts")
+    if not isinstance(function_counts, dict):
+        function_counts = {}
+    actor_function_profiles = state.get("actor_visible_state_change_function_profiles")
+    if not isinstance(actor_function_profiles, list):
+        actor_function_profiles = []
+    actor_function_profiles = [
+        row for row in actor_function_profiles if isinstance(row, dict)
+    ]
     source_status = _status(state.get("status"))
     state_blocks = state.get("hard_block_hits") if isinstance(state.get("hard_block_hits"), list) else []
     spatial_blocks = spatial.get("hard_block_hits") if isinstance(spatial.get("hard_block_hits"), list) else []
@@ -252,6 +271,15 @@ def _spatial_progression_analyst_evidence(sidecar_report: dict[str, Any]) -> dic
             state.get("state_transition_dynamics_candidate_count")
         ),
         "transition_class_counts": dict(sorted((str(k), v) for k, v in transition_counts.items())),
+        "visible_state_change_function_counts": dict(sorted((str(k), v) for k, v in function_counts.items())),
+        "actor_visible_state_change_function_profile_count": len(actor_function_profiles),
+        "actor_visible_state_change_function_profiles": actor_function_profiles,
+        "actor_function_profile_zero_count_is_failure": False,
+        "actor_function_profile_is_player_causal_credit": False,
+        "actor_function_profile_is_player_quality_truth": False,
+        "state_change_function_is_opponent_organization_truth": state.get("state_change_function_is_opponent_organization_truth") is True,
+        "state_change_function_is_player_causal_credit": state.get("state_change_function_is_player_causal_credit") is True,
+        "state_change_function_is_value_model_output": state.get("state_change_function_is_value_model_output") is True,
         "coordinate_anchor_present_count": _nonnegative_int(spatial.get("coordinate_anchor_present_count")),
         "action_location_semantics_admitted_count": _nonnegative_int(
             spatial.get("action_location_semantics_admitted_count")
@@ -388,7 +416,12 @@ def run_full_spine(
     }
     expected_snapshot_id = str(bridge_report.get("input_surface_snapshot_id") or "")
     if not hard_blocks and expected_snapshot_id:
-        sidecar_report = run_sidecars(active_match_path, output_root, Path(__file__).resolve().parents[5])
+        sidecar_report = run_sidecars(
+            active_match_path,
+            output_root,
+            Path(__file__).resolve().parents[5],
+            include_metric_governance=False,
+        )
         sidecar_status = _status(sidecar_report.get("status"))
         if sidecar_status == "FAIL_CLOSED":
             hard_blocks.append("orphan_capability_sidecars_fail_closed")
@@ -425,11 +458,30 @@ def run_full_spine(
             elif rich_status == "REVIEW_REQUIRED":
                 review_hits.append("rich_multiformat_analysis_lane_review_required")
 
+        if not hard_blocks:
+            sidecar_report = finalize_metric_governance_sidecar(
+                sidecar_report,
+                output_root,
+                Path(__file__).resolve().parents[5],
+            )
+            sidecar_status = _status(sidecar_report.get("status"))
+            if sidecar_status == "FAIL_CLOSED":
+                hard_blocks.append("orphan_capability_sidecars_fail_closed")
+                first_failed_node = first_failed_node or "orphan_capability_sidecars"
+                reasons = sidecar_report.get("hard_block_hits") or []
+                first_failed_reason_code = first_failed_reason_code or (
+                    str(reasons[0]) if isinstance(reasons, list) and reasons else "orphan_capability_sidecars_fail_closed"
+                )
+            elif sidecar_status == "REVIEW_REQUIRED" and "orphan_capability_sidecars_review_required" not in review_hits:
+                review_hits.append("orphan_capability_sidecars_review_required")
+
     spatial_progression_evidence = _spatial_progression_analyst_evidence(sidecar_report)
 
     packets: list[dict[str, Any]] = []
     base_packet_count = 0
     rich_packet_count = 0
+    c01_rich_packet_admitted = False
+    c02_rich_packet_admitted_count = 0
     fused_packet_artifacts: list[str] = []
     if not hard_blocks:
         try:
@@ -456,12 +508,17 @@ def run_full_spine(
         for candidate in rich_report.get("c4_packet_candidates") or []:
             if not isinstance(candidate, dict):
                 continue
+            source_construct_id = str(candidate.get("source_construct_id") or "")
             packet = build_composite_packet(candidate)
             if packet.get("hard_block_hits"):
                 review_hits.append("rich_construct_packet_not_admitted")
                 continue
             packets.append(packet)
             rich_packet_count += 1
+            if source_construct_id == "C01_PROGRESSION_VOLUME_VS_TERMINAL_CONVERSION":
+                c01_rich_packet_admitted = True
+            elif source_construct_id == "C02_PROCESS_PARTICIPANT_OUTCOME_ASSOCIATION":
+                c02_rich_packet_admitted_count += 1
 
         if not hard_blocks:
             fused_packet_artifacts = _write_fused_packet_inventory(
@@ -512,6 +569,38 @@ def run_full_spine(
         ],
     )
 
+    information_reservoir_report = write_information_reservoir_projection(
+        output_root,
+        current_invocation_artifacts=current_invocation_artifacts,
+    )
+    information_reservoir_path = output_root / "information_reservoir_runtime_projection_v1.json"
+    if information_reservoir_path.is_file():
+        current_invocation_artifacts = _collect_current_artifacts(
+            {"current_invocation_artifacts": current_invocation_artifacts},
+            extra=[str(information_reservoir_path)],
+        )
+    reservoir_status = _status(information_reservoir_report.get("status"))
+    if reservoir_status == "FAIL_CLOSED":
+        hard_blocks.append("information_reservoir_projection_fail_closed")
+        first_failed_node = first_failed_node or "information_reservoir_projection"
+        reasons = information_reservoir_report.get("hard_block_hits") or []
+        first_failed_reason_code = first_failed_reason_code or (
+            str(reasons[0])
+            if isinstance(reasons, list) and reasons
+            else "information_reservoir_projection_fail_closed"
+        )
+    elif reservoir_status == "REVIEW_REQUIRED":
+        review_hits.append("information_reservoir_projection_review_required")
+
+    hard_blocks = _dedupe_preserve_order(hard_blocks)
+    review_hits = _dedupe_preserve_order(review_hits)
+    if hard_blocks:
+        status, decision = "FAIL_CLOSED", "BLOCK_FULL_SPINE"
+    elif review_hits:
+        status, decision = "REVIEW_REQUIRED", "FULL_SPINE_COMPLETED_REVIEW_REQUIRED"
+    else:
+        status, decision = "SMOKE_PASS", "FULL_SPINE_EXECUTION_COMPLETED"
+
     entity_views = rich_report.get("entity_views") or {}
     constructs = rich_report.get("constructs") or {}
     report = {
@@ -555,6 +644,7 @@ def run_full_spine(
         "orphan_capability_sidecars": sidecar_report,
         "intelligence_chains": chains,
         "current_invocation_artifacts": current_invocation_artifacts,
+        "information_reservoir_runtime_projection": information_reservoir_report,
         "engineering_evidence": {
             "single_active_match_authority_validated": True,
             "reconstruction_bridge_executed": True,
@@ -570,7 +660,9 @@ def run_full_spine(
             "micro_mezzo_macro_lattice_bound": bool(rich_report.get("analysis_lattice")),
             "phase_state_candidate_lane_bound": bool(rich_report.get("phase_state_candidates")),
             "entity_views_bound": bool(entity_views),
-            "construct_C01_bound_to_c4": rich_packet_count > 0,
+            "construct_C01_bound_to_c4": c01_rich_packet_admitted,
+            "construct_C02_bound_to_c4": c02_rich_packet_admitted_count > 0,
+            "construct_C02_bound_packet_count": c02_rich_packet_admitted_count,
             "spatial_progression_sidecar_exposed_to_main_spine": spatial_progression_evidence.get("status") != "NOT_EVALUATED",
             "current_c4_producers_executed": c4_chain_executed,
             "current_c4_producers_reused": c4_surface_current,
@@ -578,6 +670,8 @@ def run_full_spine(
             "c4_sidecar_dependency_preserved": True,
             "parallel_reasoning_engine_created": False,
             "first_failure_disclosure_enabled": True,
+            "information_reservoir_runtime_projection_bound": information_reservoir_report.get("status") in {"PASS", "REVIEW_REQUIRED"},
+            "information_reservoir_claim_ceiling_guard_enabled": True,
             "duplicate_foundation_execution_currently_possible": False,
         },
         "analyst_evidence": {
@@ -642,6 +736,8 @@ def run_full_spine(
         "spatial_progression_measured_displacement_truth=false",
         "spatial_progression_coordinate_is_tracking_truth=false",
         "spatial_progression_zero_count_is_counterevidence=false",
+        f"information_reservoir_projection_status={information_reservoir_report.get('status')}",
+        f"information_reservoir_current_binding_count={information_reservoir_report.get('current_invocation_binding_count')}",
         f"first_failed_node={first_failed_node}",
         f"first_failed_reason_code={first_failed_reason_code}",
         f"hard_block_hits={hard_blocks}",

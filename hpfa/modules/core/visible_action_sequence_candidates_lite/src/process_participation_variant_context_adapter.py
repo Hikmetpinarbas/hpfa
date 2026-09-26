@@ -10,6 +10,7 @@ _LAYER_TOKEN_RE = re.compile(r"^LAYER\[(\d+)\]::")
 _PROCESS_ROLES = {"PARTICIPATION_INTERVAL", "CONTEXT_INTERVAL"}
 _COMPARISON_CONTEXT_ROLE = "CONTEXT_INTERVAL"
 _COMPARISON_CONTEXT_DIMENSION = "PROVIDER_REVIEWED_TEAM_CONTEXT_INTERVAL_PROCESS_FAMILY"
+_ZONE_CONTEXT_DIMENSION = "PROVIDER_SEMANTIC_ZONE_CANDIDATE_SET"
 
 
 def _clean(value: Any) -> str:
@@ -188,6 +189,7 @@ def apply_process_context_to_comparison(
     sequence_payload: dict[str, Any],
     process_participation_payload: dict[str, Any] | None,
     occurrence_consequence_payload: dict[str, Any] | None,
+    occurrence_state_transition_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Downward-only process-context admission for already-materialized comparison pairs.
 
@@ -210,6 +212,14 @@ def apply_process_context_to_comparison(
     result["episode_navigation_binding_is_possession_truth"] = False
     result["unknown_context_is_different_context"] = False
     result["process_annotation_is_tactical_plan_truth"] = False
+    result["zone_context_readiness_audit_consumed"] = False
+    result["zone_context_readiness_binding_state"] = "NOT_AVAILABLE"
+    result["zone_context_dimension"] = _ZONE_CONTEXT_DIMENSION
+    result["zone_context_is_admission_dimension"] = False
+    result["zone_context_can_create_new_pair"] = False
+    result["zone_context_outcome_used_in_readiness_audit"] = False
+    result["zone_context_is_tracking_truth"] = False
+    result["zone_context_is_tactical_truth"] = False
 
     if not process_participation_payload or not occurrence_consequence_payload:
         return result
@@ -298,8 +308,47 @@ def apply_process_context_to_comparison(
             "coverage_visible": bool(family_list),
         }
 
+    zone_by_occurrence: dict[str, set[str]] = {}
+    zone_variant_context: dict[str, set[str]] = {}
+    zone_payload_usable = False
+    if occurrence_state_transition_payload:
+        if (
+            occurrence_state_transition_payload.get("canonical_event_count") == "UNKNOWN"
+            and occurrence_state_transition_payload.get("production_release") is not True
+            and occurrence_state_transition_payload.get("status") != "FAIL_CLOSED"
+        ):
+            zone_rows = _index(
+                occurrence_state_transition_payload.get("occurrence_state_transition_projections"),
+                "action_occurrence_candidate_id",
+            )
+            for occurrence_id, row in zone_rows.items():
+                zone_by_occurrence[occurrence_id] = {
+                    _clean(value)
+                    for value in (row.get("provider_zone_candidates") or [])
+                    if _clean(value)
+                }
+            zone_payload_usable = True
+            for variant in variants:
+                variant_id = _clean(variant.get("partial_order_occurrence_variant_id"))
+                zones = {
+                    zone
+                    for occurrence_ref in variant.get("supporting_action_occurrence_candidate_ids") or []
+                    for zone in zone_by_occurrence.get(_clean(occurrence_ref), set())
+                }
+                zone_variant_context[variant_id] = set(zones)
+                variant["comparison_provider_zone_candidates"] = sorted(zones)
+                variant["comparison_provider_zone_coverage_visible"] = bool(zones)
+                variant["comparison_provider_zone_dimension"] = _ZONE_CONTEXT_DIMENSION
+                variant["comparison_provider_zone_is_admission_dimension"] = False
+                variant["comparison_provider_zone_is_tracking_truth"] = False
+                variant["comparison_provider_zone_is_tactical_truth"] = False
+
     counts: Counter[str] = Counter()
+    zone_counts: Counter[str] = Counter()
     lowered_count = 0
+    zone_hypothetical_strict_block_count = 0
+    zone_hypothetical_context_mismatch_count = 0
+    zone_hypothetical_context_unresolved_count = 0
     pairs = [
         row for row in (result.get("dependency_aware_partial_order_similarity_pairs") or [])
         if isinstance(row, dict)
@@ -339,6 +388,46 @@ def apply_process_context_to_comparison(
         pair["process_context_player_participation_used_in_admission"] = False
         pair["process_context_is_tactical_plan_truth"] = False
         pair["unknown_context_is_different_context"] = False
+
+        left_zones = set(zone_variant_context.get(_clean(pair.get("left_variant_ref")), set()))
+        right_zones = set(zone_variant_context.get(_clean(pair.get("right_variant_ref")), set()))
+        pair["left_provider_zone_candidates"] = sorted(left_zones)
+        pair["right_provider_zone_candidates"] = sorted(right_zones)
+        pair["zone_context_dimension"] = _ZONE_CONTEXT_DIMENSION
+        pair["zone_context_is_admission_dimension"] = False
+        pair["zone_context_outcome_used_in_readiness_audit"] = False
+        pair["zone_context_is_tracking_truth"] = False
+        pair["zone_context_is_tactical_truth"] = False
+
+        zone_scope_eligible = upstream_eligible
+        if not zone_payload_usable:
+            zone_state = "ZONE_CONTEXT_NOT_AVAILABLE"
+            zone_match: bool | None = None
+        elif not zone_scope_eligible:
+            zone_state = "NOT_EVALUATED_CURRENT_COMPARISON_INELIGIBLE"
+            zone_match = None
+        elif left_zones and right_zones and left_zones == right_zones:
+            zone_state = "MATCHED_PROVIDER_SEMANTIC_ZONE_CONTEXT"
+            zone_match = True
+        elif left_zones and right_zones and left_zones.isdisjoint(right_zones):
+            zone_state = "DIFFERENT_PROVIDER_SEMANTIC_ZONE_CONTEXT"
+            zone_match = False
+            zone_hypothetical_strict_block_count += 1
+            zone_hypothetical_context_mismatch_count += 1
+        elif left_zones and right_zones:
+            zone_state = "PARTIAL_PROVIDER_SEMANTIC_ZONE_OVERLAP_REVIEW_REQUIRED"
+            zone_match = False
+            zone_hypothetical_strict_block_count += 1
+            zone_hypothetical_context_mismatch_count += 1
+        else:
+            zone_state = "UNKNOWN_PROVIDER_SEMANTIC_ZONE_CONTEXT_REVIEW_REQUIRED"
+            zone_match = None
+            zone_hypothetical_strict_block_count += 1
+            zone_hypothetical_context_unresolved_count += 1
+
+        pair["zone_context_readiness_state"] = zone_state
+        pair["zone_context_readiness_match"] = zone_match
+        zone_counts[zone_state] += 1
 
         if not upstream_eligible:
             state = "NOT_EVALUATED_UPSTREAM_COMPARISON_INELIGIBLE"
@@ -385,6 +474,26 @@ def apply_process_context_to_comparison(
     result["process_comparison_context_pair_count_unchanged"] = (
         len(pairs) == int(sequence_payload.get("dependency_aware_partial_order_similarity_pair_count") or len(pairs))
     )
+    result["zone_context_readiness_audit_consumed"] = zone_payload_usable
+    result["zone_context_readiness_binding_state"] = (
+        "PROVIDER_SEMANTIC_ZONE_READINESS_AUDIT_APPLIED"
+        if zone_payload_usable
+        else "NOT_AVAILABLE"
+    )
+    result["zone_context_readiness_state_counts"] = dict(sorted(zone_counts.items()))
+    result["zone_context_hypothetical_strict_block_pair_count"] = zone_hypothetical_strict_block_count
+    result["zone_context_hypothetical_context_mismatch_pair_count"] = (
+        zone_hypothetical_context_mismatch_count
+    )
+    result["zone_context_hypothetical_context_unresolved_pair_count"] = (
+        zone_hypothetical_context_unresolved_count
+    )
+    result["zone_context_hypothetical_block_changes_current_eligibility"] = False
+    result["zone_context_is_admission_dimension"] = False
+    result["zone_context_can_create_new_pair"] = False
+    result["zone_context_outcome_used_in_readiness_audit"] = False
+    result["zone_context_is_tracking_truth"] = False
+    result["zone_context_is_tactical_truth"] = False
     result["review_hits"] = sorted(set(result.get("review_hits") or []))
     return result
 

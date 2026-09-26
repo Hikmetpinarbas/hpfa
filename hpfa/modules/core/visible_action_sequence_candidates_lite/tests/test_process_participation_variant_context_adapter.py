@@ -175,6 +175,26 @@ def _process() -> dict:
     }
 
 
+
+
+def _zone_state(left_zones: list[str] | None, right_zones: list[str] | None) -> dict:
+    return {
+        "status": "PASS",
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "o_left",
+                "provider_zone_candidates": left_zones or [],
+            },
+            {
+                "action_occurrence_candidate_id": "o_right",
+                "provider_zone_candidates": right_zones or [],
+            },
+        ],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
 def _team_context_process(left_family: str | None, right_family: str | None) -> dict:
     rows = []
     if left_family:
@@ -359,3 +379,58 @@ def test_no_sample_match_identity_leak() -> None:
     rendered = json.dumps(result, ensure_ascii=False).casefold()
     for forbidden in ("sporting", "roma", "fenerbah", "galatasaray"):
         assert forbidden not in rendered
+
+
+def test_zone_context_readiness_audit_is_observational_and_does_not_change_eligibility() -> None:
+    result = apply_process_context_to_comparison(
+        _comparison_sequence(),
+        _team_context_process("POSITIONAL_ATTACK_CANDIDATE", "POSITIONAL_ATTACK_CANDIDATE"),
+        _occurrences(),
+        _zone_state(["FINAL_THIRD"], ["FINAL_THIRD"]),
+    )
+    pair = result["dependency_aware_partial_order_similarity_pairs"][0]
+
+    assert result["zone_context_readiness_audit_consumed"] is True
+    assert result["zone_context_is_admission_dimension"] is False
+    assert result["zone_context_hypothetical_block_changes_current_eligibility"] is False
+    assert pair["zone_context_readiness_state"] == "MATCHED_PROVIDER_SEMANTIC_ZONE_CONTEXT"
+    assert pair["zone_context_readiness_match"] is True
+    assert pair["comparison_eligible"] is True
+    assert pair["zone_context_is_tracking_truth"] is False
+    assert pair["zone_context_is_tactical_truth"] is False
+
+
+def test_zone_context_readiness_audit_counts_known_mismatch_without_lowering_pair() -> None:
+    result = apply_process_context_to_comparison(
+        _comparison_sequence(),
+        _team_context_process("POSITIONAL_ATTACK_CANDIDATE", "POSITIONAL_ATTACK_CANDIDATE"),
+        _occurrences(),
+        _zone_state(["FINAL_THIRD"], ["PENALTY_AREA"]),
+    )
+    pair = result["dependency_aware_partial_order_similarity_pairs"][0]
+
+    assert pair["zone_context_readiness_state"] == "DIFFERENT_PROVIDER_SEMANTIC_ZONE_CONTEXT"
+    assert pair["zone_context_readiness_match"] is False
+    assert pair["comparison_eligible"] is True
+    assert result["zone_context_hypothetical_strict_block_pair_count"] == 1
+    assert result["zone_context_hypothetical_context_mismatch_pair_count"] == 1
+    assert result["zone_context_hypothetical_context_unresolved_pair_count"] == 0
+
+
+def test_zone_context_readiness_audit_preserves_unknown_as_unresolved_not_mismatch() -> None:
+    result = apply_process_context_to_comparison(
+        _comparison_sequence(),
+        _team_context_process("POSITIONAL_ATTACK_CANDIDATE", "POSITIONAL_ATTACK_CANDIDATE"),
+        _occurrences(),
+        _zone_state(["FINAL_THIRD"], []),
+    )
+    pair = result["dependency_aware_partial_order_similarity_pairs"][0]
+
+    assert pair["zone_context_readiness_state"] == (
+        "UNKNOWN_PROVIDER_SEMANTIC_ZONE_CONTEXT_REVIEW_REQUIRED"
+    )
+    assert pair["zone_context_readiness_match"] is None
+    assert pair["comparison_eligible"] is True
+    assert result["zone_context_hypothetical_context_mismatch_pair_count"] == 0
+    assert result["zone_context_hypothetical_context_unresolved_pair_count"] == 1
+    assert result["unknown_context_is_different_context"] is False

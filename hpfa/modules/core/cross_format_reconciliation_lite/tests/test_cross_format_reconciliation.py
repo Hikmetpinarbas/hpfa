@@ -585,3 +585,92 @@ def test_termux_bootstrap_uses_non_destructive_exact_remote_head_gate() -> None:
     assert 'REQUESTED_EXPECTED_HEAD="${HPFA_EXPECTED_HEAD:-}"' in source
     assert "remote_head_mismatch:" in source
     assert "product_repo_head_not_remote_head:" in source
+
+
+
+def test_serialization_only_text_and_numeric_variants_preserve_alignment_candidate(tmp_path: Path) -> None:
+    write_csv(
+        tmp_path / "players.csv",
+        [["1", "5.21", "11.21", "7. Player (10) - Passes accurate", "Team A (1)", "Passes accurate", "1", "52.5", "34.0"]],
+    )
+    write_xml(
+        tmp_path / "players.xml",
+        [{
+            "ID": "1.0",
+            "start": "5.2100",
+            "end": "11.210",
+            "code": "  7. player (10) -   passes accurate  ",
+            "Team": " team   a (1) ",
+            "Action": "  PASSES   ACCURATE ",
+            "Half": "01.000",
+            "pos_x": "052.5000",
+            "pos_y": "34.000",
+        }],
+    )
+    result = reconcile(tmp_path)
+    pair = result["pair_reports"][0]
+    assert result["status"] == "PASS"
+    assert pair["decision"] == "PASS_ALIGNMENT_CANDIDATE"
+    assert pair["exact_surface_alignment_candidate_count"] == 1
+    assert pair["required_field_mismatch_candidate_count"] == 0
+    assert pair["validated_cross_format_equivalence"] is False
+    assert result["canonical_event_count"] == "UNKNOWN"
+    assert result["production_release"] is False
+
+
+def test_row_order_permutation_preserves_semantic_reconciliation_set(tmp_path: Path) -> None:
+    csv_rows = [
+        ["1", "5", "6", "A - Pass", "Team A", "Pass", "1", "10", "20"],
+        ["2", "7", "8", "B - Shot", "Team B", "Shot", "1", "30", "40"],
+    ]
+    xml_rows = [
+        {"ID": "2", "start": "7", "end": "8", "code": "B - Shot", "Team": "Team B", "Action": "Shot", "Half": "1", "pos_x": "30", "pos_y": "40"},
+        {"ID": "1", "start": "5", "end": "6", "code": "A - Pass", "Team": "Team A", "Action": "Pass", "Half": "1", "pos_x": "10", "pos_y": "20"},
+    ]
+    write_csv(tmp_path / "players.csv", csv_rows)
+    write_xml(tmp_path / "players.xml", xml_rows)
+
+    result = reconcile(tmp_path)
+    pair = result["pair_reports"][0]
+    assert result["status"] == "PASS"
+    assert pair["exact_surface_alignment_candidate_count"] == 2
+    assert pair["required_field_mismatch_candidate_count"] == 0
+    assert pair["csv_only_id_candidate_count"] == 0
+    assert pair["xml_only_id_candidate_count"] == 0
+    assert pair["validated_cross_format_equivalence"] is False
+
+
+def test_numeric_id_serialization_difference_does_not_create_false_unmatched_ids(tmp_path: Path) -> None:
+    write_csv(
+        tmp_path / "players.csv",
+        [["001", "5", "6", "A - Pass", "T", "Pass", "1", "10", "20"]],
+    )
+    write_xml(
+        tmp_path / "players.xml",
+        [{"ID": "1.0", "start": "5.0", "end": "6.00", "code": "A - Pass", "Team": "T", "Action": "Pass", "Half": "1.0", "pos_x": "10.0", "pos_y": "20.00"}],
+    )
+    result = reconcile(tmp_path)
+    pair = result["pair_reports"][0]
+    assert result["status"] == "PASS"
+    assert pair["csv_only_id_candidate_count"] == 0
+    assert pair["xml_only_id_candidate_count"] == 0
+    assert pair["exact_surface_alignment_candidate_count"] == 1
+    assert pair["validated_cross_format_equivalence"] is False
+
+
+def test_duplicate_reflection_files_in_both_formats_do_not_inflate_role_pairs_or_support(tmp_path: Path) -> None:
+    make_surfaces(tmp_path)
+    csv_payload = csv_audit(sha=sha256_file(tmp_path / "players.csv"))
+    xml_payload = xml_audit(sha=sha256_file(tmp_path / "players.xml"))
+    csv_payload["files"].append(dict(csv_payload["files"][0]))
+    xml_payload["files"].append(dict(xml_payload["files"][0]))
+
+    result = reconcile(tmp_path, csv_payload=csv_payload, xml_payload=xml_payload)
+    pair = result["pair_reports"][0]
+    duplicate = result["duplicate_reflection_audit"]
+    assert result["status"] == "PASS"
+    assert result["role_pair_count"] == 1
+    assert pair["exact_surface_alignment_candidate_count"] == 1
+    assert duplicate["csv_duplicate_reflections_not_recounted"] == 1
+    assert duplicate["xml_duplicate_reflections_not_recounted"] == 1
+    assert pair["validated_cross_format_equivalence"] is False

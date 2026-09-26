@@ -4,6 +4,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: hpfa-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   full-repo-audit:
     runs-on: ubuntu-latest
@@ -30,6 +34,49 @@ jobs:
         run: |
           bash -n tools/termux_active_match_crash_probe_v1.sh
           bash -n tools/termux_p1_physical_acceptance_v1.sh
+
+      - name: Validate distribution contract
+        run: |
+          python -m pytest -q tests/test_distribution_contract_v1.py tests/test_release_readiness_audit_v1.py tests/test_release_command_safety_v1.py tests/test_cyclonedx_sbom_v1.py tests/test_reproducible_wheel_probe_v1.py
+          mkdir -p "$RUNNER_TEMP/hpfa-wheel" "$RUNNER_TEMP/hpfa-full-repo-audit/release"
+          python -m pip wheel . --no-deps -w "$RUNNER_TEMP/hpfa-wheel"
+          python - "$RUNNER_TEMP/hpfa-wheel" <<'PYCODE'
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          wheels = sorted(Path(sys.argv[1]).glob("hpfa-*.whl"))
+          if len(wheels) != 1:
+              raise SystemExit(f"expected_one_hpfa_wheel:{len(wheels)}")
+          with zipfile.ZipFile(wheels[0]) as archive:
+              names = archive.namelist()
+          required = {
+              "hpfa_core": any(name.startswith("hpfa/modules/core/") and name.endswith(".py") for name in names),
+              "registry_data": any("/registry/" in name and name.endswith((".json", ".csv", ".tsv")) for name in names),
+              "license": any("LICENSE" in name for name in names),
+              "notice": any("/NOTICE" in name or name.endswith("/NOTICE") for name in names),
+          }
+          forbidden = {
+              "vendor": any(name.startswith("vendor/") for name in names),
+              "runtime": any(name.startswith("runtime/") for name in names),
+              "out": any(name.startswith("out/") for name in names),
+          }
+          if not all(required.values()) or any(forbidden.values()):
+              raise SystemExit({"required": required, "forbidden": forbidden})
+          PYCODE
+          WHEEL="$(find "$RUNNER_TEMP/hpfa-wheel" -maxdepth 1 -name 'hpfa-*.whl' | head -1)"
+          python tools/hpfa_release_readiness_audit_v1.py \
+            --repo . \
+            --wheel "$WHEEL" \
+            --out-dir "$RUNNER_TEMP/hpfa-full-repo-audit/release"
+          python tools/hpfa_cyclonedx_sbom_v1.py \
+            --repo . \
+            --wheel "$WHEEL" \
+            --out "$RUNNER_TEMP/hpfa-full-repo-audit/release/hpfa.cdx.json"
+          python tools/hpfa_reproducible_wheel_probe_v1.py \
+            --repo . \
+            --out-dir "$RUNNER_TEMP/hpfa-full-repo-audit/release"
+
 
       - name: Fail-local repository compile and product test audit
         id: full_audit

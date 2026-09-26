@@ -85,6 +85,33 @@ def explicit_contradiction_candidate():
             "source_surface": "counter_surface",
             "relation_type": "CONTRADICTS",
             "contradiction_basis": "same_construct_same_window_opposite_direction_candidate",
+            "comparison_question_id": "progression_terminal_outcome",
+            "comparison_unit": "episode_candidate",
+            "exact_dimensions": ["team", "game_state", "start_zone"],
+            "coarsened_dimensions": [],
+            "test_dimensions": ["terminal_outcome"],
+            "forbidden_leakage_dimensions": ["terminal_outcome"],
+            "reference_context": {
+                "team": "TEAM_A",
+                "game_state": "LEVEL",
+                "start_zone": "MIDDLE_THIRD",
+            },
+            "candidate_context": {
+                "team": "TEAM_A",
+                "game_state": "LEVEL",
+                "start_zone": "MIDDLE_THIRD",
+            },
+            "reference_outcome": "SHOT_ENDING",
+            "candidate_outcome": "LOSS",
+            "outcome_relation": "OPPOSITE",
+            "provenance_root": "counter_candidate_root",
+            "dependency_group": "counter_candidate_dep",
+            "independence_group": "counter_candidate_ind",
+            "reference_provenance_root": "counter_reference_root",
+            "reference_dependency_group": "counter_reference_dep",
+            "reference_independence_group": "counter_reference_ind",
+            "independence_admission_status": "ADMITTED",
+            "independence_admission_basis": "fixture_explicit_independence_contract",
         }
     ]
     return candidate

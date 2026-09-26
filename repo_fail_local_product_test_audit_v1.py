@@ -181,7 +181,7 @@ def main() -> int:
     baseline = _run(
         [
             sys.executable,
-            "repo_full_health_audit_v1.py",
+            "tools/repo_full_health_audit_v1.py",
             "--out-dir",
             str(out),
             "--timeout-seconds",

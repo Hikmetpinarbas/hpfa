@@ -148,3 +148,64 @@ def test_no_sample_match_identity_leak() -> None:
     rendered = json.dumps(result, ensure_ascii=False).casefold()
     for forbidden in ("sporting", "roma", "fenerbah", "galatasaray"):
         assert forbidden not in rendered
+
+
+def _with_supported_divergence(payload: dict, *, team: str = "team_a", period: str = "2") -> dict:
+    payload = dict(payload)
+    payload["first_supported_branch_divergence_candidates"] = [
+        {
+            "first_supported_branch_divergence_id": "fsbd_1",
+            "team_identity_candidate_id": team,
+            "period_candidate": period,
+            "divergence_level": "FIRST_SUCCESSOR_AFTER_SHARED_VISIBLE_ANCHOR",
+            "first_supported_divergence_state": "RESOLVED_AT_IMMEDIATE_POST_ANCHOR_LAYER",
+            "divergence_located_without_outcome": True,
+            "outcome_used_in_divergence_location": False,
+            "branch_profiles": [
+                {
+                    "branch_id": "branch_success",
+                    "neighbor_time_layer_ref": "layer_2a",
+                    "branch_outcome_state": "SUCCESS_SEMANTIC_VISIBLE",
+                    "supporting_visible_sequence_candidate_ids": ["s1"],
+                },
+                {
+                    "branch_id": "branch_failure",
+                    "neighbor_time_layer_ref": "layer_2b",
+                    "branch_outcome_state": "FAILURE_SEMANTIC_VISIBLE",
+                    "supporting_visible_sequence_candidate_ids": ["s2"],
+                },
+            ],
+        }
+    ]
+    return payload
+
+
+def test_family_binds_supported_branch_divergence_by_real_sequence_overlap() -> None:
+    result = build_observable_process_variant_binding(
+        _with_supported_divergence(_sequence_payload()),
+        _grammar_payload(),
+    )
+    family = result["observable_process_variant_families"][0]
+    assert family["supported_branch_divergence_binding_count"] == 1
+    assert family["success_failure_supported_branch_divergence_count"] == 1
+    binding = family["supported_branch_divergence_bindings"][0]
+    assert binding["source_first_supported_branch_divergence_ref"] == "fsbd_1"
+    assert binding["family_member_sequence_overlap_refs"] == ["s1", "s2"]
+    assert binding["family_supported_divergence_contrast_state"] == (
+        "SUCCESS_FAILURE_VISIBLE_WITHIN_FAMILY_SUPPORTED_DIVERGENCE"
+    )
+    assert binding["divergence_is_failure_cause_truth"] is False
+    assert binding["divergence_is_tactical_truth"] is False
+    assert binding["divergence_binding_is_independent_support_truth"] is False
+    assert result["supported_branch_divergence_bound_family_count"] == 1
+    assert result["success_failure_supported_branch_divergence_family_count"] == 1
+
+
+def test_family_does_not_bind_divergence_from_other_team_or_period() -> None:
+    result = build_observable_process_variant_binding(
+        _with_supported_divergence(_sequence_payload(), team="team_b", period="1"),
+        _grammar_payload(),
+    )
+    family = result["observable_process_variant_families"][0]
+    assert family["supported_branch_divergence_binding_count"] == 0
+    assert family["success_failure_supported_branch_divergence_count"] == 0

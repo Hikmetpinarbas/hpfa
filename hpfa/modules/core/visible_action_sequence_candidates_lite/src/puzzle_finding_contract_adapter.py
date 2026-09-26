@@ -395,9 +395,97 @@ def _family_view(
     return row
 
 
+
+def _as_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _bind_game_state_context(
+    finding: dict[str, Any],
+    context_payload: dict[str, Any] | None,
+) -> dict[str, Any]:
+    out = copy.deepcopy(finding)
+    evolution = (
+        out.get("evolution_surface")
+        if isinstance(out.get("evolution_surface"), dict)
+        else {}
+    )
+    if not isinstance(context_payload, dict):
+        return out
+
+    mix = context_payload.get("game_state_process_mix_context")
+    if not isinstance(mix, dict) or str(mix.get("status") or "") not in {"PASS", "REVIEW_REQUIRED"}:
+        return out
+
+    where_when = (
+        out.get("where_when")
+        if isinstance(out.get("where_when"), dict)
+        else {}
+    )
+    team_id = _clean(where_when.get("team_identity_candidate_id"))
+    anchor_time = _as_float(where_when.get("shared_anchor_time_candidate"))
+    if not team_id or anchor_time is None:
+        return out
+
+    candidates: list[dict[str, Any]] = []
+    for profile in mix.get("profiles") or []:
+        if not isinstance(profile, dict):
+            continue
+        if _clean(profile.get("team_identity_candidate_id")) != team_id:
+            continue
+        start = _as_float(profile.get("segment_start_second_candidate"))
+        end = _as_float(profile.get("segment_end_second_candidate"))
+        if start is None or end is None:
+            continue
+        if start <= anchor_time < end or (start == end == anchor_time):
+            candidates.append(profile)
+
+    if len(candidates) != 1:
+        evolution["game_state_conditioning_ready"] = False
+        evolution["game_state_binding_state"] = (
+            "MULTIPLE_MATCHING_SCORE_STATE_SEGMENTS_REVIEW_REQUIRED"
+            if len(candidates) > 1
+            else "NO_MATCHING_SCORE_STATE_SEGMENT"
+        )
+        out["evolution_surface"] = evolution
+        return out
+
+    profile = candidates[0]
+    evolution.update({
+        "score_state": copy.deepcopy(profile.get("score_state_candidate") or {}),
+        "game_state_conditioning_ready": True,
+        "game_state_binding_state": "SINGLE_SCORE_STATE_SEGMENT_MATCH",
+        "score_state_segment_start_second_candidate": profile.get(
+            "segment_start_second_candidate"
+        ),
+        "score_state_segment_end_second_candidate": profile.get(
+            "segment_end_second_candidate"
+        ),
+        "score_state_segment_duration_second_candidate": profile.get(
+            "segment_duration_second_candidate"
+        ),
+        "team_process_family_counts_in_score_state": copy.deepcopy(
+            profile.get("process_family_counts") or {}
+        ),
+        "team_process_family_rate_per_10_minutes_in_score_state": copy.deepcopy(
+            profile.get("process_family_rate_per_10_minutes") or {}
+        ),
+        "score_state_is_causal_explanation": False,
+        "process_mix_is_tactical_intention_truth": False,
+        "creates_new_evidence": False,
+        "creates_independent_support": False,
+    })
+    out["evolution_surface"] = evolution
+    return out
+
+
 def build_puzzle_finding_contract(
     sequence_payload: dict[str, Any],
     admission_payload: dict[str, Any] | None = None,
+    context_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Project admitted Safe Finding handoffs into puzzle-facing contract views.
 
@@ -517,6 +605,15 @@ def build_puzzle_finding_contract(
                 dependency_independence_proven,
                 statistical_independence_proven,
             )
+            base = _bind_game_state_context(base, context_payload)
+            if isinstance(admission_row, dict) and isinstance(
+                admission_row.get("branch_preoutcome_context_enrichment"), dict
+            ):
+                base["branch_preoutcome_context_enrichment"] = copy.deepcopy(
+                    admission_row["branch_preoutcome_context_enrichment"]
+                )
+                base["branch_preoutcome_context_enrichment_can_change_finding_status"] = False
+                base["branch_preoutcome_context_enrichment_can_authorize_emit"] = False
             findings.append(base)
 
             rules, missing_source = _eligible_family_rules(handoff, divergence_by_id)
@@ -582,7 +679,11 @@ def build_puzzle_finding_contract(
         "creates_new_finding": False,
         "cross_mechanism_fusion_performed": False,
         "mechanism_candidate_emitted": False,
-        "game_state_conditioning_ready": False,
+        "game_state_conditioning_ready": any(
+            isinstance(row.get("evolution_surface"), dict)
+            and row["evolution_surface"].get("game_state_conditioning_ready") is True
+            for row in findings
+        ),
         "tracking_claim_introduced": False,
         "provider_label_promoted_to_tactical_truth": False,
         "absence_promoted_to_counterevidence": False,

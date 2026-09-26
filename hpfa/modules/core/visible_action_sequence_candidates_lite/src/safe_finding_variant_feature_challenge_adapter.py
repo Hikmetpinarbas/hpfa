@@ -159,6 +159,50 @@ def _family_spread_profiles(process_variant_payload: dict[str, Any]) -> dict[str
     return result
 
 
+
+def _direct_divergence_family_refs(
+    process_variant_payload: dict[str, Any],
+    divergence_ref: str,
+) -> list[str]:
+    target = _clean(divergence_ref)
+    if not target:
+        return []
+    refs: set[str] = set()
+    for family in process_variant_payload.get("observable_process_variant_families") or []:
+        if not isinstance(family, dict):
+            continue
+        family_ref = _clean(family.get("observable_process_variant_family_id"))
+        if not family_ref:
+            continue
+        for binding in family.get("supported_branch_divergence_bindings") or []:
+            if not isinstance(binding, dict):
+                continue
+            if _clean(binding.get("source_first_supported_branch_divergence_ref")) == target:
+                refs.add(family_ref)
+                break
+    return sorted(refs)
+
+
+def _spread_separation_state(profiles: list[dict[str, Any]]) -> tuple[bool, bool, str]:
+    multi_cluster_visible = any(
+        int(profile.get("occurrence_disjoint_support_cluster_count") or 0) >= 2
+        for profile in profiles
+    )
+    multi_episode_visible = any(
+        int(profile.get("visible_episode_spread_count") or 0) >= 2
+        for profile in profiles
+    )
+    if multi_cluster_visible and multi_episode_visible:
+        state = "MULTI_EPISODE_OCCURRENCE_DISJOINT_SEPARATION_VISIBLE_INDEPENDENCE_UNPROVEN"
+    elif multi_cluster_visible:
+        state = "MULTI_OCCURRENCE_DISJOINT_SEPARATION_VISIBLE_EPISODE_SPREAD_NOT_ESTABLISHED"
+    elif multi_episode_visible:
+        state = "MULTI_EPISODE_SPREAD_VISIBLE_OCCURRENCE_SEPARATION_NOT_ESTABLISHED"
+    else:
+        state = "NO_MULTI_SURFACE_SEPARATION_VISIBLE"
+    return multi_cluster_visible, multi_episode_visible, state
+
+
 def _episode_spread_summary(profiles: list[dict[str, Any]]) -> dict[str, Any]:
     counts = [
         int(profile.get("visible_episode_spread_count") or 0)
@@ -202,6 +246,7 @@ def _binding_for_handoff(
         "episode_spread_observed": False,
         "episode_spread_max_visible_count": 0,
         "episode_spread_resolution_state": "UNRESOLVED",
+        "support_spread_separation_state": "UNRESOLVED",
         "support_spread_is_independent_support": False,
         "support_spread_is_recurrence_truth": False,
     }
@@ -222,24 +267,63 @@ def _binding_for_handoff(
         if handoff_success.intersection(success_refs)
         and handoff_failure.intersection(failure_refs)
     )
-    if not family_refs:
-        return {**unavailable, "state": "NOT_APPLICABLE_NO_GRAMMAR_STABLE_LINEAGE"}
-
     spread_by_family = _family_spread_profiles(process_variant_payload)
+    if not family_refs:
+        direct_refs = _direct_divergence_family_refs(
+            process_variant_payload,
+            _clean(handoff.get("source_first_supported_branch_divergence_ref")),
+        )
+        if len(direct_refs) != 1:
+            return {
+                **unavailable,
+                "state": (
+                    "NOT_APPLICABLE_NO_GRAMMAR_STABLE_LINEAGE"
+                    if not direct_refs
+                    else "REVIEW_REQUIRED_MULTIPLE_DIRECT_DIVERGENCE_FAMILY_MATCHES"
+                ),
+                "direct_divergence_family_refs": direct_refs,
+                "direct_divergence_family_match_count": len(direct_refs),
+            }
+        direct_profiles = [
+            spread_by_family[direct_refs[0]]
+            for _ in [0]
+            if direct_refs[0] in spread_by_family
+        ]
+        episode_summary = _episode_spread_summary(direct_profiles)
+        multi_cluster_visible, multi_episode_visible, separation_state = (
+            _spread_separation_state(direct_profiles)
+        )
+        return {
+            **unavailable,
+            "state": "DIRECT_DIVERGENCE_FAMILY_SPREAD_ONLY_NO_GRAMMAR_STABLE_LINEAGE",
+            "family_refs": direct_refs,
+            "direct_divergence_family_refs": direct_refs,
+            "direct_divergence_family_match_count": 1,
+            "support_spread_profiles": direct_profiles,
+            "multi_occurrence_disjoint_cluster_visible": multi_cluster_visible,
+            "multi_episode_spread_visible": multi_episode_visible,
+            "episode_spread_observed": episode_summary["observed"],
+            "episode_spread_max_visible_count": episode_summary["max_visible_episode_spread_count"],
+            "episode_spread_resolution_state": episode_summary["resolution_state"],
+            "support_spread_separation_state": separation_state,
+            "support_spread_is_independent_support": False,
+            "support_spread_is_recurrence_truth": False,
+            "direct_divergence_family_spread_can_resolve_unknown_only": True,
+            "direct_divergence_family_spread_can_authorize_emit": False,
+            "direct_divergence_family_spread_can_increase_support": False,
+        }
+
     spread_profiles = [
         spread_by_family[family_ref]
         for family_ref in family_refs
         if family_ref in spread_by_family
     ]
-    multi_cluster_visible = any(
-        int(profile.get("occurrence_disjoint_support_cluster_count") or 0) >= 2
-        for profile in spread_profiles
-    )
-    multi_episode_visible = any(
-        int(profile.get("visible_episode_spread_count") or 0) >= 2
-        for profile in spread_profiles
-    )
     episode_summary = _episode_spread_summary(spread_profiles)
+    (
+        multi_cluster_visible,
+        multi_episode_visible,
+        support_spread_separation_state,
+    ) = _spread_separation_state(spread_profiles)
 
     rows_by_family: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in challenge_payload.get("variant_feature_challenge_records") or []:
@@ -261,6 +345,7 @@ def _binding_for_handoff(
             "episode_spread_observed": episode_summary["observed"],
             "episode_spread_max_visible_count": episode_summary["max_visible_episode_spread_count"],
             "episode_spread_resolution_state": episode_summary["resolution_state"],
+            "support_spread_separation_state": support_spread_separation_state,
         }
 
     challenge_refs = sorted(
@@ -317,6 +402,7 @@ def _binding_for_handoff(
         "episode_spread_observed": episode_summary["observed"],
         "episode_spread_max_visible_count": episode_summary["max_visible_episode_spread_count"],
         "episode_spread_resolution_state": episode_summary["resolution_state"],
+        "support_spread_separation_state": support_spread_separation_state,
         "support_spread_is_independent_support": False,
         "support_spread_is_recurrence_truth": False,
     }
@@ -404,6 +490,9 @@ def apply_variant_feature_challenge_to_admission(
         row["variant_support_episode_spread_resolution_state"] = _clean(
             binding["episode_spread_resolution_state"]
         ) or "UNRESOLVED"
+        row["variant_support_spread_separation_state"] = _clean(
+            binding["support_spread_separation_state"]
+        ) or "UNRESOLVED"
         row["variant_support_episode_spread_resolves_upstream_unknown"] = bool(
             binding["episode_spread_observed"]
         )
@@ -415,7 +504,17 @@ def apply_variant_feature_challenge_to_admission(
         reasons = set(_refs(row.get("decision_reasons")))
         if binding["episode_spread_observed"]:
             reasons.discard("EPISODE_SPREAD_UNKNOWN")
+            if _clean(row.get("episode_spread_state")).upper() == "UNKNOWN":
+                row["episode_spread_state"] = "OBSERVED_LATE_BOUND_VARIANT_FAMILY_SPREAD"
+                row["episode_spread_count"] = int(binding["episode_spread_max_visible_count"] or 0)
+                row["episode_spread_source"] = "OBSERVABLE_PROCESS_VARIANT_FAMILY_LINEAGE"
+                row["episode_spread_late_bound"] = True
+                row["episode_spread_can_increase_support"] = False
+                row["episode_spread_is_independent_support"] = False
+                row["episode_spread_is_recurrence_truth"] = False
         state = binding["state"]
+        if state == "MATCHED_CHALLENGE_VISIBLE":
+            reasons.discard("CHALLENGE_SURFACE_EMPTY")
         challenge_downgrade_reasons: list[str] = []
         if state == "UNAVAILABLE_REVIEW_REQUIRED":
             challenge_downgrade_reasons.append("VARIANT_FEATURE_CHALLENGE_NOT_AVAILABLE")

@@ -1,0 +1,2552 @@
+{
+  "registry_id": "hpfa_football_action_process_grammar_v1",
+  "version": "1.0.0",
+  "status": "CANONICAL_SEMANTIC_CONTRACT_CANDIDATE",
+  "purpose": "Provider-independent football action/process semantics for HPFA evidence, metric and analyst layers.",
+  "classes": [
+    "ACTION",
+    "QUALIFIER",
+    "OUTCOME",
+    "RELATION",
+    "PROCESS",
+    "STATE",
+    "CONTEXT",
+    "META",
+    "DERIVED_CONSTRUCT"
+  ],
+  "grammar_levels": [
+    "ACTION_NUCLEUS",
+    "FACET",
+    "RELATION",
+    "PROCESS",
+    "EPISODE",
+    "FEATURE",
+    "METRIC_MODEL",
+    "FINDING"
+  ],
+  "truth_locks": [
+    "ROW != EVENT TRUTH",
+    "EVENT != WHOLE OBSERVATION UNIVERSE",
+    "PROVIDER LABEL != PHYSICAL/TACTICAL TRUTH",
+    "AGGREGATE != ACTION IDENTITY",
+    "MULTIFORMAT != INDEPENDENT EVIDENCE",
+    "SAME TIMESTAMP != TOTAL ORDER",
+    "COORDINATE != TRACKING",
+    "PROCESS LABEL != COACH INTENTION",
+    "RECURRENCE != CAUSALITY",
+    "MODEL OUTPUT != FACT",
+    "ABSENCE != COUNTEREVIDENCE",
+    "NO_VISIBLE_FOLLOWUP != FAILURE"
+  ],
+  "provider_binding_policy": {
+    "provider_label_is_canonical_truth": false,
+    "provider_specific_definition_must_retain_rule_version": true,
+    "provider_alias_may_map_to": [
+      "canonical_id",
+      "qualifier",
+      "relation",
+      "process_annotation",
+      "REVIEW_REQUIRED"
+    ],
+    "same_occurrence_facets_do_not_increase_true_action_count": true
+  },
+  "metric_binding_required_fields": [
+    "football_question",
+    "construct_id",
+    "eligible_grammar_objects",
+    "numerator",
+    "eligible_denominator",
+    "unit_of_analysis",
+    "spatial_requirement",
+    "temporal_requirement",
+    "model_requirement",
+    "dependency_rule",
+    "censoring_rule",
+    "uncertainty_method",
+    "safe_meaning",
+    "forbidden_inference",
+    "claim_ceiling"
+  ],
+  "entries": [
+    {
+      "id": "PASS",
+      "class": "ACTION",
+      "family": "BALL_TRANSFER",
+      "parent": null,
+      "label_tr": "Pas",
+      "label_en": "Pass",
+      "definition": "Topa sahip oyuncunun topu takım arkadaşına aktarmaya yönelik on-ball eylemi.",
+      "football_importance": "Bağlantı, dolaşım ve ilerlemenin temel transfer birimi.",
+      "required_observations": [
+        "actor",
+        "team",
+        "time",
+        "provider action semantics"
+      ],
+      "metric_links": [
+        "PASS_VOLUME",
+        "PASS_ACCURACY",
+        "PROGRESSION",
+        "ACTION_VALUE"
+      ],
+      "mathematical_views": [
+        "sequence",
+        "graph",
+        "state_transition"
+      ],
+      "forbidden_inferences": [
+        "receiver truth without evidence",
+        "intention beyond transfer attempt"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [
+        "BALL_TRANSFER"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "CROSS",
+      "class": "ACTION",
+      "family": "BALL_TRANSFER",
+      "parent": "PASS",
+      "label_tr": "Orta",
+      "label_en": "Cross",
+      "definition": "Geniş/kanat bağlamından hedef alana yapılan provider veya geometry-admitted servis/pas alt-tipi.",
+      "football_importance": "Ceza sahası servis biçimlerini ayrıştırır.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "THROUGH_PASS",
+      "class": "DERIVED_CONSTRUCT",
+      "family": "BALL_TRANSFER",
+      "parent": "PASS",
+      "label_tr": "Ara pas",
+      "label_en": "Through pass",
+      "definition": "Savunma arkasına/arasına ilerletici pas için explicit veya admitted alt-tip.",
+      "football_importance": "Chance creation ve progression bağlamı.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "CUTBACK",
+      "class": "DERIVED_CONSTRUCT",
+      "family": "BALL_TRANSFER",
+      "parent": "PASS",
+      "label_tr": "Geriye çıkarılan pas",
+      "label_en": "Cutback",
+      "definition": "Box/byline derinliğinden geriye veya merkeze servis için versioned construct.",
+      "football_importance": "Ceza sahası yaratım yollarını ayrıştırır.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SWITCH_PASS",
+      "class": "DERIVED_CONSTRUCT",
+      "family": "BALL_TRANSFER",
+      "parent": "PASS",
+      "label_tr": "Oyun yönü değiştiren pas",
+      "label_en": "Switch pass",
+      "definition": "Topu bir yatay/kanat bölgesinden diğerine anlamlı biçimde taşıyan pas constructı.",
+      "football_importance": "Yön değişimi ve route çeşitliliği.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "LONG_PASS",
+      "class": "QUALIFIER",
+      "family": "DISTANCE",
+      "parent": "PASS",
+      "label_tr": "Uzun pas niteliği",
+      "label_en": "Long-pass qualifier",
+      "definition": "Pas eylemine provider-defined veya HPFA-versioned mesafe niteliği.",
+      "football_importance": "Dağıtım mesafesi profili.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "FORWARD_PASS",
+      "class": "QUALIFIER",
+      "family": "DIRECTION",
+      "parent": "PASS",
+      "label_tr": "İleri pas niteliği",
+      "label_en": "Forward-pass qualifier",
+      "definition": "Admitted saldırı yönünde ileri net yön taşıyan pas niteliği.",
+      "football_importance": "Dikeylik ve progression profili.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "BACKWARD_PASS",
+      "class": "QUALIFIER",
+      "family": "DIRECTION",
+      "parent": "PASS",
+      "label_tr": "Geri pas niteliği",
+      "label_en": "Backward-pass qualifier",
+      "definition": "Admitted saldırı yönünün tersine net yön taşıyan pas niteliği.",
+      "football_importance": "Circulation ve risk profili.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "LATERAL_PASS",
+      "class": "QUALIFIER",
+      "family": "DIRECTION",
+      "parent": "PASS",
+      "label_tr": "Yatay pas niteliği",
+      "label_en": "Lateral-pass qualifier",
+      "definition": "Versioned açı/yön bandında yatay kabul edilen pas niteliği.",
+      "football_importance": "Circulation yönü.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "HEAD_PASS",
+      "class": "QUALIFIER",
+      "family": "TECHNIQUE",
+      "parent": "PASS",
+      "label_tr": "Kafa pası",
+      "label_en": "Head-pass qualifier",
+      "definition": "Pasın kafa ile yapıldığını belirten body-part niteliği.",
+      "football_importance": "Hava topu sonrası bağlantı analizi.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "CARRY",
+      "class": "ACTION",
+      "family": "BALL_TRANSPORT",
+      "parent": null,
+      "label_tr": "Top taşıma",
+      "label_en": "Carry",
+      "definition": "Aynı oyuncunun topu admitted zaman/mekân durumları arasında taşıdığı eylem; rakip geçme şartı yoktur.",
+      "football_importance": "Topla progression ve transition akışının temel birimi.",
+      "required_observations": [
+        "actor",
+        "team",
+        "time",
+        "carry semantics"
+      ],
+      "metric_links": [
+        "CARRY_VOLUME",
+        "PROGRESSION",
+        "ACTION_VALUE"
+      ],
+      "mathematical_views": [
+        "spatial_transition",
+        "semi_markov"
+      ],
+      "forbidden_inferences": [
+        "physical trajectory without endpoint support",
+        "true speed without tracking"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [
+        "BALL_CARRY"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "DRIBBLE_TAKE_ON",
+      "class": "ACTION",
+      "family": "BALL_TRANSPORT",
+      "parent": null,
+      "label_tr": "Dripling / adam geçme",
+      "label_en": "Dribble / take-on",
+      "definition": "Topa sahip oyuncunun rakibi geçmeye veya alan yaratmaya çalıştığı opponent-facing eylem.",
+      "football_importance": "1v1 progression, risk ve interaction analizi.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [
+        "DRIBBLE_SUCCESS",
+        "LOSS_COST",
+        "PROGRESSION"
+      ],
+      "mathematical_views": [
+        "interaction",
+        "state_transition"
+      ],
+      "forbidden_inferences": [
+        "carry synonym",
+        "defender beaten unless outcome admitted"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [
+        "DRIBBLE",
+        "TAKE_ON"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "TOUCH_CONTROL",
+      "class": "ACTION",
+      "family": "BALL_CONTROL",
+      "parent": null,
+      "label_tr": "Dokunuş / kontrol",
+      "label_en": "Touch / control",
+      "definition": "Topla temas, kontrol veya reception-type eylem.",
+      "football_importance": "Sekans bağlantısı ve ilk aksiyon analizi.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "BAD_TOUCH",
+      "class": "ACTION",
+      "family": "BALL_CONTROL",
+      "parent": null,
+      "label_tr": "Kötü kontrol",
+      "label_en": "Bad touch",
+      "definition": "Provider-defined biçimde kontrolün bozulduğu action/context.",
+      "football_importance": "Kontrol hatası ve possession consequence analizi.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SHOT",
+      "class": "ACTION",
+      "family": "FINISHING",
+      "parent": null,
+      "label_tr": "Şut",
+      "label_en": "Shot",
+      "definition": "Gol atmaya yönelik kaleye/goal-target bağlamına yapılan vuruş girişimi.",
+      "football_importance": "Hücumların terminal finishing eylemi.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [
+        "FINISHING_ATTEMPT"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "PENALTY_SHOT",
+      "class": "ACTION",
+      "family": "FINISHING",
+      "parent": "SHOT",
+      "label_tr": "Penaltı vuruşu",
+      "label_en": "Penalty shot",
+      "definition": "Penaltı restart bağlamındaki şut.",
+      "football_importance": "Özel başlangıç state’i ile finishing analizi.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "FREE_KICK_SHOT",
+      "class": "ACTION",
+      "family": "FINISHING",
+      "parent": "SHOT",
+      "label_tr": "Serbest vuruş şutu",
+      "label_en": "Free-kick shot",
+      "definition": "Doğrudan serbest vuruştan yapılan şut.",
+      "football_importance": "Duran top bitiriciliğini açık oyundan ayırır.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "DUEL",
+      "class": "ACTION",
+      "family": "CONTEST",
+      "parent": null,
+      "label_tr": "İkili mücadele",
+      "label_en": "Duel",
+      "definition": "İki rakip aktörün top/pozisyon için etkileşimini temsil eden contest ailesi.",
+      "football_importance": "Rakip etkileşiminin relational çekirdeği.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "AERIAL_DUEL",
+      "class": "ACTION",
+      "family": "CONTEST",
+      "parent": "DUEL",
+      "label_tr": "Hava topu mücadelesi",
+      "label_en": "Aerial duel",
+      "definition": "Havadaki top için rakip aktörlerin contest eylemi.",
+      "football_importance": "Direkt oyun ve ikinci top süreçleri.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "GROUND_DUEL",
+      "class": "ACTION",
+      "family": "CONTEST",
+      "parent": "DUEL",
+      "label_tr": "Yerde ikili mücadele",
+      "label_en": "Ground duel",
+      "definition": "Yer temelli provider-explicit duel.",
+      "football_importance": "1v1 yer mücadelesi profili.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "LOOSE_BALL_DUEL",
+      "class": "ACTION",
+      "family": "CONTEST",
+      "parent": "DUEL",
+      "label_tr": "Sahipsiz top mücadelesi",
+      "label_en": "Loose-ball duel",
+      "definition": "Kontrolü net olmayan top için contest.",
+      "football_importance": "Possession acquisition ve ikinci top bağlamı.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "TACKLE",
+      "class": "ACTION",
+      "family": "DEFENSIVE_DISRUPTION",
+      "parent": null,
+      "label_tr": "Müdahale / tackle",
+      "label_en": "Tackle",
+      "definition": "Topa sahip rakibi dispossess etmeye veya topa müdahale etmeye yönelik savunma eylemi.",
+      "football_importance": "Aktif savunma disruption birimi.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "recovery automatically",
+        "forced turnover automatically"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "INTERCEPTION",
+      "class": "ACTION",
+      "family": "DEFENSIVE_DISRUPTION",
+      "parent": null,
+      "label_tr": "Pas arası",
+      "label_en": "Interception",
+      "definition": "Rakibin top transferini/rotasını kesen savunma eylemi.",
+      "football_importance": "Transfer akışını kesme ve recovery context.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "tackle synonym",
+        "possession retained automatically"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [
+        "PASS_INTERCEPTION"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "BLOCK",
+      "class": "ACTION",
+      "family": "DEFENSIVE_DISRUPTION",
+      "parent": null,
+      "label_tr": "Blok",
+      "label_en": "Block",
+      "definition": "Şut veya transfer yolunu durduran/saptıran savunma müdahalesi.",
+      "football_importance": "Shot/transfer consequence analizi.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "possession recovery automatically"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "CLEARANCE",
+      "class": "ACTION",
+      "family": "DEFENSIVE_DISRUPTION",
+      "parent": null,
+      "label_tr": "Uzaklaştırma",
+      "label_en": "Clearance",
+      "definition": "Savunma tehlike bağlamında topu bölgeden uzaklaştırmaya yönelik eylem.",
+      "football_importance": "Box defending ve relief süreçleri.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "controlled pass automatically",
+        "successful defence truth"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [
+        "DEFENSIVE_CLEARANCE"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "PRESSURE_ACTION_EXPLICIT",
+      "class": "ACTION",
+      "family": "DEFENSIVE_DISRUPTION",
+      "parent": null,
+      "label_tr": "Explicit baskı aksiyonu",
+      "label_en": "Explicit pressure action",
+      "definition": "Yalnız açık provider observation veya tracking/video authority ile admitted baskı eylemi.",
+      "football_importance": "Pressure-conditioned analiz için gerçek observation.",
+      "required_observations": [
+        "explicit pressure observation"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "infer pressure from proximity alone",
+        "physical pressure geometry without tracking"
+      ],
+      "claim_ceiling": "EXPLICIT_PROVIDER_PRESSURE_OBSERVATION_ONLY",
+      "aliases": [
+        "PRESSURE"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "RECOVERY",
+      "class": "ACTION",
+      "family": "POSSESSION_CHANGE",
+      "parent": null,
+      "label_tr": "Top kazanımı",
+      "label_en": "Recovery",
+      "definition": "Takımın top kontrolünü yeniden kazandığını belirten admitted possession-change eylemi.",
+      "football_importance": "Savunmadan hücuma geçiş tetikleyicisi.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [
+        "RECOVERY_VOLUME",
+        "RECOVERY_TO_ATTACK",
+        "RECOVERY_VALUE"
+      ],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "interception synonym",
+        "pressing success",
+        "causal forced turnover"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [
+        "BALL_RECOVERY"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "TURNOVER_LOSS",
+      "class": "ACTION",
+      "family": "POSSESSION_CHANGE",
+      "parent": null,
+      "label_tr": "Top kaybı",
+      "label_en": "Turnover / loss",
+      "definition": "Takımın top kontrolünü kaybettiğini belirten admitted possession-change eylemi.",
+      "football_importance": "Defensive transition ve loss-cost tetikleyicisi.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [
+        "LOSS_VOLUME",
+        "LOSS_COST",
+        "OPPONENT_TRANSITION"
+      ],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "forced turnover by opponent without relation evidence"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [
+        "TURNOVER",
+        "LOSS",
+        "LOST_BALL"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "KICKOFF",
+      "class": "ACTION",
+      "family": "RESTART",
+      "parent": null,
+      "label_tr": "Başlama vuruşu",
+      "label_en": "Kick-off",
+      "definition": "Yarı başlangıcı veya gol sonrası restart.",
+      "football_importance": "Kesin process başlangıç bağlamı.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "THROW_IN",
+      "class": "ACTION",
+      "family": "RESTART",
+      "parent": null,
+      "label_tr": "Taç",
+      "label_en": "Throw-in",
+      "definition": "Topun taç çizgisi dışına çıkması sonrası oyuna sokulması.",
+      "football_importance": "Restart retention ve progression.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "GOAL_KICK",
+      "class": "ACTION",
+      "family": "RESTART",
+      "parent": null,
+      "label_tr": "Kale vuruşu",
+      "label_en": "Goal kick",
+      "definition": "Kale vuruşu restart eylemi.",
+      "football_importance": "Kaleci dağıtımı ve build-up başlangıcı.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": "Goal-kick-like provider distance labels require context review before literal restart use."
+    },
+    {
+      "id": "CORNER_KICK",
+      "class": "ACTION",
+      "family": "RESTART",
+      "parent": null,
+      "label_tr": "Korner",
+      "label_en": "Corner kick",
+      "definition": "Korner restart eylemi.",
+      "football_importance": "Duran top attack/defence başlangıcı.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "FREE_KICK_RESTART",
+      "class": "ACTION",
+      "family": "RESTART",
+      "parent": null,
+      "label_tr": "Serbest vuruş",
+      "label_en": "Free-kick restart",
+      "definition": "Faul/ihlal sonrası restart.",
+      "football_importance": "Duran top süreçlerini açık oyundan ayırır.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "PENALTY_RESTART",
+      "class": "ACTION",
+      "family": "RESTART",
+      "parent": null,
+      "label_tr": "Penaltı restart",
+      "label_en": "Penalty restart",
+      "definition": "Penaltı kararı sonrası özel restart.",
+      "football_importance": "Penaltı şutu context/state’i.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "GK_SAVE",
+      "class": "ACTION",
+      "family": "GOALKEEPER_ACTION",
+      "parent": null,
+      "label_tr": "Kurtarış",
+      "label_en": "Goalkeeper save",
+      "definition": "Kalecinin kaleye yönelen şutun gol olmasını engellediği eylem.",
+      "football_importance": "Shot-stopping consequence.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [
+        "SAVE"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "GK_CLAIM",
+      "class": "ACTION",
+      "family": "GOALKEEPER_ACTION",
+      "parent": null,
+      "label_tr": "Topu kontrol etme / claim",
+      "label_en": "Goalkeeper claim",
+      "definition": "Kalecinin gelen topu kontrollü biçimde sahiplenmesi.",
+      "football_importance": "Cross/set-piece defence ve possession başlangıcı.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "GK_PUNCH",
+      "class": "ACTION",
+      "family": "GOALKEEPER_ACTION",
+      "parent": null,
+      "label_tr": "Yumruklama",
+      "label_en": "Goalkeeper punch",
+      "definition": "Kalecinin topu yumrukla uzaklaştırması.",
+      "football_importance": "Cross/set-piece defending consequence.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "GK_PICKUP",
+      "class": "ACTION",
+      "family": "GOALKEEPER_ACTION",
+      "parent": null,
+      "label_tr": "Topu yerden alma",
+      "label_en": "Goalkeeper pick-up",
+      "definition": "Kalecinin topu elleriyle kontrol altına alması.",
+      "football_importance": "Possession acquisition.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "GK_SWEEP",
+      "class": "ACTION",
+      "family": "GOALKEEPER_ACTION",
+      "parent": null,
+      "label_tr": "Süpürme aksiyonu",
+      "label_en": "Goalkeeper sweep",
+      "definition": "Provider-explicit kaleci sweep müdahalesi.",
+      "football_importance": "GK defensive action range event profili.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "true starting position/line height without tracking"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "GK_DISTRIBUTION",
+      "class": "ACTION",
+      "family": "GOALKEEPER_ACTION",
+      "parent": null,
+      "label_tr": "Kaleci dağıtımı",
+      "label_en": "Goalkeeper distribution",
+      "definition": "Kalecinin kontrol/restart sonrası topu oyuna aktarması.",
+      "football_importance": "Build-up başlangıcı ve distribution yield.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "receiver truth without evidence"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [
+        "GOALKEEPER_DISTRIBUTION"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "FOUL_COMMITTED",
+      "class": "ACTION",
+      "family": "INFRACTION",
+      "parent": null,
+      "label_tr": "Faul",
+      "label_en": "Foul committed",
+      "definition": "Oyuncuya/takıma karşı verilen faul ihlali.",
+      "football_importance": "Oyun kesintisi, restart ve discipline context.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "tactical foul intention without evidence"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [
+        "FOUL"
+      ],
+      "provider_note": null
+    },
+    {
+      "id": "HANDBALL_INFRACTION",
+      "class": "ACTION",
+      "family": "INFRACTION",
+      "parent": null,
+      "label_tr": "Elle oynama",
+      "label_en": "Handball",
+      "definition": "Elle oynama ihlali olarak provider/referee-admitted olay.",
+      "football_importance": "Restart/discipline context.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SUCCESS",
+      "class": "QUALIFIER",
+      "family": "OUTCOME",
+      "parent": null,
+      "label_tr": "Başarılı",
+      "label_en": "Success",
+      "definition": "Eylemin provider veya construct-specific başarı kriterini karşılaması.",
+      "football_importance": "Outcome ekseni.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "universal success semantics across providers"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "FAILURE",
+      "class": "QUALIFIER",
+      "family": "OUTCOME",
+      "parent": null,
+      "label_tr": "Başarısız",
+      "label_en": "Failure",
+      "definition": "Eylemin definition-specific başarı kriterini karşılamaması.",
+      "football_importance": "Variant ve efficiency analizi.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "unresolved converted to failure"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "PROGRESSIVE",
+      "class": "QUALIFIER",
+      "family": "PROGRESSION",
+      "parent": null,
+      "label_tr": "Progresif",
+      "label_en": "Progressive",
+      "definition": "Eylemin versioned provider/HPFA progression kriterini karşılaması.",
+      "football_importance": "Progression hacmi ve value modelleri.",
+      "required_observations": [
+        "eligible action",
+        "progression rule/version"
+      ],
+      "metric_links": [
+        "PROGRESSION_RATE",
+        "PROGRESSION_VALUE"
+      ],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "cross-provider equality without definition alignment"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "PASS_INTO_FINAL_THIRD",
+      "class": "DERIVED_CONSTRUCT",
+      "family": "PROGRESSION",
+      "parent": "PASS",
+      "label_tr": "Son üçte bire pas",
+      "label_en": "Pass into final third",
+      "definition": "Passın final-third state’e girişini destekleyen derived construct.",
+      "football_importance": "Final-third access.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "PASS_INTO_BOX",
+      "class": "DERIVED_CONSTRUCT",
+      "family": "PROGRESSION",
+      "parent": "PASS",
+      "label_tr": "Ceza sahasına pas",
+      "label_en": "Pass into penalty area",
+      "definition": "Passın box state’e girişini destekleyen derived construct.",
+      "football_importance": "Box access ve chance creation.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "LINE_BREAKING_PASS_EXPLICIT",
+      "class": "DERIVED_CONSTRUCT",
+      "family": "PROGRESSION",
+      "parent": "PASS",
+      "label_tr": "Explicit hat kıran pas",
+      "label_en": "Explicit line-breaking pass",
+      "definition": "Yalnız explicit label veya admitted opponent-line geometry ile desteklenen pass construct.",
+      "football_importance": "Hat aşma analizini bounded tutar.",
+      "required_observations": [
+        "PASS",
+        "explicit line-break semantics or opponent-line geometry"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "derive true line break from event coordinates alone"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "KEY_PASS",
+      "class": "RELATION",
+      "family": "CHANCE_CREATION",
+      "parent": null,
+      "label_tr": "Kilit pas",
+      "label_en": "Key pass",
+      "definition": "Provider-defined shot/chance relation taşıyan pas bağlantısı.",
+      "football_importance": "Chance creation bağlantısı.",
+      "required_observations": [
+        "PASS",
+        "provider key-pass rule/version"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "assist synonym"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SHOT_ASSIST",
+      "class": "RELATION",
+      "family": "CHANCE_CREATION",
+      "parent": null,
+      "label_tr": "Şut pası",
+      "label_en": "Shot assist",
+      "definition": "Bir kaynak eylemi sonraki şutla bağlayan admitted relation.",
+      "football_importance": "Shot creation attribution.",
+      "required_observations": [
+        "source action",
+        "target shot",
+        "relation evidence"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "goal assist synonym",
+        "causal credit"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "ASSIST",
+      "class": "RELATION",
+      "family": "CHANCE_CREATION",
+      "parent": null,
+      "label_tr": "Asist",
+      "label_en": "Assist",
+      "definition": "Gol ile ilişkili önceki eyleme provider/rule-defined bağ.",
+      "football_importance": "Gol yaratım zinciri.",
+      "required_observations": [
+        "source action",
+        "goal/shot outcome",
+        "assist rule"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "independent action count",
+        "causal contribution truth"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SECOND_ASSIST",
+      "class": "RELATION",
+      "family": "CHANCE_CREATION",
+      "parent": null,
+      "label_tr": "İkinci asist",
+      "label_en": "Second assist",
+      "definition": "Gol zincirinde provider-defined ikinci önceki bağlantı.",
+      "football_importance": "Uzun zincir katkı context’i.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "causal contribution truth"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "THIRD_ASSIST",
+      "class": "RELATION",
+      "family": "CHANCE_CREATION",
+      "parent": null,
+      "label_tr": "Üçüncü asist",
+      "label_en": "Third assist",
+      "definition": "Gol zincirinde provider-defined üçüncü önceki bağlantı.",
+      "football_importance": "Uzun zincir context’i.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "causal contribution truth"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "FOUL_SUFFERED",
+      "class": "RELATION",
+      "family": "INFRACTION",
+      "parent": null,
+      "label_tr": "Faul alma",
+      "label_en": "Foul suffered",
+      "definition": "Faulün ihlale maruz kalan aktör tarafını gösteren relation.",
+      "football_importance": "Rakip interaction ve restart kaynağı.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "independent foul event count inflation"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "EXPLICIT_PRESSURE_CONTEXT",
+      "class": "CONTEXT",
+      "family": "PRESSURE",
+      "parent": null,
+      "label_tr": "Explicit baskı bağlamı",
+      "label_en": "Explicit pressure context",
+      "definition": "Yalnız source-explicit pressure context veya tracking/video authority.",
+      "football_importance": "Pressure-conditioned karşılaştırmalar.",
+      "required_observations": [
+        "explicit pressure source"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "pressure inferred from sparse event proximity"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SHOT_ON_TARGET",
+      "class": "QUALIFIER",
+      "family": "FINISHING",
+      "parent": "SHOT",
+      "label_tr": "Kaleyi bulan şut",
+      "label_en": "Shot on target",
+      "definition": "Provider-defined on-target sonucu.",
+      "football_importance": "Finishing accuracy ve GK shot-faced relations.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SHOT_OFF_TARGET",
+      "class": "QUALIFIER",
+      "family": "FINISHING",
+      "parent": "SHOT",
+      "label_tr": "Kaleyi bulmayan şut",
+      "label_en": "Shot off target",
+      "definition": "Provider-defined off-target sonucu.",
+      "football_importance": "Shot outcome dağılımı.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SHOT_BLOCKED",
+      "class": "QUALIFIER",
+      "family": "FINISHING",
+      "parent": "SHOT",
+      "label_tr": "Bloklanan şut",
+      "label_en": "Blocked shot",
+      "definition": "Savunma müdahalesiyle engellenen shot outcome/context.",
+      "football_importance": "Shot consequence ve disruption.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "WOODWORK",
+      "class": "QUALIFIER",
+      "family": "FINISHING",
+      "parent": "SHOT",
+      "label_tr": "Direk / çerçeve",
+      "label_en": "Woodwork",
+      "definition": "Direk/üst direkten dönen shot outcome.",
+      "football_importance": "Finishing outcome dağılımı.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "GOAL",
+      "class": "OUTCOME",
+      "family": "FINISHING",
+      "parent": null,
+      "label_tr": "Gol",
+      "label_en": "Goal",
+      "definition": "Şut/own-goal sequence sonucunda skorun arttığı terminal outcome.",
+      "football_importance": "Score state transition ve finishing sonucu.",
+      "required_observations": [
+        "goal semantics",
+        "team attribution",
+        "time"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "separate action count inflation where goal is shot outcome"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "OWN_GOAL",
+      "class": "OUTCOME",
+      "family": "FINISHING",
+      "parent": null,
+      "label_tr": "Kendi kalesine gol",
+      "label_en": "Own goal",
+      "definition": "Rakip takım lehine own-goal olarak atfedilen terminal outcome.",
+      "football_importance": "Score attribution.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "POSSESSION_HANDOVER",
+      "class": "OUTCOME",
+      "family": "POSSESSION_CHANGE",
+      "parent": null,
+      "label_tr": "Top sahipliğinin rakibe geçmesi",
+      "label_en": "Possession handover",
+      "definition": "Visible consequence içinde top kontrolünün rakip tarafa geçtiği candidate outcome.",
+      "football_importance": "Loss/recovery/transition consequence.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "cause of turnover"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "STOPPAGE",
+      "class": "OUTCOME",
+      "family": "GAME_FLOW",
+      "parent": null,
+      "label_tr": "Oyun durması",
+      "label_en": "Stoppage",
+      "definition": "Faul, out, period end vb. nedenle aktif sürecin kesilmesi.",
+      "football_importance": "Censoring ve terminal handling.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "failure automatically"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "OFFSIDE_INFRACTION",
+      "class": "OUTCOME",
+      "family": "INFRACTION",
+      "parent": null,
+      "label_tr": "Ofsayt",
+      "label_en": "Offside",
+      "definition": "Ofsayt kararı nedeniyle oyunun kesilmesi.",
+      "football_importance": "Sekans terminali.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "off-ball positioning reconstruction"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "CARD_YELLOW",
+      "class": "META",
+      "family": "DISCIPLINE",
+      "parent": null,
+      "label_tr": "Sarı kart",
+      "label_en": "Yellow card",
+      "definition": "Hakem disiplin yaptırımı.",
+      "football_importance": "Match context.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "foul event identity"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "CARD_RED",
+      "class": "META",
+      "family": "DISCIPLINE",
+      "parent": null,
+      "label_tr": "Kırmızı kart",
+      "label_en": "Red card",
+      "definition": "Oyuncunun oyundan ihraç edildiği disiplin yaptırımı.",
+      "football_importance": "Manpower/game-state context.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "tactical effect causality"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "PERIOD_START",
+      "class": "META",
+      "family": "TIMELINE",
+      "parent": null,
+      "label_tr": "Devre başlangıcı",
+      "label_en": "Period start",
+      "definition": "Maç periyodunun başlangıç meta olayı.",
+      "football_importance": "Temporal segmentation.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "PERIOD_END",
+      "class": "META",
+      "family": "TIMELINE",
+      "parent": null,
+      "label_tr": "Devre / maç sonu",
+      "label_en": "Period end",
+      "definition": "Maç periyodunun terminal meta olayı.",
+      "football_importance": "Temporal terminal/censoring boundary.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SUBSTITUTION",
+      "class": "META",
+      "family": "ROSTER",
+      "parent": null,
+      "label_tr": "Oyuncu değişikliği",
+      "label_en": "Substitution",
+      "definition": "Bir oyuncunun çıkıp diğerinin girdiği roster state transition.",
+      "football_importance": "Actor availability ve match context.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [
+        "tactical intention"
+      ],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "POSSESSION_EPISODE",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Topa sahip olma episode'u",
+      "label_en": "Possession episode",
+      "definition": "Takım kontrolünün admitted başlangıç ve bitiş sınırları arasındaki süreç adayı.",
+      "football_importance": "Sekans/process analizinin case birimi.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "BUILD_UP",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Oyun kurulum süreci",
+      "label_en": "Build-up process",
+      "definition": "Savunma/ilk bölgelerden top ilerletme süreci olarak admitted süreç ailesi.",
+      "football_importance": "Kurulum darboğazı ve route analizi.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "PROGRESSION_PROCESS",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "İlerleme süreci",
+      "label_en": "Progression process",
+      "definition": "Topun admitted spatial states üzerinden ileri/değerli bölgelere taşındığı süreç.",
+      "football_importance": "Territorial/value progression.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "FINAL_THIRD_ACCESS",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Son üçte bir erişim süreci",
+      "label_en": "Final-third access process",
+      "definition": "Sürecin final-third state’e admitted erişimi.",
+      "football_importance": "Hücum derinliği.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "BOX_ACCESS",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Ceza sahası erişim süreci",
+      "label_en": "Box access process",
+      "definition": "Sürecin penalty-area state’e admitted erişimi.",
+      "football_importance": "Chance creation öncesi derinlik.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "CHANCE_CREATION",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Şans yaratma süreci",
+      "label_en": "Chance-creation process",
+      "definition": "Şut/shot-assist/key-pass ilişkilerine bağlanan süreç ailesi.",
+      "football_importance": "Şut üretiminin upstream analizi.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "FINISHING_PROCESS",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Bitiricilik süreci",
+      "label_en": "Finishing process",
+      "definition": "Şut ve terminal finishing outcome’larını kapsayan süreç.",
+      "football_importance": "Conversion ve shot quality.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SETTLED_ATTACK",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Yerleşik hücum",
+      "label_en": "Settled attack",
+      "definition": "Transition/set-piece olmayan admitted organize attack context’i.",
+      "football_importance": "6-faz hücum ekseni.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "TRANSITION_ATTACK",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Geçiş hücumu",
+      "label_en": "Transition attack",
+      "definition": "Possession change sonrası admitted transition attack süreci.",
+      "football_importance": "6-faz hücum ve recovery-to-attack analizi.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SET_PIECE_ATTACK",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Duran top hücumu",
+      "label_en": "Set-piece attack",
+      "definition": "Restart kaynaklı attack process.",
+      "football_importance": "Duran top üretimi.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SETTLED_DEFENCE_EXPOSURE",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Yerleşik savunma maruziyeti",
+      "label_en": "Settled-defence exposure",
+      "definition": "Rakibin settled-attack süreçlerinin savunan takım perspektifinden görünür maruziyeti.",
+      "football_importance": "6-faz savunma ekseni.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "TRANSITION_DEFENCE_EXPOSURE",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Geçiş savunması maruziyeti",
+      "label_en": "Transition-defence exposure",
+      "definition": "Rakibin transition-attack süreçlerinin savunan takım perspektifinden görünür maruziyeti.",
+      "football_importance": "Geçiş savunması analizi.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SET_PIECE_DEFENCE_EXPOSURE",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Duran top savunması maruziyeti",
+      "label_en": "Set-piece-defence exposure",
+      "definition": "Rakibin set-piece attack süreçlerinin savunan takım perspektifinden görünür maruziyeti.",
+      "football_importance": "Duran top savunması.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "LOSS_TO_RECOVERY",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Kayıp → recovery süreci",
+      "label_en": "Loss-to-recovery process",
+      "definition": "Admitted loss ile rakip recovery arasındaki görünür process/relation adayı.",
+      "football_importance": "Possession exchange analizi.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "RECOVERY_TO_ATTACK",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Recovery → hücum süreci",
+      "label_en": "Recovery-to-attack process",
+      "definition": "Admitted recovery sonrası görünür attack continuation/transition süreci.",
+      "football_importance": "Transition yield analizi.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "GOALKEEPER_DISTRIBUTION_PROCESS",
+      "class": "PROCESS",
+      "family": "PROCESS",
+      "parent": null,
+      "label_tr": "Kaleci dağıtım süreci",
+      "label_en": "Goalkeeper distribution process",
+      "definition": "GK restart/distribution ile başlayan visible continuation süreci.",
+      "football_importance": "Build-up başlangıcı ve distribution yield.",
+      "required_observations": [
+        "admitted process boundary or provider process annotation",
+        "team",
+        "time"
+      ],
+      "metric_links": [
+        "PROCESS_VOLUME",
+        "PROCESS_YIELD",
+        "VARIANT"
+      ],
+      "mathematical_views": [
+        "process_mining",
+        "sequence_alignment",
+        "survival"
+      ],
+      "forbidden_inferences": [
+        "coach intention",
+        "causality",
+        "physical team shape"
+      ],
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SAME_OCCURRENCE_FACET",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Aynı occurrence facet’i",
+      "label_en": "Same-occurrence facet",
+      "definition": "Birden fazla label/facet’in aynı admitted occurrence nucleus’a ait olabileceği relation.",
+      "football_importance": "Row-event ayrımını korur.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "ACTOR_OF",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Eylemin aktörü",
+      "label_en": "Actor-of",
+      "definition": "Aktörü action/process katılımına bağlar.",
+      "football_importance": "Attribution.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "TEAM_OF",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Takım bağı",
+      "label_en": "Team-of",
+      "definition": "Action/actor/process’i takım kimliğine bağlar.",
+      "football_importance": "Team identity.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "TARGET_RECEIVER_OF",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Hedef/alıcı bağı",
+      "label_en": "Target/receiver-of",
+      "definition": "Yalnız explicit receiver evidence varsa transferi hedef aktöre bağlar.",
+      "football_importance": "Pass connection.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "OPPONENT_INTERACTION",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Rakip etkileşimi",
+      "label_en": "Opponent interaction",
+      "definition": "İki rakip aktör/eylem arasındaki admitted interaction candidate.",
+      "football_importance": "Contest bağlamı.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "ADMITTED_BEFORE",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Önce ilişkisi",
+      "label_en": "Admitted-before",
+      "definition": "A observation’ın B’den önce olduğu admission ile desteklenir.",
+      "football_importance": "Partial order.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "ADMITTED_AFTER",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Sonra ilişkisi",
+      "label_en": "Admitted-after",
+      "definition": "A observation’ın B’den sonra olduğu admission ile desteklenir.",
+      "football_importance": "Partial order.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "OVERLAPS",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Zamansal örtüşme",
+      "label_en": "Overlaps",
+      "definition": "İki observation/process interval’in admitted overlap ilişkisi.",
+      "football_importance": "Concurrency.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "LOSS_RECOVERY_CANDIDATE",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Kayıp-recovery bağı",
+      "label_en": "Loss-recovery candidate",
+      "definition": "Kayıp ile rakip recovery arasındaki admitted görünür relation.",
+      "football_importance": "Possession exchange.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "PROCESS_PARTICIPATION",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Süreç katılımı",
+      "label_en": "Process participation",
+      "definition": "Aktör/action occurrence’ı process instance’a bağlar.",
+      "football_importance": "Process role.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "CONSEQUENCE_FOLLOWUP",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Görünür consequence takibi",
+      "label_en": "Consequence follow-up",
+      "definition": "Anchor action/process ile sonraki eligible consequence arasındaki relation.",
+      "football_importance": "Consequence analysis.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "DERIVED_FROM",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Türetilme bağı",
+      "label_en": "Derived-from",
+      "definition": "Derived construct/metric’i source evidence lineage’a bağlar.",
+      "football_importance": "Provenance.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SUPPORTS",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Destekler",
+      "label_en": "Supports",
+      "definition": "Evidence/findings arasında bounded support relation.",
+      "football_importance": "Argumentation.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "COUNTEREXAMPLE_TO",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Karşı örnek",
+      "label_en": "Counterexample-to",
+      "definition": "Observation/finding’in başka bir genellemeye karşı örnek relation’ı.",
+      "football_importance": "Counterevidence.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "CONTEXTUALIZES",
+      "class": "RELATION",
+      "family": "RELATION",
+      "parent": null,
+      "label_tr": "Bağlamlandırır",
+      "label_en": "Contextualizes",
+      "definition": "Context observation’ın başka construct yorumunu şartlandırması.",
+      "football_importance": "Context binding.",
+      "required_observations": [
+        "typed source refs"
+      ],
+      "metric_links": [],
+      "mathematical_views": [
+        "graph",
+        "partial_order"
+      ],
+      "forbidden_inferences": [
+        "causality unless separately identified"
+      ],
+      "claim_ceiling": "TYPED_RELATION_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SCORE_STATE",
+      "class": "STATE",
+      "family": "MATCH_CONTEXT",
+      "parent": null,
+      "label_tr": "Skor durumu",
+      "label_en": "Score state",
+      "definition": "Bir takım perspektifinden admitted skor farkı state’i.",
+      "football_importance": "Game-state conditioning.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SPATIAL_STATE",
+      "class": "STATE",
+      "family": "SPATIAL",
+      "parent": null,
+      "label_tr": "Mekânsal durum",
+      "label_en": "Spatial state",
+      "definition": "Admitted coordinate/grid/channel representation state’i.",
+      "football_importance": "Spatial process analysis.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "TEMPORAL_STATE",
+      "class": "STATE",
+      "family": "TEMPORAL",
+      "parent": null,
+      "label_tr": "Zamansal durum",
+      "label_en": "Temporal state",
+      "definition": "Admitted period/time layer veya interval state’i.",
+      "football_importance": "Sequence and hazard analysis.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "GAME_STATE_CONTEXT",
+      "class": "CONTEXT",
+      "family": "MATCH_CONTEXT",
+      "parent": null,
+      "label_tr": "Oyun durumu bağlamı",
+      "label_en": "Game-state context",
+      "definition": "Skor, süre, eksik oyuncu vb. admitted match context kombinasyonu.",
+      "football_importance": "Conditional analysis.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "SET_PIECE_CONTEXT",
+      "class": "CONTEXT",
+      "family": "RESTART",
+      "parent": null,
+      "label_tr": "Duran top bağlamı",
+      "label_en": "Set-piece context",
+      "definition": "Action/process’in restart ailesi ile bağlamlandırılması.",
+      "football_importance": "Set-piece analysis.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    },
+    {
+      "id": "ZONE_CONTEXT",
+      "class": "CONTEXT",
+      "family": "SPATIAL",
+      "parent": null,
+      "label_tr": "Bölge bağlamı",
+      "label_en": "Zone context",
+      "definition": "Admitted spatial region/grid/channel bağlamı.",
+      "football_importance": "Spatial analysis.",
+      "required_observations": [
+        "definition-aligned admitted source observations"
+      ],
+      "metric_links": [],
+      "mathematical_views": [],
+      "forbidden_inferences": [],
+      "claim_ceiling": "CANONICAL_SEMANTIC_DESCRIPTION_ONLY",
+      "aliases": [],
+      "provider_note": null
+    }
+  ],
+  "sources": {
+    "internal_drive_support": [
+      "HPFA_CODABLE_MODULE_AND_INTEGRATION_CANDIDATES_LIVING",
+      "HPFA_DRIVE_RESEARCH_CATALOG_AND_NAMING_MAP_LIVING",
+      "HPFA spatial/state/action/process value research",
+      "HPFA object-centric/state-transition research",
+      "HPFA Football Encyclopaedia/tactical intelligence donors"
+    ],
+    "external_reference_families": [
+      "Wyscout Data Glossary",
+      "StatsBomb event/glossary semantics",
+      "socceraction SPADL / Atomic-SPADL",
+      "football event-data process mining",
+      "object-centric football event logs",
+      "semi-Markov football possessions"
+    ]
+  },
+  "production_release": false
+}

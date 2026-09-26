@@ -45,7 +45,7 @@ def test_process_context_is_applied_before_counterevidence_and_safe_finding(
         encoding="utf-8",
     )
 
-    def fake_context(payload, process_payload, occurrence_payload):
+    def fake_context(payload, process_payload, occurrence_payload, occurrence_state_payload=None):
         result = dict(payload)
         result["process_comparison_context_consumed"] = True
         result["process_comparison_context_binding_state"] = (
@@ -64,6 +64,31 @@ def test_process_context_is_applied_before_counterevidence_and_safe_finding(
             "comparable_outcome_contrast_state_counts": {},
             "comparison_eligible_record_count": 0,
             "comparable_counterevidence_candidate_count": 0,
+            "canonical_evidence_classification_applied": True,
+            "canonical_evidence_direction_classes": [
+                "COUNTEREVIDENCE",
+                "NON_SUPPORT",
+                "NOT_EVALUATED",
+                "SUPPORT",
+                "UNRESOLVED",
+            ],
+            "legacy_canonical_evidence_direction_counts": {
+                "SUPPORT": 3,
+                "COUNTEREVIDENCE": 1,
+                "UNRESOLVED": 2,
+            },
+            "branch_canonical_evidence_direction_counts": {
+                "NON_SUPPORT": 1,
+            },
+            "legacy_dependency_challenge_record_count": 4,
+            "claim_target_denominator_binding_applied": True,
+            "legacy_denominator_binding_state_counts": {
+                "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND": 6,
+            },
+            "branch_denominator_binding_state_counts": {
+                "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND": 2,
+            },
+            "falsification_invalidation_contract_applied": True,
             "safe_finding_handoff_candidates": [],
             "safe_finding_handoff_candidate_count": 0,
             "safe_finding_handoff_finding_status_counts": {
@@ -93,6 +118,33 @@ def test_process_context_is_applied_before_counterevidence_and_safe_finding(
     assert persisted["safe_finding_handoff_candidate_count"] == 0
     assert persisted["safe_finding_handoff_candidates"] == []
     assert persisted["comparison_eligible_outcome_record_count"] == 0
+    assert persisted["canonical_evidence_classification_applied"] is True
+    assert persisted["legacy_canonical_evidence_direction_counts"] == {
+        "SUPPORT": 3,
+        "COUNTEREVIDENCE": 1,
+        "UNRESOLVED": 2,
+    }
+    assert persisted["branch_canonical_evidence_direction_counts"] == {"NON_SUPPORT": 1}
+    assert persisted["legacy_dependency_challenge_record_count"] == 4
+    assert persisted["claim_target_denominator_binding_applied"] is True
+    assert persisted["legacy_denominator_binding_state_counts"] == {
+        "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND": 6,
+    }
+    assert persisted["branch_denominator_binding_state_counts"] == {
+        "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND": 2,
+    }
+    assert persisted["pair_record_is_eligible_denominator"] is False
+    assert persisted["pair_count_is_eligible_denominator"] is False
+    assert persisted["eligible_denominator_is_independent_evidence_count"] is False
+    assert persisted["falsification_invalidation_contract_applied"] is True
+    assert persisted["falsifier_is_invalidator"] is False
+    assert persisted["invalidator_is_falsifier"] is False
+    assert persisted["invalidator_is_counterevidence"] is False
+    assert persisted["invalidator_makes_claim_false"] is False
+    assert persisted["dependency_challenge_is_evidence_direction"] is False
+    assert persisted["dependency_challenge_changes_evidence_direction"] is False
+    assert persisted["non_support_is_counterevidence"] is False
+    assert persisted["unresolved_is_failure"] is False
     assert persisted["canonical_event_count"] == "UNKNOWN"
     assert persisted["true_action_count"] == "UNKNOWN"
     assert persisted["production_release"] is False

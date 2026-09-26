@@ -167,3 +167,32 @@ def test_no_sample_match_identity_leak():
     ).read_text(encoding="utf-8")
     forbidden = ("AS Roma", "Atalanta", "Genclerbirligi", "Fenerbahce", "05.09.2026")
     assert not any(token in source for token in forbidden)
+
+
+def test_set_piece_context_preserves_reviewed_restart_type_candidate():
+    ev = evidence()
+    atom = ev["evidence_atoms"][0]
+    atom.update({
+        "semantic_role_candidate": "CONTEXT_INTERVAL",
+        "atom_class": "CONTEXT_INTERVAL_ATOM",
+        "source_role": "TEAM_SURFACE_CANDIDATE",
+        "raw_label": "Attacks from corners",
+        "semantic_rule_id": "plvs_v2_attacks_from_corners",
+        "context_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+    })
+    ident = identity()
+    ident["identity_bindings"][0].update({
+        "decision_state": "TEAM_IDENTITY_CANDIDATE_BOUND",
+        "source_role": "TEAM_SURFACE_CANDIDATE",
+        "actor_identity_candidate_id": None,
+    })
+
+    result = build_process_participation_projection(ev, ident, episode())
+
+    assert result["status"] == "PASS"
+    row = result["process_participation_candidates"][0]
+    assert row["semantic_role"] == "CONTEXT_INTERVAL"
+    assert row["process_family_candidate"] == "SET_PIECE_ATTACK_CANDIDATE"
+    assert row["provider_restart_type_candidate"] == "CORNER"
+    assert row["provider_restart_type_is_action_identity_truth"] is False
+    assert row["provider_restart_type_is_designed_routine_truth"] is False

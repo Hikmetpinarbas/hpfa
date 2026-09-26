@@ -187,6 +187,85 @@ def _build_time_layers(
     )
 
 
+RESTART_FAMILY_MAP = {
+    "CORNER": "CORNER_KICK",
+    "CORNER_KICK": "CORNER_KICK",
+    "FREE_KICK": "FREE_KICK",
+    "THROW_IN": "THROW_IN",
+    "PENALTY": "PENALTY_KICK",
+    "PENALTY_KICK": "PENALTY_KICK",
+    "GOAL_KICK": "GOAL_KICK",
+    "KICK_OFF": "KICK_OFF",
+    "RESTART": "OTHER_RESTART",
+}
+
+
+def _restart_type_candidates(traces: list[dict[str, Any]]) -> list[str]:
+    found: set[str] = set()
+    for trace in traces:
+        for family in trace.get("action_family_candidates") or []:
+            token = _clean(family).upper().replace("-", "_").replace(" ", "_")
+            if token in RESTART_FAMILY_MAP:
+                found.add(RESTART_FAMILY_MAP[token])
+            elif token.startswith("GOAL_KICK"):
+                found.add("GOAL_KICK")
+            elif token.startswith("FREE_KICK"):
+                found.add("FREE_KICK")
+            elif token.startswith("CORNER"):
+                found.add("CORNER_KICK")
+            elif token.startswith("THROW_IN"):
+                found.add("THROW_IN")
+    return sorted(found)
+
+
+def _set_piece_process_projection(
+    sequence_id: str,
+    team_id: str,
+    traces: list[dict[str, Any]],
+    consequences: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    restart_types = _restart_type_candidates(traces)
+    if not restart_types:
+        return None
+    first = traces[0]
+    first_trace_id = _clean(first.get("trackable_action_trace_candidate_id"))
+    visible_followup = len(traces) > 1
+    opponent_intervention_visible = any(
+        _clean(row.get("primary_consequence_candidate")) in {
+            "OPPONENT_RESPONSE_CANDIDATE", "OPPONENT_INTERVENTION_CANDIDATE",
+            "TEAM_HANDOVER_CANDIDATE", "OPPONENT_RECOVERY_CANDIDATE",
+        }
+        for row in consequences
+    )
+    terminal_visible = any(bool(row.get("terminal_outcome_support_visible")) for row in consequences)
+    return {
+        "set_piece_process_candidate_id": "spp_" + _digest(sequence_id, restart_types, first_trace_id)[:24],
+        "source_visible_action_sequence_candidate_id": sequence_id,
+        "team_identity_candidate_id": team_id,
+        "restart_type_candidates": restart_types,
+        "restart_type_status": "PASS_SINGLE_TYPE" if len(restart_types) == 1 else "REVIEW_REQUIRED_MULTIPLE_TYPES",
+        "restart_trace_candidate_id": first_trace_id,
+        "first_action_trace_candidate_id": first_trace_id,
+        "visible_followup_trace_candidate_ids": [
+            _clean(row.get("trackable_action_trace_candidate_id")) for row in traces[1:]
+        ],
+        "visible_followup_observed": visible_followup,
+        "second_action_trace_candidate_id": (
+            _clean(traces[1].get("trackable_action_trace_candidate_id")) if visible_followup else None
+        ),
+        "opponent_intervention_visible": opponent_intervention_visible,
+        "terminal_outcome_support_visible": terminal_visible,
+        "attacking_phase_candidate": "ATTACKING_SET_PIECE",
+        "defending_reciprocal_phase_candidate": "DEFENSIVE_SET_PIECE",
+        "phase_admission_status": "CANDIDATE_ONLY",
+        "restart_event_is_full_process_truth": False,
+        "routine_design_truth": False,
+        "marking_scheme_truth": False,
+        "off_ball_movement_truth": False,
+        "claim_ceiling": "VISIBLE_SET_PIECE_PROCESS_CANDIDATE_ONLY",
+    }
+
+
 def _build_sequence_record(
     binding: str,
     temp: dict[str, Any],
@@ -220,6 +299,12 @@ def _build_sequence_record(
         )
     )
     sequence_id = "vasq_" + _digest(binding, temp["team_identity_candidate_id"], temp["period_candidate"], layer_ids)[:24]
+    set_piece = _set_piece_process_projection(
+        sequence_id,
+        temp["team_identity_candidate_id"],
+        traces,
+        consequences,
+    )
     return {
         "visible_action_sequence_candidate_id": sequence_id,
         "match_surface_binding_id": binding,
@@ -248,6 +333,7 @@ def _build_sequence_record(
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
         "canonical_event_count": CANONICAL_EVENT_COUNT,
+        "set_piece_process_candidate": set_piece,
         "claim_ceiling": CLAIM_CEILING,
     }
 
@@ -482,6 +568,17 @@ def build_visible_action_sequence_candidates(
     sequence_status_counts = Counter(row.get("sequence_record_status") for row in sequences)
     boundary_reason_counts = Counter(row.get("end_reason_candidate") for row in sequences)
     assignment_type_counts = Counter(row.get("assignment_type") for row in assignments)
+    set_piece_process_candidates = [
+        row["set_piece_process_candidate"]
+        for row in sequences
+        if isinstance(row.get("set_piece_process_candidate"), dict)
+    ]
+    set_piece_restart_type_counts = Counter(
+        restart_type
+        for row in set_piece_process_candidates
+        for restart_type in row.get("restart_type_candidates") or []
+    )
+
     consequence_class_counts = Counter(
         consequence
         for sequence in sequences
@@ -526,6 +623,9 @@ def build_visible_action_sequence_candidates(
         "mixed_team_primary_layer_review_required_count": layer_state_counts.get("MIXED_TEAM_PRIMARY_LAYER_REVIEW_REQUIRED", 0),
         "unknown_primary_layer_review_required_count": layer_state_counts.get("UNKNOWN_PRIMARY_LAYER_REVIEW_REQUIRED", 0),
         "visible_action_sequence_candidate_count": len(sequences),
+        "set_piece_process_candidate_count": len(set_piece_process_candidates),
+        "set_piece_process_candidates": set_piece_process_candidates,
+        "set_piece_restart_type_counts": dict(sorted(set_piece_restart_type_counts.items())),
         "pass_multi_layer_visible_sequence_candidate_count": sequence_status_counts.get("PASS_MULTI_LAYER_VISIBLE_SEQUENCE_CANDIDATE", 0),
         "pass_single_layer_visible_trace_candidate_count": sequence_status_counts.get("PASS_SINGLE_LAYER_VISIBLE_TRACE_CANDIDATE", 0),
         "review_required_sequence_context_count": sequence_status_counts.get("REVIEW_REQUIRED_CONTEXT", 0),

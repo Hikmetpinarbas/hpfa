@@ -14,7 +14,10 @@ IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 OCCURRENCE_CONSEQUENCE_JSON = "occurrence_consequence_projection_v1.json"
 SEQUENCE_JSON = "visible_action_sequence_candidates_lite_v1.json"
 PROCESS_VARIANT_JSON = "observable_process_variant_binding_projection_v1.json"
+PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
+VARIANT_FEATURE_CHALLENGE_JSON = "variant_feature_challenge_projection_v1.json"
 ANALYST_OUTPUT_CLAIM_JSON = "analyst_output_claim_contract_projection_v1.json"
+RICH_MULTIFORMAT_JSON = "rich_multiformat_analysis_lattice_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -53,15 +56,31 @@ def _team_names(identity_payload: dict[str, Any]) -> dict[str, str]:
 
 
 def _actor_names(identity_payload: dict[str, Any]) -> dict[str, str]:
+    """Expose human actor names only when identity is explicitly validated.
+
+    Match-local identity candidates are useful internal locators, but candidate binding
+    alone is not sufficient authority for human-facing player-name rendering.
+    """
     result: dict[str, str] = {}
     for row in identity_payload.get("actor_identity_candidates") or []:
         if not isinstance(row, dict):
+            continue
+        if row.get("validated_player_identity") is not True:
+            continue
+        if str(row.get("decision_state") or "") != "ACTOR_IDENTITY_CANDIDATE_BOUND":
             continue
         ref = str(row.get("actor_identity_candidate_id") or "").strip()
         name = str(row.get("actor_normalized_key") or "").strip()
         if ref and name:
             result[ref] = _pretty_key(name)
     return result
+
+
+def _actor_label(actor_ref: str | None, actors: dict[str, str]) -> str:
+    ref = str(actor_ref or "").strip()
+    if not ref:
+        return "UNRESOLVED_ACTOR"
+    return actors.get(ref, f"WITHHELD_MATCH_LOCAL_IDENTITY[{ref}]")
 
 
 def _grammar_label(tokens: list[Any]) -> str:
@@ -276,7 +295,7 @@ def _render_actor_locator(row: dict[str, Any] | None, actors: dict[str, str]) ->
         return "NO_ACTOR_LOCATOR_CONTRAST_EXPOSED"
     token = str(row.get("feature_token") or "")
     actor_ref = token.rsplit("actor_identity_candidate_ids:", 1)[-1].strip()
-    label = actors.get(actor_ref, actor_ref)
+    label = _actor_label(actor_ref, actors)
     success_n = int(row.get("success_visible_numerator") or 0)
     success_d = int(row.get("success_eligible_denominator") or 0)
     failure_n = int(row.get("failure_visible_numerator") or 0)
@@ -390,7 +409,7 @@ def _clip_locator_lines(
         except (TypeError, ValueError):
             anchor_sort = float("inf")
         branch_text = "; ".join(
-            f"{_fmt_clock(time_value)} {actors.get(actor_ref, actor_ref or 'UNRESOLVED_ACTOR')} "
+            f"{_fmt_clock(time_value)} {_actor_label(actor_ref, actors)} "
             f"{outcome.replace('_SEMANTIC_VISIBLE', '')} {family}"
             for outcome, time_value, actor_ref, family in family_profiles
         )
@@ -436,6 +455,16 @@ def build_mechanism_review_lines(
     process_variant_payload = (
         _load_json(root / PROCESS_VARIANT_JSON) if _declared_current(full_spine, PROCESS_VARIANT_JSON) else {}
     )
+    process_participation_payload = (
+        _load_json(root / PROCESS_PARTICIPATION_JSON)
+        if _declared_current(full_spine, PROCESS_PARTICIPATION_JSON)
+        else {}
+    )
+    variant_feature_challenge_payload = (
+        _load_json(root / VARIANT_FEATURE_CHALLENGE_JSON)
+        if _declared_current(full_spine, VARIANT_FEATURE_CHALLENGE_JSON)
+        else {}
+    )
     teams = _team_names(identity)
     actors = _actor_names(identity)
     records = [
@@ -453,6 +482,9 @@ def build_mechanism_review_lines(
     shortlist = build_mechanism_story_review_shortlist(
         payload,
         analyst_output_claim_payload=analyst_output_payload or None,
+        process_variant_payload=process_variant_payload or None,
+        process_participation_payload=process_participation_payload or None,
+        variant_feature_challenge_payload=variant_feature_challenge_payload or None,
         limit=5,
     )
 
@@ -491,7 +523,53 @@ def build_mechanism_review_lines(
                 "emit=false truth_ranking=false"
             )
 
-    for index, record in enumerate(records, start=1):
+    shortlisted_refs = {
+        str(row.get("source_mechanism_review_ref") or "")
+        for row in (shortlist.get("shortlist") or [])
+        if isinstance(row, dict) and row.get("source_mechanism_review_ref")
+    }
+    shortlist_support_by_ref = {
+        str(row.get("source_mechanism_review_ref") or ""): row
+        for row in (shortlist.get("shortlist") or [])
+        if isinstance(row, dict) and row.get("source_mechanism_review_ref")
+    }
+    shortlisted_signatures = {
+        (
+            tuple(str(v) for v in (row.get("team_identity_candidate_ids") or [])),
+            tuple(str(v) for v in (row.get("period_candidates") or [])),
+            tuple(str(v) for v in (row.get("grammar_signature_tokens") or [])),
+            int(row.get("resolved_variant_count") or 0),
+            int(row.get("success_resolved_variant_count") or 0),
+            int(row.get("failure_resolved_variant_count") or 0),
+        )
+        for row in (shortlist.get("shortlist") or [])
+        if isinstance(row, dict) and not row.get("source_mechanism_review_ref")
+    }
+    review_records = [
+        record for record in records
+        if (
+            str(record.get("grammar_stable_variant_feature_delta_id") or "") in shortlisted_refs
+            or (
+                not record.get("grammar_stable_variant_feature_delta_id")
+                and (
+                    tuple(str(v) for v in (record.get("team_identity_candidate_ids") or [])),
+                    tuple(str(v) for v in (record.get("period_candidates") or [])),
+                    tuple(str(v) for v in (record.get("grammar_signature_tokens") or [])),
+                    int(record.get("resolved_variant_count") or 0),
+                    int(record.get("success_resolved_variant_count") or 0),
+                    int(record.get("failure_resolved_variant_count") or 0),
+                ) in shortlisted_signatures
+            )
+        )
+    ]
+    lines.append(
+        f"story_detail_render_count={len(review_records)} source_candidate_count={len(records)}"
+    )
+    lines.append(
+        "story_detail_render_scope=SHORTLIST_ONLY_ATTENTION_COMPRESSION_NOT_EVIDENCE_REMOVAL"
+    )
+
+    for index, record in enumerate(review_records, start=1):
         team_ids = [str(value) for value in (record.get("team_identity_candidate_ids") or []) if str(value)]
         team = ", ".join(teams.get(value, value) for value in team_ids) or "UNRESOLVED_TEAM"
         periods = ",".join(str(value) for value in (record.get("period_candidates") or [])) or "UNKNOWN"
@@ -515,6 +593,71 @@ def build_mechanism_review_lines(
         lines.append(
             f"  first_visible_difference: context_layer={first_context_layer} consequence_layer={first_consequence_layer}"
         )
+        shortlist_support = shortlist_support_by_ref.get(
+            str(record.get("grammar_stable_variant_feature_delta_id") or ""), {}
+        )
+        review_support_state = str(
+            shortlist_support.get("review_support_state")
+            or record.get("review_support_state")
+            or ""
+        ).strip()
+        visible_episode_spread = int(record.get("visible_episode_spread_count") or 0)
+        occurrence_disjoint_clusters = int(record.get("occurrence_disjoint_support_cluster_count") or 0)
+        if review_support_state or visible_episode_spread or occurrence_disjoint_clusters:
+            lines.append(
+                "  review_support_scope: "
+                f"state={review_support_state or 'UNRESOLVED'} "
+                f"visible_episode_spread={visible_episode_spread} "
+                f"occurrence_disjoint_clusters={occurrence_disjoint_clusters} "
+                "independent_support=false recurrence_truth=false attention_compression_only=true"
+            )
+        process_context_state = str(
+            shortlist_support.get("process_context_binding_state")
+            or "UNRESOLVED_NO_SOURCE_BOUND_PROCESS_CONTEXT"
+        )
+        process_context_counts = dict(
+            shortlist_support.get("process_family_episode_presence_counts") or {}
+        )
+        lines.append(
+            "  process_context_binding: "
+            f"state={process_context_state} "
+            f"visible_episode_count={int(shortlist_support.get('process_context_visible_episode_count') or 0)} "
+            f"bound_episode_count={int(shortlist_support.get('process_context_bound_episode_count') or 0)} "
+            f"ambiguous_episode_count={int(shortlist_support.get('process_context_ambiguous_episode_count') or 0)} "
+            f"family_episode_presence={json.dumps(process_context_counts, sort_keys=True)} "
+            f"single_family={shortlist_support.get('single_process_family_candidate') or 'NONE'} "
+            "process_identity_truth=false tactical_truth=false causal_truth=false "
+            "independent_support=false emit=false"
+        )
+        challenge_n = int(shortlist_support.get("mechanism_challenge_record_count") or 0)
+        if challenge_n:
+            lines.append(
+                "  mechanism_challenge: "
+                f"state={shortlist_support.get('mechanism_challenge_binding_state')} "
+                f"record_count={challenge_n} "
+                f"feature_surface_counts={json.dumps(shortlist_support.get('mechanism_challenge_feature_surface_counts') or {}, sort_keys=True)} "
+                f"reasons={json.dumps(shortlist_support.get('mechanism_challenge_reason_codes') or [])} "
+                f"counter_scenarios={json.dumps(shortlist_support.get('mechanism_counter_scenario_candidates') or [])} "
+                f"withdrawal_conditions={json.dumps(shortlist_support.get('mechanism_withdrawal_conditions') or [])} "
+                "independent_evidence=false counterfactual_truth=false causal_explanation=false emit=false"
+            )
+        divergence_refs = [
+            str(value)
+            for value in (record.get("supported_branch_divergence_refs") or [])
+            if str(value)
+        ]
+        success_failure_divergence_refs = [
+            str(value)
+            for value in (record.get("success_failure_supported_branch_divergence_refs") or [])
+            if str(value)
+        ]
+        if divergence_refs:
+            lines.append(
+                "  supported_branch_divergence_trace: "
+                f"bound={len(divergence_refs)} success_failure_visible={len(success_failure_divergence_refs)} "
+                "semantics=FIRST_SUCCESSOR_AFTER_SHARED_VISIBLE_ANCHOR_NOT_PHYSICAL_FIRST_DIVERGENCE "
+                "cause=false tactical_truth=false independent_support=false"
+            )
 
         facts = [
             ("same_team_continuation", "LAYER[1]::primary_consequence_candidates:SAME_TEAM_CONTINUATION_CANDIDATE"),
@@ -535,6 +678,10 @@ def build_mechanism_review_lines(
         focus_actor_ref = _focus_actor_ref(actor_locator)
         lines.append("  mechanism_context_review_focus: " + _render_context_focus(context_focus))
         lines.append("  mechanism_context_source: " + _render_context_source(context_focus))
+        provider_cue = _select_provider_semantic_review_cue(record)
+        lines.append("  provider_semantic_context_review_cue: " + _render_provider_semantic_review_cue(provider_cue))
+        lines.append("  provider_semantic_context_source: " + _render_provider_semantic_source(provider_cue))
+        lines.append("  provider_semantic_context_guard: " + _render_provider_semantic_guard(provider_cue))
         lines.append("  actor_locator_only: " + _render_actor_locator(actor_locator, actors))
         locators = _clip_locator_lines(
             record,
@@ -554,6 +701,66 @@ def build_mechanism_review_lines(
             "  analyst_meaning: Once non-actor process/context farkini, onun source/provenance rolunu ve actor locator ile ilgili klipleri videoda kontrol et. "
             "Actor farkini oyuncu kalitesi/mekanizma; continuation-handover farkini neden/taktik plan; provider labelini fiziksel futbol truth olarak yorumlama."
         )
+
+    record_by_ref = {
+        str(record.get("grammar_stable_variant_feature_delta_id") or ""): record
+        for record in records
+        if record.get("grammar_stable_variant_feature_delta_id")
+    }
+    grammar_context_groups: dict[tuple[str, ...], list[dict[str, Any]]] = {}
+    for selected_row in shortlist.get("shortlist") or []:
+        if not isinstance(selected_row, dict):
+            continue
+        grammar_key = tuple(str(value) for value in (selected_row.get("grammar_signature_tokens") or []))
+        if not grammar_key:
+            continue
+        companions = [
+            record_by_ref[ref]
+            for ref in (selected_row.get("same_grammar_context_review_refs") or [])
+            if ref in record_by_ref
+        ]
+        if companions:
+            grammar_context_groups[grammar_key] = companions
+    for grammar_key, context_records in sorted(grammar_context_groups.items()):
+        context_keys = {
+            (
+                tuple(str(v) for v in (record.get("team_identity_candidate_ids") or [])),
+                tuple(str(v) for v in (record.get("period_candidates") or [])),
+            )
+            for record in context_records
+        }
+        if len(context_keys) < 2:
+            continue
+        lines.append(
+            "same_grammar_context_comparison: "
+            f"grammar={_grammar_label(list(grammar_key))} eligible_contexts={len(context_keys)} "
+            "scope=SELECTED_GRAMMAR_ELIGIBLE_CONTEXTS_NOT_ALL_MATCH_CONTEXTS "
+            "semantics=MATCH_LOCAL_VISIBLE_CONTEXT_COMPARISON_ONLY "
+            "tactical_change=false team_quality=false causality=false significance=false"
+        )
+        for record in sorted(
+            context_records,
+            key=lambda row: (
+                tuple(str(v) for v in (row.get("team_identity_candidate_ids") or [])),
+                tuple(str(v) for v in (row.get("period_candidates") or [])),
+            ),
+        ):
+            team_ids = [
+                str(value) for value in (record.get("team_identity_candidate_ids") or []) if str(value)
+            ]
+            team = ", ".join(teams.get(value, value) for value in team_ids) or "UNRESOLVED_TEAM"
+            periods = ",".join(str(value) for value in (record.get("period_candidates") or [])) or "UNKNOWN"
+            lines.append(
+                "  same_grammar_context: "
+                f"team={team} period={periods} "
+                f"resolved={int(record.get('resolved_variant_count') or 0)} "
+                f"success_visible={int(record.get('success_resolved_variant_count') or 0)} "
+                f"failure_visible={int(record.get('failure_resolved_variant_count') or 0)} "
+                f"visible_episode_spread={int(record.get('visible_episode_spread_count') or 0)} "
+                f"occurrence_disjoint_clusters={int(record.get('occurrence_disjoint_support_cluster_count') or 0)} "
+                f"success_failure_divergence={int(record.get('success_failure_supported_branch_divergence_count') or 0)} "
+                "independent_support=false recurrence_truth=false"
+            )
 
     lines.extend([
         "analyst_action=VIDEO_OR_MATCH_REVIEW_OF_CONTEXT_ENRICHED_VISIBLE_DIFFERENCE_CANDIDATES",
@@ -672,41 +879,82 @@ def _render_provider_semantic_guard(
     )
 
 
+def _rich_mechanism_context_lines(
+    root: Path,
+    full_spine: dict[str, Any],
+) -> list[str]:
+    if not _declared_current(full_spine, RICH_MULTIFORMAT_JSON):
+        return []
+    rich = _load_json(root / RICH_MULTIFORMAT_JSON)
+    if not rich or str(rich.get("status") or "").upper() == "FAIL_CLOSED":
+        return []
+
+    game = rich.get("game_state_context") or {}
+    mix = rich.get("game_state_process_mix_context") or {}
+    loss = rich.get("loss_next_opponent_process_context") or {}
+    recovery = rich.get("recovery_next_process_context") or {}
+    set_piece = rich.get("set_piece_process_consequence_context") or {}
+    counter = rich.get("counterattack_next_process_context") or {}
+    constructs = rich.get("constructs") or {}
+    c01 = constructs.get("C01") or {}
+    c03 = constructs.get("C03") or {}
+
+    lines = [
+        "rich_context_scope=ANALYST_REVIEW_CONTEXT_ONLY_NOT_SELECTION_OR_EVIDENCE_PROMOTION",
+        (
+            "rich_game_state_context: "
+            f"status={game.get('status')} "
+            f"goal_observation_count={game.get('goal_observation_count')} "
+            f"segment_count={len(game.get('score_state_segments') or [])} "
+            f"process_mix_profiles={mix.get('profile_count')}"
+        ),
+        (
+            "rich_access_creation_terminal: "
+            f"profile_count={c01.get('access_creation_terminal_profile_count')} "
+            f"access_terminal_both={c01.get('access_creation_terminal_profiles_with_access_and_terminal_count')} "
+            f"conversion_rate_emitted={str(c01.get('access_creation_terminal_conversion_rate_emitted') is True).lower()}"
+        ),
+        (
+            "rich_loss_opponent_response: "
+            f"status={loss.get('status')} "
+            f"context_rows={loss.get('loss_context_row_count')} "
+            f"next_process_families={json.dumps(loss.get('next_opponent_process_family_counts') or {}, sort_keys=True)}"
+        ),
+        (
+            "rich_recovery_response: "
+            f"status={recovery.get('status')} "
+            f"context_rows={recovery.get('recovery_context_row_count')} "
+            f"next_process_families={json.dumps(recovery.get('next_visible_process_family_counts') or {}, sort_keys=True)}"
+        ),
+        (
+            "rich_set_piece_boundary: "
+            f"status={set_piece.get('status')} "
+            f"declared_horizon_seconds={set_piece.get('declared_consequence_horizon_seconds')} "
+            f"first_visible_team_states={json.dumps(set_piece.get('post_set_piece_first_visible_team_state_counts') or {}, sort_keys=True)}"
+        ),
+        (
+            "rich_counterattack_successor: "
+            f"status={counter.get('status')} "
+            f"context_rows={counter.get('counterattack_context_row_count')} "
+            f"next_process_families={json.dumps(counter.get('next_visible_process_family_counts') or {}, sort_keys=True)} "
+            f"transition_stabilization_truth={str(counter.get('visible_successor_is_transition_stabilization_truth') is True).lower()}"
+        ),
+        (
+            "rich_spatial_process_context: "
+            f"signature_count={c03.get('signature_count')} "
+            f"provider_axis_admission_is_physical_pitch_truth=false "
+            f"tracking_truth=false line_break_truth=false"
+        ),
+        "rich_context_can_authorize_emit=false rich_context_can_increase_support=false",
+    ]
+    return lines
+
+
 def build_mechanism_review_lines(
     output_root: str | Path,
     full_spine: dict[str, Any],
 ) -> list[str]:
-    lines = _BASE_BUILD_MECHANISM_REVIEW_LINES(output_root, full_spine)
     root = Path(output_root)
-    if not _declared_current(full_spine, FEATURE_DELTA_JSON):
-        return lines
-    payload = _load_json(root / FEATURE_DELTA_JSON)
-    if not payload or str(payload.get("status") or "").upper() == "FAIL_CLOSED":
-        return lines
-    records = [
-        row for row in (payload.get("grammar_stable_variant_feature_delta_records") or [])
-        if isinstance(row, dict)
-    ]
-    if not records:
-        return lines
-
-    cue_by_index = {
-        index: _select_provider_semantic_review_cue(record)
-        for index, record in enumerate(records, start=1)
-    }
-    result: list[str] = []
-    current_index: int | None = None
-    for line in lines:
-        stripped = line.lstrip()
-        if stripped.startswith("- M") and " | " in stripped:
-            try:
-                current_index = int(stripped.split(" | ", 1)[0].replace("- M", ""))
-            except ValueError:
-                current_index = None
-        result.append(line)
-        if line.startswith("  mechanism_context_source:") and current_index in cue_by_index:
-            cue = cue_by_index[current_index]
-            result.append("  provider_semantic_context_review_cue: " + _render_provider_semantic_review_cue(cue))
-            result.append("  provider_semantic_context_source: " + _render_provider_semantic_source(cue))
-            result.append("  provider_semantic_context_guard: " + _render_provider_semantic_guard(cue))
-    return result
+    lines = _BASE_BUILD_MECHANISM_REVIEW_LINES(root, full_spine)
+    lines.extend(_rich_mechanism_context_lines(root, full_spine))
+    return lines

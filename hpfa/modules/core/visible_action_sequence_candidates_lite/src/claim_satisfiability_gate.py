@@ -84,7 +84,7 @@ def assess_claim_satisfiability(
     """Assess whether current admitted evidence can support a bounded claim family.
 
     This is a one-way safety gate. It may preserve a bounded claim family or lower it,
-    but it cannot create evidence, authorize professional EMIT, strengthen a claim
+    with authority limited to claim-scope validation; professional EMIT and claim strength follow admitted evidence
     ceiling, convert provider semantics into tactical truth, or infer causality.
     """
     family = str(claim_family or "").strip().upper()

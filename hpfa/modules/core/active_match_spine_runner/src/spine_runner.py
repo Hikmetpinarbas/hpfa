@@ -7,12 +7,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from hpfa.platforms.termux_delivery_policy import restricted_output_roots
+
 CLAIM_SAFETY = "EVIDENCE_ONLY"
 RUNNER_ID = "active_match_spine_check_v1"
-PHONE_OUTPUT_ROOTS = (
-    Path("/sdcard/Download/HPFA"),
-    Path("/storage/emulated/0/Download/HPFA"),
-)
 ACTIVE_MATCH_RELATIVE_PATH = Path("runtime/active_single_match/current")
 ROLE_RESOLVER_DEPENDENCY_SURFACES = (
     Path("hpfa/modules/core/csv_surface_reader_lite"),
@@ -160,6 +158,12 @@ def _validate_imported_module_origin(module: Any, expected_file: Path, module_na
     module_file = getattr(module, "__file__", None)
     if module_file is None or _resolve_path(Path(module_file)) != _resolve_path(expected_file):
         raise ValueError(f"runtime_module_origin_mismatch:{module_name}")
+
+
+def _validate_legacy_cached_alias(alias: str, expected_file: Path) -> None:
+    cached = sys.modules.get(alias)
+    if cached is not None:
+        _validate_imported_module_origin(cached, expected_file, alias)
 
 
 def _validate_transitive_reader_implementation_origins(
@@ -343,12 +347,13 @@ def _content_source_role_resolver_module(root: Path):
     _load_product_legacy_module(root, "xml_structure", xml_src / "xml_structure.py")
 
     _ensure_module_path(root)
-    _ensure_module_path(src)
-    import content_source_role_resolver  # type: ignore
+    expected_resolver = src / "content_source_role_resolver.py"
+    _validate_legacy_cached_alias("content_source_role_resolver", expected_resolver)
+    from hpfa.modules.core.content_source_role_resolver_lite.src import content_source_role_resolver
 
     _validate_imported_module_origin(
         content_source_role_resolver,
-        src / "content_source_role_resolver.py",
+        expected_resolver,
         "content_source_role_resolver",
     )
     dependency_modules = {
@@ -391,12 +396,13 @@ def _boundary_scorer_module(root: Path):
         root,
         root / "hpfa" / "modules" / "core" / "composite_integration_office" / "src",
     )
-    _ensure_module_path(src)
-    import boundary_analysis_scorer  # type: ignore
+    expected_boundary = src / "boundary_analysis_scorer.py"
+    _validate_legacy_cached_alias("boundary_analysis_scorer", expected_boundary)
+    from hpfa.modules.core.composite_integration_office.src import boundary_analysis_scorer
 
     _validate_imported_module_origin(
         boundary_analysis_scorer,
-        src / "boundary_analysis_scorer.py",
+        expected_boundary,
         "boundary_analysis_scorer",
     )
     return boundary_analysis_scorer
@@ -404,7 +410,7 @@ def _boundary_scorer_module(root: Path):
 
 def validate_output_root(out_dir: str | Path) -> Path:
     output_root = _resolve_path(Path(out_dir))
-    for phone_root in PHONE_OUTPUT_ROOTS:
+    for phone_root in restricted_output_roots():
         resolved_phone_root = _resolve_path(phone_root)
         if output_root == resolved_phone_root:
             return output_root

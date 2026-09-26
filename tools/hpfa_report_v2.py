@@ -50,11 +50,11 @@ def classify_phase_proxy(blob):
     if is_kw(blob, KW_REGAIN): return "F4"
     return "OPEN"
 
-def write_html_index(outdir, pngs):
+def write_html_index(outdir, pngs, match_label):
     path = os.path.join(outdir, "index.html")
     with open(path, "w", encoding="utf-8") as f:
         f.write('<!doctype html><meta charset="utf-8">')
-        f.write('<h2>HPFA report_v2 — rz-gs-20260208</h2>')
+        f.write(f"<h2>HPFA report_v2 — {match_label}</h2>")
         f.write('<p>Not: F1/F2 possession yoksa "OPEN" proxy olarak kalır. F3/F4/F5-6 daha güvenilir.</p>')
         for p in pngs:
             f.write(f'<div style="margin:14px 0;"><div><b>{p}</b></div><img src="{p}" style="max-width:100%;"></div>')
@@ -271,7 +271,8 @@ def main():
     pngs.append(savefig("16_tempo_gap_hist.png"))
 
     # write index.html
-    idx = write_html_index(rep_out, pngs)
+    match_label = os.path.basename(os.path.normpath(match_out)) or "MATCH"
+    idx = write_html_index(rep_out, pngs, match_label)
     print("REPORT V2 OK ✅")
     print("OUTDIR:", rep_out)
     print("INDEX:", idx)

@@ -2,10 +2,39 @@ name: ACTIVE_MATCH Full Spine V1
 
 on:
   pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'requirements.txt'
+      - '.github/workflows/active-match-full-spine-v1.yml'
+      - 'active_match_spine_runner.py'
+      - 'active_match_full_run.py'
+      - 'reconstruction_intelligence_packet_adapter_current_v1.py'
+      - 'post_sequence_admission_finalizer_current_v1.py'
+      - 'hpfa/tests/integration/test_intelligence_chain_contract_v1.py'
+      - 'hpfa/tests/integration/test_evidence_dependency_independence_v1.py'
+      - 'hpfa/modules/core/active_match_spine_runner/**'
+      - 'hpfa/modules/core/minimum_viable_context_lite/**'
+      - 'hpfa/modules/core/context_action_semantics_rebind_lite/**'
+      - 'hpfa/modules/core/analyst_episode_locator_lite/**'
+      - 'hpfa/modules/core/episode_feature_vector_lite/**'
+      - 'hpfa/modules/core/temporal_episode_signature_lite/**'
+      - 'hpfa/modules/core/trackable_action_trace_candidates_lite/**'
+      - 'hpfa/modules/core/trackable_action_consequence_candidates_lite/**'
+      - 'hpfa/modules/core/visible_action_sequence_candidates_lite/**'
+      - 'hpfa/modules/core/reconstruction_intelligence_packet_adapter_lite/**'
+      - 'hpfa/modules/core/spatial_transition_candidate_lite/**'
+      - 'hpfa/modules/core/state_transition_dynamics_lite/**'
+      - 'hpfa/modules/core/provider_metric_dictionary_lite/**'
+      - 'hpfa/modules/core/aggregate_definition_alignment_lite/**'
+      - 'configs/metrics/**'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: hpfa-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   full-spine:

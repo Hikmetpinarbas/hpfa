@@ -72,7 +72,76 @@ def _write_projection(path: Path, payload: dict[str, Any]) -> Path:
     return path
 
 
-def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root: str | Path) -> dict[str, Any]:
+def _run_metric_governance_sidecar(
+    out_dir: str | Path,
+    product_root: str | Path,
+) -> dict[str, Any]:
+    try:
+        return run_metric_governance_bridge(out_dir, product_root)
+    except Exception as exc:
+        return {
+            "module_id": "active_match_metric_governance_bridge_v1",
+            "status": "REVIEW_REQUIRED",
+            "error_type": type(exc).__name__,
+            "hard_block_hits": [],
+            "review_hits": [f"metric_governance_bridge_sidecar_failed:{type(exc).__name__}"],
+            "current_invocation_artifacts": [],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+
+
+def finalize_metric_governance_sidecar(
+    sidecar_report: dict[str, Any],
+    out_dir: str | Path,
+    product_root: str | Path,
+) -> dict[str, Any]:
+    report = dict(sidecar_report)
+    metric_governance = _run_metric_governance_sidecar(out_dir, product_root)
+    metric_status = str(metric_governance.get("status") or "UNKNOWN").upper()
+
+    hard_blocks = _dedupe(list(report.get("hard_block_hits") or []))
+    review_hits = [
+        hit
+        for hit in list(report.get("review_hits") or [])
+        if not str(hit).startswith("metric_governance_bridge_")
+    ]
+    artifacts = list(report.get("current_invocation_artifacts") or [])
+    for value in metric_governance.get("current_invocation_artifacts") or []:
+        path = Path(str(value))
+        if path.is_file():
+            artifacts.append(str(path))
+
+    if metric_status == "FAIL_CLOSED":
+        reasons = metric_governance.get("hard_block_hits") or []
+        reason = str(reasons[0]) if reasons else "metric_governance_fail_closed"
+        hard_blocks.append(f"metric_governance_construct_path_blocked:{reason}")
+        report["construct_path_blocked"] = True
+        report["construct_path_block_reason"] = reason
+    elif metric_status != "SMOKE_PASS":
+        review_hits.append(f"metric_governance_bridge_{metric_status.casefold()}")
+
+    report["metric_governance_bridge_status"] = metric_governance.get("status")
+    report["metric_governance_bridge"] = metric_governance
+    report["hard_block_hits"] = _dedupe(hard_blocks)
+    report["review_hits"] = _dedupe(review_hits)
+    report["current_invocation_artifacts"] = sorted(set(artifacts))
+    report["status"] = (
+        "FAIL_CLOSED"
+        if report["hard_block_hits"]
+        else ("REVIEW_REQUIRED" if report["review_hits"] else "SMOKE_PASS")
+    )
+    return report
+
+
+def run_sidecars(
+    active_match_dir: str | Path,
+    out_dir: str | Path,
+    product_root: str | Path,
+    *,
+    include_metric_governance: bool = True,
+) -> dict[str, Any]:
     output = Path(out_dir).expanduser().resolve(strict=False)
     output.mkdir(parents=True, exist_ok=True)
     artifacts: list[str] = []
@@ -431,8 +500,8 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
         }
         analyst_output_claim_contract_status = analyst_output_claim_contract_report["status"]
 
-    try:
-        metric_governance = run_metric_governance_bridge(output, product_root)
+    if include_metric_governance:
+        metric_governance = _run_metric_governance_sidecar(output, product_root)
         metric_governance_status = metric_governance.get("status")
         for value in metric_governance.get("current_invocation_artifacts") or []:
             if value and Path(str(value)).is_file():
@@ -445,14 +514,21 @@ def run_sidecars(active_match_dir: str | Path, out_dir: str | Path, product_root
             construct_path_blocked = True
         elif normalized_governance_status != "SMOKE_PASS":
             review_hits.append(f"metric_governance_bridge_{str(metric_governance_status).casefold()}")
-    except Exception as exc:
-        metric_governance = {"status": "REVIEW_REQUIRED", "error_type": type(exc).__name__}
-        metric_governance_status = "REVIEW_REQUIRED"
-        review_hits.append(f"metric_governance_bridge_sidecar_failed:{type(exc).__name__}")
+    else:
+        metric_governance = {
+            "module_id": "active_match_metric_governance_bridge_v1",
+            "status": "NOT_EVALUATED_DEFERRED_UNTIL_RICH_LANE",
+            "reason": "xlsx_projection_is_produced_by_rich_multiformat_analysis_lane",
+            "current_invocation_artifacts": [],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+        metric_governance_status = metric_governance["status"]
 
     return {
         "module_id": MODULE_ID,
-        "status": "REVIEW_REQUIRED" if hard_blocks or review_hits else "SMOKE_PASS",
+        "status": "FAIL_CLOSED" if hard_blocks else ("REVIEW_REQUIRED" if review_hits else "SMOKE_PASS"),
         "active_match_analyst_report_lite_status": baseline_status,
         "triplex_source_alignment_status": triplex_status,
         "triplex_source_alignment_prerequisite_present": mapping_present,

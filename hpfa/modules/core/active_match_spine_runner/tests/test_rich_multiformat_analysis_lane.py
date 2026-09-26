@@ -9,9 +9,23 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from full_spine_runner import run_intelligence_chain
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _phase_state_candidates
+import rich_multiformat_analysis_lane as rich_multiformat_analysis_lane
+from shared_surface_snapshot_contract import surface_snapshot_id
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _strict_post_final_third_entry_profile, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _loss_next_opponent_process_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _counterattack_next_process_context, _access_terminal_bridge_profiles, _process_variant_board, _snapshot
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
+
+
+def _admitted_time_contract():
+    return {
+        "status": "ADMITTED",
+        "rule_id": "sportsbase_like_start_end_absolute_seconds_v1",
+        "unit_candidate": "SECOND",
+        "unit_admission_status": "ADMITTED",
+        "time_basis_candidate": "ABSOLUTE_MATCH_SECONDS",
+        "time_basis_admission_status": "ADMITTED",
+        "review_reasons": [],
+    }
 
 
 class Cell:
@@ -47,6 +61,671 @@ def _audit():
             {"raw_column": "Shots", "normalized_column": "shots", "identity_role_candidate": None, "percent_header_candidate": False},
         ],
     }
+
+
+
+
+
+
+
+
+
+
+
+def test_access_terminal_bridge_excludes_goalkeeper_aggregate_and_placeholder_values():
+    rows = [
+        {
+            "row_projection_id": "gk_1",
+            "identity_candidates": {"player_raw_candidate": "Keeper", "team_raw_candidate": "Team"},
+            "metric_values": {
+                "goal_kicks": {
+                    "raw_metric_label": "Goal kicks",
+                    "raw_value": 7,
+                    "value_status": "OBSERVED",
+                },
+                "shots_faced": {
+                    "raw_metric_label": "Shots faced",
+                    "raw_value": 5,
+                    "value_status": "OBSERVED",
+                },
+            },
+        },
+        {
+            "row_projection_id": "p_1",
+            "identity_candidates": {"player_raw_candidate": "Outfield", "team_raw_candidate": "Team"},
+            "metric_values": {
+                "shots": {
+                    "raw_metric_label": "Shots",
+                    "raw_value": 2,
+                    "value_status": "OBSERVED",
+                },
+                "xg": {
+                    "raw_metric_label": "xG",
+                    "raw_value": "-",
+                    "value_status": "OBSERVED",
+                },
+            },
+        },
+    ]
+    profiles = _access_terminal_bridge_profiles(rows)
+    assert len(profiles) == 1
+    assert profiles[0]["entity_candidate"] == "Outfield"
+    assert profiles[0]["dimension_metric_counts"]["TERMINAL"] == 1
+
+
+def test_access_terminal_bridge_profiles_keep_dimensions_without_invalid_conversion_rate():
+    rows = [{
+        "row_projection_id": "xrp_1",
+        "source_role": "PLAYER_AGGREGATE",
+        "identity_candidates": {
+            "player_raw_candidate": "Player 1",
+            "team_raw_candidate": "Team 1",
+        },
+        "metric_values": {
+            "final_third_entries": {
+                "raw_metric_label": "Final third entries",
+                "raw_value": 5,
+                "value_status": "OBSERVED",
+            },
+            "xa_expected_assists": {
+                "raw_metric_label": "xA (expected assists)",
+                "raw_value": 0.3,
+                "value_status": "OBSERVED",
+            },
+            "shots": {
+                "raw_metric_label": "Shots",
+                "raw_value": 2,
+                "value_status": "OBSERVED",
+            },
+        },
+    }]
+    profiles = _access_terminal_bridge_profiles(rows)
+    assert len(profiles) == 1
+    profile = profiles[0]
+    assert profile["dimension_metric_counts"] == {
+        "ACCESS": 1,
+        "CREATION": 1,
+        "TERMINAL": 1,
+    }
+    assert profile["access_and_terminal_both_observed"] is True
+    assert profile["eligible_denominator_defined_for_conversion_rate"] is False
+    assert profile["conversion_rate_emitted"] is False
+    assert profile["profile_is_quality_score"] is False
+
+
+def test_game_state_process_mix_context_normalizes_by_score_state_exposure():
+    game_state = {
+        "score_state_segments": [
+            {
+                "start_second_candidate": 0.0,
+                "end_second_candidate": 600.0,
+                "score_state_candidate": {"Alpha (11)": 0, "Beta (22)": 0},
+            },
+            {
+                "start_second_candidate": 600.0,
+                "end_second_candidate": 1200.0,
+                "score_state_candidate": {"Alpha (11)": 1, "Beta (22)": 0},
+            },
+        ]
+    }
+    identity = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha (11)"]},
+            {"team_identity_candidate_id": "team_b", "team_aliases_raw": ["Beta (22)"]},
+        ]
+    }
+    process = {
+        "process_participation_candidates": [
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "100",
+                "end_candidate": "120",
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "700",
+                "end_candidate": "710",
+            },
+        ]
+    }
+    result = _game_state_process_mix_context(game_state, identity, process)
+    assert result["status"] == "PASS"
+    alpha = [p for p in result["profiles"] if p["team_label"] == "Alpha (11)"]
+    assert alpha[0]["process_family_counts"] == {"POSITIONAL_ATTACK_CANDIDATE": 1}
+    assert alpha[0]["process_family_rate_per_10_minutes"]["POSITIONAL_ATTACK_CANDIDATE"] == 1.0
+    assert alpha[1]["process_family_counts"] == {"COUNTERATTACK_CANDIDATE": 1}
+    assert alpha[1]["process_family_rate_per_10_minutes"]["COUNTERATTACK_CANDIDATE"] == 1.0
+    assert alpha[0]["score_state_is_causal_explanation"] is False
+
+
+
+def test_counterattack_next_process_context_exposes_positional_successor_without_stabilization_truth():
+    process = {
+        "process_participation_candidates": [
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_participation_candidate_id": "counter_1",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "10",
+                "end_candidate": "18",
+                "shot_present_annotation_candidate": False,
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_participation_candidate_id": "pos_1",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "24",
+                "end_candidate": "40",
+            },
+        ]
+    }
+    result = _counterattack_next_process_context(process)
+    assert result["status"] == "PASS"
+    assert result["counterattack_context_row_count"] == 1
+    row = result["rows"][0]
+    assert row["next_visible_process_family_candidates"] == ["POSITIONAL_ATTACK_CANDIDATE"]
+    assert row["seconds_to_next_visible_process_candidate"] == 6.0
+    assert row["visible_counter_to_positional_successor_candidate"] is True
+    assert row["visible_successor_is_transition_stabilization_truth"] is False
+    assert row["visible_successor_is_tactical_intention_truth"] is False
+
+
+def test_counterattack_next_process_context_keeps_no_successor_explicit():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "counter_last",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            "period_candidate": "2",
+            "start_candidate": "100",
+            "end_candidate": "110",
+        }]
+    }
+    result = _counterattack_next_process_context(process)
+    assert result["rows"][0]["next_process_binding_state"] == "NO_LATER_VISIBLE_PROCESS_INTERVAL"
+    assert result["rows"][0]["next_visible_process_family_candidates"] == []
+
+
+def test_set_piece_process_consequence_context_binds_visible_consequence_inside_process_interval():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "sp_1",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "100",
+            "end_candidate": "112",
+            "shot_present_annotation_candidate": True,
+        }]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "occurrence_consequence_projection_id": "ocp_1",
+            "team_identity_candidate_ids": ["team_a"],
+            "period_candidates": ["1"],
+            "start_candidates": ["108"],
+            "primary_consequence_candidates": ["SHOT_FOLLOW_UP_CANDIDATE"],
+            "process_continuation_status": "PROCESS_CONTINUES_VISIBLE_CANDIDATE",
+            "terminal_status": "VISIBLE_TERMINAL_SUPPORT",
+        }]
+    }
+    result = _set_piece_process_consequence_context(process, consequence)
+    assert result["status"] == "PASS"
+    assert result["set_piece_process_context_row_count"] == 1
+    row = result["rows"][0]
+    assert row["binding_state"] == "VISIBLE_CONSEQUENCE_CONTEXT_BOUND"
+    assert row["primary_consequence_candidates"] == ["SHOT_FOLLOW_UP_CANDIDATE"]
+    assert row["visible_consequence_is_second_ball_truth"] is False
+    assert row["set_piece_process_is_designed_routine_truth"] is False
+
+
+
+def test_set_piece_process_context_exposes_first_strict_after_team_without_recycle_truth():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "sp_after_1",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "100",
+            "end_candidate": "112",
+        }]
+    }
+    traces = {
+        "primary_occurrence_trace_candidates": [
+            {
+                "trackable_action_trace_candidate_id": "during",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "start_candidate": "110",
+                "action_family_candidates": ["PASS"],
+            },
+            {
+                "trackable_action_trace_candidate_id": "after",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "start_candidate": "114",
+                "action_family_candidates": ["RECOVERY"],
+            },
+        ]
+    }
+    result = _set_piece_process_consequence_context(
+        process,
+        {
+            "occurrence_consequence_projections": [{
+                "action_occurrence_candidate_id": "unrelated",
+                "team_identity_candidate_ids": ["team_b"],
+                "period_candidates": ["1"],
+                "start_candidates": ["50"],
+                "maximum_window_seconds": 12.0,
+            }]
+        },
+        traces,
+    )
+    row = result["rows"][0]
+    assert row["first_strict_after_start_candidate"] == 114.0
+    assert row["seconds_from_process_end_to_first_strict_after_candidate"] == 2.0
+    assert row["post_set_piece_first_visible_team_state"] == "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE"
+    assert row["post_set_piece_first_visible_team_state_is_recycle_truth"] is False
+    assert row["post_set_piece_first_visible_team_state_is_second_ball_truth"] is False
+    assert row["strict_after_relation_is_possession_truth"] is False
+
+
+
+def test_set_piece_first_strict_after_outside_declared_horizon_is_not_continuation_candidate():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "sp_after_far",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "100",
+            "end_candidate": "112",
+        }]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "unrelated",
+            "maximum_window_seconds": 12.0,
+        }]
+    }
+    traces = {
+        "primary_occurrence_trace_candidates": [{
+            "trackable_action_trace_candidate_id": "far_after",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": "150",
+            "action_family_candidates": ["PASS"],
+        }]
+    }
+    result = _set_piece_process_consequence_context(process, consequence, traces)
+    row = result["rows"][0]
+    assert row["seconds_from_process_end_to_first_strict_after_candidate"] == 38.0
+    assert row["raw_first_strict_after_team_state"] == "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE"
+    assert row["post_set_piece_first_visible_team_state"] == "FIRST_STRICT_AFTER_OUTSIDE_DECLARED_CONSEQUENCE_HORIZON"
+    assert row["post_set_piece_first_visible_team_state_is_recycle_truth"] is False
+
+
+def test_set_piece_process_consequence_context_does_not_use_other_team_occurrence():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "sp_2",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "100",
+            "end_candidate": "112",
+        }]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "occurrence_consequence_projection_id": "ocp_other",
+            "team_identity_candidate_ids": ["team_b"],
+            "period_candidates": ["1"],
+            "start_candidates": ["108"],
+            "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+        }]
+    }
+    result = _set_piece_process_consequence_context(process, consequence)
+    assert result["rows"][0]["binding_state"] == "NO_VISIBLE_CONSEQUENCE_MATCH"
+    assert result["rows"][0]["matched_occurrence_count"] == 0
+
+
+def test_player_function_profiles_keep_dimensions_separate_without_quality_score():
+    bindings = {
+        "actor_1": {
+            "actor_label": "Player 1",
+            "team_identity_candidate_id": "team_1",
+            "team_label": "Team 1",
+            "xlsx_row_projection_id": "xrp_1",
+            "xlsx_row": {
+                "row_projection_id": "xrp_1",
+                "metric_values": {
+                    "final_third_entries": {
+                        "raw_metric_label": "Final third entries",
+                        "raw_value": 5,
+                        "value_status": "OBSERVED",
+                    },
+                    "xa_expected_assists": {
+                        "raw_metric_label": "xA (expected assists)",
+                        "raw_value": 0.4,
+                        "value_status": "OBSERVED",
+                    },
+                    "shots": {
+                        "raw_metric_label": "Shots",
+                        "raw_value": 3,
+                        "value_status": "OBSERVED",
+                    },
+                    "ball_recoveries": {
+                        "raw_metric_label": "Ball recoveries",
+                        "raw_value": 7,
+                        "value_status": "OBSERVED",
+                    },
+                },
+            },
+        }
+    }
+    process = [{
+        "semantic_role": "PARTICIPATION_INTERVAL",
+        "actor_identity_candidate_id": "actor_1",
+        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+        "shot_present_annotation_candidate": True,
+    }]
+    profiles = _player_function_profiles(bindings, process)
+    assert len(profiles) == 1
+    profile = profiles[0]
+    assert profile["process_participation_counts"] == {"POSITIONAL_ATTACK_CANDIDATE": 1}
+    assert profile["shot_ending_process_participation_counts"] == {"POSITIONAL_ATTACK_CANDIDATE": 1}
+    assert profile["dimension_metric_counts"]["ACCESS"] == 1
+    assert profile["dimension_metric_counts"]["CREATION"] == 1
+    assert profile["dimension_metric_counts"]["TERMINAL"] == 1
+    assert profile["dimension_metric_counts"]["RECOVERY_LOSS"] == 1
+    assert profile["profile_is_quality_score"] is False
+    assert profile["profile_is_tactical_role_truth"] is False
+    assert profile["xlsx_aggregate_is_action_identity"] is False
+
+
+def test_goalkeeper_restart_consequence_context_binds_provider_restart_to_visible_consequence():
+    action = {
+        "action_occurrence_candidates": [{
+            "action_occurrence_candidate_id": "gk_1",
+            "actor_identity_candidate_id": "keeper_1",
+            "team_identity_candidate_id": "team_a",
+            "attributes": {
+                "restart_type_candidate": "GOAL_KICK",
+                "provider_distance_bucket_candidate": "LONG",
+                "pass_outcome_candidate": "SUCCESS",
+            },
+        }]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "gk_1",
+            "followup_observation_status": "VISIBLE_FOLLOW_UP",
+            "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+            "process_continuation_status": "PROCESS_CONTINUES_VISIBLE_CANDIDATE",
+            "admitted_followup_horizon_sensitive": False,
+            "record_status": "PASS",
+        }]
+    }
+    result = _goalkeeper_restart_consequence_context(action, consequence)
+    assert result["status"] == "PASS"
+    assert result["provider_distance_bucket_counts"] == {"LONG": 1}
+    assert result["pass_outcome_counts"] == {"SUCCESS": 1}
+    assert result["primary_consequence_counts"] == {"SAME_TEAM_CONTINUATION_CANDIDATE": 1}
+    row = result["rows"][0]
+    assert row["provider_distance_bucket_is_tactical_strategy_truth"] is False
+    assert row["same_team_continuation_is_possession_truth"] is False
+    assert row["creates_independent_support"] is False
+
+
+
+def test_goalkeeper_restart_context_binds_first_admitted_followup_to_next_process():
+    action = {
+        "action_occurrence_candidates": [{
+            "action_occurrence_candidate_id": "gk_next_1",
+            "actor_identity_candidate_id": "keeper_1",
+            "team_identity_candidate_id": "team_a",
+            "attributes": {
+                "restart_type_candidate": "GOAL_KICK",
+                "provider_distance_bucket_candidate": "LONG",
+                "pass_outcome_candidate": "SUCCESS",
+            },
+        }]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "gk_next_1",
+            "admitted_after_follow_up_trace_ids": ["trace_1"],
+            "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+            "process_continuation_status": "PROCESS_CONTINUES_VISIBLE_CANDIDATE",
+        }]
+    }
+    traces = {
+        "primary_occurrence_trace_candidates": [{
+            "trackable_action_trace_candidate_id": "trace_1",
+            "start_candidate": "15",
+            "period_candidate": "1",
+            "team_identity_candidate_id": "team_a",
+        }]
+    }
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "14",
+            "end_candidate": "22",
+        }]
+    }
+    result = _goalkeeper_restart_consequence_context(action, consequence, traces, process)
+    row = result["rows"][0]
+    assert row["first_admitted_followup_start_candidate"] == 15.0
+    assert row["next_visible_process_family_candidates"] == ["POSITIONAL_ATTACK_CANDIDATE"]
+    assert row["next_process_binding_state"] == "SINGLE_VISIBLE_PROCESS_FAMILY_MATCH"
+    assert row["next_process_is_possession_truth"] is False
+
+
+def test_goalkeeper_restart_consequence_context_is_not_available_without_goal_kick_occurrence():
+    result = _goalkeeper_restart_consequence_context(
+        {"action_occurrence_candidates": []},
+        {"occurrence_consequence_projections": []},
+    )
+    assert result["status"] == "NOT_AVAILABLE"
+    assert result["goalkeeper_restart_context_row_count"] == 0
+
+
+
+def test_loss_next_opponent_process_context_binds_first_opponent_followup():
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "loss_1",
+            "action_family_candidates": ["TURNOVER"],
+            "team_identity_candidate_ids": ["team_a"],
+            "period_candidates": ["1"],
+            "admitted_after_follow_up_trace_ids": ["trace_b"],
+            "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+        }]
+    }
+    traces = {
+        "primary_occurrence_trace_candidates": [{
+            "trackable_action_trace_candidate_id": "trace_b",
+            "start_candidate": "25",
+            "period_candidate": "1",
+            "team_identity_candidate_id": "team_b",
+        }]
+    }
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "team_identity_candidate_id": "team_b",
+            "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            "period_candidate": "1",
+            "start_candidate": "24",
+            "end_candidate": "31",
+        }]
+    }
+    result = _loss_next_opponent_process_context(consequence, traces, process)
+    assert result["status"] == "PASS"
+    row = result["rows"][0]
+    assert row["opponent_team_identity_candidate"] == "team_b"
+    assert row["next_opponent_process_family_candidates"] == ["COUNTERATTACK_CANDIDATE"]
+    assert row["next_opponent_process_binding_state"] == "SINGLE_OPPONENT_VISIBLE_PROCESS_FAMILY_MATCH"
+    assert row["loss_is_defensive_transition_truth"] is False
+    assert row["opponent_process_is_causal_consequence_truth"] is False
+
+
+def test_loss_next_opponent_process_context_does_not_promote_same_team_followup():
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "loss_2",
+            "action_family_candidates": ["CONTROL_ERROR"],
+            "team_identity_candidate_ids": ["team_a"],
+            "period_candidates": ["1"],
+            "admitted_after_follow_up_trace_ids": ["trace_a"],
+        }]
+    }
+    traces = {
+        "primary_occurrence_trace_candidates": [{
+            "trackable_action_trace_candidate_id": "trace_a",
+            "start_candidate": "25",
+            "period_candidate": "1",
+            "team_identity_candidate_id": "team_a",
+        }]
+    }
+    result = _loss_next_opponent_process_context(
+        consequence,
+        traces,
+        {"process_participation_candidates": []},
+    )
+    row = result["rows"][0]
+    assert row["next_opponent_process_binding_state"] == "FIRST_FOLLOWUP_NOT_OPPONENT_TEAM"
+    assert row["opponent_team_identity_candidate"] is None
+
+
+def test_recovery_next_process_context_binds_first_followup_to_visible_process_family():
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "occ_recovery_1",
+            "recovery_first_admitted_followup_applicable": True,
+            "recovery_first_admitted_followup_state": "CONTINUATION_ADMITTED",
+            "recovery_first_admitted_followup_start_candidate": 12.0,
+            "recovery_first_admitted_followup_team_identity_candidate_ids": ["team_a"],
+            "recovery_first_admitted_followup_action_family_candidates": ["PASS"],
+            "recovery_first_admitted_followup_provider_semantic_candidates": [
+                "PROVIDER_FORWARD_PASS_VISIBLE_CANDIDATE"
+            ],
+            "period_candidates": ["1"],
+            "team_identity_candidate_ids": ["team_a"],
+            "actor_identity_candidate_ids": ["actor_a"],
+            "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+            "process_continuation_status": "PROCESS_CONTINUES_VISIBLE_CANDIDATE",
+        }]
+    }
+    process = {
+        "process_participation_candidates": [
+            {
+                "process_participation_candidate_id": "ppc_1",
+                "team_identity_candidate_id": "team_a",
+                "actor_identity_candidate_id": "actor_b",
+                "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "10",
+                "end_candidate": "20",
+            },
+            {
+                "process_participation_candidate_id": "ppc_2",
+                "team_identity_candidate_id": "team_a",
+                "actor_identity_candidate_id": "actor_c",
+                "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "10",
+                "end_candidate": "20",
+            },
+        ]
+    }
+    result = _recovery_next_process_context(consequence, process)
+    assert result["status"] == "PASS"
+    assert result["recovery_context_row_count"] == 1
+    row = result["rows"][0]
+    assert row["next_visible_process_family_candidates"] == ["COUNTERATTACK_CANDIDATE"]
+    assert row["next_process_binding_state"] == "SINGLE_VISIBLE_PROCESS_FAMILY_MATCH"
+    assert row["creates_independent_support"] is False
+    assert row["next_process_is_tactical_plan_truth"] is False
+
+
+def test_recovery_next_process_context_keeps_no_process_match_explicit():
+    consequence = {
+        "occurrence_consequence_projections": [{
+            "action_occurrence_candidate_id": "occ_recovery_2",
+            "recovery_first_admitted_followup_applicable": True,
+            "recovery_first_admitted_followup_state": "CONTINUATION_ADMITTED",
+            "recovery_first_admitted_followup_start_candidate": 50.0,
+            "recovery_first_admitted_followup_team_identity_candidate_ids": ["team_a"],
+            "period_candidates": ["1"],
+        }]
+    }
+    result = _recovery_next_process_context(consequence, {"process_participation_candidates": []})
+    assert result["rows"][0]["next_process_binding_state"] == "NO_VISIBLE_PROCESS_INTERVAL_MATCH"
+    assert result["rows"][0]["next_visible_process_family_candidates"] == []
+
+
+def test_game_state_context_is_match_agnostic_and_deduplicates_reflected_goals(tmp_path):
+    header = "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+    rows = [
+        "1;10;12;7. Player A (1);Alpha (11);Goals;1;90;34\n",
+        "2;40;42;9. Player B (2);Beta (22);Goals;1;92;30\n",
+        "3;80;82;4. Player C (3);Alpha (11);Passes accurate;1;50;20\n",
+    ]
+    (tmp_path / "players.csv").write_text(header + "".join(rows), encoding="utf-8")
+    reflected = [
+        "1;10;12;Alpha (11) - Team;Alpha (11);Goals;1;90;34\n",
+        "2;40;42;Beta (22) - Team;Beta (22);Goals;1;92;30\n",
+    ]
+    (tmp_path / "reflection.csv").write_text(header + "".join(reflected), encoding="utf-8")
+
+    result = _game_state_context(tmp_path, _admitted_time_contract())
+
+    assert result["status"] == "PASS"
+    assert result["goal_observation_count"] == 2
+    assert result["team_labels"] == ["Alpha (11)", "Beta (22)"]
+    assert [row["score_state_candidate"] for row in result["score_state_segments"]] == [
+        {"Alpha (11)": 0, "Beta (22)": 0},
+        {"Alpha (11)": 1, "Beta (22)": 0},
+        {"Alpha (11)": 1, "Beta (22)": 1},
+    ]
+    assert result["creates_independent_support"] is False
+    assert result["game_state_is_tactical_truth"] is False
+
+
+def test_game_state_context_supports_zero_zero_without_goal_rows(tmp_path):
+    (tmp_path / "match.csv").write_text(
+        "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+        "1;5;7;1. A (1);Alpha;Passes accurate;1;20;20\n"
+        "2;90;92;2. B (2);Beta;Lost balls;1;30;30\n",
+        encoding="utf-8",
+    )
+    result = _game_state_context(tmp_path, _admitted_time_contract())
+    assert result["status"] == "PASS"
+    assert result["goal_observation_count"] == 0
+    assert result["score_state_segments"][0]["score_state_candidate"] == {"Alpha": 0, "Beta": 0}
+    assert result["score_state_segments"][0]["end_second_candidate"] == 90.0
 
 
 def test_xlsx_row_projection_preserves_identity_metric_alignment_and_zero():
@@ -344,7 +1023,7 @@ def test_c02_process_association_survives_without_xlsx_enrichment():
     assert dyad["support_n"] == 2
     assert dyad["shot_ending_n"] == 2
     assert dyad["xlsx_enriched_actor_count"] == 0
-    assert dyad["claim_ceiling"] == "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY"
+    assert dyad["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY"
 
 
 
@@ -436,6 +1115,68 @@ def test_c02_epistemic_review_contract_preserves_claim_ceiling_and_exposes_revie
     assert "dependency_resolution_collapses_support_into_shared_lineage" in review["falsifier_conditions"]
     assert result["epistemic_review_contract_creates_new_evidence"] is False
     assert result["epistemic_review_contract_can_authorize_emit"] is False
+
+
+def test_c02_descriptive_profile_separates_visible_annotation_from_resolved_outcome_and_selection_truth():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+    dyad = result["representative_dyad_argument"]
+    assert dyad["eligible_n"] == dyad["support_n"] == 2
+    assert dyad["visible_target_annotation_k"] == dyad["shot_ending_n"] == 2
+    assert dyad["target_outcome_unresolved_u"] == 0
+    assert dyad["observed_visible_target_annotation_frequency"] == 1.0
+    assert dyad["observed_rate_semantics"] == "VISIBLE_TARGET_ANNOTATION_FREQUENCY_NOT_RESOLVED_OUTCOME_RATE"
+    assert dyad["descriptive_lift"] == 2.0
+    assert dyad["descriptive_lift_semantics"] == "VISIBLE_ANNOTATION_FREQUENCY_RATIO_MATCH_LOCAL_NOT_EFFECT_SIZE"
+    assert dyad["eligible_episode_spread"] == 2
+    assert dyad["positive_episode_spread"] == 2
+    assert dyad["eligible_episode_spread_is_independence_proof"] is False
+    assert dyad["positive_episode_spread_is_independence_proof"] is False
+    assert dyad["selection_is_posthoc_attention_ranking"] is True
+    assert dyad["selection_is_stable_signal"] is False
+    assert dyad["no_p_value_eliminates_selection_multiplicity_risk"] is False
+    assert dyad["outcome_must_not_define_its_own_eligible_denominator"] is True
+    assert dyad["minimum_support_threshold_is_evidence_strength_truth"] is False
+    assert dyad["shrunk_rate_is_observed_rate"] is False
+    assert dyad["exact_computation_is_valid_football_inference"] is False
+    assert dyad["cluster_aware_is_assumption_free"] is False
+    assert dyad["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY"
+
+
+def test_c02_selection_scope_exposes_candidate_pool_and_posthoc_ranking():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+    actor = result["representative_actor_argument"]
+    dyad = result["representative_dyad_argument"]
+    assert actor["selection_scope"] == "ALL_C02_ACTOR_CANDIDATES_CURRENT_MATCH"
+    assert actor["selection_candidate_pool_n"] == result["selection_scope_actor_candidate_count"]
+    assert dyad["selection_scope"] == "ALL_C02_DYAD_CANDIDATES_CURRENT_MATCH"
+    assert dyad["selection_candidate_pool_n"] == result["selection_scope_dyad_candidate_count"]
+    assert result["no_p_value_eliminates_selection_multiplicity_risk"] is False
+    assert result["ranked_extreme_is_stable_signal"] is False
+
+
+def test_c02_exposes_review_only_packet_candidates_without_independence_or_negative_invention():
+    result = _construct_c02(_c02_xlsx_rows(), _c02_identity(), _c02_process_payload())
+    packets = result["packet_candidates"]
+    assert result["packet_candidate_count"] == 2
+    assert result["packet_candidates_create_new_evidence"] is False
+    assert result["packet_candidates_admit_independent_support"] is False
+    assert result["packet_candidates_can_authorize_emit"] is False
+    for packet in packets:
+        assert packet["source_construct_id"] == "C02_PROCESS_PARTICIPANT_OUTCOME_ASSOCIATION"
+        assert packet["packet_family"] == "production_consequence"
+        assert packet["claim_ceiling"] == "composite_candidate_only"
+        assert packet["contradicting_signals"] == []
+        assert len(packet["input_sequences"]) >= 2
+        assert all(row["independent_support_vote"] is False for row in packet["input_sequences"])
+        feature = packet["input_features"][0]
+        assert feature["association_claim_ceiling"] == "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY"
+        assert feature["eligibility_contract"] == "C02_PROCESS_FAMILY_OUTCOME_BLIND_ELIGIBILITY_V1"
+        assert feature["target_annotation_absence_is_counterevidence"] is False
+        assert feature["association_is_causal_player_credit"] is False
+        assert feature["selection_is_posthoc_attention_ranking"] is True
+        assert feature["selection_is_stable_signal"] is False
+        assert packet["supporting_signals"][0]["independent_support_vote"] is False
+        assert packet["supporting_signals"][0]["statistical_significance_truth"] is False
 
 
 def test_c02_opportunity_normalized_evidence_anatomy_freezes_denominator_and_preserves_episode_spread():
@@ -549,9 +1290,29 @@ def test_c03_builds_partial_order_process_development_and_anchor_path_without_tr
     assert signature["pass_carry_layer_mix"]["pass_layer_n"] == 2
     assert signature["pass_carry_layer_mix"]["carry_layer_n"] == 1
     assert signature["pass_carry_layer_mix"]["physical_touch_count_truth"] is False
+    assert signature["visible_on_ball_profile"]["visible_on_ball_temporal_layer_n"] == 2
+    assert signature["visible_on_ball_profile"]["visible_on_ball_family_layer_counts"] == {"CARRY": 1, "PASS": 2}
+    assert signature["visible_on_ball_profile"]["temporal_layer_is_not_physical_touch"] is True
+    assert signature["visible_on_ball_profile"]["same_timestamp_multi_family_is_not_multiple_touch_truth"] is True
+    participation = signature["visible_on_ball_profile"]["actor_family_temporal_layer_participation_candidates"]
+    assert [(row["actor_identity_candidate_id"], row["action_family_candidate"], row["temporal_layer_n"]) for row in participation] == [
+        ("actor_1", "PASS", 1),
+        ("actor_2", "CARRY", 1),
+        ("actor_2", "PASS", 1),
+    ]
+    assert all(row["eligible_on_ball_temporal_layer_n"] == 2 for row in participation)
+    assert all(row["temporal_layer_share_candidate"] == 0.5 for row in participation)
+    assert all(row["causal_process_credit_truth"] is False for row in participation)
+    assert signature["visible_on_ball_profile"]["actor_family_unresolved_temporal_layer_n"] == 0
+    assert signature["visible_on_ball_profile"]["actor_family_participation_is_causal_process_credit"] is False
     assert signature["process_start_zone_candidates"] == ["MIDDLE_THIRD"]
     assert signature["process_end_zone_candidates"] == ["FINAL_THIRD"]
     assert signature["zone_layer_path_candidates"] == [["MIDDLE_THIRD"], ["FINAL_THIRD"]]
+    assert signature["visible_zone_transition_candidate_n"] == 1
+    assert signature["visible_zone_transition_candidates"][0]["from_zone_candidate"] == "MIDDLE_THIRD"
+    assert signature["visible_zone_transition_candidates"][0]["to_zone_candidate"] == "FINAL_THIRD"
+    assert signature["visible_zone_transition_candidates"][0]["progression_truth"] is False
+    assert signature["visible_zone_transition_candidates"][0]["line_break_truth"] is False
     assert signature["visible_terminal_annotation_candidate_present"] is True
     assert signature["process_morphology_basis"] == "ADMITTED_TEMPORAL_LAYER_SUMMARY_NOT_PHYSICAL_TRAJECTORY_OR_PHASE_TRUTH"
     assert signature["tracking_truth"] is False
@@ -729,3 +1490,1269 @@ def test_c04_is_projected_into_analyst_report_as_total_plus_composition_not_qual
     assert "C04_closed_composition_profile_count" in source
     assert "XLSX BILESIM ADAYI" in source
     assert "Toplam hacim ayri eksendir" in source
+
+
+def test_canonical_six_phase_ontology_separates_phase_from_evaluation() -> None:
+    contract = _football_ontology_contract()
+    assert contract["canonical_six_phases"] == [
+        "ESTABLISHED_ATTACK",
+        "ATTACKING_TRANSITION",
+        "ATTACKING_SET_PIECE",
+        "ESTABLISHED_DEFENCE",
+        "DEFENSIVE_TRANSITION",
+        "DEFENSIVE_SET_PIECE",
+    ]
+    assert contract["phase_is_evaluation"] is False
+    assert contract["phase_is_outcome"] is False
+    assert contract["success_failure_is_phase"] is False
+    assert contract["efficiency_inefficiency_is_phase"] is False
+    assert contract["set_piece_is_open_play_subtype"] is False
+    assert "OPPONENT" in contract["observation_dimensions"]
+    assert "TWO_TEAM_INTERACTION" in contract["scale_axis"]
+    donor = contract["external_donor_adaptation_contract"]
+    assert donor["provider_normalization"]["normalize_at_boundary_not_inside_constructs"] is True
+    assert donor["provider_normalization"]["coordinate_system_requires_explicit_admission"] is True
+    assert donor["action_state_consequence"]["action_value_model_is_not_observation_truth"] is True
+    assert donor["tracking_boundary"]["event_coordinate_is_not_tracking"] is True
+    assert donor["tracking_boundary"]["pitch_control_requires_tracking_or_equivalent_spatiotemporal_observation"] is True
+
+
+def test_activity_state_candidates_do_not_claim_phase_admission() -> None:
+    payload = {"episode_feature_vectors": [{"shot_candidate_count": 1, "action_family_counts": {"PASS": 2}}]}
+    candidate = _phase_state_candidates(payload)[0]
+    assert candidate["activity_labels_are_phase_labels"] is False
+    assert candidate["phase_admission_status"] == "NOT_EVALUATED"
+    assert candidate["phase_truth"] is False
+
+
+
+def test_c03_builds_twelve_direction_six_phase_team_matrix() -> None:
+    processes = []
+    families = (
+        "POSITIONAL_ATTACK_CANDIDATE",
+        "COUNTERATTACK_CANDIDATE",
+        "SET_PIECE_ATTACK_CANDIDATE",
+    )
+    cursor = 10.0
+    for team in ("A", "B"):
+        for family in families:
+            processes.append({
+                "process_participation_candidate_id": f"{team}_{family}",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": family,
+                "team_identity_candidate_id": team,
+                "period_candidate": "1",
+                "start_candidate": cursor,
+                "end_candidate": cursor + 5.0,
+                "shot_present_annotation_candidate": family == "POSITIONAL_ATTACK_CANDIDATE",
+            })
+            cursor += 10.0
+    result = _construct_c03(
+        {"process_participation_candidates": processes},
+        {"occurrence_state_transition_projections": []},
+        {"spatial_transition_candidates": []},
+    )
+    assert result["six_phase_team_matrix_expected_direction_count"] == 12
+    assert result["six_phase_team_matrix_direction_count"] == 12
+    assert result["six_phase_team_matrix_visible_direction_count"] == 12
+    rows = result["six_phase_team_matrix"]
+    a_def = next(
+        row for row in rows
+        if row["team_identity_candidate_id"] == "A"
+        and row["canonical_phase_slot"] == "ESTABLISHED_DEFENCE"
+    )
+    assert a_def["source_process_profile_team_identity_candidate_id"] == "B"
+    assert a_def["source_process_family_candidate"] == "POSITIONAL_ATTACK_CANDIDATE"
+    assert a_def["metric_semantics"] == "OPPONENT_VISIBLE_PROCESS_EXPOSURE_PROFILE"
+    assert a_def["opponent_visible_loss_is_forced_turnover_truth"] is False
+    assert a_def["mean_duration_candidate"] == 5.0
+    assert a_def["shot_variant_n"] == 1
+    assert a_def["non_shot_variant_n"] == 0
+    assert isinstance(a_def["representative_shot_process"], dict)
+    assert a_def["representative_shot_process"]["replay_is_physical_trajectory_truth"] is False
+    assert a_def["anatomy_is_physical_trajectory_truth"] is False
+    assert result["six_phase_team_matrix_is_phase_truth"] is False
+
+
+def test_c03_motif_identity_is_outcome_independent_and_keeps_variants_together() -> None:
+    processes = [
+        {
+            "process_participation_candidate_id": "p_shot",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 10.0,
+            "end_candidate": 15.0,
+            "shot_present_annotation_candidate": True,
+        },
+        {
+            "process_participation_candidate_id": "p_loss",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 20.0,
+            "end_candidate": 25.0,
+            "shot_present_annotation_candidate": False,
+        },
+        {
+            "process_participation_candidate_id": "p_carry",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 30.0,
+            "end_candidate": 35.0,
+            "shot_present_annotation_candidate": False,
+        },
+    ]
+    occurrences = [
+        {
+            "action_occurrence_candidate_id": "o_shot",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [12.0],
+            "action_family_candidates": ["PASS"],
+            "actor_identity_candidate_ids": ["a1"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+        {
+            "action_occurrence_candidate_id": "o_loss",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [22.0],
+            "action_family_candidates": ["PASS"],
+            "actor_identity_candidate_ids": ["a2"],
+            "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+        {
+            "action_occurrence_candidate_id": "o_carry",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [32.0],
+            "action_family_candidates": ["CARRY"],
+            "actor_identity_candidate_ids": ["a3"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+    ]
+    result = _construct_c03(
+        {"process_participation_candidates": processes},
+        {"occurrence_state_transition_projections": occurrences},
+        {"spatial_transition_candidates": []},
+    )
+    motifs = result["process_motif_family_candidates"]
+    recurring = [row for row in motifs if row["recurring_motif_candidate"]]
+    assert len(recurring) == 1
+    motif = recurring[0]
+    assert motif["member_process_n"] == 2
+    assert motif["shot_variant_n"] == 1
+    assert motif["non_shot_variant_n"] == 1
+    assert motif["visible_loss_variant_n"] == 1
+    assert motif["outcome_fields_participate_in_motif_identity"] is False
+    assert motif["same_motif_outcomes_are_variant_context_only"] is True
+    assert result["process_motif_identity_uses_outcome"] is False
+
+
+def test_c03_recurring_motif_exposes_first_supported_grammar_divergence() -> None:
+    processes = [
+        {
+            "process_participation_candidate_id": "p_shot",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 10.0,
+            "end_candidate": 16.0,
+            "shot_present_annotation_candidate": True,
+        },
+        {
+            "process_participation_candidate_id": "p_loss",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 20.0,
+            "end_candidate": 26.0,
+            "shot_present_annotation_candidate": False,
+        },
+    ]
+    occurrences = [
+        {
+            "action_occurrence_candidate_id": "s1",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [11.0],
+            "action_family_candidates": ["PASS"],
+            "actor_identity_candidate_ids": ["a1"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+        {
+            "action_occurrence_candidate_id": "s2",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [13.0],
+            "action_family_candidates": ["CARRY"],
+            "actor_identity_candidate_ids": ["a2"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+        {
+            "action_occurrence_candidate_id": "l1",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [21.0],
+            "action_family_candidates": ["CARRY"],
+            "actor_identity_candidate_ids": ["a3"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+        {
+            "action_occurrence_candidate_id": "l2",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [23.0],
+            "action_family_candidates": ["PASS"],
+            "actor_identity_candidate_ids": ["a4"],
+            "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+    ]
+    result = _construct_c03(
+        {"process_participation_candidates": processes},
+        {"occurrence_state_transition_projections": occurrences},
+        {"spatial_transition_candidates": []},
+    )
+    motifs = [row for row in result["process_motif_family_candidates"] if row["recurring_motif_candidate"]]
+    assert len(motifs) == 1
+    motif = motifs[0]
+    assert motif["member_process_n"] == 2
+    div = motif["representative_first_supported_grammar_divergence"]
+    assert isinstance(div, dict)
+    assert {div["left_variant_context"], div["right_variant_context"]} == {"SHOT_LINKED", "LOSS_LINKED"}
+    assert div["first_supported_grammar_divergence"]["operation"] in {"SUBSTITUTE", "INSERT", "DELETE"}
+    assert div["contrast_pair_outcome_context_is_not_similarity_basis"] is True
+    assert div["first_divergence_is_causal_breakpoint_truth"] is False
+    board = result["process_variant_board"]
+    assert board["status"] == "PASS"
+    assert board["row_count"] == 1
+    assert board["rows"][0]["member_process_n"] == 2
+
+
+def test_c03_variant_profiles_never_pool_opponent_teams() -> None:
+    from hpfa.modules.core.active_match_spine_runner.src.rich_multiformat_analysis_lane import _construct_c03
+
+    processes = []
+    occurrences = []
+    for team, base in (("A", 10.0), ("B", 30.0)):
+        for suffix, shot, offset in (("shot", True, 0.0), ("no", False, 10.0)):
+            pid = f"{team}_{suffix}"
+            start = base + offset
+            processes.append({
+                "process_participation_candidate_id": pid,
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "BUILD_UP",
+                "team_identity_candidate_id": team,
+                "period_candidate": "1",
+                "start_candidate": start,
+                "end_candidate": start + 5.0,
+                "shot_present_annotation_candidate": shot,
+            })
+            occurrences.append({
+                "action_occurrence_candidate_id": "occ_" + pid,
+                "team_identity_candidate_ids": [team],
+                "period_candidates": ["1"],
+                "start_candidates": [start + 1.0],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_" + team],
+                "transition_class_candidates": [],
+                "provider_outcome_candidates": [],
+                "primary_consequence_candidates": [],
+                "supporting_spatial_transition_candidate_ids": [],
+            })
+
+    result = _construct_c03(
+        {"process_participation_candidates": processes},
+        {"occurrence_state_transition_projections": occurrences},
+        {"spatial_transition_candidates": []},
+    )
+    profiles = result["variant_context_profiles"]
+    assert len(profiles) == 2
+    assert {row["team_identity_candidate_id"] for row in profiles} == {"A", "B"}
+    assert all(row["eligible_process_n"] == 2 for row in profiles)
+    assert all(row["cross_team_variant_pooling_allowed"] is False for row in profiles)
+
+
+def test_c03_preserves_full_occurrence_pool_across_multiple_processes():
+    process = {
+        "process_participation_candidates": [
+            {
+                "process_participation_candidate_id": "context_1",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "start_candidate": "10",
+                "end_candidate": "20",
+                "shot_present_annotation_candidate": False,
+            },
+            {
+                "process_participation_candidate_id": "context_2",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "team_identity_candidate_id": "team_b",
+                "period_candidate": "1",
+                "start_candidate": "30",
+                "end_candidate": "40",
+                "shot_present_annotation_candidate": False,
+            },
+        ]
+    }
+    occurrences = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "occ_a",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["15"],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_a"],
+                "supporting_spatial_transition_candidate_ids": [],
+            },
+            {
+                "action_occurrence_candidate_id": "occ_b",
+                "team_identity_candidate_ids": ["team_b"],
+                "period_candidates": ["1"],
+                "start_candidates": ["35"],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_b"],
+                "supporting_spatial_transition_candidate_ids": [],
+            },
+        ]
+    }
+    result = _construct_c03(process, occurrences, {"spatial_transition_candidates": []})
+    by_ref = {row["process_ref"]: row for row in result["signatures"]}
+    assert by_ref["context_1"]["visible_occurrence_n"] == 1
+    assert by_ref["context_2"]["visible_occurrence_n"] == 1
+    assert by_ref["context_1"]["visible_on_ball_profile"]["visible_on_ball_temporal_layer_n"] == 1
+    assert by_ref["context_2"]["visible_on_ball_profile"]["visible_on_ball_temporal_layer_n"] == 1
+
+
+def test_entity_views_infers_goalkeeper_from_schema_not_filename_or_person_name():
+    rows = [
+        {
+            "row_projection_id": "gk1",
+            "source_role": "AGGREGATE_OR_TABULAR_SURFACE_CANDIDATE",
+            "identity_candidates": {"player_raw_candidate": "Example A"},
+            "metric_values": {
+                "shots_faced": {"value_status": "OBSERVED", "raw_value": 4},
+                "shots_saved": {"value_status": "OBSERVED", "raw_value": 3},
+            },
+        },
+        {
+            "row_projection_id": "p1",
+            "source_role": "AGGREGATE_OR_TABULAR_SURFACE_CANDIDATE",
+            "identity_candidates": {"player_raw_candidate": "Example B"},
+            "metric_values": {
+                "passes": {"value_status": "OBSERVED", "raw_value": 20},
+                "shots": {"value_status": "OBSERVED", "raw_value": 2},
+            },
+        },
+    ]
+    views = _entity_views(rows)
+    assert len(views["goalkeeper_view_candidates"]) == 1
+    assert len(views["player_view_candidates"]) == 1
+    assert views["goalkeeper_view_candidates"][0]["entity_role_candidate"] == "GOALKEEPER"
+    assert views["player_view_candidates"][0]["entity_role_candidate"] == "PLAYER"
+
+
+def test_c03_builds_nonexclusive_visible_consequence_response_profile() -> None:
+    processes = {
+        "process_participation_candidates": [
+            {
+                "process_participation_candidate_id": "p1",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "start_candidate": 10.0,
+                "end_candidate": 20.0,
+                "shot_present_annotation_candidate": False,
+            },
+            {
+                "process_participation_candidate_id": "p2",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                "team_identity_candidate_id": "team_a",
+                "period_candidate": "1",
+                "start_candidate": 30.0,
+                "end_candidate": 40.0,
+                "shot_present_annotation_candidate": False,
+            },
+        ]
+    }
+    occurrences = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "occ_1",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": [12.0],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_a"],
+                "primary_consequence_candidates": [
+                    "OPPONENT_HANDOVER_CANDIDATE",
+                    "SAME_TEAM_CONTINUATION_CANDIDATE",
+                ],
+                "supporting_spatial_transition_candidate_ids": [],
+            },
+            {
+                "action_occurrence_candidate_id": "occ_2",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": [32.0],
+                "action_family_candidates": ["PASS"],
+                "actor_identity_candidate_ids": ["actor_a"],
+                "primary_consequence_candidates": [
+                    "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE",
+                    "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE",
+                    "NO_VISIBLE_FOLLOW_UP_CANDIDATE",
+                ],
+                "supporting_spatial_transition_candidate_ids": [],
+            },
+        ]
+    }
+
+    result = _construct_c03(processes, occurrences, {"spatial_transition_candidates": []})
+    profile = result["team_process_profiles"][0]["visible_consequence_response_profile"]
+    counts = profile["process_presence_counts"]
+
+    assert profile["eligible_process_n"] == 2
+    assert counts["OPPONENT_HANDOVER_CANDIDATE"] == 1
+    assert counts["OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE"] == 1
+    assert counts["SAME_TEAM_CONTINUATION_CANDIDATE"] == 1
+    assert counts["MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE"] == 1
+    assert counts["NO_VISIBLE_FOLLOW_UP_CANDIDATE"] == 1
+    assert profile["categories_are_mutually_exclusive"] is False
+    assert profile["counts_are_process_presence_not_occurrence_volume"] is True
+    assert profile["opponent_handover_is_forced_turnover_truth"] is False
+    assert profile["opponent_takeover_is_pressure_success_truth"] is False
+    assert profile["mixed_team_same_time_is_ordered_response_truth"] is False
+    assert profile["no_visible_followup_is_failure"] is False
+    assert profile["profile_is_opponent_tactical_response_truth"] is False
+    assert profile["profile_is_independent_support"] is False
+    assert profile["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_CONSEQUENCE_RESPONSE_PROFILE_CANDIDATE_ONLY"
+
+
+def test_c03_morphology_neighborhood_links_near_variant_without_merging_exact_motif() -> None:
+    processes = [
+        {
+            "process_participation_candidate_id": "p1",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 10.0,
+            "end_candidate": 16.0,
+            "shot_present_annotation_candidate": False,
+        },
+        {
+            "process_participation_candidate_id": "p2",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 20.0,
+            "end_candidate": 26.0,
+            "shot_present_annotation_candidate": False,
+        },
+        {
+            "process_participation_candidate_id": "p3",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "COUNTERATTACK_CANDIDATE",
+            "team_identity_candidate_id": "A",
+            "period_candidate": "1",
+            "start_candidate": 30.0,
+            "end_candidate": 36.0,
+            "shot_present_annotation_candidate": False,
+        },
+    ]
+    occurrences = [
+        {
+            "action_occurrence_candidate_id": "o1",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [11.0],
+            "action_family_candidates": ["PASS"],
+            "actor_identity_candidate_ids": ["a1"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+        {
+            "action_occurrence_candidate_id": "o2",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [21.0],
+            "action_family_candidates": ["PASS"],
+            "actor_identity_candidate_ids": ["a2"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+        {
+            "action_occurrence_candidate_id": "o3",
+            "team_identity_candidate_ids": ["A"],
+            "period_candidates": ["1"],
+            "start_candidates": [31.0],
+            "action_family_candidates": ["PASS", "DUEL"],
+            "actor_identity_candidate_ids": ["a3"],
+            "primary_consequence_candidates": [],
+            "supporting_spatial_transition_candidate_ids": [],
+        },
+    ]
+
+    result = _construct_c03(
+        {"process_participation_candidates": processes},
+        {"occurrence_state_transition_projections": occurrences},
+        {"spatial_transition_candidates": []},
+    )
+
+    assert result["recurring_process_motif_family_candidate_count"] == 1
+    assert result["recurring_process_motif_covered_process_n"] == 2
+    assert result["process_motif_neighborhood_candidate_count"] == 1
+    assert result["singleton_process_motif_with_recurring_neighbor_count"] == 1
+
+    neighbor = result["process_motif_neighborhood_candidates"][0]
+    assert neighbor["neighborhood_basis"] == "ONE_ACTION_FAMILY_DELTA_SAME_LENGTH_BUCKET"
+    assert neighbor["action_family_delta"] == ["DUEL"]
+    assert sorted([neighbor["left_member_process_n"], neighbor["right_member_process_n"]]) == [1, 2]
+    assert neighbor["exact_motif_identity_changed"] is False
+    assert neighbor["recurrence_support_created"] is False
+    assert neighbor["independent_support_created"] is False
+    assert neighbor["similarity_is_tactical_pattern_truth"] is False
+    assert neighbor["similarity_is_coach_intention_truth"] is False
+    assert neighbor["similarity_is_causal_equivalence_truth"] is False
+    assert neighbor["outcome_participates_in_neighborhood_identity"] is False
+    assert neighbor["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_PROCESS_MORPHOLOGY_NEIGHBOR_CANDIDATE_ONLY"
+
+
+def test_c03_uses_admitted_provider_attack_axis_without_physical_progression_truth():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "proc_1",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": "10",
+            "end_candidate": "20",
+            "shot_present_annotation_candidate": False,
+        }]
+    }
+    transitions = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "occ_1",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["11"],
+                "action_family_candidates": ["PASS"],
+                "supporting_spatial_transition_candidate_ids": ["sp_1"],
+            },
+            {
+                "action_occurrence_candidate_id": "occ_2",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["15"],
+                "action_family_candidates": ["PASS"],
+                "supporting_spatial_transition_candidate_ids": ["sp_2"],
+            },
+        ]
+    }
+    spatial = {
+        "provider_team_relative_attack_axis_state": "ADMITTED",
+        "attack_direction": "ATTACK_POS_X",
+        "spatial_transition_candidates": [
+            {
+                "spatial_transition_candidate_id": "sp_1",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 20.0,
+                "provider_coordinate_anchor_y_candidate": 30.0,
+                "provider_zone_candidates": ["OWN_HALF"],
+            },
+            {
+                "spatial_transition_candidate_id": "sp_2",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 60.0,
+                "provider_coordinate_anchor_y_candidate": 32.0,
+                "provider_zone_candidates": ["OPPONENT_HALF"],
+            },
+        ],
+    }
+    result = _construct_c03(process, transitions, spatial)
+    sig = result["signatures"][0]
+    seg = sig["annotation_anchor_segments"][0]
+    assert seg["provider_attack_axis_longitudinal_delta_candidate"] == 40.0
+    assert seg["provider_attack_axis_direction_candidate"] == "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE"
+    assert seg["physical_distance_truth"] is False
+    assert seg["line_break_truth"] is False
+    assert sig["provider_attack_axis_admitted"] is True
+    assert sig["provider_attack_axis_net_longitudinal_delta_candidate"] == 40.0
+    assert sig["provider_attack_axis_direction_is_tactical_progression_truth"] is False
+
+
+def test_c03_keeps_provider_axis_direction_unresolved_when_axis_not_admitted():
+    process = {
+        "process_participation_candidates": [{
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_participation_candidate_id": "proc_2",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": "10",
+            "end_candidate": "20",
+        }]
+    }
+    transitions = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "occ_1",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["11"],
+                "action_family_candidates": ["PASS"],
+                "supporting_spatial_transition_candidate_ids": ["sp_1"],
+            },
+            {
+                "action_occurrence_candidate_id": "occ_2",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["15"],
+                "action_family_candidates": ["PASS"],
+                "supporting_spatial_transition_candidate_ids": ["sp_2"],
+            },
+        ]
+    }
+    spatial = {
+        "provider_team_relative_attack_axis_state": "REVIEW_REQUIRED",
+        "attack_direction": None,
+        "spatial_transition_candidates": [
+            {
+                "spatial_transition_candidate_id": "sp_1",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 20.0,
+                "provider_coordinate_anchor_y_candidate": 30.0,
+            },
+            {
+                "spatial_transition_candidate_id": "sp_2",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 60.0,
+                "provider_coordinate_anchor_y_candidate": 32.0,
+            },
+        ],
+    }
+    result = _construct_c03(process, transitions, spatial)
+    seg = result["signatures"][0]["annotation_anchor_segments"][0]
+    assert seg["provider_attack_axis_longitudinal_delta_candidate"] is None
+    assert seg["provider_attack_axis_direction_candidate"] == "UNRESOLVED"
+
+
+def test_rich_lane_snapshot_uses_canonical_shared_surface_contract(tmp_path):
+    (tmp_path / "a.csv").write_text("x\\n1\\n", encoding="utf-8")
+    (tmp_path / "b.xml").write_text("<root/>", encoding="utf-8")
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (nested / "c.txt").write_text("context", encoding="utf-8")
+    assert _snapshot(tmp_path) == surface_snapshot_id(tmp_path)
+
+from rich_multiformat_analysis_lane import _bind_player_action_aggregate_context
+
+
+def test_player_action_aggregate_context_reports_count_alignment_without_identity_promotion():
+    c02 = {
+        "player_function_profiles": [{
+            "actor_identity_candidate_id": "actor_1",
+            "actor_label": "Hikmet",
+            "function_dimensions": {
+                "TERMINAL": [
+                    {"metric_key": "shots", "raw_value": 2},
+                    {"metric_key": "xg_expected_goals", "raw_value": 0.44},
+                ]
+            },
+        }]
+    }
+    occurrence = {
+        "action_occurrence_candidates": [
+            {
+                "occurrence_topology": "SINGLE_ACTOR_ACTION",
+                "primary_family_candidate": "SHOT",
+                "actor_identity_candidate_id": "actor_1",
+                "semantic_components": [{"label": "shots on target"}],
+            },
+            {
+                "occurrence_topology": "SINGLE_ACTOR_ACTION",
+                "primary_family_candidate": "SHOT",
+                "actor_identity_candidate_id": "actor_1",
+                "semantic_components": [{"label": "shots off target"}],
+            },
+        ]
+    }
+    result = _bind_player_action_aggregate_context(c02, occurrence)
+    ctx = result["player_function_profiles"][0]["player_action_aggregate_context"]
+    assert ctx["visible_shot_occurrence_count"] == 2
+    assert ctx["xlsx_shots_aggregate_candidate"] == 2
+    assert ctx["xlsx_xg_aggregate_candidate"] == 0.44
+    assert ctx["cross_surface_count_alignment_state"] == (
+        "VISIBLE_SHOT_OCCURRENCE_COUNT_EQUALS_XLSX_SHOTS_AGGREGATE_CANDIDATE"
+    )
+    assert ctx["visible_shot_occurrence_count_is_complete_shot_universe"] is False
+    assert ctx["xlsx_shots_aggregate_is_true_action_count"] is False
+    assert ctx["same_provider_cross_surface_is_independent_support"] is False
+    assert ctx["aggregate_creates_action_identity"] is False
+    assert ctx["metric_value_reconciliation_admitted"] is False
+    assert ctx["count_alignment_is_definition_equivalence"] is False
+    assert ctx["count_alignment_can_authorize_emit"] is False
+
+
+def test_player_action_aggregate_context_keeps_coverage_gap_review_visible():
+    c02 = {
+        "player_function_profiles": [{
+            "actor_identity_candidate_id": "actor_2",
+            "actor_label": "Example",
+            "function_dimensions": {
+                "TERMINAL": [
+                    {"metric_key": "shots", "raw_value": 3},
+                    {"metric_key": "xg_expected_goals", "raw_value": 0.7},
+                ]
+            },
+        }]
+    }
+    occurrence = {
+        "action_occurrence_candidates": [{
+            "occurrence_topology": "SINGLE_ACTOR_ACTION",
+            "primary_family_candidate": "SHOT",
+            "actor_identity_candidate_id": "actor_2",
+            "semantic_components": [{"label": "shots off target"}],
+        }]
+    }
+    result = _bind_player_action_aggregate_context(c02, occurrence)
+    ctx = result["player_function_profiles"][0]["player_action_aggregate_context"]
+    assert ctx["visible_shot_occurrence_count"] == 1
+    assert ctx["xlsx_shots_aggregate_candidate"] == 3
+    assert ctx["cross_surface_count_alignment_state"] == (
+        "VISIBLE_SHOT_OCCURRENCE_COVERAGE_BELOW_XLSX_SHOTS_REVIEW_REQUIRED"
+    )
+    assert result["player_action_aggregate_alignment_state_counts"] == {
+        "VISIBLE_SHOT_OCCURRENCE_COVERAGE_BELOW_XLSX_SHOTS_REVIEW_REQUIRED": 1
+    }
+
+
+def test_strict_post_final_third_entry_excludes_same_layer_activity_and_keeps_only_later_layers():
+    layers = [
+        {
+            "timestamp_candidate": 10.0,
+            "provider_zone_candidates": ["MIDDLE_THIRD"],
+            "action_family_candidates": ["PASS"],
+            "primary_consequence_candidates": [],
+        },
+        {
+            "timestamp_candidate": 20.0,
+            "provider_zone_candidates": ["FINAL_THIRD"],
+            "action_family_candidates": ["SHOT", "PASS"],
+            "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+        },
+        {
+            "timestamp_candidate": 25.0,
+            "provider_zone_candidates": ["FINAL_THIRD"],
+            "action_family_candidates": ["SHOT"],
+            "primary_consequence_candidates": ["SHOT_FOLLOW_UP_CANDIDATE"],
+        },
+    ]
+
+    profile = _strict_post_final_third_entry_profile(layers)
+
+    assert profile["new_final_third_entry_visible"] is True
+    assert profile["entry_temporal_layer_index_candidate"] == 1
+    assert profile["entry_layer_action_family_candidates"] == ["PASS", "SHOT"]
+    assert profile["strictly_later_temporal_layer_n"] == 1
+    assert profile["strictly_later_shot_action_layer_n"] == 1
+    assert profile["strictly_later_primary_consequence_candidate_counts"] == {"SHOT_FOLLOW_UP_CANDIDATE": 1}
+    assert profile["same_entry_layer_activity_is_post_entry_truth"] is False
+    assert profile["post_entry_activity_is_causal_consequence_truth"] is False
+
+
+def test_strict_post_final_third_entry_does_not_call_same_layer_shot_post_entry():
+    layers = [
+        {
+            "timestamp_candidate": 10.0,
+            "provider_zone_candidates": ["MIDDLE_THIRD"],
+            "action_family_candidates": ["PASS"],
+            "primary_consequence_candidates": [],
+        },
+        {
+            "timestamp_candidate": 20.0,
+            "provider_zone_candidates": ["FINAL_THIRD"],
+            "action_family_candidates": ["SHOT"],
+            "primary_consequence_candidates": ["SHOT_FOLLOW_UP_CANDIDATE"],
+        },
+    ]
+
+    profile = _strict_post_final_third_entry_profile(layers)
+
+    assert profile["new_final_third_entry_visible"] is True
+    assert profile["strictly_later_temporal_layer_n"] == 0
+    assert profile["strictly_later_shot_action_layer_n"] == 0
+    assert profile["post_entry_observation_state"] == "NO_STRICTLY_LATER_VISIBLE_ACTIVITY_WITHIN_PROCESS_WINDOW"
+    assert profile["no_strictly_later_visible_layer_is_failure"] is False
+
+
+def test_strict_post_final_third_entry_requires_new_access_not_process_start_already_in_final_third():
+    profile = _strict_post_final_third_entry_profile([{
+        "timestamp_candidate": 10.0,
+        "provider_zone_candidates": ["FINAL_THIRD"],
+        "action_family_candidates": ["PASS"],
+        "primary_consequence_candidates": [],
+    }])
+
+    assert profile["new_final_third_entry_visible"] is False
+    assert profile["status"] == "NOT_ELIGIBLE_TARGET_ALREADY_VISIBLE_AT_PROCESS_START"
+    assert profile["post_entry_observation_state"] == "TARGET_ALREADY_VISIBLE_AT_PROCESS_START"
+
+
+def test_process_variant_board_surfaces_recurrent_motif_and_visible_start_end_actor_candidates() -> None:
+    signatures = [
+        {
+            "process_development_signature_id": "p1",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "process_start_candidate": 10.0,
+            "process_end_candidate": 20.0,
+            "shot_present_annotation_candidate": True,
+            "visible_loss_transition_candidate_present": False,
+            "visible_recovery_transition_candidate_present": False,
+            "primary_consequence_candidates_observed": [
+                "SAME_TEAM_CONTINUATION_CANDIDATE",
+                "SHOT_FOLLOW_UP_CANDIDATE",
+            ],
+            "transition_class_candidates_observed": [
+                "VISIBLE_DIRECTIONAL_CONSEQUENCE_TRANSITION_CANDIDATE",
+            ],
+            "provider_attack_axis_admitted": True,
+            "provider_attack_axis_state": "ADMITTED",
+            "provider_attack_axis_direction_counts": {
+                "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 2,
+                "REARWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+            },
+            "layers": [
+                {"actor_identity_candidate_ids": ["a1"], "action_family_candidates": ["PASS"]},
+                {"actor_identity_candidate_ids": ["a2"], "action_family_candidates": ["PASS"]},
+                {"actor_identity_candidate_ids": ["a3"], "action_family_candidates": ["SHOT"]},
+            ],
+        },
+        {
+            "process_development_signature_id": "p2",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "process_start_candidate": 30.0,
+            "process_end_candidate": 40.0,
+            "shot_present_annotation_candidate": False,
+            "visible_loss_transition_candidate_present": True,
+            "visible_recovery_transition_candidate_present": False,
+            "primary_consequence_candidates_observed": [
+                "OPPONENT_HANDOVER_CANDIDATE",
+                "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE",
+            ],
+            "transition_class_candidates_observed": [
+                "REVIEW_REQUIRED_TRANSITION_CANDIDATE",
+            ],
+            "provider_attack_axis_admitted": True,
+            "provider_attack_axis_state": "ADMITTED",
+            "provider_attack_axis_direction_counts": {
+                "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+                "STABLE_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+            },
+            "layers": [
+                {"actor_identity_candidate_ids": ["a1"], "action_family_candidates": ["PASS"]},
+                {"actor_identity_candidate_ids": ["a2", "a4"], "action_family_candidates": ["PASS", "DUEL"]},
+                {"actor_identity_candidate_ids": ["a5"], "action_family_candidates": ["TURNOVER"]},
+            ],
+        },
+    ]
+    motifs = [
+        {
+            "process_motif_family_candidate_id": "m1",
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "member_process_n": 2,
+            "member_process_development_signature_ids": ["p1", "p2"],
+            "recurring_motif_candidate": True,
+            "morphology_signature": {
+                "length_bucket": "MEDIUM_3_5_LAYERS",
+                "action_family_presence": ["PASS"],
+                "pass_carry_style": "PASS_DOMINANT",
+                "route_hint": "MIDDLE_THIRD->FINAL_THIRD",
+            },
+            "member_variant_context_counts": {"SHOT_LINKED": 1, "LOSS_LINKED": 1},
+            "representative_first_supported_grammar_divergence": {
+                "left_variant_context": "SHOT_LINKED",
+                "right_variant_context": "LOSS_LINKED",
+                "first_supported_grammar_divergence": {
+                    "operation": "SUBSTITUTE",
+                    "left_token": "SHOT",
+                    "right_token": "TURNOVER",
+                },
+            },
+        }
+    ]
+
+    board = _process_variant_board(signatures, motifs)
+
+    assert board["status"] == "PASS"
+    assert board["row_count"] == 1
+    row = board["rows"][0]
+    assert row["member_process_n"] == 2
+    assert row["visible_start_actor_candidate_counts"] == {"a1": 2}
+    assert row["visible_end_actor_candidate_counts"] == {"a3": 1, "a5": 1}
+    axis = row["provider_attack_axis_transition_profile"]
+    assert axis["member_process_n"] == 2
+    assert axis["axis_admitted_member_process_n"] == 2
+    assert axis["member_with_visible_axis_transition_n"] == 2
+    assert axis["visible_axis_transition_n"] == 5
+    assert axis["direction_transition_counts"] == {
+        "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 3,
+        "REARWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+        "STABLE_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+    }
+    assert axis["direction_member_presence_counts"] == {
+        "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 2,
+        "REARWARD_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+        "STABLE_PROVIDER_ATTACK_AXIS_CANDIDATE": 1,
+    }
+    assert axis["axis_profile_is_route_truth"] is False
+    assert axis["axis_profile_is_physical_displacement_truth"] is False
+    assert axis["axis_profile_is_tactical_progression_truth"] is False
+    assert axis["claim_ceiling"] == "MATCH_LOCAL_PROVIDER_ATTACK_AXIS_TRANSITION_PROFILE_ONLY"
+    consequence = row["visible_consequence_state_change_profile"]
+    assert consequence["member_process_n"] == 2
+    assert consequence["member_with_visible_primary_consequence_n"] == 2
+    assert consequence["primary_consequence_member_presence_counts"] == {
+        "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE": 1,
+        "OPPONENT_HANDOVER_CANDIDATE": 1,
+        "SAME_TEAM_CONTINUATION_CANDIDATE": 1,
+        "SHOT_FOLLOW_UP_CANDIDATE": 1,
+    }
+    assert consequence["transition_class_member_presence_counts"] == {
+        "REVIEW_REQUIRED_TRANSITION_CANDIDATE": 1,
+        "VISIBLE_DIRECTIONAL_CONSEQUENCE_TRANSITION_CANDIDATE": 1,
+    }
+    assert consequence["counts_are_member_process_presence_not_occurrence_counts"] is True
+    assert consequence["opponent_handover_is_forced_turnover_truth"] is False
+    assert consequence["no_visible_follow_up_is_failure_truth"] is False
+    assert consequence["opponent_response_truth"] is False
+    assert consequence["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_PROCESS_CONSEQUENCE_COMPOSITION_ONLY"
+    assert row["same_timestamp_internal_ordering_allowed"] is False
+    assert row["start_end_actor_candidates_are_sequence_initiator_ender_truth"] is False
+    assert row["motif_is_tactical_pattern_truth"] is False
+    assert row["claim_ceiling"] == "MATCH_LOCAL_PROCESS_VARIANT_BOARD_CANDIDATE_ONLY"
+
+
+def test_c04_provider_model_context_declares_causal_ladder_and_calibration_boundary() -> None:
+    row = {
+        "row_projection_id": "xrp_model_boundary",
+        "identity_candidates": {"player_raw_candidate": "P1", "team_raw_candidate": "T1"},
+        "metric_values": {
+            "xgt_xg_while_player_is_on_the_pitch": _xlsx_metric("xGT", 2.5),
+            "xgopp_opponent_s_xg_while_player_is_on_the_pitch": _xlsx_metric("xGOPP", 1.0),
+            "nxg_net_xg_difference_between_xgt_and_xgopp": _xlsx_metric("NxG", 1.5),
+        },
+    }
+
+    result = _construct_c04([row])
+    residual = result["model_context_residual_profiles"][0]
+
+    assert residual["causal_ladder_rung"] == "RUNG_1_ASSOCIATIONAL_PREDICTIVE_CONTEXT_ONLY"
+    assert residual["causal_identification_proven"] is False
+    assert residual["causal_language_allowed"] is False
+    assert residual["model_calibration_state"] == "UNKNOWN_NOT_ADMITTED"
+    assert residual["model_calibration_warning_required"] is True
+    assert residual["model_source_version_required_for_promotion"] is True
+    assert residual["model_output_is_fact"] is False
+    assert result["provider_model_context_requires_causal_ladder_classification"] is True
+    assert result["provider_model_context_requires_calibration_state"] is True
+
+
+def test_game_state_context_attributes_own_goal_to_opponent_team(tmp_path):
+    header = "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+    rows = [
+        "1;10;12;4. Player A (1);Alpha (11);Own goal;1;8;30\n",
+        "2;20;22;9. Player B (2);Beta (22);Passes accurate;1;50;20\n",
+    ]
+    (tmp_path / "Alpha 0-1 Beta, Full match.csv").write_text(
+        header + "".join(rows), encoding="utf-8"
+    )
+
+    result = _game_state_context(tmp_path, _admitted_time_contract())
+
+    assert result["status"] == "PASS"
+    assert result["goal_observation_count"] == 1
+    assert result["own_goal_observation_count"] == 1
+    assert result["score_state_segments"][-1]["score_state_candidate"] == {
+        "Alpha (11)": 0,
+        "Beta (22)": 1,
+    }
+    assert result["runtime_filename_score_validation_state"] == "MATCH"
+
+
+def test_game_state_context_fails_closed_when_reconstructed_final_score_conflicts_with_runtime_filename(tmp_path):
+    header = "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+    rows = [
+        "1;10;12;7. Player A (1);Alpha (11);Goals;1;90;34\n",
+        "2;90;92;2. Player B (2);Beta (22);Passes accurate;1;30;30\n",
+    ]
+    (tmp_path / "Alpha 2-0 Beta, Full match.csv").write_text(
+        header + "".join(rows), encoding="utf-8"
+    )
+
+    result = _game_state_context(tmp_path, _admitted_time_contract())
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["binding_state"] == "FINAL_SCORE_CONTRADICTION"
+    assert result["score_state_segments"] == []
+    assert result["runtime_filename_score_validation_state"] == "CONTRADICTION"
+    assert "reconstructed_final_score_conflicts_with_runtime_filename" in result["review_hits"]
+
+
+def test_game_state_context_requires_provider_time_semantic_admission(tmp_path, monkeypatch):
+    header = "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+    rows = [
+        "1;10;12;7. Player A (1);Alpha (11);Goals;1;90;34\n",
+        "2;20;22;9. Player B (2);Beta (22);Passes accurate;1;30;30\n",
+    ]
+    (tmp_path / "Alpha 1-0 Beta, Full match.csv").write_text(
+        header + "".join(rows), encoding="utf-8"
+    )
+
+    denied_time = {
+        "status": "REVIEW_REQUIRED",
+        "unit_admission_status": "REVIEW_REQUIRED",
+        "time_basis_candidate": "UNKNOWN",
+        "time_basis_admission_status": "REVIEW_REQUIRED",
+        "review_reasons": ["absolute_match_time_basis_not_demonstrated"],
+    }
+
+    result = _game_state_context(tmp_path, denied_time)
+
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["binding_state"] == "PROVIDER_TIME_SEMANTICS_NOT_ADMITTED"
+    assert result["score_state_segments"] == []
+    assert result["time_semantic_admission_status"] == "REVIEW_REQUIRED"
+    assert "absolute_match_time_basis_not_demonstrated" in result["review_hits"]
+
+
+def test_game_state_context_surfaces_admitted_provider_time_contract(tmp_path, monkeypatch):
+    header = "ID;start;end;code;team;action;half;pos_x;pos_y\n"
+    rows = [
+        "1;10;12;7. Player A (1);Alpha (11);Goals;1;90;34\n",
+        "2;20;22;9. Player B (2);Beta (22);Passes accurate;1;30;30\n",
+    ]
+    (tmp_path / "Alpha 1-0 Beta, Full match.csv").write_text(
+        header + "".join(rows), encoding="utf-8"
+    )
+
+    admitted_time = _admitted_time_contract()
+
+    result = _game_state_context(tmp_path, admitted_time)
+
+    assert result["status"] == "PASS"
+    assert result["time_semantic_admission_status"] == "ADMITTED"
+    assert result["time_unit_candidate"] == "SECOND"
+    assert result["time_basis_candidate"] == "ABSOLUTE_MATCH_SECONDS"
+
+
+def test_player_function_profile_separates_total_minutes_from_interval_exposure():
+    bindings = {
+        "actor_1": {
+            "actor_label": "Player 1",
+            "team_identity_candidate_id": "team_1",
+            "team_label": "Team 1",
+            "xlsx_row_projection_id": "xrp_1",
+            "xlsx_row": {
+                "row_projection_id": "xrp_1",
+                "identity_candidates": {
+                    "player_raw_candidate": "Player 1",
+                    "team_raw_candidate": "Team 1",
+                    "minutes_raw_candidate": 63,
+                },
+                "metric_values": {},
+            },
+        }
+    }
+    process = [{
+        "semantic_role": "PARTICIPATION_INTERVAL",
+        "actor_identity_candidate_id": "actor_1",
+        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+        "shot_present_annotation_candidate": False,
+    }]
+
+    profile = _player_function_profiles(bindings, process)[0]
+
+    assert profile["total_minutes_observed_candidate"] == 63.0
+    assert profile["total_exposure_state"] == "MATCH_TOTAL_MINUTES_OBSERVED_CANDIDATE"
+    assert profile["interval_exposure_state"] == "NOT_ESTABLISHED_NO_SUBSTITUTION_TIMELINE_AUTHORITY"
+    assert profile["on_field_process_interval_truth"] is False
+    assert profile["process_participation_is_on_field_exposure"] is False
+    assert profile["per90_process_rate_admitted"] is False
+    assert profile["minutes_played_is_physical_cost"] is False
+
+
+def test_set_piece_process_context_preserves_reviewed_restart_type_distribution():
+    process = {
+        "process_participation_candidates": [
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "100",
+                "end_candidate": "112",
+                "process_participation_candidate_id": "p_corner",
+                "provider_restart_type_candidate": "CORNER",
+                "shot_present_annotation_candidate": False,
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "200",
+                "end_candidate": "212",
+                "process_participation_candidate_id": "p_free",
+                "provider_restart_type_candidate": "FREE_KICK",
+                "shot_present_annotation_candidate": True,
+            },
+        ]
+    }
+
+    result = _set_piece_process_consequence_context(
+        process,
+        {"occurrence_consequence_projections": []},
+        {"trackable_action_trace_candidates": []},
+    )
+
+    assert result["set_piece_process_context_row_count"] == 2
+    assert result["provider_restart_type_counts"] == {"CORNER": 1, "FREE_KICK": 1}
+    assert {tuple(row["provider_restart_type_candidates"]) for row in result["rows"]} == {
+        ("CORNER",),
+        ("FREE_KICK",),
+    }
+    assert result["provider_restart_type_is_action_identity_truth"] is False
+    assert result["provider_restart_type_is_designed_routine_truth"] is False
+
+
+def test_set_piece_restart_type_profiles_keep_outcomes_separate_without_small_n_rate():
+    process = {
+        "process_participation_candidates": [
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "100",
+                "end_candidate": "112",
+                "process_participation_candidate_id": "p_corner_1",
+                "provider_restart_type_candidate": "CORNER",
+                "shot_present_annotation_candidate": True,
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "200",
+                "end_candidate": "212",
+                "process_participation_candidate_id": "p_corner_2",
+                "provider_restart_type_candidate": "CORNER",
+                "shot_present_annotation_candidate": False,
+            },
+            {
+                "semantic_role": "CONTEXT_INTERVAL",
+                "team_identity_candidate_id": "team_a",
+                "process_family_candidate": "SET_PIECE_ATTACK_CANDIDATE",
+                "period_candidate": "1",
+                "start_candidate": "300",
+                "end_candidate": "312",
+                "process_participation_candidate_id": "p_free_1",
+                "provider_restart_type_candidate": "FREE_KICK",
+                "shot_present_annotation_candidate": False,
+            },
+        ]
+    }
+    consequence = {
+        "occurrence_consequence_projections": [
+            {
+                "occurrence_consequence_projection_id": "ocp_corner",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["105"],
+                "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+                "process_continuation_status": "PROCESS_CONTINUES_VISIBLE_CANDIDATE",
+                "terminal_status": "TERMINAL_STATE_UNRESOLVED",
+                "maximum_window_seconds": 12.0,
+            },
+            {
+                "occurrence_consequence_projection_id": "ocp_free",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "start_candidates": ["305"],
+                "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+                "process_continuation_status": "PROCESS_STATE_UNRESOLVED",
+                "terminal_status": "TERMINAL_STATE_UNRESOLVED",
+                "maximum_window_seconds": 12.0,
+            },
+        ]
+    }
+    traces = {
+        "trackable_action_trace_candidates": [
+            {
+                "period_candidate": "1",
+                "start_candidate": "114",
+                "team_identity_candidate_id": "team_a",
+                "action_family_candidates": ["PASS"],
+            },
+            {
+                "period_candidate": "1",
+                "start_candidate": "214",
+                "team_identity_candidate_id": "team_b",
+                "action_family_candidates": ["PASS"],
+            },
+            {
+                "period_candidate": "1",
+                "start_candidate": "314",
+                "team_identity_candidate_id": "team_b",
+                "action_family_candidates": ["PASS"],
+            },
+        ]
+    }
+
+    result = _set_piece_process_consequence_context(process, consequence, traces)
+    profiles = {
+        (row["team_identity_candidate_id"], row["provider_restart_type_candidate"]): row
+        for row in result["restart_type_profiles"]
+    }
+
+    corner = profiles[("team_a", "CORNER")]
+    free = profiles[("team_a", "FREE_KICK")]
+    assert corner["process_n"] == 2
+    assert corner["shot_annotated_n"] == 1
+    assert corner["visible_consequence_bound_n"] == 1
+    assert corner["same_team_first_visible_n"] == 1
+    assert corner["opponent_first_visible_n"] == 1
+    assert free["process_n"] == 1
+    assert free["shot_annotated_n"] == 0
+    assert free["visible_consequence_bound_n"] == 1
+    assert free["opponent_first_visible_n"] == 1
+    assert result["restart_type_profile_rate_emitted"] is False
+    assert result["restart_type_profile_is_set_piece_quality_truth"] is False

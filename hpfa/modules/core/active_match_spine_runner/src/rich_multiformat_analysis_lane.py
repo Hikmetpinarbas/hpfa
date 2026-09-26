@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import re
@@ -9,9 +10,23 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
+try:
+    from .shared_surface_snapshot_contract import surface_snapshot_id
+except ImportError:  # compatibility for direct src-path test/runtime imports
+    from shared_surface_snapshot_contract import surface_snapshot_id
+
 from hpfa.modules.core.multiformat_file_inventory_lite.src import multiformat_file_inventory as inventory
 from hpfa.modules.core.xlsx_surface_reader_lite.src.xlsx_surface_reader import native_reader as xlsx
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import build_projection
+from hpfa.modules.core.provider_alias_field_semantics_lite.src.provider_time_semantic_admission import build_time_admission
+from hpfa.modules.core.visible_action_sequence_candidates_lite.src.supported_sequence_grammar_alignment_projection import build_supported_sequence_grammar_alignment
+from hpfa.modules.core.active_match_spine_runner.src.process_sequence_information import build_process_sequence_information
+from hpfa.modules.core.active_match_spine_runner.src.process_mix_change import build_time_window_process_mix_change_context
+from hpfa.modules.core.active_match_spine_runner.src.aerial_duel_first_visible_state import build_aerial_duel_first_visible_state_context
+from hpfa.modules.core.active_match_spine_runner.src.score_state_visible_process_outcome import build_score_state_visible_process_outcome_context, bind_process_variant_board_score_state_context
+from hpfa.modules.core.active_match_spine_runner.src.process_route_breadth import build_visible_process_route_breadth_profile
+from hpfa.modules.core.active_match_spine_runner.src.visible_circulation_fate_profile import build_visible_circulation_fate_profile
+from hpfa.modules.core.active_match_spine_runner.src.player_score_state_process_participation import build_player_score_state_process_participation
 
 MODULE_ID = "rich_multiformat_analysis_lattice_v1"
 OUTPUT_JSON = "rich_multiformat_analysis_lattice_v1.json"
@@ -25,6 +40,9 @@ IDENTITY_JSON = "match_local_identity_candidates_lite_v1.json"
 PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v1.json"
 OCCURRENCE_STATE_TRANSITION_JSON = "occurrence_state_transition_projection_v1.json"
 SPATIAL_TRANSITION_JSON = "spatial_transition_candidate_lite_v1.json"
+OCCURRENCE_CONSEQUENCE_JSON = "occurrence_consequence_projection_v1.json"
+ACTION_OCCURRENCE_JSON = "action_occurrence_admission_lite_v1.json"
+TRACKABLE_TRACE_JSON = "trackable_action_trace_candidates_lite_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -44,12 +62,358 @@ def _hash_file(path: Path) -> str:
 
 
 def _snapshot(root: Path) -> str:
-    records = []
-    if root.is_dir():
-        for path in sorted(root.rglob("*"), key=lambda item: item.as_posix().casefold()):
-            if path.is_file():
-                records.append((path.relative_to(root).as_posix(), path.stat().st_size, _hash_file(path)))
-    return hashlib.sha256(json.dumps(records, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+    """Use the canonical ACTIVE_MATCH surface snapshot contract.
+
+    Rich analysis must bind to the exact same input authority fingerprint as the
+    reconstruction bridge and episode lane. A parallel serialization/hash contract
+    would make identical match packages appear different.
+    """
+    return surface_snapshot_id(root)
+
+
+
+def _float_candidate(value: Any) -> float | None:
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+OWN_GOAL_ACTION_LABELS = {
+    "own goal",
+    "own goals",
+    "kendi kalesine gol",
+}
+
+
+def _filename_identity_token(value: Any) -> str:
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch)).casefold()
+    text = re.sub(r"\s*\(\d+\)\s*$", "", text)
+    text = re.sub(r"[^a-z0-9\s\-–]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _runtime_filename_score_candidate(
+    active_match: Path,
+    team_list: list[str],
+) -> dict[str, Any]:
+    if len(team_list) != 2:
+        return {
+            "state": "NOT_AVAILABLE",
+            "candidate": None,
+            "source_file_count": 0,
+        }
+
+    normalized_teams = {
+        team: _filename_identity_token(team)
+        for team in team_list
+    }
+    candidates: dict[str, dict[str, int]] = {}
+    source_files: set[str] = set()
+    score_pattern = re.compile(r"(?<!\d)(\d+)\s*[-–]\s*(\d+)(?!\d)")
+
+    for path in sorted((p for p in active_match.iterdir() if p.is_file()), key=lambda item: item.name.casefold()):
+        stem = _filename_identity_token(path.stem)
+        positions = {
+            team: stem.find(token)
+            for team, token in normalized_teams.items()
+            if token
+        }
+        if len(positions) != 2 or any(index < 0 for index in positions.values()):
+            continue
+        for match in score_pattern.finditer(stem):
+            left_score = int(match.group(1))
+            right_score = int(match.group(2))
+            ordered = sorted(positions.items(), key=lambda item: item[1])
+            if ordered[0][1] < match.start() < ordered[1][1]:
+                candidate = {
+                    ordered[0][0]: left_score,
+                    ordered[1][0]: right_score,
+                }
+            else:
+                continue
+            key = json.dumps(candidate, ensure_ascii=False, sort_keys=True)
+            candidates[key] = candidate
+            source_files.add(path.name)
+
+    if not candidates:
+        return {
+            "state": "NOT_AVAILABLE",
+            "candidate": None,
+            "source_file_count": 0,
+        }
+    if len(candidates) > 1:
+        return {
+            "state": "AMBIGUOUS",
+            "candidate": None,
+            "candidate_count": len(candidates),
+            "source_file_count": len(source_files),
+        }
+    return {
+        "state": "AVAILABLE",
+        "candidate": next(iter(candidates.values())),
+        "candidate_count": 1,
+        "source_file_count": len(source_files),
+    }
+
+
+def _team_label_from_row(row: dict[str, Any]) -> str:
+    direct = str(row.get("team") or "").strip()
+    if direct:
+        return direct
+    code = str(row.get("code") or "").strip()
+    if " - " in code:
+        return code.split(" - ", 1)[0].strip()
+    return ""
+
+
+def _game_state_context(
+    active_match: Path,
+    time_admission_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build match-local score-state context from visible goal/time/team observations.
+
+    This projection is descriptive context only. It does not create canonical event
+    identity, causal/tactical truth, or independent support.
+    """
+    time_admission = time_admission_payload if isinstance(time_admission_payload, dict) else build_time_admission(active_match)
+    time_status = str(time_admission.get("status") or "REVIEW_REQUIRED")
+    unit_status = str(time_admission.get("unit_admission_status") or "REVIEW_REQUIRED")
+    basis_status = str(time_admission.get("time_basis_admission_status") or "REVIEW_REQUIRED")
+    time_basis = str(time_admission.get("time_basis_candidate") or "UNKNOWN")
+    time_unit = str(time_admission.get("unit_candidate") or "UNKNOWN")
+    time_review_reasons = [
+        str(reason)
+        for reason in (time_admission.get("review_reasons") or [])
+        if str(reason)
+    ]
+    time_admitted = (
+        time_status == "ADMITTED"
+        and unit_status == "ADMITTED"
+        and basis_status == "ADMITTED"
+        and time_basis == "ABSOLUTE_MATCH_SECONDS"
+        and time_unit == "SECOND"
+    )
+    if not time_admitted:
+        return {
+            "status": "REVIEW_REQUIRED",
+            "binding_state": "PROVIDER_TIME_SEMANTICS_NOT_ADMITTED",
+            "team_labels": [],
+            "goal_observation_count": 0,
+            "own_goal_observation_count": 0,
+            "score_state_segments": [],
+            "runtime_filename_score_validation_state": "NOT_EVALUATED",
+            "time_semantic_admission_status": time_status,
+            "time_unit_candidate": time_unit,
+            "time_basis_candidate": time_basis,
+            "time_semantic_rule_id": time_admission.get("rule_id"),
+            "review_hits": sorted(set(time_review_reasons + ["score_state_requires_admitted_absolute_match_seconds"])),
+            "game_state_is_tactical_truth": False,
+            "game_state_is_causal_truth": False,
+            "creates_independent_support": False,
+        }
+
+    teams: set[str] = set()
+    raw_goal_observations: list[dict[str, Any]] = []
+    max_time: float | None = None
+    readable_csv_count = 0
+    review_hits: list[str] = []
+
+    for path in sorted(active_match.glob("*.csv"), key=lambda item: item.name.casefold()):
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                reader = csv.DictReader(handle, delimiter=";")
+                if not reader.fieldnames or "action" not in reader.fieldnames:
+                    continue
+                readable_csv_count += 1
+                for row in reader:
+                    team = _team_label_from_row(row)
+                    if team:
+                        teams.add(team)
+                    start = _float_candidate(row.get("start"))
+                    if start is not None:
+                        max_time = start if max_time is None else max(max_time, start)
+
+                    action = str(row.get("action") or "").strip().casefold()
+                    code = str(row.get("code") or "").strip().casefold()
+                    own_goal = (
+                        action in OWN_GOAL_ACTION_LABELS
+                        or "own goal" in action
+                        or "own goal" in code
+                    )
+                    normal_goal = action == "goals"
+                    if not own_goal and not normal_goal:
+                        continue
+                    if not team or start is None:
+                        review_hits.append("goal_row_missing_team_or_start")
+                        continue
+                    raw_goal_observations.append({
+                        "period_candidate": str(row.get("half") or "").strip() or "UNKNOWN",
+                        "start_second_candidate": start,
+                        "source_team_label_candidate": team,
+                        "own_goal_candidate": own_goal,
+                    })
+        except (OSError, UnicodeError, csv.Error):
+            review_hits.append(f"csv_unreadable_for_game_state:{path.name}")
+
+    team_list = sorted(teams, key=str.casefold)
+    if readable_csv_count == 0:
+        return {
+            "status": "NOT_AVAILABLE",
+            "binding_state": "NO_READABLE_ACTION_CSV_SURFACE",
+            "time_semantic_admission_status": time_status,
+            "time_unit_candidate": time_unit,
+            "time_basis_candidate": time_basis,
+            "time_semantic_rule_id": time_admission.get("rule_id"),
+            "team_labels": [],
+            "goal_observation_count": 0,
+            "own_goal_observation_count": 0,
+            "score_state_segments": [],
+            "runtime_filename_score_validation_state": "NOT_AVAILABLE",
+            "review_hits": review_hits,
+            "game_state_is_tactical_truth": False,
+            "game_state_is_causal_truth": False,
+            "creates_independent_support": False,
+        }
+    if len(team_list) != 2 or max_time is None:
+        return {
+            "status": "REVIEW_REQUIRED",
+            "binding_state": "TEAM_OR_TIME_CONTEXT_UNRESOLVED",
+            "time_semantic_admission_status": time_status,
+            "time_unit_candidate": time_unit,
+            "time_basis_candidate": time_basis,
+            "time_semantic_rule_id": time_admission.get("rule_id"),
+            "team_labels": team_list,
+            "goal_observation_count": 0,
+            "own_goal_observation_count": 0,
+            "score_state_segments": [],
+            "runtime_filename_score_validation_state": "NOT_AVAILABLE",
+            "review_hits": sorted(set(review_hits + ["game_state_requires_two_teams_and_time"])),
+            "game_state_is_tactical_truth": False,
+            "game_state_is_causal_truth": False,
+            "creates_independent_support": False,
+        }
+
+    goal_nuclei: set[tuple[str, float, str]] = set()
+    goal_records: dict[tuple[str, float, str], dict[str, Any]] = {}
+    own_goal_observation_count = 0
+
+    for observation in raw_goal_observations:
+        period = str(observation.get("period_candidate") or "UNKNOWN")
+        second = float(observation["start_second_candidate"])
+        source_team = str(observation.get("source_team_label_candidate") or "")
+        own_goal = observation.get("own_goal_candidate") is True
+
+        if own_goal:
+            if source_team not in team_list:
+                review_hits.append("own_goal_source_team_unresolved")
+                continue
+            beneficiary = next((team for team in team_list if team != source_team), "")
+            if not beneficiary:
+                review_hits.append("own_goal_beneficiary_team_unresolved")
+                continue
+            own_goal_observation_count += 1
+            attribution_basis = "OWN_GOAL_OPPONENT_BENEFICIARY"
+        else:
+            beneficiary = source_team
+            attribution_basis = "VISIBLE_GOAL_SOURCE_TEAM"
+
+        nucleus = (period, second, beneficiary)
+        goal_nuclei.add(nucleus)
+        goal_records[nucleus] = {
+            "period_candidate": period,
+            "start_second_candidate": second,
+            "team_label_candidate": beneficiary,
+            "source_team_label_candidate": source_team,
+            "own_goal_candidate": own_goal,
+            "score_attribution_basis": attribution_basis,
+        }
+
+    ordered_goals = sorted(goal_nuclei, key=lambda row: (row[1], row[0], row[2].casefold()))
+    score = {team: 0 for team in team_list}
+    segments: list[dict[str, Any]] = []
+    cursor = 0.0
+    for period, second, scorer in ordered_goals:
+        if second < cursor:
+            review_hits.append("goal_time_non_monotonic_after_dedup")
+            continue
+        segments.append({
+            "start_second_candidate": cursor,
+            "end_second_candidate": second,
+            "duration_second_candidate": max(0.0, second - cursor),
+            "score_state_candidate": {team: score[team] for team in team_list},
+            "terminal_goal_scorer_team_candidate": scorer,
+            "terminal_goal_period_candidate": period,
+        })
+        score[scorer] = score.get(scorer, 0) + 1
+        cursor = second
+
+    segments.append({
+        "start_second_candidate": cursor,
+        "end_second_candidate": max_time,
+        "duration_second_candidate": max(0.0, max_time - cursor),
+        "score_state_candidate": {team: score[team] for team in team_list},
+        "terminal_goal_scorer_team_candidate": None,
+        "terminal_goal_period_candidate": None,
+    })
+
+    filename_score = _runtime_filename_score_candidate(active_match, team_list)
+    filename_state = str(filename_score.get("state") or "NOT_AVAILABLE")
+    filename_candidate = filename_score.get("candidate")
+    validation_state = "NOT_AVAILABLE"
+    if filename_state == "AVAILABLE" and isinstance(filename_candidate, dict):
+        if filename_candidate == score:
+            validation_state = "MATCH"
+        else:
+            validation_state = "CONTRADICTION"
+            review_hits.append("reconstructed_final_score_conflicts_with_runtime_filename")
+            return {
+                "status": "FAIL_CLOSED",
+                "binding_state": "FINAL_SCORE_CONTRADICTION",
+                "time_semantic_admission_status": time_status,
+                "time_unit_candidate": time_unit,
+                "time_basis_candidate": time_basis,
+                "time_semantic_rule_id": time_admission.get("rule_id"),
+                "team_labels": team_list,
+                "goal_observation_count": len(ordered_goals),
+                "own_goal_observation_count": own_goal_observation_count,
+                "goal_observation_nuclei": [goal_records[row] for row in ordered_goals],
+                "reconstructed_final_score_candidate": score,
+                "runtime_filename_score_candidate": filename_candidate,
+                "runtime_filename_score_validation_state": validation_state,
+                "score_state_segments": [],
+                "review_hits": sorted(set(review_hits)),
+                "aggregate_or_reflected_rows_are_not_independent_goals": True,
+                "game_state_is_tactical_truth": False,
+                "game_state_is_causal_truth": False,
+                "creates_independent_support": False,
+            }
+    elif filename_state == "AMBIGUOUS":
+        validation_state = "AMBIGUOUS_SUPPORT_ONLY"
+
+    return {
+        "status": "PASS" if not review_hits else "REVIEW_REQUIRED",
+        "binding_state": "VISIBLE_GOAL_TIME_TEAM_SCORE_STATE_CONTEXT",
+        "time_semantic_admission_status": time_status,
+        "time_unit_candidate": time_unit,
+        "time_basis_candidate": time_basis,
+        "time_semantic_rule_id": time_admission.get("rule_id"),
+        "team_labels": team_list,
+        "goal_observation_count": len(ordered_goals),
+        "own_goal_observation_count": own_goal_observation_count,
+        "goal_observation_nuclei": [goal_records[row] for row in ordered_goals],
+        "reconstructed_final_score_candidate": score,
+        "runtime_filename_score_candidate": filename_candidate,
+        "runtime_filename_score_validation_state": validation_state,
+        "score_state_segments": segments,
+        "review_hits": sorted(set(review_hits)),
+        "reflection_dedup_key": ["period_candidate", "start_second_candidate", "team_label_candidate"],
+        "aggregate_or_reflected_rows_are_not_independent_goals": True,
+        "game_state_is_tactical_truth": False,
+        "game_state_is_causal_truth": False,
+        "creates_independent_support": False,
+    }
 
 
 def _flatten_projection(projection: dict[str, Any]) -> list[dict[str, Any]]:
@@ -60,6 +424,37 @@ def _flatten_projection(projection: dict[str, Any]) -> list[dict[str, Any]]:
         for row in sheet.get("rows", []) or []
         if isinstance(row, dict)
     ]
+
+
+_GOALKEEPER_SCHEMA_SIGNALS = frozenset({
+    "shots_faced",
+    "shots_on_target_faced",
+    "shots_saved",
+    "goals_conceded",
+    "sweeping_actions",
+    "penalties_saved",
+})
+
+
+def _xlsx_entity_role_candidate(row: dict[str, Any]) -> str:
+    role = str(row.get("source_role") or "").upper()
+    if "GOALKEEPER" in role:
+        return "GOALKEEPER"
+    if "TEAM" in role:
+        return "TEAM"
+    metric_keys = {
+        str(key).strip().casefold()
+        for key in (row.get("metric_values") or {})
+        if str(key).strip()
+    }
+    if metric_keys.intersection(_GOALKEEPER_SCHEMA_SIGNALS):
+        return "GOALKEEPER"
+    identity = row.get("identity_candidates") or {}
+    if identity.get("player_raw_candidate") not in (None, ""):
+        return "PLAYER"
+    if identity.get("team_raw_candidate") not in (None, ""):
+        return "TEAM"
+    return "UNRESOLVED"
 
 
 def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -89,12 +484,13 @@ def _entity_views(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "validated_identity": False,
             "metric_truth": False,
         }
-        role = str(row.get("source_role") or "").upper()
-        if "GOALKEEPER" in role:
+        entity_role = _xlsx_entity_role_candidate(row)
+        compact["entity_role_candidate"] = entity_role
+        if entity_role == "GOALKEEPER":
             goalkeepers.append(compact)
-        elif identity.get("player_raw_candidate") not in (None, ""):
+        elif entity_role == "PLAYER":
             players.append(compact)
-        elif identity.get("team_raw_candidate") not in (None, "") or "TEAM" in role:
+        elif entity_role == "TEAM":
             teams.append(compact)
     return {
         "player_view_candidates": players,
@@ -151,6 +547,138 @@ def _primitive_metrics(features: dict[str, Any], entity_views: dict[str, Any]) -
     return values
 
 
+CANONICAL_SIX_PHASES = (
+    "ESTABLISHED_ATTACK",
+    "ATTACKING_TRANSITION",
+    "ATTACKING_SET_PIECE",
+    "ESTABLISHED_DEFENCE",
+    "DEFENSIVE_TRANSITION",
+    "DEFENSIVE_SET_PIECE",
+)
+
+
+def _football_ontology_contract() -> dict[str, Any]:
+    return {
+        "canonical_six_phases": list(CANONICAL_SIX_PHASES),
+        "phase_is_evaluation": False,
+        "phase_is_outcome": False,
+        "success_failure_is_phase": False,
+        "efficiency_inefficiency_is_phase": False,
+        "set_piece_is_open_play_subtype": False,
+        "attacking_set_piece_reciprocal_phase": "DEFENSIVE_SET_PIECE",
+        "defensive_set_piece_reciprocal_phase": "ATTACKING_SET_PIECE",
+        "observation_dimensions": [
+            "ACTOR", "ACTION", "TIME", "SPACE", "ZONE", "ROLE", "RELATION",
+            "TEAM", "OPPONENT", "PROCESS", "PHASE", "CONSEQUENCE", "CONTEXT",
+        ],
+        "scale_axis": [
+            "ACTION", "INDIVIDUAL", "DYAD_TRIAD", "FUNCTIONAL_GROUP",
+            "TEAM", "TWO_TEAM_INTERACTION", "MATCH",
+        ],
+        "evaluation_dimensions": [
+            "OUTCOME", "SUCCESS_FAILURE", "EFFICIENCY_INEFFICIENCY",
+            "RECURRENCE", "VARIATION", "DEVIATION",
+        ],
+        "restart_phase_contract": {
+            "restart_types": [
+                "CORNER_KICK", "FREE_KICK", "THROW_IN", "PENALTY_KICK",
+                "GOAL_KICK", "KICK_OFF", "OTHER_RESTART",
+            ],
+            "attacking_phase": "ATTACKING_SET_PIECE",
+            "defending_phase": "DEFENSIVE_SET_PIECE",
+            "restart_event_is_not_phase": True,
+            "restart_type_is_not_routine_truth": True,
+            "delivery_is_not_full_set_piece_process": True,
+            "set_piece_process_requires_visible_continuation": True,
+            "second_action_requires_observed_followup": True,
+            "routine_design_requires_tracking_or_video": True,
+            "marking_scheme_requires_tracking_or_video": True,
+            "off_ball_movement_requires_tracking_or_video": True,
+        },
+        "role_contract": {
+            "provider_position_is_not_functional_role_truth": True,
+            "functional_role_requires_observed_task_distribution": True,
+            "functional_role_is_match_contextual": True,
+            "role_label_is_not_coach_intention": True,
+            "event_only_role_evidence_dimensions": [
+                "ACTION_FAMILY_DISTRIBUTION",
+                "ZONE_DISTRIBUTION",
+                "PROCESS_PARTICIPATION",
+                "RELATION_PARTICIPATION",
+                "TEAM_SHARE_CONTEXT",
+            ],
+            "single_match_role_output": "FUNCTIONAL_ROLE_CANDIDATE_ONLY",
+            "season_role_classifier_truth": False,
+        },
+        "opponent_interaction_contract": {
+            "same_time_counterpart_is_not_reaction_truth": True,
+            "reaction_requires_admitted_order_or_visible_consequence_chain": True,
+            "team_a_action_should_be_read_against_team_b_response_when_observable": True,
+            "reciprocal_phase_pairing_required": True,
+            "interaction_chain": [
+                "TEAM_A_ACTION",
+                "TEAM_B_VISIBLE_RESPONSE",
+                "TEAM_A_COUNTER_RESPONSE_IF_OBSERVED",
+                "VISIBLE_CONSEQUENCE",
+            ],
+            "no_visible_response_is_not_no_response_truth": True,
+        },
+        "external_donor_adaptation_contract": {
+            "provider_normalization": {
+                "reference_projects": ["PySport/kloppy", "ML-KULeuven/socceraction"],
+                "provider_schema_is_not_canonical_football_truth": True,
+                "normalize_at_boundary_not_inside_constructs": True,
+                "coordinate_system_requires_explicit_admission": True,
+                "orientation_requires_explicit_admission": True,
+                "provider_event_type_requires_semantic_mapping": True,
+            },
+            "action_state_consequence": {
+                "reference_projects": ["ML-KULeuven/socceraction", "statsbomb/open-data"],
+                "action_value_model_is_not_observation_truth": True,
+                "model_output_requires_model_source_version": True,
+                "state_transition_requires_admitted_action_identity": True,
+                "visible_consequence_preferred_over_inferred_intention": True,
+            },
+            "tracking_boundary": {
+                "reference_projects": ["metrica-sports/sample-data", "SkillCorner/opendata", "Friends-of-Tracking-Data-FoTD/LaurieOnTracking"],
+                "tracking_is_optional_not_required_dependency": True,
+                "event_coordinate_is_not_tracking": True,
+                "pitch_control_requires_tracking_or_equivalent_spatiotemporal_observation": True,
+                "velocity_acceleration_requires_tracking_or_equivalent_spatiotemporal_observation": True,
+                "team_shape_compactness_requires_tracking_or_video": True,
+            },
+            "adoption_policy": "ADAPT_IDEA_NOT_CODE_UNLESS_LICENSE_AND_PRODUCT_GAP_ARE_EXPLICITLY_ADMITTED",
+        },
+        "metric_argument_contract": {
+            "opaque_single_score_allowed": False,
+            "construct_axes_remain_separate": True,
+            "eligible_denominator_required_for_rate_claim": True,
+            "aggregate_decomposition_is_not_independent_support": True,
+            "micro_macro_reconciliation_requires_estimand_alignment": True,
+            "progression_argument_axes": [
+                "VOLUME",
+                "EXECUTION",
+                "SPATIAL_ROUTE",
+                "SEQUENCE_CONTINUATION",
+                "VISIBLE_CONSEQUENCE",
+                "REPEATABILITY",
+                "OPPONENT_RESPONSE",
+                "FAILURE_COST",
+            ],
+            "context_ratios_are_not_conditional_conversion_without_sequence_identity": True,
+        },
+        "truth_locks": [
+            "ACTIVITY_LABEL_IS_NOT_PHASE_TRUTH",
+            "PHASE_IS_NOT_SUCCESS_FAILURE",
+            "PHASE_IS_NOT_EFFICIENCY",
+            "POSITION_IS_NOT_OBSERVED_FUNCTIONAL_ROLE",
+            "SAME_TIMESTAMP_IS_NOT_REACTION_ORDER",
+            "COORDINATE_IS_NOT_TRACKING",
+        ],
+        "claim_ceiling": "ONTOLOGY_CONTRACT_ONLY_PHASE_REQUIRES_SEPARATE_ADMISSION",
+    }
+
+
 def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     cards = features.get("episode_feature_vectors") or []
@@ -190,6 +718,8 @@ def _phase_state_candidates(features: dict[str, Any]) -> list[dict[str, Any]]:
                 "final_third_action_candidate_count": final_third,
                 "pass_candidate_count": passes,
             },
+            "activity_labels_are_phase_labels": False,
+            "phase_admission_status": "NOT_EVALUATED",
             "phase_truth": False,
             "possession_truth": False,
             "tactical_truth": False,
@@ -266,9 +796,96 @@ def _comparable_aggregate_pairs(
     return pairs
 
 
+
+
+def _aggregate_metric_value_is_usable(metric: dict[str, Any]) -> bool:
+    if metric.get("value_status") != "OBSERVED":
+        return False
+    value = metric.get("raw_value")
+    if value is None:
+        return False
+    if isinstance(value, str) and value.strip().casefold() in {"", "-", "—", "n/a", "na", "null", "none"}:
+        return False
+    return True
+
+
+def _row_is_goalkeeper_aggregate_candidate(row: dict[str, Any]) -> bool:
+    keys = {
+        str(key).casefold()
+        for key, metric in (row.get("metric_values") or {}).items()
+        if isinstance(metric, dict)
+    }
+    goalkeeper_markers = {
+        "goal_kicks",
+        "shots_faced",
+        "saves",
+        "goals_conceded",
+        "caught_shots",
+        "parried_shots",
+    }
+    return bool(keys & goalkeeper_markers)
+
+
+def _access_terminal_bridge_profiles(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    profiles: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if _row_is_goalkeeper_aggregate_candidate(row):
+            continue
+        identity = row.get("identity_candidates") or {}
+        player = identity.get("player_raw_candidate")
+        team = identity.get("team_raw_candidate")
+        dimensions: dict[str, list[dict[str, Any]]] = {
+            "ACCESS": [],
+            "CREATION": [],
+            "TERMINAL": [],
+        }
+        for key, metric in (row.get("metric_values") or {}).items():
+            if not isinstance(metric, dict) or not _aggregate_metric_value_is_usable(metric):
+                continue
+            raw_label = str(metric.get("raw_metric_label") or "")
+            dimension = _player_function_metric_dimension(str(key), raw_label)
+            if dimension not in dimensions:
+                continue
+            dimensions[dimension].append({
+                "metric_key": str(key),
+                "raw_metric_label": raw_label,
+                "raw_value": metric.get("raw_value"),
+                "aggregate_context_only": True,
+                "independent_support_vote": False,
+                "action_identity_created": False,
+            })
+        if not any(dimensions.values()):
+            continue
+        profiles.append({
+            "row_projection_id": row.get("row_projection_id"),
+            "source_role": row.get("source_role"),
+            "player_candidate": player,
+            "team_candidate": team,
+            "entity_candidate": player or team,
+            "dimensions": dimensions,
+            "dimension_metric_counts": {
+                key: len(value) for key, value in dimensions.items()
+            },
+            "access_and_terminal_both_observed": bool(
+                dimensions["ACCESS"] and dimensions["TERMINAL"]
+            ),
+            "creation_observed": bool(dimensions["CREATION"]),
+            "eligible_denominator_defined_for_conversion_rate": False,
+            "conversion_rate_emitted": False,
+            "profile_is_quality_score": False,
+            "aggregate_context_is_action_identity": False,
+            "cross_surface_reflection_is_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_ACCESS_CREATION_TERMINAL_CONTEXT_ONLY",
+        })
+    return profiles
+
+
 def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict[str, Any]:
     progression = _metric_refs(rows, ("progressive", "progression", "final_third", "final third", "penalty_area", "penalty area", "box"))
     terminal = _metric_refs(rows, ("shot", "xg", "goal", "chance"))
+    bridge_profiles = _access_terminal_bridge_profiles(rows)
     comparable_pairs = _comparable_aggregate_pairs(progression, terminal)
     shot_total = sum(int(card.get("shot_candidate_count") or 0) for card in (features.get("episode_feature_vectors") or []) if isinstance(card, dict))
     occurrence_ref = {
@@ -304,6 +921,7 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
             "tactical_truth_candidate_admitted": False,
         }
         packet_candidate = {
+            "source_construct_id": "C01_PROGRESSION_VOLUME_VS_TERMINAL_CONVERSION",
             "packet_family": "progression",
             "input_features": [occurrence_ref],
             "input_windows": [],
@@ -337,6 +955,14 @@ def _construct_c01(rows: list[dict[str, Any]], features: dict[str, Any]) -> dict
         "progression_metric_refs": progression,
         "terminal_metric_refs": terminal,
         "comparable_scope_pairs": comparable_pairs,
+        "access_creation_terminal_profile_count": len(bridge_profiles),
+        "access_creation_terminal_profiles": bridge_profiles,
+        "access_creation_terminal_profiles_with_access_and_terminal_count": sum(
+            profile.get("access_and_terminal_both_observed") is True
+            for profile in bridge_profiles
+        ),
+        "access_creation_terminal_conversion_rate_emitted": False,
+        "access_creation_terminal_denominator_policy": "NO_RATE_WITHOUT_TRUE_ELIGIBLE_DENOMINATOR",
         "packet_candidate": packet_candidate,
         "review_reason": reason,
         "aggregate_support_is_independent_vote": False,
@@ -457,6 +1083,1077 @@ def _selected_xlsx_metric_context(row: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
+
+
+def _goalkeeper_restart_consequence_context(
+    action_occurrence_payload: dict[str, Any],
+    consequence_payload: dict[str, Any],
+    trace_payload: dict[str, Any] | None = None,
+    process_participation_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    consequence_by_occurrence = {
+        str(row.get("action_occurrence_candidate_id") or ""): row
+        for row in (consequence_payload.get("occurrence_consequence_projections") or [])
+        if isinstance(row, dict) and str(row.get("action_occurrence_candidate_id") or "")
+    }
+    trace_rows = []
+    if isinstance(trace_payload, dict):
+        trace_rows = (
+            trace_payload.get("primary_occurrence_trace_candidates")
+            or trace_payload.get("trackable_action_trace_candidates")
+            or []
+        )
+    trace_by_id = {
+        str(row.get("trackable_action_trace_candidate_id") or ""): row
+        for row in trace_rows
+        if isinstance(row, dict) and str(row.get("trackable_action_trace_candidate_id") or "")
+    }
+    process_intervals: list[dict[str, Any]] = []
+    if isinstance(process_participation_payload, dict):
+        for row in process_participation_payload.get("process_participation_candidates", []) or []:
+            if not isinstance(row, dict) or str(row.get("semantic_role") or "") != "CONTEXT_INTERVAL":
+                continue
+            team_id = str(row.get("team_identity_candidate_id") or "").strip()
+            family = str(row.get("process_family_candidate") or "").strip()
+            period = str(row.get("period_candidate") or "").strip()
+            start = _float_candidate(row.get("start_candidate"))
+            end = _float_candidate(row.get("end_candidate"))
+            if team_id and family and start is not None and end is not None:
+                process_intervals.append({
+                    "team_identity_candidate_id": team_id,
+                    "process_family_candidate": family,
+                    "period_candidate": period,
+                    "start_candidate": start,
+                    "end_candidate": end,
+                })
+
+    rows: list[dict[str, Any]] = []
+    bucket_counts: Counter[str] = Counter()
+    pass_outcome_counts: Counter[str] = Counter()
+    consequence_counts: Counter[str] = Counter()
+    continuation_counts: Counter[str] = Counter()
+
+    for occurrence in action_occurrence_payload.get("action_occurrence_candidates", []) or []:
+        if not isinstance(occurrence, dict):
+            continue
+        attributes = occurrence.get("attributes") or {}
+        if attributes.get("restart_type_candidate") != "GOAL_KICK":
+            continue
+        occurrence_id = str(occurrence.get("action_occurrence_candidate_id") or "")
+        consequence = consequence_by_occurrence.get(occurrence_id, {})
+        bucket = str(attributes.get("provider_distance_bucket_candidate") or "UNRESOLVED")
+        pass_outcome = str(attributes.get("pass_outcome_candidate") or "UNRESOLVED")
+        primary = sorted({
+            str(value) for value in (consequence.get("primary_consequence_candidates") or [])
+            if str(value)
+        })
+        continuation = str(consequence.get("process_continuation_status") or "UNRESOLVED")
+
+        bucket_counts[bucket] += 1
+        pass_outcome_counts[pass_outcome] += 1
+        consequence_counts.update(primary)
+        continuation_counts[continuation] += 1
+
+        admitted_ids = [
+            str(value)
+            for value in (consequence.get("admitted_after_follow_up_trace_ids") or [])
+            if str(value)
+        ]
+        admitted_traces = [
+            trace_by_id[value] for value in admitted_ids if value in trace_by_id
+        ]
+        followup_starts = [
+            _float_candidate(row.get("start_candidate"))
+            for row in admitted_traces
+            if _float_candidate(row.get("start_candidate")) is not None
+        ]
+        first_followup_start = min(followup_starts) if followup_starts else None
+        first_layer = [
+            row for row in admitted_traces
+            if first_followup_start is not None
+            and _float_candidate(row.get("start_candidate")) == first_followup_start
+        ]
+        first_teams = {
+            str(row.get("team_identity_candidate_id") or "").strip()
+            for row in first_layer
+            if str(row.get("team_identity_candidate_id") or "").strip()
+        }
+        first_periods = {
+            str(row.get("period_candidate") or "").strip()
+            for row in first_layer
+            if str(row.get("period_candidate") or "").strip()
+        }
+        next_process_families: set[str] = set()
+        if first_followup_start is not None and len(first_teams) == 1:
+            first_team = next(iter(first_teams))
+            for proc in process_intervals:
+                if proc["team_identity_candidate_id"] != first_team:
+                    continue
+                if first_periods and proc["period_candidate"] not in first_periods:
+                    continue
+                if proc["start_candidate"] <= first_followup_start <= proc["end_candidate"]:
+                    next_process_families.add(proc["process_family_candidate"])
+        if first_followup_start is None:
+            next_process_binding_state = "NO_ADMITTED_AFTER_TIME"
+        elif len(first_teams) != 1:
+            next_process_binding_state = "FOLLOWUP_TEAM_UNRESOLVED"
+        elif len(next_process_families) == 1:
+            next_process_binding_state = "SINGLE_VISIBLE_PROCESS_FAMILY_MATCH"
+        elif len(next_process_families) > 1:
+            next_process_binding_state = "MULTIPLE_VISIBLE_PROCESS_FAMILIES_REVIEW_REQUIRED"
+        else:
+            next_process_binding_state = "NO_VISIBLE_PROCESS_INTERVAL_MATCH"
+
+        rows.append({
+            "action_occurrence_candidate_id": occurrence_id,
+            "actor_identity_candidate_id": occurrence.get("actor_identity_candidate_id"),
+            "team_identity_candidate_id": occurrence.get("team_identity_candidate_id"),
+            "provider_distance_bucket_candidate": bucket,
+            "pass_outcome_candidate": pass_outcome,
+            "followup_observation_status": consequence.get("followup_observation_status"),
+            "primary_consequence_candidates": primary,
+            "process_continuation_status": continuation,
+            "first_admitted_followup_start_candidate": first_followup_start,
+            "first_admitted_followup_team_identity_candidate_ids": sorted(first_teams),
+            "next_visible_process_family_candidates": sorted(next_process_families),
+            "next_process_binding_state": next_process_binding_state,
+            "next_process_is_possession_truth": False,
+            "next_process_is_tactical_plan_truth": False,
+            "admitted_followup_horizon_sensitive": consequence.get("admitted_followup_horizon_sensitive"),
+            "record_status": consequence.get("record_status") or "NOT_AVAILABLE",
+            "provider_distance_bucket_is_measured_physical_distance": False,
+            "provider_distance_bucket_is_tactical_strategy_truth": False,
+            "same_team_continuation_is_possession_truth": False,
+            "visible_consequence_is_causal_truth": False,
+            "creates_independent_support": False,
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "binding_state": "GOALKEEPER_RESTART_TO_VISIBLE_CONSEQUENCE_CONTEXT",
+        "goalkeeper_restart_context_row_count": len(rows),
+        "provider_distance_bucket_counts": dict(sorted(bucket_counts.items())),
+        "pass_outcome_counts": dict(sorted(pass_outcome_counts.items())),
+        "primary_consequence_counts": dict(sorted(consequence_counts.items())),
+        "process_continuation_status_counts": dict(sorted(continuation_counts.items())),
+        "next_process_binding_state_counts": dict(sorted(Counter(
+            row.get("next_process_binding_state") for row in rows
+        ).items())),
+        "next_visible_process_family_counts": dict(sorted(Counter(
+            family
+            for row in rows
+            for family in (row.get("next_visible_process_family_candidates") or [])
+        ).items())),
+        "rows": rows,
+        "provider_distance_bucket_is_tactical_strategy_truth": False,
+        "same_team_continuation_is_possession_truth": False,
+        "visible_consequence_is_causal_truth": False,
+        "creates_independent_support": False,
+    }
+
+
+
+def _score_state_candidate_at_visible_time(
+    game_state_context: dict[str, Any],
+    second_candidate: float | None,
+) -> dict[str, Any] | None:
+    """Return one descriptive score-state segment for an admitted visible time.
+
+    Segment membership is half-open [start, end), except the final segment which
+    admits its terminal end. This avoids double-binding observations at goal
+    boundaries. The result is context only and never causal/tactical evidence.
+    """
+    if second_candidate is None:
+        return None
+    segments = [
+        row for row in (game_state_context.get("score_state_segments") or [])
+        if isinstance(row, dict)
+    ]
+    for idx, segment in enumerate(segments):
+        start = _float_candidate(segment.get("start_second_candidate"))
+        end = _float_candidate(segment.get("end_second_candidate"))
+        score = segment.get("score_state_candidate")
+        if start is None or end is None or not isinstance(score, dict) or not score:
+            continue
+        is_final = idx == len(segments) - 1
+        if start <= second_candidate < end or (is_final and start <= second_candidate <= end):
+            return {str(key): value for key, value in score.items()}
+    return None
+
+
+def _loss_next_opponent_process_context(
+    consequence_payload: dict[str, Any],
+    trace_payload: dict[str, Any],
+    process_participation_payload: dict[str, Any],
+) -> dict[str, Any]:
+    trace_rows = (
+        trace_payload.get("primary_occurrence_trace_candidates")
+        or trace_payload.get("trackable_action_trace_candidates")
+        or []
+    )
+    trace_by_id = {
+        str(row.get("trackable_action_trace_candidate_id") or ""): row
+        for row in trace_rows
+        if isinstance(row, dict) and str(row.get("trackable_action_trace_candidate_id") or "")
+    }
+
+    process_intervals: list[dict[str, Any]] = []
+    for row in process_participation_payload.get("process_participation_candidates", []) or []:
+        if not isinstance(row, dict) or str(row.get("semantic_role") or "") != "CONTEXT_INTERVAL":
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        period = str(row.get("period_candidate") or "").strip()
+        start = _float_candidate(row.get("start_candidate"))
+        end = _float_candidate(row.get("end_candidate"))
+        if team_id and family and start is not None and end is not None:
+            process_intervals.append({
+                "team_identity_candidate_id": team_id,
+                "process_family_candidate": family,
+                "period_candidate": period,
+                "start_candidate": start,
+                "end_candidate": end,
+            })
+
+    rows: list[dict[str, Any]] = []
+    state_counts: Counter[str] = Counter()
+    family_counts: Counter[str] = Counter()
+
+    for consequence in consequence_payload.get("occurrence_consequence_projections", []) or []:
+        if not isinstance(consequence, dict):
+            continue
+        anchor_families = {
+            str(value)
+            for value in (consequence.get("action_family_candidates") or [])
+            if str(value)
+        }
+        if not anchor_families.intersection({"TURNOVER", "CONTROL_ERROR"}):
+            continue
+        anchor_teams = {
+            str(value)
+            for value in (consequence.get("team_identity_candidate_ids") or [])
+            if str(value)
+        }
+        periods = {
+            str(value)
+            for value in (consequence.get("period_candidates") or [])
+            if str(value)
+        }
+        admitted_ids = [
+            str(value)
+            for value in (consequence.get("admitted_after_follow_up_trace_ids") or [])
+            if str(value)
+        ]
+        admitted_traces = [
+            trace_by_id[value] for value in admitted_ids if value in trace_by_id
+        ]
+        starts = [
+            _float_candidate(row.get("start_candidate"))
+            for row in admitted_traces
+            if _float_candidate(row.get("start_candidate")) is not None
+        ]
+        first_start = min(starts) if starts else None
+        first_layer = [
+            row for row in admitted_traces
+            if first_start is not None
+            and _float_candidate(row.get("start_candidate")) == first_start
+        ]
+        first_teams = {
+            str(row.get("team_identity_candidate_id") or "").strip()
+            for row in first_layer
+            if str(row.get("team_identity_candidate_id") or "").strip()
+        }
+
+        opponent_team: str | None = None
+        if len(anchor_teams) == 1 and len(first_teams) == 1:
+            anchor_team = next(iter(anchor_teams))
+            candidate_team = next(iter(first_teams))
+            if candidate_team != anchor_team:
+                opponent_team = candidate_team
+
+        next_process_families: set[str] = set()
+        if opponent_team and first_start is not None:
+            for proc in process_intervals:
+                if proc["team_identity_candidate_id"] != opponent_team:
+                    continue
+                if periods and proc["period_candidate"] not in periods:
+                    continue
+                if proc["start_candidate"] <= first_start <= proc["end_candidate"]:
+                    next_process_families.add(proc["process_family_candidate"])
+
+        if first_start is None:
+            binding_state = "NO_ADMITTED_AFTER_TIME"
+        elif len(anchor_teams) != 1:
+            binding_state = "ANCHOR_TEAM_UNRESOLVED"
+        elif len(first_teams) != 1:
+            binding_state = "FOLLOWUP_TEAM_UNRESOLVED"
+        elif opponent_team is None:
+            binding_state = "FIRST_FOLLOWUP_NOT_OPPONENT_TEAM"
+        elif len(next_process_families) == 1:
+            binding_state = "SINGLE_OPPONENT_VISIBLE_PROCESS_FAMILY_MATCH"
+        elif len(next_process_families) > 1:
+            binding_state = "MULTIPLE_OPPONENT_PROCESS_FAMILIES_REVIEW_REQUIRED"
+        else:
+            binding_state = "NO_OPPONENT_VISIBLE_PROCESS_INTERVAL_MATCH"
+
+        state_counts[binding_state] += 1
+        family_counts.update(next_process_families)
+        anchor_starts = [
+            _float_candidate(value)
+            for value in (consequence.get("start_candidates") or [])
+            if _float_candidate(value) is not None
+        ]
+        anchor_start = anchor_starts[0] if len(set(anchor_starts)) == 1 else None
+        rows.append({
+            "action_occurrence_candidate_id": consequence.get("action_occurrence_candidate_id"),
+            "anchor_start_candidate": anchor_start,
+            "period_candidates": sorted(periods),
+            "anchor_action_family_candidates": sorted(anchor_families),
+            "anchor_team_identity_candidate_ids": sorted(anchor_teams),
+            "first_admitted_followup_start_candidate": first_start,
+            "first_admitted_followup_team_identity_candidate_ids": sorted(first_teams),
+            "opponent_team_identity_candidate": opponent_team,
+            "next_opponent_process_family_candidates": sorted(next_process_families),
+            "next_opponent_process_binding_state": binding_state,
+            "primary_consequence_candidates": consequence.get("primary_consequence_candidates") or [],
+            "process_continuation_status": consequence.get("process_continuation_status"),
+            "loss_is_defensive_transition_truth": False,
+            "opponent_process_is_counterattack_truth_unless_provider_labeled": False,
+            "opponent_process_is_causal_consequence_truth": False,
+            "creates_independent_support": False,
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "binding_state": "LOSS_TO_FIRST_OPPONENT_FOLLOWUP_PROCESS_CONTEXT",
+        "loss_context_row_count": len(rows),
+        "next_opponent_process_binding_state_counts": dict(sorted(state_counts.items())),
+        "next_opponent_process_family_counts": dict(sorted(family_counts.items())),
+        "rows": rows,
+        "loss_is_defensive_transition_truth": False,
+        "opponent_process_is_causal_consequence_truth": False,
+        "creates_independent_support": False,
+    }
+
+
+def _recovery_next_process_context(
+    consequence_payload: dict[str, Any],
+    process_participation_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Bind admitted recovery first-followup time to visible provider process intervals."""
+    process_intervals: dict[tuple[str, str, str, float, float], dict[str, Any]] = {}
+    for row in process_participation_payload.get("process_participation_candidates", []) or []:
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        period = str(row.get("period_candidate") or "").strip()
+        start = _float_candidate(row.get("start_candidate"))
+        end = _float_candidate(row.get("end_candidate"))
+        if not team_id or not family or start is None or end is None:
+            continue
+        key = (team_id, family, period, start, end)
+        process_intervals.setdefault(
+            key,
+            {
+                "team_identity_candidate_id": team_id,
+                "process_family_candidate": family,
+                "period_candidate": period,
+                "start_candidate": start,
+                "end_candidate": end,
+                "process_participation_candidate_ids": [],
+                "actor_identity_candidate_ids": [],
+            },
+        )
+        compact = process_intervals[key]
+        ppc_id = str(row.get("process_participation_candidate_id") or "").strip()
+        actor_id = str(row.get("actor_identity_candidate_id") or "").strip()
+        if ppc_id:
+            compact["process_participation_candidate_ids"].append(ppc_id)
+        if actor_id:
+            compact["actor_identity_candidate_ids"].append(actor_id)
+
+    rows: list[dict[str, Any]] = []
+    state_counts: Counter[str] = Counter()
+    family_counts: Counter[str] = Counter()
+    for row in consequence_payload.get("occurrence_consequence_projections", []) or []:
+        if not isinstance(row, dict) or row.get("recovery_first_admitted_followup_applicable") is not True:
+            continue
+        first_start = _float_candidate(row.get("recovery_first_admitted_followup_start_candidate"))
+        followup_teams = {
+            str(value).strip()
+            for value in (row.get("recovery_first_admitted_followup_team_identity_candidate_ids") or [])
+            if str(value).strip()
+        }
+        periods = {
+            str(value).strip()
+            for value in (row.get("period_candidates") or [])
+            if str(value).strip()
+        }
+        process_matches: list[dict[str, Any]] = []
+        if first_start is not None and len(followup_teams) == 1:
+            team_id = next(iter(followup_teams))
+            for (proc_team, family, period, start, end), compact in process_intervals.items():
+                if proc_team != team_id:
+                    continue
+                if periods and period not in periods:
+                    continue
+                if start <= first_start <= end:
+                    process_matches.append({
+                        **compact,
+                        "process_participation_candidate_ids": sorted(set(compact["process_participation_candidate_ids"])),
+                        "actor_identity_candidate_ids": sorted(set(compact["actor_identity_candidate_ids"])),
+                    })
+
+        families = sorted({m["process_family_candidate"] for m in process_matches})
+        if not process_matches:
+            binding_state = "NO_VISIBLE_PROCESS_INTERVAL_MATCH"
+        elif len(families) == 1:
+            binding_state = "SINGLE_VISIBLE_PROCESS_FAMILY_MATCH"
+        else:
+            binding_state = "MULTIPLE_VISIBLE_PROCESS_FAMILIES_REVIEW_REQUIRED"
+
+        state_counts[binding_state] += 1
+        family_counts.update(families)
+        anchor_starts = [
+            _float_candidate(value)
+            for value in (row.get("start_candidates") or [])
+            if _float_candidate(value) is not None
+        ]
+        anchor_start = anchor_starts[0] if len(set(anchor_starts)) == 1 else None
+        rows.append({
+            "action_occurrence_candidate_id": row.get("action_occurrence_candidate_id"),
+            "anchor_start_candidate": anchor_start,
+            "period_candidates": sorted(periods),
+            "team_identity_candidate_ids": row.get("team_identity_candidate_ids") or [],
+            "actor_identity_candidate_ids": row.get("actor_identity_candidate_ids") or [],
+            "recovery_first_admitted_followup_state": row.get("recovery_first_admitted_followup_state"),
+            "first_followup_start_candidate": first_start,
+            "first_followup_action_family_candidates": row.get(
+                "recovery_first_admitted_followup_action_family_candidates"
+            ) or [],
+            "first_followup_provider_semantic_candidates": row.get(
+                "recovery_first_admitted_followup_provider_semantic_candidates"
+            ) or [],
+            "primary_consequence_candidates": row.get("primary_consequence_candidates") or [],
+            "process_continuation_status": row.get("process_continuation_status"),
+            "next_visible_process_family_candidates": families,
+            "next_visible_process_interval_matches": process_matches,
+            "next_process_binding_state": binding_state,
+            "next_process_is_possession_truth": False,
+            "next_process_is_tactical_plan_truth": False,
+            "next_process_is_causal_consequence_truth": False,
+            "creates_independent_support": False,
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "binding_state": "RECOVERY_FIRST_FOLLOWUP_TO_VISIBLE_PROCESS_CONTEXT",
+        "recovery_context_row_count": len(rows),
+        "next_process_binding_state_counts": dict(sorted(state_counts.items())),
+        "next_visible_process_family_counts": dict(sorted(family_counts.items())),
+        "rows": rows,
+        "next_process_is_possession_truth": False,
+        "next_process_is_tactical_plan_truth": False,
+        "next_process_is_causal_consequence_truth": False,
+        "creates_independent_support": False,
+    }
+
+
+
+
+
+def _game_state_process_mix_context(
+    game_state_context: dict[str, Any],
+    identity_payload: dict[str, Any],
+    process_participation_payload: dict[str, Any],
+) -> dict[str, Any]:
+    team_alias_to_id: dict[str, str] = {}
+    for row in identity_payload.get("team_identity_candidates", []) or []:
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if not team_id:
+            continue
+        for alias in row.get("team_aliases_raw", []) or []:
+            key = _normalize_identity_text(alias)
+            if key:
+                team_alias_to_id[key] = team_id
+
+    intervals: dict[tuple[str, str, str, float, float], dict[str, Any]] = {}
+    for row in process_participation_payload.get("process_participation_candidates", []) or []:
+        if not isinstance(row, dict) or str(row.get("semantic_role") or "") != "CONTEXT_INTERVAL":
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        period = str(row.get("period_candidate") or "").strip()
+        start = _float_candidate(row.get("start_candidate"))
+        end = _float_candidate(row.get("end_candidate"))
+        if not team_id or not family or start is None or end is None:
+            continue
+        intervals.setdefault(
+            (team_id, family, period, start, end),
+            {
+                "team_identity_candidate_id": team_id,
+                "process_family_candidate": family,
+                "period_candidate": period,
+                "start_candidate": start,
+                "end_candidate": end,
+            },
+        )
+
+    profiles: list[dict[str, Any]] = []
+    unresolved_team_labels: set[str] = set()
+    family_counts_global: Counter[str] = Counter()
+    for segment in game_state_context.get("score_state_segments", []) or []:
+        start = _float_candidate(segment.get("start_second_candidate"))
+        end = _float_candidate(segment.get("end_second_candidate"))
+        if start is None or end is None or end < start:
+            continue
+        duration = max(0.0, end - start)
+        score_state = segment.get("score_state_candidate") or {}
+        for team_label in score_state:
+            team_key = _normalize_identity_text(team_label)
+            team_id = team_alias_to_id.get(team_key)
+            if not team_id:
+                unresolved_team_labels.add(str(team_label))
+                continue
+            counts: Counter[str] = Counter()
+            for interval in intervals.values():
+                if interval["team_identity_candidate_id"] != team_id:
+                    continue
+                process_start = float(interval["start_candidate"])
+                if start <= process_start < end or (duration == 0 and process_start == start):
+                    counts[interval["process_family_candidate"]] += 1
+            family_counts_global.update(counts)
+            rate_per_10: dict[str, float | None] = {}
+            for family, count in sorted(counts.items()):
+                rate_per_10[family] = round((count / duration) * 600.0, 6) if duration > 0 else None
+            profiles.append({
+                "team_identity_candidate_id": team_id,
+                "team_label": team_label,
+                "score_state_candidate": score_state,
+                "segment_start_second_candidate": start,
+                "segment_end_second_candidate": end,
+                "segment_duration_second_candidate": duration,
+                "process_family_counts": dict(sorted(counts.items())),
+                "process_family_rate_per_10_minutes": rate_per_10,
+                "rate_denominator_is_score_state_exposure_time": True,
+                "process_rate_is_tactical_intention_truth": False,
+                "score_state_is_causal_explanation": False,
+                "creates_independent_support": False,
+            })
+
+    status = "PASS" if profiles and not unresolved_team_labels else (
+        "REVIEW_REQUIRED" if profiles else "NOT_AVAILABLE"
+    )
+    return {
+        "status": status,
+        "binding_state": "SCORE_STATE_TO_VISIBLE_PROCESS_MIX_CONTEXT",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "global_visible_process_family_counts": dict(sorted(family_counts_global.items())),
+        "unresolved_team_labels": sorted(unresolved_team_labels),
+        "rate_denominator_is_score_state_exposure_time": True,
+        "process_rate_is_tactical_intention_truth": False,
+        "score_state_is_causal_explanation": False,
+        "creates_independent_support": False,
+    }
+
+
+
+def _counterattack_next_process_context(
+    process_participation_payload: dict[str, Any],
+) -> dict[str, Any]:
+    intervals: list[dict[str, Any]] = []
+    for row in process_participation_payload.get("process_participation_candidates", []) or []:
+        if not isinstance(row, dict) or str(row.get("semantic_role") or "") != "CONTEXT_INTERVAL":
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        period = str(row.get("period_candidate") or "").strip()
+        start = _float_candidate(row.get("start_candidate"))
+        end = _float_candidate(row.get("end_candidate"))
+        if team_id and family and start is not None and end is not None:
+            intervals.append({
+                "process_participation_candidate_id": row.get("process_participation_candidate_id"),
+                "team_identity_candidate_id": team_id,
+                "process_family_candidate": family,
+                "period_candidate": period,
+                "start_candidate": start,
+                "end_candidate": end,
+                "shot_present_annotation_candidate": row.get("shot_present_annotation_candidate") is True,
+            })
+
+    rows: list[dict[str, Any]] = []
+    successor_counts: Counter[str] = Counter()
+    state_counts: Counter[str] = Counter()
+    counters = [row for row in intervals if row["process_family_candidate"] == "COUNTERATTACK_CANDIDATE"]
+    for anchor in sorted(counters, key=lambda row: (row["team_identity_candidate_id"], row["period_candidate"], row["start_candidate"])):
+        next_candidates = [
+            row for row in intervals
+            if row["team_identity_candidate_id"] == anchor["team_identity_candidate_id"]
+            and row["period_candidate"] == anchor["period_candidate"]
+            and row["start_candidate"] > anchor["end_candidate"]
+        ]
+        next_start = min((row["start_candidate"] for row in next_candidates), default=None)
+        next_layer = [
+            row for row in next_candidates
+            if next_start is not None and row["start_candidate"] == next_start
+        ]
+        families = sorted({row["process_family_candidate"] for row in next_layer})
+        if not next_layer:
+            state = "NO_LATER_VISIBLE_PROCESS_INTERVAL"
+        elif len(families) == 1:
+            state = "SINGLE_NEXT_VISIBLE_PROCESS_FAMILY"
+        else:
+            state = "MULTIPLE_NEXT_VISIBLE_PROCESS_FAMILIES_REVIEW_REQUIRED"
+        state_counts[state] += 1
+        successor_counts.update(families)
+        rows.append({
+            "counterattack_process_ref": anchor["process_participation_candidate_id"],
+            "team_identity_candidate_id": anchor["team_identity_candidate_id"],
+            "period_candidate": anchor["period_candidate"],
+            "counterattack_start_candidate": anchor["start_candidate"],
+            "counterattack_end_candidate": anchor["end_candidate"],
+            "counterattack_shot_present_annotation_candidate": anchor["shot_present_annotation_candidate"],
+            "next_visible_process_start_candidate": next_start,
+            "seconds_to_next_visible_process_candidate": (
+                next_start - anchor["end_candidate"] if next_start is not None else None
+            ),
+            "next_visible_process_family_candidates": families,
+            "next_process_binding_state": state,
+            "visible_counter_to_positional_successor_candidate": (
+                families == ["POSITIONAL_ATTACK_CANDIDATE"]
+            ),
+            "visible_successor_is_transition_stabilization_truth": False,
+            "visible_successor_is_possession_truth": False,
+            "visible_successor_is_tactical_intention_truth": False,
+            "creates_independent_support": False,
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "binding_state": "COUNTERATTACK_TO_NEXT_VISIBLE_PROCESS_CONTEXT",
+        "counterattack_context_row_count": len(rows),
+        "next_process_binding_state_counts": dict(sorted(state_counts.items())),
+        "next_visible_process_family_counts": dict(sorted(successor_counts.items())),
+        "counter_to_positional_successor_candidate_count": sum(
+            row.get("visible_counter_to_positional_successor_candidate") is True
+            for row in rows
+        ),
+        "rows": rows,
+        "visible_successor_is_transition_stabilization_truth": False,
+        "creates_independent_support": False,
+    }
+
+
+def _set_piece_process_consequence_context(
+    process_participation_payload: dict[str, Any],
+    consequence_payload: dict[str, Any],
+    trace_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    process_intervals: dict[tuple[str, str, float, float], dict[str, Any]] = {}
+    for row in process_participation_payload.get("process_participation_candidates", []) or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("semantic_role") or "") != "CONTEXT_INTERVAL":
+            continue
+        if str(row.get("process_family_candidate") or "") != "SET_PIECE_ATTACK_CANDIDATE":
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        period = str(row.get("period_candidate") or "").strip()
+        start = _float_candidate(row.get("start_candidate"))
+        end = _float_candidate(row.get("end_candidate"))
+        if not team_id or start is None or end is None:
+            continue
+        key = (team_id, period, start, end)
+        process_intervals.setdefault(
+            key,
+            {
+                "team_identity_candidate_id": team_id,
+                "period_candidate": period,
+                "start_candidate": start,
+                "end_candidate": end,
+                "process_candidate_ids": [],
+                "provider_restart_type_candidates": [],
+                "shot_present_annotation_candidate": False,
+            },
+        )
+        compact = process_intervals[key]
+        pid = str(row.get("process_participation_candidate_id") or "").strip()
+        if pid:
+            compact["process_candidate_ids"].append(pid)
+        restart_type = str(row.get("provider_restart_type_candidate") or "").strip()
+        if restart_type:
+            compact["provider_restart_type_candidates"].append(restart_type)
+        if row.get("shot_present_annotation_candidate") is True:
+            compact["shot_present_annotation_candidate"] = True
+
+    trace_rows = []
+    if isinstance(trace_payload, dict):
+        trace_rows = (
+            trace_payload.get("primary_occurrence_trace_candidates")
+            or trace_payload.get("trackable_action_trace_candidates")
+            or []
+        )
+    visible_trace_rows = [
+        row for row in trace_rows
+        if isinstance(row, dict)
+        and _float_candidate(row.get("start_candidate")) is not None
+        and str(row.get("period_candidate") or "").strip()
+    ]
+
+    consequence_rows = [
+        row for row in (consequence_payload.get("occurrence_consequence_projections") or [])
+        if isinstance(row, dict)
+    ]
+    declared_horizon_candidates = [
+        _float_candidate(row.get("maximum_window_seconds"))
+        for row in consequence_rows
+        if _float_candidate(row.get("maximum_window_seconds")) is not None
+    ]
+    declared_context_horizon_seconds = (
+        max(declared_horizon_candidates) if declared_horizon_candidates else None
+    )
+    rows: list[dict[str, Any]] = []
+    primary_counts: Counter[str] = Counter()
+    continuation_counts: Counter[str] = Counter()
+    terminal_counts: Counter[str] = Counter()
+    state_counts: Counter[str] = Counter()
+    post_process_state_counts: Counter[str] = Counter()
+    restart_type_counts: Counter[str] = Counter()
+
+    for (_, _, _, _), process in sorted(process_intervals.items()):
+        team_id = process["team_identity_candidate_id"]
+        period = process["period_candidate"]
+        start = process["start_candidate"]
+        end = process["end_candidate"]
+        matched: list[dict[str, Any]] = []
+        for consequence in consequence_rows:
+            teams = {str(v) for v in (consequence.get("team_identity_candidate_ids") or []) if v}
+            periods = {str(v) for v in (consequence.get("period_candidates") or []) if v}
+            times = [
+                _float_candidate(v) for v in (consequence.get("start_candidates") or [])
+                if _float_candidate(v) is not None
+            ]
+            if team_id not in teams:
+                continue
+            if period and periods and period not in periods:
+                continue
+            if not any(start <= value <= end for value in times):
+                continue
+            matched.append(consequence)
+
+        primary = sorted({
+            str(v)
+            for consequence in matched
+            for v in (consequence.get("primary_consequence_candidates") or [])
+            if str(v)
+        })
+        continuation = sorted({
+            str(consequence.get("process_continuation_status") or "")
+            for consequence in matched
+            if str(consequence.get("process_continuation_status") or "")
+        })
+        terminal = sorted({
+            str(consequence.get("terminal_status") or "")
+            for consequence in matched
+            if str(consequence.get("terminal_status") or "")
+        })
+        if not matched:
+            binding_state = "NO_VISIBLE_CONSEQUENCE_MATCH"
+        elif primary or terminal:
+            binding_state = "VISIBLE_CONSEQUENCE_CONTEXT_BOUND"
+        else:
+            binding_state = "VISIBLE_OCCURRENCE_WITHOUT_RESOLVED_CONSEQUENCE"
+
+        state_counts[binding_state] += 1
+        primary_counts.update(primary)
+        continuation_counts.update(continuation)
+        terminal_counts.update(terminal)
+
+        strict_after = [
+            trace for trace in visible_trace_rows
+            if str(trace.get("period_candidate") or "").strip() == period
+            and float(_float_candidate(trace.get("start_candidate"))) > end
+        ]
+        first_after_start = min(
+            (_float_candidate(trace.get("start_candidate")) for trace in strict_after),
+            default=None,
+        )
+        first_after_layer = [
+            trace for trace in strict_after
+            if first_after_start is not None
+            and _float_candidate(trace.get("start_candidate")) == first_after_start
+        ]
+        first_after_teams = {
+            str(trace.get("team_identity_candidate_id") or "").strip()
+            for trace in first_after_layer
+            if str(trace.get("team_identity_candidate_id") or "").strip()
+        }
+        first_after_families = sorted({
+            str(value)
+            for trace in first_after_layer
+            for value in (trace.get("action_family_candidates") or [])
+            if str(value)
+        })
+        strict_after_gap = (
+            first_after_start - end if first_after_start is not None else None
+        )
+        if first_after_start is None:
+            raw_first_after_team_state = "NO_STRICT_AFTER_VISIBLE_TRACE"
+        elif len(first_after_teams) != 1:
+            raw_first_after_team_state = "FIRST_STRICT_AFTER_TEAM_UNRESOLVED"
+        elif team_id in first_after_teams:
+            raw_first_after_team_state = "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE"
+        else:
+            raw_first_after_team_state = "OPPONENT_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE"
+
+        if first_after_start is None:
+            post_process_state = "NO_STRICT_AFTER_VISIBLE_TRACE"
+        elif declared_context_horizon_seconds is None:
+            post_process_state = "DECLARED_CONSEQUENCE_HORIZON_UNRESOLVED"
+        elif strict_after_gap is not None and strict_after_gap > declared_context_horizon_seconds:
+            post_process_state = "FIRST_STRICT_AFTER_OUTSIDE_DECLARED_CONSEQUENCE_HORIZON"
+        else:
+            post_process_state = raw_first_after_team_state
+        post_process_state_counts[post_process_state] += 1
+
+        restart_types = sorted(set(process.get("provider_restart_type_candidates") or []))
+        restart_type_counts.update(restart_types)
+        rows.append({
+            **process,
+            "process_candidate_ids": sorted(set(process["process_candidate_ids"])),
+            "provider_restart_type_candidates": restart_types,
+            "matched_occurrence_consequence_projection_ids": sorted({
+                str(row.get("occurrence_consequence_projection_id") or "")
+                for row in matched
+                if str(row.get("occurrence_consequence_projection_id") or "")
+            }),
+            "matched_occurrence_count": len(matched),
+            "primary_consequence_candidates": primary,
+            "process_continuation_status_candidates": continuation,
+            "terminal_status_candidates": terminal,
+            "binding_state": binding_state,
+            "first_strict_after_start_candidate": first_after_start,
+            "seconds_from_process_end_to_first_strict_after_candidate": strict_after_gap,
+            "declared_consequence_horizon_seconds": declared_context_horizon_seconds,
+            "first_strict_after_team_identity_candidate_ids": sorted(first_after_teams),
+            "first_strict_after_action_family_candidates": first_after_families,
+            "raw_first_strict_after_team_state": raw_first_after_team_state,
+            "post_set_piece_first_visible_team_state": post_process_state,
+            "post_set_piece_first_visible_team_state_is_recycle_truth": False,
+            "post_set_piece_first_visible_team_state_is_second_ball_truth": False,
+            "strict_after_relation_is_possession_truth": False,
+            "provider_restart_type_is_action_identity_truth": False,
+            "provider_restart_type_is_designed_routine_truth": False,
+            "set_piece_process_is_designed_routine_truth": False,
+            "visible_consequence_is_second_ball_truth": False,
+            "visible_consequence_is_causal_truth": False,
+            "creates_independent_support": False,
+        })
+
+    restart_profile_buckets: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        restart_types = [
+            str(value).strip()
+            for value in (row.get("provider_restart_type_candidates") or [])
+            if str(value).strip()
+        ]
+        for restart_type in restart_types:
+            key = (team_id, restart_type)
+            bucket = restart_profile_buckets.setdefault(
+                key,
+                {
+                    "team_identity_candidate_id": team_id or None,
+                    "provider_restart_type_candidate": restart_type,
+                    "process_n": 0,
+                    "shot_annotated_n": 0,
+                    "visible_consequence_bound_n": 0,
+                    "same_team_first_visible_n": 0,
+                    "opponent_first_visible_n": 0,
+                    "outside_declared_horizon_n": 0,
+                    "no_visible_continuation_n": 0,
+                },
+            )
+            bucket["process_n"] += 1
+            if row.get("shot_present_annotation_candidate") is True:
+                bucket["shot_annotated_n"] += 1
+            if str(row.get("binding_state") or "") == "VISIBLE_CONSEQUENCE_CONTEXT_BOUND":
+                bucket["visible_consequence_bound_n"] += 1
+            post = str(row.get("post_set_piece_first_visible_team_state") or "")
+            if post == "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE":
+                bucket["same_team_first_visible_n"] += 1
+            elif post == "OPPONENT_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE":
+                bucket["opponent_first_visible_n"] += 1
+            elif post == "FIRST_STRICT_AFTER_OUTSIDE_DECLARED_CONSEQUENCE_HORIZON":
+                bucket["outside_declared_horizon_n"] += 1
+            elif post == "NO_STRICT_AFTER_VISIBLE_TRACE":
+                bucket["no_visible_continuation_n"] += 1
+
+    restart_type_profiles = []
+    for _, bucket in sorted(restart_profile_buckets.items()):
+        restart_type_profiles.append({
+            **bucket,
+            "rate_emitted": False,
+            "profile_is_set_piece_quality_truth": False,
+            "profile_is_designed_routine_truth": False,
+            "profile_is_causal_effect_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_REVIEWED_RESTART_TYPE_VISIBLE_OUTCOME_COUNTS_ONLY",
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "binding_state": "SET_PIECE_PROCESS_TO_VISIBLE_CONSEQUENCE_CONTEXT",
+        "set_piece_process_context_row_count": len(rows),
+        "binding_state_counts": dict(sorted(state_counts.items())),
+        "primary_consequence_counts": dict(sorted(primary_counts.items())),
+        "process_continuation_status_counts": dict(sorted(continuation_counts.items())),
+        "terminal_status_counts": dict(sorted(terminal_counts.items())),
+        "declared_consequence_horizon_seconds": declared_context_horizon_seconds,
+        "post_set_piece_first_visible_team_state_counts": dict(
+            sorted(post_process_state_counts.items())
+        ),
+        "provider_restart_type_counts": dict(sorted(restart_type_counts.items())),
+        "restart_type_profile_count": len(restart_type_profiles),
+        "restart_type_profiles": restart_type_profiles,
+        "restart_type_profile_rate_emitted": False,
+        "restart_type_profile_is_set_piece_quality_truth": False,
+        "rows": rows,
+        "provider_restart_type_is_action_identity_truth": False,
+        "provider_restart_type_is_designed_routine_truth": False,
+        "set_piece_process_is_designed_routine_truth": False,
+        "visible_consequence_is_second_ball_truth": False,
+        "visible_consequence_is_causal_truth": False,
+        "creates_independent_support": False,
+    }
+
+
+def _player_function_metric_dimension(metric_key: str, raw_label: str) -> str | None:
+    text = f"{metric_key} {raw_label}".casefold().replace("_", " ")
+    if any(term in text for term in (
+        "final third entr",
+        "passes into the penalty box",
+        "open passes received in the final third",
+        "open passes received in the opponent",
+        "actions in opponent",
+        "carry",
+        "dribble",
+    )):
+        return "ACCESS"
+    if any(term in text for term in ("chances created", " xa", "expected assists")):
+        return "CREATION"
+    if any(term in text for term in ("shots", "goals", " xg", "expected goals")):
+        return "TERMINAL"
+    if any(term in text for term in (
+        "lost balls",
+        "ball recover",
+        "interception",
+        "tackles",
+        "challenge",
+    )):
+        return "RECOVERY_LOSS"
+    if "progressive pass" in text or "forward pass" in text:
+        return "ACCESS"
+    return None
+
+
+def _player_function_profiles(
+    actor_bindings: dict[str, dict[str, Any]],
+    process_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    process_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    shot_process_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    for row in process_rows:
+        if not isinstance(row, dict) or str(row.get("semantic_role") or "") != "PARTICIPATION_INTERVAL":
+            continue
+        actor_id = str(row.get("actor_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        if not actor_id or not family:
+            continue
+        process_counts[actor_id][family] += 1
+        if row.get("shot_present_annotation_candidate") is True:
+            shot_process_counts[actor_id][family] += 1
+
+    profiles: list[dict[str, Any]] = []
+    for actor_id, binding in sorted(actor_bindings.items()):
+        xlsx_row = binding.get("xlsx_row") or {}
+        xlsx_identity = xlsx_row.get("identity_candidates") or {}
+        minutes_candidate = _float_candidate(xlsx_identity.get("minutes_raw_candidate"))
+        total_exposure_state = (
+            "MATCH_TOTAL_MINUTES_OBSERVED_CANDIDATE"
+            if minutes_candidate is not None and minutes_candidate >= 0
+            else "MATCH_TOTAL_MINUTES_UNRESOLVED"
+        )
+        dimension_metrics: dict[str, list[dict[str, Any]]] = {
+            "ACCESS": [],
+            "CREATION": [],
+            "TERMINAL": [],
+            "RECOVERY_LOSS": [],
+        }
+        for key, metric in (xlsx_row.get("metric_values") or {}).items():
+            if not isinstance(metric, dict) or metric.get("value_status") != "OBSERVED":
+                continue
+            raw_label = str(metric.get("raw_metric_label") or "")
+            dimension = _player_function_metric_dimension(str(key), raw_label)
+            if dimension is None:
+                continue
+            dimension_metrics[dimension].append({
+                "metric_key": str(key),
+                "raw_metric_label": raw_label,
+                "raw_value": metric.get("raw_value"),
+                "row_projection_id": xlsx_row.get("row_projection_id"),
+                "aggregate_context_only": True,
+                "action_identity_created": False,
+                "independent_support_vote": False,
+            })
+
+        profiles.append({
+            "actor_identity_candidate_id": actor_id,
+            "actor_label": binding.get("actor_label"),
+            "team_identity_candidate_id": binding.get("team_identity_candidate_id"),
+            "team_label": binding.get("team_label"),
+            "xlsx_row_projection_id": binding.get("xlsx_row_projection_id"),
+            "total_minutes_observed_candidate": minutes_candidate,
+            "total_exposure_state": total_exposure_state,
+            "interval_exposure_state": "NOT_ESTABLISHED_NO_SUBSTITUTION_TIMELINE_AUTHORITY",
+            "on_field_process_interval_truth": False,
+            "process_participation_is_on_field_exposure": False,
+            "per90_process_rate_admitted": False,
+            "minutes_played_is_physical_cost": False,
+            "process_participation_counts": dict(sorted(process_counts.get(actor_id, {}).items())),
+            "shot_ending_process_participation_counts": dict(
+                sorted(shot_process_counts.get(actor_id, {}).items())
+            ),
+            "function_dimensions": {
+                "PROCESS": {
+                    "process_participation_counts": dict(sorted(process_counts.get(actor_id, {}).items())),
+                    "shot_ending_process_participation_counts": dict(
+                        sorted(shot_process_counts.get(actor_id, {}).items())
+                    ),
+                },
+                **dimension_metrics,
+            },
+            "dimension_metric_counts": {
+                "PROCESS": len(process_counts.get(actor_id, {})),
+                **{key: len(value) for key, value in dimension_metrics.items()},
+            },
+            "profile_has_any_context": bool(process_counts.get(actor_id)) or any(dimension_metrics.values()),
+            "profile_is_quality_score": False,
+            "profile_is_tactical_role_truth": False,
+            "process_participation_is_causal_credit": False,
+            "total_minutes_do_not_establish_on_field_interval": True,
+            "substitution_timeline_authority_required_for_interval_exposure": True,
+            "xlsx_aggregate_is_action_identity": False,
+            "cross_surface_reflection_is_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_OBSERVED_FUNCTION_PROFILE_ONLY",
+        })
+    return profiles
+
+
 def _process_interval_key(row: dict[str, Any]) -> tuple[str, str, str, str, str]:
     return (
         str(row.get("team_identity_candidate_id") or ""),
@@ -505,12 +2202,12 @@ def _association_epistemic_review_contract(
             "process refs against admitted current surfaces or other admissible evidence before any "
             "player-quality, causal, tactical-plan, or physical-mechanism interpretation."
         ),
-        "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY",
     }
 
 
 def _c02_observation_capability_profile() -> dict[str, Any]:
-    """Describe what the current C02 source can and cannot resolve for its target outcome."""
+    """Describe the current C02 source resolution scope for its target outcome."""
     required = [
         "PROCESS_CONTEXT_INTERVAL",
         "PROCESS_PARTICIPATION",
@@ -566,9 +2263,16 @@ def _association_record(
     ]
     support_n = len(involved)
     shot_n = len(shot_rows)
+    unresolved_n = len(no_shot_rows)
     rate = (shot_n / support_n) if support_n else None
     baseline = (baseline_shot_n / baseline_n) if baseline_n else None
     lift = (rate / baseline) if rate is not None and baseline not in (None, 0) else None
+    eligible_episode_refs = sorted({
+        str(row.get("episode_ref")) for row in involved if row.get("episode_ref")
+    })
+    positive_episode_refs = sorted({
+        str(row.get("episode_ref")) for row in shot_rows if row.get("episode_ref")
+    })
     bound = [actor_bindings.get(actor_id) for actor_id in actor_ids]
     labels = [
         (item or {}).get("actor_label") or actor_id
@@ -590,7 +2294,12 @@ def _association_record(
         "actor_identity_candidate_ids": list(actor_ids),
         "actor_labels": labels,
         "support_n": support_n,
+        "eligible_n": support_n,
         "shot_ending_n": shot_n,
+        "visible_target_annotation_k": shot_n,
+        "target_outcome_unresolved_u": unresolved_n,
+        "observed_visible_target_annotation_frequency": rate,
+        "observed_rate_semantics": "VISIBLE_TARGET_ANNOTATION_FREQUENCY_NOT_RESOLVED_OUTCOME_RATE",
         "not_target_annotated_n": len(no_shot_rows),
         "involved_without_target_annotation_refs": [row["process_ref"] for row in no_shot_rows],
         "not_target_annotated_is_resolved_non_target": False,
@@ -598,8 +2307,18 @@ def _association_record(
         "legacy_non_shot_fields_are_resolved_non_target": False,
         "non_shot_n": len(no_shot_rows),
         "conditional_shot_frequency": rate,
+        "conditional_shot_frequency_semantics": "LEGACY_ALIAS_VISIBLE_TARGET_ANNOTATION_FREQUENCY",
         "match_local_baseline_shot_frequency": baseline,
+        "baseline_frequency_semantics": "VISIBLE_TARGET_ANNOTATION_FREQUENCY_AMONG_FAMILY_ELIGIBLE_UNITS",
         "match_local_lift": lift,
+        "descriptive_lift": lift,
+        "descriptive_lift_semantics": "VISIBLE_ANNOTATION_FREQUENCY_RATIO_MATCH_LOCAL_NOT_EFFECT_SIZE",
+        "eligible_episode_refs": eligible_episode_refs,
+        "eligible_episode_spread": len(eligible_episode_refs),
+        "positive_episode_refs": positive_episode_refs,
+        "positive_episode_spread": len(positive_episode_refs),
+        "eligible_episode_spread_is_independence_proof": False,
+        "positive_episode_spread_is_independence_proof": False,
         "process_refs": [row["process_ref"] for row in involved],
         "shot_process_refs": [row["process_ref"] for row in shot_rows],
         "counterexample_involved_without_shot_refs": [row["process_ref"] for row in no_shot_rows],
@@ -661,8 +2380,240 @@ def _association_record(
         "association_is_causal_player_credit": False,
         "association_is_independent_evidence_vote": False,
         "lift_is_probability": False,
-        "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+        "outcome_must_not_define_its_own_eligible_denominator": True,
+        "minimum_support_threshold_is_evidence_strength_truth": False,
+        "shrunk_rate_is_observed_rate": False,
+        "no_p_value_eliminates_selection_multiplicity_risk": False,
+        "ranked_extreme_is_stable_signal": False,
+        "exact_computation_is_valid_football_inference": False,
+        "cluster_aware_is_assumption_free": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY",
     }
+
+
+def _c02_packet_candidate(candidate: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Bind one C02 analyst-attention profile to the existing governed C4 chain.
+
+    The packet creates no new evidence and deliberately admits no independent support.
+    Absence of a visible target annotation is not promoted to contradiction or resolved
+    negative outcome. The outer packet ceiling stays at the composite-builder contract;
+    the C02-specific ceiling is preserved inside the evidence profile.
+    """
+    if not isinstance(candidate, dict):
+        return None
+    process_refs = sorted({
+        str(value).strip()
+        for value in (candidate.get("process_refs") or [])
+        if str(value).strip()
+    })
+    if len(process_refs) < 2:
+        return None
+
+    positive_refs = {
+        str(value).strip()
+        for value in (candidate.get("shot_process_refs") or [])
+        if str(value).strip()
+    }
+    actor_ids = tuple(str(value) for value in (candidate.get("actor_identity_candidate_ids") or []))
+    association_type = str(candidate.get("association_type") or "UNRESOLVED")
+    team_id = str(candidate.get("team_identity_candidate_id") or "UNKNOWN")
+    family = str(candidate.get("process_family_candidate") or "UNKNOWN")
+    profile_seed = "|".join([association_type, team_id, family, *actor_ids])
+    profile_id = "c02_profile_" + hashlib.sha256(profile_seed.encode("utf-8")).hexdigest()[:24]
+    dependency_group = f"c02:{team_id}:{family}"
+
+    sequence_records = [
+        {
+            "sequence_id": process_ref,
+            "source_surface": "analyst_episode_process_participation_projection_v1",
+            "lenses": ["actor", "process", "outcome", "context"],
+            "visible_target_annotation_candidate": process_ref in positive_refs,
+            "not_target_annotation_is_resolved_non_target": False,
+            "provenance_root": "analyst_episode_process_participation_projection_v1",
+            "dependency_group": dependency_group,
+            "independence_group": None,
+            "independent_support_vote": False,
+        }
+        for process_ref in process_refs
+    ]
+    profile_feature = {
+        "feature_id": profile_id,
+        "source_surface": "rich_multiformat_analysis_lattice_v1",
+        "lenses": ["actor", "process", "outcome", "context", "derived"],
+        "association_type": association_type,
+        "actor_identity_candidate_ids": list(actor_ids),
+        "actor_labels": list(candidate.get("actor_labels") or []),
+        "team_identity_candidate_id": candidate.get("team_identity_candidate_id"),
+        "process_family_candidate": candidate.get("process_family_candidate"),
+        "eligibility_contract": "C02_PROCESS_FAMILY_OUTCOME_BLIND_ELIGIBILITY_V1",
+        "eligible_n": candidate.get("eligible_n"),
+        "visible_target_annotation_k": candidate.get("visible_target_annotation_k"),
+        "target_outcome_unresolved_u": candidate.get("target_outcome_unresolved_u"),
+        "observed_visible_target_annotation_frequency": candidate.get("observed_visible_target_annotation_frequency"),
+        "descriptive_lift": candidate.get("descriptive_lift"),
+        "eligible_episode_spread": candidate.get("eligible_episode_spread"),
+        "positive_episode_spread": candidate.get("positive_episode_spread"),
+        "selection_scope": candidate.get("selection_scope"),
+        "selection_candidate_pool_n": candidate.get("selection_candidate_pool_n"),
+        "selection_rank": candidate.get("selection_rank"),
+        "selection_is_posthoc_attention_ranking": True,
+        "selection_is_stable_signal": False,
+        "association_claim_ceiling": "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY",
+        "association_is_causal_player_credit": False,
+        "target_annotation_absence_is_counterevidence": False,
+        "outcome_must_not_define_its_own_eligible_denominator": True,
+        "no_p_value_eliminates_selection_multiplicity_risk": False,
+        "ranked_extreme_is_stable_signal": False,
+        "provenance_root": "rich_multiformat_analysis_lattice_v1",
+        "dependency_group": dependency_group,
+        "independence_group": None,
+        "independent_support_vote": False,
+    }
+    signal = {
+        "signal_id": profile_id + ":visible_association",
+        "source_surface": "HPFA_DERIVED_FROM_C02_ADMITTED_PROCESS_PARTICIPATION",
+        "evidence_derivation_role": "DESCRIPTIVE_VISIBLE_ASSOCIATION_PROFILE",
+        "evidence_role": "analyst_attention_visible_association_candidate",
+        "relation_type": "SUPPORTS",
+        "source_refs": process_refs,
+        "lenses": ["actor", "process", "outcome", "derived"],
+        "provenance_root": "analyst_episode_process_participation_projection_v1",
+        "dependency_group": dependency_group,
+        "independence_group": None,
+        "independent_support_vote": False,
+        "causal_truth": False,
+        "quality_truth": False,
+        "statistical_significance_truth": False,
+    }
+    return {
+        "source_construct_id": "C02_PROCESS_PARTICIPANT_OUTCOME_ASSOCIATION",
+        "packet_family": "production_consequence",
+        "input_features": [profile_feature],
+        "input_windows": [],
+        "input_sequences": sequence_records,
+        "input_metrics": [],
+        "supporting_signals": [signal],
+        "contradicting_signals": [],
+        "required_lenses": ["actor", "process", "outcome", "context"],
+        "optional_lenses": ["derived", "aggregate", "contradiction", "opponent"],
+        "claim_ceiling": "composite_candidate_only",
+        "blocked_language_families": [
+            "causal_truth",
+            "quality_truth",
+            "tactical_truth",
+            "coach_intention",
+            "future_expectation",
+            "population_effect",
+            "statistical_significance",
+        ],
+    }
+
+
+
+def _profile_metric_values(profile: dict[str, Any]) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    for dimension in (profile.get("function_dimensions") or {}).values():
+        if not isinstance(dimension, list):
+            continue
+        for row in dimension:
+            if not isinstance(row, dict):
+                continue
+            key = str(row.get("metric_key") or "").strip()
+            raw = row.get("raw_value")
+            if not key or raw in (None, "", "-"):
+                continue
+            values[key] = raw
+    return values
+
+
+def _bind_player_action_aggregate_context(
+    c02: dict[str, Any],
+    action_occurrence_payload: dict[str, Any],
+) -> dict[str, Any]:
+    profiles = [
+        row
+        for row in (c02.get("player_function_profiles") or [])
+        if isinstance(row, dict)
+    ]
+    shot_counts: Counter = Counter()
+    shot_labels: dict[str, Counter] = defaultdict(Counter)
+
+    for row in action_occurrence_payload.get("action_occurrence_candidates") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("occurrence_topology") or "") != "SINGLE_ACTOR_ACTION":
+            continue
+        if str(row.get("primary_family_candidate") or "").upper() != "SHOT":
+            continue
+        actor_ref = str(row.get("actor_identity_candidate_id") or "").strip()
+        if not actor_ref:
+            continue
+        shot_counts[actor_ref] += 1
+        for component in row.get("semantic_components") or []:
+            if not isinstance(component, dict):
+                continue
+            label = str(component.get("label") or "").strip()
+            if label:
+                shot_labels[actor_ref][label] += 1
+
+    state_counts: Counter = Counter()
+    context_count = 0
+    for profile in profiles:
+        actor_ref = str(profile.get("actor_identity_candidate_id") or "").strip()
+        metrics = _profile_metric_values(profile)
+        visible_shots = int(shot_counts.get(actor_ref, 0))
+        xlsx_shots_raw = metrics.get("shots")
+        xlsx_xg = metrics.get("xg_expected_goals")
+        xlsx_shots: int | None = None
+        try:
+            if xlsx_shots_raw is not None and not isinstance(xlsx_shots_raw, bool):
+                xlsx_shots = int(float(xlsx_shots_raw))
+        except (TypeError, ValueError):
+            xlsx_shots = None
+
+        if xlsx_shots is None:
+            state = "XLSX_SHOTS_NOT_OBSERVED"
+        elif visible_shots == xlsx_shots:
+            state = "VISIBLE_SHOT_OCCURRENCE_COUNT_EQUALS_XLSX_SHOTS_AGGREGATE_CANDIDATE"
+        elif visible_shots < xlsx_shots:
+            state = "VISIBLE_SHOT_OCCURRENCE_COVERAGE_BELOW_XLSX_SHOTS_REVIEW_REQUIRED"
+        else:
+            state = "VISIBLE_SHOT_OCCURRENCE_COUNT_EXCEEDS_XLSX_SHOTS_REVIEW_REQUIRED"
+
+        context = {
+            "visible_shot_occurrence_count": visible_shots,
+            "visible_shot_occurrence_label_counts": dict(
+                sorted(shot_labels.get(actor_ref, {}).items())
+            ),
+            "xlsx_shots_aggregate_candidate": xlsx_shots,
+            "xlsx_xg_aggregate_candidate": xlsx_xg,
+            "cross_surface_count_alignment_state": state,
+            "descriptive_cross_surface_count_alignment_assessed": (
+                xlsx_shots is not None
+            ),
+            "visible_shot_occurrence_count_is_complete_shot_universe": False,
+            "xlsx_shots_aggregate_is_true_action_count": False,
+            "xlsx_xg_is_occurrence_level_value": False,
+            "same_provider_cross_surface_is_independent_support": False,
+            "aggregate_creates_action_identity": False,
+            "metric_value_reconciliation_admitted": False,
+            "count_alignment_is_definition_equivalence": False,
+            "count_alignment_can_authorize_emit": False,
+            "claim_ceiling": "MATCH_LOCAL_PLAYER_ACTION_AGGREGATE_CONTEXT_ONLY",
+        }
+        profile["player_action_aggregate_context"] = context
+        context_count += 1
+        state_counts[state] += 1
+
+    c02["player_action_aggregate_context_profile_count"] = context_count
+    c02["player_action_aggregate_alignment_state_counts"] = dict(
+        sorted(state_counts.items())
+    )
+    c02["player_action_aggregate_context_creates_action_identity"] = False
+    c02["player_action_aggregate_context_is_independent_support"] = False
+    c02["player_action_aggregate_metric_reconciliation_admitted"] = False
+    c02["player_action_aggregate_count_alignment_is_definition_equivalence"] = False
+    return c02
 
 
 def _construct_c02(
@@ -677,7 +2628,7 @@ def _construct_c02(
             "status": "REVIEW_REQUIRED",
             "review_reason": "process_participation_upstream_fail_closed",
             "argument_candidates": [],
-            "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY",
         }
 
     actor_bindings, binding_reviews = _actor_xlsx_bindings(rows, identity_payload)
@@ -685,6 +2636,7 @@ def _construct_c02(
         row for row in (process_payload.get("process_participation_candidates") or [])
         if isinstance(row, dict)
     ]
+    player_function_profiles = _player_function_profiles(actor_bindings, raw)
     contexts: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
     participants: dict[tuple[str, str, str, str, str], set[str]] = defaultdict(set)
     for row in raw:
@@ -818,8 +2770,30 @@ def _construct_c02(
 
     all_actor_candidates.sort(key=priority)
     all_dyad_candidates.sort(key=priority)
+    for rank, row in enumerate(all_actor_candidates, start=1):
+        row["selection_scope"] = "ALL_C02_ACTOR_CANDIDATES_CURRENT_MATCH"
+        row["selection_candidate_pool_n"] = len(all_actor_candidates)
+        row["selection_rank"] = rank
+        row["selection_is_posthoc_attention_ranking"] = True
+        row["selection_is_stable_signal"] = False
+        row["no_p_value_eliminates_selection_multiplicity_risk"] = False
+    for rank, row in enumerate(all_dyad_candidates, start=1):
+        row["selection_scope"] = "ALL_C02_DYAD_CANDIDATES_CURRENT_MATCH"
+        row["selection_candidate_pool_n"] = len(all_dyad_candidates)
+        row["selection_rank"] = rank
+        row["selection_is_posthoc_attention_ranking"] = True
+        row["selection_is_stable_signal"] = False
+        row["no_p_value_eliminates_selection_multiplicity_risk"] = False
     representative_actor = all_actor_candidates[0] if all_actor_candidates else None
     representative_dyad = all_dyad_candidates[0] if all_dyad_candidates else None
+    packet_candidates = [
+        packet
+        for packet in (
+            _c02_packet_candidate(representative_actor),
+            _c02_packet_candidate(representative_dyad),
+        )
+        if packet is not None
+    ]
 
     return {
         "construct_id": "C02_PROCESS_PARTICIPANT_OUTCOME_ASSOCIATION",
@@ -835,7 +2809,17 @@ def _construct_c02(
         "argument_candidate_count": len(all_actor_candidates) + len(all_dyad_candidates),
         "representative_actor_argument": representative_actor,
         "representative_dyad_argument": representative_dyad,
+        "packet_candidates": packet_candidates,
+        "packet_candidate_count": len(packet_candidates),
+        "packet_candidates_create_new_evidence": False,
+        "packet_candidates_admit_independent_support": False,
+        "packet_candidates_can_authorize_emit": False,
         "xlsx_actor_binding_count": len(actor_bindings),
+        "player_function_profile_count": len(player_function_profiles),
+        "player_function_profiles": player_function_profiles,
+        "player_function_profile_dimensions": ["PROCESS", "ACCESS", "CREATION", "TERMINAL", "RECOVERY_LOSS"],
+        "player_function_profile_is_quality_score": False,
+        "player_function_profile_is_tactical_role_truth": False,
         "xlsx_binding_review_hits": binding_reviews,
         "process_participation_consumed": bool(raw),
         "observation_capability_coverage_profile": _c02_observation_capability_profile(),
@@ -853,7 +2837,17 @@ def _construct_c02(
         "epistemic_review_contract_version": "C02_ASSOCIATION_EPISTEMIC_REVIEW_V1",
         "epistemic_review_contract_creates_new_evidence": False,
         "epistemic_review_contract_can_authorize_emit": False,
-        "claim_ceiling": "MATCH_LOCAL_PROCESS_OUTCOME_ASSOCIATION_CANDIDATE_ONLY",
+        "selection_scope_actor_candidate_count": len(all_actor_candidates),
+        "selection_scope_dyad_candidate_count": len(all_dyad_candidates),
+        "selection_is_posthoc_attention_ranking": True,
+        "no_p_value_eliminates_selection_multiplicity_risk": False,
+        "ranked_extreme_is_stable_signal": False,
+        "outcome_must_not_define_its_own_eligible_denominator": True,
+        "minimum_support_threshold_is_evidence_strength_truth": False,
+        "shrunk_rate_is_observed_rate": False,
+        "exact_computation_is_valid_football_inference": False,
+        "cluster_aware_is_assumption_free": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_ASSOCIATION_ONLY",
         "c4_bridge_state": "DEFERRED_UNTIL_PROCESS_ASSOCIATION_ARGUMENT_FAMILY_IS_EXPLICITLY_ADMITTED",
     }
 
@@ -866,12 +2860,102 @@ def _as_number(value: Any) -> float | None:
         return None
 
 
+def _strict_post_final_third_entry_profile(layers: list[dict[str, Any]]) -> dict[str, Any]:
+    """Keep only activity strictly after a newly visible FINAL_THIRD access layer.
+
+    Activity co-located in the entry timestamp layer is intentionally excluded because
+    same-timestamp internal order is not admitted. This is a match-local visible
+    continuation profile, not tactical, causal, possession or chance-creation truth.
+    """
+    target = "FINAL_THIRD"
+    entry_indexes = [
+        idx
+        for idx, layer in enumerate(layers or [])
+        if target in {str(v) for v in (layer.get("provider_zone_candidates") or []) if v}
+    ]
+    if not entry_indexes:
+        return {
+            "status": "NOT_OBSERVED",
+            "target_zone_candidate": target,
+            "new_final_third_entry_visible": False,
+            "entry_temporal_layer_index_candidate": None,
+            "post_entry_observation_state": "NO_VISIBLE_FINAL_THIRD_ACCESS_LAYER",
+            "same_entry_layer_activity_is_post_entry_truth": False,
+            "no_strictly_later_visible_layer_is_failure": False,
+            "claim_ceiling": "MATCH_LOCAL_STRICTLY_LATER_POST_FINAL_THIRD_ENTRY_VISIBLE_ACTIVITY_CANDIDATE_ONLY",
+        }
+
+    first_index = entry_indexes[0]
+    if first_index == 0:
+        return {
+            "status": "NOT_ELIGIBLE_TARGET_ALREADY_VISIBLE_AT_PROCESS_START",
+            "target_zone_candidate": target,
+            "new_final_third_entry_visible": False,
+            "entry_temporal_layer_index_candidate": 0,
+            "post_entry_observation_state": "TARGET_ALREADY_VISIBLE_AT_PROCESS_START",
+            "same_entry_layer_activity_is_post_entry_truth": False,
+            "no_strictly_later_visible_layer_is_failure": False,
+            "claim_ceiling": "MATCH_LOCAL_STRICTLY_LATER_POST_FINAL_THIRD_ENTRY_VISIBLE_ACTIVITY_CANDIDATE_ONLY",
+        }
+
+    entry_layer = layers[first_index]
+    later_layers = layers[first_index + 1:]
+    later_actions = Counter(
+        str(value)
+        for layer in later_layers
+        for value in (layer.get("action_family_candidates") or [])
+        if value
+    )
+    later_consequences = Counter(
+        str(value)
+        for layer in later_layers
+        for value in (layer.get("primary_consequence_candidates") or [])
+        if value
+    )
+    entry_actions = sorted({
+        str(value) for value in (entry_layer.get("action_family_candidates") or []) if value
+    })
+    entry_consequences = sorted({
+        str(value) for value in (entry_layer.get("primary_consequence_candidates") or []) if value
+    })
+    return {
+        "status": "PASS",
+        "target_zone_candidate": target,
+        "new_final_third_entry_visible": True,
+        "entry_temporal_layer_index_candidate": first_index,
+        "entry_timestamp_candidate": entry_layer.get("timestamp_candidate"),
+        "entry_layer_action_family_candidates": entry_actions,
+        "entry_layer_primary_consequence_candidates": entry_consequences,
+        "strictly_later_temporal_layer_n": len(later_layers),
+        "strictly_later_action_family_layer_counts": dict(sorted(later_actions.items())),
+        "strictly_later_primary_consequence_candidate_counts": dict(sorted(later_consequences.items())),
+        "strictly_later_shot_action_layer_n": int(later_actions.get("SHOT", 0)),
+        "strictly_later_visible_activity_present": bool(later_actions or later_consequences),
+        "post_entry_observation_state": (
+            "STRICTLY_LATER_VISIBLE_ACTIVITY_PRESENT"
+            if later_actions or later_consequences
+            else "NO_STRICTLY_LATER_VISIBLE_ACTIVITY_WITHIN_PROCESS_WINDOW"
+        ),
+        "same_entry_layer_activity_is_post_entry_truth": False,
+        "no_strictly_later_visible_layer_is_failure": False,
+        "post_entry_activity_is_causal_consequence_truth": False,
+        "post_entry_activity_is_chance_creation_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_STRICTLY_LATER_POST_FINAL_THIRD_ENTRY_VISIBLE_ACTIVITY_CANDIDATE_ONLY",
+    }
+
+
 def _construct_c03(
     process_payload: dict[str, Any],
     occurrence_transition_payload: dict[str, Any],
     spatial_payload: dict[str, Any],
 ) -> dict[str, Any]:
     """Compose process intervals with admitted occurrence layers and annotation-anchor path candidates."""
+    provider_axis_state = str(spatial_payload.get("provider_team_relative_attack_axis_state") or "")
+    provider_attack_direction = str(spatial_payload.get("attack_direction") or "")
+    provider_axis_admitted = (
+        provider_axis_state == "ADMITTED"
+        and provider_attack_direction in {"ATTACK_POS_X", "ATTACK_NEG_X"}
+    )
     process_rows = [
         row for row in (process_payload.get("process_participation_candidates") or [])
         if isinstance(row, dict) and row.get("semantic_role") == "CONTEXT_INTERVAL"
@@ -993,14 +3077,30 @@ def _construct_c03(
             ax, ay = left_anchors[0]["x"], left_anchors[0]["y"]
             bx, by = right_anchors[0]["x"], right_anchors[0]["y"]
             dx, dy = bx - ax, by - ay
+            axis_delta = None
+            axis_direction_candidate = "UNRESOLVED"
+            if provider_axis_admitted:
+                axis_delta = dx if provider_attack_direction == "ATTACK_POS_X" else -dx
+                if axis_delta > 0:
+                    axis_direction_candidate = "FORWARD_PROVIDER_ATTACK_AXIS_CANDIDATE"
+                elif axis_delta < 0:
+                    axis_direction_candidate = "REARWARD_PROVIDER_ATTACK_AXIS_CANDIDATE"
+                else:
+                    axis_direction_candidate = "STABLE_PROVIDER_ATTACK_AXIS_CANDIDATE"
             segments.append({
                 "from_timestamp_candidate": left["timestamp_candidate"],
                 "to_timestamp_candidate": right["timestamp_candidate"],
                 "delta_x_provider_coordinate_candidate": dx,
                 "delta_y_provider_coordinate_candidate": dy,
+                "provider_attack_axis_longitudinal_delta_candidate": axis_delta,
+                "provider_attack_axis_direction_candidate": axis_direction_candidate,
+                "provider_attack_axis_admission_state": provider_axis_state,
+                "provider_attack_direction": provider_attack_direction or None,
                 "annotation_anchor_distance_provider_units_candidate": (dx * dx + dy * dy) ** 0.5,
                 "physical_distance_truth": False,
                 "physical_speed_truth": False,
+                "line_break_truth": False,
+                "ball_trajectory_truth": False,
             })
 
         complete_path = bool(layers) and len(segments) == max(0, len(layers) - 1) and all(
@@ -1043,6 +3143,24 @@ def _construct_c03(
             )
         start_zone_candidates = zone_layer_path_candidates[0] if zone_layer_path_candidates else []
         end_zone_candidates = zone_layer_path_candidates[-1] if zone_layer_path_candidates else []
+        zone_transition_candidates = []
+        for left_layer, right_layer in zip(layers, layers[1:]):
+            left_zones = [str(v) for v in (left_layer.get("provider_zone_candidates") or []) if v]
+            right_zones = [str(v) for v in (right_layer.get("provider_zone_candidates") or []) if v]
+            if len(left_zones) != 1 or len(right_zones) != 1:
+                continue
+            if left_zones[0] == right_zones[0]:
+                continue
+            zone_transition_candidates.append({
+                "from_zone_candidate": left_zones[0],
+                "to_zone_candidate": right_zones[0],
+                "from_timestamp_candidate": left_layer.get("timestamp_candidate"),
+                "to_timestamp_candidate": right_layer.get("timestamp_candidate"),
+                "ordering_basis": "STRICTLY_ORDERED_TEMPORAL_LAYERS",
+                "progression_truth": False,
+                "line_break_truth": False,
+                "physical_ball_path_truth": False,
+            })
         pass_layer_n = int(action_family_layer_counts.get("PASS", 0))
         carry_layer_n = int(action_family_layer_counts.get("CARRY", 0))
         pass_carry_total = pass_layer_n + carry_layer_n
@@ -1055,6 +3173,82 @@ def _construct_c03(
             "denominator_basis": "ACTION_FAMILY_PRESENCE_PER_TEMPORAL_LAYER",
             "physical_touch_count_truth": False,
         }
+
+        on_ball_families = {"PASS", "CARRY", "DRIBBLE", "SHOT", "RESTART"}
+        on_ball_layers = [
+            layer for layer in layers
+            if on_ball_families.intersection(set(layer.get("action_family_candidates") or []))
+        ]
+        on_ball_family_layer_counts = {
+            family: int(action_family_layer_counts.get(family, 0))
+            for family in sorted(on_ball_families)
+            if action_family_layer_counts.get(family, 0)
+        }
+        actor_family_layer_counts: Counter[tuple[str, str]] = Counter()
+        unresolved_actor_family_layer_n = 0
+        for layer in on_ball_layers:
+            layer_pairs: set[tuple[str, str]] = set()
+            layer_unresolved = False
+            for occurrence_id in layer.get("occurrence_ids") or []:
+                matched_occurrence_rows = [
+                    row for _, row in matched
+                    if str(row.get("action_occurrence_candidate_id") or "") == str(occurrence_id)
+                ]
+                for occurrence_row in matched_occurrence_rows:
+                    actors = [str(value) for value in (occurrence_row.get("actor_identity_candidate_ids") or []) if value]
+                    families = [str(value) for value in (occurrence_row.get("action_family_candidates") or []) if value and str(value) in on_ball_families]
+                    if len(actors) == 1 and len(families) == 1:
+                        layer_pairs.add((actors[0], families[0]))
+                    elif actors or families:
+                        layer_unresolved = True
+            for pair in layer_pairs:
+                actor_family_layer_counts[pair] += 1
+            if layer_unresolved:
+                unresolved_actor_family_layer_n += 1
+
+        on_ball_profile = {
+            "visible_on_ball_temporal_layer_n": len(on_ball_layers),
+            "visible_on_ball_family_layer_counts": on_ball_family_layer_counts,
+            "visible_on_ball_actor_candidate_n": len({
+                str(actor_id)
+                for layer in on_ball_layers
+                for actor_id in (layer.get("actor_identity_candidate_ids") or [])
+                if actor_id
+            }),
+            "actor_family_temporal_layer_participation_candidates": [
+                {
+                    "actor_identity_candidate_id": actor_id,
+                    "action_family_candidate": family,
+                    "temporal_layer_n": count,
+                    "eligible_on_ball_temporal_layer_n": len(on_ball_layers),
+                    "temporal_layer_share_candidate": (count / len(on_ball_layers)) if on_ball_layers else None,
+                    "causal_process_credit_truth": False,
+                    "physical_touch_count_truth": False,
+                }
+                for (actor_id, family), count in sorted(actor_family_layer_counts.items())
+            ],
+            "actor_family_unresolved_temporal_layer_n": unresolved_actor_family_layer_n,
+            "actor_family_binding_basis": "UNAMBIGUOUS_OCCURRENCE_LEVEL_ACTOR_AND_ON_BALL_FAMILY_WITH_TEMPORAL_LAYER_DEDUP",
+            "actor_family_participation_is_causal_process_credit": False,
+            "eligible_family_basis": sorted(on_ball_families),
+            "same_timestamp_multi_family_is_not_multiple_touch_truth": True,
+            "temporal_layer_is_not_physical_touch": True,
+            "event_coordinate_is_not_ball_trajectory": True,
+            "absence_of_family_is_not_absence_of_physical_action": True,
+            "claim_ceiling": "VISIBLE_ON_BALL_EVENT_FAMILY_PROFILE_CANDIDATE_ONLY",
+        }
+
+
+        axis_deltas = [
+            segment.get("provider_attack_axis_longitudinal_delta_candidate")
+            for segment in segments
+            if isinstance(segment.get("provider_attack_axis_longitudinal_delta_candidate"), (int, float))
+        ]
+        provider_axis_net_longitudinal_delta = sum(axis_deltas) if axis_deltas else None
+        provider_axis_direction_counts = Counter(
+            str(segment.get("provider_attack_axis_direction_candidate") or "UNRESOLVED")
+            for segment in segments
+        )
 
         signatures.append({
             "process_development_signature_id": "pds_" + hashlib.sha256(
@@ -1078,9 +3272,15 @@ def _construct_c03(
             "unique_actor_identity_candidate_ids": sorted(unique_actor_ids),
             "action_family_layer_counts": dict(sorted(action_family_layer_counts.items())),
             "pass_carry_layer_mix": pass_carry_mix,
+            "visible_on_ball_profile": on_ball_profile,
             "process_start_zone_candidates": start_zone_candidates,
             "process_end_zone_candidates": end_zone_candidates,
             "zone_layer_path_candidates": zone_layer_path_candidates,
+            "visible_zone_transition_candidate_n": len(zone_transition_candidates),
+            "visible_zone_transition_candidates": zone_transition_candidates,
+            "zone_transition_is_progression_truth": False,
+            "zone_transition_is_line_break_truth": False,
+            "strict_post_final_third_entry_profile": _strict_post_final_third_entry_profile(layers),
             "transition_class_candidates_observed": sorted(transition_classes),
             "provider_outcome_candidates_observed": sorted(provider_outcomes),
             "primary_consequence_candidates_observed": sorted(primary_consequences),
@@ -1108,6 +3308,14 @@ def _construct_c03(
             "annotation_anchor_segment_distance_sum_provider_units_candidate": cumulative if segments else None,
             "annotation_anchor_net_displacement_provider_units_candidate": net,
             "annotation_anchor_path_directness_candidate": directness,
+            "provider_attack_axis_state": provider_axis_state,
+            "provider_attack_direction": provider_attack_direction or None,
+            "provider_attack_axis_admitted": provider_axis_admitted,
+            "provider_attack_axis_net_longitudinal_delta_candidate": provider_axis_net_longitudinal_delta,
+            "provider_attack_axis_direction_counts": dict(sorted(provider_axis_direction_counts.items())),
+            "provider_attack_axis_delta_is_physical_displacement": False,
+            "provider_attack_axis_direction_is_line_break_truth": False,
+            "provider_attack_axis_direction_is_tactical_progression_truth": False,
             "annotation_anchor_path_is_physical_trajectory": False,
             "annotation_anchor_distance_is_physical_travel_distance": False,
             "process_interval_duration_is_generic_action_duration": False,
@@ -1119,11 +3327,660 @@ def _construct_c03(
             "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_DEVELOPMENT_SIGNATURE_CANDIDATE_ONLY",
         })
 
+    process_motif_family_candidates: list[dict[str, Any]] = []
+    motif_members: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+
+    def _motif_length_bucket(value: Any) -> str:
+        n = int(value or 0)
+        if n <= 2:
+            return "SHORT_0_2_LAYERS"
+        if n <= 5:
+            return "MEDIUM_3_5_LAYERS"
+        return "LONG_6_PLUS_LAYERS"
+
+    def _motif_pass_carry_style(signature: dict[str, Any]) -> str:
+        value = _as_number((signature.get("pass_carry_layer_mix") or {}).get("pass_share_candidate"))
+        if value is None:
+            return "NO_PASS_CARRY_BASIS"
+        if value >= 0.85:
+            return "PASS_DOMINANT"
+        if value >= 0.50:
+            return "MIXED_PASS_CARRY"
+        return "CARRY_DOMINANT"
+
+    def _motif_action_presence(signature: dict[str, Any]) -> tuple[str, ...]:
+        excluded = {"SHOT", "GOAL", "TURNOVER", "RECOVERY"}
+        return tuple(sorted(
+            str(family)
+            for family, count in (signature.get("action_family_layer_counts") or {}).items()
+            if count and str(family) not in excluded
+        ))
+
+    def _motif_route_hint(signature: dict[str, Any]) -> str:
+        starts = [str(v) for v in (signature.get("process_start_zone_candidates") or []) if v]
+        ends = [str(v) for v in (signature.get("process_end_zone_candidates") or []) if v]
+        if len(starts) == 1 and len(ends) == 1:
+            return f"{starts[0]}->{ends[0]}"
+        return "NO_UNAMBIGUOUS_ROUTE_HINT"
+
+    for signature in signatures:
+        team_id = str(signature.get("team_identity_candidate_id") or "")
+        family_id = str(signature.get("process_family_candidate") or "UNKNOWN")
+        if not team_id:
+            continue
+        morphology = {
+            "length_bucket": _motif_length_bucket(signature.get("temporal_layer_n")),
+            "action_family_presence": list(_motif_action_presence(signature)),
+            "pass_carry_style": _motif_pass_carry_style(signature),
+            "route_hint": _motif_route_hint(signature),
+        }
+        morphology_key = json.dumps(morphology, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+        motif_members[(team_id, family_id, morphology_key)].append(signature)
+
+    for (team_id, family_id, morphology_key), rows in sorted(motif_members.items()):
+        morphology = json.loads(morphology_key)
+        shot_n = sum(row.get("shot_present_annotation_candidate") is True for row in rows)
+        loss_n = sum(bool(row.get("visible_loss_transition_candidate_present")) for row in rows)
+        recovery_n = sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in rows)
+        periods = sorted({str(row.get("period_candidate") or "") for row in rows if row.get("period_candidate")})
+        durations = [_as_number(row.get("process_interval_duration_candidate")) for row in rows]
+        durations = [v for v in durations if v is not None]
+        actor_spreads = [_as_number(row.get("unique_actor_candidate_n")) for row in rows]
+        actor_spreads = [v for v in actor_spreads if v is not None]
+        temporal_layers = [_as_number(row.get("temporal_layer_n")) for row in rows]
+        temporal_layers = [v for v in temporal_layers if v is not None]
+        representative = max(
+            rows,
+            key=lambda row: (
+                int(row.get("temporal_layer_n") or 0),
+                int(row.get("unique_actor_candidate_n") or 0),
+                float(row.get("process_interval_duration_candidate") or 0.0),
+            ),
+        )
+        motif_id = "pmf_" + hashlib.sha256(
+            f"{team_id}|{family_id}|{morphology_key}".encode()
+        ).hexdigest()[:24]
+
+        def _variant_context(row: dict[str, Any]) -> str:
+            shot = row.get("shot_present_annotation_candidate") is True
+            loss = bool(row.get("visible_loss_transition_candidate_present"))
+            recovery = bool(row.get("visible_recovery_transition_candidate_present"))
+            if shot and loss:
+                return "SHOT_AND_LOSS_VISIBLE"
+            if shot:
+                return "SHOT_LINKED"
+            if loss:
+                return "LOSS_LINKED"
+            if recovery:
+                return "RECOVERY_LINKED"
+            return "OTHER_VISIBLE"
+
+        synthetic_variants = []
+        variant_context_by_id: dict[str, str] = {}
+        for row in rows:
+            variant_id = str(row.get("process_development_signature_id") or "")
+            if not variant_id:
+                continue
+            layer_refs = [f"{variant_id}:L{idx}" for idx, _ in enumerate(row.get("layers") or [])]
+            node_records = []
+            for idx, layer in enumerate(row.get("layers") or []):
+                node_records.append({
+                    "time_layer_ref": layer_refs[idx],
+                    "action_family_candidates": [str(v) for v in (layer.get("action_family_candidates") or []) if v],
+                })
+            edge_relations = [
+                {
+                    "from_time_layer_ref": layer_refs[idx],
+                    "to_time_layer_ref": layer_refs[idx + 1],
+                    "relation": "BEFORE_CONFIRMED",
+                }
+                for idx in range(max(0, len(layer_refs) - 1))
+            ]
+            synthetic_variants.append({
+                "partial_order_occurrence_variant_id": variant_id,
+                "time_layer_refs": layer_refs,
+                "node_records": node_records,
+                "edge_relations": edge_relations,
+            })
+            variant_context_by_id[variant_id] = _variant_context(row)
+
+        synthetic_pairs = []
+        for left, right in combinations(synthetic_variants, 2):
+            left_id = str(left.get("partial_order_occurrence_variant_id") or "")
+            right_id = str(right.get("partial_order_occurrence_variant_id") or "")
+            left_context = variant_context_by_id.get(left_id, "OTHER_VISIBLE")
+            right_context = variant_context_by_id.get(right_id, "OTHER_VISIBLE")
+            if left_context == right_context:
+                continue
+            synthetic_pairs.append({
+                "partial_order_similarity_pair_id": "motif_pair_" + hashlib.sha256(
+                    f"{motif_id}|{left_id}|{right_id}".encode()
+                ).hexdigest()[:24],
+                "left_variant_ref": left_id,
+                "right_variant_ref": right_id,
+                "comparison_eligible": True,
+                "comparison_eligibility_state": "SAME_OUTCOME_INDEPENDENT_MOTIF_DIFFERENT_VISIBLE_VARIANT_CONTEXT",
+                "outcome_used_in_similarity_decision": False,
+            })
+
+        divergence_alignment = None
+        divergence_candidates = []
+        if len(synthetic_variants) >= 2 and synthetic_pairs:
+            alignment_report = build_supported_sequence_grammar_alignment({
+                "partial_order_occurrence_variants": synthetic_variants,
+                "dependency_aware_partial_order_similarity_pairs": synthetic_pairs,
+                "dependency_aware_partial_order_similarity_status": "PASS",
+                "outcome_used_in_similarity_decision": False,
+                "same_timestamp_internal_ordering_allowed": False,
+                "source_row_order_is_temporal_truth": False,
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            })
+            divergence_candidates = [
+                row for row in (alignment_report.get("supported_sequence_grammar_alignments") or [])
+                if isinstance(row, dict) and row.get("first_supported_grammar_divergence") is not None
+            ]
+            if divergence_candidates:
+                divergence_candidates.sort(key=lambda row: (
+                    float(row.get("grammar_edit_distance_normalized") or 999.0),
+                    -float(row.get("common_core_symmetric_coverage") or 0.0),
+                    str(row.get("supported_sequence_grammar_alignment_id") or ""),
+                ))
+                chosen = divergence_candidates[0]
+                left_id = str(chosen.get("left_variant_ref") or "")
+                right_id = str(chosen.get("right_variant_ref") or "")
+                divergence_alignment = {
+                    "alignment_ref": chosen.get("supported_sequence_grammar_alignment_id"),
+                    "left_process_development_signature_id": left_id,
+                    "right_process_development_signature_id": right_id,
+                    "left_variant_context": variant_context_by_id.get(left_id),
+                    "right_variant_context": variant_context_by_id.get(right_id),
+                    "supported_common_core_tokens": chosen.get("supported_common_core_tokens") or [],
+                    "supported_common_core_layer_count": chosen.get("supported_common_core_layer_count"),
+                    "common_core_symmetric_coverage": chosen.get("common_core_symmetric_coverage"),
+                    "grammar_edit_distance": chosen.get("grammar_edit_distance"),
+                    "grammar_edit_distance_normalized": chosen.get("grammar_edit_distance_normalized"),
+                    "first_supported_grammar_divergence": chosen.get("first_supported_grammar_divergence"),
+                    "contrast_pair_selected_within_outcome_independent_motif": True,
+                    "contrast_pair_outcome_context_is_not_similarity_basis": True,
+                    "first_divergence_is_causal_breakpoint_truth": False,
+                    "first_divergence_is_tactical_failure_truth": False,
+                    "claim_ceiling": "MATCH_LOCAL_VISIBLE_GRAMMAR_DIVERGENCE_CANDIDATE_ONLY",
+                }
+
+        process_motif_family_candidates.append({
+            "process_motif_family_candidate_id": motif_id,
+            "team_identity_candidate_id": team_id,
+            "process_family_candidate": family_id,
+            "morphology_signature": morphology,
+            "member_process_n": len(rows),
+            "member_process_development_signature_ids": sorted(
+                str(row.get("process_development_signature_id") or "")
+                for row in rows
+                if str(row.get("process_development_signature_id") or "")
+            ),
+            "recurring_motif_candidate": len(rows) >= 2,
+            "period_spread_candidates": periods,
+            "shot_variant_n": shot_n,
+            "non_shot_variant_n": len(rows) - shot_n,
+            "visible_loss_variant_n": loss_n,
+            "visible_recovery_variant_n": recovery_n,
+            "mean_duration_candidate": (sum(durations) / len(durations)) if durations else None,
+            "mean_actor_spread_candidate": (sum(actor_spreads) / len(actor_spreads)) if actor_spreads else None,
+            "mean_temporal_layer_n": (sum(temporal_layers) / len(temporal_layers)) if temporal_layers else None,
+            "representative_process_development_signature_id": representative.get("process_development_signature_id"),
+            "representative_process_start_candidate": representative.get("process_start_candidate"),
+            "representative_process_end_candidate": representative.get("process_end_candidate"),
+            "representative_start_zone_candidates": representative.get("process_start_zone_candidates") or [],
+            "representative_end_zone_candidates": representative.get("process_end_zone_candidates") or [],
+            "outcome_fields_participate_in_motif_identity": False,
+            "same_motif_outcomes_are_variant_context_only": True,
+            "member_variant_context_counts": dict(sorted(Counter(variant_context_by_id.values()).items())),
+            "divergent_variant_contrast_pair_candidate_n": len(divergence_candidates),
+            "representative_first_supported_grammar_divergence": divergence_alignment,
+            "motif_similarity_basis": "EXACT_MATCH_ON_OUTCOME_INDEPENDENT_VISIBLE_MORPHOLOGY_SIGNATURE",
+            "motif_is_tactical_pattern_truth": False,
+            "motif_is_coach_intention_truth": False,
+            "motif_is_physical_trajectory_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_RECURRING_VISIBLE_PROCESS_MOTIF_CANDIDATE_ONLY",
+        })
+
+    motif_index: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for motif in process_motif_family_candidates:
+        motif_index[(
+            str(motif.get("team_identity_candidate_id") or ""),
+            str(motif.get("process_family_candidate") or ""),
+        )].append(motif)
+    for rows in motif_index.values():
+        rows.sort(key=lambda row: (-int(row.get("member_process_n") or 0), str(row.get("process_motif_family_candidate_id") or "")))
+
+    process_motif_neighborhood_candidates: list[dict[str, Any]] = []
+    singleton_process_motif_with_recurring_neighbor_ids: set[str] = set()
+    length_bucket_order = {
+        "SHORT_0_2_LAYERS": 0,
+        "MEDIUM_3_5_LAYERS": 1,
+        "LONG_6_PLUS_LAYERS": 2,
+    }
+
+    for (team_id, family_id), rows in sorted(motif_index.items()):
+        for left_idx, left in enumerate(rows):
+            left_morphology = left.get("morphology_signature") or {}
+            for right in rows[left_idx + 1:]:
+                right_morphology = right.get("morphology_signature") or {}
+
+                if left_morphology.get("route_hint") != right_morphology.get("route_hint"):
+                    continue
+                if left_morphology.get("pass_carry_style") != right_morphology.get("pass_carry_style"):
+                    continue
+
+                left_actions = set(str(v) for v in (left_morphology.get("action_family_presence") or []))
+                right_actions = set(str(v) for v in (right_morphology.get("action_family_presence") or []))
+                left_length = str(left_morphology.get("length_bucket") or "")
+                right_length = str(right_morphology.get("length_bucket") or "")
+
+                neighborhood_basis = None
+                action_family_delta = sorted(left_actions.symmetric_difference(right_actions))
+                if (
+                    left_actions == right_actions
+                    and left_length in length_bucket_order
+                    and right_length in length_bucket_order
+                    and abs(length_bucket_order[left_length] - length_bucket_order[right_length]) == 1
+                ):
+                    neighborhood_basis = "ADJACENT_LENGTH_BUCKET_SAME_ACTION_SET"
+                elif (
+                    left_length == right_length
+                    and len(action_family_delta) == 1
+                ):
+                    neighborhood_basis = "ONE_ACTION_FAMILY_DELTA_SAME_LENGTH_BUCKET"
+
+                if neighborhood_basis is None:
+                    continue
+
+                left_id = str(left.get("process_motif_family_candidate_id") or "")
+                right_id = str(right.get("process_motif_family_candidate_id") or "")
+                left_member_n = int(left.get("member_process_n") or 0)
+                right_member_n = int(right.get("member_process_n") or 0)
+                if left_member_n == 1 and right_member_n >= 2:
+                    singleton_process_motif_with_recurring_neighbor_ids.add(left_id)
+                if right_member_n == 1 and left_member_n >= 2:
+                    singleton_process_motif_with_recurring_neighbor_ids.add(right_id)
+
+                process_motif_neighborhood_candidates.append({
+                    "process_motif_neighborhood_candidate_id": "pmn_" + hashlib.sha256(
+                        f"{left_id}|{right_id}|{neighborhood_basis}".encode()
+                    ).hexdigest()[:24],
+                    "team_identity_candidate_id": team_id,
+                    "process_family_candidate": family_id,
+                    "left_process_motif_family_candidate_id": left_id,
+                    "right_process_motif_family_candidate_id": right_id,
+                    "left_member_process_n": left_member_n,
+                    "right_member_process_n": right_member_n,
+                    "neighborhood_basis": neighborhood_basis,
+                    "shared_route_hint": left_morphology.get("route_hint"),
+                    "shared_pass_carry_style": left_morphology.get("pass_carry_style"),
+                    "left_length_bucket": left_length,
+                    "right_length_bucket": right_length,
+                    "action_family_delta": action_family_delta,
+                    "left_mean_duration_candidate": left.get("mean_duration_candidate"),
+                    "right_mean_duration_candidate": right.get("mean_duration_candidate"),
+                    "left_mean_actor_spread_candidate": left.get("mean_actor_spread_candidate"),
+                    "right_mean_actor_spread_candidate": right.get("mean_actor_spread_candidate"),
+                    "exact_motif_identity_changed": False,
+                    "recurrence_support_created": False,
+                    "independent_support_created": False,
+                    "similarity_is_tactical_pattern_truth": False,
+                    "similarity_is_coach_intention_truth": False,
+                    "similarity_is_causal_equivalence_truth": False,
+                    "outcome_participates_in_neighborhood_identity": False,
+                    "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_MORPHOLOGY_NEIGHBOR_CANDIDATE_ONLY",
+                })
+
+    team_process_profiles: list[dict[str, Any]] = []
+    by_team_family: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for signature in signatures:
+        team_id = str(signature.get("team_identity_candidate_id") or "")
+        family_id = str(signature.get("process_family_candidate") or "UNKNOWN")
+        if team_id:
+            by_team_family[(team_id, family_id)].append(signature)
+
+    for (team_id, family_id), team_rows in sorted(by_team_family.items()):
+        shot_n = sum(row.get("shot_present_annotation_candidate") is True for row in team_rows)
+        loss_n = sum(bool(row.get("visible_loss_transition_candidate_present")) for row in team_rows)
+        recovery_n = sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in team_rows)
+
+        response_presence_keys = (
+            "OPPONENT_HANDOVER_CANDIDATE",
+            "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE",
+            "SAME_TEAM_CONTINUATION_CANDIDATE",
+            "MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE",
+            "NO_VISIBLE_FOLLOW_UP_CANDIDATE",
+            "BREAKDOWN_WITH_UNCERTAIN_VISIBLE_RESPONSE_CANDIDATE",
+        )
+        response_process_presence_counts = {
+            key: sum(
+                key in set(str(v) for v in (row.get("primary_consequence_candidates_observed") or []))
+                for row in team_rows
+            )
+            for key in response_presence_keys
+        }
+        visible_consequence_response_profile = {
+            "eligible_process_n": len(team_rows),
+            "process_presence_counts": dict(sorted(response_process_presence_counts.items())),
+            "process_presence_shares": {
+                key: (count / len(team_rows)) if team_rows else None
+                for key, count in sorted(response_process_presence_counts.items())
+            },
+            "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
+            "counts_are_process_presence_not_occurrence_volume": True,
+            "categories_are_mutually_exclusive": False,
+            "opponent_handover_is_forced_turnover_truth": False,
+            "opponent_takeover_is_pressure_success_truth": False,
+            "same_team_continuation_is_control_truth": False,
+            "mixed_team_same_time_is_ordered_response_truth": False,
+            "no_visible_followup_is_failure": False,
+            "profile_is_opponent_tactical_response_truth": False,
+            "profile_is_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_CONSEQUENCE_RESPONSE_PROFILE_CANDIDATE_ONLY",
+        }
+        actor_values = [
+            int(row.get("unique_actor_candidate_n") or 0)
+            for row in team_rows
+            if row.get("unique_actor_candidate_n") is not None
+        ]
+        layer_values = [
+            int(row.get("temporal_layer_n") or 0)
+            for row in team_rows
+            if row.get("temporal_layer_n") is not None
+        ]
+        team_process_profiles.append({
+            "team_identity_candidate_id": team_id,
+            "process_family_candidate": family_id,
+            "eligible_process_n": len(team_rows),
+            "shot_ending_process_n": shot_n,
+            "shot_ending_share_candidate": shot_n / len(team_rows),
+            "visible_loss_process_n": loss_n,
+            "visible_loss_share_candidate": loss_n / len(team_rows),
+            "visible_recovery_process_n": recovery_n,
+            "visible_recovery_share_candidate": recovery_n / len(team_rows),
+            "visible_consequence_response_profile": visible_consequence_response_profile,
+            "mean_actor_spread_candidate": (sum(actor_values) / len(actor_values)) if actor_values else None,
+            "mean_temporal_layer_n": (sum(layer_values) / len(layer_values)) if layer_values else None,
+            "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
+            "profile_is_team_quality_truth": False,
+            "profile_is_opponent_response_truth": False,
+            "profile_is_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_TEAM_PROCESS_PROFILE_CANDIDATE_ONLY",
+        })
+
+    team_ids = sorted({str(row.get("team_identity_candidate_id") or "") for row in signatures if row.get("team_identity_candidate_id")})
+    reciprocal_team_process_comparisons: list[dict[str, Any]] = []
+    if len(team_ids) == 2:
+        team_a, team_b = team_ids
+        families = sorted({str(row.get("process_family_candidate") or "UNKNOWN") for row in signatures})
+        profile_index = {
+            (row["team_identity_candidate_id"], row["process_family_candidate"]): row
+            for row in team_process_profiles
+        }
+        for family_id in families:
+            a = profile_index.get((team_a, family_id))
+            b = profile_index.get((team_b, family_id))
+            if not a or not b:
+                continue
+            reciprocal_team_process_comparisons.append({
+                "process_family_candidate": family_id,
+                "team_a_identity_candidate_id": team_a,
+                "team_b_identity_candidate_id": team_b,
+                "team_a_profile": a,
+                "team_b_profile": b,
+                "comparison_basis": "SAME_MATCH_SAME_PROCESS_FAMILY_DESCRIPTIVE_PROFILE",
+                "difference_is_opponent_response_truth": False,
+                "difference_is_tactical_superiority_truth": False,
+                "difference_is_causal_truth": False,
+                "independent_support_created": False,
+                "claim_ceiling": "MATCH_LOCAL_RECIPROCAL_TEAM_PROCESS_COMPARISON_CANDIDATE_ONLY",
+            })
+
+    six_phase_team_matrix: list[dict[str, Any]] = []
+    if len(team_ids) == 2:
+        profile_index = {
+            (row["team_identity_candidate_id"], row["process_family_candidate"]): row
+            for row in team_process_profiles
+        }
+        phase_specs = (
+            ("ESTABLISHED_ATTACK", "ATTACK", "POSITIONAL_ATTACK_CANDIDATE", "ESTABLISHED_DEFENCE"),
+            ("ATTACKING_TRANSITION", "ATTACK", "COUNTERATTACK_CANDIDATE", "DEFENSIVE_TRANSITION"),
+            ("ATTACKING_SET_PIECE", "ATTACK", "SET_PIECE_ATTACK_CANDIDATE", "DEFENSIVE_SET_PIECE"),
+            ("ESTABLISHED_DEFENCE", "DEFENCE", "POSITIONAL_ATTACK_CANDIDATE", "ESTABLISHED_ATTACK"),
+            ("DEFENSIVE_TRANSITION", "DEFENCE", "COUNTERATTACK_CANDIDATE", "ATTACKING_TRANSITION"),
+            ("DEFENSIVE_SET_PIECE", "DEFENCE", "SET_PIECE_ATTACK_CANDIDATE", "ATTACKING_SET_PIECE"),
+        )
+        for team_id in team_ids:
+            opponent_id = team_ids[1] if team_id == team_ids[0] else team_ids[0]
+            for phase_slot, perspective, family_id, reciprocal_slot in phase_specs:
+                source_team_id = team_id if perspective == "ATTACK" else opponent_id
+                profile = profile_index.get((source_team_id, family_id))
+                observed = isinstance(profile, dict)
+                source_rows = by_team_family.get((source_team_id, family_id), [])
+
+                def _mean_signature(key: str) -> float | None:
+                    values = [_as_number(row.get(key)) for row in source_rows]
+                    observed_values = [value for value in values if value is not None]
+                    return (sum(observed_values) / len(observed_values)) if observed_values else None
+
+                start_zone_counts: Counter[str] = Counter()
+                end_zone_counts: Counter[str] = Counter()
+                for signature in source_rows:
+                    start_zones = [str(v) for v in (signature.get("process_start_zone_candidates") or []) if v]
+                    end_zones = [str(v) for v in (signature.get("process_end_zone_candidates") or []) if v]
+                    if len(start_zones) == 1:
+                        start_zone_counts[start_zones[0]] += 1
+                    if len(end_zones) == 1:
+                        end_zone_counts[end_zones[0]] += 1
+
+                shot_rows = [row for row in source_rows if row.get("shot_present_annotation_candidate") is True]
+                non_shot_rows = [row for row in source_rows if row.get("shot_present_annotation_candidate") is not True]
+                loss_rows = [row for row in source_rows if row.get("visible_loss_transition_candidate_present")]
+
+                def _representative(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+                    if not rows:
+                        return None
+                    row = max(
+                        rows,
+                        key=lambda item: (
+                            int(item.get("temporal_layer_n") or 0),
+                            int(item.get("unique_actor_candidate_n") or 0),
+                            float(item.get("process_interval_duration_candidate") or 0.0),
+                        ),
+                    )
+                    return {
+                        "process_development_signature_id": row.get("process_development_signature_id"),
+                        "period_candidate": row.get("period_candidate"),
+                        "process_start_candidate": row.get("process_start_candidate"),
+                        "process_end_candidate": row.get("process_end_candidate"),
+                        "duration_candidate": row.get("process_interval_duration_candidate"),
+                        "temporal_layer_n": row.get("temporal_layer_n"),
+                        "unique_actor_candidate_n": row.get("unique_actor_candidate_n"),
+                        "start_zone_candidates": row.get("process_start_zone_candidates") or [],
+                        "end_zone_candidates": row.get("process_end_zone_candidates") or [],
+                        "action_family_layer_counts": row.get("action_family_layer_counts") or {},
+                        "pass_carry_layer_mix": row.get("pass_carry_layer_mix") or {},
+                        "visible_zone_transition_candidate_n": row.get("visible_zone_transition_candidate_n"),
+                        "visible_loss_transition_candidate_present": bool(row.get("visible_loss_transition_candidate_present")),
+                        "visible_recovery_transition_candidate_present": bool(row.get("visible_recovery_transition_candidate_present")),
+                        "shot_present_annotation_candidate": row.get("shot_present_annotation_candidate") is True,
+                        "replay_is_physical_trajectory_truth": False,
+                    }
+
+                six_phase_team_matrix.append({
+                    "team_identity_candidate_id": team_id,
+                    "opponent_team_identity_candidate_id": opponent_id,
+                    "canonical_phase_slot": phase_slot,
+                    "reciprocal_phase_slot": reciprocal_slot,
+                    "perspective": perspective,
+                    "source_process_family_candidate": family_id,
+                    "source_process_profile_team_identity_candidate_id": source_team_id,
+                    "observation_state": "VISIBLE_PROCESS_PROFILE_AVAILABLE" if observed else "UNOBSERVABLE_WITH_CURRENT_DATA",
+                    "eligible_process_n": int(profile.get("eligible_process_n") or 0) if observed else None,
+                    "shot_ending_process_n": int(profile.get("shot_ending_process_n") or 0) if observed else None,
+                    "visible_loss_process_n": int(profile.get("visible_loss_process_n") or 0) if observed else None,
+                    "visible_recovery_process_n": int(profile.get("visible_recovery_process_n") or 0) if observed else None,
+                    "shot_ending_share_candidate": profile.get("shot_ending_share_candidate") if observed else None,
+                    "visible_loss_share_candidate": profile.get("visible_loss_share_candidate") if observed else None,
+                    "visible_recovery_share_candidate": profile.get("visible_recovery_share_candidate") if observed else None,
+                    "mean_actor_spread_candidate": profile.get("mean_actor_spread_candidate") if observed else None,
+                    "mean_temporal_layer_n": profile.get("mean_temporal_layer_n") if observed else None,
+                    "mean_duration_candidate": _mean_signature("process_interval_duration_candidate") if observed else None,
+                    "mean_visible_zone_transition_candidate_n": _mean_signature("visible_zone_transition_candidate_n") if observed else None,
+                    "single_start_zone_process_n": sum(start_zone_counts.values()) if observed else None,
+                    "single_start_zone_distribution": dict(sorted(start_zone_counts.items())) if observed else {},
+                    "single_end_zone_process_n": sum(end_zone_counts.values()) if observed else None,
+                    "single_end_zone_distribution": dict(sorted(end_zone_counts.items())) if observed else {},
+                    "shot_variant_n": len(shot_rows) if observed else None,
+                    "non_shot_variant_n": len(non_shot_rows) if observed else None,
+                    "loss_variant_n": len(loss_rows) if observed else None,
+                    "representative_shot_process": _representative(shot_rows) if observed else None,
+                    "representative_non_shot_process": _representative(non_shot_rows) if observed else None,
+                    "representative_loss_process": _representative(loss_rows) if observed else None,
+                    "anatomy_basis": "ADMITTED_MATCH_LOCAL_PROCESS_DEVELOPMENT_SIGNATURES",
+                    "anatomy_is_physical_trajectory_truth": False,
+                    "recurring_process_motif_family_count": sum(
+                        bool(row.get("recurring_motif_candidate")) for row in motif_index.get((source_team_id, family_id), [])
+                    ),
+                    "recurring_process_motif_covered_process_n": sum(
+                        int(row.get("member_process_n") or 0)
+                        for row in motif_index.get((source_team_id, family_id), [])
+                        if row.get("recurring_motif_candidate")
+                    ),
+                    "top_recurring_process_motifs": [
+                        dict(row) for row in motif_index.get((source_team_id, family_id), [])
+                        if row.get("recurring_motif_candidate")
+                    ][:3],
+                    "metric_semantics": (
+                        "OWN_VISIBLE_PROCESS_PROFILE" if perspective == "ATTACK"
+                        else "OPPONENT_VISIBLE_PROCESS_EXPOSURE_PROFILE"
+                    ),
+                    "defensive_exposure_is_defensive_success_truth": False,
+                    "opponent_visible_loss_is_forced_turnover_truth": False,
+                    "opponent_non_shot_is_shot_prevention_truth": False,
+                    "phase_slot_is_observed_phase_truth": False,
+                    "phase_admission_status": "NOT_EVALUATED",
+                    "independent_support_created": False,
+                    "claim_ceiling": "MATCH_LOCAL_SIX_PHASE_DIRECTIONAL_PROCESS_SURFACE_ONLY",
+                })
+
+    variant_context_profiles: list[dict[str, Any]] = []
+    by_team_family_variant: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for signature in signatures:
+        team_id = str(signature.get("team_identity_candidate_id") or "")
+        family_id = str(signature.get("process_family_candidate") or "UNKNOWN")
+        if team_id:
+            by_team_family_variant[(team_id, family_id)].append(signature)
+
+    for (team_id, family_id), family_rows in sorted(by_team_family_variant.items()):
+        shot_rows = [row for row in family_rows if row.get("shot_present_annotation_candidate") is True]
+        non_shot_rows = [row for row in family_rows if row.get("shot_present_annotation_candidate") is not True]
+        if not shot_rows or not non_shot_rows:
+            continue
+
+        def _mean(rows: list[dict[str, Any]], key: str) -> float | None:
+            values = [_as_number(row.get(key)) for row in rows]
+            observed = [value for value in values if value is not None]
+            return (sum(observed) / len(observed)) if observed else None
+
+        def _mix_mean(rows: list[dict[str, Any]], key: str) -> float | None:
+            values = [_as_number((row.get("pass_carry_layer_mix") or {}).get(key)) for row in rows]
+            observed = [value for value in values if value is not None]
+            return (sum(observed) / len(observed)) if observed else None
+
+        shot_n, non_shot_n = len(shot_rows), len(non_shot_rows)
+        variant_context_profiles.append({
+            "team_identity_candidate_id": team_id,
+            "process_family_candidate": family_id,
+            "shot_ending_process_n": shot_n,
+            "non_shot_process_n": non_shot_n,
+            "eligible_process_n": len(family_rows),
+            "shot_ending_share_candidate": shot_n / len(family_rows),
+            "shot_ending_mean_duration_candidate": _mean(shot_rows, "process_interval_duration_candidate"),
+            "non_shot_mean_duration_candidate": _mean(non_shot_rows, "process_interval_duration_candidate"),
+            "shot_ending_mean_actor_spread_candidate": _mean(shot_rows, "unique_actor_candidate_n"),
+            "non_shot_mean_actor_spread_candidate": _mean(non_shot_rows, "unique_actor_candidate_n"),
+            "shot_ending_mean_temporal_layer_n": _mean(shot_rows, "temporal_layer_n"),
+            "non_shot_mean_temporal_layer_n": _mean(non_shot_rows, "temporal_layer_n"),
+            "shot_ending_mean_pass_share_candidate": _mix_mean(shot_rows, "pass_share_candidate"),
+            "non_shot_mean_pass_share_candidate": _mix_mean(non_shot_rows, "pass_share_candidate"),
+            "shot_ending_mean_carry_share_candidate": _mix_mean(shot_rows, "carry_share_candidate"),
+            "non_shot_mean_carry_share_candidate": _mix_mean(non_shot_rows, "carry_share_candidate"),
+            "shot_ending_visible_loss_n": sum(bool(row.get("visible_loss_transition_candidate_present")) for row in shot_rows),
+            "non_shot_visible_loss_n": sum(bool(row.get("visible_loss_transition_candidate_present")) for row in non_shot_rows),
+            "shot_ending_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in shot_rows),
+            "non_shot_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in non_shot_rows),
+            "comparison_basis": "SAME_TEAM_SAME_PROCESS_FAMILY_SHOT_ENDING_VS_NON_SHOT_VISIBLE_VARIANTS",
+            "cross_team_variant_pooling_allowed": False,
+            "comparison_is_descriptive_not_causal": True,
+            "shot_ending_is_success_truth": False,
+            "non_shot_is_failure_truth": False,
+            "difference_is_tactical_mechanism_truth": False,
+            "independent_support_created": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_VARIANT_CONTEXT_DESCRIPTION_ONLY",
+        })
+
+    sequence_information = build_process_sequence_information(signatures)
+    process_variant_board = _process_variant_board(
+        signatures,
+        process_motif_family_candidates,
+    )
+
     return {
         "construct_id": "C03_PROCESS_DEVELOPMENT_SIGNATURE",
         "status": "REVIEW_REQUIRED" if signatures else "NOT_APPLICABLE",
         "signature_count": len(signatures),
         "signatures": signatures,
+        "process_sequence_information": sequence_information,
+        "process_variant_board": process_variant_board,
+        "process_motif_family_candidate_count": len(process_motif_family_candidates),
+        "recurring_process_motif_family_candidate_count": sum(
+            bool(row.get("recurring_motif_candidate")) for row in process_motif_family_candidates
+        ),
+        "recurring_process_motif_covered_process_n": sum(
+            int(row.get("member_process_n") or 0)
+            for row in process_motif_family_candidates
+            if row.get("recurring_motif_candidate")
+        ),
+        "process_motif_family_candidates": process_motif_family_candidates,
+        "process_motif_identity_uses_outcome": False,
+        "process_motif_neighborhood_candidate_count": len(process_motif_neighborhood_candidates),
+        "process_motif_neighborhood_candidates": process_motif_neighborhood_candidates,
+        "singleton_process_motif_with_recurring_neighbor_count": len(
+            singleton_process_motif_with_recurring_neighbor_ids
+        ),
+        "singleton_process_motif_with_recurring_neighbor_ids": sorted(
+            singleton_process_motif_with_recurring_neighbor_ids
+        ),
+        "process_motif_neighborhood_changes_exact_identity": False,
+        "process_motif_neighborhood_creates_recurrence_support": False,
+        "process_motif_neighborhood_creates_independent_support": False,
+        "process_motif_neighborhood_is_tactical_pattern_truth": False,
+        "process_motif_neighborhood_is_coach_intention_truth": False,
+        "team_process_profile_count": len(team_process_profiles),
+        "team_process_profiles": team_process_profiles,
+        "reciprocal_team_process_comparison_count": len(reciprocal_team_process_comparisons),
+        "reciprocal_team_process_comparisons": reciprocal_team_process_comparisons,
+        "six_phase_team_matrix_expected_direction_count": 12 if len(team_ids) == 2 else 0,
+        "six_phase_team_matrix_direction_count": len(six_phase_team_matrix),
+        "six_phase_team_matrix_visible_direction_count": sum(
+            row.get("observation_state") == "VISIBLE_PROCESS_PROFILE_AVAILABLE" for row in six_phase_team_matrix
+        ),
+        "six_phase_team_matrix": six_phase_team_matrix,
+        "six_phase_team_matrix_is_phase_truth": False,
+        "six_phase_team_matrix_is_tactical_superiority_truth": False,
+        "team_process_profiles_create_independent_support": False,
+        "reciprocal_team_process_comparison_is_opponent_response_truth": False,
+        "variant_context_profile_count": len(variant_context_profiles),
+        "variant_context_profiles": variant_context_profiles,
+        "variant_context_comparison_creates_independent_support": False,
+        "variant_context_shot_ending_is_success_truth": False,
+        "variant_context_non_shot_is_failure_truth": False,
         "unit_of_analysis": "ADMITTED_PROVIDER_REVIEWED_PROCESS_CONTEXT_INTERVAL",
         "same_timestamp_internal_ordering_allowed": False,
         "source_row_order_is_temporal_truth": False,
@@ -1230,6 +4087,13 @@ def _construct_c04(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 "closure_delta": delta,
                 "closure_state": "IDENTITY_OBSERVED_WITHIN_TOLERANCE" if abs(delta) <= tolerance else "DEFINITION_OR_DATA_MISMATCH_REVIEW",
                 "provider_model_output_context_only": True,
+                "causal_ladder_rung": "RUNG_1_ASSOCIATIONAL_PREDICTIVE_CONTEXT_ONLY",
+                "causal_identification_proven": False,
+                "causal_language_allowed": False,
+                "model_calibration_state": "UNKNOWN_NOT_ADMITTED",
+                "model_calibration_warning_required": True,
+                "model_source_version_required_for_promotion": True,
+                "model_output_is_fact": False,
                 "player_causal_contribution_truth": False,
                 "player_quality_truth": False,
                 "claim_ceiling": "PROVIDER_MODEL_MATCH_CONTEXT_RESIDUAL_ONLY",
@@ -1245,6 +4109,10 @@ def _construct_c04(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "family_closure_audit": family_audit,
         "model_context_residual_profile_count": len(residual_profiles),
         "model_context_residual_profiles": residual_profiles,
+        "provider_model_context_requires_causal_ladder_classification": True,
+        "provider_model_context_requires_calibration_state": True,
+        "provider_model_context_causal_language_allowed": False,
+        "provider_model_context_model_output_is_fact": False,
         "total_exposure_and_composition_are_separate_axes": True,
         "no_scalar_player_quality_score_created": True,
         "aggregate_is_not_action_identity": True,
@@ -1252,6 +4120,969 @@ def _construct_c04(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "claim_ceiling": "MATCH_LOCAL_XLSX_AGGREGATE_COMPOSITION_AND_MODEL_CONTEXT_DESCRIPTION_ONLY",
     }
 
+
+
+
+
+
+
+
+
+def _m07_defensive_process_visible_exposure_response_synthesis(
+    m09: dict[str, Any],
+    m05: dict[str, Any],
+    m02: dict[str, Any],
+) -> dict[str, Any]:
+    """Describe event/process-visible defensive exposure and response.
+
+    This is intentionally NOT organized-defence shape/compactness/pressure truth.
+    """
+    m05_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (m05.get("profiles") or [])
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+    m02_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (m02.get("profiles") or [])
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+
+    profiles: list[dict[str, Any]] = []
+    for interaction in (m09.get("profiles") or []):
+        if not isinstance(interaction, dict):
+            continue
+        team_id = str(interaction.get("team_identity_candidate_id") or "").strip()
+        if not team_id:
+            continue
+        exposure_rows = [
+            row for row in (interaction.get("opponent_exposure_direction_rows") or [])
+            if isinstance(row, dict)
+        ]
+        opponent_ids = sorted({
+            str(row.get("opponent_team_identity_candidate_id") or "")
+            for row in exposure_rows
+            if str(row.get("opponent_team_identity_candidate_id") or "")
+        })
+        opponent_id = opponent_ids[0] if len(opponent_ids) == 1 else None
+
+        visible_exposure_rows = [
+            row for row in exposure_rows
+            if row.get("observation_state") == "VISIBLE_PROCESS_PROFILE_AVAILABLE"
+        ]
+        opponent_process_n = sum(
+            int(row.get("eligible_process_n") or 0)
+            for row in visible_exposure_rows
+        )
+        opponent_shot_ending_n = sum(
+            int(row.get("shot_ending_process_n") or 0)
+            for row in visible_exposure_rows
+        )
+        opponent_visible_loss_n = sum(
+            int(row.get("visible_loss_process_n") or 0)
+            for row in visible_exposure_rows
+        )
+        opponent_visible_recovery_n = sum(
+            int(row.get("visible_recovery_process_n") or 0)
+            for row in visible_exposure_rows
+        )
+        own_loss_recovery = m05_by_team.get(team_id)
+        opponent_progression = m02_by_team.get(opponent_id or "") if opponent_id else None
+
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "opponent_team_identity_candidate_id": opponent_id,
+            "defensive_exposure_direction_n": len(exposure_rows),
+            "visible_defensive_exposure_direction_n": len(visible_exposure_rows),
+            "unresolved_defensive_exposure_direction_n": len(exposure_rows) - len(visible_exposure_rows),
+            "opponent_visible_process_n": opponent_process_n,
+            "opponent_shot_ending_process_n": opponent_shot_ending_n,
+            "opponent_visible_loss_process_n": opponent_visible_loss_n,
+            "opponent_visible_recovery_process_n": opponent_visible_recovery_n,
+            "own_loss_recovery_dynamics": own_loss_recovery,
+            "opponent_progression_territory_context": opponent_progression,
+            "organized_defence_component_status": "NOT_EVALUATED_NO_DEDICATED_P05_OWNER",
+            "taxonomy_coverage_state": "PARTIAL_VISIBLE_EXPOSURE_RESPONSE_ONLY",
+            "defensive_success_truth": False,
+            "opponent_progression_prevention_truth": False,
+            "opponent_non_shot_is_prevention_truth": False,
+            "opponent_visible_loss_is_forced_turnover_truth": False,
+            "organized_defence_shape_truth": False,
+            "compactness_truth": False,
+            "pressure_geometry_truth": False,
+            "tactical_plan_truth": False,
+            "causal_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_DEFENSIVE_EXPOSURE_RESPONSE_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M07_DEFENSIVE_PROCESS_VISIBLE_EXPOSURE_RESPONSE",
+        "status": "REVIEW_REQUIRED" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "source_mezzo_ids": ["M05_LOSS_RECOVERY_DYNAMICS", "M09_OPPONENT_INTERACTION"],
+        "source_pool_ids": ["P05", "P15", "P18", "P20"],
+        "p05_organized_defence_owner_status": "GAP",
+        "taxonomy_coverage_state": "PARTIAL_VISIBLE_EXPOSURE_RESPONSE_ONLY",
+        "pool_views_create_independent_evidence": False,
+        "defensive_success_truth": False,
+        "organized_defence_truth": False,
+        "team_shape_truth": False,
+        "compactness_truth": False,
+        "pressure_geometry_truth": False,
+        "causal_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_DEFENSIVE_EXPOSURE_RESPONSE_CANDIDATE_ONLY",
+    }
+
+
+def _m09_opponent_interaction_synthesis(
+    c03: dict[str, Any],
+) -> dict[str, Any]:
+    """Create reciprocal opponent-interaction context without response/superiority claims."""
+    comparisons = [
+        row for row in (c03.get("reciprocal_team_process_comparisons") or [])
+        if isinstance(row, dict)
+    ]
+    phase_rows = [
+        row for row in (c03.get("six_phase_team_matrix") or [])
+        if isinstance(row, dict)
+    ]
+    team_ids = sorted({
+        str(row.get("team_identity_candidate_id") or "")
+        for row in phase_rows
+        if str(row.get("team_identity_candidate_id") or "")
+    })
+
+    profiles: list[dict[str, Any]] = []
+    for team_id in team_ids:
+        team_phase_rows = [
+            row for row in phase_rows
+            if str(row.get("team_identity_candidate_id") or "") == team_id
+        ]
+        own_attack_rows = [
+            row for row in team_phase_rows
+            if str(row.get("perspective") or "") == "ATTACK"
+        ]
+        opponent_exposure_rows = [
+            row for row in team_phase_rows
+            if str(row.get("perspective") or "") == "DEFENCE"
+        ]
+
+        reciprocal_rows: list[dict[str, Any]] = []
+        for row in comparisons:
+            team_a = str(row.get("team_a_identity_candidate_id") or "")
+            team_b = str(row.get("team_b_identity_candidate_id") or "")
+            if team_id not in {team_a, team_b}:
+                continue
+            if team_id == team_a:
+                self_profile = row.get("team_a_profile")
+                opponent_profile = row.get("team_b_profile")
+                opponent_id = team_b
+            else:
+                self_profile = row.get("team_b_profile")
+                opponent_profile = row.get("team_a_profile")
+                opponent_id = team_a
+            reciprocal_rows.append({
+                "process_family_candidate": row.get("process_family_candidate"),
+                "team_identity_candidate_id": team_id,
+                "opponent_team_identity_candidate_id": opponent_id,
+                "self_visible_process_profile": self_profile,
+                "opponent_visible_process_profile": opponent_profile,
+                "comparison_basis": row.get("comparison_basis"),
+                "difference_is_opponent_response_truth": False,
+                "difference_is_tactical_superiority_truth": False,
+                "difference_is_causal_truth": False,
+                "independent_support_created": False,
+            })
+
+        visible_phase_n = sum(
+            row.get("observation_state") == "VISIBLE_PROCESS_PROFILE_AVAILABLE"
+            for row in team_phase_rows
+        )
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "six_phase_direction_n": len(team_phase_rows),
+            "visible_six_phase_direction_n": visible_phase_n,
+            "unresolved_six_phase_direction_n": len(team_phase_rows) - visible_phase_n,
+            "own_attack_direction_rows": own_attack_rows,
+            "opponent_exposure_direction_rows": opponent_exposure_rows,
+            "reciprocal_same_family_comparison_n": len(reciprocal_rows),
+            "reciprocal_same_family_comparisons": reciprocal_rows,
+            "source_pool_ids": ["P18", "P20"],
+            "opponent_exposure_is_defensive_success_truth": False,
+            "opponent_non_shot_is_prevention_truth": False,
+            "opponent_visible_loss_is_forced_turnover_truth": False,
+            "reciprocal_difference_is_opponent_response_truth": False,
+            "reciprocal_difference_is_tactical_superiority_truth": False,
+            "reciprocal_difference_is_causal_truth": False,
+            "phase_slot_is_observed_phase_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_OPPONENT_INTERACTION_CONTEXT_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M09_OPPONENT_INTERACTION",
+        "status": "PASS" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "source_pool_ids": ["P18", "P20"],
+        "reciprocal_team_process_comparison_count": len(comparisons),
+        "pool_views_create_independent_evidence": False,
+        "opponent_response_truth": False,
+        "defensive_success_truth": False,
+        "tactical_superiority_truth": False,
+        "causal_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_OPPONENT_INTERACTION_CONTEXT_CANDIDATE_ONLY",
+    }
+
+
+def _m06_transition_dynamics_synthesis(
+    m05: dict[str, Any],
+    counterattack_context: dict[str, Any],
+    process_mix_change: dict[str, Any],
+) -> dict[str, Any]:
+    """Combine visible transition-related contexts without momentum/adaptation claims."""
+    m05_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (m05.get("profiles") or [])
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+    counter_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in (counterattack_context.get("rows") or []):
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            counter_by_team[team_id].append(row)
+
+    mix_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in (process_mix_change.get("comparisons") or []):
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            mix_by_team[team_id].append(row)
+
+    profiles: list[dict[str, Any]] = []
+    for team_id in sorted(set(m05_by_team) | set(counter_by_team) | set(mix_by_team)):
+        counter_rows = counter_by_team.get(team_id, [])
+        mix_rows = mix_by_team.get(team_id, [])
+        successor_counts: Counter[str] = Counter(
+            family
+            for row in counter_rows
+            for family in (row.get("next_visible_process_family_candidates") or [])
+            if family
+        )
+        latency_values = [
+            float(row["seconds_to_next_visible_process_candidate"])
+            for row in counter_rows
+            if isinstance(row.get("seconds_to_next_visible_process_candidate"), (int, float))
+            and not isinstance(row.get("seconds_to_next_visible_process_candidate"), bool)
+        ]
+        mix_distance_values = [
+            float(row["composition_total_variation_distance_candidate"])
+            for row in mix_rows
+            if isinstance(row.get("composition_total_variation_distance_candidate"), (int, float))
+            and not isinstance(row.get("composition_total_variation_distance_candidate"), bool)
+        ]
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "m05_loss_recovery_profile": m05_by_team.get(team_id),
+            "counterattack_context_n": len(counter_rows),
+            "counterattack_next_visible_process_family_counts": dict(sorted(successor_counts.items())),
+            "counter_to_positional_successor_candidate_n": sum(
+                row.get("visible_counter_to_positional_successor_candidate") is True
+                for row in counter_rows
+            ),
+            "counterattack_successor_latency_observed_n": len(latency_values),
+            "counterattack_successor_latency_min_candidate": (
+                min(latency_values) if latency_values else None
+            ),
+            "counterattack_successor_latency_max_candidate": (
+                max(latency_values) if latency_values else None
+            ),
+            "adjacent_process_mix_comparison_n": len(mix_rows),
+            "process_mix_composition_distance_observed_n": len(mix_distance_values),
+            "process_mix_composition_distance_max_candidate": (
+                max(mix_distance_values) if mix_distance_values else None
+            ),
+            "process_mix_distance_range": [0.0, 1.0],
+            "source_pool_ids": ["P04", "P06", "P14", "P15", "P20", "P22"],
+            "transition_phase_truth": False,
+            "transition_stabilization_truth": False,
+            "momentum_truth": False,
+            "tactical_adaptation_truth": False,
+            "causal_truth": False,
+            "coach_intention_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_TRANSITION_DYNAMICS_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M06_TRANSITION_DYNAMICS",
+        "status": "PASS" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "source_mezzo_ids": ["M05_LOSS_RECOVERY_DYNAMICS"],
+        "source_context_ids": [
+            "COUNTERATTACK_TO_NEXT_VISIBLE_PROCESS_CONTEXT",
+            "VISIBLE_PROCESS_MIX_FIXED_TIME_WINDOW_COMPARISON",
+        ],
+        "component_views_create_independent_support": False,
+        "transition_phase_truth": False,
+        "momentum_truth": False,
+        "tactical_adaptation_truth": False,
+        "causal_truth": False,
+        "coach_intention_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_TRANSITION_DYNAMICS_CANDIDATE_ONLY",
+    }
+
+
+def _process_variant_board(
+    signatures: list[dict[str, Any]],
+    motifs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Compact analyst-facing process view built only from admitted motif/signature context."""
+    signature_by_id = {
+        str(row.get("process_development_signature_id") or ""): row
+        for row in signatures
+        if isinstance(row, dict) and str(row.get("process_development_signature_id") or "")
+    }
+    rows: list[dict[str, Any]] = []
+    for motif in motifs:
+        if not isinstance(motif, dict) or motif.get("recurring_motif_candidate") is not True:
+            continue
+        member_ids = [
+            str(value)
+            for value in (motif.get("member_process_development_signature_ids") or [])
+            if str(value)
+        ]
+        members = [signature_by_id[value] for value in member_ids if value in signature_by_id]
+        if not members:
+            continue
+        start_counts: Counter[str] = Counter()
+        end_counts: Counter[str] = Counter()
+        axis_direction_counts: Counter[str] = Counter()
+        axis_direction_member_presence_counts: Counter[str] = Counter()
+        consequence_member_presence_counts: Counter[str] = Counter()
+        transition_class_member_presence_counts: Counter[str] = Counter()
+        axis_admitted_member_process_n = 0
+        member_with_visible_axis_transition_n = 0
+        member_with_visible_primary_consequence_n = 0
+        for member in members:
+            member_consequences = {
+                str(value)
+                for value in (member.get("primary_consequence_candidates_observed") or [])
+                if str(value)
+            }
+            member_transitions = {
+                str(value)
+                for value in (member.get("transition_class_candidates_observed") or [])
+                if str(value)
+            }
+            if member_consequences:
+                member_with_visible_primary_consequence_n += 1
+            for value in member_consequences:
+                consequence_member_presence_counts[value] += 1
+            for value in member_transitions:
+                transition_class_member_presence_counts[value] += 1
+            if member.get("provider_attack_axis_admitted") is True or str(member.get("provider_attack_axis_state") or "") == "ADMITTED":
+                axis_admitted_member_process_n += 1
+            member_axis_counts = {
+                str(key): int(value or 0)
+                for key, value in (member.get("provider_attack_axis_direction_counts") or {}).items()
+                if str(key) and int(value or 0) > 0
+            }
+            if member_axis_counts:
+                member_with_visible_axis_transition_n += 1
+                for key, value in member_axis_counts.items():
+                    axis_direction_counts[key] += value
+                    axis_direction_member_presence_counts[key] += 1
+            layers = [layer for layer in (member.get("layers") or []) if isinstance(layer, dict)]
+            if not layers:
+                continue
+            for actor_id in {
+                str(value)
+                for value in (layers[0].get("actor_identity_candidate_ids") or [])
+                if str(value)
+            }:
+                start_counts[actor_id] += 1
+            for actor_id in {
+                str(value)
+                for value in (layers[-1].get("actor_identity_candidate_ids") or [])
+                if str(value)
+            }:
+                end_counts[actor_id] += 1
+
+        rows.append({
+            "process_motif_family_candidate_id": motif.get("process_motif_family_candidate_id"),
+            "team_identity_candidate_id": motif.get("team_identity_candidate_id"),
+            "process_family_candidate": motif.get("process_family_candidate"),
+            "member_process_n": len(members),
+            "morphology_signature": motif.get("morphology_signature") or {},
+            "member_variant_context_counts": motif.get("member_variant_context_counts") or {},
+            "representative_first_supported_grammar_divergence": motif.get(
+                "representative_first_supported_grammar_divergence"
+            ),
+            "visible_start_actor_candidate_counts": dict(sorted(start_counts.items())),
+            "visible_end_actor_candidate_counts": dict(sorted(end_counts.items())),
+            "visible_consequence_state_change_profile": {
+                "member_process_n": len(members),
+                "member_with_visible_primary_consequence_n": member_with_visible_primary_consequence_n,
+                "primary_consequence_member_presence_counts": dict(
+                    sorted(consequence_member_presence_counts.items())
+                ),
+                "transition_class_member_presence_counts": dict(
+                    sorted(transition_class_member_presence_counts.items())
+                ),
+                "count_basis": "MEMBER_PROCESS_PRESENCE_OF_ADMITTED_VISIBLE_CONSEQUENCE_OR_TRANSITION_CLASS",
+                "counts_are_member_process_presence_not_occurrence_counts": True,
+                "consequence_categories_are_mutually_exclusive": False,
+                "no_visible_follow_up_is_failure_truth": False,
+                "opponent_handover_is_forced_turnover_truth": False,
+                "opponent_takeover_is_defensive_success_truth": False,
+                "opponent_response_truth": False,
+                "tactical_superiority_truth": False,
+                "causal_truth": False,
+                "creates_independent_support": False,
+                "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_CONSEQUENCE_COMPOSITION_ONLY",
+            },
+            "provider_attack_axis_transition_profile": {
+                "member_process_n": len(members),
+                "axis_admitted_member_process_n": axis_admitted_member_process_n,
+                "member_with_visible_axis_transition_n": member_with_visible_axis_transition_n,
+                "visible_axis_transition_n": sum(axis_direction_counts.values()),
+                "direction_transition_counts": dict(sorted(axis_direction_counts.items())),
+                "direction_member_presence_counts": dict(sorted(axis_direction_member_presence_counts.items())),
+                "basis": "SUM_OF_MEMBER_PROCESS_ADMITTED_PROVIDER_ATTACK_AXIS_DIRECTION_COUNTS",
+                "axis_profile_is_route_truth": False,
+                "axis_profile_is_physical_displacement_truth": False,
+                "axis_profile_is_line_break_truth": False,
+                "axis_profile_is_tactical_progression_truth": False,
+                "creates_independent_support": False,
+                "claim_ceiling": "MATCH_LOCAL_PROVIDER_ATTACK_AXIS_TRANSITION_PROFILE_ONLY",
+            },
+            "visible_start_end_basis": "FIRST_AND_LAST_ADMITTED_TEMPORAL_LAYER_ACTOR_CANDIDATES",
+            "same_timestamp_internal_ordering_allowed": False,
+            "start_end_actor_candidates_are_sequence_initiator_ender_truth": False,
+            "motif_is_tactical_pattern_truth": False,
+            "motif_is_coach_intention_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_PROCESS_VARIANT_BOARD_CANDIDATE_ONLY",
+        })
+
+    rows.sort(key=lambda row: (
+        str(row.get("team_identity_candidate_id") or ""),
+        -int(row.get("member_process_n") or 0),
+        str(row.get("process_family_candidate") or ""),
+        str(row.get("process_motif_family_candidate_id") or ""),
+    ))
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "row_count": len(rows),
+        "rows": rows,
+        "same_timestamp_internal_ordering_allowed": False,
+        "board_is_process_mining_truth": False,
+        "board_is_possession_truth": False,
+        "board_is_tactical_pattern_truth": False,
+        "creates_independent_support": False,
+        "claim_ceiling": "MATCH_LOCAL_PROCESS_VARIANT_BOARD_CANDIDATE_ONLY",
+    }
+
+
+def _m05_loss_recovery_dynamics_synthesis(
+    loss_context: dict[str, Any],
+    recovery_context: dict[str, Any],
+    game_state_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Combine visible loss/recovery successor context without causal promotion."""
+    loss_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    recovery_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    unresolved_loss_team_n = 0
+    unresolved_recovery_team_n = 0
+
+    for row in (loss_context.get("rows") or []):
+        if not isinstance(row, dict):
+            continue
+        teams = [
+            str(value) for value in (row.get("anchor_team_identity_candidate_ids") or [])
+            if str(value)
+        ]
+        if len(teams) == 1:
+            loss_by_team[teams[0]].append(row)
+        else:
+            unresolved_loss_team_n += 1
+
+    for row in (recovery_context.get("rows") or []):
+        if not isinstance(row, dict):
+            continue
+        teams = [
+            str(value) for value in (row.get("team_identity_candidate_ids") or [])
+            if str(value)
+        ]
+        if len(teams) == 1:
+            recovery_by_team[teams[0]].append(row)
+        else:
+            unresolved_recovery_team_n += 1
+
+    game_state_context = game_state_context or {}
+    score_state_exposure_seconds: dict[str, float] = defaultdict(float)
+    for segment in (game_state_context.get("score_state_segments") or []):
+        if not isinstance(segment, dict):
+            continue
+        score = segment.get("score_state_candidate")
+        duration = _float_candidate(segment.get("duration_second_candidate"))
+        if not isinstance(score, dict) or not score or duration is None:
+            continue
+        key = json.dumps(score, ensure_ascii=False, sort_keys=True)
+        score_state_exposure_seconds[key] += max(0.0, duration)
+
+    profiles: list[dict[str, Any]] = []
+    for team_id in sorted(set(loss_by_team) | set(recovery_by_team)):
+        loss_rows = loss_by_team.get(team_id, [])
+        recovery_rows = recovery_by_team.get(team_id, [])
+        opponent_family_counts: Counter[str] = Counter(
+            family
+            for row in loss_rows
+            for family in (row.get("next_opponent_process_family_candidates") or [])
+            if family
+        )
+        own_family_counts: Counter[str] = Counter(
+            family
+            for row in recovery_rows
+            for family in (row.get("next_visible_process_family_candidates") or [])
+            if family
+        )
+        loss_binding_counts = Counter(
+            str(row.get("next_opponent_process_binding_state") or "UNKNOWN")
+            for row in loss_rows
+        )
+        recovery_binding_counts = Counter(
+            str(row.get("next_process_binding_state") or "UNKNOWN")
+            for row in recovery_rows
+        )
+
+        score_buckets: dict[str, dict[str, Any]] = {}
+        unresolved_loss_score_state_n = 0
+        unresolved_recovery_score_state_n = 0
+
+        def bind_score_state(
+            rows: list[dict[str, Any]],
+            row_kind: str,
+        ) -> None:
+            nonlocal unresolved_loss_score_state_n, unresolved_recovery_score_state_n
+            for source_row in rows:
+                state = _score_state_candidate_at_visible_time(
+                    game_state_context,
+                    _float_candidate(source_row.get("anchor_start_candidate")),
+                )
+                if not state:
+                    if row_kind == "loss":
+                        unresolved_loss_score_state_n += 1
+                    else:
+                        unresolved_recovery_score_state_n += 1
+                    continue
+                key = json.dumps(state, ensure_ascii=False, sort_keys=True)
+                bucket = score_buckets.setdefault(
+                    key,
+                    {
+                        "score_state_candidate": state,
+                        "visible_loss_context_n": 0,
+                        "visible_recovery_context_n": 0,
+                        "loss_next_opponent_process_family_counts": Counter(),
+                        "recovery_next_own_process_family_counts": Counter(),
+                    },
+                )
+                if row_kind == "loss":
+                    bucket["visible_loss_context_n"] += 1
+                    bucket["loss_next_opponent_process_family_counts"].update(
+                        value
+                        for value in (source_row.get("next_opponent_process_family_candidates") or [])
+                        if value
+                    )
+                else:
+                    bucket["visible_recovery_context_n"] += 1
+                    bucket["recovery_next_own_process_family_counts"].update(
+                        value
+                        for value in (source_row.get("next_visible_process_family_candidates") or [])
+                        if value
+                    )
+
+        bind_score_state(loss_rows, "loss")
+        bind_score_state(recovery_rows, "recovery")
+        score_state_profiles = []
+        for key in sorted(score_buckets):
+            bucket = score_buckets[key]
+            score_state_profiles.append({
+                "score_state_candidate": bucket["score_state_candidate"],
+                "score_state_exposure_seconds_candidate": score_state_exposure_seconds.get(key),
+                "visible_loss_context_n": bucket["visible_loss_context_n"],
+                "visible_recovery_context_n": bucket["visible_recovery_context_n"],
+                "loss_next_opponent_process_family_counts": dict(
+                    sorted(bucket["loss_next_opponent_process_family_counts"].items())
+                ),
+                "recovery_next_own_process_family_counts": dict(
+                    sorted(bucket["recovery_next_own_process_family_counts"].items())
+                ),
+                "loss_denominator": "ADMITTED_LOSS_CONTEXT_ROWS_BOUND_TO_THIS_VISIBLE_SCORE_STATE",
+                "recovery_denominator": "ADMITTED_RECOVERY_CONTEXT_ROWS_BOUND_TO_THIS_VISIBLE_SCORE_STATE",
+                "score_state_is_causal_explanation": False,
+                "score_state_is_tactical_truth": False,
+                "creates_independent_support": False,
+            })
+
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "visible_loss_context_n": len(loss_rows),
+            "visible_recovery_context_n": len(recovery_rows),
+            "loss_next_opponent_process_family_counts": dict(sorted(opponent_family_counts.items())),
+            "recovery_next_own_process_family_counts": dict(sorted(own_family_counts.items())),
+            "loss_binding_state_counts": dict(sorted(loss_binding_counts.items())),
+            "recovery_binding_state_counts": dict(sorted(recovery_binding_counts.items())),
+            "score_state_profile_count": len(score_state_profiles),
+            "score_state_profiles": score_state_profiles,
+            "unresolved_loss_score_state_n": unresolved_loss_score_state_n,
+            "unresolved_recovery_score_state_n": unresolved_recovery_score_state_n,
+            "loss_denominator": "ADMITTED_LOSS_CONTEXT_ROWS_WITH_UNAMBIGUOUS_ANCHOR_TEAM",
+            "recovery_denominator": "ADMITTED_RECOVERY_CONTEXT_ROWS_WITH_UNAMBIGUOUS_TEAM",
+            "loss_is_failure_truth": False,
+            "recovery_is_success_truth": False,
+            "loss_is_defensive_transition_truth": False,
+            "recovery_is_attacking_transition_truth": False,
+            "successor_process_is_causal_consequence_truth": False,
+            "score_state_is_causal_explanation": False,
+            "score_state_is_tactical_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_LOSS_RECOVERY_DYNAMICS_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M05_LOSS_RECOVERY_DYNAMICS",
+        "status": "PASS" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "unresolved_loss_team_row_n": unresolved_loss_team_n,
+        "unresolved_recovery_team_row_n": unresolved_recovery_team_n,
+        "source_loss_binding_state": loss_context.get("binding_state"),
+        "source_recovery_binding_state": recovery_context.get("binding_state"),
+        "source_pool_ids": ["P14", "P15", "P18", "P20"],
+        "pool_views_create_independent_evidence": False,
+        "loss_is_failure_truth": False,
+        "recovery_is_success_truth": False,
+        "transition_truth": False,
+        "score_state_is_causal_explanation": False,
+        "score_state_is_tactical_truth": False,
+        "causal_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_LOSS_RECOVERY_DYNAMICS_CANDIDATE_ONLY",
+    }
+
+
+def _r01_ball_progression_system_synthesis(
+    m01: dict[str, Any],
+    m02: dict[str, Any],
+) -> dict[str, Any]:
+    """Bind M01 construction and M02 progression views without inventing a score."""
+    m01_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (m01.get("profiles") or [])
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+    m02_by_team = {
+        str(row.get("team_identity_candidate_id") or ""): row
+        for row in (m02.get("profiles") or [])
+        if isinstance(row, dict) and str(row.get("team_identity_candidate_id") or "")
+    }
+    team_ids = sorted(set(m01_by_team) | set(m02_by_team))
+    profiles: list[dict[str, Any]] = []
+    for team_id in team_ids:
+        construction = m01_by_team.get(team_id)
+        progression = m02_by_team.get(team_id)
+        if construction is not None and progression is not None:
+            coverage_state = "M01_AND_M02_VISIBLE"
+        elif construction is not None:
+            coverage_state = "M01_ONLY_VISIBLE"
+        else:
+            coverage_state = "M02_ONLY_VISIBLE"
+
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "coverage_state": coverage_state,
+            "m01_possession_construction": construction,
+            "m02_progression_territory": progression,
+            "construction_context_available": construction is not None,
+            "progression_territory_context_available": progression is not None,
+            "missing_component_is_negative_evidence": False,
+            "component_views_create_independent_support": False,
+            "scalar_ball_progression_score_emitted": False,
+            "possession_truth": False,
+            "territorial_control_truth": False,
+            "team_shape_truth": False,
+            "tactical_plan_truth": False,
+            "superiority_truth": False,
+            "causal_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_BALL_PROGRESSION_SYSTEM_CANDIDATE_ONLY",
+        })
+
+    complete_n = sum(row["coverage_state"] == "M01_AND_M02_VISIBLE" for row in profiles)
+    status = (
+        "PASS"
+        if profiles and complete_n == len(profiles)
+        else "REVIEW_REQUIRED"
+        if profiles
+        else "NOT_AVAILABLE"
+    )
+    return {
+        "reservoir_id": "R01_BALL_PROGRESSION_SYSTEM",
+        "status": status,
+        "profile_count": len(profiles),
+        "complete_profile_count": complete_n,
+        "profiles": profiles,
+        "source_mezzo_ids": ["M01_POSSESSION_CONSTRUCTION", "M02_PROGRESSION_AND_TERRITORY"],
+        "component_views_create_independent_support": False,
+        "scalar_ball_progression_score_emitted": False,
+        "missing_component_is_negative_evidence": False,
+        "possession_truth": False,
+        "territorial_control_truth": False,
+        "team_shape_truth": False,
+        "tactical_plan_truth": False,
+        "superiority_truth": False,
+        "causal_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_BALL_PROGRESSION_SYSTEM_CANDIDATE_ONLY",
+    }
+
+
+def _m01_possession_construction_synthesis(
+    c03: dict[str, Any],
+    circulation_fate: dict[str, Any],
+    goalkeeper_restart_context: dict[str, Any],
+) -> dict[str, Any]:
+    """Synthesize visible construction context without claiming possession truth."""
+    signatures = [
+        row for row in (c03.get("signatures") or [])
+        if isinstance(row, dict)
+    ]
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in signatures:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            grouped[team_id].append(row)
+
+    circulation_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in (circulation_fate.get("profiles") or []):
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            circulation_by_team[team_id].append(row)
+
+    gk_rows_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in (goalkeeper_restart_context.get("rows") or []):
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            gk_rows_by_team[team_id].append(row)
+
+    team_ids = sorted(set(grouped) | set(circulation_by_team) | set(gk_rows_by_team))
+    profiles: list[dict[str, Any]] = []
+    for team_id in team_ids:
+        rows = grouped.get(team_id, [])
+        process_family_counts = Counter(
+            str(row.get("process_family_candidate") or "UNKNOWN") for row in rows
+        )
+        start_zone_counts: Counter[str] = Counter()
+        unresolved_start_zone_n = 0
+        for row in rows:
+            starts = [
+                str(value) for value in (row.get("process_start_zone_candidates") or [])
+                if str(value)
+            ]
+            if len(starts) == 1:
+                start_zone_counts[starts[0]] += 1
+            else:
+                unresolved_start_zone_n += 1
+
+        gk_rows = gk_rows_by_team.get(team_id, [])
+        next_process_counts: Counter[str] = Counter(
+            family
+            for row in gk_rows
+            for family in (row.get("next_visible_process_family_candidates") or [])
+            if family
+        )
+        continuation_counts = Counter(
+            str(row.get("process_continuation_status") or "UNRESOLVED")
+            for row in gk_rows
+        )
+
+        circulation_profiles = circulation_by_team.get(team_id, [])
+        circulation_eligible_n = sum(
+            int(row.get("eligible_circulation_process_n") or 0)
+            for row in circulation_profiles
+        )
+        circulation_fate_counts: Counter[str] = Counter()
+        for row in circulation_profiles:
+            circulation_fate_counts.update(
+                {
+                    str(key): int(value)
+                    for key, value in (row.get("visible_fate_counts") or {}).items()
+                    if isinstance(value, int) and not isinstance(value, bool)
+                }
+            )
+
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "eligible_process_signature_n": len(rows),
+            "process_family_counts": dict(sorted(process_family_counts.items())),
+            "visible_process_start_zone_candidate_counts": dict(sorted(start_zone_counts.items())),
+            "unresolved_process_start_zone_n": unresolved_start_zone_n,
+            "visible_circulation_process_n": circulation_eligible_n,
+            "visible_circulation_fate_counts": dict(sorted(circulation_fate_counts.items())),
+            "goalkeeper_restart_context_n": len(gk_rows),
+            "goalkeeper_restart_next_visible_process_family_counts": dict(sorted(next_process_counts.items())),
+            "goalkeeper_restart_continuation_status_counts": dict(sorted(continuation_counts.items())),
+            "denominator_basis": {
+                "process_signatures": "ADMITTED_MATCH_LOCAL_PROCESS_DEVELOPMENT_SIGNATURES",
+                "circulation": "VISIBLE_PROCESS_SIGNATURES_WITH_PASS_OR_CARRY_LAYER",
+                "goalkeeper_restart": "ADMITTED_GOAL_KICK_OCCURRENCE_CONTEXT_ROWS",
+            },
+            "pool_ids": ["P01", "P07", "P19", "P20"],
+            "possession_truth": False,
+            "possession_control_truth": False,
+            "build_up_tactical_plan_truth": False,
+            "goalkeeper_restart_same_team_continuation_is_possession_truth": False,
+            "circulation_fate_is_tactical_quality_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_POSSESSION_CONSTRUCTION_CONTEXT_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M01_POSSESSION_CONSTRUCTION",
+        "status": "PASS" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "source_construct_id": c03.get("construct_id"),
+        "source_circulation_module_id": circulation_fate.get("module_id"),
+        "source_goalkeeper_restart_binding_state": goalkeeper_restart_context.get("binding_state"),
+        "source_pool_ids": ["P01", "P07", "P19", "P20"],
+        "pool_views_create_independent_evidence": False,
+        "possession_truth": False,
+        "possession_control_truth": False,
+        "tactical_plan_truth": False,
+        "causal_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_POSSESSION_CONSTRUCTION_CONTEXT_CANDIDATE_ONLY",
+    }
+
+
+def _m02_progression_territory_synthesis(
+    c03: dict[str, Any],
+    route_breadth: dict[str, Any],
+) -> dict[str, Any]:
+    """Synthesize visible progression/territory descriptors without adding evidence.
+
+    Territory here means observed start/end-zone and provider-axis process context,
+    not possession control, team shape, dominance or physical territorial occupation.
+    """
+    signatures = [
+        row for row in (c03.get("signatures") or [])
+        if isinstance(row, dict)
+    ]
+    route_profiles = [
+        row for row in (route_breadth.get("profiles") or [])
+        if isinstance(row, dict)
+    ]
+    route_by_team: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in route_profiles:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            route_by_team[team_id].append(row)
+
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in signatures:
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        if team_id:
+            grouped[team_id].append(row)
+
+    profiles: list[dict[str, Any]] = []
+    for team_id, rows in sorted(grouped.items()):
+        start_counts: Counter[str] = Counter()
+        end_counts: Counter[str] = Counter()
+        family_counts: Counter[str] = Counter()
+        admitted_axis_delta_n = 0
+        admitted_axis_delta_sum = 0.0
+        unresolved_start_n = 0
+        unresolved_end_n = 0
+
+        for row in rows:
+            family = str(row.get("process_family_candidate") or "UNKNOWN")
+            family_counts[family] += 1
+            starts = [
+                str(value) for value in (row.get("process_start_zone_candidates") or [])
+                if str(value)
+            ]
+            ends = [
+                str(value) for value in (row.get("process_end_zone_candidates") or [])
+                if str(value)
+            ]
+            if len(starts) == 1:
+                start_counts[starts[0]] += 1
+            else:
+                unresolved_start_n += 1
+            if len(ends) == 1:
+                end_counts[ends[0]] += 1
+            else:
+                unresolved_end_n += 1
+
+            delta = row.get("provider_attack_axis_net_longitudinal_delta_candidate")
+            if (
+                row.get("provider_attack_axis_admitted") is True
+                and isinstance(delta, (int, float))
+                and not isinstance(delta, bool)
+            ):
+                admitted_axis_delta_n += 1
+                admitted_axis_delta_sum += float(delta)
+
+        profiles.append({
+            "team_identity_candidate_id": team_id,
+            "eligible_process_signature_n": len(rows),
+            "process_family_counts": dict(sorted(family_counts.items())),
+            "visible_start_zone_candidate_counts": dict(sorted(start_counts.items())),
+            "visible_end_zone_candidate_counts": dict(sorted(end_counts.items())),
+            "unresolved_start_zone_process_n": unresolved_start_n,
+            "unresolved_end_zone_process_n": unresolved_end_n,
+            "provider_attack_axis_delta_admitted_process_n": admitted_axis_delta_n,
+            "provider_attack_axis_net_longitudinal_delta_sum_candidate": (
+                round(admitted_axis_delta_sum, 6)
+                if admitted_axis_delta_n
+                else None
+            ),
+            "visible_route_breadth_profiles": route_by_team.get(team_id, []),
+            "denominator_basis": "ADMITTED_MATCH_LOCAL_PROCESS_DEVELOPMENT_SIGNATURES",
+            "pool_ids": ["P02", "P08", "P09", "P11"],
+            "territory_is_possession_control_truth": False,
+            "territory_is_team_shape_truth": False,
+            "route_is_physical_trajectory_truth": False,
+            "provider_axis_delta_is_physical_distance_truth": False,
+            "progression_synthesis_is_tactical_superiority_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROGRESSION_TERRITORY_SYNTHESIS_CANDIDATE_ONLY",
+        })
+
+    return {
+        "synthesis_id": "M02_PROGRESSION_AND_TERRITORY",
+        "status": "PASS" if profiles else "NOT_AVAILABLE",
+        "profile_count": len(profiles),
+        "profiles": profiles,
+        "source_construct_id": c03.get("construct_id"),
+        "source_route_profile_module_id": route_breadth.get("module_id"),
+        "source_pool_ids": ["P02", "P08", "P09", "P11"],
+        "pool_views_create_independent_evidence": False,
+        "territory_is_possession_control_truth": False,
+        "territory_is_team_shape_truth": False,
+        "territory_is_dominance_truth": False,
+        "physical_trajectory_truth": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROGRESSION_TERRITORY_SYNTHESIS_CANDIDATE_ONLY",
+    }
 
 def _render_txt(payload: dict[str, Any]) -> str:
     entity = payload.get("entity_views") or {}
@@ -1347,6 +5178,7 @@ def run_rich_lane(
 
     features = _load_json(output / "episode_feature_vector_lite_v1.json")
     temporal = _load_json(output / "temporal_episode_signature_lite_v1.json")
+    game_state_context = _game_state_context(active_match)
     rows = _flatten_projection(projection)
     entity_views = _entity_views(rows)
     primitives = _primitive_metrics(features, entity_views)
@@ -1357,13 +5189,106 @@ def run_rich_lane(
 
     identity_payload = _load_json(output / IDENTITY_JSON)
     process_participation_payload = _load_json(output / PROCESS_PARTICIPATION_JSON)
+    game_state_process_mix_context = _game_state_process_mix_context(
+        game_state_context,
+        identity_payload,
+        process_participation_payload,
+    )
+    player_score_state_process_participation = build_player_score_state_process_participation(
+        game_state_context,
+        identity_payload,
+        process_participation_payload,
+    )
+    time_window_process_mix_change_context = build_time_window_process_mix_change_context(
+        process_participation_payload,
+    )
     c02 = _construct_c02(rows, identity_payload, process_participation_payload)
-    if c02.get("status") == "REVIEW_REQUIRED":
-        review_hits.append("C02_process_participant_outcome_association_review_available")
 
     occurrence_transition_payload = _load_json(output / OCCURRENCE_STATE_TRANSITION_JSON)
+    occurrence_consequence_payload = _load_json(output / OCCURRENCE_CONSEQUENCE_JSON)
+    action_occurrence_payload = _load_json(output / ACTION_OCCURRENCE_JSON)
+    c02 = _bind_player_action_aggregate_context(c02, action_occurrence_payload)
+    if c02.get("status") == "REVIEW_REQUIRED":
+        review_hits.append("C02_process_participant_outcome_association_review_available")
+    trackable_trace_payload = _load_json(output / TRACKABLE_TRACE_JSON)
+    aerial_duel_first_visible_state_context = build_aerial_duel_first_visible_state_context(
+        trackable_trace_payload,
+        process_participation_payload,
+    )
+    goalkeeper_restart_consequence_context = _goalkeeper_restart_consequence_context(
+        action_occurrence_payload,
+        occurrence_consequence_payload,
+        trackable_trace_payload,
+        process_participation_payload,
+    )
+    recovery_next_process_context = _recovery_next_process_context(
+        occurrence_consequence_payload,
+        process_participation_payload,
+    )
+    loss_next_opponent_process_context = _loss_next_opponent_process_context(
+        occurrence_consequence_payload,
+        trackable_trace_payload,
+        process_participation_payload,
+    )
+    m05_loss_recovery_dynamics_synthesis = _m05_loss_recovery_dynamics_synthesis(
+        loss_next_opponent_process_context,
+        recovery_next_process_context,
+        game_state_context,
+    )
+    set_piece_process_consequence_context = _set_piece_process_consequence_context(
+        process_participation_payload,
+        occurrence_consequence_payload,
+        trackable_trace_payload,
+    )
+    counterattack_next_process_context = _counterattack_next_process_context(
+        process_participation_payload,
+    )
+    m06_transition_dynamics_synthesis = _m06_transition_dynamics_synthesis(
+        m05_loss_recovery_dynamics_synthesis,
+        counterattack_next_process_context,
+        time_window_process_mix_change_context,
+    )
     spatial_transition_payload = _load_json(output / SPATIAL_TRANSITION_JSON)
     c03 = _construct_c03(process_participation_payload, occurrence_transition_payload, spatial_transition_payload)
+    c03["process_variant_board"] = bind_process_variant_board_score_state_context(
+        game_state_context,
+        identity_payload,
+        c03.get("signatures") or [],
+        c03.get("process_motif_family_candidates") or [],
+        c03.get("process_variant_board") or {},
+    )
+    m09_opponent_interaction_synthesis = _m09_opponent_interaction_synthesis(c03)
+    score_state_visible_process_outcome_context = build_score_state_visible_process_outcome_context(
+        game_state_context,
+        identity_payload,
+        c03.get("signatures") or [],
+    )
+    visible_process_route_breadth_profile = build_visible_process_route_breadth_profile(
+        c03.get("signatures") or [],
+    )
+    m02_progression_territory_synthesis = _m02_progression_territory_synthesis(
+        c03,
+        visible_process_route_breadth_profile,
+    )
+    m07_defensive_process_visible_exposure_response_synthesis = (
+        _m07_defensive_process_visible_exposure_response_synthesis(
+            m09_opponent_interaction_synthesis,
+            m05_loss_recovery_dynamics_synthesis,
+            m02_progression_territory_synthesis,
+        )
+    )
+    visible_circulation_fate_profile = build_visible_circulation_fate_profile(
+        [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
+    )
+    m01_possession_construction_synthesis = _m01_possession_construction_synthesis(
+        c03,
+        visible_circulation_fate_profile,
+        goalkeeper_restart_consequence_context,
+    )
+    r01_ball_progression_system_synthesis = _r01_ball_progression_system_synthesis(
+        m01_possession_construction_synthesis,
+        m02_progression_territory_synthesis,
+    )
     if c03.get("status") == "REVIEW_REQUIRED":
         review_hits.append("C03_process_development_signature_review_available")
 
@@ -1372,6 +5297,9 @@ def run_rich_lane(
         review_hits.append("C04_xlsx_composition_total_intelligence_review_available")
 
     packet_candidates = [c01["packet_candidate"]] if c01.get("packet_candidate") else []
+    packet_candidates.extend(
+        row for row in (c02.get("packet_candidates") or []) if isinstance(row, dict)
+    )
     status = "FAIL_CLOSED" if hard_blocks else "REVIEW_REQUIRED" if review_hits else "SMOKE_PASS"
     payload = {
         "module_id": MODULE_ID,
@@ -1387,27 +5315,68 @@ def run_rich_lane(
         "xlsx_surface_audit": xlsx_audit,
         "xlsx_entity_metric_projection": projection,
         "primitive_metrics": primitives,
+        "football_ontology_contract": _football_ontology_contract(),
         "constructs": {"C01": c01, "C02": c02, "C03": c03, "C04": c04},
         "phase_state_candidates": phase_states,
+        "game_state_context": game_state_context,
+        "game_state_process_mix_context": game_state_process_mix_context,
+        "player_score_state_process_participation": player_score_state_process_participation,
+        "time_window_process_mix_change_context": time_window_process_mix_change_context,
+        "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
+        "m09_opponent_interaction_synthesis": m09_opponent_interaction_synthesis,
+        "m07_defensive_process_visible_exposure_response_synthesis": m07_defensive_process_visible_exposure_response_synthesis,
+        "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
+        "m02_progression_territory_synthesis": m02_progression_territory_synthesis,
+        "r01_ball_progression_system_synthesis": r01_ball_progression_system_synthesis,
+        "visible_circulation_fate_profile": visible_circulation_fate_profile,
+        "m01_possession_construction_synthesis": m01_possession_construction_synthesis,
+        "aerial_duel_first_visible_state_context": aerial_duel_first_visible_state_context,
+        "recovery_next_process_context": recovery_next_process_context,
+        "loss_next_opponent_process_context": loss_next_opponent_process_context,
+        "m05_loss_recovery_dynamics_synthesis": m05_loss_recovery_dynamics_synthesis,
+        "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
+        "set_piece_process_consequence_context": set_piece_process_consequence_context,
+        "counterattack_next_process_context": counterattack_next_process_context,
+        "m06_transition_dynamics_synthesis": m06_transition_dynamics_synthesis,
         "analysis_lattice": {
             "MICRO": {
                 "player_view_candidates": entity_views.get("player_view_candidates"),
                 "goalkeeper_view_candidates": entity_views.get("goalkeeper_view_candidates"),
+                "goalkeeper_restart_consequence_context": goalkeeper_restart_consequence_context,
+                "aerial_duel_first_visible_state_context": aerial_duel_first_visible_state_context,
+                "player_score_state_process_participation": player_score_state_process_participation,
                 "primitive_metrics": primitives,
             },
             "MEZZO": {
                 "episode_feature_vectors": features.get("episode_feature_vectors") or [],
+                "recovery_next_process_context": recovery_next_process_context,
+                "loss_next_opponent_process_context": loss_next_opponent_process_context,
+                "m05_loss_recovery_dynamics_synthesis": m05_loss_recovery_dynamics_synthesis,
+                "set_piece_process_consequence_context": set_piece_process_consequence_context,
+                "counterattack_next_process_context": counterattack_next_process_context,
+                "m06_transition_dynamics_synthesis": m06_transition_dynamics_synthesis,
                 "phase_state_candidates": phase_states,
                 "temporal_episode_signatures": temporal.get("temporal_episode_signatures") or temporal.get("episode_signatures") or [],
                 "process_development_signatures": c03.get("signatures") or [],
+                "m09_opponent_interaction_synthesis": m09_opponent_interaction_synthesis,
+                "m07_defensive_process_visible_exposure_response_synthesis": m07_defensive_process_visible_exposure_response_synthesis,
+                "visible_circulation_fate_profile": visible_circulation_fate_profile,
+                "m01_possession_construction_synthesis": m01_possession_construction_synthesis,
+                "m02_progression_territory_synthesis": m02_progression_territory_synthesis,
             },
             "MACRO": {
                 "team_view_candidates": entity_views.get("team_view_candidates"),
+                "game_state_context": game_state_context,
+                "game_state_process_mix_context": game_state_process_mix_context,
+                "time_window_process_mix_change_context": time_window_process_mix_change_context,
+                "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
+                "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
+                "r01_ball_progression_system_synthesis": r01_ball_progression_system_synthesis,
                 "action_family_candidate_counts": features.get("eligible_action_family_candidate_counts") or {},
                 "metric_label_observation_counts": entity_views.get("metric_label_observation_counts") or {},
                 "constructs": {
                     "C01": {key: value for key, value in c01.items() if key not in {"progression_metric_refs", "terminal_metric_refs", "comparable_scope_pairs", "packet_candidate"}},
-                    "C02": {key: value for key, value in c02.items() if key not in {"actor_argument_candidates", "dyad_argument_candidates", "process_family_profiles"}},
+                    "C02": {key: value for key, value in c02.items() if key not in {"actor_argument_candidates", "dyad_argument_candidates", "process_family_profiles", "packet_candidates"}},
                     "C03": {key: value for key, value in c03.items() if key != "signatures"},
                     "C04": {key: value for key, value in c04.items() if key not in {"composition_profiles", "model_context_residual_profiles"}},
                 },

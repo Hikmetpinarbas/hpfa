@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_variant_feature_challenge_adapter import (
+    _binding_for_handoff,
     apply_variant_feature_challenge_to_admission,
 )
 
@@ -34,6 +35,8 @@ def _admission(decision: str = "EMIT") -> dict:
                 "admitted_independent_support_count": 2,
                 "dependency_independence_proven": True,
                 "statistical_independence_proven": True,
+                "episode_spread_state": "UNKNOWN",
+                "episode_spread_count": "UNKNOWN",
             }
         ],
         "safe_finding_admission_decision_count": 1,
@@ -58,6 +61,12 @@ def _process_variant() -> dict:
         "observable_process_variant_families": [
             {
                 "observable_process_variant_family_id": "family_1",
+                "visible_episode_spread_count": 2,
+                "visible_episode_spread_state": "MULTIPLE_VISIBLE_EPISODE_CANDIDATES",
+                "occurrence_disjoint_support_cluster_count": 2,
+                "occurrence_disjoint_support_cluster_state": "MULTIPLE_OCCURRENCE_DISJOINT_SUPPORT_CLUSTERS_VISIBLE",
+                "success_visible_episode_spread_count": 1,
+                "failure_visible_episode_spread_count": 1,
                 "member_records": [
                     {
                         "sequence_ref": "s1",
@@ -120,6 +129,53 @@ def test_partial_matched_challenge_downgrades_emit_without_changing_support() ->
     assert row["variant_feature_challenge_refs"] == ["vfc_1"]
     assert out["variant_feature_challenge_can_increase_support"] is False
     assert out["variant_feature_challenge_can_authorize_emit"] is False
+
+
+def test_late_bound_episode_spread_resolves_stale_unknown_without_support_inflation() -> None:
+    out = apply_variant_feature_challenge_to_admission(
+        _sequence(),
+        _admission("DOWNGRADE"),
+        _challenge(partial=False, dep=True, stat=True),
+        _process_variant(),
+    )
+    row = out["safe_finding_admission_decisions"][0]
+    assert row["episode_spread_state"] == "OBSERVED_LATE_BOUND_VARIANT_FAMILY_SPREAD"
+    assert row["episode_spread_count"] == 2
+    assert row["episode_spread_source"] == "OBSERVABLE_PROCESS_VARIANT_FAMILY_LINEAGE"
+    assert row["episode_spread_late_bound"] is True
+    assert row["episode_spread_can_increase_support"] is False
+    assert row["episode_spread_is_independent_support"] is False
+    assert row["episode_spread_is_recurrence_truth"] is False
+    assert row["variant_support_spread_separation_state"] == (
+        "MULTI_EPISODE_OCCURRENCE_DISJOINT_SEPARATION_VISIBLE_INDEPENDENCE_UNPROVEN"
+    )
+    assert row["variant_support_spread_is_independent_support"] is False
+    assert row["variant_support_spread_is_recurrence_truth"] is False
+    assert row["admitted_independent_support_count"] == 2
+    assert "EPISODE_SPREAD_UNKNOWN" not in row["decision_reasons"]
+    assert row["decision"] == "DOWNGRADE"
+
+
+
+def test_matched_late_bound_challenge_removes_stale_empty_surface_reason_without_promoting_emit() -> None:
+    admission = _admission("DOWNGRADE")
+    admission["safe_finding_admission_decisions"][0]["decision_reasons"] = [
+        "CHALLENGE_SURFACE_EMPTY",
+        "DEPENDENCY_INDEPENDENCE_NOT_PROVEN",
+    ]
+    out = apply_variant_feature_challenge_to_admission(
+        _sequence(),
+        admission,
+        _challenge(partial=False, dep=True, stat=True),
+        _process_variant(),
+    )
+    row = out["safe_finding_admission_decisions"][0]
+    assert "CHALLENGE_SURFACE_EMPTY" not in row["decision_reasons"]
+    assert "DEPENDENCY_INDEPENDENCE_NOT_PROVEN" in row["decision_reasons"]
+    assert row["variant_feature_challenge_binding_state"] == "MATCHED_CHALLENGE_VISIBLE"
+    assert row["decision"] == "DOWNGRADE"
+    assert row["claim_output_allowed"] is False
+    assert out["professional_finding_emitted_count"] == 0
 
 
 def test_unproven_challenge_independence_downgrades_emit() -> None:
@@ -195,3 +251,69 @@ def test_challenge_truth_lock_breach_fails_closed() -> None:
     assert out["status"] == "FAIL_CLOSED"
     assert out["safe_finding_admission_decisions"] == []
     assert "variant_feature_challenge_emit_lock_not_false" in out["hard_block_hits"]
+
+
+def test_unique_direct_divergence_family_can_resolve_single_episode_concentration_without_support_promotion():
+    handoff = {
+        "source_first_supported_branch_divergence_ref": "fsbd_direct",
+        "support": {"visible_success_sequence_refs": ["s1"]},
+        "counterevidence": {"visible_failure_sequence_refs": ["f1"]},
+    }
+    challenge = {"variant_feature_challenge_records": []}
+    process = {
+        "observable_process_variant_families": [{
+            "observable_process_variant_family_id": "opvf_direct",
+            "visible_episode_spread_count": 1,
+            "visible_episode_spread_state": "SINGLE_VISIBLE_EPISODE_CONCENTRATION",
+            "occurrence_disjoint_support_cluster_count": 1,
+            "supported_branch_divergence_bindings": [{
+                "source_first_supported_branch_divergence_ref": "fsbd_direct",
+            }],
+            "member_records": [],
+        }]
+    }
+    binding = _binding_for_handoff(handoff, challenge, process)
+    assert binding["state"] == "DIRECT_DIVERGENCE_FAMILY_SPREAD_ONLY_NO_GRAMMAR_STABLE_LINEAGE"
+    assert binding["family_refs"] == ["opvf_direct"]
+    assert binding["episode_spread_observed"] is True
+    assert binding["episode_spread_max_visible_count"] == 1
+    assert binding["multi_episode_spread_visible"] is False
+    assert binding["support_spread_is_independent_support"] is False
+    assert binding["support_spread_is_recurrence_truth"] is False
+    assert binding["direct_divergence_family_spread_can_authorize_emit"] is False
+    assert binding["direct_divergence_family_spread_can_increase_support"] is False
+
+
+def test_multiple_direct_divergence_families_remain_unresolved():
+    handoff = {
+        "source_first_supported_branch_divergence_ref": "fsbd_multi",
+        "support": {"visible_success_sequence_refs": ["s1"]},
+        "counterevidence": {"visible_failure_sequence_refs": ["f1"]},
+    }
+    challenge = {"variant_feature_challenge_records": []}
+    process = {
+        "observable_process_variant_families": [
+            {
+                "observable_process_variant_family_id": "opvf_a",
+                "visible_episode_spread_count": 3,
+                "visible_episode_spread_state": "MULTIPLE_VISIBLE_EPISODE_CANDIDATES",
+                "supported_branch_divergence_bindings": [{
+                    "source_first_supported_branch_divergence_ref": "fsbd_multi",
+                }],
+                "member_records": [],
+            },
+            {
+                "observable_process_variant_family_id": "opvf_b",
+                "visible_episode_spread_count": 4,
+                "visible_episode_spread_state": "MULTIPLE_VISIBLE_EPISODE_CANDIDATES",
+                "supported_branch_divergence_bindings": [{
+                    "source_first_supported_branch_divergence_ref": "fsbd_multi",
+                }],
+                "member_records": [],
+            },
+        ]
+    }
+    binding = _binding_for_handoff(handoff, challenge, process)
+    assert binding["state"] == "REVIEW_REQUIRED_MULTIPLE_DIRECT_DIVERGENCE_FAMILY_MATCHES"
+    assert binding["episode_spread_observed"] is False
+    assert binding["direct_divergence_family_match_count"] == 2

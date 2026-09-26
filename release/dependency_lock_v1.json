@@ -1,0 +1,12 @@
+{
+  "lock_id": "hpfa_dependency_lock_v1",
+  "lock_status": "INCOMPLETE",
+  "core_runtime_dependencies": [],
+  "build_dependencies": [
+    {"name": "setuptools", "constraint": ">=68", "exact_version": null, "sha256": null},
+    {"name": "wheel", "constraint": "unbounded", "exact_version": null, "sha256": null}
+  ],
+  "optional_dependency_lock": "NOT_RESOLVED",
+  "reproducible_dependency_resolution": false,
+  "production_release": false
+}

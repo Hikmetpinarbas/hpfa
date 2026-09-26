@@ -61,6 +61,7 @@ def _atom(evidence_id: str, rule_id: str, *, source_role: str = ROLE) -> dict:
 def _payload(distance: str = "MEDIUM", outcome: str = "SUCCESS") -> tuple[dict, dict]:
     distance_labels = {
         "SHORT": ("Goal kicks short (0-15 m)", "plvs_v2_goal_kicks_short_gk_surface"),
+        "SHORT_0_10": ("Goal kicks short (0-10 m.)", "plvs_v2_goal_kicks_short_0_10_gk_surface"),
         "MEDIUM": ("Goal kicks medium (15-40 m)", "plvs_v2_goal_kicks_medium_gk_surface"),
         "LONG": ("Goal kicks long (40+ m)", "plvs_v2_goal_kicks_long_gk_surface"),
     }
@@ -119,6 +120,18 @@ def test_exact_medium_goal_kick_binds_restart_and_pass_without_physical_distance
     assert row["independent_support_vote_count"] == 0
     assert row["canonical_event_count"] == "UNKNOWN"
     assert row["true_action_count"] == "UNKNOWN"
+
+
+def test_legacy_short_0_10_goal_kick_variant_maps_to_short_without_distance_truth() -> None:
+    action, evidence = _payload("SHORT_0_10", "SUCCESS")
+    out = build_goal_kick_restart_pass_candidates(action, evidence)
+
+    assert out["action_occurrence_candidate_count"] == 1
+    row = out["action_occurrence_candidates"][0]
+    assert row["attributes"]["provider_distance_bucket_candidate"] == "SHORT"
+    assert row["attributes"]["provider_distance_bucket_text"] == "0-10 m"
+    assert row["attributes"]["provider_distance_bucket_is_measured_physical_distance"] is False
+    assert row["attributes"]["provider_distance_bucket_is_tactical_strategy_truth"] is False
 
 
 def test_exact_long_failed_goal_kick_preserves_failure_as_provider_semantic_outcome() -> None:

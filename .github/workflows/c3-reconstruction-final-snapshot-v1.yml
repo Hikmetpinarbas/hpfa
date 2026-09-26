@@ -2,10 +2,25 @@ name: C3 Reconstruction Final Snapshot V1
 
 on:
   pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'requirements.txt'
+      - '.github/workflows/c3-reconstruction-final-snapshot-v1.yml'
+      - 'trackable_action_trace_candidates_current_v1.py'
+      - 'trackable_action_consequence_candidates_current_v1.py'
+      - 'visible_action_sequence_candidates_current_v1.py'
+      - 'tools/bootstrap_termux_c3_reconstruction_current_v1.sh'
+      - 'hpfa/modules/core/trackable_action_trace_candidates_lite/**'
+      - 'hpfa/modules/core/trackable_action_consequence_candidates_lite/**'
+      - 'hpfa/modules/core/visible_action_sequence_candidates_lite/**'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: hpfa-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   reconstruction-final-snapshot:

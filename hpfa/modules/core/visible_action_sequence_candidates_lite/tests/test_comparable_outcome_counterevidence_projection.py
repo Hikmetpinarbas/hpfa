@@ -262,3 +262,292 @@ def test_safe_finding_handoff_exposes_unresolved_observed_defeat_and_typed_withd
     assert rules["WITHDRAW_IF_SHARED_ANCHOR_ADMISSION_INVALIDATED"]["defeat_type"] == "UNDERMINE"
     assert rules["WITHDRAW_IF_COMPARISON_ELIGIBILITY_INVALIDATED"]["defeat_type"] == "UNDERCUT"
     assert all(row["withdrawal_effect"] in {"ABSTAIN", "REVIEW_REQUIRED"} for row in rules.values())
+
+
+def test_canonical_evidence_direction_separates_counterevidence_from_dependency_challenge():
+    result = build_comparable_outcome_counterevidence(_payload())
+    record = _record(result)
+
+    assert record["canonical_evidence_direction_class"] == "COUNTEREVIDENCE"
+    assert record["canonical_evidence_target_construct"] == (
+        "STRUCTURAL_RECURRENCE_VISIBLE_OUTCOME_CONSISTENCY"
+    )
+    assert record["dependency_challenge_present"] is True
+    assert "SHARED_ORIGIN_COMPARISON_DESIGN" in record["dependency_challenge_reason_codes"]
+    assert record["dependency_challenge_changes_evidence_direction"] is False
+    assert record["independent_evidence_vote_allowed"] is False
+    assert result["legacy_canonical_evidence_direction_counts"]["COUNTEREVIDENCE"] == 1
+    assert result["legacy_dependency_challenge_record_count"] == 1
+    assert result["dependency_challenge_is_evidence_direction"] is False
+
+
+def test_same_visible_outcome_is_canonical_support_not_counterevidence():
+    result = build_comparable_outcome_counterevidence(
+        _payload(
+            left_outcome="SUCCESS_SEMANTIC_VISIBLE",
+            right_outcome="SUCCESS_SEMANTIC_VISIBLE",
+        )
+    )
+    record = _record(result)
+
+    assert record["canonical_evidence_direction_class"] == "SUPPORT"
+    assert record["comparable_counterevidence_candidate"] is False
+    assert record["non_support_is_counterevidence"] is False
+
+
+def test_unresolved_outcome_is_canonical_unresolved_not_failure():
+    result = build_comparable_outcome_counterevidence(
+        _payload(right_outcome="OUTCOME_SEMANTIC_NOT_ADMITTED_FOR_DIVERGENCE")
+    )
+    record = _record(result)
+
+    assert record["canonical_evidence_direction_class"] == "UNRESOLVED"
+    assert record["unresolved_is_failure"] is False
+    assert result["legacy_canonical_evidence_direction_counts"]["UNRESOLVED"] == 1
+
+
+def test_ineligible_comparison_is_not_evaluated_not_counterevidence():
+    result = build_comparable_outcome_counterevidence(_payload(comparison_eligible=False))
+    record = _record(result)
+
+    assert record["canonical_evidence_direction_class"] == "NOT_EVALUATED"
+    assert record["comparable_counterevidence_candidate"] is False
+
+
+def test_branch_different_branch_same_outcome_is_non_support_not_counterevidence():
+    payload = _payload(
+        left_outcome="SUCCESS_SEMANTIC_VISIBLE",
+        right_outcome="SUCCESS_SEMANTIC_VISIBLE",
+    )
+    divergence = payload["first_supported_branch_divergence_candidates"][0]
+    divergence["comparable_set_id"] = "set_1"
+    divergence["comparison_question_id"] = "shared_visible_anchor_branch_contrast_v1"
+    divergence["eligible_denominator_frozen_before_divergence_outcome_attachment"] = True
+    divergence["outcome_used_in_divergence_location"] = False
+    divergence["branch_profiles"] = [
+        {
+            "branch_id": "branch_a",
+            "branch_outcome_state": "SUCCESS_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s1"],
+        },
+        {
+            "branch_id": "branch_b",
+            "branch_outcome_state": "SUCCESS_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s2"],
+        },
+    ]
+
+    result = build_comparable_outcome_counterevidence(payload)
+    assert result["branch_comparison_counterevidence_record_count"] == 1
+    record = result["branch_comparison_counterevidence_records"][0]
+
+    assert record["canonical_evidence_direction_class"] == "NON_SUPPORT"
+    assert record["canonical_evidence_target_component"] == (
+        "BETWEEN_BRANCH_VISIBLE_OUTCOME_DISCRIMINATION"
+    )
+    assert record["same_design_challenge_candidate"] is True
+    assert record["non_support_is_counterevidence"] is False
+    assert record["dependency_challenge_state"] == "NOT_EVALUATED_IN_BRANCH_RECORD"
+    assert result["branch_canonical_evidence_direction_counts"]["NON_SUPPORT"] == 1
+
+
+def test_branch_same_branch_different_outcome_is_canonical_counterevidence():
+    payload = _payload()
+    divergence = payload["first_supported_branch_divergence_candidates"][0]
+    divergence["comparable_set_id"] = "set_1"
+    divergence["comparison_question_id"] = "shared_visible_anchor_branch_contrast_v1"
+    divergence["eligible_denominator_frozen_before_divergence_outcome_attachment"] = True
+    divergence["outcome_used_in_divergence_location"] = False
+    divergence["branch_profiles"] = [
+        {
+            "branch_id": "branch_a",
+            "branch_outcome_state": "SUCCESS_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s1"],
+        },
+        {
+            "branch_id": "branch_a",
+            "branch_outcome_state": "FAILURE_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s2"],
+        },
+    ]
+
+    result = build_comparable_outcome_counterevidence(payload)
+    assert result["branch_comparison_counterevidence_record_count"] == 1
+    record = result["branch_comparison_counterevidence_records"][0]
+
+    assert record["canonical_evidence_direction_class"] == "COUNTEREVIDENCE"
+    assert record["canonical_evidence_target_component"] == (
+        "WITHIN_BRANCH_VISIBLE_OUTCOME_STABILITY"
+    )
+    assert record["same_design_challenge_candidate"] is True
+    assert record["independent_evidence_vote_allowed"] is False
+
+
+def test_legacy_evidence_record_binds_to_frozen_comparable_set_case_denominator():
+    payload = _payload()
+    payload["process_comparable_sets"] = [
+        {
+            "comparable_set_id": "set_1",
+            "comparison_question_id": "match_local_structural_recurrence_v1",
+            "member_process_candidate_ids": ["v1", "v2", "v3"],
+            "eligible_case_count": 3,
+            "eligible_denominator_frozen_before_outcome_attachment": True,
+            "materialized_pair_count_is_eligible_denominator": False,
+        }
+    ]
+    result = build_comparable_outcome_counterevidence(payload)
+    record = _record(result)
+
+    assert record["canonical_evidence_observation_unit"] == "COMPARABLE_VARIANT_PAIR_RELATION"
+    assert record["canonical_evidence_target_component"] == (
+        "WITHIN_COMPARABLE_SET_VISIBLE_OUTCOME_CONSISTENCY"
+    )
+    assert record["canonical_evidence_target_comparable_set_id"] == "set_1"
+    assert record["eligible_denominator_binding_state"] == (
+        "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND"
+    )
+    assert record["eligible_denominator_basis"] == "FROZEN_COMPARABLE_SET_ELIGIBLE_CASES"
+    assert record["eligible_denominator_count"] == 3
+    assert record["eligible_denominator_frozen_before_outcome_attachment"] is True
+    assert record["pair_record_is_eligible_denominator"] is False
+    assert record["pair_count_is_eligible_denominator"] is False
+    assert record["eligible_denominator_is_independent_evidence_count"] is False
+    assert result["legacy_denominator_binding_state_counts"] == {
+        "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND": 1
+    }
+    assert result["pair_count_is_eligible_denominator"] is False
+
+
+def test_missing_comparable_set_binding_remains_unresolved_and_does_not_invent_denominator():
+    result = build_comparable_outcome_counterevidence(_payload())
+    record = _record(result)
+
+    assert record["eligible_denominator_binding_state"] == (
+        "COMPARABLE_SET_DENOMINATOR_BINDING_UNRESOLVED"
+    )
+    assert record["canonical_evidence_target_comparable_set_id"] is None
+    assert record["eligible_denominator_count"] is None
+    assert record["pair_count_is_eligible_denominator"] is False
+
+
+def test_branch_evidence_record_binds_to_frozen_branch_case_denominator():
+    payload = _payload()
+    divergence = payload["first_supported_branch_divergence_candidates"][0]
+    divergence["comparable_set_id"] = "set_1"
+    divergence["comparison_question_id"] = "shared_visible_anchor_branch_contrast_v1"
+    divergence["eligible_denominator_frozen_before_divergence_outcome_attachment"] = True
+    divergence["outcome_used_in_divergence_location"] = False
+    divergence["observed_branch_opportunity_eligible_denominator"] = 2
+    divergence["branch_profiles"] = [
+        {
+            "branch_id": "branch_a",
+            "branch_outcome_state": "SUCCESS_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s1"],
+        },
+        {
+            "branch_id": "branch_b",
+            "branch_outcome_state": "FAILURE_SEMANTIC_VISIBLE",
+            "supporting_visible_sequence_candidate_ids": ["s2"],
+        },
+    ]
+
+    result = build_comparable_outcome_counterevidence(payload)
+    assert result["branch_comparison_counterevidence_record_count"] == 1
+    record = result["branch_comparison_counterevidence_records"][0]
+
+    assert record["canonical_evidence_observation_unit"] == (
+        "SAME_DESIGN_BRANCH_CASE_PAIR_RELATION"
+    )
+    assert record["canonical_evidence_target_comparable_set_id"] == "set_1"
+    assert record["eligible_denominator_binding_state"] == (
+        "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND"
+    )
+    assert record["eligible_denominator_count"] == 2
+    assert record["pair_record_is_eligible_denominator"] is False
+    assert record["pair_count_is_eligible_denominator"] is False
+    assert result["branch_denominator_binding_state_counts"] == {
+        "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND": 1
+    }
+
+
+def test_ambiguous_variant_membership_does_not_bind_pair_to_arbitrary_denominator():
+    payload = _payload()
+    payload["process_comparable_sets"] = [
+        {
+            "comparable_set_id": "set_1",
+            "comparison_question_id": "match_local_structural_recurrence_v1",
+            "member_process_candidate_ids": ["v1", "v2"],
+            "eligible_case_count": 2,
+            "eligible_denominator_frozen_before_outcome_attachment": True,
+            "materialized_pair_count_is_eligible_denominator": False,
+        },
+        {
+            "comparable_set_id": "set_2",
+            "comparison_question_id": "match_local_structural_recurrence_v1",
+            "member_process_candidate_ids": ["v1", "v3"],
+            "eligible_case_count": 2,
+            "eligible_denominator_frozen_before_outcome_attachment": True,
+            "materialized_pair_count_is_eligible_denominator": False,
+        },
+    ]
+    result = build_comparable_outcome_counterevidence(payload)
+    record = _record(result)
+
+    assert record["eligible_denominator_binding_state"] == (
+        "COMPARABLE_SET_MEMBERSHIP_AMBIGUOUS_REVIEW_REQUIRED"
+    )
+    assert record["eligible_denominator_count"] is None
+    assert record["canonical_evidence_target_comparable_set_id"] is None
+
+
+def test_safe_finding_exposes_explicit_falsifier_vs_invalidator_contract():
+    result = build_comparable_outcome_counterevidence(_payload())
+    handoff = result["safe_finding_handoff_candidates"][0]
+    contract = handoff["falsification_invalidation_contract"]
+
+    assert result["falsification_invalidation_contract_applied"] is True
+    assert contract["observed_counterevidence_ref_count"] == 1
+    assert contract["observed_counterevidence_is_falsifier_of_current_safe_claim"] is False
+    assert contract["falsifier_contract"]["requires_comparison_eligible"] is True
+    assert contract["falsifier_contract"]["requires_resolved_visible_outcome"] is True
+    assert contract["falsifier_contract"]["requires_opposite_observation_to_target_claim"] is True
+    assert contract["falsifier_contract"]["falsifier_is_causal_refutation"] is False
+    assert contract["falsifier_contract"]["falsifier_is_independent_evidence_vote"] is False
+    assert contract["invalidator_contract"]["invalidator_makes_claim_false"] is False
+    assert contract["invalidator_contract"]["invalidator_is_counterevidence"] is False
+    assert contract["invalidator_contract"]["invalidator_effect"] == (
+        "CLAIM_NOT_ADMISSIBLE_OR_ABSTAIN"
+    )
+    assert "ELIGIBLE_DENOMINATOR_BINDING_INVALIDATED" in contract[
+        "invalidator_contract"
+    ]["invalidator_reason_codes"]
+    assert "OUTCOME_LEAKAGE_DETECTED" in contract[
+        "invalidator_contract"
+    ]["invalidator_reason_codes"]
+    assert contract["eligible_denominator_is_pair_count"] is False
+    assert contract["absence_is_falsifier"] is False
+    assert contract["unresolved_is_falsifier"] is False
+    assert contract["non_support_is_falsifier"] is False
+    assert contract["falsifier_is_invalidator"] is False
+    assert contract["invalidator_is_falsifier"] is False
+
+
+def test_withdrawal_rules_type_denominator_and_outcome_leakage_as_invalidating_warrant_attacks():
+    result = build_comparable_outcome_counterevidence(_payload())
+    handoff = result["safe_finding_handoff_candidates"][0]
+    rules = {
+        row["condition_code"]: row
+        for row in handoff["typed_defeat_contract"]["conditional_withdrawal_rules"]
+    }
+
+    denominator = rules["WITHDRAW_IF_ELIGIBLE_DENOMINATOR_BINDING_INVALIDATED"]
+    leakage = rules["WITHDRAW_IF_OUTCOME_LEAKAGE_DETECTED"]
+
+    assert denominator["defeat_type"] == "UNDERCUT"
+    assert denominator["target_component_type"] == "DENOMINATOR_WARRANT"
+    assert denominator["withdrawal_effect"] == "ABSTAIN"
+    assert leakage["defeat_type"] == "UNDERCUT"
+    assert leakage["target_component_type"] == "COMPARISON_DESIGN_WARRANT"
+    assert leakage["withdrawal_effect"] == "ABSTAIN"
+    assert handoff["invalidator_is_counterevidence"] is False
+    assert handoff["invalidator_makes_claim_false"] is False

@@ -11,6 +11,13 @@ SAFE_FINDING_HANDOFF_CLAIM_CEILING = "DOWNGRADED_MATCH_LOCAL_SAFE_FINDING_HANDOF
 BRANCH_COUNTEREVIDENCE_CLAIM_CEILING = "SAME_DESIGN_BRANCH_VARIATION_AND_CHALLENGE_CANDIDATE_ONLY"
 VISIBLE_OUTCOME_STATES = {"SUCCESS_SEMANTIC_VISIBLE", "FAILURE_SEMANTIC_VISIBLE"}
 BRANCH_QUESTION_ID = "shared_visible_anchor_branch_contrast_v1"
+CANONICAL_EVIDENCE_DIRECTION_CLASSES = {
+    "SUPPORT",
+    "COUNTEREVIDENCE",
+    "NON_SUPPORT",
+    "UNRESOLVED",
+    "NOT_EVALUATED",
+}
 
 
 def _clean(value: Any) -> str:
@@ -69,12 +76,151 @@ def _branch_sequence_refs(divergence: dict[str, Any], outcome_state: str) -> lis
     return sorted(refs)
 
 
+def _explicit_dependency_challenge(pair: dict[str, Any]) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    if int(pair.get("shared_occurrence_candidate_count") or 0) > 0:
+        reasons.append("SHARED_OCCURRENCE_ROOT")
+    if int(pair.get("shared_dependency_group_count") or 0) > 0:
+        reasons.append("SHARED_DEPENDENCY_GROUP")
+    if _clean(pair.get("pair_state")) == "DEPENDENT_SHARED_ORIGIN_VARIANT_PAIR":
+        reasons.append("DEPENDENT_SHARED_ORIGIN_PAIR_STATE")
+    if _clean(pair.get("comparison_eligibility_state")) == "COMPARABLE_FOR_SHARED_ORIGIN_BRANCH_CONTRAST":
+        reasons.append("SHARED_ORIGIN_COMPARISON_DESIGN")
+    return bool(reasons), sorted(set(reasons))
+
+
+def _legacy_evidence_direction(contrast_state: str) -> str:
+    mapping = {
+        "COMPARABLE_SAME_VISIBLE_OUTCOME": "SUPPORT",
+        "COMPARABLE_DIFFERENT_VISIBLE_OUTCOME_COUNTEREXAMPLE_CANDIDATE": "COUNTEREVIDENCE",
+        "COMPARABLE_VISIBLE_OUTCOME_SEMANTIC_UNRESOLVED_REVIEW_REQUIRED": "UNRESOLVED",
+        "COMPARABLE_VARIANT_SEQUENCE_BINDING_MISSING_REVIEW_REQUIRED": "UNRESOLVED",
+        "NOT_APPLICABLE_OR_REVIEW_REQUIRED_COMPARISON": "NOT_EVALUATED",
+    }
+    return mapping.get(contrast_state, "UNRESOLVED")
+
+
+def _branch_evidence_direction(
+    *,
+    same_branch: bool,
+    left_outcome: str | None,
+    right_outcome: str | None,
+) -> tuple[str, str]:
+    if left_outcome is None or right_outcome is None:
+        return "UNRESOLVED", (
+            "WITHIN_BRANCH_VISIBLE_OUTCOME_STABILITY"
+            if same_branch
+            else "BETWEEN_BRANCH_VISIBLE_OUTCOME_DISCRIMINATION"
+        )
+    if same_branch:
+        if left_outcome == right_outcome:
+            return "SUPPORT", "WITHIN_BRANCH_VISIBLE_OUTCOME_STABILITY"
+        return "COUNTEREVIDENCE", "WITHIN_BRANCH_VISIBLE_OUTCOME_STABILITY"
+    if left_outcome == right_outcome:
+        return "NON_SUPPORT", "BETWEEN_BRANCH_VISIBLE_OUTCOME_DISCRIMINATION"
+    return "SUPPORT", "BETWEEN_BRANCH_VISIBLE_OUTCOME_DISCRIMINATION"
+
+
+def _variant_comparable_set_bindings(
+    sequence_payload: dict[str, Any],
+) -> tuple[dict[str, dict[str, Any]], set[str]]:
+    bindings: dict[str, dict[str, Any]] = {}
+    ambiguous: set[str] = set()
+    for row in sequence_payload.get("process_comparable_sets") or []:
+        if not isinstance(row, dict):
+            continue
+        comparable_set_id = _clean(row.get("comparable_set_id"))
+        if not comparable_set_id:
+            continue
+        eligible_case_count = row.get("eligible_case_count")
+        if (
+            not isinstance(eligible_case_count, int)
+            or isinstance(eligible_case_count, bool)
+            or eligible_case_count < 0
+        ):
+            eligible_case_count = None
+        binding = {
+            "comparable_set_id": comparable_set_id,
+            "comparison_question_id": _clean(row.get("comparison_question_id")) or None,
+            "eligible_case_count": eligible_case_count,
+            "eligible_denominator_frozen_before_outcome_attachment": (
+                row.get("eligible_denominator_frozen_before_outcome_attachment") is True
+            ),
+            "materialized_pair_count_is_eligible_denominator": (
+                row.get("materialized_pair_count_is_eligible_denominator") is True
+            ),
+        }
+        for raw_variant_id in row.get("member_process_candidate_ids") or []:
+            variant_id = _clean(raw_variant_id)
+            if not variant_id:
+                continue
+            previous = bindings.get(variant_id)
+            if previous and previous.get("comparable_set_id") != comparable_set_id:
+                ambiguous.add(variant_id)
+                bindings.pop(variant_id, None)
+                continue
+            if variant_id not in ambiguous:
+                bindings[variant_id] = binding
+    return bindings, ambiguous
+
+
+def _legacy_denominator_binding(
+    *,
+    left_variant: str,
+    right_variant: str,
+    variant_set_bindings: dict[str, dict[str, Any]],
+    ambiguous_variant_ids: set[str],
+) -> dict[str, Any]:
+    if left_variant in ambiguous_variant_ids or right_variant in ambiguous_variant_ids:
+        return {
+            "state": "COMPARABLE_SET_MEMBERSHIP_AMBIGUOUS_REVIEW_REQUIRED",
+            "comparable_set_id": None,
+            "comparison_question_id": None,
+            "eligible_case_count": None,
+            "frozen": False,
+        }
+    left = variant_set_bindings.get(left_variant)
+    right = variant_set_bindings.get(right_variant)
+    if not left or not right:
+        return {
+            "state": "COMPARABLE_SET_DENOMINATOR_BINDING_UNRESOLVED",
+            "comparable_set_id": None,
+            "comparison_question_id": None,
+            "eligible_case_count": None,
+            "frozen": False,
+        }
+    if left.get("comparable_set_id") != right.get("comparable_set_id"):
+        return {
+            "state": "PAIR_MEMBERS_DIFFERENT_COMPARABLE_SETS_REVIEW_REQUIRED",
+            "comparable_set_id": None,
+            "comparison_question_id": None,
+            "eligible_case_count": None,
+            "frozen": False,
+        }
+    frozen = left.get("eligible_denominator_frozen_before_outcome_attachment") is True
+    pair_not_denominator = left.get("materialized_pair_count_is_eligible_denominator") is False
+    count = left.get("eligible_case_count")
+    state = (
+        "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND"
+        if frozen and pair_not_denominator and isinstance(count, int)
+        else "COMPARABLE_SET_DENOMINATOR_CONTRACT_UNRESOLVED_REVIEW_REQUIRED"
+    )
+    return {
+        "state": state,
+        "comparable_set_id": left.get("comparable_set_id"),
+        "comparison_question_id": left.get("comparison_question_id"),
+        "eligible_case_count": count,
+        "frozen": frozen,
+    }
+
+
 def _legacy_similarity_records(
     sequence_payload: dict[str, Any],
     sequence_outcomes: dict[str, set[str]],
     reviews: list[str],
 ) -> list[dict[str, Any]]:
     variant_to_sequence = _variant_sequence_map(sequence_payload)
+    variant_set_bindings, ambiguous_variant_ids = _variant_comparable_set_bindings(sequence_payload)
     records: list[dict[str, Any]] = []
     for pair in sequence_payload.get("dependency_aware_partial_order_similarity_pairs") or []:
         if not isinstance(pair, dict):
@@ -108,6 +254,14 @@ def _legacy_similarity_records(
             contrast_state = "COMPARABLE_DIFFERENT_VISIBLE_OUTCOME_COUNTEREXAMPLE_CANDIDATE"
             candidate = True
 
+        evidence_direction = _legacy_evidence_direction(contrast_state)
+        dependency_challenge_present, dependency_challenge_reasons = _explicit_dependency_challenge(pair)
+        denominator_binding = _legacy_denominator_binding(
+            left_variant=left_variant,
+            right_variant=right_variant,
+            variant_set_bindings=variant_set_bindings,
+            ambiguous_variant_ids=ambiguous_variant_ids,
+        )
         record_id = "coc_" + _digest(pair_id, left_variant, right_variant, left_outcome, right_outcome)[:24]
         records.append({
             "comparable_outcome_counterevidence_id": record_id,
@@ -122,6 +276,31 @@ def _legacy_similarity_records(
             "left_visible_outcome_state": left_outcome,
             "right_visible_outcome_state": right_outcome,
             "comparable_outcome_contrast_state": contrast_state,
+            "canonical_evidence_direction_class": evidence_direction,
+            "canonical_evidence_observation_unit": "COMPARABLE_VARIANT_PAIR_RELATION",
+            "canonical_evidence_target_construct": "STRUCTURAL_RECURRENCE_VISIBLE_OUTCOME_CONSISTENCY",
+            "canonical_evidence_target_component": "WITHIN_COMPARABLE_SET_VISIBLE_OUTCOME_CONSISTENCY",
+            "canonical_evidence_target_question_id": (
+                denominator_binding.get("comparison_question_id")
+                or _clean(pair.get("comparison_question_id"))
+                or None
+            ),
+            "canonical_evidence_target_comparable_set_id": denominator_binding.get("comparable_set_id"),
+            "eligible_denominator_binding_state": denominator_binding.get("state"),
+            "eligible_denominator_basis": "FROZEN_COMPARABLE_SET_ELIGIBLE_CASES",
+            "eligible_denominator_count": denominator_binding.get("eligible_case_count"),
+            "eligible_denominator_frozen_before_outcome_attachment": (
+                denominator_binding.get("frozen") is True
+            ),
+            "pair_record_is_eligible_denominator": False,
+            "pair_count_is_eligible_denominator": False,
+            "eligible_denominator_is_independent_evidence_count": False,
+            "dependency_challenge_present": dependency_challenge_present,
+            "dependency_challenge_reason_codes": dependency_challenge_reasons,
+            "dependency_challenge_changes_evidence_direction": False,
+            "independent_evidence_vote_allowed": False,
+            "non_support_is_counterevidence": False,
+            "unresolved_is_failure": False,
             "comparable_counterevidence_candidate": candidate,
             "counterevidence_is_independent_support": False,
             "dependency_independence_proven": False,
@@ -204,6 +383,24 @@ def _branch_design_records(
                 challenge = False
                 variation = True
 
+            canonical_evidence_direction, canonical_target_component = _branch_evidence_direction(
+                same_branch=same_branch,
+                left_outcome=left_outcome,
+                right_outcome=right_outcome,
+            )
+            branch_denominator = divergence.get("observed_branch_opportunity_eligible_denominator")
+            if (
+                not isinstance(branch_denominator, int)
+                or isinstance(branch_denominator, bool)
+                or branch_denominator < 0
+            ):
+                branch_denominator = None
+            branch_denominator_state = (
+                "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND"
+                if branch_denominator is not None
+                else "BRANCH_ELIGIBLE_CASE_DENOMINATOR_UNRESOLVED_REVIEW_REQUIRED"
+            )
+
             record_id = "boc_" + _digest(
                 comparable_set_id,
                 divergence_id,
@@ -228,6 +425,25 @@ def _branch_design_records(
                 "left_visible_outcome_state": left_outcome,
                 "right_visible_outcome_state": right_outcome,
                 "branch_comparison_contrast_state": state,
+                "canonical_evidence_direction_class": canonical_evidence_direction,
+                "canonical_evidence_observation_unit": "SAME_DESIGN_BRANCH_CASE_PAIR_RELATION",
+                "canonical_evidence_target_construct": "BRANCH_OUTCOME_STABILITY_AND_DISCRIMINATION",
+                "canonical_evidence_target_component": canonical_target_component,
+                "canonical_evidence_target_question_id": question_id,
+                "canonical_evidence_target_comparable_set_id": comparable_set_id,
+                "eligible_denominator_binding_state": branch_denominator_state,
+                "eligible_denominator_basis": "FROZEN_ELIGIBLE_CASES_FROM_FIRST_SUPPORTED_BRANCH_DIVERGENCE",
+                "eligible_denominator_count": branch_denominator,
+                "eligible_denominator_frozen_before_outcome_attachment": True,
+                "pair_record_is_eligible_denominator": False,
+                "pair_count_is_eligible_denominator": False,
+                "eligible_denominator_is_independent_evidence_count": False,
+                "dependency_challenge_present": None,
+                "dependency_challenge_state": "NOT_EVALUATED_IN_BRANCH_RECORD",
+                "dependency_challenge_changes_evidence_direction": False,
+                "independent_evidence_vote_allowed": False,
+                "non_support_is_counterevidence": False,
+                "unresolved_is_failure": False,
                 "same_design_challenge_candidate": challenge,
                 "same_design_variation_candidate": variation,
                 "comparison_eligible": True,
@@ -383,7 +599,7 @@ def _typed_defeat_contract(
 ) -> dict[str, Any]:
     """Expose attack-target debt and typed conditional withdrawal rules.
 
-    Observed counterexamples are not automatically REBUT attacks because the current
+    Observed counterexamples enter typed-attack classification through the current
     Safe Finding conclusion is itself a bounded variation cue. Without an explicit
     target claim component, the active defeat type remains unresolved.
     """
@@ -405,6 +621,18 @@ def _typed_defeat_contract(
         "WITHDRAW_IF_COMPARISON_ELIGIBILITY_INVALIDATED": (
             "UNDERCUT",
             "INFERENCE_WARRANT",
+            target_for_warrant,
+            "ABSTAIN",
+        ),
+        "WITHDRAW_IF_ELIGIBLE_DENOMINATOR_BINDING_INVALIDATED": (
+            "UNDERCUT",
+            "DENOMINATOR_WARRANT",
+            target_for_warrant,
+            "ABSTAIN",
+        ),
+        "WITHDRAW_IF_OUTCOME_LEAKAGE_DETECTED": (
+            "UNDERCUT",
+            "COMPARISON_DESIGN_WARRANT",
             target_for_warrant,
             "ABSTAIN",
         ),
@@ -461,6 +689,58 @@ def _typed_defeat_contract(
         "defeat_can_strengthen_claim_ceiling": False,
         "withdrawal_effect_can_strengthen_claim": False,
         "rebut_without_explicit_target_allowed": False,
+    }
+
+
+def _falsification_invalidation_contract(
+    *,
+    handoff_id: str,
+    challenge_refs: list[str],
+    denominator: int,
+) -> dict[str, Any]:
+    return {
+        "current_safe_claim_ref": handoff_id,
+        "current_safe_claim_semantics": "MATCH_LOCAL_SHARED_ANCHOR_VISIBLE_OUTCOME_VARIATION_ONLY",
+        "observed_counterevidence_ref_count": len(challenge_refs),
+        "observed_counterevidence_refs": sorted(set(challenge_refs)),
+        "observed_counterevidence_is_falsifier_of_current_safe_claim": False,
+        "observed_counterevidence_reason": (
+            "CURRENT_SAFE_CLAIM_ALREADY_ASSERTS_VISIBLE_VARIATION_NOT_UNIFORM_SUCCESS"
+        ),
+        "falsifier_contract": {
+            "target": "A_MORE_SPECIFIC_STABILITY_OR_UNIFORM_OUTCOME_CLAIM_COMPONENT",
+            "requires_comparison_eligible": True,
+            "requires_resolved_visible_outcome": True,
+            "requires_opposite_observation_to_target_claim": True,
+            "requires_same_construct_and_observation_unit": True,
+            "requires_nonleaking_comparison_dimensions": True,
+            "falsifier_is_counterevidence_candidate": True,
+            "falsifier_is_causal_refutation": False,
+            "falsifier_is_independent_evidence_vote": False,
+        },
+        "invalidator_contract": {
+            "invalidator_reason_codes": [
+                "COMPARISON_ELIGIBILITY_INVALIDATED",
+                "ELIGIBLE_DENOMINATOR_BINDING_INVALIDATED",
+                "OUTCOME_LEAKAGE_DETECTED",
+                "OUTCOME_SEMANTIC_BINDING_INVALIDATED",
+                "SHARED_ANCHOR_ADMISSION_INVALIDATED",
+            ],
+            "invalidator_makes_claim_false": False,
+            "invalidator_is_counterevidence": False,
+            "invalidator_is_failure_observation": False,
+            "invalidator_effect": "CLAIM_NOT_ADMISSIBLE_OR_ABSTAIN",
+        },
+        "eligible_denominator_count": denominator,
+        "eligible_denominator_is_pair_count": False,
+        "absence_is_falsifier": False,
+        "unresolved_is_falsifier": False,
+        "non_support_is_falsifier": False,
+        "dependency_challenge_alone_is_falsifier": False,
+        "dependency_challenge_alone_is_invalidator": False,
+        "falsifier_is_invalidator": False,
+        "invalidator_is_falsifier": False,
+        "claim_ceiling_strengthened": False,
     }
 
 
@@ -612,6 +892,8 @@ def _safe_finding_handoff_candidates(
             "WITHDRAW_IF_SHARED_ANCHOR_ADMISSION_INVALIDATED",
             "WITHDRAW_IF_OUTCOME_SEMANTIC_BINDING_INVALIDATED",
             "WITHDRAW_IF_COMPARISON_ELIGIBILITY_INVALIDATED",
+            "WITHDRAW_IF_ELIGIBLE_DENOMINATOR_BINDING_INVALIDATED",
+            "WITHDRAW_IF_OUTCOME_LEAKAGE_DETECTED",
         ] + (
             ["WITHDRAW_IF_SAME_DESIGN_COUNTEREVIDENCE_BINDING_INVALIDATED"]
             if same_design
@@ -623,6 +905,11 @@ def _safe_finding_handoff_candidates(
             comparable_set_id=comparable_set_id,
             challenge_refs=challenge_refs,
             withdrawal_conditions=withdrawal_conditions,
+        )
+        falsification_invalidation_contract = _falsification_invalidation_contract(
+            handoff_id=handoff_id,
+            challenge_refs=challenge_refs,
+            denominator=denominator,
         )
 
         handoffs.append({
@@ -713,11 +1000,16 @@ def _safe_finding_handoff_candidates(
             },
             "withdrawal_conditions": withdrawal_conditions,
             "typed_defeat_contract": typed_defeat_contract,
+            "falsification_invalidation_contract": falsification_invalidation_contract,
+            "falsifier_is_invalidator": False,
+            "invalidator_is_falsifier": False,
+            "invalidator_is_counterevidence": False,
+            "invalidator_makes_claim_false": False,
             "analyst_action": "REVIEW_BRANCH_EXAMPLES_AND_USE_ONLY_AS_MATCH_LOCAL_VARIATION_CUE",
             "analyst_summary_tr": (
                 f"Aynı görünür başlangıçtan çıkan {denominator} uygun vakanın {numerator}'sinde SUCCESS, "
                 f"{len(failure_refs)}'inde FAILURE semantiği görüldü; bağımsız tekrar kanıtlanmadığı için bu oran "
-                "gerçek başarı olasılığı veya taktik kalite değildir."
+                "maç-içi betimleyici varyant ayrışması kapsamında yorumlanır."
             ),
             "safe_finding_handoff_is_professional_finding_truth": False,
             "safe_finding_handoff_is_tactical_truth": False,
@@ -778,6 +1070,18 @@ def build_comparable_outcome_counterevidence(sequence_payload: dict[str, Any]) -
     branch_counts = Counter(
         _clean(row.get("branch_comparison_contrast_state")) for row in branch_records
     )
+    legacy_evidence_direction_counts = Counter(
+        _clean(row.get("canonical_evidence_direction_class")) for row in legacy_records
+    )
+    branch_evidence_direction_counts = Counter(
+        _clean(row.get("canonical_evidence_direction_class")) for row in branch_records
+    )
+    legacy_denominator_binding_counts = Counter(
+        _clean(row.get("eligible_denominator_binding_state")) for row in legacy_records
+    )
+    branch_denominator_binding_counts = Counter(
+        _clean(row.get("eligible_denominator_binding_state")) for row in branch_records
+    )
     return {
         "status": status,
         "comparable_outcome_counterevidence_records": legacy_records if not blocks else [],
@@ -810,6 +1114,33 @@ def build_comparable_outcome_counterevidence(sequence_payload: dict[str, Any]) -
             if not blocks
             else 0
         ),
+        "canonical_evidence_classification_applied": True,
+        "canonical_evidence_direction_classes": sorted(CANONICAL_EVIDENCE_DIRECTION_CLASSES),
+        "legacy_canonical_evidence_direction_counts": (
+            dict(sorted(legacy_evidence_direction_counts.items())) if not blocks else {}
+        ),
+        "branch_canonical_evidence_direction_counts": (
+            dict(sorted(branch_evidence_direction_counts.items())) if not blocks else {}
+        ),
+        "legacy_dependency_challenge_record_count": (
+            sum(1 for row in legacy_records if row.get("dependency_challenge_present") is True)
+            if not blocks
+            else 0
+        ),
+        "claim_target_denominator_binding_applied": True,
+        "legacy_denominator_binding_state_counts": (
+            dict(sorted(legacy_denominator_binding_counts.items())) if not blocks else {}
+        ),
+        "branch_denominator_binding_state_counts": (
+            dict(sorted(branch_denominator_binding_counts.items())) if not blocks else {}
+        ),
+        "pair_record_is_eligible_denominator": False,
+        "pair_count_is_eligible_denominator": False,
+        "eligible_denominator_is_independent_evidence_count": False,
+        "dependency_challenge_is_evidence_direction": False,
+        "dependency_challenge_changes_evidence_direction": False,
+        "non_support_is_counterevidence": False,
+        "unresolved_is_failure": False,
         "safe_finding_counterevidence_uses_same_comparison_design_when_available": True,
         "eligible_denominator_coverage_unit": "FROZEN_ELIGIBLE_CASE",
         "visible_branch_count_is_case_denominator": False,
@@ -831,6 +1162,11 @@ def build_comparable_outcome_counterevidence(sequence_payload: dict[str, Any]) -
         "professional_finding_emitted_count": 0,
         "safe_finding_handoff_professional_emit_allowed": False,
         "counterexample_pair_count_is_independent_evidence_count": False,
+        "falsification_invalidation_contract_applied": True,
+        "falsifier_is_invalidator": False,
+        "invalidator_is_falsifier": False,
+        "invalidator_is_counterevidence": False,
+        "invalidator_makes_claim_false": False,
         "safe_finding_handoff_claim_ceiling": SAFE_FINDING_HANDOFF_CLAIM_CEILING,
         "evidence_sufficiency_profile_is_non_compensatory": True,
         "evidence_sufficiency_numeric_score_allowed": False,

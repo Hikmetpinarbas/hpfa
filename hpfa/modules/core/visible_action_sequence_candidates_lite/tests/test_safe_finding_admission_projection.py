@@ -72,8 +72,10 @@ def _payload(
     *,
     source_status: str = "PASS",
     review_hits: list[str] | None = None,
+    scoped_counterevidence_reviews: list[str] | None = None,
+    declare_scoped_surface: bool = False,
 ) -> dict:
-    return {
+    payload = {
         "comparable_outcome_counterevidence_status": source_status,
         "safe_finding_handoff_candidates": handoffs,
         "review_hits": list(review_hits or []),
@@ -81,6 +83,14 @@ def _payload(
         "true_action_count": "UNKNOWN",
         "production_release": False,
     }
+    if declare_scoped_surface:
+        payload["comparable_outcome_counterevidence_review_hits"] = list(
+            scoped_counterevidence_reviews or []
+        )
+        payload["comparable_outcome_counterevidence_review_scope"] = (
+            "COMPARABLE_OUTCOME_PROJECTION_ONLY"
+        )
+    return payload
 
 
 def test_emit_when_all_required_evidence_dimensions_are_admitted() -> None:
@@ -172,6 +182,42 @@ def test_pass_envelope_with_unscoped_review_hits_cannot_authorize_emit() -> None
     assert "UPSTREAM_COUNTEREVIDENCE_REVIEW_UNSCOPED" in row["decision_reasons"]
     assert "counterevidence_upstream_pass_with_review_hits" in out["review_hits"]
     assert out["pass_with_unscoped_review_hits_can_authorize_emit"] is False
+
+
+def test_scoped_counterevidence_surface_ignores_unrelated_sequence_review_hits() -> None:
+    out = build_safe_finding_admission(
+        _payload(
+            [_handoff("sfh_scoped", independent=2, dep=True, stat=True, blocking=[])],
+            source_status="PASS",
+            review_hits=["unrelated_sequence_review"],
+            scoped_counterevidence_reviews=[],
+            declare_scoped_surface=True,
+        )
+    )
+    assert out["status"] == "PASS"
+    assert out["finding_status_counts"] == {"EMIT": 1, "DOWNGRADE": 0, "ABSTAIN": 0}
+    row = out["safe_finding_admission_decisions"][0]
+    assert row["claim_output_allowed"] is True
+    assert "UPSTREAM_COUNTEREVIDENCE_REVIEW_UNSCOPED" not in row["decision_reasons"]
+    assert out["counterevidence_review_scope"] == "COMPARABLE_OUTCOME_PROJECTION_ONLY"
+    assert out["counterevidence_scoped_review_surface_declared"] is True
+
+
+def test_scoped_counterevidence_review_still_blocks_emit() -> None:
+    out = build_safe_finding_admission(
+        _payload(
+            [_handoff("sfh_scoped_review", independent=2, dep=True, stat=True, blocking=[])],
+            source_status="PASS",
+            review_hits=["unrelated_sequence_review"],
+            scoped_counterevidence_reviews=["comparison_binding_review_required"],
+            declare_scoped_surface=True,
+        )
+    )
+    assert out["status"] == "REVIEW_REQUIRED"
+    assert out["finding_status_counts"] == {"EMIT": 0, "DOWNGRADE": 1, "ABSTAIN": 0}
+    row = out["safe_finding_admission_decisions"][0]
+    assert row["claim_output_allowed"] is False
+    assert "UPSTREAM_COUNTEREVIDENCE_REVIEW_UNSCOPED" in row["decision_reasons"]
 
 
 def test_downgrade_when_independence_is_not_admitted() -> None:

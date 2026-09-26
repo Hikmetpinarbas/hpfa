@@ -142,8 +142,8 @@ def validate_safe_sentence_render(
 ) -> dict[str, Any]:
     """Validate one human-readable sentence contract against its source claim contract.
 
-    This is a render-completeness guard only. It creates no evidence, cannot authorize
-    EMIT, and cannot strengthen a source claim ceiling. Missing source qualifications are
+    This render-completeness guard governs sentence completeness; evidence and EMIT authority follow
+    Safe Finding admission and source claim scope. Missing source qualifications are
     never invented; an interpretive sentence is blocked and may fall back to a visible
     fact only when WHAT_VISIBLE is already supplied by an admitted upstream surface.
     """
