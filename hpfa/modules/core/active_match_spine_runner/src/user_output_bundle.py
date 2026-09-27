@@ -159,7 +159,13 @@ def _current_run_provenance_envelope(
     full_spine: dict[str, Any],
     entries: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    exact_head = _git_head(full_spine.get("execution_root"))
+    episode_lane = full_spine.get("episode_lane")
+    product_code_root = (
+        episode_lane.get("product_code_root")
+        if isinstance(episode_lane, dict)
+        else None
+    )
+    exact_head = _git_head(product_code_root) or _git_head(full_spine.get("execution_root"))
     input_snapshot = _input_snapshot_identity(root, full_spine)
     environment = _runtime_environment_identity()
     artifact_manifest_digest = _stable_json_sha256(entries)

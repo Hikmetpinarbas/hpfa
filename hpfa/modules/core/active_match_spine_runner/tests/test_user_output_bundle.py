@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -3000,3 +3001,34 @@ def test_technical_analyst_report_c04_composition_uses_identity_owner_actor_labe
     report = build_analyst_report(tmp_path, spine)
     assert "9. Safe Match Composition Player" in report
     assert "Wrong Aggregate Composition Name" not in report
+
+
+def test_bundle_provenance_uses_product_code_root_when_runtime_execution_root_is_separate(tmp_path):
+    inventory = tmp_path / "multiformat_file_inventory_lite_v1.json"
+    _write_current_inventory(inventory)
+    full_json = tmp_path / "active_match_full_spine_v1.json"
+    full_txt = tmp_path / "active_match_full_spine_v1.txt"
+    full_json.write_text("{}", encoding="utf-8")
+    full_txt.write_text("status=REVIEW_REQUIRED", encoding="utf-8")
+
+    runtime_root = tmp_path / "runtime_authority_root"
+    runtime_root.mkdir()
+    spine = _full_spine(current_artifacts=[str(inventory), str(full_json), str(full_txt)])
+    spine["execution_root"] = str(runtime_root)
+    spine["episode_lane"] = {
+        "product_code_root": str(ROOT),
+        "selected_execution_root": str(runtime_root),
+        "code_root_is_execution_root": False,
+    }
+
+    write_standard_user_outputs(tmp_path, spine)
+    manifest = json.loads((tmp_path / BUNDLE_MANIFEST).read_text(encoding="utf-8"))
+    provenance = manifest["current_run_provenance_envelope"]
+
+    assert provenance["status"] == "PASS"
+    assert provenance["exact_head_sha"] == subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip().casefold()
