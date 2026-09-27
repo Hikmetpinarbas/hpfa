@@ -50,3 +50,45 @@ def test_snapshot_scopes_own_their_layers() -> None:
     active = _text("active-match-full-spine-v1.yml")
     assert "active_match_spine_runner/**" in active
     assert "provider_metric_dictionary_lite/**" in active
+
+EVENT_AWARE_CONCURRENCY = {
+    "analyst-episode-locator-semantic-v1.yml",
+    "content-source-role-resolver-lite-v1.yml",
+    "context-row-nucleus-rebinding-v1.yml",
+    "episode-feature-vector-v1.yml",
+    "event-window-partial-order-hardening-v1.yml",
+    "metric-definition-policy-lite-v1.yml",
+    "provider-metric-dictionary-lite-v1.yml",
+    "provider-time-semantic-admission-v1.yml",
+    "reconstruction-intelligence-packet-adapter-v1.yml",
+    "row-nucleus-inventory-lite-v1.yml",
+    "temporal-episode-signature-v1.yml",
+    "triangulated-event-reflection-resolver-lite-v1.yml",
+    "triplex-source-alignment-adapter-lite-v1.yml",
+}
+
+
+def test_all_pr_workflows_define_concurrency() -> None:
+    workflows = sorted(WF.glob("*.yml"))
+    assert workflows
+    for path in workflows:
+        text = path.read_text(encoding="utf-8")
+        trigger_and_policy = text.split("jobs:", 1)[0]
+        assert "pull_request:" in trigger_and_policy, path.name
+        assert "concurrency:" in trigger_and_policy, path.name
+        assert "cancel-in-progress:" in trigger_and_policy, path.name
+
+
+def test_new_concurrency_rehabilitation_only_auto_cancels_pr_runs() -> None:
+    expected_group = (
+        "group: hpfa-${{ github.workflow_ref }}-${{ github.event_name }}-"
+        "${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}"
+    )
+    expected_cancel = "cancel-in-progress: ${{ github.event_name == 'pull_request' }}"
+    for name in EVENT_AWARE_CONCURRENCY:
+        text = _text(name)
+        trigger_and_policy = text.split("jobs:", 1)[0]
+        lines = [line.strip() for line in trigger_and_policy.splitlines()]
+        assert lines.count("concurrency:") == 1, name
+        assert lines.count(expected_group) == 1, name
+        assert lines.count(expected_cancel) == 1, name
