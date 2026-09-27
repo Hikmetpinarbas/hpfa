@@ -177,6 +177,71 @@ else
   log "CLAIM_SATISFIABILITY_SKIPPED=UPSTREAM_NONZERO"
 fi
 
+BUNDLE_ZIP="$WORK/HPFA_ACTIVE_MATCH_BUNDLE.zip"
+BUNDLE_MANIFEST="$WORK/HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"
+BUNDLE_RC=99
+if [ "$SEQUENCE_RC" -eq 0 ] && [ "$CONTEXT_RC" -eq 0 ] && [ "$SAFE_RC" -eq 0 ] && [ "$CLAIM_RC" -eq 0 ]; then
+  log "CHECKPOINT=VERIFY_FINAL_USER_BUNDLE_CURRENT_INVOCATION"
+  python - "$BUNDLE_ZIP" "$BUNDLE_MANIFEST" "$EXPECTED_SHA" <<'PY'
+import json
+import sys
+import zipfile
+from pathlib import Path
+
+bundle_zip = Path(sys.argv[1])
+bundle_manifest = Path(sys.argv[2])
+expected_sha = sys.argv[3]
+required_members = {
+    "HPFA_ANALYST_REPORT.txt",
+    "HPFA_ANALYST_REPORT_TR.txt",
+    "HPFA_ANALYST_REPORT_EN.txt",
+    "HPFA_MECHANISM_CARDS_GRAPH_READY.json",
+    "HPFA_PRESENTATION_VIEW_MODEL.json",
+    "HPFA_PROFESSIONAL_REPORT.html",
+    "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json",
+}
+
+if not bundle_zip.is_file() or not bundle_manifest.is_file():
+    raise SystemExit(2)
+try:
+    manifest = json.loads(bundle_manifest.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    raise SystemExit(2)
+if not isinstance(manifest, dict):
+    raise SystemExit(2)
+if manifest.get("bundle_scope") != "PRODUCER_DECLARED_CURRENT_INVOCATION_ARTIFACTS_PLUS_STANDARD_DELIVERABLES":
+    raise SystemExit(2)
+provenance = manifest.get("current_run_provenance_envelope")
+if not isinstance(provenance, dict):
+    raise SystemExit(2)
+if provenance.get("status") != "PASS":
+    raise SystemExit(2)
+if provenance.get("exact_head_sha") != expected_sha:
+    raise SystemExit(2)
+if manifest.get("canonical_event_count") != "UNKNOWN":
+    raise SystemExit(2)
+if manifest.get("true_action_count") != "UNKNOWN":
+    raise SystemExit(2)
+if manifest.get("production_release") is not False:
+    raise SystemExit(2)
+
+try:
+    with zipfile.ZipFile(bundle_zip, "r") as archive:
+        if archive.testzip() is not None:
+            raise SystemExit(2)
+        names = set(archive.namelist())
+except (OSError, zipfile.BadZipFile):
+    raise SystemExit(2)
+if not required_members.issubset(names):
+    raise SystemExit(2)
+raise SystemExit(0)
+PY
+  BUNDLE_RC=$?
+  log "FINAL_USER_BUNDLE_RETURN_CODE=$BUNDLE_RC"
+else
+  log "FINAL_USER_BUNDLE_SKIPPED=UPSTREAM_NONZERO"
+fi
+
 LINEAGE_SUMMARY="$WORK/HPFA_LINEAGE_PHYSICAL_SUMMARY_${SHORT}.txt"
 python - "$WORK/analyst_output_claim_contract_projection_v1.json" "$LINEAGE_SUMMARY" <<'PY'
 import json
@@ -344,6 +409,9 @@ elif [ "$SAFE_RC" -ne 0 ]; then
 elif [ "$CLAIM_RC" -ne 0 ]; then
   CLASSIFICATION="CLAIM_SATISFIABILITY_RETURNED_NONZERO"
   FINAL_RC="$CLAIM_RC"
+elif [ "$BUNDLE_RC" -ne 0 ]; then
+  CLASSIFICATION="FINAL_USER_BUNDLE_VALIDATION_RETURNED_NONZERO"
+  FINAL_RC="$BUNDLE_RC"
 else
   CLASSIFICATION="P1_SEQUENCE_SAFE_FINDING_CLAIM_COMPLETED"
   FINAL_RC=0
@@ -359,6 +427,7 @@ MANIFEST="$WORK/HPFA_P1_PHONE_MANIFEST_${SHORT}.txt"
   echo "current_invocation_context_return_code=$CONTEXT_RC"
   echo "safe_finding_return_code=$SAFE_RC"
   echo "claim_satisfiability_return_code=$CLAIM_RC"
+  echo "final_user_bundle_return_code=$BUNDLE_RC"
   echo "final_return_code=$FINAL_RC"
   echo "classification=$CLASSIFICATION"
   [ -f "$LINEAGE_SUMMARY" ] && cat "$LINEAGE_SUMMARY"
@@ -385,6 +454,8 @@ FILES=(
   "puzzle_finding_contract_projection_v1.json"
   "analyst_output_claim_contract_projection_v1.json"
   "HPFA_ANALYST_REPORT.txt"
+  "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"
+  "HPFA_ACTIVE_MATCH_BUNDLE.zip"
   "rich_multiformat_analysis_lattice_v1.json"
   "active_match_full_spine_v1.json"
 )
@@ -393,11 +464,39 @@ for name in "${FILES[@]}"; do
   [ -f "$WORK/$name" ] && PRESENT+=("$name")
 done
 
+ARCHIVE_RC=99
 if [ "${#PRESENT[@]}" -gt 0 ]; then
   rm -f "$ARCHIVE"
-  tar -czf "$ARCHIVE" -C "$WORK" "${PRESENT[@]}" >> "$LOG" 2>&1 || true
+  tar -czf "$ARCHIVE" -C "$WORK" "${PRESENT[@]}" >> "$LOG" 2>&1
+  TAR_RC=$?
   sync >/dev/null 2>&1 || true
-  [ -f "$ARCHIVE" ] && log "ARCHIVE=$ARCHIVE" || log "ARCHIVE=NOT_CREATED"
+  if [ "$TAR_RC" -eq 0 ] && [ -f "$ARCHIVE" ]; then
+    log "CHECKPOINT=VERIFY_FINAL_PHYSICAL_ARCHIVE"
+    ARCHIVE_LIST="$WORK/HPFA_P1_ARCHIVE_MEMBERS_${SHORT}.txt"
+    if tar -tzf "$ARCHIVE" > "$ARCHIVE_LIST" 2>> "$LOG" \
+      && grep -Fxq "HPFA_ACTIVE_MATCH_BUNDLE.zip" "$ARCHIVE_LIST" \
+      && grep -Fxq "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json" "$ARCHIVE_LIST"; then
+      ARCHIVE_RC=0
+      log "ARCHIVE=$ARCHIVE"
+    else
+      ARCHIVE_RC=2
+      log "ARCHIVE=INVALID_OR_REQUIRED_FINAL_BUNDLE_MEMBERS_MISSING"
+    fi
+  else
+    ARCHIVE_RC="$TAR_RC"
+    [ "$ARCHIVE_RC" -ne 0 ] || ARCHIVE_RC=2
+    log "ARCHIVE=NOT_CREATED"
+  fi
+else
+  ARCHIVE_RC=2
+  log "ARCHIVE=NO_PRESENT_FILES"
+fi
+log "FINAL_ARCHIVE_RETURN_CODE=$ARCHIVE_RC"
+
+if [ "$FINAL_RC" -eq 0 ] && [ "$ARCHIVE_RC" -ne 0 ]; then
+  CLASSIFICATION="FINAL_PHYSICAL_ARCHIVE_VALIDATION_RETURNED_NONZERO"
+  FINAL_RC="$ARCHIVE_RC"
+  log "CLASSIFICATION=$CLASSIFICATION"
 fi
 
 END_TS="$(date +%s)"
