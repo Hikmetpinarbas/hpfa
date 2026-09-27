@@ -142,6 +142,6 @@ def test_human_answer_pack_preserves_claim_ceiling() -> None:
     answers = module._human_answers(diagnostic)
     assert len(answers) == 8
     joined = '\n'.join(answer for _, answer in answers)
-    assert 'publishable tactical truth değildir' in joined
+    assert 'match-local mekanizma incelemesini doğrudan zenginleştiriyor' in joined
     assert 'professional EMIT=0' in joined
-    assert 'coach intention' in joined
+    assert 'physical-state, intention ve causal construct' in joined

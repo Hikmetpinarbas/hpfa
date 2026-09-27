@@ -1,0 +1,22 @@
+capability_id	donor	donor_surface	decision	current_owner	target_product_lane	football_value	notes
+REL-RECEIVER-001	YelFootballLab	hpfa_daily/passing_network_admission.py	ADAPT_NOW	cross_role_relation_candidate_resolver_lite	core/relation	typed passer-receiver relation	Explicit receiver only; next-player proxy forbidden
+PROC-STATS-001	YelFootballLab	hpfa_daily/process_statistics.py	ALREADY_ABSORBED	active_match_spine_runner	postmatch/process	recurrent process comparison	Current rich/process-variant owners are stronger
+PLAYER-PROC-001	YelFootballLab	hpfa_daily/player_process_attribution.py	ALREADY_ABSORBED	active_match_spine_runner	postmatch/player	player function in process	Keep participation != causal credit
+MECH-DISC-001	YelFootballLab	hpfa_daily/mechanism_discovery.py	ALREADY_ABSORBED	active_match_spine_runner	postmatch/mechanism	mechanism candidates	Current mechanism review + counterevidence owns this
+SETPIECE-001	YelFootballLab	hpfa_daily/set_piece_intelligence.py	PARTIALLY_ABSORBED	active_match_spine_runner	postmatch/six_phase	set-piece process intelligence	Continue only through admitted process family semantics
+GK-PASSPORT-001	YelFootballLab	hpfa_daily/goalkeeper_evidence_passport.py	PARTIALLY_ABSORBED	gk_taxonomy_source_role_reconciliation_lite	postmatch/player	goalkeeper evidence role mapping	Mine unique output only after gap proof
+DEF-EVENT-001	YelFootballLab	hpfa_daily/defensive_event_intelligence.py	PARTIALLY_ABSORBED	active_match_spine_runner	postmatch/interaction	defensive event consequence context	Do not infer defensive shape/pressure geometry
+VIS-ADMISSION-001	YelFootballLab	hpfa_daily/visualization_admission.py	ADAPT_LATER	UNASSIGNED_PRODUCT_LAYER	reporting/platform	visual claim admission	Presentation must consume product truth, never create evidence
+REF-POP-001	YelFootballLab	hpfa_daily/reference_population.py	ADAPT_LATER	UNASSIGNED_LONGITUDINAL	longitudinal/scouting	reference-relative context	Requires declared unit/competition/season/dependency
+LONG-INTEL-001	YelFootballLab	hpfa_daily/longitudinal_intelligence.py	ADAPT_LATER	UNASSIGNED_LONGITUDINAL	longitudinal	multi-match evidence memory	Opponent/context adjustment before stronger inference
+PLAYER-COMP-001	YelFootballLab	hpfa_daily/player_comparability_admission.py	ADAPT_LATER	UNASSIGNED_SCOUTING	scouting	role-aware player comparison	Needs stable role/opportunity population
+PREPOST-BRIDGE-001	YelFootballLab	hpfa_daily/prematch_postmatch_bridge.py	ADAPT_LATER	UNASSIGNED_PREMATCH	prematch	postmatch hypothesis calibration	Open after multi-match memory
+OPPORTUNITY-001	YelFootballLab	hpfa_daily/opportunity_execution.py	ADAPT_LATER	UNASSIGNED_LONGITUDINAL	longitudinal/scouting	separate opportunity from execution	Needs stable eligible denominator
+COMPOSITION-001	YelFootballLab	hpfa_daily/compositional_structure.py	TEST_OR_CONTRACT_DONOR	metric_fusion_engine	analytics	transparent complementary metric structures	No opaque universal score
+SEQ-LEGACY-001	HP-Engine	HP_ENGINE/sequence/*	ALREADY_ABSORBED	visible_action_sequence_candidates_lite	core/process	sequence candidate reconstruction	Donor possession labels do not become truth
+TEMP-LEGACY-001	HP-Engine	temporal signal family	ALREADY_ABSORBED	context_signal_apparatus	postmatch/context	temporal/rhythm support signals	Support only, no phase truth
+METRIC-REG-001	HP-Motor	metric registry/validator	ALREADY_ABSORBED	metric_family_registry_lite	core/metric	metric contract discipline	Current HPFA contracts own runtime semantics
+CANON-GATE-001	HP-Motor-main	canonical schema/gates	ALREADY_ABSORBED	canonical_ingest_surface_manifest	core/admission	provider-agnostic fail-closed ingest	No donor runtime dependency
+HIO-CHAIN-001	HIO-Analytics	repeated action chain/mechanism core	ALREADY_ABSORBED	active_match_spine_runner	postmatch/process	repeated process/shot-ending chain	Current owner richer and claim-safe
+HIO-VIS-001	HIO-Analytics	relation-aware chart admission	ADAPT_LATER	UNASSIGNED_PRODUCT_LAYER	reporting/platform	chart eligibility from admitted relations	Do not import mobile shell
+HP-PROJ-001	HP-PROJELERI	governance/support surfaces	REVIEW_REQUIRED	NONE	governance	possible historical governance support	No product code until exact capability mapping

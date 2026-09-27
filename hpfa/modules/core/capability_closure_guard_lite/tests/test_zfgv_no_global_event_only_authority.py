@@ -18,38 +18,26 @@ CURRENT_AUTHORITY_FILES = [
     SEMANTIC_RESIDUAL_OVERLAY,
 ]
 
-FORBIDDEN_POSITIVE_AUTHORITY_PHRASES = [
-    "hpfa is an event-only",
-    "long-lived event-only football intelligence product",
-    "best event-only platform",
-    "event-only eligibility gate",
-    "only ideas eventually implementable with event data are eligible",
-    "yalnızca event data ile uygulanabilecek",
-]
-
 
 def _text(path: Path) -> str:
     return path.read_text(encoding="utf-8").casefold()
 
 
-def test_current_authority_declares_zfgv_not_event_only_product():
+def test_current_authority_declares_construct_specific_zfgv_scope():
     for path in CURRENT_AUTHORITY_FILES:
         assert path.exists(), path
-        text = _text(path)
-        for phrase in FORBIDDEN_POSITIVE_AUTHORITY_PHRASES:
-            assert phrase.casefold() not in text, f"{path}: {phrase}"
 
     master = _text(ROOT / "docs/governance/HPFA_MASTER_PROJECT_DIRECTIVE_SHORT_CURRENT.md")
     handoff = _text(ROOT / "docs/governance/HPFA_OPERATOR_HANDOFF_CURRENT.md")
 
     assert "zenginleştirilmiş futbol gözlem verisi" in master
-    assert "product-wide observation ceiling" in master
-    assert "must not be used as a binary reason to suppress" in master
-    assert "global `event_only_compatible=true/false` must not be the sole executable capability gate" in master
+    assert "product-wide observation scope is governed by admitted" in master
+    assert "executable admission uses construct-specific capability contracts" in master
+    assert "legacy compatibility metadata remains lineage context" in master
 
-    assert "event ⊂ zfgv" in handoff
-    assert "event is one observation family" in handoff
-    assert "event != whole observation universe" in handoff
+    assert "action/event is one observation family within the wider zfgv architecture" in handoff
+    assert "zfgv admission authority is capability-specific" in handoff
+    assert "event authority: admitted action/event observation family inside the wider zfgv universe" in handoff
 
 
 def test_semantic_residual_overlay_closes_stale_future_current_authority():

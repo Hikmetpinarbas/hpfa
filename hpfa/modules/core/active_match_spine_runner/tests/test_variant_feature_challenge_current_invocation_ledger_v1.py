@@ -17,6 +17,10 @@ def test_variant_challenge_materialization_closes_current_invocation_ledger(
             "artifact_materialized": True,
             "output": str(challenge),
             "variant_feature_challenge_record_count": 467,
+            "post_sequence_current_invocation_artifacts": [
+                str(tmp_path / "safe_finding_admission_projection_v1.json"),
+                str(tmp_path / "analyst_output_claim_contract_projection_v1.json"),
+            ],
             "projection_creates_new_evidence": False,
             "professional_finding_emit_allowed": False,
             "canonical_event_count": "UNKNOWN",
@@ -35,6 +39,8 @@ def test_variant_challenge_materialization_closes_current_invocation_ledger(
 
     artifacts = {Path(value).name for value in result["current_invocation_artifacts"]}
     assert "variant_feature_challenge_projection_v1.json" in artifacts
+    assert "safe_finding_admission_projection_v1.json" in artifacts
+    assert "analyst_output_claim_contract_projection_v1.json" in artifacts
     assert result["variant_feature_challenge_runtime_binding"]["variant_feature_challenge_record_count"] == 467
     assert result["engineering_evidence"]["variant_feature_challenge_current_invocation_materialized"] is True
     assert result["engineering_evidence"]["variant_feature_challenge_creates_new_evidence"] is False

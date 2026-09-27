@@ -11,14 +11,29 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: xlsx-surface-reader-lite-v1-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
+  group: hpfa-${{ github.workflow_ref }}-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify checkout ref truth
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_EVENT_SHA"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            source_ref_kind="PR_MERGE_REF"
+          else
+            source_ref_kind="EVENT_SHA"
+          fi
+          echo "source_ref_kind=$source_ref_kind"
+          echo "verified_checkout_sha=$actual_head"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

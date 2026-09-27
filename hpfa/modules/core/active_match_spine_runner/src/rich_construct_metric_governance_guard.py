@@ -29,7 +29,7 @@ def _admitted_alignment_rows(metric_governance: dict[str, Any]) -> list[dict[str
 def _progression_semantic_safety_hits(aggregate_inputs: list[dict[str, Any]]) -> list[str]:
     """Reject defensive/goalkeeper terminal labels from attacking progression constructs.
 
-    This is a semantic safety gate only. It does not establish construct truth or
+    This semantic safety gate governs construct admission scope and
     promote a provider metric definition. The purpose is to prevent a generic
     token such as ``shot`` from turning ``Shots faced`` into attacking terminal
     support for a progression construct.
@@ -60,7 +60,7 @@ def assess_rich_construct_candidate(
 ) -> dict[str, Any]:
     """Fail closed for aggregate-backed rich constructs without admitted metric semantics.
 
-    This gate does not promote metric truth or cross-format independence. It only
+    This gate governs metric and cross-format admission scope. It
     prevents label-navigation candidates from entering downstream C4 as if an
     aggregate definition had already been admitted.
     """

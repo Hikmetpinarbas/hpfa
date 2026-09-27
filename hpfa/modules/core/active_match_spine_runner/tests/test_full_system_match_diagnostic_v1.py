@@ -181,3 +181,30 @@ def test_not_evaluated_safe_finding_is_not_reported_as_downgrade(tmp_path: Path)
     symptoms = [row["current_symptom"] for row in diagnostic["gap_report"]]
     assert not any("100/100 safe findings DOWNGRADE" in value for value in symptoms)
     assert not any("machine full-spine and human report disagree" in value for value in symptoms)
+
+
+def test_mechanism_diagnostic_preserves_all_eligible_candidates_without_fixed_top_five_cutoff(tmp_path: Path) -> None:
+    module = _load_module()
+    records = []
+    for idx in range(7):
+        records.append({
+            "grammar_stable_variant_feature_delta_id": f"m{idx}",
+            "resolved_variant_count": 10 + idx,
+            "success_resolved_variant_count": 6 + idx,
+            "failure_resolved_variant_count": 4,
+            "grammar_signature_tokens": ["LAYER[PASS]", f"LAYER[{idx}]"],
+            "process_context_feature_difference_candidates": [],
+            "consequence_feature_difference_candidates": [],
+        })
+    _write_json(tmp_path, "grammar_stable_variant_feature_delta_projection_v1.json", {
+        "grammar_stable_variant_feature_delta_records": records,
+    })
+
+    candidates = module._top_mechanism_candidates(tmp_path)
+
+    assert len(candidates) == 7
+    assert [row["candidate_id"] for row in candidates] == [
+        "m6", "m5", "m4", "m3", "m2", "m1", "m0"
+    ]
+    assert module._top_mechanism_candidates(tmp_path, limit=3)[0]["candidate_id"] == "m6"
+    assert len(module._top_mechanism_candidates(tmp_path, limit=3)) == 3

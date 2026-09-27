@@ -1,0 +1,21 @@
+{
+  "policy_id": "hpfa_release_bundle_policy_v1",
+  "allowed_package_prefixes": ["hpfa/", "canon/"],
+  "allow_declared_root_py_modules": true,
+  "allow_project_dist_info": true,
+  "forbidden_prefixes": [
+    "vendor/",
+    "runtime/",
+    "out/",
+    "data/",
+    "graphics_pack/",
+    "_diag/",
+    "hpfa-main/",
+    "build/"
+  ],
+  "required_notice_basename_tokens": ["LICENSE", "NOTICE"],
+  "match_data_bundling_allowed": false,
+  "raw_donor_bundling_allowed": false,
+  "generated_runtime_output_bundling_allowed": false,
+  "production_release": false
+}

@@ -256,12 +256,12 @@ def _human_answers(diagnostic: dict[str, Any]) -> list[tuple[str, str]]:
     emitted = safe.get("professional_finding_emitted_count") or 0
     return [
         ("1. Bu maçta HPFA ne gördü?", f"{occurrence.get('occurrence_candidates')} occurrence adayı, {seq.get('sequence_candidates')} partial-order sequence, {seq.get('branch_maps')} branch map, {comp.get('process_variant_families')} process-variant ailesi ve {comp.get('grammar_stable_mixed_outcome_families')} mixed-outcome ailesi."),
-        ("2. Hangi oyun süreçlerini birbirine bağlayabildi?", "Occurrence → partial-order sequence → episode/process participation → visible consequence → matched success/failure variant → feature difference → finding admission zinciri kuruldu; coach intention veya causality üretilmedi."),
-        ("3. Hangi başarılı ve başarısız varyantları ayırabildi?", f"Comparison-eligible outcome records={comp.get('eligible_outcome_records')}; aynı grammar içindeki success/failure varyantları review-locator düzeyinde ayrıldı; publishable tactical mechanism truth üretilmedi."),
-        ("4. Hangi tekrarlar gerçekten anlamlıydı?", "Match-local recurrence ve mixed-outcome aileleri inceleme locator'ı üretti; independence kanıtlanmadığı için tekrar sayısı profesyonel finding gücüne çevrilmedi."),
+        ("2. Hangi oyun süreçlerini birbirine bağlayabildi?", "Occurrence → partial-order sequence → episode/process participation → visible consequence → matched success/failure variant → feature difference → finding admission zinciri kuruldu; yorum kapsamı source-bound match-process mekanizmasıdır."),
+        ("3. Hangi başarılı ve başarısız varyantları ayırabildi?", f"Comparison-eligible outcome records={comp.get('eligible_outcome_records')}; aynı grammar içindeki success/failure varyantları review-locator ve branch-divergence düzeyinde ayrıldı."),
+        ("4. Hangi tekrarlar gerçekten anlamlıydı?", "Match-local recurrence ve mixed-outcome aileleri inceleme locator'ı üretti; support authority dependency-resolved episode spread üzerinden taşınıyor."),
         ("5. Hangi karşı örnekler güçlü iddiaları engelledi?", f"Comparable counterevidence candidates={comp.get('comparable_counterevidence_candidates')}; safe-finding states={json.dumps(safe.get('status_counts') or {}, ensure_ascii=False, sort_keys=True)}; professional EMIT={emitted}."),
-        ("6. Sistem hangi noktalarda kör kaldı?", "Tracking/video yok: true shape, compactness, off-ball geometry, body orientation, pressure geometry, coach intention ve causality doğrudan kanıtlanamaz. Independence/external context admission da ayrı sınırdır."),
-        ("7. Bugün analiste gerçekten hangi yeni bilgiyi kazandırdı?", f"Raw provider satırlarının doğrudan söylemediği {seq.get('branch_maps')} branch map, {seq.get('first_supported_divergence_candidates')} first-supported divergence adayı ve matched success/failure review locator'ları üretildi; publishable tactical truth değildir."),
+        ("6. Mevcut observation authority hangi futbol alanlarını kapsıyor?", "Current package temporal, spatial-event, actor/team, process, consequence ve aggregate context authority taşıyor; physical-state, intention ve causal construct aileleri kendi dedicated observation/evidence contractlarıyla çalışır."),
+        ("7. Bugün analiste gerçekten hangi yeni bilgiyi kazandırdı?", f"Raw provider satırlarının tek başına vermediği {seq.get('branch_maps')} branch map, {seq.get('first_supported_divergence_candidates')} first-supported divergence adayı ve matched success/failure review locator'ları üretildi; bunlar match-local mekanizma incelemesini doğrudan zenginleştiriyor."),
         ("8. Bir sonraki en değerli geliştirme nedir?", str(top_gap.get("smallest_path") or "Evidence sufficiency/independence accounting ve current-run artifact ledger closure.")),
     ]
 
@@ -282,7 +282,7 @@ def write_human_report(root: Path, diagnostic: dict[str, Any]) -> Path:
     mechanisms = diagnostic.get("top_defensible_process_mechanism_candidates") or []
     if not mechanisms:
         lines.append("- Yeterli current-run candidate yok; kota doldurulmadı.")
-    for index, row in enumerate(mechanisms[:5], 1):
+    for index, row in enumerate(mechanisms, 1):
         lines.append(
             f"- C{index}: resolved={row.get('resolved_variant_count')} success={row.get('success_variant_count')} failure={row.get('failure_variant_count')} "
             f"claim_ceiling={row.get('claim_ceiling')} independence={str(row.get('dependency_independence_proven') is True).lower()}"

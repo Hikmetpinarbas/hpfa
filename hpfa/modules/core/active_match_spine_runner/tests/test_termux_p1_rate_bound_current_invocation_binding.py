@@ -50,3 +50,53 @@ def test_physical_harness_archives_multisurface_argument_artifacts() -> None:
     assert '"rich_multiformat_analysis_lattice_v1.json"' in text
     assert '"active_match_full_spine_v1.json"' in text
     assert '"HPFA_ANALYST_REPORT.txt"' in text
+
+
+def test_physical_harness_requires_and_archives_current_run_final_user_bundle() -> None:
+    text = HARNESS.read_text(encoding="utf-8")
+
+    assert "CHECKPOINT=VERIFY_FINAL_USER_BUNDLE_CURRENT_INVOCATION" in text
+    assert 'BUNDLE_ZIP="$WORK/HPFA_ACTIVE_MATCH_BUNDLE.zip"' in text
+    assert 'BUNDLE_MANIFEST="$WORK/HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"' in text
+    assert '"HPFA_ACTIVE_MATCH_BUNDLE.zip"' in text
+    assert '"HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"' in text
+
+    for required in (
+        "HPFA_ANALYST_REPORT.txt",
+        "HPFA_ANALYST_REPORT_TR.txt",
+        "HPFA_ANALYST_REPORT_EN.txt",
+        "HPFA_MECHANISM_CARDS_GRAPH_READY.json",
+        "HPFA_PRESENTATION_VIEW_MODEL.json",
+        "HPFA_PROFESSIONAL_REPORT.html",
+        "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json",
+    ):
+        assert required in text
+
+    assert "PRODUCER_DECLARED_CURRENT_INVOCATION_ARTIFACTS_PLUS_STANDARD_DELIVERABLES" in text
+    assert 'provenance.get("status") != "PASS"' in text
+    assert 'provenance.get("exact_head_sha") != expected_sha' in text
+    assert 'manifest.get("canonical_event_count") != "UNKNOWN"' in text
+    assert 'manifest.get("true_action_count") != "UNKNOWN"' in text
+    assert 'manifest.get("production_release") is not False' in text
+    assert "archive.testzip()" in text
+    assert "FINAL_USER_BUNDLE_RETURN_CODE=$BUNDLE_RC" in text
+
+
+def test_physical_harness_final_bundle_failure_is_a_physical_acceptance_failure() -> None:
+    text = HARNESS.read_text(encoding="utf-8")
+
+    assert 'elif [ "$BUNDLE_RC" -ne 0 ]; then' in text
+    assert 'CLASSIFICATION="FINAL_USER_BUNDLE_VALIDATION_RETURNED_NONZERO"' in text
+    assert 'FINAL_RC="$BUNDLE_RC"' in text
+
+
+def test_physical_harness_requires_outer_archive_to_preserve_bundle_and_manifest() -> None:
+    text = HARNESS.read_text(encoding="utf-8")
+
+    assert "CHECKPOINT=VERIFY_FINAL_PHYSICAL_ARCHIVE" in text
+    assert "ARCHIVE_RC=99" in text
+    assert 'tar -tzf "$ARCHIVE"' in text
+    assert '"HPFA_ACTIVE_MATCH_BUNDLE.zip"' in text
+    assert '"HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"' in text
+    assert "FINAL_ARCHIVE_RETURN_CODE=$ARCHIVE_RC" in text
+    assert 'CLASSIFICATION="FINAL_PHYSICAL_ARCHIVE_VALIDATION_RETURNED_NONZERO"' in text

@@ -65,6 +65,14 @@ def test_first_eligible_followup_is_not_replaced_by_later_shot_presence() -> Non
     assert row["horizon_family_presence_is_target_consequence_truth"] is False
     assert out["first_eligible_primary_reclassification_count"] == 1
     assert out["target_consequence_result_emitted"] is False
+    assert row["time_to_first_admitted_visible_state_change_seconds_candidate"] == 1.0
+    assert row["time_to_first_admitted_visible_state_change_observation_state"] == "OBSERVED_ADMITTED_AFTER"
+    assert row["time_to_first_admitted_visible_state_change_is_physical_advantage_window_truth"] is False
+    profile = out["time_to_first_admitted_visible_state_change_profile"]
+    assert profile["eligible_observed_n"] == 1
+    assert profile["median_seconds_candidate"] == 1.0
+    assert profile["distribution_is_descriptive_not_first_passage_model"] is True
+    assert profile["global_5_8_12_window_is_production_threshold"] is False
 
 
 def test_same_time_first_layer_stays_unordered_and_mixed() -> None:
@@ -88,6 +96,8 @@ def test_same_time_first_layer_stays_unordered_and_mixed() -> None:
     assert row["same_timestamp_first_layer_internal_ordering_allowed"] is False
     assert row["record_status"] == "REVIEW_REQUIRED"
     assert out["review_required_consequence_candidate_count"] == 1
+    assert row["time_to_first_admitted_visible_state_change_seconds_candidate"] == 1.0
+    assert row["time_to_first_admitted_visible_state_change_observation_state"] == "OBSERVED_ADMITTED_AFTER"
 
 
 def test_no_admitted_after_followup_does_not_invent_first_or_target_result() -> None:
@@ -102,12 +112,77 @@ def test_no_admitted_after_followup_does_not_invent_first_or_target_result() -> 
     row = out["trackable_action_consequence_candidates"][0]
 
     assert row["primary_consequence_candidate"] == "TERMINAL_OUTCOME_SUPPORT_CANDIDATE"
-    assert row["first_eligible_consequence_binding_state"] == "NO_ADMITTED_AFTER_FOLLOWUP"
+    assert row["first_eligible_consequence_binding_state"] == "NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"
     assert row["first_eligible_follow_up_trace_ids"] == []
     assert row["first_eligible_team_relation"] == "NONE"
     assert row["target_consequence_within_horizon"] is None
     assert row["target_consequence_query_required_for_target_claim"] is True
     assert row["diagnostic_horizon_family_presence_can_authorize_claim"] is False
+    assert row["time_to_first_admitted_visible_state_change_seconds_candidate"] is None
+    assert row["time_to_first_admitted_visible_state_change_observation_state"] == "NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"
+    assert out["time_to_first_admitted_visible_state_change_profile"]["observation_state_counts"]["NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"] == 1
+
+
+def test_time_profile_uses_median_and_keeps_no_followup_out_of_observed_distribution() -> None:
+    trace_payload = {
+        "trackable_action_trace_candidates": [
+            _trace("a1", team="A", start=10.0, families=["PASS"]),
+            _trace("f1", team="A", start=11.0, families=["PASS"]),
+            _trace("a2", team="A", start=20.0, families=["PASS"]),
+            _trace("f2", team="A", start=24.0, families=["PASS"]),
+            _trace("a3", team="A", start=30.0, families=["PASS"]),
+        ]
+    }
+    payload = {
+        "status": "PASS",
+        "module_status": "PASS",
+        "hard_block_hits": [],
+        "review_hits": [],
+        "trackable_action_consequence_candidates": [
+            {
+                "anchor_trackable_action_trace_candidate_id": "a1",
+                "admitted_after_follow_up_trace_ids": ["f1"],
+                "primary_consequence_candidate": "SAME_TEAM_CONTINUATION_CANDIDATE",
+                "terminal_outcome_support_visible": False,
+                "derived_consequence_support_visible": False,
+                "record_status": "PASS_CANDIDATE_CLASSIFICATION",
+            },
+            {
+                "anchor_trackable_action_trace_candidate_id": "a2",
+                "admitted_after_follow_up_trace_ids": ["f2"],
+                "primary_consequence_candidate": "SAME_TEAM_CONTINUATION_CANDIDATE",
+                "terminal_outcome_support_visible": False,
+                "derived_consequence_support_visible": False,
+                "record_status": "PASS_CANDIDATE_CLASSIFICATION",
+            },
+            {
+                "anchor_trackable_action_trace_candidate_id": "a3",
+                "admitted_after_follow_up_trace_ids": [],
+                "primary_consequence_candidate": "NO_VISIBLE_FOLLOW_UP_CANDIDATE",
+                "terminal_outcome_support_visible": False,
+                "derived_consequence_support_visible": False,
+                "record_status": "PASS_CANDIDATE_CLASSIFICATION",
+            },
+        ],
+        "primary_consequence_candidate_counts": {},
+        "review_required_consequence_candidate_count": 0,
+        "classified_consequence_candidate_count": 3,
+    }
+
+    out = current._bind_first_eligible_vs_horizon_semantics(payload, trace_payload)
+    profile = out["time_to_first_admitted_visible_state_change_profile"]
+
+    assert profile["eligible_observed_n"] == 2
+    assert profile["distribution_values_seconds_candidate"] == [1.0, 4.0]
+    assert profile["median_seconds_candidate"] == 2.5
+    assert profile["observation_state_counts"]["NO_ADMITTED_AFTER_WITHIN_DIAGNOSTIC_HORIZON"] == 1
+    assert profile["right_censoring_model_applied"] is False
+    assert profile["diagnostic_observation_horizon_seconds"] == 12.0
+    assert profile["distribution_is_truncated_by_diagnostic_horizon"] is True
+    assert profile["no_admitted_after_within_horizon_is_no_future_state_truth"] is False
+    assert profile["no_admitted_after_is_failure"] is False
+    assert profile["temporal_interpretation_state"] == "DIAGNOSTIC_HORIZON_TRUNCATED_DESCRIPTIVE_DISTRIBUTION"
+    assert profile["graphability_state"] == "GRAPH_READY_WITH_REVIEW"
 
 
 def test_missing_followup_trace_keeps_semantics_unresolved_instead_of_guessing() -> None:
@@ -126,3 +201,5 @@ def test_missing_followup_trace_keeps_semantics_unresolved_instead_of_guessing()
     assert row["primary_consequence_candidate"] == "SHOT_FOLLOW_UP_CANDIDATE"
     assert out["first_eligible_semantics_unresolved_record_count"] == 1
     assert "first_eligible_consequence_semantics_unresolved" in out["review_hits"]
+    assert row["time_to_first_admitted_visible_state_change_seconds_candidate"] is None
+    assert row["time_to_first_admitted_visible_state_change_observation_state"] == "UNRESOLVED_TRACE_LINEAGE"

@@ -119,10 +119,14 @@ def _write_payloads(tmp_path: Path) -> None:
             {
                 "actor_identity_candidate_id": "actor_1",
                 "actor_normalized_key": "player_alpha",
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "validated_player_identity": True,
             },
             {
                 "actor_identity_candidate_id": "actor_2",
                 "actor_normalized_key": "player_beta",
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "validated_player_identity": True,
             },
         ],
         "canonical_event_count": "UNKNOWN",
@@ -265,6 +269,23 @@ def test_actor_only_difference_does_not_become_mechanism_context_focus(tmp_path:
     assert "video_review_locator: shared_anchor=02:00" in text
 
 
+def test_unvalidated_match_local_actor_name_is_withheld_from_human_review(tmp_path: Path) -> None:
+    _write_payloads(tmp_path)
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    for row in identity["actor_identity_candidates"]:
+        row["validated_player_identity"] = False
+    identity_path.write_text(json.dumps(identity), encoding="utf-8")
+
+    text = "\n".join(build_mechanism_review_lines(tmp_path, _full_spine(tmp_path)))
+
+    assert "Player Alpha" not in text
+    assert "Player Beta" not in text
+    assert "WITHHELD_MATCH_LOCAL_IDENTITY[actor_1]" in text
+    assert "WITHHELD_MATCH_LOCAL_IDENTITY[actor_2]" in text
+    assert "role=VIDEO_REVIEW_LOCATOR_ONLY" in text
+
+
 def test_unknown_context_provenance_fails_closed(tmp_path: Path) -> None:
     _write_payloads(tmp_path)
     payload_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
@@ -367,3 +388,116 @@ def test_bound_aware_story_review_is_runtime_visible_without_probability_promoti
     assert "story_selection_is_truth_ranking=false" in text
     assert "story_selection_is_confidence_score=false" in text
     assert "story_selection_can_authorize_emit=false" in text
+    assert "story_detail_render_count=1 source_candidate_count=1" in text
+    assert "story_detail_render_scope=SHORTLIST_ONLY_ATTENTION_COMPRESSION_NOT_EVIDENCE_REMOVAL" in text
+
+
+def test_same_grammar_contexts_are_compared_without_tactical_promotion(tmp_path: Path) -> None:
+    _write_payloads(tmp_path)
+    delta_path = tmp_path / "grammar_stable_variant_feature_delta_projection_v1.json"
+    delta = json.loads(delta_path.read_text(encoding="utf-8"))
+    first = delta["grammar_stable_variant_feature_delta_records"][0]
+    first["visible_episode_spread_count"] = 3
+    first["occurrence_disjoint_support_cluster_count"] = 4
+    first["success_failure_supported_branch_divergence_count"] = 1
+    second = json.loads(json.dumps(first))
+    second["grammar_stable_variant_feature_delta_id"] = "gsvfd_2"
+    second["source_process_variant_family_ref"] = "family_2"
+    second["team_identity_candidate_ids"] = ["team_2"]
+    second["period_candidates"] = ["2"]
+    second["resolved_variant_count"] = 8
+    second["success_resolved_variant_count"] = 6
+    second["failure_resolved_variant_count"] = 2
+    second["visible_episode_spread_count"] = 2
+    second["occurrence_disjoint_support_cluster_count"] = 2
+    second["success_failure_supported_branch_divergence_count"] = 2
+    delta["grammar_stable_variant_feature_delta_records"].append(second)
+    delta_path.write_text(json.dumps(delta), encoding="utf-8")
+
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    identity["team_identity_candidates"].append(
+        {"team_identity_candidate_id": "team_2", "team_normalized_key": "team_beta"}
+    )
+    identity_path.write_text(json.dumps(identity), encoding="utf-8")
+
+    text = "\n".join(build_mechanism_review_lines(tmp_path, _full_spine(tmp_path)))
+    assert "same_grammar_context_comparison: grammar=PASS -> PASS eligible_contexts=2" in text
+    assert "scope=SELECTED_GRAMMAR_ELIGIBLE_CONTEXTS_NOT_ALL_MATCH_CONTEXTS" in text
+    assert "semantics=MATCH_LOCAL_VISIBLE_CONTEXT_COMPARISON_ONLY" in text
+    assert "tactical_change=false team_quality=false causality=false significance=false" in text
+    assert "same_grammar_context: team=Team Alpha period=1 resolved=10 success_visible=7 failure_visible=3" in text
+    assert "same_grammar_context: team=Team Beta period=2 resolved=8 success_visible=6 failure_visible=2" in text
+    assert "independent_support=false recurrence_truth=false" in text
+
+
+def test_rich_context_is_appended_for_review_without_changing_emit_authority(tmp_path: Path) -> None:
+    _write_payloads(tmp_path)
+    rich = {
+        "status": "REVIEW_REQUIRED",
+        "game_state_context": {
+            "status": "PASS",
+            "goal_observation_count": 4,
+            "score_state_segments": [{}, {}, {}, {}, {}],
+        },
+        "game_state_process_mix_context": {
+            "status": "PASS",
+            "profile_count": 10,
+        },
+        "loss_next_opponent_process_context": {
+            "status": "PASS",
+            "loss_context_row_count": 102,
+            "next_opponent_process_family_counts": {
+                "POSITIONAL_ATTACK_CANDIDATE": 10,
+                "COUNTERATTACK_CANDIDATE": 3,
+            },
+        },
+        "recovery_next_process_context": {
+            "status": "PASS",
+            "recovery_context_row_count": 43,
+            "next_visible_process_family_counts": {
+                "POSITIONAL_ATTACK_CANDIDATE": 8,
+            },
+        },
+        "set_piece_process_consequence_context": {
+            "status": "PASS",
+            "declared_consequence_horizon_seconds": 12.0,
+            "post_set_piece_first_visible_team_state_counts": {
+                "SAME_TEAM_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE": 2,
+                "OPPONENT_FIRST_STRICT_AFTER_VISIBLE_CANDIDATE": 2,
+                "FIRST_STRICT_AFTER_OUTSIDE_DECLARED_CONSEQUENCE_HORIZON": 7,
+            },
+        },
+        "counterattack_next_process_context": {
+            "status": "PASS",
+            "counterattack_context_row_count": 27,
+            "next_visible_process_family_counts": {
+                "POSITIONAL_ATTACK_CANDIDATE": 23,
+            },
+            "visible_successor_is_transition_stabilization_truth": False,
+        },
+        "constructs": {
+            "C01": {
+                "access_creation_terminal_profile_count": 30,
+                "access_creation_terminal_profiles_with_access_and_terminal_count": 28,
+                "access_creation_terminal_conversion_rate_emitted": False,
+            },
+            "C03": {
+                "signature_count": 167,
+            },
+        },
+    }
+    rich_path = tmp_path / "rich_multiformat_analysis_lattice_v1.json"
+    rich_path.write_text(json.dumps(rich), encoding="utf-8")
+    spine = _full_spine(tmp_path)
+    spine["current_invocation_artifacts"].append(str(rich_path))
+
+    text = "\n".join(build_mechanism_review_lines(tmp_path, spine))
+    assert "rich_context_scope=ANALYST_REVIEW_CONTEXT_ONLY_NOT_SELECTION_OR_EVIDENCE_PROMOTION" in text
+    assert "goal_observation_count=4" in text
+    assert "profile_count=30 access_terminal_both=28 conversion_rate_emitted=false" in text
+    assert '"POSITIONAL_ATTACK_CANDIDATE": 10' in text
+    assert "declared_horizon_seconds=12.0" in text
+    assert "transition_stabilization_truth=false" in text
+    assert "rich_context_can_authorize_emit=false" in text
+    assert "professional_emit_allowed=false" in text

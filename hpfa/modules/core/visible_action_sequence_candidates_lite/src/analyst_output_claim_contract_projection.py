@@ -371,7 +371,7 @@ def build_analyst_output_claim_contract(
     a defeasible match-local professional finding. REVIEW_REQUIRED is preserved as review
     debt and can never be laundered into professional output. Variant-feature challenge
     and support-spread metadata are carried only as compact provenance/qualification;
-    they create no evidence and cannot authorize EMIT. Late-bound episode spread may
+    their authority is analyst-review context; EMIT follows Safe Finding admission. Late-bound episode spread may
     resolve only a stale upstream UNKNOWN label and never independence or recurrence.
     """
     if comparable_outcome_payload.get("production_release") is True:

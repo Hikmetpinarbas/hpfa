@@ -212,3 +212,25 @@ def test_no_sample_match_identity_leak() -> None:
     source = Path("hpfa/modules/core/visible_action_sequence_candidates_lite/src/visible_action_sequence_candidates.py").read_text(encoding="utf-8")
     for token in ("Genclerbirligi", "Fenerbahce", "15.08.2026"):
         assert token not in source
+
+
+def test_restart_sequence_projects_visible_set_piece_process_without_routine_truth() -> None:
+    traces = [
+        trace("restart", start=10, family="CORNER"),
+        trace("followup", start=13, actor="actor_b", family="PASS"),
+    ]
+    result = build(traces)
+    assert result["set_piece_process_candidate_count"] == 1
+    process = result["set_piece_process_candidates"][0]
+    assert process["restart_type_candidates"] == ["CORNER_KICK"]
+    assert process["visible_followup_observed"] is True
+    assert process["second_action_trace_candidate_id"] == "followup"
+    assert process["attacking_phase_candidate"] == "ATTACKING_SET_PIECE"
+    assert process["defending_reciprocal_phase_candidate"] == "DEFENSIVE_SET_PIECE"
+    assert process["routine_design_truth"] is False
+    assert process["marking_scheme_truth"] is False
+
+
+def test_non_restart_sequence_does_not_create_set_piece_process() -> None:
+    result = build([trace("a", start=10, family="PASS"), trace("b", start=12, family="CARRY")])
+    assert result["set_piece_process_candidate_count"] == 0

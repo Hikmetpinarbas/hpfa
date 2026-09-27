@@ -393,3 +393,44 @@ def test_no_sample_match_identity_leak() -> None:
     rendered = json.dumps(result, ensure_ascii=False).casefold()
     for forbidden in ("sporting", "roma", "fenerbah", "galatasaray"):
         assert forbidden not in rendered
+
+
+def test_supported_branch_divergence_trace_flows_into_delta_and_consequence_records() -> None:
+    process_payload = _process_variants()
+    family = process_payload["observable_process_variant_families"][0]
+    family["supported_branch_divergence_bindings"] = [
+        {
+            "source_first_supported_branch_divergence_ref": "fsbd_1",
+            "family_supported_divergence_contrast_state": (
+                "SUCCESS_FAILURE_VISIBLE_WITHIN_FAMILY_SUPPORTED_DIVERGENCE"
+            ),
+        },
+        {
+            "source_first_supported_branch_divergence_ref": "fsbd_2",
+            "family_supported_divergence_contrast_state": (
+                "NO_SUCCESS_FAILURE_CONTRAST_WITHIN_FAMILY_OVERLAP"
+            ),
+        },
+    ]
+    result = build_grammar_stable_variant_feature_delta(
+        _sequence(),
+        process_payload,
+        _state(),
+        _consequence(),
+    )
+    delta = result["grammar_stable_variant_feature_delta_records"][0]
+    assert delta["supported_branch_divergence_refs"] == ["fsbd_1", "fsbd_2"]
+    assert delta["success_failure_supported_branch_divergence_refs"] == ["fsbd_1"]
+    assert delta["supported_branch_divergence_binding_count"] == 2
+    assert delta["success_failure_supported_branch_divergence_count"] == 1
+    assert delta["supported_branch_divergence_trace_is_failure_cause_truth"] is False
+    assert delta["supported_branch_divergence_trace_is_tactical_truth"] is False
+    assert delta["supported_branch_divergence_trace_is_independent_support_truth"] is False
+    assert result["supported_branch_divergence_traced_family_count"] == 1
+    assert result["success_failure_supported_branch_divergence_traced_family_count"] == 1
+
+    consequence_records = result["grammar_stable_consequence_contrast_records"]
+    assert consequence_records
+    consequence = consequence_records[0]
+    assert consequence["supported_branch_divergence_refs"] == ["fsbd_1", "fsbd_2"]
+    assert consequence["success_failure_supported_branch_divergence_refs"] == ["fsbd_1"]

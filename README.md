@@ -42,6 +42,27 @@ The following are hard product rules:
 
 The long-term commercial target is therefore not a script that analyzes one fixture. It is a reusable autonomous football-analysis system whose ingestion, reasoning, evidence audit and analyst-output contracts can be deployed for professional clubs while preserving the same claim-safety rules.
 
+## Installation and distribution status
+
+HPFA is currently a private pre-release product. The source tree is not approved
+for public package-index upload or external/commercial redistribution.
+
+The canonical Python package is built from the match-agnostic hpfa and canon
+namespace trees. Generated runtime/output material, vendor/donor snapshots and
+historical match artefacts are not part of the distribution package.
+
+Base core installation intentionally has no mandatory third-party Python runtime
+dependency. Optional capabilities are explicit:
+
+- xls: historical .xls support;
+- reference: reference-document ingestion;
+- dev: tests and XLSX test/bootstrap fixtures;
+- legacy-tools: non-core historical/visual tooling.
+
+Copyright and redistribution boundaries are defined in LICENSE, NOTICE and
+THIRD_PARTY_NOTICES.md. Unknown donor, provider-data or third-party rights remain
+REVIEW_REQUIRED and cannot be promoted by packaging.
+
 ## Authority
 
 - Product repository: `Hikmetpinarbas/hpfa`

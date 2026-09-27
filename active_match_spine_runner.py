@@ -321,6 +321,7 @@ def _bind_variant_feature_challenge_runtime(result: dict, out_dir: str | Path) -
         output = str(binding.get("output") or "").strip()
         if output:
             current_artifacts.append(output)
+        current_artifacts.extend(str(value) for value in (binding.get("post_sequence_current_invocation_artifacts") or []) if str(value or "").strip())
         result["current_invocation_artifacts"] = sorted(set(current_artifacts))
 
     engineering = result.get("engineering_evidence")

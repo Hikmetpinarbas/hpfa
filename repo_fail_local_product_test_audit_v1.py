@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -116,6 +117,10 @@ def _load_json(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _bounded_worker_count(requested: int, test_count: int) -> int:
+    return max(1, min(int(requested), int(test_count) or 1))
+
+
 def _write_text(path: Path, payload: dict[str, Any]) -> None:
     lines = [
         "HPFA FAIL-LOCAL PRODUCT TEST AUDIT V1",
@@ -125,6 +130,7 @@ def _write_text(path: Path, payload: dict[str, Any]) -> None:
         f"product_compile_status={payload.get('product_compile_status')}",
         f"isolated_test_status={payload.get('isolated_test_status')}",
         f"isolated_test_file_count={payload.get('isolated_test_file_count')}",
+        f"isolated_max_workers={payload.get('isolated_max_workers')}",
         f"isolated_tests={payload.get('isolated_tests')}",
         f"isolated_failures={payload.get('isolated_failures')}",
         f"isolated_errors={payload.get('isolated_errors')}",
@@ -170,6 +176,12 @@ def main() -> int:
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     parser.add_argument("--per-file-timeout-seconds", type=int, default=300)
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=1,
+        help="Run isolated test files concurrently while preserving one clean Python process per file.",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent
@@ -181,7 +193,7 @@ def main() -> int:
     baseline = _run(
         [
             sys.executable,
-            "repo_full_health_audit_v1.py",
+            "tools/repo_full_health_audit_v1.py",
             "--out-dir",
             str(out),
             "--timeout-seconds",
@@ -198,12 +210,13 @@ def main() -> int:
     )
     product_tests = [str(value) for value in product_tests]
 
-    isolated_results: list[dict[str, Any]] = []
     total_tests = total_failures = total_errors = total_skipped = 0
     total_elapsed = 0.0
     per_file_timeout = max(30, min(int(args.per_file_timeout_seconds), int(args.timeout_seconds)))
+    max_workers = _bounded_worker_count(args.max_workers, len(product_tests))
 
-    for index, test_file in enumerate(product_tests, start=1):
+    def run_isolated(item: tuple[int, str]) -> dict[str, Any]:
+        index, test_file = item
         junit = isolated_dir / f"{index:03d}.xml"
         run = _run(
             [
@@ -232,12 +245,21 @@ def main() -> int:
         if run["returncode"] != 0:
             row["stdout_tail"] = run["stdout_tail"]
             row["stderr_tail"] = run["stderr_tail"]
-        isolated_results.append(row)
-        total_tests += int(summary["tests"] or 0)
-        total_failures += int(summary["failures"] or 0)
-        total_errors += int(summary["errors"] or 0)
-        total_skipped += int(summary["skipped"] or 0)
-        total_elapsed += float(run["elapsed_seconds"] or 0.0)
+        return row
+
+    indexed_tests = list(enumerate(product_tests, start=1))
+    if max_workers == 1:
+        isolated_results = [run_isolated(item) for item in indexed_tests]
+    else:
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            isolated_results = list(pool.map(run_isolated, indexed_tests))
+
+    for row in isolated_results:
+        total_tests += int(row["tests"] or 0)
+        total_failures += int(row["failures"] or 0)
+        total_errors += int(row["errors"] or 0)
+        total_skipped += int(row["skipped"] or 0)
+        total_elapsed += float(row["elapsed_seconds"] or 0.0)
 
     failed_rows = [row for row in isolated_results if row["returncode"] != 0]
     isolated_status = "PASS" if product_tests and not failed_rows else "REVIEW_REQUIRED"
@@ -266,6 +288,7 @@ def main() -> int:
         "product_compile_returncode": product_compile_rc,
         "isolated_test_status": isolated_status,
         "isolated_test_file_count": len(product_tests),
+        "isolated_max_workers": max_workers,
         "isolated_tests": total_tests,
         "isolated_failures": total_failures,
         "isolated_errors": total_errors,
@@ -295,6 +318,7 @@ def main() -> int:
         "product_compile_status": product_compile_status,
         "isolated_test_status": isolated_status,
         "isolated_test_file_count": len(product_tests),
+        "isolated_max_workers": max_workers,
         "isolated_tests": total_tests,
         "isolated_failures": total_failures,
         "isolated_errors": total_errors,

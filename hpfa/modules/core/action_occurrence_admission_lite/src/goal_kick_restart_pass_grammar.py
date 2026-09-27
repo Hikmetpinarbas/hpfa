@@ -193,7 +193,8 @@ def build_goal_kick_restart_pass_candidates(
         if matched is None:
             continue
 
-        distance, distance_pattern, pass_pattern = matched
+        distance_key, distance_pattern, pass_pattern = matched
+        distance = _clean(distance_pattern.get("distance_candidate") or distance_key).upper()
         expected_restart_rule_ids = {
             common_rule_id,
             _clean(distance_pattern.get("restart_semantic_rule_id")),

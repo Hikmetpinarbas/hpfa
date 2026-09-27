@@ -135,7 +135,7 @@ def resolve_lineage(
 
 
 def lineage_independent_support_count(lineage_envelopes: list[dict[str, Any]]) -> dict[str, Any]:
-    """Count distinct proven root groups only; unresolved lineage cannot add support."""
+    """Count distinct proven root groups as support; unresolved lineage retains unresolved-support state."""
     groups: set[str] = set()
     unresolved_count = 0
     for row in lineage_envelopes or []:

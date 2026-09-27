@@ -23,9 +23,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: aggregate-definition-alignment-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
+  group: hpfa-${{ github.workflow_ref }}-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
     runs-on: ubuntu-latest

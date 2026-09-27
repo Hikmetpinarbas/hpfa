@@ -151,3 +151,81 @@ def test_fail_closed_on_sequence_truth_lock_breach() -> None:
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["true_action_count"] == "UNKNOWN"
     assert result["production_release"] is False
+
+
+def test_optional_game_state_context_enriches_evolution_without_changing_claim_gate():
+    sequence = _sequence_payload()
+    admission = {
+        "status": "PASS",
+        "production_release": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "safe_finding_admission_decisions": [{
+            "source_safe_finding_handoff_ref": "sfh_test",
+            "decision": "DOWNGRADE",
+            "claim_output_allowed": False,
+            "claim_ceiling": "NO_CLAIM_OUTPUT",
+        }],
+    }
+    context = {
+        "game_state_process_mix_context": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "score_state_candidate": {"Alpha": 1, "Beta": 0},
+                "segment_start_second_candidate": 0.0,
+                "segment_end_second_candidate": 1000.0,
+                "segment_duration_second_candidate": 1000.0,
+                "process_family_counts": {"POSITIONAL_ATTACK_CANDIDATE": 10},
+                "process_family_rate_per_10_minutes": {"POSITIONAL_ATTACK_CANDIDATE": 6.0},
+            }],
+        }
+    }
+    # align source fixture team/time if fixture uses different values
+    handoff = sequence["safe_finding_handoff_candidates"][0]
+    handoff.setdefault("where_when", {})["team_identity_candidate_id"] = "team_a"
+    handoff["where_when"]["shared_anchor_time_candidate"] = 500.0
+    result = build_puzzle_finding_contract(sequence, admission, context)
+    finding = result["puzzle_findings"][0]
+    assert finding["finding_status"] == "DOWNGRADE"
+    assert finding["claim_output_allowed"] is False
+    evo = finding["evolution_surface"]
+    assert evo["game_state_conditioning_ready"] is True
+    assert evo["score_state"] == {"Alpha": 1, "Beta": 0}
+    assert evo["score_state_is_causal_explanation"] is False
+    assert evo["creates_independent_support"] is False
+    assert result["game_state_conditioning_ready"] is True
+
+
+def test_puzzle_finding_carries_preoutcome_context_without_status_promotion():
+    sequence = _sequence_payload()
+    admission = {
+        "status": "PASS",
+        "production_release": False,
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "safe_finding_admission_decisions": [{
+            "source_safe_finding_handoff_ref": "sfh_test",
+            "decision": "DOWNGRADE",
+            "claim_output_allowed": False,
+            "claim_ceiling": "MATCH_LOCAL_SAFE_FINDING_CUE_ONLY",
+            "branch_preoutcome_context_enrichment": {
+                "state": "PRE_BRANCH_CONTEXT_ENRICHED_GAME_STATE_AND_PROCESS",
+                "branch_comparison_context_complete": False,
+                "score_state_candidate": {"Alpha": 1, "Beta": 0},
+                "provider_process_family_candidates": ["POSITIONAL_ATTACK_CANDIDATE"],
+                "creates_independent_support": False,
+                "can_change_safe_finding_decision": False,
+                "can_authorize_emit": False,
+            },
+        }],
+    }
+    result = build_puzzle_finding_contract(sequence, admission)
+    finding = result["puzzle_findings"][0]
+    assert finding["finding_status"] == "DOWNGRADE"
+    assert finding["claim_output_allowed"] is False
+    ctx = finding["branch_preoutcome_context_enrichment"]
+    assert ctx["branch_comparison_context_complete"] is False
+    assert ctx["creates_independent_support"] is False
+    assert finding["branch_preoutcome_context_enrichment_can_change_finding_status"] is False
+    assert finding["branch_preoutcome_context_enrichment_can_authorize_emit"] is False

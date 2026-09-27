@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import json
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 from hpfa.modules.core.action_occurrence_admission_lite.src.goal_kick_restart_pass_grammar import (
@@ -20,6 +22,199 @@ from hpfa.modules.core.action_occurrence_admission_lite.src.single_action_anchor
 
 def _clean(value: Any) -> str:
     return " ".join(("" if value is None else str(value)).split()).strip()
+
+
+CANONICAL_FOOTBALL_GRAMMAR_PATH = (
+    Path(__file__).resolve().parents[5] / "canon" / "football_action_process_grammar_v1.json"
+)
+
+
+def load_canonical_football_grammar_registry() -> dict[str, Any]:
+    """Load the provider-independent HPFA football grammar registry.
+
+    This registry is semantic reference authority only. Loading or resolving a
+    concept never admits an occurrence, never creates event identity, and never
+    raises a metric/model output to football truth.
+    """
+    payload = json.loads(CANONICAL_FOOTBALL_GRAMMAR_PATH.read_text(encoding="utf-8"))
+    if payload.get("registry_id") != "hpfa_football_action_process_grammar_v1":
+        raise ValueError("unexpected_canonical_football_grammar_registry")
+    return payload
+
+
+def resolve_canonical_football_concept(value: Any) -> dict[str, Any] | None:
+    """Resolve a canonical ID or declared alias to one grammar concept.
+
+    Provider raw labels must first pass their provider semantic mapping layer; this
+    resolver is intentionally not a fuzzy provider-label normalizer.
+    """
+    token = _clean(value).upper()
+    if not token:
+        return None
+    matches: list[dict[str, Any]] = []
+    for row in load_canonical_football_grammar_registry().get("entries") or []:
+        if not isinstance(row, dict):
+            continue
+        identifiers = {_clean(row.get("id")).upper()}
+        identifiers.update(_clean(v).upper() for v in (row.get("aliases") or []) if _clean(v))
+        if token in identifiers:
+            matches.append(row)
+    if not matches:
+        return None
+    if len(matches) != 1:
+        raise ValueError(f"ambiguous_canonical_football_concept:{token}")
+    return copy.deepcopy(matches[0])
+
+
+REVIEWED_SEMANTIC_RULE_CANONICAL_CONCEPTS = {
+    "plvs_v2_shots_saved": "GK_SAVE",
+}
+
+
+def _canonical_family_tokens(candidate: dict[str, Any]) -> list[tuple[str, str]]:
+    """Return already-admitted semantic tokens in deterministic precedence.
+
+    Raw provider labels are never interpreted here. Specific canonical subtypes
+    may come only from already-admitted structured semantics (for example an exact
+    goal-kick restart type) or from an explicitly reviewed HPFA semantic-rule ID.
+    A generic container family is suppressed when a more specific admitted concept
+    in the same canonical family is available.
+    """
+    specific: list[tuple[str, str]] = []
+
+    interaction_type = _clean(candidate.get("interaction_type"))
+    attributes = candidate.get("attributes")
+    if (
+        interaction_type == "GOAL_KICK_RESTART_PASS_SEMANTIC_CANDIDATE"
+        and isinstance(attributes, dict)
+    ):
+        restart_type = _clean(attributes.get("restart_type_candidate"))
+        if restart_type:
+            specific.append(("attributes.restart_type_candidate", restart_type))
+
+    for semantic_rule_id in candidate.get("supporting_semantic_rule_ids") or []:
+        canonical_id = REVIEWED_SEMANTIC_RULE_CANONICAL_CONCEPTS.get(_clean(semantic_rule_id))
+        if canonical_id:
+            specific.append(("supporting_semantic_rule_ids", canonical_id))
+
+    specific_families: set[str] = set()
+    for _, token in specific:
+        concept = resolve_canonical_football_concept(token)
+        if concept is not None and _clean(concept.get("family")):
+            specific_families.add(_clean(concept.get("family")).upper())
+
+    values: list[tuple[str, str]] = list(specific)
+    primary = _clean(candidate.get("primary_family_candidate"))
+    if primary and primary.upper() not in specific_families:
+        values.append(("primary_family_candidate", primary))
+
+    cardinality = candidate.get("observation_occurrence_cardinality")
+    if isinstance(cardinality, dict):
+        family = _clean(cardinality.get("action_family_candidate"))
+        if family and family.upper() not in specific_families:
+            values.append(("observation_occurrence_cardinality.action_family_candidate", family))
+
+    for value in candidate.get("action_family_candidates") or []:
+        family = _clean(value)
+        if family and family.upper() not in specific_families:
+            values.append(("action_family_candidates", family))
+
+    seen: set[str] = set()
+    result: list[tuple[str, str]] = []
+    for source, token in values:
+        key = token.upper()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append((source, token))
+    return result
+
+
+def bind_canonical_football_grammar_metadata(occurrence_payload: dict[str, Any]) -> dict[str, Any]:
+    """Attach canonical football-language metadata to admitted occurrence candidates.
+
+    The binder is explanation/normalization only. It never changes occurrence
+    identity, evidence support, admission class, dependency, chronology, claim
+    ceiling, or finding eligibility. Unresolved admitted semantic tokens remain
+    visible instead of being fuzzily coerced into the nearest canonical concept.
+    """
+    candidates = [
+        row
+        for row in occurrence_payload.get("action_occurrence_candidates") or []
+        if isinstance(row, dict)
+    ]
+    resolved_candidate_count = 0
+    fully_resolved_candidate_count = 0
+    unresolved_candidate_count = 0
+    unresolved_tokens: Counter[str] = Counter()
+    canonical_id_counts: Counter[str] = Counter()
+
+    for candidate in candidates:
+        matches: list[dict[str, Any]] = []
+        unresolved: list[dict[str, str]] = []
+        tokens = _canonical_family_tokens(candidate)
+        for source, token in tokens:
+            concept = resolve_canonical_football_concept(token)
+            if concept is None:
+                unresolved.append({"source": source, "token": token})
+                unresolved_tokens[token] += 1
+                continue
+            canonical_id = _clean(concept.get("id"))
+            if canonical_id:
+                canonical_id_counts[canonical_id] += 1
+            matches.append(
+                {
+                    "source": source,
+                    "source_token": token,
+                    "canonical_id": concept.get("id"),
+                    "class": concept.get("class"),
+                    "family": concept.get("family"),
+                    "label_tr": concept.get("label_tr"),
+                    "label_en": concept.get("label_en"),
+                    "definition": concept.get("definition"),
+                    "required_observations": list(concept.get("required_observations") or []),
+                    "forbidden_inferences": list(concept.get("forbidden_inferences") or []),
+                    "claim_ceiling": concept.get("claim_ceiling"),
+                }
+            )
+
+        candidate["canonical_football_grammar_matches"] = matches
+        candidate["canonical_football_grammar_unresolved_tokens"] = unresolved
+        candidate["canonical_football_grammar_match_count"] = len(matches)
+        candidate["canonical_football_grammar_binding_creates_new_evidence"] = False
+        candidate["canonical_football_grammar_binding_changes_occurrence_identity"] = False
+        candidate["canonical_football_grammar_binding_can_authorize_emit"] = False
+
+        if matches:
+            resolved_candidate_count += 1
+        if tokens and matches and not unresolved:
+            fully_resolved_candidate_count += 1
+        if unresolved:
+            unresolved_candidate_count += 1
+
+    occurrence_payload["canonical_football_grammar_registry_id"] = (
+        load_canonical_football_grammar_registry().get("registry_id")
+    )
+    occurrence_payload["canonical_football_grammar_candidate_count"] = len(candidates)
+    occurrence_payload["canonical_football_grammar_resolved_candidate_count"] = resolved_candidate_count
+    occurrence_payload["canonical_football_grammar_fully_resolved_candidate_count"] = fully_resolved_candidate_count
+    occurrence_payload["canonical_football_grammar_unresolved_candidate_count"] = unresolved_candidate_count
+    occurrence_payload["canonical_football_grammar_unresolved_token_counts"] = dict(
+        sorted(unresolved_tokens.items())
+    )
+    occurrence_payload["canonical_football_grammar_id_counts"] = dict(
+        sorted(canonical_id_counts.items())
+    )
+    occurrence_payload["canonical_football_grammar_binding_status"] = (
+        "PASS" if candidates and unresolved_candidate_count == 0
+        else "REVIEW_REQUIRED" if candidates
+        else "NOT_EVALUATED"
+    )
+    occurrence_payload["canonical_football_grammar_binding_creates_new_evidence"] = False
+    occurrence_payload["canonical_football_grammar_binding_changes_occurrence_identity"] = False
+    occurrence_payload["canonical_football_grammar_binding_changes_admission"] = False
+    occurrence_payload["canonical_football_grammar_binding_can_authorize_emit"] = False
+    return occurrence_payload
 
 
 def _goal_kick_matching_view(action_payload: dict[str, Any]) -> dict[str, Any]:
@@ -207,7 +402,7 @@ def bind_intra_actor_action_grammar(
 
     hard_blocks = list(occurrence_payload.get("hard_block_hits") or [])
     hard_blocks.extend(cardinality.get("hard_block_hits") or [])
-    occurrence_payload["hard_block_hits"] = sorted(set(_clean(value) for value in hard_blocks if _clean(value)))
+    occurrence_payload["hard_block_hits"] = sorted({_clean(value) for value in hard_blocks if _clean(value)})
 
     reviews = list(occurrence_payload.get("review_hits") or [])
     reviews.extend(grammar.get("review_hits") or [])
@@ -222,7 +417,7 @@ def bind_intra_actor_action_grammar(
     else:
         occurrence_payload["provider_semantics_binding_status"] = "PASS"
 
-    occurrence_payload["review_hits"] = sorted(set(_clean(value) for value in reviews if _clean(value)))
+    occurrence_payload["review_hits"] = sorted({_clean(value) for value in reviews if _clean(value)})
     if occurrence_payload["hard_block_hits"]:
         occurrence_payload["status"] = "FAIL_CLOSED"
         occurrence_payload["module_status"] = "FAIL_CLOSED"
@@ -242,6 +437,11 @@ def bind_intra_actor_action_grammar(
     _reconcile_goal_kick_product_summary(occurrence_payload)
     occurrence_payload["goal_kick_raw_label_preferred_for_exact_matching"] = True
     occurrence_payload["goal_kick_normalized_label_is_independent_semantic_support"] = False
+
+    # Final semantic explanation layer: attach provider-independent canonical
+    # football concepts only after occurrence admission has finished. This does
+    # not participate in identity, dependency, support, chronology or admission.
+    occurrence_payload = bind_canonical_football_grammar_metadata(occurrence_payload)
 
     occurrence_payload["canonical_event_count"] = "UNKNOWN"
     occurrence_payload["true_action_count"] = "UNKNOWN"
