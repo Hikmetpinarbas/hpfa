@@ -382,3 +382,89 @@ def test_typed_withdrawal_effect_cannot_strengthen_claim():
     assert decision["decision"] == "ABSTAIN"
     assert decision["claim_output_allowed"] is False
     assert "typed_withdrawal_effect_unrecognized" in decision["decision_reasons"]
+
+
+def test_denominator_and_comparison_design_withdrawal_warrants_are_admitted_contract_types():
+    row = _handoff(
+        "sfh_warrant_vocab",
+        independent=2,
+        dep=True,
+        stat=True,
+        blocking=[],
+    )
+    row["typed_defeat_contract"] = {
+        "observed_defeat_state": "NOT_APPLICABLE_NO_OBSERVED_COUNTEREXAMPLE",
+        "observed_defeat_type": "NOT_APPLICABLE",
+        "observed_target_component_type": None,
+        "observed_target_component_ref": None,
+        "observed_source_counterevidence_refs": [],
+        "conditional_withdrawal_rules": [
+            {
+                "condition_code": "WITHDRAW_IF_ELIGIBLE_DENOMINATOR_BINDING_INVALIDATED",
+                "defeat_type": "UNDERCUT",
+                "target_component_type": "DENOMINATOR_WARRANT",
+                "target_component_ref": "set_sfh_warrant_vocab",
+                "withdrawal_effect": "ABSTAIN",
+            },
+            {
+                "condition_code": "WITHDRAW_IF_OUTCOME_LEAKAGE_DETECTED",
+                "defeat_type": "UNDERCUT",
+                "target_component_type": "COMPARISON_DESIGN_WARRANT",
+                "target_component_ref": "set_sfh_warrant_vocab",
+                "withdrawal_effect": "ABSTAIN",
+            },
+        ],
+        "defeat_is_causal_refutation": False,
+        "defeat_is_independent_support": False,
+        "defeat_creates_new_evidence": False,
+        "defeat_can_authorize_emit": False,
+        "defeat_can_strengthen_claim_ceiling": False,
+        "withdrawal_effect_can_strengthen_claim": False,
+        "rebut_without_explicit_target_allowed": False,
+    }
+
+    out = build_safe_finding_admission(_payload([row]))
+    decision = out["safe_finding_admission_decisions"][0]
+
+    assert decision["decision"] == "EMIT"
+    assert decision["decision_reasons"] == []
+    assert decision["typed_defeat_profile"]["conditional_withdrawal_rule_count"] == 2
+
+
+def test_unknown_withdrawal_target_type_remains_fail_closed():
+    row = _handoff(
+        "sfh_unknown_warrant",
+        independent=2,
+        dep=True,
+        stat=True,
+        blocking=[],
+    )
+    row["typed_defeat_contract"] = {
+        "observed_defeat_state": "NOT_APPLICABLE_NO_OBSERVED_COUNTEREXAMPLE",
+        "observed_defeat_type": "NOT_APPLICABLE",
+        "observed_target_component_type": None,
+        "observed_target_component_ref": None,
+        "observed_source_counterevidence_refs": [],
+        "conditional_withdrawal_rules": [
+            {
+                "condition_code": "WITHDRAW_IF_UNKNOWN_BINDING_INVALIDATED",
+                "defeat_type": "UNDERCUT",
+                "target_component_type": "UNDECLARED_WARRANT_TYPE",
+                "target_component_ref": "sfh_unknown_warrant",
+                "withdrawal_effect": "ABSTAIN",
+            },
+        ],
+        "defeat_is_causal_refutation": False,
+        "defeat_is_independent_support": False,
+        "defeat_creates_new_evidence": False,
+        "defeat_can_authorize_emit": False,
+        "defeat_can_strengthen_claim_ceiling": False,
+        "withdrawal_effect_can_strengthen_claim": False,
+        "rebut_without_explicit_target_allowed": False,
+    }
+
+    out = build_safe_finding_admission(_payload([row]))
+    decision = out["safe_finding_admission_decisions"][0]
+
+    assert decision["decision"] == "ABSTAIN"
+    assert "typed_withdrawal_target_type_unrecognized" in decision["decision_reasons"]
