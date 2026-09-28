@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import copy
 from typing import Any
 
 CLAIM_CEILING_EMIT = "DEFEASIBLE_MATCH_LOCAL_PROFESSIONAL_FINDING_ONLY"
@@ -36,6 +37,113 @@ def _refs(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return sorted({_clean(item) for item in value if _clean(item)})
+
+
+def bind_reflection_dependency_profiles(
+    sequence_payload: dict[str, Any],
+    occurrence_payload: dict[str, Any] | None,
+    evidence_atom_payload: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Bind bounded occurrence ancestry to evidence-atom reflection dependency.
+
+    This is lineage/dependency description only. It never creates evidence, event identity,
+    recurrence truth, or independent support and can never authorize EMIT.
+    """
+    result = copy.deepcopy(sequence_payload)
+    occurrences = (occurrence_payload or {}).get("action_occurrence_candidates") or []
+    atoms = (evidence_atom_payload or {}).get("evidence_atoms") or []
+    occurrence_by_id = {
+        _clean(row.get("action_occurrence_candidate_id")): row
+        for row in occurrences
+        if isinstance(row, dict) and _clean(row.get("action_occurrence_candidate_id"))
+    }
+    atom_by_id = {
+        _clean(row.get("evidence_atom_id")): row
+        for row in atoms
+        if isinstance(row, dict) and _clean(row.get("evidence_atom_id"))
+    }
+    divergence_by_id = {
+        _clean(row.get("first_supported_branch_divergence_id")): row
+        for row in result.get("first_supported_branch_divergence_candidates") or []
+        if isinstance(row, dict) and _clean(row.get("first_supported_branch_divergence_id"))
+    }
+
+    for handoff in result.get("safe_finding_handoff_candidates") or []:
+        if not isinstance(handoff, dict):
+            continue
+        divergence = divergence_by_id.get(_clean(handoff.get("source_first_supported_branch_divergence_ref"))) or {}
+        occurrence_refs: set[str] = set()
+        for branch in divergence.get("branch_profiles") or []:
+            if isinstance(branch, dict):
+                occurrence_refs.update(_refs(branch.get("neighbor_supporting_action_occurrence_candidate_ids")))
+
+        atom_refs: set[str] = set()
+        missing_occurrence_refs: list[str] = []
+        for occurrence_ref in sorted(occurrence_refs):
+            occurrence = occurrence_by_id.get(occurrence_ref)
+            if occurrence is None:
+                missing_occurrence_refs.append(occurrence_ref)
+                continue
+            source_refs = _refs(occurrence.get("source_observation_refs"))
+            if not source_refs and isinstance(occurrence.get("observation_occurrence_cardinality"), dict):
+                source_refs = _refs(
+                    occurrence["observation_occurrence_cardinality"].get("source_observation_refs")
+                )
+            if not source_refs:
+                missing_occurrence_refs.append(occurrence_ref)
+                continue
+            atom_refs.update(source_refs)
+
+        missing_atom_refs = sorted(ref for ref in atom_refs if ref not in atom_by_id)
+        resolved_atoms = [atom_by_id[ref] for ref in sorted(atom_refs) if ref in atom_by_id]
+        reflection_dependent_count = sum(
+            row.get("reflection_dependency_state") == "DEPENDENT_SERIALIZATION_REFLECTION"
+            for row in resolved_atoms
+        )
+        independent_vote_allowed_count = sum(
+            row.get("independent_source_vote_allowed") is True for row in resolved_atoms
+        )
+        source_lineage_record_count = sum(
+            len([item for item in (row.get("source_lineage_records") or []) if isinstance(item, dict)])
+            for row in resolved_atoms
+        )
+        coverage_complete = bool(occurrence_refs) and not missing_occurrence_refs and not missing_atom_refs and bool(atom_refs)
+        explicit_dependent = (
+            coverage_complete
+            and len(resolved_atoms) == len(atom_refs)
+            and reflection_dependent_count == len(resolved_atoms)
+            and independent_vote_allowed_count == 0
+        )
+        state = (
+            "EXPLICIT_DEPENDENT_SERIALIZATION_REFLECTION_BOUND"
+            if explicit_dependent
+            else "PARTIAL_OR_UNRESOLVED_REFLECTION_LINEAGE"
+        )
+        handoff["reflection_dependency_profile"] = {
+            "state": state,
+            "coverage_complete": coverage_complete,
+            "bounded_occurrence_ancestor_count": len(occurrence_refs),
+            "resolved_occurrence_ancestor_count": len(occurrence_refs) - len(missing_occurrence_refs),
+            "missing_occurrence_ancestor_refs": sorted(missing_occurrence_refs),
+            "evidence_atom_ancestor_count": len(atom_refs),
+            "missing_evidence_atom_refs": missing_atom_refs,
+            "reflection_dependent_evidence_atom_count": reflection_dependent_count,
+            "source_lineage_record_count": source_lineage_record_count,
+            "independent_source_vote_allowed_count": independent_vote_allowed_count,
+            "reflection_dependency_present": reflection_dependent_count > 0,
+            "reflection_dependency_resolved": explicit_dependent,
+            "reflection_dependency_can_authorize_independence": False,
+            "surface_lineage_count_is_independent_support_count": False,
+            "evidence_atom_count_is_independent_support_count": False,
+            "creates_new_evidence": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+    result["reflection_dependency_profile_binding_applied"] = True
+    result["reflection_dependency_profile_binding_creates_new_evidence"] = False
+    result["reflection_dependency_profile_binding_can_authorize_independence"] = False
+    return result
 
 
 def _scoped_counterevidence_review_applies_to_handoff(
@@ -223,6 +331,18 @@ def _dependency_burden_profile(
     }
     concentration_warnings = _refs(uncertainty.get("concentration_warnings"))
     shared_anchor_ref = _clean(where_when.get("shared_anchor_time_layer_ref")) or None
+    reflection_profile = (
+        handoff.get("reflection_dependency_profile")
+        if isinstance(handoff.get("reflection_dependency_profile"), dict)
+        else {}
+    )
+    explicit_reflection_dependency = (
+        reflection_profile.get("state") == "EXPLICIT_DEPENDENT_SERIALIZATION_REFLECTION_BOUND"
+        and reflection_profile.get("coverage_complete") is True
+        and reflection_profile.get("reflection_dependency_present") is True
+        and reflection_profile.get("reflection_dependency_resolved") is True
+        and int(reflection_profile.get("independent_source_vote_allowed_count") or 0) == 0
+    )
     same_design = handoff.get("same_comparison_design_counterevidence_required") is True
     shared_anchor_dependency_visible = bool(
         shared_anchor_ref
@@ -242,19 +362,35 @@ def _dependency_burden_profile(
     elif shared_anchor_dependency_visible:
         profile_state = "SHARED_VISIBLE_ANCHOR_DEPENDENCY_DOMINATED"
         dependency_group_state = "UNRESOLVED_OR_SHARED_DEPENDENCY_PRESENT"
-        reflection_state = "UNRESOLVED_NOT_EXPLICITLY_BOUND"
+        reflection_state = (
+            "EXPLICIT_DEPENDENT_SERIALIZATION_REFLECTION_BOUND"
+            if explicit_reflection_dependency
+            else "UNRESOLVED_NOT_EXPLICITLY_BOUND"
+        )
         reasons = [
             "SHARED_ANCHOR_DEPENDENCY_BURDEN",
             "DEPENDENCY_GROUP_BURDEN_UNRESOLVED",
-            "REFLECTION_GROUP_BURDEN_UNRESOLVED",
+            (
+                "REFLECTION_DEPENDENCY_PRESENT_NO_INDEPENDENT_VOTE"
+                if explicit_reflection_dependency
+                else "REFLECTION_GROUP_BURDEN_UNRESOLVED"
+            ),
         ]
     else:
         profile_state = "DEPENDENCY_BURDEN_UNRESOLVED"
         dependency_group_state = "UNRESOLVED"
-        reflection_state = "UNRESOLVED_NOT_EXPLICITLY_BOUND"
+        reflection_state = (
+            "EXPLICIT_DEPENDENT_SERIALIZATION_REFLECTION_BOUND"
+            if explicit_reflection_dependency
+            else "UNRESOLVED_NOT_EXPLICITLY_BOUND"
+        )
         reasons = [
             "DEPENDENCY_GROUP_BURDEN_UNRESOLVED",
-            "REFLECTION_GROUP_BURDEN_UNRESOLVED",
+            (
+                "REFLECTION_DEPENDENCY_PRESENT_NO_INDEPENDENT_VOTE"
+                if explicit_reflection_dependency
+                else "REFLECTION_GROUP_BURDEN_UNRESOLVED"
+            ),
         ]
 
     return {
@@ -267,6 +403,9 @@ def _dependency_burden_profile(
         ),
         "shared_anchor_time_layer_ref": shared_anchor_ref,
         "reflection_group_burden_state": reflection_state,
+        "reflection_dependency_profile_bound": bool(reflection_profile),
+        "reflection_dependency_present": explicit_reflection_dependency,
+        "reflection_dependency_can_authorize_independence": False,
         "dependency_group_burden_state": dependency_group_state,
         "aggregate_reconciliation_burden_state": "NOT_IN_CURRENT_BRANCH_COMPARISON_DESIGN",
         "support_state": _clean(support.get("support_state")) or "UNKNOWN",

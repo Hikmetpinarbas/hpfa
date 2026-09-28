@@ -21,6 +21,7 @@ from hpfa.modules.core.visible_action_sequence_candidates_lite.src.puzzle_findin
     build_puzzle_finding_contract,
 )
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_admission_projection import (
+    bind_reflection_dependency_profiles,
     build_safe_finding_admission,
 )
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_occurrence_consequence_burden_adapter import (
@@ -46,6 +47,8 @@ OCCURRENCE_STATE_TRANSITION_NAME = "occurrence_state_transition_projection_v1.js
 CHALLENGE_NAME = "variant_feature_challenge_projection_v1.json"
 PUZZLE_FINDING_NAME = "puzzle_finding_contract_projection_v1.json"
 RICH_MULTIFORMAT_NAME = "rich_multiformat_analysis_lattice_v1.json"
+ACTION_OCCURRENCE_NAME = "action_occurrence_admission_lite_v1.json"
+EVIDENCE_ATOM_NAME = "evidence_atom_inventory_lite_v1.json"
 
 
 def _load(path: Path) -> dict:
@@ -461,6 +464,8 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
     challenge_path = output / CHALLENGE_NAME
     puzzle_finding_path = output / PUZZLE_FINDING_NAME
     rich_multiformat_path = output / RICH_MULTIFORMAT_NAME
+    action_occurrence_path = output / ACTION_OCCURRENCE_NAME
+    evidence_atom_path = output / EVIDENCE_ATOM_NAME
 
     feature_delta_payload = _load(feature_delta_path)
     process_variant_payload = _load(process_variant_path)
@@ -469,6 +474,8 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
     occurrence_consequence_payload = _load(occurrence_consequence_path)
     occurrence_state_transition_payload = _load(occurrence_state_transition_path)
     rich_multiformat_payload = _load(rich_multiformat_path)
+    action_occurrence_payload = _load(action_occurrence_path)
+    evidence_atom_payload = _load(evidence_atom_path)
     challenge_payload: dict | None = None
     process_context_counterevidence_recomputed = False
     process_context_counterevidence_fail_closed = False
@@ -592,6 +599,11 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
             "production_release": False,
         }
     else:
+        source_payload = bind_reflection_dependency_profiles(
+            source_payload,
+            action_occurrence_payload or None,
+            evidence_atom_payload or None,
+        )
         base_admission = build_safe_finding_admission(source_payload)
         result = apply_variant_feature_challenge_to_admission(
             source_payload,

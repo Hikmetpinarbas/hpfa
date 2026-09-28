@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.safe_finding_admission_projection import (
+    bind_reflection_dependency_profiles,
     build_safe_finding_admission,
 )
 
@@ -126,3 +127,125 @@ def test_no_sample_match_identity_leak() -> None:
     ).read_text(encoding="utf-8")
     for token in ("Sporting", "Galatasaray", "Fenerbahce", "Fenerbahçe", "Roma", "14.09.2026"):
         assert token not in source
+
+
+def test_explicit_reflection_dependency_profile_replaces_unresolved_reflection_burden_without_strengthening_claim():
+    handoff = _handoff(independent=0, dep=False, stat=False)
+    handoff["reflection_dependency_profile"] = {
+        "state": "EXPLICIT_DEPENDENT_SERIALIZATION_REFLECTION_BOUND",
+        "coverage_complete": True,
+        "reflection_dependency_present": True,
+        "reflection_dependency_resolved": True,
+        "independent_source_vote_allowed_count": 0,
+        "evidence_atom_ancestor_count": 3,
+        "reflection_dependent_evidence_atom_count": 3,
+    }
+    out = build_safe_finding_admission(_payload(handoff))
+    row = out["safe_finding_admission_decisions"][0]
+    burden = row["dependency_burden_profile"]
+
+    assert row["decision"] == "DOWNGRADE"
+    assert row["claim_output_allowed"] is False
+    assert burden["reflection_group_burden_state"] == "EXPLICIT_DEPENDENT_SERIALIZATION_REFLECTION_BOUND"
+    assert "REFLECTION_GROUP_BURDEN_UNRESOLVED" not in row["decision_reasons"]
+    assert "REFLECTION_DEPENDENCY_PRESENT_NO_INDEPENDENT_VOTE" in row["decision_reasons"]
+    assert burden["dependency_burden_can_authorize_independence"] is False
+
+
+def test_partial_reflection_dependency_profile_remains_unresolved():
+    handoff = _handoff(independent=0, dep=False, stat=False)
+    handoff["reflection_dependency_profile"] = {
+        "state": "PARTIAL_OR_UNRESOLVED_REFLECTION_LINEAGE",
+        "coverage_complete": False,
+        "reflection_dependency_present": True,
+        "reflection_dependency_resolved": False,
+    }
+    out = build_safe_finding_admission(_payload(handoff))
+    row = out["safe_finding_admission_decisions"][0]
+
+    assert row["decision"] == "DOWNGRADE"
+    assert "REFLECTION_GROUP_BURDEN_UNRESOLVED" in row["decision_reasons"]
+
+
+def _reflection_sequence_payload() -> dict:
+    handoff = _handoff(independent=0, dep=False, stat=False)
+    handoff["source_first_supported_branch_divergence_ref"] = "div_1"
+    return {
+        **_payload(handoff),
+        "first_supported_branch_divergence_candidates": [
+            {
+                "first_supported_branch_divergence_id": "div_1",
+                "branch_profiles": [
+                    {
+                        "neighbor_supporting_action_occurrence_candidate_ids": ["occ_1", "occ_2"]
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def test_reflection_dependency_binder_links_occurrence_ancestry_to_evidence_atoms_without_creating_support():
+    sequence = _reflection_sequence_payload()
+    occurrence = {
+        "action_occurrence_candidates": [
+            {"action_occurrence_candidate_id": "occ_1", "source_observation_refs": ["ea_1"]},
+            {"action_occurrence_candidate_id": "occ_2", "source_observation_refs": ["ea_2"]},
+        ]
+    }
+    atoms = {
+        "evidence_atoms": [
+            {
+                "evidence_atom_id": "ea_1",
+                "reflection_dependency_state": "DEPENDENT_SERIALIZATION_REFLECTION",
+                "independent_source_vote_allowed": False,
+                "source_lineage_records": [{"source_file": "a.csv"}, {"source_file": "a.xml"}],
+            },
+            {
+                "evidence_atom_id": "ea_2",
+                "reflection_dependency_state": "DEPENDENT_SERIALIZATION_REFLECTION",
+                "independent_source_vote_allowed": False,
+                "source_lineage_records": [{"source_file": "b.csv"}, {"source_file": "b.xml"}],
+            },
+        ]
+    }
+    bound = bind_reflection_dependency_profiles(sequence, occurrence, atoms)
+    handoff = bound["safe_finding_handoff_candidates"][0]
+    profile = handoff["reflection_dependency_profile"]
+
+    assert profile["state"] == "EXPLICIT_DEPENDENT_SERIALIZATION_REFLECTION_BOUND"
+    assert profile["coverage_complete"] is True
+    assert profile["bounded_occurrence_ancestor_count"] == 2
+    assert profile["evidence_atom_ancestor_count"] == 2
+    assert profile["reflection_dependent_evidence_atom_count"] == 2
+    assert profile["independent_source_vote_allowed_count"] == 0
+    assert profile["reflection_dependency_can_authorize_independence"] is False
+    out = build_safe_finding_admission(bound)
+    row = out["safe_finding_admission_decisions"][0]
+    assert row["decision"] == "DOWNGRADE"
+    assert "REFLECTION_DEPENDENCY_PRESENT_NO_INDEPENDENT_VOTE" in row["decision_reasons"]
+
+
+def test_reflection_dependency_binder_keeps_partial_ancestry_unresolved():
+    sequence = _reflection_sequence_payload()
+    occurrence = {
+        "action_occurrence_candidates": [
+            {"action_occurrence_candidate_id": "occ_1", "source_observation_refs": ["ea_1"]},
+        ]
+    }
+    atoms = {
+        "evidence_atoms": [
+            {
+                "evidence_atom_id": "ea_1",
+                "reflection_dependency_state": "DEPENDENT_SERIALIZATION_REFLECTION",
+                "independent_source_vote_allowed": False,
+            }
+        ]
+    }
+    bound = bind_reflection_dependency_profiles(sequence, occurrence, atoms)
+    profile = bound["safe_finding_handoff_candidates"][0]["reflection_dependency_profile"]
+    assert profile["state"] == "PARTIAL_OR_UNRESOLVED_REFLECTION_LINEAGE"
+    assert profile["coverage_complete"] is False
+    out = build_safe_finding_admission(bound)
+    row = out["safe_finding_admission_decisions"][0]
+    assert "REFLECTION_GROUP_BURDEN_UNRESOLVED" in row["decision_reasons"]
