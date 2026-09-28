@@ -468,3 +468,51 @@ def test_unknown_withdrawal_target_type_remains_fail_closed():
 
     assert decision["decision"] == "ABSTAIN"
     assert "typed_withdrawal_target_type_unrecognized" in decision["decision_reasons"]
+
+
+def test_scoped_review_for_other_comparable_set_does_not_downgrade_clean_handoff():
+    row = _handoff("sfh_local_clean", independent=2, dep=True, stat=True, blocking=[])
+    row["source_comparable_set_id"] = "set_clean"
+    payload = _payload(
+        [row],
+        source_status="REVIEW_REQUIRED",
+        scoped_counterevidence_reviews=["comparable_visible_outcome_semantic_unresolved:pair_other"],
+        declare_scoped_surface=True,
+    )
+    payload["comparable_outcome_counterevidence_records"] = [
+        {
+            "partial_order_similarity_pair_ref": "pair_other",
+            "canonical_evidence_target_comparable_set_id": "set_other",
+        }
+    ]
+
+    out = build_safe_finding_admission(payload)
+    decision = out["safe_finding_admission_decisions"][0]
+
+    assert decision["decision"] == "EMIT"
+    assert decision["claim_output_allowed"] is True
+    assert "UPSTREAM_COUNTEREVIDENCE_REVIEW_UNSCOPED" not in decision["decision_reasons"]
+
+
+def test_scoped_review_for_same_comparable_set_still_downgrades_handoff():
+    row = _handoff("sfh_local_review", independent=2, dep=True, stat=True, blocking=[])
+    row["source_comparable_set_id"] = "set_review"
+    payload = _payload(
+        [row],
+        source_status="REVIEW_REQUIRED",
+        scoped_counterevidence_reviews=["comparable_visible_outcome_semantic_unresolved:pair_local"],
+        declare_scoped_surface=True,
+    )
+    payload["comparable_outcome_counterevidence_records"] = [
+        {
+            "partial_order_similarity_pair_ref": "pair_local",
+            "canonical_evidence_target_comparable_set_id": "set_review",
+        }
+    ]
+
+    out = build_safe_finding_admission(payload)
+    decision = out["safe_finding_admission_decisions"][0]
+
+    assert decision["decision"] == "DOWNGRADE"
+    assert decision["claim_output_allowed"] is False
+    assert "UPSTREAM_COUNTEREVIDENCE_REVIEW_UNSCOPED" in decision["decision_reasons"]

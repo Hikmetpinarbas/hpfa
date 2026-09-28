@@ -38,6 +38,53 @@ def _refs(value: Any) -> list[str]:
     return sorted({_clean(item) for item in value if _clean(item)})
 
 
+def _scoped_counterevidence_review_applies_to_handoff(
+    sequence_payload: dict[str, Any],
+    handoff: dict[str, Any],
+    scoped_review_hits: list[str],
+) -> bool:
+    """Bind known review hits to the handoff they can actually invalidate.
+
+    Unknown or unresolvable scoped review shapes remain conservative and block.
+    This function never turns a review hit into evidence or strengthens a claim.
+    """
+    comparable_set_id = _clean(handoff.get("source_comparable_set_id"))
+    divergence_ref = _clean(handoff.get("source_first_supported_branch_divergence_ref"))
+    pair_to_set: dict[str, str] = {}
+    for record in sequence_payload.get("comparable_outcome_counterevidence_records") or []:
+        if not isinstance(record, dict):
+            continue
+        pair_ref = _clean(record.get("partial_order_similarity_pair_ref"))
+        target_set = _clean(record.get("canonical_evidence_target_comparable_set_id"))
+        if pair_ref and target_set:
+            pair_to_set[pair_ref] = target_set
+
+    for raw_hit in scoped_review_hits:
+        hit = _clean(raw_hit)
+        if not hit:
+            continue
+        if hit.startswith("same_design_visible_outcome_unresolved:"):
+            payload = hit.split(":", 1)[1]
+            hit_divergence = payload.split(":", 1)[0]
+            if not hit_divergence:
+                return True
+            if hit_divergence == divergence_ref:
+                return True
+            continue
+        if hit.startswith("comparable_visible_outcome_semantic_unresolved:") or hit.startswith(
+            "comparable_variant_sequence_binding_missing:"
+        ):
+            pair_ref = hit.split(":", 1)[1]
+            target_set = pair_to_set.get(pair_ref)
+            if not target_set:
+                return True
+            if target_set == comparable_set_id:
+                return True
+            continue
+        return True
+    return False
+
+
 def _nonnegative_int(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         return None
@@ -389,7 +436,10 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
         if scoped_review_declared
         else "LEGACY_UNSCOPED_SEQUENCE_REVIEW"
     )
-    source_review_unscoped = source_status == "REVIEW_REQUIRED" or bool(upstream_review_hits)
+    source_review_unscoped = (
+        not scoped_review_declared
+        and (source_status == "REVIEW_REQUIRED" or bool(upstream_review_hits))
+    )
     if source_status == "REVIEW_REQUIRED":
         review_hits.append("counterevidence_upstream_review_unscoped")
     elif source_status != "PASS":
@@ -505,7 +555,13 @@ def build_safe_finding_admission(sequence_payload: dict[str, Any]) -> dict[str, 
             emit_reasons.extend(dependency_burden_reasons)
         if not challenge_visible:
             emit_reasons.append("CHALLENGE_SURFACE_EMPTY")
-        if source_review_unscoped:
+        scoped_review_applies = (
+            scoped_review_declared
+            and _scoped_counterevidence_review_applies_to_handoff(
+                sequence_payload, handoff, upstream_review_hits
+            )
+        )
+        if source_review_unscoped or scoped_review_applies:
             emit_reasons.append("UPSTREAM_COUNTEREVIDENCE_REVIEW_UNSCOPED")
         if typed_defeat_profile.get("observed_defeat_type") == "DEFEAT_TYPE_UNRESOLVED":
             emit_reasons.append("TYPED_DEFEAT_TARGET_UNRESOLVED")
