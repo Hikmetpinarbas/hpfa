@@ -3217,6 +3217,10 @@ def test_mechanism_maturity_sentence_explains_shared_occurrence_ancestry_without
             "resolved_variant_denominator_n": 12,
             "episode_spread_n": 4,
             "occurrence_disjoint_support_cluster_n": 3,
+            "occurrence_disjoint_support_cluster_member_variant_counts_desc": [7, 3, 2],
+            "occurrence_disjoint_support_cluster_member_variant_total": 12,
+            "largest_occurrence_disjoint_support_cluster_member_variant_count": 7,
+            "largest_occurrence_disjoint_support_cluster_member_variant_share": 7 / 12,
             "right_censored_variant_n": 0,
             "dependency_independence_proven": False,
             "counterevidence_present": True,
@@ -3235,7 +3239,11 @@ def test_mechanism_maturity_sentence_explains_shared_occurrence_ancestry_without
 
     assert "2/3 bağlı Safe Finding başka divergence adaylarıyla occurrence kökü paylaşıyor" in tr
     assert "1/3 tracked scope içinde ortak kök göstermiyor" in tr
+    assert "en büyük occurrence-ayrık küme 7/12 cluster-bound varyant taşıyor" in tr
+    assert "bu oran yalnız küme yoğunluğunu gösterir, bağımsızlık için ayrı kanıt gerekir" in tr
     assert "bounded ancestry görünürlüğünü açıklar; bağımsızlık için ayrı kanıt gerekir" in tr
     assert "2/3 linked Safe Findings share occurrence ancestors" in en
     assert "1/3 show no shared ancestor within the tracked scope" in en
+    assert "largest occurrence-disjoint cluster carries 7/12 cluster-bound variants" in en
+    assert "this ratio is not an independence probability" in en
     assert "not proof of independence" in en

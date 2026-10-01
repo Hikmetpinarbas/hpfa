@@ -527,6 +527,10 @@ def test_selector_exposes_dimensioned_evidence_maturity_without_composite_confid
         "right_censored_variant_count": 0,
         "visible_episode_spread_count": 4,
         "occurrence_disjoint_support_cluster_count": 3,
+        "occurrence_disjoint_support_cluster_member_variant_counts_desc": [5, 2, 1],
+        "occurrence_disjoint_support_cluster_member_variant_total": 8,
+        "largest_occurrence_disjoint_support_cluster_member_variant_count": 5,
+        "largest_occurrence_disjoint_support_cluster_member_variant_share": 0.625,
         "supported_branch_divergence_binding_count": 2,
         "success_failure_supported_branch_divergence_count": 1,
         "dependency_independence_proven": False,
@@ -544,6 +548,12 @@ def test_selector_exposes_dimensioned_evidence_maturity_without_composite_confid
     assert profile["negative_visible_variant_n"] == 3
     assert profile["episode_spread_n"] == 4
     assert profile["occurrence_disjoint_support_cluster_n"] == 3
+    assert profile["occurrence_disjoint_support_cluster_member_variant_counts_desc"] == [5, 2, 1]
+    assert profile["occurrence_disjoint_support_cluster_member_variant_total"] == 8
+    assert profile["largest_occurrence_disjoint_support_cluster_member_variant_count"] == 5
+    assert profile["largest_occurrence_disjoint_support_cluster_member_variant_share"] == 0.625
+    assert profile["cluster_member_variant_share_is_independence_probability"] is False
+    assert profile["cluster_concentration_can_strengthen_claim_ceiling"] is False
     assert profile["right_censored_variant_n"] == 0
     assert profile["success_failure_divergence_n"] == 1
     assert profile["dependency_independence_proven"] is False

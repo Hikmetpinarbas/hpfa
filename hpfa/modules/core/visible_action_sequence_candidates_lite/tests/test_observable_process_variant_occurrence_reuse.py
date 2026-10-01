@@ -159,6 +159,11 @@ def test_non_overlapping_members_form_disjoint_clusters_without_creating_support
     assert family["success_visible_support_cluster_count"] == 2
     assert family["failure_visible_support_cluster_count"] == 1
     assert family["mixed_visible_outcome_support_cluster_count"] == 0
+    assert family["occurrence_disjoint_support_cluster_member_variant_counts_desc"] == [1, 1, 1]
+    assert family["occurrence_disjoint_support_cluster_member_variant_total"] == 3
+    assert family["largest_occurrence_disjoint_support_cluster_member_variant_count"] == 1
+    assert family["largest_occurrence_disjoint_support_cluster_member_variant_share"] == 1 / 3
+    assert family["cluster_member_variant_share_is_independence_probability"] is False
     assert family["occurrence_disjoint_cluster_count_is_independent_support_count"] is False
     assert family["occurrence_disjoint_cluster_count_is_recurrence_truth"] is False
     assert family["independent_recurrence_support_count"] == 0

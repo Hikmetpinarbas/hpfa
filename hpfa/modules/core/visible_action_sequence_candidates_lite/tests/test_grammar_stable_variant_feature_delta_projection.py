@@ -376,6 +376,26 @@ def test_truth_and_release_locks_remain_closed() -> None:
     assert result["actor_identity_difference_is_player_quality_truth"] is False
 
 
+def test_cluster_concentration_anatomy_flows_into_feature_delta_without_support_promotion() -> None:
+    process_payload = _process_variants()
+    family = process_payload["observable_process_variant_families"][0]
+    family["occurrence_disjoint_support_cluster_count"] = 3
+    family["occurrence_disjoint_support_cluster_member_variant_counts_desc"] = [5, 3, 2]
+    family["occurrence_disjoint_support_cluster_member_variant_total"] = 10
+    family["largest_occurrence_disjoint_support_cluster_member_variant_count"] = 5
+    family["largest_occurrence_disjoint_support_cluster_member_variant_share"] = 0.5
+    result = build_grammar_stable_variant_feature_delta(
+        _sequence(), process_payload, _state(), _consequence()
+    )
+    delta = result["grammar_stable_variant_feature_delta_records"][0]
+    assert delta["occurrence_disjoint_support_cluster_member_variant_counts_desc"] == [5, 3, 2]
+    assert delta["occurrence_disjoint_support_cluster_member_variant_total"] == 10
+    assert delta["largest_occurrence_disjoint_support_cluster_member_variant_count"] == 5
+    assert delta["largest_occurrence_disjoint_support_cluster_member_variant_share"] == 0.5
+    assert delta["cluster_member_variant_share_is_independence_probability"] is False
+    assert delta["cluster_concentration_can_strengthen_claim_ceiling"] is False
+
+
 def test_claimed_event_truth_fails_closed() -> None:
     bad = _sequence()
     bad["canonical_event_count"] = 2

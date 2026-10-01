@@ -2652,6 +2652,12 @@ def _mechanism_maturity_sentence(row: dict[str, Any], language: str) -> str:
     resolved = int(profile.get("resolved_variant_denominator_n") or 0)
     episodes = int(profile.get("episode_spread_n") or 0)
     clusters = int(profile.get("occurrence_disjoint_support_cluster_n") or 0)
+    cluster_member_total = int(
+        profile.get("occurrence_disjoint_support_cluster_member_variant_total") or 0
+    )
+    largest_cluster_member_n = int(
+        profile.get("largest_occurrence_disjoint_support_cluster_member_variant_count") or 0
+    )
     censored = int(profile.get("right_censored_variant_n") or 0)
     dependency = profile.get("dependency_independence_proven") is True
     counterevidence = profile.get("counterevidence_present") is True
@@ -2663,6 +2669,12 @@ def _mechanism_maturity_sentence(row: dict[str, Any], language: str) -> str:
     if language == "tr":
         dependency_text = "dependency bağımsızlığı doğrulandı" if dependency else "dependency bağımsızlığı doğrulanmadı"
         counter_text = "karşı kanıt yüzeyi görünür" if counterevidence else "karşı kanıt yüzeyi bu profilde görünür değil"
+        cluster_text = ""
+        if cluster_member_total > 0 and largest_cluster_member_n > 0:
+            cluster_text = (
+                f" Küme yoğunluğu: en büyük occurrence-ayrık küme {largest_cluster_member_n}/{cluster_member_total} "
+                "cluster-bound varyant taşıyor; bu oran yalnız küme yoğunluğunu gösterir, bağımsızlık için ayrı kanıt gerekir."
+            )
         provenance_text = ""
         if match_n and (shared_n or no_shared_n or unresolved_n):
             provenance_text = (
@@ -2676,12 +2688,20 @@ def _mechanism_maturity_sentence(row: dict[str, Any], language: str) -> str:
             f" Kanıt olgunluğu: {resolved} çözümlenmiş varyant, {episodes} görünür maç bölümü, "
             f"{clusters} occurrence-ayrık destek kümesi; sağdan sansürlü varyant={censored}; "
             f"{dependency_text}; {counter_text}."
+            + cluster_text
             + provenance_text
             + " Bu çok boyutlu profil olgunluk boyutlarını ayrı tutar; "
             "tek güven skoruna indirgeme yapmaz ve claim/emit yetkisi bu profilin kapsamı dışında kalır."
         )
     dependency_text = "dependency independence is proven" if dependency else "dependency independence is not proven"
     counter_text = "a counterevidence surface is visible" if counterevidence else "no counterevidence surface is visible in this profile"
+    cluster_text = ""
+    if cluster_member_total > 0 and largest_cluster_member_n > 0:
+        cluster_text = (
+            f" Cluster concentration: the largest occurrence-disjoint cluster carries "
+            f"{largest_cluster_member_n}/{cluster_member_total} cluster-bound variants; "
+            "this ratio is not an independence probability."
+        )
     provenance_text = ""
     if match_n and (shared_n or no_shared_n or unresolved_n):
         provenance_text = (
@@ -2695,6 +2715,7 @@ def _mechanism_maturity_sentence(row: dict[str, Any], language: str) -> str:
         f" Evidence maturity: {resolved} resolved variants, {episodes} visible match episodes, "
         f"{clusters} occurrence-disjoint support clusters; right-censored variants={censored}; "
         f"{dependency_text}; {counter_text}."
+        + cluster_text
         + provenance_text
         + " This multidimensional profile keeps maturity dimensions separate "
         "rather than collapsing them into a confidence score; claim/emit authority remains outside this profile."

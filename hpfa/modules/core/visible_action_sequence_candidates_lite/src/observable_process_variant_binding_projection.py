@@ -422,6 +422,19 @@ def build_observable_process_variant_binding(
             len(cluster.get("visible_outcome_state_counts", {})) >= 2
             for cluster in disjoint_clusters
         )
+        cluster_member_variant_counts_desc = sorted(
+            [int(cluster.get("member_variant_count") or 0) for cluster in disjoint_clusters],
+            reverse=True,
+        )
+        cluster_member_variant_total = sum(cluster_member_variant_counts_desc)
+        largest_cluster_member_variant_count = (
+            cluster_member_variant_counts_desc[0] if cluster_member_variant_counts_desc else 0
+        )
+        largest_cluster_member_variant_share = (
+            largest_cluster_member_variant_count / cluster_member_variant_total
+            if cluster_member_variant_total > 0
+            else None
+        )
         episode_spread_count = len(visible_episode_refs)
         if episode_spread_count >= 2:
             episode_spread_state = "MULTIPLE_VISIBLE_EPISODE_CANDIDATES"
@@ -485,6 +498,12 @@ def build_observable_process_variant_binding(
             "success_visible_support_cluster_count": success_cluster_count,
             "failure_visible_support_cluster_count": failure_cluster_count,
             "mixed_visible_outcome_support_cluster_count": mixed_outcome_cluster_count,
+            "occurrence_disjoint_support_cluster_member_variant_counts_desc": cluster_member_variant_counts_desc,
+            "occurrence_disjoint_support_cluster_member_variant_total": cluster_member_variant_total,
+            "largest_occurrence_disjoint_support_cluster_member_variant_count": largest_cluster_member_variant_count,
+            "largest_occurrence_disjoint_support_cluster_member_variant_share": largest_cluster_member_variant_share,
+            "cluster_member_variant_share_is_independence_probability": False,
+            "cluster_member_variant_share_can_strengthen_claim_ceiling": False,
             "visible_episode_candidate_ids": sorted(visible_episode_refs),
             "visible_episode_spread_count": episode_spread_count,
             "visible_episode_spread_state": episode_spread_state,

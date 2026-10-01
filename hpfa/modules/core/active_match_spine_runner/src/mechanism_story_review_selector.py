@@ -266,6 +266,20 @@ def _evidence_maturity_profile(
         "occurrence_disjoint_support_cluster_n": int(
             record.get("occurrence_disjoint_support_cluster_count") or 0
         ),
+        "occurrence_disjoint_support_cluster_member_variant_counts_desc": list(
+            record.get("occurrence_disjoint_support_cluster_member_variant_counts_desc") or []
+        ),
+        "occurrence_disjoint_support_cluster_member_variant_total": int(
+            record.get("occurrence_disjoint_support_cluster_member_variant_total") or 0
+        ),
+        "largest_occurrence_disjoint_support_cluster_member_variant_count": int(
+            record.get("largest_occurrence_disjoint_support_cluster_member_variant_count") or 0
+        ),
+        "largest_occurrence_disjoint_support_cluster_member_variant_share": (
+            record.get("largest_occurrence_disjoint_support_cluster_member_variant_share")
+        ),
+        "cluster_member_variant_share_is_independence_probability": False,
+        "cluster_concentration_can_strengthen_claim_ceiling": False,
         "right_censored_variant_n": int(record.get("right_censored_variant_count") or 0),
         "supported_divergence_n": int(
             record.get("supported_branch_divergence_binding_count") or 0

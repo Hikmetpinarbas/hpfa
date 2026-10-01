@@ -502,6 +502,20 @@ def build_grammar_stable_variant_feature_delta(
             "occurrence_disjoint_support_cluster_count": int(
                 family.get("occurrence_disjoint_support_cluster_count") or 0
             ),
+            "occurrence_disjoint_support_cluster_member_variant_counts_desc": list(
+                family.get("occurrence_disjoint_support_cluster_member_variant_counts_desc") or []
+            ),
+            "occurrence_disjoint_support_cluster_member_variant_total": int(
+                family.get("occurrence_disjoint_support_cluster_member_variant_total") or 0
+            ),
+            "largest_occurrence_disjoint_support_cluster_member_variant_count": int(
+                family.get("largest_occurrence_disjoint_support_cluster_member_variant_count") or 0
+            ),
+            "largest_occurrence_disjoint_support_cluster_member_variant_share": (
+                family.get("largest_occurrence_disjoint_support_cluster_member_variant_share")
+            ),
+            "cluster_member_variant_share_is_independence_probability": False,
+            "cluster_concentration_can_strengthen_claim_ceiling": False,
             "episode_spread_count_is_independent_support_count": False,
             "episode_spread_is_recurrence_truth": False,
             "occurrence_disjoint_cluster_count_is_independent_support_count": False,
