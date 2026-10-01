@@ -3211,6 +3211,40 @@ def test_bundle_provenance_uses_product_code_root_when_runtime_execution_root_is
     ).stdout.strip().casefold()
 
 
+def test_mechanism_same_grammar_context_sentence_surfaces_context_spread_without_robustness_promotion():
+    row = {
+        "same_grammar_context_review_summaries": [
+            {
+                "source_mechanism_review_ref": "a",
+                "team_identity_candidate_ids": ["team_a"],
+                "period_candidates": ["1"],
+                "resolved_variant_count": 10,
+                "success_resolved_variant_count": 7,
+                "failure_resolved_variant_count": 3,
+            },
+            {
+                "source_mechanism_review_ref": "b",
+                "team_identity_candidate_ids": ["team_b"],
+                "period_candidates": ["2"],
+                "resolved_variant_count": 8,
+                "success_resolved_variant_count": 6,
+                "failure_resolved_variant_count": 2,
+            },
+        ]
+    }
+    teams = {"team_a": "Alpha", "team_b": "Beta"}
+    tr = user_output_bundle._mechanism_same_grammar_context_sentence(row, teams, "tr")
+    en = user_output_bundle._mechanism_same_grammar_context_sentence(row, teams, "en")
+    assert "2 ayrı takım/devre bağlamı" in tr
+    assert "Alpha 1. devre: 10 çözülmüş (7 olumlu / 3 olumsuz)" in tr
+    assert "Beta 2. devre: 8 çözülmüş (6 olumlu / 2 olumsuz)" in tr
+    assert "context robustness için ayrı test gerekir" in tr
+    assert "2 separate team/period contexts" in en
+    assert "Alpha first half: 10 resolved (7 positive / 3 negative)" in en
+    assert "Beta second half: 8 resolved (6 positive / 2 negative)" in en
+    assert "context robustness requires a separate test" in en
+
+
 def test_mechanism_maturity_sentence_explains_shared_occurrence_ancestry_without_promoting_independence():
     row = {
         "evidence_maturity_profile": {

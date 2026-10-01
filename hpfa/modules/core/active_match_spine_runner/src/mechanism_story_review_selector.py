@@ -768,6 +768,7 @@ def build_mechanism_story_review_shortlist(
     for selected_row in selected:
         selected_grammar = tuple(str(v) for v in (selected_row.get("grammar_signature_tokens") or []))
         context_refs: list[str] = []
+        context_summaries: list[dict[str, Any]] = []
         seen_contexts: set[tuple[tuple[str, ...], tuple[str, ...]]] = set()
         for _, _, _, _, candidate in decorated:
             if _eligibility_state(candidate, bounds).startswith("BLOCKED_"):
@@ -785,8 +786,23 @@ def build_mechanism_story_review_shortlist(
             ref = str(candidate.get("grammar_stable_variant_feature_delta_id") or "").strip()
             if ref:
                 context_refs.append(ref)
+                context_summaries.append({
+                    "source_mechanism_review_ref": ref,
+                    "team_identity_candidate_ids": list(candidate.get("team_identity_candidate_ids") or []),
+                    "period_candidates": list(candidate.get("period_candidates") or []),
+                    "resolved_variant_count": int(candidate.get("resolved_variant_count") or 0),
+                    "success_resolved_variant_count": int(
+                        candidate.get("success_resolved_variant_count") or 0
+                    ),
+                    "failure_resolved_variant_count": int(
+                        candidate.get("failure_resolved_variant_count") or 0
+                    ),
+                })
         selected_row["same_grammar_context_review_refs"] = context_refs
         selected_row["same_grammar_context_review_ref_count"] = len(context_refs)
+        selected_row["same_grammar_context_review_summaries"] = context_summaries
+        selected_row["same_grammar_context_comparison_is_context_robustness_truth"] = False
+        selected_row["same_grammar_context_comparison_can_strengthen_claim_ceiling"] = False
         selected_row["same_grammar_context_review_scope"] = (
             "ONE_ATTENTION_REPRESENTATIVE_PER_TEAM_PERIOD_CONTEXT"
         )

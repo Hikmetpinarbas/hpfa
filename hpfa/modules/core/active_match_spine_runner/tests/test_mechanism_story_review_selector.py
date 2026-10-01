@@ -63,6 +63,27 @@ def test_selector_uses_one_attention_slot_per_grammar_across_team_period_context
     assert result["shortlist_count"] == 2
     assert [row["source_mechanism_review_ref"] for row in result["shortlist"]] == ["a", "c"]
     assert result["diversity_basis"] == "UNIQUE_GRAMMAR_SIGNATURE_ATTENTION_SLOT"
+    first = result["shortlist"][0]
+    assert first["same_grammar_context_review_ref_count"] == 2
+    assert first["same_grammar_context_review_summaries"] == [
+        {
+            "source_mechanism_review_ref": "a",
+            "team_identity_candidate_ids": ["T1"],
+            "period_candidates": ["1"],
+            "resolved_variant_count": 4,
+            "success_resolved_variant_count": 3,
+            "failure_resolved_variant_count": 1,
+        },
+        {
+            "source_mechanism_review_ref": "b",
+            "team_identity_candidate_ids": ["T2"],
+            "period_candidates": ["2"],
+            "resolved_variant_count": 4,
+            "success_resolved_variant_count": 3,
+            "failure_resolved_variant_count": 1,
+        },
+    ]
+    assert first["same_grammar_context_comparison_is_context_robustness_truth"] is False
     assert result["same_grammar_contexts_are_separate_comparison_not_extra_mechanism_slots"] is True
 
 

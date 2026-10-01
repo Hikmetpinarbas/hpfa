@@ -2645,6 +2645,56 @@ def _mechanism_horizon_sentence(
     )
 
 
+def _mechanism_same_grammar_context_sentence(
+    row: dict[str, Any],
+    teams: dict[str, str],
+    language: str,
+) -> str:
+    summaries = [
+        value
+        for value in (row.get("same_grammar_context_review_summaries") or [])
+        if isinstance(value, dict)
+    ]
+    if len(summaries) < 2:
+        return ""
+    details: list[str] = []
+    for summary in summaries:
+        team_ids = [
+            str(value)
+            for value in (summary.get("team_identity_candidate_ids") or [])
+            if str(value)
+        ]
+        team = ", ".join(teams.get(value, value) for value in team_ids) or (
+            "Takım çözümlenmedi" if language == "tr" else "Team unresolved"
+        )
+        periods = ", ".join(
+            _period_human(value, language)
+            for value in (summary.get("period_candidates") or [])
+        ) or _period_human(None, language)
+        resolved = int(summary.get("resolved_variant_count") or 0)
+        success = int(summary.get("success_resolved_variant_count") or 0)
+        failure = int(summary.get("failure_resolved_variant_count") or 0)
+        if language == "tr":
+            details.append(
+                f"{team} {periods}: {resolved} çözülmüş ({success} olumlu / {failure} olumsuz)"
+            )
+        else:
+            details.append(
+                f"{team} {periods}: {resolved} resolved ({success} positive / {failure} negative)"
+            )
+    if language == "tr":
+        return (
+            f" Aynı gramer bağlam kontrolü: {len(summaries)} ayrı takım/devre bağlamı görünür; "
+            + "; ".join(details)
+            + ". Bu yüzey bağlam yayılımını gösterir; context robustness için ayrı test gerekir."
+        )
+    return (
+        f" Same-grammar context check: {len(summaries)} separate team/period contexts are visible; "
+        + "; ".join(details)
+        + ". This surface shows context spread; context robustness requires a separate test."
+    )
+
+
 def _mechanism_maturity_sentence(row: dict[str, Any], language: str) -> str:
     profile = row.get("evidence_maturity_profile")
     if not isinstance(profile, dict) or not profile:
@@ -3078,6 +3128,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 + challenge_note
                 + horizon_note
                 + _mechanism_maturity_sentence(row, language)
+                + _mechanism_same_grammar_context_sentence(row, teams, language)
             )
         else:
             prefix = (
@@ -3176,6 +3227,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                 + challenge_note
                 + horizon_note
                 + _mechanism_maturity_sentence(row, language)
+                + _mechanism_same_grammar_context_sentence(row, teams, language)
             )
         process_label = (
             _football_family_label(row.get("single_process_family_candidate"), language)
