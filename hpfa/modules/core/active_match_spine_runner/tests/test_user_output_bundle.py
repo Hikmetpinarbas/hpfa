@@ -1497,6 +1497,21 @@ def test_ambiguous_multi_process_context_is_not_main_mechanism_label(tmp_path, m
     assert "not presented as a main mechanism" in en
 
 
+def test_mechanism_horizon_sentence_translates_counterevidence_without_strengthening_claim() -> None:
+    reasons = [
+        "ADMITTED_FOLLOWUP_HORIZON_SENSITIVE",
+        "CONSEQUENCE_HORIZON_SENSITIVITY_NOT_TESTED",
+    ]
+    tr = user_output_bundle._mechanism_horizon_sentence(reasons, "tr")
+    en = user_output_bundle._mechanism_horizon_sentence(reasons, "en")
+    assert "sonuç ufkuna duyarlı" in tr
+    assert "alternatif sonuç ufuklarında tam sınanmadı" in tr
+    assert "nedensellik" in tr
+    assert "sensitive to the admitted follow-up horizon" in en
+    assert "not fully tested across alternative consequence horizons" in en
+    assert "causality and tactical truth remain outside the admitted scope" in en
+
+
 def test_loss_recovery_score_state_cards_keep_exposure_and_claim_ceiling() -> None:
     rich = {
         "m05_loss_recovery_dynamics_synthesis": {

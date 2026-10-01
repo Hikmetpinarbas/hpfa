@@ -2584,6 +2584,45 @@ def _mechanism_governance_sentence(language: str) -> str:
     )
 
 
+def _mechanism_horizon_sentence(reason_codes: list[str], language: str) -> str:
+    reasons = {str(value) for value in (reason_codes or []) if str(value)}
+    if not reasons:
+        return ""
+    sensitive = "ADMITTED_FOLLOWUP_HORIZON_SENSITIVE" in reasons
+    untested = "CONSEQUENCE_HORIZON_SENSITIVITY_NOT_TESTED" in reasons
+    partial = "ADMITTED_FOLLOWUP_HORIZON_SENSITIVITY_PARTIAL" in reasons
+    followup_untested = "ADMITTED_FOLLOWUP_HORIZON_SENSITIVITY_NOT_TESTED" in reasons
+    if not any((sensitive, untested, partial, followup_untested)):
+        return ""
+    if language == "tr":
+        bits = []
+        if sensitive:
+            bits.append("görünür sonuç bağlantısının en az bir bölümü kullanılan admitted follow-up sonuç ufkuna duyarlı")
+        if untested:
+            bits.append("ayrışma alternatif sonuç ufuklarında tam sınanmadı")
+        if partial:
+            bits.append("follow-up ufku duyarlılık kontrolü yalnız kısmi kapsamda tamamlandı")
+        if followup_untested:
+            bits.append("admitted follow-up ufku duyarlılığı henüz tam test edilmedi")
+        return (
+            " Sonuç ufku notu: " + "; ".join(bits) + ". "
+            "Bu durum görünür ayrışmanın ufuk seçimine dayanıklılığını sınırlar; nedensellik veya taktik doğruluk üretmez."
+        )
+    bits = []
+    if sensitive:
+        bits.append("at least part of the visible outcome linkage is sensitive to the admitted follow-up horizon")
+    if untested:
+        bits.append("the split was not fully tested across alternative consequence horizons")
+    if partial:
+        bits.append("follow-up-horizon sensitivity testing is only partially complete")
+    if followup_untested:
+        bits.append("admitted follow-up-horizon sensitivity is not fully tested")
+    return (
+        " Consequence-horizon note: " + "; ".join(bits) + ". "
+        "This limits robustness to horizon choice; causality and tactical truth remain outside the admitted scope."
+    )
+
+
 def _mechanism_maturity_sentence(row: dict[str, Any], language: str) -> str:
     profile = row.get("evidence_maturity_profile")
     if not isinstance(profile, dict) or not profile:
@@ -2980,12 +3019,17 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     "gözlem/provider semantiği, çözülmemiş bağımlılık ve sonuç ufku gibi alternatif açıklamaları açık tutuyor. "
                     "Bu koşullardan biri görünür ayrışmayı ortadan kaldırırsa mekanizma yorumu geri çekilmeli veya nitelendirilmelidir."
                 )
+            horizon_note = _mechanism_horizon_sentence(
+                [str(value) for value in (row.get("mechanism_challenge_reason_codes") or []) if str(value)],
+                language,
+            )
             evidence = (
                 f"Kanıt notu: karşılaştırma yüzeyinde {resolved} çözümlenmiş varyant kaydı var; "
                 f"{success} olumlu ve {failure} olumsuz görünür sonuca bağlı. "
                 f"Kanıt örgüsü {clusters} ayrı görünür aksiyon kümesine yayılıyor. "
                 "Yorum kapsamı maç-içi varyant ayrışması ve kaynak-bağlı süreç bağlamıdır."
                 + challenge_note
+                + horizon_note
                 + _mechanism_maturity_sentence(row, language)
             )
         else:
@@ -3069,12 +3113,17 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     "observation/provider semantics, unresolved dependency and consequence-horizon definitions open as alternative explanations. "
                     "If those conditions remove the visible split, the mechanism interpretation must be withdrawn or qualified."
                 )
+            horizon_note = _mechanism_horizon_sentence(
+                [str(value) for value in (row.get("mechanism_challenge_reason_codes") or []) if str(value)],
+                language,
+            )
             evidence = (
                 f"Evidence note: the comparison surface contains {resolved} resolved variant records; "
                 f"{success} are linked to positive and {failure} to negative visible outcomes. "
                 f"The evidence structure spans {clusters} distinct visible action clusters. "
                 "Interpretation is scoped to match-local variant separation and source-bound process context."
                 + challenge_note
+                + horizon_note
                 + _mechanism_maturity_sentence(row, language)
             )
         process_label = (
