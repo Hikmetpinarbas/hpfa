@@ -875,18 +875,56 @@ def test_mechanism_safe_context_uses_only_common_preoutcome_context(tmp_path):
                 "bounded_ancestry_distinctness_is_independence_proof": False,
             },
         ],
+        "visible_action_sequence_candidates": [
+            {
+                "visible_action_sequence_candidate_id": "seq_support_a",
+                "period_candidate": "2",
+                "start_time_candidate": 4414.44,
+                "end_time_candidate": 4417.44,
+            },
+            {
+                "visible_action_sequence_candidate_id": "seq_support_b",
+                "period_candidate": "1",
+                "start_time_candidate": 812.0,
+                "end_time_candidate": 817.0,
+            },
+            {
+                "visible_action_sequence_candidate_id": "seq_support_c",
+                "period_candidate": "2",
+                "start_time_candidate": 5000.0,
+                "end_time_candidate": 5004.0,
+            },
+            {
+                "visible_action_sequence_candidate_id": "seq_failure_a",
+                "period_candidate": "2",
+                "start_time_candidate": 4510.0,
+                "end_time_candidate": 4514.0,
+            },
+            {
+                "visible_action_sequence_candidate_id": "seq_failure_b",
+                "period_candidate": "1",
+                "start_time_candidate": 1200.0,
+                "end_time_candidate": 1205.0,
+            },
+        ],
         "safe_finding_handoff_candidates": [
             {
                 "safe_finding_handoff_candidate_id": "sfh_1",
                 "source_first_supported_branch_divergence_ref": "fsbd_1",
                 "support": {"visible_success_sequence_refs": ["seq_support_b", "seq_support_a"]},
-                "counterevidence": {"comparable_counterexample_refs": ["seq_counter_b"]},
+                "counterevidence": {
+                    "comparable_counterexample_refs": ["pair_counter_b"],
+                    "visible_failure_sequence_refs": ["seq_failure_b"],
+                },
             },
             {
                 "safe_finding_handoff_candidate_id": "sfh_2",
                 "source_first_supported_branch_divergence_ref": "fsbd_2",
                 "support": {"visible_success_sequence_refs": ["seq_support_a", "seq_support_c"]},
-                "counterevidence": {"comparable_counterexample_refs": ["seq_counter_a"]},
+                "counterevidence": {
+                    "comparable_counterexample_refs": ["pair_counter_a"],
+                    "visible_failure_sequence_refs": ["seq_failure_a"],
+                },
             },
         ]
     }
@@ -952,10 +990,26 @@ def test_mechanism_safe_context_uses_only_common_preoutcome_context(tmp_path):
         "seq_support_b",
         "seq_support_c",
     ]
-    assert row["representative_counterexample_sequence_refs"] == [
-        "seq_counter_a",
-        "seq_counter_b",
+    assert row["representative_counterexample_pair_refs"] == [
+        "pair_counter_a",
+        "pair_counter_b",
     ]
+    assert row["representative_counterexample_sequence_refs"] == [
+        "seq_failure_a",
+        "seq_failure_b",
+    ]
+    assert row["representative_support_sequence_locators"][0] == {
+        "sequence_ref": "seq_support_a",
+        "period_candidate": "2",
+        "start_time_candidate": 4414.44,
+        "end_time_candidate": 4417.44,
+    }
+    assert row["representative_counterexample_sequence_locators"][0] == {
+        "sequence_ref": "seq_failure_a",
+        "period_candidate": "2",
+        "start_time_candidate": 4510.0,
+        "end_time_candidate": 4514.0,
+    }
     assert row["representative_links_create_independent_support"] is False
     assert row["creates_new_evidence"] is False
     assert row["creates_independent_support"] is False
@@ -1066,11 +1120,34 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
         }],
     }
     sequence = {
+        "visible_action_sequence_candidates": [
+            {
+                "visible_action_sequence_candidate_id": "seq_support_1",
+                "period_candidate": "1",
+                "start_time_candidate": 600.0,
+                "end_time_candidate": 606.0,
+            },
+            {
+                "visible_action_sequence_candidate_id": "seq_support_2",
+                "period_candidate": "1",
+                "start_time_candidate": 900.0,
+                "end_time_candidate": 904.0,
+            },
+            {
+                "visible_action_sequence_candidate_id": "seq_failure_1",
+                "period_candidate": "1",
+                "start_time_candidate": 1200.0,
+                "end_time_candidate": 1207.0,
+            },
+        ],
         "safe_finding_handoff_candidates": [{
             "safe_finding_handoff_candidate_id": "sfh_1",
             "source_first_supported_branch_divergence_ref": "fsbd_1",
             "support": {"visible_success_sequence_refs": ["seq_support_2", "seq_support_1"]},
-            "counterevidence": {"comparable_counterexample_refs": ["seq_counter_1"]},
+            "counterevidence": {
+                "comparable_counterexample_refs": ["pair_counter_1"],
+                "visible_failure_sequence_refs": ["seq_failure_1"],
+            },
         }],
     }
     admission = {
@@ -1180,7 +1257,20 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
         "seq_support_1",
         "seq_support_2",
     ]
-    assert safe["representative_counterexample_sequence_refs"] == ["seq_counter_1"]
+    assert safe["representative_counterexample_pair_refs"] == ["pair_counter_1"]
+    assert safe["representative_counterexample_sequence_refs"] == ["seq_failure_1"]
+    assert safe["representative_support_sequence_locators"][0] == {
+        "sequence_ref": "seq_support_1",
+        "period_candidate": "1",
+        "start_time_candidate": 600.0,
+        "end_time_candidate": 606.0,
+    }
+    assert safe["representative_counterexample_sequence_locators"][0] == {
+        "sequence_ref": "seq_failure_1",
+        "period_candidate": "1",
+        "start_time_candidate": 1200.0,
+        "end_time_candidate": 1207.0,
+    }
     assert safe["representative_links_create_independent_support"] is False
     context_review = card["context_review"]
     assert len(context_review["provider_context_difference_candidates"]) == 1
@@ -1261,8 +1351,8 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     assert "Güvenli anlam:" in human_text
     assert "Yasak çıkarım:" in human_text
     assert "Analist aksiyonu:" in human_text
-    assert "Temsilî destek: seq_support_1, seq_support_2." in human_text
-    assert "Karşı örnek: seq_counter_1." in human_text
+    assert "Temsilî destek: 1. devre 10:00–10:06 [seq_support_1], 1. devre 15:00–15:04 [seq_support_2]." in human_text
+    assert "Karşı örnek: 1. devre 20:00–20:07 [seq_failure_1]." in human_text
     assert "Bu bağlantılar bağımsız destek sayılmaz." in human_text
     assert "nedensellik" in human_text
     assert "taktik plan gerçeği" in human_text

@@ -2142,6 +2142,26 @@ def _mechanism_safe_context_by_family(
         if isinstance(row, dict)
         and str(row.get("first_supported_branch_divergence_id") or "").strip()
     }
+    sequence_by_ref = {
+        str(row.get("visible_action_sequence_candidate_id") or "").strip(): row
+        for row in (sequence.get("visible_action_sequence_candidates") or [])
+        if isinstance(row, dict)
+        and str(row.get("visible_action_sequence_candidate_id") or "").strip()
+    }
+
+    def sequence_locators(refs: list[str]) -> list[dict[str, Any]]:
+        locators: list[dict[str, Any]] = []
+        for ref in refs:
+            row = sequence_by_ref.get(ref)
+            if not isinstance(row, dict):
+                continue
+            locators.append({
+                "sequence_ref": ref,
+                "period_candidate": row.get("period_candidate"),
+                "start_time_candidate": row.get("start_time_candidate"),
+                "end_time_candidate": row.get("end_time_candidate"),
+            })
+        return locators
 
     by_divergence: dict[str, list[dict[str, Any]]] = {}
     for handoff_id, handoff in handoffs.items():
@@ -2223,7 +2243,7 @@ def _mechanism_safe_context_by_family(
             )
             if str(value)
         })
-        representative_counterexample_refs = sorted({
+        representative_counterexample_pair_refs = sorted({
             str(value)
             for row in matched_entries
             for value in (
@@ -2234,6 +2254,21 @@ def _mechanism_safe_context_by_family(
             )
             if str(value)
         })
+        representative_counterexample_sequence_refs = sorted({
+            str(value)
+            for row in matched_entries
+            for value in (
+                ((row.get("handoff") or {}).get("counterevidence") or {}).get(
+                    "visible_failure_sequence_refs"
+                )
+                or []
+            )
+            if str(value)
+        })
+        representative_support_locators = sequence_locators(representative_support_refs)
+        representative_counterexample_locators = sequence_locators(
+            representative_counterexample_sequence_refs
+        )
 
         score_states: dict[str, dict[str, Any]] = {}
         process_families: list[tuple[str, ...]] = []
@@ -2287,7 +2322,10 @@ def _mechanism_safe_context_by_family(
             "bounded_ancestry_distinctness_is_independence_proof": False,
             "shared_ancestor_overlap_can_increase_support": False,
             "representative_support_sequence_refs": representative_support_refs,
-            "representative_counterexample_sequence_refs": representative_counterexample_refs,
+            "representative_counterexample_pair_refs": representative_counterexample_pair_refs,
+            "representative_counterexample_sequence_refs": representative_counterexample_sequence_refs,
+            "representative_support_sequence_locators": representative_support_locators,
+            "representative_counterexample_sequence_locators": representative_counterexample_locators,
             "representative_links_create_independent_support": False,
             "claim_output_allowed_count": sum(
                 row.get("claim_output_allowed") is True for row in matched
@@ -2456,6 +2494,16 @@ def _mechanism_representative_links_sentence(
     safe_context: dict[str, Any],
     language: str,
 ) -> str:
+    support_locators = [
+        row
+        for row in (safe_context.get("representative_support_sequence_locators") or [])
+        if isinstance(row, dict)
+    ]
+    counter_locators = [
+        row
+        for row in (safe_context.get("representative_counterexample_sequence_locators") or [])
+        if isinstance(row, dict)
+    ]
     support_refs = [
         str(value)
         for value in (safe_context.get("representative_support_sequence_refs") or [])
@@ -2469,8 +2517,39 @@ def _mechanism_representative_links_sentence(
     if not support_refs and not counter_refs:
         return ""
 
-    support_shown = support_refs[:2]
-    counter_shown = counter_refs[:2]
+    def locator_text(row: dict[str, Any]) -> str:
+        ref = str(row.get("sequence_ref") or "").strip()
+        period = str(row.get("period_candidate") or "").strip()
+        start = _fmt_time(row.get("start_time_candidate"))
+        end = _fmt_time(row.get("end_time_candidate"))
+        if language == "tr":
+            period_label = (
+                "1. devre"
+                if period == "1"
+                else ("2. devre" if period == "2" else (f"dönem {period}" if period else "dönem bilinmiyor"))
+            )
+        else:
+            period_label = (
+                "first half"
+                if period == "1"
+                else ("second half" if period == "2" else (f"period {period}" if period else "period unresolved"))
+            )
+        window = (
+            f"{start}–{end}"
+            if start != "UNKNOWN" and end != "UNKNOWN"
+            else (start if start != "UNKNOWN" else end)
+        )
+        if window and window != "UNKNOWN":
+            return f"{period_label} {window} [{ref}]" if ref else f"{period_label} {window}"
+        return ref
+
+    support_shown = [locator_text(row) for row in support_locators[:2]]
+    counter_shown = [locator_text(row) for row in counter_locators[:2]]
+    if not support_shown:
+        support_shown = support_refs[:2]
+    if not counter_shown:
+        counter_shown = counter_refs[:2]
+
     if language == "tr":
         bits = []
         if support_shown:
@@ -3682,10 +3761,25 @@ def build_graph_ready_mechanism_cards_payload(
                     for v in (safe_context.get("representative_support_sequence_refs") or [])
                     if str(v)
                 ],
+                "representative_counterexample_pair_refs": [
+                    str(v)
+                    for v in (safe_context.get("representative_counterexample_pair_refs") or [])
+                    if str(v)
+                ],
                 "representative_counterexample_sequence_refs": [
                     str(v)
                     for v in (safe_context.get("representative_counterexample_sequence_refs") or [])
                     if str(v)
+                ],
+                "representative_support_sequence_locators": [
+                    dict(v)
+                    for v in (safe_context.get("representative_support_sequence_locators") or [])
+                    if isinstance(v, dict)
+                ],
+                "representative_counterexample_sequence_locators": [
+                    dict(v)
+                    for v in (safe_context.get("representative_counterexample_sequence_locators") or [])
+                    if isinstance(v, dict)
                 ],
                 "representative_links_create_independent_support": False,
                 "emit_decision_count": int(safe_context.get("emit_decision_count") or 0),
