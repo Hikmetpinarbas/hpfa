@@ -859,14 +859,34 @@ def test_current_run_context_fingerprint_is_stable_for_same_declared_context(tmp
 
 def test_mechanism_safe_context_uses_only_common_preoutcome_context(tmp_path):
     sequence = {
+        "first_supported_branch_divergence_candidates": [
+            {
+                "first_supported_branch_divergence_id": "fsbd_1",
+                "shared_ancestor_overlap_state": "SHARED_ANCESTOR_OVERLAP",
+                "shared_ancestor_ref_count": 2,
+                "shared_ancestor_refs": ["occ_a", "occ_b"],
+                "bounded_ancestry_distinctness_is_independence_proof": False,
+            },
+            {
+                "first_supported_branch_divergence_id": "fsbd_2",
+                "shared_ancestor_overlap_state": "NO_SHARED_ANCESTOR_WITHIN_TRACKED_SCOPE",
+                "shared_ancestor_ref_count": 0,
+                "shared_ancestor_refs": [],
+                "bounded_ancestry_distinctness_is_independence_proof": False,
+            },
+        ],
         "safe_finding_handoff_candidates": [
             {
                 "safe_finding_handoff_candidate_id": "sfh_1",
                 "source_first_supported_branch_divergence_ref": "fsbd_1",
+                "support": {"visible_success_sequence_refs": ["seq_support_b", "seq_support_a"]},
+                "counterevidence": {"comparable_counterexample_refs": ["seq_counter_b"]},
             },
             {
                 "safe_finding_handoff_candidate_id": "sfh_2",
                 "source_first_supported_branch_divergence_ref": "fsbd_2",
+                "support": {"visible_success_sequence_refs": ["seq_support_a", "seq_support_c"]},
+                "counterevidence": {"comparable_counterexample_refs": ["seq_counter_a"]},
             },
         ]
     }
@@ -923,6 +943,20 @@ def test_mechanism_safe_context_uses_only_common_preoutcome_context(tmp_path):
     ]
     assert row["provider_process_context_partial_count"] == 1
     assert row["emit_decision_count"] == 0
+    assert row["shared_ancestor_overlap_handoff_count"] == 1
+    assert row["no_shared_ancestor_within_tracked_scope_handoff_count"] == 1
+    assert row["shared_ancestor_ref_count"] == 2
+    assert row["bounded_ancestry_distinctness_is_independence_proof"] is False
+    assert row["representative_support_sequence_refs"] == [
+        "seq_support_a",
+        "seq_support_b",
+        "seq_support_c",
+    ]
+    assert row["representative_counterexample_sequence_refs"] == [
+        "seq_counter_a",
+        "seq_counter_b",
+    ]
+    assert row["representative_links_create_independent_support"] is False
     assert row["creates_new_evidence"] is False
     assert row["creates_independent_support"] is False
     assert row["can_change_shortlist_selection"] is False
@@ -1035,6 +1069,8 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
         "safe_finding_handoff_candidates": [{
             "safe_finding_handoff_candidate_id": "sfh_1",
             "source_first_supported_branch_divergence_ref": "fsbd_1",
+            "support": {"visible_success_sequence_refs": ["seq_support_2", "seq_support_1"]},
+            "counterevidence": {"comparable_counterexample_refs": ["seq_counter_1"]},
         }],
     }
     admission = {
@@ -1140,6 +1176,12 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     assert safe["provider_process_family_candidates"] == [
         "POSITIONAL_ATTACK_CANDIDATE"
     ]
+    assert safe["representative_support_sequence_refs"] == [
+        "seq_support_1",
+        "seq_support_2",
+    ]
+    assert safe["representative_counterexample_sequence_refs"] == ["seq_counter_1"]
+    assert safe["representative_links_create_independent_support"] is False
     context_review = card["context_review"]
     assert len(context_review["provider_context_difference_candidates"]) == 1
     assert context_review["provider_context_difference_candidates"][0]["feature_token"].endswith("process_shot_present_annotation_candidate:TRUE")
@@ -1219,6 +1261,9 @@ def test_graph_ready_mechanism_cards_carry_safe_context_and_player_context_witho
     assert "Güvenli anlam:" in human_text
     assert "Yasak çıkarım:" in human_text
     assert "Analist aksiyonu:" in human_text
+    assert "Temsilî destek: seq_support_1, seq_support_2." in human_text
+    assert "Karşı örnek: seq_counter_1." in human_text
+    assert "Bu bağlantılar bağımsız destek sayılmaz." in human_text
     assert "nedensellik" in human_text
     assert "taktik plan gerçeği" in human_text
     assert "oyuncu aggregate verisini yalnız maç-içi işlev bağlamı olarak kullan" in human_text
@@ -3032,3 +3077,33 @@ def test_bundle_provenance_uses_product_code_root_when_runtime_execution_root_is
         capture_output=True,
         text=True,
     ).stdout.strip().casefold()
+
+
+def test_mechanism_maturity_sentence_explains_shared_occurrence_ancestry_without_promoting_independence():
+    row = {
+        "evidence_maturity_profile": {
+            "resolved_variant_denominator_n": 12,
+            "episode_spread_n": 4,
+            "occurrence_disjoint_support_cluster_n": 3,
+            "right_censored_variant_n": 0,
+            "dependency_independence_proven": False,
+            "counterevidence_present": True,
+        },
+        "safe_finding_context": {
+            "safe_finding_match_count": 3,
+            "shared_ancestor_overlap_handoff_count": 2,
+            "no_shared_ancestor_within_tracked_scope_handoff_count": 1,
+            "ancestry_unresolved_handoff_count": 0,
+            "shared_ancestor_ref_count": 4,
+            "bounded_ancestry_distinctness_is_independence_proof": False,
+        },
+    }
+    tr = user_output_bundle._mechanism_maturity_sentence(row, "tr")
+    en = user_output_bundle._mechanism_maturity_sentence(row, "en")
+
+    assert "2/3 bağlı Safe Finding başka divergence adaylarıyla occurrence kökü paylaşıyor" in tr
+    assert "1/3 tracked scope içinde ortak kök göstermiyor" in tr
+    assert "bounded ancestry görünürlüğünü açıklar; bağımsızlık için ayrı kanıt gerekir" in tr
+    assert "2/3 linked Safe Findings share occurrence ancestors" in en
+    assert "1/3 show no shared ancestor within the tracked scope" in en
+    assert "not proof of independence" in en

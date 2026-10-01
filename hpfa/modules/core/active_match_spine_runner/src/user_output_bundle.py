@@ -2136,6 +2136,12 @@ def _mechanism_safe_context_by_family(
         if isinstance(row, dict)
         and str(row.get("source_safe_finding_handoff_ref") or "").strip()
     }
+    divergence_by_ref = {
+        str(row.get("first_supported_branch_divergence_id") or "").strip(): row
+        for row in (sequence.get("first_supported_branch_divergence_candidates") or [])
+        if isinstance(row, dict)
+        and str(row.get("first_supported_branch_divergence_id") or "").strip()
+    }
 
     by_divergence: dict[str, list[dict[str, Any]]] = {}
     for handoff_id, handoff in handoffs.items():
@@ -2146,6 +2152,7 @@ def _mechanism_safe_context_by_family(
         if divergence_ref and isinstance(decision, dict):
             by_divergence.setdefault(divergence_ref, []).append({
                 "safe_finding_handoff_ref": handoff_id,
+                "handoff": handoff,
                 "decision": decision,
             })
 
@@ -2176,10 +2183,56 @@ def _mechanism_safe_context_by_family(
             for row in matched_entries
             if isinstance(row.get("decision"), dict)
         ]
+        matched_divergence_refs = sorted(
+            divergence_ref for divergence_ref in divergence_refs if by_divergence.get(divergence_ref)
+        )
+        lineage_rows = [
+            divergence_by_ref.get(divergence_ref) or {}
+            for divergence_ref in matched_divergence_refs
+        ]
+        shared_ancestor_overlap_handoff_count = sum(
+            row.get("shared_ancestor_overlap_state") == "SHARED_ANCESTOR_OVERLAP"
+            for row in lineage_rows
+        )
+        no_shared_ancestor_handoff_count = sum(
+            row.get("shared_ancestor_overlap_state") == "NO_SHARED_ANCESTOR_WITHIN_TRACKED_SCOPE"
+            for row in lineage_rows
+        )
+        ancestry_unresolved_handoff_count = len(lineage_rows) - (
+            shared_ancestor_overlap_handoff_count + no_shared_ancestor_handoff_count
+        )
+        shared_ancestor_refs = sorted({
+            str(value)
+            for row in lineage_rows
+            for value in (row.get("shared_ancestor_refs") or [])
+            if str(value)
+        })
         matched_handoff_refs = sorted({
             str(row.get("safe_finding_handoff_ref") or "").strip()
             for row in matched_entries
             if str(row.get("safe_finding_handoff_ref") or "").strip()
+        })
+        representative_support_refs = sorted({
+            str(value)
+            for row in matched_entries
+            for value in (
+                ((row.get("handoff") or {}).get("support") or {}).get(
+                    "visible_success_sequence_refs"
+                )
+                or []
+            )
+            if str(value)
+        })
+        representative_counterexample_refs = sorted({
+            str(value)
+            for row in matched_entries
+            for value in (
+                ((row.get("handoff") or {}).get("counterevidence") or {}).get(
+                    "comparable_counterexample_refs"
+                )
+                or []
+            )
+            if str(value)
         })
 
         score_states: dict[str, dict[str, Any]] = {}
@@ -2226,6 +2279,16 @@ def _mechanism_safe_context_by_family(
             "emit_decision_count": sum(
                 str(row.get("decision") or "").upper() == "EMIT" for row in matched
             ),
+            "shared_ancestor_overlap_handoff_count": shared_ancestor_overlap_handoff_count,
+            "no_shared_ancestor_within_tracked_scope_handoff_count": no_shared_ancestor_handoff_count,
+            "ancestry_unresolved_handoff_count": ancestry_unresolved_handoff_count,
+            "shared_ancestor_ref_count": len(shared_ancestor_refs),
+            "shared_ancestor_refs": shared_ancestor_refs,
+            "bounded_ancestry_distinctness_is_independence_proof": False,
+            "shared_ancestor_overlap_can_increase_support": False,
+            "representative_support_sequence_refs": representative_support_refs,
+            "representative_counterexample_sequence_refs": representative_counterexample_refs,
+            "representative_links_create_independent_support": False,
             "claim_output_allowed_count": sum(
                 row.get("claim_output_allowed") is True for row in matched
             ),
@@ -2389,6 +2452,43 @@ def _actor_aggregate_context_sentence(
     )
 
 
+def _mechanism_representative_links_sentence(
+    safe_context: dict[str, Any],
+    language: str,
+) -> str:
+    support_refs = [
+        str(value)
+        for value in (safe_context.get("representative_support_sequence_refs") or [])
+        if str(value)
+    ]
+    counter_refs = [
+        str(value)
+        for value in (safe_context.get("representative_counterexample_sequence_refs") or [])
+        if str(value)
+    ]
+    if not support_refs and not counter_refs:
+        return ""
+
+    support_shown = support_refs[:2]
+    counter_shown = counter_refs[:2]
+    if language == "tr":
+        bits = []
+        if support_shown:
+            bits.append(f"Temsilî destek: {', '.join(support_shown)}.")
+        if counter_shown:
+            bits.append(f"Karşı örnek: {', '.join(counter_shown)}.")
+        bits.append("Bu bağlantılar bağımsız destek sayılmaz.")
+        return " " + " ".join(bits)
+
+    bits = []
+    if support_shown:
+        bits.append(f"Representative support: {', '.join(support_shown)}.")
+    if counter_shown:
+        bits.append(f"Counterexample: {', '.join(counter_shown)}.")
+    bits.append("These links do not count as independent support.")
+    return " " + " ".join(bits)
+
+
 def _mechanism_governance_sentence(language: str) -> str:
     if language == "tr":
         return (
@@ -2415,21 +2515,48 @@ def _mechanism_maturity_sentence(row: dict[str, Any], language: str) -> str:
     censored = int(profile.get("right_censored_variant_n") or 0)
     dependency = profile.get("dependency_independence_proven") is True
     counterevidence = profile.get("counterevidence_present") is True
+    safe_context = row.get("safe_finding_context") if isinstance(row.get("safe_finding_context"), dict) else {}
+    match_n = int(safe_context.get("safe_finding_match_count") or 0)
+    shared_n = int(safe_context.get("shared_ancestor_overlap_handoff_count") or 0)
+    no_shared_n = int(safe_context.get("no_shared_ancestor_within_tracked_scope_handoff_count") or 0)
+    unresolved_n = int(safe_context.get("ancestry_unresolved_handoff_count") or 0)
     if language == "tr":
         dependency_text = "dependency bağımsızlığı doğrulandı" if dependency else "dependency bağımsızlığı doğrulanmadı"
         counter_text = "karşı kanıt yüzeyi görünür" if counterevidence else "karşı kanıt yüzeyi bu profilde görünür değil"
+        provenance_text = ""
+        if match_n and (shared_n or no_shared_n or unresolved_n):
+            provenance_text = (
+                f" Provenance bağımlılığı: {shared_n}/{match_n} bağlı Safe Finding başka divergence adaylarıyla occurrence kökü paylaşıyor; "
+                f"{no_shared_n}/{match_n} tracked scope içinde ortak kök göstermiyor."
+            )
+            if unresolved_n:
+                provenance_text += f" {unresolved_n}/{match_n} bağlı bulgunun ancestry durumu çözümlenmedi."
+            provenance_text += " Bu ayrım bounded ancestry görünürlüğünü açıklar; bağımsızlık için ayrı kanıt gerekir."
         return (
             f" Kanıt olgunluğu: {resolved} çözümlenmiş varyant, {episodes} görünür maç bölümü, "
             f"{clusters} occurrence-ayrık destek kümesi; sağdan sansürlü varyant={censored}; "
-            f"{dependency_text}; {counter_text}. Bu çok boyutlu profil olgunluk boyutlarını ayrı tutar; "
+            f"{dependency_text}; {counter_text}."
+            + provenance_text
+            + " Bu çok boyutlu profil olgunluk boyutlarını ayrı tutar; "
             "tek güven skoruna indirgeme yapmaz ve claim/emit yetkisi bu profilin kapsamı dışında kalır."
         )
     dependency_text = "dependency independence is proven" if dependency else "dependency independence is not proven"
     counter_text = "a counterevidence surface is visible" if counterevidence else "no counterevidence surface is visible in this profile"
+    provenance_text = ""
+    if match_n and (shared_n or no_shared_n or unresolved_n):
+        provenance_text = (
+            f" Provenance dependency: {shared_n}/{match_n} linked Safe Findings share occurrence ancestors with other divergence candidates; "
+            f"{no_shared_n}/{match_n} show no shared ancestor within the tracked scope."
+        )
+        if unresolved_n:
+            provenance_text += f" {unresolved_n}/{match_n} linked findings have unresolved ancestry."
+        provenance_text += " This distinction is not proof of independence."
     return (
         f" Evidence maturity: {resolved} resolved variants, {episodes} visible match episodes, "
         f"{clusters} occurrence-disjoint support clusters; right-censored variants={censored}; "
-        f"{dependency_text}; {counter_text}. This multidimensional profile keeps maturity dimensions separate "
+        f"{dependency_text}; {counter_text}."
+        + provenance_text
+        + " This multidimensional profile keeps maturity dimensions separate "
         "rather than collapsing them into a confidence score; claim/emit authority remains outside this profile."
     )
 
@@ -2746,6 +2873,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     football += (
                         f" {partial_n} bağlı Safe Finding örneğinde provider süreç bağlamı tekil çözülemedi; bu örnekler kısmi bağlam olarak korunuyor."
                     )
+            football += _mechanism_representative_links_sentence(safe_context, language)
             football += actor_context_sentence
             context_state = str(row.get("process_context_binding_state") or "")
             context_counts = dict(row.get("process_family_episode_presence_counts") or {})
@@ -2834,6 +2962,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
                     football += (
                         f" {partial_n} bound Safe Finding examples do not have a unique provider-process context and remain partial."
                     )
+            football += _mechanism_representative_links_sentence(safe_context, language)
             football += actor_context_sentence
             context_state = str(row.get("process_context_binding_state") or "")
             context_counts = dict(row.get("process_family_episode_presence_counts") or {})
@@ -3534,6 +3663,31 @@ def build_graph_ready_mechanism_cards_payload(
                 "preoutcome_context_state_counts": dict(
                     safe_context.get("preoutcome_context_state_counts") or {}
                 ),
+                "shared_ancestor_overlap_handoff_count": int(
+                    safe_context.get("shared_ancestor_overlap_handoff_count") or 0
+                ),
+                "no_shared_ancestor_within_tracked_scope_handoff_count": int(
+                    safe_context.get("no_shared_ancestor_within_tracked_scope_handoff_count") or 0
+                ),
+                "ancestry_unresolved_handoff_count": int(
+                    safe_context.get("ancestry_unresolved_handoff_count") or 0
+                ),
+                "shared_ancestor_ref_count": int(
+                    safe_context.get("shared_ancestor_ref_count") or 0
+                ),
+                "bounded_ancestry_distinctness_is_independence_proof": False,
+                "shared_ancestor_overlap_can_increase_support": False,
+                "representative_support_sequence_refs": [
+                    str(v)
+                    for v in (safe_context.get("representative_support_sequence_refs") or [])
+                    if str(v)
+                ],
+                "representative_counterexample_sequence_refs": [
+                    str(v)
+                    for v in (safe_context.get("representative_counterexample_sequence_refs") or [])
+                    if str(v)
+                ],
+                "representative_links_create_independent_support": False,
                 "emit_decision_count": int(safe_context.get("emit_decision_count") or 0),
                 "claim_output_allowed_count": int(
                     safe_context.get("claim_output_allowed_count") or 0
