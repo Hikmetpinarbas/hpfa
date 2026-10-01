@@ -2584,7 +2584,15 @@ def _mechanism_governance_sentence(language: str) -> str:
     )
 
 
-def _mechanism_horizon_sentence(reason_codes: list[str], language: str) -> str:
+def _mechanism_horizon_sentence(
+    reason_codes: list[str],
+    language: str,
+    *,
+    sensitive_n: int = 0,
+    denominator_n: int = 0,
+    incomplete_n: int = 0,
+    censored_n: int = 0,
+) -> str:
     reasons = {str(value) for value in (reason_codes or []) if str(value)}
     if not reasons:
         return ""
@@ -2604,9 +2612,16 @@ def _mechanism_horizon_sentence(reason_codes: list[str], language: str) -> str:
             bits.append("follow-up ufku duyarlılık kontrolü yalnız kısmi kapsamda tamamlandı")
         if followup_untested:
             bits.append("admitted follow-up ufku duyarlılığı henüz tam test edilmedi")
+        if denominator_n > 0:
+            bits.append(f"duyarlı varyant yükü {max(0, sensitive_n)}/{denominator_n}")
+        if incomplete_n > 0:
+            bits.append(f"{incomplete_n} incomplete duyarlılık kaydı")
+        if censored_n > 0:
+            bits.append(f"{censored_n} sansürlü varyant")
         return (
             " Sonuç ufku notu: " + "; ".join(bits) + ". "
-            "Bu durum görünür ayrışmanın ufuk seçimine dayanıklılığını sınırlar; nedensellik veya taktik doğruluk üretmez."
+            "Bu sayımlar bağımsız destek sayılmaz ve görünür ayrışmanın ufuk seçimine dayanıklılığını sınırlar; "
+            "nedensellik veya taktik doğruluk üretmez."
         )
     bits = []
     if sensitive:
@@ -2617,9 +2632,16 @@ def _mechanism_horizon_sentence(reason_codes: list[str], language: str) -> str:
         bits.append("follow-up-horizon sensitivity testing is only partially complete")
     if followup_untested:
         bits.append("admitted follow-up-horizon sensitivity is not fully tested")
+    if denominator_n > 0:
+        bits.append(f"horizon-sensitive variant burden {max(0, sensitive_n)}/{denominator_n}")
+    if incomplete_n > 0:
+        bits.append(f"{incomplete_n} incomplete sensitivity record")
+    if censored_n > 0:
+        bits.append(f"{censored_n} censored variant")
     return (
         " Consequence-horizon note: " + "; ".join(bits) + ". "
-        "This limits robustness to horizon choice; causality and tactical truth remain outside the admitted scope."
+        "These counts do not count as independent support and limit robustness to horizon choice; "
+        "causality and tactical truth remain outside the admitted scope."
     )
 
 
@@ -3022,6 +3044,10 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             horizon_note = _mechanism_horizon_sentence(
                 [str(value) for value in (row.get("mechanism_challenge_reason_codes") or []) if str(value)],
                 language,
+                sensitive_n=int(row.get("admitted_followup_horizon_sensitive_variant_count") or 0),
+                denominator_n=resolved,
+                incomplete_n=int(row.get("admitted_followup_horizon_sensitivity_incomplete_variant_count") or 0),
+                censored_n=int(row.get("right_censored_variant_count") or 0),
             )
             evidence = (
                 f"Kanıt notu: karşılaştırma yüzeyinde {resolved} çözümlenmiş varyant kaydı var; "
@@ -3116,6 +3142,10 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
             horizon_note = _mechanism_horizon_sentence(
                 [str(value) for value in (row.get("mechanism_challenge_reason_codes") or []) if str(value)],
                 language,
+                sensitive_n=int(row.get("admitted_followup_horizon_sensitive_variant_count") or 0),
+                denominator_n=resolved,
+                incomplete_n=int(row.get("admitted_followup_horizon_sensitivity_incomplete_variant_count") or 0),
+                censored_n=int(row.get("right_censored_variant_count") or 0),
             )
             evidence = (
                 f"Evidence note: the comparison surface contains {resolved} resolved variant records; "

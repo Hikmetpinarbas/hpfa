@@ -1512,6 +1512,33 @@ def test_mechanism_horizon_sentence_translates_counterevidence_without_strengthe
     assert "causality and tactical truth remain outside the admitted scope" in en
 
 
+def test_mechanism_horizon_sentence_surfaces_sensitive_numerator_denominator_and_burden() -> None:
+    tr = user_output_bundle._mechanism_horizon_sentence(
+        ["ADMITTED_FOLLOWUP_HORIZON_SENSITIVE"],
+        "tr",
+        sensitive_n=2,
+        denominator_n=4,
+        incomplete_n=1,
+        censored_n=1,
+    )
+    en = user_output_bundle._mechanism_horizon_sentence(
+        ["ADMITTED_FOLLOWUP_HORIZON_SENSITIVE"],
+        "en",
+        sensitive_n=2,
+        denominator_n=4,
+        incomplete_n=1,
+        censored_n=1,
+    )
+    assert "2/4" in tr
+    assert "1 incomplete" in tr
+    assert "1 sansürlü" in tr
+    assert "bağımsız destek" in tr
+    assert "2/4" in en
+    assert "1 incomplete" in en
+    assert "1 censored" in en
+    assert "independent support" in en
+
+
 def test_loss_recovery_score_state_cards_keep_exposure_and_claim_ceiling() -> None:
     rich = {
         "m05_loss_recovery_dynamics_synthesis": {

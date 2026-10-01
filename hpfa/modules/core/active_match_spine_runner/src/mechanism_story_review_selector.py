@@ -688,6 +688,17 @@ def build_mechanism_story_review_shortlist(
             "grammar_signature_tokens": list(row.get("grammar_signature_tokens") or []),
             "evidence_maturity_profile": _evidence_maturity_profile(row, challenge_summary),
             "resolved_variant_count": int(row.get("resolved_variant_count") or 0),
+            "admitted_followup_horizon_sensitivity_tested": (
+                row.get("admitted_followup_horizon_sensitivity_tested") is True
+            ),
+            "admitted_followup_horizon_sensitive_variant_count": int(
+                row.get("admitted_followup_horizon_sensitive_variant_count") or 0
+            ),
+            "admitted_followup_horizon_sensitivity_incomplete_variant_count": int(
+                row.get("admitted_followup_horizon_sensitivity_incomplete_variant_count") or 0
+            ),
+            "horizon_sensitivity_counts_are_independent_support": False,
+            "horizon_sensitivity_counts_can_strengthen_claim_ceiling": False,
             "success_resolved_variant_count": int(row.get("success_resolved_variant_count") or 0),
             "failure_resolved_variant_count": int(row.get("failure_resolved_variant_count") or 0),
             "right_censored_variant_count": int(row.get("right_censored_variant_count") or 0),

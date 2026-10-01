@@ -94,6 +94,25 @@ def test_selector_limit_is_attention_limit_not_evidence_threshold():
     assert all(row["selection_can_authorize_emit"] is False for row in result["shortlist"])
 
 
+def test_selector_carries_horizon_sensitivity_anatomy_without_claim_promotion():
+    row = _row("horizon", "T1", "1", ["LAYER[PASS]", "LAYER[PASS]"])
+    row["admitted_followup_horizon_sensitivity_tested"] = True
+    row["admitted_followup_horizon_sensitive_variant_count"] = 2
+    row["admitted_followup_horizon_sensitivity_incomplete_variant_count"] = 1
+    result = build_mechanism_story_review_shortlist(
+        {"grammar_stable_variant_feature_delta_records": [row]},
+        limit=5,
+    )
+    selected = result["shortlist"][0]
+    assert selected["admitted_followup_horizon_sensitivity_tested"] is True
+    assert selected["admitted_followup_horizon_sensitive_variant_count"] == 2
+    assert selected["admitted_followup_horizon_sensitivity_incomplete_variant_count"] == 1
+    assert selected["resolved_variant_count"] == 4
+    assert selected["selection_can_authorize_emit"] is False
+    assert selected["horizon_sensitivity_counts_are_independent_support"] is False
+    assert selected["horizon_sensitivity_counts_can_strengthen_claim_ceiling"] is False
+
+
 def _bound_contract(family_ref="family_blocked", *, lower=0.5, upper=0.75):
     return {
         "status": "REVIEW_REQUIRED",
