@@ -53,6 +53,9 @@ def main() -> int:
             execution_root=execution_root,
         )
         entrypoint_module._normalize_current_surface_evidence(result)
+        entrypoint_module._bind_variant_feature_challenge_runtime(result, args.out_dir)
+        entrypoint_module._persist_full_spine_result(args.out_dir, result)
+        post_sequence = result.get("variant_feature_challenge_runtime_binding") or {}
         user_outputs = write_standard_user_outputs(
             args.out_dir,
             result,
@@ -70,9 +73,15 @@ def main() -> int:
         "active_match": str(active_match),
         "out_json": str(Path(args.out_dir) / "active_match_full_spine_v1.json"),
         "out_txt": str(Path(args.out_dir) / "active_match_full_spine_v1.txt"),
-        "analyst_report": user_outputs.get("analyst_report"),
-        "bundle_zip": user_outputs.get("bundle_zip"),
+        "analyst_report": user_outputs.get("analyst_report_tr"),
+        "analyst_audit_report": user_outputs.get("analyst_report"),
+        "bundle_zip": user_outputs.get("football_delivery_zip"),
+        "audit_bundle_zip": user_outputs.get("bundle_zip"),
         "bundle_manifest": user_outputs.get("bundle_manifest"),
+        "post_sequence_admission_finalized": post_sequence.get("post_sequence_admission_finalized") is True,
+        "post_sequence_admission_status": post_sequence.get("post_sequence_admission_status"),
+        "post_sequence_admission_count": int(post_sequence.get("post_sequence_admission_count") or 0),
+        "post_sequence_claim_count": int(post_sequence.get("post_sequence_claim_count") or 0),
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,

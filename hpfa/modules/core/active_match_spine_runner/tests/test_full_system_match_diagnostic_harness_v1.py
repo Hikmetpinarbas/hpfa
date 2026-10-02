@@ -115,6 +115,26 @@ def test_fail_local_monolithic_review_does_not_overwrite_isolated_pass() -> None
     assert rows[0]['engineering_test_state'] == 'PASS'
 
 
+def test_full_spine_command_uses_split_runtime_authority_runner(tmp_path: Path) -> None:
+    module = _load_module()
+    product_root = tmp_path / "product"
+    runtime_root = tmp_path / "runtime-authority"
+    active_match = runtime_root / "runtime" / "active_single_match" / "current"
+    out_dir = tmp_path / "out"
+
+    command = module._build_full_spine_command(
+        product_root=product_root,
+        active_match_dir=active_match,
+        out_dir=out_dir,
+        runtime_authority_root=runtime_root,
+    )
+
+    assert command[1] == str(product_root / "active_match_zfgv_full_runner.py")
+    assert command[2] == str(active_match)
+    assert command[command.index("--execution-root") + 1] == str(product_root)
+    assert command[command.index("--runtime-authority-root") + 1] == str(runtime_root)
+
+
 def test_human_answer_pack_preserves_claim_ceiling() -> None:
     module = _load_module()
     diagnostic = {

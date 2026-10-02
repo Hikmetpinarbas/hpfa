@@ -3009,7 +3009,12 @@ def _construct_c03(
             rows = layer_map[timestamp]
             anchor_pairs: set[tuple[float, float]] = set()
             spatial_ids: set[str] = set()
-            zones: set[str] = set()
+            zones: set[str] = {
+                str(value)
+                for occurrence in rows
+                for value in (occurrence.get("provider_zone_candidates") or [])
+                if value
+            }
             for occurrence in rows:
                 for sid in occurrence.get("supporting_spatial_transition_candidate_ids") or []:
                     sid_text = str(sid)
@@ -3048,10 +3053,46 @@ def _construct_c03(
                     for value in (row.get("transition_class_candidates") or [])
                     if value
                 }),
+                "provider_progression_candidates": sorted({
+                    str(value)
+                    for row in rows
+                    for value in (row.get("provider_progression_candidates") or [])
+                    if value
+                }),
+                "provider_direction_candidates": sorted({
+                    str(value)
+                    for row in rows
+                    for value in (row.get("provider_direction_candidates") or [])
+                    if value
+                }),
+                "provider_context_candidates": sorted({
+                    str(value)
+                    for row in rows
+                    for value in (row.get("provider_context_candidates") or [])
+                    if value
+                }),
+                "provider_distance_candidates": sorted({
+                    str(value)
+                    for row in rows
+                    for value in (row.get("provider_distance_candidates") or [])
+                    if value
+                }),
+                "provider_key_action_candidates": sorted({
+                    str(value)
+                    for row in rows
+                    for value in (row.get("provider_key_action_candidates") or [])
+                    if value
+                }),
                 "provider_outcome_candidates": sorted({
                     str(value)
                     for row in rows
                     for value in (row.get("provider_outcome_candidates") or [])
+                    if value
+                }),
+                "provider_semantic_rule_ids": sorted({
+                    str(value)
+                    for row in rows
+                    for value in (row.get("provider_semantic_rule_ids") or [])
                     if value
                 }),
                 "primary_consequence_candidates": sorted({
@@ -3125,6 +3166,14 @@ def _construct_c03(
         transition_classes: set[str] = set()
         provider_outcomes: set[str] = set()
         primary_consequences: set[str] = set()
+        progression_layer_counts: Counter[str] = Counter()
+        direction_layer_counts: Counter[str] = Counter()
+        context_layer_counts: Counter[str] = Counter()
+        distance_layer_counts: Counter[str] = Counter()
+        key_action_layer_counts: Counter[str] = Counter()
+        zone_layer_counts: Counter[str] = Counter()
+        outcome_layer_counts: Counter[str] = Counter()
+        semantic_rule_layer_counts: Counter[str] = Counter()
         for layer in layers:
             for family_value in layer.get("action_family_candidates") or []:
                 action_family_layer_counts[str(family_value)] += 1
@@ -3135,6 +3184,22 @@ def _construct_c03(
             transition_classes.update(
                 str(value) for value in (layer.get("transition_class_candidates") or []) if value
             )
+            for value in layer.get("provider_progression_candidates") or []:
+                progression_layer_counts[str(value)] += 1
+            for value in layer.get("provider_direction_candidates") or []:
+                direction_layer_counts[str(value)] += 1
+            for value in layer.get("provider_context_candidates") or []:
+                context_layer_counts[str(value)] += 1
+            for value in layer.get("provider_distance_candidates") or []:
+                distance_layer_counts[str(value)] += 1
+            for value in layer.get("provider_key_action_candidates") or []:
+                key_action_layer_counts[str(value)] += 1
+            for value in layer.get("provider_zone_candidates") or []:
+                zone_layer_counts[str(value)] += 1
+            for value in layer.get("provider_outcome_candidates") or []:
+                outcome_layer_counts[str(value)] += 1
+            for value in layer.get("provider_semantic_rule_ids") or []:
+                semantic_rule_layer_counts[str(value)] += 1
             provider_outcomes.update(
                 str(value) for value in (layer.get("provider_outcome_candidates") or []) if value
             )
@@ -3273,6 +3338,23 @@ def _construct_c03(
             "action_family_layer_counts": dict(sorted(action_family_layer_counts.items())),
             "pass_carry_layer_mix": pass_carry_mix,
             "visible_on_ball_profile": on_ball_profile,
+            "semantic_facet_profile": {
+                "progression_layer_counts": dict(sorted(progression_layer_counts.items())),
+                "direction_layer_counts": dict(sorted(direction_layer_counts.items())),
+                "context_layer_counts": dict(sorted(context_layer_counts.items())),
+                "distance_layer_counts": dict(sorted(distance_layer_counts.items())),
+                "key_action_layer_counts": dict(sorted(key_action_layer_counts.items())),
+                "zone_layer_counts": dict(sorted(zone_layer_counts.items())),
+                "outcome_layer_counts": dict(sorted(outcome_layer_counts.items())),
+                "semantic_rule_layer_counts": dict(sorted(semantic_rule_layer_counts.items())),
+                "eligible_temporal_layer_n": len(layers),
+                "count_basis": "FACET_PRESENCE_PER_ADMITTED_TEMPORAL_LAYER",
+                "same_occurrence_multi_facet_is_not_multiple_action_truth": True,
+                "same_timestamp_internal_ordering_allowed": False,
+                "temporal_layer_is_not_physical_touch": True,
+                "provider_label_is_physical_or_tactical_truth": False,
+                "claim_ceiling": "MATCH_LOCAL_VISIBLE_SEMANTIC_FACET_PROFILE_CANDIDATE_ONLY",
+            },
             "process_start_zone_candidates": start_zone_candidates,
             "process_end_zone_candidates": end_zone_candidates,
             "zone_layer_path_candidates": zone_layer_path_candidates,

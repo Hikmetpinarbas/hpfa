@@ -163,7 +163,34 @@ def _handoff_visible_outcome_identification_bound(
         result["bound_review_reasons"] = []
         return result
 
-    selected = set(family_refs)
+    preselected_family_refs = set(_refs(handoff.get("outcome_independent_estimand_family_refs")))
+    if not preselected_family_refs:
+        result = build_binary_visible_outcome_identification_bound(
+            resolved_success_n=0,
+            resolved_failure_n=0,
+            unresolved_eligible_n=0,
+            denominator_membership_admitted=False,
+            target_outcome_semantics_fixed=True,
+            eligible_denominator_basis="OUTCOME_CONDITIONED_HANDOFF_FAMILY_SELECTION",
+        )
+        result["bound_review_reasons"] = ["OUTCOME_CONDITIONED_ESTIMAND_UNIVERSE_UNRESOLVED"]
+        result["estimand_universe_selected_without_outcome"] = False
+        return result
+
+    selected = set(family_refs) & preselected_family_refs
+    if not selected:
+        result = build_binary_visible_outcome_identification_bound(
+            resolved_success_n=0,
+            resolved_failure_n=0,
+            unresolved_eligible_n=0,
+            denominator_membership_admitted=False,
+            target_outcome_semantics_fixed=True,
+            eligible_denominator_basis="PRESELECTED_FAMILY_NOT_MATCHED_TO_HANDOFF",
+        )
+        result["bound_review_reasons"] = ["PRESELECTED_ESTIMAND_FAMILY_NOT_MATCHED"]
+        result["estimand_universe_selected_without_outcome"] = True
+        return result
+
     outcome_by_sequence: dict[str, str | None] = {}
     denominator_membership_admitted = True
     target_outcome_semantics_fixed = True
@@ -197,7 +224,7 @@ def _handoff_visible_outcome_identification_bound(
     success_n = sum(value == "SUCCESS" for value in outcome_by_sequence.values())
     failure_n = sum(value == "FAILURE" for value in outcome_by_sequence.values())
     unresolved_n = sum(value is None for value in outcome_by_sequence.values())
-    return build_binary_visible_outcome_identification_bound(
+    result = build_binary_visible_outcome_identification_bound(
         resolved_success_n=success_n,
         resolved_failure_n=failure_n,
         unresolved_eligible_n=unresolved_n,
@@ -205,6 +232,9 @@ def _handoff_visible_outcome_identification_bound(
         target_outcome_semantics_fixed=target_outcome_semantics_fixed,
         eligible_denominator_basis="UNIQUE_OBSERVABLE_PROCESS_VARIANT_FAMILY_MEMBER_SEQUENCE_REFS",
     )
+    result["estimand_universe_selected_without_outcome"] = True
+    result["outcome_independent_estimand_family_refs"] = sorted(selected)
+    return result
 
 
 def _profile(

@@ -299,25 +299,56 @@ def write_human_report(root: Path, diagnostic: dict[str, Any]) -> Path:
     return path
 
 
+def _build_full_spine_command(
+    *,
+    product_root: Path,
+    active_match_dir: Path,
+    out_dir: Path,
+    runtime_authority_root: Path,
+) -> list[str]:
+    return [
+        sys.executable,
+        str(product_root / "active_match_zfgv_full_runner.py"),
+        str(active_match_dir),
+        "--out-dir",
+        str(out_dir),
+        "--execution-root",
+        str(product_root),
+        "--runtime-authority-root",
+        str(runtime_authority_root),
+    ]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run HPFA full-system match diagnostic with canonical ACTIVE_MATCH full spine and fail-local test authority.")
     parser.add_argument("active_match_dir")
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--product-root", default=str(Path(__file__).resolve().parents[5]))
+    parser.add_argument("--runtime-authority-root")
     parser.add_argument("--pr", default="359")
     args = parser.parse_args()
 
     started = time.perf_counter()
     product_root = Path(args.product_root).expanduser().resolve(strict=False)
+    active_match_dir = Path(args.active_match_dir).expanduser().resolve(strict=False)
+    runtime_authority_root = (
+        Path(args.runtime_authority_root).expanduser().resolve(strict=False)
+        if args.runtime_authority_root
+        else product_root
+    )
     out_dir = Path(args.out_dir).expanduser().resolve(strict=False)
     out_dir.mkdir(parents=True, exist_ok=True)
     engineering = run_engineering_checks(product_root, out_dir)
 
-    runner = product_root / "active_match_spine_runner.py"
-    full_spine = _run([
-        sys.executable, str(runner), str(Path(args.active_match_dir).expanduser().resolve(strict=False)),
-        "--out-dir", str(out_dir), "--full-spine", "--execution-root", str(product_root),
-    ], cwd=product_root)
+    full_spine = _run(
+        _build_full_spine_command(
+            product_root=product_root,
+            active_match_dir=active_match_dir,
+            out_dir=out_dir,
+            runtime_authority_root=runtime_authority_root,
+        ),
+        cwd=product_root,
+    )
     print(f"[HPFA_DIAG] full_spine rc={full_spine['return_code']} elapsed_seconds={full_spine['elapsed_seconds']}", flush=True)
 
     src = product_root / "hpfa" / "modules" / "core" / "active_match_spine_runner" / "src"

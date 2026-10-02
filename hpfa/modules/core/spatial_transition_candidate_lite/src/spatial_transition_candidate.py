@@ -430,6 +430,7 @@ def build_spatial_transition_candidates(
             distance_candidates = _semantic_values(support_atoms, "distance_candidate")
             context_candidates = _semantic_values(support_atoms, "context_candidate")
             relation_candidates = _semantic_values(support_atoms, "relation_candidate")
+            key_action_candidates = _semantic_values(support_atoms, "key_action_candidate")
             outcome_candidates = _semantic_values(support_atoms, "outcome_candidates")
             semantic_rule_ids = _semantic_values(support_atoms, "semantic_rule_id")
             raw_labels = _semantic_values(support_atoms, "raw_label")
@@ -440,6 +441,7 @@ def build_spatial_transition_candidates(
                 or distance_candidates
                 or context_candidates
                 or relation_candidates
+                or key_action_candidates
             )
             progression_family_visible = bool(PROGRESSION_FAMILIES & set(families))
 
@@ -459,6 +461,7 @@ def build_spatial_transition_candidates(
                 "provider_distance_candidates": distance_candidates,
                 "provider_context_candidates": context_candidates,
                 "provider_relation_candidates": relation_candidates,
+                "provider_key_action_candidates": key_action_candidates,
                 "provider_outcome_candidates": outcome_candidates,
                 "provider_semantic_spatial_context_visible": semantic_candidate_visible,
                 "provider_coordinate_anchor_x_candidate": x,

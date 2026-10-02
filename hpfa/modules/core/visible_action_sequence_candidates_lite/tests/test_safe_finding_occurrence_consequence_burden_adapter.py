@@ -15,6 +15,7 @@ def _sequence() -> dict:
                 "safe_finding_handoff_candidate_id": "sfh_1",
                 "support": {"visible_success_sequence_refs": ["s1"]},
                 "counterevidence": {"visible_failure_sequence_refs": ["s2"]},
+                "outcome_independent_estimand_family_refs": ["family_1"],
             }
         ]
     }

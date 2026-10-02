@@ -295,3 +295,43 @@ def test_nested_phone_output_is_rejected(tmp_path: Path) -> None:
         assert str(exc) == "nested_phone_output_directory_rejected"
     else:
         raise AssertionError("nested HPFA output must be rejected")
+
+
+def test_reviewed_semantic_facets_are_preserved_zero_loss_on_evidence_atom(tmp_path: Path) -> None:
+    _write_sources(tmp_path)
+    registry = _registry()
+    registry["exact_rules"].append({
+        "label": "Progressive passes accurate",
+        "source_roles": ["PLAYER_SURFACE_CANDIDATE"],
+        "semantic_role": "ACTION_ANCHOR",
+        "action_family": "PASS",
+        "outcome": "SUCCESS",
+        "direction": "FORWARD",
+        "distance": "LONG",
+        "zone": "PENALTY_AREA",
+        "context": "OPEN_PLAY",
+        "progression": "PROGRESSIVE_CANDIDATE",
+        "key_action": "KEY_PASS_CANDIDATE",
+        "action_subtype": "PASS_SUBTYPE_CANDIDATE",
+        "downstream_eligibility": "ACTION_CANDIDATE_ELIGIBLE",
+        "semantics_decision": "EXACT_REVIEWED_ACTION",
+        "review_status": "REVIEWED_CANDIDATE",
+        "rule_id": "test_progressive_pass_facets",
+    })
+    payload = _payload()
+    payload["row_nuclei"][0] = _nucleus(
+        nucleus_id="rn_progressive",
+        role="PLAYER",
+        provider_id="777",
+        label="Progressive passes accurate",
+    )
+
+    result = mod.build_evidence_atom_inventory(payload, tmp_path, registry)
+    atom = next(item for item in result["evidence_atoms"] if item["row_nucleus_candidate_id"] == "rn_progressive")
+    assert atom["progression_candidate"] == "PROGRESSIVE_CANDIDATE"
+    assert atom["direction_candidate"] == "FORWARD"
+    assert atom["distance_candidate"] == "LONG"
+    assert atom["zone_candidate"] == "PENALTY_AREA"
+    assert atom["context_candidate"] == "OPEN_PLAY"
+    assert atom["key_action_candidate"] == "KEY_PASS_CANDIDATE"
+    assert atom["action_subtype_candidate"] == "PASS_SUBTYPE_CANDIDATE"

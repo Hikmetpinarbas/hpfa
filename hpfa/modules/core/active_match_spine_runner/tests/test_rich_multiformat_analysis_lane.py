@@ -2756,3 +2756,75 @@ def test_set_piece_restart_type_profiles_keep_outcomes_separate_without_small_n_
     assert free["opponent_first_visible_n"] == 1
     assert result["restart_type_profile_rate_emitted"] is False
     assert result["restart_type_profile_is_set_piece_quality_truth"] is False
+
+
+def test_c03_preserves_multi_dimensional_semantic_facets_without_splitting_one_layer_into_multiple_actions():
+    process = {
+        "process_participation_candidates": [{
+            "process_participation_candidate_id": "context_semantic_facets",
+            "semantic_role": "CONTEXT_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": "10",
+            "end_candidate": "20",
+        }]
+    }
+    occurrences = {
+        "occurrence_state_transition_projections": [{
+            "action_occurrence_candidate_id": "occ_pass_1",
+            "team_identity_candidate_ids": ["team_a"],
+            "period_candidates": ["1"],
+            "start_candidates": ["12"],
+            "action_family_candidates": ["PASS"],
+            "actor_identity_candidate_ids": ["actor_1"],
+            "provider_progression_candidates": ["PROGRESSIVE"],
+            "provider_direction_candidates": ["FORWARD"],
+            "provider_context_candidates": ["OPEN_PLAY"],
+            "provider_distance_candidates": ["LONG"],
+            "provider_key_action_candidates": ["KEY_PASS_CANDIDATE"],
+            "provider_zone_candidates": ["PENALTY_AREA"],
+            "provider_outcome_candidates": ["SUCCESS"],
+            "provider_semantic_rule_ids": [
+                "plvs_v2_long_passes",
+                "plvs_v2_passes_forward_accurate",
+                "plvs_v2_progressive_passes_accurate",
+                "plvs_v2_passes_into_the_penalty_box_accurate",
+            ],
+            "supporting_spatial_transition_candidate_ids": [],
+        }]
+    }
+
+    result = _construct_c03(process, occurrences, {"spatial_transition_candidates": []})
+    signature = result["signatures"][0]
+    layer = signature["layers"][0]
+
+    assert signature["visible_occurrence_n"] == 1
+    assert signature["temporal_layer_n"] == 1
+    assert layer["action_family_candidates"] == ["PASS"]
+    assert layer["provider_progression_candidates"] == ["PROGRESSIVE"]
+    assert layer["provider_direction_candidates"] == ["FORWARD"]
+    assert layer["provider_context_candidates"] == ["OPEN_PLAY"]
+    assert layer["provider_distance_candidates"] == ["LONG"]
+    assert layer["provider_key_action_candidates"] == ["KEY_PASS_CANDIDATE"]
+    assert layer["provider_zone_candidates"] == ["PENALTY_AREA"]
+    assert layer["provider_outcome_candidates"] == ["SUCCESS"]
+    assert layer["provider_semantic_rule_ids"] == [
+        "plvs_v2_long_passes",
+        "plvs_v2_passes_forward_accurate",
+        "plvs_v2_passes_into_the_penalty_box_accurate",
+        "plvs_v2_progressive_passes_accurate",
+    ]
+
+    profile = signature["semantic_facet_profile"]
+    assert profile["progression_layer_counts"] == {"PROGRESSIVE": 1}
+    assert profile["direction_layer_counts"] == {"FORWARD": 1}
+    assert profile["context_layer_counts"] == {"OPEN_PLAY": 1}
+    assert profile["distance_layer_counts"] == {"LONG": 1}
+    assert profile["key_action_layer_counts"] == {"KEY_PASS_CANDIDATE": 1}
+    assert profile["zone_layer_counts"] == {"PENALTY_AREA": 1}
+    assert profile["outcome_layer_counts"] == {"SUCCESS": 1}
+    assert profile["semantic_rule_layer_counts"]["plvs_v2_long_passes"] == 1
+    assert profile["semantic_rule_layer_counts"]["plvs_v2_progressive_passes_accurate"] == 1
+    assert profile["same_occurrence_multi_facet_is_not_multiple_action_truth"] is True
+    assert profile["temporal_layer_is_not_physical_touch"] is True

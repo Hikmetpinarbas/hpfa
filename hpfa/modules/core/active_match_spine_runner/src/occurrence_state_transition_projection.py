@@ -152,6 +152,8 @@ def build_occurrence_state_transition_projection(
             zones = _union(supporting_spatial, "provider_zone_candidates")
             contexts = _union(supporting_spatial, "provider_context_candidates")
             directions = _union(supporting_spatial, "provider_direction_candidates")
+            distances = _union(supporting_spatial, "provider_distance_candidates")
+            key_actions = _union(supporting_spatial, "provider_key_action_candidates")
             outcomes = _union(supporting_spatial, "provider_outcome_candidates")
             semantic_rule_ids = _union(supporting_spatial, "provider_semantic_rule_ids")
             coordinate_zones = _union_scalar(supporting_spatial, "coordinate_derived_zone_candidate")
@@ -201,6 +203,10 @@ def build_occurrence_state_transition_projection(
                 support_candidates.append("PROVIDER_CONTEXT_SEMANTIC_VISIBLE")
             if directions:
                 support_candidates.append("PROVIDER_DIRECTION_SEMANTIC_VISIBLE")
+            if distances:
+                support_candidates.append("PROVIDER_DISTANCE_SEMANTIC_VISIBLE")
+            if key_actions:
+                support_candidates.append("PROVIDER_KEY_ACTION_SEMANTIC_VISIBLE")
             if coordinate_zones:
                 support_candidates.append("ADMITTED_COORDINATE_ZONE_CANDIDATE_VISIBLE")
             if consequence_classes:
@@ -235,6 +241,8 @@ def build_occurrence_state_transition_projection(
                     "provider_zone_candidates": zones,
                     "provider_context_candidates": contexts,
                     "provider_direction_candidates": directions,
+                    "provider_distance_candidates": distances,
+                    "provider_key_action_candidates": key_actions,
                     "provider_outcome_candidates": outcomes,
                     "provider_semantic_rule_ids": semantic_rule_ids,
                     "coordinate_derived_zone_candidates": coordinate_zones,

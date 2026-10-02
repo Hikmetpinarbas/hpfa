@@ -44,6 +44,7 @@ PRESENTATION_VIEW_MODEL_JSON = "HPFA_PRESENTATION_VIEW_MODEL.json"
 PROFESSIONAL_REPORT_HTML = "HPFA_PROFESSIONAL_REPORT.html"
 BUNDLE_MANIFEST = "HPFA_ACTIVE_MATCH_BUNDLE_MANIFEST.json"
 BUNDLE_ZIP = "HPFA_ACTIVE_MATCH_BUNDLE.zip"
+FOOTBALL_DELIVERY_ZIP = "HPFA_FOOTBALL_DELIVERY.zip"
 EPISODE_FEATURE_JSON = "episode_feature_vector_lite_v1.json"
 ANALYST_OUTPUT_CLAIM_JSON = "analyst_output_claim_contract_projection_v1.json"
 FULL_SPINE_JSON = "active_match_full_spine_v1.json"
@@ -4127,6 +4128,504 @@ def build_graph_ready_mechanism_cards_payload(
     }
 
 
+def _hp_clean_football_line(value: Any) -> str | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+
+    replacements = {
+        "Sistem bu maçta ": "",
+        "görünür oyun sürecini takım bağlamına bağlayabildi": "oyun süreci kaydedildi",
+        "görünür oyun sürecini": "oyun sürecini",
+        "görünür süreç": "oyun süreci",
+        "Görünür süreç": "Oyun süreci",
+        "görünür kayıp": "top kaybı",
+        "görünür kazanım": "top kazanımı",
+        "görünür geri kazanım": "top kazanımı",
+        "şut bağlantılı son bölüm": "şutla biten hücum",
+        "şut bağlantılı": "şutla biten",
+        "recovery bağlantılı": "top kazanımıyla devam eden",
+        "recovery": "top kazanımı",
+        "follow-up": "devam aksiyonu",
+        "same-time review": "aynı anda iki takım kaydı",
+        "breakdown sonrası rakip takeover": "bozulan hücum sonrası rakibe geçiş",
+        "rakibe geçiş": "rakibe geçen devam",
+        "PROCESS=": "OYUN BAĞLAMI=",
+        "TRACE=": "AKSİYON ZİNCİRİ=",
+        "VARYANT=": "ÖRNEKLER=",
+        "COUNTEREVIDENCE=": "KARŞI ÖRNEK=",
+        "CLAIM=": "ANLAM=",
+        "Aggregate fonksiyon bağlamı:": "Maç toplamları:",
+        "progressive pass": "ilerletici pas",
+        "Per-90": "90 dakika başına",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+
+    forbidden_sentence_tokens = (
+        "kanit notu", "kanıt notu", "okuma çerçevesi", "admitted", "claim ",
+        "claim=", "claim scope", "current-run", "current invocation", "provider",
+        "occurrence", "dependency", "runtime", "canonical_event_count",
+        "true_action_count", "review-required", "review required", "review ",
+        "evidence", "xlsx", "source-bound", "kaynak-bağlı", "emit",
+        "construct", "m09", "layer", "candidate_only", "candidate only",
+        "global/cross-match", "global identity", "production_release",
+    )
+
+    parts = []
+    for sentence in text.split(". "):
+        cleaned = sentence.strip()
+        if not cleaned:
+            continue
+        low = cleaned.casefold()
+        if any(token in low for token in forbidden_sentence_tokens):
+            continue
+        cleaned = cleaned.replace("görünür ", "").replace("Görünür ", "")
+        cleaned = cleaned.replace("_CANDIDATE", "").replace("_", " ")
+        cleaned = " ".join(cleaned.split())
+        if cleaned:
+            parts.append(cleaned.rstrip("."))
+
+    if not parts:
+        return None
+    return ". ".join(parts) + "."
+
+
+def _hp_take_clean(lines: list[str], *, limit: int) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for raw in lines:
+        cleaned = _hp_clean_football_line(raw)
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        result.append(cleaned)
+        if len(result) >= limit:
+            break
+    return result
+
+
+def _build_hp_football_report_tr_v0(output_root: str | Path, full_spine: dict[str, Any]) -> str:
+    root = Path(output_root)
+    rich_current = _rich_surface_current(full_spine)
+    rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
+    rich = rich if isinstance(rich, dict) else {}
+    identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
+
+    match_story = _hp_take_clean(
+        _human_match_story_cards(rich, identity, "tr") if rich_current else [],
+        limit=4,
+    )
+    team_profile = _hp_take_clean(
+        _human_team_process_cards(rich, identity, "tr") if rich_current else [],
+        limit=6,
+    )
+    circulation = _hp_take_clean(
+        _human_circulation_fate_cards(rich, identity, "tr") if rich_current else [],
+        limit=6,
+    )
+    score_state = _hp_take_clean(
+        _human_score_state_process_outcome_cards(rich, identity, "tr") if rich_current else [],
+        limit=4,
+    )
+    loss_recovery = _hp_take_clean(
+        _human_loss_recovery_score_state_cards(rich, identity, "tr") if rich_current else [],
+        limit=6,
+    )
+    sequence_info = _hp_take_clean(
+        _human_sequence_information_cards(rich, identity, "tr") if rich_current else [],
+        limit=6,
+    )
+    process_variants = _hp_take_clean(
+        _human_process_variant_board_cards(rich, identity, "tr") if rich_current else [],
+        limit=6,
+    )
+    player_functions = _hp_take_clean(
+        _human_player_function_cards(
+            rich,
+            {
+                **identity,
+                "__spatial_progression_evidence__": full_spine.get("spatial_progression_evidence") or {},
+            },
+            "tr",
+        ) if rich_current else [],
+        limit=6,
+    )
+    set_pieces = _hp_take_clean(
+        _human_set_piece_process_cards(rich, identity, "tr") if rich_current else [],
+        limit=4,
+    )
+    aerial = _hp_take_clean(
+        _human_aerial_duel_cards(rich, identity, "tr") if rich_current else [],
+        limit=4,
+    )
+
+    mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "tr")
+    mechanism_highlights = _hp_take_clean(
+        _human_match_story_mechanism_highlights(mechanism_cards, "tr", limit=4),
+        limit=4,
+    )
+
+    lines = [
+        "HPFA MAÇ ANALİZİ",
+        "=================",
+        "",
+        "MAÇIN ANA RESMİ",
+    ]
+    if match_story:
+        lines.extend(f"- {line}" for line in match_story)
+    elif team_profile:
+        lines.extend(f"- {line}" for line in team_profile[:2])
+    else:
+        lines.append("- Bu maç için güvenli bir ana oyun resmi kurulamadı.")
+
+    lines.extend(["", "TOPLA OYUN — İLERLEME VE ÜRETİM"])
+    if circulation:
+        lines.extend(f"- {line}" for line in circulation)
+    elif team_profile:
+        lines.extend(f"- {line}" for line in team_profile)
+    else:
+        lines.append("- Topla oyunun ilerleme ve üretim yolları bu maçta yeterince ayrıştırılamadı.")
+
+    lines.extend(["", "TOP KAYBI VE KAZANIM SONRASI"])
+    if loss_recovery:
+        lines.extend(f"- {line}" for line in loss_recovery)
+    else:
+        lines.append("- Top kaybı ve kazanım sonrasındaki devamlar bu maçta güvenli biçimde ayrıştırılamadı.")
+
+    lines.extend(["", "MAÇIN DEĞİŞEN YÜZÜ"])
+    if score_state:
+        lines.extend(f"- {line}" for line in score_state)
+    else:
+        lines.append("- Skor değiştikçe oyunun nasıl değiştiğini söylemek için yeterli maç-içi karşılaştırma oluşmadı.")
+
+    lines.extend(["", "TEKRAR EDEN YOLLAR VE VARYANTLAR"])
+    if mechanism_highlights:
+        lines.extend(f"- {line}" for line in mechanism_highlights)
+    elif sequence_info or process_variants:
+        lines.extend(f"- {line}" for line in (sequence_info + process_variants)[:6])
+    else:
+        lines.append("- Aynı probleme verilen farklı çözümleri karşılaştıracak kadar güçlü tekrar eden yol bulunamadı.")
+
+    lines.extend(["", "OYUNCU İŞLEVLERİ"])
+    if player_functions:
+        lines.extend(f"- {line}" for line in player_functions)
+    else:
+        lines.append("- Oyuncu işlevlerini takım süreçlerinden ayıracak kadar güçlü maç-içi bağlam oluşmadı.")
+
+    lines.extend(["", "DURAN TOPLAR VE HAVA TOPLARI"])
+    if set_pieces or aerial:
+        lines.extend(f"- {line}" for line in (set_pieces + aerial)[:6])
+    else:
+        lines.append("- Duran top ve hava topu bölümünde ana maç hikâyesini değiştiren güçlü bir ayrışma görülmedi.")
+
+    conclusion_pool = mechanism_highlights + match_story + team_profile
+    conclusions = _hp_take_clean(conclusion_pool, limit=3)
+    lines.extend(["", "SONUÇ — ANALİST NOTU"])
+    if conclusions:
+        lines.extend(f"- {line}" for line in conclusions)
+    else:
+        lines.append("- Bu maçta güçlü bir hüküm kurmaktan çok, tekrar izlenmesi gereken oyun ilişkileri öne çıkıyor.")
+
+    lines.extend([
+        "",
+        "Bu raporun yetkisi bu maçta görülen futbol ilişkileridir. Kalıcı takım veya oyuncu özelliği için daha geniş ve karşılaştırılabilir örneklem gerekir.",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def _hp_profile_rows(rich: dict[str, Any]) -> list[dict[str, Any]]:
+    c03 = (rich.get("constructs") or {}).get("C03") or {}
+    rows: list[dict[str, Any]] = []
+    for row in c03.get("team_process_profiles") or []:
+        if not isinstance(row, dict):
+            continue
+        if row.get("process_family_candidate"):
+            rows.append(row)
+            continue
+        team_ref = row.get("team_identity_candidate_id")
+        for nested in row.get("process_family_profiles") or []:
+            if isinstance(nested, dict):
+                item = dict(nested)
+                item.setdefault("team_identity_candidate_id", team_ref)
+                rows.append(item)
+    return rows
+
+
+def _hp_match_score(rich: dict[str, Any]) -> str | None:
+    context = rich.get("score_state_visible_process_outcome_context") or {}
+    best: tuple[int, dict[str, Any]] | None = None
+    for row in context.get("profiles") or []:
+        state = row.get("score_state_candidate")
+        if not isinstance(state, dict) or not state:
+            continue
+        total = sum(int(v or 0) for v in state.values())
+        if best is None or total > best[0]:
+            best = (total, state)
+    if best is None:
+        return None
+    return " - ".join(f"{_display_label(k)} {int(v or 0)}" for k, v in best[1].items())
+
+
+def _hp_time_label(second: Any) -> str:
+    try:
+        minute = max(0, int(float(second) // 60))
+    except (TypeError, ValueError):
+        return "maçın ilgili bölümü"
+    return f"{minute}. dakika civarı"
+
+
+def _hp_action_label(value: Any) -> str:
+    key = str(value or "").strip().upper()
+    return {
+        "PASS": "pas",
+        "DUEL": "ikili mücadele",
+        "INTERCEPTION": "pas arası",
+        "TURNOVER": "top kaybı",
+        "CARRY": "top taşıma",
+        "DRIBBLE": "dripling",
+        "TACKLE": "müdahale",
+        "SHOT": "şut",
+        "FOUL": "faul",
+        "CROSS": "orta",
+        "RECOVERY": "top kazanımı",
+        "RESTART": "duran top",
+        "CLEARANCE": "uzaklaştırma",
+        "GOALKEEPER_ACTION": "kaleci aksiyonu",
+    }.get(key, key.replace("_", " ").casefold())
+
+
+def _hp_period_label(values: Any) -> str:
+    periods = {str(v) for v in (values or []) if str(v)}
+    if periods == {"1"}:
+        return "ilk yarıda"
+    if periods == {"2"}:
+        return "ikinci yarıda"
+    return "maç boyunca"
+
+
+def _tr_possessive(name: str) -> str:
+    vowels = [c for c in name.casefold() if c in "aeıioöuü"]
+    last = vowels[-1] if vowels else ""
+    suffix = "ın" if last in "aı" else "in" if last in "ei" else "un" if last in "ou" else "ün"
+    return f"{name}'{suffix}"
+
+
+def build_hp_football_report_tr(output_root: str | Path, full_spine: dict[str, Any]) -> str:
+    root = Path(output_root)
+    rich_current = _rich_surface_current(full_spine)
+    rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
+    rich = rich if isinstance(rich, dict) else {}
+    identity = _load_json(root / IDENTITY_JSON) if _declared_current(full_spine, IDENTITY_JSON) else {}
+    teams = _human_team_labels(identity)
+    actors = _human_admitted_actor_labels(identity)
+    profiles = _hp_profile_rows(rich)
+
+    by_team: dict[str, dict[str, dict[str, Any]]] = {}
+    for row in profiles:
+        team_ref = str(row.get("team_identity_candidate_id") or "")
+        family = str(row.get("process_family_candidate") or "")
+        if team_ref and family:
+            by_team.setdefault(team_ref, {})[family] = row
+
+    lines = ["HPFA MAÇ ANALİZİ", "=================", "", "MAÇIN ANA RESMİ"]
+    score = _hp_match_score(rich)
+    if score:
+        lines.append(f"- Skor: {score}.")
+
+    team_refs = sorted(by_team, key=lambda ref: teams.get(ref, ref))
+    positional_rows = []
+    for ref in team_refs:
+        row = by_team[ref].get("POSITIONAL_ATTACK_CANDIDATE")
+        if row:
+            positional_rows.append((ref, row))
+
+    if len(positional_rows) >= 2:
+        a_ref, a = positional_rows[0]
+        b_ref, b = positional_rows[1]
+        a_name, b_name = teams.get(a_ref, a_ref), teams.get(b_ref, b_ref)
+        a_n, b_n = int(a.get("eligible_process_n") or 0), int(b.get("eligible_process_n") or 0)
+        a_sh, b_sh = int(a.get("shot_ending_process_n") or 0), int(b.get("shot_ending_process_n") or 0)
+        lines.append(
+            f"- {a_name} yerleşik hücumda {a_n}, {b_name} {b_n} ayrı hücum akışı oluşturdu; "
+            f"bunların {a_sh} ve {b_sh} tanesi şutla bitti. Bu nedenle maçın sonucu yalnız hücum hacmiyle açıklanmıyor."
+        )
+    elif positional_rows:
+        ref, row = positional_rows[0]
+        lines.append(
+            f"- {teams.get(ref, ref)} için oyunun ana topla hücum yolu yerleşik hücumdu: "
+            f"{int(row.get('eligible_process_n') or 0)} ayrı akışın {int(row.get('shot_ending_process_n') or 0)} tanesi şutla bitti."
+        )
+    else:
+        lines.append("- Maçın ana topla oyun yolunu güvenli biçimde ayıracak kadar güçlü süreç bilgisi oluşmadı.")
+
+    lines.extend(["", "TOPLA OYUN — İLERLEME VE ÜRETİM"])
+    for ref in team_refs:
+        name = teams.get(ref, ref)
+        families = by_team[ref]
+        pos = families.get("POSITIONAL_ATTACK_CANDIDATE") or {}
+        counter = families.get("COUNTERATTACK_CANDIDATE") or {}
+        set_piece = families.get("SET_PIECE_ATTACK_CANDIDATE") or {}
+        pos_n, pos_sh = int(pos.get("eligible_process_n") or 0), int(pos.get("shot_ending_process_n") or 0)
+        ctr_n, ctr_sh = int(counter.get("eligible_process_n") or 0), int(counter.get("shot_ending_process_n") or 0)
+        sp_n, sp_sh = int(set_piece.get("eligible_process_n") or 0), int(set_piece.get("shot_ending_process_n") or 0)
+        if pos_n or ctr_n or sp_n:
+            lines.append(
+                f"- {name}: yerleşik hücum {pos_n} kez görüldü ve {pos_sh} kez şutla bitti; "
+                f"kontra atak {ctr_n} kez görüldü ve {ctr_sh} kez şutla bitti; "
+                f"duran top hücumu {sp_n} kez görüldü ve {sp_sh} kez şutla bitti."
+            )
+            if ctr_n and ctr_sh == 0 and pos_sh > 0:
+                lines.append(
+                    f"- {_tr_possessive(name)} bu maçtaki şut üretimi kontra atak sayısından değil, daha çok yerleşik hücumların son bölümünden geldi."
+                )
+
+    lines.extend(["", "TOP KAYBI VE KAZANIM SONRASI"])
+    loss = rich.get("loss_next_opponent_process_context") or {}
+    recovery = rich.get("recovery_next_process_context") or {}
+    loss_rows = [r for r in loss.get("rows") or [] if isinstance(r, dict)]
+    rec_rows = [r for r in recovery.get("rows") or [] if isinstance(r, dict)]
+    for ref in team_refs:
+        name = teams.get(ref, ref)
+        team_losses = [r for r in loss_rows if ref in (r.get("anchor_team_identity_candidate_ids") or [])]
+        next_counts: Counter[str] = Counter()
+        for row in team_losses:
+            for fam in row.get("next_opponent_process_family_candidates") or []:
+                next_counts[str(fam)] += 1
+        team_rec = [r for r in rec_rows if ref in (r.get("team_identity_candidate_ids") or [])]
+        rec_counts: Counter[str] = Counter()
+        for row in team_rec:
+            for fam in row.get("next_visible_process_family_candidates") or []:
+                rec_counts[str(fam)] += 1
+        loss_detail = ", ".join(
+            f"{_football_family_label(fam, 'tr')} {n}" for fam, n in next_counts.most_common()
+        ) or "tek bir sonraki hücum tipine güvenli biçimde bağlanamayan örnekler ağırlıkta"
+        rec_detail = ", ".join(
+            f"{_football_family_label(fam, 'tr')} {n}" for fam, n in rec_counts.most_common()
+        ) or "tek bir sonraki hücum tipine güvenli biçimde bağlanamayan örnekler ağırlıkta"
+        lines.append(
+            f"- {name}: {len(team_losses)} top kaybı sonrasında rakibin ilk net hücum bağlantılarında {loss_detail}. "
+            f"{len(team_rec)} top kazanımı sonrasında ise {rec_detail}."
+        )
+    lines.append("- Buradaki ana soru kayıp sayısı değil; kayıptan sonra rakibe hangi ilk çıkışın bırakıldığı ve takımın buna ne kadar çabuk yeniden temas edebildiğidir.")
+
+    lines.extend(["", "MAÇIN DEĞİŞEN YÜZÜ"])
+    mix = rich.get("time_window_process_mix_change_context") or {}
+    comparisons = [r for r in mix.get("comparisons") or [] if isinstance(r, dict)]
+    for ref in team_refs:
+        rows = [r for r in comparisons if str(r.get("team_identity_candidate_id") or "") == ref]
+        if not rows:
+            continue
+        row = max(rows, key=lambda r: float(r.get("composition_total_variation_distance_candidate") or 0))
+        deltas = row.get("process_family_count_delta") or {}
+        changes = []
+        for fam, delta in sorted(deltas.items(), key=lambda item: -abs(int(item[1] or 0))):
+            value = int(delta or 0)
+            if value:
+                direction = "arttı" if value > 0 else "azaldı"
+                changes.append(f"{_football_family_label(fam, 'tr')} {abs(value)} akış {direction}")
+        if changes:
+            lines.append(
+                f"- {teams.get(ref, ref)} için oyun bileşiminin en belirgin farklılaştığı bölüm {_hp_time_label(row.get('current_window_start_second_candidate'))}: "
+                + "; ".join(changes[:3]) + "."
+            )
+    lines.append("- Bu değişim maçın farklı bölümlerinde kullanılan hücum yollarının farklılaştığını gösterir. Taktik değişiklik veya momentum yorumu için ek bağlam gerekir.")
+
+    lines.extend(["", "TEKRAR EDEN YOLLAR VE AYRIŞMA NOKTALARI"])
+    feature = _load_json(root / FEATURE_DELTA_JSON)
+    records = [r for r in feature.get("grammar_stable_variant_feature_delta_records") or [] if isinstance(r, dict)]
+    records.sort(key=lambda r: (int(r.get("visible_episode_spread_count") or 0), int(r.get("resolved_variant_count") or 0)), reverse=True)
+    rendered = 0
+    for row in records:
+        team_ids = [str(v) for v in row.get("team_identity_candidate_ids") or [] if str(v)]
+        if not team_ids:
+            continue
+        tokens = []
+        for token in row.get("grammar_signature_tokens") or []:
+            raw = str(token).replace("LAYER[", "").replace("]", "").replace("+", " + ")
+            tokens.append(" / ".join(_hp_action_label(part.strip()) for part in raw.split("|")))
+        if not tokens:
+            continue
+        team = teams.get(team_ids[0], team_ids[0])
+        spread = int(row.get("visible_episode_spread_count") or 0)
+        resolved = int(row.get("resolved_variant_count") or 0)
+        if spread <= 0 or resolved <= 1:
+            continue
+        trace = " → ".join(tokens)
+        lines.append(
+            f"- {_tr_possessive(team)} {trace} bağlantısı {_hp_period_label(row.get('period_candidates'))} maçın {spread} ayrı bölümünde yeniden görüldü. "
+            f"{resolved} karşılaştırılabilir örneğin sonuçları aynı olmadı; bu nedenle asıl inceleme noktası ilk aksiyon değil, bağlantının hangi koşulda devam edip hangi koşulda koptuğu."
+        )
+        rendered += 1
+        if rendered >= 3:
+            break
+    if not rendered:
+        lines.append("- Aynı futbol probleminin farklı sonuçlara gittiği yeterince güçlü tekrar eden bir bağlantı bulunmadı.")
+
+    lines.extend(["", "OYUNCU İŞLEVLERİ"])
+    player_surface = rich.get("player_score_state_process_participation") or {}
+    aggregate: dict[str, dict[str, Any]] = {}
+    for row in player_surface.get("profiles") or []:
+        if not isinstance(row, dict):
+            continue
+        ref = str(row.get("actor_identity_candidate_id") or "")
+        if not ref:
+            continue
+        item = aggregate.setdefault(ref, {
+            "team_ref": str(row.get("team_identity_candidate_id") or ""),
+            "label": actors.get(ref) or _display_label(row.get("actor_label_candidate") or ref),
+            "families": Counter(),
+            "shot": 0,
+            "total": 0,
+        })
+        item["total"] += int(row.get("visible_process_participation_n") or 0)
+        item["shot"] += int(row.get("shot_ending_process_participation_n") or 0)
+        for fam, n in (row.get("process_family_counts") or {}).items():
+            item["families"][str(fam)] += int(n or 0)
+    top_players = []
+    for team_ref in team_refs:
+        team_rows = [
+            item for item in aggregate.values()
+            if item.get("team_ref") == team_ref
+        ]
+        team_rows.sort(key=lambda x: (x["shot"], x["total"]), reverse=True)
+        top_players.extend(team_rows[:3])
+    for item in top_players:
+        fam_text = ", ".join(
+            f"{_football_family_label(fam, 'tr')} {n}" for fam, n in item["families"].most_common(3)
+        )
+        lines.append(
+            f"- {teams.get(item['team_ref'], item['team_ref'])} — {item['label']}: {item['total']} takım akışında yer aldı; "
+            f"{item['shot']} şutla biten akışta göründü. En sık yer aldığı bağlamlar: {fam_text}."
+        )
+    if top_players:
+        lines.append("- Bu bölüm oyuncunun kalıcı rolünü değil, bu maçta takımın hangi oyun akışlarında daha sık göründüğünü anlatır.")
+
+    lines.extend(["", "ANALİST KARARI — NEREYE BAKMALI?"])
+    if positional_rows:
+        lines.append("- Maç değerlendirmesinde hücum sayısını sonuçla eşitleme; önce hangi yerleşik hücumların şuta, hangilerinin top kaybına gittiğini karşılaştır.")
+    if loss_rows:
+        lines.append("- Rakip analizinde top kaybının kendisinden çok, kayıptan sonraki ilk pas ve ilk hücum bağlantısına odaklan; geçiş tehdidinin gerçek başlangıcı burada.")
+    if records:
+        lines.append("- Tekrarlayan pas bağlantılarını tek başına olumlu sinyal sayma; aynı başlangıcın devam eden ve kopan örneklerinde ilk ayrışan ilişkiyi bul.")
+    if top_players:
+        lines.append("- Oyuncu değerlendirmesinde toplam aksiyon yerine, oyuncunun şutla biten ve ilerleyen takım akışlarında hangi işleve bağlandığını yeniden izle.")
+
+    lines.extend(["", "SONUÇ — ANALİST NOTU"])
+    total_counter_shots = sum(int((by_team[ref].get("COUNTERATTACK_CANDIDATE") or {}).get("shot_ending_process_n") or 0) for ref in team_refs)
+    total_pos_shots = sum(int((by_team[ref].get("POSITIONAL_ATTACK_CANDIDATE") or {}).get("shot_ending_process_n") or 0) for ref in team_refs)
+    if total_pos_shots and total_counter_shots == 0:
+        lines.append("- Bu maçın şut üretimini açıklamak için önce kontra atak sayısına değil, yerleşik hücumların nasıl son bölüme taşındığına bakmak gerekir.")
+    if len(positional_rows) >= 2 and score:
+        lines.append("- Skor ile yerleşik hücum hacmi aynı hikâyeyi anlatmıyor. Bu yüzden bir sonraki inceleme üretim miktarından çok şutların koşullarına, kalitesine ve bitiriciliğin oluştuğu sahnelere yönelmeli.")
+    if rendered:
+        lines.append("- Tekrarlayan bağlantılarda değerli soru 'kaç kez tekrarlandı?' değil, aynı başlangıcın başarılı ve başarısız örneklerini ilk kez hangi futbol ilişkisinin ayırdığıdır.")
+    lines.append("- Tek maçtan kalıcı takım veya oyuncu özelliği çıkarılmamalı; burada anlatılanlar bu maçın futbol problemleridir.")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str, Any]) -> str:
     root = Path(output_root)
     rich_current = _rich_surface_current(full_spine)
@@ -4822,16 +5321,25 @@ def write_standard_user_outputs(
     mechanism_graph_path = root / MECHANISM_CARDS_GRAPH_JSON
     manifest_path = root / BUNDLE_MANIFEST
     zip_path = root / BUNDLE_ZIP
+    football_delivery_zip_path = root / FOOTBALL_DELIVERY_ZIP
     temp_zip_path = root / f".{BUNDLE_ZIP}.tmp"
     if temp_zip_path.is_file():
         temp_zip_path.unlink()
 
     report_text = build_analyst_report(root, full_spine)
-    report_tr_text = build_human_analyst_report_tr(root, full_spine)
+    report_tr_text = build_hp_football_report_tr(root, full_spine)
     report_en_text = build_human_analyst_report_en(root, full_spine)
     report_path.write_text(report_text, encoding="utf-8")
     report_tr_path.write_text(report_tr_text, encoding="utf-8")
     report_en_path.write_text(report_en_text, encoding="utf-8")
+
+    with zipfile.ZipFile(
+        football_delivery_zip_path,
+        "w",
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=9,
+    ) as archive:
+        archive.write(report_tr_path, arcname=ANALYST_REPORT_TR)
 
     mechanism_graph_payload = build_graph_ready_mechanism_cards_payload(root, full_spine)
     mechanism_graph_path.write_text(
@@ -4914,6 +5422,7 @@ def write_standard_user_outputs(
         "professional_report_html": str(professional_html_path),
         "bundle_manifest": str(manifest_path),
         "bundle_zip": str(zip_path),
+        "football_delivery_zip": str(football_delivery_zip_path),
         "bundle_file_count": len(candidates) + 1,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",

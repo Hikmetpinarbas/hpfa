@@ -47,10 +47,11 @@ def atom(**updates):
         "raw_label": "Progressive passes accurate",
         "zone_candidate": None,
         "progression_candidate": "PROGRESSIVE_CANDIDATE",
-        "direction_candidate": None,
-        "distance_candidate": None,
+        "direction_candidate": "FORWARD",
+        "distance_candidate": "LONG",
         "context_candidate": None,
         "relation_candidate": None,
+        "key_action_candidate": "KEY_PASS_CANDIDATE",
         "outcome_candidates": ["SUCCESS"],
     }
     base.update(updates)
@@ -137,6 +138,9 @@ def test_provider_semantics_survive_without_geometry_admission():
     row = result["spatial_transition_candidates"][0]
     assert result["status"] == "REVIEW_REQUIRED"
     assert row["provider_progression_candidates"] == ["PROGRESSIVE_CANDIDATE"]
+    assert row["provider_direction_candidates"] == ["FORWARD"]
+    assert row["provider_distance_candidates"] == ["LONG"]
+    assert row["provider_key_action_candidates"] == ["KEY_PASS_CANDIDATE"]
     assert row["provider_outcome_candidates"] == ["SUCCESS"]
     assert row["provider_semantic_spatial_context_visible"] is True
     assert row["provider_coordinate_anchor_x_candidate"] == 60.0

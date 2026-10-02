@@ -19,6 +19,8 @@ def _spatial_payload():
                 "provider_zone_candidates": ["FINAL_THIRD"],
                 "provider_context_candidates": [],
                 "provider_direction_candidates": ["FORWARD"],
+                "provider_distance_candidates": ["LONG"],
+                "provider_key_action_candidates": ["KEY_PASS_CANDIDATE"],
                 "provider_outcome_candidates": ["SUCCESS"],
                 "provider_semantic_rule_ids": ["r1"],
                 "coordinate_derived_zone_candidate": "FINAL_THIRD_LOCATION_CANDIDATE",
@@ -31,6 +33,8 @@ def _spatial_payload():
                 "provider_zone_candidates": ["FINAL_THIRD"],
                 "provider_context_candidates": [],
                 "provider_direction_candidates": [],
+                "provider_distance_candidates": [],
+                "provider_key_action_candidates": [],
                 "provider_outcome_candidates": ["SUCCESS"],
                 "provider_semantic_rule_ids": ["r2"],
                 "spatial_admission_state": "PROVIDER_SPATIAL_CONTEXT_CANDIDATE_ONLY",
@@ -42,6 +46,8 @@ def _spatial_payload():
                 "provider_zone_candidates": [],
                 "provider_context_candidates": [],
                 "provider_direction_candidates": [],
+                "provider_distance_candidates": [],
+                "provider_key_action_candidates": [],
                 "provider_outcome_candidates": ["FAILURE"],
                 "provider_semantic_rule_ids": ["r3"],
                 "spatial_admission_state": "PROVIDER_SPATIAL_CONTEXT_CANDIDATE_ONLY",
@@ -131,6 +137,8 @@ def test_occurrence_context_is_carried_forward_without_promoting_truth():
     assert first["start_candidates"] == ["100.0"]
     assert first["occurrence_topology"] == "TWO_PARTICIPANT_INTERACTION"
     assert first["coordinate_derived_zone_candidates"] == ["FINAL_THIRD_LOCATION_CANDIDATE"]
+    assert first["provider_distance_candidates"] == ["LONG"]
+    assert first["provider_key_action_candidates"] == ["KEY_PASS_CANDIDATE"]
     assert "ADMITTED_COORDINATE_ZONE_CANDIDATE_VISIBLE" in first["support_candidates"]
     assert first["coordinate_derived_zone_is_team_shape_truth"] is False
     assert first["transition_is_causal_truth"] is False
