@@ -691,6 +691,22 @@ def _role_pair(
         "csv_missing_id_candidate_count": csv_missing_ids,
         "xml_missing_id_candidate_count": xml_missing_ids,
         "shared_id_candidate_count": len(common),
+        "shared_occurrence_candidate_count": required_aligned,
+        "observation_composition_policy": {
+            "same_required_anchors_form_shared_occurrence_candidate": True,
+            "nonconflicting_visible_facets_may_complement": True,
+            "overlapping_cross_format_fields_add_independent_support_vote": False,
+            "xlsx_creates_occurrence_identity": False,
+            "temporal_anchor_fields": ["start", "end", "period", "action"],
+            "spatial_facet_fields": ["pos_x", "pos_y"],
+            "identity_context_fields": ["code", "team"],
+            "meaning": (
+                "CSV and XML may expose complementary visible dimensions of the same "
+                "match-local occurrence candidate when required anchors align. Shared "
+                "fields remain dependent reflections; XLSX remains aggregate/tabular "
+                "context and cannot create occurrence identity."
+            ),
+        },
         "csv_only_id_candidate_count": len(csv_only),
         "xml_only_id_candidate_count": len(xml_only),
         "required_field_aligned_count": required_aligned,

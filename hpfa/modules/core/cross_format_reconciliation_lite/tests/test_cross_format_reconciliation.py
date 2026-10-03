@@ -220,6 +220,21 @@ def test_exact_csv_xml_surface_alignment_candidate(tmp_path: Path) -> None:
     assert result["canonical_event_count"] == "UNKNOWN"
 
 
+def test_aligned_csv_xml_rows_form_one_complementary_observation_candidate(tmp_path: Path) -> None:
+    make_surfaces(tmp_path)
+    result = reconcile(tmp_path)
+    pair = result["pair_reports"][0]
+
+    assert pair["shared_occurrence_candidate_count"] == 1
+    policy = pair["observation_composition_policy"]
+    assert policy["same_required_anchors_form_shared_occurrence_candidate"] is True
+    assert policy["nonconflicting_visible_facets_may_complement"] is True
+    assert policy["overlapping_cross_format_fields_add_independent_support_vote"] is False
+    assert policy["xlsx_creates_occurrence_identity"] is False
+    assert policy["temporal_anchor_fields"] == ["start", "end", "period", "action"]
+    assert policy["spatial_facet_fields"] == ["pos_x", "pos_y"]
+
+
 def test_equal_row_count_does_not_prove_alignment(tmp_path: Path) -> None:
     make_surfaces(tmp_path, xml_action="Inaccurate passes")
     result = reconcile(tmp_path)

@@ -55,3 +55,11 @@ The legacy `status` and `active_match_evidence_pass` fields remain for
 backward compatibility. Neither can be interpreted as release status.
 
 `canonical_event_count=UNKNOWN` and `production_release=false` are invariant.
+
+## Complementary observation composition
+
+CSV and XML are not treated only as duplicate serializations. When same-role rows align on the required temporal/action anchors (start, end, period, action), HPFA records one match-local shared occurrence candidate. Non-conflicting visible dimensions from either surface may complement that candidate.
+
+This is deliberately surface-observed rather than format-dogmatic: XML can also carry coordinates and CSV can also carry time. Therefore HPFA must inspect actual fields instead of assuming exclusive format responsibilities.
+
+Overlapping CSV/XML fields remain dependent reflections and never add an independent evidence vote. XLSX remains aggregate/tabular context: it may summarize the total match/player/goalkeeper output, but it cannot create occurrence identity, action identity, timestamp identity, or event order.
