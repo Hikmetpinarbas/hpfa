@@ -231,6 +231,58 @@ def test_dependent_csv_xml_reflection_does_not_add_independent_support_vote(tmp_
     assert result["dependent_reflection_adds_support_vote"] is False
 
 
+def test_missing_optional_reflection_serialization_degrades_without_closing_evidence_spine(
+    tmp_path: Path,
+) -> None:
+    _write_sources(tmp_path)
+    (tmp_path / "goalkeeper_surface.xml").unlink()
+    payload = _payload()
+    goalkeeper = next(
+        row for row in payload["row_nuclei"] if row["source_role"] == "GOALKEEPER"
+    )
+    goalkeeper["source_refs"] = [
+        row for row in goalkeeper["source_refs"] if row["source_format"] != "xml"
+    ]
+    goalkeeper["serialization_family_candidates"] = ["csv"]
+    goalkeeper["status"] = "REVIEW_REQUIRED"
+    goalkeeper["lineage_admission_status"] = "LINEAGE_REVIEW_REQUIRED"
+    goalkeeper["lineage_review_reasons"] = ["optional_reflection_serialization_missing"]
+    goalkeeper["review_reasons"] = ["optional_reflection_serialization_missing"]
+    payload["status"] = "REVIEW_REQUIRED"
+
+    result = mod.build_evidence_atom_inventory(payload, tmp_path, _registry())
+
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["match_surface_binding_id"]
+    assert result["evidence_atom_count"] == 3
+    assert result["match_surface_binding_coverage_state"] == "DEGRADED_SERIALIZATION_COVERAGE"
+    assert result["match_surface_binding_missing_optional_serializations"] == [
+        {"source_role": "GOALKEEPER", "source_format": "xml"}
+    ]
+    assert "match_surface_binding_optional_serialization_missing:GOALKEEPER:xml" in result[
+        "review_hits"
+    ]
+
+
+def test_missing_required_role_still_fails_closed(tmp_path: Path) -> None:
+    _write_sources(tmp_path)
+    payload = _payload()
+    payload["row_nuclei"] = [
+        row for row in payload["row_nuclei"] if row["source_role"] != "GOALKEEPER"
+    ]
+    payload["row_nucleus_candidate_count"] = len(payload["row_nuclei"])
+
+    result = mod.build_evidence_atom_inventory(payload, tmp_path, _registry())
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["match_surface_binding_id"] is None
+    assert result["evidence_atom_count"] == 0
+    assert result["match_surface_binding_coverage_state"] == "INVALID_REQUIRED_ROLE_COVERAGE"
+    assert "match_surface_binding_required_role_missing:GOALKEEPER" in result[
+        "hard_block_hits"
+    ]
+
+
 def test_same_time_and_source_row_index_cannot_create_order(tmp_path: Path) -> None:
     _write_sources(tmp_path)
     result = mod.build_evidence_atom_inventory(_payload(), tmp_path, _registry())

@@ -150,8 +150,11 @@ def _source_lineage(
     return sorted(records, key=lambda item: (item["source_format"], item["source_file"])), sorted(set(blocks))
 
 
-def _binding_from_lineage(records: list[dict[str, Any]]) -> tuple[str | None, list[str]]:
+def _binding_from_lineage(
+    records: list[dict[str, Any]],
+) -> tuple[str | None, list[str], list[str], str, list[dict[str, str]]]:
     blocks: list[str] = []
+    reviews: list[str] = []
     unique: dict[tuple[str, str, str], dict[str, Any]] = {}
     for record in records:
         key = (
@@ -161,23 +164,71 @@ def _binding_from_lineage(records: list[dict[str, Any]]) -> tuple[str | None, li
         )
         unique[key] = record
 
+    required_roles = {"PLAYER", "GOALKEEPER", "TEAM"}
     expected_pairs = {
         (role, fmt)
-        for role in ("PLAYER", "GOALKEEPER", "TEAM")
+        for role in required_roles
         for fmt in ("csv", "xml")
     }
     observed_pairs = {(role, fmt) for role, fmt, _sha in unique}
-    if observed_pairs != expected_pairs:
+    observed_roles = {role for role, _fmt in observed_pairs}
+
+    unexpected_pairs = sorted(observed_pairs - expected_pairs)
+    if unexpected_pairs:
         blocks.append(
-            "match_surface_binding_role_format_set_mismatch:"
-            + json.dumps(sorted(observed_pairs), separators=(",", ":"))
+            "match_surface_binding_unadmitted_role_format:"
+            + json.dumps(unexpected_pairs, separators=(",", ":"))
         )
-    if len(unique) != 6:
-        blocks.append(f"match_surface_binding_unique_source_count_invalid:{len(unique)}")
+
+    missing_required_roles = sorted(required_roles - observed_roles)
+    for role in missing_required_roles:
+        blocks.append(f"match_surface_binding_required_role_missing:{role}")
+
+    pair_counts = Counter((role, fmt) for role, fmt, _sha in unique)
+    for (role, fmt), count in sorted(pair_counts.items()):
+        if count > 1:
+            blocks.append(
+                f"match_surface_binding_multiple_unique_sources_per_role_format:{role}:{fmt}:{count}"
+            )
+
+    missing_optional_serializations = [
+        {"source_role": role, "source_format": fmt}
+        for role, fmt in sorted(expected_pairs - observed_pairs)
+        if role not in missing_required_roles
+    ]
+    for item in missing_optional_serializations:
+        reviews.append(
+            "match_surface_binding_optional_serialization_missing:"
+            f"{item['source_role']}:{item['source_format']}"
+        )
+
+    coverage_state = (
+        "INVALID_REQUIRED_ROLE_COVERAGE"
+        if missing_required_roles or unexpected_pairs
+        else (
+            "DEGRADED_SERIALIZATION_COVERAGE"
+            if missing_optional_serializations
+            else "COMPLETE_CSV_XML_ROLE_COVERAGE"
+        )
+    )
+
     if blocks:
-        return None, sorted(set(blocks))
+        return (
+            None,
+            sorted(set(blocks)),
+            sorted(set(reviews)),
+            coverage_state,
+            missing_optional_serializations,
+        )
+
     binding_seed = sorted((role, fmt, sha) for role, fmt, sha in unique)
-    return "msb_" + stable_id("current_row_nucleus_binding_v1", binding_seed)[:24], []
+    return (
+        "msb_" + stable_id("current_row_nucleus_binding_v1", binding_seed)[:24],
+        [],
+        sorted(set(reviews)),
+        coverage_state,
+        missing_optional_serializations,
+    )
 
 
 def _atom_class(
@@ -275,8 +326,15 @@ def build_evidence_atom_inventory(
         semantic = _semantic_record(nucleus, registry)
         atom_inputs.append((nucleus, lineage, semantic))
 
-    binding_id, binding_blocks = _binding_from_lineage(all_lineage_records)
+    (
+        binding_id,
+        binding_blocks,
+        binding_reviews,
+        binding_coverage_state,
+        missing_optional_serializations,
+    ) = _binding_from_lineage(all_lineage_records)
     blocks.extend(binding_blocks)
+    reviews.extend(binding_reviews)
     blocks = sorted(set(blocks))
 
     atoms: list[dict[str, Any]] = []
@@ -419,6 +477,8 @@ def build_evidence_atom_inventory(
         "runtime_evidence_status": "NOT_EVALUATED",
         "release_status": "NOT_PRODUCTION",
         "match_surface_binding_id": binding_id,
+        "match_surface_binding_coverage_state": binding_coverage_state,
+        "match_surface_binding_missing_optional_serializations": missing_optional_serializations,
         "source_row_nucleus_candidate_count": len(nuclei),
         "evidence_atom_count": len(atoms),
         "evidence_atom_pass_count": pass_count,
