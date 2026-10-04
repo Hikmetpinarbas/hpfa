@@ -225,3 +225,42 @@ def test_specific_restart_subtype_supersedes_generic_restart_container() -> None
     assert ids == ["GOAL_KICK", "PASS"]
     assert candidate["canonical_football_grammar_unresolved_tokens"] == []
     assert result["canonical_football_grammar_binding_status"] == "PASS"
+
+def test_public_adapter_exposes_timestamp_bucket_cardinality_without_event_truth() -> None:
+    row = _pass_bundle()
+    result = bind_intra_actor_action_grammar(
+        _base_occurrence(),
+        {"action_bundle_candidates": [row]},
+        _evidence(),
+        load_registry(),
+    )
+
+    assert result["observation_occurrence_timestamp_bucket_count"] == 1
+    bucket = result["observation_occurrence_timestamp_buckets"][0]
+    assert bucket["candidate_record_count"] == 1
+    assert bucket["candidate_count_is_event_count"] is False
+    assert bucket["internal_ordering_allowed"] is False
+    assert result["same_timestamp_candidate_count_is_event_count"] is False
+    assert result["same_timestamp_multi_family_is_multiple_event_truth"] is False
+    assert result["same_timestamp_internal_ordering_allowed"] is False
+
+def test_public_adapter_exposes_timestamp_observation_role_buckets() -> None:
+    evidence = _evidence()
+    evidence["evidence_atoms"][0].update({"atom_class": "ACTION_ANCHOR_ATOM", "period_candidate": "1", "start_candidate": "21.10"})
+    evidence["evidence_atoms"][1].update({"atom_class": "REFERENCE_ATOM", "semantic_role_candidate": "ATTRIBUTE_REFERENCE", "period_candidate": "1", "start_candidate": "21.10"})
+    evidence["evidence_atoms"][2].update({"atom_class": "PARTICIPATION_INTERVAL_ATOM", "period_candidate": "1", "start_candidate": "21.10"})
+    result = bind_intra_actor_action_grammar(
+        _base_occurrence(),
+        {"action_bundle_candidates": [_pass_bundle()]},
+        evidence,
+        load_registry(),
+    )
+
+    assert result["observation_timestamp_bucket_count"] == 1
+    bucket = result["observation_timestamp_buckets"][0]
+    assert bucket["observation_role_counts"] == {
+        "ACTION_NUCLEUS": 1,
+        "FACET": 1,
+        "PARTICIPATION": 1,
+    }
+    assert bucket["observation_count_is_event_count"] is False

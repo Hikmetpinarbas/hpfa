@@ -167,6 +167,19 @@ def test_single_reviewed_anchor_is_one_observation_one_occurrence_candidate() ->
     assert candidate["observation_occurrence_cardinality"]["cardinality_resolution_is_physical_action_truth"] is False
 
 
+def test_same_timestamp_candidate_multiplicity_never_becomes_event_count_truth() -> None:
+    result = bind_observation_occurrence_cardinality(
+        {"action_bundle_candidates": []},
+        {"evidence_atoms": []},
+        load_registry(),
+        [],
+    )
+    assert result["same_timestamp_candidate_count_is_event_count"] is False
+    assert result["same_timestamp_multi_family_is_multiple_event_truth"] is False
+    assert result["same_timestamp_internal_ordering_allowed"] is False
+    assert result["same_timestamp_cardinality_state"] == "UNRESOLVED_WITHOUT_ADDITIONAL_IDENTITY_EVIDENCE"
+
+
 def test_global_cardinality_claim_locks_remain_closed() -> None:
     result = bind_observation_occurrence_cardinality(
         {"action_bundle_candidates": []},
@@ -183,3 +196,97 @@ def test_global_cardinality_claim_locks_remain_closed() -> None:
     assert result["canonical_event_count"] == "UNKNOWN"
     assert result["true_action_count"] == "UNKNOWN"
     assert result["production_release"] is False
+
+def test_collapsed_multi_annotation_occurrence_exposes_nucleus_and_facet_roles() -> None:
+    labels = ["Passes accurate", "Passes forward accurate", "Progressive passes accurate"]
+    bundle = _bundle("pass_roles", "PASS", labels)
+    candidate = _grammar_candidate(bundle, labels)
+    result = bind_observation_occurrence_cardinality(
+        {"action_bundle_candidates": [bundle]},
+        _evidence([bundle]),
+        load_registry(),
+        [candidate],
+    )
+    record = result["records"][0]
+    assert record["observation_composition_roles"] == ["ACTION_NUCLEUS", "FACET"]
+    assert record["facet_observation_count"] == 3
+    assert record["facet_rows_create_additional_occurrences"] is False
+
+
+def test_exact_timestamp_bucket_preserves_multiple_candidates_without_event_count_or_order_truth() -> None:
+    def single(cid: str, actor: str) -> dict:
+        return {
+            "action_occurrence_candidate_id": cid,
+            "admission_class": "EXACT_SINGLE_ACTION_ANCHOR_SEMANTIC_ADMISSION",
+            "occurrence_topology": "SINGLE_ACTOR_ACTION",
+            "compatibility_rule_id": "single_action_anchor_exact_v1",
+            "primary_family_candidate": "PASS",
+            "team_identity_candidate_id": "team_a",
+            "actor_identity_candidate_id": actor,
+            "supporting_action_bundle_candidate_ids": [f"bundle_{cid}"],
+            "supporting_evidence_atom_ids": [f"ea_{cid}"],
+            "provider_row_id_candidates": [f"row_{cid}"],
+            "supporting_semantic_rule_ids": [f"rule_{cid}"],
+            "temporal_relation": {"period_candidate": "1", "start_candidate": "12.26", "end_candidate": "12.40"},
+        }
+
+    result = bind_observation_occurrence_cardinality(
+        {"action_bundle_candidates": []},
+        {"evidence_atoms": []},
+        load_registry(),
+        [single("aoc_1", "actor_a"), single("aoc_2", "actor_b")],
+    )
+    assert result["timestamp_bucket_count"] == 1
+    bucket = result["timestamp_buckets"][0]
+    assert bucket["candidate_record_count"] == 2
+    assert bucket["occurrence_candidate_count"] == 2
+    assert bucket["cardinality_state"] == "MULTIPLE_CANDIDATES_EVENT_CARDINALITY_UNRESOLVED"
+    assert bucket["candidate_count_is_event_count"] is False
+    assert bucket["internal_ordering_allowed"] is False
+    assert bucket["canonical_event_count"] == "UNKNOWN"
+
+def test_timestamp_observation_bucket_preserves_non_action_roles_without_event_inflation() -> None:
+    atoms = [
+        {"evidence_atom_id": "ea_action", "atom_class": "ACTION_ANCHOR_ATOM", "period_candidate": "1", "start_candidate": "20.0", "provider_row_id_candidate": "r1"},
+        {"evidence_atom_id": "ea_part_a", "atom_class": "PARTICIPATION_INTERVAL_ATOM", "period_candidate": "1", "start_candidate": "20.0", "provider_row_id_candidate": "r2"},
+        {"evidence_atom_id": "ea_part_b", "atom_class": "PARTICIPATION_INTERVAL_ATOM", "period_candidate": "1", "start_candidate": "20.0", "provider_row_id_candidate": "r3"},
+        {"evidence_atom_id": "ea_outcome", "atom_class": "TERMINAL_OUTCOME_ATOM", "period_candidate": "1", "start_candidate": "20.0", "provider_row_id_candidate": "r4"},
+        {"evidence_atom_id": "ea_relation", "atom_class": "REFERENCE_ATOM", "semantic_role_candidate": "OPPONENT_ACTION_REFERENCE", "period_candidate": "1", "start_candidate": "20.0", "provider_row_id_candidate": "r5"},
+        {"evidence_atom_id": "ea_facet", "atom_class": "REFERENCE_ATOM", "semantic_role_candidate": "ATTRIBUTE_REFERENCE", "period_candidate": "1", "start_candidate": "20.0", "provider_row_id_candidate": "r6"},
+        {"evidence_atom_id": "ea_review", "atom_class": "REVIEW_REQUIRED_ATOM", "period_candidate": "1", "start_candidate": "20.0", "provider_row_id_candidate": "r7"},
+    ]
+    result = bind_observation_occurrence_cardinality(
+        {"action_bundle_candidates": []},
+        {"evidence_atoms": atoms},
+        load_registry(),
+        [],
+    )
+
+    assert result["timestamp_observation_bucket_count"] == 1
+    bucket = result["timestamp_observation_buckets"][0]
+    assert bucket["observation_count"] == 7
+    assert bucket["observation_role_counts"] == {
+        "ACTION_NUCLEUS": 1,
+        "FACET": 1,
+        "OUTCOME": 1,
+        "PARTICIPATION": 2,
+        "RELATION": 1,
+        "UNRESOLVED": 1,
+    }
+    assert bucket["observation_count_is_event_count"] is False
+    assert bucket["same_timestamp_is_merge_authority"] is False
+    assert bucket["same_timestamp_is_split_authority"] is False
+
+def test_context_interval_process_labels_project_as_process_not_generic_context() -> None:
+    atoms = [
+        {"evidence_atom_id": "ea_process", "atom_class": "CONTEXT_INTERVAL_ATOM", "context_candidate": "POSITIONAL_ATTACK_CANDIDATE", "period_candidate": "1", "start_candidate": "30.0"},
+        {"evidence_atom_id": "ea_admin", "atom_class": "ADMINISTRATIVE_ATOM", "period_candidate": "1", "start_candidate": "30.0"},
+    ]
+    result = bind_observation_occurrence_cardinality(
+        {"action_bundle_candidates": []},
+        {"evidence_atoms": atoms},
+        load_registry(),
+        [],
+    )
+    bucket = result["timestamp_observation_buckets"][0]
+    assert bucket["observation_role_counts"] == {"CONTEXT": 1, "PROCESS": 1}

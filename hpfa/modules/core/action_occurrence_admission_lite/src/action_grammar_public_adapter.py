@@ -366,6 +366,10 @@ def bind_intra_actor_action_grammar(
 
     occurrence_payload["observation_occurrence_cardinality_records"] = cardinality.get("records") or []
     occurrence_payload["observation_occurrence_cardinality_record_count"] = int(cardinality.get("record_count") or 0)
+    occurrence_payload["observation_occurrence_timestamp_buckets"] = cardinality.get("timestamp_buckets") or []
+    occurrence_payload["observation_occurrence_timestamp_bucket_count"] = int(cardinality.get("timestamp_bucket_count") or 0)
+    occurrence_payload["observation_timestamp_buckets"] = cardinality.get("timestamp_observation_buckets") or []
+    occurrence_payload["observation_timestamp_bucket_count"] = int(cardinality.get("timestamp_observation_bucket_count") or 0)
     occurrence_payload["observation_occurrence_cardinality_state_counts"] = cardinality.get("state_counts") or {}
     occurrence_payload["observation_occurrence_cardinality_state_vocabulary"] = cardinality.get("state_vocabulary") or []
     occurrence_payload["observation_occurrence_cardinality_claim_ceiling"] = cardinality.get("claim_ceiling")
@@ -375,6 +379,10 @@ def bind_intra_actor_action_grammar(
     occurrence_payload["row_count_is_action_count"] = False
     occurrence_payload["label_count_is_action_count"] = False
     occurrence_payload["same_actor_same_timestamp_is_single_action_authority"] = False
+    occurrence_payload["same_timestamp_candidate_count_is_event_count"] = bool(cardinality.get("same_timestamp_candidate_count_is_event_count"))
+    occurrence_payload["same_timestamp_multi_family_is_multiple_event_truth"] = bool(cardinality.get("same_timestamp_multi_family_is_multiple_event_truth"))
+    occurrence_payload["same_timestamp_internal_ordering_allowed"] = bool(cardinality.get("same_timestamp_internal_ordering_allowed"))
+    occurrence_payload["same_timestamp_cardinality_state"] = cardinality.get("same_timestamp_cardinality_state")
     occurrence_payload["shared_base_label_is_sufficient_collapse_authority"] = False
     occurrence_payload["multiple_rows_automatically_single_occurrence"] = False
     occurrence_payload["cardinality_resolution_is_physical_action_truth"] = False

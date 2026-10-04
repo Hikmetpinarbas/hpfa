@@ -107,8 +107,130 @@ def _record_base(
         "cardinality_resolution_is_canonical_event_truth": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
+        "observation_composition_roles": (["ACTION_NUCLEUS", "FACET"] if pattern == "MULTIPLE_OBSERVATIONS_ONE_OCCURRENCE" else ["UNRESOLVED"]),
+        "facet_observation_count": (len(set(source_observation_refs)) if pattern == "MULTIPLE_OBSERVATIONS_ONE_OCCURRENCE" else 0),
+        "facet_rows_create_additional_occurrences": False,
         "claim_ceiling": CLAIM_CEILING,
     }
+
+
+def _build_timestamp_buckets(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        temporal = record.get("temporal_binding") or {}
+        period = _clean(temporal.get("period_candidate"))
+        start = _clean(temporal.get("start_candidate"))
+        if not period or not start:
+            continue
+        grouped.setdefault((period, start), []).append(record)
+
+    buckets: list[dict[str, Any]] = []
+    for (period, start), rows in sorted(grouped.items(), key=lambda item: (item[0][0], item[0][1])):
+        occurrence_ids = sorted({
+            _clean(row.get("occurrence_candidate_id"))
+            for row in rows
+            if _clean(row.get("occurrence_candidate_id"))
+        })
+        roles = sorted({
+            role
+            for row in rows
+            for role in (row.get("observation_composition_roles") or [])
+            if _clean(role)
+        })
+        multiple = len(rows) > 1
+        buckets.append({
+            "period_candidate": period,
+            "start_candidate": start,
+            "candidate_record_count": len(rows),
+            "occurrence_candidate_ids": occurrence_ids,
+            "occurrence_candidate_count": len(occurrence_ids),
+            "observation_composition_roles": roles,
+            "cardinality_state": (
+                "MULTIPLE_CANDIDATES_EVENT_CARDINALITY_UNRESOLVED"
+                if multiple
+                else "SINGLE_CARDINALITY_RECORD_EVENT_TRUTH_UNRESOLVED"
+            ),
+            "candidate_count_is_event_count": False,
+            "internal_ordering_allowed": False,
+            "same_timestamp_is_merge_authority": False,
+            "same_timestamp_is_split_authority": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+        })
+    return buckets
+
+
+def _observation_role(atom: dict[str, Any]) -> str:
+    atom_class = _clean(atom.get("atom_class"))
+    semantic_role = _clean(atom.get("semantic_role_candidate"))
+    if atom_class == "ACTION_ANCHOR_ATOM":
+        return "ACTION_NUCLEUS"
+    if atom_class == "PARTICIPATION_INTERVAL_ATOM":
+        return "PARTICIPATION"
+    if atom_class in {"DERIVED_CONSEQUENCE_ATOM", "TERMINAL_OUTCOME_ATOM"}:
+        return "OUTCOME"
+    if atom_class == "CONTEXT_INTERVAL_ATOM":
+        context_candidate = _clean(atom.get("context_candidate"))
+        if context_candidate in {
+            "POSITIONAL_ATTACK_CANDIDATE",
+            "COUNTERATTACK_CANDIDATE",
+            "SET_PIECE_ATTACK_CANDIDATE",
+        }:
+            return "PROCESS"
+        return "CONTEXT"
+    if atom_class == "REFERENCE_ATOM":
+        if semantic_role in {"OPPONENT_ACTION_REFERENCE", "RECEIVED_ACTION_REFERENCE"}:
+            return "RELATION"
+        if semantic_role == "ATTRIBUTE_REFERENCE":
+            return "FACET"
+        return "UNRESOLVED"
+    if atom_class == "ADMINISTRATIVE_ATOM":
+        return "CONTEXT"
+    return "UNRESOLVED"
+
+
+def _build_timestamp_observation_buckets(evidence_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for atom in evidence_payload.get("evidence_atoms") or []:
+        if not isinstance(atom, dict):
+            continue
+        period = _clean(atom.get("period_candidate"))
+        start = _clean(atom.get("start_candidate"))
+        if not period or not start:
+            continue
+        grouped.setdefault((period, start), []).append(atom)
+
+    buckets: list[dict[str, Any]] = []
+    for (period, start), atoms in sorted(grouped.items(), key=lambda item: (item[0][0], item[0][1])):
+        role_counts: Counter[str] = Counter()
+        refs_by_role: dict[str, list[str]] = {}
+        provider_rows: list[str] = []
+        for atom in atoms:
+            role = _observation_role(atom)
+            role_counts[role] += 1
+            ref = _clean(atom.get("evidence_atom_id"))
+            if ref:
+                refs_by_role.setdefault(role, []).append(ref)
+            row_ref = _clean(atom.get("provider_row_id_candidate"))
+            if row_ref:
+                provider_rows.append(row_ref)
+        buckets.append({
+            "period_candidate": period,
+            "start_candidate": start,
+            "observation_count": len(atoms),
+            "observation_role_counts": dict(sorted(role_counts.items())),
+            "observation_refs_by_role": {k: sorted(set(v)) for k, v in sorted(refs_by_role.items())},
+            "provider_row_refs": sorted(set(provider_rows)),
+            "observation_count_is_event_count": False,
+            "same_timestamp_is_merge_authority": False,
+            "same_timestamp_is_split_authority": False,
+            "internal_ordering_allowed": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+        })
+    return buckets
 
 
 def bind_observation_occurrence_cardinality(
@@ -325,6 +447,9 @@ def bind_observation_occurrence_cardinality(
             "collapse_rule_version": "1.0.0",
             "information_loss_state": "SINGLE_REVIEWED_ANCHOR_PRESERVED" if pattern == "ONE_OBSERVATION_ONE_OCCURRENCE" else "NOT_APPLICABLE_AMBIGUOUS",
             "alternative_cardinality_state": "PHYSICAL_ACTION_TRUTH_UNRESOLVED",
+            "observation_composition_roles": ["ACTION_NUCLEUS"],
+            "facet_observation_count": 0,
+            "facet_rows_create_additional_occurrences": False,
             "cardinality_resolution_is_physical_action_truth": False,
             "cardinality_resolution_is_canonical_event_truth": False,
             "canonical_event_count": "UNKNOWN",
@@ -342,9 +467,15 @@ def bind_observation_occurrence_cardinality(
         for candidate in occurrence_candidates
         if isinstance(candidate, dict) and _clean(candidate.get("occurrence_topology")) != "SINGLE_ACTOR_ACTION"
     )
+    timestamp_buckets = _build_timestamp_buckets(records)
+    timestamp_observation_buckets = _build_timestamp_observation_buckets(evidence_payload)
     return {
         "records": records,
         "record_count": len(records),
+        "timestamp_buckets": timestamp_buckets,
+        "timestamp_bucket_count": len(timestamp_buckets),
+        "timestamp_observation_buckets": timestamp_observation_buckets,
+        "timestamp_observation_bucket_count": len(timestamp_observation_buckets),
         "state_counts": dict(sorted(state_counts.items())),
         "state_vocabulary": list(CARDINALITY_PATTERNS),
         "hard_block_hits": sorted(set(hard_blocks)),
@@ -353,6 +484,10 @@ def bind_observation_occurrence_cardinality(
         "row_count_is_action_count": False,
         "label_count_is_action_count": False,
         "same_actor_same_timestamp_is_single_action_authority": False,
+        "same_timestamp_candidate_count_is_event_count": False,
+        "same_timestamp_multi_family_is_multiple_event_truth": False,
+        "same_timestamp_internal_ordering_allowed": False,
+        "same_timestamp_cardinality_state": "UNRESOLVED_WITHOUT_ADDITIONAL_IDENTITY_EVIDENCE",
         "shared_base_label_is_sufficient_collapse_authority": False,
         "multiple_rows_automatically_single_occurrence": False,
         "xlsx_can_create_action_identity": False,
