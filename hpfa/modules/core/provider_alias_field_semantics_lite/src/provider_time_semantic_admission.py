@@ -131,6 +131,17 @@ def _cross_format_equal(csv_values: list[float], xml_values: list[float]) -> boo
     return bool(csv_values) and _rounded_counter(csv_values) == _rounded_counter(xml_values)
 
 
+def _cross_format_subset_consistent(
+    primary_values: list[float],
+    reflection_values: list[float],
+) -> bool:
+    if not primary_values or not reflection_values:
+        return False
+    primary = _rounded_counter(primary_values)
+    reflection = _rounded_counter(reflection_values)
+    return all(reflection[value] <= primary[value] for value in reflection)
+
+
 def _half_ranges(csv_rows: list[dict[str, Any]]) -> dict[str, dict[str, float | int | None]]:
     by_half: dict[str, list[float]] = defaultdict(list)
     for row in csv_rows:
@@ -193,6 +204,20 @@ def build_time_admission(input_root: str | Path) -> dict[str, Any]:
     xml_end = _values(xml_rows, "end")
     cross_start = _cross_format_equal(csv_start, xml_start)
     cross_end = _cross_format_equal(csv_end, xml_end)
+    subset_start = _cross_format_subset_consistent(csv_start, xml_start)
+    subset_end = _cross_format_subset_consistent(csv_end, xml_end)
+    partial_reflection_coverage_consistent = bool(
+        (not cross_start or not cross_end)
+        and subset_start
+        and subset_end
+        and len(xml_rows) < len(csv_rows)
+    )
+    if cross_start and cross_end:
+        conformance_state = "EXACT_CROSS_FORMAT_CONFORMANCE"
+    elif partial_reflection_coverage_consistent:
+        conformance_state = "PARTIAL_REFLECTION_COVERAGE_CONSISTENT"
+    else:
+        conformance_state = "CROSS_FORMAT_TIME_CONFLICT_OR_UNRESOLVED"
 
     halves = _half_ranges(csv_rows)
     h1 = halves.get("1") or {}
@@ -210,17 +235,27 @@ def build_time_admission(input_root: str | Path) -> dict[str, Any]:
         reasons.append("provider_time_schema_not_admitted")
     if not pairs_valid:
         reasons.append("start_end_pair_invalid")
-    if not cross_start:
-        reasons.append("csv_xml_start_surface_mismatch")
-    if not cross_end:
-        reasons.append("csv_xml_end_surface_mismatch")
+    if conformance_state == "PARTIAL_REFLECTION_COVERAGE_CONSISTENT":
+        reasons.append("csv_xml_reflection_coverage_partial")
+    else:
+        if not cross_start:
+            reasons.append("csv_xml_start_surface_mismatch")
+        if not cross_end:
+            reasons.append("csv_xml_end_surface_mismatch")
     if not absolute_continuation:
         reasons.append("absolute_match_time_basis_not_demonstrated")
 
     reasons = sorted(set(reasons))
     status = ADMITTED if not reasons else REVIEW_REQUIRED
     basis_admitted = bool(
-        status == ADMITTED and unit_authority_admitted and absolute_continuation
+        unit_authority_admitted
+        and schema_ready
+        and pairs_valid
+        and absolute_continuation
+        and conformance_state in {
+            "EXACT_CROSS_FORMAT_CONFORMANCE",
+            "PARTIAL_REFLECTION_COVERAGE_CONSISTENT",
+        }
     )
     return {
         "module_id": MODULE_ID,
@@ -229,7 +264,7 @@ def build_time_admission(input_root: str | Path) -> dict[str, Any]:
         "claim_safety": CLAIM_SAFETY,
         "source_surface_candidate": "SPORTSBASE_LIKE",
         "unit_candidate": SECOND if unit_authority_admitted else "UNKNOWN",
-        "unit_admission_status": ADMITTED if status == ADMITTED and unit_authority_admitted else REVIEW_REQUIRED,
+        "unit_admission_status": ADMITTED if unit_authority_admitted and schema_ready and pairs_valid else REVIEW_REQUIRED,
         "unit_authority_basis": "CURRENT_PROVIDER_TIME_CONTRACT" if unit_authority_admitted else "UNIT_AUTHORITY_NOT_ADMITTED",
         "time_basis_candidate": ABSOLUTE_SECONDS if basis_admitted else "UNKNOWN",
         "time_basis_admission_status": ADMITTED if basis_admitted else REVIEW_REQUIRED,
@@ -245,6 +280,9 @@ def build_time_admission(input_root: str | Path) -> dict[str, Any]:
             "malformed_temporal_row_count": int(csv_pair_audit["invalid_pair_count"]) + int(xml_pair_audit["invalid_pair_count"]),
             "csv_xml_start_multiset_equal": cross_start,
             "csv_xml_end_multiset_equal": cross_end,
+            "csv_xml_start_reflection_subset_consistent": subset_start,
+            "csv_xml_end_reflection_subset_consistent": subset_end,
+            "csv_xml_time_conformance_state": conformance_state,
             "half_start_ranges": halves,
             "absolute_continuation_across_halves": absolute_continuation,
             "provider_time_contract_authority_admitted": unit_authority_admitted,
@@ -271,8 +309,8 @@ def _normalize_rows_for_mvc(
     admission: dict[str, Any],
 ) -> list[dict[str, Any]]:
     if (
-        admission.get("status") != ADMITTED
-        or admission.get("unit_admission_status") != ADMITTED
+        admission.get("unit_admission_status") != ADMITTED
+        or admission.get("time_basis_admission_status") != ADMITTED
         or admission.get("time_basis_candidate") != ABSOLUTE_SECONDS
     ):
         return rows
