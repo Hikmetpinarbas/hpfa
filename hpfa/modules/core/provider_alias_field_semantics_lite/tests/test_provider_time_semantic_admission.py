@@ -183,7 +183,32 @@ def test_rejects_cross_format_time_mismatch(tmp_path: Path) -> None:
     _write_xml(tmp_path / "surface.xml", xml_rows)
     result = build_time_admission(tmp_path)
     assert result["status"] == REVIEW_REQUIRED
+    assert result["time_basis_admission_status"] == REVIEW_REQUIRED
+    assert result["time_basis_candidate"] == "UNKNOWN"
     assert "csv_xml_start_surface_mismatch" in result["review_reasons"]
+
+
+def test_partial_xml_reflection_coverage_preserves_time_basis_with_review_debt(
+    tmp_path: Path,
+) -> None:
+    rows = _absolute_rows()
+    _write_csv(tmp_path / "surface.csv", rows)
+    _write_xml(tmp_path / "surface.xml", rows[:-1])
+
+    admission = build_time_admission(tmp_path)
+    assert admission["status"] == REVIEW_REQUIRED
+    assert admission["unit_admission_status"] == ADMITTED
+    assert admission["time_basis_admission_status"] == ADMITTED
+    assert admission["time_basis_candidate"] == ABSOLUTE_SECONDS
+    assert admission["runtime_checks"]["csv_xml_time_conformance_state"] == (
+        "PARTIAL_REFLECTION_COVERAGE_CONSISTENT"
+    )
+    assert "csv_xml_reflection_coverage_partial" in admission["review_reasons"]
+
+    report = build_minimum_context_report(tmp_path, ROOT)
+    assert report["time_admission_status"] == ADMITTED
+    assert report["context_summary"]["time_unit_status_counts"] == {"SECOND": 4}
+    assert report["provider_time_semantic_admission"]["status"] == REVIEW_REQUIRED
 
 
 def test_rejects_malformed_temporal_rows_instead_of_skipping_them(tmp_path: Path) -> None:
