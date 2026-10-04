@@ -1,6 +1,6 @@
 # HPFA Third-Party and Redistribution Notice
 
-Status: **REVIEW_REQUIRED before external/commercial distribution**.
+Status: **CONTROLLED COMMERCIAL PILOT allowed only for HPFA-owned material with no bundled third-party runtime packages or raw provider/donor data. Production/public distribution remains REVIEW_REQUIRED.**
 
 HPFA's canonical football-intelligence core intentionally declares no mandatory
 third-party Python runtime dependency in pyproject.toml. Optional capabilities
@@ -33,9 +33,13 @@ there is a concrete product dependency that cannot be represented more safely.
 External repositories named in HPFA research metadata are references, not bundled
 runtime code unless separately admitted and licensed.
 
-## Release rule
+## Controlled commercial pilot rule
 
-A release bundle must contain only:
+The controlled pilot software bundle intentionally contains no third-party runtime
+packages. Optional dependencies are installed separately when a customer workflow
+needs them and therefore are not redistributed by the HPFA software bundle.
+
+A commercial pilot bundle must contain only:
 1. HPFA-owned product code/assets;
 2. third-party material with verified license and required notices;
 3. user/provider match data only when redistribution rights explicitly permit it.
