@@ -279,6 +279,19 @@ def render_professional_html(view_model: dict[str, Any], *, language: str = "tr"
     escaped_report = html.escape(report_text)
     professional_n = html.escape(str(claim_summary.get("professional_emit_allowed_count", 0)))
     fact_n = html.escape(str(claim_summary.get("fact_only_render_count", 0)))
+    if professional_claims:
+        report_boundary = (
+            "Analist anlatısı, yalnız yukarıda kabul edilmiş profesyonel claim'lerin sınırları içinde okunmalıdır."
+            if lang == "tr"
+            else "The analyst narrative must be read only within the boundaries of the professional claims admitted above."
+        )
+    else:
+        report_boundary = (
+            "Analist inceleme anlatısı: aşağıdaki metin profesyonel bulgu olarak kabul edilmemiştir; maç-okuma ve yeniden inceleme yüzeyidir."
+            if lang == "tr"
+            else "Analyst review narrative: the text below is not admitted as a professional finding; it is a match-reading and review surface."
+        )
+    escaped_report_boundary = html.escape(report_boundary)
 
     return f"""<!doctype html>
 <html lang="{lang}">
@@ -332,6 +345,7 @@ footer {{ margin-top: 38px; border-top: 1px solid #d7d7d2; padding-top: 16px; co
 
 <section>
 <h2>Analyst report</h2>
+<div class="boundary-note">{escaped_report_boundary}</div>
 <div class="report">{escaped_report}</div>
 </section>
 
