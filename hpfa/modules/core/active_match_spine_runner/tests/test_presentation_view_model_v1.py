@@ -127,6 +127,25 @@ def test_fact_only_review_preserves_denominator_counterevidence_and_withdrawal()
     assert "SAMPLE_COMPOSITION_MAY_EXPLAIN_DIFFERENCE" in rendered
 
 
+def test_zero_professional_claim_report_is_explicitly_review_narrative_not_admitted_finding() -> None:
+    view = build_presentation_view_model(
+        {"status": "REVIEW_REQUIRED", "active_match_authority": "/runtime/current"},
+        analyst_report_tr="Maç okuma sentezi.",
+        analyst_report_en="Match-reading synthesis.",
+        mechanism_graph_payload={"cards": []},
+        analyst_output_claim_payload={
+            "status": "REVIEW_REQUIRED",
+            "analyst_output_contract_count": 2,
+            "analyst_output_contracts": [],
+            "source_bound_render_contracts": [],
+        },
+    )
+    rendered = render_professional_html(view, language="tr")
+    assert "Analist inceleme anlatısı" in rendered
+    assert "profesyonel bulgu olarak kabul edilmemiştir" in rendered
+    assert "Maç okuma sentezi." in rendered
+
+
 def test_non_render_allowed_contract_is_not_promoted_to_fact_review() -> None:
     payload = {
         "analyst_output_contracts": [{"analyst_output_contract_id": "aoc_1"}],
