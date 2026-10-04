@@ -583,3 +583,82 @@ def test_selector_exposes_dimensioned_evidence_maturity_without_composite_confid
     assert profile["maturity_can_authorize_emit"] is False
     assert "score" not in profile
     assert "confidence" not in profile
+
+def test_explicit_analyst_question_reorders_attention_without_changing_truth_or_claim_ceiling():
+    no_challenge = _row("a_no_challenge", "T1", "1", ["LAYER[PASS]"])
+    with_challenge = _row("z_with_challenge", "T2", "1", ["LAYER[CARRY]"])
+    payload = {"grammar_stable_variant_feature_delta_records": [no_challenge, with_challenge]}
+    challenge_payload = {
+        "status": "PASS",
+        "variant_feature_challenge_records": [
+            {
+                "variant_feature_challenge_id": "vfc_question",
+                "source_feature_delta_record_ref": "z_with_challenge",
+                "feature_surface": "CONTEXT",
+                "challenge_reasons": ["CONTEXT_ROBUSTNESS_NOT_TESTED"],
+                "counter_scenario_candidates": ["ALTERNATIVE_CONTEXT_MAY_EXPLAIN_DIFFERENCE"],
+                "withdrawal_conditions": ["WITHDRAW_IF_CONTEXT_DIFFERENCE_DISAPPEARS"],
+                "professional_finding_emit_allowed": False,
+                "hypothesis_candidate_is_truth": False,
+                "dependency_independence_proven": False,
+                "statistical_independence_proven": False,
+            }
+        ],
+    }
+
+    baseline = build_mechanism_story_review_shortlist(
+        payload,
+        variant_feature_challenge_payload=challenge_payload,
+        limit=2,
+    )
+    assert [row["source_mechanism_review_ref"] for row in baseline["shortlist"]] == [
+        "a_no_challenge",
+        "z_with_challenge",
+    ]
+
+    result = build_mechanism_story_review_shortlist(
+        payload,
+        variant_feature_challenge_payload=challenge_payload,
+        analyst_question_payload={
+            "analyst_question_id": "q_counterevidence",
+            "analyst_question_text": "Bu mekanizmaların karşı kanıtı nerede?",
+            "question_source": "USER_EXPLICIT",
+            "question_focus_dimensions": ["COUNTEREVIDENCE"],
+        },
+        limit=2,
+    )
+
+    assert [row["source_mechanism_review_ref"] for row in result["shortlist"]] == [
+        "z_with_challenge",
+        "a_no_challenge",
+    ]
+    assert result["analyst_relevance_state"] == "QUESTION_BOUND_ATTENTION_ONLY"
+    assert result["analyst_question_binding_state"] == "BOUND_EXPLICIT_FOCUS_DIMENSIONS"
+    assert result["analyst_question_ref"] == "q_counterevidence"
+    assert result["question_binding_changes_evidence"] is False
+    assert result["question_binding_changes_support"] is False
+    assert result["question_binding_changes_claim_ceiling"] is False
+    assert result["question_binding_can_authorize_emit"] is False
+    assert result["shortlist"][0]["question_attention_match_dimensions"] == ["COUNTEREVIDENCE"]
+    assert result["shortlist"][0]["selection_can_authorize_emit"] is False
+
+
+def test_question_text_without_explicit_focus_does_not_silently_infer_attention_dimensions():
+    payload = {
+        "grammar_stable_variant_feature_delta_records": [
+            _row("a", "T1", "1", ["LAYER[PASS]"]),
+            _row("b", "T2", "1", ["LAYER[CARRY]"]),
+        ]
+    }
+    result = build_mechanism_story_review_shortlist(
+        payload,
+        analyst_question_payload={
+            "analyst_question_id": "q_text_only",
+            "analyst_question_text": "Hangi süreç daha fazla sonuç üretti?",
+            "question_source": "USER_EXPLICIT",
+        },
+        limit=2,
+    )
+    assert result["analyst_question_binding_state"] == "BOUND_TEXT_ONLY_NO_FOCUS_INFERENCE"
+    assert result["question_focus_dimensions"] == []
+    assert [row["source_mechanism_review_ref"] for row in result["shortlist"]] == ["a", "b"]

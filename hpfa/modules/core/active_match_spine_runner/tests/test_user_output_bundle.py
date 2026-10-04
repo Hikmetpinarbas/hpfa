@@ -3281,3 +3281,221 @@ def test_mechanism_maturity_sentence_explains_shared_occurrence_ancestry_without
     assert "largest occurrence-disjoint cluster carries 7/12 cluster-bound variants" in en
     assert "this ratio is not an independence probability" in en
     assert "not proof of independence" in en
+
+def test_graph_ready_forwards_explicit_analyst_question_to_selector(tmp_path, monkeypatch):
+    feature_path = tmp_path / user_output_bundle.FEATURE_DELTA_JSON
+    feature_path.write_text(json.dumps({
+        "status": "PASS",
+        "grammar_stable_variant_feature_delta_records": [],
+    }), encoding="utf-8")
+    spine = _full_spine(current_artifacts=[str(feature_path)])
+    question = {
+        "analyst_question_id": "q_counterevidence",
+        "analyst_question_text": "Karşı kanıt nerede?",
+        "question_source": "USER_EXPLICIT",
+        "question_focus_dimensions": ["COUNTEREVIDENCE"],
+    }
+    captured = {}
+
+    def fake_selector(*args, analyst_question_payload=None, **kwargs):
+        captured["question"] = analyst_question_payload
+        return {
+            "status": "REVIEW_REQUIRED",
+            "shortlist": [],
+            "analyst_relevance_state": "QUESTION_BOUND_ATTENTION_ONLY",
+            "analyst_question_binding_state": "BOUND_EXPLICIT_FOCUS_DIMENSIONS",
+            "analyst_question_ref": "q_counterevidence",
+            "question_focus_dimensions": ["COUNTEREVIDENCE"],
+            "question_binding_changes_evidence": False,
+            "question_binding_changes_support": False,
+            "question_binding_changes_claim_ceiling": False,
+            "question_binding_can_authorize_emit": False,
+        }
+
+    monkeypatch.setattr(
+        user_output_bundle,
+        "build_mechanism_story_review_shortlist",
+        fake_selector,
+    )
+    result = user_output_bundle.build_graph_ready_mechanism_cards_payload(
+        tmp_path,
+        spine,
+        analyst_question_payload=question,
+    )
+
+    assert captured["question"] == question
+    assert result["analyst_question_binding_state"] == "BOUND_EXPLICIT_FOCUS_DIMENSIONS"
+    assert result["analyst_question_ref"] == "q_counterevidence"
+    assert result["question_focus_dimensions"] == ["COUNTEREVIDENCE"]
+    assert result["question_binding_changes_evidence"] is False
+    assert result["question_binding_changes_claim_ceiling"] is False
+
+
+def test_standard_user_outputs_forwards_explicit_question_to_graph_surface(tmp_path, monkeypatch):
+    spine = _full_spine(current_artifacts=[])
+    question = {
+        "analyst_question_id": "q_process",
+        "analyst_question_text": "Hangi süreç öne çıkıyor?",
+        "question_source": "USER_EXPLICIT",
+        "question_focus_dimensions": ["PROCESS_FAMILY"],
+    }
+    captured = {}
+
+    monkeypatch.setattr(user_output_bundle, "build_analyst_report", lambda *a, **k: "analyst")
+    monkeypatch.setattr(user_output_bundle, "build_hp_football_report_tr", lambda *a, **k: "tr")
+    monkeypatch.setattr(user_output_bundle, "build_human_analyst_report_en", lambda *a, **k: "en")
+    monkeypatch.setattr(user_output_bundle, "build_presentation_view_model", lambda *a, **k: {"status": "PASS"})
+    monkeypatch.setattr(user_output_bundle, "render_professional_html", lambda *a, **k: "<html></html>")
+
+    def fake_graph(*args, analyst_question_payload=None, **kwargs):
+        captured["question"] = analyst_question_payload
+        return {
+            "module_id": "mechanism_cards_graph_ready_v1",
+            "status": "NOT_EVALUATED",
+            "cards": [],
+            "card_count": 0,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+
+    monkeypatch.setattr(
+        user_output_bundle,
+        "build_graph_ready_mechanism_cards_payload",
+        fake_graph,
+    )
+    result = write_standard_user_outputs(
+        tmp_path,
+        spine,
+        analyst_question_payload=question,
+    )
+
+    assert captured["question"] == question
+    manifest = json.loads(Path(result["bundle_manifest"]).read_text(encoding="utf-8"))
+    binding = manifest["analyst_question_binding"]
+    assert binding["analyst_question_id"] == "q_process"
+    assert binding["question_binding_changes_evidence"] is False
+    assert binding["question_binding_changes_claim_ceiling"] is False
+
+def test_human_mechanism_cards_forwards_explicit_question_to_selector(tmp_path, monkeypatch):
+    feature_path = tmp_path / user_output_bundle.FEATURE_DELTA_JSON
+    feature_path.write_text(json.dumps({
+        "status": "PASS",
+        "grammar_stable_variant_feature_delta_records": [],
+    }), encoding="utf-8")
+    spine = _full_spine(current_artifacts=[str(feature_path)])
+    question = {
+        "analyst_question_id": "q_variant",
+        "analyst_question_text": "Başarılı ve başarısız varyant nerede ayrıştı?",
+        "question_source": "USER_EXPLICIT",
+        "question_focus_dimensions": ["VARIANT_SUCCESS_FAILURE_DEVIATION"],
+    }
+    captured = {}
+
+    def fake_selector(*args, analyst_question_payload=None, **kwargs):
+        captured["question"] = analyst_question_payload
+        return {"status": "REVIEW_REQUIRED", "shortlist": []}
+
+    monkeypatch.setattr(
+        user_output_bundle,
+        "build_mechanism_story_review_shortlist",
+        fake_selector,
+    )
+    result = user_output_bundle._human_mechanism_cards(
+        tmp_path,
+        spine,
+        {},
+        "tr",
+        analyst_question_payload=question,
+    )
+    assert result == []
+    assert captured["question"] == question
+
+def test_standard_human_reports_forward_question_to_attention_selector(tmp_path, monkeypatch):
+    spine = _full_spine(current_artifacts=[])
+    feature_path = tmp_path / user_output_bundle.FEATURE_DELTA_JSON
+    feature_path.write_text(json.dumps({
+        "status": "PASS",
+        "grammar_stable_variant_feature_delta_records": [],
+    }), encoding="utf-8")
+    spine["current_invocation_artifacts"].append(str(feature_path))
+    question = {
+        "analyst_question_id": "q_human",
+        "analyst_question_text": "Karşı kanıt ve ayrışma nerede?",
+        "question_source": "USER_EXPLICIT",
+        "question_focus_dimensions": ["COUNTEREVIDENCE"],
+    }
+    captured = []
+
+    def fake_selector(*args, analyst_question_payload=None, **kwargs):
+        captured.append(analyst_question_payload)
+        return {
+            "status": "REVIEW_REQUIRED",
+            "shortlist": [],
+            "analyst_question_binding_state": "BOUND_EXPLICIT_FOCUS_DIMENSIONS",
+            "question_focus_dimensions": ["COUNTEREVIDENCE"],
+        }
+
+    monkeypatch.setattr(
+        user_output_bundle,
+        "build_mechanism_story_review_shortlist",
+        fake_selector,
+    )
+
+    user_output_bundle.build_hp_football_report_tr(
+        tmp_path,
+        spine,
+        analyst_question_payload=question,
+    )
+    user_output_bundle.build_human_analyst_report_en(
+        tmp_path,
+        spine,
+        analyst_question_payload=question,
+    )
+
+    assert captured == [question, question]
+
+
+def test_standard_user_outputs_forwards_question_to_human_reports(tmp_path, monkeypatch):
+    spine = _full_spine(current_artifacts=[])
+    question = {
+        "analyst_question_id": "q_bundle_human",
+        "analyst_question_text": "Hangi varyanta önce bakmalıyım?",
+        "question_source": "USER_EXPLICIT",
+        "question_focus_dimensions": ["VARIANT_SUCCESS_FAILURE_DEVIATION"],
+    }
+    captured = {}
+
+    monkeypatch.setattr(user_output_bundle, "build_analyst_report", lambda *a, **k: "analyst")
+    def fake_tr(*args, analyst_question_payload=None, **kwargs):
+        captured["tr"] = analyst_question_payload
+        return "tr"
+    def fake_en(*args, analyst_question_payload=None, **kwargs):
+        captured["en"] = analyst_question_payload
+        return "en"
+    monkeypatch.setattr(user_output_bundle, "build_hp_football_report_tr", fake_tr)
+    monkeypatch.setattr(user_output_bundle, "build_human_analyst_report_en", fake_en)
+    monkeypatch.setattr(
+        user_output_bundle,
+        "build_graph_ready_mechanism_cards_payload",
+        lambda *a, **k: {
+            "module_id": "mechanism_cards_graph_ready_v1",
+            "status": "NOT_EVALUATED",
+            "cards": [],
+            "card_count": 0,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        },
+    )
+    monkeypatch.setattr(user_output_bundle, "build_presentation_view_model", lambda *a, **k: {"status": "PASS"})
+    monkeypatch.setattr(user_output_bundle, "render_professional_html", lambda *a, **k: "<html></html>")
+
+    write_standard_user_outputs(
+        tmp_path,
+        spine,
+        analyst_question_payload=question,
+    )
+
+    assert captured["tr"] == question
+    assert captured["en"] == question

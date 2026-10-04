@@ -2944,7 +2944,14 @@ def _mechanism_context_review_sentence(
     return " " + " ".join(bits) if bits else ""
 
 
-def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
+def _human_mechanism_cards(
+    root: Path,
+    full_spine: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+    *,
+    analyst_question_payload: dict[str, Any] | None = None,
+) -> list[str]:
     if not _declared_current(full_spine, FEATURE_DELTA_JSON):
         return []
     payload = _load_json(root / FEATURE_DELTA_JSON)
@@ -2983,6 +2990,7 @@ def _human_mechanism_cards(root: Path, full_spine: dict[str, Any], identity: dic
         process_variant_payload=process_variant_payload or None,
         process_participation_payload=process_participation_payload or None,
         variant_feature_challenge_payload=variant_feature_challenge_payload or None,
+        analyst_question_payload=analyst_question_payload,
         limit=5,
     )
     teams = _human_team_labels(identity)
@@ -3743,6 +3751,8 @@ def _human_sequence_information_cards(rich: dict[str, Any], identity: dict[str, 
 def build_graph_ready_mechanism_cards_payload(
     output_root: str | Path,
     full_spine: dict[str, Any],
+    *,
+    analyst_question_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     root = Path(output_root)
     if not _declared_current(full_spine, FEATURE_DELTA_JSON):
@@ -3798,6 +3808,7 @@ def build_graph_ready_mechanism_cards_payload(
         process_variant_payload=process_variant_payload or None,
         process_participation_payload=process_participation_payload or None,
         variant_feature_challenge_payload=variant_feature_challenge_payload or None,
+        analyst_question_payload=analyst_question_payload,
         limit=5,
     )
     source_records = {
@@ -4121,6 +4132,15 @@ def build_graph_ready_mechanism_cards_payload(
             row.get("classification") == "LIMITED_COMPARISON" for row in cards
         ),
         "cards": cards,
+        "analyst_relevance_state": shortlist.get("analyst_relevance_state"),
+        "analyst_question_binding_state": shortlist.get("analyst_question_binding_state"),
+        "analyst_question_ref": shortlist.get("analyst_question_ref"),
+        "question_focus_dimensions": list(shortlist.get("question_focus_dimensions") or []),
+        "question_conditioned_attention_order": list(shortlist.get("question_conditioned_attention_order") or []),
+        "question_binding_changes_evidence": False,
+        "question_binding_changes_support": False,
+        "question_binding_changes_claim_ceiling": False,
+        "question_binding_can_authorize_emit": False,
         "graphability_does_not_strengthen_evidence": True,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
@@ -4412,7 +4432,12 @@ def _tr_possessive(name: str) -> str:
     return f"{name}'{suffix}"
 
 
-def build_hp_football_report_tr(output_root: str | Path, full_spine: dict[str, Any]) -> str:
+def build_hp_football_report_tr(
+    output_root: str | Path,
+    full_spine: dict[str, Any],
+    *,
+    analyst_question_payload: dict[str, Any] | None = None,
+) -> str:
     root = Path(output_root)
     rich_current = _rich_surface_current(full_spine)
     rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
@@ -4535,7 +4560,64 @@ def build_hp_football_report_tr(output_root: str | Path, full_spine: dict[str, A
     lines.extend(["", "TEKRAR EDEN YOLLAR VE AYRIŞMA NOKTALARI"])
     feature = _load_json(root / FEATURE_DELTA_JSON)
     records = [r for r in feature.get("grammar_stable_variant_feature_delta_records") or [] if isinstance(r, dict)]
-    records.sort(key=lambda r: (int(r.get("visible_episode_spread_count") or 0), int(r.get("resolved_variant_count") or 0)), reverse=True)
+    records.sort(
+        key=lambda r: (
+            int(r.get("visible_episode_spread_count") or 0),
+            int(r.get("resolved_variant_count") or 0),
+        ),
+        reverse=True,
+    )
+    if analyst_question_payload and records:
+        analyst_output_payload = (
+            _load_json(root / ANALYST_OUTPUT_CLAIM_JSON)
+            if _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON)
+            else {}
+        )
+        process_variant_payload = (
+            _load_json(root / PROCESS_VARIANT_JSON)
+            if _declared_current(full_spine, PROCESS_VARIANT_JSON)
+            else {}
+        )
+        process_participation_payload = (
+            _load_json(root / PROCESS_PARTICIPATION_JSON)
+            if _declared_current(full_spine, PROCESS_PARTICIPATION_JSON)
+            else {}
+        )
+        variant_feature_challenge_payload = (
+            _load_json(root / VARIANT_FEATURE_CHALLENGE_JSON)
+            if _declared_current(full_spine, VARIANT_FEATURE_CHALLENGE_JSON)
+            else {}
+        )
+        question_shortlist = build_mechanism_story_review_shortlist(
+            feature,
+            analyst_output_claim_payload=analyst_output_payload or None,
+            process_variant_payload=process_variant_payload or None,
+            process_participation_payload=process_participation_payload or None,
+            variant_feature_challenge_payload=variant_feature_challenge_payload or None,
+            analyst_question_payload=analyst_question_payload,
+            limit=max(5, len(records)),
+        )
+        if question_shortlist.get("analyst_question_binding_state") == "BOUND_EXPLICIT_FOCUS_DIMENSIONS":
+            attention_order = {
+                str(row.get("source_mechanism_review_ref") or ""): index
+                for index, row in enumerate(question_shortlist.get("shortlist") or [])
+                if isinstance(row, dict) and str(row.get("source_mechanism_review_ref") or "")
+            }
+            if attention_order:
+                baseline_index = {
+                    str(row.get("grammar_stable_variant_feature_delta_id") or ""): index
+                    for index, row in enumerate(records)
+                }
+                records.sort(
+                    key=lambda row: (
+                        0 if str(row.get("grammar_stable_variant_feature_delta_id") or "") in attention_order else 1,
+                        attention_order.get(
+                            str(row.get("grammar_stable_variant_feature_delta_id") or ""),
+                            baseline_index.get(str(row.get("grammar_stable_variant_feature_delta_id") or ""), len(records)),
+                        ),
+                        baseline_index.get(str(row.get("grammar_stable_variant_feature_delta_id") or ""), len(records)),
+                    )
+                )
     rendered = 0
     for row in records:
         team_ids = [str(v) for v in row.get("team_identity_candidate_ids") or [] if str(v)]
@@ -4626,7 +4708,12 @@ def build_hp_football_report_tr(output_root: str | Path, full_spine: dict[str, A
     return "\n".join(lines)
 
 
-def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str, Any]) -> str:
+def build_human_analyst_report_tr(
+    output_root: str | Path,
+    full_spine: dict[str, Any],
+    *,
+    analyst_question_payload: dict[str, Any] | None = None,
+) -> str:
     root = Path(output_root)
     rich_current = _rich_surface_current(full_spine)
     rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
@@ -4654,8 +4741,18 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     opponent_interaction_cards = _human_opponent_interaction_cards(rich, identity, "tr") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "tr") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "tr") if rich_current else []
-    mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "tr")
-    mechanism_graph = build_graph_ready_mechanism_cards_payload(root, full_spine)
+    mechanism_cards = _human_mechanism_cards(
+        root,
+        full_spine,
+        identity,
+        "tr",
+        analyst_question_payload=analyst_question_payload,
+    )
+    mechanism_graph = build_graph_ready_mechanism_cards_payload(
+        root,
+        full_spine,
+        analyst_question_payload=analyst_question_payload,
+    )
     player_mechanism_link_cards = _human_player_mechanism_link_cards(
         mechanism_graph, rich, identity, "tr"
     )
@@ -4760,7 +4857,12 @@ def build_human_analyst_report_tr(output_root: str | Path, full_spine: dict[str,
     return "\n".join(lines)
 
 
-def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str, Any]) -> str:
+def build_human_analyst_report_en(
+    output_root: str | Path,
+    full_spine: dict[str, Any],
+    *,
+    analyst_question_payload: dict[str, Any] | None = None,
+) -> str:
     root = Path(output_root)
     rich_current = _rich_surface_current(full_spine)
     rich = full_spine.get("rich_multiformat_analysis_lattice") if rich_current else {}
@@ -4788,8 +4890,18 @@ def build_human_analyst_report_en(output_root: str | Path, full_spine: dict[str,
     opponent_interaction_cards = _human_opponent_interaction_cards(rich, identity, "en") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "en") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "en") if rich_current else []
-    mechanism_cards = _human_mechanism_cards(root, full_spine, identity, "en")
-    mechanism_graph = build_graph_ready_mechanism_cards_payload(root, full_spine)
+    mechanism_cards = _human_mechanism_cards(
+        root,
+        full_spine,
+        identity,
+        "en",
+        analyst_question_payload=analyst_question_payload,
+    )
+    mechanism_graph = build_graph_ready_mechanism_cards_payload(
+        root,
+        full_spine,
+        analyst_question_payload=analyst_question_payload,
+    )
     player_mechanism_link_cards = _human_player_mechanism_link_cards(
         mechanism_graph, rich, identity, "en"
     )
@@ -5310,6 +5422,7 @@ def write_standard_user_outputs(
     full_spine: dict[str, Any],
     *,
     before_state: dict[str, dict[str, Any]] | None = None,
+    analyst_question_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     root = Path(output_root).expanduser().resolve(strict=False)
     root.mkdir(parents=True, exist_ok=True)
@@ -5327,8 +5440,16 @@ def write_standard_user_outputs(
         temp_zip_path.unlink()
 
     report_text = build_analyst_report(root, full_spine)
-    report_tr_text = build_hp_football_report_tr(root, full_spine)
-    report_en_text = build_human_analyst_report_en(root, full_spine)
+    report_tr_text = build_hp_football_report_tr(
+        root,
+        full_spine,
+        analyst_question_payload=analyst_question_payload,
+    )
+    report_en_text = build_human_analyst_report_en(
+        root,
+        full_spine,
+        analyst_question_payload=analyst_question_payload,
+    )
     report_path.write_text(report_text, encoding="utf-8")
     report_tr_path.write_text(report_tr_text, encoding="utf-8")
     report_en_path.write_text(report_en_text, encoding="utf-8")
@@ -5341,7 +5462,11 @@ def write_standard_user_outputs(
     ) as archive:
         archive.write(report_tr_path, arcname=ANALYST_REPORT_TR)
 
-    mechanism_graph_payload = build_graph_ready_mechanism_cards_payload(root, full_spine)
+    mechanism_graph_payload = build_graph_ready_mechanism_cards_payload(
+        root,
+        full_spine,
+        analyst_question_payload=analyst_question_payload,
+    )
     mechanism_graph_path.write_text(
         json.dumps(mechanism_graph_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -5390,6 +5515,24 @@ def write_standard_user_outputs(
         "c4_surface_current_invocation": _c4_surface_current(full_spine),
         "post_sequence_current_invocation_artifact_count": len(_post_sequence_current_artifacts(full_spine)),
         "current_run_provenance_envelope": provenance,
+        "analyst_question_binding": {
+            "analyst_question_id": (
+                str((analyst_question_payload or {}).get("analyst_question_id") or "").strip() or None
+            ),
+            "question_source": (
+                str((analyst_question_payload or {}).get("question_source") or "").strip() or None
+            ),
+            "question_focus_dimensions": sorted({
+                str(value or "").strip().upper()
+                for value in ((analyst_question_payload or {}).get("question_focus_dimensions") or [])
+                if str(value or "").strip()
+            }),
+            "binding_state": mechanism_graph_payload.get("analyst_question_binding_state"),
+            "question_binding_changes_evidence": False,
+            "question_binding_changes_support": False,
+            "question_binding_changes_claim_ceiling": False,
+            "question_binding_can_authorize_emit": False,
+        },
         "file_count_before_manifest": len(entries),
         "files": entries,
         "canonical_event_count": "UNKNOWN",

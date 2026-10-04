@@ -4,6 +4,76 @@ from typing import Any
 
 
 NUMERIC_BOUND_STATES = {"POINT_IDENTIFIED_OBSERVED_RATE", "PARTIALLY_IDENTIFIED_VISIBLE_OUTCOME_RATE"}
+QUESTION_SOURCES = {"USER_EXPLICIT", "OPERATOR_EXPLICIT"}
+QUESTION_FOCUS_DIMENSIONS = {
+    "PROCESS_FAMILY",
+    "VARIANT_SUCCESS_FAILURE_DEVIATION",
+    "VISIBLE_CONSEQUENCE",
+    "COUNTEREVIDENCE",
+}
+
+
+def _question_binding(payload: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {
+            "binding_state": "UNBOUND_NO_EXPLICIT_ANALYST_QUESTION",
+            "question_ref": None,
+            "question_text": None,
+            "question_source": None,
+            "focus_dimensions": [],
+            "attention_binding_active": False,
+        }
+    question_ref = str(payload.get("analyst_question_id") or "").strip() or None
+    question_text = str(payload.get("analyst_question_text") or "").strip() or None
+    question_source = str(payload.get("question_source") or "").strip().upper() or None
+    raw_dimensions = [str(value or "").strip().upper() for value in (payload.get("question_focus_dimensions") or [])]
+    focus_dimensions = sorted({value for value in raw_dimensions if value in QUESTION_FOCUS_DIMENSIONS})
+    if not question_ref and not question_text:
+        return {
+            "binding_state": "UNBOUND_NO_EXPLICIT_ANALYST_QUESTION",
+            "question_ref": None,
+            "question_text": None,
+            "question_source": question_source,
+            "focus_dimensions": [],
+            "attention_binding_active": False,
+        }
+    if question_source not in QUESTION_SOURCES:
+        return {
+            "binding_state": "REVIEW_REQUIRED_INVALID_EXPLICIT_QUESTION_SOURCE",
+            "question_ref": question_ref,
+            "question_text": question_text,
+            "question_source": question_source,
+            "focus_dimensions": [],
+            "attention_binding_active": False,
+        }
+    return {
+        "binding_state": (
+            "BOUND_EXPLICIT_FOCUS_DIMENSIONS"
+            if focus_dimensions
+            else "BOUND_TEXT_ONLY_NO_FOCUS_INFERENCE"
+        ),
+        "question_ref": question_ref,
+        "question_text": question_text,
+        "question_source": question_source,
+        "focus_dimensions": focus_dimensions,
+        "attention_binding_active": bool(focus_dimensions),
+    }
+
+
+def _candidate_question_dimensions(
+    row: dict[str, Any],
+    challenge_summary: dict[str, Any] | None = None,
+) -> set[str]:
+    dimensions: set[str] = set()
+    if str(row.get("source_process_variant_family_ref") or "").strip():
+        dimensions.add("PROCESS_FAMILY")
+    if int(row.get("success_resolved_variant_count") or 0) > 0 and int(row.get("failure_resolved_variant_count") or 0) > 0:
+        dimensions.add("VARIANT_SUCCESS_FAILURE_DEVIATION")
+    if _has_consequence_difference(row):
+        dimensions.add("VISIBLE_CONSEQUENCE")
+    if challenge_summary:
+        dimensions.add("COUNTEREVIDENCE")
+    return dimensions
 
 
 def _has_visible_difference(record: dict[str, Any], field: str) -> bool:
@@ -486,6 +556,7 @@ def build_mechanism_story_review_shortlist(
     process_variant_payload: dict[str, Any] | None = None,
     process_participation_payload: dict[str, Any] | None = None,
     variant_feature_challenge_payload: dict[str, Any] | None = None,
+    analyst_question_payload: dict[str, Any] | None = None,
     limit: int = 5,
 ) -> dict[str, Any]:
     """Build an analyst-attention shortlist without promoting evidence or truth.
@@ -501,6 +572,7 @@ def build_mechanism_story_review_shortlist(
         for row in (feature_delta_payload.get("grammar_stable_variant_feature_delta_records") or [])
         if isinstance(row, dict)
     ]
+    question_binding = _question_binding(analyst_question_payload)
     if not records:
         return {
             "status": "REVIEW_REQUIRED",
@@ -509,7 +581,18 @@ def build_mechanism_story_review_shortlist(
             "shortlist_count": 0,
             "source_candidate_count": 0,
             "bounded_review_only_count": 0,
-            "analyst_relevance_state": "UNRESOLVED_NO_EXPLICIT_ANALYST_QUESTION",
+            "analyst_relevance_state": (
+                "QUESTION_BOUND_ATTENTION_ONLY"
+                if question_binding["binding_state"].startswith("BOUND_")
+                else "UNRESOLVED_NO_EXPLICIT_ANALYST_QUESTION"
+            ),
+            "analyst_question_binding_state": question_binding["binding_state"],
+            "analyst_question_ref": question_binding["question_ref"],
+            "question_focus_dimensions": list(question_binding["focus_dimensions"]),
+            "question_binding_changes_evidence": False,
+            "question_binding_changes_support": False,
+            "question_binding_changes_claim_ceiling": False,
+            "question_binding_can_authorize_emit": False,
             "selection_is_truth_ranking": False,
             "selection_can_authorize_emit": False,
             "production_release": False,
@@ -547,7 +630,9 @@ def build_mechanism_story_review_shortlist(
         "SF_R3_LOW_CONTEXT_OR_ABSTAIN": 3,
         "SF_UNBOUND": 4,
     }
-    decorated: list[tuple[int, int, int, str, dict[str, Any]]] = []
+    decorated: list[tuple[int, int, int, int, str, dict[str, Any]]] = []
+    question_focus = set(question_binding["focus_dimensions"])
+    question_active = bool(question_binding["attention_binding_active"])
     for row in records:
         band = _priority_band(row, bounds)
         support_state = _review_support_state(row)
@@ -555,18 +640,24 @@ def build_mechanism_story_review_shortlist(
         safe_summary = safe_finding_review_by_family.get(family_ref, {})
         safe_band = str(safe_summary.get("safe_finding_review_readiness_band") or "SF_UNBOUND")
         candidate_id = str(row.get("grammar_stable_variant_feature_delta_id") or "")
+        candidate_dimensions = _candidate_question_dimensions(
+            row,
+            challenge_by_feature_delta.get(candidate_id),
+        )
+        question_rank = 0 if (not question_active or question_focus & candidate_dimensions) else 1
         decorated.append((
+            question_rank,
             band_order[band],
             safe_review_order[safe_band],
             support_order[support_state],
             candidate_id,
             row,
         ))
-    decorated.sort(key=lambda item: (item[0], item[1], item[2], item[3]))
+    decorated.sort(key=lambda item: (item[0], item[1], item[2], item[3], item[4]))
 
     selected: list[dict[str, Any]] = []
     seen_diversity: set[tuple[str, ...]] = set()
-    for _, _, _, _, row in decorated:
+    for _, _, _, _, _, row in decorated:
         eligibility = _eligibility_state(row, bounds)
         band = _priority_band(row, bounds)
         if eligibility.startswith("BLOCKED_"):
@@ -582,9 +673,23 @@ def build_mechanism_story_review_shortlist(
         challenge_summary = challenge_by_feature_delta.get(
             str(row.get("grammar_stable_variant_feature_delta_id") or ""), {}
         )
+        candidate_dimensions = _candidate_question_dimensions(row, challenge_summary)
+        question_matches = sorted(question_focus & candidate_dimensions)
         selected.append({
             "source_mechanism_review_ref": row.get("grammar_stable_variant_feature_delta_id"),
             "source_process_variant_family_ref": row.get("source_process_variant_family_ref"),
+            "question_attention_dimensions_available": sorted(candidate_dimensions),
+            "question_attention_match_dimensions": question_matches,
+            "question_attention_match_count": len(question_matches),
+            "analyst_relevance_state": (
+                "EXPLICIT_QUESTION_ATTENTION_MATCH"
+                if question_matches
+                else (
+                    "EXPLICIT_QUESTION_NO_DIMENSION_MATCH"
+                    if question_binding["binding_state"].startswith("BOUND_")
+                    else "UNRESOLVED_NO_EXPLICIT_ANALYST_QUESTION"
+                )
+            ),
             "priority_band": band,
             "safe_finding_review_readiness_band": safe_finding_review_summary.get(
                 "safe_finding_review_readiness_band", "SF_UNBOUND"
@@ -753,7 +858,6 @@ def build_mechanism_story_review_shortlist(
             "review_support_state_is_truth_ranking": False,
             "dependency_independence_proven": row.get("dependency_independence_proven") is True,
             "statistical_independence_proven": row.get("statistical_independence_proven") is True,
-            "analyst_relevance_state": "UNRESOLVED_NO_EXPLICIT_ANALYST_QUESTION",
             "selection_role": "ANALYST_REVIEW_ATTENTION_ONLY",
             "selection_is_truth_ranking": False,
             "selection_is_causal_ranking": False,
@@ -770,7 +874,7 @@ def build_mechanism_story_review_shortlist(
         context_refs: list[str] = []
         context_summaries: list[dict[str, Any]] = []
         seen_contexts: set[tuple[tuple[str, ...], tuple[str, ...]]] = set()
-        for _, _, _, _, candidate in decorated:
+        for _, _, _, _, _, candidate in decorated:
             if _eligibility_state(candidate, bounds).startswith("BLOCKED_"):
                 continue
             grammar = tuple(str(v) for v in (candidate.get("grammar_signature_tokens") or []))
@@ -828,7 +932,23 @@ def build_mechanism_story_review_shortlist(
         "safe_finding_review_readiness_can_increase_support": False,
         "episode_spread_count_is_independent_support_count": False,
         "occurrence_disjoint_cluster_count_is_independent_support_count": False,
-        "analyst_relevance_state": "UNRESOLVED_NO_EXPLICIT_ANALYST_QUESTION",
+        "analyst_relevance_state": (
+            "QUESTION_BOUND_ATTENTION_ONLY"
+            if question_binding["binding_state"].startswith("BOUND_")
+            else "UNRESOLVED_NO_EXPLICIT_ANALYST_QUESTION"
+        ),
+        "analyst_question_binding_state": question_binding["binding_state"],
+        "analyst_question_ref": question_binding["question_ref"],
+        "analyst_question_text": question_binding["question_text"],
+        "analyst_question_source": question_binding["question_source"],
+        "question_focus_dimensions": list(question_binding["focus_dimensions"]),
+        "question_conditioned_attention_order": [
+            row.get("source_mechanism_review_ref") for row in selected
+        ],
+        "question_binding_changes_evidence": False,
+        "question_binding_changes_support": False,
+        "question_binding_changes_claim_ceiling": False,
+        "question_binding_can_authorize_emit": False,
         "selection_is_truth_ranking": False,
         "selection_is_confidence_score": False,
         "selection_can_authorize_emit": False,
